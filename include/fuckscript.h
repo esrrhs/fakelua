@@ -4,18 +4,19 @@
 #include <stdio.h>
 #include <stdlib.h>
 
+#include "types.h"
 #include "variant.h"
 
 namespace fscript
 {
 
 // ´íÎóºÅ
-enum fkerror
+enum efkerror
 {
-    fk_ok,
+    efk_ok,
 };
 
-fkerror fkerror();
+efkerror fkerror();
 
 // ½âÎöÎÄ¼ş
 bool fkparse(const char * filename);

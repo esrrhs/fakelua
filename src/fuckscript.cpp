@@ -3,9 +3,9 @@
 namespace fscript
 {
 
-fkerror g_fkerror;
+efkerror g_fkerror;
 
-fkerror fkerror()
+efkerror fkerror()
 {
     return g_fkerror;
 }

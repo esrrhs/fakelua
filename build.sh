@@ -1,1 +1,6 @@
-利用lex和yacc创建自己的脚本语言，使得轻量级，易绑定
+#! /bin/sh
+cmake .
+make clean
+make
+echo "build ok"
+

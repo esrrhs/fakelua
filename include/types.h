@@ -1,5 +1,11 @@
 #pragma once
 
+#include <string>
+#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+
 namespace fscript
 {
 
@@ -16,6 +22,12 @@ union MarshallFloat
 {
 	uint32_t i; ///< int
 	float f; ///< float
+};
+
+union MarshallPoiner
+{
+	uint32_t i; ///< int
+	void * p; ///< p
 };
 
 int32_t fkatoi(String * p);

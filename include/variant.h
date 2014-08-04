@@ -71,8 +71,6 @@ public:
 	Variant(bool p_bool);
 	Variant(signed int p_int); // real one
 	Variant(unsigned int p_int);
-	Variant(signed long p_long); // real one
-	Variant(unsigned long p_long);
 	Variant(signed short p_short); // real one
 	Variant(unsigned short p_short);
 	Variant(signed char p_char); // real one
@@ -83,6 +81,7 @@ public:
 	Variant(double p_double);
 	Variant(const String& p_string);
 	Variant(const char * const p_cstring);
+	Variant(void * p_ptr);
 	
 	bool operator==(const Variant& p_variant) const;	
 	void operator=(const Variant& p_variant); // only this is enough for all the other types
