@@ -1,5 +1,6 @@
 %{
 #include "semantic.h"
+#include "types.h"
 
 void yyerror(const char *str)
 {

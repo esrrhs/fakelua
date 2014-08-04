@@ -3,13 +3,15 @@
 #include <cstring>
 #include <string>
 
+#include "semantic.h"
 #include "bison.h"  
-extern int yylval;  
+#include "types.h"
 
 #define FLEX_DEBUG(x, ...) printf("FLEX DEBUG %d:", yylineno); printf(x, ##__VA_ARGS__);
 
 %}
 
+%option stack
 %x STR
 %x SINGLE_LINE_COMMENT
 
@@ -62,21 +64,21 @@ extern int yylval;
 }
 
 
-"\""	yy_push_state(STR); yylval.str = String();
-<STR>\\n	yylval.str += String("\n");
-<STR>\\t	yylval.str += String("\t");
-<STR>\\\"	yylval.str += String("\"");
-<STR>[^\"] 	yylval.str += String(yytext);
+"\""	yy_push_state(STR); yylval.str = fscript::String();
+<STR>\\n	yylval.str += fscript::String("\n");
+<STR>\\t	yylval.str += fscript::String("\t");
+<STR>\\\"	yylval.str += fscript::String("\"");
+<STR>[^\"] 	yylval.str += fscript::String(yytext);
 <STR>"\""	yy_pop_state(); return STRING_DEFINITION; 
 
 
 [a-zA-Z_][a-zA-Z0-9_]* {
-	yylval.str = String(yytext);
+	yylval.str = fscript::String(yytext);
 	return IDENTIFIER;
 }
 
 [0-9]+ {
-	yylval.str = String(yytext);
+	yylval.str = fscript::String(yytext);
 	return NUMBER;
 }
 
@@ -118,32 +120,32 @@ extern int yylval;
 }
 
 ">" {
-	yylval.str = String(yytext);
+	yylval.str = fscript::String(yytext);
 	return MORE;
 }
 
 "<" {
-	yylval.str = String(yytext);
+	yylval.str = fscript::String(yytext);
 	return LESS;
 }
 
 ">=" {
-	yylval.str = String(yytext);
+	yylval.str = fscript::String(yytext);
 	return MORE_OR_EQUAL;
 }
 
 "<=" {
-	yylval.str = String(yytext);
+	yylval.str = fscript::String(yytext);
 	return LESS_OR_EQUAL;
 }
 
 "==" {
-	yylval.str = String(yytext);
+	yylval.str = fscript::String(yytext);
 	return EQUAL;
 }
 
 "!=" {
-	yylval.str = String(yytext);
+	yylval.str = fscript::String(yytext);
 	return NOT_EQUAL;
 }
 
@@ -156,11 +158,14 @@ extern int yylval;
 }
 
 "." {
-	yylval.str = String(yytext);
+	yylval.str = fscript::String(yytext);
 	return STRING_CONCETATE;
 }
 
 %%
-
-
+void cheat_complier()
+{
+	yyunput(0, 0);
+	yy_top_state();
+}
 
