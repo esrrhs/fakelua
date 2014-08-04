@@ -5,6 +5,12 @@
 #include <string.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <iostream>
+#include <string>
+#include <cstdlib>
+#include <cstring>
+#include <typeinfo>
+#include <stdio.h>
 
 namespace fscript
 {
