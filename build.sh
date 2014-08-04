@@ -3,7 +3,7 @@ cd flexbison
 flex -o ../src/flex.cpp flex.l
 bison -v -t -d bison.y
 mv bison.tab.c ../src/bison.cpp
-mv bison.tab.h	../src/bison.h
+mv bison.tab.h	../include/bison.h
 cd ..
 
 rm CMakeCache.txt -rf

@@ -3,7 +3,7 @@
 #include <cstring>
 #include <string>
 
-#include "y.tab.h"  
+#include "bison.h"  
 extern int yylval;  
 
 #define FLEX_DEBUG(x, ...) printf("FLEX DEBUG %d:", yylineno); printf(x, ##__VA_ARGS__);
@@ -16,7 +16,7 @@ extern int yylval;
 %%
 
 "var"	{
-	return VAR_BEGIN
+	return VAR_BEGIN;
 }
 
 "return"  {

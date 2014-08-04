@@ -1,6 +1,7 @@
 #pragma once
 
 #include "instructions.h"
+#include "runtime.h"
 
 extern int yyparse(void);
 extern int yylex (void);

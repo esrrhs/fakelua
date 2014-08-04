@@ -20,9 +20,7 @@ typedef std::string String;
 
 template<class T>
 struct GetSimpleType {
-	
 	T type;
-	
 };
 
 union MarshallFloat 
