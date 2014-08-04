@@ -1,6 +1,7 @@
 #pragma once
 
 #include <string>
+#include <list>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>

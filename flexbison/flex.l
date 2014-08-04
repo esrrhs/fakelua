@@ -15,6 +15,10 @@ extern int yylval;
 
 %%
 
+"var"	{
+	return VAR_BEGIN
+}
+
 "return"  {
 	return RETURN;
 }
@@ -45,8 +49,16 @@ extern int yylval;
 	return IF;
 }
 
+"then" {
+	return THEN;
+}
+
 "else" {
 	return ELSE;
+}
+
+"end" {
+	return END;
 }
 
 
@@ -86,7 +98,7 @@ extern int yylval;
 }
 
 "+" {
-	return  PLUS;
+	return PLUS;
 }
 
 "-" {
