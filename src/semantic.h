@@ -17,12 +17,8 @@ extern int yylex_destroy();
 
 #define YYSTYPE _YYSTYPE
 
-extern char *yytext;
-//extern YYSTYPE yylval;
-
 extern int yy_flex_debug;
 extern FILE *yyin, *yyout;
 
-extern int yylineno;
 extern int yydebug;
 

@@ -15,6 +15,9 @@ int myflexer::LexerInput(char* buf, int max_size)
 
     int len = strlen(buf);
     m_pos += len;
+
+    FKLOG("LexerInput: %s\n", buf);
+    
     return len; 
 }
 
@@ -22,6 +25,7 @@ int myflexer::LexerInput(char* buf, int max_size)
 void myflexer::LexerError(const char* msg)
 {
     printf("error:%s at line:%d\n", msg, lineno());
+    FKLOG("error:%s at line:%d\n", msg, lineno());
 }
 
 // ÊäÈëÎÄ¼þ

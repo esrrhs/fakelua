@@ -10,6 +10,7 @@ enum einstruction_type
     eit_block,
     eit_value,
     eit_var,
+    eit_arg,
     eit_binary,
     eit_function_call,
     eit_expression_op,
@@ -28,6 +29,8 @@ static inline void printtab(int indent)
         printf("\t");
     }
 }
+
+typedef std::list<String> StringsList;
 
 class instruction  
 {
@@ -210,6 +213,31 @@ public:
     {
         printtab(indent);
         printf("var %s\n", m_name.c_str());
+    }
+private:
+    String m_name;
+};
+
+class arg : public expression 
+{
+public:
+    arg(const String& _name) : m_name(_name) 
+    {
+    }
+    virtual einstruction_type gettype()
+    {
+        return eit_arg;
+    }
+    virtual ~arg() {}
+    
+    virtual String getname()
+    {
+        return "arg";
+    }
+    virtual void print(int indent)
+    {
+        printtab(indent);
+        printf("arg %s\n", m_name.c_str());
     }
 private:
     String m_name;

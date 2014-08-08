@@ -3,6 +3,7 @@
 /* Main hierarchy block */
 void fuck::set_main_block(block* block)
 {
+    FKLOG("set_main_block");
 }
 
 block* fuck::get_main_block()
@@ -31,6 +32,7 @@ function_declaration * fuck::get_function_declaration(String name)
 
 void fuck::add_function_declaration(function_declaration* fd)
 {    
+    FKLOG("add_function_declaration");
 }
 
 efkerror fuck::error()

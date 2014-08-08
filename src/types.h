@@ -12,6 +12,11 @@
 #include <cstring>
 #include <typeinfo>
 #include <stdio.h>
+#include <time.h>
+#include <stdarg.h>
+
+#define FKLOG(...) fklog(__FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
+void fklog(const char * file, const char * func, int pos, const char *fmt, ...);
 
 typedef std::string String;
 
@@ -40,3 +45,6 @@ String fkitoa(int64_t d);
 String fkdtoa(double d);
 
 uint32_t fkstrhash(String * p);
+
+String fkget_token_name(int token);
+

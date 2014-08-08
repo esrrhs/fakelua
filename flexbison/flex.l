@@ -16,6 +16,7 @@
 
 %option c++
 %option stack
+%option yylineno
 %x STR
 %x SINGLE_LINE_COMMENT
 
@@ -161,10 +162,6 @@
 	return CLOSE_BRACKET;
 }
 
-"." {
-	lvalp->str = String(yytext);
-	return STRING_CONCETATE;
-}
 
 %%
 int yyFlexLexer::yywrap()
