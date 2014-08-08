@@ -63,7 +63,7 @@ int my_yyerror(const char *s, void * parm)
 %right DIVIDE
 %right MULTIPLY
 
-%expect 10
+%expect 11
 
 %type<str> IDENTIFIER  
 %type<str> NUMBER
@@ -283,15 +283,48 @@ expr:
 	;
 
 math_expr:
-	expr PLUS expr
+	OPEN_BRACKET math_expr CLOSE_BRACKET
+	{
+		// todo
+	}
 	|
-	expr MINUS expr
+	expr_value PLUS expr_value
+	{
+		// todo
+	}
 	|
-	expr MULTIPLY expr
+	expr_value MINUS expr_value
+	{
+		// todo
+	}
 	|
-	expr DIVIDE expr
+	expr_value MULTIPLY expr_value
+	{
+		// todo
+	}
 	|
-	expr DIVIDE_MOD expr
+	expr_value DIVIDE expr_value
+	{
+		// todo
+	}
+	|
+	expr_value DIVIDE_MOD expr_value
+	{
+		// todo
+	}
+	;	
+
+expr_value:
+	math_expr
+	{
+		// todo
+	}
+	|
+	explicit_value
+	|
+	function_call
+	|
+	variable
 	;
 	
 explicit_value:
