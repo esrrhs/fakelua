@@ -6,11 +6,15 @@
 #include "semantic.h"
 #include "bison.h"  
 #include "types.h"
+#include "myflexer.h"
 
 #define FLEX_DEBUG(x, ...) printf("FLEX DEBUG %d:", yylineno); printf(x, ##__VA_ARGS__);
 
+#define YY_DECL int myflexer::yylex(YYSTYPE * lvalp)
+
 %}
 
+%option c++
 %option stack
 %x STR
 %x SINGLE_LINE_COMMENT
@@ -38,12 +42,12 @@
 }
 
 "true" {
-  yylval.str = yytext;
+  lvalp->str = yytext;
   return TRUE;
 }
 
 "false" {
-  yylval.str = yytext;
+  lvalp->str = yytext;
   return FALSE;
 }
 
@@ -64,21 +68,21 @@
 }
 
 
-"\""	yy_push_state(STR); yylval.str = fscript::String();
-<STR>\\n	yylval.str += fscript::String("\n");
-<STR>\\t	yylval.str += fscript::String("\t");
-<STR>\\\"	yylval.str += fscript::String("\"");
-<STR>[^\"] 	yylval.str += fscript::String(yytext);
+"\""	yy_push_state(STR); lvalp->str = String();
+<STR>\\n	lvalp->str += String("\n");
+<STR>\\t	lvalp->str += String("\t");
+<STR>\\\"	lvalp->str += String("\"");
+<STR>[^\"] 	lvalp->str += String(yytext);
 <STR>"\""	yy_pop_state(); return STRING_DEFINITION; 
 
 
 [a-zA-Z_][a-zA-Z0-9_]* {
-	yylval.str = fscript::String(yytext);
+	lvalp->str = String(yytext);
 	return IDENTIFIER;
 }
 
 [0-9]+ {
-	yylval.str = fscript::String(yytext);
+	lvalp->str = String(yytext);
 	return NUMBER;
 }
 
@@ -120,32 +124,32 @@
 }
 
 ">" {
-	yylval.str = fscript::String(yytext);
+	lvalp->str = String(yytext);
 	return MORE;
 }
 
 "<" {
-	yylval.str = fscript::String(yytext);
+	lvalp->str = String(yytext);
 	return LESS;
 }
 
 ">=" {
-	yylval.str = fscript::String(yytext);
+	lvalp->str = String(yytext);
 	return MORE_OR_EQUAL;
 }
 
 "<=" {
-	yylval.str = fscript::String(yytext);
+	lvalp->str = String(yytext);
 	return LESS_OR_EQUAL;
 }
 
 "==" {
-	yylval.str = fscript::String(yytext);
+	lvalp->str = String(yytext);
 	return EQUAL;
 }
 
 "!=" {
-	yylval.str = fscript::String(yytext);
+	lvalp->str = String(yytext);
 	return NOT_EQUAL;
 }
 
@@ -158,14 +162,16 @@
 }
 
 "." {
-	yylval.str = fscript::String(yytext);
+	lvalp->str = String(yytext);
 	return STRING_CONCETATE;
 }
 
 %%
-void cheat_complier()
+int yyFlexLexer::yywrap()
 {
-	yyunput(0, 0);
-	yy_top_state();
+	return 1;
 }
-
+int yyFlexLexer::yylex()
+{
+	return 0;
+}

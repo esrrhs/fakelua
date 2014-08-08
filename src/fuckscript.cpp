@@ -1,26 +1,34 @@
 #include "fuckscript.h"
+#include "semantic.h"
+#include "fuck.h"
 
-namespace fscript
+fuck * newfuck()
 {
+    return new fuck;
+}
 
-efkerror g_fkerror;
-
-efkerror fkerror()
+void delfuck(fuck * fk)
 {
-    return g_fkerror;
+    delete fk;
+}
+
+efkerror fkerror(fuck * fk)
+{
+    return fk->error();
 }
 
 // 解析文件
-bool fkparse(const char * filename)
+bool fkparse(fuck * fk, const char * filename)
 {
+    bool b = fk->m_myflexer.inputfile(filename);
+    if (!b)
+    {
+        return false;
+    }
+
+    //进行语法解析
+    yyparse((void *)&fk->m_myflexer); 
+    
     return true;
-}
-
-// 解析文件
-Variant fkcall(const char * func, Variant * arg, int argnum)
-{
-    return Variant();
-}
-
 }
 

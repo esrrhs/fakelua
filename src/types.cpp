@@ -1,8 +1,5 @@
 #include "types.h"
 
-namespace fscript
-{
-
 int32_t fkatoi(String * p)
 {
     if (p)
@@ -66,6 +63,3 @@ uint32_t fkstrhash(String * p)
     }
     return hashv;
 }
-
-}
-

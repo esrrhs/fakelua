@@ -1,8 +1,5 @@
 #include "variant.h"
 
-namespace fscript
-{
-
 String Variant::get_type_name(Variant::Type p_type) 
 {
 	
@@ -758,6 +755,3 @@ bool Variant::booleanize() const
 
 	return false;
 }
-
-}
-

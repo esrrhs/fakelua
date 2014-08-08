@@ -3,26 +3,35 @@
 #include <stdint.h>
 #include <stdio.h>
 #include <stdlib.h>
-
-#include "types.h"
-#include "variant.h"
-
-namespace fscript
-{
+#include <string>
+#include <list>
+#include <stdint.h>
+#include <string.h>
+#include <stdlib.h>
+#include <stdio.h>
+#include <iostream>
+#include <string>
+#include <cstdlib>
+#include <cstring>
+#include <typeinfo>
 
 // 错误号
 enum efkerror
 {
     efk_ok,
+    efk_openfilefail,
+    efk_openfileempty,
 };
 
-efkerror fkerror();
+struct fuck;
+
+// 申请回收
+fuck * newfuck();
+void delfuck(fuck * fk);
+
+// 错误
+efkerror fkerror(fuck * fk);
 
 // 解析文件
-bool fkparse(const char * filename);
-
-// 解析文件
-Variant fkcall(const char * func, Variant * arg, int argnum);
-
-}
+bool fkparse(fuck * fk, const char * filename);
 

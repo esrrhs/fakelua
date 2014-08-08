@@ -1,13 +1,29 @@
 %{
 #include "semantic.h"
 #include "types.h"
+#include "fuck.h"
 
-void yyerror(const char *str)
+#define YYPARSE_PARAM   parm
+#define YYLEX_PARAM     parm
+
+#define yyerror(msg) my_yyerror(msg, YYPARSE_PARAM)
+
+int yylex(YYSTYPE *lvalp, void * parm)
 {
-	fprintf(stderr, "Parse error\tline: %d, %s in %s\n", yylineno, str, yytext);
+	myflexer *l = (myflexer *)parm;
+	return l->yylex(lvalp);
+}
+
+int my_yyerror(const char *s, void * parm)
+{
+    myflexer *l = (myflexer *)parm;
+    l->LexerError(s);
+    return 1;
 }
 
 %}
+
+%pure_parser
 
 %token VAR_BEGIN
 %token RETURN
@@ -93,9 +109,10 @@ void yyerror(const char *str)
 /* Top level rules */
 program: body
 	{
-		fscript::runtime::get_instance()->set_main_block((fscript::block*) $1);
-		fscript::runtime::get_instance()->semantic_analys();
-		fscript::runtime::get_instance()->interpretate();
+		fuck * pfuck = (fuck *)(YYPARSE_PARAM);
+		pfuck->set_main_block((block*) $1);
+		pfuck->semantic_analys();
+		pfuck->interpretate();
 	}
 	;
 
@@ -104,7 +121,7 @@ body:
 	|
 	body top_level_cmd 
 	{    
-		$$ = new fscript::block($1, $2);
+		$$ = new block($1, $2);
 	}
 	;
 
@@ -116,7 +133,7 @@ top_level_cmd:
 instructions:
 	instructions instruction 
 	{ 
-		$$ = new fscript::block($1, $2);
+		$$ = new block($1, $2);
 	}
 	|
 	instruction { }
@@ -132,7 +149,7 @@ command:
 	function_call 
 	{
 		/* Function call is expr_t and operat child */
-		$$ = (fscript::operat*)($1); 
+		$$ = (operat*)($1); 
 	}
 	| 
 	assign_value
@@ -153,15 +170,16 @@ condition_statement:
 block: 
 	instructions 
 	{ 
-		$$ = new fscript::block($1); 
+		$$ = new block($1); 
 	};
 
 function_declaration:
 	FUNC IDENTIFIER OPEN_BRACKET function_declaration_arguments CLOSE_BRACKET block END
 	{
-		fscript::function_declaration* fd = new fscript::function_declaration($2, $4, $6);
+		fuck * pfuck = (fuck *)(YYPARSE_PARAM);
+		function_declaration* fd = new function_declaration($2, $4, $6);
 		$$ = fd;
-		fscript::runtime::get_instance()->add_function_declaration(fd);
+		pfuck->add_function_declaration(fd);
 	}
 	|
 	error block
@@ -175,12 +193,12 @@ function_declaration_arguments: /* empty */
 	| 
 	var ARG_SPLITTER function_declaration_arguments 
 	{
-		$$ = fscript::ExpressionsList($3);
+		$$ = ExpressionsList($3);
 		$$.push_back($1);
 	}
 	| 
 	var {  
-		$$ = fscript::ExpressionsList();
+		$$ = ExpressionsList();
 		$$.push_back($1);
 	}
 	;
@@ -189,13 +207,13 @@ function_call_arguments: /* empty */
 	| 
 	value ARG_SPLITTER function_call_arguments 
 	{
-		$$ = fscript::ExpressionsList($3);
+		$$ = ExpressionsList($3);
 		$$.push_back($1);
 	}
 	| 
 	value
 	{  
-		$$ = fscript::ExpressionsList();
+		$$ = ExpressionsList();
 		$$.push_back($1);
 	}
 	;  
@@ -207,13 +225,13 @@ value:
 /* End of top level rules */
 
 explicit_value:
-  TRUE { $$ = new fscript::value($1); }
+  TRUE { $$ = new value($1); }
   |
-  FALSE { $$ = new fscript::value($1); }
+  FALSE { $$ = new value($1); }
   |
-  NUMBER { $$ = new fscript::value($1); }
+  NUMBER { $$ = new value($1); }
   |
-  STRING_DEFINITION { $$ = new fscript::value($1); }
+  STRING_DEFINITION { $$ = new value($1); }
   |
   var 
   |
@@ -221,54 +239,54 @@ explicit_value:
   ;
       
 break:
-	BREAK { $$ = new fscript::break_op(); }
+	BREAK { $$ = new break_op(); }
 	;
   
 var:
-  VAR_BEGIN IDENTIFIER { $$ = new fscript::var($2); }
+  VAR_BEGIN IDENTIFIER { $$ = new var($2); }
 
 function_call:
 	IDENTIFIER OPEN_BRACKET function_call_arguments CLOSE_BRACKET  
 	{
-		$$ = new fscript::function_call($1, $3);
+		$$ = new function_call($1, $3);
 	} 
 	;
 
 assign_value:
-	var ASSIGN value { $$ = new fscript::assign($1, $3); }
+	var ASSIGN value { $$ = new assign($1, $3); }
 	;
  
 return_value:
-	RETURN value { $$ = new fscript::return_op($2); };
+	RETURN value { $$ = new return_op($2); };
 
 loop_while:
 	WHILE value THEN block END {
-		$$ = new fscript::while_op($2, $4); 
+		$$ = new while_op($2, $4); 
 	};
 
 if_stmt:
-	IF value THEN block else_stmt { $$ = new fscript::if_op($2, $4, $5); };
+	IF value THEN block else_stmt { $$ = new if_op($2, $4, $5); };
 
 else_stmt:
 	/* empty */
 	{ $$ = 0x0; }
 	|
-	ELSE block { $$ = new fscript::block($2); };
+	ELSE block { $$ = new block($2); };
   
 expresion:
 	math_expr { $$ = $1; }
 	|
-	expresion LESS math_expr { $$ = new fscript::binary("<", $1, $3); }
+	expresion LESS math_expr { $$ = new binary("<", $1, $3); }
 	|
-	expresion MORE math_expr { $$ = new fscript::binary(">", $1, $3); }
+	expresion MORE math_expr { $$ = new binary(">", $1, $3); }
 	|
-	expresion EQUAL math_expr { $$ = new fscript::binary("==", $1, $3); }
+	expresion EQUAL math_expr { $$ = new binary("==", $1, $3); }
 	|
-	expresion MORE_OR_EQUAL math_expr { $$ = new fscript::binary(">=", $1, $3); }
+	expresion MORE_OR_EQUAL math_expr { $$ = new binary(">=", $1, $3); }
 	|
-	expresion LESS_OR_EQUAL math_expr { $$ = new fscript::binary("<=", $1, $3); }
+	expresion LESS_OR_EQUAL math_expr { $$ = new binary("<=", $1, $3); }
 	|
-	expresion NOT_EQUAL math_expr { $$ = new fscript::binary("!=", $1, $3); }
+	expresion NOT_EQUAL math_expr { $$ = new binary("!=", $1, $3); }
 	|
 	error  { std::cerr << "Expresion error\n"; }
 	;
@@ -277,24 +295,24 @@ expresion:
 math_expr: 
 	math_hight_expr 
 	|
-	math_expr PLUS math_hight_expr { $$ = new fscript::binary("+", $1, $3); }
+	math_expr PLUS math_hight_expr { $$ = new binary("+", $1, $3); }
 	|
-	math_expr MINUS math_hight_expr { $$ = new fscript::binary("-", $1, $3); }
+	math_expr MINUS math_hight_expr { $$ = new binary("-", $1, $3); }
 	;
   
 math_hight_expr:
 	string_expr
 	|
-	math_hight_expr MULTIPLY string_expr { $$ = new fscript::binary("*", $1, $3); }
+	math_hight_expr MULTIPLY string_expr { $$ = new binary("*", $1, $3); }
 	|
-	math_hight_expr DIVIDE string_expr { $$ = new fscript::binary("/", $1, $3); }
+	math_hight_expr DIVIDE string_expr { $$ = new binary("/", $1, $3); }
 	|
-	math_hight_expr DIVIDE_MOD string_expr { $$ = new fscript::binary("%", $1, $3); }
+	math_hight_expr DIVIDE_MOD string_expr { $$ = new binary("%", $1, $3); }
 	;
 
 string_expr:	
 	explicit_value
 	|
-	string_expr STRING_CONCETATE explicit_value { $$ = new fscript::binary(".", $1, $3); }
+	string_expr STRING_CONCETATE explicit_value { $$ = new binary(".", $1, $3); }
 	;
   
