@@ -111,6 +111,11 @@ function_declaration:
 	{
 		// todo
 	}
+	|
+	FUNC IDENTIFIER OPEN_BRACKET function_declaration_arguments CLOSE_BRACKET END
+	{
+		// todo
+	}
 	;
 
 function_declaration_arguments: 
@@ -144,21 +149,27 @@ function_call:
 function_call_arguments: 
 	/* empty */
 	| 
-	expr ARG_SPLITTER function_call_arguments 
+	arg_expr ARG_SPLITTER function_call_arguments 
 	{
 		// todo
 	}
 	| 
-	expr
+	arg_expr
 	{
 		// todo
 	}
 	;  
 
+arg_expr:
+	expr
+	|
+	variable
+	;
+
 /* function declaration end */
 
 block:
-	stmt block
+	block stmt 
 	|
 	stmt 
 	;
@@ -197,16 +208,23 @@ stmt:
 
 while_stmt:
 	WHILE cmp THEN block END 
+	|
+	
+	WHILE cmp THEN END 
 	;
 	
 if_stmt:
 	IF cmp THEN block else_stmt END
+	|
+	IF cmp THEN else_stmt END
 	;
 	
 else_stmt:
 	/*empty*/
 	|
 	ELSE block
+	|
+	ELSE
 	;
 
 cmp:

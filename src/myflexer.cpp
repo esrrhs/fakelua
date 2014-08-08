@@ -24,8 +24,8 @@ int myflexer::LexerInput(char* buf, int max_size)
 //错误函数
 void myflexer::LexerError(const char* msg)
 {
-    printf("error:%s at line:%d\n", msg, lineno());
-    FKLOG("error:%s at line:%d\n", msg, lineno());
+    printf("error:%s at line:%d near:%s\n", msg, lineno(), yy_c_buf_p);
+    FKLOG("error:%s at line:%d near:%s\n", msg, lineno(), yy_c_buf_p);
 }
 
 // 输入文件
