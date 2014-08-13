@@ -13,7 +13,6 @@
 #include <typeinfo>
 #include <stdio.h>
 #include "types.h"
-#include "instructions.h"
 #undef yyFlexLexer
 #include <FlexLexer.h> 
 #include "semantic.h"

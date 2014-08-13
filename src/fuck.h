@@ -13,7 +13,6 @@
 #include <typeinfo>
 #include <stdio.h>
 #include "types.h"
-#include "instructions.h"
 #include "myflexer.h"
 #include "fuckscript.h"
 
@@ -30,20 +29,6 @@ struct fuck
         m_efkerror = efk_ok;
     }
     
-    /* Main hierarchy block */
-    void set_main_block(block* block);
-    block* get_main_block();
-
-    /*Abstract semantic tree analys */
-    bool semantic_analys();
-    
-    /* Interpretate */
-    void interpretate();
-    
-    /*Function declaration operations*/
-    function_declaration * get_function_declaration(String name);
-    void add_function_declaration(function_declaration* fd);
-
     // error
     efkerror error();
 

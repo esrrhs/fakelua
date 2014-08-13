@@ -1,13 +1,12 @@
 #pragma once
 
-#include "instructions.h"
+#include "types.h"
+#include "syntree.h"
 
 typedef struct _YYSTYPE 
 {
     String str;
-    operat* oper;
-    expression* expr;
-    ExpressionsList args;
+    syntree_node * syntree;
 } YYSTYPE;
 
 extern int yyparse(void * param);

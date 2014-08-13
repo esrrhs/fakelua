@@ -26,8 +26,8 @@ func myfunc2(arg1, arg2)
 	
 	while arg1 > 10 then
 		
-		arg1--;
-		arg2++;
+		arg1 = arg1 + 1;
+		arg2 = arg2 - 1;
 		
 	end
 	
