@@ -26,6 +26,8 @@ enum esyntreetype
     est_cmp_stmt,
     est_if_stmt,
     est_else_stmt,
+    est_explicit_value,
+    est_return_stmt,
 };
 
 struct syntree_node
@@ -66,6 +68,32 @@ struct stmt_node : public syntree_node
         return est_stmt;
     }
 
+};
+
+struct explicit_value_node : public syntree_node
+{
+    explicit_value_node() {}
+    virtual ~explicit_value_node() {}
+    
+    virtual esyntreetype gettype()
+    {
+        return est_explicit_value;
+    }
+
+    String str;
+};
+
+struct return_stmt : public stmt_node
+{
+    return_stmt() {}
+    virtual ~return_stmt() {}
+
+    virtual esyntreetype gettype()
+    {
+        return est_return_stmt;
+    }
+
+    syntree_node * ret;
 };
 
 struct cmp_stmt : public stmt_node

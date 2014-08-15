@@ -109,13 +109,13 @@ body:
 function_declaration:
 	FUNC IDENTIFIER OPEN_BRACKET function_declaration_arguments CLOSE_BRACKET block END
 	{
-		FKLOG("function_declaration %s", $2.c_str());
+		FKLOG("function_declaration <- block %s", $2.c_str());
 		// todo
 	}
 	|
 	FUNC IDENTIFIER OPEN_BRACKET function_declaration_arguments CLOSE_BRACKET END
 	{
-		FKLOG("function_declaration %s", $2.c_str());
+		FKLOG("function_declaration <- empty %s", $2.c_str());
 		// todo
 	}
 	;
@@ -125,13 +125,13 @@ function_declaration_arguments:
 	| 
 	arg ARG_SPLITTER function_declaration_arguments 
 	{
-		FKLOG("function_declaration_arguments");
+		FKLOG("function_declaration_arguments <- arg function_declaration_arguments");
 		// todo
 	}
 	| 
 	arg
 	{
-		FKLOG("function_declaration_arguments arg");
+		FKLOG("function_declaration_arguments <- arg");
 		// todo
 	}
 	;
@@ -139,7 +139,7 @@ function_declaration_arguments:
 arg : 
 	IDENTIFIER
 	{
-		FKLOG("arg %s", $1.c_str());
+		FKLOG("arg <- IDENTIFIER %s", $1.c_str());
 		// todo
 	}
 	;
@@ -147,7 +147,7 @@ arg :
 function_call:
 	IDENTIFIER OPEN_BRACKET function_call_arguments CLOSE_BRACKET 
 	{
-		FKLOG("function_call %s", $1.c_str());
+		FKLOG("function_call <- function_call_arguments %s", $1.c_str());
 		// todo
 	} 
 	;
@@ -157,13 +157,13 @@ function_call_arguments:
 	| 
 	arg_expr ARG_SPLITTER function_call_arguments 
 	{
-		FKLOG("function_call_arguments");
+		FKLOG("function_call_arguments <- arg_expr function_call_arguments");
 		// todo
 	}
 	| 
 	arg_expr
 	{
-		FKLOG("function_call_arguments arg_expr");
+		FKLOG("function_call_arguments <- arg_expr");
 		// todo
 	}
 	;  
@@ -171,13 +171,13 @@ function_call_arguments:
 arg_expr:
 	expr
 	{
-		FKLOG("arg_expr expr");
+		FKLOG("arg_expr <- expr");
 		// todo
 	}
 	|
 	variable
 	{
-		FKLOG("arg_expr variable");
+		FKLOG("arg_expr <- variable");
 		// todo
 	}
 	;
@@ -187,13 +187,13 @@ arg_expr:
 block:
 	block stmt 
 	{
-		FKLOG("block");
+		FKLOG("block <- block stmt");
 		// todo
 	}
 	|
 	stmt 
 	{
-		FKLOG("block stmt");
+		FKLOG("block <- stmt");
 		// todo
 	}
 	;
@@ -201,37 +201,37 @@ block:
 stmt:
 	while_stmt
 	{
-		FKLOG("while_stmt");
+		FKLOG("stmt <- while_stmt");
 		// todo
 	}
 	|
 	if_stmt
 	{
-		FKLOG("if_stmt");
+		FKLOG("stmt <- if_stmt");
 		// todo
 	}
 	|
 	return_stmt
 	{
-		FKLOG("return_stmt");
+		FKLOG("stmt <- return_stmt");
 		// todo
 	}
 	|
 	assign_stmt
 	{
-		FKLOG("assign_stmt");
+		FKLOG("stmt <- assign_stmt");
 		// todo
 	}
 	|
 	break
 	{
-		FKLOG("break");
+		FKLOG("stmt <- break");
 		// todo
 	}
 	|
 	expr
 	{
-		FKLOG("expr");
+		FKLOG("stmt <- expr");
 		// todo
 	}
 	;
@@ -239,13 +239,13 @@ stmt:
 while_stmt:
 	WHILE cmp THEN block END 
 	{
-		FKLOG("while_stmt cmp block");
+		FKLOG("while_stmt <- cmp block");
 		// todo
 	}
 	|
 	WHILE cmp THEN END 
 	{
-		FKLOG("while_stmt cmp");
+		FKLOG("while_stmt <- cmp");
 		// todo
 	}
 	;
@@ -253,13 +253,13 @@ while_stmt:
 if_stmt:
 	IF cmp THEN block else_stmt END
 	{
-		FKLOG("if_stmt cmp block");
+		FKLOG("if_stmt <- cmp block");
 		// todo
 	}
 	|
 	IF cmp THEN else_stmt END
 	{
-		FKLOG("if_stmt cmp");
+		FKLOG("if_stmt <- cmp");
 		// todo
 	}
 	;
@@ -269,13 +269,13 @@ else_stmt:
 	|
 	ELSE block
 	{
-		FKLOG("else_stmt block");
+		FKLOG("else_stmt <- block");
 		// todo
 	}
 	|
 	ELSE
 	{
-		FKLOG("else_stmt");
+		FKLOG("else_stmt <- empty");
 		// todo
 	}
 	;
@@ -283,37 +283,37 @@ else_stmt:
 cmp:
 	cmp_value LESS cmp_value
 	{
-		FKLOG("cmp_value LESS cmp_value");
+		FKLOG("cmp <- cmp_value LESS cmp_value");
 		// todo
 	}
 	|
 	cmp_value MORE cmp_value
 	{
-		FKLOG("cmp_value MORE cmp_value");
+		FKLOG("cmp <- cmp_value MORE cmp_value");
 		// todo
 	}
 	|
 	cmp_value EQUAL cmp_value
 	{
-		FKLOG("cmp_value EQUAL cmp_value");
+		FKLOG("cmp <- cmp_value EQUAL cmp_value");
 		// todo
 	}
 	|
 	cmp_value MORE_OR_EQUAL cmp_value
 	{
-		FKLOG("cmp_value MORE_OR_EQUAL cmp_value");
+		FKLOG("cmp <- cmp_value MORE_OR_EQUAL cmp_value");
 		// todo
 	}
 	|
 	cmp_value LESS_OR_EQUAL cmp_value
 	{
-		FKLOG("cmp_value LESS_OR_EQUAL cmp_value");
+		FKLOG("cmp <- cmp_value LESS_OR_EQUAL cmp_value");
 		// todo
 	}
 	|
 	cmp_value NOT_EQUAL cmp_value
 	{
-		FKLOG("cmp_value NOT_EQUAL cmp_value");
+		FKLOG("cmp <- cmp_value NOT_EQUAL cmp_value");
 		// todo
 	}
 	;
@@ -321,19 +321,19 @@ cmp:
 cmp_value:
 	explicit_value
 	{
-		FKLOG("cmp_value explicit_value");
+		FKLOG("cmp_value <- explicit_value");
 		// todo
 	}
 	|
 	variable
 	{
-		FKLOG("cmp_value variable");
+		FKLOG("cmp_value <- variable");
 		// todo
 	}
 	|
 	expr
 	{
-		FKLOG("cmp_value expr");
+		FKLOG("cmp_value <- expr");
 		// todo
 	}
 	;
@@ -341,7 +341,7 @@ cmp_value:
 return_stmt:
 	RETURN return_value
 	{
-		FKLOG("return_stmt");
+		FKLOG("return_stmt <- RETURN return_value");
 		// todo
 	}
 	;
@@ -349,19 +349,19 @@ return_stmt:
 return_value:
 	explicit_value
 	{
-		FKLOG("return_value explicit_value");
+		FKLOG("return_value <- explicit_value");
 		// todo
 	}
 	|
 	variable
 	{
-		FKLOG("return_value variable");
+		FKLOG("return_value <- variable");
 		// todo
 	}
 	|
 	expr
 	{
-		FKLOG("return_value expr");
+		FKLOG("return_value <- expr");
 		// todo
 	}
 	;
@@ -369,7 +369,7 @@ return_value:
 assign_stmt:
 	var ASSIGN assign_value
 	{
-		FKLOG("assign_stmt");
+		FKLOG("assign_stmt <- var assign_value");
 		// todo
 	}
 	;
@@ -377,19 +377,19 @@ assign_stmt:
 assign_value:
 	explicit_value
 	{
-		FKLOG("assign_value explicit_value");
+		FKLOG("assign_value <- explicit_value");
 		// todo
 	}
 	|
 	variable
 	{
-		FKLOG("assign_value variable");
+		FKLOG("assign_value <- variable");
 		// todo
 	}
 	|
 	expr
 	{
-		FKLOG("assign_value expr");
+		FKLOG("assign_value <- expr");
 		// todo
 	}
 	;
@@ -397,13 +397,13 @@ assign_value:
 var:
 	VAR_BEGIN IDENTIFIER
 	{
-		FKLOG("var %s", $2.c_str());
+		FKLOG("var <- VAR_BEGIN IDENTIFIER %s", $2.c_str());
 		// todo
 	}
 	|
 	variable
 	{
-		FKLOG("var variable");
+		FKLOG("var <- variable");
 		// todo
 	}
 	;
@@ -411,7 +411,7 @@ var:
 variable:
 	IDENTIFIER
 	{
-		FKLOG("variable %s", $1.c_str());
+		FKLOG("variable <- IDENTIFIER %s", $1.c_str());
 		// todo
 	}
 	;
@@ -419,19 +419,19 @@ variable:
 expr:
 	OPEN_BRACKET expr CLOSE_BRACKET
 	{
-		FKLOG("expr expr");
+		FKLOG("expr <- (expr)");
 		// todo
 	}
 	|
 	function_call
 	{
-		FKLOG("expr function_call");
+		FKLOG("expr <- function_call");
 		// todo
 	}
 	|
 	math_expr
 	{
-		FKLOG("expr math_expr");
+		FKLOG("expr <- math_expr");
 		// todo
 	}
 	;
@@ -439,37 +439,37 @@ expr:
 math_expr:
 	OPEN_BRACKET math_expr CLOSE_BRACKET
 	{
-		FKLOG("math_expr math_expr");
+		FKLOG("math_expr <- (math_expr)");
 		// todo
 	}
 	|
 	expr_value PLUS expr_value
 	{
-		FKLOG("math_expr expr_value PLUS expr_value");
+		FKLOG("math_expr <- expr_value + expr_value");
 		// todo
 	}
 	|
 	expr_value MINUS expr_value
 	{
-		FKLOG("math_expr expr_value MINUS expr_value");
+		FKLOG("math_expr <- expr_value - expr_value");
 		// todo
 	}
 	|
 	expr_value MULTIPLY expr_value
 	{
-		FKLOG("math_expr expr_value MULTIPLY expr_value");
+		FKLOG("math_expr <- expr_value * expr_value");
 		// todo
 	}
 	|
 	expr_value DIVIDE expr_value
 	{
-		FKLOG("math_expr expr_value DIVIDE expr_value");
+		FKLOG("math_expr <- expr_value / expr_value");
 		// todo
 	}
 	|
 	expr_value DIVIDE_MOD expr_value
 	{
-		FKLOG("math_expr expr_value DIVIDE_MOD expr_value");
+		FKLOG("math_expr <- expr_value % expr_value");
 		// todo
 	}
 	;	
@@ -477,25 +477,25 @@ math_expr:
 expr_value:
 	math_expr
 	{
-		FKLOG("expr_value math_expr");
+		FKLOG("expr_value <- math_expr");
 		// todo
 	}
 	|
 	explicit_value
 	{
-		FKLOG("expr_value explicit_value");
+		FKLOG("expr_value <- explicit_value");
 		// todo
 	}
 	|
 	function_call
 	{
-		FKLOG("expr_value function_call");
+		FKLOG("expr_value <- function_call");
 		// todo
 	}
 	|
 	variable
 	{
-		FKLOG("expr_value variable");
+		FKLOG("expr_value <- variable");
 		// todo
 	}
 	;
@@ -503,25 +503,25 @@ expr_value:
 explicit_value:
 	TRUE 
 	{
-		FKLOG("explicit_value TRUE");
+		FKLOG("explicit_value <- TRUE");
 		// todo
 	}
 	|
 	FALSE 
 	{
-		FKLOG("explicit_value FALSE");
+		FKLOG("explicit_value <- FALSE");
 		// todo
 	}
 	|
 	NUMBER 
 	{
-		FKLOG("explicit_value NUMBER");
+		FKLOG("explicit_value <- NUMBER %s", $1.c_str());
 		// todo
 	}
 	|
 	STRING_DEFINITION 
 	{
-		FKLOG("explicit_value STRING_DEFINITION");
+		FKLOG("explicit_value <- STRING_DEFINITION %s", $1.c_str());
 		// todo
 	}
 	;
@@ -529,7 +529,7 @@ explicit_value:
 break:
 	BREAK 
 	{
-		FKLOG("break BREAK");
+		FKLOG("break <- BREAK");
 		// todo
 	}
 	;
