@@ -33,6 +33,8 @@ struct fuck
     efkerror error();
 
     // member
+    fkmalloc m_fkmalloc;
+    fkfree m_fkfree;
     myflexer m_myflexer;
     efkerror m_efkerror;
 };

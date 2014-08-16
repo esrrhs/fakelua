@@ -63,3 +63,18 @@ void myflexer::clear()
     m_pos = 0;
     m_content[0] = 0;
 }
+
+void * myflexer::malloc(size_t size)
+{
+    return m_fk->m_fkmalloc(size);
+}
+
+void myflexer::free(void * p)
+{
+    return m_fk->m_fkfree(p);
+}
+
+void myflexer::add_func_desc(func_desc_node * p)
+{
+    FKLOG("add_func_desc %s %p", p->funcname.c_str(), p);
+}

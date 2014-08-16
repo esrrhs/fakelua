@@ -23,6 +23,10 @@ int my_yyerror(const char *s, void * parm)
     return 1;
 }
 
+#define NEWTYPE(p, x) \
+	x* p = (x*)(((myflexer *)parm)->malloc(sizeof(x))); \
+	new (p) x();				  
+
 %}
 
 %pure_parser
@@ -110,7 +114,10 @@ function_declaration:
 	FUNC IDENTIFIER OPEN_BRACKET function_declaration_arguments CLOSE_BRACKET block END
 	{
 		FKLOG("function_declaration <- block %s", $2.c_str());
-		// todo
+		NEWTYPE(p, func_desc_node);
+		p->funcname = $2;
+		myflexer *l = (myflexer *)parm;
+		l->add_func_desc(p);
 	}
 	|
 	FUNC IDENTIFIER OPEN_BRACKET function_declaration_arguments CLOSE_BRACKET END

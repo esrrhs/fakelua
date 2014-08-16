@@ -43,6 +43,11 @@ public:
     bool inputfile(const char * filename);
 
     void clear();
+
+    void * malloc(size_t size);
+    void free(void * p);
+
+    void add_func_desc(func_desc_node * p);
 private:
     fuck * m_fk;
     char m_content[MAX_FLEX_BUFFER_SIZE];

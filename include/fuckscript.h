@@ -25,8 +25,11 @@ enum efkerror
 
 struct fuck;
 
+typedef void * (*fkmalloc)(size_t size);
+typedef void (*fkfree)(void *ptr);
+
 // …Í«Îªÿ ’
-fuck * newfuck();
+fuck * newfuck(fkmalloc fkm = 0, fkfree fkf = 0);
 void delfuck(fuck * fk);
 
 // ¥ÌŒÛ
