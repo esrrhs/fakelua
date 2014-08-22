@@ -34,6 +34,7 @@ enum esyntreetype
     est_call_arglist,
     est_math_expr,
     est_break,
+    est_identifier,
 };
 
 struct syntree_node
@@ -49,6 +50,19 @@ struct syntree_node
     int lineno;
 };
 
+struct identifier_node : public syntree_node
+{
+    identifier_node() {}
+    virtual ~identifier_node() {}
+    
+    virtual esyntreetype gettype()
+    {
+        return est_identifier;
+    }
+
+    String str;
+};
+
 typedef std::list<String> func_desc_arglist;
 
 struct func_desc_arglist_node : public syntree_node
@@ -59,6 +73,15 @@ struct func_desc_arglist_node : public syntree_node
     virtual esyntreetype gettype()
     {
         return est_arglist;
+    }
+
+    virtual void add_arg(syntree_node * p)
+    {
+        assert(p->gettype() == est_identifier);		
+        identifier_node * pi = dynamic_cast<identifier_node*>(p);
+        arglist.push_back(pi->str);
+
+        FKLOG("%p add arg %s", this, pi->str.c_str());
     }
 
     func_desc_arglist arglist;

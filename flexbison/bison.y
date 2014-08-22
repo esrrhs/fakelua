@@ -81,21 +81,21 @@ int my_yyerror(const char *s, void * parm)
 %type<str> TRUE FALSE
 %type<str> ASSIGN
 
-%type<oper> break
-%type<oper> function_declaration
-%type<oper> block
-%type<oper> stmt
-%type<oper> body
+%type<syntree> break
+%type<syntree> function_declaration
+%type<syntree> block
+%type<syntree> stmt
+%type<syntree> body
 
-%type<expr> expr
-%type<expr> math_expr
-%type<expr> function_call
-%type<expr> explicit_value
-%type<expr> var
-%type<expr> arg
+%type<syntree> expr
+%type<syntree> math_expr
+%type<syntree> function_call
+%type<syntree> explicit_value
+%type<syntree> var
+%type<syntree> arg
 
-%type<args> function_call_arguments
-%type<args> function_declaration_arguments
+%type<syntree> function_call_arguments
+%type<syntree> function_declaration_arguments
 %%
 
 /* Top level rules */
@@ -116,6 +116,7 @@ function_declaration:
 		FKLOG("function_declaration <- block %s", $2.c_str());
 		NEWTYPE(p, func_desc_node);
 		p->funcname = $2;
+		p->arglist = dynamic_cast<func_desc_arglist_node*>($4);
 		myflexer *l = (myflexer *)parm;
 		l->add_func_desc(p);
 	}
@@ -123,7 +124,10 @@ function_declaration:
 	FUNC IDENTIFIER OPEN_BRACKET function_declaration_arguments CLOSE_BRACKET END
 	{
 		FKLOG("function_declaration <- empty %s", $2.c_str());
-		// todo
+		NEWTYPE(p, func_desc_node);
+		p->funcname = $2;
+		myflexer *l = (myflexer *)parm;
+		l->add_func_desc(p);
 	}
 	;
 
@@ -133,13 +137,18 @@ function_declaration_arguments:
 	arg ARG_SPLITTER function_declaration_arguments 
 	{
 		FKLOG("function_declaration_arguments <- arg function_declaration_arguments");
-		// todo
+		assert($3->gettype() == est_arglist);
+		func_desc_arglist_node * p = dynamic_cast<func_desc_arglist_node*>($3);
+		p->add_arg($1);
+		$$ = p;
 	}
 	| 
 	arg
 	{
 		FKLOG("function_declaration_arguments <- arg");
-		// todo
+		NEWTYPE(p, func_desc_arglist_node);
+		p->add_arg($1);
+		$$ = p;
 	}
 	;
 
@@ -147,7 +156,9 @@ arg :
 	IDENTIFIER
 	{
 		FKLOG("arg <- IDENTIFIER %s", $1.c_str());
-		// todo
+		NEWTYPE(p, identifier_node);
+		p->str = $1;
+		$$ = p;
 	}
 	;
 	
