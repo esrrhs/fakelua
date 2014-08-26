@@ -1,0 +1,6 @@
+-- func1 comment
+func myfunc1(arg1, arg2, arg3, arg4)
+	
+	return 1 - arg1 * arg2
+	
+end
