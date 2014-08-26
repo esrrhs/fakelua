@@ -37,6 +37,8 @@ enum esyntreetype
     est_identifier,
 };
 
+const char * get_syntree_node_name(esyntreetype type);
+
 struct syntree_node
 {
     syntree_node() : lineno(0) {}
@@ -45,6 +47,10 @@ struct syntree_node
     virtual esyntreetype gettype()
     {
         return est_func_nil;
+    }
+    virtual const char * gettypename()
+    {
+        return get_syntree_node_name(gettype());
     }
 
     int lineno;
@@ -183,6 +189,12 @@ struct block_node : public syntree_node
         return est_block;
     }
 
+    void add_stmt(syntree_node * stmt)
+    {
+        FKLOG("block add stmt %s", stmt->gettypename());
+        stmtlist.push_back(stmt);
+    }
+
     stmt_node_list stmtlist;
 };
 
@@ -241,19 +253,6 @@ struct var_node : public syntree_node
     String str;
 };
 
-struct function_call_node : public syntree_node
-{
-    function_call_node() {}
-    virtual ~function_call_node() {}
-
-    virtual esyntreetype gettype()
-    {
-        return est_function_call;
-    }
-
-    String fuc;
-};
-
 typedef std::list<syntree_node*> func_call_arglist;
 
 struct function_call_arglist_node : public syntree_node
@@ -266,7 +265,28 @@ struct function_call_arglist_node : public syntree_node
         return est_call_arglist;
     }
 
+    virtual void add_arg(syntree_node * p)
+    {	
+        arglist.push_back(p);
+
+        FKLOG("%p add call arg %s", this, p->gettypename());
+    }
+    
     func_call_arglist arglist;
+};
+
+struct function_call_node : public syntree_node
+{
+    function_call_node() {}
+    virtual ~function_call_node() {}
+
+    virtual esyntreetype gettype()
+    {
+        return est_function_call;
+    }
+
+    String fuc;
+    function_call_arglist_node * arglist;
 };
 
 struct math_expr_node : public syntree_node

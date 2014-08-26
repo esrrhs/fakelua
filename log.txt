@@ -8,3 +8,4 @@
 2014.8.15:加解析log，加新stmt
 2014.8.16:加内存管理
 2014.8.22:加func desc node
+2014.8.26:加syntree node

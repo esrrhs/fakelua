@@ -12,7 +12,7 @@ int yylex(YYSTYPE *lvalp, void * parm)
 {
 	myflexer *l = (myflexer *)parm;
 	int ret = l->yylex(lvalp);
-	FKLOG("bison get token[%s] str[%s]", fkget_token_name(ret).c_str(), lvalp->str.c_str());
+	FKLOG("[bison]: bison get token[%s] str[%s]", fkget_token_name(ret).c_str(), lvalp->str.c_str());
 	return ret;
 }
 
@@ -85,12 +85,19 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> function_declaration
 %type<syntree> block
 %type<syntree> stmt
+%type<syntree> while_stmt
+%type<syntree> else_stmt
+%type<syntree> if_stmt
+%type<syntree> cmp
 %type<syntree> body
-
+%type<syntree> return_stmt
+%type<syntree> return_value
+%type<syntree> explicit_value
+%type<syntree> variable
+%type<syntree> arg_expr
 %type<syntree> expr
 %type<syntree> math_expr
 %type<syntree> function_call
-%type<syntree> explicit_value
 %type<syntree> var
 %type<syntree> arg
 
@@ -113,17 +120,18 @@ body:
 function_declaration:
 	FUNC IDENTIFIER OPEN_BRACKET function_declaration_arguments CLOSE_BRACKET block END
 	{
-		FKLOG("function_declaration <- block %s", $2.c_str());
+		FKLOG("[bison]: function_declaration <- block %s", $2.c_str());
 		NEWTYPE(p, func_desc_node);
 		p->funcname = $2;
 		p->arglist = dynamic_cast<func_desc_arglist_node*>($4);
+		p->block = dynamic_cast<block_node*>($6);
 		myflexer *l = (myflexer *)parm;
 		l->add_func_desc(p);
 	}
 	|
 	FUNC IDENTIFIER OPEN_BRACKET function_declaration_arguments CLOSE_BRACKET END
 	{
-		FKLOG("function_declaration <- empty %s", $2.c_str());
+		FKLOG("[bison]: function_declaration <- empty %s", $2.c_str());
 		NEWTYPE(p, func_desc_node);
 		p->funcname = $2;
 		myflexer *l = (myflexer *)parm;
@@ -136,7 +144,7 @@ function_declaration_arguments:
 	| 
 	arg ARG_SPLITTER function_declaration_arguments 
 	{
-		FKLOG("function_declaration_arguments <- arg function_declaration_arguments");
+		FKLOG("[bison]: function_declaration_arguments <- arg function_declaration_arguments");
 		assert($3->gettype() == est_arglist);
 		func_desc_arglist_node * p = dynamic_cast<func_desc_arglist_node*>($3);
 		p->add_arg($1);
@@ -145,7 +153,7 @@ function_declaration_arguments:
 	| 
 	arg
 	{
-		FKLOG("function_declaration_arguments <- arg");
+		FKLOG("[bison]: function_declaration_arguments <- arg");
 		NEWTYPE(p, func_desc_arglist_node);
 		p->add_arg($1);
 		$$ = p;
@@ -155,7 +163,7 @@ function_declaration_arguments:
 arg : 
 	IDENTIFIER
 	{
-		FKLOG("arg <- IDENTIFIER %s", $1.c_str());
+		FKLOG("[bison]: arg <- IDENTIFIER %s", $1.c_str());
 		NEWTYPE(p, identifier_node);
 		p->str = $1;
 		$$ = p;
@@ -165,8 +173,11 @@ arg :
 function_call:
 	IDENTIFIER OPEN_BRACKET function_call_arguments CLOSE_BRACKET 
 	{
-		FKLOG("function_call <- function_call_arguments %s", $1.c_str());
-		// todo
+		FKLOG("[bison]: function_call <- function_call_arguments %s", $1.c_str());
+		NEWTYPE(p, function_call_node);
+		p->fuc = $1;
+		p->arglist = dynamic_cast<function_call_arglist_node*>($3);
+		$$ = p;
 	} 
 	;
 	
@@ -175,28 +186,33 @@ function_call_arguments:
 	| 
 	arg_expr ARG_SPLITTER function_call_arguments 
 	{
-		FKLOG("function_call_arguments <- arg_expr function_call_arguments");
-		// todo
+		FKLOG("[bison]: function_call_arguments <- arg_expr function_call_arguments");
+		assert($3->gettype() == est_call_arglist);
+		function_call_arglist_node * p = dynamic_cast<function_call_arglist_node*>($3);
+		p->add_arg($1);
+		$$ = p;
 	}
 	| 
 	arg_expr
 	{
-		FKLOG("function_call_arguments <- arg_expr");
-		// todo
+		FKLOG("[bison]: function_call_arguments <- arg_expr");
+		NEWTYPE(p, function_call_arglist_node);
+		p->add_arg($1);
+		$$ = p;
 	}
 	;  
 
 arg_expr:
 	expr
 	{
-		FKLOG("arg_expr <- expr");
-		// todo
+		FKLOG("[bison]: arg_expr <- expr");
+		$$ = $1;
 	}
 	|
 	variable
 	{
-		FKLOG("arg_expr <- variable");
-		// todo
+		FKLOG("[bison]: arg_expr <- variable");
+		$$ = $1;
 	}
 	;
 
@@ -205,80 +221,99 @@ arg_expr:
 block:
 	block stmt 
 	{
-		FKLOG("block <- block stmt");
-		// todo
+		FKLOG("[bison]: block <- block stmt");
+		assert($1->gettype() == est_block);
+		block_node * p = dynamic_cast<block_node*>($1);
+		p->add_stmt($2);
+		$$ = p;
 	}
 	|
 	stmt 
 	{
-		FKLOG("block <- stmt");
-		// todo
+		FKLOG("[bison]: block <- stmt");
+		NEWTYPE(p, block_node);
+		p->add_stmt($1);
+		$$ = p;
 	}
 	;
   
 stmt:
 	while_stmt
 	{
-		FKLOG("stmt <- while_stmt");
-		// todo
+		FKLOG("[bison]: stmt <- while_stmt");
+		$$ = $1;
 	}
 	|
 	if_stmt
 	{
-		FKLOG("stmt <- if_stmt");
-		// todo
+		FKLOG("[bison]: stmt <- if_stmt");
+		$$ = $1;
 	}
 	|
 	return_stmt
 	{
-		FKLOG("stmt <- return_stmt");
-		// todo
+		FKLOG("[bison]: stmt <- return_stmt");
+		$$ = $1;
 	}
 	|
 	assign_stmt
 	{
-		FKLOG("stmt <- assign_stmt");
-		// todo
+		FKLOG("[bison]: stmt <- assign_stmt");
+		//$$ = $1;
 	}
 	|
 	break
 	{
-		FKLOG("stmt <- break");
-		// todo
+		FKLOG("[bison]: stmt <- break");
+		//$$ = $1;
 	}
 	|
 	expr
 	{
-		FKLOG("stmt <- expr");
-		// todo
+		FKLOG("[bison]: stmt <- expr");
+		//$$ = $1;
 	}
 	;
 
 while_stmt:
 	WHILE cmp THEN block END 
 	{
-		FKLOG("while_stmt <- cmp block");
-		// todo
+		FKLOG("[bison]: while_stmt <- cmp block");
+		NEWTYPE(p, while_stmt);
+		p->cmp = dynamic_cast<cmp_stmt*>($2);
+		p->block = dynamic_cast<block_node*>($4);
+		$$ = p;
 	}
 	|
 	WHILE cmp THEN END 
 	{
-		FKLOG("while_stmt <- cmp");
-		// todo
+		FKLOG("[bison]: while_stmt <- cmp");
+		NEWTYPE(p, while_stmt);
+		p->cmp = dynamic_cast<cmp_stmt*>($2);
+		p->block = 0;
+		$$ = p;
 	}
 	;
 	
 if_stmt:
 	IF cmp THEN block else_stmt END
 	{
-		FKLOG("if_stmt <- cmp block");
-		// todo
+		FKLOG("[bison]: if_stmt <- cmp block");
+		NEWTYPE(p, if_stmt);
+		p->cmp = dynamic_cast<cmp_stmt*>($2);
+		p->block = dynamic_cast<block_node*>($4);
+		p->elses = dynamic_cast<else_stmt*>($5);
+		$$ = p;
 	}
 	|
 	IF cmp THEN else_stmt END
 	{
-		FKLOG("if_stmt <- cmp");
-		// todo
+		FKLOG("[bison]: if_stmt <- cmp");
+		NEWTYPE(p, if_stmt);
+		p->cmp = dynamic_cast<cmp_stmt*>($2);
+		p->block = 0;
+		p->elses = dynamic_cast<else_stmt*>($4);
+		$$ = p;
 	}
 	;
 	
@@ -287,13 +322,13 @@ else_stmt:
 	|
 	ELSE block
 	{
-		FKLOG("else_stmt <- block");
+		FKLOG("[bison]: else_stmt <- block");
 		// todo
 	}
 	|
 	ELSE
 	{
-		FKLOG("else_stmt <- empty");
+		FKLOG("[bison]: else_stmt <- empty");
 		// todo
 	}
 	;
@@ -301,37 +336,37 @@ else_stmt:
 cmp:
 	cmp_value LESS cmp_value
 	{
-		FKLOG("cmp <- cmp_value LESS cmp_value");
+		FKLOG("[bison]: cmp <- cmp_value LESS cmp_value");
 		// todo
 	}
 	|
 	cmp_value MORE cmp_value
 	{
-		FKLOG("cmp <- cmp_value MORE cmp_value");
+		FKLOG("[bison]: cmp <- cmp_value MORE cmp_value");
 		// todo
 	}
 	|
 	cmp_value EQUAL cmp_value
 	{
-		FKLOG("cmp <- cmp_value EQUAL cmp_value");
+		FKLOG("[bison]: cmp <- cmp_value EQUAL cmp_value");
 		// todo
 	}
 	|
 	cmp_value MORE_OR_EQUAL cmp_value
 	{
-		FKLOG("cmp <- cmp_value MORE_OR_EQUAL cmp_value");
+		FKLOG("[bison]: cmp <- cmp_value MORE_OR_EQUAL cmp_value");
 		// todo
 	}
 	|
 	cmp_value LESS_OR_EQUAL cmp_value
 	{
-		FKLOG("cmp <- cmp_value LESS_OR_EQUAL cmp_value");
+		FKLOG("[bison]: cmp <- cmp_value LESS_OR_EQUAL cmp_value");
 		// todo
 	}
 	|
 	cmp_value NOT_EQUAL cmp_value
 	{
-		FKLOG("cmp <- cmp_value NOT_EQUAL cmp_value");
+		FKLOG("[bison]: cmp <- cmp_value NOT_EQUAL cmp_value");
 		// todo
 	}
 	;
@@ -339,19 +374,19 @@ cmp:
 cmp_value:
 	explicit_value
 	{
-		FKLOG("cmp_value <- explicit_value");
+		FKLOG("[bison]: cmp_value <- explicit_value");
 		// todo
 	}
 	|
 	variable
 	{
-		FKLOG("cmp_value <- variable");
+		FKLOG("[bison]: cmp_value <- variable");
 		// todo
 	}
 	|
 	expr
 	{
-		FKLOG("cmp_value <- expr");
+		FKLOG("[bison]: cmp_value <- expr");
 		// todo
 	}
 	;
@@ -359,35 +394,37 @@ cmp_value:
 return_stmt:
 	RETURN return_value
 	{
-		FKLOG("return_stmt <- RETURN return_value");
-		// todo
+		FKLOG("[bison]: return_stmt <- RETURN return_value");
+		NEWTYPE(p, return_stmt);
+		p->ret = $2;
+		$$ = p;
 	}
 	;
  
 return_value:
 	explicit_value
 	{
-		FKLOG("return_value <- explicit_value");
-		// todo
+		FKLOG("[bison]: return_value <- explicit_value");
+		$$ = $1;
 	}
 	|
 	variable
 	{
-		FKLOG("return_value <- variable");
-		// todo
+		FKLOG("[bison]: return_value <- variable");
+		$$ = $1;
 	}
 	|
 	expr
 	{
-		FKLOG("return_value <- expr");
-		// todo
+		FKLOG("[bison]: return_value <- expr");
+		$$ = $1;
 	}
 	;
 
 assign_stmt:
 	var ASSIGN assign_value
 	{
-		FKLOG("assign_stmt <- var assign_value");
+		FKLOG("[bison]: assign_stmt <- var assign_value");
 		// todo
 	}
 	;
@@ -395,19 +432,19 @@ assign_stmt:
 assign_value:
 	explicit_value
 	{
-		FKLOG("assign_value <- explicit_value");
+		FKLOG("[bison]: assign_value <- explicit_value");
 		// todo
 	}
 	|
 	variable
 	{
-		FKLOG("assign_value <- variable");
+		FKLOG("[bison]: assign_value <- variable");
 		// todo
 	}
 	|
 	expr
 	{
-		FKLOG("assign_value <- expr");
+		FKLOG("[bison]: assign_value <- expr");
 		// todo
 	}
 	;
@@ -415,13 +452,13 @@ assign_value:
 var:
 	VAR_BEGIN IDENTIFIER
 	{
-		FKLOG("var <- VAR_BEGIN IDENTIFIER %s", $2.c_str());
+		FKLOG("[bison]: var <- VAR_BEGIN IDENTIFIER %s", $2.c_str());
 		// todo
 	}
 	|
 	variable
 	{
-		FKLOG("var <- variable");
+		FKLOG("[bison]: var <- variable");
 		// todo
 	}
 	;
@@ -429,65 +466,67 @@ var:
 variable:
 	IDENTIFIER
 	{
-		FKLOG("variable <- IDENTIFIER %s", $1.c_str());
-		// todo
+		FKLOG("[bison]: variable <- IDENTIFIER %s", $1.c_str());
+		NEWTYPE(p, variable_node);
+		p->str = $1;
+		$$ = p;
 	}
 	;
 
 expr:
 	OPEN_BRACKET expr CLOSE_BRACKET
 	{
-		FKLOG("expr <- (expr)");
-		// todo
+		FKLOG("[bison]: expr <- (expr)");
+		$$ = $2;
 	}
 	|
 	function_call
 	{
-		FKLOG("expr <- function_call");
-		// todo
+		FKLOG("[bison]: expr <- function_call");
+		$$ = $1;
 	}
 	|
 	math_expr
 	{
-		FKLOG("expr <- math_expr");
-		// todo
+		FKLOG("[bison]: expr <- math_expr");
+		$$ = $1;
 	}
 	;
 
 math_expr:
 	OPEN_BRACKET math_expr CLOSE_BRACKET
 	{
-		FKLOG("math_expr <- (math_expr)");
+		FKLOG("[bison]: math_expr <- (math_expr)");
 		// todo
 	}
 	|
 	expr_value PLUS expr_value
 	{
-		FKLOG("math_expr <- expr_value + expr_value");
+		FKLOG("[bison]: math_expr <- expr_value + expr_value");
 		// todo
 	}
 	|
 	expr_value MINUS expr_value
 	{
-		FKLOG("math_expr <- expr_value - expr_value");
+		FKLOG("[bison]: math_expr <- expr_value - expr_value");
 		// todo
 	}
 	|
 	expr_value MULTIPLY expr_value
 	{
-		FKLOG("math_expr <- expr_value * expr_value");
+		FKLOG("[bison]: math_expr <- expr_value * expr_value");
 		// todo
 	}
 	|
 	expr_value DIVIDE expr_value
 	{
-		FKLOG("math_expr <- expr_value / expr_value");
+		FKLOG("[bison]: math_expr <- expr_value / expr_value");
 		// todo
 	}
 	|
 	expr_value DIVIDE_MOD expr_value
 	{
-		FKLOG("math_expr <- expr_value % expr_value");
+		FKLOG("[bison]: math_expr <- expr_value % expr_value");
 		// todo
 	}
 	;	
@@ -495,25 +534,25 @@ math_expr:
 expr_value:
 	math_expr
 	{
-		FKLOG("expr_value <- math_expr");
+		FKLOG("[bison]: expr_value <- math_expr");
 		// todo
 	}
 	|
 	explicit_value
 	{
-		FKLOG("expr_value <- explicit_value");
+		FKLOG("[bison]: expr_value <- explicit_value");
 		// todo
 	}
 	|
 	function_call
 	{
-		FKLOG("expr_value <- function_call");
+		FKLOG("[bison]: expr_value <- function_call");
 		// todo
 	}
 	|
 	variable
 	{
-		FKLOG("expr_value <- variable");
+		FKLOG("[bison]: expr_value <- variable");
 		// todo
 	}
 	;
@@ -521,33 +560,41 @@ expr_value:
 explicit_value:
 	TRUE 
 	{
-		FKLOG("explicit_value <- TRUE");
-		// todo
+		FKLOG("[bison]: explicit_value <- TRUE");
+		NEWTYPE(p, explicit_value_node);
+		p->str = $1;
+		$$ = p;
 	}
 	|
 	FALSE 
 	{
-		FKLOG("explicit_value <- FALSE");
-		// todo
+		FKLOG("[bison]: explicit_value <- FALSE");
+		NEWTYPE(p, explicit_value_node);
+		p->str = $1;
+		$$ = p;
 	}
 	|
 	NUMBER 
 	{
-		FKLOG("explicit_value <- NUMBER %s", $1.c_str());
-		// todo
+		FKLOG("[bison]: explicit_value <- NUMBER %s", $1.c_str());
+		NEWTYPE(p, explicit_value_node);
+		p->str = $1;
+		$$ = p;
 	}
 	|
 	STRING_DEFINITION 
 	{
-		FKLOG("explicit_value <- STRING_DEFINITION %s", $1.c_str());
-		// todo
+		FKLOG("[bison]: explicit_value <- STRING_DEFINITION %s", $1.c_str());
+		NEWTYPE(p, explicit_value_node);
+		p->str = $1;
+		$$ = p;
 	}
 	;
       
 break:
 	BREAK 
 	{
-		FKLOG("break <- BREAK");
+		FKLOG("[bison]: break <- BREAK");
 		// todo
 	}
 	;
