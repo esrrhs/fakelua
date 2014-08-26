@@ -299,6 +299,7 @@ struct math_expr_node : public syntree_node
         return est_math_expr;
     }
 
+    String oper;
     syntree_node * left;
     syntree_node * right;
 };

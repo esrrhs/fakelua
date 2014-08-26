@@ -100,9 +100,14 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> function_call
 %type<syntree> var
 %type<syntree> arg
-
 %type<syntree> function_call_arguments
 %type<syntree> function_declaration_arguments
+%type<syntree> assign_stmt
+%type<syntree> cmp_value
+%type<syntree> assign_value
+%type<syntree> expr_value
+
+
 %%
 
 /* Top level rules */
@@ -259,19 +264,19 @@ stmt:
 	assign_stmt
 	{
 		FKLOG("[bison]: stmt <- assign_stmt");
-		//$$ = $1;
+		$$ = $1;
 	}
 	|
 	break
 	{
 		FKLOG("[bison]: stmt <- break");
-		//$$ = $1;
+		$$ = $1;
 	}
 	|
 	expr
 	{
 		FKLOG("[bison]: stmt <- expr");
-		//$$ = $1;
+		$$ = $1;
 	}
 	;
 
@@ -323,13 +328,17 @@ else_stmt:
 	ELSE block
 	{
 		FKLOG("[bison]: else_stmt <- block");
-		// todo
+		NEWTYPE(p, else_stmt);
+		p->block = dynamic_cast<block_node*>($2);
+		$$ = p;
 	}
 	|
 	ELSE
 	{
 		FKLOG("[bison]: else_stmt <- empty");
-		// todo
+		NEWTYPE(p, else_stmt);
+		p->block = 0;
+		$$ = p;
 	}
 	;
 
@@ -337,37 +346,61 @@ cmp:
 	cmp_value LESS cmp_value
 	{
 		FKLOG("[bison]: cmp <- cmp_value LESS cmp_value");
-		// todo
+		NEWTYPE(p, cmp_stmt);
+		p->cmp = $2;
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
 	}
 	|
 	cmp_value MORE cmp_value
 	{
 		FKLOG("[bison]: cmp <- cmp_value MORE cmp_value");
-		// todo
+		NEWTYPE(p, cmp_stmt);
+		p->cmp = $2;
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
 	}
 	|
 	cmp_value EQUAL cmp_value
 	{
 		FKLOG("[bison]: cmp <- cmp_value EQUAL cmp_value");
-		// todo
+		NEWTYPE(p, cmp_stmt);
+		p->cmp = $2;
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
 	}
 	|
 	cmp_value MORE_OR_EQUAL cmp_value
 	{
 		FKLOG("[bison]: cmp <- cmp_value MORE_OR_EQUAL cmp_value");
-		// todo
+		NEWTYPE(p, cmp_stmt);
+		p->cmp = $2;
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
 	}
 	|
 	cmp_value LESS_OR_EQUAL cmp_value
 	{
 		FKLOG("[bison]: cmp <- cmp_value LESS_OR_EQUAL cmp_value");
-		// todo
+		NEWTYPE(p, cmp_stmt);
+		p->cmp = $2;
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
 	}
 	|
 	cmp_value NOT_EQUAL cmp_value
 	{
 		FKLOG("[bison]: cmp <- cmp_value NOT_EQUAL cmp_value");
-		// todo
+		NEWTYPE(p, cmp_stmt);
+		p->cmp = $2;
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
 	}
 	;
 
@@ -375,19 +408,19 @@ cmp_value:
 	explicit_value
 	{
 		FKLOG("[bison]: cmp_value <- explicit_value");
-		// todo
+		$$ = $1;
 	}
 	|
 	variable
 	{
 		FKLOG("[bison]: cmp_value <- variable");
-		// todo
+		$$ = $1;
 	}
 	|
 	expr
 	{
 		FKLOG("[bison]: cmp_value <- expr");
-		// todo
+		$$ = $1;
 	}
 	;
 	
@@ -425,7 +458,10 @@ assign_stmt:
 	var ASSIGN assign_value
 	{
 		FKLOG("[bison]: assign_stmt <- var assign_value");
-		// todo
+		NEWTYPE(p, assign_stmt);
+		p->var = $1;
+		p->value = $3;
+		$$ = p;
 	}
 	;
 	
@@ -433,19 +469,19 @@ assign_value:
 	explicit_value
 	{
 		FKLOG("[bison]: assign_value <- explicit_value");
-		// todo
+		$$ = $1;
 	}
 	|
 	variable
 	{
 		FKLOG("[bison]: assign_value <- variable");
-		// todo
+		$$ = $1;
 	}
 	|
 	expr
 	{
 		FKLOG("[bison]: assign_value <- expr");
-		// todo
+		$$ = $1;
 	}
 	;
 
@@ -453,13 +489,15 @@ var:
 	VAR_BEGIN IDENTIFIER
 	{
 		FKLOG("[bison]: var <- VAR_BEGIN IDENTIFIER %s", $2.c_str());
-		// todo
+		NEWTYPE(p, var_node);
+		p->str = $2;
+		$$ = p;
 	}
 	|
 	variable
 	{
 		FKLOG("[bison]: var <- variable");
-		// todo
+		$$ = $1;
 	}
 	;
 
@@ -497,37 +535,57 @@ math_expr:
 	OPEN_BRACKET math_expr CLOSE_BRACKET
 	{
 		FKLOG("[bison]: math_expr <- (math_expr)");
-		// todo
+		$$ = $2;
 	}
 	|
 	expr_value PLUS expr_value
 	{
 		FKLOG("[bison]: math_expr <- expr_value + expr_value");
-		// todo
+		NEWTYPE(p, math_expr_node);
+		p->oper = $2;
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
 	}
 	|
 	expr_value MINUS expr_value
 	{
 		FKLOG("[bison]: math_expr <- expr_value - expr_value");
-		// todo
+		NEWTYPE(p, math_expr_node);
+		p->oper = $2;
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
 	}
 	|
 	expr_value MULTIPLY expr_value
 	{
 		FKLOG("[bison]: math_expr <- expr_value * expr_value");
-		// todo
+		NEWTYPE(p, math_expr_node);
+		p->oper = $2;
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
 	}
 	|
 	expr_value DIVIDE expr_value
 	{
 		FKLOG("[bison]: math_expr <- expr_value / expr_value");
-		// todo
+		NEWTYPE(p, math_expr_node);
+		p->oper = $2;
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
 	}
 	|
 	expr_value DIVIDE_MOD expr_value
 	{
 		FKLOG("[bison]: math_expr <- expr_value % expr_value");
-		// todo
+		NEWTYPE(p, math_expr_node);
+		p->oper = $2;
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
 	}
 	;	
 
@@ -535,25 +593,25 @@ expr_value:
 	math_expr
 	{
 		FKLOG("[bison]: expr_value <- math_expr");
-		// todo
+		$$ = $1;
 	}
 	|
 	explicit_value
 	{
 		FKLOG("[bison]: expr_value <- explicit_value");
-		// todo
+		$$ = $1;
 	}
 	|
 	function_call
 	{
 		FKLOG("[bison]: expr_value <- function_call");
-		// todo
+		$$ = $1;
 	}
 	|
 	variable
 	{
 		FKLOG("[bison]: expr_value <- variable");
-		// todo
+		$$ = $1;
 	}
 	;
 	
@@ -595,7 +653,8 @@ break:
 	BREAK 
 	{
 		FKLOG("[bison]: break <- BREAK");
-		// todo
+		NEWTYPE(p, break_stmt);
+		$$ = p;
 	}
 	;
  
