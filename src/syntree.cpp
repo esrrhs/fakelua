@@ -33,3 +33,49 @@ const char * get_syntree_node_name(esyntreetype type)
     return "unknow";
 }
 
+String while_stmt::dump(int indent)
+{
+    String ret;
+    ret += gentab(indent);
+    ret += "[while]:\n";
+    ret += cmp->dump(indent + 1);
+    if (block)
+    {
+        ret += block->dump(indent + 1);
+    }
+    else
+    {
+        ret += "nil\n";
+    }
+    return ret;
+}
+
+String else_stmt::dump(int indent)
+{
+    String ret;
+    ret += gentab(indent);
+    ret += "[else]:\n";
+    if (block)
+    {
+        ret += block->dump(indent + 1);
+    }
+    else
+    {
+        ret += "nil\n";
+    }
+    return ret;
+}
+
+String if_stmt::dump(int indent)
+{
+    String ret;
+    ret += gentab(indent);
+    ret += "[if]:\n";
+    ret += cmp->dump(indent + 1);
+    if (block)
+    {
+        ret += block->dump(indent + 1);
+    }
+    ret += elses->dump(indent);
+    return ret;
+}

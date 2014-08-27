@@ -77,4 +77,7 @@ void myflexer::free(void * p)
 void myflexer::add_func_desc(func_desc_node * p)
 {
     FKLOG("add_func_desc %s %p", p->funcname.c_str(), p);
+    String dump = p->dump(0);
+    FKLOG("func %s dump %s", p->funcname.c_str(), dump.c_str());
 }
+

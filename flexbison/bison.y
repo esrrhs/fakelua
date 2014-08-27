@@ -147,12 +147,12 @@ function_declaration:
 function_declaration_arguments: 
 	/* empty */
 	| 
-	arg ARG_SPLITTER function_declaration_arguments 
+	function_declaration_arguments ARG_SPLITTER arg 
 	{
 		FKLOG("[bison]: function_declaration_arguments <- arg function_declaration_arguments");
-		assert($3->gettype() == est_arglist);
-		func_desc_arglist_node * p = dynamic_cast<func_desc_arglist_node*>($3);
-		p->add_arg($1);
+		assert($1->gettype() == est_arglist);
+		func_desc_arglist_node * p = dynamic_cast<func_desc_arglist_node*>($1);
+		p->add_arg($3);
 		$$ = p;
 	}
 	| 
@@ -540,7 +540,7 @@ math_expr:
 	|
 	expr_value PLUS expr_value
 	{
-		FKLOG("[bison]: math_expr <- expr_value + expr_value");
+		FKLOG("[bison]: math_expr <- expr_value %s expr_value", $2.c_str());
 		NEWTYPE(p, math_expr_node);
 		p->oper = $2;
 		p->left = $1;
@@ -550,7 +550,7 @@ math_expr:
 	|
 	expr_value MINUS expr_value
 	{
-		FKLOG("[bison]: math_expr <- expr_value - expr_value");
+		FKLOG("[bison]: math_expr <- expr_value %s expr_value", $2.c_str());
 		NEWTYPE(p, math_expr_node);
 		p->oper = $2;
 		p->left = $1;
@@ -560,7 +560,7 @@ math_expr:
 	|
 	expr_value MULTIPLY expr_value
 	{
-		FKLOG("[bison]: math_expr <- expr_value * expr_value");
+		FKLOG("[bison]: math_expr <- expr_value %s expr_value", $2.c_str());
 		NEWTYPE(p, math_expr_node);
 		p->oper = $2;
 		p->left = $1;
@@ -570,7 +570,7 @@ math_expr:
 	|
 	expr_value DIVIDE expr_value
 	{
-		FKLOG("[bison]: math_expr <- expr_value / expr_value");
+		FKLOG("[bison]: math_expr <- expr_value %s expr_value", $2.c_str());
 		NEWTYPE(p, math_expr_node);
 		p->oper = $2;
 		p->left = $1;
@@ -580,7 +580,7 @@ math_expr:
 	|
 	expr_value DIVIDE_MOD expr_value
 	{
-		FKLOG("[bison]: math_expr <- expr_value % expr_value");
+		FKLOG("[bison]: math_expr <- expr_value %s expr_value", $2.c_str());
 		NEWTYPE(p, math_expr_node);
 		p->oper = $2;
 		p->left = $1;

@@ -2,6 +2,7 @@
 
 #include <string>
 #include <list>
+#include <vector>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>
@@ -48,9 +49,25 @@ struct syntree_node
     {
         return est_func_nil;
     }
+    
     virtual const char * gettypename()
     {
         return get_syntree_node_name(gettype());
+    }
+    
+    virtual String dump(int indent)
+    {
+        return "nil\n";
+    }
+    
+    String gentab(int indent)
+    {
+        String ret;
+        for (int i = 0; i < indent; i++)
+        {
+            ret += "\t";
+        }
+        return ret;
     }
 
     int lineno;
@@ -65,11 +82,21 @@ struct identifier_node : public syntree_node
     {
         return est_identifier;
     }
+    
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[identifier]:";
+        ret += str;
+        ret += "\n";
+        return ret;
+    }
 
     String str;
 };
 
-typedef std::list<String> func_desc_arglist;
+typedef std::vector<String> func_desc_arglist;
 
 struct func_desc_arglist_node : public syntree_node
 {
@@ -79,6 +106,20 @@ struct func_desc_arglist_node : public syntree_node
     virtual esyntreetype gettype()
     {
         return est_arglist;
+    }
+    
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[func_desc_arglist]:";
+        for (int i = 0; i < (int)arglist.size(); i++)
+        {
+            ret += arglist[i];
+            ret += ",";
+        }
+        ret += "\n";
+        return ret;
     }
 
     virtual void add_arg(syntree_node * p)
@@ -103,6 +144,16 @@ struct explicit_value_node : public syntree_node
         return est_explicit_value;
     }
 
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[explicit_value]:";
+        ret += str;
+        ret += "\n";
+        return ret;
+    }
+    
     String str;
 };
 
@@ -116,6 +167,16 @@ struct return_stmt : public syntree_node
         return est_return_stmt;
     }
 
+    virtual String dump(int indent)
+    {
+        String sret;
+        sret += gentab(indent);
+        sret += "[return]:";
+        sret += "\n";
+        sret += ret->dump(indent + 1);
+        return sret;
+    }
+    
     syntree_node * ret;
 };
 
@@ -129,6 +190,22 @@ struct cmp_stmt : public syntree_node
         return est_cmp_stmt;
     }
 
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[cmp]:";
+        ret += cmp;
+        ret += "\n";
+        ret += gentab(indent + 1);
+        ret += "[left]:\n";
+        ret += left->dump(indent + 2);
+        ret += gentab(indent + 1);
+        ret += "[right]:\n";
+        ret += right->dump(indent + 2);
+        return ret;
+    }
+    
     String cmp;
     syntree_node * left;
     syntree_node * right;
@@ -145,6 +222,8 @@ struct while_stmt : public syntree_node
         return est_while_stmt;
     }
 
+    virtual String dump(int indent);
+    
     cmp_stmt * cmp;
     block_node * block;
 };
@@ -159,6 +238,8 @@ struct else_stmt : public syntree_node
         return est_else_stmt;
     }
 
+    virtual String dump(int indent);
+    
     block_node * block;
 };
 
@@ -172,12 +253,14 @@ struct if_stmt : public syntree_node
         return est_if_stmt;
     }
 
+    virtual String dump(int indent);
+    
     cmp_stmt * cmp;
     block_node * block;
     else_stmt * elses;
 };
 
-typedef std::list<syntree_node *> stmt_node_list;
+typedef std::vector<syntree_node *> stmt_node_list;
 
 struct block_node : public syntree_node
 {
@@ -189,6 +272,22 @@ struct block_node : public syntree_node
         return est_block;
     }
 
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[block]:\n";
+        for (int i = 0; i < (int)stmtlist.size(); i++)
+        {
+            ret += gentab(indent + 1);
+            ret += "[stmt";
+            ret += fkitoa(i);
+            ret += "]:\n";
+            ret += stmtlist[i]->dump(indent + 2);
+        }
+        return ret;
+    }
+    
     void add_stmt(syntree_node * stmt)
     {
         FKLOG("block add stmt %s", stmt->gettypename());
@@ -208,6 +307,18 @@ struct func_desc_node : public syntree_node
         return est_func_desc;
     }
 
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[func_desc]:";
+        ret += funcname;
+        ret += "\n";
+        ret += arglist->dump(indent + 1);
+        ret += block->dump(indent + 1);
+        return ret;
+    }
+    
     String funcname;
     func_desc_arglist_node * arglist;
     block_node * block;
@@ -223,6 +334,20 @@ struct assign_stmt : public syntree_node
         return est_assign_stmt;
     }
 
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[assign]:\n";
+        ret += gentab(indent + 1);
+        ret += "[var]:\n";
+        ret += var->dump(indent + 2);
+        ret += gentab(indent + 1);
+        ret += "[value]:\n";
+        ret += value->dump(indent + 2);
+        return ret;
+    }
+    
     syntree_node * var;
     syntree_node * value;
 };
@@ -237,6 +362,16 @@ struct variable_node : public syntree_node
         return est_variable;
     }
 
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[variable]:";
+        ret += str;
+        ret += "\n";
+        return ret;
+    }
+    
     String str;
 };
 
@@ -250,10 +385,20 @@ struct var_node : public syntree_node
         return est_var;
     }
 
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[var]:";
+        ret += str;
+        ret += "\n";
+        return ret;
+    }
+    
     String str;
 };
 
-typedef std::list<syntree_node*> func_call_arglist;
+typedef std::vector<syntree_node*> func_call_arglist;
 
 struct function_call_arglist_node : public syntree_node
 {
@@ -265,6 +410,22 @@ struct function_call_arglist_node : public syntree_node
         return est_call_arglist;
     }
 
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[func_call_arglist]:\n";
+        for (int i = 0; i < (int)arglist.size(); i++)
+        {
+            ret += gentab(indent + 1);
+            ret += "[arg";
+            ret += fkitoa(i);
+            ret += "]:\n";
+            ret += arglist[i]->dump(indent + 2);
+        }
+        return ret;
+    }
+    
     virtual void add_arg(syntree_node * p)
     {	
         arglist.push_back(p);
@@ -284,6 +445,17 @@ struct function_call_node : public syntree_node
     {
         return est_function_call;
     }
+    
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[func_call]:";
+        ret += fuc;
+        ret += "\n";
+        ret += arglist->dump(indent + 1);
+        return ret;
+    }
 
     String fuc;
     function_call_arglist_node * arglist;
@@ -299,6 +471,22 @@ struct math_expr_node : public syntree_node
         return est_math_expr;
     }
 
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[math_expr]:";
+        ret += oper;
+        ret += "\n";
+        ret += gentab(indent + 1);
+        ret += "[left]:\n";
+        ret += left->dump(indent + 2);
+        ret += gentab(indent + 1);
+        ret += "[right]:\n";
+        ret += right->dump(indent + 2);
+        return ret;
+    }
+
     String oper;
     syntree_node * left;
     syntree_node * right;
@@ -312,6 +500,14 @@ struct break_stmt : public syntree_node
     virtual esyntreetype gettype()
     {
         return est_break;
+    }
+    
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[break]:\n";
+        return ret;
     }
 };
 

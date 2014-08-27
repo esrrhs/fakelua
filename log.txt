@@ -9,3 +9,4 @@
 2014.8.16:加内存管理
 2014.8.22:加func desc node
 2014.8.26:加syntree node
+2014.8.27:加syntree dump
