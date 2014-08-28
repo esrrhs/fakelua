@@ -542,7 +542,7 @@ math_expr:
 	{
 		FKLOG("[bison]: math_expr <- expr_value %s expr_value", $2.c_str());
 		NEWTYPE(p, math_expr_node);
-		p->oper = $2;
+		p->oper = "+";
 		p->left = $1;
 		p->right = $3;
 		$$ = p;
@@ -552,7 +552,7 @@ math_expr:
 	{
 		FKLOG("[bison]: math_expr <- expr_value %s expr_value", $2.c_str());
 		NEWTYPE(p, math_expr_node);
-		p->oper = $2;
+		p->oper = "-";
 		p->left = $1;
 		p->right = $3;
 		$$ = p;
@@ -562,7 +562,7 @@ math_expr:
 	{
 		FKLOG("[bison]: math_expr <- expr_value %s expr_value", $2.c_str());
 		NEWTYPE(p, math_expr_node);
-		p->oper = $2;
+		p->oper = "*";
 		p->left = $1;
 		p->right = $3;
 		$$ = p;
@@ -572,7 +572,7 @@ math_expr:
 	{
 		FKLOG("[bison]: math_expr <- expr_value %s expr_value", $2.c_str());
 		NEWTYPE(p, math_expr_node);
-		p->oper = $2;
+		p->oper = "/";
 		p->left = $1;
 		p->right = $3;
 		$$ = p;
@@ -582,7 +582,7 @@ math_expr:
 	{
 		FKLOG("[bison]: math_expr <- expr_value %s expr_value", $2.c_str());
 		NEWTYPE(p, math_expr_node);
-		p->oper = $2;
+		p->oper = "%";
 		p->left = $1;
 		p->right = $3;
 		$$ = p;
