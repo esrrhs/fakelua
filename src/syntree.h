@@ -17,9 +17,8 @@
 
 enum esyntreetype
 {
-    est_func_nil,
+    est_nil,
     est_func_desc,
-    est_bin,
     est_arglist,
     est_block,
     est_while_stmt,
@@ -47,7 +46,7 @@ struct syntree_node
 
     virtual esyntreetype gettype()
     {
-        return est_func_nil;
+        return est_nil;
     }
     
     virtual const char * gettypename()
