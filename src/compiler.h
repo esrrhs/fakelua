@@ -8,6 +8,7 @@ class fuck;
 class myflexer;
 class func_desc_node;
 class block_node;
+class syntree_node;
 class compiler
 {
 public:
@@ -24,6 +25,7 @@ public:
 private:
     bool compile_func(func_desc_node * funcnode);
     bool compile_block(codegen & cg, block_node * blocknode, int stack_level);
+    bool compile_stmt(codegen & cg, syntree_node * node, int stack_level);
 
 private:
     bool add_stack_identifier();

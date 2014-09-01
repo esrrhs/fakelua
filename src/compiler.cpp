@@ -72,9 +72,24 @@ bool compiler::compile_block(codegen & cg, block_node * blocknode, int stack_lev
 {
     FKLOG("[compiler] compile_block block_node %p", blocknode);
 
-    
+    for (int i = 0; i < (int)blocknode->stmtlist.size(); i++)
+    {
+        syntree_node * stmt = blocknode->stmtlist[i];
+        compile_stmt(cg, stmt, stack_level);
+    }
     
     FKLOG("[compiler] compile_block block_node %p OK", blocknode);
+    
+    return true;
+}
+
+bool compiler::compile_stmt(codegen & cg, syntree_node * node, int stack_level)
+{
+    FKLOG("[compiler] compile_stmt stmt %p", node);
+
+    
+
+    FKLOG("[compiler] compile_stmt stmt %p OK", node);
     
     return true;
 }
