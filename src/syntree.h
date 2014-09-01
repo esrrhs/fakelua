@@ -324,6 +324,8 @@ struct func_desc_node : public syntree_node
     block_node * block;
 };
 
+typedef std::vector<func_desc_node *> func_desc_list;
+
 struct assign_stmt : public syntree_node
 {
     assign_stmt() {}

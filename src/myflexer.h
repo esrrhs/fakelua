@@ -48,10 +48,12 @@ public:
     void free(void * p);
 
     void add_func_desc(func_desc_node * p);
+    func_desc_list & get_func_list();
 private:
     fuck * m_fk;
     char m_content[MAX_FLEX_BUFFER_SIZE];
     int m_num;
     int m_pos;
+    func_desc_list m_funclist;
 }; 
 
