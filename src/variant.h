@@ -2,7 +2,7 @@
 
 #include "types.h"
 
-class Variant 
+class variant 
 {
 public:
 
@@ -23,27 +23,27 @@ public:
 	};	
     
     
-	Variant(const Variant& p_variant);
-	Variant() { m_type = NIL; }
-	~Variant() { if (m_type != Variant::NIL) clear(); }
+	variant(const variant& p_variant);
+	variant() { m_type = NIL; }
+	~variant() { if (m_type != variant::NIL) clear(); }
 
-	Variant(bool p_bool);
-	Variant(signed int p_int); // real one
-	Variant(unsigned int p_int);
-	Variant(signed short p_short); // real one
-	Variant(unsigned short p_short);
-	Variant(signed char p_char); // real one
-	Variant(unsigned char p_char);
-	Variant(int64_t p_char); // real one
-	Variant(uint64_t p_char);
-	Variant(float p_float);
-	Variant(double p_double);
-	Variant(const String& p_string);
-	Variant(const char * const p_cstring);
-	Variant(void * p_ptr);
+	variant(bool p_bool);
+	variant(signed int p_int); // real one
+	variant(unsigned int p_int);
+	variant(signed short p_short); // real one
+	variant(unsigned short p_short);
+	variant(signed char p_char); // real one
+	variant(unsigned char p_char);
+	variant(int64_t p_char); // real one
+	variant(uint64_t p_char);
+	variant(float p_float);
+	variant(double p_double);
+	variant(const String& p_string);
+	variant(const char * const p_cstring);
+	variant(void * p_ptr);
 	
-	bool operator==(const Variant& p_variant) const;	
-	void operator=(const Variant& p_variant); // only this is enough for all the other types
+	bool operator==(const variant& p_variant) const;	
+	void operator=(const variant& p_variant); // only this is enough for all the other types
 	
 	operator bool() const;
 	operator signed int() const;
@@ -62,21 +62,7 @@ public:
 	operator String() const;
 
 	Type get_type() const { return m_type; }
-	static String get_type_name(Variant::Type p_type);
-	static bool can_convert(Type p_type_from,Type p_type_to);
-
-	template<class T>
-	static Type get_type_for() {
-		
-		GetSimpleType<T> t;
-		Variant v(t.m_type);
-		return v.get_type();
-	}
-
-	bool is_ref() const { return m_type == POINTER; }
-	bool is_num() const { return m_type == INT || m_type == REAL; };
-	bool is_shared() const;
-	bool is_zero() const;
+	static String get_type_name(variant::Type p_type);
 
 	uint32_t hash() const;
 
@@ -93,8 +79,8 @@ private:
 		void * m_ptr; //generic pointer
 	};
 
-	void reference(const Variant& p_variant);
 	void clear();
+	void reference(const variant& p_variant);
 	
 private:
 

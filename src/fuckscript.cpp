@@ -1,6 +1,7 @@
 #include "fuckscript.h"
 #include "semantic.h"
 #include "fuck.h"
+#include "compiler.h"
 
 fuck * newfuck(fkmalloc fkm, fkfree fkf)
 {
@@ -33,19 +34,34 @@ efkerror fkerror(fuck * fk)
 // 解析文件
 bool fkparse(fuck * fk, const char * filename)
 {
+    // 输入源文件
+    myflexer mf(fk);
+    
     FKLOG("fkparse %p %s", fk, filename);
-    bool b = fk->m_myflexer.inputfile(filename);
+    bool b = mf.inputfile(filename);
     if (!b)
     {
         FKLOG("fkparse open %s fail", fk, filename);
         return false;
     }
 
-    //进行语法解析
-    int ret = yyparse((void *)&fk->m_myflexer); 
+    // 进行语法解析
+    int ret = yyparse((void *)&mf); 
     if (ret != 0)
     {
         FKLOG("fkparse yyparse %s fail ret %d", fk, filename, ret);
+        fk->m_efkerror = efk_parse_file_fail;
+        return false;
+    }
+    
+    FKLOG("fkparse yyparse %p %s OK", fk, filename);
+
+    // 编译
+    compiler mc(fk);
+    b = mc.compile(&mf);
+    if (!b)
+    {
+        FKLOG("fkparse compile %s fail", fk, filename);
         return false;
     }
     
