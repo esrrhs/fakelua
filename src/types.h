@@ -2,6 +2,8 @@
 
 #include <string>
 #include <list>
+#include <vector>
+#include <map>
 #include <stdint.h>
 #include <string.h>
 #include <stdlib.h>

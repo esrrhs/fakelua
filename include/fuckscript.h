@@ -19,8 +19,11 @@
 enum efkerror
 {
     efk_ok,
-    efk_openfilefail,
-    efk_openfileempty,
+    efk_open_file_fail,
+    efk_open_file_empty,
+    efk_parse_file_fail,
+    efk_compile_same_func_name,
+    efk_compile_func_arg_error,
 };
 
 struct fuck;

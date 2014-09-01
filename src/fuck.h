@@ -18,14 +18,13 @@
 
 struct fuck
 {
-    fuck() : m_myflexer(this)
+    fuck()
     {
         clear();
     }
 
     void clear()
     {
-        m_myflexer.clear();
         m_efkerror = efk_ok;
     }
     
@@ -35,7 +34,6 @@ struct fuck
     // member
     fkmalloc m_fkmalloc;
     fkfree m_fkfree;
-    myflexer m_myflexer;
     efkerror m_efkerror;
 };
 

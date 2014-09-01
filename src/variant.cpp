@@ -1,6 +1,6 @@
 #include "variant.h"
 
-String Variant::get_type_name(Variant::Type p_type) 
+String variant::get_type_name(variant::Type p_type) 
 {
 	
 	switch( p_type ) 
@@ -52,124 +52,7 @@ String Variant::get_type_name(Variant::Type p_type)
 	return "";
 }
 
-
-bool Variant::can_convert(Variant::Type p_type_from, Variant::Type p_type_to) 
-{
-
-	if (p_type_from == p_type_to)
-		return true;
-		
-	if (p_type_to == NIL && p_type_from != NIL) //nil can convert to anything
-		return true;
-
-	if (p_type_from == NIL) 
-	{
-		return (p_type_to == POINTER);
-	}
-
-	const Type *valid_types = NULL;
-	const Type *invalid_types = NULL;
-
-	switch (p_type_to) 
-	{
-		case BOOL: 
-		{
-
-			static const Type valid[] =
-			{
-				INT,
-				REAL,
-				STRING,
-				NIL,
-			};
-
-			valid_types = valid;
-		} 
-		break;
-		
-		case INT: 
-		{
-
-			static const Type valid[] =
-			{
-				BOOL,
-				REAL,
-				STRING,
-				NIL,
-			};
-
-			valid_types = valid;
-
-		} 
-		break;
-		
-		case REAL: 
-		{
-
-			static const Type valid[]=
-			{
-				BOOL,
-				INT,
-				STRING,
-				NIL,
-			};
-
-			valid_types = valid;
-
-		} 
-		break;
-		
-		case STRING: 
-		{
-
-
-			static const Type invalid[]=
-			{
-				POINTER,
-				NIL,
-			};
-
-			invalid_types = invalid;
-		} 
-		break;
-		
-		case POINTER: 
-		{
-		} 
-		break;
-		
-		default: 
-		{
-		}
-		break;
-	}
-
-	if (valid_types) 
-	{
-		int i = 0;
-		while(valid_types[i] != NIL) 
-		{
-			if (p_type_from == valid_types[i])
-				return true;
-			i++;
-		}
-	} 
-	else if (invalid_types) 
-	{
-		int i = 0;
-		while(invalid_types[i] != NIL) 
-		{
-			if (p_type_from == invalid_types[i])
-				return false;
-			i++;
-		}
-	}
-
-	return false;
-
-}
-
-bool Variant::operator==(const Variant& p_variant) const 
+bool variant::operator==(const variant& p_variant) const 
 {
 	if (m_type != p_variant.m_type) //evaluation of operator== needs to be more strict
 		return false;
@@ -227,132 +110,7 @@ bool Variant::operator==(const Variant& p_variant) const
 	return false;
 }
 
-bool Variant::is_zero() const 
-{
-
-	switch( m_type ) 
-	{
-		case NIL: 
-		{
-			return true;
-		} 
-		break;
-
-		// atomic types
-		case BOOL: 
-		{
-			return m_data.m_bool == false;
-		} 
-		break;
-		
-		case INT: 
-		{
-			return m_data.m_int == 0;
-		} 
-		break;
-		
-		case REAL: 
-		{
-			return m_data.m_real == 0;
-		} 
-		break;
-		
-		case STRING: 
-		{
-			return *reinterpret_cast<const String*>(m_data.m_str) == String();
-		} 
-		break;
-
-		case POINTER: 
-		{
-			return m_data.m_ptr == 0;
-		} 
-		break;
-		
-		default: 
-		{
-		}
-		break;
-	}
-
-	return false;
-}
-
-void Variant::reference(const Variant& p_variant) 
-{
-	
-	if (this == &p_variant)
-		return;
-		
-	clear();
-		
-	m_type = p_variant.m_type;
-		
-	switch( p_variant.m_type ) 
-	{
-		case NIL: 
-		{
-			// none
-		} break;
-		
-		// atomic types 		
-		case BOOL: 
-		{		
-			m_data.m_bool = p_variant.m_data.m_bool;
-		} 
-		break;
-		
-		case INT: 
-		{
-			m_data.m_int=p_variant.m_data.m_int;
-		} 
-		break;
-		
-		case REAL: 
-		{
-			m_data.m_real=p_variant.m_data.m_real;
-		} 
-		break;
-		
-		case STRING: 
-		{
-		    if (m_data.m_str)
-		    {
-		        *m_data.m_str = String();
-		    }
-		    else
-		    {
-		        m_data.m_str = new String();
-		    }
-		    
-		    if (p_variant.m_data.m_str)
-		    {
-		        *m_data.m_str = *p_variant.m_data.m_str;
-		    }
-		    else
-		    {
-		        *m_data.m_str = String();
-		    }
-		} 
-		break;
-		
-		case POINTER: 
-		{
-		    // ref
-		    m_data.m_ptr = p_variant.m_data.m_ptr;
-		} 
-		break;
-		
-		default:
-		{
-		}
-		break;
-	}		
-
-
-}
-
-void Variant::clear() 
+void variant::clear() 
 {
 
 	switch(m_type) 
@@ -392,7 +150,79 @@ void Variant::clear()
 
 }
 
-Variant::operator signed int() const 
+void variant::reference(const variant& p_variant) 
+{
+	if (this == &p_variant)
+		return;
+		
+	clear();
+		
+	m_type = p_variant.m_type;
+		
+	switch( p_variant.m_type ) 
+	{
+		case NIL: 
+		{
+			// none
+		} break;
+		
+		// atomic types 		
+		case BOOL: 
+		{		
+			m_data.m_bool = p_variant.m_data.m_bool;
+		} 
+		break;
+		
+		case INT: 
+		{
+			m_data.m_int = p_variant.m_data.m_int;
+		} 
+		break;
+		
+		case REAL: 
+		{
+			m_data.m_real = p_variant.m_data.m_real;
+		} 
+		break;
+		
+		case STRING: 
+		{
+		    if (m_data.m_str)
+		    {
+		        *m_data.m_str = String();
+		    }
+		    else
+		    {
+		        m_data.m_str = new String();
+		    }
+		    
+		    if (p_variant.m_data.m_str)
+		    {
+		        *m_data.m_str = *p_variant.m_data.m_str;
+		    }
+		    else
+		    {
+		        *m_data.m_str = String();
+		    }
+		} 
+		break;
+		
+		case POINTER: 
+		{
+		    // ref
+		    m_data.m_ptr = p_variant.m_data.m_ptr;
+		} 
+		break;
+		
+		default:
+		{
+		}
+		break;
+	}		
+
+}
+
+variant::operator signed int() const 
 {
 
 	switch( m_type ) 
@@ -411,7 +241,7 @@ Variant::operator signed int() const
 	
 	return 0;
 }
-Variant::operator unsigned int() const 
+variant::operator unsigned int() const 
 {
 
 	switch( m_type ) 
@@ -431,7 +261,7 @@ Variant::operator unsigned int() const
 	return 0;
 }
 
-Variant::operator int64_t() const 
+variant::operator int64_t() const 
 {
 
 	switch( m_type ) 
@@ -452,7 +282,7 @@ Variant::operator int64_t() const
 }
 
 
-Variant::operator uint64_t() const {
+variant::operator uint64_t() const {
 
 	switch( m_type ) 
 	{
@@ -471,7 +301,7 @@ Variant::operator uint64_t() const {
 	return 0;
 }
 
-Variant::operator signed short() const 
+variant::operator signed short() const 
 {
 	switch( m_type ) 
 	{
@@ -489,7 +319,7 @@ Variant::operator signed short() const
 	
 	return 0;
 }
-Variant::operator unsigned short() const 
+variant::operator unsigned short() const 
 {
 	switch( m_type ) 
 	{
@@ -507,7 +337,7 @@ Variant::operator unsigned short() const
 	
 	return 0;
 }
-Variant::operator signed char() const 
+variant::operator signed char() const 
 {
 	switch( m_type ) 
 	{
@@ -525,7 +355,7 @@ Variant::operator signed char() const
 	
 	return 0;
 }
-Variant::operator unsigned char() const 
+variant::operator unsigned char() const 
 {
 	switch( m_type ) 
 	{
@@ -544,7 +374,7 @@ Variant::operator unsigned char() const
 	return 0;
 }
 
-Variant::operator float() const 
+variant::operator float() const 
 {
 	switch( m_type ) 
 	{
@@ -562,7 +392,7 @@ Variant::operator float() const
 	
 	return 0;
 }
-Variant::operator double() const 
+variant::operator double() const 
 {
 	switch( m_type ) 
 	{
@@ -580,7 +410,7 @@ Variant::operator double() const
 	return true;
 }
 
-Variant::operator String() const 
+variant::operator String() const 
 {
 	switch( m_type ) 
 	{
@@ -598,92 +428,92 @@ Variant::operator String() const
 	return "";
 }
 
-Variant::Variant(bool p_bool) 
+variant::variant(bool p_bool) 
 {
 	m_type = BOOL;
 	m_data.m_bool = p_bool;
 }
 
-Variant::Variant(signed int p_int) 
+variant::variant(signed int p_int) 
 {
 	m_type = INT;
 	m_data.m_int = p_int;
 }
 
-Variant::Variant(unsigned int p_int) 
+variant::variant(unsigned int p_int) 
 {
 	m_type = INT;
 	m_data.m_int = p_int;
 }
 
-Variant::Variant(int64_t p_int) 
+variant::variant(int64_t p_int) 
 {
 	m_type = INT;
 	m_data.m_int = p_int;
 }
 
-Variant::Variant(uint64_t p_int) 
+variant::variant(uint64_t p_int) 
 {
 	m_type = INT;
 	m_data.m_int = p_int;
 }
 
-Variant::Variant(signed short p_short) 
+variant::variant(signed short p_short) 
 {
 	m_type = INT;
 	m_data.m_int = p_short;
 }
-Variant::Variant(unsigned short p_short) 
+variant::variant(unsigned short p_short) 
 {
 	m_type = INT;
 	m_data.m_int = p_short;
 }
-Variant::Variant(signed char p_char) 
+variant::variant(signed char p_char) 
 {
 	m_type = INT;
 	m_data.m_int = p_char;
 }
-Variant::Variant(unsigned char p_char) 
+variant::variant(unsigned char p_char) 
 {
 	m_type = INT;
 	m_data.m_int = p_char;
 }
-Variant::Variant(float p_float) 
+variant::variant(float p_float) 
 {
 	m_type = REAL;
 	m_data.m_real = p_float;
 }
-Variant::Variant(double p_double) 
+variant::variant(double p_double) 
 {
 	m_type = REAL;
 	m_data.m_real = p_double;
 }
 
-Variant::Variant(const String& p_string) {
+variant::variant(const String& p_string) {
 
 	m_type = STRING;
 	m_data.m_str = new String(p_string);
 }
 
-Variant::Variant(const char * const p_cstring) 
+variant::variant(const char * const p_cstring) 
 {
 	m_type = STRING;
 	m_data.m_str = new String(p_cstring);
 }
 
-Variant::Variant(void * p_ptr) 
+variant::variant(void * p_ptr) 
 {
 	m_type = POINTER;
 	m_data.m_ptr = p_ptr;
 }
 
-Variant::Variant(const Variant& p_variant) {
-
+variant::variant(const variant& p_variant) 
+{
 	m_type = NIL;
 	reference(p_variant);
 }
 
-uint32_t Variant::hash() const 
+uint32_t variant::hash() const 
 {
 	switch( m_type ) 
 	{
@@ -737,7 +567,7 @@ uint32_t Variant::hash() const
 	return 0;
 }
 
-bool Variant::booleanize() const 
+bool variant::booleanize() const 
 {
 	switch(m_type) 
 	{
