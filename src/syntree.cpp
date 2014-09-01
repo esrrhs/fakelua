@@ -8,9 +8,8 @@ const char * get_syntree_node_name(esyntreetype type)
     case type:\
         return #type;
         
-    SYN_NODE_DEF(est_func_nil)
+    SYN_NODE_DEF(est_nil)
     SYN_NODE_DEF(est_func_desc)
-    SYN_NODE_DEF(est_bin)
     SYN_NODE_DEF(est_arglist)
     SYN_NODE_DEF(est_block)
     SYN_NODE_DEF(est_while_stmt)

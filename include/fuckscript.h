@@ -24,6 +24,7 @@ enum efkerror
     efk_parse_file_fail,
     efk_compile_same_func_name,
     efk_compile_func_arg_error,
+    efk_compile_stmt_type_error,
 };
 
 struct fuck;
