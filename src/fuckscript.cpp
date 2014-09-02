@@ -32,7 +32,7 @@ efkerror fkerror(fuck * fk)
 }
 
 // 解析文件
-bool fkparse(fuck * fk, const char * filename)
+binary * fkparse(fuck * fk, const char * filename)
 {
     // 输入源文件
     myflexer mf(fk);
@@ -42,7 +42,7 @@ bool fkparse(fuck * fk, const char * filename)
     if (!b)
     {
         FKLOG("fkparse open %s fail", fk, filename);
-        return false;
+        return 0;
     }
 
     // 进行语法解析
@@ -51,7 +51,7 @@ bool fkparse(fuck * fk, const char * filename)
     {
         FKLOG("fkparse yyparse %s fail ret %d", fk, filename, ret);
         fk->m_efkerror = efk_parse_file_fail;
-        return false;
+        return 0;
     }
     
     FKLOG("fkparse yyparse %p %s OK", fk, filename);
@@ -62,11 +62,18 @@ bool fkparse(fuck * fk, const char * filename)
     if (!b)
     {
         FKLOG("fkparse compile %s fail", fk, filename);
-        return false;
+        return 0;
     }
     
     FKLOG("fkparse %p %s OK", fk, filename);
     
+    return 0;
+}
+
+// 调用函数
+bool fkrun(fuck * fk, binary * bin, const char * func)
+{
+    // TODO
     return true;
 }
 

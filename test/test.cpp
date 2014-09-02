@@ -11,8 +11,8 @@ int main(int argc, const char *argv[])
     }
     
     fuck * fk = newfuck();
-    bool b = fkparse(fk, argv[1]);
-    if (!b)
+    binary * bin = fkparse(fk, argv[1]);
+    if (!bin)
     {
         printf("parse error\n");
     }

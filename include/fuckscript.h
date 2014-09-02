@@ -27,7 +27,11 @@ enum efkerror
     efk_compile_stmt_type_error,
 };
 
+// 脚本环境
 struct fuck;
+
+// 二进制
+struct binary;
 
 typedef void * (*fkmalloc)(size_t size);
 typedef void (*fkfree)(void *ptr);
@@ -40,5 +44,8 @@ void delfuck(fuck * fk);
 efkerror fkerror(fuck * fk);
 
 // 解析文件
-bool fkparse(fuck * fk, const char * filename);
+binary * fkparse(fuck * fk, const char * filename);
+
+// 调用函数
+bool fkrun(fuck * fk, binary * bin, const char * func);
 
