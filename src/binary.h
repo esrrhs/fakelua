@@ -2,6 +2,21 @@
 
 #include "types.h"
 
+enum OpCodeType
+{
+    OPCODE_ASSIGN,
+};
+
+enum AddrType
+{
+    ADDR_BITS = 24,
+	ADDR_MASK = ((1<<ADDR_BITS)-1),
+	ADDR_TYPE_MASK = ~ADDR_MASK,
+    ADDR_STACK,
+};
+
+#define MAKE_ADDR(type, pos) (pos|(type<<ADDR_BITS))
+
 struct fuck;
 struct func_binary
 {

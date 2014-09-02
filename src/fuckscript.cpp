@@ -2,6 +2,8 @@
 #include "semantic.h"
 #include "fuck.h"
 #include "compiler.h"
+#include "routine.h"
+#include "processor.h"
 
 fuck * newfuck(fkmalloc fkm, fkfree fkf)
 {
@@ -31,6 +33,11 @@ efkerror fkerror(fuck * fk)
     return fk->error();
 }
 
+const char * fkerrorstr(fuck * fk)
+{
+    return fk->errorstr();
+}
+
 // 解析文件
 binary * fkparse(fuck * fk, const char * filename)
 {
@@ -50,14 +57,16 @@ binary * fkparse(fuck * fk, const char * filename)
     if (ret != 0)
     {
         FKLOG("fkparse yyparse %s fail ret %d", fk, filename, ret);
-        fk->m_efkerror = efk_parse_file_fail;
+        fk->seterror(efk_parse_file_fail, "parse %s file fail", filename);
         return 0;
     }
     
     FKLOG("fkparse yyparse %p %s OK", fk, filename);
 
+    binary * bin = fknew<binary>(fk, fk);
+
     // 编译
-    compiler mc(fk);
+    compiler mc(fk, bin);
     b = mc.compile(&mf);
     if (!b)
     {
@@ -67,13 +76,21 @@ binary * fkparse(fuck * fk, const char * filename)
     
     FKLOG("fkparse %p %s OK", fk, filename);
     
-    return 0;
+    return bin;
 }
 
 // 调用函数
 bool fkrun(fuck * fk, binary * bin, const char * func)
 {
-    // TODO
+    FKLOG("fkrun %p %p %s", fk, bin, func);
+
+    routine r(fk, bin, func);
+    processor p(fk);
+
+    p.run(&r);
+    
+    FKLOG("fkrun %p %p %s OK", fk, bin, func);
+    
     return true;
 }
 

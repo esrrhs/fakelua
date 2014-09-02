@@ -1,16 +1,16 @@
 #pragma once
 
 #include "types.h"
-#include "binary.h"
 #include "codegen.h"
 #include "syntree.h"
 
 class fuck;
 class myflexer;
+class binary;
 class compiler
 {
 public:
-    compiler(fuck * fk) : m_fk(fk), m_binary(fk)
+    compiler(fuck * fk, binary * bin) : m_fk(fk), m_binary(bin)
     {
         clear();
     }
@@ -38,12 +38,10 @@ private:
     bool compile_identifier_node(codegen & cg, identifier_node * in, int stack_level);
     
 private:
-    bool add_stack_identifier();
-    void push_stack_identifiers();
-    void pop_stack_identifiers();
     
 private:
     fuck * m_fk;
-    binary m_binary;
+    binary * m_binary;
+    int m_cur_addr;
 };
 

@@ -34,7 +34,7 @@ bool myflexer::inputfile(const char * filename)
     FILE * file = fopen(filename, "r");
     if (!file)
     {
-        m_fk->m_efkerror = efk_open_file_fail;
+        m_fk->seterror(efk_open_file_fail, "open %s fail", filename);
         return false;
     }
 
@@ -47,7 +47,7 @@ bool myflexer::inputfile(const char * filename)
 
     if (i == 0)
     {
-        m_fk->m_efkerror = efk_open_file_empty;
+        m_fk->seterror(efk_open_file_empty, "open %s empty", filename);
         return false;
     }
     

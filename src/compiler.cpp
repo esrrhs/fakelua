@@ -2,10 +2,11 @@
 #include "semantic.h"
 #include "myflexer.h"
 #include "fuck.h"
+#include "binary.h"
 
 void compiler::clear()
 {
-    m_binary.clear();
+    m_binary->clear();
 }
 
 bool compiler::compile(myflexer * mf)
@@ -33,9 +34,9 @@ bool compiler::compile_func(func_desc_node * funcnode)
     codegen cg(m_fk);
     
     // 检测重名
-    if (m_binary.is_have_func(funcnode->funcname))
+    if (m_binary->is_have_func(funcnode->funcname))
     {
-        m_fk->m_efkerror = efk_compile_same_func_name;
+        m_fk->seterror(efk_compile_same_func_name, "same func name %s", funcnode->funcname.c_str());
         return false;
     }
 
@@ -48,7 +49,7 @@ bool compiler::compile_func(func_desc_node * funcnode)
         const String & arg = arglist[i];
         if (!cg.add_stack_identifier(arg, i))
         {
-            m_fk->m_efkerror = efk_compile_func_arg_error;
+            m_fk->seterror(efk_compile_func_arg_error, "func %s arg error %s", funcnode->funcname.c_str(), arg.c_str());
             return false;
         }
     }
@@ -61,7 +62,7 @@ bool compiler::compile_func(func_desc_node * funcnode)
     }
 
     // 编译成功
-    m_binary.add_func(funcnode->funcname, bin);
+    m_binary->add_func(funcnode->funcname, bin);
     
     FKLOG("[compiler] compile_func func %s OK", funcnode->funcname.c_str());
     
@@ -223,7 +224,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
     default:
         {
             FKLOG("[compiler] compile_node type error %d %s", type, node->gettypename());
-            m_fk->m_efkerror = efk_compile_stmt_type_error;
+            m_fk->seterror(efk_compile_stmt_type_error, "compile node type error %d", type);
             return false;
         }
         break;
@@ -265,6 +266,24 @@ bool compiler::compile_assign_stmt(codegen & cg, assign_stmt * as, int stack_lev
 {
     FKLOG("[compiler] compile_assign_stmt %p", as);
 
+    cg.push(OPCODE_ASSIGN);
+    
+    if (!compile_node(cg, as->var, stack_level))
+    {
+        FKLOG("[compiler] compile_assign_stmt var fail");
+        return false;
+    }
+    cg.push(m_cur_addr);
+    FKLOG("[compiler] compile_assign_stmt var = %d", m_cur_addr);
+    
+    if (!compile_node(cg, as->value, stack_level))
+    {
+        FKLOG("[compiler] compile_assign_stmt value fail");
+        return false;
+    }
+    cg.push(m_cur_addr);
+    FKLOG("[compiler] compile_assign_stmt value = %d", m_cur_addr);
+
     FKLOG("[compiler] compile_assign_stmt %p OK", as);
     
     return true;
@@ -300,6 +319,16 @@ bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev, in
 bool compiler::compile_variable_node(codegen & cg, variable_node * vn, int stack_level)
 {
     FKLOG("[compiler] compile_variable_node %p", vn);
+
+    // 从当前堆栈往上找
+    int pos = cg.getvariable(vn->str);
+    if (pos)
+    {
+        FKLOG("[compiler] compile_variable_node variable not found %s", vn->str.c_str());
+        m_fk->seterror(efk_compile_variable_not_found, "variable %s not found", vn->str.c_str());
+        return false;
+    }
+    m_cur_addr = MAKE_ADDR(ADDR_STACK, pos);
 
     FKLOG("[compiler] compile_variable_node %p OK", vn);
     

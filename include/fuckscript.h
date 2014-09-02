@@ -25,6 +25,7 @@ enum efkerror
     efk_compile_same_func_name,
     efk_compile_func_arg_error,
     efk_compile_stmt_type_error,
+    efk_compile_variable_not_found,
 };
 
 // 脚本环境
@@ -42,6 +43,7 @@ void delfuck(fuck * fk);
 
 // 错误
 efkerror fkerror(fuck * fk);
+const char * fkerrorstr(fuck * fk);
 
 // 解析文件
 binary * fkparse(fuck * fk, const char * filename);
