@@ -44,6 +44,7 @@ String while_stmt::dump(int indent)
     }
     else
     {
+        ret += gentab(indent + 1);
         ret += "nil\n";
     }
     return ret;
@@ -60,6 +61,7 @@ String else_stmt::dump(int indent)
     }
     else
     {
+        ret += gentab(indent + 1);
         ret += "nil\n";
     }
     return ret;

@@ -61,13 +61,15 @@ int my_yyerror(const char *s, void * parm)
 %token NOT_EQUAL
 %token OPEN_BRACKET
 %token CLOSE_BRACKET
+%token AND
+%token OR
 
 %right PLUS
 %right MINUS
 %right DIVIDE
 %right MULTIPLY
 
-%expect 11
+%expect 15
 
 %type<str> IDENTIFIER  
 %type<str> NUMBER
@@ -80,6 +82,7 @@ int my_yyerror(const char *s, void * parm)
 %type<str> MORE LESS MORE_OR_EQUAL LESS_OR_EQUAL EQUAL NOT_EQUAL
 %type<str> TRUE FALSE
 %type<str> ASSIGN
+%type<str> AND OR
 
 %type<syntree> break
 %type<syntree> function_declaration
@@ -343,6 +346,32 @@ else_stmt:
 	;
 
 cmp:
+	OPEN_BRACKET cmp CLOSE_BRACKET
+	{
+		FKLOG("[bison]: cmp <- ( cmp )");
+		$$ = $2;
+	}
+	|
+	cmp AND cmp
+	{
+		FKLOG("[bison]: cmp <- cmp AND cmp");
+		NEWTYPE(p, cmp_stmt);
+		p->cmp = "&&";
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
+	}
+	|
+	cmp OR cmp
+	{
+		FKLOG("[bison]: cmp <- cmp OR cmp");
+		NEWTYPE(p, cmp_stmt);
+		p->cmp = "||";
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
+	}
+	|
 	cmp_value LESS cmp_value
 	{
 		FKLOG("[bison]: cmp <- cmp_value LESS cmp_value");
