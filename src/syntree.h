@@ -56,7 +56,7 @@ struct syntree_node
     
     virtual String dump(int indent)
     {
-        return "nil\n";
+        return gentab(indent) + "nil\n";
     }
     
     String gentab(int indent)

@@ -1,7 +1,7 @@
 -- func1 comment
 func myfunc1(arg1, arg2)
 	
-	if arg1 > 10 then
+	if (arg1 > 10 && arg1 < 100) || arg2 > 3 then
 		arg1 = arg1 + 1
 	else
 		arg1 = arg1 + 1

@@ -162,6 +162,14 @@
 	return CLOSE_BRACKET;
 }
 
+"&&" {
+	return AND;
+}
+
+"||" {
+	return OR;
+}
+
 
 %%
 int yyFlexLexer::yywrap()
