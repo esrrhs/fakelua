@@ -2,6 +2,7 @@
 
 #include "types.h"
 
+struct fuck;
 class variant 
 {
 public:
@@ -24,23 +25,23 @@ public:
     
     
 	variant(const variant& p_variant);
-	variant() { m_type = NIL; }
+	variant() { m_type = NIL; m_fk = 0; }
 	~variant() { if (m_type != variant::NIL) clear(); }
 
-	variant(bool p_bool);
-	variant(signed int p_int); // real one
-	variant(unsigned int p_int);
-	variant(signed short p_short); // real one
-	variant(unsigned short p_short);
-	variant(signed char p_char); // real one
-	variant(unsigned char p_char);
-	variant(int64_t p_char); // real one
-	variant(uint64_t p_char);
-	variant(float p_float);
-	variant(double p_double);
-	variant(const String& p_string);
-	variant(const char * const p_cstring);
-	variant(void * p_ptr);
+	variant(bool p_bool, fuck * fk);
+	variant(signed int p_int, fuck * fk); // real one
+	variant(unsigned int p_int, fuck * fk);
+	variant(signed short p_short, fuck * fk); // real one
+	variant(unsigned short p_short, fuck * fk);
+	variant(signed char p_char, fuck * fk); // real one
+	variant(unsigned char p_char, fuck * fk);
+	variant(int64_t p_char, fuck * fk); // real one
+	variant(uint64_t p_char, fuck * fk);
+	variant(float p_float, fuck * fk);
+	variant(double p_double, fuck * fk);
+	variant(const String& p_string, fuck * fk);
+	variant(const char * const p_cstring, fuck * fk);
+	variant(void * p_ptr, fuck * fk);
 	
 	bool operator==(const variant& p_variant) const;	
 	void operator=(const variant& p_variant); // only this is enough for all the other types
@@ -87,5 +88,7 @@ private:
 	Type m_type;
 
 	MemData m_data;
+
+	fuck * m_fk;
 };
 

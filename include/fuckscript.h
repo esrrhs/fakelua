@@ -25,7 +25,8 @@ enum efkerror
     efk_compile_same_func_name,
     efk_compile_func_arg_error,
     efk_compile_stmt_type_error,
-    efk_compile_variable_not_found,
+	efk_compile_variable_not_found,
+	efk_compile_explicit_type_error,
 };
 
 // ½Å±¾»·¾³

@@ -1,4 +1,5 @@
 #include "variant.h"
+#include "fuck.h"
 
 String variant::get_type_name(variant::Type p_type) 
 {
@@ -110,6 +111,12 @@ bool variant::operator==(const variant& p_variant) const
 	return false;
 }
 
+void variant::operator=(const variant& p_variant)
+{
+	clear();
+	reference(p_variant);
+}
+
 void variant::clear() 
 {
 
@@ -126,10 +133,7 @@ void variant::clear()
 		
 		case STRING: 
 		{
-		    if (m_data.m_str)
-		    {
-		        delete m_data.m_str;
-		    }
+		    fkdelete(m_fk, m_data.m_str);
 		} 
 		break;
 		
@@ -193,7 +197,7 @@ void variant::reference(const variant& p_variant)
 		    }
 		    else
 		    {
-		        m_data.m_str = new String();
+		        m_data.m_str = fknew<String>(m_fk);
 		    }
 		    
 		    if (p_variant.m_data.m_str)
@@ -428,86 +432,86 @@ variant::operator String() const
 	return "";
 }
 
-variant::variant(bool p_bool) 
+variant::variant(bool p_bool, fuck * fk) : m_fk(fk)
 {
 	m_type = BOOL;
 	m_data.m_bool = p_bool;
 }
 
-variant::variant(signed int p_int) 
+variant::variant(signed int p_int, fuck * fk) : m_fk(fk)
 {
 	m_type = INT;
 	m_data.m_int = p_int;
 }
 
-variant::variant(unsigned int p_int) 
+variant::variant(unsigned int p_int, fuck * fk) : m_fk(fk)
 {
 	m_type = INT;
 	m_data.m_int = p_int;
 }
 
-variant::variant(int64_t p_int) 
+variant::variant(int64_t p_int, fuck * fk) : m_fk(fk)
 {
 	m_type = INT;
 	m_data.m_int = p_int;
 }
 
-variant::variant(uint64_t p_int) 
+variant::variant(uint64_t p_int, fuck * fk) : m_fk(fk)
 {
 	m_type = INT;
 	m_data.m_int = p_int;
 }
 
-variant::variant(signed short p_short) 
+variant::variant(signed short p_short, fuck * fk) : m_fk(fk)
 {
 	m_type = INT;
 	m_data.m_int = p_short;
 }
-variant::variant(unsigned short p_short) 
+variant::variant(unsigned short p_short, fuck * fk) : m_fk(fk)
 {
 	m_type = INT;
 	m_data.m_int = p_short;
 }
-variant::variant(signed char p_char) 
+variant::variant(signed char p_char, fuck * fk) : m_fk(fk)
 {
 	m_type = INT;
 	m_data.m_int = p_char;
 }
-variant::variant(unsigned char p_char) 
+variant::variant(unsigned char p_char, fuck * fk) : m_fk(fk)
 {
 	m_type = INT;
 	m_data.m_int = p_char;
 }
-variant::variant(float p_float) 
+variant::variant(float p_float, fuck * fk) : m_fk(fk)
 {
 	m_type = REAL;
 	m_data.m_real = p_float;
 }
-variant::variant(double p_double) 
+variant::variant(double p_double, fuck * fk) : m_fk(fk)
 {
 	m_type = REAL;
 	m_data.m_real = p_double;
 }
 
-variant::variant(const String& p_string) {
-
-	m_type = STRING;
-	m_data.m_str = new String(p_string);
-}
-
-variant::variant(const char * const p_cstring) 
+variant::variant(const String& p_string, fuck * fk) : m_fk(fk) 
 {
 	m_type = STRING;
-	m_data.m_str = new String(p_cstring);
+	m_data.m_str = fknew<String>(fk, p_string);
 }
 
-variant::variant(void * p_ptr) 
+variant::variant(const char * const p_cstring, fuck * fk) : m_fk(fk)
+{
+	m_type = STRING;
+	m_data.m_str = fknew<String>(fk, p_cstring);
+}
+
+variant::variant(void * p_ptr, fuck * fk) : m_fk(fk)
 {
 	m_type = POINTER;
 	m_data.m_ptr = p_ptr;
 }
 
-variant::variant(const variant& p_variant) 
+variant::variant(const variant& p_variant) : m_fk(p_variant.m_fk)
 {
 	m_type = NIL;
 	reference(p_variant);

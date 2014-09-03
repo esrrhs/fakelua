@@ -2,10 +2,12 @@
 
 #include "types.h"
 #include "binary.h"
+#include "variant.h"
 
 typedef std::map<String, int> stack_identifiers_map;
 typedef std::vector<stack_identifiers_map> stack_id_stack;
 typedef std::vector<int> byte_code_list;
+typedef std::vector<variant> const_list;
 
 class fuck;
 class codegen
@@ -65,7 +67,9 @@ public:
         }
         return -1;
     }
-    
+
+	int getconst(const String & name, bool isstr);
+
     void push(int code)
     {
         m_byte_code_list.push_back(code);
@@ -76,5 +80,6 @@ private:
     stack_id_stack m_stack_id_stack;
 	stack_identifiers_map m_stack_identifiers_map;
 	byte_code_list m_byte_code_list;
+	const_list m_const_list;
 };
 

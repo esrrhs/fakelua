@@ -138,6 +138,14 @@ struct explicit_value_node : public syntree_node
     explicit_value_node() {}
     virtual ~explicit_value_node() {}
     
+	enum explicit_value_type
+	{
+		EVT_TRUE,
+		EVT_FALSE,
+		EVT_NUM,
+		EVT_STR,
+	};
+
     virtual esyntreetype gettype()
     {
         return est_explicit_value;
@@ -153,7 +161,13 @@ struct explicit_value_node : public syntree_node
         return ret;
     }
     
+	explicit_value_type getvaluetype() const
+	{
+		return type;
+	}
+
     String str;
+	explicit_value_type type;
 };
 
 struct return_stmt : public syntree_node
