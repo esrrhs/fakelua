@@ -309,7 +309,36 @@ bool compiler::compile_cmp_stmt(codegen & cg, cmp_stmt * cs, int stack_level)
 
 bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev, int stack_level)
 {
-    FKLOG("[compiler] compile_explicit_value %p", ev);
+	FKLOG("[compiler] compile_explicit_value %p %s", ev, ev->str.c_str());
+
+	String value;
+	bool isstr = false;
+	switch (ev->getvaluetype())
+	{
+	case explicit_value_node::EVT_TRUE:
+		value = "1";
+		isstr = false;
+		break;
+	case explicit_value_node::EVT_FALSE:
+		value = "1";
+		isstr = false;
+		break;
+	case explicit_value_node::EVT_NUM:
+		value = ev->str;
+		isstr = false;
+		break;
+	case explicit_value_node::EVT_STR:
+		value = ev->str;
+		isstr = true;
+		break;
+	default:
+		FKLOG("[compiler] compile_explicit_value type error %d %s", ev->getvaluetype(), ev->gettypename());
+		m_fk->seterror(efk_compile_explicit_type_error, "compile explicit value type error %d", ev->getvaluetype());
+		return false;
+	}
+
+	int pos = cg.getconst(ev->str, isstr);
+	m_cur_addr = MAKE_ADDR(ADDR_CONST, pos);
 
     FKLOG("[compiler] compile_explicit_value %p OK", ev);
     

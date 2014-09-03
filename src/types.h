@@ -40,10 +40,10 @@ union MarshallPoiner
 	void * p; ///< p
 };
 
-int32_t fkatoi(String * p);
-int64_t fkatol(String * p);
-float fkatof(String * p);
-double fkatod(String * p);
+int32_t fkatoi(const String * p);
+int64_t fkatol(const String * p);
+float fkatof(const String * p);
+double fkatod(const String * p);
 String fkitoa(int64_t d);
 String fkdtoa(double d);
 

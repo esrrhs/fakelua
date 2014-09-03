@@ -650,6 +650,7 @@ explicit_value:
 		FKLOG("[bison]: explicit_value <- TRUE");
 		NEWTYPE(p, explicit_value_node);
 		p->str = $1;
+		p->type = explicit_value_node::EVT_TRUE;
 		$$ = p;
 	}
 	|
@@ -658,6 +659,7 @@ explicit_value:
 		FKLOG("[bison]: explicit_value <- FALSE");
 		NEWTYPE(p, explicit_value_node);
 		p->str = $1;
+		p->type = explicit_value_node::EVT_FALSE;
 		$$ = p;
 	}
 	|
@@ -666,6 +668,7 @@ explicit_value:
 		FKLOG("[bison]: explicit_value <- NUMBER %s", $1.c_str());
 		NEWTYPE(p, explicit_value_node);
 		p->str = $1;
+		p->type = explicit_value_node::EVT_NUM;
 		$$ = p;
 	}
 	|
@@ -674,6 +677,7 @@ explicit_value:
 		FKLOG("[bison]: explicit_value <- STRING_DEFINITION %s", $1.c_str());
 		NEWTYPE(p, explicit_value_node);
 		p->str = $1;
+		p->type = explicit_value_node::EVT_STR;
 		$$ = p;
 	}
 	;

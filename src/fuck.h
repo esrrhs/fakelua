@@ -53,7 +53,21 @@ template <typename T, typename P1>
 T * fknew(fuck * fk, P1 p1)
 {
     T * t = (T *)fk->m_fkmalloc(sizeof(T));
+	if (!t)
+	{
+		return 0;
+	}
     new (t) T(p1);
     return t;
+}
+
+template <typename T>
+void fkdelete(fuck * fk, T * p)
+{
+	if (p)
+	{
+		p->~T();
+		fk->m_fkfree(p);
+	}
 }
 

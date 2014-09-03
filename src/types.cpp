@@ -30,7 +30,7 @@ void fklog(const char * file, const char * func, int pos, const char *fmt, ...)
 	fclose(pLog);
 }
 
-int32_t fkatoi(String * p)
+int32_t fkatoi(const String * p)
 {
     if (p)
     {
@@ -39,7 +39,7 @@ int32_t fkatoi(String * p)
     return 0;
 }
 
-int64_t fkatol(String * p)
+int64_t fkatol(const String * p)
 {
     if (p)
     {
@@ -48,7 +48,7 @@ int64_t fkatol(String * p)
     return 0;
 }
 
-float fkatof(String * p)
+float fkatof(const String * p)
 {
     if (p)
     {
@@ -57,7 +57,7 @@ float fkatof(String * p)
     return 0;
 }
 
-double fkatod(String * p)
+double fkatod(const String * p)
 {
     if (p)
     {
