@@ -6,8 +6,7 @@
 
 typedef std::map<String, int> stack_identifiers_map;
 typedef std::vector<stack_identifiers_map> stack_id_stack;
-typedef std::vector<int> byte_code_list;
-typedef std::vector<variant> const_list;
+typedef std::vector<command> byte_code_list;
 
 class fuck;
 class codegen
@@ -70,10 +69,12 @@ public:
 
 	int getconst(const String & name, bool isstr);
 
-    void push(int code)
+    void push(uint64_t code)
     {
         m_byte_code_list.push_back(code);
     }
+
+    void output(String name, func_binary * bin);
     
 private:
     fuck * m_fk;
