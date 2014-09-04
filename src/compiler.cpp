@@ -23,6 +23,9 @@ bool compiler::compile(myflexer * mf)
         }
     }
 
+    String str = m_binary->dump();
+    FKLOG("[compiler] compile funclist %d ok dump \n%s", funclist.size(), str.c_str());
+
     return true;
 }
 
@@ -30,7 +33,6 @@ bool compiler::compile_func(func_desc_node * funcnode)
 {
     FKLOG("[compiler] compile_func func %s", funcnode->funcname.c_str());
     
-    func_binary bin(m_fk);
     codegen cg(m_fk);
     
     // 检测重名
@@ -62,9 +64,11 @@ bool compiler::compile_func(func_desc_node * funcnode)
     }
 
     // 编译成功
-    m_binary->add_func(funcnode->funcname, bin);
+    func_binary bin(m_fk);
+    cg.output(funcnode->funcname, &bin);
+    m_binary->add_func(bin);
     
-    FKLOG("[compiler] compile_func func %s OK", funcnode->funcname.c_str());
+    FKLOG("[compiler] compile_func func %s size = %d OK", funcnode->funcname.c_str(), bin.Size());
     
     return true;
 }
@@ -266,7 +270,7 @@ bool compiler::compile_assign_stmt(codegen & cg, assign_stmt * as, int stack_lev
 {
     FKLOG("[compiler] compile_assign_stmt %p", as);
 
-    cg.push(OPCODE_ASSIGN);
+    cg.push(MAKE_OPCODE(OPCODE_ASSIGN));
     
     if (!compile_node(cg, as->var, stack_level))
     {

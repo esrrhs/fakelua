@@ -42,6 +42,6 @@ private:
 private:
     fuck * m_fk;
     binary * m_binary;
-    int m_cur_addr;
+    command m_cur_addr;
 };
 

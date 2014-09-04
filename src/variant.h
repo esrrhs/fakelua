@@ -92,3 +92,4 @@ private:
 	fuck * m_fk;
 };
 
+typedef std::vector<variant> const_list;
