@@ -16,6 +16,9 @@ int main(int argc, const char *argv[])
     {
         printf("parse error\n");
     }
+
+    int ret = fkrun<int>(bin, "myfunc1", "asf", 2);
+    printf("call ret %d\n", ret);
     
     return 0;
 }

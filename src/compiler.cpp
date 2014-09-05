@@ -68,7 +68,7 @@ bool compiler::compile_func(func_desc_node * funcnode)
     cg.output(funcnode->funcname, &bin);
     m_binary->add_func(bin);
     
-    FKLOG("[compiler] compile_func func %s size = %d OK", funcnode->funcname.c_str(), bin.Size());
+    FKLOG("[compiler] compile_func func %s size = %d OK", funcnode->funcname.c_str(), bin.size());
     
     return true;
 }

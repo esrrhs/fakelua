@@ -226,7 +226,7 @@ void variant::reference(const variant& p_variant)
 
 }
 
-variant::operator signed int() const 
+variant::operator int() const 
 {
 
 	switch( m_type ) 
@@ -305,7 +305,7 @@ variant::operator uint64_t() const {
 	return 0;
 }
 
-variant::operator signed short() const 
+variant::operator short() const 
 {
 	switch( m_type ) 
 	{
@@ -341,7 +341,7 @@ variant::operator unsigned short() const
 	
 	return 0;
 }
-variant::operator signed char() const 
+variant::operator char() const 
 {
 	switch( m_type ) 
 	{
@@ -405,13 +405,14 @@ variant::operator double() const
 		case INT: return (float)m_data.m_int;
 		case REAL: return m_data.m_real;
 		case STRING: return fkatod(m_data.m_str);
+		case POINTER: return 0;
 		default: 
 		{
 			return 0;
 		}		
 	}
 	
-	return true;
+	return 0;
 }
 
 variant::operator String() const 
@@ -423,6 +424,7 @@ variant::operator String() const
 		case INT: return fkitoa(m_data.m_int);
 		case REAL: return fkdtoa(m_data.m_real);
 		case STRING: return *reinterpret_cast<const String*>(m_data.m_str);
+		case POINTER: return ""; 
 		default: 
 		{
 			return "None";
@@ -430,6 +432,30 @@ variant::operator String() const
 	}
 	
 	return "";
+}
+
+variant::operator bool() const
+{
+    return booleanize();
+}
+
+variant::operator void*() const
+{
+	switch( m_type ) 
+	{
+		case NIL: return 0; 
+		case BOOL: return 0;
+		case INT: return 0;
+		case REAL: return 0;
+		case STRING: return 0;
+		case POINTER: return m_data.m_ptr; 
+		default: 
+		{
+			return 0;
+		}		
+	}
+	
+	return 0;
 }
 
 variant::variant(bool p_bool, fuck * fk) : m_fk(fk)

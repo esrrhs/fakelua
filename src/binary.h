@@ -40,7 +40,12 @@ public:
         m_size = 0;
     }
 
-    size_t Size() const
+    size_t cmdsize() const
+    {
+        return m_size;
+    }
+    
+    size_t size() const
     {
         return m_size * sizeof(command);
     }
@@ -78,9 +83,11 @@ public:
     }
 
     void clear();
+    fuck * getfuck();
 
     bool is_have_func(const String & name) const;
     bool add_func(func_binary & bin);
+    const func_binary * get_func(const String & name) const;
 
     String dump() const;
     
