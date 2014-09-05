@@ -80,6 +80,46 @@ String fkdtoa(double d)
     return buff;
 }
 
+String fkxtoa(int64_t d)
+{
+    String ret;
+    
+	char tmpbuf[32]={0};
+	uint32_t idx = 31;
+
+	// special case '0'
+
+	if (!d)
+	{
+		tmpbuf[30] = '0';
+		ret = &tmpbuf[30];
+	}
+    else
+    {
+    	// add numbers
+    	const uint8_t chars[]="0123456789ABCDEF";
+    	while(d && idx)
+    	{
+    		--idx;
+    		tmpbuf[idx] = chars[(d % 16)];
+    		d /= 16;
+    	}
+
+    	ret = &tmpbuf[idx];
+    }
+
+    if (ret.size() < 16)
+    {
+        String tmp;
+        tmp.insert(0, 16 - ret.size(), '0');
+        ret = tmp + ret;
+    }
+
+    String tmp = "0x";
+    ret = tmp + ret;
+	return ret;
+}
+
 uint32_t fkstrhash(String * p)
 {
     uint32_t hashv = 0;
