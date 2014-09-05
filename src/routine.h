@@ -1,13 +1,14 @@
 #pragma once
 
 #include "types.h"
+#include "variant.h"
 
 struct fuck;
-class binary;
+class func_binary;
 class routine
 {
 public:
-    routine(fuck * fk, binary * bin, const char * func) : m_fk(fk), m_binary(bin), m_func(func)
+    routine(fuck * fk, const func_binary * fb) : m_fk(fk), m_fb(fb), m_ret(fk)
     {
         clear();
     }
@@ -17,9 +18,20 @@ public:
 
     void clear();
 
+    const variant & getret() const;
+
+    bool isend() const;
+    
+    int run(int cmdnum);
+
+private:
+    void runcmd();
+    
 private:
     fuck * m_fk;
-    binary * m_binary;
-    const char * m_func;
+    const func_binary * m_fb;
+    variant m_ret;
+    int m_cmdpos;
+    bool m_isend;
 };
 

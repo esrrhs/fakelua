@@ -1,5 +1,5 @@
 -- func1 comment
-func myfunc1(arg1, arg2, arg3, arg4)
+func myfunc1(arg1, arg2)
 	
 	var arg4 = 2 - arg1 * arg2 + 1
 	var arg3 = arg1 * arg2 + 1

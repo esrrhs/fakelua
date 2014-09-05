@@ -115,6 +115,11 @@ void binary::clear()
     m_func_list.clear();
 }
 
+fuck * binary::getfuck()
+{
+    return m_fk;
+}
+
 bool binary::is_have_func(const String & name) const
 {
     return m_func_index_map.find(name) != m_func_index_map.end();
@@ -133,6 +138,18 @@ bool binary::add_func(func_binary & bin)
     m_func_index_map[name] = index;
 
     return true;
+}
+
+const func_binary * binary::get_func(const String & name) const
+{
+    func_binary_map::const_iterator it = m_func_index_map.find(name);
+    if (it == m_func_index_map.end())
+    {
+        return 0;
+    }
+
+    int pos = it->second;
+    return &m_func_list[pos];
 }
 
 String binary::dump() const

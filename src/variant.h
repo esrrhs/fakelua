@@ -26,6 +26,7 @@ public:
     
 	variant(const variant& p_variant);
 	variant() { m_type = NIL; m_fk = 0; }
+	variant(fuck * fk) { m_type = NIL; m_fk = fk; }
 	~variant() { if (m_type != variant::NIL) clear(); }
 
 	variant(bool p_bool, fuck * fk);
@@ -47,20 +48,18 @@ public:
 	void operator=(const variant& p_variant); // only this is enough for all the other types
 	
 	operator bool() const;
-	operator signed int() const;
+	operator int() const;
 	operator unsigned int() const; // this is the real one
-	operator signed short() const;
+	operator short() const;
 	operator unsigned short() const;
-	operator signed char() const;
+	operator char() const;
 	operator unsigned char() const;
-	//operator long unsigned int() const;
 	operator int64_t() const;
 	operator uint64_t() const;
-	operator signed long() const;
-	operator unsigned long() const;
 	operator float() const;
 	operator double() const;
 	operator String() const;
+	operator void*() const;
 
 	Type get_type() const { return m_type; }
 	static String get_type_name(variant::Type p_type);
@@ -93,3 +92,5 @@ private:
 };
 
 typedef std::vector<variant> const_list;
+typedef std::vector<variant> variant_list;
+
