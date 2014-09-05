@@ -11,7 +11,9 @@ String func_binary::dump() const
     ret += "]\n";
     
     // 常量表
-    ret += "\t//////const define//////\n";
+    ret += "\t////// const define ";
+    ret += fkitoa(m_const_list.size());
+    ret += " //////\n";
     for (int i = 0; i < (int)m_const_list.size(); i++)
     {  
         ret += "\t[";
@@ -44,7 +46,9 @@ String func_binary::dump() const
         ret += "\n";
     }
     
-    ret += "\n\t//////byte code//////\n";
+    ret += "\n\t////// byte code ";
+    ret += fkitoa(m_size);
+    ret += " //////\n";
     // 字节码
     for (int i = 0; i < (int)m_size; i++)
     {    
@@ -54,6 +58,8 @@ String func_binary::dump() const
         ret += "\t[";
         ret += fkitoa(i);
         ret += "]\t";
+        ret += fkxtoa(cmd);
+        ret += "\t";
         switch (type)
         {
         case COMMAND_OPCODE:

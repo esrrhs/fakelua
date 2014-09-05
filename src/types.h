@@ -46,6 +46,7 @@ float fkatof(const String * p);
 double fkatod(const String * p);
 String fkitoa(int64_t d);
 String fkdtoa(double d);
+String fkxtoa(int64_t d);
 
 uint32_t fkstrhash(String * p);
 
