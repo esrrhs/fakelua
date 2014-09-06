@@ -11,13 +11,20 @@ int main(int argc, const char *argv[])
     }
     
     fuck * fk = newfuck();
-    binary * bin = fkparse(fk, argv[1]);
+    fkerrorinfo ei;
+    binary * bin = fkparse(fk, &ei, argv[1]);
     if (!bin)
     {
         printf("parse error\n");
     }
 
-    int ret = fkrun<int>(bin, "myfunc1", "asf", 2);
+    int ret = fkrun<int>(bin, &ei, "myfunc1", "asf", 2);
+    if (ei.fkerror() != efk_ok)
+    {
+        printf("call fail errorno %d, %s\n", ei.fkerror(), ei.fkerrorstr());
+        return 0;
+    }
+    
     printf("call ret %d\n", ret);
     
     return 0;

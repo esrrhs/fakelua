@@ -31,10 +31,12 @@ private:
     bool empty() const;
     bool full() const;
     void grow();
+    void checkdelete();
 private:
     fuck * m_fk;
     routine ** m_routine_list;
     size_t m_routine_num;
     size_t m_routine_max_size;
+    size_t m_invalid_routine_num;
 };
 

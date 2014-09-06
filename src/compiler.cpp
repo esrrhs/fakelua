@@ -38,7 +38,7 @@ bool compiler::compile_func(func_desc_node * funcnode)
     // ¼ì²âÖØÃû
     if (m_binary->is_have_func(funcnode->funcname))
     {
-        m_fk->seterror(efk_compile_same_func_name, "same func name %s", funcnode->funcname.c_str());
+        m_fk->seterror(m_ei, efk_compile_same_func_name, "same func name %s", funcnode->funcname.c_str());
         return false;
     }
 
@@ -51,7 +51,7 @@ bool compiler::compile_func(func_desc_node * funcnode)
         const String & arg = arglist[i];
         if (!cg.add_stack_identifier(arg, i))
         {
-            m_fk->seterror(efk_compile_func_arg_error, "func %s arg error %s", funcnode->funcname.c_str(), arg.c_str());
+            m_fk->seterror(m_ei, efk_compile_func_arg_error, "func %s arg error %s", funcnode->funcname.c_str(), arg.c_str());
             return false;
         }
     }
@@ -228,7 +228,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
     default:
         {
             FKLOG("[compiler] compile_node type error %d %s", type, node->gettypename());
-            m_fk->seterror(efk_compile_stmt_type_error, "compile node type error %d", type);
+            m_fk->seterror(m_ei, efk_compile_stmt_type_error, "compile node type error %d", type);
             return false;
         }
         break;
@@ -337,7 +337,7 @@ bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev, in
 		break;
 	default:
 		FKLOG("[compiler] compile_explicit_value type error %d %s", ev->getvaluetype(), ev->gettypename());
-		m_fk->seterror(efk_compile_explicit_type_error, "compile explicit value type error %d", ev->getvaluetype());
+		m_fk->seterror(m_ei, efk_compile_explicit_type_error, "compile explicit value type error %d", ev->getvaluetype());
 		return false;
 	}
 
@@ -358,7 +358,7 @@ bool compiler::compile_variable_node(codegen & cg, variable_node * vn, int stack
     if (pos)
     {
         FKLOG("[compiler] compile_variable_node variable not found %s", vn->str.c_str());
-        m_fk->seterror(efk_compile_variable_not_found, "variable %s not found", vn->str.c_str());
+        m_fk->seterror(m_ei, efk_compile_variable_not_found, "variable %s not found", vn->str.c_str());
         return false;
     }
     m_cur_addr = MAKE_ADDR(ADDR_STACK, pos);

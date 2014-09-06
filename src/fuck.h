@@ -16,6 +16,7 @@
 #include "myflexer.h"
 #include "fuckscript.h"
 
+struct fkerrorinfo;
 struct fuck
 {
     fuck()
@@ -25,20 +26,14 @@ struct fuck
 
     void clear()
     {
-        m_efkerror = efk_ok;
-        m_errorstr.clear();
     }
     
     // error
-    efkerror error();
-    const char * errorstr();
-    void seterror(efkerror errno, const char *fmt, ...);
+    void seterror(fkerrorinfo * ei, efkerror errno, const char *fmt, ...);
     
     // member
     fkmalloc m_fkmalloc;
     fkfree m_fkfree;
-    efkerror m_efkerror;
-    String m_errorstr;
 };
 
 template <typename T>

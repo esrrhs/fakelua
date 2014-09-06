@@ -11,6 +11,7 @@ void processor::clear()
     m_routine_list = 0;
     m_routine_num = 0;
     m_routine_max_size = 0;
+    m_invalid_routine_num = 0;
 }
 
 bool processor::empty() const
@@ -62,42 +63,61 @@ int processor::run(int cmdnum)
         percmdnum = cmdnum;
     }
     
-    while (!empty())
+    m_invalid_routine_num = 0;
+    for (int i = 0; i < (int)m_routine_num; i++)
     {
-        for (int i = 0; i < (int)m_routine_num; i++)
+        routine * r = m_routine_list[i];
+        if (!r)
         {
-            routine * r = m_routine_list[i];
-            curcmdnum += r->run(percmdnum);
-        }
-
-        // delete
-        int first = 0;
-        for (; first < (int)m_routine_num; first++)
-        {
-            routine * r = m_routine_list[first];
-            if (r->isend())
-            {
-                break;
-            }
-        }
-        if (first == (int)m_routine_num)
-        {
+            m_invalid_routine_num++;
             continue;
         }
-
-        int next = first;
-        for (first++; first < (int)m_routine_num; first++)
+        // 注意:此函数内部可能会调用到add接口
+        curcmdnum += r->run(percmdnum);
+        if (r->isend())
         {
-            routine * r = m_routine_list[first];
-            if (!r->isend())
-            {
-                m_routine_list[next] = m_routine_list[first];
-                next++;
-            }
+            m_routine_list[i] = 0;
+            m_invalid_routine_num++;
         }
-        m_routine_num = next;
     }
+
+    checkdelete();
     
     return curcmdnum;
 }
 
+void processor::checkdelete()
+{
+    // 大于1/4才开始清除无效的
+    if (m_invalid_routine_num * 4 < m_routine_num)
+    {
+        return;
+    }
+
+    // delete
+    int first = 0;
+    for (; first < (int)m_routine_num; first++)
+    {
+        routine * r = m_routine_list[first];
+        if (r->isend())
+        {
+            break;
+        }
+    }
+    if (first == (int)m_routine_num)
+    {
+        return;
+    }
+
+    int next = first;
+    for (first++; first < (int)m_routine_num; first++)
+    {
+        routine * r = m_routine_list[first];
+        if (!r->isend())
+        {
+            m_routine_list[next] = m_routine_list[first];
+            next++;
+        }
+    }
+    m_routine_num = next;
+}

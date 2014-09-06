@@ -20,11 +20,12 @@
 #define MAX_FLEX_BUFFER_SIZE 1024*1024
 
 class fuck;
+class fkerrorinfo;
 class myflexer : public yyFlexLexer
 {
 public:
     // set parse command
-    myflexer(fuck * fk) : m_fk(fk)
+    myflexer(fuck * fk, fkerrorinfo * ei) : m_fk(fk), m_ei(ei)
     {
         clear();
     }
@@ -51,6 +52,7 @@ public:
     func_desc_list & get_func_list();
 private:
     fuck * m_fk;
+    fkerrorinfo * m_ei;
     char m_content[MAX_FLEX_BUFFER_SIZE];
     int m_num;
     int m_pos;
