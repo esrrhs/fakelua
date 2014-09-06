@@ -5,12 +5,13 @@
 #include "syntree.h"
 
 class fuck;
+class fkerrorinfo;
 class myflexer;
 class binary;
 class compiler
 {
 public:
-    compiler(fuck * fk, binary * bin) : m_fk(fk), m_binary(bin)
+    compiler(fuck * fk, fkerrorinfo * ei, binary * bin) : m_fk(fk), m_ei(ei), m_binary(bin)
     {
         clear();
     }
@@ -41,6 +42,7 @@ private:
     
 private:
     fuck * m_fk;
+    fkerrorinfo * m_ei;
     binary * m_binary;
     command m_cur_addr;
 };

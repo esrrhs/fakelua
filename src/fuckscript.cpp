@@ -29,21 +29,13 @@ void delfuck(fuck * fk)
     fk->m_fkfree(fk);
 }
 
-efkerror fkerror(fuck * fk)
-{
-    return fk->error();
-}
-
-const char * fkerrorstr(fuck * fk)
-{
-    return fk->errorstr();
-}
-
 // 解析文件
-binary * fkparse(fuck * fk, const char * filename)
+binary * fkparse(fuck * fk, fkerrorinfo * ei, const char * filename)
 {
+    if (ei) ei->clear();
+
     // 输入源文件
-    myflexer mf(fk);
+    myflexer mf(fk, ei);
     
     FKLOG("fkparse %p %s", fk, filename);
     bool b = mf.inputfile(filename);
@@ -58,7 +50,7 @@ binary * fkparse(fuck * fk, const char * filename)
     if (ret != 0)
     {
         FKLOG("fkparse yyparse %s fail ret %d", fk, filename, ret);
-        fk->seterror(efk_parse_file_fail, "parse %s file fail", filename);
+        fk->seterror(ei, efk_parse_file_fail, "parse %s file fail", filename);
         return 0;
     }
     
@@ -67,7 +59,7 @@ binary * fkparse(fuck * fk, const char * filename)
     binary * bin = fknew<binary>(fk, fk);
 
     // 编译
-    compiler mc(fk, bin);
+    compiler mc(fk, ei, bin);
     b = mc.compile(&mf);
     if (!b)
     {
@@ -80,14 +72,22 @@ binary * fkparse(fuck * fk, const char * filename)
     return bin;
 }
 
+void delbinary(binary * bin)
+{
+    fuck *fk = bin->getfuck();
+    fkdelete<binary>(fk, bin);
+}
+
 bool fkisfunc(binary * bin, const char * func)
 {
     return bin->is_have_func(func);
 }
 
 // 调用函数
-void fkrun(binary * bin, const char * func, paramstack * s)
+void fkrun(binary * bin, fkerrorinfo * ei, const char * func, paramstack * s)
 {
+    if (ei) ei->clear();
+
     fuck *fk = bin->getfuck();
     FKLOG("fkrun %p %p %s", fk, bin, func);
 
@@ -95,12 +95,14 @@ void fkrun(binary * bin, const char * func, paramstack * s)
     if (!fb)
     {
         FKLOG("fkrun bin %p no func %s fail", bin, func);
-        fk->seterror(efk_run_no_func_error, "fkrun bin %p no func %s fail", bin, func);
+        fk->seterror(ei, efk_run_no_func_error, "fkrun bin %p no func %s fail", bin, func);
         s->push(variant());
         return;
     }
     
-    routine r(fk, fb);
+    routine r(fk, ei);
+    r.entry(bin, func, s);
+    
     processor p(fk);
 
     p.add(&r);

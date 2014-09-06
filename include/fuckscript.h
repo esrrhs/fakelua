@@ -18,7 +18,8 @@
 // 错误号
 enum efkerror
 {
-    efk_ok,
+    efk_ok = 0,
+    efk_strsize = 100,
     
     efk_open_file_fail,
     efk_open_file_empty,
@@ -32,6 +33,28 @@ enum efkerror
 
 	efk_run_no_func_error,
 };
+
+// 错误代码
+#pragma pack(1)
+struct fkerrorinfo
+{
+    efkerror fkerror()
+    {
+        return (efkerror)errorno;
+    }
+    const char * fkerrorstr()
+    {
+        return errorstr;
+    }
+    void clear()
+    {
+        errorno = 0;
+        errorstr[0] = 0;
+    }
+    int errorno;
+    char errorstr[efk_strsize];
+};
+#pragma pack()
 
 // 脚本环境
 struct fuck;
@@ -49,12 +72,11 @@ typedef void (*fkfree)(void *ptr);
 fuck * newfuck(fkmalloc fkm = 0, fkfree fkf = 0);
 void delfuck(fuck * fk);
 
-// 错误
-efkerror fkerror(fuck * fk);
-const char * fkerrorstr(fuck * fk);
-
 // 解析文件
-binary * fkparse(fuck * fk, const char * filename);
+binary * fkparse(fuck * fk, fkerrorinfo * ei, const char * filename);
+
+// bin回收
+void delbinary(binary * bin);
 
 // 是否bin有函数
 bool fkisfunc(binary * bin, const char * func);
@@ -107,70 +129,70 @@ template<>	int64_t fkpspop(paramstack * s);
 template<>	uint64_t fkpspop(paramstack * s);
 
 // 调用函数
-void fkrun(binary * bin, const char * func, paramstack * s);
+void fkrun(binary * bin, fkerrorinfo * ei, const char * func, paramstack * s);
 
 template<typename RVal>
-RVal fkrun(binary * bin, const char * func)
+RVal fkrun(binary * bin, fkerrorinfo * ei, const char * func)
 {
     paramstack * s = fknewparamstack(bin);
-    fkrun(bin, func, s);
+    fkrun(bin, ei, func, s);
     RVal ret = fkpspop<RVal>(s);
     fkdeleteparamstack(s);
     return ret;
 }
 
 template<typename RVal, typename T1>
-RVal fkrun(binary * bin, const char * func, T1 arg1)
+RVal fkrun(binary * bin, fkerrorinfo * ei, const char * func, T1 arg1)
 {
     paramstack * s = fknewparamstack(bin);
     fkpspush<T1>(s, arg1);
-    fkrun(bin, func, s);
+    fkrun(bin, ei, func, s);
     RVal ret = fkpspop<RVal>(s);
     fkdeleteparamstack(s);
     return ret;
 }
 
 template<typename RVal, typename T1, typename T2>
-RVal fkrun(binary * bin, const char * func, T1 arg1, T2 arg2)
+RVal fkrun(binary * bin, fkerrorinfo * ei, const char * func, T1 arg1, T2 arg2)
 {
     paramstack * s = fknewparamstack(bin);
     fkpspush<T1>(s, arg1);
     fkpspush<T2>(s, arg2);
-    fkrun(bin, func, s);
+    fkrun(bin, ei, func, s);
     RVal ret = fkpspop<RVal>(s);
     fkdeleteparamstack(s);
     return ret;
 }
 
 template<typename RVal, typename T1, typename T2, typename T3>
-RVal fkrun(binary * bin, const char * func, T1 arg1, T2 arg2, T3 arg3)
+RVal fkrun(binary * bin, fkerrorinfo * ei, const char * func, T1 arg1, T2 arg2, T3 arg3)
 {
     paramstack * s = fknewparamstack(bin);
     fkpspush<T1>(s, arg1);
     fkpspush<T2>(s, arg2);
     fkpspush<T3>(s, arg3);
-    fkrun(bin, func, s);
+    fkrun(bin, ei, func, s);
     RVal ret = fkpspop<RVal>(s);
     fkdeleteparamstack(s);
     return ret;
 }
 
 template<typename RVal, typename T1, typename T2, typename T3, typename T4>
-RVal fkrun(binary * bin, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+RVal fkrun(binary * bin, fkerrorinfo * ei, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
     paramstack * s = fknewparamstack(bin);
     fkpspush<T1>(s, arg1);
     fkpspush<T2>(s, arg2);
     fkpspush<T3>(s, arg3);
     fkpspush<T4>(s, arg4);
-    fkrun(bin, func, s);
+    fkrun(bin, ei, func, s);
     RVal ret = fkpspop<RVal>(s);
     fkdeleteparamstack(s);
     return ret;
 }
 
 template<typename RVal, typename T1, typename T2, typename T3, typename T4, typename T5>
-RVal fkrun(binary * bin, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
+RVal fkrun(binary * bin, fkerrorinfo * ei, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
 {
     paramstack * s = fknewparamstack(bin);
     fkpspush<T1>(s, arg1);
@@ -178,7 +200,7 @@ RVal fkrun(binary * bin, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, 
     fkpspush<T3>(s, arg3);
     fkpspush<T4>(s, arg4);
     fkpspush<T5>(s, arg5);
-    fkrun(bin, func, s);
+    fkrun(bin, ei, func, s);
     RVal ret = fkpspop<RVal>(s);
     fkdeleteparamstack(s);
     return ret;

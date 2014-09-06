@@ -2,13 +2,16 @@
 
 #include "types.h"
 #include "variant.h"
+#include "interpreter.h"
 
 struct fuck;
-class func_binary;
+class fkerrorinfo;
+class binary;
+class paramstack;
 class routine
 {
 public:
-    routine(fuck * fk, const func_binary * fb) : m_fk(fk), m_fb(fb), m_ret(fk)
+    routine(fuck * fk, fkerrorinfo * ei) : m_fk(fk), m_ei(ei), m_interpreter(fk, ei)
     {
         clear();
     }
@@ -18,6 +21,7 @@ public:
 
     void clear();
 
+    void entry(binary * bin, const String & func, paramstack * ps);
     const variant & getret() const;
 
     bool isend() const;
@@ -25,13 +29,13 @@ public:
     int run(int cmdnum);
 
 private:
-    void runcmd();
-    
-private:
     fuck * m_fk;
-    const func_binary * m_fb;
+    fkerrorinfo * m_ei;
+    binary * m_bin;
+    String m_func;
+    paramstack * m_ps;
     variant m_ret;
-    int m_cmdpos;
-    bool m_isend;
+    // ½âÊÍÆ÷
+    interpreter m_interpreter;
 };
 
