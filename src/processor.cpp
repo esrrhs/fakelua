@@ -89,7 +89,7 @@ int processor::run(int cmdnum)
 void processor::checkdelete()
 {
     // 大于1/4才开始清除无效的
-    if (m_invalid_routine_num * 4 < m_routine_num)
+    if (m_invalid_routine_num * m_fk->m_per_frame_cmd_num < m_routine_num)
     {
         return;
     }
