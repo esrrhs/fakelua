@@ -1,0 +1,6 @@
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	arg2 = myfunc2(arg1)
+	
+end
