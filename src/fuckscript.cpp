@@ -6,7 +6,9 @@
 #include "processor.h"
 #include "paramstack.h"
 
-fuck * newfuck(fkmalloc fkm, fkfree fkf)
+fuck * newfuck(fkmalloc fkm, fkfree fkf,
+    int per_frame_cmd_num,
+    int delete_routine_scale)
 {
     if (!fkm || !fkf)
     {
@@ -14,10 +16,19 @@ fuck * newfuck(fkmalloc fkm, fkfree fkf)
         fkf = &free;
         FKLOG("newfuck use system malloc and free");
     }
+    if (!per_frame_cmd_num || !delete_routine_scale)
+    {
+        per_frame_cmd_num = 100;
+        delete_routine_scale = 4;
+        FKLOG("newfuck use per_frame_cmd_num[%d] and delete_routine_scale[%d]", per_frame_cmd_num, delete_routine_scale);
+    }
+    
     fuck * ret = (fuck *)fkm(sizeof(fuck));
     new (ret) fuck();
     ret->m_fkmalloc = fkm;
     ret->m_fkfree = fkf;
+    ret->m_per_frame_cmd_num = per_frame_cmd_num;
+    ret->m_delete_routine_scale = delete_routine_scale;
     FKLOG("newfuck ret %p", ret);
     return ret;
 }
@@ -90,15 +101,6 @@ void fkrun(binary * bin, fkerrorinfo * ei, const char * func, paramstack * s)
 
     fuck *fk = bin->getfuck();
     FKLOG("fkrun %p %p %s", fk, bin, func);
-
-    const func_binary * fb = bin->get_func(func);
-    if (!fb)
-    {
-        FKLOG("fkrun bin %p no func %s fail", bin, func);
-        fk->seterror(ei, efk_run_no_func_error, "fkrun bin %p no func %s fail", bin, func);
-        s->push(variant());
-        return;
-    }
     
     routine r(fk, ei);
     r.entry(bin, func, s);
@@ -107,14 +109,9 @@ void fkrun(binary * bin, fkerrorinfo * ei, const char * func, paramstack * s)
 
     p.add(&r);
 
-    int perframecmdnum = fb->cmdsize() / 2;
-    if (perframecmdnum <= 0)
-    {
-        perframecmdnum = fb->cmdsize();
-    }
-
     int cmdnum = 0;
     int framenum = 0;
+    int perframecmdnum = fk->m_per_frame_cmd_num;
     while (!p.isend())
     {
         cmdnum += p.run(perframecmdnum);

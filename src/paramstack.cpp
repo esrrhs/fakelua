@@ -24,4 +24,13 @@ void paramstack::pop(variant & v)
     }
 }
 
+variant paramstack::operator[](int i)
+{
+    return m_variant_list[i];
+}
+
+size_t paramstack::size() const
+{
+    return m_variant_list.size();
+}
 

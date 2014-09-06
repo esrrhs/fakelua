@@ -34,6 +34,11 @@ struct fuck
     // member
     fkmalloc m_fkmalloc;
     fkfree m_fkfree;
+
+    // processor每帧调用cmd条数
+    int m_per_frame_cmd_num;
+    // processor清除无效协程判断的比例
+    int m_delete_routine_scale;
 };
 
 template <typename T>

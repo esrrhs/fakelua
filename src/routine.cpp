@@ -15,6 +15,7 @@ void routine::entry(binary * bin, const String & func, paramstack * ps)
     m_bin = bin;
     m_func = func;
     m_ps = ps;
+    m_interpreter.call(m_bin, m_func, m_ps);
 }
     
 const variant & routine::getret() const
@@ -29,6 +30,13 @@ bool routine::isend() const
 
 int routine::run(int cmdnum)
 {
-    return m_interpreter.run(cmdnum);
+    int runcmdnum = m_interpreter.run(cmdnum);
+
+    if (isend())
+    {   
+        m_ret = m_interpreter.getret();
+    }
+
+    return runcmdnum;
 }    
 
