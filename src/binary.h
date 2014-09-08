@@ -27,6 +27,11 @@ enum AddrType
 #define COMMAND_TYPE(cmd) HIINT32(cmd)
 #define COMMAND_CODE(cmd) LOINT32(cmd)
 
+#define ADDR_TYPE(code) HIINT16(code)
+#define ADDR_POS(code) LOINT16(code)
+
+const char * OpCodeStr(int opcode);
+
 struct fuck;
 class codegen;
 typedef uint64_t command;
@@ -55,6 +60,18 @@ public:
     String getname() const
     {
         return m_name;
+    }
+
+    command getcmd(int pos) const
+    {
+        assert(pos >= 0 && pos < (int)m_size);
+        return m_buff[pos];
+    }
+
+    void getconst(variant & v, int pos) const
+    {
+        assert(pos >= 0 && pos < (int)m_const_list.size());
+        v = m_const_list[pos];
     }
     
 private:

@@ -99,7 +99,7 @@ void processor::checkdelete()
     for (; first < (int)m_routine_num; first++)
     {
         routine * r = m_routine_list[first];
-        if (r->isend())
+        if (!r)
         {
             break;
         }
@@ -113,7 +113,7 @@ void processor::checkdelete()
     for (first++; first < (int)m_routine_num; first++)
     {
         routine * r = m_routine_list[first];
-        if (!r->isend())
+        if (r)
         {
             m_routine_list[next] = m_routine_list[first];
             next++;

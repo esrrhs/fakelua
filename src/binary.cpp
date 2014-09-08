@@ -1,6 +1,21 @@
 #include "binary.h"
 #include "fuck.h"
 
+const char * OpCodeStr(int opcode)
+{
+    switch (opcode)
+    {
+#define OPCODE_DEF(op)\
+    case OPCODE_##op:\
+        return #op;
+        
+    OPCODE_DEF(ASSIGN)
+    
+#undef OPCODE_DEF
+    }
+    return "unknow";
+}
+
 String func_binary::dump() const
 {
     String ret;
@@ -64,16 +79,9 @@ String func_binary::dump() const
         {
         case COMMAND_OPCODE:
             {
-                ret += "[OPCODE]\t";
-                switch (code)
-                {
-                case OPCODE_ASSIGN:
-                    ret += "ASSIGN";
-                    break;
-                default:
-                    ret += "unknow ";
-                    ret += fkitoa(code);
-                }
+                ret += "[";
+                ret += OpCodeStr(code);
+                ret += "]\t";
             }
             break;
         case COMMAND_ADDR:
