@@ -52,7 +52,7 @@ binary * fkparse(fuck * fk, fkerrorinfo * ei, const char * filename)
     bool b = mf.inputfile(filename);
     if (!b)
     {
-        FKLOG("fkparse open %s fail", fk, filename);
+        FKERR("fkparse open %s fail", fk, filename);
         return 0;
     }
 
@@ -60,7 +60,7 @@ binary * fkparse(fuck * fk, fkerrorinfo * ei, const char * filename)
     int ret = yyparse((void *)&mf); 
     if (ret != 0)
     {
-        FKLOG("fkparse yyparse %s fail ret %d", fk, filename, ret);
+        FKERR("fkparse yyparse %s fail ret %d", fk, filename, ret);
         fk->seterror(ei, efk_parse_file_fail, "parse %s file fail", filename);
         return 0;
     }
@@ -74,7 +74,7 @@ binary * fkparse(fuck * fk, fkerrorinfo * ei, const char * filename)
     b = mc.compile(&mf);
     if (!b)
     {
-        FKLOG("fkparse compile %s fail", fk, filename);
+        FKERR("fkparse  %s compile %s fail", fk, filename);
         return 0;
     }
     

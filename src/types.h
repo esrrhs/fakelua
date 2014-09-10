@@ -18,8 +18,10 @@
 #include <stdarg.h>
 #include <assert.h>
 
-#define FKLOG(...) fklog(__FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
-void fklog(const char * file, const char * func, int pos, const char *fmt, ...);
+#define FKLOG(...) fklog("[DEBUG] ", __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
+#define FKERR(...) fklog("[ERROR] ", __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
+    
+void fklog(const char * header, const char * file, const char * func, int pos, const char *fmt, ...);
 
 typedef std::string String;
 
