@@ -19,6 +19,7 @@ bool compiler::compile(myflexer * mf)
         func_desc_node * funcnode = funclist[i];
         if (!compile_func(funcnode))
         {   
+            FKERR("[compiler] compile %s fail", funcnode->funcname.c_str());
             return false;
         }
     }
@@ -60,6 +61,7 @@ bool compiler::compile_func(func_desc_node * funcnode)
     // 编译函数体
     if (!compile_block(cg, funcnode->block, stack_level))
     {
+        FKERR("[compile] compile_func compile_block %s fail", funcnode->funcname.c_str());
         return false;
     }
 
@@ -80,7 +82,11 @@ bool compiler::compile_block(codegen & cg, block_node * blocknode, int stack_lev
     for (int i = 0; i < (int)blocknode->stmtlist.size(); i++)
     {
         syntree_node * stmt = blocknode->stmtlist[i];
-        compile_node(cg, stmt, stack_level);
+        if (!compile_node(cg, stmt, stack_level))
+        {
+            FKERR("[compiler] compile_block compile_node %p fail %s", blocknode, stmt->gettypename());
+            return false;
+        }
     }
     
     FKLOG("[compiler] compile_block block_node %p OK", blocknode);
@@ -100,7 +106,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
             block_node * bn = dynamic_cast<block_node *>(node);
             if (!compile_block(cg, bn, stack_level + 1))
             {
-                FKLOG("[compiler] compile_node block_node error %d %s", type, node->gettypename());
+                FKERR("[compiler] compile_node block_node error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -110,7 +116,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
             while_stmt * ws = dynamic_cast<while_stmt *>(node);
             if (!compile_while_stmt(cg, ws, stack_level))
             {
-                FKLOG("[compiler] compile_node while_stmt error %d %s", type, node->gettypename());
+                FKERR("[compiler] compile_node while_stmt error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -120,7 +126,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
             cmp_stmt * cs = dynamic_cast<cmp_stmt *>(node);
             if (!compile_cmp_stmt(cg, cs, stack_level))
             {
-                FKLOG("[compiler] compile_node cmp_stmt error %d %s", type, node->gettypename());
+                FKERR("[compiler] compile_node cmp_stmt error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -130,7 +136,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
             if_stmt * is = dynamic_cast<if_stmt *>(node);
             if (!compile_if_stmt(cg, is, stack_level))
             {
-                FKLOG("[compiler] compile_node compile_if_stmt error %d %s", type, node->gettypename());
+                FKERR("[compiler] compile_node compile_if_stmt error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -140,7 +146,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
             explicit_value_node * ev = dynamic_cast<explicit_value_node *>(node);
             if (!compile_explicit_value(cg, ev, stack_level))
             {
-                FKLOG("[compiler] compile_node compile_if_stmt error %d %s", type, node->gettypename());
+                FKERR("[compiler] compile_node compile_if_stmt error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -150,7 +156,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
             return_stmt * rs = dynamic_cast<return_stmt *>(node);
             if (!compile_return_stmt(cg, rs, stack_level))
             {
-                FKLOG("[compiler] compile_node compile_return_stmt error %d %s", type, node->gettypename());
+                FKERR("[compiler] compile_node compile_return_stmt error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -160,7 +166,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
             assign_stmt * as = dynamic_cast<assign_stmt *>(node);
             if (!compile_assign_stmt(cg, as, stack_level))
             {
-                FKLOG("[compiler] compile_node compile_assign_stmt error %d %s", type, node->gettypename());
+                FKERR("[compiler] compile_node compile_assign_stmt error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -170,7 +176,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
             variable_node * vn = dynamic_cast<variable_node *>(node);
             if (!compile_variable_node(cg, vn, stack_level))
             {
-                FKLOG("[compiler] compile_node compile_variable_node error %d %s", type, node->gettypename());
+                FKERR("[compiler] compile_node compile_variable_node error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -180,7 +186,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
             var_node * vn = dynamic_cast<var_node *>(node);
             if (!compile_var_node(cg, vn, stack_level))
             {
-                FKLOG("[compiler] compile_node compile_var_node error %d %s", type, node->gettypename());
+                FKERR("[compiler] compile_node compile_var_node error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -190,7 +196,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
             function_call_node * fn = dynamic_cast<function_call_node *>(node);
             if (!compile_function_call_node(cg, fn, stack_level))
             {
-                FKLOG("[compiler] compile_node function_call_node error %d %s", type, node->gettypename());
+                FKERR("[compiler] compile_node function_call_node error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -200,7 +206,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
             break_stmt * bs = dynamic_cast<break_stmt *>(node);
             if (!compile_break_stmt(cg, bs, stack_level))
             {
-                FKLOG("[compiler] compile_node compile_break_stmt error %d %s", type, node->gettypename());
+                FKERR("[compiler] compile_node compile_break_stmt error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -210,7 +216,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
             math_expr_node * mn = dynamic_cast<math_expr_node *>(node);
             if (!compile_math_expr_node(cg, mn, stack_level))
             {
-                FKLOG("[compiler] compile_node math_expr_node error %d %s", type, node->gettypename());
+                FKERR("[compiler] compile_node math_expr_node error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -220,14 +226,14 @@ bool compiler::compile_node(codegen & cg, syntree_node * node, int stack_level)
             identifier_node * in = dynamic_cast<identifier_node *>(node);
             if (!compile_identifier_node(cg, in, stack_level))
             {
-                FKLOG("[compiler] compile_node compile_identifier_node error %d %s", type, node->gettypename());
+                FKERR("[compiler] compile_node compile_identifier_node error %d %s", type, node->gettypename());
                 return false;
             }
         }
         break;
     default:
         {
-            FKLOG("[compiler] compile_node type error %d %s", type, node->gettypename());
+            FKERR("[compiler] compile_node type error %d %s", type, node->gettypename());
             m_fk->seterror(m_ei, efk_compile_stmt_type_error, "compile node type error %d", type);
             return false;
         }
@@ -274,7 +280,7 @@ bool compiler::compile_assign_stmt(codegen & cg, assign_stmt * as, int stack_lev
     
     if (!compile_node(cg, as->var, stack_level))
     {
-        FKLOG("[compiler] compile_assign_stmt var fail");
+        FKERR("[compiler] compile_assign_stmt var fail");
         return false;
     }
     cg.push(m_cur_addr);
@@ -282,7 +288,7 @@ bool compiler::compile_assign_stmt(codegen & cg, assign_stmt * as, int stack_lev
     
     if (!compile_node(cg, as->value, stack_level))
     {
-        FKLOG("[compiler] compile_assign_stmt value fail");
+        FKERR("[compiler] compile_assign_stmt value fail");
         return false;
     }
     cg.push(m_cur_addr);
@@ -336,7 +342,7 @@ bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev, in
 		isstr = true;
 		break;
 	default:
-		FKLOG("[compiler] compile_explicit_value type error %d %s", ev->getvaluetype(), ev->gettypename());
+		FKERR("[compiler] compile_explicit_value type error %d %s", ev->getvaluetype(), ev->gettypename());
 		m_fk->seterror(m_ei, efk_compile_explicit_type_error, "compile explicit value type error %d", ev->getvaluetype());
 		return false;
 	}
@@ -355,9 +361,9 @@ bool compiler::compile_variable_node(codegen & cg, variable_node * vn, int stack
 
     // 从当前堆栈往上找
     int pos = cg.getvariable(vn->str);
-    if (pos)
+    if (pos == -1)
     {
-        FKLOG("[compiler] compile_variable_node variable not found %s", vn->str.c_str());
+        FKERR("[compiler] compile_variable_node variable not found %s", vn->str.c_str());
         m_fk->seterror(m_ei, efk_compile_variable_not_found, "variable %s not found", vn->str.c_str());
         return false;
     }

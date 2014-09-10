@@ -25,7 +25,7 @@ void interpreter::call(binary * bin, const String & func, paramstack * ps)
     const func_binary * fb = bin->get_func(func);
     if (!fb)
     {
-        FKLOG("fkrun bin %p no func %s fail", bin, func.c_str());
+        FKERR("fkrun bin %p no func %s fail", bin, func.c_str());
         m_fk->seterror(m_ei, efk_run_no_func_error, "fkrun bin %p no func %s fail", bin, func.c_str());
         m_isend = true;
         return;
@@ -120,7 +120,8 @@ bool interpreter::next()
     }\
     else\
     {\
-        FKLOG("next_assign assignaddrtype cannot be %d %d", v##_addrtype, v##_addrpos);\
+        assert(0);\
+        FKERR("next_assign assignaddrtype cannot be %d %d", v##_addrtype, v##_addrpos);\
         return false;\
     }
 
@@ -138,7 +139,7 @@ bool interpreter::next_assign(stack & s, const func_binary & fb)
     s.m_pos++;
 
     // ¸³ÖµÀ´Ô´
-    variant valuev;
+    variant valuev(m_fk);
     LOG_VARIANT(s, fb, s.m_pos, "value");
     GET_VARIANT(s, fb, valuev, s.m_pos);
     s.m_pos++;
