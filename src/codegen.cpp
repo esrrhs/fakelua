@@ -4,6 +4,20 @@
 #include "fuck.h"
 #include "variant.h"
 
+bool codegen::add_stack_identifier(const String & name)
+{
+    assert(m_block_identifiers_stack.size() > 0);
+    if (get_cur_variable_pos(name) != -1)
+    {
+        m_fk->seterror(m_ei, efk_compile_stack_identifier_error, "double %s arg error", name.c_str());
+        return false;
+    }
+    block_identifiers_list & list = m_block_identifiers_stack.back();
+    list.push_back(block_identifiers(name, m_stackpos));
+    m_stackpos++;
+    return true;
+}
+
 int codegen::getconst(const String & name, bool isstr)
 {
 	variant v;

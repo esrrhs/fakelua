@@ -10,6 +10,11 @@ const char * OpCodeStr(int opcode)
         return #op;
         
     OPCODE_DEF(ASSIGN)
+    OPCODE_DEF(PLUS)
+    OPCODE_DEF(MINUS)
+    OPCODE_DEF(MULTIPLY)
+    OPCODE_DEF(DIVIDE)
+    OPCODE_DEF(DIVIDE_MOD)
     
 #undef OPCODE_DEF
     }

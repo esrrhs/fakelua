@@ -14,10 +14,11 @@ enum efkerror
     efk_parse_file_fail,
     
     efk_compile_same_func_name,
-    efk_compile_func_arg_error,
+    efk_compile_stack_identifier_error,
     efk_compile_stmt_type_error,
 	efk_compile_variable_not_found,
 	efk_compile_explicit_type_error,
+	efk_compile_math_type_error,
 
 	efk_run_no_func_error,
 };

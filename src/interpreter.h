@@ -64,7 +64,8 @@ public:
     
 private:
     bool next();
-    bool next_assign(stack & s, const func_binary & fb);
+    bool next_assign(stack & s, const func_binary & fb, int code);
+    bool next_math(stack & s, const func_binary & fb, int code);
 private:
     fuck * m_fk;
     fkerrorinfo * m_ei;

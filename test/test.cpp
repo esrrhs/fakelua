@@ -19,7 +19,7 @@ int main(int argc, const char *argv[])
         return 0;
     }
 
-    int ret = fkrun<int>(bin, &ei, "myfunc1", "asf", 2);
+    int ret = fkrun<int>(bin, &ei, "myfunc1", 1, 2);
     if (ei.fkerror() != efk_ok)
     {
         printf("call fail errorno %d, %s\n", ei.fkerror(), ei.fkerrorstr());

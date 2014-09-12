@@ -34,7 +34,7 @@ bool compiler::compile_func(func_desc_node * funcnode)
 {
     FKLOG("[compiler] compile_func func %s", funcnode->funcname.c_str());
     
-    codegen cg(m_fk);
+    codegen cg(m_fk, m_ei);
     
     // ¼ì²âÖØÃû
     if (m_binary->is_have_func(funcnode->funcname))
@@ -50,9 +50,9 @@ bool compiler::compile_func(func_desc_node * funcnode)
     for (int i = 0; i < (int)arglist.size(); i++)
     {
         const String & arg = arglist[i];
-        if (!cg.add_stack_identifier(arg, i))
+        if (!cg.add_stack_identifier(arg))
         {
-            m_fk->seterror(m_ei, efk_compile_func_arg_error, "func %s arg error %s", funcnode->funcname.c_str(), arg.c_str());
+            FKERR("[compile] compile_func %s arg error %s", funcnode->funcname.c_str(), arg.c_str());
             return false;
         }
     }
@@ -276,14 +276,15 @@ bool compiler::compile_assign_stmt(codegen & cg, assign_stmt * as, int stack_lev
 {
     FKLOG("[compiler] compile_assign_stmt %p", as);
 
-    cg.push(MAKE_OPCODE(OPCODE_ASSIGN));
-    
+    command var = 0;
+    command value = 0;
+
     if (!compile_node(cg, as->var, stack_level))
     {
         FKERR("[compiler] compile_assign_stmt var fail");
         return false;
     }
-    cg.push(m_cur_addr);
+    var = m_cur_addr;
     FKLOG("[compiler] compile_assign_stmt var = %d", m_cur_addr);
     
     if (!compile_node(cg, as->value, stack_level))
@@ -291,9 +292,12 @@ bool compiler::compile_assign_stmt(codegen & cg, assign_stmt * as, int stack_lev
         FKERR("[compiler] compile_assign_stmt value fail");
         return false;
     }
-    cg.push(m_cur_addr);
+    value = m_cur_addr;
     FKLOG("[compiler] compile_assign_stmt value = %d", m_cur_addr);
 
+    cg.push(MAKE_OPCODE(OPCODE_ASSIGN));
+    cg.push(var);
+    cg.push(value);
     FKLOG("[compiler] compile_assign_stmt %p OK", as);
     
     return true;
@@ -395,6 +399,64 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn,
 bool compiler::compile_math_expr_node(codegen & cg, math_expr_node * mn, int stack_level)
 {
     FKLOG("[compiler] compile_math_expr_node %p", mn);
+
+    command oper = 0;
+    command left = 0;
+    command right = 0;
+    command dest = 0;
+    
+    if (mn->oper == "+")
+    {
+        oper = MAKE_OPCODE(OPCODE_PLUS);
+    }
+    else if (mn->oper == "-")
+    {
+        oper = MAKE_OPCODE(OPCODE_MINUS);
+    }
+    else if (mn->oper == "*")
+    {
+        oper = MAKE_OPCODE(OPCODE_MULTIPLY);
+    }
+    else if (mn->oper == "/")
+    {
+        oper = MAKE_OPCODE(OPCODE_DIVIDE);
+    }
+    else if (mn->oper == "%")
+    {
+        oper = MAKE_OPCODE(OPCODE_DIVIDE_MOD);
+    }
+    else
+    {
+        FKERR("[compiler] compile_math_expr_node error oper type fail");
+		m_fk->seterror(m_ei, efk_compile_math_type_error, "compile math oper type %s error", mn->oper.c_str());
+        return false;
+    }
+
+    // left
+    if (!compile_node(cg, mn->left, stack_level))
+    {
+        FKERR("[compiler] compile_math_expr_node left fail");
+        return false;
+    }
+    left = m_cur_addr;
+
+    // right
+    if (!compile_node(cg, mn->right, stack_level))
+    {
+        FKERR("[compiler] compile_math_expr_node left fail");
+        return false;
+    }
+    right = m_cur_addr;
+
+    // result
+    int despos = cg.alloc_stack_identifier();
+    dest = MAKE_ADDR(ADDR_STACK, despos);
+    m_cur_addr = dest;
+    
+    cg.push(oper);
+    cg.push(left);
+    cg.push(right);
+    cg.push(dest);
 
     FKLOG("[compiler] compile_math_expr_node %p OK", mn);
     
