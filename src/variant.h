@@ -46,6 +46,12 @@ public:
 	
 	bool operator==(const variant& p_variant) const;	
 	void operator=(const variant& p_variant); // only this is enough for all the other types
+
+    void operator +=(const variant& p_variant);
+	void operator -=(const variant& p_variant);
+	void operator *=(const variant& p_variant);
+	void operator /=(const variant& p_variant);
+	void operator %=(const variant& p_variant);
 	
 	operator bool() const;
 	operator int() const;

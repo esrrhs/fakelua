@@ -615,3 +615,118 @@ bool variant::booleanize() const
 
 	return false;
 }
+void variant::operator +=(const variant& p_variant)
+{
+    switch(m_type) 
+	{
+		case NIL: 
+		    break;
+		case BOOL: 
+		    break;
+		case INT: m_data.m_int += (int64_t)p_variant;
+		    break;
+		case REAL: m_data.m_real += (double)p_variant;
+		    break;
+		case STRING: 
+		    break;
+		case POINTER: 
+		    break;
+		default: 
+		{
+		}
+		break;
+	}
+}
+
+void variant::operator -=(const variant& p_variant)
+{
+    switch(m_type) 
+	{
+		case NIL: 
+		    break;
+		case BOOL: 
+		    break;
+		case INT: m_data.m_int -= (int64_t)p_variant;
+		    break;
+		case REAL: m_data.m_real -= (double)p_variant;
+		    break;
+		case STRING: 
+		    break;
+		case POINTER: 
+		    break;
+		default: 
+		{
+		}
+		break;
+	}
+}
+
+void variant::operator *=(const variant& p_variant)
+{
+    switch(m_type) 
+	{
+		case NIL: 
+		    break;
+		case BOOL: 
+		    break;
+		case INT: m_data.m_int *= (int64_t)p_variant;
+		    break;
+		case REAL: m_data.m_real *= (double)p_variant;
+		    break;
+		case STRING: 
+		    break;
+		case POINTER: 
+		    break;
+		default: 
+		{
+		}
+		break;
+	}
+}
+
+void variant::operator /=(const variant& p_variant)
+{
+    switch(m_type) 
+	{
+		case NIL: 
+		    break;
+		case BOOL: 
+		    break;
+		case INT: m_data.m_int /= (int64_t)p_variant;
+		    break;
+		case REAL: m_data.m_real /= (double)p_variant;
+		    break;
+		case STRING: 
+		    break;
+		case POINTER: 
+		    break;
+		default: 
+		{
+		}
+		break;
+	}
+}
+
+void variant::operator %=(const variant& p_variant)
+{
+    switch(m_type) 
+	{
+		case NIL: 
+		    break;
+		case BOOL: 
+		    break;
+		case INT: m_data.m_int %= (int64_t)p_variant;
+		    break;
+		case REAL: 
+		    break;
+		case STRING: 
+		    break;
+		case POINTER: 
+		    break;
+		default: 
+		{
+		}
+		break;
+	}
+}
+

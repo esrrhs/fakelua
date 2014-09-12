@@ -12,6 +12,11 @@ enum CommandType
 enum OpCodeType
 {
     OPCODE_ASSIGN,
+    OPCODE_PLUS,
+    OPCODE_MINUS,
+    OPCODE_MULTIPLY,
+    OPCODE_DIVIDE,
+    OPCODE_DIVIDE_MOD,
 };
 
 enum AddrType

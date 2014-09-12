@@ -82,7 +82,18 @@ bool interpreter::next()
     switch (code)
     {
     case OPCODE_ASSIGN:
-        ret = next_assign(s, fb);
+        ret = next_assign(s, fb, code);
+        break;
+    case OPCODE_PLUS:
+    case OPCODE_MINUS:
+    case OPCODE_MULTIPLY:
+    case OPCODE_DIVIDE:
+    case OPCODE_DIVIDE_MOD:
+        ret = next_math(s, fb, code);
+        break;
+    default:
+        assert(0);
+        FKERR("next err code %d %s", code, OpCodeStr(code));
         break;
     }
 
@@ -130,7 +141,7 @@ bool interpreter::next()
         ADDR_TYPE(COMMAND_CODE(fb.getcmd(pos))),\
         ADDR_POS(COMMAND_CODE(fb.getcmd(pos))));
 
-bool interpreter::next_assign(stack & s, const func_binary & fb)
+bool interpreter::next_assign(stack & s, const func_binary & fb, int code)
 {
     // 赋值dest，必须为栈上
     assert (ADDR_TYPE(COMMAND_CODE(fb.getcmd(s.m_pos))) == ADDR_STACK);
@@ -148,6 +159,51 @@ bool interpreter::next_assign(stack & s, const func_binary & fb)
     s.set_stack_variant(valuev, addrpos);
 
     FKLOG("assign %s to pos %d", ((String)valuev).c_str(), addrpos);
+    
+    return true;
+}
+
+bool interpreter::next_math(stack & s, const func_binary & fb, int code)
+{
+    variant left(m_fk);
+    GET_VARIANT(s, fb, left, s.m_pos);
+    s.m_pos++;
+    
+    variant right(m_fk);
+    GET_VARIANT(s, fb, right, s.m_pos);
+    s.m_pos++;
+    
+    assert (ADDR_TYPE(COMMAND_CODE(fb.getcmd(s.m_pos))) == ADDR_STACK);
+    LOG_VARIANT(s, fb, s.m_pos, "math");
+    int addrpos = ADDR_POS(COMMAND_CODE(fb.getcmd(s.m_pos)));
+    s.m_pos++;
+
+    switch (code)
+    {
+    case OPCODE_PLUS:
+        left += right;
+        break;
+    case OPCODE_MINUS:
+        left -= right;
+        break;
+    case OPCODE_MULTIPLY:
+        left *= right;
+        break;
+    case OPCODE_DIVIDE:
+        left /= right;
+        break;
+    case OPCODE_DIVIDE_MOD:
+        left %= right;
+        break;
+    default:
+        assert(0);
+        FKERR("math err code %d %s", code, OpCodeStr(code));
+        break;
+    }
+
+    s.set_stack_variant(left, addrpos);
+
+    FKLOG("math %s %s to pos %d", OpCodeStr(code), ((String)left).c_str(), addrpos);
     
     return true;
 }
