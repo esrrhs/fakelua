@@ -63,6 +63,7 @@ int my_yyerror(const char *s, void * parm)
 %token CLOSE_BRACKET
 %token AND
 %token OR
+%token FLOAT
 
 %right PLUS
 %right MINUS
@@ -83,6 +84,7 @@ int my_yyerror(const char *s, void * parm)
 %type<str> TRUE FALSE
 %type<str> ASSIGN
 %type<str> AND OR
+%type<str> FLOAT
 
 %type<syntree> break
 %type<syntree> function_declaration
@@ -678,6 +680,15 @@ explicit_value:
 		NEWTYPE(p, explicit_value_node);
 		p->str = $1;
 		p->type = explicit_value_node::EVT_STR;
+		$$ = p;
+	}
+	|
+	FLOAT
+	{
+		FKLOG("[bison]: explicit_value <- FLOAT %s", $1.c_str());
+		NEWTYPE(p, explicit_value_node);
+		p->str = $1;
+		p->type = explicit_value_node::EVT_FLOAT;
 		$$ = p;
 	}
 	;

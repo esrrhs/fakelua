@@ -87,6 +87,10 @@
 	return NUMBER;
 }
 
+[0-9]+\.[0-9]+ {
+	lvalp->str = String(yytext);
+	return FLOAT;
+}
 
 "--"	yy_push_state(SINGLE_LINE_COMMENT);
 <SINGLE_LINE_COMMENT>{
