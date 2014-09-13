@@ -325,25 +325,23 @@ bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev, in
 {
 	FKLOG("[compiler] compile_explicit_value %p %s", ev, ev->str.c_str());
 
-	String value;
-	bool isstr = false;
+	variant v(m_fk);
 	switch (ev->getvaluetype())
 	{
 	case explicit_value_node::EVT_TRUE:
-		value = "1";
-		isstr = false;
+		v = variant(1, m_fk);
 		break;
 	case explicit_value_node::EVT_FALSE:
-		value = "1";
-		isstr = false;
+		v = variant(0, m_fk);
 		break;
 	case explicit_value_node::EVT_NUM:
-		value = ev->str;
-		isstr = false;
+		v = variant(fkatol(&ev->str), m_fk);
 		break;
 	case explicit_value_node::EVT_STR:
-		value = ev->str;
-		isstr = true;
+		v = variant(ev->str, m_fk);
+		break;
+	case explicit_value_node::EVT_FLOAT:
+		v = variant(fkatof(&ev->str), m_fk);
 		break;
 	default:
 		FKERR("[compiler] compile_explicit_value type error %d %s", ev->getvaluetype(), ev->gettypename());
@@ -351,7 +349,7 @@ bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev, in
 		return false;
 	}
 
-	int pos = cg.getconst(ev->str, isstr);
+	int pos = cg.getconst(v);
 	m_cur_addr = MAKE_ADDR(ADDR_CONST, pos);
 
     FKLOG("[compiler] compile_explicit_value %p OK", ev);

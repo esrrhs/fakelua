@@ -169,6 +169,7 @@ String fkget_token_name(int token)
         TOKEN_SWITCH(NOT_EQUAL)
         TOKEN_SWITCH(OPEN_BRACKET)
         TOKEN_SWITCH(CLOSE_BRACKET)
+        TOKEN_SWITCH(FLOAT)
         default:
             return fkitoa(token);
     }

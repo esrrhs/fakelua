@@ -18,18 +18,8 @@ bool codegen::add_stack_identifier(const String & name)
     return true;
 }
 
-int codegen::getconst(const String & name, bool isstr)
+int codegen::getconst(const variant & v)
 {
-	variant v;
-	if (isstr)
-	{
-		v = variant(name, m_fk);
-	}
-	else
-	{
-		v = variant(fkatol(&name), m_fk);
-	}
-	
 	for (int i = 0; i < (int)m_const_list.size(); i++)
 	{
 		variant & vv = m_const_list[i];

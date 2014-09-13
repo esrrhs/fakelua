@@ -80,7 +80,7 @@ public:
         return -1;
     }
 
-	int getconst(const String & name, bool isstr);
+	int getconst(const variant & v);
 
     void push(uint64_t code)
     {
