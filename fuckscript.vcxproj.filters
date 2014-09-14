@@ -45,6 +45,12 @@
     <ClInclude Include="src\variant.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="src\interpreter.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\paramstack.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -78,6 +84,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\variant.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\interpreter.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\paramstack.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
