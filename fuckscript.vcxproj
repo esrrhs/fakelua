@@ -16,7 +16,9 @@
     <ClInclude Include="src\codegen.h" />
     <ClInclude Include="src\compiler.h" />
     <ClInclude Include="src\fuck.h" />
+    <ClInclude Include="src\interpreter.h" />
     <ClInclude Include="src\myflexer.h" />
+    <ClInclude Include="src\paramstack.h" />
     <ClInclude Include="src\processor.h" />
     <ClInclude Include="src\routine.h" />
     <ClInclude Include="src\semantic.h" />
@@ -30,7 +32,9 @@
     <ClCompile Include="src\compiler.cpp" />
     <ClCompile Include="src\fuck.cpp" />
     <ClCompile Include="src\fuckscript.cpp" />
+    <ClCompile Include="src\interpreter.cpp" />
     <ClCompile Include="src\myflexer.cpp" />
+    <ClCompile Include="src\paramstack.cpp" />
     <ClCompile Include="src\processor.cpp" />
     <ClCompile Include="src\routine.cpp" />
     <ClCompile Include="src\syntree.cpp" />
