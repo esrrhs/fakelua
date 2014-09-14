@@ -38,7 +38,8 @@ void interpreter::call(binary * bin, const String & func, paramstack * ps)
     // ·ÖÅäÕ»¿Õ¼ä
     for (int i = 0; i < (int)ps->size(); i++)
     {
-        s.set_stack_variant((*ps)[i], i);
+		s.set_stack_variant((*ps)[i], i);
+		FKLOG("call set %s to pos %d", ((String)((*ps)[i])).c_str(), i);
     }
 }
 
@@ -90,7 +91,10 @@ bool interpreter::next()
     case OPCODE_DIVIDE:
     case OPCODE_DIVIDE_MOD:
         ret = next_math(s, fb, code);
-        break;
+		break;
+	case OPCODE_RETURN:
+		ret = next_return(s, fb, code);
+		break;
     default:
         assert(0);
         FKERR("next err code %d %s", code, OpCodeStr(code));
@@ -165,11 +169,13 @@ bool interpreter::next_assign(stack & s, const func_binary & fb, int code)
 
 bool interpreter::next_math(stack & s, const func_binary & fb, int code)
 {
-    variant left(m_fk);
+	variant left(m_fk);
+	LOG_VARIANT(s, fb, s.m_pos, "left");
     GET_VARIANT(s, fb, left, s.m_pos);
     s.m_pos++;
     
-    variant right(m_fk);
+	variant right(m_fk);
+	LOG_VARIANT(s, fb, s.m_pos, "right");
     GET_VARIANT(s, fb, right, s.m_pos);
     s.m_pos++;
     
@@ -177,6 +183,8 @@ bool interpreter::next_math(stack & s, const func_binary & fb, int code)
     LOG_VARIANT(s, fb, s.m_pos, "math");
     int addrpos = ADDR_POS(COMMAND_CODE(fb.getcmd(s.m_pos)));
     s.m_pos++;
+
+	FKLOG("math left %s right %s", ((String)left).c_str(), ((String)right).c_str());
 
     switch (code)
     {
@@ -206,5 +214,23 @@ bool interpreter::next_math(stack & s, const func_binary & fb, int code)
     FKLOG("math %s %s to pos %d", OpCodeStr(code), ((String)left).c_str(), addrpos);
     
     return true;
+}
+
+bool interpreter::next_return(stack & s, const func_binary & fb, int code)
+{
+	if (fb.getcmd(s.m_pos) == EMPTY_CMD)
+	{
+		FKLOG("return empty");
+		return true;
+	}
+
+	// Èû¸øret
+	LOG_VARIANT(s, fb, s.m_pos, "ret");
+	GET_VARIANT(s, fb, m_ret, s.m_pos);
+	s.m_pos++;
+
+	FKLOG("return %s", ((String)m_ret).c_str());
+
+	return true;
 }
 

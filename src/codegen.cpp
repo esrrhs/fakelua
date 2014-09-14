@@ -4,18 +4,19 @@
 #include "fuck.h"
 #include "variant.h"
 
-bool codegen::add_stack_identifier(const String & name)
+int codegen::add_stack_identifier(const String & name)
 {
     assert(m_block_identifiers_stack.size() > 0);
     if (get_cur_variable_pos(name) != -1)
     {
-        m_fk->seterror(m_ei, efk_compile_stack_identifier_error, "double %s arg error", name.c_str());
-        return false;
+        m_fk->seterror(m_ei, efk_compile_stack_identifier_error, "double %s identifier error", name.c_str());
+        return -1;
     }
     block_identifiers_list & list = m_block_identifiers_stack.back();
     list.push_back(block_identifiers(name, m_stackpos));
+	int ret = m_stackpos;
     m_stackpos++;
-    return true;
+	return ret;
 }
 
 int codegen::getconst(const variant & v)
@@ -34,7 +35,7 @@ int codegen::getconst(const variant & v)
 	return pos;
 }
 
-void codegen::output(String name, func_binary * bin)
+void codegen::output(const String & name, func_binary * bin)
 {
     bin->m_name = name;
     bin->m_const_list = m_const_list;

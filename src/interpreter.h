@@ -21,12 +21,18 @@ struct stack
     }
     void set_stack_variant(const variant & v, int pos)
     {
-        m_stack_variant_list.resize(pos + 1, variant(m_fk));
+		if (pos >= (int)m_stack_variant_list.size())
+		{
+			m_stack_variant_list.resize(pos + 1, variant(m_fk));
+		}
         m_stack_variant_list[pos] = v;
     }
     void get_stack_variant(variant & v, int pos)
-    {
-        m_stack_variant_list.resize(pos + 1, variant(m_fk));
+	{
+		if (pos >= (int)m_stack_variant_list.size())
+		{
+			m_stack_variant_list.resize(pos + 1, variant(m_fk));
+		}
         v = m_stack_variant_list[pos];
     }
     
@@ -64,8 +70,9 @@ public:
     
 private:
     bool next();
-    bool next_assign(stack & s, const func_binary & fb, int code);
-    bool next_math(stack & s, const func_binary & fb, int code);
+	bool next_assign(stack & s, const func_binary & fb, int code);
+	bool next_math(stack & s, const func_binary & fb, int code);
+	bool next_return(stack & s, const func_binary & fb, int code);
 private:
     fuck * m_fk;
     fkerrorinfo * m_ei;

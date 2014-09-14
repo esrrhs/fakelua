@@ -35,7 +35,7 @@ public:
         m_byte_code_list.clear();
     }
     
-    bool add_stack_identifier(const String & name);
+    int add_stack_identifier(const String & name);
 
     int alloc_stack_identifier()
     {
@@ -87,10 +87,9 @@ public:
         m_byte_code_list.push_back(code);
     }
 
-    void output(String name, func_binary * bin);
+	void output(const String & name, func_binary * bin);
     
-private:
-    int get_cur_variable_pos(String name)
+    int get_cur_variable_pos(const String & name)
     {
         assert(m_block_identifiers_stack.size() > 0);
         block_identifiers_list & list = m_block_identifiers_stack.back();

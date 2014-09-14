@@ -12,11 +12,14 @@ enum CommandType
 enum OpCodeType
 {
     OPCODE_ASSIGN,
+
     OPCODE_PLUS,
     OPCODE_MINUS,
     OPCODE_MULTIPLY,
-    OPCODE_DIVIDE,
-    OPCODE_DIVIDE_MOD,
+	OPCODE_DIVIDE,
+	OPCODE_DIVIDE_MOD,
+
+	OPCODE_RETURN,
 };
 
 enum AddrType
@@ -40,6 +43,7 @@ const char * OpCodeStr(int opcode);
 struct fuck;
 class codegen;
 typedef uint64_t command;
+#define EMPTY_CMD (command(-1))
 class func_binary
 {
     friend class codegen;

@@ -19,6 +19,8 @@ enum efkerror
 	efk_compile_variable_not_found,
 	efk_compile_explicit_type_error,
 	efk_compile_math_type_error,
+	efk_compile_variable_has_define,
+	efk_compile_add_stack_identifier,
 
 	efk_run_no_func_error,
 };
