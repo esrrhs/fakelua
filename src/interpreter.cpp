@@ -3,11 +3,80 @@
 #include "binary.h"
 #include "paramstack.h"
 
+stack::stack() : m_fk(0), m_ei(0), m_fb(0), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
+{
+}
+
+stack::stack(fuck * fk, fkerrorinfo * ei, const  func_binary * fb) : m_fk(fk), m_ei(ei), m_fb(fb), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
+{
+	grow(m_fk->m_stack_ini_size);
+}
+stack::~stack()
+{
+	if (m_stack_variant_list)
+	{
+		assert(m_fk);
+		for (int i = 0; i < m_stack_variant_list_num; i++)
+		{
+			m_stack_variant_list[i].~variant();
+		}
+		m_fk->m_fkfree(m_stack_variant_list);
+	}
+	m_stack_variant_list = 0;
+	m_stack_variant_list_num = 0;
+}
+void stack::grow(int pos)
+{
+	assert(m_fk);
+	// 新空间
+	int newsize = pos + 1 + pos * m_fk->m_stack_grow_speed / 100;
+	assert(newsize > m_stack_variant_list_num);
+	variant * newbuff = (variant *)m_fk->m_fkmalloc(newsize * sizeof(variant));
+	
+	// 复制
+	if (m_stack_variant_list)
+	{
+		memcpy(newbuff, m_stack_variant_list, m_stack_variant_list_num * sizeof(variant));
+	}
+
+	// 构造剩余的
+	for (int i = m_stack_variant_list_num; i <newsize; i++)
+	{
+		new (&newbuff[i]) variant(m_fk);
+	}
+
+	// 删除
+	if (m_stack_variant_list)
+	{
+		m_fk->m_fkfree(m_stack_variant_list);
+	}
+
+	m_stack_variant_list = newbuff;
+	m_stack_variant_list_num = newsize;
+}
+
+void stack::clear()
+{
+	m_pos = 0;
+	// 为了效率，保留脏数据
+	m_stack_variant_list_num = 0;
+}
+
+//////////////////////////////////////////////////////////////////////////
+
 void interpreter::clear()
 {
     m_isend = false;
     m_ret = variant(m_fk);
-    m_stack_list.clear();
+	assert(m_fk);
+	if (m_stack_list)
+	{
+		for (int i = 0; i < m_stack_list_max_num; i++)
+		{
+			m_stack_list[i].~stack();
+		}
+		m_fk->m_fkfree(m_stack_list);
+	}
 }
 
 bool interpreter::isend() const
@@ -18,6 +87,36 @@ bool interpreter::isend() const
 const variant & interpreter::getret() const
 {
     return m_ret;
+}
+
+void interpreter::grow()
+{
+	assert(m_fk);
+	// 新空间
+	int newsize = m_stack_list_max_num + 1 + m_stack_list_max_num * m_fk->m_stack_list_grow_speed / 100;
+	assert(newsize > m_stack_list_max_num);
+	stack * newbuff = (stack *)m_fk->m_fkmalloc(newsize * sizeof(stack));
+
+	// 复制
+	if (m_stack_list)
+	{
+		memcpy(newbuff, m_stack_list, m_stack_list_max_num * sizeof(stack));
+	}
+
+	// 构造剩余的
+	for (int i = m_stack_list_max_num; i < newsize; i++)
+	{
+		new (&newbuff[i]) stack();
+	}
+
+	// 删除
+	if (m_stack_list)
+	{
+		m_fk->m_fkfree(m_stack_list);
+	}
+
+	m_stack_list = newbuff;
+	m_stack_list_max_num = newsize;
 }
 
 void interpreter::call(binary * bin, const String & func, paramstack * ps)
@@ -32,8 +131,16 @@ void interpreter::call(binary * bin, const String & func, paramstack * ps)
     }
 
     // 压栈
-    m_stack_list.push_back(stack(m_fk, m_ei, fb));
-    stack & s = m_stack_list.back();
+	if (m_stack_list_num >= m_stack_list_max_num)
+	{
+		grow();
+	}
+	m_stack_list_num++;
+	stack & s = m_stack_list[m_stack_list_num - 1];
+	s.m_fk = m_fk;
+	s.m_ei = m_ei;
+	s.m_fb = fb;
+	s.clear();
 
     // 分配栈空间
     for (int i = 0; i < (int)ps->size(); i++)
@@ -65,7 +172,7 @@ int interpreter::run(int cmdnum)
 
 bool interpreter::next()
 {
-    stack & s = m_stack_list.back();
+	stack & s = m_stack_list[m_stack_list_num - 1];
     const func_binary & fb = *s.m_fb;
     int pos = s.m_pos;
 
@@ -106,11 +213,12 @@ bool interpreter::next()
     {
         FKLOG("pop stack %s", s.m_fb->getname().c_str());
         // 出栈
-        m_stack_list.pop_back();
+		s.clear();
+		m_stack_list_num--;
     }
 
     // 所有都完
-    if (m_stack_list.empty())
+	if (!m_stack_list_num)
     {
         FKLOG("stack empty end");
         m_isend = true;

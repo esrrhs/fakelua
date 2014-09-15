@@ -8,7 +8,10 @@
 
 FUCK_API fuck * newfuck(fkmalloc fkm, fkfree fkf,
     int per_frame_cmd_num,
-    int delete_routine_scale)
+	int delete_routine_scale,
+	int stack_ini_size,
+	int stack_grow_speed,
+	int stack_list_grow_speed)
 {
     if (!fkm || !fkf)
     {
@@ -21,14 +24,24 @@ FUCK_API fuck * newfuck(fkmalloc fkm, fkfree fkf,
         per_frame_cmd_num = 100;
         delete_routine_scale = 4;
         FKLOG("newfuck use per_frame_cmd_num[%d] and delete_routine_scale[%d]", per_frame_cmd_num, delete_routine_scale);
-    }
+	}
+	if (!stack_ini_size || !stack_grow_speed || !stack_list_grow_speed)
+	{
+		stack_ini_size = 10;
+		stack_grow_speed = 100;
+		stack_list_grow_speed = 100;
+		FKLOG("newfuck use stack_ini_size[%d] and stack_grow_speed[%d]", stack_ini_size, stack_grow_speed);
+	}
     
     fuck * ret = (fuck *)fkm(sizeof(fuck));
     new (ret) fuck();
     ret->m_fkmalloc = fkm;
-    ret->m_fkfree = fkf;
-    ret->m_per_frame_cmd_num = per_frame_cmd_num;
-    ret->m_delete_routine_scale = delete_routine_scale;
+	ret->m_fkfree = fkf;
+	ret->m_per_frame_cmd_num = per_frame_cmd_num;
+	ret->m_delete_routine_scale = delete_routine_scale;
+	ret->m_stack_ini_size = stack_ini_size;
+	ret->m_stack_grow_speed = stack_grow_speed;
+	ret->m_stack_list_grow_speed = stack_list_grow_speed;
     FKLOG("newfuck ret %p", ret);
     return ret;
 }

@@ -39,6 +39,12 @@ struct fuck
     int m_per_frame_cmd_num;
     // processor清除无效协程判断的比例
     int m_delete_routine_scale;
+	// stack初始大小
+	int m_stack_ini_size;
+	// stack增长速度
+	int m_stack_grow_speed;
+	// stack层数增长速度
+	int m_stack_list_grow_speed;
 };
 
 template <typename T>
