@@ -19,7 +19,7 @@
 #include <assert.h>
 #include "fuckscript.h"
 
-#ifdef DEBUG
+#ifdef _DEBUG
 #define FKLOG(...) fklog("[DEBUG] ", __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
 #define FKERR(...) fklog("[ERROR] ", __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
 #else

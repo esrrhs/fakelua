@@ -9,29 +9,29 @@ struct binary;
 struct paramstack;
 struct func_binary;
 
-typedef std::vector<variant> stack_variant_list;
-
 struct stack
 {
-    stack() : m_fk(0), m_ei(0), m_fb(0), m_pos(0)
-    {
-    }
-    stack(fuck * fk, fkerrorinfo * ei, const  func_binary * fb) : m_fk(fk), m_ei(ei), m_fb(fb), m_pos(0)
-    {
-    }
+	stack();
+	stack(fuck * fk, fkerrorinfo * ei, const  func_binary * fb);
+	~stack();
+
+	void grow(int pos);
+
+	void clear();
+
     void set_stack_variant(const variant & v, int pos)
     {
-		if (pos >= (int)m_stack_variant_list.size())
+		if (pos >= (int)m_stack_variant_list_num)
 		{
-			m_stack_variant_list.resize(pos + 1, variant(m_fk));
+			grow(pos);
 		}
         m_stack_variant_list[pos] = v;
     }
     void get_stack_variant(variant & v, int pos)
 	{
-		if (pos >= (int)m_stack_variant_list.size())
+		if (pos >= (int)m_stack_variant_list_num)
 		{
-			m_stack_variant_list.resize(pos + 1, variant(m_fk));
+			grow(pos);
 		}
         v = m_stack_variant_list[pos];
     }
@@ -43,15 +43,15 @@ struct stack
     // 当前执行位置
     int m_pos;
     // 当前栈上的变量
-    stack_variant_list m_stack_variant_list;
+	variant * m_stack_variant_list;
+	size_t m_stack_variant_list_num;
 };
-
-typedef std::vector<stack> stack_list;
 
 class interpreter
 {
 public:
-    interpreter(fuck * fk, fkerrorinfo * ei) : m_fk(fk), m_ei(ei)
+	interpreter(fuck * fk, fkerrorinfo * ei) : m_fk(fk), m_ei(ei), 
+		m_stack_list(0), m_stack_list_num(0), m_stack_list_max_num(0)
     {
         clear();
     }
@@ -59,6 +59,7 @@ public:
     {
     }
 
+	void grow();
     void clear();
     
     bool isend() const;
@@ -78,6 +79,8 @@ private:
     fkerrorinfo * m_ei;
     bool m_isend;
     variant m_ret;
-    stack_list m_stack_list;
+	stack * m_stack_list;
+	size_t m_stack_list_num;
+	size_t m_stack_list_max_num;
 };
 

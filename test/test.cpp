@@ -21,7 +21,7 @@ int main(int argc, const char *argv[])
 
 	int ret = 0;
 
-#ifndef DEBUG
+#ifndef _DEBUG
 	for (int i = 0; i < 10000000; i++)
 #else
 	for (int i = 0; i < 1; i++)
