@@ -19,12 +19,17 @@ int main(int argc, const char *argv[])
         return 0;
     }
 
-    int ret = fkrun<int>(bin, &ei, "myfunc1", 1, 2);
-    if (ei.fkerror() != efk_ok)
-    {
-        printf("call fail errorno %d, %s\n", ei.fkerror(), ei.fkerrorstr());
-        return 0;
-    }
+	int ret = 0;
+	
+	for (int i = 0; i < 10000000; i++)
+	{
+		ret = fkrun<int>(bin, &ei, "myfunc1", 1, 2);
+		if (ei.fkerror() != efk_ok)
+		{
+			printf("call fail errorno %d, %s\n", ei.fkerror(), ei.fkerrorstr());
+			return 0;
+		}
+	}
     
     printf("call ret %d\n", ret);
     

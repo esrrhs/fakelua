@@ -59,71 +59,209 @@ struct paramstack;
 typedef void * (*fkmalloc)(size_t size);
 typedef void (*fkfree)(void *ptr);
 
+#define FUCK_API extern "C"
+
 // 申请回收
-fuck * newfuck(fkmalloc fkm = 0, fkfree fkf = 0,
+FUCK_API fuck * newfuck(fkmalloc fkm = 0, fkfree fkf = 0,
     int per_frame_cmd_num = 0,
     int delete_routine_scale = 0
     );
-void delfuck(fuck * fk);
+FUCK_API void delfuck(fuck * fk);
 
 // 解析文件
-binary * fkparse(fuck * fk, fkerrorinfo * ei, const char * filename);
+FUCK_API binary * fkparse(fuck * fk, fkerrorinfo * ei, const char * filename);
 
 // bin回收
-void delbinary(binary * bin);
+FUCK_API void delbinary(binary * bin);
 
 // 是否bin有函数
-bool fkisfunc(binary * bin, const char * func);
+FUCK_API bool fkisfunc(binary * bin, const char * func);
 
 // 参数传递
-paramstack * fknewparamstack(binary * bin);
-void fkdeleteparamstack(paramstack * s);
+FUCK_API paramstack * fknewparamstack(binary * bin);
+FUCK_API void fkdeleteparamstack(paramstack * s);
 
-void fkpspushpointer(paramstack * s, void * p);
+FUCK_API void fkpspushpointer(paramstack * s, void * p);
+FUCK_API void fkpspushchar(paramstack * s, char ret);
+FUCK_API void fkpspushuchar(paramstack * s, unsigned char ret);
+FUCK_API void fkpspushshort(paramstack * s, short ret);
+FUCK_API void fkpspushushort(paramstack * s, unsigned short ret);
+FUCK_API void fkpspushint(paramstack * s, int ret);
+FUCK_API void fkpspushuint(paramstack * s, unsigned int ret);
+FUCK_API void fkpspushfloat(paramstack * s, float ret);
+FUCK_API void fkpspushdouble(paramstack * s, double ret);
+FUCK_API void fkpspushcharptr(paramstack * s, char * ret);
+FUCK_API void fkpspushccharptr(paramstack * s, const char * ret);
+FUCK_API void fkpspushbool(paramstack * s, bool ret);
+FUCK_API void fkpspushint64(paramstack * s, int64_t ret);
+FUCK_API void fkpspushuint64(paramstack * s, uint64_t ret);
+
 template<typename T>  
-void fkpspush(paramstack * s, T ret)
+inline void fkpspush(paramstack * s, T ret)
 { 
     fkpspushpointer(s, (void*)ret); 
 }
-template<>	void fkpspush(paramstack * s, char ret);
-template<>	void fkpspush(paramstack * s, unsigned char ret);
-template<>	void fkpspush(paramstack * s, short ret);
-template<>	void fkpspush(paramstack * s, unsigned short ret);
-template<>	void fkpspush(paramstack * s, int ret);
-template<>	void fkpspush(paramstack * s, unsigned int ret);
-template<>	void fkpspush(paramstack * s, float ret);
-template<>	void fkpspush(paramstack * s, double ret);
-template<>	void fkpspush(paramstack * s, std::string ret);
-template<>	void fkpspush(paramstack * s, char * ret);
-template<>	void fkpspush(paramstack * s, const char * ret);
-template<>	void fkpspush(paramstack * s, bool ret);
-template<>	void fkpspush(paramstack * s, int64_t ret);
-template<>	void fkpspush(paramstack * s, uint64_t ret);
+template<>	inline void fkpspush(paramstack * s, char ret)
+{
+	fkpspushchar(s, ret);
+}
 
-void fkpspoppointer(paramstack * s, void * & p);
+template<>	inline void fkpspush(paramstack * s, unsigned char ret)
+{
+	fkpspushuchar(s, ret);
+}
+
+template<>	inline void fkpspush(paramstack * s, short ret)
+{
+	fkpspushshort(s, ret);
+}
+
+template<>	inline void fkpspush(paramstack * s, unsigned short ret)
+{
+	fkpspushushort(s, ret);
+}
+
+template<>	inline void fkpspush(paramstack * s, int ret)
+{
+	fkpspushint(s, ret);
+}
+
+template<>	inline void fkpspush(paramstack * s, unsigned int ret)
+{
+	fkpspushuint(s, ret);
+}
+
+template<>	inline void fkpspush(paramstack * s, float ret)
+{
+	fkpspushfloat(s, ret);
+}
+
+template<>	inline void fkpspush(paramstack * s, double ret)
+{
+	fkpspushdouble(s, ret);
+}
+
+template<>	inline void fkpspush(paramstack * s, std::string ret)
+{
+	fkpspushccharptr(s, ret.c_str());
+}
+
+template<>	inline void fkpspush(paramstack * s, char * ret)
+{
+	fkpspushcharptr(s, ret);
+}
+
+template<>	inline void fkpspush(paramstack * s, const char * ret)
+{
+	fkpspushccharptr(s, ret);
+}
+
+template<>	inline void fkpspush(paramstack * s, bool ret)
+{
+	fkpspushbool(s, ret);
+}
+
+template<>	inline void fkpspush(paramstack * s, int64_t ret)
+{
+	fkpspushint64(s, ret);
+}
+
+template<>	inline void fkpspush(paramstack * s, uint64_t ret)
+{
+	fkpspushuint64(s, ret);
+}
+
+
+FUCK_API void fkpspoppointer(paramstack * s, void * & p);
+FUCK_API char fkpspopchar(paramstack * s);
+FUCK_API unsigned char fkpspopuchar(paramstack * s);
+FUCK_API short fkpspopshort(paramstack * s);
+FUCK_API unsigned short fkpspopushort(paramstack * s);
+FUCK_API int fkpspopint(paramstack * s);
+FUCK_API unsigned int fkpspopuint(paramstack * s);
+FUCK_API float fkpspopfloat(paramstack * s);
+FUCK_API double fkpspopdouble(paramstack * s);
+FUCK_API const char * fkpspopcstrptr(paramstack * s);
+FUCK_API bool fkpspopbool(paramstack * s);
+FUCK_API int64_t fkpspopint64(paramstack * s);
+FUCK_API uint64_t fkpspopuint64(paramstack * s);
+
 template<typename T>  
-T fkpspop(paramstack * s) 
+inline T fkpspop(paramstack * s)
 { 
     void * ret = 0; 
     fkpspoppointer(s, ret); 
     return (T)ret; 
 }
-template<>	void fkpspop(paramstack * s);
-template<>	char fkpspop(paramstack * s);
-template<>	unsigned char fkpspop(paramstack * s);
-template<>	short fkpspop(paramstack * s);
-template<>	unsigned short fkpspop(paramstack * s);
-template<>	int fkpspop(paramstack * s);
-template<>	unsigned int fkpspop(paramstack * s);
-template<>	float fkpspop(paramstack * s);
-template<>	double fkpspop(paramstack * s);
-template<>	std::string fkpspop(paramstack * s);
-template<>	bool fkpspop(paramstack * s);
-template<>	int64_t fkpspop(paramstack * s);
-template<>	uint64_t fkpspop(paramstack * s);
+
+template<>	inline void fkpspop(paramstack * s)
+{
+	// nothing
+}
+
+template<>	inline char fkpspop(paramstack * s)
+{
+	return fkpspopchar(s);
+}
+
+template<>	inline unsigned char fkpspop(paramstack * s)
+{
+	return fkpspopuchar(s);
+}
+
+template<>	inline short fkpspop(paramstack * s)
+{
+	return fkpspopshort(s);
+}
+
+template<>	inline unsigned short fkpspop(paramstack * s)
+{
+	return fkpspopushort(s);
+}
+
+template<>	inline int fkpspop(paramstack * s)
+{
+	return fkpspopint(s);
+}
+
+template<>	inline unsigned int fkpspop(paramstack * s)
+{
+	return fkpspopuint(s);
+}
+
+template<>	inline float fkpspop(paramstack * s)
+{
+	return fkpspopfloat(s);
+}
+
+template<>	inline double fkpspop(paramstack * s)
+{
+	return fkpspopdouble(s);
+}
+
+template<>	inline std::string fkpspop(paramstack * s)
+{
+	return fkpspopcstrptr(s);
+}
+
+template<>	inline bool fkpspop(paramstack * s)
+{
+	return fkpspopbool(s);
+}
+
+template<>	inline int64_t fkpspop(paramstack * s)
+{
+	return fkpspopint64(s);
+}
+
+template<>	inline uint64_t fkpspop(paramstack * s)
+{
+	return fkpspopuint64(s);
+}
+
 
 // 调用函数
-void fkrun(binary * bin, fkerrorinfo * ei, const char * func, paramstack * s);
+FUCK_API void fkrun(binary * bin, fkerrorinfo * ei, const char * func, paramstack * s);
 
 template<typename RVal>
 RVal fkrun(binary * bin, fkerrorinfo * ei, const char * func)
