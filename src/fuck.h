@@ -29,7 +29,7 @@ struct fuck
     }
     
     // error
-    void seterror(fkerrorinfo * ei, efkerror errno, const char *fmt, ...);
+    void seterror(fkerrorinfo * ei, efkerror err, const char *fmt, ...);
     
     // member
     fkmalloc m_fkmalloc;

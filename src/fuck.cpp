@@ -1,6 +1,6 @@
 #include "fuck.h"
 
-void fuck::seterror(fkerrorinfo * ei, efkerror errno, const char *fmt, ...)
+void fuck::seterror(fkerrorinfo * ei, efkerror err, const char *fmt, ...)
 {
     if (ei)
     {

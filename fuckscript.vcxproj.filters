@@ -51,6 +51,12 @@
     <ClInclude Include="src\paramstack.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="src\bison.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FlexLexer.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -90,6 +96,12 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\paramstack.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\bison.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\flex.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>
