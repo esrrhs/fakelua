@@ -10,7 +10,7 @@ int myflexer::LexerInput(char* buf, int max_size)
         return 0;
     }
     
-    strncpy(buf, m_content + m_pos, max_size - 1);
+    strncpy(buf, m_content.c_str() + m_pos, max_size - 1);
     buf[max_size - 1] = '\0'; 
 
     int len = strlen(buf);
@@ -38,20 +38,22 @@ bool myflexer::inputfile(const char * filename)
         return false;
     }
 
-    int i = 0;
+	int8_t readbuff[100];
+	size_t len = 0;
+	while (!feof(file))
+	{
+		len = fread((void*)readbuff, 1, sizeof(readbuff)-1, file);
+		readbuff[len] = 0;
+		m_content += (char *)readbuff;
+	}
 
-    while (!feof(file))
-    {
-        i += fread(m_content + i, 1, MAX_FLEX_BUFFER_SIZE, file);
-    }
-
-    if (i == 0)
+	if (m_content.empty())
     {
         m_fk->seterror(m_ei, efk_open_file_empty, "open %s empty", filename);
         return false;
     }
     
-    m_num = i;
+	m_num = m_content.size();
     m_pos = 0;
     
     return true;

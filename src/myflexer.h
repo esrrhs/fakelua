@@ -17,8 +17,6 @@
 #include <FlexLexer.h> 
 #include "semantic.h"
 
-#define MAX_FLEX_BUFFER_SIZE 1024*1024
-
 class fuck;
 class fkerrorinfo;
 class myflexer : public yyFlexLexer
@@ -53,7 +51,7 @@ public:
 private:
     fuck * m_fk;
     fkerrorinfo * m_ei;
-    char m_content[MAX_FLEX_BUFFER_SIZE];
+    String m_content;
     int m_num;
     int m_pos;
     func_desc_list m_funclist;

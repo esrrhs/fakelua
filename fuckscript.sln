@@ -6,6 +6,9 @@ MinimumVisualStudioVersion = 10.0.40219.1
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fuckscript", "fuckscript.vcxproj", "{577D7563-0013-47F8-A6AF-2A025CE98E9A}"
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test", "test\test.vcxproj", "{BED6654C-1638-49E1-ABA6-49DD89188598}"
+	ProjectSection(ProjectDependencies) = postProject
+		{577D7563-0013-47F8-A6AF-2A025CE98E9A} = {577D7563-0013-47F8-A6AF-2A025CE98E9A}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -24,5 +27,8 @@ Global
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(Performance) = preSolution
+		HasPerformanceSessions = true
 	EndGlobalSection
 EndGlobal
