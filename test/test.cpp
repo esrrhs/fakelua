@@ -20,8 +20,12 @@ int main(int argc, const char *argv[])
     }
 
 	int ret = 0;
-	
+
+#ifndef DEBUG
 	for (int i = 0; i < 10000000; i++)
+#else
+	for (int i = 0; i < 1; i++)
+#endif
 	{
 		ret = fkrun<int>(bin, &ei, "myfunc1", 1, 2);
 		if (ei.fkerror() != efk_ok)
