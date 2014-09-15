@@ -1,36 +1,16 @@
 #include "paramstack.h"
 #include "fuck.h"
 
-void paramstack::clear()
-{
-}
-
-fuck * paramstack::getfuck()
-{
-    return m_fk;
-}
-
 void paramstack::push(const variant & v)
 {
-    m_variant_list.push_back(v);
+	assert(m_variant_list_num < REAL_MAX_FUCK_PARAM_NUM);
+	m_variant_list[m_variant_list_num] = v;
+	m_variant_list_num++;
 }
 
 void paramstack::pop(variant & v)
 {
-    if (!m_variant_list.empty())
-    {
-        v = m_variant_list.back();
-        m_variant_list.pop_back();
-    }
+	assert(m_variant_list_num > 0);
+	v = m_variant_list[m_variant_list_num - 1];
+	m_variant_list_num--;
 }
-
-variant paramstack::operator[](int i)
-{
-    return m_variant_list[i];
-}
-
-size_t paramstack::size() const
-{
-    return m_variant_list.size();
-}
-

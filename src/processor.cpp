@@ -2,6 +2,11 @@
 #include "fuck.h"
 #include "routine.h"
 
+processor::~processor()
+{
+	clear();
+}
+
 void processor::clear()
 {
     if (m_routine_list)
@@ -26,13 +31,15 @@ bool processor::full() const
 
 void processor::grow()
 {
-    size_t newsize = m_routine_max_size * 2;
-    routine ** new_routine_list = (routine **)m_fk->m_fkmalloc(newsize * sizeof(routine *));
+	size_t newsize = m_routine_max_size + 1 + m_routine_max_size * m_fk->m_routine_grow_speed / 100;
+	assert(newsize > m_routine_max_size);
+	routine ** new_routine_list = (routine **)m_fk->m_fkmalloc(newsize * sizeof(routine *));
     if (m_routine_list)
     {
         memcpy(new_routine_list, m_routine_list, m_routine_max_size * sizeof(routine *));   
         m_fk->m_fkfree(m_routine_list);
     }
+	memset(new_routine_list + m_routine_max_size, 0, (newsize - m_routine_max_size) * sizeof(routine *));
     m_routine_list = new_routine_list;
     m_routine_max_size = newsize;
 }
