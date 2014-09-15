@@ -27,13 +27,13 @@ struct stack
 		}
         m_stack_variant_list[pos] = v;
     }
-    void get_stack_variant(variant & v, int pos)
+	const variant * get_stack_variant(int pos)
 	{
 		if (pos >= (int)m_stack_variant_list_num)
 		{
 			grow(pos);
 		}
-        v = m_stack_variant_list[pos];
+        return &m_stack_variant_list[pos];
     }
     
     fuck * m_fk;
@@ -55,9 +55,7 @@ public:
     {
         clear();
     }
-    ~interpreter()
-    {
-    }
+    ~interpreter();
 
 	void grow();
     void clear();

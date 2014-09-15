@@ -60,12 +60,15 @@ typedef void * (*fkmalloc)(size_t size);
 typedef void (*fkfree)(void *ptr);
 
 #define FUCK_API extern "C"
+#define MAX_FUCK_PARAM_NUM 10	// 最大10个参数
+#define MAX_FUCK_RETURN_NUM 1	// 最大1个返回值
 
 // 申请回收
 FUCK_API fuck * newfuck(
 	fkmalloc fkm = 0, fkfree fkf = 0,	// 内存管理
     int per_frame_cmd_num = 0,			// 每帧执行命令数目
 	int delete_routine_scale = 0,		// 删除无效协程的比例
+	int routine_grow_speed = 0,			// 协程增长速度，百分比，10%代表增长10%
 	int stack_ini_size = 0,				// 栈初始大小
 	int stack_grow_speed = 0,			// 栈增长速度，百分比，10%代表增长10%
 	int stack_list_grow_speed = 0		// 栈层数增长速度，百分比，10%代表增长10%

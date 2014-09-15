@@ -15,9 +15,7 @@ public:
     {
         clear();
     }
-    ~processor()
-    {
-    }
+    ~processor();
 
     void clear();
 

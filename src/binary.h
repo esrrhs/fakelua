@@ -77,10 +77,10 @@ public:
         return m_buff[pos];
     }
 
-    void getconst(variant & v, int pos) const
+	const variant * getconst(int pos) const
     {
         assert(pos >= 0 && pos < (int)m_const_list.size());
-        v = m_const_list[pos];
+        return &m_const_list[pos];
     }
     
 private:

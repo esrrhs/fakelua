@@ -9,6 +9,7 @@
 FUCK_API fuck * newfuck(fkmalloc fkm, fkfree fkf,
     int per_frame_cmd_num,
 	int delete_routine_scale,
+	int routine_grow_speed,
 	int stack_ini_size,
 	int stack_grow_speed,
 	int stack_list_grow_speed)
@@ -19,18 +20,21 @@ FUCK_API fuck * newfuck(fkmalloc fkm, fkfree fkf,
         fkf = &free;
         FKLOG("newfuck use system malloc and free");
     }
-    if (!per_frame_cmd_num || !delete_routine_scale)
+	if (!per_frame_cmd_num || !delete_routine_scale || !routine_grow_speed)
     {
         per_frame_cmd_num = 100;
         delete_routine_scale = 4;
-        FKLOG("newfuck use per_frame_cmd_num[%d] and delete_routine_scale[%d]", per_frame_cmd_num, delete_routine_scale);
+		routine_grow_speed = 100;
+        FKLOG("newfuck use per_frame_cmd_num[%d] delete_routine_scale[%d] stack_list_grow_speed[%d]", 
+			per_frame_cmd_num, delete_routine_scale, routine_grow_speed);
 	}
 	if (!stack_ini_size || !stack_grow_speed || !stack_list_grow_speed)
 	{
 		stack_ini_size = 10;
 		stack_grow_speed = 100;
 		stack_list_grow_speed = 100;
-		FKLOG("newfuck use stack_ini_size[%d] and stack_grow_speed[%d]", stack_ini_size, stack_grow_speed);
+		FKLOG("newfuck use stack_ini_size[%d] stack_grow_speed[%d] stack_list_grow_speed[%d]", 
+			stack_ini_size, stack_grow_speed, stack_list_grow_speed);
 	}
     
     fuck * ret = (fuck *)fkm(sizeof(fuck));
