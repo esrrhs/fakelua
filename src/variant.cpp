@@ -119,27 +119,11 @@ void variant::operator=(const variant& p_variant)
 
 void variant::clear() 
 {
-
 	switch(m_type) 
 	{
-		case NIL: 
-		case BOOL: 
-		case INT: 
-		case REAL: 
-		{
-			// nothing
-		} 
-		break;
-		
 		case STRING: 
 		{
 		    fkdelete(m_fk, m_data.m_str);
-		} 
-		break;
-		
-		case POINTER: 
-		{
-			// nothing
 		} 
 		break;
 		
@@ -150,8 +134,6 @@ void variant::clear()
 	}
 	
 	m_type = NIL;
-	memset(&m_data, 0, sizeof(m_data));
-
 }
 
 void variant::reference(const variant& p_variant) 
@@ -165,27 +147,13 @@ void variant::reference(const variant& p_variant)
 		
 	switch( p_variant.m_type ) 
 	{
-		case NIL: 
-		{
-			// none
-		} break;
-		
 		// atomic types 		
-		case BOOL: 
+		case BOOL:
+		case INT:
+		case REAL:
+		case POINTER:
 		{		
-			m_data.m_bool = p_variant.m_data.m_bool;
-		} 
-		break;
-		
-		case INT: 
-		{
-			m_data.m_int = p_variant.m_data.m_int;
-		} 
-		break;
-		
-		case REAL: 
-		{
-			m_data.m_real = p_variant.m_data.m_real;
+			memcpy(&m_data, &p_variant.m_data, sizeof(m_data));
 		} 
 		break;
 		
@@ -193,7 +161,7 @@ void variant::reference(const variant& p_variant)
 		{
 		    if (m_data.m_str)
 		    {
-		        *m_data.m_str = String();
+		        m_data.m_str->clear();
 		    }
 		    else
 		    {
@@ -205,16 +173,9 @@ void variant::reference(const variant& p_variant)
 		        *m_data.m_str = *p_variant.m_data.m_str;
 		    }
 		    else
-		    {
-		        *m_data.m_str = String();
+			{
+				m_data.m_str->clear();
 		    }
-		} 
-		break;
-		
-		case POINTER: 
-		{
-		    // ref
-		    m_data.m_ptr = p_variant.m_data.m_ptr;
 		} 
 		break;
 		
@@ -223,7 +184,6 @@ void variant::reference(const variant& p_variant)
 		}
 		break;
 	}		
-
 }
 
 variant::operator int() const 
