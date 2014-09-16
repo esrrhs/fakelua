@@ -1,11 +1,12 @@
 -- func1 comment
 func myfunc1(arg1, arg2)
 	
-	while arg1 > arg2 - (1 / arg1) then
+	while arg1 < arg2 + 10 then
 	
-		arg1 = arg1 / arg2
+		arg1 = arg1 + 1
 	
 	end
 	
+	return arg1
 	
 end
