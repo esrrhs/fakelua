@@ -16,7 +16,7 @@ stack::~stack()
 	if (m_stack_variant_list)
 	{
 		assert(m_fk);
-		for (int i = 0; i < m_stack_variant_list_num; i++)
+		for (int i = 0; i < (int)m_stack_variant_list_num; i++)
 		{
 			m_stack_variant_list[i].~variant();
 		}
@@ -34,7 +34,7 @@ void stack::grow(int pos)
 	assert(m_fk);
 	// 新空间
 	int newsize = pos + 1 + pos * m_fk->m_stack_grow_speed / 100;
-	assert(newsize > m_stack_variant_list_num);
+	assert(newsize > (int)m_stack_variant_list_num);
 	variant * newbuff = (variant *)m_fk->m_fkmalloc(newsize * sizeof(variant));
 	
 	// 复制
@@ -80,7 +80,7 @@ interpreter::~interpreter()
 	if (m_stack_list)
 	{
 		assert(m_fk);
-		for (int i = 0; i < m_stack_list_max_num; i++)
+		for (int i = 0; i < (int)m_stack_list_max_num; i++)
 		{
 			m_stack_list[i].~stack();
 		}
@@ -106,7 +106,7 @@ void interpreter::grow()
 	assert(m_fk);
 	// 新空间
 	int newsize = m_stack_list_max_num + 1 + m_stack_list_max_num * m_fk->m_stack_list_grow_speed / 100;
-	assert(newsize > m_stack_list_max_num);
+	assert(newsize > (int)m_stack_list_max_num);
 	stack * newbuff = (stack *)m_fk->m_fkmalloc(newsize * sizeof(stack));
 
 	// 复制
