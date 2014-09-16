@@ -31,7 +31,6 @@ public:
     {
         m_stackpos = 0;
         m_block_identifiers_stack.clear();
-        m_block_identifiers_stack.push_back(block_identifiers_list());
         m_byte_code_list.clear();
     }
     
@@ -66,14 +65,14 @@ public:
     {
         assert(m_block_identifiers_stack.size() > 0);
         // ´ÓÏÂÍùÉÏÕÒ
-        for (int i = (int)m_block_identifiers_stack.size() - 1; i >= 0; i++)
+        for (int i = (int)m_block_identifiers_stack.size() - 1; i >= 0; i--)
         {
             block_identifiers_list & list = m_block_identifiers_stack[i];
-            for (int i = 0; i < (int)list.size(); i++)
+            for (int j = 0; j < (int)list.size(); j++)
             {
-                if (name == list[i].name)
+                if (name == list[j].name)
                 {
-                    return list[i].pos;
+                    return list[j].pos;
                 }
             }
         }
@@ -85,6 +84,15 @@ public:
     void push(uint64_t code)
     {
         m_byte_code_list.push_back(code);
+    }
+    void set(int pos, uint64_t code)
+    {
+        assert(pos >= 0 && pos < (int)m_byte_code_list.size());
+        m_byte_code_list[pos] = code;
+    }
+    size_t byte_code_size() const
+    {
+        return m_byte_code_list.size();
     }
 
 	void output(const String & name, func_binary * bin);

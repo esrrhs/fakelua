@@ -72,6 +72,8 @@ private:
 	bool next_assign(stack & s, const func_binary & fb, int code);
 	bool next_math(stack & s, const func_binary & fb, int code);
 	bool next_return(stack & s, const func_binary & fb, int code);
+	bool next_jne(stack & s, const func_binary & fb, int code);
+	bool next_jmp(stack & s, const func_binary & fb, int code);
 private:
     fuck * m_fk;
     fkerrorinfo * m_ei;

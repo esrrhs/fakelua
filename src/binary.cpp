@@ -19,6 +19,18 @@ const char * OpCodeStr(int opcode)
 
 	OPCODE_DEF(RETURN)
 	
+	OPCODE_DEF(JNE)
+	OPCODE_DEF(JMP)
+	
+    OPCODE_DEF(AND)
+    OPCODE_DEF(OR)
+    OPCODE_DEF(LESS)
+	OPCODE_DEF(MORE)
+	OPCODE_DEF(EQUAL)
+	OPCODE_DEF(MOREEQUAL)
+	OPCODE_DEF(LESSEQUAL)
+	OPCODE_DEF(NOTEQUAL)
+	
 #undef OPCODE_DEF
     }
     return "unknow";
@@ -111,6 +123,12 @@ String func_binary::dump() const
                 }
                 ret += "\t";
                 ret += fkitoa(pos);
+            }
+            break;
+        case COMMAND_POS:
+            {
+                ret += "[ POS  ]\t";
+                ret += fkitoa(code);
             }
             break;
         default:

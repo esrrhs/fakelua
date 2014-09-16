@@ -615,118 +615,162 @@ bool variant::booleanize() const
 
 	return false;
 }
-void variant::operator +=(const variant& p_variant)
+void variant::plus(const variant& left, const variant& right)
 {
-    switch(m_type) 
-	{
-		case NIL: 
-		    break;
-		case BOOL: 
-		    break;
-		case INT: m_data.m_int += (int64_t)p_variant;
-		    break;
-		case REAL: m_data.m_real += (double)p_variant;
-		    break;
-		case STRING: 
-		    break;
-		case POINTER: 
-		    break;
-		default: 
-		{
-		}
-		break;
-	}
+    if (left.m_type == REAL || right.m_type == REAL)
+    {
+        m_data.m_real = (double)left + (double)right;
+        m_type = REAL;
+    }
+    else
+    {
+        m_data.m_int = (int64_t)left + (int64_t)right;
+        m_type = INT;
+    }
 }
 
-void variant::operator -=(const variant& p_variant)
+void variant::minus(const variant& left, const variant& right)
 {
-    switch(m_type) 
-	{
-		case NIL: 
-		    break;
-		case BOOL: 
-		    break;
-		case INT: m_data.m_int -= (int64_t)p_variant;
-		    break;
-		case REAL: m_data.m_real -= (double)p_variant;
-		    break;
-		case STRING: 
-		    break;
-		case POINTER: 
-		    break;
-		default: 
-		{
-		}
-		break;
-	}
+    if (left.m_type == REAL || right.m_type == REAL)
+    {
+        m_data.m_real = (double)left - (double)right;
+        m_type = REAL;
+    }
+    else
+    {
+        m_data.m_int = (int64_t)left - (int64_t)right;
+        m_type = INT;
+    }
 }
 
-void variant::operator *=(const variant& p_variant)
+void variant::multiply(const variant& left, const variant& right)
 {
-    switch(m_type) 
-	{
-		case NIL: 
-		    break;
-		case BOOL: 
-		    break;
-		case INT: m_data.m_int *= (int64_t)p_variant;
-		    break;
-		case REAL: m_data.m_real *= (double)p_variant;
-		    break;
-		case STRING: 
-		    break;
-		case POINTER: 
-		    break;
-		default: 
-		{
-		}
-		break;
-	}
+    if (left.m_type == REAL || right.m_type == REAL)
+    {
+        m_data.m_real = (double)left * (double)right;
+        m_type = REAL;
+    }
+    else
+    {
+        m_data.m_int = (int64_t)left * (int64_t)right;
+        m_type = INT;
+    }
 }
 
-void variant::operator /=(const variant& p_variant)
+void variant::divide(const variant& left, const variant& right)
 {
-    switch(m_type) 
-	{
-		case NIL: 
-		    break;
-		case BOOL: 
-		    break;
-		case INT: m_data.m_int /= (int64_t)p_variant;
-		    break;
-		case REAL: m_data.m_real /= (double)p_variant;
-		    break;
-		case STRING: 
-		    break;
-		case POINTER: 
-		    break;
-		default: 
-		{
-		}
-		break;
-	}
+    if (left.m_type == REAL || right.m_type == REAL)
+    {
+        m_data.m_real = (double)left / (double)right;
+        m_type = REAL;
+    }
+    else
+    {
+        m_data.m_int = (int64_t)left / (int64_t)right;
+        m_type = INT;
+    }
 }
 
-void variant::operator %=(const variant& p_variant)
+void variant::divide_mode(const variant& left, const variant& right)
 {
-    switch(m_type) 
-	{
-		case NIL: 
-		    break;
-		case BOOL: 
-		    break;
-		case INT: m_data.m_int %= (int64_t)p_variant;
-		    break;
-		case REAL: 
-		    break;
-		case STRING: 
-		    break;
-		case POINTER: 
-		    break;
-		default: 
-		{
-		}
-		break;
-	}
+    m_data.m_int = (int64_t)left % (int64_t)right;
+    m_type = INT;
 }
+
+void variant::band(const variant& left, const variant& right)
+{
+    m_data.m_bool = (bool)left & (bool)right;
+    m_type = BOOL;
+}
+
+void variant::bor(const variant& left, const variant& right)
+{
+    m_data.m_bool = (bool)left | (bool)right;
+    m_type = BOOL;
+}
+
+void variant::less(const variant& left, const variant& right)
+{
+    if (left.m_type == REAL || right.m_type == REAL)
+    {
+        m_data.m_bool = (double)left < (double)right;
+        m_type = BOOL;
+    }
+    else
+    {
+        m_data.m_bool = (int64_t)left < (int64_t)right;
+        m_type = BOOL;
+    }
+}
+
+void variant::more(const variant& left, const variant& right)
+{
+    if (left.m_type == REAL || right.m_type == REAL)
+    {
+        m_data.m_bool = (double)left > (double)right;
+        m_type = BOOL;
+    }
+    else
+    {
+        m_data.m_bool = (int64_t)left > (int64_t)right;
+        m_type = BOOL;
+    }
+}
+
+void variant::equal(const variant& left, const variant& right)
+{
+    if (left.m_type == REAL || right.m_type == REAL)
+    {
+        m_data.m_bool = (double)left == (double)right;
+        m_type = BOOL;
+    }
+    else
+    {
+        m_data.m_bool = (int64_t)left == (int64_t)right;
+        m_type = BOOL;
+    }
+}
+
+void variant::moreequal(const variant& left, const variant& right)
+{
+    if (left.m_type == REAL || right.m_type == REAL)
+    {
+        m_data.m_bool = (double)left >= (double)right;
+        m_type = BOOL;
+    }
+    else
+    {
+        m_data.m_bool = (int64_t)left >= (int64_t)right;
+        m_type = BOOL;
+    }
+}
+
+void variant::lessequal(const variant& left, const variant& right)
+{
+    if (left.m_type == REAL || right.m_type == REAL)
+    {
+        m_data.m_bool = (double)left <= (double)right;
+        m_type = BOOL;
+    }
+    else
+    {
+        m_data.m_bool = (int64_t)left <= (int64_t)right;
+        m_type = BOOL;
+    }
+}
+
+void variant::notequal(const variant& left, const variant& right)
+{
+    if (left.m_type == REAL || right.m_type == REAL)
+    {
+        m_data.m_bool = (double)left != (double)right;
+        m_type = BOOL;
+    }
+    else
+    {
+        m_data.m_bool = (int64_t)left != (int64_t)right;
+        m_type = BOOL;
+    }
+}
+
 
