@@ -1,5 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <iostream>
+#include <time.h>
 
 #include "fuckscript.h"
 
@@ -21,8 +23,10 @@ int main(int argc, const char *argv[])
 
 	int ret = 0;
 
+	unsigned int begin = time(0);
+
 #ifndef _DEBUG
-	for (int i = 0; i < 10000000; i++)
+	for (int i = 0; i < 1000000; i++)
 #else
 	for (int i = 0; i < 1; i++)
 #endif
@@ -34,9 +38,14 @@ int main(int argc, const char *argv[])
 			return 0;
 		}
 	}
-    
-    printf("call ret %d\n", ret);
-    
+
+	unsigned int end = time(0);
+
+	printf("call ret %d %d\n", ret, end - begin);
+
+	char c;
+	std::cin >> c;
+
     return 0;
 }
 

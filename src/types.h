@@ -67,3 +67,9 @@ String fkget_token_name(int token);
 #define MAKEINT32(high, low) ((int32_t)(((int16_t)(low)) | ((int32_t)((int16_t)(high))) << 16))
 #define HIINT16(I) ( ( int16_t ) ( ( ( int32_t )( I ) >> 16) & 0xFFFF ) )
 #define LOINT16(l) ((int16_t) (l))
+
+#ifdef WIN32
+#define force_inline __forceinline
+#else
+#define force_inline __inline__ __attribute__((always_inline))
+#endif
