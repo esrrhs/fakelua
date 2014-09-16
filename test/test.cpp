@@ -4,6 +4,9 @@
 #include <time.h>
 
 #include "fuckscript.h"
+#ifndef WIN32
+#include "gperftools/profiler.h"
+#endif
 
 int main(int argc, const char *argv[])
 {
@@ -25,8 +28,12 @@ int main(int argc, const char *argv[])
 
 	unsigned int begin = time(0);
 
+#ifndef WIN32
+	ProfilerStart("test.prof");
+#endif
+		
 #ifndef _DEBUG
-	for (int i = 0; i < 1000000; i++)
+	for (int i = 0; i < 3000000; i++)
 #else
 	for (int i = 0; i < 1; i++)
 #endif
@@ -39,6 +46,10 @@ int main(int argc, const char *argv[])
 		}
 	}
 
+#ifndef WIN32
+	ProfilerStop();
+#endif
+	
 	unsigned int end = time(0);
 
 	printf("call ret %d %d\n", ret, end - begin);
