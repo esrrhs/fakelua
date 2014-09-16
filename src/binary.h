@@ -7,6 +7,7 @@ enum CommandType
 {
     COMMAND_OPCODE,
     COMMAND_ADDR,
+    COMMAND_POS,
 };
 
 enum OpCodeType
@@ -20,6 +21,18 @@ enum OpCodeType
 	OPCODE_DIVIDE_MOD,
 
 	OPCODE_RETURN,
+	
+	OPCODE_JNE,
+	OPCODE_JMP,
+	
+    OPCODE_AND,
+    OPCODE_OR,
+    OPCODE_LESS,
+	OPCODE_MORE,
+	OPCODE_EQUAL,
+	OPCODE_MOREEQUAL,
+	OPCODE_LESSEQUAL,
+	OPCODE_NOTEQUAL,
 };
 
 enum AddrType
@@ -31,6 +44,7 @@ enum AddrType
 #define MAKE_COMMAND(type, code) MAKEINT64(type, code)
 #define MAKE_ADDR(addrtype, pos) MAKE_COMMAND(COMMAND_ADDR, MAKEINT32(addrtype, pos))
 #define MAKE_OPCODE(op) MAKE_COMMAND(COMMAND_OPCODE, op)
+#define MAKE_POS(pos) MAKE_COMMAND(COMMAND_POS, pos)
 
 #define COMMAND_TYPE(cmd) HIINT32(cmd)
 #define COMMAND_CODE(cmd) LOINT32(cmd)

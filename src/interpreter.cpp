@@ -209,10 +209,24 @@ bool interpreter::next()
     case OPCODE_MULTIPLY:
     case OPCODE_DIVIDE:
     case OPCODE_DIVIDE_MOD:
+    case OPCODE_AND:
+    case OPCODE_OR:
+    case OPCODE_LESS:
+	case OPCODE_MORE:
+	case OPCODE_EQUAL:
+	case OPCODE_MOREEQUAL:
+	case OPCODE_LESSEQUAL:
+	case OPCODE_NOTEQUAL:
         ret = next_math(s, fb, code);
 		break;
 	case OPCODE_RETURN:
 		ret = next_return(s, fb, code);
+		break;
+	case OPCODE_JNE:
+		ret = next_jne(s, fb, code);
+		break;
+	case OPCODE_JMP:
+		ret = next_jmp(s, fb, code);
 		break;
     default:
         assert(0);
@@ -308,23 +322,46 @@ bool interpreter::next_math(stack & s, const func_binary & fb, int code)
 	FKLOG("math left %s right %s", ((String)*left).c_str(), ((String)*right).c_str());
 
 	variant dest(m_fk);
-	dest = *left;
     switch (code)
     {
     case OPCODE_PLUS:
-		dest += *right;
+		dest.plus(*left, *right);
         break;
     case OPCODE_MINUS:
-		dest -= *right;
+		dest.minus(*left, *right);
         break;
     case OPCODE_MULTIPLY:
-		dest *= *right;
+		dest.multiply(*left, *right);
         break;
     case OPCODE_DIVIDE:
-		dest /= *right;
+		dest.divide(*left, *right);
         break;
     case OPCODE_DIVIDE_MOD:
-		dest %= *right;
+		dest.divide_mode(*left, *right);
+        break;
+    case OPCODE_AND:
+		dest.band(*left, *right);
+        break;
+    case OPCODE_OR:
+		dest.bor(*left, *right);
+        break;
+    case OPCODE_LESS:
+		dest.less(*left, *right);
+        break;
+	case OPCODE_MORE:
+		dest.more(*left, *right);
+        break;
+	case OPCODE_EQUAL:
+		dest.equal(*left, *right);
+        break;
+	case OPCODE_MOREEQUAL:
+		dest.moreequal(*left, *right);
+        break;
+	case OPCODE_LESSEQUAL:
+		dest.lessequal(*left, *right);
+        break;
+	case OPCODE_NOTEQUAL:
+		dest.notequal(*left, *right);
         break;
     default:
         assert(0);
@@ -359,3 +396,40 @@ bool interpreter::next_return(stack & s, const func_binary & fb, int code)
 
 	return true;
 }
+
+bool interpreter::next_jne(stack & s, const func_binary & fb, int code)
+{
+	const variant * cmp = 0;
+	LOG_VARIANT(s, fb, s.m_pos, "cmp");
+	GET_VARIANT(s, fb, cmp, s.m_pos);
+	s.m_pos++;
+
+    int pos = COMMAND_CODE(fb.getcmd(s.m_pos));
+	s.m_pos++;
+	
+    if (!cmp->booleanize())
+    {
+	    FKLOG("jne %d", pos);
+        
+        s.m_pos = pos;
+    }
+    else
+    {
+	    FKLOG("not jne %d", pos);
+    }
+    
+	return true;
+}
+
+bool interpreter::next_jmp(stack & s, const func_binary & fb, int code)
+{
+    int pos = COMMAND_CODE(fb.getcmd(s.m_pos));
+	s.m_pos++;
+	
+	FKLOG("jmp %d", pos);
+
+    s.m_pos = pos;
+	
+	return true;
+}
+

@@ -47,11 +47,19 @@ public:
 	bool operator==(const variant& p_variant) const;	
 	void operator=(const variant& p_variant); // only this is enough for all the other types
 
-    void operator +=(const variant& p_variant);
-	void operator -=(const variant& p_variant);
-	void operator *=(const variant& p_variant);
-	void operator /=(const variant& p_variant);
-	void operator %=(const variant& p_variant);
+    void plus(const variant& left, const variant& right);
+	void minus(const variant& left, const variant& right);
+	void multiply(const variant& left, const variant& right);
+	void divide(const variant& left, const variant& right);
+	void divide_mode(const variant& left, const variant& right);
+	void band(const variant& left, const variant& right);
+	void bor(const variant& left, const variant& right);
+	void less(const variant& left, const variant& right);
+	void more(const variant& left, const variant& right);
+	void equal(const variant& left, const variant& right);
+	void moreequal(const variant& left, const variant& right);
+	void lessequal(const variant& left, const variant& right);
+	void notequal(const variant& left, const variant& right);
 	
 	operator bool() const;
 	operator int() const;
