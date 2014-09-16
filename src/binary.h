@@ -62,36 +62,36 @@ class func_binary
 {
     friend class codegen;
 public:
-    func_binary(fuck * fk) : m_fk(fk)
+	force_inline func_binary(fuck * fk) : m_fk(fk)
     {
         m_buff = 0;
         m_size = 0;
     }
 
-    size_t cmdsize() const
+	force_inline size_t cmdsize() const
     {
         return m_size;
     }
     
-    size_t size() const
+	force_inline size_t size() const
     {
         return m_size * sizeof(command);
     }
     
     String dump() const;
 
-    String getname() const
+	force_inline String getname() const
     {
         return m_name;
     }
 
-    command getcmd(int pos) const
+	force_inline command getcmd(int pos) const
     {
         assert(pos >= 0 && pos < (int)m_size);
         return m_buff[pos];
     }
 
-	const variant * getconst(int pos) const
+	force_inline const variant * getconst(int pos) const
     {
         assert(pos >= 0 && pos < (int)m_const_list.size());
         return &m_const_list[pos];

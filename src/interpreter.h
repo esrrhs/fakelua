@@ -19,7 +19,7 @@ struct stack
 
 	void clear();
 
-    void set_stack_variant(const variant & v, int pos)
+	force_inline void set_stack_variant(const variant & v, int pos)
     {
 		if (pos >= (int)m_stack_variant_list_num)
 		{
@@ -27,7 +27,7 @@ struct stack
 		}
         m_stack_variant_list[pos] = v;
     }
-	const variant * get_stack_variant(int pos)
+	force_inline const variant * get_stack_variant(int pos)
 	{
 		if (pos >= (int)m_stack_variant_list_num)
 		{

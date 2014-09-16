@@ -1,6 +1,7 @@
 -- func1 comment
 func myfunc1(arg1, arg2)
 	
+	--var arg3 = 1
 	while arg1 < arg2 + 10 then
 	
 		arg1 = arg1 + 1
