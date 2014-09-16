@@ -24,4 +24,16 @@ rm Makefile -rf
 cmake .
 make clean
 make
+cd ..
+
+#luatest
+cd luatest
+rm CMakeCache.txt -rf
+rm CMakeFiles -rf
+rm cmake_install.cmake -rf
+rm Makefile -rf
+cmake .
+make clean
+make
+
 echo "build ok"
