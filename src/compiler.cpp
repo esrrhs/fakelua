@@ -249,6 +249,42 @@ bool compiler::compile_while_stmt(codegen & cg, while_stmt * ws)
 {
     FKLOG("[compiler] compile_while_stmt %p", ws);
 
+	int startpos = 0;
+	int jnepos = 0;
+
+	startpos = cg.byte_code_size();
+
+	// 条件
+	if (!compile_node(cg, ws->cmp))
+	{
+		FKERR("[compiler] compile_while_stmt cmp fail");
+		return false;
+	}
+
+	cg.push(MAKE_OPCODE(OPCODE_JNE));
+	cg.push(m_cur_addr);
+	cg.push(EMPTY_CMD); // 先塞个位置
+	jnepos = cg.byte_code_size() - 1;
+
+	// block块
+	if (ws->block)
+	{
+		cg.push_stack_identifiers();
+		if (!compile_node(cg, ws->block))
+		{
+			FKERR("[compiler] compile_while_stmt block fail");
+			return false;
+		}
+		cg.pop_stack_identifiers();
+	}
+
+	// 跳回判断地方
+	cg.push(MAKE_OPCODE(OPCODE_JMP));
+	cg.push(MAKE_POS(startpos));
+
+	// 跳转出block块
+	cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
+
     FKLOG("[compiler] compile_while_stmt %p OK", ws);
     
     return true;
