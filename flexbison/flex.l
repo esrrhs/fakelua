@@ -124,6 +124,26 @@
 	return MULTIPLY;
 }
 
+"+=" {
+	return PLUS_ASSIGN;
+}
+
+"-=" {
+	return MINUS_ASSIGN;
+}
+
+"/=" {
+	return DIVIDE_ASSIGN;
+}
+
+"*=" {
+	return MULTIPLY_ASSIGN;
+}
+
+"%=" {
+  return DIVIDE_MOD_ASSIGN;
+}
+
 "=" {
 	return ASSIGN;
 }

@@ -72,6 +72,23 @@ struct fkerrorinfo;
     \
     FKLOG("math %s %s", OpCodeStr(code), ((String)*dest).c_str());
  
+#define MATH_ASSIGN_OPER(s, fb, oper) \
+	variant * var = 0;\
+    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, s.m_pos))) == ADDR_STACK);\
+	LOG_VARIANT(s, fb, s.m_pos, "var");\
+    GET_VARIANT(s, fb, var, s.m_pos);\
+    s.m_pos++;\
+    \
+	const variant * value = 0;\
+	LOG_VARIANT(s, fb, s.m_pos, "value");\
+    GET_VARIANT(s, fb, value, s.m_pos);\
+    s.m_pos++;\
+    \
+	FKLOG("math var %s value %s", ((String)*var).c_str(), ((String)*value).c_str());\
+    \
+    var->oper(*var, *value);\
+    \
+    FKLOG("math %s %s", OpCodeStr(code), ((String)*var).c_str());
 
 struct stack
 {
@@ -356,6 +373,33 @@ public:
                     s.m_pos = pos;
         		}
         		break;
+            
+            case OPCODE_PLUS_ASSIGN:
+                {
+                    MATH_ASSIGN_OPER(s, fb, plus);
+                }
+                break;
+            case OPCODE_MINUS_ASSIGN:
+                {
+                    MATH_ASSIGN_OPER(s, fb, minus);
+                }
+                break;
+            case OPCODE_MULTIPLY_ASSIGN:
+                {
+                    MATH_ASSIGN_OPER(s, fb, multiply);
+                }
+                break;
+        	case OPCODE_DIVIDE_ASSIGN:
+                {
+                    MATH_ASSIGN_OPER(s, fb, divide);
+                }
+                break;
+        	case OPCODE_DIVIDE_MOD_ASSIGN:
+                {
+                    MATH_ASSIGN_OPER(s, fb, divide_mode);
+                }
+                break;
+                
             default:
                 assert(0);
                 FKERR("next err code %d %s", code, OpCodeStr(code));

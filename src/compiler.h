@@ -29,6 +29,7 @@ private:
     bool compile_if_stmt(codegen & cg, if_stmt * is);
     bool compile_return_stmt(codegen & cg, return_stmt * rs);
     bool compile_assign_stmt(codegen & cg, assign_stmt * as);
+    bool compile_math_assign_stmt(codegen & cg, math_assign_stmt * ms);
     bool compile_break_stmt(codegen & cg, break_stmt * bs);
     bool compile_cmp_stmt(codegen & cg, cmp_stmt * cs);
     bool compile_explicit_value(codegen & cg, explicit_value_node * ev);

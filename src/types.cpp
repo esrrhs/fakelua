@@ -170,6 +170,11 @@ String fkget_token_name(int token)
         TOKEN_SWITCH(OPEN_BRACKET)
         TOKEN_SWITCH(CLOSE_BRACKET)
         TOKEN_SWITCH(FLOAT)
+        TOKEN_SWITCH(PLUS_ASSIGN)
+        TOKEN_SWITCH(MINUS_ASSIGN)
+        TOKEN_SWITCH(DIVIDE_ASSIGN)
+        TOKEN_SWITCH(MULTIPLY_ASSIGN)
+        TOKEN_SWITCH(DIVIDE_MOD_ASSIGN)
         default:
             return fkitoa(token);
     }
