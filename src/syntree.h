@@ -329,8 +329,14 @@ struct func_desc_node : public syntree_node
         ret += "[func_desc]:";
         ret += funcname;
         ret += "\n";
-        ret += arglist->dump(indent + 1);
-        ret += block->dump(indent + 1);
+        if (arglist)
+        {
+            ret += arglist->dump(indent + 1);
+        }
+        if (block)
+        {
+            ret += block->dump(indent + 1);
+        }
         return ret;
     }
     
