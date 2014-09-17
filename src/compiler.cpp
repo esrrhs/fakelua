@@ -171,6 +171,16 @@ bool compiler::compile_node(codegen & cg, syntree_node * node)
             }
         }
         break;
+    case est_math_assign_stmt:
+        {
+            math_assign_stmt * ms = dynamic_cast<math_assign_stmt *>(node);
+            if (!compile_math_assign_stmt(cg, ms))
+            {
+                FKERR("[compiler] compile_node compile_math_assign_stmt error %d %s", type, node->gettypename());
+                return false;
+            }
+        }
+        break;
     case est_variable:
         {
             variable_node * vn = dynamic_cast<variable_node *>(node);
@@ -404,6 +414,68 @@ bool compiler::compile_assign_stmt(codegen & cg, assign_stmt * as)
     cg.push(var);
     cg.push(value);
     FKLOG("[compiler] compile_assign_stmt %p OK", as);
+    
+    return true;
+}
+
+bool compiler::compile_math_assign_stmt(codegen & cg, math_assign_stmt * ms)
+{
+    FKLOG("[compiler] compile_math_assign_stmt %p", ms);
+
+    command oper = 0;
+    command var = 0;
+    command value = 0;
+    
+    if (ms->oper == "+=")
+    {
+        oper = MAKE_OPCODE(OPCODE_PLUS_ASSIGN);
+    }
+    else if (ms->oper == "-=")
+    {
+        oper = MAKE_OPCODE(OPCODE_MINUS_ASSIGN);
+    }
+    else if (ms->oper == "*=")
+    {
+        oper = MAKE_OPCODE(OPCODE_MULTIPLY_ASSIGN);
+    }
+    else if (ms->oper == "/=")
+    {
+        oper = MAKE_OPCODE(OPCODE_DIVIDE_ASSIGN);
+    }
+    else if (ms->oper == "%=")
+    {
+        oper = MAKE_OPCODE(OPCODE_DIVIDE_MOD_ASSIGN);
+    }
+    else
+    {
+        FKERR("[compiler] compile_math_assign_stmt error oper type fail");
+		m_fk->seterror(m_ei, efk_compile_math_type_error, "compile math assign oper type %s error", ms->oper.c_str());
+        return false;
+    }
+
+    // var
+    if (!compile_node(cg, ms->var))
+    {
+        FKERR("[compiler] compile_math_assign_stmt var fail");
+        return false;
+    }
+    var = m_cur_addr;
+    FKLOG("[compiler] compile_math_assign_stmt var = %d", m_cur_addr);
+
+    // value
+    if (!compile_node(cg, ms->value))
+    {
+        FKERR("[compiler] compile_math_assign_stmt value fail");
+        return false;
+    }
+    value = m_cur_addr;
+    FKLOG("[compiler] compile_math_assign_stmt value = %d", m_cur_addr);
+
+    cg.push(oper);
+    cg.push(var);
+    cg.push(value);
+
+    FKLOG("[compiler] compile_math_assign_stmt %p OK", ms);
     
     return true;
 }

@@ -64,6 +64,7 @@ int my_yyerror(const char *s, void * parm)
 %token AND
 %token OR
 %token FLOAT
+%token PLUS_ASSIGN MINUS_ASSIGN DIVIDE_ASSIGN MULTIPLY_ASSIGN DIVIDE_MOD_ASSIGN
 
 %right PLUS
 %right MINUS
@@ -85,6 +86,7 @@ int my_yyerror(const char *s, void * parm)
 %type<str> ASSIGN
 %type<str> AND OR
 %type<str> FLOAT
+%type<str> PLUS_ASSIGN MINUS_ASSIGN DIVIDE_ASSIGN MULTIPLY_ASSIGN DIVIDE_MOD_ASSIGN
 
 %type<syntree> break
 %type<syntree> function_declaration
@@ -111,6 +113,7 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> cmp_value
 %type<syntree> assign_value
 %type<syntree> expr_value
+%type<syntree> math_assign_stmt
 
 
 %%
@@ -281,6 +284,12 @@ stmt:
 	expr
 	{
 		FKLOG("[bison]: stmt <- expr");
+		$$ = $1;
+	}
+	|
+	math_assign_stmt
+	{
+		FKLOG("[bison]: stmt <- math_assign_stmt");
 		$$ = $1;
 	}
 	;
@@ -515,7 +524,59 @@ assign_value:
 		$$ = $1;
 	}
 	;
-
+	
+math_assign_stmt :
+	variable PLUS_ASSIGN assign_value
+	{
+		FKLOG("[bison]: math_assign_stmt <- variable assign_value");
+		NEWTYPE(p, math_assign_stmt);
+		p->var = $1;
+		p->oper = "+=";
+		p->value = $3;
+		$$ = p;
+	}
+	|
+	variable MINUS_ASSIGN assign_value
+	{
+		FKLOG("[bison]: math_assign_stmt <- variable assign_value");
+		NEWTYPE(p, math_assign_stmt);
+		p->var = $1;
+		p->oper = "-=";
+		p->value = $3;
+		$$ = p;
+	}
+	|
+	variable DIVIDE_ASSIGN assign_value
+	{
+		FKLOG("[bison]: math_assign_stmt <- variable assign_value");
+		NEWTYPE(p, math_assign_stmt);
+		p->var = $1;
+		p->oper = "/=";
+		p->value = $3;
+		$$ = p;
+	}
+	|
+	variable MULTIPLY_ASSIGN assign_value
+	{
+		FKLOG("[bison]: math_assign_stmt <- variable assign_value");
+		NEWTYPE(p, math_assign_stmt);
+		p->var = $1;
+		p->oper = "*=";
+		p->value = $3;
+		$$ = p;
+	}
+	|
+	variable DIVIDE_MOD_ASSIGN assign_value
+	{
+		FKLOG("[bison]: math_assign_stmt <- variable assign_value");
+		NEWTYPE(p, math_assign_stmt);
+		p->var = $1;
+		p->oper = "%=";
+		p->value = $3;
+		$$ = p;
+	}
+	;
+	
 var:
 	VAR_BEGIN IDENTIFIER
 	{

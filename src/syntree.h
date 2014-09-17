@@ -28,6 +28,7 @@ enum esyntreetype
     est_explicit_value,
     est_return_stmt,
     est_assign_stmt,
+    est_math_assign_stmt,
     est_variable,
     est_var,
     est_function_call,
@@ -365,6 +366,37 @@ struct assign_stmt : public syntree_node
     }
     
     syntree_node * var;
+    syntree_node * value;
+};
+
+struct math_assign_stmt : public syntree_node
+{
+    math_assign_stmt() {}
+    virtual ~math_assign_stmt() {}
+
+    virtual esyntreetype gettype()
+    {
+        return est_math_assign_stmt;
+    }
+
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[mathassign]:";
+        ret += oper;
+        ret += "\n";
+        ret += gentab(indent + 1);
+        ret += "[var]:\n";
+        ret += var->dump(indent + 2);
+        ret += gentab(indent + 1);
+        ret += "[value]:\n";
+        ret += value->dump(indent + 2);
+        return ret;
+    }
+    
+    syntree_node * var;
+    String oper;
     syntree_node * value;
 };
 
