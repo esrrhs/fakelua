@@ -1,6 +1,5 @@
 #include "processor.h"
 #include "fuck.h"
-#include "routine.h"
 
 void processor::grow()
 {
@@ -15,39 +14,6 @@ void processor::grow()
 	memset(new_routine_list + m_routine_max_size, 0, (newsize - m_routine_max_size) * sizeof(routine *));
     m_routine_list = new_routine_list;
     m_routine_max_size = newsize;
-}
-
-int processor::run(int cmdnum)
-{
-    int curcmdnum = 0;
-
-    int percmdnum = cmdnum / m_routine_num;
-    if (percmdnum <= 0)
-    {
-        percmdnum = cmdnum;
-    }
-    
-    m_invalid_routine_num = 0;
-    for (int i = 0; i < (int)m_routine_num; i++)
-    {
-        routine * r = m_routine_list[i];
-        if (!r)
-        {
-            m_invalid_routine_num++;
-            continue;
-        }
-        // 注意:此函数内部可能会调用到add接口
-        curcmdnum += r->run(percmdnum);
-        if (r->isend())
-        {
-            m_routine_list[i] = 0;
-            m_invalid_routine_num++;
-        }
-    }
-
-    checkdelete();
-    
-    return curcmdnum;
 }
 
 void processor::checkdelete()
