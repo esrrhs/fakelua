@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.h"
+#include "fuck.h"
 
 
 struct fuck;
@@ -11,23 +12,48 @@ typedef std::list<routine *> routine_list;
 class processor
 {
 public:
-    processor(fuck * fk) : m_fk(fk), m_routine_list(0)
+    force_inline processor(fuck * fk) : m_fk(fk), m_routine_list(0), 
+        m_routine_num(0),
+        m_routine_max_size(0),
+        m_invalid_routine_num(0)
     {
-        clear();
     }
-    ~processor();
+    force_inline ~processor()
+    {
+        if (m_routine_list)
+        {
+            m_fk->m_fkfree(m_routine_list);
+        }
+    }
 
-    void clear();
-
-    void add(routine * r);
+    force_inline void add(routine * r)
+    {
+        if (full())
+        {
+            grow();
+        }
+        
+        m_routine_list[m_routine_num] = r;
+        m_routine_num++;
+    }
 
     int run(int cmdnum);
 
-    bool isend() const;
+    force_inline bool isend() const
+    {
+        return empty();
+    }
     
 private:
-    bool empty() const;
-    bool full() const;
+    force_inline bool empty() const
+    {
+        return m_routine_num <= 0;
+    }
+    force_inline bool full() const
+    {
+        return m_routine_num == m_routine_max_size;
+    }
+
     void grow();
     void checkdelete();
 private:

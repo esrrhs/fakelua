@@ -13,7 +13,7 @@ rm cmake_install.cmake -rf
 rm Makefile -rf
 cmake .
 make clean
-make
+make -j
 
 #test
 cd test
@@ -23,7 +23,7 @@ rm cmake_install.cmake -rf
 rm Makefile -rf
 cmake .
 make clean
-make
+make -j
 cd ..
 
 #luatest
@@ -34,6 +34,6 @@ rm cmake_install.cmake -rf
 rm Makefile -rf
 cmake .
 make clean
-make
+make -j
 
 echo "build ok"

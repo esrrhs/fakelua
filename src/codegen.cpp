@@ -38,8 +38,12 @@ int codegen::getconst(const variant & v)
 void codegen::output(const String & name, func_binary * bin)
 {
     bin->m_name = name;
-    bin->m_const_list = m_const_list;
+    
     bin->m_size = m_byte_code_list.size();
     bin->m_buff = (command *)m_fk->m_fkmalloc(bin->m_size * sizeof(command));
     memcpy(bin->m_buff, &m_byte_code_list[0], bin->m_size * sizeof(command));
+    
+    bin->m_const_list_num = m_const_list.size();
+    bin->m_const_list = (variant *)m_fk->m_fkmalloc(bin->m_const_list_num * sizeof(variant));
+    memcpy(bin->m_const_list, &m_const_list[0], bin->m_const_list_num * sizeof(variant));
 }

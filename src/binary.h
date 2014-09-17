@@ -61,6 +61,7 @@ typedef uint64_t command;
 class func_binary
 {
     friend class codegen;
+    friend class interpreter;
 public:
 	force_inline func_binary(fuck * fk) : m_fk(fk)
     {
@@ -80,12 +81,12 @@ public:
     
     String dump() const;
 
-	force_inline String getname() const
+	force_inline const String & getname() const
     {
         return m_name;
     }
 
-	force_inline command getcmd(int pos) const
+	force_inline const command & getcmd(int pos) const
     {
         assert(pos >= 0 && pos < (int)m_size);
         return m_buff[pos];
@@ -93,7 +94,7 @@ public:
 
 	force_inline const variant * getconst(int pos) const
     {
-        assert(pos >= 0 && pos < (int)m_const_list.size());
+        assert(pos >= 0 && pos < (int)m_const_list_num);
         return &m_const_list[pos];
     }
     
@@ -105,7 +106,8 @@ private:
     command * m_buff;
     size_t m_size;
     // ³£Á¿
-    const_list m_const_list;
+    variant * m_const_list;
+    size_t m_const_list_num;
 };
 
 typedef std::map<String, int> func_binary_map;

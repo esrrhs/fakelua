@@ -11,13 +11,33 @@ struct func_binary;
 
 struct stack
 {
-	stack();
-	stack(fuck * fk, fkerrorinfo * ei, const  func_binary * fb);
-	~stack();
+	force_inline stack() : m_fk(0), m_ei(0), m_fb(0), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
+    {
+    }
+	force_inline stack(fuck * fk, fkerrorinfo * ei, const  func_binary * fb) : m_fk(fk), m_ei(ei), m_fb(fb), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
+    {
+    	grow(m_fk->m_stack_ini_size);
+    }
+	force_inline ~stack()
+    {
+    	if (m_stack_variant_list)
+    	{
+    		assert(m_fk);
+    		for (int i = 0; i < (int)m_stack_variant_list_num; i++)
+    		{
+    			m_stack_variant_list[i].~variant();
+    		}
+    		m_fk->m_fkfree(m_stack_variant_list);
+    	}
+    }
 
 	void grow(int pos);
 
-	void clear();
+	force_inline void clear()
+    {
+    	m_pos = 0;
+    	// 为了效率，保留脏数据
+    }
 
 	force_inline void set_stack_variant(const variant & v, int pos)
     {
@@ -50,22 +70,55 @@ struct stack
 class interpreter
 {
 public:
-	interpreter(fuck * fk, fkerrorinfo * ei) : m_fk(fk), m_ei(ei), 
+	force_inline interpreter(fuck * fk, fkerrorinfo * ei) : m_fk(fk), m_ei(ei), m_isend(false), 
 		m_stack_list(0), m_stack_list_num(0), m_stack_list_max_num(0)
     {
-        clear();
     }
-    ~interpreter();
+    force_inline ~interpreter()
+    {
+    	if (m_stack_list)
+    	{
+    		assert(m_fk);
+    		for (int i = 0; i < (int)m_stack_list_max_num; i++)
+    		{
+    			m_stack_list[i].~stack();
+    		}
+    		m_fk->m_fkfree(m_stack_list);
+    	}
+    }
 
 	void grow();
-    void clear();
     
-    bool isend() const;
+    bool isend() const
+    {
+        return m_isend;
+    }
     
     void call(binary * bin, const String & func, paramstack * ps);
-    const variant & getret() const;
+    force_inline const variant & getret() const
+    {
+        return m_ret;
+    }
 
-    int run(int cmdnum);
+    force_inline int run(int cmdnum)
+    {
+        int num = 0;
+        for (int i = 0; i < cmdnum; i++)
+        {
+            if (!next())
+            {
+                // 发生错误
+                m_isend = true;
+            }
+            num++;
+            if (isend())
+            {
+                break;
+            }
+        }
+
+        return num;
+    }
     
 private:
     bool next();

@@ -3,28 +3,6 @@
 #include "binary.h"
 #include "paramstack.h"
 
-stack::stack() : m_fk(0), m_ei(0), m_fb(0), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
-{
-}
-
-stack::stack(fuck * fk, fkerrorinfo * ei, const  func_binary * fb) : m_fk(fk), m_ei(ei), m_fb(fb), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
-{
-	grow(m_fk->m_stack_ini_size);
-}
-stack::~stack()
-{
-	if (m_stack_variant_list)
-	{
-		assert(m_fk);
-		for (int i = 0; i < (int)m_stack_variant_list_num; i++)
-		{
-			m_stack_variant_list[i].~variant();
-		}
-		m_fk->m_fkfree(m_stack_variant_list);
-	}
-	m_stack_variant_list = 0;
-	m_stack_variant_list_num = 0;
-}
 void stack::grow(int pos)
 {
 	if (pos < m_fk->m_stack_ini_size)
@@ -59,47 +37,7 @@ void stack::grow(int pos)
 	m_stack_variant_list_num = newsize;
 }
 
-void stack::clear()
-{
-	m_pos = 0;
-	// 为了效率，保留脏数据
-}
-
 //////////////////////////////////////////////////////////////////////////
-
-void interpreter::clear()
-{
-    m_isend = false;
-	m_ret = variant(m_fk);
-	// 为了效率，保留脏数据
-	m_stack_list_num = 0;
-}
-
-interpreter::~interpreter()
-{
-	if (m_stack_list)
-	{
-		assert(m_fk);
-		for (int i = 0; i < (int)m_stack_list_max_num; i++)
-		{
-			m_stack_list[i].~stack();
-		}
-		m_fk->m_fkfree(m_stack_list);
-	}
-	m_stack_list = 0;
-	m_stack_list_num = 0;
-	m_stack_list_max_num = 0;
-}
-
-bool interpreter::isend() const
-{
-    return m_isend;
-}
-
-const variant & interpreter::getret() const
-{
-    return m_ret;
-}
 
 void interpreter::grow()
 {
@@ -162,25 +100,18 @@ void interpreter::call(binary * bin, const String & func, paramstack * ps)
     }
 }
 
-int interpreter::run(int cmdnum)
-{
-    int num = 0;
-    for (int i = 0; i < cmdnum; i++)
-    {
-        if (!next())
-        {
-            // 发生错误
-            m_isend = true;
-        }
-        num++;
-        if (isend())
-        {
-            break;
-        }
-    }
+#define GET_CMD(fb, pos) fb.m_buff[pos]
 
-    return num;
-}
+#define GET_CONST(v, fb, pos) \
+    assert(pos >= 0 && pos < (int)fb.m_const_list_num);\
+    v = &fb.m_const_list[pos];
+
+#define GET_STACK(v, s, pos) \
+	if (pos >= (int)s.m_stack_variant_list_num)\
+	{\
+		s.grow(pos);\
+	}\
+    v = &s.m_stack_variant_list[pos];
 
 bool interpreter::next()
 {
@@ -188,7 +119,7 @@ bool interpreter::next()
     const func_binary & fb = *s.m_fb;
     int pos = s.m_pos;
 
-    command cmd = fb.getcmd(pos);
+    command cmd = GET_CMD(fb, pos);
     int type = COMMAND_TYPE(cmd);
     int code = COMMAND_CODE(cmd);
 
@@ -254,18 +185,18 @@ bool interpreter::next()
 }
 
 #define GET_VARIANT(s, fb, v, pos) \
-    command v##_cmd = fb.getcmd(pos);\
+    command v##_cmd = GET_CMD(fb, pos);\
     assert (COMMAND_TYPE(v##_cmd) == COMMAND_ADDR);\
     int v##_addrtype = ADDR_TYPE(COMMAND_CODE(v##_cmd));\
     int v##_addrpos = ADDR_POS(COMMAND_CODE(v##_cmd));\
     assert (v##_addrtype == ADDR_STACK || v##_addrtype == ADDR_CONST);\
     if (v##_addrtype == ADDR_STACK)\
     {\
-        v = s.get_stack_variant(v##_addrpos);\
+        GET_STACK(v, s, (v##_addrpos));\
     }\
     else if (v##_addrtype == ADDR_CONST)\
     {\
-		v = fb.getconst(v##_addrpos); \
+		GET_CONST(v, fb, (v##_addrpos)); \
     }\
     else\
     {\
@@ -277,15 +208,15 @@ bool interpreter::next()
 
 #define LOG_VARIANT(s, fb, pos, prefix) \
     FKLOG(prefix " variant %d %d", \
-        ADDR_TYPE(COMMAND_CODE(fb.getcmd(pos))),\
-        ADDR_POS(COMMAND_CODE(fb.getcmd(pos))));
+        ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, pos))),\
+        ADDR_POS(COMMAND_CODE(GET_CMD(fb, pos))));
 
 bool interpreter::next_assign(stack & s, const func_binary & fb, int code)
 {
     // 赋值dest，必须为栈上
-    assert (ADDR_TYPE(COMMAND_CODE(fb.getcmd(s.m_pos))) == ADDR_STACK);
+    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, s.m_pos))) == ADDR_STACK);
     LOG_VARIANT(s, fb, s.m_pos, "assign");
-    int addrpos = ADDR_POS(COMMAND_CODE(fb.getcmd(s.m_pos)));
+    int addrpos = ADDR_POS(COMMAND_CODE(GET_CMD(fb, s.m_pos)));
     s.m_pos++;
 
     // 赋值来源
@@ -314,54 +245,54 @@ bool interpreter::next_math(stack & s, const func_binary & fb, int code)
     GET_VARIANT(s, fb, right, s.m_pos);
     s.m_pos++;
     
-    assert (ADDR_TYPE(COMMAND_CODE(fb.getcmd(s.m_pos))) == ADDR_STACK);
-    LOG_VARIANT(s, fb, s.m_pos, "math");
-    int addrpos = ADDR_POS(COMMAND_CODE(fb.getcmd(s.m_pos)));
+	variant * dest;
+    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, s.m_pos))) == ADDR_STACK);
+    LOG_VARIANT(s, fb, s.m_pos, "dest");
+	GET_VARIANT(s, fb, dest, s.m_pos);
     s.m_pos++;
 
 	FKLOG("math left %s right %s", ((String)*left).c_str(), ((String)*right).c_str());
 
-	variant dest(m_fk);
     switch (code)
     {
     case OPCODE_PLUS:
-		dest.plus(*left, *right);
+		dest->plus(*left, *right);
         break;
     case OPCODE_MINUS:
-		dest.minus(*left, *right);
+		dest->minus(*left, *right);
         break;
     case OPCODE_MULTIPLY:
-		dest.multiply(*left, *right);
+		dest->multiply(*left, *right);
         break;
     case OPCODE_DIVIDE:
-		dest.divide(*left, *right);
+		dest->divide(*left, *right);
         break;
     case OPCODE_DIVIDE_MOD:
-		dest.divide_mode(*left, *right);
+		dest->divide_mode(*left, *right);
         break;
     case OPCODE_AND:
-		dest.band(*left, *right);
+		dest->band(*left, *right);
         break;
     case OPCODE_OR:
-		dest.bor(*left, *right);
+		dest->bor(*left, *right);
         break;
     case OPCODE_LESS:
-		dest.less(*left, *right);
+		dest->less(*left, *right);
         break;
 	case OPCODE_MORE:
-		dest.more(*left, *right);
+		dest->more(*left, *right);
         break;
 	case OPCODE_EQUAL:
-		dest.equal(*left, *right);
+		dest->equal(*left, *right);
         break;
 	case OPCODE_MOREEQUAL:
-		dest.moreequal(*left, *right);
+		dest->moreequal(*left, *right);
         break;
 	case OPCODE_LESSEQUAL:
-		dest.lessequal(*left, *right);
+		dest->lessequal(*left, *right);
         break;
 	case OPCODE_NOTEQUAL:
-		dest.notequal(*left, *right);
+		dest->notequal(*left, *right);
         break;
     default:
         assert(0);
@@ -369,16 +300,14 @@ bool interpreter::next_math(stack & s, const func_binary & fb, int code)
         break;
     }
 
-	s.set_stack_variant(dest, addrpos);
-
-	FKLOG("math %s %s to pos %d", OpCodeStr(code), ((String)dest).c_str(), addrpos);
+	FKLOG("math %s %s", OpCodeStr(code), ((String)*dest).c_str());
     
     return true;
 }
 
 bool interpreter::next_return(stack & s, const func_binary & fb, int code)
 {
-	if (fb.getcmd(s.m_pos) == EMPTY_CMD)
+	if (GET_CMD(fb, s.m_pos) == EMPTY_CMD)
 	{
 		FKLOG("return empty");
 		return true;
@@ -404,10 +333,10 @@ bool interpreter::next_jne(stack & s, const func_binary & fb, int code)
 	GET_VARIANT(s, fb, cmp, s.m_pos);
 	s.m_pos++;
 
-    int pos = COMMAND_CODE(fb.getcmd(s.m_pos));
+    int pos = COMMAND_CODE(GET_CMD(fb, s.m_pos));
 	s.m_pos++;
 	
-    if (!cmp->booleanize())
+    if (!((bool)(*cmp)))
     {
 	    FKLOG("jne %d", pos);
         
@@ -423,7 +352,7 @@ bool interpreter::next_jne(stack & s, const func_binary & fb, int code)
 
 bool interpreter::next_jmp(stack & s, const func_binary & fb, int code)
 {
-    int pos = COMMAND_CODE(fb.getcmd(s.m_pos));
+    int pos = COMMAND_CODE(GET_CMD(fb, s.m_pos));
 	s.m_pos++;
 	
 	FKLOG("jmp %d", pos);
