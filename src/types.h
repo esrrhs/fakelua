@@ -62,13 +62,90 @@ union MarshallPoiner
 	void * p; ///< p
 };
 
-int32_t fkatoi(const String * p);
-int64_t fkatol(const String * p);
-float fkatof(const String * p);
-double fkatod(const String * p);
-String fkitoa(int64_t d);
-String fkdtoa(double d);
-String fkxtoa(int64_t d);
+force_inline int32_t fkatoi(const String * p)
+{
+    if (p)
+    {
+        return atoi(p->c_str());
+    }
+    return 0;
+}
+
+force_inline int64_t fkatol(const String * p)
+{
+    if (p)
+    {
+        return atoll(p->c_str());
+    }
+    return 0;
+}
+force_inline float fkatof(const String * p)
+{
+    if (p)
+    {
+        return (float)atof(p->c_str());
+    }
+    return 0;
+}
+force_inline double fkatod(const String * p)
+{
+    if (p)
+    {
+        return atof(p->c_str());
+    }
+    return 0;
+}
+force_inline String fkitoa(int64_t d)
+{
+    char buff[100];
+    sprintf(buff, "%lld", (long long int)d);
+    return buff;
+}
+force_inline String fkdtoa(double d)
+{
+    char buff[100];
+    sprintf(buff, "%f", d);
+    return buff;
+}
+force_inline String fkxtoa(int64_t d)
+{
+    String ret;
+    
+	char tmpbuf[32]={0};
+	uint32_t idx = 31;
+
+	// special case '0'
+
+	if (!d)
+	{
+		tmpbuf[30] = '0';
+		ret = &tmpbuf[30];
+	}
+    else
+    {
+    	// add numbers
+    	const uint8_t chars[]="0123456789ABCDEF";
+    	while(d && idx)
+    	{
+    		--idx;
+    		tmpbuf[idx] = chars[(d % 16)];
+    		d /= 16;
+    	}
+
+    	ret = &tmpbuf[idx];
+    }
+
+    if (ret.size() < 16)
+    {
+        String tmp;
+        tmp.insert(0, 16 - ret.size(), '0');
+        ret = tmp + ret;
+    }
+
+    String tmp = "0x";
+    ret = tmp + ret;
+	return ret;
+}
 
 force_inline uint32_t fkstrhash(const char * p)
 {
