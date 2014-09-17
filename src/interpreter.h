@@ -40,13 +40,38 @@ struct fkerrorinfo;
 		v = 0;\
         assert(0);\
         FKERR("next_assign assignaddrtype cannot be %d %d", v##_addrtype, v##_addrpos);\
-        return false;\
+        err = true;\
+        break;\
     }
 
 #define LOG_VARIANT(s, fb, pos, prefix) \
     FKLOG(prefix " variant %d %d", \
         ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, pos))),\
         ADDR_POS(COMMAND_CODE(GET_CMD(fb, pos))));
+
+#define MATH_OPER(s, fb, oper) \
+	const variant * left = 0;\
+	LOG_VARIANT(s, fb, s.m_pos, "left");\
+    GET_VARIANT(s, fb, left, s.m_pos);\
+    s.m_pos++;\
+    \
+	const variant * right = 0;\
+	LOG_VARIANT(s, fb, s.m_pos, "right");\
+    GET_VARIANT(s, fb, right, s.m_pos);\
+    s.m_pos++;\
+    \
+	variant * dest;\
+    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, s.m_pos))) == ADDR_STACK);\
+    LOG_VARIANT(s, fb, s.m_pos, "dest");\
+	GET_VARIANT(s, fb, dest, s.m_pos);\
+    s.m_pos++;\
+    \
+	FKLOG("math left %s right %s", ((String)*left).c_str(), ((String)*right).c_str());\
+    \
+    dest->oper(*left, *right);\
+    \
+    FKLOG("math %s %s", OpCodeStr(code), ((String)*dest).c_str());
+ 
 
 struct stack
 {
@@ -174,7 +199,186 @@ public:
         int num = 0;
         for (int i = 0; i < cmdnum; i++)
         {
-            if (!next())
+            bool err = false;
+
+            // next
+        	stack & s = m_stack_list[m_stack_list_num - 1];
+            const func_binary & fb = *s.m_fb;
+            int pos = s.m_pos;
+
+            command cmd = GET_CMD(fb, pos);
+            int type = COMMAND_TYPE(cmd);
+            int code = COMMAND_CODE(cmd);
+
+            FKLOG("next %d %d %s", type, code, OpCodeStr(code));
+                
+            assert (type == COMMAND_OPCODE);
+
+            s.m_pos++;
+
+            // 执行对应命令，放一起switch效率更高，cpu有缓存
+            switch (code)
+            {
+            case OPCODE_ASSIGN:
+                {
+                    // 赋值dest，必须为栈上
+                    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, s.m_pos))) == ADDR_STACK);
+                    LOG_VARIANT(s, fb, s.m_pos, "assign");
+                    int addrpos = ADDR_POS(COMMAND_CODE(GET_CMD(fb, s.m_pos)));
+                    s.m_pos++;
+
+                    // 赋值来源
+                    const variant * valuev = 0;
+                    LOG_VARIANT(s, fb, s.m_pos, "value");
+                    GET_VARIANT(s, fb, valuev, s.m_pos);
+                    s.m_pos++;
+
+                    // 赋值
+                    s.set_stack_variant(*valuev, addrpos);
+
+                	FKLOG("assign %s to pos %d", ((String)*valuev).c_str(), addrpos);
+                }
+                break;
+            case OPCODE_PLUS:
+                {
+        		    MATH_OPER(s, fb, plus);
+        		}
+                break;
+            case OPCODE_MINUS:
+                {
+        		    MATH_OPER(s, fb, minus);
+        		}
+                break;
+            case OPCODE_MULTIPLY:
+        		{
+        		    MATH_OPER(s, fb, multiply);
+        		}
+                break;
+            case OPCODE_DIVIDE:
+        		{
+        		    MATH_OPER(s, fb, divide);
+        		}
+                break;
+            case OPCODE_DIVIDE_MOD:
+        		{
+        		    MATH_OPER(s, fb, divide_mode);
+        		}
+                break;
+            case OPCODE_AND:
+        		{
+        		    MATH_OPER(s, fb, band);
+        		}
+                break;
+            case OPCODE_OR:
+        		{
+        		    MATH_OPER(s, fb, bor);
+        		}
+                break;
+            case OPCODE_LESS:
+        		{
+        		    MATH_OPER(s, fb, less);
+        		}
+                break;
+        	case OPCODE_MORE:
+        		{
+        		    MATH_OPER(s, fb, more);
+        		}
+                break;
+        	case OPCODE_EQUAL:
+        		{
+        		    MATH_OPER(s, fb, equal);
+        		}
+                break;
+        	case OPCODE_MOREEQUAL:
+        		{
+        		    MATH_OPER(s, fb, moreequal);
+        		}
+                break;
+        	case OPCODE_LESSEQUAL:
+        		{
+        		    MATH_OPER(s, fb, lessequal);
+        		}
+                break;
+        	case OPCODE_NOTEQUAL:
+        		{
+        		    MATH_OPER(s, fb, notequal);
+        		}
+                break;
+        	case OPCODE_RETURN:
+        	    {
+                	if (GET_CMD(fb, s.m_pos) == EMPTY_CMD)
+                	{
+                		FKLOG("return empty");
+                		break;
+                	}
+
+                	// 塞给ret
+                	const variant * ret = 0;
+                	LOG_VARIANT(s, fb, s.m_pos, "ret");
+                	GET_VARIANT(s, fb, ret, s.m_pos);
+                	s.m_pos++;
+
+                	m_ret = *ret;
+
+                	FKLOG("return %s", ((String)m_ret).c_str());
+
+        	    }
+        		break;
+        	case OPCODE_JNE:
+        		{
+                	const variant * cmp = 0;
+                	LOG_VARIANT(s, fb, s.m_pos, "cmp");
+                	GET_VARIANT(s, fb, cmp, s.m_pos);
+                	s.m_pos++;
+
+                    int pos = COMMAND_CODE(GET_CMD(fb, s.m_pos));
+                	s.m_pos++;
+                	
+                    if (!((bool)(*cmp)))
+                    {
+                	    FKLOG("jne %d", pos);
+                        
+                        s.m_pos = pos;
+                    }
+                    else
+                    {
+                	    FKLOG("not jne %d", pos);
+                    }
+        		}
+        		break;
+        	case OPCODE_JMP:
+        		{
+                    int pos = COMMAND_CODE(GET_CMD(fb, s.m_pos));
+                	s.m_pos++;
+                	
+                	FKLOG("jmp %d", pos);
+
+                    s.m_pos = pos;
+        		}
+        		break;
+            default:
+                assert(0);
+                FKERR("next err code %d %s", code, OpCodeStr(code));
+                break;
+            }
+
+            // 当前函数走完
+            if (s.m_pos >= (int)fb.cmdsize())
+            {
+                FKLOG("pop stack %s", s.m_fb->getname().c_str());
+                // 出栈
+        		s.clear();
+        		m_stack_list_num--;
+            }
+
+            // 所有都完
+        	if (!m_stack_list_num)
+            {
+                FKLOG("stack empty end");
+                m_isend = true;
+            }
+
+            if (err)
             {
                 // 发生错误
                 m_isend = true;
@@ -187,228 +391,6 @@ public:
         }
 
         return num;
-    }
-    
-private:
-    force_inline bool next()
-    {
-    	stack & s = m_stack_list[m_stack_list_num - 1];
-        const func_binary & fb = *s.m_fb;
-        int pos = s.m_pos;
-
-        command cmd = GET_CMD(fb, pos);
-        int type = COMMAND_TYPE(cmd);
-        int code = COMMAND_CODE(cmd);
-
-        FKLOG("next %d %d %s", type, code, OpCodeStr(code));
-            
-        assert (type == COMMAND_OPCODE);
-
-        s.m_pos++;
-
-        bool ret = false;
-        switch (code)
-        {
-        case OPCODE_ASSIGN:
-            ret = next_assign(s, fb, code);
-            break;
-        case OPCODE_PLUS:
-        case OPCODE_MINUS:
-        case OPCODE_MULTIPLY:
-        case OPCODE_DIVIDE:
-        case OPCODE_DIVIDE_MOD:
-        case OPCODE_AND:
-        case OPCODE_OR:
-        case OPCODE_LESS:
-    	case OPCODE_MORE:
-    	case OPCODE_EQUAL:
-    	case OPCODE_MOREEQUAL:
-    	case OPCODE_LESSEQUAL:
-    	case OPCODE_NOTEQUAL:
-            ret = next_math(s, fb, code);
-    		break;
-    	case OPCODE_RETURN:
-    		ret = next_return(s, fb, code);
-    		break;
-    	case OPCODE_JNE:
-    		ret = next_jne(s, fb, code);
-    		break;
-    	case OPCODE_JMP:
-    		ret = next_jmp(s, fb, code);
-    		break;
-        default:
-            assert(0);
-            FKERR("next err code %d %s", code, OpCodeStr(code));
-            break;
-        }
-
-        // 当前函数走完
-        if (s.m_pos >= (int)fb.cmdsize())
-        {
-            FKLOG("pop stack %s", s.m_fb->getname().c_str());
-            // 出栈
-    		s.clear();
-    		m_stack_list_num--;
-        }
-
-        // 所有都完
-    	if (!m_stack_list_num)
-        {
-            FKLOG("stack empty end");
-            m_isend = true;
-        }
-
-        return ret;
-    }
-    
-	bool next_assign(stack & s, const func_binary & fb, int code)
-    {
-        // 赋值dest，必须为栈上
-        assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, s.m_pos))) == ADDR_STACK);
-        LOG_VARIANT(s, fb, s.m_pos, "assign");
-        int addrpos = ADDR_POS(COMMAND_CODE(GET_CMD(fb, s.m_pos)));
-        s.m_pos++;
-
-        // 赋值来源
-        const variant * valuev = 0;
-        LOG_VARIANT(s, fb, s.m_pos, "value");
-        GET_VARIANT(s, fb, valuev, s.m_pos);
-        s.m_pos++;
-
-        // 赋值
-        s.set_stack_variant(*valuev, addrpos);
-
-    	FKLOG("assign %s to pos %d", ((String)*valuev).c_str(), addrpos);
-        
-        return true;
-    }
-    
-	bool next_math(stack & s, const func_binary & fb, int code)
-    {
-    	const variant * left = 0;
-    	LOG_VARIANT(s, fb, s.m_pos, "left");
-        GET_VARIANT(s, fb, left, s.m_pos);
-        s.m_pos++;
-        
-    	const variant * right = 0;
-    	LOG_VARIANT(s, fb, s.m_pos, "right");
-        GET_VARIANT(s, fb, right, s.m_pos);
-        s.m_pos++;
-        
-    	variant * dest;
-        assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, s.m_pos))) == ADDR_STACK);
-        LOG_VARIANT(s, fb, s.m_pos, "dest");
-    	GET_VARIANT(s, fb, dest, s.m_pos);
-        s.m_pos++;
-
-    	FKLOG("math left %s right %s", ((String)*left).c_str(), ((String)*right).c_str());
-
-        switch (code)
-        {
-        case OPCODE_PLUS:
-    		dest->plus(*left, *right);
-            break;
-        case OPCODE_MINUS:
-    		dest->minus(*left, *right);
-            break;
-        case OPCODE_MULTIPLY:
-    		dest->multiply(*left, *right);
-            break;
-        case OPCODE_DIVIDE:
-    		dest->divide(*left, *right);
-            break;
-        case OPCODE_DIVIDE_MOD:
-    		dest->divide_mode(*left, *right);
-            break;
-        case OPCODE_AND:
-    		dest->band(*left, *right);
-            break;
-        case OPCODE_OR:
-    		dest->bor(*left, *right);
-            break;
-        case OPCODE_LESS:
-    		dest->less(*left, *right);
-            break;
-    	case OPCODE_MORE:
-    		dest->more(*left, *right);
-            break;
-    	case OPCODE_EQUAL:
-    		dest->equal(*left, *right);
-            break;
-    	case OPCODE_MOREEQUAL:
-    		dest->moreequal(*left, *right);
-            break;
-    	case OPCODE_LESSEQUAL:
-    		dest->lessequal(*left, *right);
-            break;
-    	case OPCODE_NOTEQUAL:
-    		dest->notequal(*left, *right);
-            break;
-        default:
-            assert(0);
-            FKERR("math err code %d %s", code, OpCodeStr(code));
-            break;
-        }
-
-    	FKLOG("math %s %s", OpCodeStr(code), ((String)*dest).c_str());
-        
-        return true;
-    }
-    
-	bool next_return(stack & s, const func_binary & fb, int code)
-    {
-    	if (GET_CMD(fb, s.m_pos) == EMPTY_CMD)
-    	{
-    		FKLOG("return empty");
-    		return true;
-    	}
-
-    	// 塞给ret
-    	const variant * ret = 0;
-    	LOG_VARIANT(s, fb, s.m_pos, "ret");
-    	GET_VARIANT(s, fb, ret, s.m_pos);
-    	s.m_pos++;
-
-    	m_ret = *ret;
-
-    	FKLOG("return %s", ((String)m_ret).c_str());
-
-    	return true;
-    }
-
-	bool next_jne(stack & s, const func_binary & fb, int code)
-    {
-    	const variant * cmp = 0;
-    	LOG_VARIANT(s, fb, s.m_pos, "cmp");
-    	GET_VARIANT(s, fb, cmp, s.m_pos);
-    	s.m_pos++;
-
-        int pos = COMMAND_CODE(GET_CMD(fb, s.m_pos));
-    	s.m_pos++;
-    	
-        if (!((bool)(*cmp)))
-        {
-    	    FKLOG("jne %d", pos);
-            
-            s.m_pos = pos;
-        }
-        else
-        {
-    	    FKLOG("not jne %d", pos);
-        }
-        
-    	return true;
-    }
-	bool next_jmp(stack & s, const func_binary & fb, int code)
-    {
-        int pos = COMMAND_CODE(GET_CMD(fb, s.m_pos));
-    	s.m_pos++;
-    	
-    	FKLOG("jmp %d", pos);
-
-        s.m_pos = pos;
-    	
-    	return true;
     }
 
 private:
