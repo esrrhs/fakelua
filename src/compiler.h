@@ -13,12 +13,9 @@ class compiler
 public:
     compiler(fuck * fk, fkerrorinfo * ei, binary * bin) : m_fk(fk), m_ei(ei), m_binary(bin)
     {
-        clear();
     }
     ~compiler() {}
 
-    void clear();
-    
     bool compile(myflexer * mf);
 
 private:

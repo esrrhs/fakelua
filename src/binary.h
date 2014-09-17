@@ -122,20 +122,48 @@ typedef std::vector<func_binary> func_binary_list;
 class binary
 {
 public:
-    binary(fuck * fk) : m_fk(fk)
+    force_inline binary(fuck * fk) : m_fk(fk)
     {
-        clear();
     }
-    ~binary()
+    force_inline ~binary()
     {
     }
 
-    void clear();
-    fuck * getfuck();
+    force_inline fuck * getfuck()
+    {
+        return m_fk;
+    }
 
-    bool is_have_func(const String & name) const;
-    bool add_func(func_binary & bin);
-    const func_binary * get_func(const String & name) const;
+
+    force_inline bool is_have_func(const char * name) const
+    {
+        return m_func_index_map.find(name) != m_func_index_map.end();
+    }
+    force_inline bool add_func(func_binary & bin)
+    {
+        const String & name = bin.getname();
+        if (is_have_func(name.c_str()))
+        {
+            return false;
+        }
+        
+        int index = m_func_list.size();
+        m_func_list.push_back(bin);
+        m_func_index_map[name] = index;
+
+        return true;
+    }
+    force_inline const func_binary * get_func(const char * name) const
+    {
+        func_binary_map::const_iterator it = m_func_index_map.find(name);
+        if (it == m_func_index_map.end())
+        {
+            return 0;
+        }
+
+        int pos = it->second;
+        return &m_func_list[pos];
+    }
 
     String dump() const;
     

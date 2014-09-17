@@ -148,49 +148,6 @@ String func_binary::dump() const
     ret += "\n";
     return ret;
 }
-    
-void binary::clear()
-{
-    m_func_index_map.clear();
-    m_func_list.clear();
-}
-
-fuck * binary::getfuck()
-{
-    return m_fk;
-}
-
-bool binary::is_have_func(const String & name) const
-{
-    return m_func_index_map.find(name) != m_func_index_map.end();
-}
-
-bool binary::add_func(func_binary & bin)
-{
-    const String & name = bin.getname();
-    if (is_have_func(name))
-    {
-        return false;
-    }
-    
-    int index = m_func_list.size();
-    m_func_list.push_back(bin);
-    m_func_index_map[name] = index;
-
-    return true;
-}
-
-const func_binary * binary::get_func(const String & name) const
-{
-    func_binary_map::const_iterator it = m_func_index_map.find(name);
-    if (it == m_func_index_map.end())
-    {
-        return 0;
-    }
-
-    int pos = it->second;
-    return &m_func_list[pos];
-}
 
 String binary::dump() const
 {
