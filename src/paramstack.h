@@ -18,27 +18,32 @@ public:
 
 	}
 
-	void clear()
-	{
-		// 为了效率，保留脏数据
-		m_variant_list_num = 0;
-	}
-
-	fuck * getfuck()
+	force_inline fuck * getfuck()
 	{
 		return m_fk;
 	}
 
-    void push(const variant & v);
-    void pop(variant & v);
+    force_inline void push(const variant & v)
+    {
+    	assert(m_variant_list_num < REAL_MAX_FUCK_PARAM_NUM);
+    	m_variant_list[m_variant_list_num] = v;
+    	m_variant_list_num++;
+    }
 
-	variant operator[](int i)
+    force_inline void pop(variant & v)
+    {
+    	assert(m_variant_list_num > 0);
+    	v = m_variant_list[m_variant_list_num - 1];
+    	m_variant_list_num--;
+    }
+
+	force_inline const variant & operator[](int i)
 	{
 		assert(i >= 0 && i < REAL_MAX_FUCK_PARAM_NUM);
 		return m_variant_list[i];
 	}
 
-	size_t size() const
+	force_inline size_t size() const
 	{
 		return m_variant_list_num;
 	}

@@ -2,33 +2,6 @@
 #include "fuck.h"
 #include "routine.h"
 
-processor::~processor()
-{
-	clear();
-}
-
-void processor::clear()
-{
-    if (m_routine_list)
-    {
-        m_fk->m_fkfree(m_routine_list);
-    }
-    m_routine_list = 0;
-    m_routine_num = 0;
-    m_routine_max_size = 0;
-    m_invalid_routine_num = 0;
-}
-
-bool processor::empty() const
-{
-    return m_routine_num <= 0;
-}
-
-bool processor::full() const
-{
-    return m_routine_num == m_routine_max_size;
-}
-
 void processor::grow()
 {
 	size_t newsize = m_routine_max_size + 1 + m_routine_max_size * m_fk->m_routine_grow_speed / 100;
@@ -44,22 +17,6 @@ void processor::grow()
     m_routine_max_size = newsize;
 }
 
-void processor::add(routine * r)
-{
-    if (full())
-    {
-        grow();
-    }
-    
-    m_routine_list[m_routine_num] = r;
-    m_routine_num++;
-}
-
-bool processor::isend() const
-{
-    return empty();
-}
-    
 int processor::run(int cmdnum)
 {
     int curcmdnum = 0;

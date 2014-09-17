@@ -47,9 +47,9 @@ String func_binary::dump() const
     
     // ³£Á¿±í
     ret += "\t////// const define ";
-    ret += fkitoa(m_const_list.size());
+    ret += fkitoa(m_const_list_num);
     ret += " //////\n";
-    for (int i = 0; i < (int)m_const_list.size(); i++)
+    for (int i = 0; i < (int)m_const_list_num; i++)
     {  
         ret += "\t[";
         ret += fkitoa(i);
