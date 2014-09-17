@@ -15,18 +15,17 @@ public:
     {
     }
 
-    force_inline void entry(binary * bin, const String & func, paramstack * ps)
+    force_inline void entry(binary * bin, const char * func, paramstack * ps)
     {
         m_bin = bin;
-        m_func = func;
         m_ps = ps;
-        m_interpreter.call(m_bin, m_func, m_ps);
+        m_interpreter.call(m_bin, func, m_ps);
         if (isend())
         {
             m_ret = m_interpreter.getret();
         }
     }
-    
+
     force_inline const variant & getret() const
     {
         return m_ret;
@@ -60,7 +59,6 @@ private:
     fuck * m_fk;
     fkerrorinfo * m_ei;
     binary * m_bin;
-    String m_func;
     paramstack * m_ps;
     variant m_ret;
     // ½âÊÍÆ÷

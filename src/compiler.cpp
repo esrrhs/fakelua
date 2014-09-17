@@ -4,11 +4,6 @@
 #include "fuck.h"
 #include "binary.h"
 
-void compiler::clear()
-{
-    m_binary->clear();
-}
-
 bool compiler::compile(myflexer * mf)
 {
     func_desc_list & funclist = mf->get_func_list();
@@ -37,7 +32,7 @@ bool compiler::compile_func(func_desc_node * funcnode)
     codegen cg(m_fk, m_ei);
     
     // ¼ì²âÖØÃû
-    if (m_binary->is_have_func(funcnode->funcname))
+    if (m_binary->is_have_func(funcnode->funcname.c_str()))
     {
         m_fk->seterror(m_ei, efk_compile_same_func_name, "same func name %s", funcnode->funcname.c_str());
         return false;

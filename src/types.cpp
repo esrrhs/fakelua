@@ -120,20 +120,6 @@ String fkxtoa(int64_t d)
 	return ret;
 }
 
-uint32_t fkstrhash(String * p)
-{
-    uint32_t hashv = 0;
-    if (p)
-    {
-        const char * pstr = p->c_str();
-        for (int i = 0; i < (int)p->size(); i++)
-        {
-            hashv = ((hashv << 5) + hashv) + pstr[i]; /* hash * 33 + c */
-        }
-    }
-    return hashv;
-}
-
 String fkget_token_name(int token)
 {
 #define TOKEN_SWITCH(x) case x: return #x;

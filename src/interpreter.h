@@ -175,13 +175,13 @@ public:
         return m_isend;
     }
     
-    void call(binary * bin, const String & func, paramstack * ps)
+    void call(binary * bin, const char * func, paramstack * ps)
     {
         const func_binary * fb = bin->get_func(func);
         if (!fb)
         {
             FKERR("fkrun bin %p no func %s fail", bin, func.c_str());
-            m_fk->seterror(m_ei, efk_run_no_func_error, "fkrun bin %p no func %s fail", bin, func.c_str());
+            m_fk->seterror(m_ei, efk_run_no_func_error, "fkrun bin %p no func %s fail", bin, func);
             m_isend = true;
             return;
         }
