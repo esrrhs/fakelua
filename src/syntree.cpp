@@ -78,6 +78,9 @@ String if_stmt::dump(int indent)
     {
         ret += block->dump(indent + 1);
     }
-    ret += elses->dump(indent);
+    if (elses)
+    {
+        ret += elses->dump(indent);
+    }
     return ret;
 }

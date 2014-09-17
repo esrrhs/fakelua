@@ -21,13 +21,16 @@ public:
         m_func = func;
         m_ps = ps;
         m_interpreter.call(m_bin, m_func, m_ps);
+        if (isend())
+        {
+            m_ret = m_interpreter.getret();
+        }
     }
     
     force_inline const variant & getret() const
     {
         return m_ret;
     }
-
 
     force_inline bool isend() const
     {
@@ -36,6 +39,12 @@ public:
     
     force_inline int run(int cmdnum)
     {
+        if (isend())
+        {   
+            m_ret = m_interpreter.getret();
+            return 0;
+        }
+        
         int runcmdnum = m_interpreter.run(cmdnum);
 
         if (isend())

@@ -186,6 +186,18 @@ public:
             return;
         }
 
+        // 空函数处理
+        if (!fb->cmdsize())
+        {
+            // 所有都完
+        	if (!m_stack_list_num)
+            {
+                FKLOG("call stack empty end");
+                m_isend = true;
+            }
+            return;
+        }
+
         // 压栈
     	if (m_stack_list_num >= m_stack_list_max_num)
     	{

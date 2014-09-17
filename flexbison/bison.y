@@ -147,6 +147,8 @@ function_declaration:
 		FKLOG("[bison]: function_declaration <- empty %s", $2.c_str());
 		NEWTYPE(p, func_desc_node);
 		p->funcname = $2;
+		p->arglist = 0;
+		p->block = 0;
 		myflexer *l = (myflexer *)parm;
 		l->add_func_desc(p);
 	}
@@ -154,6 +156,9 @@ function_declaration:
 
 function_declaration_arguments: 
 	/* empty */
+	{
+		$$ = 0;
+	}
 	| 
 	function_declaration_arguments ARG_SPLITTER arg 
 	{
@@ -196,6 +201,9 @@ function_call:
 	
 function_call_arguments: 
 	/* empty */
+	{
+		$$ = 0;
+	}
 	| 
 	arg_expr ARG_SPLITTER function_call_arguments 
 	{
@@ -338,6 +346,9 @@ if_stmt:
 	
 else_stmt:
 	/*empty*/
+	{
+		$$ = 0;
+	}
 	|
 	ELSE block
 	{

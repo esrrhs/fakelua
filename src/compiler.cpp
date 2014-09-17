@@ -47,24 +47,30 @@ bool compiler::compile_func(func_desc_node * funcnode)
     cg.push_stack_identifiers();
         
     // 参数入栈
-    func_desc_arglist & arglist = funcnode->arglist->arglist;
-    for (int i = 0; i < (int)arglist.size(); i++)
+    if (funcnode->arglist)
     {
-        const String & arg = arglist[i];
-        if (cg.add_stack_identifier(arg) == -1)
+        func_desc_arglist & arglist = funcnode->arglist->arglist;
+        for (int i = 0; i < (int)arglist.size(); i++)
         {
-            FKERR("[compile] compile_func %s arg error %s", funcnode->funcname.c_str(), arg.c_str());
+            const String & arg = arglist[i];
+            if (cg.add_stack_identifier(arg) == -1)
+            {
+                FKERR("[compile] compile_func %s arg error %s", funcnode->funcname.c_str(), arg.c_str());
+                return false;
+            }
+        }
+    }
+    
+    // 编译函数体
+    if (funcnode->block)
+    {
+        if (!compile_block(cg, funcnode->block))
+        {
+            FKERR("[compile] compile_func compile_block %s fail", funcnode->funcname.c_str());
             return false;
         }
     }
-
-    // 编译函数体
-    if (!compile_block(cg, funcnode->block))
-    {
-        FKERR("[compile] compile_func compile_block %s fail", funcnode->funcname.c_str());
-        return false;
-    }
-
+    
     // 编译成功
     func_binary bin(m_fk);
     cg.output(funcnode->funcname, &bin);
@@ -265,11 +271,13 @@ bool compiler::compile_while_stmt(codegen & cg, while_stmt * ws)
 	startpos = cg.byte_code_size();
 
 	// 条件
+    cg.push_stack_identifiers();
 	if (!compile_node(cg, ws->cmp))
 	{
 		FKERR("[compiler] compile_while_stmt cmp fail");
 		return false;
 	}
+	cg.pop_stack_identifiers();
 
 	cg.push(MAKE_OPCODE(OPCODE_JNE));
 	cg.push(m_cur_addr);
@@ -308,11 +316,13 @@ bool compiler::compile_if_stmt(codegen & cg, if_stmt * is)
     int jmpifpos = 0;
 
     // 条件
+    cg.push_stack_identifiers();
 	if (!compile_node(cg, is->cmp))
 	{
 		FKERR("[compiler] compile_if_stmt cmp fail");
 		return false;
 	}
+    cg.pop_stack_identifiers();
 
 	cg.push(MAKE_OPCODE(OPCODE_JNE));
     cg.push(m_cur_addr);
