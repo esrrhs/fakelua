@@ -180,7 +180,7 @@ public:
         const func_binary * fb = bin->get_func(func);
         if (!fb)
         {
-            FKERR("fkrun bin %p no func %s fail", bin, func.c_str());
+            FKERR("fkrun bin %p no func %s fail", bin, func);
             m_fk->seterror(m_ei, efk_run_no_func_error, "fkrun bin %p no func %s fail", bin, func);
             m_isend = true;
             return;
