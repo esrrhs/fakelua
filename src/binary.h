@@ -68,6 +68,7 @@ class func_binary
 {
     friend class codegen;
     friend class interpreter;
+    friend class binary;
 public:
 	force_inline func_binary(fuck * fk) : m_fk(fk)
     {
@@ -114,15 +115,22 @@ private:
     // ≥£¡ø
     variant * m_const_list;
     size_t m_const_list_num;
+    // –Ú¡–
+    int m_pos;
 };
 
-typedef std::map<String, int> func_binary_map;
+struct func_binary_hash_ele
+{
+    int pos;
+    const String * name;
+};
+
 typedef std::vector<func_binary> func_binary_list;
 
 class binary
 {
 public:
-    force_inline binary(fuck * fk) : m_fk(fk)
+    force_inline binary(fuck * fk) : m_fk(fk), m_func_index_map(0), m_func_index_map_size(0)
     {
     }
     force_inline ~binary()
@@ -136,13 +144,45 @@ public:
 
     force_inline void clear()
     {
-        m_func_index_map.clear();
+        //m_func_index_map.clear();
         m_func_list.clear();
+    }
+
+    force_inline void build_map()
+    {
+        m_func_index_map_size = m_func_list.size() * 2;
+        m_func_index_map = (func_binary_hash_ele*)safe_fkmalloc(m_fk, sizeof(func_binary_hash_ele) * m_func_index_map_size);
+        memset(m_func_index_map, 0, sizeof(func_binary_hash_ele) * m_func_index_map_size);
+        for (int i = 0; i < (int)m_func_list.size(); i++)
+        {
+            int pos = m_func_list[i].m_pos;
+            const String & name = m_func_list[i].m_name;
+            
+            uint32_t hash = fkstrhash(name.c_str());
+            int index = hash % m_func_index_map_size;
+            for (int j = 0; j < (int)m_func_index_map_size; j++)
+            {
+                if (!m_func_index_map[j].name)
+                {
+                    m_func_index_map[j].pos = pos;
+                    m_func_index_map[j].name = &name;
+                    break;
+                }
+                index = (index + 1) % m_func_index_map_size;
+            }
+        }
     }
 
     force_inline bool is_have_func(const char * name) const
     {
-        return m_func_index_map.find(name) != m_func_index_map.end();
+        for (int i = 0; i < (int)m_func_list.size(); i++)
+        {
+            if (m_func_list[i].m_name == name)
+            {
+                return true;
+            }
+        }
+        return false;
     }
     force_inline bool add_func(func_binary & bin)
     {
@@ -153,28 +193,35 @@ public:
         }
         
         int index = m_func_list.size();
+        bin.m_pos = index;
         m_func_list.push_back(bin);
-        m_func_index_map[name] = index;
 
         return true;
     }
     force_inline const func_binary * get_func(const char * name) const
     {
-        func_binary_map::const_iterator it = m_func_index_map.find(name);
-        if (it == m_func_index_map.end())
+        uint32_t hash = fkstrhash(name);
+        int index = hash % m_func_index_map_size;
+        for (int j = 0; j < (int)m_func_index_map_size; j++)
         {
-            return 0;
+            const func_binary & funcbin = m_func_list[m_func_index_map[index].pos];
+            const String & srcname = funcbin.m_name;
+            if (&srcname == m_func_index_map[index].name)
+            {
+                // find it
+                return &funcbin;
+            }
+            index = (index + 1) % m_func_index_map_size;
         }
-
-        int pos = it->second;
-        return &m_func_list[pos];
+        return 0;
     }
 
     String dump() const;
     
 private:
-    fuck * m_fk;
-    func_binary_map m_func_index_map;
+    fuck * m_fk;    
     func_binary_list m_func_list;
+    func_binary_hash_ele* m_func_index_map;
+    size_t m_func_index_map_size;
 };
 
