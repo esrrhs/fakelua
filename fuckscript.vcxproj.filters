@@ -1,0 +1,108 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="include">
+      <UniqueIdentifier>{a8c0c083-74f4-4337-bc8c-c536ad02f256}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src">
+      <UniqueIdentifier>{59da23e4-842a-491d-be7f-c70f17484dea}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="include\fuckscript.h">
+      <Filter>include</Filter>
+    </ClInclude>
+    <ClInclude Include="src\binary.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\codegen.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\compiler.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\fuck.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\myflexer.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\processor.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\routine.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\semantic.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\syntree.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\types.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\variant.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\interpreter.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\paramstack.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\bison.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\FlexLexer.h">
+      <Filter>src</Filter>
+    </ClInclude>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="src\binary.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\codegen.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\compiler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\fuck.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\fuckscript.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\myflexer.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\processor.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\routine.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\syntree.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\types.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\variant.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\interpreter.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\paramstack.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\bison.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\flex.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+  </ItemGroup>
+</Project>
