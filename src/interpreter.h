@@ -6,7 +6,6 @@
 #include "paramstack.h"
 
 struct fuck;
-struct fkerrorinfo;
 
 #define GET_CMD(fb, pos) fb.m_buff[pos]
 
@@ -66,11 +65,11 @@ struct fkerrorinfo;
 	GET_VARIANT(s, fb, dest, s.m_pos);\
     s.m_pos++;\
     \
-	FKLOG("math left %s right %s", ((String)*left).c_str(), ((String)*right).c_str());\
+	FKLOG("math left %s right %s", (vartostring(left)).c_str(), (vartostring(right)).c_str());\
     \
-    dest->oper(*left, *right);\
+    V_##oper(dest, left, right);\
     \
-    FKLOG("math %s %s", OpCodeStr(code), ((String)*dest).c_str());
+    FKLOG("math %s %s", OpCodeStr(code), (vartostring(dest)).c_str());
  
 #define MATH_ASSIGN_OPER(s, fb, oper) \
 	variant * var = 0;\
@@ -84,32 +83,24 @@ struct fkerrorinfo;
     GET_VARIANT(s, fb, value, s.m_pos);\
     s.m_pos++;\
     \
-	FKLOG("math var %s value %s", ((String)*var).c_str(), ((String)*value).c_str());\
+	FKLOG("math var %s value %s", (vartostring(var)).c_str(), (vartostring(value)).c_str());\
     \
-    var->oper(*var, *value);\
+    V_##oper(var, var, value);\
     \
-    FKLOG("math %s %s", OpCodeStr(code), ((String)*var).c_str());
+    FKLOG("math %s %s", OpCodeStr(code), (vartostring(var)).c_str());
 
 struct stack
 {
-	force_inline stack() : m_fk(0), m_ei(0), m_fb(0), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
+	force_inline stack() : m_fk(0), m_fb(0), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
     {
     }
-	force_inline stack(fuck * fk, fkerrorinfo * ei, const  func_binary * fb) : m_fk(fk), m_ei(ei), m_fb(fb), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
+	force_inline stack(fuck * fk, const  func_binary * fb) : m_fk(fk), m_fb(fb), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
     {
-    	grow(m_fk->m_stack_ini_size);
+    	grow(0);    // use default
     }
 	force_inline ~stack()
     {
-    	if (m_stack_variant_list)
-    	{
-    		assert(m_fk);
-    		for (int i = 0; i < (int)m_stack_variant_list_num; i++)
-    		{
-    			m_stack_variant_list[i].~variant();
-    		}
-    		m_fk->m_fkfree(m_stack_variant_list);
-    	}
+        safe_fkfree(m_fk, m_stack_variant_list);
     }
 
 	void grow(int pos);
@@ -138,7 +129,6 @@ struct stack
     }
     
     fuck * m_fk;
-    fkerrorinfo * m_ei;
     // 函数二进制
     const func_binary * m_fb;
     // 当前执行位置
@@ -151,7 +141,7 @@ struct stack
 class interpreter
 {
 public:
-	force_inline interpreter(fuck * fk, fkerrorinfo * ei) : m_fk(fk), m_ei(ei), m_isend(false), 
+	force_inline interpreter(fuck * fk) : m_fk(fk), m_isend(false), 
 		m_stack_list(0), m_stack_list_num(0), m_stack_list_max_num(0)
     {
     }
@@ -164,10 +154,20 @@ public:
     		{
     			m_stack_list[i].~stack();
     		}
-    		m_fk->m_fkfree(m_stack_list);
+    		safe_fkfree(m_fk, m_stack_list);
     	}
     }
 
+    void clear()
+    {
+        m_isend = false;
+        m_stack_list_num = 0;
+        for (int i = 0; i < (int)m_stack_list_max_num; i++)
+		{
+			m_stack_list[i].clear();
+		}
+    }
+    
 	void grow();
     
     bool isend() const
@@ -181,7 +181,7 @@ public:
         if (!fb)
         {
             FKERR("fkrun bin %p no func %s fail", bin, func);
-            m_fk->seterror(m_ei, efk_run_no_func_error, "fkrun bin %p no func %s fail", bin, func);
+            seterror(m_fk, efk_run_no_func_error, "fkrun bin %p no func %s fail", bin, func);
             m_isend = true;
             return;
         }
@@ -206,7 +206,6 @@ public:
     	m_stack_list_num++;
     	stack & s = m_stack_list[m_stack_list_num - 1];
     	s.m_fk = m_fk;
-    	s.m_ei = m_ei;
     	s.m_fb = fb;
     	s.clear();
 
@@ -214,7 +213,7 @@ public:
         for (int i = 0; i < (int)ps->size(); i++)
         {
     		s.set_stack_variant((*ps)[i], i);
-    		FKLOG("call set %s to pos %d", ((String)((*ps)[i])).c_str(), i);
+    		FKLOG("call set %s to pos %d", (vartostring(&((*ps)[i]))).c_str(), i);
         }
     }
 
@@ -265,72 +264,72 @@ public:
                     // 赋值
                     s.set_stack_variant(*valuev, addrpos);
 
-                	FKLOG("assign %s to pos %d", ((String)*valuev).c_str(), addrpos);
+                	FKLOG("assign %s to pos %d", (vartostring(valuev)).c_str(), addrpos);
                 }
                 break;
             case OPCODE_PLUS:
                 {
-        		    MATH_OPER(s, fb, plus);
+        		    MATH_OPER(s, fb, PLUS);
         		}
                 break;
             case OPCODE_MINUS:
                 {
-        		    MATH_OPER(s, fb, minus);
+        		    MATH_OPER(s, fb, MINUS);
         		}
                 break;
             case OPCODE_MULTIPLY:
         		{
-        		    MATH_OPER(s, fb, multiply);
+        		    MATH_OPER(s, fb, MULTIPLY);
         		}
                 break;
             case OPCODE_DIVIDE:
         		{
-        		    MATH_OPER(s, fb, divide);
+        		    MATH_OPER(s, fb, DIVIDE);
         		}
                 break;
             case OPCODE_DIVIDE_MOD:
         		{
-        		    MATH_OPER(s, fb, divide_mode);
+        		    MATH_OPER(s, fb, DIVIDE_MOD);
         		}
                 break;
             case OPCODE_AND:
         		{
-        		    MATH_OPER(s, fb, band);
+        		    MATH_OPER(s, fb, AND);
         		}
                 break;
             case OPCODE_OR:
         		{
-        		    MATH_OPER(s, fb, bor);
+        		    MATH_OPER(s, fb, OR);
         		}
                 break;
             case OPCODE_LESS:
         		{
-        		    MATH_OPER(s, fb, less);
+        		    MATH_OPER(s, fb, LESS);
         		}
                 break;
         	case OPCODE_MORE:
         		{
-        		    MATH_OPER(s, fb, more);
+        		    MATH_OPER(s, fb, MORE);
         		}
                 break;
         	case OPCODE_EQUAL:
         		{
-        		    MATH_OPER(s, fb, equal);
+        		    MATH_OPER(s, fb, EQUAL);
         		}
                 break;
         	case OPCODE_MOREEQUAL:
         		{
-        		    MATH_OPER(s, fb, moreequal);
+        		    MATH_OPER(s, fb, MOREEQUAL);
         		}
                 break;
         	case OPCODE_LESSEQUAL:
         		{
-        		    MATH_OPER(s, fb, lessequal);
+        		    MATH_OPER(s, fb, LESSEQUAL);
         		}
                 break;
         	case OPCODE_NOTEQUAL:
         		{
-        		    MATH_OPER(s, fb, notequal);
+        		    MATH_OPER(s, fb, NOTEQUAL);
         		}
                 break;
         	case OPCODE_RETURN:
@@ -349,7 +348,7 @@ public:
 
                 	m_ret = *ret;
 
-                	FKLOG("return %s", ((String)m_ret).c_str());
+                	FKLOG("return %s", (vartostring(&m_ret)).c_str());
 
         	    }
         		break;
@@ -363,7 +362,7 @@ public:
                     int pos = COMMAND_CODE(GET_CMD(fb, s.m_pos));
                 	s.m_pos++;
                 	
-                    if (!((bool)(*cmp)))
+                    if (!(V_BOOL(cmp)))
                     {
                 	    FKLOG("jne %d", pos);
                         
@@ -388,27 +387,27 @@ public:
             
             case OPCODE_PLUS_ASSIGN:
                 {
-                    MATH_ASSIGN_OPER(s, fb, plus);
+                    MATH_ASSIGN_OPER(s, fb, PLUS);
                 }
                 break;
             case OPCODE_MINUS_ASSIGN:
                 {
-                    MATH_ASSIGN_OPER(s, fb, minus);
+                    MATH_ASSIGN_OPER(s, fb, MINUS);
                 }
                 break;
             case OPCODE_MULTIPLY_ASSIGN:
                 {
-                    MATH_ASSIGN_OPER(s, fb, multiply);
+                    MATH_ASSIGN_OPER(s, fb, MULTIPLY);
                 }
                 break;
         	case OPCODE_DIVIDE_ASSIGN:
                 {
-                    MATH_ASSIGN_OPER(s, fb, divide);
+                    MATH_ASSIGN_OPER(s, fb, DIVIDE);
                 }
                 break;
         	case OPCODE_DIVIDE_MOD_ASSIGN:
                 {
-                    MATH_ASSIGN_OPER(s, fb, divide_mode);
+                    MATH_ASSIGN_OPER(s, fb, DIVIDE_MOD);
                 }
                 break;
                 
@@ -451,7 +450,6 @@ public:
 
 private:
     fuck * m_fk;
-    fkerrorinfo * m_ei;
     bool m_isend;
     variant m_ret;
 	stack * m_stack_list;

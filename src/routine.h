@@ -5,13 +5,12 @@
 #include "interpreter.h"
 
 struct fuck;
-class fkerrorinfo;
 class binary;
 class paramstack;
 class routine
 {
 public:
-    force_inline routine(fuck * fk, fkerrorinfo * ei) : m_fk(fk), m_ei(ei), m_bin(0), m_ps(0), m_interpreter(fk, ei)
+    force_inline routine(fuck * fk) : m_fk(fk), m_bin(0), m_ps(0), m_interpreter(fk)
     {
     }
 
@@ -19,7 +18,7 @@ public:
     {
         m_bin = bin;
         m_ps = ps;
-        m_interpreter.call(m_bin, func, m_ps);
+        m_interpreter.call(bin, func, ps);
         if (isend())
         {
             m_ret = m_interpreter.getret();
@@ -57,7 +56,6 @@ public:
 
 private:
     fuck * m_fk;
-    fkerrorinfo * m_ei;
     binary * m_bin;
     paramstack * m_ps;
     variant m_ret;

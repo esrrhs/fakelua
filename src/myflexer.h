@@ -18,12 +18,11 @@
 #include "semantic.h"
 
 class fuck;
-class fkerrorinfo;
 class myflexer : public yyFlexLexer
 {
 public:
     // set parse command
-    myflexer(fuck * fk, fkerrorinfo * ei) : m_fk(fk), m_ei(ei)
+    myflexer(fuck * fk) : m_fk(fk)
     {
         clear();
     }
@@ -50,7 +49,6 @@ public:
     func_desc_list & get_func_list();
 private:
     fuck * m_fk;
-    fkerrorinfo * m_ei;
     String m_content;
     int m_num;
     int m_pos;

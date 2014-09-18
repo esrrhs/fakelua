@@ -6,46 +6,28 @@
 #include "processor.h"
 #include "paramstack.h"
 
-FUCK_API fuck * newfuck(fkmalloc fkm, fkfree fkf,
-    int per_frame_cmd_num,
-	int delete_routine_scale,
-	int routine_grow_speed,
-	int stack_ini_size,
-	int stack_grow_speed,
-	int stack_list_grow_speed)
+FUCK_API fuck * newfuck(fuckconfig * cfg)
 {
-    if (!fkm || !fkf)
+    fuckconfig _cfg;
+    if (!cfg)
     {
-        fkm = &malloc;
-        fkf = &free;
-        FKLOG("newfuck use system malloc and free");
+        _cfg.fkm = &malloc;
+        _cfg.fkf = &free;
+        _cfg.per_frame_cmd_num = 100;
+        _cfg.delete_routine_scale = 4;
+		_cfg.routine_grow_speed = 100;
+		_cfg.stack_ini_size = 10;
+		_cfg.stack_grow_speed = 100;
+		_cfg.stack_list_grow_speed = 100;
     }
-	if (!per_frame_cmd_num || !delete_routine_scale || !routine_grow_speed)
+    else
     {
-        per_frame_cmd_num = 100;
-        delete_routine_scale = 4;
-		routine_grow_speed = 100;
-        FKLOG("newfuck use per_frame_cmd_num[%d] delete_routine_scale[%d] stack_list_grow_speed[%d]", 
-			per_frame_cmd_num, delete_routine_scale, routine_grow_speed);
-	}
-	if (!stack_ini_size || !stack_grow_speed || !stack_list_grow_speed)
-	{
-		stack_ini_size = 10;
-		stack_grow_speed = 100;
-		stack_list_grow_speed = 100;
-		FKLOG("newfuck use stack_ini_size[%d] stack_grow_speed[%d] stack_list_grow_speed[%d]", 
-			stack_ini_size, stack_grow_speed, stack_list_grow_speed);
-	}
+        _cfg = *cfg;
+    }
     
-    fuck * ret = (fuck *)fkm(sizeof(fuck));
+    fuck * ret = (fuck *)_cfg.fkm(sizeof(fuck));
     new (ret) fuck();
-    ret->m_fkmalloc = fkm;
-	ret->m_fkfree = fkf;
-	ret->m_per_frame_cmd_num = per_frame_cmd_num;
-	ret->m_delete_routine_scale = delete_routine_scale;
-	ret->m_stack_ini_size = stack_ini_size;
-	ret->m_stack_grow_speed = stack_grow_speed;
-	ret->m_stack_list_grow_speed = stack_list_grow_speed;
+    ret->cfg = _cfg;
     FKLOG("newfuck ret %p", ret);
     return ret;
 }
@@ -54,23 +36,24 @@ FUCK_API void delfuck(fuck * fk)
 {
     FKLOG("delfuck %p", fk);
     fk->~fuck();
-    fk->m_fkfree(fk);
+    safe_fkfree(fk, fk);
 }
 
 // 解析文件
-FUCK_API binary * fkparse(fuck * fk, fkerrorinfo * ei, const char * filename)
+FUCK_API bool fkparse(fuck * fk, const char * filename)
 {
-    if (ei) ei->clear();
+    // 清空
+    fk->clear();
 
     // 输入源文件
-    myflexer mf(fk, ei);
+    myflexer & mf = fk->mf;
     
     FKLOG("fkparse %p %s", fk, filename);
     bool b = mf.inputfile(filename);
     if (!b)
     {
         FKERR("fkparse open %s fail", fk, filename);
-        return 0;
+        return false;
     }
 
     // 进行语法解析
@@ -78,270 +61,274 @@ FUCK_API binary * fkparse(fuck * fk, fkerrorinfo * ei, const char * filename)
     if (ret != 0)
     {
         FKERR("fkparse yyparse %s fail ret %d", fk, filename, ret);
-        fk->seterror(ei, efk_parse_file_fail, "parse %s file fail", filename);
-        return 0;
+        seterror(fk, efk_parse_file_fail, "parse %s file fail", filename);
+        return false;
     }
     
     FKLOG("fkparse yyparse %p %s OK", fk, filename);
 
-    binary * bin = fknew<binary>(fk, fk);
-
     // 编译
-    compiler mc(fk, ei, bin);
+    compiler & mc = fk->mc;
     b = mc.compile(&mf);
     if (!b)
     {
         FKERR("fkparse  %s compile %s fail", fk, filename);
-        return 0;
+        return false;
     }
     
     FKLOG("fkparse %p %s OK", fk, filename);
     
-    return bin;
+    return true;
 }
 
-FUCK_API void delbinary(binary * bin)
+FUCK_API efkerror fkerror(fuck * fk)
 {
-    fuck *fk = bin->getfuck();
-    fkdelete<binary>(fk, bin);
-}
+    return (efkerror)fk->errorno;
+}
 
-FUCK_API bool fkisfunc(binary * bin, const char * func)
+FUCK_API const char * fkerrorstr(fuck * fk)
 {
-    return bin->is_have_func(func);
+    return fk->errorstr;
+}
+
+FUCK_API bool fkisfunc(fuck * fk, const char * func)
+{
+    return fk->bin.is_have_func(func);
 }
 
 // 调用函数
-FUCK_API void fkrun(binary * bin, fkerrorinfo * ei, const char * func, paramstack * s)
+FUCK_API void fkrun(fuck * fk, const char * func)
 {
-    if (ei) ei->clear();
+    FKLOG("fkrun %p %s", fk, func);
 
-    fuck *fk = bin->getfuck();
-    FKLOG("fkrun %p %p %s", fk, bin, func);
-    
-    routine r(fk, ei);
-    r.entry(bin, func, s);
-    
-    processor p(fk);
+    fk->clearerr();
+    fk->inter.call(&fk->bin, func, &fk->ps);
 
-    p.add(&r);
-
-    int cmdnum = 0;
-    int framenum = 0;
-    int perframecmdnum = fk->m_per_frame_cmd_num;
-    while (!p.isend())
+    while (!fk->inter.isend())
     {
-        cmdnum += p.run(perframecmdnum);
-        framenum++;
+        fk->inter.run(0x7FFFFFFF);
     }
     
-    FKLOG("fkrun cmdnum[%d] perframecmdnum[%d] framenum[%d]", cmdnum, perframecmdnum, framenum);
-
-    s->push(r.getret());
+    fk->ps.push(fk->inter.getret());
     
-    FKLOG("fkrun %p %p %s OK", fk, bin, func);
+    FKLOG("fkrun %p %s OK", fk, func);
 }
 
-// 参数传递
-FUCK_API paramstack * fknewparamstack(binary * bin)
+FUCK_API void fkpspushpointer(fuck * fk, void * p)
 {
-    fuck *fk = bin->getfuck();
-    return fknew<paramstack>(fk, fk);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_POINTER(v, p);
 }
 
-FUCK_API void fkdeleteparamstack(paramstack * s)
+FUCK_API void fkpspushchar(fuck * fk, char ret)
 {
-    fuck *fk = s->getfuck();
-    fkdelete<paramstack>(fk, s);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushpointer(paramstack * s, void * p)
+FUCK_API void fkpspushuchar(fuck * fk, unsigned char ret)
 {
-    fuck *fk = s->getfuck();
-    variant v(p, fk);
-    s->push(v);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushchar(paramstack * s, char ret)
+FUCK_API void fkpspushshort(fuck * fk, short ret)
 {
-    fuck *fk = s->getfuck();
-    variant v(ret, fk);
-    s->push(v);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushuchar(paramstack * s, unsigned char ret)
+FUCK_API void fkpspushushort(fuck * fk, unsigned short ret)
 {
-    fuck *fk = s->getfuck();
-    variant v(ret, fk);
-    s->push(v);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushshort(paramstack * s, short ret)
+FUCK_API void fkpspushint(fuck * fk, int ret)
 {
-    fuck *fk = s->getfuck();
-    variant v(ret, fk);
-    s->push(v);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushushort(paramstack * s, unsigned short ret)
+FUCK_API void fkpspushuint(fuck * fk, unsigned int ret)
 {
-    fuck *fk = s->getfuck();
-    variant v(ret, fk);
-    s->push(v);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushint(paramstack * s, int ret)
+FUCK_API void fkpspushfloat(fuck * fk, float ret)
 {
-    fuck *fk = s->getfuck();
-    variant v(ret, fk);
-    s->push(v);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushuint(paramstack * s, unsigned int ret)
+FUCK_API void fkpspushdouble(fuck * fk, double ret)
 {
-    fuck *fk = s->getfuck();
-    variant v(ret, fk);
-    s->push(v);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushfloat(paramstack * s, float ret)
+FUCK_API void fkpspushcharptr(fuck * fk, char * ret)
 {
-    fuck *fk = s->getfuck();
-    variant v(ret, fk);
-    s->push(v);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_STRING(v, ret);
 }
 
-FUCK_API void fkpspushdouble(paramstack * s, double ret)
+FUCK_API void fkpspushccharptr(fuck * fk, const char * ret)
 {
-    fuck *fk = s->getfuck();
-    variant v(ret, fk);
-    s->push(v);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_STRING(v, ret);
 }
 
-FUCK_API void fkpspushcharptr(paramstack * s, char * ret)
+FUCK_API void fkpspushbool(fuck * fk, bool ret)
 {
-    fuck *fk = s->getfuck();
-    variant v(ret, fk);
-    s->push(v);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushccharptr(paramstack * s, const char * ret)
+FUCK_API void fkpspushint64(fuck * fk, int64_t ret)
 {
-    fuck *fk = s->getfuck();
-    variant v(ret, fk);
-    s->push(v);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushbool(paramstack * s, bool ret)
+FUCK_API void fkpspushuint64(fuck * fk, uint64_t ret)
 {
-    fuck *fk = s->getfuck();
-    variant v(ret, fk);
-    s->push(v);
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushint64(paramstack * s, int64_t ret)
+FUCK_API void fkpspoppointer(fuck * fk, void * & p)
 {
-    fuck *fk = s->getfuck();
-    variant v(ret, fk);
-    s->push(v);
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+    V_GET_POINTER(v, p);
 }
 
-FUCK_API void fkpspushuint64(paramstack * s, uint64_t ret)
+FUCK_API char fkpspopchar(fuck * fk)
 {
-    fuck *fk = s->getfuck();
-    variant v(ret, fk);
-    s->push(v);
+    char ret;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+    V_GET_REAL(v, ret);
+    return ret;
 }
 
-FUCK_API void fkpspoppointer(paramstack * s, void * & p)
+FUCK_API unsigned char fkpspopuchar(fuck * fk)
 {
-    variant v;
-    s->pop(v);
-    p = (void*)v;
+    char ret;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+    V_GET_REAL(v, ret);
+    return ret;
 }
 
-FUCK_API char fkpspopchar(paramstack * s)
+FUCK_API short fkpspopshort(fuck * fk)
 {
-    variant v;
-    s->pop(v);
-    return v;
+    char ret;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+    V_GET_REAL(v, ret);
+    return ret;
 }
 
-FUCK_API unsigned char fkpspopuchar(paramstack * s)
+FUCK_API unsigned short fkpspopushort(fuck * fk)
 {
-    variant v;
-    s->pop(v);
-    return v;
+    unsigned char ret;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+    V_GET_REAL(v, ret);
+    return ret;
 }
 
-FUCK_API short fkpspopshort(paramstack * s)
+FUCK_API int fkpspopint(fuck * fk)
 {
-    variant v;
-    s->pop(v);
-    return v;
+    int ret;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+    V_GET_REAL(v, ret);
+    return ret;
 }
 
-FUCK_API unsigned short fkpspopushort(paramstack * s)
+FUCK_API unsigned int fkpspopuint(fuck * fk)
 {
-    variant v;
-    s->pop(v);
-    return v;
+    unsigned int ret;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+    V_GET_REAL(v, ret);
+    return ret;
 }
 
-FUCK_API int fkpspopint(paramstack * s)
+FUCK_API float fkpspopfloat(fuck * fk)
 {
-    variant v;
-    s->pop(v);
-    return v;
+    float ret;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+    V_GET_REAL(v, ret);
+    return ret;
 }
 
-FUCK_API unsigned int fkpspopuint(paramstack * s)
+FUCK_API double fkpspopdouble(fuck * fk)
 {
-    variant v;
-    s->pop(v);
-    return v;
+    double ret;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+    V_GET_REAL(v, ret);
+    return ret;
 }
 
-FUCK_API float fkpspopfloat(paramstack * s)
+FUCK_API const char * fkpspopcstrptr(fuck * fk)
 {
-    variant v;
-    s->pop(v);
-    return v;
+    const char * ret;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+    V_GET_STRING(v, ret);
+    return ret;
 }
 
-FUCK_API double fkpspopdouble(paramstack * s)
+FUCK_API bool fkpspopbool(fuck * fk)
 {
-    variant v;
-    s->pop(v);
-    return v;
+    bool ret;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+    V_GET_REAL(v, ret);
+    return ret;
 }
 
-FUCK_API const char * fkpspopcstrptr(paramstack * s)
+FUCK_API int64_t fkpspopint64(fuck * fk)
 {
-	variant v;
-	s->pop(v);
-	return ((String)v).c_str();
+    int64_t ret;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+    V_GET_REAL(v, ret);
+    return ret;
 }
 
-FUCK_API bool fkpspopbool(paramstack * s)
+FUCK_API uint64_t fkpspopuint64(fuck * fk)
 {
-    variant v;
-    s->pop(v);
-    return v;
+    uint64_t ret;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+    V_GET_REAL(v, ret);
+    return ret;
 }
 
-FUCK_API int64_t fkpspopint64(paramstack * s)
+FUCK_API void fkpsclear(fuck * fk)
 {
-    variant v;
-    s->pop(v);
-    return v;
+    fk->ps.clear();
 }
-
-FUCK_API uint64_t fkpspopuint64(paramstack * s)
-{
-    variant v;
-    s->pop(v);
-    return v;
-}
-
 

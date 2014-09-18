@@ -34,7 +34,7 @@ bool myflexer::inputfile(const char * filename)
     FILE * file = fopen(filename, "r");
     if (!file)
     {
-        m_fk->seterror(m_ei, efk_open_file_fail, "open %s fail", filename);
+        seterror(m_fk, efk_open_file_fail, "open %s fail", filename);
         return false;
     }
 
@@ -49,7 +49,7 @@ bool myflexer::inputfile(const char * filename)
 
 	if (m_content.empty())
     {
-        m_fk->seterror(m_ei, efk_open_file_empty, "open %s empty", filename);
+        seterror(m_fk, efk_open_file_empty, "open %s empty", filename);
         return false;
     }
     
@@ -63,18 +63,18 @@ void myflexer::clear()
 {
     m_num = 0;
     m_pos = 0;
-    m_content[0] = 0;
+    m_content.clear();
     m_funclist.clear();
 }
 
 void * myflexer::malloc(size_t size)
 {
-    return m_fk->m_fkmalloc(size);
+    return safe_fkmalloc(m_fk, size);
 }
 
 void myflexer::free(void * p)
 {
-    return m_fk->m_fkfree(p);
+    safe_fkfree(m_fk, p);
 }
 
 void myflexer::add_func_desc(func_desc_node * p)
