@@ -102,6 +102,7 @@ FUCK_API void fkrun(fuck * fk, const char * func)
     FKLOG("fkrun %p %s", fk, func);
 
     fk->clearerr();
+    fk->inter.clear();
     fk->inter.call(&fk->bin, func, &fk->ps);
 
     while (!fk->inter.isend())
