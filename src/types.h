@@ -62,6 +62,11 @@ union MarshallPoiner
 	void * p; ///< p
 };
 
+static force_inline bool fkisint(double real)
+{
+    return (real - (int64_t)real == 0);
+}
+
 static force_inline int32_t fkatoi(const String * p)
 {
     if (p)
@@ -105,6 +110,12 @@ static force_inline String fkdtoa(double d)
 {
     char buff[100];
     sprintf(buff, "%f", d);
+    return buff;
+}
+static force_inline String fkptoa(void * p)
+{
+    char buff[100];
+    sprintf(buff, "%p", p);
     return buff;
 }
 static force_inline String fkxtoa(int64_t d)
@@ -167,3 +178,10 @@ static force_inline uint32_t fkstrhash(String * p)
 
 String fkget_token_name(int token);
 
+void * safe_fkmalloc(fuck * fk, size_t size);
+void safe_fkfree(fuck * fk, void * p);
+
+void seterror(fuck * fk, efkerror err, const char *fmt, ...);
+
+class variant;
+String vartostring(const variant * v);

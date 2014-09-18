@@ -1,9 +1,7 @@
 #pragma once
 
 #include "types.h"
-#include "fuck.h"
 #include "routine.h"
-
 
 struct fuck;
 class routine;
@@ -21,10 +19,7 @@ public:
     }
     force_inline ~processor()
     {
-        if (m_routine_list)
-        {
-            m_fk->m_fkfree(m_routine_list);
-        }
+        safe_fkfree(m_fk, m_routine_list);
     }
 
     force_inline void add(routine * r)

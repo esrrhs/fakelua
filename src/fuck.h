@@ -15,44 +15,65 @@
 #include "types.h"
 #include "myflexer.h"
 #include "fuckscript.h"
+#include "compiler.h"
+#include "binary.h"
+#include "paramstack.h"
+#include "interpreter.h"
 
-struct fkerrorinfo;
 struct fuck
 {
-    fuck()
+    fuck() : errorno(0), mf(this), bin(this), mc(this, &bin), inter(this)
     {
-        clear();
+    }
+    ~fuck()
+    {
     }
 
+    // 清空
     void clear()
     {
+        clearerr();
+        mf.clear();
+        bin.clear();
+        mc.clear();
+        ps.clear();
+        inter.clear();
     }
     
-    // error
-    void seterror(fkerrorinfo * ei, efkerror err, const char *fmt, ...);
+    void clearerr()
+    {
+        errorno = 0;
+        errorstr[0] = 0;
+    }
     
-    // member
-    fkmalloc m_fkmalloc;
-    fkfree m_fkfree;
+    int errorno;
+    char errorstr[64];
+    
+    // 配置
+    fuckconfig cfg;
 
-    // processor每帧调用cmd条数
-    int m_per_frame_cmd_num;
-    // processor清除无效协程判断的比例
-	int m_delete_routine_scale;
-	// 协程增长速度
-	int m_routine_grow_speed;
-	// stack初始大小
-	int m_stack_ini_size;
-	// stack增长速度
-	int m_stack_grow_speed;
-	// stack层数增长速度
-	int m_stack_list_grow_speed;
+    // 解析
+    myflexer mf;
+
+    // 二进制
+    binary bin;
+    
+    // 编译
+    compiler mc;
+
+    // c的参数栈
+    paramstack ps;
+
+    // 当前线程解释器
+    interpreter inter;
+
+    // TODO 异步线程的运行环境
 };
 
 template <typename T>
 T * fknew(fuck * fk)
 {
-    T * t = (T *)fk->m_fkmalloc(sizeof(T));
+    T * t = (T *)fk->cfg.fkm(sizeof(T));
     new (t) T();
     return t;
 }
@@ -60,7 +81,7 @@ T * fknew(fuck * fk)
 template <typename T, typename P1>
 T * fknew(fuck * fk, P1 p1)
 {
-    T * t = (T *)fk->m_fkmalloc(sizeof(T));
+    T * t = (T *)fk->cfg.fkm(sizeof(T));
 	if (!t)
 	{
 		return 0;
@@ -75,7 +96,7 @@ void fkdelete(fuck * fk, T * p)
 	if (p)
 	{
 		p->~T();
-		fk->m_fkfree(p);
+		fk->cfg.fkf(p);
 	}
 }
 

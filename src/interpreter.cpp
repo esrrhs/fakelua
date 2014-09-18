@@ -5,15 +5,15 @@
 
 void stack::grow(int pos)
 {
-	if (pos < m_fk->m_stack_ini_size)
+	if (pos < m_fk->cfg.stack_ini_size)
 	{
-		pos = m_fk->m_stack_ini_size;
+		pos = m_fk->cfg.stack_ini_size;
 	}
 	assert(m_fk);
 	// 新空间
-	int newsize = pos + 1 + pos * m_fk->m_stack_grow_speed / 100;
+	int newsize = pos + 1 + pos * m_fk->cfg.stack_grow_speed / 100;
 	assert(newsize > (int)m_stack_variant_list_num);
-	variant * newbuff = (variant *)m_fk->m_fkmalloc(newsize * sizeof(variant));
+	variant * newbuff = (variant *)safe_fkmalloc(m_fk, (newsize * sizeof(variant)));
 	
 	// 复制
 	if (m_stack_variant_list)
@@ -22,16 +22,10 @@ void stack::grow(int pos)
 	}
 
 	// 构造剩余的
-	for (int i = m_stack_variant_list_num; i <newsize; i++)
-	{
-		new (&newbuff[i]) variant(m_fk);
-	}
+	memset(&newbuff[m_stack_variant_list_num], 0, (newsize - m_stack_variant_list_num) * sizeof(variant));
 
 	// 删除
-	if (m_stack_variant_list)
-	{
-		m_fk->m_fkfree(m_stack_variant_list);
-	}
+	safe_fkfree(m_fk, m_stack_variant_list);
 
 	m_stack_variant_list = newbuff;
 	m_stack_variant_list_num = newsize;
@@ -43,9 +37,9 @@ void interpreter::grow()
 {
 	assert(m_fk);
 	// 新空间
-	int newsize = m_stack_list_max_num + 1 + m_stack_list_max_num * m_fk->m_stack_list_grow_speed / 100;
+	int newsize = m_stack_list_max_num + 1 + m_stack_list_max_num * m_fk->cfg.stack_list_grow_speed / 100;
 	assert(newsize > (int)m_stack_list_max_num);
-	stack * newbuff = (stack *)m_fk->m_fkmalloc(newsize * sizeof(stack));
+	stack * newbuff = (stack *)safe_fkmalloc(m_fk, (newsize * sizeof(stack)));
 
 	// 复制
 	if (m_stack_list)
@@ -54,16 +48,10 @@ void interpreter::grow()
 	}
 
 	// 构造剩余的
-	for (int i = m_stack_list_max_num; i < newsize; i++)
-	{
-		new (&newbuff[i]) stack();
-	}
+	memset(&newbuff[m_stack_list_max_num], 0, (newsize - m_stack_list_max_num) * sizeof(stack));
 
 	// 删除
-	if (m_stack_list)
-	{
-		m_fk->m_fkfree(m_stack_list);
-	}
+	safe_fkfree(m_fk, m_stack_list);
 
 	m_stack_list = newbuff;
 	m_stack_list_max_num = newsize;

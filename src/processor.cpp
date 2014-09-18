@@ -3,13 +3,13 @@
 
 void processor::grow()
 {
-	size_t newsize = m_routine_max_size + 1 + m_routine_max_size * m_fk->m_routine_grow_speed / 100;
+	size_t newsize = m_routine_max_size + 1 + m_routine_max_size * m_fk->cfg.routine_grow_speed / 100;
 	assert(newsize > m_routine_max_size);
-	routine ** new_routine_list = (routine **)m_fk->m_fkmalloc(newsize * sizeof(routine *));
+	routine ** new_routine_list = (routine **)safe_fkmalloc(m_fk, (newsize * sizeof(routine *)));
     if (m_routine_list)
     {
         memcpy(new_routine_list, m_routine_list, m_routine_max_size * sizeof(routine *));   
-        m_fk->m_fkfree(m_routine_list);
+        safe_fkfree(m_fk, m_routine_list);
     }
 	memset(new_routine_list + m_routine_max_size, 0, (newsize - m_routine_max_size) * sizeof(routine *));
     m_routine_list = new_routine_list;
@@ -19,7 +19,7 @@ void processor::grow()
 void processor::checkdelete()
 {
     // 大于1/4才开始清除无效的
-    if (m_invalid_routine_num * m_fk->m_per_frame_cmd_num < m_routine_num)
+    if (m_invalid_routine_num * m_fk->cfg.per_frame_cmd_num < m_routine_num)
     {
         return;
     }

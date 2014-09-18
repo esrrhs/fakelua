@@ -4,6 +4,11 @@
 #include "fuck.h"
 #include "binary.h"
 
+void compiler::clear()
+{
+    m_cur_addr = 0;
+}
+
 bool compiler::compile(myflexer * mf)
 {
     func_desc_list & funclist = mf->get_func_list();
@@ -29,12 +34,12 @@ bool compiler::compile_func(func_desc_node * funcnode)
 {
     FKLOG("[compiler] compile_func func %s", funcnode->funcname.c_str());
     
-    codegen cg(m_fk, m_ei);
+    codegen cg(m_fk);
     
     // ¼ì²âÖØÃû
     if (m_binary->is_have_func(funcnode->funcname.c_str()))
     {
-        m_fk->seterror(m_ei, efk_compile_same_func_name, "same func name %s", funcnode->funcname.c_str());
+        seterror(m_fk, efk_compile_same_func_name, "same func name %s", funcnode->funcname.c_str());
         return false;
     }
 
@@ -245,7 +250,7 @@ bool compiler::compile_node(codegen & cg, syntree_node * node)
     default:
         {
             FKERR("[compiler] compile_node type error %d %s", type, node->gettypename());
-            m_fk->seterror(m_ei, efk_compile_stmt_type_error, "compile node type error %d", type);
+            seterror(m_fk, efk_compile_stmt_type_error, "compile node type error %d", type);
             return false;
         }
         break;
@@ -454,7 +459,7 @@ bool compiler::compile_math_assign_stmt(codegen & cg, math_assign_stmt * ms)
     else
     {
         FKERR("[compiler] compile_math_assign_stmt error oper type fail");
-		m_fk->seterror(m_ei, efk_compile_math_type_error, "compile math assign oper type %s error", ms->oper.c_str());
+		seterror(m_fk, efk_compile_math_type_error, "compile math assign oper type %s error", ms->oper.c_str());
         return false;
     }
 
@@ -572,27 +577,27 @@ bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev)
 {
 	FKLOG("[compiler] compile_explicit_value %p %s", ev, ev->str.c_str());
 
-	variant v(m_fk);
+	variant v;
 	switch (ev->getvaluetype())
 	{
 	case explicit_value_node::EVT_TRUE:
-		v = variant(1, m_fk);
+		V_SET_REAL((&v), 1);
 		break;
 	case explicit_value_node::EVT_FALSE:
-		v = variant(0, m_fk);
+		V_SET_REAL((&v), 0);
 		break;
 	case explicit_value_node::EVT_NUM:
-		v = variant(fkatol(&ev->str), m_fk);
+		V_SET_REAL((&v), (fkatol(&ev->str)));
 		break;
 	case explicit_value_node::EVT_STR:
-		v = variant(ev->str, m_fk);
+		V_SET_STRING((&v), (ev->str.c_str()));
 		break;
 	case explicit_value_node::EVT_FLOAT:
-		v = variant(fkatof(&ev->str), m_fk);
+		V_SET_REAL((&v), (fkatof(&ev->str)));
 		break;
 	default:
 		FKERR("[compiler] compile_explicit_value type error %d %s", ev->getvaluetype(), ev->gettypename());
-		m_fk->seterror(m_ei, efk_compile_explicit_type_error, "compile explicit value type error %d", ev->getvaluetype());
+		seterror(m_fk, efk_compile_explicit_type_error, "compile explicit value type error %d", ev->getvaluetype());
 		return false;
 	}
 
@@ -613,7 +618,7 @@ bool compiler::compile_variable_node(codegen & cg, variable_node * vn)
     if (pos == -1)
     {
         FKERR("[compiler] compile_variable_node variable not found %s", vn->str.c_str());
-        m_fk->seterror(m_ei, efk_compile_variable_not_found, "variable %s not found", vn->str.c_str());
+        seterror(m_fk, efk_compile_variable_not_found, "variable %s not found", vn->str.c_str());
         return false;
     }
     m_cur_addr = MAKE_ADDR(ADDR_STACK, pos);
@@ -631,7 +636,7 @@ bool compiler::compile_var_node(codegen & cg, var_node * vn)
 	if (cg.get_cur_variable_pos(vn->str) != -1)
 	{
 		FKERR("[compiler] compile_var_node variable has define %s", vn->str.c_str());
-		m_fk->seterror(m_ei, efk_compile_variable_has_define, "variable %s has define", vn->str.c_str());
+		seterror(m_fk, efk_compile_variable_has_define, "variable %s has define", vn->str.c_str());
 		return false;
 	}
 
@@ -640,7 +645,7 @@ bool compiler::compile_var_node(codegen & cg, var_node * vn)
 	if (pos == -1)
 	{
 		FKERR("[compiler] compile_var_node variable has define %s", vn->str.c_str());
-		m_fk->seterror(m_ei, efk_compile_add_stack_identifier, "add stack variable %s fail", vn->str.c_str());
+		seterror(m_fk, efk_compile_add_stack_identifier, "add stack variable %s fail", vn->str.c_str());
 		return false;
 	}
 	m_cur_addr = MAKE_ADDR(ADDR_STACK, pos);
@@ -691,7 +696,7 @@ bool compiler::compile_math_expr_node(codegen & cg, math_expr_node * mn)
     else
     {
         FKERR("[compiler] compile_math_expr_node error oper type fail");
-		m_fk->seterror(m_ei, efk_compile_math_type_error, "compile math oper type %s error", mn->oper.c_str());
+		seterror(m_fk, efk_compile_math_type_error, "compile math oper type %s error", mn->oper.c_str());
         return false;
     }
 

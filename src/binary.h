@@ -134,6 +134,11 @@ public:
         return m_fk;
     }
 
+    force_inline void clear()
+    {
+        m_func_index_map.clear();
+        m_func_list.clear();
+    }
 
     force_inline bool is_have_func(const char * name) const
     {

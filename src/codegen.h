@@ -17,11 +17,10 @@ typedef std::vector<block_identifiers_list> block_identifiers_stack;
 typedef std::vector<command> byte_code_list;
 
 class fuck;
-class fkerrorinfo;
 class codegen
 {
 public:
-    codegen(fuck * fk, fkerrorinfo * ei) : m_fk(fk), m_ei(ei)
+    codegen(fuck * fk) : m_fk(fk)
     {
         clear();
     }
@@ -113,7 +112,6 @@ public:
     
 private:
     fuck * m_fk;
-    fkerrorinfo * m_ei;
     int m_stackpos;
     block_identifiers_stack m_block_identifiers_stack;
 	byte_code_list m_byte_code_list;

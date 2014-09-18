@@ -60,14 +60,8 @@ String func_binary::dump() const
         ret += "\t[";
         ret += fkitoa(i);
         ret += "]\t";
-        switch (m_const_list[i].get_type())
+        switch (m_const_list[i].type)
         {
-        case variant::BOOL:
-            ret += "BOOL";
-            break;
-        case variant::INT:
-            ret += "INT";
-            break;
         case variant::REAL:
             ret += "REAL";
             break;
@@ -82,8 +76,7 @@ String func_binary::dump() const
             break;
         }
         ret += "\t";
-        String str = m_const_list[i];
-        ret += str;
+        ret += vartostring(&m_const_list[i]);
         ret += "\n";
     }
     

@@ -1,5 +1,7 @@
 #include "types.h"
 #include "bison.h"
+#include "fuck.h"
+#include "variant.h"
 
 void fklog(const char * header, const char * file, const char * func, int pos, const char *fmt, ...)
 {
@@ -76,4 +78,39 @@ String fkget_token_name(int token)
     }
     #undef TOKEN_SWITCH
 }
+
+void * safe_fkmalloc(fuck * fk, size_t size)
+{
+    if (fk && size)
+    {
+        return fk->cfg.fkm(size);
+    }
+    return 0;
+}
+
+void safe_fkfree(fuck * fk, void * p)
+{
+    if (fk && p)
+    {
+        fk->cfg.fkf(p);
+    }
+}
+
+void seterror(fuck * fk, efkerror err, const char *fmt, ...)
+{
+    fk->errorno = err;
+	va_list ap;
+	va_start(ap, fmt);
+    vsnprintf(fk->errorstr, sizeof(fk->errorstr) - 1, fmt, ap);
+	va_end(ap);
+	fk->errorstr[sizeof(fk->errorstr) - 1] = 0;
+}
+
+String vartostring(const variant * v)
+{
+    String s;
+    V_TOSTRING(v, s);
+    return s;
+}
+
 
