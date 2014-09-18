@@ -84,12 +84,14 @@ FUCK_API bool fkparse(fuck * fk, const char * filename)
 FUCK_API efkerror fkerror(fuck * fk)
 {
     return (efkerror)fk->errorno;
-}
+}
+
 
 FUCK_API const char * fkerrorstr(fuck * fk)
 {
     return fk->errorstr;
-}
+}
+
 
 FUCK_API bool fkisfunc(fuck * fk, const char * func)
 {
