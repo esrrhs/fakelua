@@ -32,7 +32,7 @@ int main(int argc, const char *argv[])
 #endif
 		
 #ifndef _DEBUG
-	for (int i = 0; i < 3000000; i++)
+	for (int i = 0; i < 9000000; i++)
 #else
 	for (int i = 0; i < 1; i++)
 #endif
