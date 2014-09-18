@@ -62,7 +62,7 @@ union MarshallPoiner
 	void * p; ///< p
 };
 
-force_inline int32_t fkatoi(const String * p)
+static force_inline int32_t fkatoi(const String * p)
 {
     if (p)
     {
@@ -71,7 +71,7 @@ force_inline int32_t fkatoi(const String * p)
     return 0;
 }
 
-force_inline int64_t fkatol(const String * p)
+static force_inline int64_t fkatol(const String * p)
 {
     if (p)
     {
@@ -79,7 +79,7 @@ force_inline int64_t fkatol(const String * p)
     }
     return 0;
 }
-force_inline float fkatof(const String * p)
+static force_inline float fkatof(const String * p)
 {
     if (p)
     {
@@ -87,7 +87,7 @@ force_inline float fkatof(const String * p)
     }
     return 0;
 }
-force_inline double fkatod(const String * p)
+static force_inline double fkatod(const String * p)
 {
     if (p)
     {
@@ -95,19 +95,19 @@ force_inline double fkatod(const String * p)
     }
     return 0;
 }
-force_inline String fkitoa(int64_t d)
+static force_inline String fkitoa(int64_t d)
 {
     char buff[100];
     sprintf(buff, "%lld", (long long int)d);
     return buff;
 }
-force_inline String fkdtoa(double d)
+static force_inline String fkdtoa(double d)
 {
     char buff[100];
     sprintf(buff, "%f", d);
     return buff;
 }
-force_inline String fkxtoa(int64_t d)
+static force_inline String fkxtoa(int64_t d)
 {
     String ret;
     
@@ -147,7 +147,7 @@ force_inline String fkxtoa(int64_t d)
 	return ret;
 }
 
-force_inline uint32_t fkstrhash(const char * p)
+static force_inline uint32_t fkstrhash(const char * p)
 {
     uint32_t hashv = 0;
     if (p)
@@ -160,7 +160,7 @@ force_inline uint32_t fkstrhash(const char * p)
     return hashv;
 }
 
-force_inline uint32_t fkstrhash(String * p)
+static force_inline uint32_t fkstrhash(String * p)
 {
     return fkstrhash(p->c_str());
 }
