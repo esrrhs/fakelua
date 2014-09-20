@@ -42,8 +42,6 @@ struct fuckconfig
     int per_frame_cmd_num;			// 每帧执行命令数目
 	int delete_routine_scale;		// 删除无效协程的比例
 	int routine_grow_speed;			// 协程增长速度，百分比，10%代表增长10%
-	int stack_ini_size;				// 栈初始大小
-	int stack_grow_speed;			// 栈增长速度，百分比，10%代表增长10%
 	int stack_list_grow_speed;		// 栈层数增长速度，百分比，10%代表增长10%
 };
 

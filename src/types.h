@@ -185,3 +185,7 @@ void seterror(fuck * fk, efkerror err, const char *fmt, ...);
 
 class variant;
 String vartostring(const variant * v);
+
+template <typename T>
+void USE(T t) {}
+

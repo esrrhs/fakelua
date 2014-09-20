@@ -12,31 +12,6 @@ struct paramstack
         m_variant_list_num = 0;
     }
     
-    force_inline void push(const variant & v)
-    {
-    	assert(m_variant_list_num < REAL_MAX_FUCK_PARAM_NUM);
-    	m_variant_list[m_variant_list_num] = v;
-    	m_variant_list_num++;
-    }
-
-    force_inline void pop(variant & v)
-    {
-    	assert(m_variant_list_num > 0);
-    	v = m_variant_list[m_variant_list_num - 1];
-    	m_variant_list_num--;
-    }
-
-	force_inline const variant & operator[](int i)
-	{
-		assert(i >= 0 && i < REAL_MAX_FUCK_PARAM_NUM);
-		return m_variant_list[i];
-	}
-
-	force_inline size_t size() const
-	{
-		return m_variant_list_num;
-	}
-
 	variant m_variant_list[REAL_MAX_FUCK_PARAM_NUM];
 	size_t m_variant_list_num;
 };

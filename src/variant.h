@@ -31,7 +31,7 @@ struct variant
 #define V_SET_REAL(v, r) \
     v->type = variant::REAL;\
     v->data.real = r;
-    
+
 #define V_SET_STRING(v, s) \
     v->type = variant::STRING;\
     v->data.str = 0;    // TODO
@@ -102,3 +102,4 @@ struct variant
 typedef std::vector<variant> const_list;
 typedef std::vector<variant> variant_list;
 
+void cheat_complie();
