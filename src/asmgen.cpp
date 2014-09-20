@@ -3,18 +3,47 @@
 #include "myflexer.h"
 #include "fuck.h"
 #include "variant.h"
+#ifdef WIN32
+#include <Windows.h>
+#else  
+#include <sys/mman.h>
+#endif
 
 void asmgen::output(const String & name, func_native * nt)
 {
     nt->m_name = name;
 
     nt->m_size = m_asm_code_list.size();
-    nt->m_buff = (char *)safe_fkmalloc(m_fk, (nt->m_size * sizeof(char)));
-    memcpy(nt->m_buff, &m_asm_code_list[0], nt->m_size * sizeof(char));
+    
+#ifdef WIN32
+    nt->m_buff = (char*)VirtualAlloc(0, nt->m_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+#else  
+    nt->m_buff = (char*)mmap(0, nt->m_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+#endif
+
+    memcpy(nt->m_buff, &m_asm_code_list[0], nt->m_size);
+    
+#ifdef WIN32
+    DWORD dwOld; 
+    VirtualProtect(nt->m_buff, nt->m_size, PAGE_EXECUTE_READ, &dwOld);
+#else  
+    mprotect(nt->m_buff, nt->m_size, PROT_READ | PROT_EXEC);
+#endif
+
 }
 
-#define V_TYPE_OFF(stackpos) (-1 * (stackpos + 1) * variant_size + variant_type_off)
-#define V_DATA_OFF(stackpos) (-1 * (stackpos + 1) * variant_size + variant_data_off)
+void asmgen::copy_param(size_t num)
+{
+    for (int i = 0; i < (int)num; i++)
+    {
+        int typeoff = V_TYPE_OFF(i);
+        int dataoff = V_DATA_OFF(i);
+        mov_rax_rbp(typeoff);
+        pop_rax();
+        mov_rbp_rax(dataoff);
+        pop_rdx();
+    }
+}
 
 void asmgen::copy_const(variant * p, size_t num, int start)
 {

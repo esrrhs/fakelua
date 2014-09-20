@@ -103,7 +103,8 @@ struct variant
         b = (l->data.ptr == r->data.ptr);\
     }
 
-typedef std::vector<variant> const_list;
-typedef std::vector<variant> variant_list;
+#define V_TYPE_OFF(stackpos) (-1 * (stackpos + 1) * variant_size + variant_type_off)
+#define V_DATA_OFF(stackpos) (-1 * (stackpos + 1) * variant_size + variant_data_off)
 
 void cheat_complie();
+

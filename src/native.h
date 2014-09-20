@@ -4,8 +4,10 @@
 
 class func_native
 {
+    friend class native;
     friend class asmgen;
     friend class assembler;
+    friend class machine;
 public:
 	force_inline func_native(fuck * fk) : m_fk(fk), m_buff(0), m_size(0)
     {
@@ -47,6 +49,19 @@ public:
     {
         m_func_native_list.push_back(nt);
         return true;
+    }
+    
+    force_inline const func_native * get_func(const char * name) const
+    {
+        // TODO
+        for (int i = 0; i < (int)m_func_native_list.size(); i++)
+        {
+            if (m_func_native_list[i].m_name == name)
+            {
+                return &m_func_native_list[i];
+            }
+        }
+        return 0;
     }
     
     String dump() const;

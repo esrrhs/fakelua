@@ -344,3 +344,18 @@ FUCK_API void fkpsclear(fuck * fk)
 {
     fk->ps.clear();
 }
+
+FUCK_API void fkrunjit(fuck * fk, const char * func)
+{
+    FKLOG("fkrun %p %s", fk, func);
+
+    fk->clearerr();
+    fk->mac.clear();
+    fk->mac.call(&fk->nt, func, &fk->ps);
+
+    variant * ret = 0;
+    PS_PUSH_AND_GET(fk->ps, ret);
+    *ret = fk->mac.getret();
+    
+    FKLOG("fkrun %p %s OK", fk, func);
+}
