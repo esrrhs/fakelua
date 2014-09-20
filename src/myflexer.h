@@ -17,7 +17,7 @@
 #include <FlexLexer.h> 
 #include "semantic.h"
 
-class fuck;
+struct fuck;
 class myflexer : public yyFlexLexer
 {
 public:

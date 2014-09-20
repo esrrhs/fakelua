@@ -4,7 +4,7 @@
 #include "codegen.h"
 #include "syntree.h"
 
-class fuck;
+struct fuck;
 class fkerrorinfo;
 class myflexer;
 class binary;

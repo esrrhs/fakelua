@@ -16,7 +16,6 @@
     <ClInclude Include="src\bison.h" />
     <ClInclude Include="src\codegen.h" />
     <ClInclude Include="src\compiler.h" />
-    <ClInclude Include="src\FlexLexer.h" />
     <ClInclude Include="src\fuck.h" />
     <ClInclude Include="src\interpreter.h" />
     <ClInclude Include="src\myflexer.h" />

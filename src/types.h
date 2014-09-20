@@ -183,7 +183,7 @@ void safe_fkfree(fuck * fk, void * p);
 
 void seterror(fuck * fk, efkerror err, const char *fmt, ...);
 
-class variant;
+struct variant;
 String vartostring(const variant * v);
 
 template <typename T>
