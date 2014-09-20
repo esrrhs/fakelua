@@ -12,19 +12,19 @@ String func_native::dump() const
 
     ret += "\n\t////// code ";
     ret += fkitoa(m_size);
-    ret += " //////\n\t";
+    ret += " //////";
     // code
     for (int i = 0; i < (int)m_size; i++)
     {
-        unsigned char c = m_buff[i];
-        ret += fkxtoa(c, 2);
-        ret += ", ";
-        if (i > 0 && i % 8 == 0)
+        if (i % 8 == 0)
         {
             ret += "\n\t";
         }
+        unsigned char c = m_buff[i];
+        ret += fkxtoa(c, 2);
+        ret += ", ";
     }
-    ret += "\n";
+    ret += "\n\n";
     return ret;
 }
 
