@@ -18,21 +18,33 @@ void machine::call(native * nt, const char * func, paramstack * ps)
     for (int i = (int)ps->m_variant_list_num - 1; i >= 0; i--)
     {
         int type = ps->m_variant_list[i].type;
-        int64_t data = *(int64_t*)&ps->m_variant_list[i].data.real;
+        double data = ps->m_variant_list[i].data.real;
         asm(
-        "mov    %0,%%eax    \n\t"  
-        "pushq  %%rax        \n\t"      
-        "movq   %1,%%rdx    \n\t"
-        "pushq  %%rdx        \n\t"
-        :
-        :"r"(type),"r"(data)
-        :"%rax","rdi"
-        );
+            "mov    %0,%%eax    \n\t"  
+            "pushq  %%rax        \n\t"      
+            "movq   %1,%%rdx    \n\t"
+            "pushq  %%rdx        \n\t"
+            :
+            :"r"(type),"r"(data)
+            :"%rax","rdi"
+            );
     }
 
     // call
     typedef void (*macfunc) ();
     macfunc f = (macfunc)fn->m_buff;
     f();
+
+    // 获得返回值
+    asm(
+        "mov    %%eax,%0    \n\t"  
+        "popq   %%rax       \n\t"      
+        "movq   %%rdx,%1    \n\t"
+        "popq   %%rdx       \n\t"
+        :"=r"(m_ret.type),"=r"(m_ret.data.real)
+        :
+        :"%rax","rdi"
+        );
+    
 }
 
