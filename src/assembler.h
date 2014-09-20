@@ -3,6 +3,7 @@
 #include "types.h"
 #include "codegen.h"
 #include "syntree.h"
+#include "asmgen.h"
 
 struct fuck;
 class native;
@@ -20,11 +21,13 @@ public:
     bool compile(binary * bin);
 
 private:
-    bool compile_func(func_binary * fb);
-    bool compile_command(command cmd);
+    bool compile_func(const func_binary & fb);
+    bool compile_next(asmgen & asg, const func_binary & fb);
+    bool compile_assign(asmgen & asg, const func_binary & fb);
     
 private:
     fuck * m_fk;
     native * m_native;
+    int m_pos;
 };
 
