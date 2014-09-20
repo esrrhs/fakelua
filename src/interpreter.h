@@ -14,12 +14,13 @@ struct fuck;
     v = &fb.m_const_list[pos];
 
 #define GET_STACK(v, s, pos) \
-	if (pos >= (int)s.m_stack_variant_list_num)\
-	{\
-		s.grow(pos);\
-	}\
+	assert(pos >= 0 && pos < (int)s.m_stack_variant_list_num);\
     v = &s.m_stack_variant_list[pos];
 
+#define SET_STACK(v, s, pos) \
+	assert(pos >= 0 && pos < (int)s.m_stack_variant_list_num);\
+    s.m_stack_variant_list[pos] = *v;
+    
 #define GET_VARIANT(s, fb, v, pos) \
     command v##_cmd = GET_CMD(fb, pos);\
     assert (COMMAND_TYPE(v##_cmd) == COMMAND_ADDR);\
@@ -96,14 +97,13 @@ struct stack
     }
 	force_inline stack(fuck * fk, const  func_binary * fb) : m_fk(fk), m_fb(fb), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
     {
-    	grow(0);    // use default
     }
 	force_inline ~stack()
     {
         safe_fkfree(m_fk, m_stack_variant_list);
     }
 
-	void grow(int pos);
+	void grow(size_t size);
 
 	force_inline void clear()
     {
@@ -111,23 +111,6 @@ struct stack
     	// 为了效率，保留脏数据
     }
 
-	force_inline void set_stack_variant(const variant & v, int pos)
-    {
-		if (pos >= (int)m_stack_variant_list_num)
-		{
-			grow(pos);
-		}
-        m_stack_variant_list[pos] = v;
-    }
-	force_inline const variant * get_stack_variant(int pos)
-	{
-		if (pos >= (int)m_stack_variant_list_num)
-		{
-			grow(pos);
-		}
-        return &m_stack_variant_list[pos];
-    }
-    
     fuck * m_fk;
     // 函数二进制
     const func_binary * m_fb;
@@ -208,11 +191,15 @@ public:
     	s.m_fk = m_fk;
     	s.m_fb = fb;
     	s.clear();
+    	if (fb->maxstack() > s.m_stack_variant_list_num)
+    	{
+    	    s.grow(fb->maxstack());
+    	}
 
         // 分配栈空间
-        for (int i = 0; i < (int)ps->size(); i++)
+        for (int i = 0; i < (int)ps->m_variant_list_num; i++)
         {
-    		s.set_stack_variant((*ps)[i], i);
+    		SET_STACK(&(ps->m_variant_list[i]), s, i);
     		FKLOG("call set %s to pos %d", (vartostring(&((*ps)[i]))).c_str(), i);
         }
     }
@@ -262,7 +249,7 @@ public:
                     s.m_pos++;
 
                     // 赋值
-                    s.set_stack_variant(*valuev, addrpos);
+                    SET_STACK(valuev, s, addrpos);
 
                 	FKLOG("assign %s to pos %d", (vartostring(valuev)).c_str(), addrpos);
                 }

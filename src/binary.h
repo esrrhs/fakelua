@@ -74,6 +74,10 @@ public:
     {
         m_buff = 0;
         m_size = 0;
+        m_maxstack = 0;
+        m_const_list = 0;
+        m_const_list_num = 0;
+        m_pos = 0;
     }
 
 	force_inline size_t cmdsize() const
@@ -84,6 +88,11 @@ public:
 	force_inline size_t size() const
     {
         return m_size * sizeof(command);
+    }
+
+	force_inline size_t maxstack() const
+    {
+        return m_maxstack;
     }
     
     String dump() const;
@@ -107,6 +116,8 @@ public:
     
 private:
     fuck * m_fk;
+    // 最大栈空间
+    int m_maxstack;
     // 名字
     String m_name;
     // 二进制缓冲区

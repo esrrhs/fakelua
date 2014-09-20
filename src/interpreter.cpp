@@ -3,15 +3,11 @@
 #include "binary.h"
 #include "paramstack.h"
 
-void stack::grow(int pos)
+void stack::grow(size_t size)
 {
-	if (pos < m_fk->cfg.stack_ini_size)
-	{
-		pos = m_fk->cfg.stack_ini_size;
-	}
 	assert(m_fk);
 	// ÐÂ¿Õ¼ä
-	int newsize = pos + 1 + pos * m_fk->cfg.stack_grow_speed / 100;
+	int newsize = size;
 	assert(newsize > (int)m_stack_variant_list_num);
 	variant * newbuff = (variant *)safe_fkmalloc(m_fk, (newsize * sizeof(variant)));
 	

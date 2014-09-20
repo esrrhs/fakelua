@@ -16,8 +16,6 @@ FUCK_API fuck * newfuck(fuckconfig * cfg)
         _cfg.per_frame_cmd_num = 100;
         _cfg.delete_routine_scale = 4;
 		_cfg.routine_grow_speed = 100;
-		_cfg.stack_ini_size = 10;
-		_cfg.stack_grow_speed = 100;
 		_cfg.stack_list_grow_speed = 100;
     }
     else
@@ -28,6 +26,7 @@ FUCK_API fuck * newfuck(fuckconfig * cfg)
     fuck * ret = (fuck *)_cfg.fkm(sizeof(fuck));
     new (ret) fuck();
     ret->cfg = _cfg;
+    cheat_complie();
     FKLOG("newfuck ret %p", ret);
     return ret;
 }
@@ -112,7 +111,9 @@ FUCK_API void fkrun(fuck * fk, const char * func)
         fk->inter.run(0x7FFFFFFF);
     }
     
-    fk->ps.push(fk->inter.getret());
+    variant * ret = 0;
+    PS_PUSH_AND_GET(fk->ps, ret);
+    *ret = fk->inter.getret();
     
     FKLOG("fkrun %p %s OK", fk, func);
 }
@@ -334,4 +335,3 @@ FUCK_API void fkpsclear(fuck * fk)
 {
     fk->ps.clear();
 }
-

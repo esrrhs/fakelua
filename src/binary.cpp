@@ -50,6 +50,11 @@ String func_binary::dump() const
     ret += "\n[";
     ret += m_name;
     ret += "]\n";
+
+    // 最大栈
+    ret += "\tmaxstack";
+    ret += fkitoa(m_maxstack);
+    ret += "\n\n";
     
     // 常量表
     ret += "\t////// const define ";
