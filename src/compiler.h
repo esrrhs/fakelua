@@ -5,7 +5,6 @@
 #include "syntree.h"
 
 struct fuck;
-class fkerrorinfo;
 class myflexer;
 class binary;
 class compiler

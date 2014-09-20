@@ -19,10 +19,12 @@
 #include "binary.h"
 #include "paramstack.h"
 #include "interpreter.h"
+#include "native.h"
+#include "assembler.h"
 
 struct fuck
 {
-    fuck() : errorno(0), mf(this), bin(this), mc(this, &bin), inter(this)
+    fuck() : errorno(0), mf(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this)
     {
     }
     ~fuck()
@@ -60,6 +62,12 @@ struct fuck
     
     // 编译
     compiler mc;
+
+    // 本地jit代码
+    native nt;
+
+    // 汇编器
+    assembler as;
 
     // c的参数栈
     paramstack ps;

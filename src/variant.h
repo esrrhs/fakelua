@@ -24,6 +24,8 @@ struct variant
 	MemData data;
 };
 
+#define variant_size sizeof(variant)
+
 #define V_SET_POINTER(v, p) \
     v->type = variant::POINTER;\
     v->data.ptr = p;
