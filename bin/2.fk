@@ -1,0 +1,7 @@
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	arg1 = arg2
+	
+	return arg1	
+end
