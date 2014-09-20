@@ -16,7 +16,7 @@ typedef std::vector<block_identifiers> block_identifiers_list;
 typedef std::vector<block_identifiers_list> block_identifiers_stack;
 typedef std::vector<command> byte_code_list;
 
-class fuck;
+struct fuck;
 class codegen
 {
 public:

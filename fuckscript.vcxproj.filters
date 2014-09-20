@@ -54,9 +54,6 @@
     <ClInclude Include="src\bison.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\FlexLexer.h">
-      <Filter>src</Filter>
-    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
