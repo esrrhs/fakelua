@@ -324,6 +324,7 @@ public:
                 	if (GET_CMD(fb, s.m_pos) == EMPTY_CMD)
                 	{
                 		FKLOG("return empty");
+		                s.m_pos = fb.m_size;
                 		break;
                 	}
 

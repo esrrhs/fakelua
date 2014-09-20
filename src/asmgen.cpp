@@ -40,7 +40,7 @@ void asmgen::copy_param(size_t num)
         int dataoff = V_DATA_OFF(i);
         mov_rax_rbp(typeoff);
         pop_rax();
-        mov_rbp_rax(dataoff);
+        mov_rdx_rbp(dataoff);
         pop_rdx();
     }
 }
@@ -67,5 +67,15 @@ void asmgen::variant_assign(int leftpos, int rightpos)
     mov_rax_rbp(lefttypeoff);
     mov_rbp_rax(rightposdataoff);
     mov_rax_rbp(leftdataoff);
+}
+
+void asmgen::variant_ret(int pos)
+{
+    int typeoff = V_TYPE_OFF(pos);
+    int dataoff = V_DATA_OFF(pos);
+    mov_rbp_rax(typeoff);
+    push_rax();
+    mov_rbp_rdx(dataoff);
+    push_rdx();
 }
 

@@ -90,6 +90,11 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
             ret = compile_assign(asg, fb);
         }
         break;
+	case OPCODE_RETURN:
+	    {
+	        ret = compile_return(asg, fb);
+        }
+        break;
     default:
         assert(0);
         FKERR("[assembler] compile_next err code %d %s", code, OpCodeStr(code));
@@ -138,4 +143,23 @@ bool assembler::compile_assign(asmgen & asg, const func_binary & fb)
     
     return true;
 }
+
+bool assembler::compile_return(asmgen & asg, const func_binary & fb)
+{
+	if (GET_CMD(fb, m_pos) == EMPTY_CMD)
+	{
+		FKLOG("return empty");
+		m_pos = fb.m_size;
+		return true;
+	}
+	
+    int ret = 0;
+    GET_VARIANT_POS(fb, ret, m_pos);
+    m_pos++;
+
+    asg.variant_ret(ret);
+
+	return true;
+}
+
 

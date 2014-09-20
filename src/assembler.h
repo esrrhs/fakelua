@@ -24,6 +24,7 @@ private:
     bool compile_func(const func_binary & fb);
     bool compile_next(asmgen & asg, const func_binary & fb);
     bool compile_assign(asmgen & asg, const func_binary & fb);
+    bool compile_return(asmgen & asg, const func_binary & fb);
     
 private:
     fuck * m_fk;

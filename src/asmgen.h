@@ -151,6 +151,14 @@ public:
         m_source += "pop    %rax\n";
     }
 
+    // 压入rax
+    // push    %rax
+    void push_rax()
+    {
+        push(0x50);
+        m_source += "push    %rax\n";
+    }
+
     // 把rdx放到offset的地方
     // mov    %rdx,offset(%rbp)
     void mov_rdx_rbp(int offset)
@@ -165,12 +173,34 @@ public:
         m_source += "(%rbp)\n";
     }
     
+    // 把offset的地方放到rdx
+    // mov    offset(%rbp),%rdx
+    void mov_rbp_rdx(int offset)
+    {
+        assert(offset <= 0);
+        push(0x48);
+        push(0x8b);
+        push(0x95);
+        push_int(offset);
+        m_source += "mov    -";
+        m_source += fkxtoa(-offset, 8);
+        m_source += "(%rbp),%rdx\n";
+    }
+
     // 弹出rdx
     // pop    %rdx
     void pop_rdx()
     {
         push(0x5a);
         m_source += "pop    %rdx\n";
+    }
+
+    // 压入rdx
+    // push    %rdx
+    void push_rdx()
+    {
+        push(0x52);
+        m_source += "push    %rdx\n";
     }
 
     // 返回
@@ -185,9 +215,10 @@ public:
 
     void copy_param(size_t num);
     void copy_const(variant * p, size_t num, int start);
-
+    
     void variant_assign(int leftpos, int rightpos);
-
+    void variant_ret(int pos);
+    
     void output(const String & name, func_native * nt);
 
     const String & source() const
