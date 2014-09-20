@@ -42,6 +42,8 @@ bool assembler::compile_func(const func_binary & fb)
     FKLOG("[assembler] compile_func stack size %d", stacksize);
     asg.alloc_stack(stacksize);
 
+    asg.copy_param(fb.paramnum());
+
     asg.copy_const(fb.m_const_list, fb.m_const_list_num, fb.m_maxstack);
    
     m_pos = 0;

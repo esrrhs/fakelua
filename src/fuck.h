@@ -21,10 +21,11 @@
 #include "interpreter.h"
 #include "native.h"
 #include "assembler.h"
+#include "machine.h"
 
 struct fuck
 {
-    fuck() : errorno(0), mf(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this)
+    fuck() : errorno(0), mf(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this), mac(this)
     {
     }
     ~fuck()
@@ -38,8 +39,11 @@ struct fuck
         mf.clear();
         bin.clear();
         mc.clear();
+        nt.clear();
+        as.clear();
         ps.clear();
         inter.clear();
+        mac.clear();
     }
     
     void clearerr()
@@ -74,6 +78,9 @@ struct fuck
 
     // 当前线程解释器
     interpreter inter;
+
+    // 当前线程本地环境
+    machine mac;
 
     // TODO 异步线程的运行环境
 };

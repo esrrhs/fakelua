@@ -36,6 +36,7 @@ bool compiler::compile_func(func_desc_node * funcnode)
     FKLOG("[compiler] compile_func func %s", funcnode->funcname.c_str());
     
     codegen cg(m_fk);
+    func_binary bin(m_fk);
     
     // 检测重名
     if (m_binary->is_have_func(funcnode->funcname.c_str()))
@@ -60,6 +61,7 @@ bool compiler::compile_func(func_desc_node * funcnode)
                 return false;
             }
         }
+        bin.m_paramnum = arglist.size();
     }
     
     // 编译函数体
@@ -73,7 +75,6 @@ bool compiler::compile_func(func_desc_node * funcnode)
     }
     
     // 编译成功
-    func_binary bin(m_fk);
     cg.output(funcnode->funcname, &bin);
     m_binary->add_func(bin);
     

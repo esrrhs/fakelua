@@ -70,12 +70,14 @@ class func_binary
     friend class interpreter;
     friend class binary;
     friend class assembler;
+    friend class compiler;
 public:
 	force_inline func_binary(fuck * fk) : m_fk(fk)
     {
         m_buff = 0;
         m_size = 0;
         m_maxstack = 0;
+        m_paramnum = 0;
         m_const_list = 0;
         m_const_list_num = 0;
         m_pos = 0;
@@ -95,7 +97,12 @@ public:
     {
         return m_maxstack;
     }
-    
+
+	force_inline size_t paramnum() const
+    {
+        return m_paramnum;
+    }
+
     String dump() const;
 
 	force_inline const String & getname() const
@@ -119,6 +126,8 @@ private:
     fuck * m_fk;
     // 最大栈空间
     int m_maxstack;
+    // 参数个数
+    int m_paramnum;
     // 名字
     String m_name;
     // 二进制缓冲区

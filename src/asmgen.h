@@ -6,6 +6,19 @@
 
 typedef std::vector<char> asm_code_list;
 
+
+/*
+
+低地址 rsp
+             |
+             |      
+             | stack
+             |
+             |
+高地址 rbp
+
+*/
+
 struct fuck;
 class func_native;
 class asmgen
@@ -28,6 +41,7 @@ public:
         m_asm_code_list.push_back(c);
     }
 
+    // 保存函数栈指针
     // push   %rbp
     // mov    %rsp,%rbp
     void start_func()
@@ -36,7 +50,8 @@ public:
         push(0x48);
         push(0x89);
         push(0xe5);
-        m_source += "push   %rbp\nmov    %rsp,%rbp\n";
+        m_source += "push   %rbp\n"
+        "mov    %rsp,%rbp\n";
     }
 
     void push_int(int i)
@@ -59,6 +74,7 @@ public:
         push(((char*)&i)[7]);
     }
 
+    // 分配栈空间
     // sub    $size,%rsp
     void alloc_stack(int size)
     {
@@ -126,7 +142,38 @@ public:
         m_source += fkxtoa(-offset, 8);
         m_source += "(%rbp),%rax\n";
     }
+
+    // 弹出rax
+    // pop    %rax
+    void pop_rax()
+    {
+        push(0x58);
+        m_source += "pop    %rax\n";
+    }
+
+    // 把rdx放到offset的地方
+    // mov    %rdx,offset(%rbp)
+    void mov_rdx_rbp(int offset)
+    {
+        assert(offset <= 0);
+        push(0x48);
+        push(0x89);
+        push(0x95);
+        push_int(offset);
+        m_source += "mov    %rdx,-";
+        m_source += fkxtoa(-offset, 8);
+        m_source += "(%rbp)\n";
+    }
     
+    // 弹出rdx
+    // pop    %rdx
+    void pop_rdx()
+    {
+        push(0x5a);
+        m_source += "pop    %rdx\n";
+    }
+
+    // 返回
     // leaveq
     // retq
     void stop_func()
@@ -135,7 +182,8 @@ public:
         push(0xc3);
         m_source += "leaveq\nretq\n";
     }
-    
+
+    void copy_param(size_t num);
     void copy_const(variant * p, size_t num, int start);
 
     void variant_assign(int leftpos, int rightpos);

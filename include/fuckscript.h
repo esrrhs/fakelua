@@ -239,9 +239,10 @@ template<>	inline uint64_t fkpspop(fuck * fk)
 
 FUCK_API void fkpsclear(fuck * fk);
 
-// 调用函数
+// 此函数内部使用，推荐使用模板
 FUCK_API void fkrun(fuck * fk, const char * func);
 
+// 调用函数，解释执行
 template<typename RVal>
 RVal fkrun(fuck * fk, const char * func)
 {
@@ -301,6 +302,73 @@ RVal fkrun(fuck * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 
     fkpspush<T4>(fk, arg4);
     fkpspush<T5>(fk, arg5);
     fkrun(fk, func);
+    return fkpspop<RVal>(fk);
+}
+
+
+// 此函数内部使用，推荐使用模板
+FUCK_API void fkrunjit(fuck * fk, const char * func);
+
+// 调用函数,native code
+template<typename RVal>
+RVal fkrunjit(fuck * fk, const char * func)
+{
+    fkrunjit(fk, func);
+    return fkpspop<RVal>(fk);
+}
+
+template<typename RVal, typename T1>
+RVal fkrunjit(fuck * fk, const char * func, T1 arg1)
+{
+    fkpsclear(fk);
+    fkpspush<T1>(fk, arg1);
+    fkrunjit(fk, func);
+    return fkpspop<RVal>(fk);
+}
+
+template<typename RVal, typename T1, typename T2>
+RVal fkrunjit(fuck * fk, const char * func, T1 arg1, T2 arg2)
+{
+    fkpsclear(fk);
+    fkpspush<T1>(fk, arg1);
+    fkpspush<T2>(fk, arg2);
+    fkrunjit(fk, func);
+    return fkpspop<RVal>(fk);
+}
+
+template<typename RVal, typename T1, typename T2, typename T3>
+RVal fkrunjit(fuck * fk, const char * func, T1 arg1, T2 arg2, T3 arg3)
+{
+    fkpsclear(fk);
+    fkpspush<T1>(fk, arg1);
+    fkpspush<T2>(fk, arg2);
+    fkpspush<T3>(fk, arg3);
+    fkrunjit(fk, func);
+    return fkpspop<RVal>(fk);
+}
+
+template<typename RVal, typename T1, typename T2, typename T3, typename T4>
+RVal fkrunjit(fuck * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+{
+    fkpsclear(fk);
+    fkpspush<T1>(fk, arg1);
+    fkpspush<T2>(fk, arg2);
+    fkpspush<T3>(fk, arg3);
+    fkpspush<T4>(fk, arg4);
+    fkrunjit(fk, func);
+    return fkpspop<RVal>(fk);
+}
+
+template<typename RVal, typename T1, typename T2, typename T3, typename T4, typename T5>
+RVal fkrunjit(fuck * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
+{
+    fkpsclear(fk);
+    fkpspush<T1>(fk, arg1);
+    fkpspush<T2>(fk, arg2);
+    fkpspush<T3>(fk, arg3);
+    fkpspush<T4>(fk, arg4);
+    fkpspush<T5>(fk, arg5);
+    fkrunjit(fk, func);
     return fkpspop<RVal>(fk);
 }
 
