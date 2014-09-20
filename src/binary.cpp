@@ -52,7 +52,7 @@ String func_binary::dump() const
     ret += "]\n";
 
     // ×î´óÕ»
-    ret += "\tmaxstack";
+    ret += "\tmaxstack:\t";
     ret += fkitoa(m_maxstack);
     ret += "\n\n";
     

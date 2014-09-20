@@ -69,6 +69,7 @@ class func_binary
     friend class codegen;
     friend class interpreter;
     friend class binary;
+    friend class assembler;
 public:
 	force_inline func_binary(fuck * fk) : m_fk(fk)
     {
@@ -140,6 +141,7 @@ typedef std::vector<func_binary> func_binary_list;
 
 class binary
 {
+    friend class assembler;
 public:
     force_inline binary(fuck * fk) : m_fk(fk), m_func_index_map(0), m_func_index_map_size(0)
     {

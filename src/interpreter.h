@@ -200,7 +200,7 @@ public:
         for (int i = 0; i < (int)ps->m_variant_list_num; i++)
         {
     		SET_STACK(&(ps->m_variant_list[i]), s, i);
-    		FKLOG("call set %s to pos %d", (vartostring(&((*ps)[i]))).c_str(), i);
+    		FKLOG("call set %s to pos %d", (vartostring(&(ps->m_variant_list[i]))).c_str(), i);
         }
     }
 

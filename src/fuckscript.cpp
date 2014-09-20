@@ -71,7 +71,16 @@ FUCK_API bool fkparse(fuck * fk, const char * filename)
     b = mc.compile(&mf);
     if (!b)
     {
-        FKERR("fkparse  %s compile %s fail", fk, filename);
+        FKERR("fkparse %s compile %s fail", fk, filename);
+        return false;
+    }
+
+    // jit
+    assembler & as = fk->as;
+    b = as.compile(&fk->bin);
+    if (!b)
+    {
+        FKERR("fkparse %s jit %s fail", fk, filename);
         return false;
     }
     

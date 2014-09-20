@@ -118,7 +118,7 @@ static force_inline String fkptoa(void * p)
     sprintf(buff, "%p", p);
     return buff;
 }
-static force_inline String fkxtoa(int64_t d)
+static force_inline String fkxtoa(int64_t d, int wid = 16)
 {
     String ret;
     
@@ -146,10 +146,10 @@ static force_inline String fkxtoa(int64_t d)
     	ret = &tmpbuf[idx];
     }
 
-    if (ret.size() < 16)
+    if ((int)ret.size() < wid)
     {
         String tmp;
-        tmp.insert(0, 16 - ret.size(), '0');
+        tmp.insert(0, wid - ret.size(), '0');
         ret = tmp + ret;
     }
 
