@@ -36,10 +36,12 @@ bool assembler::compile_func(func_binary * fb)
     asmgen asg(m_fk);
 
     asg.start_func();
-    
-    asg.alloc_stack((fb->m_maxstack + fb->m_const_list_num) * variant_size);
 
-    asg.copy_const(fb->m_const_list, fb->m_const_list_num);
+    int stacksize = (fb->m_maxstack + fb->m_const_list_num) * variant_size;
+    FKLOG("[assembler] compile_func stack size %d", stacksize);
+    asg.alloc_stack(stacksize);
+
+    asg.copy_const(fb->m_const_list, fb->m_const_list_num, fb->m_maxstack);
 
     for (int i = 0; i < (int)fb->m_size; i++)
     {

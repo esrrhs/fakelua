@@ -25,6 +25,8 @@ struct variant
 };
 
 #define variant_size sizeof(variant)
+#define variant_type_off ((size_t)(size_t*)&((variant*)0)->type)
+#define variant_data_off ((size_t)(size_t*)&((variant*)0)->data)
 
 #define V_SET_POINTER(v, p) \
     v->type = variant::POINTER;\

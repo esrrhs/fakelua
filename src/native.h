@@ -5,6 +5,7 @@
 class func_native
 {
     friend class asmgen;
+    friend class assembler;
 public:
 	force_inline func_native(fuck * fk) : m_fk(fk), m_buff(0), m_size(0)
     {
