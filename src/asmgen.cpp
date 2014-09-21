@@ -34,15 +34,6 @@ void asmgen::output(const String & name, func_native * nt)
 
 void asmgen::copy_param(size_t num)
 {
-    for (int i = 0; i < (int)num; i++)
-    {
-        int typeoff = V_TYPE_OFF(i);
-        int dataoff = V_DATA_OFF(i);
-        mov_rax_rbp(typeoff);
-        pop_rax();
-        mov_rdx_rbp(dataoff);
-        pop_rdx();
-    }
 }
 
 void asmgen::copy_const(variant * p, size_t num, int start)
@@ -74,8 +65,6 @@ void asmgen::variant_ret(int pos)
     int typeoff = V_TYPE_OFF(pos);
     int dataoff = V_DATA_OFF(pos);
     mov_rbp_rax(typeoff);
-    push_rax();
     mov_rbp_rdx(dataoff);
-    push_rdx();
 }
 

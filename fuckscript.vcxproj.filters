@@ -54,6 +54,10 @@
     <ClInclude Include="src\bison.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="src\assembler.h" />
+    <ClInclude Include="src\asmgen.h" />
+    <ClInclude Include="src\machine.h" />
+    <ClInclude Include="src\native.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -101,5 +105,9 @@
     <ClCompile Include="src\flex.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\asmgen.cpp" />
+    <ClCompile Include="src\assembler.cpp" />
+    <ClCompile Include="src\machine.cpp" />
+    <ClCompile Include="src\native.cpp" />
   </ItemGroup>
 </Project>
