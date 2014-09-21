@@ -26,6 +26,17 @@ make clean
 make -j5
 cd ..
 
+#testjit
+cd testjit
+rm CMakeCache.txt -rf
+rm CMakeFiles -rf
+rm cmake_install.cmake -rf
+rm Makefile -rf
+cmake .
+make clean
+make -j5
+cd ..
+
 #luatest
 cd luatest
 rm CMakeCache.txt -rf
