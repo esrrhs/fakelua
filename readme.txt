@@ -7,7 +7,7 @@
 @.支持routine，可设置多个processor实现多核利用
 @.支持fuck testfunc(param1)产生routine，类似于golang
 @.支持类成员和类函数的绑定
-@.自带JIT
+@.自带解释器和JIT
 
 示例：
 -- func1 comment
