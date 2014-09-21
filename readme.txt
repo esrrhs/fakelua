@@ -5,9 +5,9 @@
 @.全部为函数
 @.不支持复杂结构如vector，map等
 @.支持routine，可设置多个processor实现多核利用
-@.后期加入fuck testfunc(param1)的用法，类似于goroutine
-@.后期加入类成员和类函数的语法
-@.todo
+@.支持fuck testfunc(param1)产生routine，类似于golang
+@.支持类成员和类函数的绑定
+@.自带JIT
 
 示例：
 -- func1 comment
