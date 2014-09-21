@@ -18,6 +18,7 @@ struct variant
 		double real;
 		stringbuf * str;
 		void * ptr;
+		int64_t buf;	// 只是用作64位传递 
 	};
 
 	Type type;

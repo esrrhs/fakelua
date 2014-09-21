@@ -18,7 +18,7 @@ void machine::call(native * nt, const char * func, paramstack * ps)
 	macfunc f = (macfunc)fn->m_buff;
 	int64_t i = 0;
 	int64_t type = 0;
-	double data = 0;
+	int64_t data = 0;
 	int64_t typeoff = 0;
 	int64_t dataoff = 0;
 
@@ -26,7 +26,7 @@ void machine::call(native * nt, const char * func, paramstack * ps)
     for (i = 0; i < (int)ps->m_variant_list_num; i++)
     {
         type = ps->m_variant_list[i].type;
-        data = ps->m_variant_list[i].data.real;
+		data = ps->m_variant_list[i].data.buf;
 
 		typeoff = V_TYPE_OFF(i) - 0x10;
 		dataoff = V_DATA_OFF(i) - 0x10;
@@ -57,7 +57,7 @@ void machine::call(native * nt, const char * func, paramstack * ps)
         "movq   %%rdx,%1    \n\t"
         :"=r"(m_ret.type),"=r"(m_ret.data.real)
         :
-        :
+		:"%eax","%rdx"
         );
     
 }

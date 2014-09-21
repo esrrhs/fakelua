@@ -43,7 +43,7 @@ void asmgen::copy_const(variant * p, size_t num, int start)
         int typeoff = V_TYPE_OFF(start);
         int dataoff = V_DATA_OFF(start);
         mov_l_rbp(p[i].type, typeoff);
-        mov_ll_rax(*(int64_t*)&p[i].data);
+		mov_ll_rax(p[i].data.buf);
         mov_rax_rbp(dataoff);
     }
 }
