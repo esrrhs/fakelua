@@ -12,6 +12,8 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test", "test\test.vcxproj",
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "luatest", "luatest\luatest.vcxproj", "{0D25D834-F7E4-4ED9-9AE0-A145897137D4}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "testjit", "testjit\testjit.vcxproj", "{5810782D-21EA-412C-AD54-1410CB8ED806}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -30,6 +32,10 @@ Global
 		{0D25D834-F7E4-4ED9-9AE0-A145897137D4}.Debug|Win32.Build.0 = Debug|Win32
 		{0D25D834-F7E4-4ED9-9AE0-A145897137D4}.Release|Win32.ActiveCfg = Release|Win32
 		{0D25D834-F7E4-4ED9-9AE0-A145897137D4}.Release|Win32.Build.0 = Release|Win32
+		{5810782D-21EA-412C-AD54-1410CB8ED806}.Debug|Win32.ActiveCfg = Debug|Win32
+		{5810782D-21EA-412C-AD54-1410CB8ED806}.Debug|Win32.Build.0 = Debug|Win32
+		{5810782D-21EA-412C-AD54-1410CB8ED806}.Release|Win32.ActiveCfg = Release|Win32
+		{5810782D-21EA-412C-AD54-1410CB8ED806}.Release|Win32.Build.0 = Release|Win32
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

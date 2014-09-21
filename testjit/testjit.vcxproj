@@ -14,10 +14,10 @@
     <Text Include="CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="test.cpp" />
+    <ClCompile Include="testjit.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
-    <ProjectGuid>{BED6654C-1638-49E1-ABA6-49DD89188598}</ProjectGuid>
+    <ProjectGuid>{5810782D-21EA-412C-AD54-1410CB8ED806}</ProjectGuid>
     <Keyword>Win32Proj</Keyword>
     <RootNamespace>testasdf</RootNamespace>
   </PropertyGroup>
