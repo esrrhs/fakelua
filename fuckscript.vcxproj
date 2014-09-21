@@ -12,13 +12,17 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\fuckscript.h" />
+    <ClInclude Include="src\asmgen.h" />
+    <ClInclude Include="src\assembler.h" />
     <ClInclude Include="src\binary.h" />
     <ClInclude Include="src\bison.h" />
     <ClInclude Include="src\codegen.h" />
     <ClInclude Include="src\compiler.h" />
     <ClInclude Include="src\fuck.h" />
     <ClInclude Include="src\interpreter.h" />
+    <ClInclude Include="src\machine.h" />
     <ClInclude Include="src\myflexer.h" />
+    <ClInclude Include="src\native.h" />
     <ClInclude Include="src\paramstack.h" />
     <ClInclude Include="src\processor.h" />
     <ClInclude Include="src\routine.h" />
@@ -28,6 +32,8 @@
     <ClInclude Include="src\variant.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="src\asmgen.cpp" />
+    <ClCompile Include="src\assembler.cpp" />
     <ClCompile Include="src\binary.cpp" />
     <ClCompile Include="src\bison.cpp" />
     <ClCompile Include="src\codegen.cpp" />
@@ -36,7 +42,9 @@
     <ClCompile Include="src\fuck.cpp" />
     <ClCompile Include="src\fuckscript.cpp" />
     <ClCompile Include="src\interpreter.cpp" />
+    <ClCompile Include="src\machine.cpp" />
     <ClCompile Include="src\myflexer.cpp" />
+    <ClCompile Include="src\native.cpp" />
     <ClCompile Include="src\paramstack.cpp" />
     <ClCompile Include="src\processor.cpp" />
     <ClCompile Include="src\routine.cpp" />

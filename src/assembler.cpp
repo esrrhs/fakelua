@@ -45,7 +45,8 @@ bool assembler::compile_func(const func_binary & fb)
     asg.copy_param(fb.paramnum());
 
     asg.copy_const(fb.m_const_list, fb.m_const_list_num, fb.m_maxstack);
-   
+
+   
     m_pos = 0;
     while (m_pos < (int)fb.m_size)
     {

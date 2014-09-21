@@ -14,36 +14,50 @@ void machine::call(native * nt, const char * func, paramstack * ps)
         return;
     }
 
+	typedef void(*macfunc) ();
+	macfunc f = (macfunc)fn->m_buff;
+	int64_t i = 0;
+	int64_t type = 0;
+	double data = 0;
+	int64_t typeoff = 0;
+	int64_t dataoff = 0;
+
     // push参数
-    for (int i = (int)ps->m_variant_list_num - 1; i >= 0; i--)
+    for (i = 0; i < (int)ps->m_variant_list_num; i++)
     {
-        int type = ps->m_variant_list[i].type;
-        double data = ps->m_variant_list[i].data.real;
+        type = ps->m_variant_list[i].type;
+        data = ps->m_variant_list[i].data.real;
+
+		typeoff = V_TYPE_OFF(i) - 0x10;
+		dataoff = V_DATA_OFF(i) - 0x10;
         asm(
-            "mov    %0,%%eax    \n\t"  
-            "pushq  %%rax        \n\t"      
-            "movq   %1,%%rdx    \n\t"
-            "pushq  %%rdx        \n\t"
-            :
-            :"r"(type),"r"(data)
-            :"%rax","rdi"
-            );
+			"mov %%rsp,%%rax \n"
+			"add %0,%%rax \n"
+			"mov %1,(%%rax) \n"
+			:
+			:"r"(typeoff),"r"(type)
+			:"%rax", "%eax"
+		);
+		asm(
+			"mov %%rsp,%%rax \n"
+			"add %0,%%rax \n"
+			"movq %1,(%%rax) \n"
+			:
+			:"r"(dataoff),"r"(data)
+			:"%rax", "%eax"
+		);
     }
 
     // call
-    typedef void (*macfunc) ();
-    macfunc f = (macfunc)fn->m_buff;
     f();
 
     // 获得返回值
     asm(
-        "mov    %%eax,%0    \n\t"  
-        "popq   %%rax       \n\t"      
+        "mov    %%eax,%0    \n\t"      
         "movq   %%rdx,%1    \n\t"
-        "popq   %%rdx       \n\t"
         :"=r"(m_ret.type),"=r"(m_ret.data.real)
         :
-        :"%rax","rdi"
+        :
         );
     
 }
