@@ -293,6 +293,39 @@ public:
         m_source += "(%rbp),%xmm0\n";
     }
 
+	// 取模运算
+	// cvttsd2si leftoff(%rbp), %rax
+	// cvttsd2si rightoff(%rbp), %rcx
+	// mov %rax, %rdx
+	// sar $0x3f, %rdx
+	// idivq %rcx
+	// cvtsi2sd %rdx, %xmm0
+	// movq %xmm0, destoff(%rbp)
+	void divide_mod_rbp(int leftoff, int rightoff, int destoff)
+	{
+		assert(leftoff <= 0);
+		assert(rightoff <= 0);
+		assert(destoff <= 0);
+		push(0xf2);
+		push(0x48); 
+		push(0x0f); 
+		push(0x2c); 
+		push(0x85);
+		push_int(leftoff);
+		push(0xf2); 
+		push(0x48); 
+		push(0x0f); 
+		push(0x2c); 
+		push(0x8d);
+		push_int(rightoff);
+		push(0x48); push(0x89); push(0xc2);
+		push(0x48); push(0xc1); push(0xfa); push(0x3f);
+		push(0x48); push(0xf7); push(0xf9);
+		push(0xf2); push(0x48); push(0x0f); push(0x2a); push(0xc2);
+		push(0x66); push(0x0f); push(0xd6); push(0x85);
+		push_int(destoff);
+	}
+
     // 返回
     // leaveq
     // retq
@@ -310,8 +343,9 @@ public:
     void variant_ret(int pos);
     void variant_add(int destpos, int leftpos, int rightpos);
     void variant_sub(int destpos, int leftpos, int rightpos);
-    void variant_mul(int destpos, int leftpos, int rightpos);
-    void variant_div(int destpos, int leftpos, int rightpos);
+	void variant_mul(int destpos, int leftpos, int rightpos);
+	void variant_div(int destpos, int leftpos, int rightpos);
+	void variant_div_mod(int destpos, int leftpos, int rightpos);
     
     void output(const String & name, func_native * nt);
 

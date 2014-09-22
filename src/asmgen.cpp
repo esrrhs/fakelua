@@ -40,8 +40,8 @@ void asmgen::copy_const(variant * p, size_t num, int start)
 {
     for (int i = 0; i < (int)num; i++)
     {
-        int typeoff = V_TYPE_OFF(start);
-        int dataoff = V_DATA_OFF(start);
+        int typeoff = V_TYPE_OFF(start + i);
+		int dataoff = V_DATA_OFF(start + i);
         mov_l_rbp(p[i].type, typeoff);
 		mov_ll_rax(p[i].data.buf);
         mov_rax_rbp(dataoff);
@@ -106,5 +106,13 @@ void asmgen::variant_div(int destpos, int leftpos, int rightpos)
     movsd_rbp_xmm0(leftdataoff);
     divsd_rbp_xmm0(rightdataoff);
     movsd_xmm0_rbp(destdataoff);
+}
+
+void asmgen::variant_div_mod(int destpos, int leftpos, int rightpos)
+{
+	int leftdataoff = V_DATA_OFF(leftpos);
+	int rightdataoff = V_DATA_OFF(rightpos);
+	int destdataoff = V_DATA_OFF(destpos);
+	divide_mod_rbp(leftdataoff, rightdataoff, destdataoff);
 }
 
