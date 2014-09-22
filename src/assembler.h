@@ -23,8 +23,9 @@ public:
 private:
     bool compile_func(const func_binary & fb);
     bool compile_next(asmgen & asg, const func_binary & fb);
-    bool compile_assign(asmgen & asg, const func_binary & fb);
-    bool compile_return(asmgen & asg, const func_binary & fb);
+    bool compile_assign(asmgen & asg, const func_binary & fb, command cmd);
+    bool compile_return(asmgen & asg, const func_binary & fb, command cmd);
+    bool compile_math(asmgen & asg, const func_binary & fb, command cmd);
     
 private:
     fuck * m_fk;

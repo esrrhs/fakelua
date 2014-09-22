@@ -88,12 +88,21 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
     {
     case OPCODE_ASSIGN:
         {
-            ret = compile_assign(asg, fb);
+            ret = compile_assign(asg, fb, cmd);
         }
         break;
 	case OPCODE_RETURN:
 	    {
-	        ret = compile_return(asg, fb);
+	        ret = compile_return(asg, fb, cmd);
+        }
+        break;
+    case OPCODE_PLUS:
+    case OPCODE_MINUS:
+    case OPCODE_MULTIPLY:
+	case OPCODE_DIVIDE:
+	case OPCODE_DIVIDE_MOD:
+	    {
+	        ret = compile_math(asg, fb, cmd);
         }
         break;
     default:
@@ -127,7 +136,7 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
     }
 
 
-bool assembler::compile_assign(asmgen & asg, const func_binary & fb)
+bool assembler::compile_assign(asmgen & asg, const func_binary & fb, command cmd)
 {
     assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_STACK);
     int var = 0;
@@ -145,7 +154,7 @@ bool assembler::compile_assign(asmgen & asg, const func_binary & fb)
     return true;
 }
 
-bool assembler::compile_return(asmgen & asg, const func_binary & fb)
+bool assembler::compile_return(asmgen & asg, const func_binary & fb, command cmd)
 {
 	if (GET_CMD(fb, m_pos) == EMPTY_CMD)
 	{
@@ -163,4 +172,46 @@ bool assembler::compile_return(asmgen & asg, const func_binary & fb)
 	return true;
 }
 
+bool assembler::compile_math(asmgen & asg, const func_binary & fb, command cmd)
+{
+    int code = COMMAND_CODE(cmd);
+
+    int left = 0;
+    GET_VARIANT_POS(fb, left, m_pos);
+    m_pos++;
+    
+    int right = 0;
+    GET_VARIANT_POS(fb, right, m_pos);
+    m_pos++;
+
+    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_STACK);
+    int dest = 0;
+    GET_VARIANT_POS(fb, dest, m_pos);
+    m_pos++;
+
+    switch (code)
+    {
+    case OPCODE_PLUS:
+	    asg.variant_add(dest, left, right);
+        break;
+    case OPCODE_MINUS:
+	    asg.variant_sub(dest, left, right);
+        break;
+    case OPCODE_MULTIPLY:
+	    asg.variant_mul(dest, left, right);
+        break;
+	case OPCODE_DIVIDE:
+	    asg.variant_div(dest, left, right);
+        break;
+	case OPCODE_DIVIDE_MOD:
+        assert(0);
+        break;
+    default:
+        assert(0);
+        FKERR("[assembler] compile_math err code %d %s", code, OpCodeStr(code));
+        break;
+    }
+    
+	return true;
+}
 
