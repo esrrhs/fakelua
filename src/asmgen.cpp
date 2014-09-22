@@ -68,3 +68,43 @@ void asmgen::variant_ret(int pos)
     mov_rbp_rdx(dataoff);
 }
 
+void asmgen::variant_add(int destpos, int leftpos, int rightpos)
+{
+    int leftdataoff = V_DATA_OFF(leftpos);
+    int rightdataoff = V_DATA_OFF(rightpos);
+    int destdataoff = V_DATA_OFF(destpos);
+    movsd_rbp_xmm0(leftdataoff);
+    addsd_rbp_xmm0(rightdataoff);
+    movsd_xmm0_rbp(destdataoff);
+}
+
+void asmgen::variant_sub(int destpos, int leftpos, int rightpos)
+{
+    int leftdataoff = V_DATA_OFF(leftpos);
+    int rightdataoff = V_DATA_OFF(rightpos);
+    int destdataoff = V_DATA_OFF(destpos);
+    movsd_rbp_xmm0(leftdataoff);
+    subsd_rbp_xmm0(rightdataoff);
+    movsd_xmm0_rbp(destdataoff);
+}
+
+void asmgen::variant_mul(int destpos, int leftpos, int rightpos)
+{
+    int leftdataoff = V_DATA_OFF(leftpos);
+    int rightdataoff = V_DATA_OFF(rightpos);
+    int destdataoff = V_DATA_OFF(destpos);
+    movsd_rbp_xmm0(leftdataoff);
+    mulsd_rbp_xmm0(rightdataoff);
+    movsd_xmm0_rbp(destdataoff);
+}
+
+void asmgen::variant_div(int destpos, int leftpos, int rightpos)
+{
+    int leftdataoff = V_DATA_OFF(leftpos);
+    int rightdataoff = V_DATA_OFF(rightpos);
+    int destdataoff = V_DATA_OFF(destpos);
+    movsd_rbp_xmm0(leftdataoff);
+    divsd_rbp_xmm0(rightdataoff);
+    movsd_xmm0_rbp(destdataoff);
+}
+

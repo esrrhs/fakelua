@@ -203,6 +203,96 @@ public:
         m_source += "push    %rdx\n";
     }
 
+    // 把offset的地方放到xmm0
+    // movsd    offset(%rbp),%xmm0
+    void movsd_rbp_xmm0(int offset)
+    {
+        assert(offset <= 0);
+        push(0xf2);
+        push(0x0f);
+        push(0x10);
+        push(0x85);
+        push_int(offset);
+        m_source += "movsd    -";
+        m_source += fkxtoa(-offset, 8);
+        m_source += "(%rbp),%xmm0\n";
+    }
+
+    // 把xmm0放到offset的地方
+    // movsd    %xmm0,offset(%rbp)
+    void movsd_xmm0_rbp(int offset)
+    {
+        assert(offset <= 0);
+        push(0xf2);
+        push(0x0f);
+        push(0x11);
+        push(0x85);
+        push_int(offset);
+        m_source += "movsd    %xmm0,-";
+        m_source += fkxtoa(-offset, 8);
+        m_source += "(%rbp)\n";
+    }
+
+    // 把offset的地方和xmm0做加法
+    // addsd    offset(%rbp),%xmm0
+    void addsd_rbp_xmm0(int offset)
+    {
+        assert(offset <= 0);
+        push(0xf2);
+        push(0x0f);
+        push(0x58);
+        push(0x85);
+        push_int(offset);
+        m_source += "addsd    -";
+        m_source += fkxtoa(-offset, 8);
+        m_source += "(%rbp),%xmm0\n";
+    }
+    
+    // 把offset的地方和xmm0做减法
+    // subsd    offset(%rbp),%xmm0
+    void subsd_rbp_xmm0(int offset)
+    {
+        assert(offset <= 0);
+        push(0xf2);
+        push(0x0f);
+        push(0x5c);
+        push(0x85);
+        push_int(offset);
+        m_source += "subsd    -";
+        m_source += fkxtoa(-offset, 8);
+        m_source += "(%rbp),%xmm0\n";
+    }
+    
+    // 把offset的地方和xmm0做乘法
+    // mulsd    offset(%rbp),%xmm0
+    void mulsd_rbp_xmm0(int offset)
+    {
+        assert(offset <= 0);
+        push(0xf2);
+        push(0x0f);
+        push(0x59);
+        push(0x85);
+        push_int(offset);
+        m_source += "mulsd    -";
+        m_source += fkxtoa(-offset, 8);
+        m_source += "(%rbp),%xmm0\n";
+    }
+    
+    // 把offset的地方和xmm0做除法
+    // divsd    offset(%rbp),%xmm0
+    void divsd_rbp_xmm0(int offset)
+    {
+        assert(offset <= 0);
+        push(0xf2);
+        push(0x0f);
+        push(0x5e);
+        push(0x85);
+        push_int(offset);
+        m_source += "divsd    -";
+        m_source += fkxtoa(-offset, 8);
+        m_source += "(%rbp),%xmm0\n";
+    }
+
     // 返回
     // leaveq
     // retq
@@ -218,6 +308,10 @@ public:
     
     void variant_assign(int leftpos, int rightpos);
     void variant_ret(int pos);
+    void variant_add(int destpos, int leftpos, int rightpos);
+    void variant_sub(int destpos, int leftpos, int rightpos);
+    void variant_mul(int destpos, int leftpos, int rightpos);
+    void variant_div(int destpos, int leftpos, int rightpos);
     
     void output(const String & name, func_native * nt);
 
