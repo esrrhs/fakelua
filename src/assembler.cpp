@@ -204,7 +204,7 @@ bool assembler::compile_math(asmgen & asg, const func_binary & fb, command cmd)
 	    asg.variant_div(dest, left, right);
         break;
 	case OPCODE_DIVIDE_MOD:
-        assert(0);
+		asg.variant_div_mod(dest, left, right);
         break;
     default:
         assert(0);
