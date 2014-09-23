@@ -5,6 +5,12 @@
 #include "syntree.h"
 #include "asmgen.h"
 
+// 每个bytecode pos -> machinecode pos，全量数据，用来替换跳转指令的机器指令地址
+typedef std::map<int, int> posmap;
+// 如果先解析jump，还没有jump目标的实际地址，就先存起来，结束后再一起替换
+// key为jump地址在机器码中的位置，value为bytecode pos
+typedef std::map<int, int> caremap;
+
 struct fuck;
 class native;
 class binary;
@@ -32,6 +38,8 @@ private:
 private:
     fuck * m_fk;
     native * m_native;
-    int m_pos;
+	int m_pos;
+	posmap m_posmap;
+	caremap m_caremap;
 };
 

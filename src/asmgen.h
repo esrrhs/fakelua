@@ -41,6 +41,11 @@ public:
         m_asm_code_list.push_back(c);
     }
 
+	size_t size() const
+	{
+		return m_asm_code_list.size();
+	}
+
     // ±£´æº¯ÊýÕ»Ö¸Õë
     // push   %rbp
     // mov    %rsp,%rbp

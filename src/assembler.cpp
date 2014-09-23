@@ -8,6 +8,8 @@
 void assembler::clear()
 {
     m_pos = 0;
+	m_posmap.clear();
+	m_caremap.clear();
 }
 
 bool assembler::compile(binary * bin)
@@ -46,10 +48,10 @@ bool assembler::compile_func(const func_binary & fb)
 
     asg.copy_const(fb.m_const_list, fb.m_const_list_num, fb.m_maxstack);
 
-   
     m_pos = 0;
     while (m_pos < (int)fb.m_size)
     {
+		m_posmap[m_pos] = asg.size();
         if (!compile_next(asg, fb))
         {
             FKERR("[assembler] compile_func compile_next %d fail", m_pos);
