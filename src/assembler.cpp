@@ -105,6 +105,27 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 	        ret = compile_math(asg, fb, cmd);
         }
         break;
+	case OPCODE_PLUS_ASSIGN:
+	case OPCODE_MINUS_ASSIGN:
+	case OPCODE_MULTIPLY_ASSIGN:
+	case OPCODE_DIVIDE_ASSIGN:
+	case OPCODE_DIVIDE_MOD_ASSIGN:
+		{
+			ret = compile_math_assign(asg, fb, cmd);
+		}
+		break;
+	case OPCODE_AND:
+	case OPCODE_OR:
+	case OPCODE_LESS:
+	case OPCODE_MORE:
+	case OPCODE_EQUAL:
+	case OPCODE_MOREEQUAL:
+	case OPCODE_LESSEQUAL:
+	case OPCODE_NOTEQUAL:
+		{
+			ret = compile_cmp(asg, fb, cmd);
+		}
+		break;
     default:
         assert(0);
         FKERR("[assembler] compile_next err code %d %s", code, OpCodeStr(code));
@@ -212,6 +233,97 @@ bool assembler::compile_math(asmgen & asg, const func_binary & fb, command cmd)
         break;
     }
     
+	return true;
+}
+
+bool assembler::compile_math_assign(asmgen & asg, const func_binary & fb, command cmd)
+{
+	int code = COMMAND_CODE(cmd);
+
+	assert(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_STACK);
+	int left = 0;
+	GET_VARIANT_POS(fb, left, m_pos);
+	m_pos++;
+
+	int right = 0;
+	GET_VARIANT_POS(fb, right, m_pos);
+	m_pos++;
+
+	switch (code)
+	{
+	case OPCODE_PLUS_ASSIGN:
+		asg.variant_add(left, left, right);
+		break;
+	case OPCODE_MINUS_ASSIGN:
+		asg.variant_sub(left, left, right);
+		break;
+	case OPCODE_MULTIPLY_ASSIGN:
+		asg.variant_mul(left, left, right);
+		break;
+	case OPCODE_DIVIDE_ASSIGN:
+		asg.variant_div(left, left, right);
+		break;
+	case OPCODE_DIVIDE_MOD_ASSIGN:
+		asg.variant_div_mod(left, left, right);
+		break;
+	default:
+		assert(0);
+		FKERR("[assembler] compile_math_assign err code %d %s", code, OpCodeStr(code));
+		break;
+	}
+
+	return true;
+}
+
+bool assembler::compile_cmp(asmgen & asg, const func_binary & fb, command cmd)
+{
+	int code = COMMAND_CODE(cmd);
+
+	int left = 0;
+	GET_VARIANT_POS(fb, left, m_pos);
+	m_pos++;
+
+	int right = 0;
+	GET_VARIANT_POS(fb, right, m_pos);
+	m_pos++;
+
+	assert(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_STACK);
+	int dest = 0;
+	GET_VARIANT_POS(fb, dest, m_pos);
+	m_pos++;
+
+	switch (code)
+	{
+	case OPCODE_AND:
+		asg.and_rbp(dest, left, right);
+		break;
+	case OPCODE_OR:
+		asg.or_rbp(dest, left, right);
+		break;
+	case OPCODE_LESS:
+		asg.less_rbp(dest, left, right);
+		break;
+	case OPCODE_MORE:
+		asg.more_rbp(dest, left, right);
+		break;
+	case OPCODE_EQUAL:
+		asg.and_rbp(dest, left, right);
+		break;
+	case OPCODE_MOREEQUAL:
+		asg.more_equal_rbp(dest, left, right);
+		break;
+	case OPCODE_LESSEQUAL:
+		asg.less_equal_rbp(dest, left, right);
+		break;
+	case OPCODE_NOTEQUAL:
+		asg.not_equal_rbp(dest, left, right);
+		break;
+	default:
+		assert(0);
+		FKERR("[assembler] compile_cmp err code %d %s", code, OpCodeStr(code));
+		break;
+	}
+
 	return true;
 }
 
