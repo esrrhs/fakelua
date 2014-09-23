@@ -26,7 +26,9 @@ private:
     bool compile_assign(asmgen & asg, const func_binary & fb, command cmd);
     bool compile_return(asmgen & asg, const func_binary & fb, command cmd);
     bool compile_math(asmgen & asg, const func_binary & fb, command cmd);
-    
+	bool compile_math_assign(asmgen & asg, const func_binary & fb, command cmd);
+	bool compile_cmp(asmgen & asg, const func_binary & fb, command cmd);
+
 private:
     fuck * m_fk;
     native * m_native;

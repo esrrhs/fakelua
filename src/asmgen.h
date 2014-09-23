@@ -324,6 +324,289 @@ public:
 		push(0xf2); push(0x48); push(0x0f); push(0x2a); push(0xc2);
 		push(0x66); push(0x0f); push(0xd6); push(0x85);
 		push_int(destoff);
+		m_source += "cvttsd2si -" + fkxtoa(-leftoff, 8) + "(%rbp), %rax\n";
+		m_source += "cvttsd2si -" + fkxtoa(-rightoff, 8) + "(%rbp), %rcx\n";
+		m_source += "mov %rax, %rdx\n";
+		m_source += "sar $0x3f, %rdx\n";
+		m_source += "idivq %rcx\n";
+		m_source += "cvtsi2sd %rdx, %xmm0\n";
+		m_source += "movq %xmm0, -" + fkxtoa(-destoff, 8) + "(%rbp)\n";
+	}
+
+	// AND运算
+	//	xorpd  %xmm0,%xmm0
+	//	ucomisd leftoff(%rbp),%xmm0
+	//	setne  %dl
+	//	setp   %al
+	//	or     %eax,%edx
+	//	xorpd  %xmm0,%xmm0
+	//	ucomisd rightoff(%rbp),%xmm0
+	//	setne  %al
+	//	setp   %cl
+	//	or     %ecx,%eax
+	//	and    %edx,%eax
+	//	movzbl %al,%eax
+	//	cvtsi2sd %eax,%xmm0
+	//	movsd  %xmm0,destoff(%rbp)
+	void and_rbp(int leftoff, int rightoff, int destoff)
+	{
+		assert(leftoff <= 0);
+		assert(rightoff <= 0);
+		assert(destoff <= 0);
+		push(0x66); push(0x0f); push(0x57); push(0xc0);
+		push(0x66); push(0x0f); push(0x2e); push(0x85);
+		push_int(leftoff);
+		push(0x0f); push(0x95); push(0xc2);
+		push(0x0f); push(0x9a); push(0xc0);
+		push(0x09); push(0xc2);
+		push(0x66); push(0x0f); push(0x57); push(0xc0);
+		push(0x66); push(0x0f); push(0x2e); push(0x85);
+		push_int(rightoff);
+		push(0x0f); push(0x95); push(0xc0);
+		push(0x0f); push(0x9a); push(0xc1);
+		push(0x09); push(0xc8);
+		push(0x21); push(0xd0);
+		push(0x0f); push(0xb6); push(0xc0);
+		push(0xf2); push(0x0f); push(0x2a); push(0xc0);
+		push(0xf2); push(0x0f); push(0x11); push(0x85);
+		push_int(destoff);
+		m_source += "xorpd  %xmm0, %xmm0\n";
+		m_source += "ucomisd -" + fkxtoa(-leftoff, 8) + "(%rbp), %xmm0\n";
+		m_source += "setne  %dl\n";
+		m_source += "setp   %al\n";
+		m_source += "or     %eax, %edx\n";
+		m_source += "xorpd  %xmm0, %xmm0\n";
+		m_source += "ucomisd -" + fkxtoa(-rightoff, 8) + "(%rbp), %xmm0\n";
+		m_source += "setne  %al\n";
+		m_source += "setp   %cl\n";
+		m_source += "or     %ecx, %eax\n";
+		m_source += "and    %edx, %eax\n";
+		m_source += "movzbl %al, %eax\n";
+		m_source += "cvtsi2sd %eax, %xmm0\n";
+		m_source += "movsd  %xmm0, -" + fkxtoa(-destoff, 8) + "(%rbp)\n";
+	}
+
+	// OR运算
+	//	xorpd  %xmm0,%xmm0
+	//	ucomisd leftoff(%rbp),%xmm0
+	//	setne  %dl
+	//	setp   %al
+	//	or     %eax,%edx
+	//	xorpd  %xmm0,%xmm0
+	//	ucomisd rightoff(%rbp),%xmm0
+	//	setne  %al
+	//	setp   %cl
+	//	or     %ecx,%eax
+	//	or    %edx,%eax
+	//	movzbl %al,%eax
+	//	cvtsi2sd %eax,%xmm0
+	//	movsd  %xmm0,destoff(%rbp)
+	void or_rbp(int leftoff, int rightoff, int destoff)
+	{
+		assert(leftoff <= 0);
+		assert(rightoff <= 0);
+		assert(destoff <= 0);
+		push(0x66); push(0x0f); push(0x57); push(0xc0);
+		push(0x66); push(0x0f); push(0x2e); push(0x85);
+		push_int(leftoff);
+		push(0x0f); push(0x95); push(0xc2);
+		push(0x0f); push(0x9a); push(0xc0);
+		push(0x09); push(0xc2);
+		push(0x66); push(0x0f); push(0x57); push(0xc0);
+		push(0x66); push(0x0f); push(0x2e); push(0x85);
+		push_int(rightoff);
+		push(0x0f); push(0x95); push(0xc0);
+		push(0x0f); push(0x9a); push(0xc1);
+		push(0x09); push(0xc8);
+		push(0x09); push(0xd0);
+		push(0x0f); push(0xb6); push(0xc0);
+		push(0xf2); push(0x0f); push(0x2a); push(0xc0);
+		push(0xf2); push(0x0f); push(0x11); push(0x85);
+		push_int(destoff);
+		m_source += "xorpd  %xmm0, %xmm0\n";
+		m_source += "ucomisd -" + fkxtoa(-leftoff, 8) + "(%rbp), %xmm0\n";
+		m_source += "setne  %dl\n";
+		m_source += "setp   %al\n";
+		m_source += "or     %eax, %edx\n";
+		m_source += "xorpd  %xmm0, %xmm0\n";
+		m_source += "ucomisd -" + fkxtoa(-rightoff, 8) + "(%rbp), %xmm0\n";
+		m_source += "setne  %al\n";
+		m_source += "setp   %cl\n";
+		m_source += "or     %ecx, %eax\n";
+		m_source += "or    %edx, %eax\n";
+		m_source += "movzbl %al, %eax\n";
+		m_source += "cvtsi2sd %eax, %xmm0\n";
+		m_source += "movsd  %xmm0, -" + fkxtoa(-destoff, 8) + "(%rbp)\n";
+	}
+
+	// LESS运算
+	//  movsd  leftoff(%rbp),%xmm1
+	//	movsd  rightoff(%rbp), %xmm0
+	// 	ucomisd %xmm1, %xmm0
+	// 	seta   %al
+	// 	test   %al, %al
+	// 	je     .+0x0e
+	// 	mov    $0x3ff0000000000000, %rax
+	// 	jmpq   .+0x07
+	// 	mov    $0x0, %eax
+	// 	mov    %rax, destoff(%rbp)
+	void less_rbp(int leftoff, int rightoff, int destoff)
+	{
+		assert(leftoff <= 0);
+		assert(rightoff <= 0);
+		assert(destoff <= 0);
+		push(0xf2); push(0x0f); push(0x10); push(0x8d);
+		push_int(leftoff);
+		push(0xf2); push(0x0f); push(0x10); push(0x85);
+		push_int(rightoff);
+		push(0x66); push(0x0f); push(0x2e); push(0xc1);
+		push(0x0f); push(0x97); push(0xc0);
+		push(0x84); push(0xc0);
+		push(0x74); push(0x0c);
+		push(0x48); push(0xb8); push(0x00); push(0x00); push(0x00); push(0x00); push(0x00);
+		push(0x00); push(0xf0); push(0x3f);
+		push(0xeb); push(0x05);
+		push(0xb8); push(0x00); push(0x00); push(0x00); push(0x00);
+		push(0x48); push(0x89); push(0x85);
+		push_int(destoff);
+		m_source += "movsd  -" + fkxtoa(-leftoff, 8) + "(%rbp), %xmm1\n";
+		m_source += "movsd  -" + fkxtoa(-rightoff, 8) + "(%rbp), %xmm0\n";
+		m_source += "ucomisd %xmm1, %xmm0\n";
+		m_source += "seta   %al\n";
+		m_source += "test   %al, %al\n";
+		m_source += "je     .+0x0e\n";
+		m_source += "mov    $0x3ff0000000000000, %rax\n";
+		m_source += "jmpq   .+0x07\n";
+		m_source += "mov    $0x0, %eax\n";
+		m_source += "mov    %rax, -" + fkxtoa(-destoff, 8) + "(%rbp)\n";
+	}
+
+	// MORE运算
+	void more_rbp(int leftoff, int rightoff, int destoff)
+	{
+		// 交换律
+		less_rbp(destoff, rightoff, leftoff);
+	}
+
+	// EQUAL运算
+	//	movsd  leftoff(%rbp), %xmm0
+	//	ucomisd rightoff(%rbp), %xmm0
+	// 	jne    .+0x10
+	// 	jp     .+0x0e
+	// 	mov    $0x3ff0000000000000, %rax
+	// 	jmp    .+0x07	
+	// 	mov    $0x0, %eax
+	// 	mov    %rax, destoff(%rbp)
+	void equal_rbp(int leftoff, int rightoff, int destoff)
+	{
+		assert(leftoff <= 0);
+		assert(rightoff <= 0);
+		assert(destoff <= 0);
+		push(0xf2); push(0x0f); push(0x10); push(0x85);
+		push_int(leftoff);
+		push(0x66); push(0x0f); push(0x2e); push(0x85);
+		push_int(rightoff);
+		push(0x75); push(0x0e);
+		push(0x7a); push(0x0c);
+		push(0x48); push(0xb8); push(0x00); push(0x00); push(0x00); push(0x00); push(0x00);
+		push(0x00); push(0xf0); push(0x3f);
+		push(0xeb); push(0x05);
+		push(0xb8); push(0x00); push(0x00); push(0x00); push(0x00);
+		push(0x48); push(0x89); push(0x85);
+		push_int(destoff);
+		m_source += "movsd  -" + fkxtoa(-leftoff, 8) + "(%rbp), %xmm0\n";
+		m_source += "ucomisd -" + fkxtoa(-rightoff, 8) + "(%rbp), %xmm0\n";
+		m_source += "jne    .+0x10\n";
+		m_source += "jp     .+0x0e\n";
+		m_source += "mov    $0x3ff0000000000000, %rax\n";
+		m_source += "jmp    .+0x07	\n";
+		m_source += "mov    $0x0, %eax\n";
+		m_source += "mov    %rax, -" + fkxtoa(-destoff, 8) + "(%rbp)\n";
+	}
+
+	// LESS EQUAL运算
+	//	movsd  leftoff(%rbp), %xmm1
+	//	movsd  rightoff(%rbp), %xmm0
+	//	ucomisd %xmm1, %xmm0
+	//	setae  %al
+	//	test   %al, %al
+	//	je     . + 0x0e
+	//	mov    $0x3ff0000000000000, %rax
+	//	jmp    . + 0x07
+	//	mov    $0x0, %eax
+	//	mov    %rax, destoff(%rbp)
+	void less_equal_rbp(int leftoff, int rightoff, int destoff)
+	{
+		assert(leftoff <= 0);
+		assert(rightoff <= 0);
+		assert(destoff <= 0);
+		push(0xf2); push(0x0f); push(0x10); push(0x8d); 
+		push_int(leftoff);
+		push(0xf2); push(0x0f); push(0x10); push(0x85); 
+		push_int(rightoff);
+		push(0x66); push(0x0f); push(0x2e); push(0xc1);
+		push(0x0f); push(0x93); push(0xc0);
+		push(0x84); push(0xc0);
+		push(0x74); push(0x0c);
+		push(0x48); push(0xb8); push(0x00); push(0x00); push(0x00); push(0x00); push(0x00);
+		push(0x00); push(0xf0); push(0x3f);
+		push(0xeb); push(0x05);
+		push(0xb8); push(0x00); push(0x00); push(0x00); push(0x00);
+		push(0x48); push(0x89); push(0x85); 
+		push_int(destoff);
+		m_source += "movsd  -" + fkxtoa(-leftoff, 8) + "(%rbp), %xmm1\n";
+		m_source += "movsd  -" + fkxtoa(-rightoff, 8) + "(%rbp), %xmm0\n";
+		m_source += "ucomisd %xmm1, %xmm0\n";
+		m_source += "setae  %al\n";
+		m_source += "test   %al, %al\n";
+		m_source += "je     . + 0x0e\n";
+		m_source += "mov    $0x3ff0000000000000, %rax\n";
+		m_source += "jmp    . + 0x07\n";
+		m_source += "mov    $0x0, %eax\n";
+		m_source += "mov    %rax, -" + fkxtoa(-destoff, 8) + "(%rbp)\n";
+	}
+
+	// MORE EQUAL运算
+	void more_equal_rbp(int leftoff, int rightoff, int destoff)
+	{
+		// 交换律
+		less_equal_rbp(destoff, rightoff, leftoff);
+	}
+
+	// NOT EQUAL运算
+	//	movsd  leftoff(%rbp), %xmm0
+	//	ucomisd rightoff(%rbp), %xmm0
+	//	jp     . + 0x04
+	//	je     . + 0x0e
+	//	mov    $0x3ff0000000000000, %rax
+	//	jmp    . + 0x07
+	//	mov    $0x0, %eax
+	//	mov    %rax, destoff(%rbp)
+	void not_equal_rbp(int leftoff, int rightoff, int destoff)
+	{
+		assert(leftoff <= 0);
+		assert(rightoff <= 0);
+		assert(destoff <= 0);
+		push(0xf2); push(0x0f); push(0x10); push(0x85);
+		push_int(leftoff);
+		push(0x66); push(0x0f); push(0x2e); push(0x85);
+		push_int(rightoff);
+		push(0x7a); push(0x02);
+		push(0x74); push(0x0c);
+		push(0x48); push(0xb8); push(0x00); push(0x00); push(0x00); push(0x00); push(0x00);
+		push(0x00); push(0xf0); push(0x3f);
+		push(0xeb); push(0x05);
+		push(0xb8); push(0x00); push(0x00); push(0x00); push(0x00);
+		push(0x48); push(0x89); push(0x85);
+		push_int(destoff);
+		m_source += "movsd  -" + fkxtoa(-leftoff, 8) + "(%rbp), %xmm0\n";
+		m_source += "ucomisd -" + fkxtoa(-rightoff, 8) + "(%rbp), %xmm0\n";
+		m_source += "jp     . + 0x04\n";
+		m_source += "je     . + 0x0e\n";
+		m_source += "mov    $0x3ff0000000000000, %rax\n";
+		m_source += "jmp    . + 0x07\n";
+		m_source += "mov    $0x0, %eax\n";
+		m_source += "mov    %rax, -" + fkxtoa(-destoff, 8) + "(%rbp)\n";
 	}
 
     // 返回
