@@ -48,7 +48,7 @@ public:
 
     void set_int(int offset, int i)
     {
-        assert(m_asm_code_list.size() > offset + sizeof(i));
+        assert(m_asm_code_list.size() >= offset + sizeof(i));
         m_asm_code_list[offset] = (((char*)&i)[0]);
         m_asm_code_list[offset + 1] = (((char*)&i)[1]);
         m_asm_code_list[offset + 2] = (((char*)&i)[2]);

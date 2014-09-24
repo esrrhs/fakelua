@@ -26,7 +26,6 @@ FUCK_API fuck * newfuck(fuckconfig * cfg)
     fuck * ret = (fuck *)_cfg.fkm(sizeof(fuck));
     new (ret) fuck();
     ret->cfg = _cfg;
-    cheat_complie();
     FKLOG("newfuck ret %p", ret);
     return ret;
 }

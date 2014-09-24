@@ -22,9 +22,11 @@
 #ifdef _DEBUG
 #define FKLOG(...) fklog("[DEBUG] ", __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
 #define FKERR(...) fklog("[ERROR] ", __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
+#define ISLOG 1
 #else
 #define FKLOG(...)
 #define FKERR(...)
+#define ISLOG 0
 #endif
 
 void fklog(const char * header, const char * file, const char * func, int pos, const char *fmt, ...);
