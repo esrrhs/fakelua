@@ -1,12 +1,25 @@
 -- func1 comment
 func myfunc1(arg1, arg2)
 	
-	if arg1 > 10 then
+	if (arg1 > 10 && arg1 < 100) || arg2 != 2 then
 		arg1 = arg1 + 1
 	else
 		arg1 = arg1 + 10
 	end
 	
+	if arg1 > 10 then
+	else
+	end
+
+	if arg1 < 5 then
+	else
+		arg1 = (arg2 * arg1) % arg1
+	end
+
+	if arg1 > 10 then
+		arg1 = arg1 / arg2
+	else
+	end
 	
 	return arg1
 	

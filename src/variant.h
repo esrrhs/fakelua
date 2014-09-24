@@ -107,5 +107,3 @@ struct variant
 #define V_TYPE_OFF(stackpos) (-1 * (stackpos + 1) * variant_size + variant_type_off)
 #define V_DATA_OFF(stackpos) (-1 * (stackpos + 1) * variant_size + variant_data_off)
 
-void cheat_complie();
-
