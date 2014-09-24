@@ -116,3 +116,77 @@ void asmgen::variant_div_mod(int destpos, int leftpos, int rightpos)
 	divide_mod_rbp(leftdataoff, rightdataoff, destdataoff);
 }
 
+void asmgen::variant_and(int destpos, int leftpos, int rightpos)
+{
+	int leftdataoff = V_DATA_OFF(leftpos);
+	int rightdataoff = V_DATA_OFF(rightpos);
+	int destdataoff = V_DATA_OFF(destpos);
+	and_rbp(leftdataoff, rightdataoff, destdataoff);
+}
+
+void asmgen::variant_or(int destpos, int leftpos, int rightpos)
+{
+	int leftdataoff = V_DATA_OFF(leftpos);
+	int rightdataoff = V_DATA_OFF(rightpos);
+	int destdataoff = V_DATA_OFF(destpos);
+	or_rbp(leftdataoff, rightdataoff, destdataoff);
+}
+
+void asmgen::variant_less(int destpos, int leftpos, int rightpos)
+{
+	int leftdataoff = V_DATA_OFF(leftpos);
+	int rightdataoff = V_DATA_OFF(rightpos);
+	int destdataoff = V_DATA_OFF(destpos);
+	less_rbp(leftdataoff, rightdataoff, destdataoff);
+}
+
+void asmgen::variant_more(int destpos, int leftpos, int rightpos)
+{
+	int leftdataoff = V_DATA_OFF(leftpos);
+	int rightdataoff = V_DATA_OFF(rightpos);
+	int destdataoff = V_DATA_OFF(destpos);
+	more_rbp(leftdataoff, rightdataoff, destdataoff);
+}
+
+void asmgen::variant_equal(int destpos, int leftpos, int rightpos)
+{
+	int leftdataoff = V_DATA_OFF(leftpos);
+	int rightdataoff = V_DATA_OFF(rightpos);
+	int destdataoff = V_DATA_OFF(destpos);
+	equal_rbp(leftdataoff, rightdataoff, destdataoff);
+}
+
+void asmgen::variant_lessequal(int destpos, int leftpos, int rightpos)
+{
+	int leftdataoff = V_DATA_OFF(leftpos);
+	int rightdataoff = V_DATA_OFF(rightpos);
+	int destdataoff = V_DATA_OFF(destpos);
+	less_equal_rbp(leftdataoff, rightdataoff, destdataoff);
+}
+
+void asmgen::variant_moreequal(int destpos, int leftpos, int rightpos)
+{
+	int leftdataoff = V_DATA_OFF(leftpos);
+	int rightdataoff = V_DATA_OFF(rightpos);
+	int destdataoff = V_DATA_OFF(destpos);
+	more_equal_rbp(leftdataoff, rightdataoff, destdataoff);
+}
+
+void asmgen::variant_notequal(int destpos, int leftpos, int rightpos)
+{
+	int leftdataoff = V_DATA_OFF(leftpos);
+	int rightdataoff = V_DATA_OFF(rightpos);
+	int destdataoff = V_DATA_OFF(destpos);
+	not_equal_rbp(leftdataoff, rightdataoff, destdataoff);
+}
+
+void asmgen::variant_jne(int pos, int jmppos)
+{
+	int dataoff = V_DATA_OFF(pos);
+	jne_rbp(dataoff, jmppos);
+}
+
+void asmgen::variant_jmp(int jmppos)
+{
+	jmp(jmppos);
+}
