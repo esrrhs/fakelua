@@ -18,7 +18,9 @@ String func_native::dump() const
     {
         if (i % 8 == 0)
         {
-            ret += "\n\t";
+            ret += "\n\t[";
+            ret += fkitoa(i);
+            ret += "]\t";
         }
         unsigned char c = m_buff[i];
         ret += fkxtoa(c, 2);

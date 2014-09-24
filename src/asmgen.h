@@ -46,6 +46,15 @@ public:
 		return m_asm_code_list.size();
 	}
 
+    void set_int(int offset, int i)
+    {
+        assert(m_asm_code_list.size() > offset + sizeof(i));
+        m_asm_code_list[offset] = (((char*)&i)[0]);
+        m_asm_code_list[offset + 1] = (((char*)&i)[1]);
+        m_asm_code_list[offset + 2] = (((char*)&i)[2]);
+        m_asm_code_list[offset + 3] = (((char*)&i)[3]);
+    }
+
     // 保存函数栈指针
     // push   %rbp
     // mov    %rsp,%rbp
@@ -452,7 +461,7 @@ public:
 	// 	test   %al, %al
 	// 	je     .+0x0e
 	// 	mov    $0x3ff0000000000000, %rax
-	// 	jmpq   .+0x07
+	// 	jmp    .+0x07
 	// 	mov    $0x0, %eax
 	// 	mov    %rax, destoff(%rbp)
 	void less_rbp(int leftoff, int rightoff, int destoff)
@@ -490,7 +499,7 @@ public:
 	void more_rbp(int leftoff, int rightoff, int destoff)
 	{
 		// 交换律
-		less_rbp(destoff, rightoff, leftoff);
+		less_rbp(rightoff, leftoff, destoff);
 	}
 
 	// EQUAL运算
@@ -575,7 +584,7 @@ public:
 	void more_equal_rbp(int leftoff, int rightoff, int destoff)
 	{
 		// 交换律
-		less_equal_rbp(destoff, rightoff, leftoff);
+		less_equal_rbp(rightoff, leftoff, destoff);
 	}
 
 	// NOT EQUAL运算
@@ -614,6 +623,32 @@ public:
 		m_source += "mov    %rax, -" + fkxtoa(-destoff, 8) + "(%rbp)\n";
 	}
 
+    // offset的地方为0就jmp jumpoff
+    // xorpd  %xmm0,%xmm0
+    // ucomisd offset(%rbp),%xmm0
+    // je     .+jumpoff
+    void jne_rbp(int offset, int jumpoff)
+	{
+		assert(offset <= 0);
+        push(0x66); push(0x0f); push(0x57); push(0xc0);         
+        push(0x66); push(0x0f); push(0x2e); push(0x85); 
+        push_int(offset);
+        push(0x0f); push(0x84); 
+        push_int(jumpoff);
+        m_source += "xorpd  %xmm0,%xmm0\n";
+        m_source += "ucomisd -" + fkxtoa(-offset, 8) + "(%rbp),%xmm0\n";
+        m_source += "je     .+" + fkxtoa(jumpoff, 8) + "\n";
+	}
+
+    // 跳转jumpoff
+    // jmp     .+jumpoff
+    void jmp(int jumpoff)
+    {
+        push(0xe9);
+        push_int(jumpoff);
+        m_source += "jmp     .+" + fkxtoa(jumpoff, 8) + "\n";
+    }
+    
     // 返回
     // leaveq
     // retq
@@ -634,6 +669,16 @@ public:
 	void variant_mul(int destpos, int leftpos, int rightpos);
 	void variant_div(int destpos, int leftpos, int rightpos);
 	void variant_div_mod(int destpos, int leftpos, int rightpos);
+    void variant_and(int destpos, int leftpos, int rightpos);
+    void variant_or(int destpos, int leftpos, int rightpos);
+    void variant_less(int destpos, int leftpos, int rightpos);
+    void variant_more(int destpos, int leftpos, int rightpos);
+    void variant_equal(int destpos, int leftpos, int rightpos);
+    void variant_lessequal(int destpos, int leftpos, int rightpos);
+    void variant_moreequal(int destpos, int leftpos, int rightpos);
+    void variant_notequal(int destpos, int leftpos, int rightpos);
+    void variant_jne(int pos, int jmppos);
+    void variant_jmp(int jmppos);
     
     void output(const String & name, func_native * nt);
 

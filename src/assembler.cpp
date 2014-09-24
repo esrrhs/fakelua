@@ -52,10 +52,27 @@ bool assembler::compile_func(const func_binary & fb)
     while (m_pos < (int)fb.m_size)
     {
 		m_posmap[m_pos] = asg.size();
+		FKLOG("posmap %d %d", m_pos, asg.size());
         if (!compile_next(asg, fb))
         {
             FKERR("[assembler] compile_func compile_next %d fail", m_pos);
             return false;
+        }
+    }
+
+    for (caremap::iterator it = m_caremap.begin(); it != m_caremap.end(); it++)
+    {
+        int jumpposoff = it->first;
+        int bytecodepos = it->second;
+        if (m_posmap.find(bytecodepos) != m_posmap.end())
+        {
+            int pos = m_posmap[bytecodepos];
+            asg.set_int(jumpposoff, pos - (jumpposoff + sizeof(int)));
+            FKLOG("loop set %d -> %d %d", jumpposoff, pos - (jumpposoff + sizeof(int)), pos);
+        }
+        else
+        {
+            assert(0);
         }
     }
     
@@ -126,6 +143,16 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 	case OPCODE_NOTEQUAL:
 		{
 			ret = compile_cmp(asg, fb, cmd);
+		}
+		break;
+    case OPCODE_JNE:
+		{
+			ret = compile_jne(asg, fb, cmd);
+		}
+		break;
+    case OPCODE_JMP:
+		{
+			ret = compile_jmp(asg, fb, cmd);
 		}
 		break;
     default:
@@ -297,33 +324,95 @@ bool assembler::compile_cmp(asmgen & asg, const func_binary & fb, command cmd)
 	switch (code)
 	{
 	case OPCODE_AND:
-		asg.and_rbp(dest, left, right);
+		asg.variant_and(dest, left, right);
 		break;
 	case OPCODE_OR:
-		asg.or_rbp(dest, left, right);
+		asg.variant_or(dest, left, right);
 		break;
 	case OPCODE_LESS:
-		asg.less_rbp(dest, left, right);
+		asg.variant_less(dest, left, right);
 		break;
 	case OPCODE_MORE:
-		asg.more_rbp(dest, left, right);
+		asg.variant_more(dest, left, right);
 		break;
 	case OPCODE_EQUAL:
-		asg.and_rbp(dest, left, right);
+		asg.variant_equal(dest, left, right);
 		break;
 	case OPCODE_MOREEQUAL:
-		asg.more_equal_rbp(dest, left, right);
+		asg.variant_moreequal(dest, left, right);
 		break;
 	case OPCODE_LESSEQUAL:
-		asg.less_equal_rbp(dest, left, right);
+		asg.variant_lessequal(dest, left, right);
 		break;
 	case OPCODE_NOTEQUAL:
-		asg.not_equal_rbp(dest, left, right);
+		asg.variant_notequal(dest, left, right);
 		break;
 	default:
 		assert(0);
 		FKERR("[assembler] compile_cmp err code %d %s", code, OpCodeStr(code));
 		break;
+	}
+
+	return true;
+}
+
+bool assembler::compile_jne(asmgen & asg, const func_binary & fb, command cmd)
+{
+	int cmp = 0;
+	GET_VARIANT_POS(fb, cmp, m_pos);
+	m_pos++;
+
+    int jump_bytecode_pos = COMMAND_CODE(GET_CMD(fb, m_pos));
+	m_pos++;
+
+    int jumppos = -1;
+    if (m_posmap.find(jump_bytecode_pos) != m_posmap.end())
+    {
+        jumppos = m_posmap[jump_bytecode_pos];
+    }
+
+	asg.variant_jne(cmp, jumppos);
+
+    int jmpoffset = asg.size() - sizeof(int);
+	if (jumppos == -1)
+	{
+	    // 记录下来
+	    m_caremap[jmpoffset] = jump_bytecode_pos;
+	    FKLOG("compile_jne caremap add %d %d", jmpoffset, jump_bytecode_pos);
+	}
+	else
+	{
+	    asg.set_int(jmpoffset, jumppos - asg.size());
+	    FKLOG("compile_jne set jne add %d -> %d", jmpoffset, jumppos - asg.size());
+	}
+	
+	return true;
+}
+
+bool assembler::compile_jmp(asmgen & asg, const func_binary & fb, command cmd)
+{
+    int jump_bytecode_pos = COMMAND_CODE(GET_CMD(fb, m_pos));
+	m_pos++;
+
+    int jumppos = -1;
+    if (m_posmap.find(jump_bytecode_pos) != m_posmap.end())
+    {
+        jumppos = m_posmap[jump_bytecode_pos];
+    }
+
+    asg.variant_jmp(jumppos);
+
+    int jmpoffset = asg.size() - sizeof(int);
+	if (jumppos == -1)
+	{
+	    // 记录下来
+	    m_caremap[jmpoffset] = jump_bytecode_pos;
+	    FKLOG("compile_jmp caremap add %d %d", jmpoffset, jump_bytecode_pos);
+	}
+	else
+	{
+	    asg.set_int(jmpoffset, jumppos - asg.size());
+	    FKLOG("compile_jmp set jne add %d -> %d", jmpoffset, jumppos - asg.size());
 	}
 
 	return true;

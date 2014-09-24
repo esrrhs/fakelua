@@ -23,6 +23,7 @@ void machine::call(native * nt, const char * func, paramstack * ps)
 	int64_t dataoff = 0;
 
     // push²ÎÊý
+    String paramstr;
     for (i = 0; i < (int)ps->m_variant_list_num; i++)
     {
         type = ps->m_variant_list[i].type;
@@ -46,7 +47,12 @@ void machine::call(native * nt, const char * func, paramstack * ps)
 			:"r"(dataoff),"r"(data)
 			:"%rax", "%eax"
 		);
+
+		paramstr += "movq $" + fkxtoa(type, 8) + ",-" + fkxtoa(-typeoff, 8) + "(%rsp) \n";
+		paramstr += "movq $" + fkxtoa(data, 8) + ",-" + fkxtoa(-dataoff, 8) + "(%rsp) \n";
+		
     }
+    FKLOG("machine call \n%s\n", paramstr.c_str());
 
     // call
     f();
@@ -59,6 +65,6 @@ void machine::call(native * nt, const char * func, paramstack * ps)
         :
 		:"%eax","%rdx"
         );
-    
+
 }
 
