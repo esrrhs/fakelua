@@ -58,6 +58,8 @@
     <ClInclude Include="src\asmgen.h" />
     <ClInclude Include="src\machine.h" />
     <ClInclude Include="src\native.h" />
+    <ClInclude Include="src\win32\unistd.h" />
+    <ClInclude Include="src\win32\FlexLexer.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -109,5 +111,8 @@
     <ClCompile Include="src\assembler.cpp" />
     <ClCompile Include="src\machine.cpp" />
     <ClCompile Include="src\native.cpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="src\win32\nativecall.asm" />
   </ItemGroup>
 </Project>
