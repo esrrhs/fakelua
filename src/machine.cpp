@@ -3,17 +3,10 @@
 #include "binary.h"
 #include "paramstack.h"
 
+extern "C" int __stdcall CallNativeFunc(const void * func);
+
 void machine::call(native * nt, const char * func, paramstack * ps)
 {
-    const func_native * fn = nt->get_func(func);
-    if (!fn)
-    {
-        FKERR("fkrun native %p no func %s fail", nt, func);
-        seterror(m_fk, efk_run_no_func_error, "fkrun native %p no func %s fail", nt, func);
-        m_isend = true;
-        return;
-	}
-
 	// log
 	if (ISLOG)
 	{
@@ -28,6 +21,20 @@ void machine::call(native * nt, const char * func, paramstack * ps)
 			paramstr += "movq $" + fkxtoa(data, 8) + ",-" + fkxtoa(-dataoff, 8) + "(%rsp) \n";
 		}
 		FKLOG("machine call \n%s\n", paramstr.c_str());
+	}
+
+#ifdef WIN32
+	// win64不支持嵌入汇编，只能去.asm文件
+	const func_native * fn = nt->get_func(func);
+	CallNativeFunc(fn);
+#else
+    const func_native * fn = nt->get_func(func);
+    if (!fn)
+    {
+        FKERR("fkrun native %p no func %s fail", nt, func);
+        seterror(m_fk, efk_run_no_func_error, "fkrun native %p no func %s fail", nt, func);
+        m_isend = true;
+        return;
 	}
 
 	typedef void(*macfunc) ();
@@ -62,7 +69,7 @@ void machine::call(native * nt, const char * func, paramstack * ps)
 			:"r"(dataoff),"r"(data)
 			:"%rax", "%eax"
 		);
-    }
+	}
 
     // call
     f();
@@ -75,6 +82,6 @@ void machine::call(native * nt, const char * func, paramstack * ps)
         :
 		:"%eax","%rdx"
         );
-
+#endif
 }
 

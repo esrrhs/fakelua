@@ -36,7 +36,7 @@ public:
         m_source.clear();
     }
 
-    void push(char c)
+    void push(unsigned char c)
     {
         m_asm_code_list.push_back(c);
     }
