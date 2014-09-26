@@ -13,7 +13,7 @@ func myfunc1(arg1, arg2)
 
 	if arg1 < 5 then
 	else
-		arg1 = (arg2 * arg1) % arg1
+		arg1 = (arg2 * arg1) % 9
 	end
 
 	if arg1 > 10 then
