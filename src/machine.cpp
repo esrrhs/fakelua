@@ -3,7 +3,8 @@
 #include "binary.h"
 #include "paramstack.h"
 
-extern "C" int __stdcall CallNativeFunc(const void * func);
+extern "C" void __stdcall CallNativeFunc(const void * func, void * param, 
+	size_t size, void * ret);
 
 void machine::call(native * nt, const char * func, paramstack * ps)
 {
@@ -26,7 +27,8 @@ void machine::call(native * nt, const char * func, paramstack * ps)
 #ifdef WIN32
 	// win64不支持嵌入汇编，只能去.asm文件
 	const func_native * fn = nt->get_func(func);
-	CallNativeFunc(fn);
+	CallNativeFunc(fn->m_buff, ps->m_variant_list, ps->m_variant_list_num,
+		&m_ret);
 #else
     const func_native * fn = nt->get_func(func);
     if (!fn)
