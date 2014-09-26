@@ -3,6 +3,14 @@
 	
 	push	rbp
 	mov		rbp,rsp
+	push	rsi
+	push	rax
+	push	rbx
+	push	rcx
+	push	rdx
+	push	r8
+	push	r9
+	push	r10
 
 	; 函数指针在rcx
 	; 参数地址在rdx
@@ -37,7 +45,15 @@ LOOPEND:
 	; 返回值
 	mov		qword ptr [r9],rax
 	mov		qword ptr [r9+8h],rdx
-
+	
+	pop		r10
+	pop		r9
+	pop		r8
+	pop		rdx
+	pop		rcx
+	pop		rbx
+	pop		rax
+	pop		rsi
 	leave
 	ret 
 	CallNativeFunc endp
