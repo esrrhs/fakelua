@@ -102,7 +102,7 @@ FUCK_API const char * fkerrorstr(fuck * fk)
 
 FUCK_API bool fkisfunc(fuck * fk, const char * func)
 {
-    return fk->bin.is_have_func(func);
+    return fk->fm.get_func(func) >= 0;
 }
 
 // ╣Всц╨╞йЩ

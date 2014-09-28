@@ -14,6 +14,7 @@ enum efkerror
     efk_parse_file_fail,
     
     efk_compile_same_func_name,
+    efk_compile_func_not_define,
     efk_compile_stack_identifier_error,
     efk_compile_stmt_type_error,
 	efk_compile_variable_not_found,
