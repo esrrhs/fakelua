@@ -45,23 +45,21 @@ public:
     {
     }
 
-    force_inline bool add_func(func_native & nt)
+    force_inline bool set_func(int pos, func_native & nt)
     {
-        m_func_native_list.push_back(nt);
+        while (pos >= (int)m_func_native_list.size())
+        {
+            m_func_native_list.push_back(func_native(m_fk));
+        }
+        
+        m_func_native_list[pos] = nt;
         return true;
     }
     
-    force_inline const func_native * get_func(const char * name) const
+    force_inline const func_native * get_func(int pos) const
     {
-        // TODO
-        for (int i = 0; i < (int)m_func_native_list.size(); i++)
-        {
-            if (m_func_native_list[i].m_name == name)
-            {
-                return &m_func_native_list[i];
-            }
-        }
-        return 0;
+        assert(pos >= 0 && pos < (int)m_func_native_list.size());
+        return &m_func_native_list[pos];
     }
     
     String dump() const;

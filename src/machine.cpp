@@ -3,8 +3,10 @@
 #include "binary.h"
 #include "paramstack.h"
 
+#ifdef WIN32
 extern "C" void __stdcall CallNativeFunc(const void * func, void * param,
 	size_t size, void * ret);
+#endif
 
 void machine::call(native * nt, const char * func, paramstack * ps)
 {
@@ -24,12 +26,15 @@ void machine::call(native * nt, const char * func, paramstack * ps)
 		FKLOG("machine call \n%s\n", paramstr.c_str());
 	}
 
-#ifdef WIN32
-	// win64不支持嵌入汇编，只能去.asm文件
-	const func_native * fn = nt->get_func(func);
-	CallNativeFunc(fn->m_buff, ps->m_variant_list, ps->m_variant_list_num, &m_ret);
-#else
-    const func_native * fn = nt->get_func(func);
+    int pos = m_fk->fm.get_func(func);
+    if (pos < 0)
+    {
+        FKERR("fkrun native %p no func %s fail", nt, func);
+        seterror(m_fk, efk_run_no_func_error, "fkrun native %p no func %s fail", nt, func);
+        m_isend = true;
+        return;
+	}
+    const func_native * fn = nt->get_func(pos);
     if (!fn)
     {
         FKERR("fkrun native %p no func %s fail", nt, func);
@@ -38,6 +43,10 @@ void machine::call(native * nt, const char * func, paramstack * ps)
         return;
 	}
 
+#ifdef WIN32
+	// win64不支持嵌入汇编，只能去.asm文件
+	CallNativeFunc(fn->m_buff, ps->m_variant_list, ps->m_variant_list_num, &m_ret);
+#else
 	typedef void(*macfunc) ();
 	macfunc f = (macfunc)fn->m_buff;
 	int64_t i = 0;

@@ -140,19 +140,13 @@ private:
     int m_pos;
 };
 
-struct func_binary_hash_ele
-{
-    int pos;
-    const String * name;
-};
-
 typedef std::vector<func_binary> func_binary_list;
 
 class binary
 {
     friend class assembler;
 public:
-    force_inline binary(fuck * fk) : m_fk(fk), m_func_index_map(0), m_func_index_map_size(0)
+    force_inline binary(fuck * fk) : m_fk(fk)
     {
     }
     force_inline ~binary()
@@ -166,76 +160,24 @@ public:
 
     force_inline void clear()
     {
-        //m_func_index_map.clear();
         m_func_list.clear();
     }
 
-    force_inline void build_map()
+    force_inline bool set_func(int pos, func_binary & bin)
     {
-        m_func_index_map_size = m_func_list.size() * 2;
-        m_func_index_map = (func_binary_hash_ele*)safe_fkmalloc(m_fk, sizeof(func_binary_hash_ele) * m_func_index_map_size);
-        memset(m_func_index_map, 0, sizeof(func_binary_hash_ele) * m_func_index_map_size);
-        for (int i = 0; i < (int)m_func_list.size(); i++)
+        while (pos >= (int)m_func_list.size())
         {
-            int pos = m_func_list[i].m_pos;
-            const String & name = m_func_list[i].m_name;
-            
-            uint32_t hash = fkstrhash(name.c_str());
-            int index = hash % m_func_index_map_size;
-            for (int j = 0; j < (int)m_func_index_map_size; j++)
-            {
-                if (!m_func_index_map[j].name)
-                {
-                    m_func_index_map[j].pos = pos;
-                    m_func_index_map[j].name = &name;
-                    break;
-                }
-                index = (index + 1) % m_func_index_map_size;
-            }
-        }
-    }
-
-    force_inline bool is_have_func(const char * name) const
-    {
-        for (int i = 0; i < (int)m_func_list.size(); i++)
-        {
-            if (m_func_list[i].m_name == name)
-            {
-                return true;
-            }
-        }
-        return false;
-    }
-    force_inline bool add_func(func_binary & bin)
-    {
-        const String & name = bin.getname();
-        if (is_have_func(name.c_str()))
-        {
-            return false;
+            m_func_list.push_back(func_binary(m_fk));
         }
         
-        int index = m_func_list.size();
-        bin.m_pos = index;
-        m_func_list.push_back(bin);
-
+        bin.m_pos = pos;
+        m_func_list[pos] = bin;
         return true;
     }
-    force_inline const func_binary * get_func(const char * name) const
+    force_inline const func_binary * get_func(int pos) const
     {
-        uint32_t hash = fkstrhash(name);
-        int index = hash % m_func_index_map_size;
-        for (int j = 0; j < (int)m_func_index_map_size; j++)
-        {
-            const func_binary & funcbin = m_func_list[m_func_index_map[index].pos];
-            const String & srcname = funcbin.m_name;
-            if (&srcname == m_func_index_map[index].name)
-            {
-                // find it
-                return &funcbin;
-            }
-            index = (index + 1) % m_func_index_map_size;
-        }
-        return 0;
+        assert(pos >= 0 && pos < (int)m_func_list.size());
+        return &m_func_list[pos];
     }
 
     String dump() const;
@@ -243,7 +185,5 @@ public:
 private:
     fuck * m_fk;    
     func_binary_list m_func_list;
-    func_binary_hash_ele* m_func_index_map;
-    size_t m_func_index_map_size;
 };
 

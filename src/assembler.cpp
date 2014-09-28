@@ -79,7 +79,9 @@ bool assembler::compile_func(const func_binary & fb)
     asg.stop_func();
     func_native nt(m_fk);
     asg.output(fb.getname(), &nt);
-    m_native->add_func(nt);
+    int pos = m_fk->fm.get_func(fb.getname().c_str());
+    assert(pos >= 0);
+    m_native->set_func(pos, nt);
     
     String str = asg.source();
 

@@ -22,10 +22,11 @@
 #include "native.h"
 #include "assembler.h"
 #include "machine.h"
+#include "funcmap.h"
 
 struct fuck
 {
-    fuck() : errorno(0), mf(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this), mac(this)
+    fuck() : errorno(0), mf(this), fm(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this), mac(this)
     {
     }
     ~fuck()
@@ -37,6 +38,7 @@ struct fuck
     {
         clearerr();
         mf.clear();
+        fm.clear();
         bin.clear();
         mc.clear();
         nt.clear();
@@ -60,6 +62,9 @@ struct fuck
 
     // 解析
     myflexer mf;
+
+    // 函数查找
+    funcmap fm;
 
     // 二进制
     binary bin;
