@@ -23,10 +23,11 @@
 #include "assembler.h"
 #include "machine.h"
 #include "funcmap.h"
+#include "stringheap.h"
 
 struct fuck
 {
-    fuck() : errorno(0), mf(this), fm(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this), mac(this)
+    fuck() : errorno(0), mf(this), fm(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this), sh(this), mac(this)
     {
     }
     ~fuck()
@@ -45,6 +46,7 @@ struct fuck
         as.clear();
         ps.clear();
         inter.clear();
+        sh.clear();
         mac.clear();
     }
     
@@ -83,6 +85,9 @@ struct fuck
 
     // 当前线程解释器
     interpreter inter;
+
+    // 字符串集合
+    stringheap sh;
 
     // 当前线程本地环境
     machine mac;
