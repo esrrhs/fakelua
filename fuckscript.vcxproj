@@ -27,6 +27,7 @@
     <ClInclude Include="src\codegen.h" />
     <ClInclude Include="src\compiler.h" />
     <ClInclude Include="src\fuck.h" />
+    <ClInclude Include="src\funcmap.h" />
     <ClInclude Include="src\interpreter.h" />
     <ClInclude Include="src\machine.h" />
     <ClInclude Include="src\myflexer.h" />
@@ -35,6 +36,7 @@
     <ClInclude Include="src\processor.h" />
     <ClInclude Include="src\routine.h" />
     <ClInclude Include="src\semantic.h" />
+    <ClInclude Include="src\stringheap.h" />
     <ClInclude Include="src\syntree.h" />
     <ClInclude Include="src\types.h" />
     <ClInclude Include="src\variant.h" />
@@ -58,6 +60,7 @@
     <ClCompile Include="src\paramstack.cpp" />
     <ClCompile Include="src\processor.cpp" />
     <ClCompile Include="src\routine.cpp" />
+    <ClCompile Include="src\stringheap.cpp" />
     <ClCompile Include="src\syntree.cpp" />
     <ClCompile Include="src\types.cpp" />
     <ClCompile Include="src\variant.cpp" />
