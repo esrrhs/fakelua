@@ -82,6 +82,9 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
 		SET_STACK(&(ps->m_variant_list[i]), s, i);
 		FKLOG("call set %s to pos %d", (vartostring(&(ps->m_variant_list[i]))).c_str(), i);
     }
+
+	// ÖØÖÃret
+	V_SET_NIL(&m_ret);
 }
 
 void interpreter::grow()

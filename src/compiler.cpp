@@ -590,6 +590,8 @@ bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev)
 {
 	FKLOG("[compiler] compile_explicit_value %p %s", ev, ev->str.c_str());
 
+	fuck * fk = m_fk;
+
 	variant v;
 	switch (ev->getvaluetype())
 	{
@@ -603,7 +605,7 @@ bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev)
 		V_SET_REAL((&v), (fkatol(&ev->str)));
 		break;
 	case explicit_value_node::EVT_STR:
-		V_SET_STRING((&v), m_fk->sh.allocstring(ev->str.c_str()));
+		V_SET_STRING((&v), ev->str.c_str());
 		break;
 	case explicit_value_node::EVT_FLOAT:
 		V_SET_REAL((&v), (fkatof(&ev->str)));

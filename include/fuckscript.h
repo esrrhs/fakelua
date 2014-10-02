@@ -220,7 +220,8 @@ template<>	inline double fkpspop(fuck * fk)
 
 template<>	inline std::string fkpspop(fuck * fk)
 {
-	return fkpspopcstrptr(fk);
+	const char * ret = fkpspopcstrptr(fk);
+	return ret ? ret : "";
 }
 
 template<>	inline bool fkpspop(fuck * fk)

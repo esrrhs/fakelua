@@ -52,8 +52,11 @@ void codegen::output(const String & name, func_binary * bin)
     memcpy(bin->m_buff, &m_byte_code_list[0], bin->m_size * sizeof(command));
     
     bin->m_const_list_num = m_const_list.size();
-    bin->m_const_list = (variant *)safe_fkmalloc(m_fk, (bin->m_const_list_num * sizeof(variant)));
-    memcpy(bin->m_const_list, &m_const_list[0], bin->m_const_list_num * sizeof(variant));
+	if (bin->m_const_list_num > 0)
+	{
+		bin->m_const_list = (variant *)safe_fkmalloc(m_fk, (bin->m_const_list_num * sizeof(variant)));
+		memcpy(bin->m_const_list, &m_const_list[0], bin->m_const_list_num * sizeof(variant));
+    }
 
     FKLOG("codegen out %s %d", name.c_str(), m_maxstackpos);
 }
