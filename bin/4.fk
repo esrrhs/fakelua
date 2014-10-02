@@ -1,0 +1,7 @@
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	var arg3 = arg1 * arg2
+	
+	return arg3
+end
