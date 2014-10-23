@@ -408,7 +408,8 @@ public:
             	// Èû·µ»ØÖµ
                 else
                 {
-        		    m_cur_stack = &m_stack_list[m_stack_list_num - 1];
+					m_cur_stack = &m_stack_list[m_stack_list_num - 1];
+					const func_binary & fb = *m_cur_stack->m_fb;
             		variant * ret;
                 	GET_VARIANT(*m_cur_stack, fb, ret, m_retvpos);
                     *ret = m_ret;
