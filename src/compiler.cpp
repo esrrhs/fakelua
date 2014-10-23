@@ -674,6 +674,65 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
 {
     FKLOG("[compiler] compile_function_call_node %p", fn);
 
+    fuck * fk = m_fk;
+
+    // 参数
+    std::vector<command> arglist;
+    if (fn->arglist)
+    {
+        for (int i = 0; i < (int)fn->arglist->arglist.size(); i++)
+        {
+            syntree_node* sn = fn->arglist->arglist[i];
+            if (!compile_node(cg, sn))
+            {
+                FKERR("[compiler] compile_function_call_node arg fail");
+                return false;
+            }
+            arglist.push_back(m_cur_addr);
+        }
+    }
+
+    // 调用位置
+    command callpos;
+    String func = fn->fuc;
+    int pos = cg.getvariable(func);
+    if (pos != -1)
+    {
+        // 是用变量来调用函数
+        callpos = MAKE_ADDR(ADDR_STACK, pos);
+    }
+    else
+    {
+        // 申请字符串变量
+	    variant v;
+        V_SET_STRING(&v, func.c_str());
+        pos = cg.getconst(v);
+	    callpos = MAKE_ADDR(ADDR_CONST, pos);
+    }
+
+    // oper
+    command oper;
+    oper = MAKE_OPCODE(OPCODE_CALL);
+
+    // 参数个数
+    command argnum;
+    argnum = MAKE_POS(arglist.size());
+   
+    // 返回值
+    command ret;
+    int retpos = cg.alloc_stack_identifier();
+    ret = MAKE_ADDR(ADDR_STACK, retpos);
+    m_cur_addr = ret;
+    
+    cg.push(oper);
+    cg.push(callpos);
+    cg.push(ret);
+    cg.push(argnum);
+    for (int i = 0; i < (int)arglist.size(); i++)
+    {
+        cg.push(arglist[i]);
+    }
+    
     FKLOG("[compiler] compile_function_call_node %p OK", fn);
     
     return true;

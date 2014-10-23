@@ -36,6 +36,7 @@ private:
 	bool compile_cmp(asmgen & asg, const func_binary & fb, command cmd);
     bool compile_jne(asmgen & asg, const func_binary & fb, command cmd);
     bool compile_jmp(asmgen & asg, const func_binary & fb, command cmd);
+    bool compile_call(asmgen & asg, const func_binary & fb, command cmd);
     
 private:
     fuck * m_fk;

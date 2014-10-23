@@ -37,6 +37,8 @@ const char * OpCodeStr(int opcode)
 	OPCODE_DEF(LESSEQUAL)
 	OPCODE_DEF(NOTEQUAL)
 	
+	OPCODE_DEF(CALL)
+	
 #undef OPCODE_DEF
     }
     return "unknow";

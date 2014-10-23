@@ -124,7 +124,7 @@ struct stack
 class interpreter
 {
 public:
-	force_inline interpreter(fuck * fk) : m_fk(fk), m_isend(false), 
+	force_inline interpreter(fuck * fk) : m_fk(fk), m_isend(false), m_retvpos(-1),
 		m_stack_list(0), m_stack_list_num(0), m_stack_list_max_num(0)
     {
     }
@@ -144,6 +144,7 @@ public:
     void clear()
     {
         m_isend = false;
+        m_retvpos = -1;
         m_stack_list_num = 0;
         for (int i = 0; i < (int)m_stack_list_max_num; i++)
 		{
@@ -354,7 +355,40 @@ public:
                     MATH_ASSIGN_OPER(s, fb, DIVIDE_MOD);
                 }
                 break;
-                
+            case OPCODE_CALL:
+                {
+                	const variant * callpos = 0;
+                	LOG_VARIANT(s, fb, s.m_pos, "callpos");
+                	GET_VARIANT(s, fb, callpos, s.m_pos);
+                	s.m_pos++;
+
+                    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, s.m_pos))) == ADDR_STACK);
+                    m_retvpos = s.m_pos;
+                	s.m_pos++;
+                    
+                    int argnum = COMMAND_CODE(GET_CMD(fb, s.m_pos));
+                	s.m_pos++;
+
+                	paramstack ps;
+                	ps.clear();
+                	for (int i = 0; i < argnum; i++)
+                	{
+                    	variant * arg = 0;
+                    	LOG_VARIANT(s, fb, s.m_pos, "arg");
+                    	GET_VARIANT(s, fb, arg, s.m_pos);
+                    	s.m_pos++;
+
+                        variant * argdest = 0;
+                    	PS_PUSH_AND_GET(ps, argdest);
+                    	*argdest = *arg;
+                	}
+                	
+                    call(m_fk, callpos, &ps);
+
+                    // call会grow
+                    s = m_stack_list[m_stack_list_num - 1];
+                }
+                break;
             default:
                 assert(0);
                 FKERR("next err code %d %s", code, OpCodeStr(code));
@@ -368,13 +402,20 @@ public:
                 // 出栈
         		s.clear();
         		m_stack_list_num--;
-            }
-
-            // 所有都完
-        	if (!m_stack_list_num)
-            {
-                FKLOG("stack empty end");
-                m_isend = true;
+                // 所有都完
+            	if (!m_stack_list_num)
+                {
+                    FKLOG("stack empty end");
+                    m_isend = true;
+                }
+            	// 塞返回值
+                else
+                {
+            		s = m_stack_list[m_stack_list_num - 1];
+            		variant * ret;
+                	GET_VARIANT(s, fb, ret, m_retvpos);
+                    *ret = m_ret;
+                }
             }
 
             if (err)
@@ -383,7 +424,7 @@ public:
                 m_isend = true;
             }
             num++;
-            if (isend())
+            if (m_isend)
             {
                 break;
             }
@@ -393,9 +434,13 @@ public:
     }
 
 private:
+    void call(fuck * fk, const variant * callpos, paramstack * ps);
+    
+private:
     fuck * m_fk;
     bool m_isend;
     variant m_ret;
+    int m_retvpos;
 	stack * m_stack_list;
 	size_t m_stack_list_num;
 	size_t m_stack_list_max_num;
