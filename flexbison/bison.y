@@ -205,12 +205,12 @@ function_call_arguments:
 		$$ = 0;
 	}
 	| 
-	arg_expr ARG_SPLITTER function_call_arguments 
+	function_call_arguments ARG_SPLITTER arg_expr
 	{
 		FKLOG("[bison]: function_call_arguments <- arg_expr function_call_arguments");
-		assert($3->gettype() == est_call_arglist);
-		function_call_arglist_node * p = dynamic_cast<function_call_arglist_node*>($3);
-		p->add_arg($1);
+		assert($1->gettype() == est_call_arglist);
+		function_call_arglist_node * p = dynamic_cast<function_call_arglist_node*>($1);
+		p->add_arg($3);
 		$$ = p;
 	}
 	| 
