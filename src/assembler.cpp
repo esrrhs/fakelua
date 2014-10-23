@@ -161,6 +161,11 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 			ret = compile_jmp(asg, fb, cmd);
 		}
 		break;
+    case OPCODE_CALL:
+		{
+			ret = compile_call(asg, fb, cmd);
+		}
+		break;
     default:
         assert(0);
         FKERR("[assembler] compile_next err code %d %s", code, OpCodeStr(code));
@@ -421,6 +426,27 @@ bool assembler::compile_jmp(asmgen & asg, const func_binary & fb, command cmd)
 	    FKLOG("compile_jmp set jne add %d -> %d", jmpoffset, jumppos - asg.size());
 	}
 
+	return true;
+}
+
+bool assembler::compile_call(asmgen & asg, const func_binary & fb, command cmd)
+{
+	int callpos = 0;
+	GET_VARIANT_POS(fb, callpos, m_pos);
+	m_pos++;
+
+	int ret = 0;
+	GET_VARIANT_POS(fb, ret, m_pos);
+	m_pos++;
+
+    int argnum = COMMAND_CODE(GET_CMD(fb, m_pos));
+	m_pos++;
+    
+    m_pos += argnum;
+    
+    // TODO
+    USE(callpos);
+    
 	return true;
 }
 

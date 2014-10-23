@@ -39,6 +39,8 @@ enum OpCodeType
 	OPCODE_MOREEQUAL,
 	OPCODE_LESSEQUAL,
 	OPCODE_NOTEQUAL,
+	
+    OPCODE_CALL,
 };
 
 enum AddrType

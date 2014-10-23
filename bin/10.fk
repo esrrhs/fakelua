@@ -1,6 +1,13 @@
 -- func1 comment
 func myfunc1(arg1, arg2)
 	
-	myfunc2(arg1)
+	return myfunc2(arg1)
+	
+end
+
+-- func2 comment
+func myfunc2(arg1)
+	
+	return arg1 + 1
 	
 end

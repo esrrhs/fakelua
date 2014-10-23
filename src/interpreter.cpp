@@ -111,3 +111,11 @@ void interpreter::grow()
 	m_stack_list_max_num = newsize;
 }
 
+void interpreter::call(fuck * fk, const variant * callpos, paramstack * ps)
+{
+    const char * name = 0;
+    V_GET_STRING(callpos, name);
+
+    call(&m_fk->bin, name, ps);
+}
+
