@@ -68,6 +68,7 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
 	}
 	m_stack_list_num++;
 	stack & s = m_stack_list[m_stack_list_num - 1];
+    m_cur_stack = &s;
 	s.m_fk = m_fk;
 	s.m_fb = fb;
 	s.clear();
