@@ -165,7 +165,7 @@ static force_inline uint32_t fkstrhash(const char * p)
     uint32_t hashv = 0;
     if (p)
     {
-        for (int i = 0; !p[i]; i++)
+        for (int i = 0; p[i]; i++)
         {
             hashv = ((hashv << 5) + hashv) + p[i]; /* hash * 33 + c */
         }
