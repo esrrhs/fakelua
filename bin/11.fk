@@ -3,4 +3,11 @@ func myfunc1(arg1, arg2)
 	
 	arg2 = myfunc2(arg1)
 	
+	return arg2
+	
+end
+
+-- func2 comment
+func myfunc2(arg1)
+	return 12
 end

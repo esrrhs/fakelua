@@ -127,7 +127,7 @@ public:
         {
             const func_ele & e = m_func_ele_list[m_func_index_map[index].pos];
             const String & srcname = e.name;
-            if (&srcname == m_func_index_map[index].name)
+            if (&srcname == m_func_index_map[index].name && strcmp(srcname.c_str(), name) == 0)
             {
                 // find it
                 return e.pos;
