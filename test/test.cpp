@@ -8,6 +8,11 @@
 #include "gperftools/profiler.h"
 #endif
 
+int cfunc1(int a, int b)
+{
+    return a + b;
+}
+
 int main(int argc, const char *argv[])
 {
     if (argc < 2)
@@ -22,6 +27,8 @@ int main(int argc, const char *argv[])
         printf("parse error %d, %s\n", fkerror(fk), fkerrorstr(fk));
         return 0;
     }
+
+    fkreg(fk, "cfunc1", cfunc1); 
 
 	int ret = 0;
 
