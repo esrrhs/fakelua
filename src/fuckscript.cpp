@@ -358,3 +358,7 @@ FUCK_API void fkrunjit(fuck * fk, const char * func)
     
     FKLOG("fkrun %p %s OK", fk, func);
 }
+
+void fkpushfunctor(fuck * fk, const char * name, fkfunctor ff)
+{
+}
