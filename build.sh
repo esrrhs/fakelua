@@ -1,4 +1,11 @@
 #! /bin/sh
+
+BUILD_FLAG=""
+
+if [ $# == 1 ] && [ $1 == "release" ];then
+    BUILD_FLAG=" -DREMOD=ON"
+fi
+
 cd flexbison
 flex -o ../src/flex.cpp flex.l
 bison -v -t -d bison.y
@@ -11,7 +18,7 @@ rm CMakeCache.txt -rf
 rm CMakeFiles -rf
 rm cmake_install.cmake -rf
 rm Makefile -rf
-cmake .
+cmake . $BUILD_FLAG
 make clean
 make -j5
 
@@ -21,7 +28,7 @@ rm CMakeCache.txt -rf
 rm CMakeFiles -rf
 rm cmake_install.cmake -rf
 rm Makefile -rf
-cmake .
+cmake . $BUILD_FLAG
 make clean
 make -j5
 cd ..
@@ -32,7 +39,7 @@ rm CMakeCache.txt -rf
 rm CMakeFiles -rf
 rm cmake_install.cmake -rf
 rm Makefile -rf
-cmake .
+cmake . $BUILD_FLAG
 make clean
 make -j5
 cd ..
@@ -43,7 +50,7 @@ rm CMakeCache.txt -rf
 rm CMakeFiles -rf
 rm cmake_install.cmake -rf
 rm Makefile -rf
-cmake .
+cmake . $BUILD_FLAG
 make clean
 make -j5
 
