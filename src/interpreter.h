@@ -182,6 +182,7 @@ public:
             int type = COMMAND_TYPE(cmd);
             int code = COMMAND_CODE(cmd);
 
+            USE(type);
             FKLOG("next %d %d %s", type, code, OpCodeStr(code));
                 
             assert (type == COMMAND_OPCODE);

@@ -100,6 +100,7 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
     int type = COMMAND_TYPE(cmd);
     int code = COMMAND_CODE(cmd);
 
+    USE(type);
     FKLOG("[assembler] compile_next cmd %d %d %s", type, code, OpCodeStr(code));
         
     assert (type == COMMAND_OPCODE);
