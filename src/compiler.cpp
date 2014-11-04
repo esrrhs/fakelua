@@ -30,7 +30,6 @@ bool compiler::compile(myflexer * mf)
         return false;
     }
     
-    m_fk->fm.build_map();
     String str = m_binary->dump();
     FKLOG("[compiler] compile funclist %d ok dump \n%s", funclist.size(), str.c_str());
 

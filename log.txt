@@ -49,3 +49,4 @@
 2014.10.24:加C函数绑定，下一步加执行
 2014.11.3:还是需要一个通用的hashmap，下一步加动态大小的hashmap
 2014.11.3:加release和debug的build选择，下一步加动态大小的hashmap
+2014.11.4:加动态大小的hashmap，下一步初步替换掉stringheap
