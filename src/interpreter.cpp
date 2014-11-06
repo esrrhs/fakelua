@@ -34,9 +34,31 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
     const func_binary * fb = bin->get_func(func);
     if (!fb)
     {
-        FKERR("fkrun bin %p no func %s fail", bin, func);
-        seterror(m_fk, efk_run_no_func_error, "fkrun bin %p no func %s fail", bin, func);
-        m_isend = true;
+        // 去C函数看看
+        if (m_fk->bf.call(func))
+        {
+            FKLOG("call C func %s", func);
+            
+            // 塞返回值
+    		bool err = false;
+			m_cur_stack = &m_stack_list[m_stack_list_num - 1];
+			const func_binary & fb = *m_cur_stack->m_fb;
+    		variant * ret;
+    		do {GET_VARIANT(*m_cur_stack, fb, ret, m_retvpos);} while(0);
+
+            paramstack * theps = getps(m_fk);
+            variant * cret;
+        	PS_POP_AND_GET(*theps, cret);
+        	
+            *ret = *cret;
+        }
+        else
+        {
+            FKERR("fkrun bin %p no func %s fail", bin, func);
+            seterror(m_fk, efk_run_no_func_error, "fkrun bin %p no func %s fail", bin, func);
+            m_isend = true;
+        }
+        
         return;
     }
 
@@ -74,6 +96,7 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
 		SET_STACK(&(ps->m_variant_list[i]), s, i);
 		FKLOG("call set %s to pos %d", (vartostring(&(ps->m_variant_list[i]))).c_str(), i);
     }
+    ps->clear();
 
 	// 重置ret
 	V_SET_NIL(&m_ret);

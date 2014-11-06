@@ -2,6 +2,7 @@
 #include "bison.h"
 #include "fuck.h"
 #include "variant.h"
+#include "paramstack.h"
 
 void fklog(const char * header, const char * file, const char * func, int pos, const char *fmt, ...)
 {
@@ -111,6 +112,11 @@ String vartostring(const variant * v)
     String s;
     V_TOSTRING(v, s);
     return s;
+}
+
+paramstack * getps(fuck * fk)
+{
+    return &fk->ps;
 }
 
 
