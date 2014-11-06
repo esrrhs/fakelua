@@ -191,3 +191,6 @@ String vartostring(const variant * v);
 template <typename T>
 void USE(T t) {}
 
+struct paramstack;
+paramstack * getps(fuck * fk);
+

@@ -468,6 +468,7 @@ struct fkinvoker<void, T1, T2, T3, T4, T5>
 	        fkpspop<T3>(fk),
 	        fkpspop<T4>(fk),
 	        fkpspop<T5>(fk));
+	    fkpspush<int>(fk, 0);
 	}
 };
 
@@ -480,6 +481,7 @@ struct fkinvoker<void, T1, T2, T3, T4>
 	        fkpspop<T2>(fk),
 	        fkpspop<T3>(fk),
 	        fkpspop<T4>(fk));
+	    fkpspush<int>(fk, 0);
 	}
 };
 
@@ -491,6 +493,7 @@ struct fkinvoker<void, T1, T2, T3>
 	    ((void(*)(T1,T2,T3))ff->param1)(fkpspop<T1>(fk),
 	        fkpspop<T2>(fk),
 	        fkpspop<T3>(fk));
+	    fkpspush<int>(fk, 0);
 	}
 };
 
@@ -501,6 +504,7 @@ struct fkinvoker<void, T1, T2>
 	{
 	    ((void(*)(T1,T2))ff->param1)(fkpspop<T1>(fk),
 	        fkpspop<T2>(fk));
+	    fkpspush<int>(fk, 0);
 	}
 };
 
@@ -510,6 +514,7 @@ struct fkinvoker<void, T1>
 	static void invoke(fuck * fk, fkfunctor * ff)
 	{
 	    ((void(*)(T1))ff->param1)(fkpspop<T1>(fk));
+	    fkpspush<int>(fk, 0);
 	}
 };
 
@@ -519,6 +524,7 @@ struct fkinvoker<void>
 	static void invoke(fuck * fk, fkfunctor * ff) 
 	{
 	    ((void(*)(void))ff->param1)();
+	    fkpspush<int>(fk, 0);
 	}
 };
 

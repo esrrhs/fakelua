@@ -370,7 +370,7 @@ public:
                     int argnum = COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos));
                 	m_cur_stack->m_pos++;
 
-                	paramstack ps;
+                	paramstack & ps = *getps(m_fk);
                 	ps.clear();
                 	for (int i = 0; i < argnum; i++)
                 	{
