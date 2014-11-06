@@ -9,7 +9,7 @@
 #include <sys/mman.h>
 #endif
 
-void asmgen::output(const String & name, func_native * nt)
+void asmgen::output(const char * name, func_native * nt)
 {
     nt->m_name = name;
 

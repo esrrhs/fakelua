@@ -100,7 +100,7 @@ public:
         return m_byte_code_list.size();
     }
 
-	void output(const String & name, func_binary * bin);
+	void output(const char * name, func_binary * bin);
     
     int get_cur_variable_pos(const String & name)
     {

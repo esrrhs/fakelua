@@ -41,7 +41,7 @@ int codegen::getconst(const variant & v)
 	return pos;
 }
 
-void codegen::output(const String & name, func_binary * bin)
+void codegen::output(const char * name, func_binary * bin)
 {
     bin->m_name = name;
 
@@ -58,5 +58,5 @@ void codegen::output(const String & name, func_binary * bin)
 		memcpy(bin->m_const_list, &m_const_list[0], bin->m_const_list_num * sizeof(variant));
     }
 
-    FKLOG("codegen out %s %d", name.c_str(), m_maxstackpos);
+    FKLOG("codegen out %s %d", name, m_maxstackpos);
 }

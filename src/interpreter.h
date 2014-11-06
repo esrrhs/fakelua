@@ -396,7 +396,7 @@ public:
             // 当前函数走完
             if (m_cur_stack->m_pos >= (int)fb.cmdsize())
             {
-                FKLOG("pop stack %s", m_cur_stack->m_fb->getname().c_str());
+                FKLOG("pop stack %s", m_cur_stack->m_fb->getname());
                 // 出栈
         		m_cur_stack->clear();
         		m_stack_list_num--;

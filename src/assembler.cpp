@@ -16,12 +16,12 @@ bool assembler::compile(binary * bin)
 {
     FKLOG("[assembler] compile binary %p", bin);
 
-    for (int i = 0; i < (int)bin->m_func_list.size(); i++)
+    for (stringhashmap<func_binary>::ele * p = bin->m_shh.first(); p != 0; p = bin->m_shh.next())
     {
-        const func_binary & fb = bin->m_func_list[i];
+        const func_binary & fb = p->t;
         if (!compile_func(fb))
         {
-            FKERR("[assembler] compile compile_func %s fail", fb.getname().c_str());
+            FKERR("[assembler] compile compile_func %s fail", fb.getname());
             return false;
         }
     }
@@ -83,9 +83,7 @@ bool assembler::compile_func(const func_binary & fb)
     asg.stop_func();
     func_native nt(m_fk);
     asg.output(fb.getname(), &nt);
-    int pos = m_fk->fm.get_func(fb.getname().c_str());
-    assert(pos >= 0);
-    m_native->set_func(pos, nt);
+    m_native->add_func(fb.getname(), nt);
     
     String str = asg.source();
 

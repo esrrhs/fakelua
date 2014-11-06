@@ -2,6 +2,7 @@
 
 #include "types.h"
 #include "variant.h"
+#include "hashmap.h"
 
 enum CommandType
 {
@@ -107,7 +108,7 @@ public:
 
     String dump() const;
 
-	force_inline const String & getname() const
+	force_inline const char * getname() const
     {
         return m_name;
     }
@@ -131,7 +132,7 @@ private:
     // 参数个数
     int m_paramnum;
     // 名字
-    String m_name;
+    const char * m_name;
     // 二进制缓冲区
     command * m_buff;
     size_t m_size;
@@ -142,13 +143,11 @@ private:
     int m_pos;
 };
 
-typedef std::vector<func_binary> func_binary_list;
-
 class binary
 {
     friend class assembler;
 public:
-    force_inline binary(fuck * fk) : m_fk(fk)
+    force_inline binary(fuck * fk) : m_fk(fk), m_shh(fk)
     {
     }
     force_inline ~binary()
@@ -162,30 +161,24 @@ public:
 
     force_inline void clear()
     {
-        m_func_list.clear();
+        m_shh.clear();
     }
 
-    force_inline bool set_func(int pos, func_binary & bin)
+    force_inline bool add_func(const char * name, func_binary & bin)
     {
-        while (pos >= (int)m_func_list.size())
-        {
-            m_func_list.push_back(func_binary(m_fk));
-        }
-        
-        bin.m_pos = pos;
-        m_func_list[pos] = bin;
+        stringhashmap<func_binary>::ele * p = m_shh.add(name, bin);
+        p->t.m_name = p->s;
         return true;
     }
-    force_inline const func_binary * get_func(int pos) const
+    force_inline const func_binary * get_func(const char * name) const
     {
-        assert(pos >= 0 && pos < (int)m_func_list.size());
-        return &m_func_list[pos];
+        return m_shh.get(name);
     }
 
     String dump() const;
     
 private:
     fuck * m_fk;    
-    func_binary_list m_func_list;
+    stringhashmap<func_binary> m_shh;
 };
 

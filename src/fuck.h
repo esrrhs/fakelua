@@ -22,12 +22,12 @@
 #include "native.h"
 #include "assembler.h"
 #include "machine.h"
-#include "funcmap.h"
 #include "stringheap.h"
+#include "bindfunc.h"
 
 struct fuck
 {
-    fuck() : errorno(0), mf(this), fm(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this), sh(this), mac(this)
+    fuck() : errorno(0), mf(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this), sh(this), mac(this), bf(this)
     {
     }
     ~fuck()
@@ -39,7 +39,6 @@ struct fuck
     {
         clearerr();
         mf.clear();
-        fm.clear();
         bin.clear();
         mc.clear();
         nt.clear();
@@ -48,6 +47,7 @@ struct fuck
         inter.clear();
         sh.clear();
         mac.clear();
+        bf.clear();
     }
     
     void clearerr()
@@ -64,9 +64,6 @@ struct fuck
 
     // 解析
     myflexer mf;
-
-    // 函数查找
-    funcmap fm;
 
     // 二进制
     binary bin;
@@ -91,6 +88,9 @@ struct fuck
 
     // 当前线程本地环境
     machine mac;
+
+    // 绑定C函数集合
+    bindfunc bf;
 
     // TODO 异步线程的运行环境
 };

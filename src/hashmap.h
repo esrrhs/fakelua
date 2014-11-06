@@ -115,7 +115,33 @@ public:
 		}
 		return 0;
 	}
+	force_inline const ele * first() const
+	{
+		for (m_hashele_iter = 0; m_hashele_iter < m_hashele_size; m_hashele_iter++)
+		{
+			hashele & he = m_hashele[m_hashele_iter];
+			if (he.size > 0)
+			{
+				m_ele_iter = 1;
+				return &he.e[0];
+			}
+		}
+		return 0;
+	}
 	force_inline ele * next()
+	{
+		for (; m_hashele_iter < m_hashele_size; m_hashele_iter++)
+		{
+			hashele & he = m_hashele[m_hashele_iter];
+			if (m_ele_iter < he.size)
+			{
+				return &he.e[m_ele_iter++];
+			}
+			m_ele_iter = 0;
+		}
+		return 0;
+	}
+	force_inline const ele * next() const
 	{
 		for (; m_hashele_iter < m_hashele_size; m_hashele_iter++)
 		{
@@ -180,6 +206,8 @@ public:
 			// find
 			if (strcmp(m_hashele[index].e[i].s, name) == 0)
 			{
+			    // Ìæ»»³É×îÐÂ
+			    memcpy(&m_hashele[index].e[i].t, &t, sizeof(T));
 				return &m_hashele[index].e[i];
 			}
 		}
@@ -311,7 +339,7 @@ public:
 	size_t m_hashele_size;
 	size_t m_ele_size;
 	size_t m_grow_times;
-	size_t m_hashele_iter;
-	size_t m_ele_iter;
+	mutable size_t m_hashele_iter;
+	mutable size_t m_ele_iter;
 };
 
