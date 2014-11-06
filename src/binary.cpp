@@ -152,9 +152,9 @@ String func_binary::dump() const
 String binary::dump() const
 {
     String ret;
-    for (int i = 0; i < (int)m_func_list.size(); i++)
+    for (const stringhashmap<func_binary>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
     {
-        const func_binary & bin = m_func_list[i];
+        const func_binary & bin = p->t;
         ret += bin.dump();
     }
     return ret;

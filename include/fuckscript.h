@@ -379,6 +379,7 @@ struct fkfunctor;
 typedef void (*fkcfunction) (fuck * fk, fkfunctor * ff);
 struct fkfunctor
 {
+    fkfunctor() : ff(0), param1(0), param2(0) {}
     fkfunctor(fkcfunction _ff, void * _param1, void * _param2) : ff(_ff), param1(_param1), param2(_param2) {}
     fkfunctor(fkcfunction _ff, void * _param1) : ff(_ff), param1(_param1), param2(0) {}
     fkcfunction ff;

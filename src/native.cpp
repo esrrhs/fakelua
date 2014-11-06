@@ -33,9 +33,9 @@ String func_native::dump() const
 String native::dump() const
 {
     String ret;
-    for (int i = 0; i < (int)m_func_native_list.size(); i++)
+    for (const stringhashmap<func_native>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
     {
-        const func_native & nt = m_func_native_list[i];
+        const func_native & nt = p->t;
         ret += nt.dump();
     }
     return ret;

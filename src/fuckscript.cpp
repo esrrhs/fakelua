@@ -102,7 +102,7 @@ FUCK_API const char * fkerrorstr(fuck * fk)
 
 FUCK_API bool fkisfunc(fuck * fk, const char * func)
 {
-    return fk->fm.get_func(func) >= 0;
+    return fk->bin.get_func(func) != 0;
 }
 
 // µ÷ÓÃº¯Êý
@@ -363,6 +363,6 @@ void fkpushfunctor(fuck * fk, const char * name, fkfunctor ff)
 {
     FKLOG("fkpushfunctor %p %s", fk, name);
 
-    
+    fk->bf.addfunc(name, ff);
 }
 

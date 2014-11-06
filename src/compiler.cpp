@@ -23,12 +23,6 @@ bool compiler::compile(myflexer * mf)
             return false;
         }
     }
-
-    if (!m_fk->fm.checkok())
-    {
-        FKERR("[compiler] compile check fail");
-        return false;
-    }
     
     String str = m_binary->dump();
     FKLOG("[compiler] compile funclist %d ok dump \n%s", funclist.size(), str.c_str());
@@ -44,15 +38,11 @@ bool compiler::compile_func(func_desc_node * funcnode)
     func_binary bin(m_fk);
     
     // ¼ì²âÖØÃû
-    if (m_fk->fm.is_have_func(funcnode->funcname.c_str()))
+    if (m_binary->get_func(funcnode->funcname.c_str()))
     {
         seterror(m_fk, efk_compile_same_func_name, "same func name %s", funcnode->funcname.c_str());
         return false;
     }
-
-    // ×¢²áÃû×Ö
-    int regpos = m_fk->fm.reg_func(funcnode->funcname);
-    assert(regpos >= 0);
 
     // Ñ¹Õ»
     cg.push_stack_identifiers();
@@ -84,9 +74,8 @@ bool compiler::compile_func(func_desc_node * funcnode)
     }
     
     // ±àÒë³É¹¦
-    cg.output(funcnode->funcname, &bin);
-    m_binary->set_func(regpos, bin);
-    m_fk->fm.reg_func_ok(funcnode->funcname);
+    cg.output(funcnode->funcname.c_str(), &bin);
+    m_binary->add_func(funcnode->funcname.c_str(), bin);
     
     FKLOG("[compiler] compile_func func %s size = %d OK", funcnode->funcname.c_str(), bin.size());
     

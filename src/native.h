@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.h"
+#include "hashmap.h"
 
 class func_native
 {
@@ -18,18 +19,16 @@ public:
 private:
     fuck * m_fk;
     // Ãû×Ö
-    String m_name;
+    const char * m_name;
     // code
     char * m_buff;
     size_t m_size;
 };
 
-typedef std::vector<func_native> func_native_list;
-
 class native
 {
 public:
-    force_inline native(fuck * fk) : m_fk(fk)
+    force_inline native(fuck * fk) : m_fk(fk), m_shh(fk)
     {
     }
     force_inline ~native()
@@ -43,29 +42,25 @@ public:
 
     force_inline void clear()
     {
+        m_shh.clear();
     }
 
-    force_inline bool set_func(int pos, func_native & nt)
+    force_inline bool add_func(const char * name, func_native & nt)
     {
-        while (pos >= (int)m_func_native_list.size())
-        {
-            m_func_native_list.push_back(func_native(m_fk));
-        }
-        
-        m_func_native_list[pos] = nt;
+        stringhashmap<func_native>::ele * p = m_shh.add(name, nt);
+        p->t.m_name = p->s;
         return true;
     }
     
-    force_inline const func_native * get_func(int pos) const
+    force_inline const func_native * get_func(const char * name) const
     {
-        assert(pos >= 0 && pos < (int)m_func_native_list.size());
-        return &m_func_native_list[pos];
+        return m_shh.get(name);
     }
     
     String dump() const;
     
 private:
     fuck * m_fk;
-    func_native_list m_func_native_list;
+    stringhashmap<func_native> m_shh;
 };
 

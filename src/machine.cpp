@@ -26,15 +26,7 @@ void machine::call(native * nt, const char * func, paramstack * ps)
 		FKLOG("machine call \n%s\n", paramstr.c_str());
 	}
 
-    int pos = m_fk->fm.get_func(func);
-    if (pos < 0)
-    {
-        FKERR("fkrun native %p no func %s fail", nt, func);
-        seterror(m_fk, efk_run_no_func_error, "fkrun native %p no func %s fail", nt, func);
-        m_isend = true;
-        return;
-	}
-    const func_native * fn = nt->get_func(pos);
+    const func_native * fn = nt->get_func(func);
     if (!fn)
     {
         FKERR("fkrun native %p no func %s fail", nt, func);

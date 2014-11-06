@@ -31,16 +31,7 @@ void stack::grow(size_t size)
 
 void interpreter::call(binary * bin, const char * func, paramstack * ps)
 {
-    int pos = m_fk->fm.get_func(func);
-    if (pos < 0)
-    {
-        FKERR("fkrun bin %p no func %s fail", bin, func);
-        seterror(m_fk, efk_run_no_func_error, "fkrun bin %p no func %s fail", bin, func);
-        m_isend = true;
-        return;
-    }
-    
-    const func_binary * fb = bin->get_func(pos);
+    const func_binary * fb = bin->get_func(func);
     if (!fb)
     {
         FKERR("fkrun bin %p no func %s fail", bin, func);

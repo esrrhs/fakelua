@@ -680,7 +680,7 @@ public:
     void variant_jne(int pos, int jmppos);
     void variant_jmp(int jmppos);
     
-    void output(const String & name, func_native * nt);
+    void output(const char * name, func_native * nt);
 
     const String & source() const
     {

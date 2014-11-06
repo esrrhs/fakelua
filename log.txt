@@ -51,3 +51,4 @@
 2014.11.3:加release和debug的build选择，下一步加动态大小的hashmap
 2014.11.4:加动态大小的hashmap，下一步初步替换掉stringheap
 2014.11.6:替换掉stringheap，下一步加c函数的映射
+2014.11.6:加c函数的映射，去掉funcmap，下一步加C函数的执行
