@@ -53,9 +53,9 @@ struct variant
 	assert((v)->type == variant::REAL || (v)->type == variant::NIL); \
 	r = (v)->data.real;
     
-#define V_GET_STRING(v, s) \
+#define V_GET_STRING(v, ss) \
 	assert((v)->type == variant::STRING || (v)->type == variant::NIL); \
-	s = (v)->data.str ? (v)->data.str->str.c_str() : 0;
+	ss = (v)->data.str ? (v)->data.str->s : 0;
 
 #define V_PLUS(d, l, r) (d)->data.real = (l)->data.real + (r)->data.real
 #define V_MINUS(d, l, r) (d)->data.real = (l)->data.real - (r)->data.real
@@ -72,25 +72,25 @@ struct variant
 #define V_NOTEQUAL(d, l, r) (d)->data.real = (l)->data.real != (r)->data.real
 
 #define V_BOOL(v) ((v)->data.real != 0)
-#define V_TOSTRING(v, s) \
+#define V_TOSTRING(v, ss) \
 	if ((v)->type == variant::REAL)\
     {\
 		if (fkisint((v)->data.real))\
         {\
-			s = fkitoa((int64_t)(v)->data.real); \
+			ss = fkitoa((int64_t)(v)->data.real); \
         }\
         else\
         {\
-			s = fkitoa((v)->data.real); \
+			ss = fkitoa((v)->data.real); \
         }\
     }\
 	else if ((v)->type == variant::STRING)\
     {\
-		s = (v)->data.str ? (v)->data.str->str : ""; \
+		ss = (v)->data.str ? (v)->data.str->s : ""; \
     }\
     else\
     {\
-		s = fkptoa((v)->data.ptr); \
+		ss = fkptoa((v)->data.ptr); \
     }
 
 #define V_EQUAL_V(b, l, r) \

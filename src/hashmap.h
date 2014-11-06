@@ -129,7 +129,7 @@ public:
 		return 0;
 	}
 	// 递归了 不能force_inline
-	bool add(const char * name, const T & t)
+	ele * add(const char * name, const T & t)
 	{
 		// 检查空间
 		size_t newsize = m_ele_size * 2;
@@ -180,7 +180,7 @@ public:
 			// find
 			if (strcmp(m_hashele[index].e[i].s, name) == 0)
 			{
-				return false;
+				return &m_hashele[index].e[i];
 			}
 		}
 		
@@ -215,7 +215,7 @@ public:
 		m_hashele[index].size++;
 		m_ele_size++;
 
-		return true;
+		return &e;
 	}
 	force_inline bool del(const char * name)
 	{
@@ -256,6 +256,26 @@ public:
 			if (strcmp(m_hashele[index].e[i].s, name) == 0)
 			{
 				return &m_hashele[index].e[i].t;
+			}
+		}
+
+		return 0;
+	}
+	force_inline ele * get_ele(const char * name) const
+	{
+	    if (!m_ele_size)
+	    {
+	        return 0;
+	    }
+	    
+		// hash
+		uint32_t index = fkstrhash(name) % m_hashele_size;
+		for (int i = 0; i < (int)m_hashele[index].size; i++)
+		{
+			// find
+			if (strcmp(m_hashele[index].e[i].s, name) == 0)
+			{
+				return &m_hashele[index].e[i];
 			}
 		}
 

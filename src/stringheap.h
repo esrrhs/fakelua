@@ -1,29 +1,23 @@
 #pragma once
 
 #include "types.h"
+#include "hashmap.h"
 
 struct fuck;
 
 struct stringele
 {
-    stringele() : update(0), hash(0) {}
-	stringele(const char * _str) : update(0), hash(0), str(_str) {}
     // 更新计数
     uint32_t update;
-    // hash值
-    uint32_t hash;
 	// string
-    String str;
+    char * s;
+    size_t sz;
 };
-
-typedef std::vector<stringele*> stringelelist;
 
 class stringheap
 {
 public:
-    force_inline stringheap(fuck * fk) : m_fk(fk)
-    {
-    }
+    stringheap(fuck * fk);
 	~stringheap();
 
 	void clear();
@@ -35,6 +29,6 @@ private:
 
 private:
     fuck * m_fk;    
-    stringelelist m_stringelelist;
+    stringhashmap<stringele> m_shh;
 };
 

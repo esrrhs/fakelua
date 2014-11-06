@@ -1,6 +1,10 @@
 #include "stringheap.h"
 #include "fuck.h"
 
+stringheap::stringheap(fuck * fk) : m_fk(fk), m_shh(fk)
+{
+}
+
 stringheap::~stringheap()
 {
 	clear();
@@ -8,29 +12,27 @@ stringheap::~stringheap()
 
 void stringheap::clear()
 {
-	for (int i = 0; i < (int)m_stringelelist.size(); i++)
-	{
-		fkdelete<stringele>(m_fk, m_stringelelist[i]);
-	}
-	m_stringelelist.clear();
+	m_shh.clear();
 }
 
 stringele * stringheap::allocstring(const char * str)
 {
-	// TODO 做hash和gc，先直接缓存起来
-	for (int i = 0; i < (int)m_stringelelist.size(); i++)
-	{
-		if (m_stringelelist[i]->str == str)
-		{
-			return m_stringelelist[i];
-		}
+    stringhashmap<stringele>::ele * p = m_shh.get_ele(str);
+    if (p)
+    {
+        p->t.update++;
+		return &p->t;
 	}
-	stringele * p = fknew<stringele>(m_fk, str);
-	m_stringelelist.push_back(p);
-	return p;
+	stringele e;
+	e.update = 0;
+	p = m_shh.add(str, e);
+	p->t.s = p->s;
+	p->t.sz = p->sz;
+	return &p->t;
 }
 
 void stringheap::gc()
 {
 	// TODO
 }
+
