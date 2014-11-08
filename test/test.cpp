@@ -10,8 +10,23 @@
 
 int cfunc1(int a, int b)
 {
-    return a + b;
+    return a - b;
 }
+
+class class1
+{
+public:
+    class1()
+    {
+        b = 10;
+    }
+    int memfunc1(int a)
+    {
+        return a - b;
+    }
+private:
+    int b;
+};
 
 int main(int argc, const char *argv[])
 {
@@ -29,6 +44,8 @@ int main(int argc, const char *argv[])
     }
 
     fkreg(fk, "cfunc1", cfunc1); 
+    class1 c1;
+    fkreg(fk, "memfunc1", &class1::memfunc1); 
 
 	int ret = 0;
 
