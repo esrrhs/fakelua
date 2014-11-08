@@ -194,6 +194,10 @@
 	return OR;
 }
 
+":" {
+	return COLON;
+}
+
 
 %%
 int yyFlexLexer::yywrap()

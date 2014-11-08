@@ -379,12 +379,10 @@ struct fkfunctor;
 typedef void (*fkcfunction) (fuck * fk, fkfunctor * ff);
 struct fkfunctor
 {
-    fkfunctor() : ff(0), param1(0), param2(0) {}
-    fkfunctor(fkcfunction _ff, void * _param1, void * _param2) : ff(_ff), param1(_param1), param2(_param2) {}
-    fkfunctor(fkcfunction _ff, void * _param1) : ff(_ff), param1(_param1), param2(0) {}
+    fkfunctor() : ff(0), param1(0) {}
+    fkfunctor(fkcfunction _ff, void * _param1) : ff(_ff), param1(_param1) {}
     fkcfunction ff;
     void * param1;
-    void * param2;
 };
 
 template<typename RVal, typename T1=void, typename T2=void, typename T3=void, typename T4=void, typename T5=void>
@@ -402,7 +400,7 @@ struct fkinvoker
 };
 
 template<typename RVal, typename T1, typename T2, typename T3, typename T4>
-struct fkinvoker<RVal,T1,T2,T3,T4> 
+struct fkinvoker<RVal, T1, T2, T3, T4> 
 {
 	static void invoke(fuck * fk, fkfunctor * ff)
 	{
@@ -415,7 +413,7 @@ struct fkinvoker<RVal,T1,T2,T3,T4>
 };
 
 template<typename RVal, typename T1, typename T2, typename T3>
-struct fkinvoker<RVal,T1,T2,T3> 
+struct fkinvoker<RVal, T1, T2, T3> 
 {
 	static void invoke(fuck * fk, fkfunctor * ff)
 	{
@@ -427,7 +425,7 @@ struct fkinvoker<RVal,T1,T2,T3>
 };
 
 template<typename RVal, typename T1, typename T2>
-struct fkinvoker<RVal,T1,T2> 
+struct fkinvoker<RVal, T1, T2> 
 {
 	static void invoke(fuck * fk, fkfunctor * ff)
 	{
@@ -438,7 +436,7 @@ struct fkinvoker<RVal,T1,T2>
 };
 
 template<typename RVal, typename T1>
-struct fkinvoker<RVal,T1> 
+struct fkinvoker<RVal, T1> 
 {
 	static void invoke(fuck * fk, fkfunctor * ff)
 	{
@@ -565,6 +563,196 @@ template<typename RVal, typename T1, typename T2, typename T3, typename T4, type
 void fkreg(fuck * fk, const char * name, RVal (*func)(T1, T2, T3, T4, T5))
 {
     fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1, T2, T3, T4, T5>::invoke, (void*)func));
+}
+
+template<typename RVal, typename T, typename T1=void, typename T2=void, typename T3=void, typename T4=void, typename T5=void>
+struct fkmeminvoker
+{
+	static void invoke(fuck * fk, fkfunctor * ff) 
+	{ 
+	    T * p = fkpspop<T*>(fk);    // 不同编译器顺序不一样，提出来安全
+	    RVal ret = ((p)->*(*(RVal(T::**)(T1,T2,T3,T4,T5))&(ff->param1)))(fkpspop<T1>(fk),
+	        fkpspop<T2>(fk),
+	        fkpspop<T3>(fk),
+	        fkpspop<T4>(fk),
+	        fkpspop<T5>(fk));
+	    fkpspush<RVal>(fk, ret);
+	}
+};
+
+template<typename RVal, typename T, typename T1, typename T2, typename T3, typename T4>
+struct fkmeminvoker<RVal, T, T1, T2, T3, T4> 
+{
+	static void invoke(fuck * fk, fkfunctor * ff)
+	{
+	    T * p = fkpspop<T*>(fk);
+	    RVal ret = ((p)->*(*(RVal(T::**)(T1,T2,T3,T4))&(ff->param1)))(fkpspop<T1>(fk),
+	        fkpspop<T2>(fk),
+	        fkpspop<T3>(fk),
+	        fkpspop<T4>(fk));
+	    fkpspush<RVal>(fk, ret);
+	}
+};
+
+template<typename RVal, typename T, typename T1, typename T2, typename T3>
+struct fkmeminvoker<RVal, T, T1, T2, T3> 
+{
+	static void invoke(fuck * fk, fkfunctor * ff)
+	{
+	    T * p = fkpspop<T*>(fk);
+	    RVal ret = ((p)->*(*(RVal(T::**)(T1,T2,T3))&(ff->param1)))(fkpspop<T1>(fk),
+	        fkpspop<T2>(fk),
+	        fkpspop<T3>(fk));
+	    fkpspush<RVal>(fk, ret);
+	}
+};
+
+template<typename RVal, typename T, typename T1, typename T2>
+struct fkmeminvoker<RVal, T,T1 ,T2> 
+{
+	static void invoke(fuck * fk, fkfunctor * ff)
+	{
+	    T * p = fkpspop<T*>(fk);
+	    RVal ret = ((p)->*(*(RVal(T::**)(T1,T2))&(ff->param1)))(fkpspop<T1>(fk),
+	        fkpspop<T2>(fk));
+	    fkpspush<RVal>(fk, ret);
+	}
+};
+
+template<typename RVal, typename T, typename T1>
+struct fkmeminvoker<RVal, T, T1> 
+{
+	static void invoke(fuck * fk, fkfunctor * ff)
+	{
+	    T * p = fkpspop<T*>(fk);
+	    RVal ret = ((p)->*(*(RVal(T::**)(T1))&(ff->param1)))(fkpspop<T1>(fk));
+	    fkpspush<RVal>(fk, ret);
+	}
+};
+
+template<typename RVal, typename T>
+struct fkmeminvoker<RVal, T>
+{
+	static void invoke(fuck * fk, fkfunctor * ff)
+	{
+	    T * p = fkpspop<T*>(fk);
+	    RVal ret = ((p)->*(*(RVal(T::**)(void))&(ff->param1)))();
+	    fkpspush<RVal>(fk, ret);
+	}
+};
+
+//
+template<typename T, typename T1, typename T2, typename T3, typename T4, typename T5>
+struct fkmeminvoker<void, T, T1, T2, T3, T4, T5>
+{
+	static void invoke(fuck * fk, fkfunctor * ff)
+	{
+	    T * p = fkpspop<T*>(fk);
+	    ((p)->*(*(void(T::**)(T1,T2,T3,T4,T5))&(ff->param1)))(fkpspop<T1>(fk),
+	        fkpspop<T2>(fk),
+	        fkpspop<T3>(fk),
+	        fkpspop<T4>(fk),
+	        fkpspop<T5>(fk));
+	    fkpspush<int>(fk, 0);
+	}
+};
+
+template<typename T, typename T1, typename T2, typename T3, typename T4>
+struct fkmeminvoker<void, T, T1, T2, T3, T4>
+{
+	static void invoke(fuck * fk, fkfunctor * ff)
+	{
+	    T * p = fkpspop<T*>(fk);
+	    ((p)->*(*(void(T::**)(T1,T2,T3,T4))&(ff->param1)))(fkpspop<T1>(fk),
+	        fkpspop<T2>(fk),
+	        fkpspop<T3>(fk),
+	        fkpspop<T4>(fk));
+	    fkpspush<int>(fk, 0);
+	}
+};
+
+template<typename T, typename T1, typename T2, typename T3>
+struct fkmeminvoker<void, T, T1, T2, T3>
+{
+	static void invoke(fuck * fk, fkfunctor * ff)
+	{
+	    T * p = fkpspop<T*>(fk);
+	    ((p)->*(*(void(T::**)(T1,T2,T3))&(ff->param1)))(fkpspop<T1>(fk),
+	        fkpspop<T2>(fk),
+	        fkpspop<T3>(fk));
+	    fkpspush<int>(fk, 0);
+	}
+};
+
+template<typename T, typename T1, typename T2>
+struct fkmeminvoker<void, T, T1, T2>
+{
+	static void invoke(fuck * fk, fkfunctor * ff)
+	{
+	    T * p = fkpspop<T*>(fk);
+	    ((p)->*(*(void(T::**)(T1,T2))&(ff->param1)))(fkpspop<T1>(fk),
+	        fkpspop<T2>(fk));
+	    fkpspush<int>(fk, 0);
+	}
+};
+
+template<typename T, typename T1>
+struct fkmeminvoker<void, T, T1>
+{
+	static void invoke(fuck * fk, fkfunctor * ff)
+	{
+	    T * p = fkpspop<T*>(fk);
+	    ((p)->*(*(void(T::**)(T1))&(ff->param1)))(fkpspop<T1>(fk));
+	    fkpspush<int>(fk, 0);
+	}
+};
+
+template<typename T>
+struct fkmeminvoker<void, T>
+{
+	static void invoke(fuck * fk, fkfunctor * ff) 
+	{
+	    T * p = fkpspop<T*>(fk);
+	    ((p)->*(*(void(T::**)(void))&(ff->param1)))();
+	    fkpspush<int>(fk, 0);
+	}
+};
+
+// 注册类函数
+template<typename RVal, typename T>
+void fkreg(fuck * fk, const char * name, RVal (T::*func)())
+{
+    fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T>::invoke, (void*)func));
+}
+
+template<typename RVal, typename T, typename T1>
+void fkreg(fuck * fk, const char * name, RVal (T::*func)(T1))
+{
+    fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1>::invoke, *(void**)&func));
+}
+
+template<typename RVal, typename T, typename T1, typename T2>
+void fkreg(fuck * fk, const char * name, RVal (T::*func)(T1, T2))
+{
+    fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2>::invoke, *(void**)&func));
+}
+
+template<typename RVal, typename T, typename T1, typename T2, typename T3>
+void fkreg(fuck * fk, const char * name, RVal (T::*func)(T1, T2, T3))
+{
+    fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3>::invoke, *(void**)&func));
+}
+
+template<typename RVal, typename T, typename T1, typename T2, typename T3, typename T4>
+void fkreg(fuck * fk, const char * name, RVal (T::*func)(T1, T2, T3, T4))
+{
+    fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3, T4>::invoke, *(void**)&func));
+}
+
+template<typename RVal, typename T, typename T1, typename T2, typename T3, typename T4, typename T5>
+void fkreg(fuck * fk, const char * name, RVal (T::*func)(T1, T2, T3, T4, T5))
+{
+    fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3, T4, T5>::invoke, *(void**)&func));
 }
 
 

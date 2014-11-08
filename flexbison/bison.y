@@ -65,6 +65,7 @@ int my_yyerror(const char *s, void * parm)
 %token OR
 %token FLOAT
 %token PLUS_ASSIGN MINUS_ASSIGN DIVIDE_ASSIGN MULTIPLY_ASSIGN DIVIDE_MOD_ASSIGN
+%token COLON
 
 %right PLUS
 %right MINUS
@@ -195,6 +196,21 @@ function_call:
 		NEWTYPE(p, function_call_node);
 		p->fuc = $1;
 		p->arglist = dynamic_cast<function_call_arglist_node*>($3);
+		$$ = p;
+	} 
+	|
+	variable COLON IDENTIFIER OPEN_BRACKET function_call_arguments CLOSE_BRACKET 
+	{
+		FKLOG("[bison]: function_call <- mem function_call_arguments %s", $3.c_str());
+		NEWTYPE(p, function_call_node);
+		p->fuc = $3;
+		p->arglist = dynamic_cast<function_call_arglist_node*>($5);
+		if (p->arglist == 0)
+		{
+			NEWTYPE(pa, function_call_arglist_node);
+			p->arglist = pa;
+		}
+		p->arglist->add_arg($1);
 		$$ = p;
 	} 
 	;
