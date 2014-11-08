@@ -1,0 +1,6 @@
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	return 1 + cfunc1(arg1, arg2)
+	
+end

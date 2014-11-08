@@ -1,0 +1,10 @@
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	if arg1 < arg2 + 3 then
+		return arg1 + myfunc1(arg1 + 1, arg2)
+	else
+		return arg1
+	end
+	
+end
