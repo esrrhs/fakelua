@@ -23,11 +23,13 @@
     <ClInclude Include="src\asmgen.h" />
     <ClInclude Include="src\assembler.h" />
     <ClInclude Include="src\binary.h" />
+    <ClInclude Include="src\bindfunc.h" />
     <ClInclude Include="src\bison.h" />
     <ClInclude Include="src\codegen.h" />
     <ClInclude Include="src\compiler.h" />
     <ClInclude Include="src\fuck.h" />
     <ClInclude Include="src\funcmap.h" />
+    <ClInclude Include="src\hashmap.h" />
     <ClInclude Include="src\interpreter.h" />
     <ClInclude Include="src\machine.h" />
     <ClInclude Include="src\myflexer.h" />
@@ -47,6 +49,7 @@
     <ClCompile Include="src\asmgen.cpp" />
     <ClCompile Include="src\assembler.cpp" />
     <ClCompile Include="src\binary.cpp" />
+    <ClCompile Include="src\bindfunc.cpp" />
     <ClCompile Include="src\bison.cpp" />
     <ClCompile Include="src\codegen.cpp" />
     <ClCompile Include="src\compiler.cpp" />
