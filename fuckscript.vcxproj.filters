@@ -62,6 +62,8 @@
     <ClInclude Include="src\win32\FlexLexer.h" />
     <ClInclude Include="src\funcmap.h" />
     <ClInclude Include="src\stringheap.h" />
+    <ClInclude Include="src\hashmap.h" />
+    <ClInclude Include="src\bindfunc.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -114,6 +116,7 @@
     <ClCompile Include="src\machine.cpp" />
     <ClCompile Include="src\native.cpp" />
     <ClCompile Include="src\stringheap.cpp" />
+    <ClCompile Include="src\bindfunc.cpp" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="src\win32\nativecall.asm" />
