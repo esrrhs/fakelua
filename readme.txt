@@ -6,7 +6,7 @@
 @.不支持复杂结构如vector，map等
 @.支持routine，可设置多个processor实现多核利用
 @.支持fuck testfunc(param1)产生routine，类似于golang
-@.支持类成员和类函数的绑定
+@.支持C函数和类成员函数的绑定
 @.自带解释器和JIT
 
 示例：
@@ -34,6 +34,15 @@ func myfunc2(arg1, arg2)
 	end
 	
 	var arg3 = arg1 + arg2 * arg1
+	
+	return arg3
+	
+end
+
+-- func3 comment
+func myfunc3(arg1, arg2)
+	
+	var arg3 = cfunc1(arg1) + arg2:memfunc1(arg1)
 	
 	return arg3
 	
