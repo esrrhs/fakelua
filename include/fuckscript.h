@@ -24,6 +24,8 @@ enum efkerror
 	efk_compile_variable_has_define,
 	efk_compile_add_stack_identifier,
 
+	efk_reg_memfunc_double_name,
+	
 	efk_run_no_func_error,
 };
 
@@ -729,7 +731,7 @@ struct fkmeminvoker<void, T>
 	}
 };
 
-// 注册类函数
+// 注册类函数，不支持类函数重名
 template<typename RVal, typename T>
 void fkreg(fuck * fk, const char * name, RVal (T::*func)())
 {
