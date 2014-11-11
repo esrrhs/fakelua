@@ -38,3 +38,12 @@ func myfunc2(arg1, arg2)
 	return arg3
 	
 end
+
+-- func3 comment
+func myfunc3(arg1, arg2)
+	
+	var arg3 = cfunc1(arg1) + arg2:memfunc1(arg1)
+	
+	return arg3
+	
+end
