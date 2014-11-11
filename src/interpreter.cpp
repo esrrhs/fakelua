@@ -1,5 +1,5 @@
 #include "interpreter.h"
-#include "fuck.h"
+#include "fake.h"
 #include "binary.h"
 #include "paramstack.h"
 
@@ -126,7 +126,7 @@ void interpreter::grow()
 	m_stack_list_max_num = newsize;
 }
 
-void interpreter::call(fuck * fk, const variant * callpos, paramstack * ps)
+void interpreter::call(fake * fk, const variant * callpos, paramstack * ps)
 {
     const char * name = 0;
     V_GET_STRING(callpos, name);

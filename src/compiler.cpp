@@ -1,7 +1,7 @@
 #include "compiler.h"
 #include "semantic.h"
 #include "myflexer.h"
-#include "fuck.h"
+#include "fake.h"
 #include "binary.h"
 
 void compiler::clear()
@@ -578,7 +578,7 @@ bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev)
 {
 	FKLOG("[compiler] compile_explicit_value %p %s", ev, ev->str.c_str());
 
-	fuck * fk = m_fk;
+	fake * fk = m_fk;
 
 	variant v;
 	switch (ev->getvaluetype())
@@ -662,7 +662,7 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
 {
     FKLOG("[compiler] compile_function_call_node %p", fn);
 
-    fuck * fk = m_fk;
+    fake * fk = m_fk;
 
     // 参数
     std::vector<command> arglist;
@@ -705,7 +705,8 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
     // 参数个数
     command argnum;
     argnum = MAKE_POS(arglist.size());
-   
+
+   
     // 返回值
     command ret;
     int retpos = cg.alloc_stack_identifier();

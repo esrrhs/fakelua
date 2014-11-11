@@ -1,5 +1,5 @@
 #include "processor.h"
-#include "fuck.h"
+#include "fake.h"
 
 void processor::grow()
 {

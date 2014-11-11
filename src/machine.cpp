@@ -1,5 +1,5 @@
 #include "machine.h"
-#include "fuck.h"
+#include "fake.h"
 #include "binary.h"
 #include "paramstack.h"
 

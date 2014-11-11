@@ -1,5 +1,5 @@
 #include "native.h"
-#include "fuck.h"
+#include "fake.h"
 
 String func_native::dump() const
 {

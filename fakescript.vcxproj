@@ -19,7 +19,7 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\fuckscript.h" />
+    <ClInclude Include="include\fakescript.h" />
     <ClInclude Include="src\asmgen.h" />
     <ClInclude Include="src\assembler.h" />
     <ClInclude Include="src\binary.h" />
@@ -27,7 +27,7 @@
     <ClInclude Include="src\bison.h" />
     <ClInclude Include="src\codegen.h" />
     <ClInclude Include="src\compiler.h" />
-    <ClInclude Include="src\fuck.h" />
+    <ClInclude Include="src\fake.h" />
     <ClInclude Include="src\funcmap.h" />
     <ClInclude Include="src\hashmap.h" />
     <ClInclude Include="src\interpreter.h" />
@@ -54,8 +54,8 @@
     <ClCompile Include="src\codegen.cpp" />
     <ClCompile Include="src\compiler.cpp" />
     <ClCompile Include="src\flex.cpp" />
-    <ClCompile Include="src\fuck.cpp" />
-    <ClCompile Include="src\fuckscript.cpp" />
+    <ClCompile Include="src\fake.cpp" />
+    <ClCompile Include="src\fakescript.cpp" />
     <ClCompile Include="src\interpreter.cpp" />
     <ClCompile Include="src\machine.cpp" />
     <ClCompile Include="src\myflexer.cpp" />
@@ -70,6 +70,9 @@
   </ItemGroup>
   <ItemGroup>
     <MASM Include="src\win32\nativecall.asm" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="CMakeLists.txt" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{577D7563-0013-47F8-A6AF-2A025CE98E9A}</ProjectGuid>

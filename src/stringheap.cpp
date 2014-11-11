@@ -1,7 +1,7 @@
 #include "stringheap.h"
-#include "fuck.h"
+#include "fake.h"
 
-stringheap::stringheap(fuck * fk) : m_fk(fk), m_shh(fk)
+stringheap::stringheap(fake * fk) : m_fk(fk), m_shh(fk)
 {
 }
 

@@ -63,7 +63,7 @@ hashele [1] [2] [3] [4] [5] [6]
 		size_t maxsize;
 	};
 public:
-	force_inline stringhashmap(fuck * fk) : m_fk(fk), m_hashele(0), m_hashele_size(0), m_ele_size(0), m_grow_times(0),
+	force_inline stringhashmap(fake * fk) : m_fk(fk), m_hashele(0), m_hashele_size(0), m_ele_size(0), m_grow_times(0),
 		m_hashele_iter(0), m_ele_iter(0)
 	{
 
@@ -334,7 +334,7 @@ public:
 		}
 	}
 public:
-    fuck * m_fk;
+    fake * m_fk;
 	hashele* m_hashele;
 	size_t m_hashele_size;
 	size_t m_ele_size;

@@ -17,12 +17,12 @@
 #include <FlexLexer.h> 
 #include "semantic.h"
 
-struct fuck;
+struct fake;
 class myflexer : public yyFlexLexer
 {
 public:
     // set parse command
-    myflexer(fuck * fk) : m_fk(fk)
+    myflexer(fake * fk) : m_fk(fk)
     {
         clear();
     }
@@ -48,7 +48,7 @@ public:
     void add_func_desc(func_desc_node * p);
     func_desc_list & get_func_list();
 private:
-    fuck * m_fk;
+    fake * m_fk;
     String m_content;
     int m_num;
     int m_pos;

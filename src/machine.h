@@ -5,12 +5,12 @@
 #include "native.h"
 #include "paramstack.h"
 
-struct fuck;
+struct fake;
 
 class machine
 {
 public:
-	force_inline machine(fuck * fk) : m_fk(fk), m_isend(false)
+	force_inline machine(fake * fk) : m_fk(fk), m_isend(false)
     {
     }
     force_inline ~machine()
@@ -35,7 +35,7 @@ public:
     }
 
 private:
-    fuck * m_fk;
+    fake * m_fk;
     bool m_isend;
     variant m_ret;
 };

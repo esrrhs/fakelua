@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include "types.h"
 #include "myflexer.h"
-#include "fuckscript.h"
+#include "fakescript.h"
 #include "compiler.h"
 #include "binary.h"
 #include "paramstack.h"
@@ -25,12 +25,12 @@
 #include "stringheap.h"
 #include "bindfunc.h"
 
-struct fuck
+struct fake
 {
-    fuck() : errorno(0), mf(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this), sh(this), mac(this), bf(this)
+    fake() : errorno(0), mf(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this), sh(this), mac(this), bf(this)
     {
     }
-    ~fuck()
+    ~fake()
     {
     }
 
@@ -60,7 +60,7 @@ struct fuck
     char errorstr[64];
     
     // ≈‰÷√
-    fuckconfig cfg;
+    fakeconfig cfg;
 
     // Ω‚Œˆ
     myflexer mf;
@@ -96,7 +96,7 @@ struct fuck
 };
 
 template <typename T>
-T * fknew(fuck * fk)
+T * fknew(fake * fk)
 {
     T * t = (T *)fk->cfg.fkm(sizeof(T));
     new (t) T();
@@ -104,7 +104,7 @@ T * fknew(fuck * fk)
 }
 
 template <typename T, typename P1>
-T * fknew(fuck * fk, P1 p1)
+T * fknew(fake * fk, P1 p1)
 {
     T * t = (T *)fk->cfg.fkm(sizeof(T));
 	if (!t)
@@ -116,7 +116,7 @@ T * fknew(fuck * fk, P1 p1)
 }
 
 template <typename T>
-void fkdelete(fuck * fk, T * p)
+void fkdelete(fake * fk, T * p)
 {
 	if (p)
 	{

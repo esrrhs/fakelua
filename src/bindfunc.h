@@ -12,14 +12,14 @@ struct bindfuncele
 class bindfunc
 {
 public:
-    force_inline bindfunc(fuck * fk) : m_fk(fk), m_shh(fk)
+    force_inline bindfunc(fake * fk) : m_fk(fk), m_shh(fk)
     {
     }
     force_inline ~bindfunc()
     {
     }
 
-    force_inline fuck * getfuck()
+    force_inline fake * getfake()
     {
         return m_fk;
     }
@@ -47,7 +47,7 @@ public:
     }
     
 private:
-    fuck * m_fk;
+    fake * m_fk;
     stringhashmap<bindfuncele> m_shh;
 };
 

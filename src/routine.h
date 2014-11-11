@@ -4,13 +4,13 @@
 #include "variant.h"
 #include "interpreter.h"
 
-struct fuck;
+struct fake;
 class binary;
 class paramstack;
 class routine
 {
 public:
-    force_inline routine(fuck * fk) : m_fk(fk), m_bin(0), m_ps(0), m_interpreter(fk)
+    force_inline routine(fake * fk) : m_fk(fk), m_bin(0), m_ps(0), m_interpreter(fk)
     {
     }
 
@@ -55,7 +55,7 @@ public:
 
 
 private:
-    fuck * m_fk;
+    fake * m_fk;
     binary * m_bin;
     paramstack * m_ps;
     variant m_ret;

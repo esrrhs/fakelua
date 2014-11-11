@@ -72,7 +72,7 @@
 
 #include "semantic.h"
 #include "types.h"
-#include "fuck.h"
+#include "fake.h"
 
 #define YYPARSE_PARAM   parm
 #define YYLEX_PARAM     parm

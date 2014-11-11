@@ -3,7 +3,7 @@
 #include "types.h"
 #include "hashmap.h"
 
-struct fuck;
+struct fake;
 
 struct stringele
 {
@@ -17,7 +17,7 @@ struct stringele
 class stringheap
 {
 public:
-    stringheap(fuck * fk);
+    stringheap(fake * fk);
 	~stringheap();
 
 	void clear();
@@ -28,7 +28,7 @@ private:
 	void gc();
 
 private:
-    fuck * m_fk;    
+    fake * m_fk;    
     stringhashmap<stringele> m_shh;
 };
 

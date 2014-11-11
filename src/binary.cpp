@@ -1,5 +1,5 @@
 #include "binary.h"
-#include "fuck.h"
+#include "fake.h"
 
 const char * OpCodeStr(int opcode)
 {

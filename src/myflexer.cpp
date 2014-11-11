@@ -1,6 +1,6 @@
 #include "myflexer.h"
-#include "fuckscript.h"
-#include "fuck.h"
+#include "fakescript.h"
+#include "fake.h"
 
 // flex通过调用这个方法取得要解析的字符串的
 int myflexer::LexerInput(char* buf, int max_size)
