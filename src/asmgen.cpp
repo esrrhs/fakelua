@@ -1,7 +1,7 @@
 #include "asmgen.h"
 #include "semantic.h"
 #include "myflexer.h"
-#include "fuck.h"
+#include "fake.h"
 #include "variant.h"
 #ifdef WIN32
 #include <Windows.h>

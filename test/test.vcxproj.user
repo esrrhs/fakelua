@@ -9,7 +9,7 @@
     <LocalDebuggerWorkingDirectory>../bin</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>18.fk</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>17.fk</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>../bin</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
@@ -19,7 +19,7 @@
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LocalDebuggerCommandArguments>16.fk</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>18.fk</LocalDebuggerCommandArguments>
     <LocalDebuggerWorkingDirectory>../bin</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>

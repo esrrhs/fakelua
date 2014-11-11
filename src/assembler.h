@@ -11,14 +11,14 @@ typedef std::map<int, int> posmap;
 // key为jump地址在机器码中的位置，value为bytecode pos
 typedef std::map<int, int> caremap;
 
-struct fuck;
+struct fake;
 class native;
 class binary;
 class func_binary;
 class assembler
 {
 public:
-    assembler(fuck * fk, native * nt) : m_fk(fk), m_native(nt)
+    assembler(fake * fk, native * nt) : m_fk(fk), m_native(nt)
     {
     }
     ~assembler() {}
@@ -39,7 +39,7 @@ private:
     bool compile_call(asmgen & asg, const func_binary & fb, command cmd);
     
 private:
-    fuck * m_fk;
+    fake * m_fk;
     native * m_native;
 	int m_pos;
 	posmap m_posmap;

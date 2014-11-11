@@ -5,7 +5,7 @@
 #include "binary.h"
 #include "paramstack.h"
 
-struct fuck;
+struct fake;
 
 #define GET_CMD(fb, pos) fb.m_buff[pos]
 
@@ -95,7 +95,7 @@ struct stack
 	force_inline stack() : m_fk(0), m_fb(0), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
     {
     }
-	force_inline stack(fuck * fk, const  func_binary * fb) : m_fk(fk), m_fb(fb), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
+	force_inline stack(fake * fk, const  func_binary * fb) : m_fk(fk), m_fb(fb), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
     {
     }
 	force_inline ~stack()
@@ -111,7 +111,7 @@ struct stack
     	// 为了效率，保留脏数据
     }
 
-    fuck * m_fk;
+    fake * m_fk;
     // 函数二进制
     const func_binary * m_fb;
     // 当前执行位置
@@ -124,7 +124,7 @@ struct stack
 class interpreter
 {
 public:
-	force_inline interpreter(fuck * fk) : m_fk(fk), m_isend(false), m_retvpos(-1), m_cur_stack(0),
+	force_inline interpreter(fake * fk) : m_fk(fk), m_isend(false), m_retvpos(-1), m_cur_stack(0),
 		m_stack_list(0), m_stack_list_num(0), m_stack_list_max_num(0)
     {
     }
@@ -433,10 +433,10 @@ public:
     }
 
 private:
-    void call(fuck * fk, const variant * callpos, paramstack * ps);
+    void call(fake * fk, const variant * callpos, paramstack * ps);
     
 private:
-    fuck * m_fk;
+    fake * m_fk;
     bool m_isend;
     variant m_ret;
     int m_retvpos;

@@ -1,4 +1,4 @@
 #include "variant.h"
-#include "fuck.h"
+#include "fake.h"
 #include "interpreter.h"
 

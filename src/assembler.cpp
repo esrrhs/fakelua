@@ -1,7 +1,7 @@
 #include "assembler.h"
 #include "semantic.h"
 #include "myflexer.h"
-#include "fuck.h"
+#include "fake.h"
 #include "binary.h"
 #include "asmgen.h"
 

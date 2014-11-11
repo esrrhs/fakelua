@@ -1,14 +1,14 @@
-#include "fuckscript.h"
+#include "fakescript.h"
 #include "semantic.h"
-#include "fuck.h"
+#include "fake.h"
 #include "compiler.h"
 #include "routine.h"
 #include "processor.h"
 #include "paramstack.h"
 
-FUCK_API fuck * newfuck(fuckconfig * cfg)
+FAKE_API fake * newfake(fakeconfig * cfg)
 {
-    fuckconfig _cfg;
+    fakeconfig _cfg;
     if (!cfg)
     {
         _cfg.fkm = &malloc;
@@ -23,22 +23,22 @@ FUCK_API fuck * newfuck(fuckconfig * cfg)
         _cfg = *cfg;
     }
     
-    fuck * ret = (fuck *)_cfg.fkm(sizeof(fuck));
-    new (ret) fuck();
+    fake * ret = (fake *)_cfg.fkm(sizeof(fake));
+    new (ret) fake();
     ret->cfg = _cfg;
-    FKLOG("newfuck ret %p", ret);
+    FKLOG("newfake ret %p", ret);
     return ret;
 }
 
-FUCK_API void delfuck(fuck * fk)
+FAKE_API void delfake(fake * fk)
 {
-    FKLOG("delfuck %p", fk);
-    fk->~fuck();
+    FKLOG("delfake %p", fk);
+    fk->~fake();
     safe_fkfree(fk, fk);
 }
 
 // 解析文件
-FUCK_API bool fkparse(fuck * fk, const char * filename)
+FAKE_API bool fkparse(fake * fk, const char * filename)
 {
     // 清空
     fk->clear();
@@ -88,25 +88,25 @@ FUCK_API bool fkparse(fuck * fk, const char * filename)
     return true;
 }
 
-FUCK_API efkerror fkerror(fuck * fk)
+FAKE_API efkerror fkerror(fake * fk)
 {
     return (efkerror)fk->errorno;
 }
 
 
-FUCK_API const char * fkerrorstr(fuck * fk)
+FAKE_API const char * fkerrorstr(fake * fk)
 {
     return fk->errorstr;
 }
 
 
-FUCK_API bool fkisfunc(fuck * fk, const char * func)
+FAKE_API bool fkisfunc(fake * fk, const char * func)
 {
     return fk->bin.get_func(func) != 0;
 }
 
 // 调用函数
-FUCK_API void fkrun(fuck * fk, const char * func)
+FAKE_API void fkrun(fake * fk, const char * func)
 {
     FKLOG("fkrun %p %s", fk, func);
 
@@ -126,112 +126,112 @@ FUCK_API void fkrun(fuck * fk, const char * func)
     FKLOG("fkrun %p %s OK", fk, func);
 }
 
-FUCK_API void fkpspushpointer(fuck * fk, void * p)
+FAKE_API void fkpspushpointer(fake * fk, void * p)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_POINTER(v, p);
 }
 
-FUCK_API void fkpspushchar(fuck * fk, char ret)
+FAKE_API void fkpspushchar(fake * fk, char ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushuchar(fuck * fk, unsigned char ret)
+FAKE_API void fkpspushuchar(fake * fk, unsigned char ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushshort(fuck * fk, short ret)
+FAKE_API void fkpspushshort(fake * fk, short ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushushort(fuck * fk, unsigned short ret)
+FAKE_API void fkpspushushort(fake * fk, unsigned short ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushint(fuck * fk, int ret)
+FAKE_API void fkpspushint(fake * fk, int ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushuint(fuck * fk, unsigned int ret)
+FAKE_API void fkpspushuint(fake * fk, unsigned int ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushfloat(fuck * fk, float ret)
+FAKE_API void fkpspushfloat(fake * fk, float ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushdouble(fuck * fk, double ret)
+FAKE_API void fkpspushdouble(fake * fk, double ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushcharptr(fuck * fk, char * ret)
+FAKE_API void fkpspushcharptr(fake * fk, char * ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_STRING(v, ret);
 }
 
-FUCK_API void fkpspushccharptr(fuck * fk, const char * ret)
+FAKE_API void fkpspushccharptr(fake * fk, const char * ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_STRING(v, ret);
 }
 
-FUCK_API void fkpspushbool(fuck * fk, bool ret)
+FAKE_API void fkpspushbool(fake * fk, bool ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushint64(fuck * fk, int64_t ret)
+FAKE_API void fkpspushint64(fake * fk, int64_t ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspushuint64(fuck * fk, uint64_t ret)
+FAKE_API void fkpspushuint64(fake * fk, uint64_t ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_REAL(v, ret);
 }
 
-FUCK_API void fkpspoppointer(fuck * fk, void * & p)
+FAKE_API void fkpspoppointer(fake * fk, void * & p)
 {
     variant * v = 0;
     PS_POP_AND_GET(fk->ps, v);
     V_GET_POINTER(v, p);
 }
 
-FUCK_API char fkpspopchar(fuck * fk)
+FAKE_API char fkpspopchar(fake * fk)
 {
     char ret;
     variant * v = 0;
@@ -240,7 +240,7 @@ FUCK_API char fkpspopchar(fuck * fk)
     return ret;
 }
 
-FUCK_API unsigned char fkpspopuchar(fuck * fk)
+FAKE_API unsigned char fkpspopuchar(fake * fk)
 {
     char ret;
     variant * v = 0;
@@ -249,7 +249,7 @@ FUCK_API unsigned char fkpspopuchar(fuck * fk)
     return ret;
 }
 
-FUCK_API short fkpspopshort(fuck * fk)
+FAKE_API short fkpspopshort(fake * fk)
 {
     char ret;
     variant * v = 0;
@@ -258,7 +258,7 @@ FUCK_API short fkpspopshort(fuck * fk)
     return ret;
 }
 
-FUCK_API unsigned short fkpspopushort(fuck * fk)
+FAKE_API unsigned short fkpspopushort(fake * fk)
 {
     unsigned char ret;
     variant * v = 0;
@@ -267,7 +267,7 @@ FUCK_API unsigned short fkpspopushort(fuck * fk)
     return ret;
 }
 
-FUCK_API int fkpspopint(fuck * fk)
+FAKE_API int fkpspopint(fake * fk)
 {
     int ret;
     variant * v = 0;
@@ -276,7 +276,7 @@ FUCK_API int fkpspopint(fuck * fk)
     return ret;
 }
 
-FUCK_API unsigned int fkpspopuint(fuck * fk)
+FAKE_API unsigned int fkpspopuint(fake * fk)
 {
     unsigned int ret;
     variant * v = 0;
@@ -285,7 +285,7 @@ FUCK_API unsigned int fkpspopuint(fuck * fk)
     return ret;
 }
 
-FUCK_API float fkpspopfloat(fuck * fk)
+FAKE_API float fkpspopfloat(fake * fk)
 {
     float ret;
     variant * v = 0;
@@ -294,7 +294,7 @@ FUCK_API float fkpspopfloat(fuck * fk)
     return ret;
 }
 
-FUCK_API double fkpspopdouble(fuck * fk)
+FAKE_API double fkpspopdouble(fake * fk)
 {
     double ret;
     variant * v = 0;
@@ -303,7 +303,7 @@ FUCK_API double fkpspopdouble(fuck * fk)
     return ret;
 }
 
-FUCK_API const char * fkpspopcstrptr(fuck * fk)
+FAKE_API const char * fkpspopcstrptr(fake * fk)
 {
 	const char * ret;
     variant * v = 0;
@@ -312,7 +312,7 @@ FUCK_API const char * fkpspopcstrptr(fuck * fk)
     return ret;
 }
 
-FUCK_API bool fkpspopbool(fuck * fk)
+FAKE_API bool fkpspopbool(fake * fk)
 {
     bool ret;
     variant * v = 0;
@@ -321,7 +321,7 @@ FUCK_API bool fkpspopbool(fuck * fk)
     return ret;
 }
 
-FUCK_API int64_t fkpspopint64(fuck * fk)
+FAKE_API int64_t fkpspopint64(fake * fk)
 {
     int64_t ret;
     variant * v = 0;
@@ -330,7 +330,7 @@ FUCK_API int64_t fkpspopint64(fuck * fk)
     return ret;
 }
 
-FUCK_API uint64_t fkpspopuint64(fuck * fk)
+FAKE_API uint64_t fkpspopuint64(fake * fk)
 {
     uint64_t ret;
     variant * v = 0;
@@ -339,12 +339,12 @@ FUCK_API uint64_t fkpspopuint64(fuck * fk)
     return ret;
 }
 
-FUCK_API void fkpsclear(fuck * fk)
+FAKE_API void fkpsclear(fake * fk)
 {
     fk->ps.clear();
 }
 
-FUCK_API void fkrunjit(fuck * fk, const char * func)
+FAKE_API void fkrunjit(fake * fk, const char * func)
 {
     FKLOG("fkrun %p %s", fk, func);
 
@@ -359,7 +359,7 @@ FUCK_API void fkrunjit(fuck * fk, const char * func)
     FKLOG("fkrun %p %s OK", fk, func);
 }
 
-void fkpushfunctor(fuck * fk, const char * name, fkfunctor ff)
+void fkpushfunctor(fake * fk, const char * name, fkfunctor ff)
 {
     FKLOG("fkpushfunctor %p %s", fk, name);
 

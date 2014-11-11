@@ -19,12 +19,12 @@ typedef std::vector<char> asm_code_list;
 
 */
 
-struct fuck;
+struct fake;
 class func_native;
 class asmgen
 {
 public:
-    asmgen(fuck * fk) : m_fk(fk)
+    asmgen(fake * fk) : m_fk(fk)
     {
         clear();
     }
@@ -687,7 +687,7 @@ public:
         return m_source;
     }
 private:
-    fuck * m_fk;
+    fake * m_fk;
 	asm_code_list m_asm_code_list;
 	String m_source;
 };

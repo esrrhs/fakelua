@@ -1,5 +1,5 @@
 #include "bindfunc.h"
-#include "fuck.h"
+#include "fake.h"
 
 void bindfunc::addfunc(const char * name, const fkfunctor & ff)
 {

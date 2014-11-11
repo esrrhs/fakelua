@@ -3,7 +3,7 @@
 #include <iostream>
 #include <time.h>
 
-#include "fuckscript.h"
+#include "fakescript.h"
 #ifndef WIN32
 #include "gperftools/profiler.h"
 #endif
@@ -15,7 +15,7 @@ int main(int argc, const char *argv[])
         return 0;
     }
     
-    fuck * fk = newfuck();
+    fake * fk = newfake();
     fkparse(fk, argv[1]);
     if (fkerror(fk))
     {

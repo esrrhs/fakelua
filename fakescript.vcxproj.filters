@@ -9,9 +9,6 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="include\fuckscript.h">
-      <Filter>include</Filter>
-    </ClInclude>
     <ClInclude Include="src\binary.h">
       <Filter>src</Filter>
     </ClInclude>
@@ -19,9 +16,6 @@
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="src\compiler.h">
-      <Filter>src</Filter>
-    </ClInclude>
-    <ClInclude Include="src\fuck.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="src\myflexer.h">
@@ -64,6 +58,12 @@
     <ClInclude Include="src\stringheap.h" />
     <ClInclude Include="src\hashmap.h" />
     <ClInclude Include="src\bindfunc.h" />
+    <ClInclude Include="src\fake.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="include\fakescript.h">
+      <Filter>include</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -73,12 +73,6 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\compiler.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\fuck.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\fuckscript.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\myflexer.cpp">
@@ -117,8 +111,17 @@
     <ClCompile Include="src\native.cpp" />
     <ClCompile Include="src\stringheap.cpp" />
     <ClCompile Include="src\bindfunc.cpp" />
+    <ClCompile Include="src\fake.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\fakescript.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <MASM Include="src\win32\nativecall.asm" />
+  </ItemGroup>
+  <ItemGroup>
+    <Text Include="CMakeLists.txt" />
   </ItemGroup>
 </Project>

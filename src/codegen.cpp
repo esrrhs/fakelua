@@ -1,7 +1,7 @@
 #include "codegen.h"
 #include "semantic.h"
 #include "myflexer.h"
-#include "fuck.h"
+#include "fake.h"
 #include "variant.h"
 
 int codegen::add_stack_identifier(const String & name)

@@ -1,6 +1,6 @@
 #include "types.h"
 #include "bison.h"
-#include "fuck.h"
+#include "fake.h"
 #include "variant.h"
 #include "paramstack.h"
 
@@ -11,7 +11,7 @@ void fklog(const char * header, const char * file, const char * func, int pos, c
 	struct tm * tptr;
 	va_list ap;
 	
-	pLog = fopen("fuckscript.log", "a+");
+	pLog = fopen("fakescript.log", "a+");
 	if (pLog == NULL)
 	{
 		return;
@@ -80,7 +80,7 @@ String fkget_token_name(int token)
     #undef TOKEN_SWITCH
 }
 
-void * safe_fkmalloc(fuck * fk, size_t size)
+void * safe_fkmalloc(fake * fk, size_t size)
 {
     if (fk && size)
     {
@@ -89,7 +89,7 @@ void * safe_fkmalloc(fuck * fk, size_t size)
     return 0;
 }
 
-void safe_fkfree(fuck * fk, void * p)
+void safe_fkfree(fake * fk, void * p)
 {
     if (fk && p)
     {
@@ -97,7 +97,7 @@ void safe_fkfree(fuck * fk, void * p)
     }
 }
 
-void seterror(fuck * fk, efkerror err, const char *fmt, ...)
+void seterror(fake * fk, efkerror err, const char *fmt, ...)
 {
     fk->errorno = err;
 	va_list ap;
@@ -114,7 +114,7 @@ String vartostring(const variant * v)
     return s;
 }
 
-paramstack * getps(fuck * fk)
+paramstack * getps(fake * fk)
 {
     return &fk->ps;
 }

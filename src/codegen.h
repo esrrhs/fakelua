@@ -17,11 +17,11 @@ typedef std::vector<block_identifiers_list> block_identifiers_stack;
 typedef std::vector<command> byte_code_list;
 typedef std::vector<variant> const_list;
 
-struct fuck;
+struct fake;
 class codegen
 {
 public:
-    codegen(fuck * fk) : m_fk(fk)
+    codegen(fake * fk) : m_fk(fk)
     {
         clear();
     }
@@ -117,7 +117,7 @@ public:
     }
     
 private:
-    fuck * m_fk;
+    fake * m_fk;
     int m_stackpos;
     int m_maxstackpos;
     block_identifiers_stack m_block_identifiers_stack;

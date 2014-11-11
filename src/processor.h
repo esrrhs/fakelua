@@ -3,7 +3,7 @@
 #include "types.h"
 #include "routine.h"
 
-struct fuck;
+struct fake;
 class routine;
 
 typedef std::list<routine *> routine_list;
@@ -11,7 +11,7 @@ typedef std::list<routine *> routine_list;
 class processor
 {
 public:
-    force_inline processor(fuck * fk) : m_fk(fk), m_routine_list(0), 
+    force_inline processor(fake * fk) : m_fk(fk), m_routine_list(0), 
         m_routine_num(0),
         m_routine_max_size(0),
         m_invalid_routine_num(0)
@@ -84,7 +84,7 @@ private:
     void grow();
     void checkdelete();
 private:
-    fuck * m_fk;
+    fake * m_fk;
     routine ** m_routine_list;
     size_t m_routine_num;
     size_t m_routine_max_size;

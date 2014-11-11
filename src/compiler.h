@@ -4,13 +4,13 @@
 #include "codegen.h"
 #include "syntree.h"
 
-struct fuck;
+struct fake;
 class myflexer;
 class binary;
 class compiler
 {
 public:
-    compiler(fuck * fk, binary * bin) : m_fk(fk), m_binary(bin)
+    compiler(fake * fk, binary * bin) : m_fk(fk), m_binary(bin)
     {
     }
     ~compiler() {}
@@ -39,7 +39,7 @@ private:
 private:
     
 private:
-    fuck * m_fk;
+    fake * m_fk;
     binary * m_binary;
     command m_cur_addr;
 };

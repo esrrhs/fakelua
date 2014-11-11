@@ -63,7 +63,7 @@ enum AddrType
 
 const char * OpCodeStr(int opcode);
 
-struct fuck;
+struct fake;
 class codegen;
 typedef uint64_t command;
 #define EMPTY_CMD (command(-1))
@@ -75,7 +75,7 @@ class func_binary
     friend class assembler;
     friend class compiler;
 public:
-	force_inline func_binary(fuck * fk) : m_fk(fk)
+	force_inline func_binary(fake * fk) : m_fk(fk)
     {
         m_buff = 0;
         m_size = 0;
@@ -126,7 +126,7 @@ public:
     }
     
 private:
-    fuck * m_fk;
+    fake * m_fk;
     // 最大栈空间
     int m_maxstack;
     // 参数个数
@@ -147,14 +147,14 @@ class binary
 {
     friend class assembler;
 public:
-    force_inline binary(fuck * fk) : m_fk(fk), m_shh(fk)
+    force_inline binary(fake * fk) : m_fk(fk), m_shh(fk)
     {
     }
     force_inline ~binary()
     {
     }
 
-    force_inline fuck * getfuck()
+    force_inline fake * getfake()
     {
         return m_fk;
     }
@@ -178,7 +178,7 @@ public:
     String dump() const;
     
 private:
-    fuck * m_fk;    
+    fake * m_fk;    
     stringhashmap<func_binary> m_shh;
 };
 
