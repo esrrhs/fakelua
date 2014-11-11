@@ -11,6 +11,26 @@ extern "C"
 };
 #include "lua_tinker.h"
 
+int cfunc1(int a, int b)
+{
+    return a - b;
+}
+
+class class1
+{
+public:
+    class1()
+    {
+        b = 10;
+    }
+    int memfunc1(int a)
+    {
+        return a - b;
+    }
+private:
+    int b;
+};
+
 int main(int argc, const char *argv[])
 {
     if (argc < 2)
@@ -26,6 +46,8 @@ int main(int argc, const char *argv[])
 	}
 
 	luaL_openlibs(L);
+
+    lua_tinker::def(L, "cfunc1", cfunc1); 
 
 	lua_tinker::dofile(L, argv[1]);
 
