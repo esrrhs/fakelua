@@ -1,0 +1,13 @@
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	if arg1 == arg2 then
+	
+		return arg2
+	else
+	
+		return arg1
+		
+	end
+	
+end
