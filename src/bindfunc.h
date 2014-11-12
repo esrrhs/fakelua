@@ -26,6 +26,7 @@ public:
 
     force_inline void clear()
     {
+        m_shh.clear();
     }
 
     void addfunc(const char * name, const fkfunctor & ff);
@@ -36,7 +37,7 @@ public:
         bindfuncele * p = m_shh.get(name);
         if (!p)
         {
-            return false;
+            return callbuildin(name);
         }
 
         p->ff.ff(m_fk, &p->ff);
@@ -45,6 +46,9 @@ public:
         
         return true;
     }
+    
+private:
+    bool callbuildin(const char * name);
     
 private:
     fake * m_fk;

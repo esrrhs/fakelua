@@ -17,3 +17,8 @@ void bindfunc::addfunc(const char * name, const fkfunctor & ff)
 
     FKLOG("add bind func %s", name);
 }
+
+bool bindfunc::callbuildin(const char * name)
+{
+    return m_fk->bif.call(name);
+}
