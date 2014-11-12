@@ -64,6 +64,7 @@
     <ClInclude Include="include\fakescript.h">
       <Filter>include</Filter>
     </ClInclude>
+    <ClInclude Include="src\buildinfunc.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -117,6 +118,7 @@
     <ClCompile Include="src\fakescript.cpp">
       <Filter>src</Filter>
     </ClCompile>
+    <ClCompile Include="src\buildinfunc.cpp" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="src\win32\nativecall.asm" />
