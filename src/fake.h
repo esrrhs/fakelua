@@ -33,6 +33,7 @@ struct fake
     }
     ~fake()
     {
+        clear();
     }
 
     // Çå¿Õ

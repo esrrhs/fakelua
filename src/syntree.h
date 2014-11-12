@@ -15,6 +15,8 @@
 #include <stdio.h>
 #include "types.h"
 
+struct fake;
+
 enum esyntreetype
 {
     est_nil,
@@ -42,7 +44,7 @@ const char * get_syntree_node_name(esyntreetype type);
 
 struct syntree_node
 {
-    syntree_node() : lineno(0) {}
+    syntree_node() : lineno(0), fk(0) {}
     virtual ~syntree_node() {}
 
     virtual esyntreetype gettype()
@@ -59,6 +61,8 @@ struct syntree_node
     {
         return gentab(indent) + "nil\n";
     }
+
+    virtual void recycle() = 0;
     
     String gentab(int indent)
     {
@@ -71,6 +75,7 @@ struct syntree_node
     }
 
     int lineno;
+    fake * fk;
 };
 
 struct identifier_node : public syntree_node
@@ -93,6 +98,8 @@ struct identifier_node : public syntree_node
         return ret;
     }
 
+    virtual void recycle();
+    
     String str;
 };
 
@@ -122,6 +129,8 @@ struct func_desc_arglist_node : public syntree_node
         return ret;
     }
 
+    virtual void recycle();
+    
     virtual void add_arg(syntree_node * p)
     {
         assert(p->gettype() == est_identifier);		
@@ -163,6 +172,8 @@ struct explicit_value_node : public syntree_node
         return ret;
     }
     
+    virtual void recycle();
+    
 	explicit_value_type getvaluetype() const
 	{
 		return type;
@@ -191,6 +202,8 @@ struct return_stmt : public syntree_node
         sret += ret->dump(indent + 1);
         return sret;
     }
+    
+    virtual void recycle();
     
     syntree_node * ret;
 };
@@ -221,6 +234,8 @@ struct cmp_stmt : public syntree_node
         return ret;
     }
     
+    virtual void recycle();
+    
     String cmp;
     syntree_node * left;
     syntree_node * right;
@@ -239,6 +254,8 @@ struct while_stmt : public syntree_node
 
     virtual String dump(int indent);
     
+    virtual void recycle();
+    
     cmp_stmt * cmp;
     block_node * block;
 };
@@ -255,6 +272,8 @@ struct else_stmt : public syntree_node
 
     virtual String dump(int indent);
     
+    virtual void recycle();
+    
     block_node * block;
 };
 
@@ -269,6 +288,8 @@ struct if_stmt : public syntree_node
     }
 
     virtual String dump(int indent);
+    
+    virtual void recycle();
     
     cmp_stmt * cmp;
     block_node * block;
@@ -302,6 +323,8 @@ struct block_node : public syntree_node
         }
         return ret;
     }
+    
+    virtual void recycle();
     
     void add_stmt(syntree_node * stmt)
     {
@@ -340,6 +363,8 @@ struct func_desc_node : public syntree_node
         return ret;
     }
     
+    virtual void recycle();
+    
     String funcname;
     func_desc_arglist_node * arglist;
     block_node * block;
@@ -371,6 +396,8 @@ struct assign_stmt : public syntree_node
         return ret;
     }
     
+    virtual void recycle();
+    
     syntree_node * var;
     syntree_node * value;
 };
@@ -401,6 +428,8 @@ struct math_assign_stmt : public syntree_node
         return ret;
     }
     
+    virtual void recycle();
+    
     syntree_node * var;
     String oper;
     syntree_node * value;
@@ -426,6 +455,8 @@ struct variable_node : public syntree_node
         return ret;
     }
     
+    virtual void recycle();
+    
     String str;
 };
 
@@ -448,6 +479,8 @@ struct var_node : public syntree_node
         ret += "\n";
         return ret;
     }
+    
+    virtual void recycle();
     
     String str;
 };
@@ -480,6 +513,8 @@ struct function_call_arglist_node : public syntree_node
         return ret;
     }
     
+    virtual void recycle();
+    
     virtual void add_arg(syntree_node * p)
     {	
         arglist.push_back(p);
@@ -511,6 +546,8 @@ struct function_call_node : public syntree_node
         return ret;
     }
 
+    virtual void recycle();
+    
     String fuc;
     function_call_arglist_node * arglist;
 };
@@ -541,6 +578,8 @@ struct math_expr_node : public syntree_node
         return ret;
     }
 
+    virtual void recycle();
+    
     String oper;
     syntree_node * left;
     syntree_node * right;
@@ -563,5 +602,8 @@ struct break_stmt : public syntree_node
         ret += "[break]:\n";
         return ret;
     }
+    
+    virtual void recycle();
+    
 };
 
