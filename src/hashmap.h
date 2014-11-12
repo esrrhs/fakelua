@@ -273,6 +273,7 @@ public:
 
 		return false;
 	}
+	// 注意，这个指针地址不能存起来，因为会移动
 	force_inline T * get(const char * name) const
 	{
 	    if (!m_ele_size)
@@ -293,6 +294,7 @@ public:
 
 		return 0;
 	}
+	// 注意，这个指针地址不能存起来，因为会移动
 	force_inline ele * get_ele(const char * name) const
 	{
 	    if (!m_ele_size)
