@@ -102,6 +102,10 @@ public:
 	{
 	    return m_ele_size;
 	}
+	force_inline bool empty() const
+	{
+	    return m_ele_size == 0;
+	}
 	force_inline ele * first()
 	{
 		for (m_hashele_iter = 0; m_hashele_iter < m_hashele_size; m_hashele_iter++)

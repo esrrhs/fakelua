@@ -24,10 +24,11 @@
 #include "machine.h"
 #include "stringheap.h"
 #include "bindfunc.h"
+#include "buildinfunc.h"
 
 struct fake
 {
-    fake() : errorno(0), mf(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this), sh(this), mac(this), bf(this)
+    fake() : errorno(0), mf(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this), sh(this), mac(this), bf(this), bif(this)
     {
     }
     ~fake()
@@ -48,6 +49,7 @@ struct fake
         sh.clear();
         mac.clear();
         bf.clear();
+        bif.clear();
     }
     
     void clearerr()
@@ -91,6 +93,9 @@ struct fake
 
     // 绑定C函数集合
     bindfunc bf;
+
+    // 内建的函数集合
+    buildinfunc bif;
 
     // TODO 异步线程的运行环境
 };

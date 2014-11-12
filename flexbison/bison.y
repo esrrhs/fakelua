@@ -240,15 +240,9 @@ function_call_arguments:
 	;  
 
 arg_expr:
-	expr
+	expr_value
 	{
-		FKLOG("[bison]: arg_expr <- expr");
-		$$ = $1;
-	}
-	|
-	variable
-	{
-		FKLOG("[bison]: arg_expr <- variable");
+		FKLOG("[bison]: arg_expr <- expr_value");
 		$$ = $1;
 	}
 	;

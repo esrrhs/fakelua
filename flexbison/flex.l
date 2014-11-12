@@ -72,6 +72,7 @@
 "\""	yy_push_state(STR); lvalp->str = String();
 <STR>\\n	lvalp->str += String("\n");
 <STR>\\t	lvalp->str += String("\t");
+<STR>\\s	lvalp->str += String(" ");
 <STR>\\\"	lvalp->str += String("\"");
 <STR>[^\"] 	lvalp->str += String(yytext);
 <STR>"\""	yy_pop_state(); return STRING_DEFINITION; 
@@ -82,12 +83,12 @@
 	return IDENTIFIER;
 }
 
-[0-9]+ {
+-?[0-9]+ {
 	lvalp->str = String(yytext);
 	return NUMBER;
 }
 
-[0-9]+\.[0-9]+ {
+-?[0-9]+\.[0-9]+ {
 	lvalp->str = String(yytext);
 	return FLOAT;
 }
