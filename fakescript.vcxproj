@@ -25,6 +25,7 @@
     <ClInclude Include="src\binary.h" />
     <ClInclude Include="src\bindfunc.h" />
     <ClInclude Include="src\bison.h" />
+    <ClInclude Include="src\buildinfunc.h" />
     <ClInclude Include="src\codegen.h" />
     <ClInclude Include="src\compiler.h" />
     <ClInclude Include="src\fake.h" />
@@ -51,6 +52,7 @@
     <ClCompile Include="src\binary.cpp" />
     <ClCompile Include="src\bindfunc.cpp" />
     <ClCompile Include="src\bison.cpp" />
+    <ClCompile Include="src\buildinfunc.cpp" />
     <ClCompile Include="src\codegen.cpp" />
     <ClCompile Include="src\compiler.cpp" />
     <ClCompile Include="src\flex.cpp" />
