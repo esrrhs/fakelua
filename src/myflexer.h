@@ -37,6 +37,11 @@ public:
     // 在flex.cpp中实现
     int yylex(YYSTYPE * yylval);
 
+    fake * getfake()
+    {
+        return m_fk;
+    }
+
     // 输入文件
     bool inputfile(const char * filename);
 

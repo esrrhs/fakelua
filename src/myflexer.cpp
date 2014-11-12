@@ -64,6 +64,11 @@ void myflexer::clear()
     m_num = 0;
     m_pos = 0;
     m_content.clear();
+    for (int i = 0; i < (int)m_funclist.size(); i++)
+    {
+        func_desc_node * p = m_funclist[i];
+        p->recycle();
+    }
     m_funclist.clear();
 }
 
