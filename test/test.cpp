@@ -36,16 +36,19 @@ int main(int argc, const char *argv[])
     }
     
     fake * fk = newfake();
+
+    fkopenbaselib(fk);
+    
+    fkreg(fk, "cfunc1", cfunc1); 
+    class1 c1;
+    fkreg(fk, "memfunc1", &class1::memfunc1); 
+
     fkparse(fk, argv[1]);
     if (fkerror(fk))
     {
         printf("parse error %d, %s\n", fkerror(fk), fkerrorstr(fk));
         return 0;
     }
-
-    fkreg(fk, "cfunc1", cfunc1); 
-    class1 c1;
-    fkreg(fk, "memfunc1", &class1::memfunc1); 
 
 	int ret = 0;
 

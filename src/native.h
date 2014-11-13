@@ -45,10 +45,9 @@ public:
         m_shh.clear();
     }
 
-    force_inline bool add_func(const char * name, func_native & nt)
+    force_inline bool add_func(const char * name, const func_native & nt)
     {
-        stringhashmap<func_native>::ele * p = m_shh.add(name, nt);
-        p->t.m_name = p->s;
+        m_shh.add(name, nt);
         return true;
     }
     

@@ -40,12 +40,12 @@ FAKE_API void delfake(fake * fk)
 // 解析文件
 FAKE_API bool fkparse(fake * fk, const char * filename)
 {
-    // 清空
-    fk->clear();
+    // 清空错误
+    fk->clearerr();
 
     // 输入源文件
+    fk->mf.clear();
     myflexer & mf = fk->mf;
-    
     FKLOG("fkparse %p %s", fk, filename);
     bool b = mf.inputfile(filename);
     if (!b)
@@ -66,6 +66,7 @@ FAKE_API bool fkparse(fake * fk, const char * filename)
     FKLOG("fkparse yyparse %p %s OK", fk, filename);
 
     // 编译
+    fk->mc.clear();
     compiler & mc = fk->mc;
     b = mc.compile(&mf);
     if (!b)
@@ -75,6 +76,7 @@ FAKE_API bool fkparse(fake * fk, const char * filename)
     }
 
     // jit
+    fk->as.clear();
     assembler & as = fk->as;
     b = as.compile(&fk->bin);
     if (!b)
@@ -110,6 +112,8 @@ FAKE_API void fkrun(fake * fk, const char * func)
 {
     FKLOG("fkrun %p %s", fk, func);
 
+    fk->bin.move();
+    
     fk->clearerr();
     fk->inter.clear();
     fk->inter.call(&fk->bin, func, &fk->ps);
@@ -366,3 +370,7 @@ void fkpushfunctor(fake * fk, const char * name, fkfunctor ff)
     fk->bf.addfunc(name, ff);
 }
 
+void fkopenbaselib(fake * fk)
+{
+    fk->bif.openbasefunc();
+}

@@ -16,18 +16,13 @@ void buildinprint(fake * fk)
     fkpspush<int>(fk, (int)str.size());
 }
 
-void buildinfunc::inifunc()
+void buildinfunc::openbasefunc()
 {
     m_shh.add("print", buildinprint);
 }
 
 bool buildinfunc::call(const char * name)
 {
-    if (m_shh.empty())
-    {
-        inifunc();
-    }
-
     bifunc * p = m_shh.get(name);
     if (!p)
     {

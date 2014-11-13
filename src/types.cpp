@@ -89,11 +89,11 @@ void * safe_fkmalloc(fake * fk, size_t size)
     return 0;
 }
 
-void safe_fkfree(fake * fk, void * p)
+void safe_fkfree(fake * fk, const void * p)
 {
     if (fk && p)
     {
-        fk->cfg.fkf(p);
+        fk->cfg.fkf((void *)p);
     }
 }
 
@@ -119,4 +119,11 @@ paramstack * getps(fake * fk)
     return &fk->ps;
 }
 
+char * stringdump(fake * fk, const char * src, size_t sz)
+{
+	char * s = (char*)safe_fkmalloc(fk, sz + 1);
+	memcpy(s, src, sz);
+	s[sz] = 0;
+	return s;
+}
 

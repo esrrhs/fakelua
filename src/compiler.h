@@ -10,7 +10,7 @@ class binary;
 class compiler
 {
 public:
-    compiler(fake * fk, binary * bin) : m_fk(fk), m_binary(bin)
+    compiler(fake * fk) : m_fk(fk)
     {
     }
     ~compiler() {}
@@ -37,10 +37,7 @@ private:
     bool compile_identifier_node(codegen & cg, identifier_node * in);
     
 private:
-    
-private:
     fake * m_fk;
-    binary * m_binary;
     command m_cur_addr;
 };
 

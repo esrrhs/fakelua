@@ -24,7 +24,10 @@ bool compiler::compile(myflexer * mf)
         }
     }
     
-    String str = m_binary->dump();
+    String str = m_fk->bbin.dump();
+    FKLOG("[compiler] compile funclist %d ok backup dump \n%s", funclist.size(), str.c_str());
+
+    str = m_fk->bin.dump();
     FKLOG("[compiler] compile funclist %d ok dump \n%s", funclist.size(), str.c_str());
 
     return true;
@@ -34,16 +37,10 @@ bool compiler::compile_func(func_desc_node * funcnode)
 {
     FKLOG("[compiler] compile_func func %s", funcnode->funcname.c_str());
     
+    // 不检测重名，直接替换掉老的
     codegen cg(m_fk);
     func_binary bin(m_fk);
     
-    // 检测重名
-    if (m_binary->get_func(funcnode->funcname.c_str()))
-    {
-        seterror(m_fk, efk_compile_same_func_name, "same func name %s", funcnode->funcname.c_str());
-        return false;
-    }
-
     // 压栈
     cg.push_stack_identifiers();
         
@@ -75,7 +72,7 @@ bool compiler::compile_func(func_desc_node * funcnode)
     
     // 编译成功
     cg.output(funcnode->funcname.c_str(), &bin);
-    m_binary->add_func(funcnode->funcname.c_str(), bin);
+    m_fk->bbin.add_func(funcnode->funcname.c_str(), bin);
     
     FKLOG("[compiler] compile_func func %s size = %d OK", funcnode->funcname.c_str(), bin.size());
     

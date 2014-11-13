@@ -74,6 +74,7 @@ class func_binary
     friend class binary;
     friend class assembler;
     friend class compiler;
+    friend class backupbinary;
 public:
 	force_inline func_binary(fake * fk) : m_fk(fk)
     {
@@ -143,6 +144,52 @@ private:
     int m_pos;
 };
 
+class backupbinary
+{
+    friend class binary;
+public:
+    force_inline backupbinary(fake * fk) : m_fk(fk), m_shh(fk)
+    {
+    }
+    force_inline ~backupbinary()
+    {
+    }
+
+    force_inline fake * getfake()
+    {
+        return m_fk;
+    }
+
+    force_inline void clear()
+    {
+        m_shh.clear();
+    }
+
+    force_inline bool add_func(const char * name, const func_binary & bin)
+    {
+        func_binary * old = m_shh.get(name);
+        if (old)
+        {
+            safe_fkfree(m_fk, old->m_name);
+            safe_fkfree(m_fk, old->m_buff);
+            safe_fkfree(m_fk, old->m_const_list);
+            FKLOG("backupbinary add_func del old %s", name);
+    	}
+        m_shh.add(name, bin);
+        return true;
+    }
+    force_inline const func_binary * get_func(const char * name) const
+    {
+        return m_shh.get(name);
+    }
+    
+    String dump() const;
+    
+private:
+    fake * m_fk; 
+    stringhashmap<func_binary> m_shh;   
+};
+
 class binary
 {
     friend class assembler;
@@ -164,18 +211,28 @@ public:
         m_shh.clear();
     }
 
-    force_inline bool add_func(const char * name, func_binary & bin)
+    force_inline bool add_func(const char * name, const func_binary & bin)
     {
-        stringhashmap<func_binary>::ele * p = m_shh.add(name, bin);
-        p->t.m_name = p->s;
+        func_binary * old = m_shh.get(name);
+        if (old)
+        {
+            safe_fkfree(m_fk, old->m_name);
+            safe_fkfree(m_fk, old->m_buff);
+            safe_fkfree(m_fk, old->m_const_list);
+            FKLOG("binary add_func del old %s", name);
+    	}
+        m_shh.add(name, bin);
         return true;
     }
+    
     force_inline const func_binary * get_func(const char * name) const
     {
         return m_shh.get(name);
     }
-
+   
     String dump() const;
+    
+    void move();
     
 private:
     fake * m_fk;    

@@ -240,9 +240,7 @@ public:
 		// add
 		ele & e = m_hashele[index].e[m_hashele[index].size];
 		e.sz = strlen(name);
-		e.s = (char*)safe_fkmalloc(m_fk, e.sz + 1);
-		memcpy(e.s, name, e.sz);
-		e.s[e.sz] = 0;
+		e.s = stringdump(m_fk, name, e.sz);
 		memcpy(&e.t, &t, sizeof(T));
 		m_hashele[index].size++;
 		m_ele_size++;
