@@ -83,6 +83,8 @@ int main(int argc, const char *argv[])
 
 	printf("call ret %d %d\n", ret, end - begin);
 
+	delfake(fk);
+
 	char c;
 	std::cin >> c;
 

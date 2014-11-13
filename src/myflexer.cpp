@@ -76,9 +76,11 @@ void myflexer::clear()
     m_funclist.clear();
 }
 
-void * myflexer::malloc(size_t size)
+void * myflexer::malloc(size_t size, const char * name)
 {
-    return safe_fkmalloc(m_fk, size);
+    void * p = safe_fkmalloc(m_fk, size);
+    FKLOG("flexer malloc %p %d %s", p, (int)size, name);
+    return p;
 }
 
 void myflexer::free(void * p)

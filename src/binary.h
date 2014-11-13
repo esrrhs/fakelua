@@ -162,6 +162,13 @@ public:
 
     force_inline void clear()
     {
+        for (const stringhashmap<func_binary>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+        {
+            const func_binary & bin = p->t;
+            safe_fkfree(m_fk, bin.m_name);
+            safe_fkfree(m_fk, bin.m_buff);
+            safe_fkfree(m_fk, bin.m_const_list);
+        }
         m_shh.clear();
     }
 
@@ -208,6 +215,13 @@ public:
 
     force_inline void clear()
     {
+        for (const stringhashmap<func_binary>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+        {
+            const func_binary & bin = p->t;
+            safe_fkfree(m_fk, bin.m_name);
+            safe_fkfree(m_fk, bin.m_buff);
+            safe_fkfree(m_fk, bin.m_const_list);
+        }
         m_shh.clear();
     }
 

@@ -167,7 +167,7 @@ void binary::move()
         const func_binary & bin = p->t;
         add_func(p->s, bin);
     }
-    m_fk->bbin.clear();
+    m_fk->bbin.m_shh.clear();
 }
     
 String backupbinary::dump() const
