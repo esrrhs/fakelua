@@ -43,8 +43,7 @@ int main(int argc, const char *argv[])
     class1 c1;
     fkreg(fk, "memfunc1", &class1::memfunc1); 
 
-    for (int i = 0; i < 10000; i++)
-        fkparse(fk, argv[1]);
+    fkparse(fk, argv[1]);
     if (fkerror(fk))
     {
         printf("parse error %d, %s\n", fkerror(fk), fkerrorstr(fk));
