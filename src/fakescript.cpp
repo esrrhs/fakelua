@@ -17,6 +17,7 @@ FAKE_API fake * newfake(fakeconfig * cfg)
         _cfg.delete_routine_scale = 4;
 		_cfg.routine_grow_speed = 100;
 		_cfg.stack_list_grow_speed = 100;
+		_cfg.string_heap_num = 100;
     }
     else
     {
@@ -112,8 +113,11 @@ FAKE_API void fkrun(fake * fk, const char * func)
 {
     FKLOG("fkrun %p %s", fk, func);
 
+    // 预处理
     fk->bin.move();
-    
+    fk->sh.checkgc();
+
+    // 清空运行环境    
     fk->clearerr();
     fk->inter.clear();
     fk->inter.call(&fk->bin, func, &fk->ps);
