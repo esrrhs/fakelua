@@ -16,6 +16,7 @@ void stringheap::clear()
     {
         stringele * e = p->t;
         safe_fkfree(m_fk, e->s);
+        safe_fkfree(m_fk, e);
     }
 	m_shh.clear();
 }
@@ -36,8 +37,15 @@ stringele * stringheap::allocstring(const char * str)
 	return pe;
 }
 
-void stringheap::gc()
+void stringheap::checkgc()
 {
-	// TODO
+	if ((int)m_shh.size() > m_fk->cfg.string_heap_num)
+	{
+	    gc();
+	}
 }
 
+void stringheap::gc()
+{
+	clear();
+}

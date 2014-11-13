@@ -24,6 +24,8 @@ public:
 
 	stringele * allocstring(const char * str);
 
+	void checkgc();
+	
 private:
 	void gc();
 
