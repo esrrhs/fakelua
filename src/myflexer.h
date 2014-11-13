@@ -31,6 +31,8 @@ public:
     // flex通过调用这个方法取得要解析的字符串的
     virtual int LexerInput(char* buf, int max_size);
     
+    virtual void LexerOutput( const char* buf, int size );
+
     //错误函数
     virtual void LexerError(const char* msg);
 
@@ -58,5 +60,7 @@ private:
     int m_num;
     int m_pos;
     func_desc_list m_funclist;
+    const char * m_llstr;
+    int m_lllen;
 }; 
 

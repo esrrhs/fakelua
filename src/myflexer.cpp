@@ -21,11 +21,15 @@ int myflexer::LexerInput(char* buf, int max_size)
     return len; 
 }
 
+void myflexer::LexerOutput( const char* buf, int size )
+{
+}
+
 //错误函数
 void myflexer::LexerError(const char* msg)
 {
-    printf("error:%s at line:%d near:%s\n", msg, lineno(), yy_c_buf_p);
-    FKLOG("error:%s at line:%d near:%s\n", msg, lineno(), yy_c_buf_p);
+    printf("parse error : %s at line:%d near:%s\n", msg, lineno(), yytext);
+    FKLOG("parse error : %s at line:%d near:%s\n", msg, lineno(), yytext);
 }
 
 // 输入文件
@@ -94,4 +98,3 @@ func_desc_list & myflexer::get_func_list()
 {
     return m_funclist;
 }
-
