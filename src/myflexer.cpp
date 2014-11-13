@@ -51,6 +51,8 @@ bool myflexer::inputfile(const char * filename)
 		m_content += (char *)readbuff;
 	}
 
+    fclose(file);
+
 	if (m_content.empty())
     {
         seterror(m_fk, efk_open_file_empty, "open %s empty", filename);
