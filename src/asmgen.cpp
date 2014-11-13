@@ -11,7 +11,7 @@
 
 void asmgen::output(const char * name, func_native * nt)
 {
-    nt->m_name = name;
+    nt->m_name = stringdump(m_fk, name, strlen(name));
 
     nt->m_size = m_asm_code_list.size();
     

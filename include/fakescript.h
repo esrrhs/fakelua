@@ -14,7 +14,6 @@ enum efkerror
     efk_open_file_empty,
     efk_parse_file_fail,
     
-    efk_compile_same_func_name,
     efk_compile_func_not_define,
     efk_compile_stack_identifier_error,
     efk_compile_stmt_type_error,
@@ -58,6 +57,7 @@ FAKE_API efkerror fkerror(fake * fk);
 FAKE_API const char * fkerrorstr(fake * fk);
 
 // 解析文件
+// 不支持在脚本运行中直接替换脚本，新的脚本会在下次fkrun的时候替换
 FAKE_API bool fkparse(fake * fk, const char * filename);
 
 // 是否有函数
@@ -768,4 +768,6 @@ void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2, T3, T4, T5))
     fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3, T4, T5>::invoke, 0, func));
 }
 
+// 开启常用内置函数
+FAKE_API void fkopenbaselib(fake * fk);
 

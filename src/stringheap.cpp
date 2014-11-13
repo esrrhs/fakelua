@@ -31,9 +31,7 @@ stringele * stringheap::allocstring(const char * str)
 	stringele & e = *pe;
 	e.update = 0;
 	e.sz = strlen(str);
-	e.s = (char*)safe_fkmalloc(m_fk, e.sz + 1);
-	memcpy(e.s, str, e.sz);
-	e.s[e.sz] = 0;
+	e.s = stringdump(m_fk, str, e.sz);
 	m_shh.add(str, pe);
 	return pe;
 }

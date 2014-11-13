@@ -160,4 +160,24 @@ String binary::dump() const
     return ret;
 }
     
+void binary::move()
+{
+    for (const stringhashmap<func_binary>::ele * p = m_fk->bbin.m_shh.first(); p != 0; p = m_fk->bbin.m_shh.next())
+    {
+        const func_binary & bin = p->t;
+        add_func(p->s, bin);
+    }
+    m_fk->bbin.clear();
+}
+    
+String backupbinary::dump() const
+{
+    String ret;
+    for (const stringhashmap<func_binary>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+    {
+        const func_binary & bin = p->t;
+        ret += bin.dump();
+    }
+    return ret;
+}
 

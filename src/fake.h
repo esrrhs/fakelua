@@ -28,7 +28,7 @@
 
 struct fake
 {
-    fake() : errorno(0), mf(this), bin(this), mc(this, &bin), nt(this), as(this, &nt), inter(this), sh(this), mac(this), bf(this), bif(this)
+    fake() : errorno(0), mf(this), bbin(this), bin(this), mc(this), nt(this), as(this, &nt), inter(this), sh(this), mac(this), bf(this), bif(this)
     {
     }
     ~fake()
@@ -41,6 +41,7 @@ struct fake
     {
         clearerr();
         mf.clear();
+        bbin.clear();
         bin.clear();
         mc.clear();
         nt.clear();
@@ -67,6 +68,9 @@ struct fake
 
     // 解析
     myflexer mf;
+
+    // 缓存二进制
+    backupbinary bbin;
 
     // 二进制
     binary bin;

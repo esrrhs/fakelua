@@ -43,7 +43,7 @@ int codegen::getconst(const variant & v)
 
 void codegen::output(const char * name, func_binary * bin)
 {
-    bin->m_name = name;
+    bin->m_name = stringdump(m_fk, name, strlen(name));
 
     bin->m_maxstack = m_maxstackpos;
     

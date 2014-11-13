@@ -181,7 +181,7 @@ static force_inline uint32_t fkstrhash(String * p)
 String fkget_token_name(int token);
 
 void * safe_fkmalloc(fake * fk, size_t size);
-void safe_fkfree(fake * fk, void * p);
+void safe_fkfree(fake * fk, const void * p);
 
 void seterror(fake * fk, efkerror err, const char *fmt, ...);
 
@@ -193,4 +193,6 @@ void USE(T t) {}
 
 struct paramstack;
 paramstack * getps(fake * fk);
+
+char * stringdump(fake * fk, const char * src, size_t sz);
 

@@ -25,11 +25,10 @@ public:
         m_shh.clear();
     }
 
+    void openbasefunc();
+    
     // 参数和返回值都在m_fk->ps里
     bool call(const char * name);
-
-private:
-    void inifunc();
     
 private:
     fake * m_fk;
