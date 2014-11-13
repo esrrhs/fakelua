@@ -134,6 +134,15 @@ void identifier_node::recycle()
     fkdelete<identifier_node>(fk, this);
 }
 
+void func_desc_arglist_node::add_arg(syntree_node * p)
+{
+    assert(p->gettype() == est_identifier);		
+    identifier_node * pi = dynamic_cast<identifier_node*>(p);
+    arglist.push_back(pi->str);
+    FKLOG("%p add arg %s", this, pi->str.c_str());
+    fkdelete<identifier_node>(fk, pi);
+}
+
 void func_desc_arglist_node::recycle()
 {
     FKLOG("recycle func_desc_arglist_node");

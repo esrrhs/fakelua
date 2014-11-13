@@ -131,14 +131,7 @@ struct func_desc_arglist_node : public syntree_node
 
     virtual void recycle();
     
-    virtual void add_arg(syntree_node * p)
-    {
-        assert(p->gettype() == est_identifier);		
-        identifier_node * pi = dynamic_cast<identifier_node*>(p);
-        arglist.push_back(pi->str);
-
-        FKLOG("%p add arg %s", this, pi->str.c_str());
-    }
+    void add_arg(syntree_node * p);
 
     func_desc_arglist arglist;
 };
@@ -370,7 +363,7 @@ struct func_desc_node : public syntree_node
     block_node * block;
 };
 
-typedef std::vector<func_desc_node *> func_desc_list;
+typedef std::vector<func_desc_node*> func_desc_list;
 
 struct assign_stmt : public syntree_node
 {

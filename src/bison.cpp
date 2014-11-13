@@ -95,7 +95,7 @@ int my_yyerror(const char *s, void * parm)
 }
 
 #define NEWTYPE(p, x) \
-	x* p = (x*)(((myflexer *)parm)->malloc(sizeof(x))); \
+	x* p = (x*)(((myflexer *)parm)->malloc(sizeof(x), #x)); \
 	new (p) x(); \
 	p->fk = ((myflexer *)parm)->getfake();
 	

@@ -49,7 +49,7 @@ public:
 
     void clear();
 
-    void * malloc(size_t size);
+    void * malloc(size_t size, const char * name);
     void free(void * p);
 
     void add_func_desc(func_desc_node * p);
