@@ -15,6 +15,7 @@
 %}
 
 %option c++
+%option batch
 %option stack
 %option yylineno
 %x STR
@@ -199,6 +200,11 @@
 	return COLON;
 }
 
+\n {
+}
+
+. {
+}
 
 %%
 int yyFlexLexer::yywrap()
