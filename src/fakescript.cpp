@@ -109,7 +109,7 @@ FAKE_API bool fkisfunc(fake * fk, const char * func)
 }
 
 // µ÷ÓÃº¯Êý
-FAKE_API void fkrun(fake * fk, const char * func)
+FAKE_API void fkrunps(fake * fk, const char * func)
 {
     FKLOG("fkrun %p %s", fk, func);
 
@@ -352,7 +352,7 @@ FAKE_API void fkpsclear(fake * fk)
     fk->ps.clear();
 }
 
-FAKE_API void fkrunjit(fake * fk, const char * func)
+FAKE_API void fkrunpsjit(fake * fk, const char * func)
 {
     FKLOG("fkrun %p %s", fk, func);
 
