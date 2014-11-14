@@ -246,13 +246,14 @@ template<>	inline uint64_t fkpspop(fake * fk)
 FAKE_API void fkpsclear(fake * fk);
 
 // 此函数内部使用，推荐使用模板
-FAKE_API void fkrun(fake * fk, const char * func);
+FAKE_API void fkrunps(fake * fk, const char * func);
 
 // 调用函数，解释执行
 template<typename RVal>
 RVal fkrun(fake * fk, const char * func)
 {
-    fkrun(fk, func);
+    fkpsclear(fk);
+    fkrunps(fk, func);
     return fkpspop<RVal>(fk);
 }
 
@@ -261,7 +262,7 @@ RVal fkrun(fake * fk, const char * func, T1 arg1)
 {
     fkpsclear(fk);
     fkpspush<T1>(fk, arg1);
-    fkrun(fk, func);
+    fkrunps(fk, func);
     return fkpspop<RVal>(fk);
 }
 
@@ -271,7 +272,7 @@ RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2)
     fkpsclear(fk);
     fkpspush<T1>(fk, arg1);
     fkpspush<T2>(fk, arg2);
-    fkrun(fk, func);
+    fkrunps(fk, func);
     return fkpspop<RVal>(fk);
 }
 
@@ -282,7 +283,7 @@ RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3)
     fkpspush<T1>(fk, arg1);
     fkpspush<T2>(fk, arg2);
     fkpspush<T3>(fk, arg3);
-    fkrun(fk, func);
+    fkrunps(fk, func);
     return fkpspop<RVal>(fk);
 }
 
@@ -294,7 +295,7 @@ RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
     fkpspush<T2>(fk, arg2);
     fkpspush<T3>(fk, arg3);
     fkpspush<T4>(fk, arg4);
-    fkrun(fk, func);
+    fkrunps(fk, func);
     return fkpspop<RVal>(fk);
 }
 
@@ -307,19 +308,20 @@ RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 
     fkpspush<T3>(fk, arg3);
     fkpspush<T4>(fk, arg4);
     fkpspush<T5>(fk, arg5);
-    fkrun(fk, func);
+    fkrunps(fk, func);
     return fkpspop<RVal>(fk);
 }
 
 
 // 此函数内部使用，推荐使用模板
-FAKE_API void fkrunjit(fake * fk, const char * func);
+FAKE_API void fkrunpsjit(fake * fk, const char * func);
 
 // 调用函数,native code
 template<typename RVal>
 RVal fkrunjit(fake * fk, const char * func)
 {
-    fkrunjit(fk, func);
+    fkpsclear(fk);
+    fkrunpsjit(fk, func);
     return fkpspop<RVal>(fk);
 }
 
@@ -328,7 +330,7 @@ RVal fkrunjit(fake * fk, const char * func, T1 arg1)
 {
     fkpsclear(fk);
     fkpspush<T1>(fk, arg1);
-    fkrunjit(fk, func);
+    fkrunpsjit(fk, func);
     return fkpspop<RVal>(fk);
 }
 
@@ -338,7 +340,7 @@ RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2)
     fkpsclear(fk);
     fkpspush<T1>(fk, arg1);
     fkpspush<T2>(fk, arg2);
-    fkrunjit(fk, func);
+    fkrunpsjit(fk, func);
     return fkpspop<RVal>(fk);
 }
 
@@ -349,7 +351,7 @@ RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3)
     fkpspush<T1>(fk, arg1);
     fkpspush<T2>(fk, arg2);
     fkpspush<T3>(fk, arg3);
-    fkrunjit(fk, func);
+    fkrunpsjit(fk, func);
     return fkpspop<RVal>(fk);
 }
 
@@ -361,7 +363,7 @@ RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
     fkpspush<T2>(fk, arg2);
     fkpspush<T3>(fk, arg3);
     fkpspush<T4>(fk, arg4);
-    fkrunjit(fk, func);
+    fkrunpsjit(fk, func);
     return fkpspop<RVal>(fk);
 }
 
@@ -374,7 +376,7 @@ RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, 
     fkpspush<T3>(fk, arg3);
     fkpspush<T4>(fk, arg4);
     fkpspush<T5>(fk, arg5);
-    fkrunjit(fk, func);
+    fkrunpsjit(fk, func);
     return fkpspop<RVal>(fk);
 }
 
