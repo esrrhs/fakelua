@@ -48,8 +48,11 @@ void codegen::output(const char * name, func_binary * bin)
     bin->m_maxstack = m_maxstackpos;
     
     bin->m_size = m_byte_code_list.size();
-    bin->m_buff = (command *)safe_fkmalloc(m_fk, (bin->m_size * sizeof(command)));
-    memcpy(bin->m_buff, &m_byte_code_list[0], bin->m_size * sizeof(command));
+	if (bin->m_size > 0)
+	{
+		bin->m_buff = (command *)safe_fkmalloc(m_fk, (bin->m_size * sizeof(command)));
+		memcpy(bin->m_buff, &m_byte_code_list[0], bin->m_size * sizeof(command));
+	}
     
     bin->m_const_list_num = m_const_list.size();
 	if (bin->m_const_list_num > 0)

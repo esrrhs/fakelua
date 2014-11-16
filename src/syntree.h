@@ -25,8 +25,9 @@ enum esyntreetype
     est_block,
     est_while_stmt,
     est_cmp_stmt,
-    est_if_stmt,
-    est_else_stmt,
+	est_if_stmt,
+	est_else_stmt,
+	est_for_stmt,
     est_explicit_value,
     est_return_stmt,
     est_assign_stmt,
@@ -293,6 +294,26 @@ struct if_stmt : public syntree_node
     cmp_stmt * cmp;
     block_node * block;
     else_stmt * elses;
+};
+
+struct for_stmt : public syntree_node
+{
+	for_stmt() {}
+	virtual ~for_stmt() {}
+
+	virtual esyntreetype gettype()
+	{
+		return est_for_stmt;
+	}
+
+	virtual String dump(int indent);
+
+	virtual void recycle();
+
+	block_node * beginblock;
+	cmp_stmt * cmp;
+	block_node * endblock;
+	block_node * block;
 };
 
 typedef std::vector<syntree_node *> stmt_node_list;

@@ -43,6 +43,10 @@
 	return WHILE;
 }
 
+"for" {
+	return FOR;
+}
+
 "true" {
   lvalp->str = yytext;
   return TRUE;
