@@ -162,6 +162,11 @@ String binary::dump() const
     
 void binary::move()
 {
+	if (m_fk->bbin.m_shh.empty())
+	{
+		return;
+	}
+
     for (const stringhashmap<func_binary>::ele * p = m_fk->bbin.m_shh.first(); p != 0; p = m_fk->bbin.m_shh.next())
     {
         const func_binary & bin = p->t;
