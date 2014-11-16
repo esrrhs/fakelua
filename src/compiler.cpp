@@ -7,7 +7,9 @@
 void compiler::clear()
 {
     m_cur_addr = 0;
+	memset(m_cur_addrs, 0, sizeof(m_cur_addrs));
 	m_loop_break_pos_stack.clear();
+	m_func_ret_num = 1;
 }
 
 bool compiler::compile(myflexer * mf)
@@ -136,6 +138,16 @@ bool compiler::compile_node(codegen & cg, syntree_node * node)
 			}
 		}
 		break;
+	case est_multi_assign_stmt:
+		{
+			multi_assign_stmt * as = dynamic_cast<multi_assign_stmt *>(node);
+			if (!compile_multi_assign_stmt(cg, as))
+			{
+				FKERR("[compiler] compile_node multi_assign_stmt error %d %s", type, node->gettypename());
+				return false;
+			}
+		}
+		break;
     case est_cmp_stmt:
         {
             cmp_stmt * cs = dynamic_cast<cmp_stmt *>(node);
@@ -172,6 +184,16 @@ bool compiler::compile_node(codegen & cg, syntree_node * node)
             if (!compile_return_stmt(cg, rs))
             {
                 FKERR("[compiler] compile_node compile_return_stmt error %d %s", type, node->gettypename());
+                return false;
+            }
+        }
+        break;
+    case est_return_value_list:
+        {
+			return_value_list_node * rn = dynamic_cast<return_value_list_node *>(node);
+			if (!compile_return_value_list(cg, rn))
+            {
+                FKERR("[compiler] compile_node compile_return_value_list error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -242,16 +264,6 @@ bool compiler::compile_node(codegen & cg, syntree_node * node)
             if (!compile_math_expr_node(cg, mn))
             {
                 FKERR("[compiler] compile_node math_expr_node error %d %s", type, node->gettypename());
-                return false;
-            }
-        }
-        break;
-    case est_identifier:
-        {
-            identifier_node * in = dynamic_cast<identifier_node *>(node);
-            if (!compile_identifier_node(cg, in))
-            {
-                FKERR("[compiler] compile_node compile_identifier_node error %d %s", type, node->gettypename());
                 return false;
             }
         }
@@ -395,20 +407,25 @@ bool compiler::compile_return_stmt(codegen & cg, return_stmt * rs)
 {
     FKLOG("[compiler] compile_return_stmt %p", rs);
 
-	if (rs->ret)
+	if (rs->returnlist)
 	{
-		if (!compile_node(cg, rs->ret))
+		if (!compile_node(cg, rs->returnlist))
 		{
 			FKERR("[compiler] compile_return_stmt ret fail");
 			return false;
 		}
+
 		cg.push(MAKE_OPCODE(OPCODE_RETURN));
-		cg.push(m_cur_addr);
+		cg.push(MAKE_POS(rs->returnlist->returnlist.size()));
+		for (int i = 0; i < (int)rs->returnlist->returnlist.size(); i++)
+		{
+			cg.push(m_cur_addrs[i]);
+		}
 	}
 	else
 	{
 		cg.push(MAKE_OPCODE(OPCODE_RETURN));
-		cg.push(EMPTY_CMD);
+		cg.push(MAKE_POS(0));
 	}
 
     FKLOG("[compiler] compile_return_stmt %p OK", rs);
@@ -710,6 +727,9 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
 
     fake * fk = m_fk;
 
+	int ret_num = m_func_ret_num;
+	m_func_ret_num = 1;
+
     // 参数
     std::vector<command> arglist;
     if (fn->arglist)
@@ -752,16 +772,27 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
     command argnum;
     argnum = MAKE_POS(arglist.size());
 
+	// 返回值个数
+	command retnum;
+	retnum = MAKE_POS(ret_num);
    
-    // 返回值
-    command ret;
-    int retpos = cg.alloc_stack_identifier();
-    ret = MAKE_ADDR(ADDR_STACK, retpos);
-    m_cur_addr = ret;
+	// 返回值
+	std::vector<command> ret;
+	for (int i = 0; i < ret_num; i++)
+	{
+		int retpos = cg.alloc_stack_identifier();
+		ret.push_back(MAKE_ADDR(ADDR_STACK, retpos));
+		m_cur_addrs[i] = ret[i];
+	}
+	m_cur_addr = ret[0];
     
     cg.push(oper);
-    cg.push(callpos);
-    cg.push(ret);
+	cg.push(callpos);
+	cg.push(retnum);
+	for (int i = 0; i < ret_num; i++)
+	{
+		cg.push(ret[i]);
+	}
     cg.push(argnum);
     for (int i = 0; i < (int)arglist.size(); i++)
     {
@@ -836,15 +867,6 @@ bool compiler::compile_math_expr_node(codegen & cg, math_expr_node * mn)
     cg.push(dest);
 
     FKLOG("[compiler] compile_math_expr_node %p OK", mn);
-    
-    return true;
-}
-
-bool compiler::compile_identifier_node(codegen & cg, identifier_node * in)
-{
-    FKLOG("[compiler] compile_identifier_node %p", in);
-
-    FKLOG("[compiler] compile_identifier_node %p OK", in);
     
     return true;
 }
@@ -928,6 +950,72 @@ bool compiler::compile_for_stmt(codegen & cg, for_stmt * fs)
 	cg.pop_stack_identifiers();
 
 	FKLOG("[compiler] compile_for_stmt %p OK", fs);
+
+	return true;
+}
+
+bool compiler::compile_multi_assign_stmt(codegen & cg, multi_assign_stmt * as)
+{
+	FKLOG("[compiler] compile_multi_assign_stmt %p", as);
+
+	// 挨个编译var
+	std::vector<command> varlist;
+	for (int i = 0; i < (int)as->varlist->varlist.size(); i++)
+	{
+		if (!compile_node(cg, as->varlist->varlist[i]))
+		{
+			FKERR("[compiler] compile_multi_assign_stmt var fail");
+			return false;
+		}
+
+		varlist.push_back(m_cur_addr);
+	}
+
+	// 目前多重赋值只支持a,b,c = myfunc1()，需要告诉func1多返回几个值
+	m_func_ret_num = as->varlist->varlist.size();
+
+	// 编译value
+	if (!compile_node(cg, as->value))
+	{
+		FKERR("[compiler] compile_multi_assign_stmt value fail");
+		return false;
+	}
+
+	// 挨个赋值
+	for (int i = 0; i < (int)as->varlist->varlist.size(); i++)
+	{
+		command var = 0;
+		command value = 0;
+
+		var = varlist[i];
+		value = m_cur_addrs[i];
+
+		cg.push(MAKE_OPCODE(OPCODE_ASSIGN));
+		cg.push(var);
+		cg.push(value);
+	}
+
+	FKLOG("[compiler] compile_multi_assign_stmt %p OK", as);
+
+	return true;
+}
+
+bool compiler::compile_return_value_list(codegen & cg, return_value_list_node * rn)
+{
+	FKLOG("[compiler] compile_return_value_list %p", rn);
+
+	for (int i = 0; i < (int)rn->returnlist.size(); i++)
+	{
+		if (!compile_node(cg, rn->returnlist[i]))
+		{
+			FKERR("[compiler] compile_return_value_list value fail");
+			return false;
+		}
+		m_cur_addrs[i] = m_cur_addr;
+	}
+	m_cur_addr = m_cur_addrs[0];
+
+	FKLOG("[compiler] compile_return_value_list %p OK", rn);
 
 	return true;
 }

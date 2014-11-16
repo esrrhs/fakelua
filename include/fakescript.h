@@ -36,7 +36,7 @@ typedef void (*fkfree)(void *ptr);
 
 #define FAKE_API extern "C"
 #define MAX_FAKE_PARAM_NUM 10	// 最大10个参数
-#define MAX_FAKE_RETURN_NUM 1	// 最大1个返回值
+#define MAX_FAKE_RETURN_NUM 10	// 最大10个返回值
 
 struct fakeconfig
 {

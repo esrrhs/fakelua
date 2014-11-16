@@ -92,10 +92,10 @@ struct fake;
 
 struct stack
 {
-	force_inline stack() : m_fk(0), m_fb(0), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
+	force_inline stack() : m_fk(0), m_fb(0), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0), m_retnum(0)
     {
     }
-	force_inline stack(fake * fk, const  func_binary * fb) : m_fk(fk), m_fb(fb), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0)
+	force_inline stack(fake * fk, const  func_binary * fb) : m_fk(fk), m_fb(fb), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0), m_retnum(0)
     {
     }
 	force_inline ~stack()
@@ -119,12 +119,15 @@ struct stack
     // 当前栈上的变量
 	variant * m_stack_variant_list;
 	size_t m_stack_variant_list_num;
+	// 调用的函数返回本栈的个数和位置
+	int m_retnum;
+	int m_retvpos[MAX_FAKE_RETURN_NUM];
 };
 
 class interpreter
 {
 public:
-	force_inline interpreter(fake * fk) : m_fk(fk), m_isend(false), m_retvpos(-1), m_cur_stack(0),
+	force_inline interpreter(fake * fk) : m_fk(fk), m_isend(false), m_cur_stack(0),
 		m_stack_list(0), m_stack_list_num(0), m_stack_list_max_num(0)
     {
     }
@@ -144,7 +147,6 @@ public:
     void clear()
     {
         m_isend = false;
-        m_retvpos = -1;
         m_cur_stack = 0;
         m_stack_list_num = 0;
         for (int i = 0; i < (int)m_stack_list_max_num; i++)
@@ -164,7 +166,7 @@ public:
 
     force_inline const variant & getret() const
     {
-        return m_ret;
+        return m_ret[0];
     }
 
     force_inline int run(int cmdnum)
@@ -279,23 +281,27 @@ public:
                 break;
         	case OPCODE_RETURN:
         	    {
-                	if (GET_CMD(fb, m_cur_stack->m_pos) == EMPTY_CMD)
+					int returnnum = COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos));
+					if (!returnnum)
                 	{
                 		FKLOG("return empty");
 		                m_cur_stack->m_pos = fb.m_size;
                 		break;
                 	}
+					m_cur_stack->m_pos++;
 
                 	// 塞给ret
-                	const variant * ret = 0;
-                	LOG_VARIANT(*m_cur_stack, fb, m_cur_stack->m_pos, "ret");
-                	GET_VARIANT(*m_cur_stack, fb, ret, m_cur_stack->m_pos);
-                	m_cur_stack->m_pos++;
+					for (int i = 0; i < returnnum; i++)
+					{
+						const variant * ret = 0;
+						LOG_VARIANT(*m_cur_stack, fb, m_cur_stack->m_pos, "ret");
+						GET_VARIANT(*m_cur_stack, fb, ret, m_cur_stack->m_pos);
+						m_cur_stack->m_pos++;
 
-                	m_ret = *ret;
+						m_ret[i] = *ret;
 
-                	FKLOG("return %s", (vartostring(&m_ret)).c_str());
-
+						FKLOG("return %s", (vartostring(&m_ret[i])).c_str());
+					}
         	    }
         		break;
         	case OPCODE_JNE:
@@ -363,9 +369,16 @@ public:
                 	GET_VARIANT(*m_cur_stack, fb, callpos, m_cur_stack->m_pos);
                 	m_cur_stack->m_pos++;
 
-                    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))) == ADDR_STACK);
-                    m_retvpos = m_cur_stack->m_pos;
-                	m_cur_stack->m_pos++;
+					int retnum = COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos));
+					m_cur_stack->m_retnum = retnum; 
+					m_cur_stack->m_pos++;
+
+					for (int i = 0; i < retnum; i++)
+					{
+						assert(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))) == ADDR_STACK);
+						m_cur_stack->m_retvpos[i] = m_cur_stack->m_pos;
+						m_cur_stack->m_pos++;
+					}
                     
                     int argnum = COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos));
                 	m_cur_stack->m_pos++;
@@ -408,12 +421,15 @@ public:
                 }
             	// 塞返回值
                 else
-                {
+				{
 					m_cur_stack = &m_stack_list[m_stack_list_num - 1];
 					const func_binary & fb = *m_cur_stack->m_fb;
-            		variant * ret;
-                	GET_VARIANT(*m_cur_stack, fb, ret, m_retvpos);
-                    *ret = m_ret;
+					for (int i = 0; i < m_cur_stack->m_retnum; i++)
+					{
+						variant * ret;
+						GET_VARIANT(*m_cur_stack, fb, ret, m_cur_stack->m_retvpos[i]);
+						*ret = m_ret[i];
+					}
                 }
             }
 
@@ -438,8 +454,7 @@ private:
 private:
     fake * m_fk;
     bool m_isend;
-    variant m_ret;
-    int m_retvpos;
+	variant m_ret[MAX_FAKE_RETURN_NUM];
 	stack * m_cur_stack;
 	stack * m_stack_list;
 	size_t m_stack_list_num;

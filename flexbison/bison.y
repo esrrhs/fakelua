@@ -75,7 +75,7 @@ int my_yyerror(const char *s, void * parm)
 %right DIVIDE
 %right MULTIPLY
 
-%expect 15
+%expect 17
 
 %type<str> IDENTIFIER  
 %type<str> NUMBER
@@ -103,6 +103,7 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> body
 %type<syntree> return_stmt
 %type<syntree> return_value
+%type<syntree> return_value_list
 %type<syntree> explicit_value
 %type<syntree> variable
 %type<syntree> arg_expr
@@ -119,6 +120,8 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> expr_value
 %type<syntree> math_assign_stmt
 %type<syntree> for_stmt
+%type<syntree> multi_assign_stmt
+%type<syntree> var_list
 
 
 %%
@@ -294,6 +297,12 @@ stmt:
 	assign_stmt
 	{
 		FKLOG("[bison]: stmt <- assign_stmt");
+		$$ = $1;
+	}
+	|
+	multi_assign_stmt
+	{
+		FKLOG("[bison]: stmt <- multi_assign_stmt");
 		$$ = $1;
 	}
 	|
@@ -529,11 +538,29 @@ cmp_value:
 	;
 	
 return_stmt:
-	RETURN return_value
+	RETURN return_value_list
 	{
-		FKLOG("[bison]: return_stmt <- RETURN return_value");
+		FKLOG("[bison]: return_stmt <- RETURN return_value_list");
 		NEWTYPE(p, return_stmt);
-		p->ret = $2;
+		p->returnlist = dynamic_cast<return_value_list_node*>($2);
+		$$ = p;
+	}
+	;
+ 
+return_value_list:
+	return_value_list ARG_SPLITTER return_value
+	{
+		FKLOG("[bison]: return_value_list <- return_value_list return_value");
+		assert($1->gettype() == est_return_value_list);
+		return_value_list_node * p = dynamic_cast<return_value_list_node*>($1);
+		p->add_arg($3);
+		$$ = p;
+	}
+	|
+	return_value
+	{
+		NEWTYPE(p, return_value_list_node);
+		p->add_arg($1);
 		$$ = p;
 	}
 	;
@@ -565,6 +592,35 @@ assign_stmt:
 		NEWTYPE(p, assign_stmt);
 		p->var = $1;
 		p->value = $3;
+		$$ = p;
+	}
+	;
+
+multi_assign_stmt:
+	var_list ASSIGN function_call
+	{
+		FKLOG("[bison]: multi_assign_stmt <- var_list function_call");
+		NEWTYPE(p, multi_assign_stmt);
+		p->varlist = dynamic_cast<var_list_node*>($1);
+		p->value = $3;
+		$$ = p;
+	}
+	;
+	
+var_list:
+	var_list ARG_SPLITTER var
+	{
+		FKLOG("[bison]: var_list <- var_list var");
+		assert($1->gettype() == est_var_list);
+		var_list_node * p = dynamic_cast<var_list_node*>($1);
+		p->add_arg($3);
+		$$ = p;
+	}
+	|
+	var
+	{
+		NEWTYPE(p, var_list_node);
+		p->add_arg($1);
 		$$ = p;
 	}
 	;

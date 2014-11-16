@@ -29,6 +29,9 @@ const char * get_syntree_node_name(esyntreetype type)
 	SYN_NODE_DEF(est_break)
 	SYN_NODE_DEF(est_identifier)
 	SYN_NODE_DEF(est_for_stmt)
+	SYN_NODE_DEF(est_return_value_list)
+	SYN_NODE_DEF(est_multi_assign_stmt)
+	SYN_NODE_DEF(est_var_list)
     
 #undef SYN_NODE_DEF
     }
@@ -213,9 +216,9 @@ void explicit_value_node::recycle()
 void return_stmt::recycle()
 {
     FKLOG("recycle return_stmt");
-    if (ret)
+	if (returnlist)
     {
-        ret->recycle();
+		returnlist->recycle();
     }
     fkdelete<return_stmt>(fk, this);
 }
@@ -338,3 +341,81 @@ void break_stmt::recycle()
     fkdelete<break_stmt>(fk, this);
 }
 
+String return_value_list_node::dump(int indent)
+{
+	String ret;
+	ret += gentab(indent);
+	ret += "[return_value_list]:\n";
+	for (int i = 0; i < (int)returnlist.size(); i++)
+	{
+		ret += returnlist[i]->dump(indent + 1);
+	}
+	return ret;
+}
+
+void return_value_list_node::recycle()
+{
+	FKLOG("recycle return_value_list_node");
+	for (int i = 0; i < (int)returnlist.size(); i++)
+	{
+		returnlist[i]->recycle();
+	}
+	fkdelete<return_value_list_node>(fk, this);
+}
+
+void return_value_list_node::add_arg(syntree_node * p)
+{
+	returnlist.push_back(p);
+}
+
+String var_list_node::dump(int indent)
+{
+	String ret;
+	ret += gentab(indent);
+	ret += "[var_list]:\n";
+	for (int i = 0; i < (int)varlist.size(); i++)
+	{
+		ret += varlist[i]->dump(indent + 1);
+	}
+	return ret;
+}
+
+void var_list_node::recycle()
+{
+	FKLOG("recycle var_list_node");
+	for (int i = 0; i < (int)varlist.size(); i++)
+	{
+		varlist[i]->recycle();
+	}
+	fkdelete<var_list_node>(fk, this);
+}
+
+void var_list_node::add_arg(syntree_node * p)
+{
+	varlist.push_back(p);
+}
+
+String multi_assign_stmt::dump(int indent)
+{
+	String ret;
+	ret += gentab(indent);
+	ret += "[multi_assign]:\n";
+
+	ret += gentab(indent + 1);
+	ret += "[var]:\n";
+	ret += varlist->dump(indent + 2);
+
+	ret += gentab(indent + 1);
+	ret += "[value]:\n";
+	ret += value->dump(indent + 2);
+	return ret;
+
+}
+
+void multi_assign_stmt::recycle()
+{
+	FKLOG("recycle var_list_node");
+	varlist->recycle();
+	value->recycle();
+	fkdelete<multi_assign_stmt>(fk, this);
+}

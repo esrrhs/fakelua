@@ -34,7 +34,7 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
     const func_binary * fb = bin->get_func(func);
     if (!fb)
     {
-        // 去C函数看看
+        // 去C函数看看，C函数只支持一个返回值
         if (m_fk->bf.call(func))
         {
             FKLOG("call C func %s", func);
@@ -44,7 +44,7 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
 			m_cur_stack = &m_stack_list[m_stack_list_num - 1];
 			const func_binary & fb = *m_cur_stack->m_fb;
     		variant * ret;
-    		do {GET_VARIANT(*m_cur_stack, fb, ret, m_retvpos);} while(0);
+			do { GET_VARIANT(*m_cur_stack, fb, ret, m_cur_stack->m_retvpos[0]); } while (0);
 
             paramstack * theps = getps(m_fk);
             variant * cret;
@@ -99,7 +99,7 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
     ps->clear();
 
 	// 重置ret
-	V_SET_NIL(&m_ret);
+	V_SET_NIL(&m_ret[0]);
 }
 
 void interpreter::grow()

@@ -26,7 +26,8 @@ private:
 	bool compile_for_stmt(codegen & cg, for_stmt * fs);
     bool compile_if_stmt(codegen & cg, if_stmt * is);
     bool compile_return_stmt(codegen & cg, return_stmt * rs);
-    bool compile_assign_stmt(codegen & cg, assign_stmt * as);
+	bool compile_assign_stmt(codegen & cg, assign_stmt * as);
+	bool compile_multi_assign_stmt(codegen & cg, multi_assign_stmt * as);
     bool compile_math_assign_stmt(codegen & cg, math_assign_stmt * ms);
     bool compile_break_stmt(codegen & cg, break_stmt * bs);
     bool compile_cmp_stmt(codegen & cg, cmp_stmt * cs);
@@ -35,13 +36,15 @@ private:
     bool compile_var_node(codegen & cg, var_node * vn);
     bool compile_function_call_node(codegen & cg, function_call_node * fn);
     bool compile_math_expr_node(codegen & cg, math_expr_node * mn);
-    bool compile_identifier_node(codegen & cg, identifier_node * in);
-    
+	bool compile_return_value_list(codegen & cg, return_value_list_node * rn);
+
 private:
     fake * m_fk;
-    command m_cur_addr;
+	command m_cur_addr;
+	command m_cur_addrs[MAX_FAKE_RETURN_NUM];
 	typedef std::vector<int> beak_pos_list;
 	typedef std::vector<beak_pos_list> loop_break_pos_stack;
 	loop_break_pos_stack m_loop_break_pos_stack;
+	int m_func_ret_num;
 };
 
