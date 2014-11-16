@@ -9,7 +9,7 @@
     <LocalDebuggerWorkingDirectory>../bin</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>19.fk</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>20.fk</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>../bin</LocalDebuggerWorkingDirectory>
   </PropertyGroup>

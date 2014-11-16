@@ -465,6 +465,26 @@ cmp:
 		p->right = $3;
 		$$ = p;
 	}
+	|
+	TRUE
+	{
+		FKLOG("[bison]: cmp <- true");
+		NEWTYPE(p, cmp_stmt);
+		p->cmp = "true";
+		p->left = 0;
+		p->right = 0;
+		$$ = p;
+	}
+	|
+	FALSE
+	{
+		FKLOG("[bison]: cmp <- false");
+		NEWTYPE(p, cmp_stmt);
+		p->cmp = "false";
+		p->left = 0;
+		p->right = 0;
+		$$ = p;
+	}
 	;
 
 cmp_value:

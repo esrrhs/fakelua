@@ -218,12 +218,18 @@ struct cmp_stmt : public syntree_node
         ret += "[cmp]:";
         ret += cmp;
         ret += "\n";
-        ret += gentab(indent + 1);
-        ret += "[left]:\n";
-        ret += left->dump(indent + 2);
-        ret += gentab(indent + 1);
-        ret += "[right]:\n";
-        ret += right->dump(indent + 2);
+		if (left)
+		{
+			ret += gentab(indent + 1);
+			ret += "[left]:\n";
+			ret += left->dump(indent + 2);
+		}
+		if (right)
+		{
+			ret += gentab(indent + 1);
+			ret += "[right]:\n";
+			ret += right->dump(indent + 2);
+		}
         return ret;
     }
     
