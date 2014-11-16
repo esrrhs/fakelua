@@ -853,6 +853,80 @@ bool compiler::compile_for_stmt(codegen & cg, for_stmt * fs)
 {
 	FKLOG("[compiler] compile_for_stmt %p", fs);
 
+	int startpos = 0;
+	int jnepos = 0;
+
+	m_loop_break_pos_stack.push_back(beak_pos_list());
+
+	// 开始语句，这个作用域是全for都有效的
+	cg.push_stack_identifiers();
+	if (fs->beginblock)
+	{
+		if (!compile_node(cg, fs->beginblock))
+		{
+			FKERR("[compiler] compile_for_stmt beginblock fail");
+			return false;
+		}
+	}
+
+	startpos = cg.byte_code_size();
+
+	// 条件
+	cg.push_stack_identifiers();
+	if (!compile_node(cg, fs->cmp))
+	{
+		FKERR("[compiler] compile_for_stmt cmp fail");
+		return false;
+	}
+	cg.pop_stack_identifiers();
+
+	cg.push(MAKE_OPCODE(OPCODE_JNE));
+	cg.push(m_cur_addr);
+	cg.push(EMPTY_CMD); // 先塞个位置
+	jnepos = cg.byte_code_size() - 1;
+
+	// block块
+	if (fs->block)
+	{
+		cg.push_stack_identifiers();
+		if (!compile_node(cg, fs->block))
+		{
+			FKERR("[compiler] compile_for_stmt block fail");
+			return false;
+		}
+		cg.pop_stack_identifiers();
+	}
+
+	// 结束
+	if (fs->endblock)
+	{
+		cg.push_stack_identifiers();
+		if (!compile_node(cg, fs->endblock))
+		{
+			FKERR("[compiler] compile_for_stmt endblock fail");
+			return false;
+		}
+		cg.pop_stack_identifiers();
+	}
+
+	// 跳回判断地方
+	cg.push(MAKE_OPCODE(OPCODE_JMP));
+	cg.push(MAKE_POS(startpos));
+
+	// 跳转出block块
+	cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
+
+	// 替换掉break
+	beak_pos_list & bplist = m_loop_break_pos_stack[m_loop_break_pos_stack.size() - 1];
+	for (int i = 0; i < (int)bplist.size(); i++)
+	{
+		cg.set(bplist[i], MAKE_POS(cg.byte_code_size()));
+	}
+	m_loop_break_pos_stack.pop_back();
+
+	// 离开作用域
+	cg.pop_stack_identifiers();
+
 	FKLOG("[compiler] compile_for_stmt %p OK", fs);
 
 	return true;
