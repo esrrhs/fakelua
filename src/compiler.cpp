@@ -538,7 +538,28 @@ bool compiler::compile_cmp_stmt(codegen & cg, cmp_stmt * cs)
     else if (cs->cmp == "!=")
     {
         oper = MAKE_OPCODE(OPCODE_NOTEQUAL);
-    }
+	}
+	else if (cs->cmp == "true")
+	{
+		variant v;
+		V_SET_REAL((&v), 1);
+		int pos = cg.getconst(v);
+		m_cur_addr = MAKE_ADDR(ADDR_CONST, pos);
+		return true;
+	}
+	else if (cs->cmp == "false")
+	{
+		variant v;
+		V_SET_REAL((&v), 0);
+		int pos = cg.getconst(v);
+		m_cur_addr = MAKE_ADDR(ADDR_CONST, pos);
+		return true;
+	}
+	else
+	{
+		FKERR("[compiler] compile_cmp_stmt cmp error %s", cs->cmp.c_str());
+		return false;
+	}
 
     // left
     if (!compile_node(cg, cs->left))
