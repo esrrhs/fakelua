@@ -26,8 +26,9 @@ const char * get_syntree_node_name(esyntreetype type)
     SYN_NODE_DEF(est_function_call)
     SYN_NODE_DEF(est_call_arglist)
     SYN_NODE_DEF(est_math_expr)
-    SYN_NODE_DEF(est_break)
-    SYN_NODE_DEF(est_identifier)
+	SYN_NODE_DEF(est_break)
+	SYN_NODE_DEF(est_identifier)
+	SYN_NODE_DEF(est_for_stmt)
     
 #undef SYN_NODE_DEF
     }
