@@ -7,6 +7,7 @@
 void compiler::clear()
 {
     m_cur_addr = 0;
+	m_loop_break_pos_stack.clear();
 }
 
 bool compiler::compile(myflexer * mf)
@@ -266,6 +267,8 @@ bool compiler::compile_while_stmt(codegen & cg, while_stmt * ws)
 	int startpos = 0;
 	int jnepos = 0;
 
+	m_loop_break_pos_stack.push_back(beak_pos_list());
+
 	startpos = cg.byte_code_size();
 
 	// 条件
@@ -300,6 +303,14 @@ bool compiler::compile_while_stmt(codegen & cg, while_stmt * ws)
 
 	// 跳转出block块
 	cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
+
+	// 替换掉break
+	beak_pos_list & bplist = m_loop_break_pos_stack[m_loop_break_pos_stack.size() - 1];
+	for (int i = 0; i < (int)bplist.size(); i++)
+	{
+		cg.set(bplist[i], MAKE_POS(cg.byte_code_size()));
+	}
+	m_loop_break_pos_stack.pop_back();
 
     FKLOG("[compiler] compile_while_stmt %p OK", ws);
     
@@ -491,6 +502,13 @@ bool compiler::compile_math_assign_stmt(codegen & cg, math_assign_stmt * ms)
 bool compiler::compile_break_stmt(codegen & cg, break_stmt * bs)
 {
     FKLOG("[compiler] compile_break_stmt %p", bs);
+
+	cg.push(MAKE_OPCODE(OPCODE_JMP));
+	cg.push(EMPTY_CMD); // 先塞个位置
+	int jmppos = cg.byte_code_size() - 1;
+
+	beak_pos_list & bplist = m_loop_break_pos_stack[m_loop_break_pos_stack.size() - 1];
+	bplist.push_back(jmppos);
 
     FKLOG("[compiler] compile_break_stmt %p OK", bs);
     

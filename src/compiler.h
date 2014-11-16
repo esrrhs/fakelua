@@ -39,5 +39,8 @@ private:
 private:
     fake * m_fk;
     command m_cur_addr;
+	typedef std::vector<int> beak_pos_list;
+	typedef std::vector<beak_pos_list> loop_break_pos_stack;
+	loop_break_pos_stack m_loop_break_pos_stack;
 };
 
