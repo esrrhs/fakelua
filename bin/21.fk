@@ -1,0 +1,10 @@
+-- func1 comment
+func myfunc1(arg1, arg2)
+		
+	for var i = 0, i < 10 , i+=1 then
+		print("haha", i)
+	end
+	
+	return arg1
+	
+end

@@ -126,6 +126,16 @@ bool compiler::compile_node(codegen & cg, syntree_node * node)
             }
         }
         break;
+	case est_for_stmt:
+		{
+			for_stmt * fs = dynamic_cast<for_stmt *>(node);
+			if (!compile_for_stmt(cg, fs))
+			{
+				FKERR("[compiler] compile_node for_stmt error %d %s", type, node->gettypename());
+				return false;
+			}
+		}
+		break;
     case est_cmp_stmt:
         {
             cmp_stmt * cs = dynamic_cast<cmp_stmt *>(node);
@@ -837,6 +847,15 @@ bool compiler::compile_identifier_node(codegen & cg, identifier_node * in)
     FKLOG("[compiler] compile_identifier_node %p OK", in);
     
     return true;
+}
+
+bool compiler::compile_for_stmt(codegen & cg, for_stmt * fs)
+{
+	FKLOG("[compiler] compile_for_stmt %p", fs);
+
+	FKLOG("[compiler] compile_for_stmt %p OK", fs);
+
+	return true;
 }
 
 

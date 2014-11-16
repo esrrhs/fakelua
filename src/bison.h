@@ -77,7 +77,8 @@
      DIVIDE_ASSIGN = 293,
      MULTIPLY_ASSIGN = 294,
      DIVIDE_MOD_ASSIGN = 295,
-     COLON = 296
+     COLON = 296,
+     FOR = 297
    };
 #endif
 

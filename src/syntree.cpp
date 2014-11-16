@@ -86,6 +86,60 @@ String if_stmt::dump(int indent)
     return ret;
 }
 
+String for_stmt::dump(int indent)
+{
+	String ret;
+	ret += gentab(indent);
+	ret += "[for]:\n";
+	ret += gentab(indent + 1);
+	ret += "[beginblock]:\n";
+	if (beginblock)
+	{
+		ret += beginblock->dump(indent + 2);
+	}
+	ret += gentab(indent + 1);
+	ret += "[cmp]:\n";
+	if (cmp)
+	{
+		ret += cmp->dump(indent + 2);
+	}
+	ret += gentab(indent + 1);
+	ret += "[endblock]:\n";
+	if (endblock)
+	{
+		ret += endblock->dump(indent + 2);
+	}
+	ret += gentab(indent + 1);
+	ret += "[block]:\n";
+	if (block)
+	{
+		ret += block->dump(indent + 2);
+	}
+	return ret;
+}
+
+void for_stmt::recycle()
+{
+	FKLOG("recycle for_stmt");
+	if (beginblock)
+	{
+		beginblock->recycle();
+	}
+	if (cmp)
+	{
+		cmp->recycle();
+	}
+	if (endblock)
+	{
+		endblock->recycle();
+	}
+	if (block)
+	{
+		block->recycle();
+	}
+	safe_fkfree(fk, this);
+}
+
 void while_stmt::recycle()
 {
     FKLOG("recycle while_stmt");

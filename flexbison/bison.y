@@ -68,6 +68,7 @@ int my_yyerror(const char *s, void * parm)
 %token FLOAT
 %token PLUS_ASSIGN MINUS_ASSIGN DIVIDE_ASSIGN MULTIPLY_ASSIGN DIVIDE_MOD_ASSIGN
 %token COLON
+%token FOR
 
 %right PLUS
 %right MINUS
@@ -117,6 +118,7 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> assign_value
 %type<syntree> expr_value
 %type<syntree> math_assign_stmt
+%type<syntree> for_stmt
 
 
 %%
@@ -312,8 +314,27 @@ stmt:
 		FKLOG("[bison]: stmt <- math_assign_stmt");
 		$$ = $1;
 	}
+	|
+	for_stmt
+	{
+		FKLOG("[bison]: stmt <- for_stmt");
+		$$ = $1;
+	}
 	;
 
+for_stmt:
+	FOR block ARG_SPLITTER cmp ARG_SPLITTER block THEN block END
+	{
+		FKLOG("[bison]: for_stmt <- block cmp block");
+		NEWTYPE(p, for_stmt);
+		p->cmp = dynamic_cast<cmp_stmt*>($4);
+		p->beginblock = dynamic_cast<block_node*>($2);
+		p->endblock = dynamic_cast<block_node*>($6);
+		p->block = dynamic_cast<block_node*>($8);
+		$$ = p;
+	}
+	;
+	
 while_stmt:
 	WHILE cmp THEN block END 
 	{
