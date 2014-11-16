@@ -30,6 +30,7 @@ enum esyntreetype
 	est_for_stmt,
     est_explicit_value,
     est_return_stmt,
+	est_return_value_list,
     est_assign_stmt,
     est_math_assign_stmt,
     est_variable,
@@ -38,14 +39,16 @@ enum esyntreetype
     est_call_arglist,
     est_math_expr,
     est_break,
-    est_identifier,
+	est_identifier,
+	est_multi_assign_stmt,
+	est_var_list,
 };
 
 const char * get_syntree_node_name(esyntreetype type);
 
 struct syntree_node
 {
-    syntree_node() : lineno(0), fk(0) {}
+    syntree_node() : fk(0) {}
     virtual ~syntree_node() {}
 
     virtual esyntreetype gettype()
@@ -75,7 +78,6 @@ struct syntree_node
         return ret;
     }
 
-    int lineno;
     fake * fk;
 };
 
@@ -177,6 +179,27 @@ struct explicit_value_node : public syntree_node
 	explicit_value_type type;
 };
 
+typedef std::vector<syntree_node *> return_value_list;
+
+struct return_value_list_node : public syntree_node
+{
+	return_value_list_node() {}
+	virtual ~return_value_list_node() {}
+
+	virtual esyntreetype gettype()
+	{
+		return est_return_value_list;
+	}
+
+	virtual String dump(int indent);
+
+	virtual void recycle();
+
+	void add_arg(syntree_node * p);
+
+	return_value_list returnlist;
+};
+
 struct return_stmt : public syntree_node
 {
     return_stmt() {}
@@ -193,13 +216,13 @@ struct return_stmt : public syntree_node
         sret += gentab(indent);
         sret += "[return]:";
         sret += "\n";
-        sret += ret->dump(indent + 1);
+		sret += returnlist->dump(indent + 1);
         return sret;
     }
     
     virtual void recycle();
     
-    syntree_node * ret;
+	return_value_list_node * returnlist;
 };
 
 struct cmp_stmt : public syntree_node
@@ -625,5 +648,44 @@ struct break_stmt : public syntree_node
     
     virtual void recycle();
     
+};
+
+typedef std::vector<syntree_node *> var_list;
+
+struct var_list_node : public syntree_node
+{
+	var_list_node() {}
+	virtual ~var_list_node() {}
+
+	virtual esyntreetype gettype()
+	{
+		return est_var_list;
+	}
+
+	virtual String dump(int indent);
+
+	virtual void recycle();
+
+	void add_arg(syntree_node * p);
+
+	var_list varlist;
+};
+
+struct multi_assign_stmt : public syntree_node
+{
+	multi_assign_stmt() {}
+	virtual ~multi_assign_stmt() {}
+
+	virtual esyntreetype gettype()
+	{
+		return est_multi_assign_stmt;
+	}
+
+	virtual String dump(int indent);
+
+	virtual void recycle();
+
+	var_list_node * varlist;
+	syntree_node * value;
 };
 

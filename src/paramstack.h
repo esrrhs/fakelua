@@ -3,7 +3,7 @@
 #include "types.h"
 #include "variant.h"
 
-#define REAL_MAX_FAKE_PARAM_NUM (MAX_FAKE_PARAM_NUM + MAX_FAKE_RETURN_NUM)
+#define REAL_MAX_FAKE_PARAM_NUM ((MAX_FAKE_PARAM_NUM + MAX_FAKE_RETURN_NUM) * 2)
 
 struct paramstack
 {
