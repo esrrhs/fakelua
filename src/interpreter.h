@@ -144,7 +144,7 @@ public:
     	}
     }
 
-    void clear()
+    force_inline void clear()
     {
         m_isend = false;
         m_cur_stack = 0;
@@ -157,7 +157,7 @@ public:
     
 	void grow();
     
-    bool isend() const
+    force_inline bool isend() const
     {
         return m_isend;
     }
@@ -167,6 +167,11 @@ public:
     force_inline const variant & getret() const
     {
         return m_ret[0];
+    }
+
+    force_inline const char * get_running_func_name() const
+    {
+        return m_cur_stack->m_fb->getname();
     }
 
     force_inline int run(int cmdnum)

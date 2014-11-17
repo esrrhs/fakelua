@@ -30,6 +30,9 @@ void myflexer::LexerError(const char* msg)
 {
     printf("parse error : %s at line:%d near:%s\n", msg, lineno(), yytext);
     FKLOG("parse error : %s at line:%d near:%s\n", msg, lineno(), yytext);
+    char buff[100];
+    snprintf(buff, sizeof(buff) - 1, "%s at line(%d) near(%s)", msg, lineno(), yytext);
+    m_error = buff;
 }
 
 // ÊäÈëÎÄ¼þ
@@ -76,6 +79,8 @@ void myflexer::clear()
         p->recycle();
     }
     m_funclist.clear();
+    m_error.clear();
+    yylineno = 1;
 }
 
 void * myflexer::malloc(size_t size, const char * name)

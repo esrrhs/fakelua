@@ -60,7 +60,7 @@ FAKE_API bool fkparse(fake * fk, const char * filename)
     if (ret != 0)
     {
         FKERR("fkparse yyparse %s fail ret %d", fk, filename, ret);
-        seterror(fk, efk_parse_file_fail, "parse %s file fail", filename);
+        seterror(fk, efk_parse_file_fail, "parse %s file fail for reason : %s", filename, mf.get_error());
         return false;
     }
     

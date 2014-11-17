@@ -54,13 +54,18 @@ public:
 
     void add_func_desc(func_desc_node * p);
     func_desc_list & get_func_list();
+
+    const char * get_error()
+    {
+        return m_error.c_str();
+    }
+    
 private:
     fake * m_fk;
     String m_content;
     int m_num;
     int m_pos;
     func_desc_list m_funclist;
-    const char * m_llstr;
-    int m_lllen;
+    String m_error;
 }; 
 

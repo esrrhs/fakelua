@@ -3,6 +3,9 @@ func myfunc1(arg1, arg2)
 	
 	var ret1, var ret2 = myfunc2(arg1, arg2)
 	
+	print("var1:", ret1, " var2:", ret2)
+	log("var1:", ret1, " var2:", ret2)
+	
 	return ret1 * ret2
 	
 end

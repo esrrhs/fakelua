@@ -61,7 +61,7 @@ struct fake
     }
     
     int errorno;
-    char errorstr[64];
+    char errorstr[128];
     
     // ≈‰÷√
     fakeconfig cfg;

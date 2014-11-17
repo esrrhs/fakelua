@@ -57,19 +57,19 @@ struct variant
 	assert((v)->type == variant::STRING || (v)->type == variant::NIL); \
 	ss = (v)->data.str ? (v)->data.str->s : 0;
 
-#define V_PLUS(d, l, r) (d)->data.real = (l)->data.real + (r)->data.real
-#define V_MINUS(d, l, r) (d)->data.real = (l)->data.real - (r)->data.real
-#define V_MULTIPLY(d, l, r) (d)->data.real = (l)->data.real * (r)->data.real
-#define V_DIVIDE(d, l, r) (d)->data.real = (l)->data.real / (r)->data.real
-#define V_DIVIDE_MOD(d, l, r) (d)->data.real = (int64_t)(l)->data.real % ((int64_t)(r)->data.real)
-#define V_AND(d, l, r) (d)->data.real = ((l)->data.real != 0) & ((r)->data.real != 0)
-#define V_OR(d, l, r) (d)->data.real = ((l)->data.real != 0) | ((r)->data.real != 0)
-#define V_LESS(d, l, r) (d)->data.real = (l)->data.real < (r)->data.real
-#define V_MORE(d, l, r) (d)->data.real = (l)->data.real > (r)->data.real
-#define V_EQUAL(d, l, r) (d)->data.real = (l)->data.real == (r)->data.real
-#define V_MOREEQUAL(d, l, r) (d)->data.real = (l)->data.real >= (r)->data.real
-#define V_LESSEQUAL(d, l, r) (d)->data.real = (l)->data.real <= (r)->data.real
-#define V_NOTEQUAL(d, l, r) (d)->data.real = (l)->data.real != (r)->data.real
+#define V_PLUS(d, l, r) (d)->data.real = (l)->data.real + (r)->data.real;(d)->type = variant::REAL
+#define V_MINUS(d, l, r) (d)->data.real = (l)->data.real - (r)->data.real;(d)->type = variant::REAL
+#define V_MULTIPLY(d, l, r) (d)->data.real = (l)->data.real * (r)->data.real;(d)->type = variant::REAL
+#define V_DIVIDE(d, l, r) (d)->data.real = (l)->data.real / (r)->data.real;(d)->type = variant::REAL
+#define V_DIVIDE_MOD(d, l, r) (d)->data.real = (int64_t)(l)->data.real % ((int64_t)(r)->data.real);(d)->type = variant::REAL
+#define V_AND(d, l, r) (d)->data.real = ((l)->data.real != 0) & ((r)->data.real != 0);(d)->type = variant::REAL
+#define V_OR(d, l, r) (d)->data.real = ((l)->data.real != 0) | ((r)->data.real != 0);(d)->type = variant::REAL
+#define V_LESS(d, l, r) (d)->data.real = (l)->data.real < (r)->data.real;(d)->type = variant::REAL
+#define V_MORE(d, l, r) (d)->data.real = (l)->data.real > (r)->data.real;(d)->type = variant::REAL
+#define V_EQUAL(d, l, r) (d)->data.real = (l)->data.real == (r)->data.real;(d)->type = variant::REAL
+#define V_MOREEQUAL(d, l, r) (d)->data.real = (l)->data.real >= (r)->data.real;(d)->type = variant::REAL
+#define V_LESSEQUAL(d, l, r) (d)->data.real = (l)->data.real <= (r)->data.real;(d)->type = variant::REAL
+#define V_NOTEQUAL(d, l, r) (d)->data.real = (l)->data.real != (r)->data.real;(d)->type = variant::REAL
 
 #define V_BOOL(v) ((v)->data.real != 0)
 #define V_TOSTRING(v, ss) \
