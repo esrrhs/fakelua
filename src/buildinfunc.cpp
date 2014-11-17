@@ -44,10 +44,23 @@ void buildinlog(fake * fk)
     fkpspush<int>(fk, (int)str.size());
 }
 
+// sleep
+void buildinsleep(fake * fk)
+{
+    int millionseconds = fkpspop<int>(fk);
+#if defined(WIN32)
+	Sleep(millionseconds);
+#else
+	usleep(millionseconds * 1000);
+#endif
+    fkpspush<int>(fk, 0);
+}
+
 void buildinfunc::openbasefunc()
 {
     m_shh.add("print", buildinprint);
     m_shh.add("log", buildinlog);
+    m_shh.add("sleep", buildinsleep);
 }
 
 bool buildinfunc::call(const char * name)

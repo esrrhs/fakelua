@@ -585,7 +585,10 @@ struct function_call_node : public syntree_node
         ret += "[func_call]:";
         ret += fuc;
         ret += "\n";
-        ret += arglist->dump(indent + 1);
+        if (arglist)
+        {
+            ret += arglist->dump(indent + 1);
+        }
         return ret;
     }
 
