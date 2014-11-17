@@ -3,6 +3,11 @@
 #include "fake.h"
 #include "variant.h"
 #include "paramstack.h"
+#ifdef WIN32
+#include <windows.h>
+#else
+#include <sys/time.h>
+#endif
 
 void fklog(const char * header, const char * file, const char * func, int pos, const char *fmt, ...)
 {
@@ -127,3 +132,18 @@ char * stringdump(fake * fk, const char * src, size_t sz)
 	return s;
 }
 
+uint32_t fkgetmstick()
+{
+#ifdef WIN32
+	return ::GetTickCount();
+#else
+	struct timeval tv;
+	if(::gettimeofday(&tv, 0) == 0)
+	{
+		uint64_t t = tv.tv_sec * 1000;
+		t += tv.tv_usec / 1000;
+		return t & 0xffffffff;
+	}
+	return 0;
+#endif
+}

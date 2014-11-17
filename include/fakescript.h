@@ -3,6 +3,7 @@
 #include <stdint.h>
 #include <string>
 #include <new>
+#include <stdlib.h>
 
 // 错误号
 enum efkerror
@@ -40,6 +41,13 @@ typedef void (*fkfree)(void *ptr);
 
 struct fakeconfig
 {
+    fakeconfig() : fkm(&malloc), fkf(&free), 
+        per_frame_cmd_num(100), 
+        delete_routine_scale(4), 
+        routine_grow_speed(100), 
+        stack_list_grow_speed(100), 
+        string_heap_num(100)
+        {}
     fkmalloc fkm;
     fkfree fkf;	// 内存管理
     int per_frame_cmd_num;			// 每帧执行命令数目
@@ -774,3 +782,7 @@ void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2, T3, T4, T5))
 // 开启常用内置函数
 FAKE_API void fkopenbaselib(fake * fk);
 
+// profile 
+FAKE_API void fkopenprofile(fake * fk);
+FAKE_API void fkcloseprofile(fake * fk);
+FAKE_API const char * fkdumpprofile(fake * fk);

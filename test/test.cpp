@@ -38,6 +38,7 @@ int main(int argc, const char *argv[])
     fake * fk = newfake();
 
     fkopenbaselib(fk);
+    fkopenprofile(fk);
     
     fkreg(fk, "cfunc1", cfunc1); 
     class1 c1;
@@ -82,6 +83,7 @@ int main(int argc, const char *argv[])
 	end = time(0);
 
 	printf("call ret %d %d\n", ret, end - begin);
+	printf("call profile:\n%s", fkdumpprofile(fk));
 
 	delfake(fk);
 

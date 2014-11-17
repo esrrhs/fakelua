@@ -25,10 +25,11 @@
 #include "stringheap.h"
 #include "bindfunc.h"
 #include "buildinfunc.h"
+#include "profile.h"
 
 struct fake
 {
-    fake() : errorno(0), mf(this), bbin(this), bin(this), mc(this), nt(this), as(this, &nt), inter(this), sh(this), mac(this), bf(this), bif(this)
+    fake() : errorno(0), mf(this), bbin(this), bin(this), mc(this), nt(this), as(this, &nt), inter(this), sh(this), mac(this), bf(this), bif(this), pf(this)
     {
     }
     ~fake()
@@ -52,6 +53,7 @@ struct fake
         mac.clear();
         bf.clear();
         bif.clear();
+        pf.clear();
     }
     
     void clearerr()
@@ -101,6 +103,9 @@ struct fake
 
     // 内建的函数集合
     buildinfunc bif;
+
+    // 性能检测
+    profile pf;
 
     // TODO 异步线程的运行环境
 };

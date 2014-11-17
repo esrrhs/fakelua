@@ -196,3 +196,5 @@ paramstack * getps(fake * fk);
 
 char * stringdump(fake * fk, const char * src, size_t sz);
 
+uint32_t fkgetmstick();
+
