@@ -92,10 +92,10 @@ struct fake;
 
 struct stack
 {
-	force_inline stack() : m_fk(0), m_fb(0), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0), m_retnum(0)
+	force_inline stack() : m_fk(0), m_fb(0), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0), m_retnum(0), m_calltime(0)
     {
     }
-	force_inline stack(fake * fk, const  func_binary * fb) : m_fk(fk), m_fb(fb), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0), m_retnum(0)
+	force_inline stack(fake * fk, const  func_binary * fb) : m_fk(fk), m_fb(fb), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0), m_retnum(0), m_calltime(0)
     {
     }
 	force_inline ~stack()
@@ -122,6 +122,8 @@ struct stack
 	// 调用的函数返回本栈的个数和位置
 	int m_retnum;
 	int m_retvpos[MAX_FAKE_RETURN_NUM];
+	// 调用开始时间
+	uint32_t m_calltime;
 };
 
 class interpreter
@@ -415,6 +417,8 @@ public:
             if (m_cur_stack->m_pos >= (int)fb.cmdsize())
             {
                 FKLOG("pop stack %s", m_cur_stack->m_fb->getname());
+                // 记录profile
+                endfuncprofile();
                 // 出栈
         		m_cur_stack->clear();
         		m_stack_list_num--;
@@ -455,6 +459,8 @@ public:
 
 private:
     void call(fake * fk, const variant * callpos, paramstack * ps);
+    void beginfuncprofile();
+    void endfuncprofile();
     
 private:
     fake * m_fk;

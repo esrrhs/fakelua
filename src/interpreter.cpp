@@ -90,6 +90,9 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
 	    s.grow(fb->maxstack());
 	}
 
+	// º«¬ºprofile
+	beginfuncprofile();
+
     // ∑÷≈‰’ªø’º‰
     for (int i = 0; i < (int)ps->m_variant_list_num; i++)
     {
@@ -132,5 +135,21 @@ void interpreter::call(fake * fk, const variant * callpos, paramstack * ps)
     V_GET_STRING(callpos, name);
 
     call(&m_fk->bin, name, ps);
+}
+
+void interpreter::beginfuncprofile()
+{
+    if (m_fk->pf.isopen())
+    {
+        m_cur_stack->m_calltime = fkgetmstick();
+    }
+}
+
+void interpreter::endfuncprofile()
+{
+    if (m_fk->pf.isopen())
+    {
+        m_fk->pf.add_func_sample(m_cur_stack->m_fb->getname(), fkgetmstick() - m_cur_stack->m_calltime);
+    }
 }
 

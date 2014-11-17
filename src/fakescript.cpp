@@ -9,17 +9,7 @@
 FAKE_API fake * newfake(fakeconfig * cfg)
 {
     fakeconfig _cfg;
-    if (!cfg)
-    {
-        _cfg.fkm = &malloc;
-        _cfg.fkf = &free;
-        _cfg.per_frame_cmd_num = 100;
-        _cfg.delete_routine_scale = 4;
-		_cfg.routine_grow_speed = 100;
-		_cfg.stack_list_grow_speed = 100;
-		_cfg.string_heap_num = 100;
-    }
-    else
+    if (cfg)
     {
         _cfg = *cfg;
     }
@@ -378,3 +368,19 @@ void fkopenbaselib(fake * fk)
 {
     fk->bif.openbasefunc();
 }
+
+void fkopenprofile(fake * fk)
+{
+    fk->pf.open();
+}
+
+void fkcloseprofile(fake * fk)
+{
+    fk->pf.close();
+}
+
+const char * fkdumpprofile(fake * fk)
+{
+    return fk->pf.dump();
+}
+
