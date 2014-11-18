@@ -20,7 +20,6 @@ void profile::add_func_sample(const char * func, uint32_t calltime)
 const char * profile::dump()
 {
     m_dumpstr.clear();
-    m_dumpstr += "fake profile:\n";
     for (const stringhashmap<profilefuncele>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
     {
         const profilefuncele & ele = p->t;

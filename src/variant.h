@@ -8,9 +8,10 @@ struct variant
 	enum Type 
 	{
 		NIL,
-		REAL,
-		STRING,
-		POINTER,
+		REAL,       // 参与计算的数值
+		STRING,     // 字符串
+		POINTER,    // 指针
+		UUID,       // int64的uuid，不参与计算，为了效率
 	};	
     
 	union MemData
@@ -18,6 +19,7 @@ struct variant
 		double real;
 		stringele * str;
 		void * ptr;
+		uint64_t uuid;
 		int64_t buf;	// 只是用作64位传递 
 	};
 
@@ -45,6 +47,10 @@ struct variant
 	(v)->type = variant::STRING; \
 	(v)->data.str = fk->sh.allocstring(s);
 
+#define V_SET_UUID(v, id) \
+	(v)->type = variant::UUID; \
+	(v)->data.uuid = id;
+
 #define V_GET_POINTER(v, p) \
 	assert((v)->type == variant::POINTER || (v)->type == variant::NIL); \
 	p = (v)->data.ptr;
@@ -57,19 +63,23 @@ struct variant
 	assert((v)->type == variant::STRING || (v)->type == variant::NIL); \
 	ss = (v)->data.str ? (v)->data.str->s : 0;
 
-#define V_PLUS(d, l, r) (d)->data.real = (l)->data.real + (r)->data.real;(d)->type = variant::REAL
-#define V_MINUS(d, l, r) (d)->data.real = (l)->data.real - (r)->data.real;(d)->type = variant::REAL
-#define V_MULTIPLY(d, l, r) (d)->data.real = (l)->data.real * (r)->data.real;(d)->type = variant::REAL
-#define V_DIVIDE(d, l, r) (d)->data.real = (l)->data.real / (r)->data.real;(d)->type = variant::REAL
-#define V_DIVIDE_MOD(d, l, r) (d)->data.real = (int64_t)(l)->data.real % ((int64_t)(r)->data.real);(d)->type = variant::REAL
-#define V_AND(d, l, r) (d)->data.real = ((l)->data.real != 0) & ((r)->data.real != 0);(d)->type = variant::REAL
-#define V_OR(d, l, r) (d)->data.real = ((l)->data.real != 0) | ((r)->data.real != 0);(d)->type = variant::REAL
-#define V_LESS(d, l, r) (d)->data.real = (l)->data.real < (r)->data.real;(d)->type = variant::REAL
-#define V_MORE(d, l, r) (d)->data.real = (l)->data.real > (r)->data.real;(d)->type = variant::REAL
-#define V_EQUAL(d, l, r) (d)->data.real = (l)->data.real == (r)->data.real;(d)->type = variant::REAL
-#define V_MOREEQUAL(d, l, r) (d)->data.real = (l)->data.real >= (r)->data.real;(d)->type = variant::REAL
-#define V_LESSEQUAL(d, l, r) (d)->data.real = (l)->data.real <= (r)->data.real;(d)->type = variant::REAL
-#define V_NOTEQUAL(d, l, r) (d)->data.real = (l)->data.real != (r)->data.real;(d)->type = variant::REAL
+#define V_GET_UUID(v, id) \
+	assert((v)->type == variant::UUID || (v)->type == variant::NIL); \
+	id = (v)->data.uuid;
+    
+#define V_PLUS(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real + (r)->data.real;(d)->type = variant::REAL
+#define V_MINUS(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real - (r)->data.real;(d)->type = variant::REAL
+#define V_MULTIPLY(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real * (r)->data.real;(d)->type = variant::REAL
+#define V_DIVIDE(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real / (r)->data.real;(d)->type = variant::REAL
+#define V_DIVIDE_MOD(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (int64_t)(l)->data.real % ((int64_t)(r)->data.real);(d)->type = variant::REAL
+#define V_AND(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = ((l)->data.real != 0) & ((r)->data.real != 0);(d)->type = variant::REAL
+#define V_OR(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = ((l)->data.real != 0) | ((r)->data.real != 0);(d)->type = variant::REAL
+#define V_LESS(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real < (r)->data.real;(d)->type = variant::REAL
+#define V_MORE(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real > (r)->data.real;(d)->type = variant::REAL
+#define V_EQUAL(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real == (r)->data.real;(d)->type = variant::REAL
+#define V_MOREEQUAL(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real >= (r)->data.real;(d)->type = variant::REAL
+#define V_LESSEQUAL(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real <= (r)->data.real;(d)->type = variant::REAL
+#define V_NOTEQUAL(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real != (r)->data.real;(d)->type = variant::REAL
 
 #define V_BOOL(v) ((v)->data.real != 0)
 #define V_TOSTRING(v, ss) \
@@ -87,6 +97,10 @@ struct variant
 	else if ((v)->type == variant::STRING)\
     {\
 		ss = (v)->data.str ? (v)->data.str->s : ""; \
+    }\
+	else if ((v)->type == variant::UUID)\
+    {\
+        ss = fkuitoa((v)->data.uuid); \
     }\
     else\
     {\
