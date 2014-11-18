@@ -840,7 +840,7 @@ YY_RULE_SETUP
 #line 96 "flex.l"
 {
 	lvalp->str = String(yytext);
-	return FLOAT;
+	return FKFLOAT;
 }
 	YY_BREAK
 case 23:

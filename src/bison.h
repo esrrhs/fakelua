@@ -71,7 +71,7 @@
      CLOSE_BRACKET = 287,
      AND = 288,
      OR = 289,
-     FLOAT = 290,
+     FKFLOAT = 290,
      PLUS_ASSIGN = 291,
      MINUS_ASSIGN = 292,
      DIVIDE_ASSIGN = 293,

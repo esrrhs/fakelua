@@ -162,7 +162,7 @@ int my_yyerror(const char *s, void * parm)
      CLOSE_BRACKET = 287,
      AND = 288,
      OR = 289,
-     FLOAT = 290,
+     FKFLOAT = 290,
      PLUS_ASSIGN = 291,
      MINUS_ASSIGN = 292,
      DIVIDE_ASSIGN = 293,
@@ -528,7 +528,7 @@ static const char *const yytname[] =
   "STRING_DEFINITION", "IDENTIFIER", "NUMBER", "SINGLE_LINE_COMMENT",
   "DIVIDE_MOD", "ARG_SPLITTER", "PLUS", "MINUS", "DIVIDE", "MULTIPLY",
   "ASSIGN", "MORE", "LESS", "MORE_OR_EQUAL", "LESS_OR_EQUAL", "EQUAL",
-  "NOT_EQUAL", "OPEN_BRACKET", "CLOSE_BRACKET", "AND", "OR", "FLOAT",
+  "NOT_EQUAL", "OPEN_BRACKET", "CLOSE_BRACKET", "AND", "OR", "FKFLOAT",
   "PLUS_ASSIGN", "MINUS_ASSIGN", "DIVIDE_ASSIGN", "MULTIPLY_ASSIGN",
   "DIVIDE_MOD_ASSIGN", "COLON", "FOR", "$accept", "program", "body",
   "function_declaration", "function_declaration_arguments", "arg",
@@ -2588,7 +2588,7 @@ yyreduce:
 /* Line 1455 of yacc.c  */
 #line 868 "bison.y"
     {
-		FKLOG("[bison]: explicit_value <- FLOAT %s", (yyvsp[(1) - (1)].str).c_str());
+		FKLOG("[bison]: explicit_value <- FKFLOAT %s", (yyvsp[(1) - (1)].str).c_str());
 		NEWTYPE(p, explicit_value_node);
 		p->str = (yyvsp[(1) - (1)].str);
 		p->type = explicit_value_node::EVT_FLOAT;

@@ -65,7 +65,7 @@ int my_yyerror(const char *s, void * parm)
 %token CLOSE_BRACKET
 %token AND
 %token OR
-%token FLOAT
+%token FKFLOAT
 %token PLUS_ASSIGN MINUS_ASSIGN DIVIDE_ASSIGN MULTIPLY_ASSIGN DIVIDE_MOD_ASSIGN
 %token COLON
 %token FOR
@@ -89,7 +89,7 @@ int my_yyerror(const char *s, void * parm)
 %type<str> TRUE FALSE
 %type<str> ASSIGN
 %type<str> AND OR
-%type<str> FLOAT
+%type<str> FKFLOAT
 %type<str> PLUS_ASSIGN MINUS_ASSIGN DIVIDE_ASSIGN MULTIPLY_ASSIGN DIVIDE_MOD_ASSIGN
 
 %type<syntree> break
@@ -864,9 +864,9 @@ explicit_value:
 		$$ = p;
 	}
 	|
-	FLOAT
+	FKFLOAT
 	{
-		FKLOG("[bison]: explicit_value <- FLOAT %s", $1.c_str());
+		FKLOG("[bison]: explicit_value <- FKFLOAT %s", $1.c_str());
 		NEWTYPE(p, explicit_value_node);
 		p->str = $1;
 		p->type = explicit_value_node::EVT_FLOAT;
