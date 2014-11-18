@@ -108,6 +108,12 @@ static force_inline String fkitoa(int64_t d)
     sprintf(buff, "%lld", (long long int)d);
     return buff;
 }
+static force_inline String fkuitoa(uint64_t d)
+{
+    char buff[100];
+    sprintf(buff, "%llu", (unsigned long long int)d);
+    return buff;
+}
 static force_inline String fkdtoa(double d)
 {
     char buff[100];

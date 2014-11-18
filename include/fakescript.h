@@ -786,3 +786,4 @@ FAKE_API void fkopenbaselib(fake * fk);
 FAKE_API void fkopenprofile(fake * fk);
 FAKE_API void fkcloseprofile(fake * fk);
 FAKE_API const char * fkdumpprofile(fake * fk);
+

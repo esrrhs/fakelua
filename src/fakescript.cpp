@@ -212,14 +212,14 @@ FAKE_API void fkpspushint64(fake * fk, int64_t ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
-    V_SET_REAL(v, ret);
+    V_SET_UUID(v, ret);
 }
 
 FAKE_API void fkpspushuint64(fake * fk, uint64_t ret)
 {
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
-    V_SET_REAL(v, ret);
+    V_SET_UUID(v, ret);
 }
 
 FAKE_API void fkpspoppointer(fake * fk, void * & p)
@@ -324,7 +324,7 @@ FAKE_API int64_t fkpspopint64(fake * fk)
     int64_t ret;
     variant * v = 0;
     PS_POP_AND_GET(fk->ps, v);
-    V_GET_REAL(v, ret);
+    V_GET_UUID(v, ret);
     return ret;
 }
 
@@ -333,7 +333,7 @@ FAKE_API uint64_t fkpspopuint64(fake * fk)
     uint64_t ret;
     variant * v = 0;
     PS_POP_AND_GET(fk->ps, v);
-    V_GET_REAL(v, ret);
+    V_GET_UUID(v, ret);
     return ret;
 }
 
