@@ -80,6 +80,7 @@ String fkget_token_name(int token)
 		TOKEN_SWITCH(MULTIPLY_ASSIGN)
 		TOKEN_SWITCH(DIVIDE_MOD_ASSIGN)
 		TOKEN_SWITCH(FOR)
+		TOKEN_SWITCH(INC)
     }
 #undef TOKEN_SWITCH
 	return fkitoa(token);
