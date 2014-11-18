@@ -24,7 +24,7 @@ const char * profile::dump()
     {
         const profilefuncele & ele = p->t;
         char buff[1024];
-        snprintf(buff, sizeof(buff) - 1, "Func[%s]\tCalls[%d]\tTotalTime(ms)[%u]\tPerCallTime(ms)[%u]\n", 
+		tsnprintf(buff, sizeof(buff)-1, "Func[%s]\tCalls[%d]\tTotalTime(ms)[%u]\tPerCallTime(ms)[%u]\n",
             p->s, ele.callnum, ele.calltime, ele.calltime / ele.callnum);
         m_dumpstr += buff;
     }

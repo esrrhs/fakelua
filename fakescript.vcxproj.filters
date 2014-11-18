@@ -65,6 +65,7 @@
       <Filter>include</Filter>
     </ClInclude>
     <ClInclude Include="src\buildinfunc.h" />
+    <ClInclude Include="src\profile.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -119,6 +120,7 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\buildinfunc.cpp" />
+    <ClCompile Include="src\profile.cpp" />
   </ItemGroup>
   <ItemGroup>
     <MASM Include="src\win32\nativecall.asm" />
