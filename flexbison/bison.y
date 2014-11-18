@@ -69,6 +69,7 @@ int my_yyerror(const char *s, void * parm)
 %token PLUS_ASSIGN MINUS_ASSIGN DIVIDE_ASSIGN MULTIPLY_ASSIGN DIVIDE_MOD_ASSIGN
 %token COLON
 %token FOR
+%token INC
 
 %right PLUS
 %right MINUS
@@ -693,6 +694,20 @@ math_assign_stmt :
 		p->var = $1;
 		p->oper = "%=";
 		p->value = $3;
+		$$ = p;
+	}
+	|
+	variable INC
+	{
+		FKLOG("[bison]: math_assign_stmt <- variable INC");
+		NEWTYPE(pp, explicit_value_node);
+		pp->str = "1";
+		pp->type = explicit_value_node::EVT_NUM;
+		
+		NEWTYPE(p, math_assign_stmt);
+		p->var = $1;
+		p->oper = "+=";
+		p->value = pp;
 		$$ = p;
 	}
 	;
