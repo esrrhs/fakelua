@@ -31,7 +31,7 @@ void myflexer::LexerError(const char* msg)
     printf("parse error : %s at line:%d near:%s\n", msg, lineno(), yytext);
     FKLOG("parse error : %s at line:%d near:%s\n", msg, lineno(), yytext);
     char buff[100];
-    snprintf(buff, sizeof(buff) - 1, "%s at line(%d) near(%s)", msg, lineno(), yytext);
+	tsnprintf(buff, sizeof(buff)-1, "%s at line(%d) near(%s)", msg, lineno(), yytext);
     m_error = buff;
 }
 
