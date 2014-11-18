@@ -1,6 +1,9 @@
 #include "bindfunc.h"
 #include "fake.h"
 #include "fakescript.h"
+#ifdef WIN32
+#include <Windows.h>
+#endif
 
 // print, very slow
 void buildinprint(fake * fk)

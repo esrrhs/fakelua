@@ -95,7 +95,7 @@
 
 -?[0-9]+\.[0-9]+ {
 	lvalp->str = String(yytext);
-	return FLOAT;
+	return FKFLOAT;
 }
 
 "--"	yy_push_state(SINGLE_LINE_COMMENT);
