@@ -38,8 +38,10 @@ int main(int argc, const char *argv[])
     fake * fk = newfake();
 
     fkopenbaselib(fk);
+#ifdef _DEBUG
     fkopenprofile(fk);
-    
+#endif
+
     fkreg(fk, "cfunc1", cfunc1); 
     class1 c1;
     fkreg(fk, "memfunc1", &class1::memfunc1); 
