@@ -114,6 +114,10 @@
 	return ARG_SPLITTER;
 }
 
+"++" {
+	return INC;
+}
+
 "+" {
 	return PLUS;
 }
