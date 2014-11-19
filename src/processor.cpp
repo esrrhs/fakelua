@@ -58,4 +58,5 @@ void processor::run()
             }
         }
     }
+    ARRAY_CLEAR(m_routine_list);
 }
