@@ -66,6 +66,8 @@
     </ClInclude>
     <ClInclude Include="src\buildinfunc.h" />
     <ClInclude Include="src\profile.h" />
+    <ClInclude Include="src\array.h" />
+    <ClInclude Include="src\pool.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
