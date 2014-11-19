@@ -6,30 +6,20 @@
 template <typename T>
 struct array
 {
-public:
-	force_inline array(fake * fk) : m_fk(fk), m_data(0), m_size(0), m_max_size(0)
-	{
-
-	}
-	force_inline ~array()
-	{
-		safe_fkfree(m_fk, m_data);
-	}
-	
-public:
     fake * m_fk;
 	T* m_data;
 	size_t m_size;
 	size_t m_max_size;
 };
 
+#define ARRAY_DELETE(array) safe_fkfree((array).m_fk, (array).m_data)
 #define ARRAY_CLEAR(array) (array).m_size = 0
 #define ARRAY_SET_FK(array, fk) (array).m_fk = (fk)
 #define ARRAY_MAX_SIZE(array) ((array).m_max_size)
 #define ARRAY_SIZE(array) ((array).m_size)
 #define ARRAY_GROW(array, newsize, T) \
     { \
-    	assert(newsize > (array).m_max_size); \
+    	assert((int)newsize > (int)(array).m_max_size); \
     	T * newbuff = (T *)safe_fkmalloc((array).m_fk, (newsize * sizeof(T))); \
     	if ((array).m_data) \
     	{ \

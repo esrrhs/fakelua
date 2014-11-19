@@ -93,16 +93,6 @@ struct fake;
 
 struct stack
 {
-	force_inline ~stack()
-    {
-    }
-
-	force_inline void clear()
-    {
-    	m_pos = 0;
-    	// 为了效率，保留脏数据
-    }
-
     fake * m_fk;
     // 函数二进制
     const func_binary * m_fb;
@@ -117,18 +107,25 @@ struct stack
 	uint32_t m_calltime;
 };
 
+#define STACK_DELETE(s) ARRAY_DELETE((s).m_stack_variant_list)
+#define STACK_RESET(s, fk, fb) (s).m_fk = fk;\
+    (s).m_fb = fb;\
+    ARRAY_SET_FK((s).m_stack_variant_list, fk);\
+    (s).m_pos = 0
+
 class interpreter
 {
 public:
-	force_inline interpreter(fake * fk) : m_fk(fk), m_isend(false), m_cur_stack(0), m_stack_list(fk)
+	force_inline interpreter(fake * fk) : m_fk(fk), m_isend(false), m_cur_stack(0)
     {
+        ARRAY_SET_FK(m_stack_list, fk);
     }
     force_inline ~interpreter()
     {
 		assert(m_fk);
 		for (int i = 0; i < (int)ARRAY_MAX_SIZE(m_stack_list); i++)
 		{
-			ARRAY_GET(m_stack_list, i).~stack();
+		    STACK_DELETE(ARRAY_GET(m_stack_list, i));
 		}
     }
 
@@ -400,7 +397,6 @@ public:
                 // 记录profile
                 endfuncprofile();
                 // 出栈
-        		m_cur_stack->clear();
         		ARRAY_POP_BACK(m_stack_list);
                 // 所有都完
             	if (ARRAY_EMPTY(m_stack_list))
