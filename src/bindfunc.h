@@ -17,6 +17,7 @@ public:
     }
     force_inline ~bindfunc()
     {
+        clear();
     }
 
     force_inline fake * getfake()

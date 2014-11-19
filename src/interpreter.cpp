@@ -59,7 +59,7 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
 	ARRAY_PUSH_BACK(m_stack_list);
 	stack & s = ARRAY_BACK(m_stack_list);
     m_cur_stack = &s;
-	STACK_RESET(s, m_fk, fb);
+	STACK_INI(s, m_fk, fb);
 	if (fb->maxstack() > ARRAY_MAX_SIZE(s.m_stack_variant_list))
 	{
 	    ARRAY_GROW(s.m_stack_variant_list, fb->maxstack(), variant);

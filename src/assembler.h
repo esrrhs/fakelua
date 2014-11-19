@@ -21,7 +21,10 @@ public:
     assembler(fake * fk, native * nt) : m_fk(fk), m_native(nt)
     {
     }
-    ~assembler() {}
+    ~assembler() 
+    {
+        clear();
+    }
 
     void clear();
     bool compile(binary * bin);

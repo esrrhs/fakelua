@@ -108,34 +108,14 @@ struct stack
 };
 
 #define STACK_DELETE(s) ARRAY_DELETE((s).m_stack_variant_list)
-#define STACK_RESET(s, fk, fb) (s).m_fk = fk;\
+#define STACK_INI(s, fk, fb) (s).m_fk = fk;\
     (s).m_fb = fb;\
-    ARRAY_SET_FK((s).m_stack_variant_list, fk);\
+    ARRAY_INI((s).m_stack_variant_list, fk);\
     (s).m_pos = 0
 
-class interpreter
+struct interpreter
 {
 public:
-	force_inline interpreter(fake * fk) : m_fk(fk), m_isend(false), m_cur_stack(0)
-    {
-        ARRAY_SET_FK(m_stack_list, fk);
-    }
-    force_inline ~interpreter()
-    {
-		assert(m_fk);
-		for (int i = 0; i < (int)ARRAY_MAX_SIZE(m_stack_list); i++)
-		{
-		    STACK_DELETE(ARRAY_GET(m_stack_list, i));
-		}
-    }
-
-    force_inline void clear()
-    {
-        m_isend = false;
-        m_cur_stack = 0;
-        ARRAY_CLEAR(m_stack_list);
-    }
-    
     force_inline bool isend() const
     {
         return m_isend;
@@ -438,7 +418,7 @@ private:
     void beginfuncprofile();
     void endfuncprofile();
     
-private:
+public:
     fake * m_fk;
     bool m_isend;
 	variant m_ret[MAX_FAKE_RETURN_NUM];
@@ -446,3 +426,16 @@ private:
 	array<stack> m_stack_list;
 };
 
+#define INTER_DELETE(inter) \
+	for (int i = 0; i < (int)ARRAY_MAX_SIZE((inter).m_stack_list); i++)\
+	{\
+	    STACK_DELETE(ARRAY_GET((inter).m_stack_list, i));\
+	}
+	
+#define INTER_INI(inter, fk) (inter).m_fk = fk;\
+    ARRAY_INI((inter).m_stack_list, fk)
+    
+#define INTER_CLEAR(inter) (inter).m_isend = false;\
+    (inter).m_cur_stack = 0;\
+    ARRAY_CLEAR((inter).m_stack_list);
+    

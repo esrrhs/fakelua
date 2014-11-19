@@ -153,6 +153,7 @@ public:
     }
     force_inline ~backupbinary()
     {
+        clear();
     }
 
     force_inline fake * getfake()
@@ -206,6 +207,7 @@ public:
     }
     force_inline ~binary()
     {
+        clear();
     }
 
     force_inline fake * getfake()

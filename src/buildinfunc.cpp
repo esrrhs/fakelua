@@ -34,7 +34,7 @@ void buildinlog(fake * fk)
 	{
     	time_t clock1 = time(0);
     	struct tm * tptr = localtime(&clock1);
-        const char * func = fk->inter.get_running_func_name();
+        const char * func = "todo";//fk->inter.get_running_func_name();
         
     	fprintf(pLog, "[%d.%d.%d, %d.%d.%d][%s] : %s\n", 
     		tptr->tm_year + 1990, tptr->tm_mon + 1, tptr->tm_mday, tptr->tm_hour, tptr->tm_min, tptr->tm_sec,
