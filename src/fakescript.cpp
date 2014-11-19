@@ -15,6 +15,7 @@ FAKE_API fake * newfake(fakeconfig * cfg)
     }
     
     fake * ret = (fake *)_cfg.fkm(sizeof(fake));
+	memset(ret, 0, sizeof(fake));
     new (ret) fake();
     ret->cfg = _cfg;
     FKLOG("newfake ret %p", ret);

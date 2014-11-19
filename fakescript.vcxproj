@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="include\fakescript.h" />
+    <ClInclude Include="src\array.h" />
     <ClInclude Include="src\asmgen.h" />
     <ClInclude Include="src\assembler.h" />
     <ClInclude Include="src\binary.h" />
@@ -36,6 +37,7 @@
     <ClInclude Include="src\myflexer.h" />
     <ClInclude Include="src\native.h" />
     <ClInclude Include="src\paramstack.h" />
+    <ClInclude Include="src\pool.h" />
     <ClInclude Include="src\processor.h" />
     <ClInclude Include="src\profile.h" />
     <ClInclude Include="src\routine.h" />
