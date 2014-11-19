@@ -3,8 +3,9 @@
 #include "types.h"
 #include "hashmap.h"
 
-typedef void (*bifunc)(fake * fk);
+typedef void (*bifunc)(fake * fk, interpreter * inter);
 
+struct interpreter;
 class buildinfunc
 {
 public:
@@ -29,7 +30,7 @@ public:
     void openbasefunc();
     
     // 参数和返回值都在m_fk->ps里
-    bool call(const char * name);
+    bool call(interpreter * inter, const char * name);
     
 private:
     fake * m_fk;
