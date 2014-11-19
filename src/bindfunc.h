@@ -9,6 +9,7 @@ struct bindfuncele
     uint32_t callnum;
 };
 
+struct interpreter;
 class bindfunc
 {
 public:
@@ -33,12 +34,12 @@ public:
     void addfunc(const char * name, const fkfunctor & ff);
 
     // 参数和返回值都在m_fk->ps里
-    bool call(const char * name)
+    bool call(interpreter * inter, const char * name)
     {
         bindfuncele * p = m_shh.get(name);
         if (!p)
         {
-            return callbuildin(name);
+            return callbuildin(inter, name);
         }
 
         p->ff.ff(m_fk, &p->ff);
@@ -49,7 +50,7 @@ public:
     }
     
 private:
-    bool callbuildin(const char * name);
+    bool callbuildin(interpreter * inter, const char * name);
     
 private:
     fake * m_fk;

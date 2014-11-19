@@ -11,7 +11,7 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
     if (!fb)
     {
         // 去C函数看看，C函数只支持一个返回值
-        if (m_fk->bf.call(func))
+        if (m_fk->bf.call(this, func))
         {
             FKLOG("call C func %s", func);
             
