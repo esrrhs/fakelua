@@ -17,6 +17,7 @@ public:
     }
     force_inline ~profile()
     {
+        clear();
     }
 
     force_inline fake * getfake()

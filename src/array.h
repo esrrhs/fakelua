@@ -14,7 +14,7 @@ struct array
 
 #define ARRAY_DELETE(array) safe_fkfree((array).m_fk, (array).m_data)
 #define ARRAY_CLEAR(array) (array).m_size = 0
-#define ARRAY_SET_FK(array, fk) (array).m_fk = (fk)
+#define ARRAY_INI(array, fk) (array).m_fk = (fk)
 #define ARRAY_MAX_SIZE(array) ((array).m_max_size)
 #define ARRAY_SIZE(array) ((array).m_size)
 #define ARRAY_GROW(array, newsize, T) \

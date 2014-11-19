@@ -7,59 +7,25 @@
 struct fake;
 class binary;
 class paramstack;
-class routine
+struct routine
 {
-public:
-    force_inline routine(fake * fk) : m_fk(fk), m_bin(0), m_ps(0), m_interpreter(fk)
-    {
-    }
-
-    force_inline void entry(binary * bin, const char * func, paramstack * ps)
-    {
-        m_bin = bin;
-        m_ps = ps;
-        m_interpreter.call(bin, func, ps);
-        if (isend())
-        {
-            m_ret = m_interpreter.getret();
-        }
-    }
-
-    force_inline const variant & getret() const
-    {
-        return m_ret;
-    }
-
-    force_inline bool isend() const
-    {
-        return m_interpreter.isend();
-    }
-    
-    force_inline int run(int cmdnum)
-    {
-        if (isend())
-        {   
-            m_ret = m_interpreter.getret();
-            return 0;
-        }
-        
-        int runcmdnum = m_interpreter.run(cmdnum);
-
-        if (isend())
-        {   
-            m_ret = m_interpreter.getret();
-        }
-
-        return runcmdnum;
-    }    
-
-
-private:
     fake * m_fk;
-    binary * m_bin;
-    paramstack * m_ps;
-    variant m_ret;
     // ½âÊÍÆ÷
     interpreter m_interpreter;
 };
+
+#define ROUTINE_INI(rou, fk) (rou).m_fk = fk;\
+    INTER_INI((rou).m_interpreter, fk)
+
+#define ROUTINE_DELETE(rou) INTER_DELETE((rou).m_interpreter)
+
+#define ROUTINE_CLEAR(rou) INTER_CLEAR((rou).m_interpreter)
+
+#define ROUTINE_ENTRY(rou, bin, func, ps) (rou).m_interpreter.call(bin, func, ps)
+
+#define ROUTINE_ISEND(rou) (rou).m_interpreter.isend()
+
+#define ROUTINE_RUN(rou, cmdnum) (rou).m_interpreter.run(cmdnum)
+
+#define ROUTINE_GETRET(rou) (rou).m_interpreter.getret()
 

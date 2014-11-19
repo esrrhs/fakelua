@@ -1,53 +1,61 @@
 #include "processor.h"
 #include "fake.h"
 
-void processor::grow()
+routine * processor::start_routine(binary * bin, const char * func, paramstack * ps)
 {
-	size_t newsize = m_routine_max_size + 1 + m_routine_max_size * m_fk->cfg.routine_grow_speed / 100;
-	assert(newsize > m_routine_max_size);
-	routine ** new_routine_list = (routine **)safe_fkmalloc(m_fk, (newsize * sizeof(routine *)));
-    if (m_routine_list)
-    {
-        memcpy(new_routine_list, m_routine_list, m_routine_max_size * sizeof(routine *));   
-        safe_fkfree(m_fk, m_routine_list);
+    // 池子够不够
+    pool<routine>::node * n = 0;
+    if (POOL_EMPTY(m_routine_pool))
+	{
+        POOL_GROW(m_routine_pool, pool<routine>::node, n);
+        ROUTINE_INI(n->t, m_fk);
     }
-	memset(new_routine_list + m_routine_max_size, 0, (newsize - m_routine_max_size) * sizeof(routine *));
-    m_routine_list = new_routine_list;
-    m_routine_max_size = newsize;
+
+    // 分配
+    POOL_POP(m_routine_pool, n);
+    assert(n);
+    
+    // 初始化下
+    ROUTINE_CLEAR(n->t);
+    ROUTINE_ENTRY(n->t, bin, func, ps);
+    if (ROUTINE_ISEND(n->t))
+    {
+        POOL_PUSH(m_routine_pool, n);
+        return &n->t;
+    }
+    
+    // 添加
+    if (ARRAY_SIZE(m_routine_list) >= ARRAY_MAX_SIZE(m_routine_list))
+	{
+	    size_t newsize = ARRAY_MAX_SIZE(m_routine_list) + 1 + ARRAY_MAX_SIZE(m_routine_list) * m_fk->cfg.routine_grow_speed / 100;
+        ARRAY_GROW(m_routine_list, newsize, pool<routine>::node *);
+    }
+	ARRAY_PUSH_BACK(m_routine_list);
+	ARRAY_BACK(m_routine_list) = n;
+	m_routine_num++;
+	
+    return &n->t;
 }
-
-void processor::checkdelete()
+    
+void processor::run()
 {
-    // 大于1/4才开始清除无效的
-    if (m_invalid_routine_num * m_fk->cfg.per_frame_cmd_num < m_routine_num)
+    while (m_routine_num > 0)
     {
-        return;
-    }
-
-    // delete
-    int first = 0;
-    for (; first < (int)m_routine_num; first++)
-    {
-        routine * r = m_routine_list[first];
-        if (!r)
+        for (int i = 0; i < (int)ARRAY_SIZE(m_routine_list); i++)
         {
-            break;
+            pool<routine>::node * n = ARRAY_GET(m_routine_list, i);
+            if (!n)
+            {
+                continue;
+            }
+            // 注意:此函数内部可能会调用到add接口
+            ROUTINE_RUN(n->t, m_fk->cfg.per_frame_cmd_num);
+            if (ROUTINE_ISEND(n->t))
+            {
+                POOL_PUSH(m_routine_pool, n);
+                ARRAY_GET(m_routine_list, i) = 0;
+                m_routine_num--;
+            }
         }
     }
-    if (first == (int)m_routine_num)
-    {
-        return;
-    }
-
-    int next = first;
-    for (first++; first < (int)m_routine_num; first++)
-    {
-        routine * r = m_routine_list[first];
-        if (r)
-        {
-            m_routine_list[next] = m_routine_list[first];
-            next++;
-        }
-    }
-    m_routine_num = next;
 }

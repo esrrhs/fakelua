@@ -103,23 +103,39 @@ FAKE_API void fkrunps(fake * fk, const char * func)
 {
     FKLOG("fkrun %p %s", fk, func);
 
-    // 预处理
-    fk->bin.move();
-    fk->sh.checkgc();
+    // 预处理，只在完全的退出脚本才执行
+    if (!fk->rundeps)
+    {
+        fk->bin.move();
+        fk->sh.checkgc();
+    }
+    fk->rundeps++;
 
     // 清空运行环境    
     fk->clearerr();
-    fk->inter.clear();
-    fk->inter.call(&fk->bin, func, &fk->ps);
 
-    while (!fk->inter.isend())
-    {
-        fk->inter.run(0x7FFFFFFF);
+    // 分配个
+    pool<processor>::node * n = 0;
+    if (POOL_EMPTY(fk->pp))
+	{
+        POOL_GROW(fk->pp, pool<processor>::node, n);
+        PROCESS_INI(n->t, fk);
     }
+    POOL_POP(fk->pp, n);
+    assert(ARRAY_EMPTY(n->t.m_routine_list));
+    assert(n->t.m_routine_num == 0);
+    PROCESS_CLEAR(n->t);
+    routine * r = n->t.start_routine(&fk->bin, func, &fk->ps);
+
+    n->t.run();
     
     variant * ret = 0;
     PS_PUSH_AND_GET(fk->ps, ret);
-    *ret = fk->inter.getret();
+    *ret = ROUTINE_GETRET(*r);
+
+    POOL_PUSH(fk->pp, n);
+    
+    fk->rundeps--;
     
     FKLOG("fkrun %p %s OK", fk, func);
 }

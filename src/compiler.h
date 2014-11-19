@@ -13,7 +13,10 @@ public:
     compiler(fake * fk) : m_fk(fk)
     {
     }
-    ~compiler() {}
+    ~compiler() 
+    {
+        clear();
+    }
 
     void clear();
     bool compile(myflexer * mf);

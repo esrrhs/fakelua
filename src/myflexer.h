@@ -26,7 +26,10 @@ public:
     {
         clear();
     }
-    virtual ~myflexer() {}
+    virtual ~myflexer() 
+    {
+        clear();
+    }
     
     // flex通过调用这个方法取得要解析的字符串的
     virtual int LexerInput(char* buf, int max_size);
