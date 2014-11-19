@@ -4,6 +4,7 @@
 #include "variant.h"
 #include "binary.h"
 #include "paramstack.h"
+#include "array.h"
 
 struct fake;
 
@@ -14,12 +15,12 @@ struct fake;
     v = &fb.m_const_list[pos];
 
 #define GET_STACK(v, s, pos) \
-	assert(pos >= 0 && pos < (int)(s).m_stack_variant_list_num);\
-    v = &(s).m_stack_variant_list[pos];
+	assert(pos >= 0 && pos < (int)ARRAY_MAX_SIZE((s).m_stack_variant_list));\
+    v = &ARRAY_GET((s).m_stack_variant_list, pos);
 
 #define SET_STACK(v, s, pos) \
-	assert(pos >= 0 && pos < (int)(s).m_stack_variant_list_num);\
-    (s).m_stack_variant_list[pos] = *v;
+	assert(pos >= 0 && pos < (int)ARRAY_MAX_SIZE((s).m_stack_variant_list));\
+    ARRAY_GET((s).m_stack_variant_list, pos) = *v;
     
 #define GET_VARIANT(s, fb, v, pos) \
     command v##_cmd = GET_CMD(fb, pos);\
@@ -92,18 +93,9 @@ struct fake;
 
 struct stack
 {
-	force_inline stack() : m_fk(0), m_fb(0), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0), m_retnum(0), m_calltime(0)
-    {
-    }
-	force_inline stack(fake * fk, const  func_binary * fb) : m_fk(fk), m_fb(fb), m_pos(0), m_stack_variant_list(0), m_stack_variant_list_num(0), m_retnum(0), m_calltime(0)
-    {
-    }
 	force_inline ~stack()
     {
-        safe_fkfree(m_fk, m_stack_variant_list);
     }
-
-	void grow(size_t size);
 
 	force_inline void clear()
     {
@@ -117,8 +109,7 @@ struct stack
     // 当前执行位置
     int m_pos;
     // 当前栈上的变量
-	variant * m_stack_variant_list;
-	size_t m_stack_variant_list_num;
+	array<variant> m_stack_variant_list;
 	// 调用的函数返回本栈的个数和位置
 	int m_retnum;
 	int m_retvpos[MAX_FAKE_RETURN_NUM];
@@ -129,35 +120,24 @@ struct stack
 class interpreter
 {
 public:
-	force_inline interpreter(fake * fk) : m_fk(fk), m_isend(false), m_cur_stack(0),
-		m_stack_list(0), m_stack_list_num(0), m_stack_list_max_num(0)
+	force_inline interpreter(fake * fk) : m_fk(fk), m_isend(false), m_cur_stack(0), m_stack_list(fk)
     {
     }
     force_inline ~interpreter()
     {
-    	if (m_stack_list)
-    	{
-    		assert(m_fk);
-    		for (int i = 0; i < (int)m_stack_list_max_num; i++)
-    		{
-    			m_stack_list[i].~stack();
-    		}
-    		safe_fkfree(m_fk, m_stack_list);
-    	}
+		assert(m_fk);
+		for (int i = 0; i < (int)ARRAY_MAX_SIZE(m_stack_list); i++)
+		{
+			ARRAY_GET(m_stack_list, i).~stack();
+		}
     }
 
     force_inline void clear()
     {
         m_isend = false;
         m_cur_stack = 0;
-        m_stack_list_num = 0;
-        for (int i = 0; i < (int)m_stack_list_max_num; i++)
-		{
-			m_stack_list[i].clear();
-		}
+        ARRAY_CLEAR(m_stack_list);
     }
-    
-	void grow();
     
     force_inline bool isend() const
     {
@@ -421,9 +401,9 @@ public:
                 endfuncprofile();
                 // 出栈
         		m_cur_stack->clear();
-        		m_stack_list_num--;
+        		ARRAY_POP_BACK(m_stack_list);
                 // 所有都完
-            	if (!m_stack_list_num)
+            	if (ARRAY_EMPTY(m_stack_list))
                 {
                     FKLOG("stack empty end");
                     m_isend = true;
@@ -431,7 +411,7 @@ public:
             	// 塞返回值
                 else
 				{
-					m_cur_stack = &m_stack_list[m_stack_list_num - 1];
+					m_cur_stack = &ARRAY_BACK(m_stack_list);
 					const func_binary & fb = *m_cur_stack->m_fb;
 					for (int i = 0; i < m_cur_stack->m_retnum; i++)
 					{
@@ -467,8 +447,6 @@ private:
     bool m_isend;
 	variant m_ret[MAX_FAKE_RETURN_NUM];
 	stack * m_cur_stack;
-	stack * m_stack_list;
-	size_t m_stack_list_num;
-	size_t m_stack_list_max_num;
+	array<stack> m_stack_list;
 };
 

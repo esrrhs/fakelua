@@ -3,30 +3,6 @@
 #include "binary.h"
 #include "paramstack.h"
 
-void stack::grow(size_t size)
-{
-	assert(m_fk);
-	// 新空间
-	int newsize = size;
-	assert(newsize > (int)m_stack_variant_list_num);
-	variant * newbuff = (variant *)safe_fkmalloc(m_fk, (newsize * sizeof(variant)));
-	
-	// 复制
-	if (m_stack_variant_list)
-	{
-		memcpy(newbuff, m_stack_variant_list, m_stack_variant_list_num * sizeof(variant));
-	}
-
-	// 构造剩余的
-	memset(&newbuff[m_stack_variant_list_num], 0, (newsize - m_stack_variant_list_num) * sizeof(variant));
-
-	// 删除
-	safe_fkfree(m_fk, m_stack_variant_list);
-
-	m_stack_variant_list = newbuff;
-	m_stack_variant_list_num = newsize;
-}
-
 //////////////////////////////////////////////////////////////////////////
 
 void interpreter::call(binary * bin, const char * func, paramstack * ps)
@@ -41,7 +17,7 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
             
             // 塞返回值
     		bool err = false;
-			m_cur_stack = &m_stack_list[m_stack_list_num - 1];
+			m_cur_stack = &ARRAY_BACK(m_stack_list);
 			const func_binary & fb = *m_cur_stack->m_fb;
     		variant * ret;
 			do { GET_VARIANT(*m_cur_stack, fb, ret, m_cur_stack->m_retvpos[0]); } while (0);
@@ -66,7 +42,7 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
     if (!fb->cmdsize())
     {
         // 所有都完
-    	if (!m_stack_list_num)
+    	if (ARRAY_EMPTY(m_stack_list))
         {
             FKLOG("call stack empty end");
             m_isend = true;
@@ -75,19 +51,21 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
     }
 
     // 压栈
-	if (m_stack_list_num >= m_stack_list_max_num)
+	if (ARRAY_SIZE(m_stack_list) >= ARRAY_MAX_SIZE(m_stack_list))
 	{
-		grow();
+	    int newsize = ARRAY_MAX_SIZE(m_stack_list) + 1 + ARRAY_MAX_SIZE(m_stack_list) * m_fk->cfg.stack_list_grow_speed / 100;
+		ARRAY_GROW(m_stack_list, newsize, stack);
 	}
-	m_stack_list_num++;
-	stack & s = m_stack_list[m_stack_list_num - 1];
+	ARRAY_PUSH_BACK(m_stack_list);
+	stack & s = ARRAY_BACK(m_stack_list);
     m_cur_stack = &s;
 	s.m_fk = m_fk;
 	s.m_fb = fb;
+	ARRAY_SET_FK(s.m_stack_variant_list, m_fk);
 	s.clear();
-	if (fb->maxstack() > s.m_stack_variant_list_num)
+	if (fb->maxstack() > ARRAY_MAX_SIZE(s.m_stack_variant_list))
 	{
-	    s.grow(fb->maxstack());
+	    ARRAY_GROW(s.m_stack_variant_list, fb->maxstack(), variant);
 	}
 
 	// 记录profile
@@ -103,30 +81,6 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
 
 	// 重置ret
 	V_SET_NIL(&m_ret[0]);
-}
-
-void interpreter::grow()
-{
-	assert(m_fk);
-	// 新空间
-	int newsize = m_stack_list_max_num + 1 + m_stack_list_max_num * m_fk->cfg.stack_list_grow_speed / 100;
-	assert(newsize > (int)m_stack_list_max_num);
-	stack * newbuff = (stack *)safe_fkmalloc(m_fk, (newsize * sizeof(stack)));
-
-	// 复制
-	if (m_stack_list)
-	{
-		memcpy(newbuff, m_stack_list, m_stack_list_max_num * sizeof(stack));
-	}
-
-	// 构造剩余的
-	memset(&newbuff[m_stack_list_max_num], 0, (newsize - m_stack_list_max_num) * sizeof(stack));
-
-	// 删除
-	safe_fkfree(m_fk, m_stack_list);
-
-	m_stack_list = newbuff;
-	m_stack_list_max_num = newsize;
 }
 
 void interpreter::call(fake * fk, const variant * callpos, paramstack * ps)
