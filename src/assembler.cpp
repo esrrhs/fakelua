@@ -430,18 +430,18 @@ bool assembler::compile_jmp(asmgen & asg, const func_binary & fb, command cmd)
 
 bool assembler::compile_call(asmgen & asg, const func_binary & fb, command cmd)
 {
-	int calltype = 0;
-	GET_VARIANT_POS(fb, calltype, m_pos);
+	int calltype = COMMAND_CODE(GET_CMD(fb, m_pos));
 	m_pos++;
 
 	int callpos = 0;
 	GET_VARIANT_POS(fb, callpos, m_pos);
 	m_pos++;
 
-	int ret = 0;
-	GET_VARIANT_POS(fb, ret, m_pos);
+    int retnum = COMMAND_CODE(GET_CMD(fb, m_pos));
 	m_pos++;
-
+	
+    m_pos += retnum;
+    
     int argnum = COMMAND_CODE(GET_CMD(fb, m_pos));
 	m_pos++;
     
@@ -449,7 +449,6 @@ bool assembler::compile_call(asmgen & asg, const func_binary & fb, command cmd)
     
     // TODO
     USE(calltype);
-    USE(callpos);
     
 	return true;
 }
