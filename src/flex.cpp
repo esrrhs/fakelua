@@ -345,16 +345,16 @@ struct yy_trans_info
 	};
 static yyconst flex_int16_t yy_accept[102] =
     {   0,
-        0,    0,    0,    0,   25,   25,   54,   52,   51,   52,
-       14,   27,   52,   46,   47,   33,   30,   28,   31,   32,
-       22,   50,   41,   39,   40,   21,   21,   21,   21,   21,
-       21,   21,   21,   21,   52,   19,   20,   19,   25,   26,
-       45,   38,   48,   37,   29,   34,   24,   22,   35,   36,
-        0,   43,   44,   42,   21,   21,   21,   21,   21,   21,
-       21,   10,   21,   21,   21,   21,   21,   49,   18,   15,
-       17,   16,   25,   23,   21,   21,   13,   21,   21,    7,
-       21,   21,   21,   21,    1,   21,   21,   12,    5,   21,
-        4,   21,   11,    8,   21,    3,    9,   21,    6,    2,
+        0,    0,    0,    0,    2,    2,   54,   52,   51,   52,
+       17,   27,   52,   46,   47,   33,   30,   28,   31,   32,
+       25,   50,   41,   39,   40,   24,   24,   24,   24,   24,
+       24,   24,   24,   24,   52,   22,   23,   22,    2,    3,
+       45,   38,   48,   37,   29,   34,    1,   25,   35,   36,
+        0,   43,   44,   42,   24,   24,   24,   24,   24,   24,
+       24,   13,   24,   24,   24,   24,   24,   49,   21,   18,
+       20,   19,    2,   26,   24,   24,   16,   24,   24,   10,
+       24,   24,   24,   24,    4,   24,   24,   15,    8,   24,
+        7,   24,   14,   11,   24,    6,   12,   24,    9,    5,
 
         0
     } ;
@@ -476,8 +476,8 @@ static yyconst flex_int16_t yy_chk[160] =
 /* Table of booleans, true if rule could match eol. */
 static yyconst flex_int32_t yy_rule_can_match_eol[54] =
     {   0,
-0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 
-    0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
+    0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 
     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0,     };
 
 /* The intent behind this definition is that it'll catch
@@ -701,176 +701,176 @@ do_action:	/* This label is used only to access EOF actions. */
 case 1:
 YY_RULE_SETUP
 #line 26 "flex.l"
-{
-	return VAR_BEGIN;
-}
-	YY_BREAK
-case 2:
-YY_RULE_SETUP
-#line 30 "flex.l"
-{
-	return RETURN;
-}
-	YY_BREAK
-case 3:
-YY_RULE_SETUP
-#line 34 "flex.l"
-{
-    return BREAK;
-}
-	YY_BREAK
-case 4:
-YY_RULE_SETUP
-#line 38 "flex.l"
-{
-	return FUNC;
-}
-	YY_BREAK
-case 5:
-YY_RULE_SETUP
-#line 42 "flex.l"
-{
-	return FAKE;
-}
-	YY_BREAK
-case 6:
-YY_RULE_SETUP
-#line 46 "flex.l"
-{
-	return WHILE;
-}
-	YY_BREAK
-case 7:
-YY_RULE_SETUP
-#line 50 "flex.l"
-{
-	return FOR;
-}
-	YY_BREAK
-case 8:
-YY_RULE_SETUP
-#line 54 "flex.l"
-{
-  lvalp->str = yytext;
-  return TRUE;
-}
-	YY_BREAK
-case 9:
-YY_RULE_SETUP
-#line 59 "flex.l"
-{
-  lvalp->str = yytext;
-  return FALSE;
-}
-	YY_BREAK
-case 10:
-YY_RULE_SETUP
-#line 64 "flex.l"
-{
-	return IF;
-}
-	YY_BREAK
-case 11:
-YY_RULE_SETUP
-#line 68 "flex.l"
-{
-	return THEN;
-}
-	YY_BREAK
-case 12:
-YY_RULE_SETUP
-#line 72 "flex.l"
-{
-	return ELSE;
-}
-	YY_BREAK
-case 13:
-YY_RULE_SETUP
-#line 76 "flex.l"
-{
-	return END;
-}
-	YY_BREAK
-case 14:
-YY_RULE_SETUP
-#line 81 "flex.l"
-yy_push_state(STR); lvalp->str = String();
-	YY_BREAK
-case 15:
-YY_RULE_SETUP
-#line 82 "flex.l"
-lvalp->str += String("\n");
-	YY_BREAK
-case 16:
-YY_RULE_SETUP
-#line 83 "flex.l"
-lvalp->str += String("\t");
-	YY_BREAK
-case 17:
-YY_RULE_SETUP
-#line 84 "flex.l"
-lvalp->str += String(" ");
-	YY_BREAK
-case 18:
-YY_RULE_SETUP
-#line 85 "flex.l"
-lvalp->str += String("\"");
-	YY_BREAK
-case 19:
-/* rule 19 can match eol */
-YY_RULE_SETUP
-#line 86 "flex.l"
-lvalp->str += String(yytext);
-	YY_BREAK
-case 20:
-YY_RULE_SETUP
-#line 87 "flex.l"
-yy_pop_state(); return STRING_DEFINITION; 
-	YY_BREAK
-case 21:
-YY_RULE_SETUP
-#line 90 "flex.l"
-{
-	lvalp->str = String(yytext);
-	return IDENTIFIER;
-}
-	YY_BREAK
-case 22:
-YY_RULE_SETUP
-#line 95 "flex.l"
-{
-	lvalp->str = String(yytext);
-	return NUMBER;
-}
-	YY_BREAK
-case 23:
-YY_RULE_SETUP
-#line 100 "flex.l"
-{
-	lvalp->str = String(yytext);
-	return FKFLOAT;
-}
-	YY_BREAK
-case 24:
-YY_RULE_SETUP
-#line 105 "flex.l"
 yy_push_state(SINGLE_LINE_COMMENT);
 	YY_BREAK
 
-case 25:
+case 2:
 YY_RULE_SETUP
-#line 107 "flex.l"
+#line 28 "flex.l"
 ;
 	YY_BREAK
-case 26:
-/* rule 26 can match eol */
+case 3:
+/* rule 3 can match eol */
 YY_RULE_SETUP
-#line 108 "flex.l"
+#line 29 "flex.l"
 {
 		yy_pop_state(); 
 	}
 	YY_BREAK
 
+case 4:
+YY_RULE_SETUP
+#line 34 "flex.l"
+{
+	return VAR_BEGIN;
+}
+	YY_BREAK
+case 5:
+YY_RULE_SETUP
+#line 38 "flex.l"
+{
+	return RETURN;
+}
+	YY_BREAK
+case 6:
+YY_RULE_SETUP
+#line 42 "flex.l"
+{
+    return BREAK;
+}
+	YY_BREAK
+case 7:
+YY_RULE_SETUP
+#line 46 "flex.l"
+{
+	return FUNC;
+}
+	YY_BREAK
+case 8:
+YY_RULE_SETUP
+#line 50 "flex.l"
+{
+	return FAKE;
+}
+	YY_BREAK
+case 9:
+YY_RULE_SETUP
+#line 54 "flex.l"
+{
+	return WHILE;
+}
+	YY_BREAK
+case 10:
+YY_RULE_SETUP
+#line 58 "flex.l"
+{
+	return FOR;
+}
+	YY_BREAK
+case 11:
+YY_RULE_SETUP
+#line 62 "flex.l"
+{
+  lvalp->str = yytext;
+  return TRUE;
+}
+	YY_BREAK
+case 12:
+YY_RULE_SETUP
+#line 67 "flex.l"
+{
+  lvalp->str = yytext;
+  return FALSE;
+}
+	YY_BREAK
+case 13:
+YY_RULE_SETUP
+#line 72 "flex.l"
+{
+	return IF;
+}
+	YY_BREAK
+case 14:
+YY_RULE_SETUP
+#line 76 "flex.l"
+{
+	return THEN;
+}
+	YY_BREAK
+case 15:
+YY_RULE_SETUP
+#line 80 "flex.l"
+{
+	return ELSE;
+}
+	YY_BREAK
+case 16:
+YY_RULE_SETUP
+#line 84 "flex.l"
+{
+	return END;
+}
+	YY_BREAK
+case 17:
+YY_RULE_SETUP
+#line 89 "flex.l"
+yy_push_state(STR); lvalp->str = String();
+	YY_BREAK
+case 18:
+YY_RULE_SETUP
+#line 90 "flex.l"
+lvalp->str += String("\n");
+	YY_BREAK
+case 19:
+YY_RULE_SETUP
+#line 91 "flex.l"
+lvalp->str += String("\t");
+	YY_BREAK
+case 20:
+YY_RULE_SETUP
+#line 92 "flex.l"
+lvalp->str += String(" ");
+	YY_BREAK
+case 21:
+YY_RULE_SETUP
+#line 93 "flex.l"
+lvalp->str += String("\"");
+	YY_BREAK
+case 22:
+/* rule 22 can match eol */
+YY_RULE_SETUP
+#line 94 "flex.l"
+lvalp->str += String(yytext);
+	YY_BREAK
+case 23:
+YY_RULE_SETUP
+#line 95 "flex.l"
+yy_pop_state(); return STRING_DEFINITION; 
+	YY_BREAK
+case 24:
+YY_RULE_SETUP
+#line 98 "flex.l"
+{
+	lvalp->str = String(yytext);
+	return IDENTIFIER;
+}
+	YY_BREAK
+case 25:
+YY_RULE_SETUP
+#line 103 "flex.l"
+{
+	lvalp->str = String(yytext);
+	return NUMBER;
+}
+	YY_BREAK
+case 26:
+YY_RULE_SETUP
+#line 108 "flex.l"
+{
+	lvalp->str = String(yytext);
+	return FKFLOAT;
+}
+	YY_BREAK
 case 27:
 YY_RULE_SETUP
 #line 113 "flex.l"

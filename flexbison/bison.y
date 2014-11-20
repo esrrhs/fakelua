@@ -363,6 +363,17 @@ for_stmt:
 		p->block = dynamic_cast<block_node*>($8);
 		$$ = p;
 	}
+	|
+	FOR block ARG_SPLITTER cmp ARG_SPLITTER block THEN END
+	{
+		FKLOG("[bison]: for_stmt <- block cmp block");
+		NEWTYPE(p, for_stmt);
+		p->cmp = dynamic_cast<cmp_stmt*>($4);
+		p->beginblock = dynamic_cast<block_node*>($2);
+		p->endblock = dynamic_cast<block_node*>($6);
+		p->block = 0;
+		$$ = p;
+	}
 	;
 	
 while_stmt:
