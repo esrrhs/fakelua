@@ -80,7 +80,8 @@
      COLON = 296,
      FOR = 297,
      INC = 298,
-     FAKE = 299
+     FAKE = 299,
+     UUID = 300
    };
 #endif
 

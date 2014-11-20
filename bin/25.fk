@@ -1,0 +1,10 @@
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	var a = 1241515236123614u
+	
+	print(a)
+	
+	return 0
+	
+end

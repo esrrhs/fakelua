@@ -661,6 +661,9 @@ bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev)
 	case explicit_value_node::EVT_FLOAT:
 		V_SET_REAL((&v), (fkatof(&ev->str)));
 		break;
+    case explicit_value_node::EVT_UUID:
+		V_SET_UUID((&v), (fkatol(&ev->str)));
+		break;
 	default:
 		FKERR("[compiler] compile_explicit_value type error %d %s", ev->getvaluetype(), ev->gettypename());
 		seterror(m_fk, efk_compile_explicit_type_error, "compile explicit value type error %d", ev->getvaluetype());

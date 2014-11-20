@@ -71,6 +71,7 @@ int my_yyerror(const char *s, void * parm)
 %token FOR
 %token INC
 %token FAKE
+%token UUID
 
 %right PLUS
 %right MINUS
@@ -81,6 +82,7 @@ int my_yyerror(const char *s, void * parm)
 
 %type<str> IDENTIFIER  
 %type<str> NUMBER
+%type<str> UUID
 %type<str> STRING_DEFINITION
 %type<str> PLUS
 %type<str> MINUS
@@ -898,6 +900,15 @@ explicit_value:
 		NEWTYPE(p, explicit_value_node);
 		p->str = $1;
 		p->type = explicit_value_node::EVT_NUM;
+		$$ = p;
+	}
+	|
+	UUID
+	{
+		FKLOG("[bison]: explicit_value <- UUID %s", $1.c_str());
+		NEWTYPE(p, explicit_value_node);
+		p->str = $1;
+		p->type = explicit_value_node::EVT_UUID;
 		$$ = p;
 	}
 	|
