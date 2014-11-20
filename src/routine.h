@@ -29,3 +29,4 @@ struct routine
 
 #define ROUTINE_GETRET(rou) (rou).m_interpreter.getret()
 
+#define ROUTINE_SET_PRO(rou, pro) INTER_SET_PRO((rou).m_interpreter, pro)

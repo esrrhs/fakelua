@@ -768,6 +768,17 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
     command oper;
     oper = MAKE_OPCODE(OPCODE_CALL);
 
+    // 调用类型
+    command calltype;
+    if (fn->fakecall)
+    {
+        calltype = MAKE_POS(CALL_FAKE);
+    }
+    else
+    {
+        calltype = MAKE_POS(CALL_NORMAL);
+    }
+    
     // 参数个数
     command argnum;
     argnum = MAKE_POS(arglist.size());
@@ -787,6 +798,7 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
 	m_cur_addr = ret[0];
     
     cg.push(oper);
+    cg.push(calltype);
 	cg.push(callpos);
 	cg.push(retnum);
 	for (int i = 0; i < ret_num; i++)

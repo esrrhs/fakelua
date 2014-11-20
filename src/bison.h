@@ -79,7 +79,8 @@
      DIVIDE_MOD_ASSIGN = 295,
      COLON = 296,
      FOR = 297,
-     INC = 298
+     INC = 298,
+     FAKE = 299
    };
 #endif
 

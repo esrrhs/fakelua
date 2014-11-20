@@ -14,19 +14,31 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
         if (m_fk->bf.call(this, func))
         {
             FKLOG("call C func %s", func);
-            
-            // 塞返回值
-    		bool err = false;
-			m_cur_stack = &ARRAY_BACK(m_stack_list);
-			const func_binary & fb = *m_cur_stack->m_fb;
-    		variant * ret;
-			do { GET_VARIANT(*m_cur_stack, fb, ret, m_cur_stack->m_retvpos[0]); } while (0);
 
+            // 返回值
             paramstack * theps = getps(m_fk);
             variant * cret;
         	PS_POP_AND_GET(*theps, cret);
         	
-            *ret = *cret;
+            // 这种情况是直接跳过脚本调用了C函数
+        	if (ARRAY_EMPTY(m_stack_list))
+            {
+                m_isend = true;
+                // 直接塞返回值
+                m_ret[0] = *cret;
+            }
+            // 否则塞到当前堆栈上
+            else
+            {
+                // 塞返回值
+        		bool err = false;
+    			m_cur_stack = &ARRAY_BACK(m_stack_list);
+    			const func_binary & fb = *m_cur_stack->m_fb;
+        		variant * ret;
+    			do { GET_VARIANT(*m_cur_stack, fb, ret, m_cur_stack->m_retvpos[0]); } while (0);
+
+                *ret = *cret;
+            }
         }
         else
         {
@@ -80,12 +92,19 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
 	V_SET_NIL(&m_ret[0]);
 }
 
-void interpreter::call(fake * fk, const variant * callpos, paramstack * ps)
+void interpreter::call(fake * fk, const variant * callpos, paramstack * ps, int calltype)
 {
     const char * name = 0;
     V_GET_STRING(callpos, name);
 
-    call(&m_fk->bin, name, ps);
+    if (calltype == CALL_NORMAL)
+    {
+        call(&m_fk->bin, name, ps);
+    }
+    else
+    {
+        m_processor->start_routine(&m_fk->bin, name, ps);
+    }
 }
 
 void interpreter::beginfuncprofile()
