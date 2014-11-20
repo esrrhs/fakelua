@@ -430,6 +430,10 @@ bool assembler::compile_jmp(asmgen & asg, const func_binary & fb, command cmd)
 
 bool assembler::compile_call(asmgen & asg, const func_binary & fb, command cmd)
 {
+	int calltype = 0;
+	GET_VARIANT_POS(fb, calltype, m_pos);
+	m_pos++;
+
 	int callpos = 0;
 	GET_VARIANT_POS(fb, callpos, m_pos);
 	m_pos++;
@@ -444,6 +448,7 @@ bool assembler::compile_call(asmgen & asg, const func_binary & fb, command cmd)
     m_pos += argnum;
     
     // TODO
+    USE(calltype);
     USE(callpos);
     
 	return true;

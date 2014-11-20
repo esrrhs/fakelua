@@ -70,6 +70,7 @@ int my_yyerror(const char *s, void * parm)
 %token COLON
 %token FOR
 %token INC
+%token FAKE
 
 %right PLUS
 %right MINUS
@@ -123,6 +124,7 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> for_stmt
 %type<syntree> multi_assign_stmt
 %type<syntree> var_list
+%type<syntree> fake_call_stmt
 
 
 %%
@@ -204,6 +206,7 @@ function_call:
 		NEWTYPE(p, function_call_node);
 		p->fuc = $1;
 		p->arglist = dynamic_cast<function_call_arglist_node*>($3);
+		p->fakecall = false;
 		$$ = p;
 	} 
 	|
@@ -219,6 +222,7 @@ function_call:
 			p->arglist = pa;
 		}
 		p->arglist->add_arg($1);
+		p->fakecall = false;
 		$$ = p;
 	} 
 	;
@@ -330,8 +334,24 @@ stmt:
 		FKLOG("[bison]: stmt <- for_stmt");
 		$$ = $1;
 	}
+	|
+	fake_call_stmt
+	{
+		FKLOG("[bison]: stmt <- fake_call_stmt");
+		$$ = $1;
+	}
 	;
 
+fake_call_stmt:
+	FAKE function_call
+	{
+		FKLOG("[bison]: fake_call_stmt <- fake function_call");
+		function_call_node * p = dynamic_cast<function_call_node*>($2);
+		p->fakecall = true;
+		$$ = p;
+	}
+	;
+	
 for_stmt:
 	FOR block ARG_SPLITTER cmp ARG_SPLITTER block THEN block END
 	{

@@ -39,6 +39,10 @@
 	return FUNC;
 }
 
+"fake" {
+	return FAKE;
+}
+
 "while" {
 	return WHILE;
 }

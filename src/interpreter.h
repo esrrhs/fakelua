@@ -113,6 +113,7 @@ struct stack
     ARRAY_INI((s).m_stack_variant_list, fk);\
     (s).m_pos = 0
 
+struct processor;
 struct interpreter
 {
 public:
@@ -143,6 +144,36 @@ public:
             // next
             const func_binary & fb = *m_cur_stack->m_fb;
             int pos = m_cur_stack->m_pos;
+            
+            // 当前函数走完
+            if (pos >= (int)fb.cmdsize())
+            {
+                FKLOG("pop stack %s", fb.getname());
+                // 记录profile
+                endfuncprofile();
+                // 出栈
+        		ARRAY_POP_BACK(m_stack_list);
+                // 所有都完
+            	if (ARRAY_EMPTY(m_stack_list))
+                {
+                    FKLOG("stack empty end");
+                    m_isend = true;
+                    break;
+                }
+            	// 塞返回值
+                else
+				{
+					m_cur_stack = &ARRAY_BACK(m_stack_list);
+					const func_binary & fb = *m_cur_stack->m_fb;
+					for (int i = 0; i < m_cur_stack->m_retnum; i++)
+					{
+						variant * ret;
+						GET_VARIANT(*m_cur_stack, fb, ret, m_cur_stack->m_retvpos[i]);
+						*ret = m_ret[i];
+					}
+                }
+                continue;
+            }
 
             command cmd = GET_CMD(fb, pos);
             int type = COMMAND_TYPE(cmd);
@@ -328,6 +359,9 @@ public:
                 break;
             case OPCODE_CALL:
                 {
+					int calltype = COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos));
+					m_cur_stack->m_pos++;
+
                 	const variant * callpos = 0;
                 	LOG_VARIANT(*m_cur_stack, fb, m_cur_stack->m_pos, "callpos");
                 	GET_VARIANT(*m_cur_stack, fb, callpos, m_cur_stack->m_pos);
@@ -361,41 +395,13 @@ public:
                     	*argdest = *arg;
                 	}
                 	
-                    call(m_fk, callpos, &ps);
+                    call(m_fk, callpos, &ps, calltype);
                 }
                 break;
             default:
                 assert(0);
                 FKERR("next err code %d %s", code, OpCodeStr(code));
                 break;
-            }
-
-            // 当前函数走完
-            if (m_cur_stack->m_pos >= (int)fb.cmdsize())
-            {
-                FKLOG("pop stack %s", m_cur_stack->m_fb->getname());
-                // 记录profile
-                endfuncprofile();
-                // 出栈
-        		ARRAY_POP_BACK(m_stack_list);
-                // 所有都完
-            	if (ARRAY_EMPTY(m_stack_list))
-                {
-                    FKLOG("stack empty end");
-                    m_isend = true;
-                }
-            	// 塞返回值
-                else
-				{
-					m_cur_stack = &ARRAY_BACK(m_stack_list);
-					const func_binary & fb = *m_cur_stack->m_fb;
-					for (int i = 0; i < m_cur_stack->m_retnum; i++)
-					{
-						variant * ret;
-						GET_VARIANT(*m_cur_stack, fb, ret, m_cur_stack->m_retvpos[i]);
-						*ret = m_ret[i];
-					}
-                }
             }
 
             if (err)
@@ -414,7 +420,7 @@ public:
     }
 
 private:
-    void call(fake * fk, const variant * callpos, paramstack * ps);
+    void call(fake * fk, const variant * callpos, paramstack * ps, int calltype);
     void beginfuncprofile();
     void endfuncprofile();
     
@@ -424,6 +430,7 @@ public:
 	variant m_ret[MAX_FAKE_RETURN_NUM];
 	stack * m_cur_stack;
 	array<stack> m_stack_list;
+	processor * m_processor;
 };
 
 #define INTER_DELETE(inter) \
@@ -439,3 +446,4 @@ public:
     (inter).m_cur_stack = 0;\
     ARRAY_CLEAR((inter).m_stack_list);
     
+#define INTER_SET_PRO(inter, pro) (inter).m_processor = pro

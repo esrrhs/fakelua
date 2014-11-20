@@ -81,6 +81,7 @@ String fkget_token_name(int token)
 		TOKEN_SWITCH(DIVIDE_MOD_ASSIGN)
 		TOKEN_SWITCH(FOR)
 		TOKEN_SWITCH(INC)
+		TOKEN_SWITCH(FAKE)
     }
 #undef TOKEN_SWITCH
 	return fkitoa(token);

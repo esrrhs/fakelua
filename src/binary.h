@@ -50,6 +50,12 @@ enum AddrType
 	ADDR_CONST,
 };
 
+enum CallType
+{
+	CALL_NORMAL,
+	CALL_FAKE,
+};
+
 #define MAKE_COMMAND(type, code) MAKEINT64(type, code)
 #define MAKE_ADDR(addrtype, pos) MAKE_COMMAND(COMMAND_ADDR, MAKEINT32(addrtype, pos))
 #define MAKE_OPCODE(op) MAKE_COMMAND(COMMAND_OPCODE, op)

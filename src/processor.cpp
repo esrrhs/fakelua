@@ -17,6 +17,7 @@ routine * processor::start_routine(binary * bin, const char * func, paramstack *
     
     // ³õÊ¼»¯ÏÂ
     ROUTINE_CLEAR(n->t);
+    ROUTINE_SET_PRO(n->t, this);
     ROUTINE_ENTRY(n->t, bin, func, ps);
     if (ROUTINE_ISEND(n->t))
     {

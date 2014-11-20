@@ -582,7 +582,14 @@ struct function_call_node : public syntree_node
     {
         String ret;
         ret += gentab(indent);
-        ret += "[func_call]:";
+        if (fakecall)
+        {
+            ret += "[func_fake_call]:";
+        }
+        else
+        {
+            ret += "[func_call]:";
+        }
         ret += fuc;
         ret += "\n";
         if (arglist)
@@ -593,7 +600,8 @@ struct function_call_node : public syntree_node
     }
 
     virtual void recycle();
-    
+
+    bool fakecall;
     String fuc;
     function_call_arglist_node * arglist;
 };

@@ -42,7 +42,7 @@ typedef void (*fkfree)(void *ptr);
 struct fakeconfig
 {
     fakeconfig() : fkm(&malloc), fkf(&free), 
-        per_frame_cmd_num(100), 
+        per_frame_cmd_num(10), 
         routine_grow_speed(100), 
         stack_list_grow_speed(100), 
         string_heap_num(100)
