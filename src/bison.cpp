@@ -172,7 +172,7 @@ int my_yyerror(const char *s, void * parm)
      FOR = 297,
      INC = 298,
      FAKE = 299,
-     UUID = 300
+     FKUUID = 300
    };
 #endif
 
@@ -538,7 +538,7 @@ static const char *const yytname[] =
   "ASSIGN", "MORE", "LESS", "MORE_OR_EQUAL", "LESS_OR_EQUAL", "EQUAL",
   "NOT_EQUAL", "OPEN_BRACKET", "CLOSE_BRACKET", "AND", "OR", "FKFLOAT",
   "PLUS_ASSIGN", "MINUS_ASSIGN", "DIVIDE_ASSIGN", "MULTIPLY_ASSIGN",
-  "DIVIDE_MOD_ASSIGN", "COLON", "FOR", "INC", "FAKE", "UUID", "$accept",
+  "DIVIDE_MOD_ASSIGN", "COLON", "FOR", "INC", "FAKE", "FKUUID", "$accept",
   "program", "body", "function_declaration",
   "function_declaration_arguments", "arg", "function_call",
   "function_call_arguments", "arg_expr", "block", "stmt", "fake_call_stmt",
@@ -2672,7 +2672,7 @@ yyreduce:
 /* Line 1455 of yacc.c  */
 #line 907 "bison.y"
     {
-		FKLOG("[bison]: explicit_value <- UUID %s", (yyvsp[(1) - (1)].str).c_str());
+		FKLOG("[bison]: explicit_value <- FKUUID %s", (yyvsp[(1) - (1)].str).c_str());
 		NEWTYPE(p, explicit_value_node);
 		p->str = (yyvsp[(1) - (1)].str);
 		p->type = explicit_value_node::EVT_UUID;

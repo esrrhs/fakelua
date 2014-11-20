@@ -862,7 +862,7 @@ YY_RULE_SETUP
 #line 103 "flex.l"
 {
 	lvalp->str = String(yytext);
-	return UUID;
+	return FKUUID;
 }
 	YY_BREAK
 case 26:

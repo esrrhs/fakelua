@@ -81,7 +81,7 @@
      FOR = 297,
      INC = 298,
      FAKE = 299,
-     UUID = 300
+     FKUUID = 300
    };
 #endif
 

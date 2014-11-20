@@ -102,7 +102,7 @@
 
 [0-9]+u {
 	lvalp->str = String(yytext);
-	return UUID;
+	return FKUUID;
 }
 
 -?[0-9]+ {
