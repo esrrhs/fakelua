@@ -78,6 +78,9 @@ String func_binary::dump() const
         case variant::POINTER:
             ret += "POINTER";
             break;
+        case variant::UUID:
+            ret += "UUID";
+            break;
         default:
             ret += "unknow";
             break;

@@ -151,6 +151,7 @@ struct explicit_value_node : public syntree_node
 		EVT_NUM,
 		EVT_STR,
 		EVT_FLOAT,
+		EVT_UUID,
 	};
 
     virtual esyntreetype gettype()

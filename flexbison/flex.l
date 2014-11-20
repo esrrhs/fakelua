@@ -100,6 +100,11 @@
 	return IDENTIFIER;
 }
 
+[0-9]+u {
+	lvalp->str = String(yytext);
+	return UUID;
+}
+
 -?[0-9]+ {
 	lvalp->str = String(yytext);
 	return NUMBER;

@@ -249,6 +249,11 @@ template<>	inline uint64_t fkpspop(fake * fk)
 	return fkpspopuint64(fk);
 }
 
+template<>	inline const char * fkpspop(fake * fk)
+{
+	return fkpspopcstrptr(fk);
+}
+
 FAKE_API void fkpsclear(fake * fk);
 
 // 此函数内部使用，推荐使用模板
