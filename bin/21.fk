@@ -1,0 +1,18 @@
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	var sum = 0
+		
+	for var i = 0, i < 10 , i++ then
+		print("haha", i)
+		
+		for var j = 0, j < i , j++ then
+			print("hahaha", j)
+		end
+		
+		sum += i
+	end
+	
+	return sum
+	
+end
