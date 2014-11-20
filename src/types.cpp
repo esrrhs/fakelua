@@ -82,6 +82,7 @@ String fkget_token_name(int token)
 		TOKEN_SWITCH(FOR)
 		TOKEN_SWITCH(INC)
 		TOKEN_SWITCH(FAKE)
+		TOKEN_SWITCH(FKUUID)
     }
 #undef TOKEN_SWITCH
 	return fkitoa(token);
