@@ -266,7 +266,7 @@ FAKE_API unsigned char fkpspopuchar(fake * fk)
 
 FAKE_API short fkpspopshort(fake * fk)
 {
-    char ret;
+    short ret;
     variant * v = 0;
     PS_POP_AND_GET(fk->ps, v);
     V_GET_REAL(v, ret);
@@ -275,7 +275,7 @@ FAKE_API short fkpspopshort(fake * fk)
 
 FAKE_API unsigned short fkpspopushort(fake * fk)
 {
-    unsigned char ret;
+    unsigned short ret;
     variant * v = 0;
     PS_POP_AND_GET(fk->ps, v);
     V_GET_REAL(v, ret);

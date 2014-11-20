@@ -23,6 +23,14 @@
 
 %%
 
+"--"	yy_push_state(SINGLE_LINE_COMMENT);
+<SINGLE_LINE_COMMENT>{
+	[^\n]*	;
+	"\n"	{
+		yy_pop_state(); 
+	}
+}
+
 "var"	{
 	return VAR_BEGIN;
 }
@@ -100,14 +108,6 @@
 -?[0-9]+\.[0-9]+ {
 	lvalp->str = String(yytext);
 	return FKFLOAT;
-}
-
-"--"	yy_push_state(SINGLE_LINE_COMMENT);
-<SINGLE_LINE_COMMENT>{
-	[^\n]*	;
-	"\n"	{
-		yy_pop_state(); 
-	}
 }
 
 "%" {
