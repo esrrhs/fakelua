@@ -127,6 +127,9 @@
     <ClCompile Include="src\container.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <MASM Include="src\win32\nativecall.asm" />
+  </ItemGroup>
+  <ItemGroup>
     <Text Include="CMakeLists.txt" />
   </ItemGroup>
 </Project>
