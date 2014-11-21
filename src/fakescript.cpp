@@ -124,12 +124,13 @@ FAKE_API void fkrunps(fake * fk, const char * func)
         PROCESS_INI(n->t, fk);
     }
     POOL_POP(fk->pp, n);
-    assert(ARRAY_EMPTY(n->t.m_routine_list));
+    assert(ARRAY_EMPTY(n->t.m_pl.l));
     assert(n->t.m_routine_num == 0);
-    PROCESS_CLEAR(n->t);
-    routine * r = n->t.start_routine(&fk->bin, func, &fk->ps);
+    processor & pro = n->t;
+    PROCESS_CLEAR(pro);
+    routine * r = pro.start_routine(&fk->bin, func, &fk->ps);
 
-    n->t.run();
+    pro.run();
     
     variant * ret = 0;
     PS_PUSH_AND_GET(fk->ps, ret);

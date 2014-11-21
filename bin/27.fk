@@ -1,0 +1,14 @@
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	var e = array()
+	e[1]++
+	print("e ", e[1])
+	
+	var g = G()
+	g[1]++
+	print("g ", g[1])
+	
+	return 0
+	
+end

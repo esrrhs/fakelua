@@ -45,8 +45,6 @@ enum OpCodeType
 	OPCODE_NOTEQUAL,
 	
     OPCODE_CALL,
-    
-    OPCODE_CONTAINER_GET,
 };
 
 enum AddrType
