@@ -1,0 +1,17 @@
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	fake myfunc2(1)
+	fake myfunc2(2)
+	fake myfunc2(3)
+	
+end
+
+-- func2 comment
+func myfunc2(index)
+	
+	for var i = 0, i < 10, i++ then
+		print("myfunc2 ", index)
+	end
+	
+end
