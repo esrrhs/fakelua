@@ -29,6 +29,7 @@
     <ClInclude Include="src\buildinfunc.h" />
     <ClInclude Include="src\codegen.h" />
     <ClInclude Include="src\compiler.h" />
+    <ClInclude Include="src\container.h" />
     <ClInclude Include="src\fake.h" />
     <ClInclude Include="src\funcmap.h" />
     <ClInclude Include="src\hashmap.h" />
@@ -58,6 +59,7 @@
     <ClCompile Include="src\buildinfunc.cpp" />
     <ClCompile Include="src\codegen.cpp" />
     <ClCompile Include="src\compiler.cpp" />
+    <ClCompile Include="src\container.cpp" />
     <ClCompile Include="src\flex.cpp" />
     <ClCompile Include="src\fake.cpp" />
     <ClCompile Include="src\fakescript.cpp" />
@@ -73,9 +75,6 @@
     <ClCompile Include="src\syntree.cpp" />
     <ClCompile Include="src\types.cpp" />
     <ClCompile Include="src\variant.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="src\win32\nativecall.asm" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="CMakeLists.txt" />

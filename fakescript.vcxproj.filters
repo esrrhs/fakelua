@@ -68,6 +68,7 @@
     <ClInclude Include="src\profile.h" />
     <ClInclude Include="src\array.h" />
     <ClInclude Include="src\pool.h" />
+    <ClInclude Include="src\container.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -123,9 +124,7 @@
     </ClCompile>
     <ClCompile Include="src\buildinfunc.cpp" />
     <ClCompile Include="src\profile.cpp" />
-  </ItemGroup>
-  <ItemGroup>
-    <MASM Include="src\win32\nativecall.asm" />
+    <ClCompile Include="src\container.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="CMakeLists.txt" />

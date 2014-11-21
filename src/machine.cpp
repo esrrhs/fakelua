@@ -5,7 +5,10 @@
 
 #ifdef WIN32
 extern "C" void __stdcall CallNativeFunc(const void * func, void * param,
-	size_t size, void * ret);
+	size_t size, void * ret)
+{
+	// JIT不全，先临时
+}
 #endif
 
 void machine::call(native * nt, const char * func, paramstack * ps)
