@@ -59,11 +59,31 @@ void buildinsleep(fake * fk, interpreter * inter)
     fkpspush<int>(fk, 0);
 }
 
+// array
+void buildinarray(fake * fk, interpreter * inter)
+{
+    variant_array * a = fk->con.newarray();
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_ARRAY(v, a);
+}
+
+// map
+void buildinmap(fake * fk, interpreter * inter)
+{
+    variant_map * m = fk->con.newmap();
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_MAP(v, m);
+}
+
 void buildinfunc::openbasefunc()
 {
     m_shh.add("print", buildinprint);
     m_shh.add("log", buildinlog);
     m_shh.add("sleep", buildinsleep);
+    m_shh.add("array", buildinarray);
+    m_shh.add("map", buildinmap);
 }
 
 bool buildinfunc::call(interpreter * inter, const char * name)

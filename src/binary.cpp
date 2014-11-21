@@ -44,6 +44,31 @@ const char * OpCodeStr(int opcode)
     return "unknow";
 }
 
+String dump_addr(int code)
+{
+    String ret;
+    int addrtype = HIINT16(code);
+    int pos = LOINT16(code);
+    switch (addrtype)
+    {
+    case ADDR_STACK:
+        ret += "STACK";
+        break;
+    case ADDR_CONST:
+        ret += "CONST";
+        break;
+    case ADDR_CONTAINER:
+        ret += "CONTAINER";
+        break;
+    default:
+        ret += "unknow ";
+        ret += fkitoa(addrtype);
+    }
+    ret += "\t";
+    ret += fkitoa(pos);
+    return ret;
+}
+
 String func_binary::dump() const
 {
     String ret;
@@ -90,6 +115,26 @@ String func_binary::dump() const
         ret += "\n";
     }
     
+    // ÈÝÆ÷µØÖ·±í
+    ret += "\n\t////// container addr ";
+    ret += fkitoa(m_container_addr_list_num);
+    ret += " //////\n";
+    for (int i = 0; i < (int)m_container_addr_list_num; i++)
+    {  
+        ret += "\t[";
+        ret += fkitoa(i);
+        ret += "]\t";
+        command concmd = m_container_addr_list[i].con;
+        int concode = COMMAND_CODE(concmd);
+        ret += "[ CONTAINER ]\t";
+        ret += dump_addr(concode);
+        command keycmd = m_container_addr_list[i].key;
+        int keycode = COMMAND_CODE(keycmd);
+        ret += "\t[ KEY ]\t";
+        ret += dump_addr(keycode);
+        ret += "\n";
+    }
+    
     ret += "\n\t////// byte code ";
     ret += fkitoa(m_size);
     ret += " //////\n";
@@ -116,22 +161,7 @@ String func_binary::dump() const
         case COMMAND_ADDR:
             {
                 ret += "[ ADDR ]\t";
-                int addrtype = HIINT16(code);
-                int pos = LOINT16(code);
-                switch (addrtype)
-                {
-                case ADDR_STACK:
-                    ret += "STACK";
-                    break;
-                case ADDR_CONST:
-                    ret += "CONST";
-                    break;
-                default:
-                    ret += "unknow ";
-                    ret += fkitoa(addrtype);
-                }
-                ret += "\t";
-                ret += fkitoa(pos);
+                ret += dump_addr(code);
             }
             break;
         case COMMAND_POS:

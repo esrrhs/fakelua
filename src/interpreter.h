@@ -5,6 +5,7 @@
 #include "binary.h"
 #include "paramstack.h"
 #include "array.h"
+#include "container.h"
 
 struct fake;
 
@@ -13,6 +14,8 @@ struct fake;
 #define GET_CONST(v, fb, pos) \
     assert(pos >= 0 && pos < (int)fb.m_const_list_num);\
     v = &fb.m_const_list[pos];
+
+#define GET_CONTAINER(v, s, fb, pos) v = get_container_variant(s, fb, pos)
 
 #define GET_STACK(v, s, pos) \
 	assert(pos >= 0 && pos < (int)ARRAY_MAX_SIZE((s).m_stack_variant_list));\
@@ -23,11 +26,14 @@ struct fake;
     ARRAY_GET((s).m_stack_variant_list, pos) = *v;
     
 #define GET_VARIANT(s, fb, v, pos) \
-    command v##_cmd = GET_CMD(fb, pos);\
+    GET_VARIANT_BY_CMD(s, fb, v, GET_CMD(fb, pos))
+    
+#define GET_VARIANT_BY_CMD(s, fb, v, cmd) \
+    command v##_cmd = cmd;\
     assert (COMMAND_TYPE(v##_cmd) == COMMAND_ADDR);\
     int v##_addrtype = ADDR_TYPE(COMMAND_CODE(v##_cmd));\
     int v##_addrpos = ADDR_POS(COMMAND_CODE(v##_cmd));\
-    assert (v##_addrtype == ADDR_STACK || v##_addrtype == ADDR_CONST);\
+    assert (v##_addrtype == ADDR_STACK || v##_addrtype == ADDR_CONST || v##_addrtype == ADDR_CONTAINER);\
     if (v##_addrtype == ADDR_STACK)\
     {\
         GET_STACK(v, s, (v##_addrpos));\
@@ -35,6 +41,10 @@ struct fake;
     else if (v##_addrtype == ADDR_CONST)\
     {\
 		GET_CONST(v, fb, (v##_addrpos)); \
+    }\
+    else if (v##_addrtype == ADDR_CONTAINER)\
+    {\
+		GET_CONTAINER(v, s, fb, (v##_addrpos)); \
     }\
     else\
     {\
@@ -75,7 +85,7 @@ struct fake;
  
 #define MATH_ASSIGN_OPER(s, fb, oper) \
 	variant * var = 0;\
-    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK);\
+    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK || ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_CONTAINER);\
 	LOG_VARIANT(s, fb, (s).m_pos, "var");\
     GET_VARIANT(s, fb, var, (s).m_pos);\
     (s).m_pos++;\
@@ -123,6 +133,30 @@ public:
     }
     
     void call(binary * bin, const char * func, paramstack * ps);
+
+    variant * get_container_variant(stack & s, const func_binary & fb, int conpos)
+    {
+        variant * v = 0;
+        assert(conpos >= 0 && conpos < (int)fb.m_container_addr_list_num);
+        const container_addr & ca = fb.m_container_addr_list[conpos];
+        bool err;
+        variant * conv = 0;
+        do {GET_VARIANT_BY_CMD(s, fb, conv, ca.con);}while(0);
+        const variant * keyv = 0;
+        do {GET_VARIANT_BY_CMD(s, fb, keyv, ca.key);}while(0);
+
+        assert(conv->type == variant::ARRAY || conv->type == variant::MAP);
+        if (conv->type == variant::ARRAY)
+        {
+            v = con_array_get(m_fk, conv->data.va, keyv);
+        }
+        else if (conv->type == variant::MAP)
+        {
+            v = con_map_get(m_fk, conv->data.vm, keyv);
+        }
+        assert(v);
+        return v;
+    }
 
     force_inline const variant & getret() const
     {
@@ -191,12 +225,15 @@ public:
             {
             case OPCODE_ASSIGN:
                 {
-                    // 赋值dest，必须为栈上
-                    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))) == ADDR_STACK);
-                    LOG_VARIANT(*m_cur_stack, fb, m_cur_stack->m_pos, "assign");
-                    int addrpos = ADDR_POS(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos)));
-                    m_cur_stack->m_pos++;
+                    // 赋值dest，必须为栈上或容器内
+                    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))) == ADDR_STACK || 
+                        ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))) == ADDR_CONTAINER);
 
+                    variant * varv = 0;
+                    LOG_VARIANT(*m_cur_stack, fb, m_cur_stack->m_pos, "var");
+                    GET_VARIANT(*m_cur_stack, fb, varv, m_cur_stack->m_pos);
+                    m_cur_stack->m_pos++;
+                    
                     // 赋值来源
                     const variant * valuev = 0;
                     LOG_VARIANT(*m_cur_stack, fb, m_cur_stack->m_pos, "value");
@@ -204,9 +241,9 @@ public:
                     m_cur_stack->m_pos++;
 
                     // 赋值
-                    SET_STACK(valuev, *m_cur_stack, addrpos);
+                    *varv = *valuev;
 
-                	FKLOG("assign %s to pos %d", (vartostring(valuev)).c_str(), addrpos);
+                	FKLOG("assign %s to %s", (vartostring(valuev)).c_str(), (vartostring(varv)).c_str());
                 }
                 break;
             case OPCODE_PLUS:

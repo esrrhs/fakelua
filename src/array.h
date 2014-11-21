@@ -14,6 +14,8 @@ struct array
 
 #define ARRAY_DELETE(array) safe_fkfree((array).m_fk, (array).m_data)
 #define ARRAY_CLEAR(array) (array).m_size = 0
+#define ARRAY_DEEP_CLEAR(array, T) (array).m_size = 0;\
+    memset((array).m_data, 0, (array).m_max_size * sizeof(T))
 #define ARRAY_INI(array, fk) (array).m_fk = (fk)
 #define ARRAY_MAX_SIZE(array) ((array).m_max_size)
 #define ARRAY_SIZE(array) ((array).m_size)

@@ -42,6 +42,7 @@ enum esyntreetype
 	est_identifier,
 	est_multi_assign_stmt,
 	est_var_list,
+	est_container_get,
 };
 
 const char * get_syntree_node_name(esyntreetype type);
@@ -701,3 +702,20 @@ struct multi_assign_stmt : public syntree_node
 	syntree_node * value;
 };
 
+struct container_get_node : public syntree_node
+{
+	container_get_node() {}
+	virtual ~container_get_node() {}
+
+	virtual esyntreetype gettype()
+	{
+		return est_container_get;
+	}
+
+	virtual String dump(int indent);
+
+	virtual void recycle();
+
+	String container;
+	syntree_node * key;
+};

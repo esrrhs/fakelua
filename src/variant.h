@@ -3,6 +3,8 @@
 #include "types.h"
 
 struct stringele;
+struct variant_array;
+struct variant_map;
 struct variant 
 {
 	enum Type 
@@ -12,6 +14,8 @@ struct variant
 		STRING,     // 字符串
 		POINTER,    // 指针
 		UUID,       // int64的uuid，不参与计算，为了效率
+		ARRAY,      // 数组
+		MAP,        // 集合
 	};	
     
 	union MemData
@@ -20,6 +24,8 @@ struct variant
 		stringele * str;
 		void * ptr;
 		uint64_t uuid;
+		variant_array * va;
+		variant_map * vm;
 		int64_t buf;	// 只是用作64位传递 
 	};
 
@@ -51,6 +57,14 @@ struct variant
 	(v)->type = variant::UUID; \
 	(v)->data.uuid = id;
 
+#define V_SET_ARRAY(v, a) \
+	(v)->type = variant::ARRAY; \
+	(v)->data.va = a;
+	
+#define V_SET_MAP(v, m) \
+	(v)->type = variant::MAP; \
+	(v)->data.vm = m;
+	
 #define V_GET_POINTER(v, p) \
 	assert((v)->type == variant::POINTER || (v)->type == variant::NIL); \
 	p = (v)->data.ptr;
@@ -102,10 +116,26 @@ struct variant
     {\
         ss = fkuitoa((v)->data.uuid); \
     }\
-    else\
+    else if ((v)->type == variant::POINTER)\
     {\
 		ss = fkptoa((v)->data.ptr); \
-    }
+    }\
+    else if ((v)->type == variant::ARRAY)\
+    {\
+		ss = fkarraytoa((v)->data.va); \
+    }\
+    else if ((v)->type == variant::MAP)\
+    {\
+		ss = fkmaptoa((v)->data.vm); \
+    }\
+    else if ((v)->type == variant::NIL)\
+    {\
+		ss = "nil"; \
+    }\
+    else\
+    {\
+        ss = "ERROR"; \
+    }    
 
 #define V_EQUAL_V(b, l, r) \
     if ((l)->type != (r)->type)\

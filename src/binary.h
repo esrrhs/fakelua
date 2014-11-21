@@ -4,6 +4,9 @@
 #include "variant.h"
 #include "hashmap.h"
 
+typedef uint64_t command;
+#define EMPTY_CMD (command(-1))
+
 enum CommandType
 {
     COMMAND_OPCODE,
@@ -42,12 +45,21 @@ enum OpCodeType
 	OPCODE_NOTEQUAL,
 	
     OPCODE_CALL,
+    
+    OPCODE_CONTAINER_GET,
 };
 
 enum AddrType
 {
 	ADDR_STACK,
 	ADDR_CONST,
+	ADDR_CONTAINER,
+};
+
+struct container_addr
+{
+    command con;
+    command key;
 };
 
 enum CallType
@@ -71,8 +83,6 @@ const char * OpCodeStr(int opcode);
 
 struct fake;
 class codegen;
-typedef uint64_t command;
-#define EMPTY_CMD (command(-1))
 class func_binary
 {
     friend class codegen;
@@ -90,6 +100,8 @@ public:
         m_paramnum = 0;
         m_const_list = 0;
         m_const_list_num = 0;
+        m_container_addr_list = 0;
+        m_container_addr_list_num = 0;
         m_pos = 0;
     }
 
@@ -120,18 +132,6 @@ public:
         return m_name;
     }
 
-	force_inline const command & getcmd(int pos) const
-    {
-        assert(pos >= 0 && pos < (int)m_size);
-        return m_buff[pos];
-    }
-
-	force_inline const variant * getconst(int pos) const
-    {
-        assert(pos >= 0 && pos < (int)m_const_list_num);
-        return &m_const_list[pos];
-    }
-    
 private:
     fake * m_fk;
     // 最大栈空间
@@ -146,6 +146,9 @@ private:
     // 常量
     variant * m_const_list;
     size_t m_const_list_num;
+    // container地址
+    container_addr * m_container_addr_list;
+    size_t m_container_addr_list_num;
     // 序列
     int m_pos;
 };
@@ -175,6 +178,7 @@ public:
             safe_fkfree(m_fk, bin.m_name);
             safe_fkfree(m_fk, bin.m_buff);
             safe_fkfree(m_fk, bin.m_const_list);
+            safe_fkfree(m_fk, bin.m_container_addr_list);
         }
         m_shh.clear();
     }
@@ -187,6 +191,7 @@ public:
             safe_fkfree(m_fk, old->m_name);
             safe_fkfree(m_fk, old->m_buff);
             safe_fkfree(m_fk, old->m_const_list);
+            safe_fkfree(m_fk, old->m_container_addr_list);
             FKLOG("backupbinary add_func del old %s", name);
     	}
         m_shh.add(name, bin);
@@ -229,6 +234,7 @@ public:
             safe_fkfree(m_fk, bin.m_name);
             safe_fkfree(m_fk, bin.m_buff);
             safe_fkfree(m_fk, bin.m_const_list);
+            safe_fkfree(m_fk, bin.m_container_addr_list);
         }
         m_shh.clear();
     }
@@ -241,6 +247,7 @@ public:
             safe_fkfree(m_fk, old->m_name);
             safe_fkfree(m_fk, old->m_buff);
             safe_fkfree(m_fk, old->m_const_list);
+            safe_fkfree(m_fk, old->m_container_addr_list);
             FKLOG("binary add_func del old %s", name);
     	}
         m_shh.add(name, bin);

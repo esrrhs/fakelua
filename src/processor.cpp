@@ -28,7 +28,7 @@ routine * processor::start_routine(binary * bin, const char * func, paramstack *
     // Ìí¼Ó
     if (ARRAY_SIZE(m_routine_list) >= ARRAY_MAX_SIZE(m_routine_list))
 	{
-	    size_t newsize = ARRAY_MAX_SIZE(m_routine_list) + 1 + ARRAY_MAX_SIZE(m_routine_list) * m_fk->cfg.routine_grow_speed / 100;
+	    size_t newsize = ARRAY_MAX_SIZE(m_routine_list) + 1 + ARRAY_MAX_SIZE(m_routine_list) * m_fk->cfg.array_grow_speed / 100;
         ARRAY_GROW(m_routine_list, newsize, pool<routine>::node *);
     }
 	ARRAY_PUSH_BACK(m_routine_list);

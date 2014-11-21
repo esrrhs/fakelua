@@ -268,6 +268,16 @@ bool compiler::compile_node(codegen & cg, syntree_node * node)
             }
         }
         break;
+    case est_container_get:
+        {
+            container_get_node * cn = dynamic_cast<container_get_node *>(node);
+            if (!compile_container_get(cg, cn))
+            {
+                FKERR("[compiler] compile_node compile_container_get error %d %s", type, node->gettypename());
+                return false;
+            }
+        }
+        break;
     default:
         {
             FKERR("[compiler] compile_node type error %d %s", type, node->gettypename());
@@ -1031,6 +1041,39 @@ bool compiler::compile_return_value_list(codegen & cg, return_value_list_node * 
 	m_cur_addr = m_cur_addrs[0];
 
 	FKLOG("[compiler] compile_return_value_list %p OK", rn);
+
+	return true;
+}
+
+bool compiler::compile_container_get(codegen & cg, container_get_node * cn)
+{
+	FKLOG("[compiler] compile_container_get %p", cn);
+
+    // ±àÒëcon
+    command con = 0;
+    int pos = cg.getvariable(cn->container);
+    if (pos == -1)
+    {
+        FKERR("[compiler] compile_container_get variable not found %s", cn->container.c_str());
+        seterror(m_fk, efk_compile_variable_not_found, "variable %s not found", cn->container.c_str());
+        return false;
+    }
+    con = MAKE_ADDR(ADDR_STACK, pos);
+
+    // ±àÒëkey
+    command key = 0;
+	if (!compile_node(cg, cn->key))
+	{
+		FKERR("[compiler] compile_container_get key fail");
+		return false;
+	}
+    key = m_cur_addr;
+
+    // ·µ»Ø
+    int addrpos = cg.getcontaineraddr(con, key);
+    m_cur_addr = MAKE_ADDR(ADDR_CONTAINER, addrpos);
+    
+	FKLOG("[compiler] compile_container_get %p OK", cn);
 
 	return true;
 }

@@ -83,6 +83,8 @@ String fkget_token_name(int token)
 		TOKEN_SWITCH(INC)
 		TOKEN_SWITCH(FAKE)
 		TOKEN_SWITCH(FKUUID)
+		TOKEN_SWITCH(OPEN_SQUARE_BRACKET)
+		TOKEN_SWITCH(CLOSE_SQUARE_BRACKET)
     }
 #undef TOKEN_SWITCH
 	return fkitoa(token);
@@ -150,3 +152,55 @@ uint32_t fkgetmstick()
 	return 0;
 #endif
 }
+
+String fkarraytoa(variant_array * va)
+{
+    String ret;
+    ret += "[";
+    for (int i = 0; i < (int)ARRAY_MAX_SIZE(va->va); i++)
+    {
+        pool<variant>::node * n = ARRAY_GET(va->va, i);
+        if (n)
+        {
+            ret += vartostring(&(n->t));
+        }
+        else
+        {
+            ret += " ";
+        }
+        ret += ",";
+    }
+    ret += "]";
+    
+    return ret;
+}
+
+String fkmaptoa(variant_map * vm)
+{
+    String ret;
+    ret += "{";
+    int i = 0;
+    for (const vhashmap<pool<variant>::node *>::ele * p = vm->vm.first(); p != 0; p = vm->vm.next())
+    {
+        const variant & key = p->k;
+        const pool<variant>::node * value = p->t;
+        if (!i)
+        {
+            ret += "(";
+        }
+        else
+        {
+            ret += ",(";
+        }
+        ret += vartostring(&key);
+        ret += ",";
+        ret += vartostring(&(value->t));
+        ret += ")";
+        i++;
+    }
+    ret += "}";
+    
+    return ret;
+}
+
+

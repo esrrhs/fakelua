@@ -109,6 +109,7 @@ FAKE_API void fkrunps(fake * fk, const char * func)
     {
         fk->bin.move();
         fk->sh.checkgc();
+        fk->con.clear();
     }
     fk->rundeps++;
 
