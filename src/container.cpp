@@ -1,77 +1,39 @@
 #include "container.h"
 #include "fake.h"
 
-container::container(fake * fk) : m_fk(fk)
+container::container(fake * fk) : m_fk(fk), m_gmap(fk)
 {
-	POOL_INI(m_va_pool, fk);
-	POOL_INI(m_vm_pool, fk);
-	POOL_INI(m_vpool, fk);
-	ARRAY_INI(m_va_list, fk);
-	ARRAY_INI(m_vm_list, fk);
-	ARRAY_INI(m_vlist, fk);
+	POOLLIST_INI(m_va_pl, fk);
+	POOLLIST_INI(m_vm_pl, fk);
+	POOLLIST_INI(m_v_pl, fk);
+	POOLLIST_INI(m_gv_pl, fk);
 }
 
 container::~container()
 {
 	clear();
-	POOL_DELETE(m_va_pool);
-	POOL_DELETE(m_vm_pool);
-	POOL_DELETE(m_vpool);
-	ARRAY_DELETE(m_va_list);
-	ARRAY_DELETE(m_vm_list);
-	ARRAY_DELETE(m_vlist);
+	POOLLIST_DELETE(m_va_pl);
+	POOLLIST_DELETE(m_vm_pl);
+	POOLLIST_DELETE(m_v_pl);
+	
+    POOLLIST_CLEAR(m_gv_pl, variant, USE(n));
+	POOLLIST_DELETE(m_gv_pl);
 }
 
 void container::clear()
 {
-    for (int i = 0; i < (int)ARRAY_SIZE(m_va_list); i++)
-    {
-        pool<variant_array>::node * n = ARRAY_GET(m_va_list, i);
-        variant_array & va = n->t;
-        ARRAY_CLEAR(va.va);
-        ARRAY_DEEP_CLEAR(va.va, pool<variant_array>::node *);
-        POOL_PUSH(m_va_pool, n);
-    }
-    ARRAY_CLEAR(m_va_list);
-    for (int i = 0; i < (int)ARRAY_SIZE(m_vm_list); i++)
-    {
-        pool<variant_map>::node * n = ARRAY_GET(m_vm_list, i);
-        variant_map & vm = n->t;
-        HASHMAP_CLEAR(vm.vm);
-        POOL_PUSH(m_vm_pool, n);
-    }
-    ARRAY_CLEAR(m_vm_list);
-    for (int i = 0; i < (int)ARRAY_SIZE(m_vlist); i++)
-    {
-        pool<variant>::node * n = ARRAY_GET(m_vlist, i);
-        POOL_PUSH(m_vpool, n);
-    }
-    ARRAY_CLEAR(m_vlist);
+    POOLLIST_CLEAR(m_va_pl, variant_array, ARRAY_DEEP_CLEAR(n->t.va, pool<variant_array>::node *));
+    POOLLIST_CLEAR(m_vm_pl, variant_map, HASHMAP_CLEAR(n->t.vm));
+    POOLLIST_CLEAR(m_v_pl, variant, USE(n));
 }
 
 variant_array * container::newarray()
 {
     pool<variant_array>::node * n = 0;
-    if (POOL_EMPTY(m_va_pool))
-	{
-        POOL_GROW(m_va_pool, pool<variant_array>::node, n);
-        ARRAY_INI(n->t.va, m_fk);
-    }
-
-    // 分配
-    POOL_POP(m_va_pool, n);
-    assert(n);
-
-    ARRAY_CLEAR(n->t.va);
+    POOLLIST_POP(m_va_pl, n, variant_array, m_fk->cfg.array_grow_speed);
     
-    // 添加
-    if (ARRAY_SIZE(m_va_list) >= ARRAY_MAX_SIZE(m_va_list))
-	{
-	    size_t newsize = ARRAY_MAX_SIZE(m_va_list) + 1 + ARRAY_MAX_SIZE(m_va_list) * m_fk->cfg.array_grow_speed / 100;
-        ARRAY_GROW(m_va_list, newsize, pool<variant_array>::node *);
-    }
-	ARRAY_PUSH_BACK(m_va_list);
-	ARRAY_BACK(m_va_list) = n;
+    ARRAY_INI(n->t.va, m_fk);
+    ARRAY_CLEAR(n->t.va);
     
     return &n->t;
 }
@@ -79,26 +41,10 @@ variant_array * container::newarray()
 variant_map * container::newmap()
 {
     pool<variant_map>::node * n = 0;
-    if (POOL_EMPTY(m_vm_pool))
-	{
-        POOL_GROW(m_vm_pool, pool<variant_map>::node, n);
-        HASHMAP_INI(n->t.vm, m_fk);
-    }
-
-    // 分配
-    POOL_POP(m_vm_pool, n);
-    assert(n);
-
-    HASHMAP_CLEAR(n->t.vm);
+    POOLLIST_POP(m_vm_pl, n, variant_map, m_fk->cfg.array_grow_speed);
     
-    // 添加
-    if (ARRAY_SIZE(m_vm_list) >= ARRAY_MAX_SIZE(m_vm_list))
-	{
-	    size_t newsize = ARRAY_MAX_SIZE(m_vm_list) + 1 + ARRAY_MAX_SIZE(m_vm_list) * m_fk->cfg.array_grow_speed / 100;
-        ARRAY_GROW(m_vm_list, newsize, pool<variant_map>::node *);
-    }
-	ARRAY_PUSH_BACK(m_vm_list);
-	ARRAY_BACK(m_vm_list) = n;
+    HASHMAP_INI(n->t.vm, m_fk);
+    HASHMAP_CLEAR(n->t.vm);
     
     return &n->t;
 }
@@ -106,25 +52,18 @@ variant_map * container::newmap()
 pool<variant>::node * container::newvariant()
 {
     pool<variant>::node * n = 0;
-    if (POOL_EMPTY(m_vpool))
-	{
-        POOL_GROW(m_vpool, pool<variant>::node, n);
-        V_SET_NIL(&(n->t));
-    }
+    POOLLIST_POP(m_v_pl, n, variant, m_fk->cfg.array_grow_speed);
+    
+    V_SET_NIL(&(n->t));
+    return n;
+}
 
-    // 分配
-    POOL_POP(m_vpool, n);
-    assert(n);
+pool<variant>::node * container::newglobalvariant()
+{
+    pool<variant>::node * n = 0;
+    POOLLIST_POP(m_gv_pl, n, variant, m_fk->cfg.array_grow_speed);
     
-    // 添加
-    if (ARRAY_SIZE(m_vlist) >= ARRAY_MAX_SIZE(m_vlist))
-	{
-	    size_t newsize = ARRAY_MAX_SIZE(m_vlist) + 1 + ARRAY_MAX_SIZE(m_vlist) * m_fk->cfg.array_grow_speed / 100;
-        ARRAY_GROW(m_vlist, newsize, pool<variant>::node *);
-    }
-	ARRAY_PUSH_BACK(m_vlist);
-	ARRAY_BACK(m_vlist) = n;
-    
+    V_SET_NIL(&(n->t));
     return n;
 }
 
@@ -156,7 +95,7 @@ variant * con_map_get(fake * fk, variant_map * vm, const variant * k)
         n = *p;
         return &(n->t);
     }
-    n = fk->con.newvariant();
+    n = vm != fk->con.get_gmap() ? fk->con.newvariant() : fk->con.newglobalvariant();
     vm->vm.add(*k, n);
     return &(n->t);
 }
