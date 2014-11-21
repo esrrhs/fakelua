@@ -217,6 +217,14 @@
 	return COLON;
 }
 
+"[" {
+	return OPEN_SQUARE_BRACKET;
+}
+
+"]" {
+	return CLOSE_SQUARE_BRACKET;
+}
+
 \n {
 }
 

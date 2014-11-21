@@ -16,6 +16,7 @@ typedef std::vector<block_identifiers> block_identifiers_list;
 typedef std::vector<block_identifiers_list> block_identifiers_stack;
 typedef std::vector<command> byte_code_list;
 typedef std::vector<variant> const_list;
+typedef std::vector<container_addr> containeraddr_list;
 
 struct fake;
 class codegen
@@ -116,6 +117,8 @@ public:
         return -1;
     }
     
+	int getcontaineraddr(command con, command key);
+	
 private:
     fake * m_fk;
     int m_stackpos;
@@ -123,5 +126,6 @@ private:
     block_identifiers_stack m_block_identifiers_stack;
 	byte_code_list m_byte_code_list;
 	const_list m_const_list;
+	containeraddr_list m_containeraddr_list;
 };
 

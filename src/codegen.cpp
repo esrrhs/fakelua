@@ -41,6 +41,24 @@ int codegen::getconst(const variant & v)
 	return pos;
 }
 
+int codegen::getcontaineraddr(command con, command key)
+{
+	for (int i = 0; i < (int)m_containeraddr_list.size(); i++)
+	{
+		container_addr & pc = m_containeraddr_list[i];
+		if (con == pc.con && key == pc.key)
+		{
+			return i;
+		}
+	}
+	int pos = m_containeraddr_list.size();
+	container_addr tmp;
+	tmp.con = con;
+	tmp.key = key;
+	m_containeraddr_list.push_back(tmp);
+	return pos;
+}
+	
 void codegen::output(const char * name, func_binary * bin)
 {
     bin->m_name = stringdump(m_fk, name, strlen(name));
@@ -59,6 +77,13 @@ void codegen::output(const char * name, func_binary * bin)
 	{
 		bin->m_const_list = (variant *)safe_fkmalloc(m_fk, (bin->m_const_list_num * sizeof(variant)));
 		memcpy(bin->m_const_list, &m_const_list[0], bin->m_const_list_num * sizeof(variant));
+    }
+
+    bin->m_container_addr_list_num = m_containeraddr_list.size();
+	if (bin->m_container_addr_list_num > 0)
+	{
+		bin->m_container_addr_list = (container_addr *)safe_fkmalloc(m_fk, (bin->m_container_addr_list_num * sizeof(container_addr)));
+		memcpy(bin->m_container_addr_list, &m_containeraddr_list[0], bin->m_container_addr_list_num * sizeof(container_addr));
     }
 
     FKLOG("codegen out %s %d", name, m_maxstackpos);

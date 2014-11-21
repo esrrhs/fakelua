@@ -65,7 +65,7 @@ void interpreter::call(binary * bin, const char * func, paramstack * ps)
     // ѹջ
 	if (ARRAY_SIZE(m_stack_list) >= ARRAY_MAX_SIZE(m_stack_list))
 	{
-	    int newsize = ARRAY_MAX_SIZE(m_stack_list) + 1 + ARRAY_MAX_SIZE(m_stack_list) * m_fk->cfg.stack_list_grow_speed / 100;
+	    int newsize = ARRAY_MAX_SIZE(m_stack_list) + 1 + ARRAY_MAX_SIZE(m_stack_list) * m_fk->cfg.array_grow_speed / 100;
 		ARRAY_GROW(m_stack_list, newsize, stack);
 	}
 	ARRAY_PUSH_BACK(m_stack_list);

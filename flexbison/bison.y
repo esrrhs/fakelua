@@ -72,6 +72,8 @@ int my_yyerror(const char *s, void * parm)
 %token INC
 %token FAKE
 %token FKUUID
+%token OPEN_SQUARE_BRACKET
+%token CLOSE_SQUARE_BRACKET
 
 %right PLUS
 %right MINUS
@@ -767,6 +769,15 @@ variable:
 		FKLOG("[bison]: variable <- IDENTIFIER %s", $1.c_str());
 		NEWTYPE(p, variable_node);
 		p->str = $1;
+		$$ = p;
+	}
+	|
+	IDENTIFIER OPEN_SQUARE_BRACKET expr_value CLOSE_SQUARE_BRACKET
+	{
+		FKLOG("[bison]: container_get_node <- IDENTIFIER[expr_value] %s", $1.c_str());
+		NEWTYPE(p, container_get_node);
+		p->container = $1;
+		p->key = $3;
 		$$ = p;
 	}
 	;

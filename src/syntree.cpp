@@ -32,6 +32,7 @@ const char * get_syntree_node_name(esyntreetype type)
 	SYN_NODE_DEF(est_return_value_list)
 	SYN_NODE_DEF(est_multi_assign_stmt)
 	SYN_NODE_DEF(est_var_list)
+	SYN_NODE_DEF(est_container_get)
     
 #undef SYN_NODE_DEF
     }
@@ -412,6 +413,31 @@ String multi_assign_stmt::dump(int indent)
 
 }
 
+void container_get_node::recycle()
+{
+	FKLOG("recycle container_get_node");
+	key->recycle();
+	fkdelete<container_get_node>(fk, this);
+}
+
+String container_get_node::dump(int indent)
+{
+	String ret;
+	ret += gentab(indent);
+	ret += "[container_get]:\n";
+
+	ret += gentab(indent + 1);
+	ret += "[container]:";
+	ret += container;
+	ret += "\n";
+
+	ret += gentab(indent + 1);
+	ret += "[key]:\n";
+	ret += key->dump(indent + 2);
+	return ret;
+
+}
+
 void multi_assign_stmt::recycle()
 {
 	FKLOG("recycle var_list_node");
@@ -419,3 +445,4 @@ void multi_assign_stmt::recycle()
 	value->recycle();
 	fkdelete<multi_assign_stmt>(fk, this);
 }
+

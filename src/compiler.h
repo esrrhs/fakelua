@@ -40,7 +40,8 @@ private:
     bool compile_function_call_node(codegen & cg, function_call_node * fn);
     bool compile_math_expr_node(codegen & cg, math_expr_node * mn);
 	bool compile_return_value_list(codegen & cg, return_value_list_node * rn);
-
+    bool compile_container_get(codegen & cg, container_get_node * cn);
+    
 private:
     fake * m_fk;
 	command m_cur_addr;

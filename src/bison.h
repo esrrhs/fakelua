@@ -81,7 +81,9 @@
      FOR = 297,
      INC = 298,
      FAKE = 299,
-     FKUUID = 300
+     FKUUID = 300,
+     OPEN_SQUARE_BRACKET = 301,
+     CLOSE_SQUARE_BRACKET = 302
    };
 #endif
 
