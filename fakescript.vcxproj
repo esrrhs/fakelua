@@ -75,9 +75,6 @@
     <ClCompile Include="src\variant.cpp" />
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="src\win32\nativecall.asm" />
-  </ItemGroup>
-  <ItemGroup>
     <Text Include="CMakeLists.txt" />
   </ItemGroup>
   <PropertyGroup Label="Globals">

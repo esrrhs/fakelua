@@ -80,20 +80,23 @@ struct variant
 #define V_GET_UUID(v, id) \
 	assert((v)->type == variant::UUID || (v)->type == variant::NIL); \
 	id = (v)->data.uuid;
+
+#define V_ASSERT_CAN_CAL(v) assert((v)->type == variant::NIL || (v)->type == variant::REAL)
+#define V_ASSERT_CAN_CAL_BIN(l, r) V_ASSERT_CAN_CAL(l);V_ASSERT_CAN_CAL(r)
     
-#define V_PLUS(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real + (r)->data.real;(d)->type = variant::REAL
-#define V_MINUS(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real - (r)->data.real;(d)->type = variant::REAL
-#define V_MULTIPLY(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real * (r)->data.real;(d)->type = variant::REAL
-#define V_DIVIDE(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real / (r)->data.real;(d)->type = variant::REAL
-#define V_DIVIDE_MOD(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (int64_t)(l)->data.real % ((int64_t)(r)->data.real);(d)->type = variant::REAL
-#define V_AND(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = ((l)->data.real != 0) & ((r)->data.real != 0);(d)->type = variant::REAL
-#define V_OR(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = ((l)->data.real != 0) | ((r)->data.real != 0);(d)->type = variant::REAL
-#define V_LESS(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real < (r)->data.real;(d)->type = variant::REAL
-#define V_MORE(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real > (r)->data.real;(d)->type = variant::REAL
-#define V_EQUAL(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real == (r)->data.real;(d)->type = variant::REAL
-#define V_MOREEQUAL(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real >= (r)->data.real;(d)->type = variant::REAL
-#define V_LESSEQUAL(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real <= (r)->data.real;(d)->type = variant::REAL
-#define V_NOTEQUAL(d, l, r) assert((l)->type == variant::REAL && (r)->type == variant::REAL);(d)->data.real = (l)->data.real != (r)->data.real;(d)->type = variant::REAL
+#define V_PLUS(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real + (r)->data.real;(d)->type = variant::REAL
+#define V_MINUS(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real - (r)->data.real;(d)->type = variant::REAL
+#define V_MULTIPLY(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real * (r)->data.real;(d)->type = variant::REAL
+#define V_DIVIDE(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real / (r)->data.real;(d)->type = variant::REAL
+#define V_DIVIDE_MOD(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (int64_t)(l)->data.real % ((int64_t)(r)->data.real);(d)->type = variant::REAL
+#define V_AND(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = ((l)->data.real != 0) & ((r)->data.real != 0);(d)->type = variant::REAL
+#define V_OR(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = ((l)->data.real != 0) | ((r)->data.real != 0);(d)->type = variant::REAL
+#define V_LESS(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real < (r)->data.real;(d)->type = variant::REAL
+#define V_MORE(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real > (r)->data.real;(d)->type = variant::REAL
+#define V_EQUAL(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real == (r)->data.real;(d)->type = variant::REAL
+#define V_MOREEQUAL(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real >= (r)->data.real;(d)->type = variant::REAL
+#define V_LESSEQUAL(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real <= (r)->data.real;(d)->type = variant::REAL
+#define V_NOTEQUAL(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real != (r)->data.real;(d)->type = variant::REAL
 
 #define V_BOOL(v) ((v)->data.real != 0)
 #define V_TOSTRING(v, ss) \

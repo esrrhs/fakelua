@@ -43,7 +43,9 @@ func myfunc1(arg1, arg2)
 	
 	f[2]++
 	print(f)
-		
+	f[2]++
+	print("new f ", f)
+	
 	return b[18] + c[21]
 	
 end

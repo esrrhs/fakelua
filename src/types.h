@@ -82,7 +82,11 @@ static force_inline int64_t fkatol(const String * p)
 {
     if (p)
     {
-        return atoll(p->c_str());
+#ifdef WIN32
+        return _atoi64(p->c_str());
+#else
+		return atoll(p->c_str());
+#endif
     }
     return 0;
 }
