@@ -6,7 +6,7 @@
 #endif
 
 // print, very slow
-void buildinprint(fake * fk, interpreter * inter)
+void buildin_print(fake * fk, interpreter * inter)
 {
     String str;
     for (int i = 0; i < (int)fk->ps.m_variant_list_num; i++)
@@ -20,7 +20,7 @@ void buildinprint(fake * fk, interpreter * inter)
 }
 
 // log, very slow
-void buildinlog(fake * fk, interpreter * inter)
+void buildin_log(fake * fk, interpreter * inter)
 {
     String str;
     for (int i = 0; i < (int)fk->ps.m_variant_list_num; i++)
@@ -48,7 +48,7 @@ void buildinlog(fake * fk, interpreter * inter)
 }
 
 // sleep
-void buildinsleep(fake * fk, interpreter * inter)
+void buildin_sleep(fake * fk, interpreter * inter)
 {
     int millionseconds = fkpspop<int>(fk);
 #if defined(WIN32)
@@ -60,7 +60,7 @@ void buildinsleep(fake * fk, interpreter * inter)
 }
 
 // array
-void buildinarray(fake * fk, interpreter * inter)
+void buildin_array(fake * fk, interpreter * inter)
 {
     variant_array * a = fk->con.newarray();
     variant * v = 0;
@@ -69,7 +69,7 @@ void buildinarray(fake * fk, interpreter * inter)
 }
 
 // map
-void buildinmap(fake * fk, interpreter * inter)
+void buildin_map(fake * fk, interpreter * inter)
 {
     variant_map * m = fk->con.newmap();
     variant * v = 0;
@@ -77,13 +77,32 @@ void buildinmap(fake * fk, interpreter * inter)
     V_SET_MAP(v, m);
 }
 
+// global map
+void buildin_globalmap(fake * fk, interpreter * inter)
+{
+    variant_map * m = fk->con.get_gmap();
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_MAP(v, m);
+}
+
+// global map
+void buildin_clearglobalmap(fake * fk, interpreter * inter)
+{
+    variant_map * m = fk->con.get_gmap();
+    m->vm.clear();
+    fkpspush<int>(fk, 0);
+}
+
 void buildinfunc::openbasefunc()
 {
-    m_shh.add("print", buildinprint);
-    m_shh.add("log", buildinlog);
-    m_shh.add("sleep", buildinsleep);
-    m_shh.add("array", buildinarray);
-    m_shh.add("map", buildinmap);
+    m_shh.add("print", buildin_print);
+    m_shh.add("log", buildin_log);
+    m_shh.add("sleep", buildin_sleep);
+    m_shh.add("array", buildin_array);
+    m_shh.add("map", buildin_map);
+    m_shh.add("G", buildin_globalmap);
+    m_shh.add("CG", buildin_clearglobalmap);
 }
 
 bool buildinfunc::call(interpreter * inter, const char * name)

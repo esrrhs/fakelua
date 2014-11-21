@@ -16,19 +16,15 @@ public:
 
 public:
     fake * m_fk;
-    pool<routine> m_routine_pool;
-    array<pool<routine>::node *> m_routine_list;
+    poollist<routine> m_pl;
     size_t m_routine_num;
 };
 
 #define PROCESS_INI(pro, fk) (pro).m_fk = fk;\
-    POOL_INI((pro).m_routine_pool, fk);\
-    ARRAY_INI((pro).m_routine_list, fk);\
+    POOLLIST_INI((pro).m_pl, fk)
 
-#define PROCESS_DELETE(pro) POOL_DELETE((pro).m_routine_pool);\
-    ARRAY_DELETE((pro).m_routine_list)
+#define PROCESS_DELETE(pro) POOLLIST_DELETE((pro).m_pl)
 
-#define PROCESS_CLEAR(pro) POOL_CLEAR((pro).m_routine_pool);\
-    ARRAY_CLEAR((pro).m_routine_list);\
-    (pro).m_routine_num = 0;
+#define PROCESS_CLEAR(pro) POOLLIST_CLEAR((pro).m_pl, routine, USE(n));\
+    (pro).m_routine_num = 0
 
