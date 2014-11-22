@@ -81,57 +81,9 @@ const char * OpCodeStr(int opcode);
 
 struct fake;
 class codegen;
-class func_binary
+struct func_binary
 {
-    friend class codegen;
-    friend class interpreter;
-    friend class binary;
-    friend class assembler;
-    friend class compiler;
-    friend class backupbinary;
-public:
-	force_inline func_binary(fake * fk) : m_fk(fk)
-    {
-        m_buff = 0;
-        m_size = 0;
-        m_maxstack = 0;
-        m_paramnum = 0;
-        m_const_list = 0;
-        m_const_list_num = 0;
-        m_container_addr_list = 0;
-        m_container_addr_list_num = 0;
-        m_pos = 0;
-    }
-
-	force_inline size_t cmdsize() const
-    {
-        return m_size;
-    }
-    
-	force_inline size_t size() const
-    {
-        return m_size * sizeof(command);
-    }
-
-	force_inline size_t maxstack() const
-    {
-        return m_maxstack;
-    }
-
-	force_inline size_t paramnum() const
-    {
-        return m_paramnum;
-    }
-
     String dump() const;
-
-	force_inline const char * getname() const
-    {
-        return m_name;
-    }
-
-private:
-    fake * m_fk;
     // 最大栈空间
     int m_maxstack;
     // 参数个数
@@ -150,6 +102,30 @@ private:
     // 序列
     int m_pos;
 };
+
+#define FUNC_BINARY_INI(fb) \
+	memset(&(fb), 0, sizeof(func_binary))
+
+#define FUNC_BINARY_NAME(fb) \
+	((fb).m_name)
+
+#define FUNC_BINARY_CMDSIZE(fb) \
+	((fb).m_size)
+
+#define FUNC_BINARY_SIZE(fb) \
+	((fb).m_size * sizeof(command))
+
+#define FUNC_BINARY_MAX_STACK(fb) \
+	((fb).m_maxstack)
+
+#define FUNC_BINARY_PARAMNUM(fb) \
+	((fb).m_paramnum)
+
+#define FUNC_BINARY_DELETE(fb) \
+	safe_fkfree(m_fk, (fb).m_name); \
+	safe_fkfree(m_fk, (fb).m_buff); \
+	safe_fkfree(m_fk, (fb).m_const_list); \
+	safe_fkfree(m_fk, (fb).m_container_addr_list)
 
 class backupbinary
 {
@@ -170,50 +146,41 @@ public:
 
     force_inline void clear()
     {
-        for (const stringhashmap<func_binary>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+        for (const vhashmap<func_binary>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
         {
             const func_binary & bin = p->t;
-            safe_fkfree(m_fk, bin.m_name);
-            safe_fkfree(m_fk, bin.m_buff);
-            safe_fkfree(m_fk, bin.m_const_list);
-            safe_fkfree(m_fk, bin.m_container_addr_list);
+			FUNC_BINARY_DELETE(bin);
         }
         m_shh.clear();
     }
 
-    force_inline bool add_func(const char * name, const func_binary & bin)
+	force_inline bool add_func(const variant & name, const func_binary & bin)
     {
-        func_binary * old = m_shh.get(name);
+		func_binary * old = m_shh.get(name);
         if (old)
-        {
-            safe_fkfree(m_fk, old->m_name);
-            safe_fkfree(m_fk, old->m_buff);
-            safe_fkfree(m_fk, old->m_const_list);
-            safe_fkfree(m_fk, old->m_container_addr_list);
-            FKLOG("backupbinary add_func del old %s", name);
+		{
+			FUNC_BINARY_DELETE(*old);
+            FKLOG("backupbinary add_func del old %s", vartostring(&name).c_str());
     	}
-        m_shh.add(name, bin);
+		m_shh.add(name, bin);
         return true;
-    }
-    force_inline const func_binary * get_func(const char * name) const
-    {
-        return m_shh.get(name);
     }
     
     String dump() const;
     
 private:
     fake * m_fk; 
-    stringhashmap<func_binary> m_shh;   
+    vhashmap<func_binary> m_shh;   
 };
 
 class binary
 {
     friend class assembler;
 public:
-    force_inline binary(fake * fk) : m_fk(fk), m_shh(fk)
+    force_inline binary(fake * fk) : m_fk(fk)
     {
     }
+
     force_inline ~binary()
     {
         clear();
@@ -226,43 +193,15 @@ public:
 
     force_inline void clear()
     {
-        for (const stringhashmap<func_binary>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
-        {
-            const func_binary & bin = p->t;
-            safe_fkfree(m_fk, bin.m_name);
-            safe_fkfree(m_fk, bin.m_buff);
-            safe_fkfree(m_fk, bin.m_const_list);
-            safe_fkfree(m_fk, bin.m_container_addr_list);
-        }
-        m_shh.clear();
     }
 
-    force_inline bool add_func(const char * name, const func_binary & bin)
-    {
-        func_binary * old = m_shh.get(name);
-        if (old)
-        {
-            safe_fkfree(m_fk, old->m_name);
-            safe_fkfree(m_fk, old->m_buff);
-            safe_fkfree(m_fk, old->m_const_list);
-            safe_fkfree(m_fk, old->m_container_addr_list);
-            FKLOG("binary add_func del old %s", name);
-    	}
-        m_shh.add(name, bin);
-        return true;
-    }
+	bool add_func(const variant & name, const func_binary & bin);
     
-    force_inline const func_binary * get_func(const char * name) const
-    {
-        return m_shh.get(name);
-    }
-   
     String dump() const;
     
     void move();
     
 private:
     fake * m_fk;    
-    stringhashmap<func_binary> m_shh;
 };
 

@@ -96,7 +96,9 @@ FAKE_API const char * fkerrorstr(fake * fk)
 
 FAKE_API bool fkisfunc(fake * fk, const char * func)
 {
-    return fk->bin.get_func(func) != 0;
+	variant funcv;
+	V_SET_STRING(&funcv, func);
+	return fk->fm.get_func(funcv) != 0;
 }
 
 // µ÷ÓÃº¯Êý
@@ -127,8 +129,10 @@ FAKE_API void fkrunps(fake * fk, const char * func)
     assert(ARRAY_EMPTY(n->t.m_pl.l));
     assert(n->t.m_routine_num == 0);
     processor & pro = n->t;
-    PROCESS_CLEAR(pro);
-    routine * r = pro.start_routine(&fk->bin, func, &fk->ps);
+	PROCESS_CLEAR(pro);
+	variant funcv;
+	V_SET_STRING(&funcv, func);
+	routine * r = pro.start_routine(&fk->bin, funcv, &fk->ps);
 
     pro.run();
     
@@ -379,8 +383,7 @@ FAKE_API void fkrunpsjit(fake * fk, const char * func)
 void fkpushfunctor(fake * fk, const char * name, fkfunctor ff)
 {
     FKLOG("fkpushfunctor %p %s", fk, name);
-
-    fk->bf.addfunc(name, ff);
+	fk->bf.addfunc(fk->sh.allocsysstr(name), ff);
 }
 
 void fkopenbaselib(fake * fk)

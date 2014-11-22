@@ -3,13 +3,15 @@
 #include "types.h"
 #include "hashmap.h"
 
+struct interpreter;
+struct funcunion;
+
 typedef void (*bifunc)(fake * fk, interpreter * inter);
 
-struct interpreter;
 class buildinfunc
 {
 public:
-    force_inline buildinfunc(fake * fk) : m_fk(fk), m_shh(fk)
+	force_inline buildinfunc(fake * fk) : m_fk(fk)
     {
     }
     force_inline ~buildinfunc()
@@ -24,16 +26,16 @@ public:
 
     force_inline void clear()
     {
-        m_shh.clear();
     }
 
     void openbasefunc();
     
-    // 参数和返回值都在m_fk->ps里
-    bool call(interpreter * inter, const char * name);
-    
 private:
     fake * m_fk;
-    stringhashmap<bifunc> m_shh;
 };
 
+// 参数和返回值都在m_fk->ps里
+#define BUILDIN_FUNC_CALL(f, inter) \
+	assert((f)->havebif);\
+	assert((f)->bif); \
+	((f)->bif)(m_fk, (inter))

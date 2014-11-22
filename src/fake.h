@@ -29,10 +29,11 @@
 #include "pool.h"
 #include "processor.h"
 #include "container.h"
+#include "funcmap.h"
 
 struct fake
 {
-    fake() : errorno(0), mf(this), bbin(this), bin(this), mc(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), rundeps(0), con(this)
+	fake() : errorno(0), mf(this), bbin(this), bin(this), mc(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), rundeps(0), con(this), fm(this)
     {
         POOL_INI(pp, this);
     }
@@ -59,8 +60,9 @@ struct fake
         bf.clear();
         bif.clear();
         pf.clear();
-        rundeps = 0;
-        con.clear();
+		rundeps = 0;
+		con.clear();
+		fm.clear();
     }
     
     void clearerr()
@@ -119,6 +121,9 @@ struct fake
 
     // ÈÝÆ÷
     container con;
+
+	// º¯ÊýË÷Òý
+	funcmap fm;
 };
 
 template <typename T>

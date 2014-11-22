@@ -10,7 +10,7 @@ struct processor
 {
 public:
 
-    routine * start_routine(binary * bin, const char * func, paramstack * ps);
+    routine * start_routine(binary * bin, const variant & func, paramstack * ps);
     
     void run();
 

@@ -185,10 +185,13 @@ String func_binary::dump() const
 String binary::dump() const
 {
     String ret;
-    for (const stringhashmap<func_binary>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	for (const vhashmap<funcunion>::ele * p = m_fk->fm.m_shh.first(); p != 0; p = m_fk->fm.m_shh.next())
     {
-        const func_binary & bin = p->t;
-        ret += bin.dump();
+		const funcunion & f = p->t;
+		if (f.havefb)
+		{
+			ret += f.fb.dump();
+		}
     }
     return ret;
 }
@@ -200,18 +203,27 @@ void binary::move()
 		return;
 	}
 
-    for (const stringhashmap<func_binary>::ele * p = m_fk->bbin.m_shh.first(); p != 0; p = m_fk->bbin.m_shh.next())
+    for (const vhashmap<func_binary>::ele * p = m_fk->bbin.m_shh.first(); p != 0; p = m_fk->bbin.m_shh.next())
     {
         const func_binary & bin = p->t;
-        add_func(p->s, bin);
+		add_func(p->k, bin);
     }
     m_fk->bbin.m_shh.clear();
 }
-    
+
+bool binary::add_func(const variant & name, const func_binary & bin)
+{
+	m_fk->fm.add_func(name, bin);
+
+	FKLOG("add func %s", vartostring(&name).c_str());
+
+	return true;
+}
+
 String backupbinary::dump() const
 {
     String ret;
-    for (const stringhashmap<func_binary>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	for (const vhashmap<func_binary>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
     {
         const func_binary & bin = p->t;
         ret += bin.dump();
