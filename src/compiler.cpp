@@ -42,7 +42,8 @@ bool compiler::compile_func(func_desc_node * funcnode)
     
     // 不检测重名，直接替换掉老的
     codegen cg(m_fk);
-    func_binary bin(m_fk);
+    func_binary bin;
+	FUNC_BINARY_INI(bin);
     
     // 压栈
     cg.push_stack_identifiers();
@@ -74,10 +75,10 @@ bool compiler::compile_func(func_desc_node * funcnode)
     }
     
     // 编译成功
-    cg.output(funcnode->funcname.c_str(), &bin);
-    m_fk->bbin.add_func(funcnode->funcname.c_str(), bin);
+	cg.output(funcnode->funcname.c_str(), &bin);
+	m_fk->bbin.add_func(m_fk->sh.allocsysstr(funcnode->funcname.c_str()), bin);
     
-    FKLOG("[compiler] compile_func func %s size = %d OK", funcnode->funcname.c_str(), bin.size());
+	FKLOG("[compiler] compile_func func %s size = %d OK", funcnode->funcname.c_str(), FUNC_BINARY_SIZE(bin));
     
     return true;
 }

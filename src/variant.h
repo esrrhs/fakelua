@@ -26,7 +26,7 @@ struct variant
 		uint64_t uuid;
 		variant_array * va;
 		variant_map * vm;
-		int64_t buf;	// 只是用作64位传递 
+		uint64_t buf;	// 只是用作64位传递 
 	};
 
 	Type type;
@@ -37,12 +37,19 @@ struct variant
 #define variant_type_off ((size_t)(size_t*)&((variant*)0)->type)
 #define variant_data_off ((size_t)(size_t*)&((variant*)0)->data)
 
+#ifdef FK64
+#define V_SAFE_PTR_CLEAN(v)
+#else
+#define V_SAFE_PTR_CLEAN(v) (v)->data.buf = 0
+#endif
+
 #define V_SET_NIL(v) \
 	(v)->type = variant::NIL; \
 	(v)->data.buf = 0;
 
 #define V_SET_POINTER(v, p) \
 	(v)->type = variant::POINTER; \
+	V_SAFE_PTR_CLEAN(v); \
 	(v)->data.ptr = p;
 
 #define V_SET_REAL(v, r) \
@@ -51,6 +58,7 @@ struct variant
 
 #define V_SET_STRING(v, s) \
 	(v)->type = variant::STRING; \
+	V_SAFE_PTR_CLEAN(v); \
 	(v)->data.str = fk->sh.allocstring(s);
 
 #define V_SET_UUID(v, id) \
@@ -59,10 +67,12 @@ struct variant
 
 #define V_SET_ARRAY(v, a) \
 	(v)->type = variant::ARRAY; \
+	V_SAFE_PTR_CLEAN(v); \
 	(v)->data.va = a;
 	
 #define V_SET_MAP(v, m) \
 	(v)->type = variant::MAP; \
+	V_SAFE_PTR_CLEAN(v); \
 	(v)->data.vm = m;
 	
 #define V_GET_POINTER(v, p) \

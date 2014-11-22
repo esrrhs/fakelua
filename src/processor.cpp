@@ -1,7 +1,7 @@
 #include "processor.h"
 #include "fake.h"
 
-routine * processor::start_routine(binary * bin, const char * func, paramstack * ps)
+routine * processor::start_routine(binary * bin, const variant & func, paramstack * ps)
 {
     pool<routine>::node * n = 0;
     POOLLIST_POP(m_pl, n, routine, m_fk->cfg.array_grow_speed);

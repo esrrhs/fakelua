@@ -15,13 +15,13 @@ void assembler::clear()
 bool assembler::compile(binary * bin)
 {
     FKLOG("[assembler] compile binary %p", bin);
-
-    for (stringhashmap<func_binary>::ele * p = bin->m_shh.first(); p != 0; p = bin->m_shh.next())
-    {
-        const func_binary & fb = p->t;
-        if (!compile_func(fb))
+	
+	for (const vhashmap<funcunion>::ele * p = m_fk->fm.m_shh.first(); p != 0; p = m_fk->fm.m_shh.next())
+	{
+		const funcunion & f = p->t;
+		if (f.havefb && !compile_func(f.fb))
         {
-            FKERR("[assembler] compile compile_func %s fail", fb.getname());
+			FKERR("[assembler] compile compile_func %s fail", FUNC_BINARY_NAME(f.fb));
             return false;
         }
     }
@@ -44,7 +44,7 @@ bool assembler::compile_func(const func_binary & fb)
     FKLOG("[assembler] compile_func stack size %d", stacksize);
     asg.alloc_stack(stacksize);
 
-    asg.copy_param(fb.paramnum());
+	asg.copy_param(FUNC_BINARY_PARAMNUM(fb));
 
     asg.copy_const(fb.m_const_list, fb.m_const_list_num, fb.m_maxstack);
 
@@ -82,8 +82,8 @@ bool assembler::compile_func(const func_binary & fb)
     
     asg.stop_func();
     func_native nt(m_fk);
-    asg.output(fb.getname(), &nt);
-    m_native->add_func(fb.getname(), nt);
+	asg.output(FUNC_BINARY_NAME(fb), &nt);
+	m_native->add_func(FUNC_BINARY_NAME(fb), nt);
     
     String str = asg.source();
 
@@ -185,7 +185,7 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
     }\
     else if (v##_addrtype == ADDR_CONST)\
     {\
-		v = (v##_addrpos) + fb.maxstack(); \
+		v = (v##_addrpos) + FUNC_BINARY_MAX_STACK(fb); \
     }\
     else\
     {\

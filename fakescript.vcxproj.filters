@@ -125,6 +125,7 @@
     <ClCompile Include="src\buildinfunc.cpp" />
     <ClCompile Include="src\profile.cpp" />
     <ClCompile Include="src\container.cpp" />
+    <ClCompile Include="src\funcmap.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="CMakeLists.txt" />

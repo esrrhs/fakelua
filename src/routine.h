@@ -6,7 +6,7 @@
 
 struct fake;
 class binary;
-class paramstack;
+struct paramstack;
 struct routine
 {
     fake * m_fk;

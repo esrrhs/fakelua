@@ -218,3 +218,14 @@ struct variant_array;
 struct variant_map;
 String fkarraytoa(variant_array * va);
 String fkmaptoa(variant_map * vm);
+
+#if defined(WIN32)
+#ifdef _M_X64 
+#define FK64
+#endif
+#else
+#ifdef __x86_64
+#define FK64
+#endif
+#endif
+

@@ -96,22 +96,11 @@ void buildin_clearglobalmap(fake * fk, interpreter * inter)
 
 void buildinfunc::openbasefunc()
 {
-    m_shh.add("print", buildin_print);
-    m_shh.add("log", buildin_log);
-    m_shh.add("sleep", buildin_sleep);
-    m_shh.add("array", buildin_array);
-    m_shh.add("map", buildin_map);
-    m_shh.add("G", buildin_globalmap);
-    m_shh.add("CG", buildin_clearglobalmap);
-}
-
-bool buildinfunc::call(interpreter * inter, const char * name)
-{
-    bifunc * p = m_shh.get(name);
-    if (!p)
-    {
-        return false;
-    }
-    (*p)(m_fk, inter);
-    return true;
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("print"), buildin_print);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("log"), buildin_log);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("sleep"), buildin_sleep);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("array"), buildin_array);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("map"), buildin_map);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("G"), buildin_globalmap);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("CG"), buildin_clearglobalmap);
 }

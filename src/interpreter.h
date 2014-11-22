@@ -132,7 +132,7 @@ public:
         return m_isend;
     }
     
-    void call(binary * bin, const char * func, paramstack * ps);
+    void call(binary * bin, const variant & func, paramstack * ps);
 
     variant * get_container_variant(stack & s, const func_binary & fb, int conpos)
     {
@@ -165,7 +165,7 @@ public:
 
     force_inline const char * get_running_func_name() const
     {
-        return m_cur_stack->m_fb->getname();
+		return FUNC_BINARY_NAME(*(m_cur_stack->m_fb));
     }
 
     force_inline int run(int cmdnum)
@@ -180,9 +180,9 @@ public:
             int pos = m_cur_stack->m_pos;
             
             // 当前函数走完
-            if (pos >= (int)fb.cmdsize())
+			if (pos >= (int)FUNC_BINARY_CMDSIZE(fb))
             {
-                FKLOG("pop stack %s", fb.getname());
+				FKLOG("pop stack %s", FUNC_BINARY_NAME(fb));
                 // 记录profile
                 endfuncprofile();
                 // 出栈
@@ -432,7 +432,7 @@ public:
                     	*argdest = *arg;
                 	}
                 	
-                    call(m_fk, callpos, &ps, calltype);
+                    call(m_fk, *callpos, &ps, calltype);
                 }
                 break;
             default:
@@ -457,7 +457,7 @@ public:
     }
 
 private:
-    void call(fake * fk, const variant * callpos, paramstack * ps, int calltype);
+    void call(fake * fk, const variant & callpos, paramstack * ps, int calltype);
     void beginfuncprofile();
     void endfuncprofile();
     

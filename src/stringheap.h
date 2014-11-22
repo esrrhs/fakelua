@@ -2,6 +2,7 @@
 
 #include "types.h"
 #include "hashmap.h"
+#include "array.h"
 
 struct fake;
 
@@ -12,6 +13,8 @@ struct stringele
 	// string
     char * s;
     size_t sz;
+	// 系统引用
+	uint32_t sysref;
 };
 
 class stringheap
@@ -24,13 +27,16 @@ public:
 
 	stringele * allocstring(const char * str);
 
+	variant allocsysstr(const char * str);
+
 	void checkgc();
 	
 private:
 	void gc();
 
 private:
-    fake * m_fk;    
-    stringhashmap<stringele*> m_shh;
+	fake * m_fk;
+	stringhashmap<stringele*> m_shh;
+	array<stringele*> m_sysstr_list;
 };
 

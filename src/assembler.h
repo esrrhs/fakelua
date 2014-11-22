@@ -14,7 +14,7 @@ typedef std::map<int, int> caremap;
 struct fake;
 class native;
 class binary;
-class func_binary;
+struct func_binary;
 class assembler
 {
 public:

@@ -63,6 +63,7 @@
     <ClCompile Include="src\flex.cpp" />
     <ClCompile Include="src\fake.cpp" />
     <ClCompile Include="src\fakescript.cpp" />
+    <ClCompile Include="src\funcmap.cpp" />
     <ClCompile Include="src\interpreter.cpp" />
     <ClCompile Include="src\machine.cpp" />
     <ClCompile Include="src\myflexer.cpp" />
