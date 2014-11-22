@@ -17,46 +17,37 @@ fakescript是一款轻量级的嵌入式脚本语言，与Lua相比，它的运�
 -- func1 comment
 func myfunc1(arg1, arg2)
 	
-	if arg1 > 10 then
-		
-		return arg2
-		
-	end
-	
-	return arg1,arg2
-	
-end
-
--- func2 comment
-func myfunc2(arg1, arg2)
-	
-	while arg1 > 10 then
-		
-		arg1 = arg1 + 1;
-		arg2 = arg2 - 1;
-		
-	end
-	
-	var arg3 = arg1 + arg2 * arg1
-	
-	return arg3
-	
-end
-
--- func3 comment
-func myfunc3(arg1, arg2)
-	
+	-- C函数和类成员函数的调用
 	var arg3 = cfunc1(arg1) + arg2:memfunc1(arg1)
-
-	fake myfunc2(arg1, arg2)
-
+	
+	-- 分支
+	if arg1 < arg2 then	
+		-- 创建一个协程
+		fake myfunc2(arg1, arg2)
+	end
+	
+	-- for循环
+	for var i = 0, i < arg2, i++ then
+		print("i = ", i)
+	end
+	
+	-- 数组
 	var a = array()
 	a[1] = 3
-
+	
+	-- 集合
 	var b = map()
 	b[a] = 1
 	b[1] = a
+	
+	-- Int64
+	var uid = 1241515236123614u
+	log("uid = ", uid)
 
-	return arg3
+	-- 子函数调用
+	var ret1, var ret2 = myfunc2()
+
+	-- 多返回值
+	return arg1, arg3
 	
 end
