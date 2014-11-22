@@ -1,4 +1,5 @@
-利用lex和yacc创建自己的脚本语言，使得轻量级，易绑定，效率高
+# fakescript #
+fakescript是一款轻量级的嵌入式脚本语言，与Lua相比，它的运行速度更快，更容易使用，同时源代码可读性更强。
 
 脚本特性：
 @.代码风格类似lua
@@ -7,6 +8,10 @@
 @.支持fake testfunc(param1)产生routine，实现假多线程效果
 @.支持C函数和类成员函数的绑定
 @.自带解释器，JIT部分支持
+@.支持多返回值
+@.自带profile，可获取脚本各个函数运行时间
+@.支持热更新
+@.支持Int64
 
 示例：
 -- func1 comment
@@ -18,7 +23,7 @@ func myfunc1(arg1, arg2)
 		
 	end
 	
-	return arg1
+	return arg1,arg2
 	
 end
 
