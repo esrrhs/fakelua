@@ -132,7 +132,7 @@ FAKE_API void fkrunps(fake * fk, const char * func)
 	PROCESS_CLEAR(pro);
 	variant funcv;
 	V_SET_STRING(&funcv, func);
-	routine * r = pro.start_routine(&fk->bin, funcv, &fk->ps);
+	routine * r = pro.start_routine(funcv);
 
     pro.run();
     
