@@ -21,7 +21,7 @@ struct routine
 
 #define ROUTINE_CLEAR(rou) INTER_CLEAR((rou).m_interpreter)
 
-#define ROUTINE_ENTRY(rou, bin, func, ps) (rou).m_interpreter.call(bin, func, ps)
+#define ROUTINE_ENTRY(rou, func) (rou).m_interpreter.call(func)
 
 #define ROUTINE_ISEND(rou) (rou).m_interpreter.isend()
 

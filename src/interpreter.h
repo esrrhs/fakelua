@@ -132,7 +132,7 @@ public:
         return m_isend;
     }
     
-    void call(binary * bin, const variant & func, paramstack * ps);
+    void call(const variant & func);
 
     variant * get_container_variant(stack & s, const func_binary & fb, int conpos)
     {
@@ -432,7 +432,7 @@ public:
                     	*argdest = *arg;
                 	}
                 	
-                    call(m_fk, *callpos, &ps, calltype);
+                    call(*callpos, calltype);
                 }
                 break;
             default:
@@ -457,7 +457,7 @@ public:
     }
 
 private:
-    void call(fake * fk, const variant & callpos, paramstack * ps, int calltype);
+    void call(const variant & callpos, int calltype);
     void beginfuncprofile();
     void endfuncprofile();
     

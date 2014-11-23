@@ -5,13 +5,13 @@
 
 //////////////////////////////////////////////////////////////////////////
 
-void interpreter::call(binary * bin, const variant & func, paramstack * ps)
+void interpreter::call(const variant & func)
 {
 	const funcunion * f = m_fk->fm.get_func(func);
 	if (!f)
 	{
-		FKERR("fkrun bin %p no func %s fail", bin, vartostring(&func).c_str());
-		seterror(m_fk, efk_run_no_func_error, "fkrun bin %p no func %s fail", bin, vartostring(&func).c_str());
+		FKERR("fkrun no func %s fail", vartostring(&func).c_str());
+		seterror(m_fk, efk_run_no_func_error, "fkrun no func %s fail", vartostring(&func).c_str());
 		m_isend = true;
 	}
 
@@ -49,6 +49,8 @@ void interpreter::call(binary * bin, const variant & func, paramstack * ps)
 
 		// º«¬ºprofile
 		beginfuncprofile();
+		
+		paramstack * ps = getps(m_fk);
 
 		// ∑÷≈‰’ªø’º‰
 		for (int i = 0; i < (int)ps->m_variant_list_num; i++)
@@ -123,15 +125,15 @@ void interpreter::call(binary * bin, const variant & func, paramstack * ps)
 	return;
 }
 
-void interpreter::call(fake * fk, const variant & callpos, paramstack * ps, int calltype)
+void interpreter::call(const variant & callpos, int calltype)
 {
     if (calltype == CALL_NORMAL)
     {
-        call(&m_fk->bin, callpos, ps);
+        call(callpos);
     }
     else
     {
-		m_processor->start_routine(&m_fk->bin, callpos, ps);
+		m_processor->start_routine(callpos);
     }
 }
 
