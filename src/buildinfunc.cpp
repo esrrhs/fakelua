@@ -3,6 +3,8 @@
 #include "fakescript.h"
 #ifdef WIN32
 #include <Windows.h>
+#else
+#include <unistd.h>
 #endif
 
 // print, very slow
@@ -62,6 +64,7 @@ void buildin_sleep(fake * fk, interpreter * inter)
 // array
 void buildin_array(fake * fk, interpreter * inter)
 {
+	bool err = false;
     variant_array * a = fk->con.newarray();
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
@@ -71,6 +74,7 @@ void buildin_array(fake * fk, interpreter * inter)
 // map
 void buildin_map(fake * fk, interpreter * inter)
 {
+	bool err = false;
     variant_map * m = fk->con.newmap();
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
@@ -80,6 +84,7 @@ void buildin_map(fake * fk, interpreter * inter)
 // global map
 void buildin_globalmap(fake * fk, interpreter * inter)
 {
+	bool err = false;
     variant_map * m = fk->con.get_gmap();
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
@@ -100,7 +105,7 @@ void buildinfunc::openbasefunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("log"), buildin_log);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("sleep"), buildin_sleep);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("array"), buildin_array);
-	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("map"), buildin_map);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr(MAP_FUNC_NAME), buildin_map);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("G"), buildin_globalmap);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("CG"), buildin_clearglobalmap);
 }

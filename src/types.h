@@ -170,6 +170,9 @@ static force_inline String fkxtoa(int64_t d, int wid = 16)
 	return ret;
 }
 
+struct stringele;
+String fkstringeletoa(stringele * ele);
+
 static force_inline uint32_t fkstrhash(const char * p)
 {
     uint32_t hashv = 0;
@@ -225,4 +228,21 @@ String fkmaptoa(variant_map * vm);
 #define FK64
 #endif
 #endif
+
+struct routine;
+void fksetcurroutine(fake * fk, routine * r);
+
+static force_inline String fkgen_package_name(const String & p, const String & n)
+{
+    if (p.empty())
+    {
+        return n;
+    }
+    else
+    {
+        return p + "." + n;
+    }
+}
+
+#define MAP_FUNC_NAME "map"
 

@@ -12,26 +12,51 @@ void compiler::clear()
 	m_func_ret_num = 1;
 }
 
-bool compiler::compile(myflexer * mf)
+bool compiler::compile()
 {
+    if (!compile_const_head())
+    {
+        FKERR("[compiler] compile_const_head fail");
+        return false;
+    }
+
+    if (!compile_body())
+    {
+        FKERR("[compiler] compile_body fail");
+        return false;
+    }
+    
+    return true;
+}
+
+bool compiler::compile_const_head()
+{
+    FKLOG("[compiler] compile_const_head");
+    // do nothing
+    return true;
+}
+
+bool compiler::compile_body()
+{
+    myflexer * mf = m_mf;
     func_desc_list & funclist = mf->get_func_list();
-    FKLOG("[compiler] compile funclist %d", funclist.size());
+    FKLOG("[compiler] compile_body funclist %d", funclist.size());
 
     for (int i = 0; i < (int)funclist.size(); i++)
     {
         func_desc_node * funcnode = funclist[i];
         if (!compile_func(funcnode))
         {   
-            FKERR("[compiler] compile %s fail", funcnode->funcname.c_str());
+            FKERR("[compiler] compile_body %s fail", funcnode->funcname.c_str());
             return false;
         }
     }
     
     String str = m_fk->bbin.dump();
-    FKLOG("[compiler] compile funclist %d ok backup dump \n%s", funclist.size(), str.c_str());
+    FKLOG("[compiler] compile_body funclist %d ok backup dump \n%s", funclist.size(), str.c_str());
 
     str = m_fk->bin.dump();
-    FKLOG("[compiler] compile funclist %d ok dump \n%s", funclist.size(), str.c_str());
+    FKLOG("[compiler] compile_body funclist %d ok dump \n%s", funclist.size(), str.c_str());
 
     return true;
 }
@@ -75,10 +100,11 @@ bool compiler::compile_func(func_desc_node * funcnode)
     }
     
     // 编译成功
-	cg.output(funcnode->funcname.c_str(), &bin);
-	m_fk->bbin.add_func(m_fk->sh.allocsysstr(funcnode->funcname.c_str()), bin);
+    String funcname = fkgen_package_name(m_mf->get_package(), funcnode->funcname);
+	cg.output(m_mf->getfilename(), m_mf->get_package(), funcname.c_str(), &bin);
+	m_fk->bbin.add_func(m_fk->sh.allocsysstr(funcname.c_str()), bin);
     
-	FKLOG("[compiler] compile_func func %s size = %d OK", funcnode->funcname.c_str(), FUNC_BINARY_SIZE(bin));
+	FKLOG("[compiler] compile_func func %s size = %d OK", funcname.c_str(), FUNC_BINARY_SIZE(bin));
     
     return true;
 }
@@ -279,6 +305,16 @@ bool compiler::compile_node(codegen & cg, syntree_node * node)
             }
         }
         break;
+    case est_struct_pointer:
+        {
+            struct_pointer_node * cn = dynamic_cast<struct_pointer_node *>(node);
+            if (!compile_struct_pointer(cg, cn))
+            {
+                FKERR("[compiler] compile_node compile_struct_pointer error %d %s", type, node->gettypename());
+                return false;
+            }
+        }
+        break;
     default:
         {
             FKERR("[compiler] compile_node type error %d %s", type, node->gettypename());
@@ -313,9 +349,9 @@ bool compiler::compile_while_stmt(codegen & cg, while_stmt * ws)
 	}
 	cg.pop_stack_identifiers();
 
-	cg.push(MAKE_OPCODE(OPCODE_JNE));
-	cg.push(m_cur_addr);
-	cg.push(EMPTY_CMD); // 先塞个位置
+	cg.push(MAKE_OPCODE(OPCODE_JNE), ws->lineno());
+	cg.push(m_cur_addr, ws->lineno());
+	cg.push(EMPTY_CMD, ws->lineno()); // 先塞个位置
 	jnepos = cg.byte_code_size() - 1;
 
 	// block块
@@ -331,8 +367,8 @@ bool compiler::compile_while_stmt(codegen & cg, while_stmt * ws)
 	}
 
 	// 跳回判断地方
-	cg.push(MAKE_OPCODE(OPCODE_JMP));
-	cg.push(MAKE_POS(startpos));
+	cg.push(MAKE_OPCODE(OPCODE_JMP), ws->lineno());
+	cg.push(MAKE_POS(startpos), ws->lineno());
 
 	// 跳转出block块
 	cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
@@ -366,9 +402,9 @@ bool compiler::compile_if_stmt(codegen & cg, if_stmt * is)
 	}
     cg.pop_stack_identifiers();
 
-	cg.push(MAKE_OPCODE(OPCODE_JNE));
-    cg.push(m_cur_addr);
-    cg.push(EMPTY_CMD); // 先塞个位置
+	cg.push(MAKE_OPCODE(OPCODE_JNE), is->lineno());
+    cg.push(m_cur_addr, is->lineno());
+    cg.push(EMPTY_CMD, is->lineno()); // 先塞个位置
     jnepos = cg.byte_code_size() - 1;
     
     // if块
@@ -383,8 +419,8 @@ bool compiler::compile_if_stmt(codegen & cg, if_stmt * is)
         cg.pop_stack_identifiers();
 
         // 跳出if块
-        cg.push(MAKE_OPCODE(OPCODE_JMP));
-        cg.push(EMPTY_CMD); // 先塞个位置
+        cg.push(MAKE_OPCODE(OPCODE_JMP), is->lineno());
+        cg.push(EMPTY_CMD, is->lineno()); // 先塞个位置
         jmpifpos = cg.byte_code_size() - 1;
     }
     
@@ -426,17 +462,17 @@ bool compiler::compile_return_stmt(codegen & cg, return_stmt * rs)
 			return false;
 		}
 
-		cg.push(MAKE_OPCODE(OPCODE_RETURN));
-		cg.push(MAKE_POS(rs->returnlist->returnlist.size()));
+		cg.push(MAKE_OPCODE(OPCODE_RETURN), rs->lineno());
+		cg.push(MAKE_POS(rs->returnlist->returnlist.size()), rs->lineno());
 		for (int i = 0; i < (int)rs->returnlist->returnlist.size(); i++)
 		{
-			cg.push(m_cur_addrs[i]);
+			cg.push(m_cur_addrs[i], rs->lineno());
 		}
 	}
 	else
 	{
-		cg.push(MAKE_OPCODE(OPCODE_RETURN));
-		cg.push(MAKE_POS(0));
+		cg.push(MAKE_OPCODE(OPCODE_RETURN), rs->lineno());
+		cg.push(MAKE_POS(0), rs->lineno());
 	}
 
     FKLOG("[compiler] compile_return_stmt %p OK", rs);
@@ -467,9 +503,9 @@ bool compiler::compile_assign_stmt(codegen & cg, assign_stmt * as)
     value = m_cur_addr;
     FKLOG("[compiler] compile_assign_stmt value = %d", m_cur_addr);
 
-    cg.push(MAKE_OPCODE(OPCODE_ASSIGN));
-    cg.push(var);
-    cg.push(value);
+    cg.push(MAKE_OPCODE(OPCODE_ASSIGN), as->lineno());
+    cg.push(var, as->lineno());
+    cg.push(value, as->lineno());
     FKLOG("[compiler] compile_assign_stmt %p OK", as);
     
     return true;
@@ -528,9 +564,9 @@ bool compiler::compile_math_assign_stmt(codegen & cg, math_assign_stmt * ms)
     value = m_cur_addr;
     FKLOG("[compiler] compile_math_assign_stmt value = %d", m_cur_addr);
 
-    cg.push(oper);
-    cg.push(var);
-    cg.push(value);
+    cg.push(oper, ms->lineno());
+    cg.push(var, ms->lineno());
+    cg.push(value, ms->lineno());
 
     FKLOG("[compiler] compile_math_assign_stmt %p OK", ms);
     
@@ -541,8 +577,8 @@ bool compiler::compile_break_stmt(codegen & cg, break_stmt * bs)
 {
     FKLOG("[compiler] compile_break_stmt %p", bs);
 
-	cg.push(MAKE_OPCODE(OPCODE_JMP));
-	cg.push(EMPTY_CMD); // 先塞个位置
+	cg.push(MAKE_OPCODE(OPCODE_JMP), bs->lineno());
+	cg.push(EMPTY_CMD, bs->lineno()); // 先塞个位置
 	int jmppos = cg.byte_code_size() - 1;
 
 	beak_pos_list & bplist = m_loop_break_pos_stack[m_loop_break_pos_stack.size() - 1];
@@ -638,10 +674,10 @@ bool compiler::compile_cmp_stmt(codegen & cg, cmp_stmt * cs)
     dest = MAKE_ADDR(ADDR_STACK, despos);
     m_cur_addr = dest;
     
-    cg.push(oper);
-    cg.push(left);
-    cg.push(right);
-    cg.push(dest);
+    cg.push(oper, cs->lineno());
+    cg.push(left, cs->lineno());
+    cg.push(right, cs->lineno());
+    cg.push(dest, cs->lineno());
 
     FKLOG("[compiler] compile_cmp_stmt %p OK", cs);
     
@@ -693,6 +729,21 @@ bool compiler::compile_variable_node(codegen & cg, variable_node * vn)
 {
     FKLOG("[compiler] compile_variable_node %p", vn);
 
+    // 看看是否是常量定义
+    myflexer * mf = m_mf;
+    explicit_value_map & evm = mf->get_const_map();
+    if (evm.find(vn->str) != evm.end())
+    {   
+        explicit_value_node* ev = evm[vn->str];
+		if (!compile_node(cg, ev))
+		{
+			FKERR("[compiler] compile_variable_node const fail %s", ev->str.c_str());
+			return false;
+		}
+        FKLOG("[compiler] compile_variable_node %p OK", vn);
+        return true;
+    }
+
     // 从当前堆栈往上找
     int pos = cg.getvariable(vn->str);
     if (pos == -1)
@@ -740,6 +791,7 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
     FKLOG("[compiler] compile_function_call_node %p", fn);
 
     fake * fk = m_fk;
+    myflexer * mf = m_mf;
 
 	int ret_num = m_func_ret_num;
 	m_func_ret_num = 1;
@@ -763,12 +815,34 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
     // 调用位置
     command callpos;
     String func = fn->fuc;
+    // 1 检查变量
     int pos = cg.getvariable(func);
     if (pos != -1)
     {
         // 是用变量来调用函数
         callpos = MAKE_ADDR(ADDR_STACK, pos);
     }
+    // 2 检查struct
+    else if (mf->is_have_struct(func))
+    {
+        // 直接替换成map
+	    variant v;
+        V_SET_STRING(&v, MAP_FUNC_NAME);
+        pos = cg.getconst(v);
+	    callpos = MAKE_ADDR(ADDR_CONST, pos);
+    }
+    // 3 检查本地函数
+    else if (mf->is_have_func(func))
+    {
+        // 申请字符串变量
+	    variant v;
+        // 拼上包名
+        String pname = fkgen_package_name(mf->get_package(), func);
+        V_SET_STRING(&v, pname.c_str());
+        pos = cg.getconst(v);
+	    callpos = MAKE_ADDR(ADDR_CONST, pos);
+    }
+    // 4 直接字符串使用
     else
     {
         // 申请字符串变量
@@ -811,18 +885,18 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
 	}
 	m_cur_addr = ret[0];
     
-    cg.push(oper);
-    cg.push(calltype);
-	cg.push(callpos);
-	cg.push(retnum);
+    cg.push(oper, fn->lineno());
+    cg.push(calltype, fn->lineno());
+	cg.push(callpos, fn->lineno());
+	cg.push(retnum, fn->lineno());
 	for (int i = 0; i < ret_num; i++)
 	{
-		cg.push(ret[i]);
+		cg.push(ret[i], fn->lineno());
 	}
-    cg.push(argnum);
+    cg.push(argnum, fn->lineno());
     for (int i = 0; i < (int)arglist.size(); i++)
     {
-        cg.push(arglist[i]);
+        cg.push(arglist[i], fn->lineno());
     }
     
     FKLOG("[compiler] compile_function_call_node %p OK", fn);
@@ -887,10 +961,10 @@ bool compiler::compile_math_expr_node(codegen & cg, math_expr_node * mn)
     dest = MAKE_ADDR(ADDR_STACK, despos);
     m_cur_addr = dest;
     
-    cg.push(oper);
-    cg.push(left);
-    cg.push(right);
-    cg.push(dest);
+    cg.push(oper, mn->lineno());
+    cg.push(left, mn->lineno());
+    cg.push(right, mn->lineno());
+    cg.push(dest, mn->lineno());
 
     FKLOG("[compiler] compile_math_expr_node %p OK", mn);
     
@@ -928,9 +1002,9 @@ bool compiler::compile_for_stmt(codegen & cg, for_stmt * fs)
 	}
 	cg.pop_stack_identifiers();
 
-	cg.push(MAKE_OPCODE(OPCODE_JNE));
-	cg.push(m_cur_addr);
-	cg.push(EMPTY_CMD); // 先塞个位置
+	cg.push(MAKE_OPCODE(OPCODE_JNE), fs->lineno());
+	cg.push(m_cur_addr, fs->lineno());
+	cg.push(EMPTY_CMD, fs->lineno()); // 先塞个位置
 	jnepos = cg.byte_code_size() - 1;
 
 	// block块
@@ -958,8 +1032,8 @@ bool compiler::compile_for_stmt(codegen & cg, for_stmt * fs)
 	}
 
 	// 跳回判断地方
-	cg.push(MAKE_OPCODE(OPCODE_JMP));
-	cg.push(MAKE_POS(startpos));
+	cg.push(MAKE_OPCODE(OPCODE_JMP), fs->lineno());
+	cg.push(MAKE_POS(startpos), fs->lineno());
 
 	// 跳转出block块
 	cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
@@ -1016,9 +1090,9 @@ bool compiler::compile_multi_assign_stmt(codegen & cg, multi_assign_stmt * as)
 		var = varlist[i];
 		value = m_cur_addrs[i];
 
-		cg.push(MAKE_OPCODE(OPCODE_ASSIGN));
-		cg.push(var);
-		cg.push(value);
+		cg.push(MAKE_OPCODE(OPCODE_ASSIGN), as->lineno());
+		cg.push(var, as->lineno());
+		cg.push(value, as->lineno());
 	}
 
 	FKLOG("[compiler] compile_multi_assign_stmt %p OK", as);
@@ -1079,4 +1153,64 @@ bool compiler::compile_container_get(codegen & cg, container_get_node * cn)
 	return true;
 }
 
+bool compiler::compile_struct_pointer(codegen & cg, struct_pointer_node * sn)
+{
+	FKLOG("[compiler] compile_struct_pointer %p", sn);
+
+    fake * fk = m_fk;
+
+    String name = sn->str;
+    std::vector<String> tmp;
+	do
+	{
+		int pos = name.find("->");
+		if (pos == -1)
+		{
+			tmp.push_back(name);
+			break;
+		}
+		tmp.push_back(name.substr(0, pos));
+		name = name.substr(pos + 2);
+	}
+	while (1);
+
+    if (tmp.size() < 2)
+    {
+		FKERR("[compiler] compile_struct_pointer pointer %s fail", sn->str.c_str());
+		return false;
+    }
+
+    String connname = tmp[0];
+    
+    // 编译con
+    command con = 0;
+    int pos = cg.getvariable(connname);
+    if (pos == -1)
+    {
+        FKERR("[compiler] compile_struct_pointer variable not found %s", connname.c_str());
+        seterror(m_fk, efk_compile_variable_not_found, "variable %s not found", connname.c_str());
+        return false;
+    }
+    con = MAKE_ADDR(ADDR_STACK, pos);
+    
+    for (int i = 1; i < (int)tmp.size(); i++)
+    {
+        String keystr = tmp[i];
+        
+        // 编译key
+	    variant v;
+		V_SET_STRING((&v), keystr.c_str());
+    	int pos = cg.getconst(v);
+    	command key = MAKE_ADDR(ADDR_CONST, pos);
+
+        // 获取容器的位置
+        int addrpos = cg.getcontaineraddr(con, key);
+        m_cur_addr = MAKE_ADDR(ADDR_CONTAINER, addrpos);
+        con = m_cur_addr;
+    }
+
+	FKLOG("[compiler] compile_struct_pointer %p OK", sn);
+
+	return true;
+}
 

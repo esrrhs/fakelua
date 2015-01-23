@@ -1,0 +1,76 @@
+package list
+
+struct _list
+	size
+	head
+	tail
+end
+
+struct _node
+	pre
+	next
+	value
+end
+
+func new()
+	var l = _list() 
+	l->size = 0
+	l->head = 0
+	l->tail = 0
+	return l
+end
+
+func size(l)
+	return l->size
+end
+
+func push_back(l, v)
+
+	var ele = _node()
+	ele->pre = 0
+	ele->next = 0
+	ele->value = v
+	
+	if l->size == 0 then
+		l->head = ele
+		l->tail = ele
+	else
+		l->tail->next = ele
+		ele->pre = l->tail
+		l->tail = ele
+	end
+	
+	l->size++
+	
+	return l->size
+	
+end
+
+func pop_back(l)
+	
+	if l->size == 0 then
+		return false, 0
+	else
+		var v = l->tail->value
+		
+		l->tail = l->tail->pre
+		l->tail->next = 0		
+		
+		l->size = l->size - 1
+		
+		return true, v
+	end
+	
+end
+
+func for_each(l, f)
+
+	var ele = l->head
+	for var i = 0, i < l->size, i++ then
+	
+		f(ele->value)
+		ele = ele->next
+	
+	end
+
+end

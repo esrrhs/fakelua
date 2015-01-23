@@ -7,12 +7,14 @@
 
 void interpreter::call(const variant & func)
 {
+    fake * fk = m_fk;
 	const funcunion * f = m_fk->fm.get_func(func);
 	if (!f)
 	{
 		FKERR("fkrun no func %s fail", vartostring(&func).c_str());
 		seterror(m_fk, efk_run_no_func_error, "fkrun no func %s fail", vartostring(&func).c_str());
 		m_isend = true;
+		return;
 	}
 
 	// 常规函数
@@ -53,7 +55,7 @@ void interpreter::call(const variant & func)
 		paramstack * ps = getps(m_fk);
 
 		// 分配栈空间
-		for (int i = 0; i < (int)ps->m_variant_list_num; i++)
+		for (int i = 0; i < (int)ps->m_variant_list_num && i < (int)ARRAY_MAX_SIZE(s.m_stack_variant_list); i++)
 		{
 			SET_STACK(&(ps->m_variant_list[i]), s, i);
 			FKLOG("call set %s to pos %d", (vartostring(&(ps->m_variant_list[i]))).c_str(), i);
@@ -93,6 +95,7 @@ void interpreter::call(const variant & func)
 	// 返回值
 	paramstack * theps = getps(m_fk);
 	variant * cret;
+	bool err = false;
 	PS_POP_AND_GET(*theps, cret);
 
 	// 这种情况是直接跳过脚本调用了C函数
@@ -107,6 +110,7 @@ void interpreter::call(const variant & func)
 	{
 		// 塞返回值
 		bool err = false;
+		USE(err);
 		m_cur_stack = &ARRAY_BACK(m_stack_list);
 		const func_binary & fb = *m_cur_stack->m_fb;
 		variant * ret;
@@ -117,6 +121,7 @@ void interpreter::call(const variant & func)
 
 	if (m_fk->pf.isopen())
 	{
+	    bool err = false;
 		const char * name = 0;
 		V_GET_STRING(&func, name);
 		m_fk->pf.add_func_sample(name, fkgetmstick() - s);
@@ -153,3 +158,36 @@ void interpreter::endfuncprofile()
     }
 }
 
+const char * interpreter::get_running_call_stack() const
+{
+    m_fk->rn.curcallstack.clear();
+    int deps = 0;
+    for (int i = ARRAY_SIZE(m_stack_list) - 1; i >= 0; i--)
+    {
+        m_fk->rn.curcallstack += "#";
+        m_fk->rn.curcallstack += fkitoa(deps);
+        m_fk->rn.curcallstack += "    ";
+        stack & s = ARRAY_GET(m_stack_list, i);
+        m_fk->rn.curcallstack += s.m_fb->m_name;
+        m_fk->rn.curcallstack += " at ";
+        m_fk->rn.curcallstack += s.m_fb->m_filename;
+        m_fk->rn.curcallstack += ":";
+        m_fk->rn.curcallstack += fkitoa(GET_CMD_LINENO((*s.m_fb), s.m_pos));
+        m_fk->rn.curcallstack += "\n";
+        for (int j = 0; j < s.m_fb->m_maxstack && j < (int)ARRAY_MAX_SIZE(s.m_stack_variant_list); j++)
+        {
+            m_fk->rn.curcallstack += "        [";
+            m_fk->rn.curcallstack += fkitoa(j);
+            m_fk->rn.curcallstack += "]\t";
+            m_fk->rn.curcallstack += vartostring(&ARRAY_GET(s.m_stack_variant_list, j));
+            m_fk->rn.curcallstack += "\n";
+        }
+        deps++;
+    }
+    return m_fk->rn.curcallstack.c_str();
+}
+
+size_t interpreter::get_max_stack() const
+{
+    return m_fk->cfg.stack_deps;
+}

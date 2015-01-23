@@ -12,6 +12,7 @@
 #include <cstring>
 #include <typeinfo>
 #include <stdio.h>
+#include <algorithm>
 #include "types.h"
 #include "myflexer.h"
 #include "fakescript.h"
@@ -30,16 +31,24 @@
 #include "processor.h"
 #include "container.h"
 #include "funcmap.h"
+#include "running.h"
+#include "parser.h"
 
 struct fake
 {
-	fake() : errorno(0), mf(this), bbin(this), bin(this), mc(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), rundeps(0), con(this), fm(this)
+	fake() : errorno(0), errorcb(0), pa(this), bbin(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this)
     {
         POOL_INI(pp, this);
     }
     ~fake()
     {
         clear();
+        pool<processor>::node * ppn = pp.m_data;
+        while (ppn != 0)
+        {
+            PROCESS_DELETE(ppn->t);
+            ppn = ppn->next;
+        }
         POOL_DELETE(pp);
     }
 
@@ -47,10 +56,9 @@ struct fake
     void clear()
     {
         clearerr();
-        mf.clear();
+        pa.clear();
         bbin.clear();
         bin.clear();
-        mc.clear();
         nt.clear();
         as.clear();
         ps.clear();
@@ -60,9 +68,9 @@ struct fake
         bf.clear();
         bif.clear();
         pf.clear();
-		rundeps = 0;
 		con.clear();
 		fm.clear();
+		rn.clear();
     }
     
     void clearerr()
@@ -73,12 +81,13 @@ struct fake
     
     int errorno;
     char errorstr[128];
+    fkerrorcb errorcb;
     
     // 配置
     fakeconfig cfg;
 
     // 解析
-    myflexer mf;
+    parser pa;
 
     // 缓存二进制
     backupbinary bbin;
@@ -86,9 +95,6 @@ struct fake
     // 二进制
     binary bin;
     
-    // 编译
-    compiler mc;
-
     // 本地jit代码
     native nt;
 
@@ -116,14 +122,14 @@ struct fake
     // 性能检测
     profile pf;
 
-    // 执行迭代计数
-    int rundeps;
-
     // 容器
     container con;
 
 	// 函数索引
 	funcmap fm;
+
+	// 当前运行状态
+	running rn;
 };
 
 template <typename T>

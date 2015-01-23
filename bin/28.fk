@@ -1,0 +1,35 @@
+
+const c_int = 1
+const c_string = "aaa"
+
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	print(c_int)
+	print(c_string)
+	myfunc2()
+	return c_int
+	
+end
+
+func myfunc2()
+	var a = c_int + 1
+	var b = c_int + 2
+	print(a)
+	print(b)
+	myfunc3()
+end
+
+func myfunc3()
+	var a = c_string
+	var b = c_int + 3
+	print(a)
+	print(b)
+	myfunc4()
+end
+
+func myfunc4()
+	var a = c_int * 2
+	print(c_int)
+	print(c_string)
+end

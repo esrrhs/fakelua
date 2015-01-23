@@ -59,8 +59,12 @@ int codegen::getcontaineraddr(command con, command key)
 	return pos;
 }
 	
-void codegen::output(const char * name, func_binary * bin)
+void codegen::output(const char * filename, const char * packagename, const char * name, func_binary * bin)
 {
+    assert(m_byte_code_list.size() == m_byte_lineno_list.size());
+
+    bin->m_filename = stringdump(m_fk, filename, strlen(filename));
+    bin->m_packagename = stringdump(m_fk, packagename, strlen(packagename));
     bin->m_name = stringdump(m_fk, name, strlen(name));
 
     bin->m_maxstack = m_maxstackpos;
@@ -72,6 +76,13 @@ void codegen::output(const char * name, func_binary * bin)
 		memcpy(bin->m_buff, &m_byte_code_list[0], bin->m_size * sizeof(command));
 	}
     
+    bin->m_lineno_size = m_byte_lineno_list.size();
+    if (bin->m_lineno_size > 0)
+    {
+		bin->m_lineno_buff = (int *)safe_fkmalloc(m_fk, (bin->m_lineno_size * sizeof(int)));
+		memcpy(bin->m_lineno_buff, &m_byte_lineno_list[0], bin->m_lineno_size * sizeof(int));
+    }
+
     bin->m_const_list_num = m_const_list.size();
 	if (bin->m_const_list_num > 0)
 	{

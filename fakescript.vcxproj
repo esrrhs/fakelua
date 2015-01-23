@@ -38,10 +38,12 @@
     <ClInclude Include="src\myflexer.h" />
     <ClInclude Include="src\native.h" />
     <ClInclude Include="src\paramstack.h" />
+    <ClInclude Include="src\parser.h" />
     <ClInclude Include="src\pool.h" />
     <ClInclude Include="src\processor.h" />
     <ClInclude Include="src\profile.h" />
     <ClInclude Include="src\routine.h" />
+    <ClInclude Include="src\running.h" />
     <ClInclude Include="src\semantic.h" />
     <ClInclude Include="src\stringheap.h" />
     <ClInclude Include="src\syntree.h" />
@@ -69,9 +71,11 @@
     <ClCompile Include="src\myflexer.cpp" />
     <ClCompile Include="src\native.cpp" />
     <ClCompile Include="src\paramstack.cpp" />
+    <ClCompile Include="src\parser.cpp" />
     <ClCompile Include="src\processor.cpp" />
     <ClCompile Include="src\profile.cpp" />
     <ClCompile Include="src\routine.cpp" />
+    <ClCompile Include="src\running.cpp" />
     <ClCompile Include="src\stringheap.cpp" />
     <ClCompile Include="src\syntree.cpp" />
     <ClCompile Include="src\types.cpp" />

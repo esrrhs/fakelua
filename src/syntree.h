@@ -43,13 +43,15 @@ enum esyntreetype
 	est_multi_assign_stmt,
 	est_var_list,
 	est_container_get,
+	est_struct_memlist,
+	est_struct_pointer,
 };
 
 const char * get_syntree_node_name(esyntreetype type);
 
 struct syntree_node
 {
-    syntree_node() : fk(0) {}
+    syntree_node() : fk(0), lno(0) {}
     virtual ~syntree_node() {}
 
     virtual esyntreetype gettype()
@@ -72,6 +74,9 @@ struct syntree_node
     String gentab(int indent)
     {
         String ret;
+        ret += "LINE:";
+        ret += fkitoa(lno);
+        ret += " ";
         for (int i = 0; i < indent; i++)
         {
             ret += "\t";
@@ -79,7 +84,13 @@ struct syntree_node
         return ret;
     }
 
+    int lineno() const
+    {
+        return lno;
+    }
+
     fake * fk;
+    int lno;
 };
 
 struct identifier_node : public syntree_node
@@ -180,6 +191,8 @@ struct explicit_value_node : public syntree_node
     String str;
 	explicit_value_type type;
 };
+
+typedef std::map<String, explicit_value_node*> explicit_value_map;
 
 typedef std::vector<syntree_node *> return_value_list;
 
@@ -719,3 +732,58 @@ struct container_get_node : public syntree_node
 	String container;
 	syntree_node * key;
 };
+
+typedef std::vector<String> struct_memlist;
+
+struct struct_desc_memlist_node : public syntree_node
+{
+	struct_desc_memlist_node() {}
+	virtual ~struct_desc_memlist_node() {}
+
+	virtual esyntreetype gettype()
+	{
+		return est_struct_memlist;
+	}
+
+	virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[struct_desc_memlist_node]:\n";
+        for (int i = 0; i < (int)memlist.size(); i++)
+        {
+            ret += gentab(indent + 1);
+            ret += memlist[i];
+            ret += "\n";
+        }
+        return ret;
+    }
+
+	virtual void recycle();
+
+    void add_arg(String mem)
+    {
+        memlist.push_back(mem);
+    }
+
+	struct_memlist memlist;
+};
+
+struct struct_pointer_node : public syntree_node
+{
+	struct_pointer_node() {}
+	virtual ~struct_pointer_node() {}
+
+	virtual esyntreetype gettype()
+	{
+		return est_struct_pointer;
+	}
+
+	virtual String dump(int indent);
+
+	virtual void recycle();
+
+	String str;
+};
+
+

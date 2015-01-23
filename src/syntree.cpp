@@ -33,6 +33,8 @@ const char * get_syntree_node_name(esyntreetype type)
 	SYN_NODE_DEF(est_multi_assign_stmt)
 	SYN_NODE_DEF(est_var_list)
 	SYN_NODE_DEF(est_container_get)
+	SYN_NODE_DEF(est_struct_memlist)
+	SYN_NODE_DEF(est_struct_pointer)
     
 #undef SYN_NODE_DEF
     }
@@ -444,5 +446,27 @@ void multi_assign_stmt::recycle()
 	varlist->recycle();
 	value->recycle();
 	fkdelete<multi_assign_stmt>(fk, this);
+}
+
+void struct_desc_memlist_node::recycle()
+{
+	FKLOG("recycle struct_desc_memlist_node");
+	fkdelete<struct_desc_memlist_node>(fk, this);
+}
+
+void struct_pointer_node::recycle()
+{
+	FKLOG("recycle struct_pointer_node");
+	fkdelete<struct_pointer_node>(fk, this);
+}
+
+String struct_pointer_node::dump(int indent)
+{
+	String ret;
+	ret += gentab(indent);
+	ret += "[struct_pointer_node]:";
+	ret += str;
+	ret += "\n";
+	return ret;
 }
 

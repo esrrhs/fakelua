@@ -17,12 +17,30 @@ struct paramstack
 };
 
 #define PS_PUSH_AND_GET(ps, v) \
-    assert((ps).m_variant_list_num < REAL_MAX_FAKE_PARAM_NUM);\
-    v = &(ps).m_variant_list[(ps).m_variant_list_num];\
-    (ps).m_variant_list_num++;
+    if ((ps).m_variant_list_num < REAL_MAX_FAKE_PARAM_NUM) \
+    { \
+        v = &(ps).m_variant_list[(ps).m_variant_list_num]; \
+        (ps).m_variant_list_num++; \
+    } \
+    else \
+    { \
+	    err = true; \
+	    seterror(fk, efk_run_param_error, "push fail, param stack is full %d", REAL_MAX_FAKE_PARAM_NUM); \
+        v = &(ps).m_variant_list[REAL_MAX_FAKE_PARAM_NUM - 1]; \
+        USE(err); \
+    }
     
 #define PS_POP_AND_GET(ps, v) \
-    assert((ps).m_variant_list_num > 0);\
-    v = &(ps).m_variant_list[(ps).m_variant_list_num - 1];\
-    (ps).m_variant_list_num--;
+    if ((ps).m_variant_list_num > 0) \
+    { \
+        v = &(ps).m_variant_list[(ps).m_variant_list_num - 1]; \
+        (ps).m_variant_list_num--; \
+    } \
+    else \
+    { \
+	    err = true; \
+	    seterror(fk, efk_run_param_error, "pop fail, param stack is empty"); \
+        v = &(ps).m_variant_list[0]; \
+        USE(err); \
+    }
     

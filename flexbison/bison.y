@@ -26,8 +26,9 @@ int my_yyerror(const char *s, void * parm)
 #define NEWTYPE(p, x) \
 	x* p = (x*)(((myflexer *)parm)->malloc(sizeof(x), #x)); \
 	new (p) x(); \
-	p->fk = ((myflexer *)parm)->getfake();
-	
+	p->fk = ((myflexer *)parm)->getfake(); \
+	p->lno = ((myflexer *)parm)->lineno(); \
+	FKLOG("[bison]: bison new type %s %p line %d", #x, p, p->lno);
 	
 %}
 
@@ -74,13 +75,19 @@ int my_yyerror(const char *s, void * parm)
 %token FKUUID
 %token OPEN_SQUARE_BRACKET
 %token CLOSE_SQUARE_BRACKET
+%token FCONST
+%token PACKAGE
+%token INCLUDE
+%token IDENTIFIER_DOT
+%token IDENTIFIER_POINTER
+%token STRUCT
 
 %right PLUS
 %right MINUS
 %right DIVIDE
 %right MULTIPLY
 
-%expect 17
+%expect 22
 
 %type<str> IDENTIFIER  
 %type<str> NUMBER
@@ -97,6 +104,8 @@ int my_yyerror(const char *s, void * parm)
 %type<str> AND OR
 %type<str> FKFLOAT
 %type<str> PLUS_ASSIGN MINUS_ASSIGN DIVIDE_ASSIGN MULTIPLY_ASSIGN DIVIDE_MOD_ASSIGN
+%type<str> IDENTIFIER_DOT  
+%type<str> IDENTIFIER_POINTER  
 
 %type<syntree> break
 %type<syntree> function_declaration
@@ -129,15 +138,125 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> multi_assign_stmt
 %type<syntree> var_list
 %type<syntree> fake_call_stmt
+%type<syntree> struct_mem_declaration
 
 
 %%
 
 /* Top level rules */
-program: body
+program: package_head
+	include_head
+	struct_head
+	const_head 
+	body 
+	;
+	
+package_head:
+	/* empty */
+	{
+	}
+	|
+	PACKAGE IDENTIFIER
+	{
+		FKLOG("[bison]: package %s", $2.c_str());
+		myflexer *l = (myflexer *)parm;
+		l->set_package($2.c_str());
+	}
+	|
+	PACKAGE IDENTIFIER_DOT
+	{
+		FKLOG("[bison]: package %s", $2.c_str());
+		myflexer *l = (myflexer *)parm;
+		l->set_package($2.c_str());
+	}
+	
+include_head:
+	/* empty */
+	{
+	}
+	|
+	include_define
+	|
+	include_head include_define
+	;
+	
+include_define:
+	INCLUDE STRING_DEFINITION
+	{
+		FKLOG("[bison]: include %s", $2.c_str());
+		myflexer *l = (myflexer *)parm;
+		l->add_include($2.c_str());
+	}
+	;
+
+struct_head:
+	/* empty */
+	{
+	}
+	|
+	struct_define
+	|
+	struct_head struct_define
+	;
+
+struct_define:
+	STRUCT IDENTIFIER struct_mem_declaration END
+	{
+		FKLOG("[bison]: struct_define %s", $2.c_str());
+		myflexer *l = (myflexer *)parm;
+		struct_desc_memlist_node * p = dynamic_cast<struct_desc_memlist_node*>($3);
+		l->add_struct_desc($2.c_str(), p);
+	}
+	;
+	
+struct_mem_declaration: 
+	/* empty */
+	{
+		$$ = 0;
+	}
+	| 
+	struct_mem_declaration IDENTIFIER 
+	{
+		FKLOG("[bison]: struct_mem_declaration <- IDENTIFIER struct_mem_declaration");
+		assert($1->gettype() == est_struct_memlist);
+		struct_desc_memlist_node * p = dynamic_cast<struct_desc_memlist_node*>($1);
+		p->add_arg($2);
+		$$ = p;
+	}
+	| 
+	IDENTIFIER
+	{
+		FKLOG("[bison]: struct_mem_declaration <- IDENTIFIER");
+		NEWTYPE(p, struct_desc_memlist_node);
+		p->add_arg($1);
+		$$ = p;
+	}
+	;
+
+const_head:
+	/* empty */
+	{
+	}
+	|
+	const_define
+	|
+	const_head const_define
+	;
+
+const_define:
+	FCONST IDENTIFIER ASSIGN explicit_value
+	{
+		FKLOG("[bison]: const_define %s", $2.c_str());
+		myflexer *l = (myflexer *)parm;
+		l->add_const_desc($2.c_str(), $4);
+	}
 	;
 
 body:
+	/* empty */
+	{
+	}
+	|
 	function_declaration
 	|
 	body function_declaration
@@ -205,6 +324,16 @@ arg :
 	
 function_call:
 	IDENTIFIER OPEN_BRACKET function_call_arguments CLOSE_BRACKET 
+	{
+		FKLOG("[bison]: function_call <- function_call_arguments %s", $1.c_str());
+		NEWTYPE(p, function_call_node);
+		p->fuc = $1;
+		p->arglist = dynamic_cast<function_call_arglist_node*>($3);
+		p->fakecall = false;
+		$$ = p;
+	} 
+	|
+	IDENTIFIER_DOT OPEN_BRACKET function_call_arguments CLOSE_BRACKET 
 	{
 		FKLOG("[bison]: function_call <- function_call_arguments %s", $1.c_str());
 		NEWTYPE(p, function_call_node);
@@ -778,6 +907,14 @@ variable:
 		NEWTYPE(p, container_get_node);
 		p->container = $1;
 		p->key = $3;
+		$$ = p;
+	}
+	|
+	IDENTIFIER_POINTER
+	{
+		FKLOG("[bison]: variable <- IDENTIFIER_POINTER %s", $1.c_str());
+		NEWTYPE(p, struct_pointer_node);
+		p->str = $1;
 		$$ = p;
 	}
 	;

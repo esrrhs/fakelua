@@ -11,6 +11,8 @@ struct fake;
 
 #define GET_CMD(fb, pos) fb.m_buff[pos]
 
+#define GET_CMD_LINENO(fb, pos) (pos >= 0 && pos < (int)fb.m_lineno_size) ? fb.m_lineno_buff[pos] : (fb.m_lineno_size > 0 ? fb.m_lineno_buff[fb.m_lineno_size - 1] : 0)
+
 #define GET_CONST(v, fb, pos) \
     assert(pos >= 0 && pos < (int)fb.m_const_list_num);\
     v = &fb.m_const_list[pos];
@@ -45,6 +47,11 @@ struct fake;
     else if (v##_addrtype == ADDR_CONTAINER)\
     {\
 		GET_CONTAINER(v, s, fb, (v##_addrpos)); \
+		if (!v) \
+		{ \
+		    err = true; \
+		    break;\
+		} \
     }\
     else\
     {\
@@ -72,7 +79,12 @@ struct fake;
     (s).m_pos++;\
     \
 	variant * dest;\
-    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK);\
+	if (!(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK)) \
+	{ \
+	    err = true; \
+	    seterror(fk, efk_run_inter_error, "interpreter math oper error, dest is not stack, type %d", (int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos)))); \
+	    break; \
+	} \
     LOG_VARIANT(s, fb, (s).m_pos, "dest");\
 	GET_VARIANT(s, fb, dest, (s).m_pos);\
     (s).m_pos++;\
@@ -85,7 +97,12 @@ struct fake;
  
 #define MATH_ASSIGN_OPER(s, fb, oper) \
 	variant * var = 0;\
-    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK || ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_CONTAINER);\
+    if (!(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK || ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_CONTAINER))\
+    { \
+	    err = true; \
+	    seterror(fk, efk_run_inter_error, "interpreter math assign oper error, dest is not stack or container, type %d", (int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos)))); \
+	    break; \
+    } \
 	LOG_VARIANT(s, fb, (s).m_pos, "var");\
     GET_VARIANT(s, fb, var, (s).m_pos);\
     (s).m_pos++;\
@@ -139,13 +156,24 @@ public:
         variant * v = 0;
         assert(conpos >= 0 && conpos < (int)fb.m_container_addr_list_num);
         const container_addr & ca = fb.m_container_addr_list[conpos];
-        bool err;
+        bool err = false;
+	    USE(err);
         variant * conv = 0;
         do {GET_VARIANT_BY_CMD(s, fb, conv, ca.con);}while(0);
         const variant * keyv = 0;
         do {GET_VARIANT_BY_CMD(s, fb, keyv, ca.key);}while(0);
 
-        assert(conv->type == variant::ARRAY || conv->type == variant::MAP);
+        if (err)
+        {   
+            return 0;
+        }
+    
+        if (!(conv->type == variant::ARRAY || conv->type == variant::MAP))
+        {
+    	    seterror(m_fk, efk_run_inter_error, "interpreter get container variant fail, container type error, type %d", conv->type);
+    	    return 0;
+        }
+        
         if (conv->type == variant::ARRAY)
         {
             v = con_array_get(m_fk, conv->data.va, keyv);
@@ -154,7 +182,7 @@ public:
         {
             v = con_map_get(m_fk, conv->data.vm, keyv);
         }
-        assert(v);
+
         return v;
     }
 
@@ -168,9 +196,38 @@ public:
 		return FUNC_BINARY_NAME(*(m_cur_stack->m_fb));
     }
 
+    force_inline const char * get_running_file_name() const
+    {
+		return FUNC_BINARY_FILENAME(*(m_cur_stack->m_fb));
+    }
+    
+    force_inline int get_running_file_line() const
+    {
+        const func_binary & fb = *m_cur_stack->m_fb;
+        int pos = m_cur_stack->m_pos;
+        if (pos < 0 || pos >= (int)FUNC_BINARY_LINENO_SIZE(fb))
+        {
+		    return 0;
+        }
+        return GET_CMD_LINENO(fb, pos);
+    }
+    
+    const char * get_running_call_stack() const;
+    size_t get_max_stack() const;
+    
     force_inline int run(int cmdnum)
     {
+        fake * fk = m_fk;
         int num = 0;
+
+        // 栈溢出检查
+        if (ARRAY_SIZE(m_stack_list) > get_max_stack())
+        {   
+            seterror(fk, efk_run_inter_error, "stack too deep %d", ARRAY_SIZE(m_stack_list));
+            m_isend = true;
+            return num;
+        }
+        
         for (int i = 0; i < cmdnum; i++)
         {
             bool err = false;
@@ -226,8 +283,13 @@ public:
             case OPCODE_ASSIGN:
                 {
                     // 赋值dest，必须为栈上或容器内
-                    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))) == ADDR_STACK || 
-                        ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))) == ADDR_CONTAINER);
+                    if (!(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))) == ADDR_STACK || 
+                        ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))) == ADDR_CONTAINER))
+                    {   
+                	    err = true;
+                	    seterror(fk, efk_run_inter_error, "interpreter assign error, dest is not stack or container, type %d", (int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))));
+                	    break;
+                    }
 
                     variant * varv = 0;
                     LOG_VARIANT(*m_cur_stack, fb, m_cur_stack->m_pos, "var");
@@ -474,7 +536,8 @@ public:
 	for (int i = 0; i < (int)ARRAY_MAX_SIZE((inter).m_stack_list); i++)\
 	{\
 	    STACK_DELETE(ARRAY_GET((inter).m_stack_list, i));\
-	}
+	}\
+	ARRAY_DELETE((inter).m_stack_list)
 	
 #define INTER_INI(inter, fk) (inter).m_fk = fk;\
     ARRAY_INI((inter).m_stack_list, fk)

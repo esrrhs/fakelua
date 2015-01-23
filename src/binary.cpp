@@ -146,6 +146,9 @@ String func_binary::dump() const
         int code = COMMAND_CODE(cmd);
         ret += "\t[";
         ret += fkitoa(i);
+        ret += "]";
+        ret += "[LINE ";
+        ret += fkitoa(m_lineno_buff[i]);
         ret += "]\t";
         ret += fkxtoa(cmd);
         ret += "\t";

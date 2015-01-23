@@ -1,0 +1,26 @@
+package p29.test
+
+const c_int = 1
+const c_string = "p29.test.myfunc1"
+
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	myfunc2()
+	
+end
+
+-- func2 comment
+func myfunc2()
+	
+	print("p29 myfunc2 ", c_int)
+	
+end
+
+-- const不能直接导出，考虑到热更新后无法通知引用者
+func get_c_int()
+	return c_int
+end
+func get_c_string()
+	return c_string
+end

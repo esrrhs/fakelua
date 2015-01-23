@@ -90,9 +90,16 @@ struct func_binary
     int m_paramnum;
     // 名字
     const char * m_name;
+    // 文件名
+    const char * m_filename;
+    // 包名
+    const char * m_packagename;
     // 二进制缓冲区
     command * m_buff;
     size_t m_size;
+    // 二进制行号缓冲区
+    int * m_lineno_buff;
+    size_t m_lineno_size;
     // 常量
     variant * m_const_list;
     size_t m_const_list_num;
@@ -109,9 +116,18 @@ struct func_binary
 #define FUNC_BINARY_NAME(fb) \
 	((fb).m_name)
 
+#define FUNC_BINARY_FILENAME(fb) \
+	((fb).m_filename)
+	
+#define FUNC_BINARY_PACKAGENAME(fb) \
+	((fb).m_packagename)
+	
 #define FUNC_BINARY_CMDSIZE(fb) \
 	((fb).m_size)
 
+#define FUNC_BINARY_LINENO_SIZE(fb) \
+	((fb).m_lineno_size)
+	
 #define FUNC_BINARY_SIZE(fb) \
 	((fb).m_size * sizeof(command))
 
@@ -123,7 +139,10 @@ struct func_binary
 
 #define FUNC_BINARY_DELETE(fb) \
 	safe_fkfree(m_fk, (fb).m_name); \
+	safe_fkfree(m_fk, (fb).m_filename); \
+	safe_fkfree(m_fk, (fb).m_packagename); \
 	safe_fkfree(m_fk, (fb).m_buff); \
+	safe_fkfree(m_fk, (fb).m_lineno_buff); \
 	safe_fkfree(m_fk, (fb).m_const_list); \
 	safe_fkfree(m_fk, (fb).m_container_addr_list)
 

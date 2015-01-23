@@ -85,6 +85,11 @@ String fkget_token_name(int token)
 		TOKEN_SWITCH(FKUUID)
 		TOKEN_SWITCH(OPEN_SQUARE_BRACKET)
 		TOKEN_SWITCH(CLOSE_SQUARE_BRACKET)
+		TOKEN_SWITCH(FCONST)
+		TOKEN_SWITCH(PACKAGE)
+		TOKEN_SWITCH(INCLUDE)
+		TOKEN_SWITCH(IDENTIFIER_DOT)
+		TOKEN_SWITCH(IDENTIFIER_POINTER)
     }
 #undef TOKEN_SWITCH
 	return fkitoa(token);
@@ -115,6 +120,15 @@ void seterror(fake * fk, efkerror err, const char *fmt, ...)
     vsnprintf(fk->errorstr, sizeof(fk->errorstr) - 1, fmt, ap);
 	va_end(ap);
 	fk->errorstr[sizeof(fk->errorstr) - 1] = 0;
+	if (fk->errorcb)
+	{
+	    fk->errorcb(fk, fk->errorno, fk->errorstr);
+	}
+}
+
+String fkstringeletoa(stringele * ele)
+{
+    return ele ? ele->s : "";
 }
 
 String vartostring(const variant * v)
@@ -131,6 +145,10 @@ paramstack * getps(fake * fk)
 
 char * stringdump(fake * fk, const char * src, size_t sz)
 {
+    if (sz == 0)
+    {
+        return 0;
+    }
 	char * s = (char*)safe_fkmalloc(fk, sz + 1);
 	memcpy(s, src, sz);
 	s[sz] = 0;
@@ -155,6 +173,12 @@ uint32_t fkgetmstick()
 
 String fkarraytoa(variant_array * va)
 {
+    if (ARRAY_RECUR(va->va))
+    {
+        return "ARRAY IN RECUR";
+    }
+    ARRAY_ENTER(va->va);
+    
     String ret;
     ret += "[";
     for (int i = 0; i < (int)ARRAY_MAX_SIZE(va->va); i++)
@@ -172,11 +196,19 @@ String fkarraytoa(variant_array * va)
     }
     ret += "]";
     
+    ARRAY_LEAVE(va->va);
+    
     return ret;
 }
 
 String fkmaptoa(variant_map * vm)
 {
+    if (HASHMAP_RECUR(vm->vm))
+    {
+        return "MAP IN RECUR";
+    }
+    HASHMAP_ENTER(vm->vm);
+    
     String ret;
     ret += "{";
     int i = 0;
@@ -200,7 +232,12 @@ String fkmaptoa(variant_map * vm)
     }
     ret += "}";
     
+    HASHMAP_LEAVE(vm->vm);
+    
     return ret;
 }
 
-
+void fksetcurroutine(fake * fk, routine * r)
+{
+    fk->rn.curroutine = r;
+}

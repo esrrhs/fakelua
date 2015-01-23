@@ -13,10 +13,14 @@ struct variant_array
     array<pool<variant>::node *> va;
 };
 
+#define VARIANT_ARRAY_DELETE(vva) ARRAY_DELETE((vva).va)
+
 struct variant_map
 {
     vhashmap<pool<variant>::node *> vm;
 };
+
+#define VARIANT_MAP_DELETE(vvm) HASHMAP_DELETE((vvm).vm)
 
 variant * con_array_get(fake * fk, variant_array * va, const variant * k);
 variant * con_map_get(fake * fk, variant_map * vm, const variant * k);

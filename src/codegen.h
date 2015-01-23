@@ -15,6 +15,7 @@ struct block_identifiers
 typedef std::vector<block_identifiers> block_identifiers_list;
 typedef std::vector<block_identifiers_list> block_identifiers_stack;
 typedef std::vector<command> byte_code_list;
+typedef std::vector<int> byte_lineno_list;
 typedef std::vector<variant> const_list;
 typedef std::vector<container_addr> containeraddr_list;
 
@@ -34,6 +35,9 @@ public:
         m_maxstackpos = 0;
         m_block_identifiers_stack.clear();
         m_byte_code_list.clear();
+        m_byte_lineno_list.clear();
+        m_const_list.clear();
+        m_containeraddr_list.clear();
     }
     
     int add_stack_identifier(const String & name);
@@ -87,9 +91,10 @@ public:
 
 	int getconst(const variant & v);
 
-    void push(uint64_t code)
+    void push(uint64_t code, int lineno)
     {
         m_byte_code_list.push_back(code);
+        m_byte_lineno_list.push_back(lineno);
     }
     void set(int pos, uint64_t code)
     {
@@ -101,7 +106,7 @@ public:
         return m_byte_code_list.size();
     }
 
-	void output(const char * name, func_binary * bin);
+	void output(const char * filename, const char * packagename, const char * name, func_binary * bin);
     
     int get_cur_variable_pos(const String & name)
     {
@@ -125,6 +130,7 @@ private:
     int m_maxstackpos;
     block_identifiers_stack m_block_identifiers_stack;
 	byte_code_list m_byte_code_list;
+	byte_lineno_list m_byte_lineno_list;
 	const_list m_const_list;
 	containeraddr_list m_containeraddr_list;
 };
