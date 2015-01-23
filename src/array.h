@@ -10,6 +10,7 @@ struct array
 	T* m_data;
 	size_t m_size;
 	size_t m_max_size;
+    char m_recurflag;
 };
 
 #define ARRAY_DELETE(array) safe_fkfree((array).m_fk, (array).m_data)
@@ -38,3 +39,6 @@ struct array
 #define ARRAY_POP_BACK(array) (array).m_size--
 #define ARRAY_EMPTY(array) (!(array).m_size)
 #define ARRAY_PUSH_BACK(array) (array).m_size++
+#define ARRAY_RECUR(array) ((array).m_recurflag != 0)
+#define ARRAY_ENTER(array) ((array).m_recurflag++)
+#define ARRAY_LEAVE(array) ((array).m_recurflag--)

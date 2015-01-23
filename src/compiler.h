@@ -5,12 +5,12 @@
 #include "syntree.h"
 
 struct fake;
-class myflexer;
 class binary;
+class myflexer;
 class compiler
 {
 public:
-    compiler(fake * fk) : m_fk(fk)
+    compiler(fake * fk, myflexer * mf) : m_fk(fk), m_mf(mf)
     {
     }
     ~compiler() 
@@ -19,9 +19,11 @@ public:
     }
 
     void clear();
-    bool compile(myflexer * mf);
+    bool compile();
 
 private:
+    bool compile_const_head();
+    bool compile_body();
     bool compile_func(func_desc_node * funcnode);
     bool compile_block(codegen & cg, block_node * blocknode);
     bool compile_node(codegen & cg, syntree_node * node);
@@ -41,9 +43,11 @@ private:
     bool compile_math_expr_node(codegen & cg, math_expr_node * mn);
 	bool compile_return_value_list(codegen & cg, return_value_list_node * rn);
     bool compile_container_get(codegen & cg, container_get_node * cn);
+    bool compile_struct_pointer(codegen & cg, struct_pointer_node * sn);
     
 private:
     fake * m_fk;
+    myflexer * m_mf;
 	command m_cur_addr;
 	command m_cur_addrs[MAX_FAKE_RETURN_NUM];
 	typedef std::vector<int> beak_pos_list;

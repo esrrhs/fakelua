@@ -10,6 +10,9 @@ extern "C"
 #include "./lua/lauxlib.h"
 };
 #include "lua_tinker.h"
+#ifndef WIN32
+#include "gperftools/profiler.h"
+#endif
 
 int cfunc1(int a, int b)
 {
@@ -53,6 +56,10 @@ int main(int argc, const char *argv[])
 
 	unsigned int begin = time(0);
 
+#ifndef WIN32
+	ProfilerStart("luatest.prof");
+#endif
+
 #ifndef _DEBUG
 	for (int i = 0; i < 9000000; i++)
 #else
@@ -62,6 +69,9 @@ int main(int argc, const char *argv[])
 		ret = lua_tinker::call<int>(L, "myfunc1", 1, 2);
 	}
 
+#ifndef WIN32
+	ProfilerStop();
+#endif
 	unsigned int end = time(0);
 
 	printf("call ret %d %d\n", ret, end - begin);

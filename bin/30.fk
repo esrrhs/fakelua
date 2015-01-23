@@ -1,0 +1,13 @@
+include "29.fk"
+
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	p29.test.myfunc1(arg1, arg2)
+	var f = p29.test.get_c_string()
+	f(arg1, arg2)
+	print("myfunc1 ", p29.test.get_c_int())
+	
+	return p29.test.get_c_int() * 2
+	
+end

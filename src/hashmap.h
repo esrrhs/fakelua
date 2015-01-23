@@ -375,7 +375,7 @@ hashele [1] [2] [3] [4] [5] [6]
 	};
 public:
 	force_inline vhashmap(fake * fk) : m_fk(fk), m_hashele(0), m_hashele_size(0), m_ele_size(0), m_grow_times(0),
-		m_hashele_iter(0), m_ele_iter(0)
+		m_hashele_iter(0), m_ele_iter(0), m_recurflag(0)
 	{
 
 	}
@@ -654,8 +654,20 @@ public:
 	size_t m_grow_times;
 	mutable size_t m_hashele_iter;
 	mutable size_t m_ele_iter;
+	char m_recurflag;
 };
 
 #define HASHMAP_INI(hm, fk) (hm).m_fk = fk
 #define HASHMAP_CLEAR(hm) (hm).clear()
+#define HASHMAP_DELETE(hm) \
+    {\
+    	for (int i = 0; i < (int)(hm).m_hashele_size; i++)\
+    	{\
+    		safe_fkfree((hm).m_fk, (hm).m_hashele[i].e);\
+    	}\
+    	safe_fkfree((hm).m_fk, (hm).m_hashele);\
+    }
+#define HASHMAP_RECUR(hm) ((hm).m_recurflag != 0)
+#define HASHMAP_ENTER(hm) ((hm).m_recurflag++)
+#define HASHMAP_LEAVE(hm) ((hm).m_recurflag--)
 

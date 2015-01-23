@@ -25,7 +25,7 @@ struct routine
 
 #define ROUTINE_ISEND(rou) (rou).m_interpreter.isend()
 
-#define ROUTINE_RUN(rou, cmdnum) (rou).m_interpreter.run(cmdnum)
+#define ROUTINE_RUN(rou, cmdnum) fksetcurroutine((rou).m_fk, &(rou));(rou).m_interpreter.run(cmdnum)
 
 #define ROUTINE_GETRET(rou) (rou).m_interpreter.getret()
 

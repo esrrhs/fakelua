@@ -69,6 +69,8 @@
     <ClInclude Include="src\array.h" />
     <ClInclude Include="src\pool.h" />
     <ClInclude Include="src\container.h" />
+    <ClInclude Include="src\running.h" />
+    <ClInclude Include="src\parser.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -126,6 +128,8 @@
     <ClCompile Include="src\profile.cpp" />
     <ClCompile Include="src\container.cpp" />
     <ClCompile Include="src\funcmap.cpp" />
+    <ClCompile Include="src\running.cpp" />
+    <ClCompile Include="src\parser.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="CMakeLists.txt" />

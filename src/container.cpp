@@ -12,8 +12,21 @@ container::container(fake * fk) : m_fk(fk), m_gmap(fk)
 container::~container()
 {
 	clear();
+    pool<variant_array>::node * pvan = m_va_pl.p.m_data;
+    while (pvan != 0)
+    {
+        VARIANT_ARRAY_DELETE(pvan->t);
+        pvan = pvan->next;
+    }
 	POOLLIST_DELETE(m_va_pl);
+    pool<variant_map>::node * pvmn = m_vm_pl.p.m_data;
+    while (pvmn != 0)
+    {
+        VARIANT_MAP_DELETE(pvmn->t);
+        pvmn = pvmn->next;
+    }
 	POOLLIST_DELETE(m_vm_pl);
+	
 	POOLLIST_DELETE(m_v_pl);
 	
     POOLLIST_CLEAR(m_gv_pl, variant, USE(n));
@@ -69,8 +82,14 @@ pool<variant>::node * container::newglobalvariant()
 
 variant * con_array_get(fake * fk, variant_array * va, const variant * k)
 {
+	bool err = false;
     int index = 0;
     V_GET_REAL(k, index);
+    if (err)
+    {
+        return 0;
+    }
+    
     if (index >= (int)ARRAY_MAX_SIZE(va->va))
 	{
 	    size_t newsize = index + 1 + ARRAY_MAX_SIZE(va->va) * fk->cfg.array_grow_speed / 100;

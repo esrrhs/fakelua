@@ -1,7 +1,6 @@
 /************************************************************************/
 /*
-fakescript是一款轻量级的嵌入式脚本语言
-与Lua相比，它的运行速度更快，更容易使用，同时源代码可读性更强
+fakescript是一款轻量级的嵌入式脚本语言，与Lua相比，它的运行速度更快，更容易使用，同时源代码可读性更强。
 
 脚本特性：
 @.代码风格类似lua
@@ -14,34 +13,54 @@ fakescript是一款轻量级的嵌入式脚本语言
 @.自带profile，可获取脚本各个函数运行时间
 @.支持热更新
 @.支持Int64
+@.支持const定义
+@.支持包
+@.支持struct
 
 示例：
+-- 当前包名
+package mypackage.test
+
+-- 引入的文件
+include "common.fk"
+
+-- 结构体定义
+struct teststruct
+	sample_a
+	sample_b
+	sample_c
+end
+
+-- 常量值
+const hellostring = "hello"
+const helloint = 1234
+
 -- func1 comment
 func myfunc1(arg1, arg2)
-
+	
 	-- C函数和类成员函数的调用
-	var arg3 = cfunc1(arg1) + arg2:memfunc1(arg1)
-
+	var arg3 = cfunc1(helloint) + arg2:memfunc1(arg1)
+	
 	-- 分支
-	if arg1 < arg2 then
-	-- 创建一个协程
+	if arg1 < arg2 then	
+		-- 创建一个协程
 		fake myfunc2(arg1, arg2)
 	end
-
+	
 	-- for循环
 	for var i = 0, i < arg2, i++ then
 		print("i = ", i)
 	end
-
+	
 	-- 数组
 	var a = array()
 	a[1] = 3
-
+	
 	-- 集合
 	var b = map()
 	b[a] = 1
 	b[1] = a
-
+	
 	-- Int64
 	var uid = 1241515236123614u
 	log("uid = ", uid)
@@ -49,10 +68,20 @@ func myfunc1(arg1, arg2)
 	-- 子函数调用
 	var ret1, var ret2 = myfunc2()
 
+	-- 其他包的函数调用
+	ret1 = otherpackage.test.myfunc1(arg1, arg2)
+	
+	-- 结构体
+	var tt = teststruct()
+	tt->sample_a = 1
+	tt->sample_b = teststruct()
+	tt->sample_b->sample_a = 10
+	
 	-- 多返回值
 	return arg1, arg3
-
+	
 end
+
 
 使用方法：
 fake * fk = newfake();
@@ -89,11 +118,11 @@ enum efkerror
     efk_ok = 0,
     efk_strsize = 100,
     
-    efk_open_file_fail,
+    efk_open_file_fail = 200,
     efk_open_file_empty,
     efk_parse_file_fail,
     
-    efk_compile_func_not_define,
+    efk_compile_func_not_define = 300,
     efk_compile_stack_identifier_error,
     efk_compile_stmt_type_error,
 	efk_compile_variable_not_found,
@@ -102,13 +131,19 @@ enum efkerror
 	efk_compile_variable_has_define,
 	efk_compile_add_stack_identifier,
 
-	efk_reg_memfunc_double_name,
+	efk_reg_memfunc_double_name = 400,
 	
-	efk_run_no_func_error,
+	efk_run_no_func_error = 500,
+	efk_run_param_error,
+	efk_run_data_error,
+	efk_run_cal_error,
+	efk_run_inter_error,
 };
 
 // 脚本环境
 struct fake;
+
+typedef void (*fkerrorcb)(fake * fk, int eno, const char * str);
 
 typedef void * (*fkmalloc)(size_t size);
 typedef void (*fkfree)(void *ptr);
@@ -122,13 +157,17 @@ struct fakeconfig
     fakeconfig() : fkm(&malloc), fkf(&free), 
         per_frame_cmd_num(10), 
         array_grow_speed(100), 
-        string_heap_num(100)
+        string_heap_num(100), 
+        include_deps(100), 
+        stack_deps(100)
         {}
     fkmalloc fkm;
     fkfree fkf;	// 内存管理
     int per_frame_cmd_num;			// 每帧执行命令数目
 	int array_grow_speed;		    // 增长速度，百分比，10%代表增长10%
 	int string_heap_num;    		// 字符串集合的最大数目
+	int include_deps;    		    // 解析include最大深度
+	int stack_deps;    		        // stack最大深度
 };
 
 // 申请回收
@@ -673,6 +712,8 @@ struct fkmeminvoker
 	static void invoke(fake * fk, const fkfunctor * ff) 
 	{ 
 	    T * p = fkpspop<T*>(fk);    // 不同编译器顺序不一样，提出来安全
+	    if (!p)
+	        return;
 	    RVal ret = ((p)->*(*(RVal(T::**)(T1,T2,T3,T4,T5))(ff->param2)))(fkpspop<T1>(fk),
 	        fkpspop<T2>(fk),
 	        fkpspop<T3>(fk),
@@ -688,6 +729,8 @@ struct fkmeminvoker<RVal, T, T1, T2, T3, T4>
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
 	    T * p = fkpspop<T*>(fk);
+	    if (!p)
+	        return;
 	    RVal ret = ((p)->*(*(RVal(T::**)(T1,T2,T3,T4))(ff->param2)))(fkpspop<T1>(fk),
 	        fkpspop<T2>(fk),
 	        fkpspop<T3>(fk),
@@ -702,6 +745,8 @@ struct fkmeminvoker<RVal, T, T1, T2, T3>
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
 	    T * p = fkpspop<T*>(fk);
+	    if (!p)
+	        return;
 	    RVal ret = ((p)->*(*(RVal(T::**)(T1,T2,T3))(ff->param2)))(fkpspop<T1>(fk),
 	        fkpspop<T2>(fk),
 	        fkpspop<T3>(fk));
@@ -715,6 +760,8 @@ struct fkmeminvoker<RVal, T, T1 ,T2>
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
 	    T * p = fkpspop<T*>(fk);
+	    if (!p)
+	        return;
 	    RVal ret = ((p)->*(*(RVal(T::**)(T1,T2))(ff->param2)))(fkpspop<T1>(fk),
 	        fkpspop<T2>(fk));
 	    fkpspush<RVal>(fk, ret);
@@ -727,6 +774,8 @@ struct fkmeminvoker<RVal, T, T1>
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
 	    T * p = fkpspop<T*>(fk);
+	    if (!p)
+	        return;
 	    RVal(T::*func)(T1) = *(RVal(T::**)(T1))(ff->param2);
 	    RVal ret = ((p)->*(func))(fkpspop<T1>(fk));
 	    fkpspush<RVal>(fk, ret);
@@ -739,6 +788,8 @@ struct fkmeminvoker<RVal, T>
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
 	    T * p = fkpspop<T*>(fk);
+	    if (!p)
+	        return;
 	    RVal ret = ((p)->*(*(RVal(T::**)(void))(ff->param2)))();
 	    fkpspush<RVal>(fk, ret);
 	}
@@ -751,6 +802,8 @@ struct fkmeminvoker<void, T, T1, T2, T3, T4, T5>
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
 	    T * p = fkpspop<T*>(fk);
+	    if (!p)
+	        return;
 	    ((p)->*(*(void(T::**)(T1,T2,T3,T4,T5))(ff->param2)))(fkpspop<T1>(fk),
 	        fkpspop<T2>(fk),
 	        fkpspop<T3>(fk),
@@ -766,6 +819,8 @@ struct fkmeminvoker<void, T, T1, T2, T3, T4>
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
 	    T * p = fkpspop<T*>(fk);
+	    if (!p)
+	        return;
 	    ((p)->*(*(void(T::**)(T1,T2,T3,T4))(ff->param2)))(fkpspop<T1>(fk),
 	        fkpspop<T2>(fk),
 	        fkpspop<T3>(fk),
@@ -780,6 +835,8 @@ struct fkmeminvoker<void, T, T1, T2, T3>
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
 	    T * p = fkpspop<T*>(fk);
+	    if (!p)
+	        return;
 	    ((p)->*(*(void(T::**)(T1,T2,T3))(ff->param2)))(fkpspop<T1>(fk),
 	        fkpspop<T2>(fk),
 	        fkpspop<T3>(fk));
@@ -793,6 +850,8 @@ struct fkmeminvoker<void, T, T1, T2>
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
 	    T * p = fkpspop<T*>(fk);
+	    if (!p)
+	        return;
 	    ((p)->*(*(void(T::**)(T1,T2))(ff->param2)))(fkpspop<T1>(fk),
 	        fkpspop<T2>(fk));
 	    fkpspush<int>(fk, 0);
@@ -805,6 +864,8 @@ struct fkmeminvoker<void, T, T1>
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
 	    T * p = fkpspop<T*>(fk);
+	    if (!p)
+	        return;
 	    ((p)->*(*(void(T::**)(T1))(ff->param2)))(fkpspop<T1>(fk));
 	    fkpspush<int>(fk, 0);
 	}
@@ -816,6 +877,8 @@ struct fkmeminvoker<void, T>
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
 	    T * p = fkpspop<T*>(fk);
+	    if (!p)
+	        return;
 	    ((p)->*(*(void(T::**)(void))(ff->param2)))();
 	    fkpspush<int>(fk, 0);
 	}
@@ -865,4 +928,13 @@ FAKE_API void fkopenbaselib(fake * fk);
 FAKE_API void fkopenprofile(fake * fk);
 FAKE_API void fkcloseprofile(fake * fk);
 FAKE_API const char * fkdumpprofile(fake * fk);
+
+// 设置错误回调
+FAKE_API void fkseterrorfunc(fake * fk, fkerrorcb cb);
+
+// 获取当前运行状态
+FAKE_API const char * fkgetcurfunc(fake * fk);
+FAKE_API const char * fkgetcurfile(fake * fk);
+FAKE_API int fkgetcurline(fake * fk);
+FAKE_API const char * fkgetcurcallstack(fake * fk);
 

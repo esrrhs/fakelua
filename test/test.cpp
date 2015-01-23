@@ -28,6 +28,13 @@ private:
     int b;
 };
 
+void error_log(fake * fk, int eno, const char * str)
+{
+    printf("fake error[%d] in file(%s:%d) func(%s) : ", eno, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk));
+    printf("%s\n", str);
+    printf("call stack :\n%s\n", fkgetcurcallstack(fk));
+}
+
 int main(int argc, const char *argv[])
 {
     if (argc < 2)
@@ -41,6 +48,7 @@ int main(int argc, const char *argv[])
 #ifdef _DEBUG
     fkopenprofile(fk);
 #endif
+    fkseterrorfunc(fk, error_log);
 
     fkreg(fk, "cfunc1", cfunc1); 
     class1 c1;
@@ -49,7 +57,6 @@ int main(int argc, const char *argv[])
     fkparse(fk, argv[1]);
     if (fkerror(fk))
     {
-        printf("parse error %d, %s\n", fkerror(fk), fkerrorstr(fk));
         return 0;
     }
 
@@ -61,25 +68,28 @@ int main(int argc, const char *argv[])
 	begin = time(0);
 
 #ifndef WIN32
+#ifndef _DEBUG
 	ProfilerStart("testinter.prof");
+#endif
 #endif
 		
 #ifndef _DEBUG
 	for (int i = 0; i < 9000000; i++)
 #else
-	for (int i = 0; i < 10; i++)
+	for (int i = 0; i < 1; i++)
 #endif
 	{
 		ret = fkrun<int>(fk, "myfunc1", 1, 2);
 		if (fkerror(fk))
 		{
-			printf("call fail errorno %d, %s\n", fkerror(fk), fkerrorstr(fk));
 			return 0;
 		}
 	}
 
 #ifndef WIN32
+#ifndef _DEBUG
 	ProfilerStop();
+#endif
 #endif
 	
 	end = time(0);

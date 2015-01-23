@@ -28,7 +28,6 @@ void myflexer::LexerOutput( const char* buf, int size )
 //错误函数
 void myflexer::LexerError(const char* msg)
 {
-    printf("parse error : %s at line:%d near:%s\n", msg, lineno(), yytext);
     FKLOG("parse error : %s at line:%d near:%s\n", msg, lineno(), yytext);
     char buff[100];
 	tsnprintf(buff, sizeof(buff)-1, "%s at line(%d) near(%s)", msg, lineno(), yytext);
@@ -38,6 +37,7 @@ void myflexer::LexerError(const char* msg)
 // 输入文件
 bool myflexer::inputfile(const char * filename)
 {
+    m_filename = filename;
     FILE * file = fopen(filename, "r");
     if (!file)
     {
@@ -68,10 +68,17 @@ bool myflexer::inputfile(const char * filename)
     return true;
 }
 
+const char * myflexer::getfilename()
+{
+    return m_filename.c_str();
+}
+
 void myflexer::clear()
 {
     m_num = 0;
     m_pos = 0;
+    m_filename.clear();
+    m_packagename.clear();
     m_content.clear();
     for (int i = 0; i < (int)m_funclist.size(); i++)
     {
@@ -79,6 +86,14 @@ void myflexer::clear()
         p->recycle();
     }
     m_funclist.clear();
+    for (explicit_value_map::iterator it = m_constmap.begin(); it != m_constmap.end(); it++)
+    {
+        explicit_value_node * p = it->second;
+        p->recycle();
+    }
+    m_constmap.clear();
+    m_includelist.clear();
+    m_struct_list.clear();
     m_error.clear();
     yylineno = 1;
 }
@@ -106,4 +121,56 @@ void myflexer::add_func_desc(func_desc_node * p)
 func_desc_list & myflexer::get_func_list()
 {
     return m_funclist;
+}
+
+bool myflexer::is_have_func(const String & funcname)
+{
+    for (int i = 0; i < (int)m_funclist.size(); i++)
+    {
+        func_desc_node * p = m_funclist[i];
+        if (p->funcname == funcname)
+        {
+            return true;
+        }
+    }
+    return false;
+}
+
+void myflexer::add_const_desc(const char * name, syntree_node * p)
+{
+    explicit_value_node * ev = dynamic_cast<explicit_value_node *>(p);
+    FKLOG("add_const_desc %s = %s", name, ev->str.c_str());
+    if (m_constmap[name])
+    {
+        m_constmap[name]->recycle();
+    }
+    m_constmap[name] = ev;
+}
+
+explicit_value_map & myflexer::get_const_map()
+{
+    return m_constmap;
+}
+
+void myflexer::add_include(const char * include_file)
+{
+    // 加入include list，等待解析完再统一挨个include
+    m_includelist.push_back(include_file);
+}
+
+include_file_list & myflexer::get_include_list()
+{
+    return m_includelist;
+}
+
+void myflexer::add_struct_desc(const char * name, struct_desc_memlist_node * p)
+{
+    FKLOG("add_struct_desc %s\n%s", name, p->dump(0).c_str());
+    m_struct_list[name] = p->memlist;
+    p->recycle();
+}
+
+bool myflexer::is_have_struct(const String & name)
+{
+    return m_struct_list.find(name) != m_struct_list.end();
 }

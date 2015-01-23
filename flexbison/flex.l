@@ -85,6 +85,21 @@
 	return END;
 }
 
+"const" {
+	return FCONST;
+}
+
+"package" {
+	return PACKAGE;
+}
+
+"include" {
+	return INCLUDE;
+}
+
+"struct" {
+	return STRUCT;
+}
 
 "\""	yy_push_state(STR); lvalp->str = String();
 <STR>\\n	lvalp->str += String("\n");
@@ -98,6 +113,16 @@
 [a-zA-Z_][a-zA-Z0-9_]* {
 	lvalp->str = String(yytext);
 	return IDENTIFIER;
+}
+
+[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)+ {
+	lvalp->str = String(yytext);
+	return IDENTIFIER_DOT;
+}
+
+[a-zA-Z_][a-zA-Z0-9_]*(\-\>[a-zA-Z_][a-zA-Z0-9_]*)+ {
+	lvalp->str = String(yytext);
+	return IDENTIFIER_POINTER;
 }
 
 [0-9]+u {

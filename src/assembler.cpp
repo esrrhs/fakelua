@@ -106,7 +106,7 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
     m_pos++;
 
     bool ret = false;
-
+    USE(ret);
     // 执行对应命令，放一起switch效率更高，cpu有缓存
     switch (code)
     {
@@ -434,6 +434,7 @@ bool assembler::compile_call(asmgen & asg, const func_binary & fb, command cmd)
 	m_pos++;
 
 	int callpos = 0;
+	USE(callpos);
 	GET_VARIANT_POS(fb, callpos, m_pos);
 	m_pos++;
 
