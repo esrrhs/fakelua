@@ -71,6 +71,12 @@
     <ClInclude Include="src\container.h" />
     <ClInclude Include="src\running.h" />
     <ClInclude Include="src\parser.h" />
+    <ClInclude Include="src\buildinfuncfile.h" />
+    <ClInclude Include="src\buildinfuncnet.h" />
+    <ClInclude Include="src\package\buffer.h" />
+    <ClInclude Include="src\package\selector.h" />
+    <ClInclude Include="src\buildinfuncos.h" />
+    <ClInclude Include="src\buildinfuncstring.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -130,6 +136,10 @@
     <ClCompile Include="src\funcmap.cpp" />
     <ClCompile Include="src\running.cpp" />
     <ClCompile Include="src\parser.cpp" />
+    <ClCompile Include="src\buildinfuncfile.cpp" />
+    <ClCompile Include="src\buildinfuncnet.cpp" />
+    <ClCompile Include="src\buildinfuncos.cpp" />
+    <ClCompile Include="src\buildinfuncstring.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="CMakeLists.txt" />

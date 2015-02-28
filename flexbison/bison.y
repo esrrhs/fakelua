@@ -81,13 +81,17 @@ int my_yyerror(const char *s, void * parm)
 %token IDENTIFIER_DOT
 %token IDENTIFIER_POINTER
 %token STRUCT
+%token IS NOT CONTINUE
+%token YIELD SLEEP
+%token SWITCH CASE DEFAULT
 
-%right PLUS
-%right MINUS
-%right DIVIDE
-%right MULTIPLY
+%left PLUS
+%left MINUS
+%left DIVIDE
+%left MULTIPLY
+%left DIVIDE_MOD
 
-%expect 22
+%expect 23
 
 %type<str> IDENTIFIER  
 %type<str> NUMBER
@@ -106,8 +110,9 @@ int my_yyerror(const char *s, void * parm)
 %type<str> PLUS_ASSIGN MINUS_ASSIGN DIVIDE_ASSIGN MULTIPLY_ASSIGN DIVIDE_MOD_ASSIGN
 %type<str> IDENTIFIER_DOT  
 %type<str> IDENTIFIER_POINTER  
+%type<str> IS NOT CONTINUE
 
-%type<syntree> break
+%type<syntree> break continue
 %type<syntree> function_declaration
 %type<syntree> block
 %type<syntree> stmt
@@ -139,6 +144,11 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> var_list
 %type<syntree> fake_call_stmt
 %type<syntree> struct_mem_declaration
+%type<syntree> sleep
+%type<syntree> yield
+%type<syntree> switch_stmt
+%type<syntree> switch_case_define
+%type<syntree> switch_case_list
 
 
 %%
@@ -450,6 +460,12 @@ stmt:
 		$$ = $1;
 	}
 	|
+	continue
+	{
+		FKLOG("[bison]: stmt <- continue");
+		$$ = $1;
+	}
+	|
 	expr
 	{
 		FKLOG("[bison]: stmt <- expr");
@@ -471,6 +487,24 @@ stmt:
 	fake_call_stmt
 	{
 		FKLOG("[bison]: stmt <- fake_call_stmt");
+		$$ = $1;
+	}
+	|
+	sleep
+	{
+		FKLOG("[bison]: stmt <- sleep_stmt");
+		$$ = $1;
+	}
+	|
+	yield
+	{
+		FKLOG("[bison]: stmt <- yield_stmt");
+		$$ = $1;
+	}
+	|
+	switch_stmt
+	{
+		FKLOG("[bison]: stmt <- switch_stmt");
 		$$ = $1;
 	}
 	;
@@ -680,6 +714,26 @@ cmp:
 		p->right = 0;
 		$$ = p;
 	}
+	|
+	IS cmp_value
+	{
+		FKLOG("[bison]: cmp <- cmp_value IS cmp_value");
+		NEWTYPE(p, cmp_stmt);
+		p->cmp = "is";
+		p->left = $2;
+		p->right = 0;
+		$$ = p;
+	}
+	|
+	NOT cmp_value
+	{
+		FKLOG("[bison]: cmp <- cmp_value NOT cmp_value");
+		NEWTYPE(p, cmp_stmt);
+		p->cmp = "not";
+		p->left = $2;
+		p->right = 0;
+		$$ = p;
+	}
 	;
 
 cmp_value:
@@ -708,6 +762,14 @@ return_stmt:
 		FKLOG("[bison]: return_stmt <- RETURN return_value_list");
 		NEWTYPE(p, return_stmt);
 		p->returnlist = dynamic_cast<return_value_list_node*>($2);
+		$$ = p;
+	}
+	|
+	RETURN
+	{
+		FKLOG("[bison]: return_stmt <- RETURN");
+		NEWTYPE(p, return_stmt);
+		p->returnlist = 0;
 		$$ = p;
 	}
 	;
@@ -1087,4 +1149,93 @@ break:
 		$$ = p;
 	}
 	;
- 
+	
+continue:
+	CONTINUE 
+	{
+		FKLOG("[bison]: CONTINUE");
+		NEWTYPE(p, continue_stmt);
+		$$ = p;
+	}
+	;
+
+sleep:
+	SLEEP expr_value 
+	{
+		FKLOG("[bison]: SLEEP");
+		NEWTYPE(p, sleep_stmt);
+		p->time = $2;
+		$$ = p;
+	}
+	
+yield:
+	YIELD expr_value
+	{
+		FKLOG("[bison]: YIELD");
+		NEWTYPE(p, yield_stmt);
+		p->time = $2;
+		$$ = p;
+	}
+	;
+	
+switch_stmt:
+	SWITCH cmp_value switch_case_list DEFAULT block END
+	{
+		FKLOG("[bison]: switch_stmt");
+		NEWTYPE(p, switch_stmt);
+		p->cmp = $2;
+		p->caselist = $3;
+		p->def = $5;
+		$$ = p;
+	}
+	|
+	SWITCH cmp_value switch_case_list DEFAULT END
+	{
+		FKLOG("[bison]: switch_stmt");
+		NEWTYPE(p, switch_stmt);
+		p->cmp = $2;
+		p->caselist = $3;
+		p->def = 0;
+		$$ = p;
+	}
+	;
+	
+switch_case_list:
+	switch_case_define
+	{
+		FKLOG("[bison]: switch_case_list <- switch_case_define");
+		NEWTYPE(p, switch_caselist_node);
+		p->add_case($1);
+		$$ = p;
+	}
+	|
+	switch_case_list switch_case_define
+	{
+		FKLOG("[bison]: switch_case_list <- switch_case_list switch_case_define");
+		assert($2->gettype() == est_switch_case_node);
+		switch_caselist_node * p = dynamic_cast<switch_caselist_node*>($1);
+		p->add_case($2);
+		$$ = p;
+	}
+	;
+
+switch_case_define:
+	CASE cmp_value THEN block
+	{
+		FKLOG("[bison]: switch_case_define");
+		NEWTYPE(p, switch_case_node);
+		p->cmp = $2;
+		p->block = $4;
+		$$ = p;
+	}
+	|
+	CASE cmp_value THEN
+	{
+		FKLOG("[bison]: switch_case_define");
+		NEWTYPE(p, switch_case_node);
+		p->cmp = $2;
+		p->block = 0;
+		$$ = p;
+	}
+	;
+	

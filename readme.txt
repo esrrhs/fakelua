@@ -75,7 +75,17 @@ func myfunc1(arg1, arg2)
 	tt->sample_a = 1
 	tt->sample_b = teststruct()
 	tt->sample_b->sample_a = 10
-	
+
+	-- 分支
+	switch arg1
+		case 1 then
+			print("1")
+		case "a" then
+			print("a")
+		default
+			print("default")
+	end
+
 	-- 多返回值
 	return arg1, arg3
 	

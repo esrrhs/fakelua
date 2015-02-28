@@ -1,0 +1,45 @@
+
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	switch arg1
+	
+		case 1 then
+			print("1")
+			
+		case 2 then
+			print("2")
+		
+		case 3 then
+			print("3")
+		
+		case arg2 then
+			print("arg2")
+		
+		default
+			print("default")
+		
+	end
+	
+	switch "321"
+	
+		case 1 then
+			print("1")
+			
+		case "321" then
+			print("321")
+		
+		case 3 then
+			print("3")
+		
+		case arg2 then
+			print("arg2")
+		
+		default
+			print("default")
+		
+	end
+	
+	return 1
+	
+end

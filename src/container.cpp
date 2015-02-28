@@ -1,12 +1,11 @@
 #include "container.h"
 #include "fake.h"
 
-container::container(fake * fk) : m_fk(fk), m_gmap(fk)
+container::container(fake * fk) : m_fk(fk)
 {
 	POOLLIST_INI(m_va_pl, fk);
 	POOLLIST_INI(m_vm_pl, fk);
 	POOLLIST_INI(m_v_pl, fk);
-	POOLLIST_INI(m_gv_pl, fk);
 }
 
 container::~container()
@@ -28,9 +27,6 @@ container::~container()
 	POOLLIST_DELETE(m_vm_pl);
 	
 	POOLLIST_DELETE(m_v_pl);
-	
-    POOLLIST_CLEAR(m_gv_pl, variant, USE(n));
-	POOLLIST_DELETE(m_gv_pl);
 }
 
 void container::clear()
@@ -71,15 +67,6 @@ pool<variant>::node * container::newvariant()
     return n;
 }
 
-pool<variant>::node * container::newglobalvariant()
-{
-    pool<variant>::node * n = 0;
-    POOLLIST_POP(m_gv_pl, n, variant, m_fk->cfg.array_grow_speed);
-    
-    V_SET_NIL(&(n->t));
-    return n;
-}
-
 variant * con_array_get(fake * fk, variant_array * va, const variant * k)
 {
 	bool err = false;
@@ -102,6 +89,8 @@ variant * con_array_get(fake * fk, variant_array * va, const variant * k)
 	    ARRAY_GET(va->va, index) = fk->con.newvariant();
 	}
 
+	ARRAY_SIZE(va->va) = FKMAX((int)ARRAY_SIZE(va->va), index + 1);
+
 	return &(ARRAY_GET(va->va, index)->t);
 }
 
@@ -114,7 +103,7 @@ variant * con_map_get(fake * fk, variant_map * vm, const variant * k)
         n = *p;
         return &(n->t);
     }
-    n = vm != fk->con.get_gmap() ? fk->con.newvariant() : fk->con.newglobalvariant();
+    n = fk->con.newvariant();
     vm->vm.add(*k, n);
     return &(n->t);
 }

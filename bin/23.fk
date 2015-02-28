@@ -1,9 +1,11 @@
+#include "../package/os.fk"
+
 -- func1 comment
 func myfunc1(arg1, arg2)
 	
 	print("myfunc1")
 	
-	sleep(1000)
+	os.sleeps(1000)
 	
 	for var i = 0, i < 10, i+=1 then
 		myfunc2()
@@ -15,7 +17,7 @@ end
 func myfunc2()
 	
 	print("myfunc2")
-	sleep(500)
+	os.sleeps(500)
 	
 	for var i = 0, i < 10, i+=1 then
 		myfunc3()
@@ -27,6 +29,6 @@ end
 func myfunc3()
 	
 	print("myfunc3")
-	sleep(10)
+	os.sleeps(10)
 	
 end

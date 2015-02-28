@@ -39,6 +39,9 @@ void fklog(const char * header, const char * file, const char * func, int pos, c
 #define HIINT16(I) ( ( int16_t ) ( ( ( int32_t )( I ) >> 16) & 0xFFFF ) )
 #define LOINT16(l) ((int16_t) (l))
 
+#define FKMIN(a, b) ((a) < (b) ? (a) : (b))
+#define FKMAX(a, b) ((a) > (b) ? (a) : (b))
+
 #ifdef WIN32
 #define force_inline __forceinline
 #else
@@ -198,6 +201,8 @@ void seterror(fake * fk, efkerror err, const char *fmt, ...);
 struct variant;
 String vartostring(const variant * v);
 
+const char * vartypetostring(int type);
+
 template <typename T>
 void USE(T t) {}
 
@@ -246,3 +251,26 @@ static force_inline String fkgen_package_name(const String & p, const String & n
 
 #define MAP_FUNC_NAME "map"
 
+#ifdef WIN32
+#define LIKE(x) (x)
+#define UNLIKE(x) (x)
+#else
+#define LIKE(x) __builtin_expect((x),1)
+#define UNLIKE(x) __builtin_expect((x),0)
+#endif
+
+// socket
+#ifdef WIN32
+	#define GET_NET_ERROR WSAGetLastError()
+	#define NET_BLOCK_ERROR WSAEWOULDBLOCK
+	#define NET_BLOCK_ERROR_EX WSAEWOULDBLOCK
+#else
+	#define GET_NET_ERROR errno
+	#define NET_BLOCK_ERROR EWOULDBLOCK
+	#define NET_BLOCK_ERROR_EX EAGAIN
+#endif
+
+#if defined(WIN32)
+typedef int socklen_t;
+#else
+#endif

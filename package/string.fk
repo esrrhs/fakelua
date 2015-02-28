@@ -1,0 +1,44 @@
+package string
+
+func find(str, startpos, findstr)
+	
+	var ok, var pos = string_find(str, startpos, findstr)
+	return ok, pos
+	
+end
+
+func substr(str, startpos, count)
+	
+	return string_substr(str, startpos, count)
+	
+end
+
+func length(str)
+	
+	return string_strlen(str)
+	
+end
+
+func trim(str, trimstr)
+	
+	return string_trim(str, trimstr)
+	
+end
+
+func trimleft(str, trimstr)
+	
+	return string_trimleft(str, trimstr)
+	
+end
+
+func trimright(str, trimstr)
+	
+	return string_trimright(str, trimstr)
+	
+end
+
+func replace(str, fromstr, tostr)
+	
+	return string_replace(str, fromstr, tostr)
+	
+end

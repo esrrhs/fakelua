@@ -35,6 +35,7 @@ private:
 	bool compile_multi_assign_stmt(codegen & cg, multi_assign_stmt * as);
     bool compile_math_assign_stmt(codegen & cg, math_assign_stmt * ms);
     bool compile_break_stmt(codegen & cg, break_stmt * bs);
+    bool compile_continue_stmt(codegen & cg, continue_stmt * cs);
     bool compile_cmp_stmt(codegen & cg, cmp_stmt * cs);
     bool compile_explicit_value(codegen & cg, explicit_value_node * ev);
     bool compile_variable_node(codegen & cg, variable_node * vn);
@@ -44,6 +45,12 @@ private:
 	bool compile_return_value_list(codegen & cg, return_value_list_node * rn);
     bool compile_container_get(codegen & cg, container_get_node * cn);
     bool compile_struct_pointer(codegen & cg, struct_pointer_node * sn);
+    bool compile_sleep_stmt(codegen & cg, sleep_stmt * ss);
+    bool compile_yield_stmt(codegen & cg, yield_stmt * ys);
+    bool compile_switch_stmt(codegen & cg, switch_stmt * ss);
+
+private:
+    void compile_seterror(syntree_node * node, fake * fk, efkerror err, const char *fmt, ...);
     
 private:
     fake * m_fk;
@@ -53,6 +60,9 @@ private:
 	typedef std::vector<int> beak_pos_list;
 	typedef std::vector<beak_pos_list> loop_break_pos_stack;
 	loop_break_pos_stack m_loop_break_pos_stack;
+	typedef std::vector<int> continue_pos_stack;
+	continue_pos_stack m_loop_continue_pos_stack;
 	int m_func_ret_num;
+	String m_cur_compile_func;
 };
 

@@ -89,7 +89,15 @@
      INCLUDE = 305,
      IDENTIFIER_DOT = 306,
      IDENTIFIER_POINTER = 307,
-     STRUCT = 308
+     STRUCT = 308,
+     IS = 309,
+     NOT = 310,
+     CONTINUE = 311,
+     YIELD = 312,
+     SLEEP = 313,
+     SWITCH = 314,
+     CASE = 315,
+     DEFAULT = 316
    };
 #endif
 

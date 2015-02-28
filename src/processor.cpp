@@ -11,7 +11,7 @@ routine * processor::start_routine(const variant & func)
     ROUTINE_CLEAR(n->t);
     ROUTINE_SET_PRO(n->t, this);
     ROUTINE_ENTRY(n->t, func);
-    if (ROUTINE_ISEND(n->t))
+    if (UNLIKE(ROUTINE_ISEND(n->t)))
     {
         // 回滚
         POOLLIST_POP_ROLLBACK(m_pl, n);
@@ -30,13 +30,13 @@ void processor::run()
         for (int i = 0; i < (int)ARRAY_SIZE(m_pl.l); i++)
         {
             pool<routine>::node * n = ARRAY_GET(m_pl.l, i);
-            if (!n)
+            if (UNLIKE(!n))
             {
                 continue;
             }
             // 注意:此函数内部可能会调用到add接口
             ROUTINE_RUN(n->t, m_fk->cfg.per_frame_cmd_num);
-            if (ROUTINE_ISEND(n->t))
+            if (UNLIKE(ROUTINE_ISEND(n->t)))
             {
                 POOL_PUSH(m_pl.p, n);
                 ARRAY_GET(m_pl.l, i) = 0;

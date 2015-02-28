@@ -1,0 +1,16 @@
+include "../package/file.fk"
+
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	var ret, var f = file.open("33.fk", "r")
+	print("fopen ", ret, " ", f)
+	
+	var content = file.read_all(f)
+	print(content)
+	
+	file.close(f)
+	
+	return arg1 + arg2
+	
+end

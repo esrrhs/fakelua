@@ -52,7 +52,7 @@ struct variant
         }\
         else\
         {\
-			ss = fkitoa((v)->data.real); \
+			ss = fkdtoa((v)->data.real); \
         }\
     }\
 	else if ((v)->type == variant::STRING)\
@@ -122,7 +122,7 @@ struct variant
 	    err = true; \
 	    String str; \
 	    V_TOSTRING(v, str); \
-	    seterror(fk, efk_run_data_error, "variant get pointer fail, the variant is %d %s", (v)->type, str.c_str()); \
+	    seterror(fk, efk_run_data_error, "variant get pointer fail, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
 	    p = 0; \
 	    USE(err); \
 	} \
@@ -137,7 +137,7 @@ struct variant
 	    err = true; \
 	    String str; \
 	    V_TOSTRING(v, str); \
-	    seterror(fk, efk_run_data_error, "variant get real fail, the variant is %d %s", (v)->type, str.c_str()); \
+	    seterror(fk, efk_run_data_error, "variant get real fail, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
 	    r = 0; \
 	    USE(err); \
 	} \
@@ -152,7 +152,7 @@ struct variant
 	    err = true; \
 	    String str; \
 	    V_TOSTRING(v, str); \
-	    seterror(fk, efk_run_data_error, "variant get string fail, the variant is %d %s", (v)->type, str.c_str()); \
+	    seterror(fk, efk_run_data_error, "variant get string fail, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
 	    ss = 0; \
 	    USE(err); \
 	} \
@@ -167,7 +167,7 @@ struct variant
 	    err = true; \
 	    String str; \
 	    V_TOSTRING(v, str); \
-	    seterror(fk, efk_run_data_error, "variant get uuid fail, the variant is %d %s", (v)->type, str.c_str()); \
+	    seterror(fk, efk_run_data_error, "variant get uuid fail, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
 	    id = 0; \
 	    USE(err); \
 	} \
@@ -182,7 +182,7 @@ struct variant
 	    err = true; \
 	    String str; \
 	    V_TOSTRING(v, str); \
-	    seterror(fk, efk_run_cal_error, "variant can not calculate, the variant is %d %s", (v)->type, str.c_str()); \
+	    seterror(fk, efk_run_cal_error, "variant can not calculate, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
 	    USE(err); \
 	}
 #define V_ASSERT_CAN_DIVIDE(v) \
@@ -191,7 +191,7 @@ struct variant
 	    err = true; \
 	    String str; \
 	    V_TOSTRING(v, str); \
-	    seterror(fk, efk_run_cal_error, "variant can not be divide, the variant is %d %s", (v)->type, str.c_str()); \
+	    seterror(fk, efk_run_cal_error, "variant can not be divide, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
 	    USE(err); \
 	}
 #define V_ASSERT_CAN_CAL_BIN(l, r) V_ASSERT_CAN_CAL(l);V_ASSERT_CAN_CAL(r)
@@ -205,10 +205,12 @@ struct variant
 #define V_OR(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = ((l)->data.real != 0) | ((r)->data.real != 0);(d)->type = variant::REAL
 #define V_LESS(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real < (r)->data.real;(d)->type = variant::REAL
 #define V_MORE(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real > (r)->data.real;(d)->type = variant::REAL
-#define V_EQUAL(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real == (r)->data.real;(d)->type = variant::REAL
+#define V_EQUAL(d, l, r) (d)->data.real = (l)->data.real == (r)->data.real;(d)->type = variant::REAL
 #define V_MOREEQUAL(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real >= (r)->data.real;(d)->type = variant::REAL
 #define V_LESSEQUAL(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real <= (r)->data.real;(d)->type = variant::REAL
-#define V_NOTEQUAL(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real != (r)->data.real;(d)->type = variant::REAL
+#define V_NOTEQUAL(d, l, r) (d)->data.real = (l)->data.real != (r)->data.real;(d)->type = variant::REAL
+
+#define V_NOT(d, l) (d)->data.real = !((l)->data.real);(d)->type = variant::REAL
 
 #define V_BOOL(v) ((v)->data.real != 0)
 #define V_EQUAL_V(b, l, r) \

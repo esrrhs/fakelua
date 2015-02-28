@@ -79,10 +79,10 @@ struct fake;
     (s).m_pos++;\
     \
 	variant * dest;\
-	if (!(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK)) \
+	if (UNLIKE(!(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK))) \
 	{ \
 	    err = true; \
-	    seterror(fk, efk_run_inter_error, "interpreter math oper error, dest is not stack, type %d", (int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos)))); \
+	    seterror(fk, efk_run_inter_error, "interpreter math oper error, dest is not stack, type %s", vartypetostring((int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))))); \
 	    break; \
 	} \
     LOG_VARIANT(s, fb, (s).m_pos, "dest");\
@@ -97,10 +97,10 @@ struct fake;
  
 #define MATH_ASSIGN_OPER(s, fb, oper) \
 	variant * var = 0;\
-    if (!(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK || ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_CONTAINER))\
+    if (UNLIKE(!(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK || ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_CONTAINER)))\
     { \
 	    err = true; \
-	    seterror(fk, efk_run_inter_error, "interpreter math assign oper error, dest is not stack or container, type %d", (int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos)))); \
+	    seterror(fk, efk_run_inter_error, "interpreter math assign oper error, dest is not stack or container, type %s", vartypetostring((int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))))); \
 	    break; \
     } \
 	LOG_VARIANT(s, fb, (s).m_pos, "var");\
@@ -118,6 +118,29 @@ struct fake;
     \
     FKLOG("math %s %s", OpCodeStr(code), (vartostring(var)).c_str());
 
+#define MATH_SINGLE_OPER(s, fb, oper) \
+	const variant * left = 0;\
+	LOG_VARIANT(s, fb, (s).m_pos, "left");\
+    GET_VARIANT(s, fb, left, (s).m_pos);\
+    (s).m_pos++;\
+    \
+	variant * dest;\
+	if (UNLIKE(!(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK))) \
+	{ \
+	    err = true; \
+	    seterror(fk, efk_run_inter_error, "interpreter math oper error, dest is not stack, type %s", vartypetostring((int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))))); \
+	    break; \
+	} \
+    LOG_VARIANT(s, fb, (s).m_pos, "dest");\
+	GET_VARIANT(s, fb, dest, (s).m_pos);\
+    (s).m_pos++;\
+    \
+	FKLOG("single math left %s", (vartostring(left)).c_str());\
+    \
+    V_##oper(dest, left);\
+    \
+    FKLOG("single math %s %s", OpCodeStr(code), (vartostring(dest)).c_str());
+ 
 struct stack
 {
     fake * m_fk;
@@ -163,24 +186,24 @@ public:
         const variant * keyv = 0;
         do {GET_VARIANT_BY_CMD(s, fb, keyv, ca.key);}while(0);
 
-        if (err)
+        if (UNLIKE(err))
         {   
             return 0;
         }
     
-        if (!(conv->type == variant::ARRAY || conv->type == variant::MAP))
+        if (UNLIKE(!(conv->type == variant::ARRAY || conv->type == variant::MAP)))
         {
-    	    seterror(m_fk, efk_run_inter_error, "interpreter get container variant fail, container type error, type %d", conv->type);
+    	    seterror(m_fk, efk_run_inter_error, "interpreter get container variant fail, container type error, type %s", vartypetostring(conv->type));
     	    return 0;
         }
         
-        if (conv->type == variant::ARRAY)
-        {
-            v = con_array_get(m_fk, conv->data.va, keyv);
-        }
-        else if (conv->type == variant::MAP)
+        if (conv->type == variant::MAP)
         {
             v = con_map_get(m_fk, conv->data.vm, keyv);
+        }
+        else if (conv->type == variant::ARRAY)
+        {
+            v = con_array_get(m_fk, conv->data.va, keyv);
         }
 
         return v;
@@ -221,11 +244,29 @@ public:
         int num = 0;
 
         // 栈溢出检查
-        if (ARRAY_SIZE(m_stack_list) > get_max_stack())
+        if (UNLIKE(ARRAY_SIZE(m_stack_list) > get_max_stack()))
         {   
             seterror(fk, efk_run_inter_error, "stack too deep %d", ARRAY_SIZE(m_stack_list));
             m_isend = true;
-            return num;
+            return 0;
+        }
+
+        // 切换检查
+        if (UNLIKE(m_sleeping))
+        {
+            if (LIKE(m_yieldtime))
+            {
+                m_yieldtime--;
+                return 0;
+            }
+            else if (LIKE(fkgetmstick() < m_wakeuptime))
+            {
+                return 0;
+            }
+            else
+            {
+                m_wakeuptime = 0;
+            }
         }
         
         for (int i = 0; i < cmdnum; i++)
@@ -237,7 +278,7 @@ public:
             int pos = m_cur_stack->m_pos;
             
             // 当前函数走完
-			if (pos >= (int)FUNC_BINARY_CMDSIZE(fb))
+			if (UNLIKE(pos >= (int)FUNC_BINARY_CMDSIZE(fb)))
             {
 				FKLOG("pop stack %s", FUNC_BINARY_NAME(fb));
                 // 记录profile
@@ -283,11 +324,11 @@ public:
             case OPCODE_ASSIGN:
                 {
                     // 赋值dest，必须为栈上或容器内
-                    if (!(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))) == ADDR_STACK || 
-                        ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))) == ADDR_CONTAINER))
+                    if (UNLIKE(!(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))) == ADDR_STACK || 
+                        ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))) == ADDR_CONTAINER)))
                     {   
                 	    err = true;
-                	    seterror(fk, efk_run_inter_error, "interpreter assign error, dest is not stack or container, type %d", (int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos))));
+                	    seterror(fk, efk_run_inter_error, "interpreter assign error, dest is not stack or container, type %s", vartypetostring((int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos)))));
                 	    break;
                     }
 
@@ -373,10 +414,15 @@ public:
         		    MATH_OPER(*m_cur_stack, fb, NOTEQUAL);
         		}
                 break;
+            case OPCODE_NOT:
+                {
+        		    MATH_SINGLE_OPER(*m_cur_stack, fb, NOT);
+                }
+                break;
         	case OPCODE_RETURN:
         	    {
 					int returnnum = COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos));
-					if (!returnnum)
+					if (UNLIKE(!returnnum))
                 	{
                 		FKLOG("return empty");
 		                m_cur_stack->m_pos = fb.m_size;
@@ -396,6 +442,8 @@ public:
 
 						FKLOG("return %s", (vartostring(&m_ret[i])).c_str());
 					}
+					
+	                m_cur_stack->m_pos = fb.m_size;
         	    }
         		break;
         	case OPCODE_JNE:
@@ -497,19 +545,46 @@ public:
                     call(*callpos, calltype);
                 }
                 break;
+            case OPCODE_SLEEP:
+                {
+                	const variant * time = 0;
+                	LOG_VARIANT(*m_cur_stack, fb, m_cur_stack->m_pos, "time");
+                	GET_VARIANT(*m_cur_stack, fb, time, m_cur_stack->m_pos);
+                	m_cur_stack->m_pos++;
+
+                    uint32_t sleeptime = 0;
+                    V_GET_REAL(time, sleeptime);
+
+                    m_wakeuptime = fkgetmstick() + sleeptime;
+                    m_sleeping = true;
+                    return num;
+                }
+                break;
+            case OPCODE_YIELD:
+                {
+                	const variant * time = 0;
+                	LOG_VARIANT(*m_cur_stack, fb, m_cur_stack->m_pos, "time");
+                	GET_VARIANT(*m_cur_stack, fb, time, m_cur_stack->m_pos);
+                	m_cur_stack->m_pos++;
+
+                    V_GET_REAL(time, m_yieldtime);
+                    m_sleeping = true;
+                    return num;
+                }
+                break;
             default:
                 assert(0);
                 FKERR("next err code %d %s", code, OpCodeStr(code));
                 break;
             }
 
-            if (err)
+            if (UNLIKE(err))
             {
                 // 发生错误
                 m_isend = true;
             }
             num++;
-            if (m_isend)
+            if (UNLIKE(m_isend))
             {
                 break;
             }
@@ -530,6 +605,9 @@ public:
 	stack * m_cur_stack;
 	array<stack> m_stack_list;
 	processor * m_processor;
+	uint32_t m_wakeuptime;
+	uint32_t m_yieldtime;
+	bool m_sleeping;
 };
 
 #define INTER_DELETE(inter) \
@@ -544,6 +622,7 @@ public:
     
 #define INTER_CLEAR(inter) (inter).m_isend = false;\
     (inter).m_cur_stack = 0;\
-    ARRAY_CLEAR((inter).m_stack_list);
+    ARRAY_CLEAR((inter).m_stack_list);\
+    (inter).m_sleeping = false;
     
 #define INTER_SET_PRO(inter, pro) (inter).m_processor = pro

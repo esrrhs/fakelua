@@ -45,6 +45,12 @@ enum esyntreetype
 	est_container_get,
 	est_struct_memlist,
 	est_struct_pointer,
+	est_continue,
+	est_sleep,
+	est_yield,
+	est_switch_stmt,
+	est_switch_caselist,
+	est_switch_case_node,
 };
 
 const char * get_syntree_node_name(esyntreetype type);
@@ -231,7 +237,10 @@ struct return_stmt : public syntree_node
         sret += gentab(indent);
         sret += "[return]:";
         sret += "\n";
-		sret += returnlist->dump(indent + 1);
+        if (returnlist)
+        {
+		    sret += returnlist->dump(indent + 1);
+        }
         return sret;
     }
     
@@ -785,5 +794,182 @@ struct struct_pointer_node : public syntree_node
 
 	String str;
 };
+
+struct continue_stmt : public syntree_node
+{
+    continue_stmt() {}
+    virtual ~continue_stmt() {}
+
+    virtual esyntreetype gettype()
+    {
+        return est_continue;
+    }
+    
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[continue]:\n";
+        return ret;
+    }
+    
+    virtual void recycle();
+    
+};
+
+struct sleep_stmt : public syntree_node
+{
+    sleep_stmt() {}
+    virtual ~sleep_stmt() {}
+
+    virtual esyntreetype gettype()
+    {
+        return est_sleep;
+    }
+    
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[sleep]:\n";
+        ret += gentab(indent + 1);
+        ret += "[time]:\n";
+        ret += time->dump(indent + 2);
+        return ret;
+    }
+    
+    virtual void recycle();
+
+    syntree_node * time;
+};
+
+struct yield_stmt : public syntree_node
+{
+    yield_stmt() {}
+    virtual ~yield_stmt() {}
+
+    virtual esyntreetype gettype()
+    {
+        return est_yield;
+    }
+    
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[yield]:\n";
+        ret += gentab(indent + 1);
+        ret += "[time]:\n";
+        ret += time->dump(indent + 2);
+        return ret;
+    }
+    
+    virtual void recycle();
+    
+    syntree_node * time;
+};
+
+struct switch_case_node : public syntree_node
+{
+    switch_case_node() {}
+    virtual ~switch_case_node() {}
+
+    virtual esyntreetype gettype()
+    {
+        return est_switch_case_node;
+    }
+    
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[case]:\n";
+        ret += gentab(indent + 1);
+        ret += "[cmp]:\n";
+        ret += cmp->dump(indent + 2);
+        ret += gentab(indent + 1);
+        if (block)
+        {
+            ret += "[block]:\n";
+            ret += block->dump(indent + 2);
+        }
+        return ret;
+    }
+
+    virtual void recycle();
+    
+    syntree_node * cmp;
+    syntree_node * block;
+};
+
+typedef std::vector<syntree_node *> switch_case_list;
+
+struct switch_caselist_node : public syntree_node
+{
+    switch_caselist_node() {}
+    virtual ~switch_caselist_node() {}
+
+    virtual esyntreetype gettype()
+    {
+        return est_switch_caselist;
+    }
+    
+    virtual String dump(int indent)
+    {
+        String ret;
+        for (int i = 0; i < (int)list.size(); i++)
+        {
+            ret += list[i]->dump(indent);
+        }
+        return ret;
+    }
+    
+    void add_case(syntree_node * p)
+    {
+        list.push_back(p);
+    }
+    
+    virtual void recycle();
+    
+    switch_case_list list;
+};
+
+struct switch_stmt : public syntree_node
+{
+    switch_stmt() {}
+    virtual ~switch_stmt() {}
+
+    virtual esyntreetype gettype()
+    {
+        return est_switch_stmt;
+    }
+    
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[switch]:\n";
+        ret += gentab(indent + 1);
+        ret += "[cmp]:\n";
+        ret += cmp->dump(indent + 2);
+        ret += gentab(indent + 1);
+        ret += "[case list]:\n";
+        ret += caselist->dump(indent + 2);
+        ret += gentab(indent + 1);
+        if (def)
+        {
+            ret += "[default]:\n";
+            ret += def->dump(indent + 2);
+        }
+        return ret;
+    }
+    
+    virtual void recycle();
+    
+    syntree_node * cmp;
+    syntree_node * caselist;
+    syntree_node * def;
+};
+
 
 

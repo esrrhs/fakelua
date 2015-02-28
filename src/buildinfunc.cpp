@@ -49,18 +49,6 @@ void buildin_log(fake * fk, interpreter * inter)
     fkpspush<int>(fk, (int)str.size());
 }
 
-// sleep
-void buildin_sleep(fake * fk, interpreter * inter)
-{
-    int millionseconds = fkpspop<int>(fk);
-#if defined(WIN32)
-	Sleep(millionseconds);
-#else
-	usleep(millionseconds * 1000);
-#endif
-    fkpspush<int>(fk, 0);
-}
-
 // array
 void buildin_array(fake * fk, interpreter * inter)
 {
@@ -81,31 +69,93 @@ void buildin_map(fake * fk, interpreter * inter)
     V_SET_MAP(v, m);
 }
 
-// global map
-void buildin_globalmap(fake * fk, interpreter * inter)
+// size
+void buildin_size(fake * fk, interpreter * inter)
 {
 	bool err = false;
-    variant_map * m = fk->con.get_gmap();
     variant * v = 0;
-    PS_PUSH_AND_GET(fk->ps, v);
-    V_SET_MAP(v, m);
+    PS_POP_AND_GET(fk->ps, v);
+    int len = 0;
+    if (v->type == variant::STRING)
+    {
+        len = v->data.str->sz;
+    }
+    else if (v->type == variant::ARRAY)
+    {
+        len = ARRAY_SIZE(v->data.va->va);
+    }
+    else if (v->type == variant::MAP)
+    {
+        len = v->data.vm->vm.size();
+    }
+    fkpspush<int>(fk, len);
 }
 
-// global map
-void buildin_clearglobalmap(fake * fk, interpreter * inter)
+// debug
+void buildin_debug(fake * fk, interpreter * inter)
 {
-    variant_map * m = fk->con.get_gmap();
-    m->vm.clear();
-    fkpspush<int>(fk, 0);
+    for (int i = 0; i < (int)fk->ps.m_variant_list_num; i++)
+    {
+        variant * v = 0;
+        v = (&fk->ps.m_variant_list[i]);
+        USE(v);
+    }
+    
+    // ret
+    fkpspush<int>(fk, 1);
 }
 
 void buildinfunc::openbasefunc()
 {
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("print"), buildin_print);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("log"), buildin_log);
-	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("sleep"), buildin_sleep);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("array"), buildin_array);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr(MAP_FUNC_NAME), buildin_map);
-	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("G"), buildin_globalmap);
-	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("CG"), buildin_clearglobalmap);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("size"), buildin_size);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("debug"), buildin_debug);
 }
+
+void buildinfunc::openfilefunc()
+{
+    m_bifile.openfilefunc();
+}
+
+void buildinfunc::opennetfunc()
+{
+    m_bifnet.opennetfunc();
+}
+
+void buildinfunc::openosfunc()
+{
+    m_bifos.openosfunc();
+}
+
+void buildinfunc::openstringfunc()
+{
+    m_bifstring.openstringfunc();
+}
+
+buffer * buildinfunc::newbuffer(int size)
+{
+    return m_bifnet.newbuffer(size);
+}
+selector * buildinfunc::newselector()
+{
+    return m_bifnet.newselector();
+}
+
+void buildinfunc::setargv(int argc, const char *argv[])
+{
+	m_bifos.setargv(argc, argv);
+}
+
+int buildinfunc::get_argc() const
+{
+	return m_bifos.get_argc();
+}
+
+const char * buildinfunc::get_argv(int pos) const
+{
+	return m_bifos.get_argv(pos);
+}
+

@@ -1,0 +1,39 @@
+include "../package/string.fk"
+
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	var a = "1241124abac"
+	var ok, var pos = string.find(a, 0, "a")
+	print(ok, " ", pos)
+	
+	var left = string.substr(a, 0, pos)
+	print(left)
+	print(size(left))
+	
+	print("trim left ", string.trimleft(a, "124"))
+	print("trim right ", string.trimright(a, "ac"))
+	a = "acadacac1241124abacac"
+	print("trim ", string.trim(a, "ac"))
+	
+	a = "asgagqa124asf"
+	ok, pos = string.find(a, 0, "a")
+	print(ok, " ", pos)
+	print(string.substr(a, pos + 1, 1))
+	
+	a = "abc\r\n"
+	print(a)
+	print(size(a))
+	a = string.trim(a, "\n")
+	print(a)
+	a = string.trim(a, "\r")
+	print(a)
+	
+	a = "abcdefabcdef"
+	print(string.replace(a, "a", ""))
+	print(string.replace(a, "a", "abc"))
+	print(string.replace(a, "abc", "a"))
+	
+	return 1
+	
+end

@@ -1,0 +1,16 @@
+include "../package/xml.fk"
+
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	var ok, var ret, var errormsg = xml.parse("a.xml")
+	
+	if is ok then
+		print("ok ", ret)
+	else
+		print("fail ",errormsg)
+	end
+	
+	return 1
+	
+end

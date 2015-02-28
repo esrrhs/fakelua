@@ -35,6 +35,12 @@ const char * get_syntree_node_name(esyntreetype type)
 	SYN_NODE_DEF(est_container_get)
 	SYN_NODE_DEF(est_struct_memlist)
 	SYN_NODE_DEF(est_struct_pointer)
+	SYN_NODE_DEF(est_continue)
+	SYN_NODE_DEF(est_sleep)
+	SYN_NODE_DEF(est_yield)
+	SYN_NODE_DEF(est_switch_stmt)
+	SYN_NODE_DEF(est_switch_caselist)
+	SYN_NODE_DEF(est_switch_case_node)
     
 #undef SYN_NODE_DEF
     }
@@ -468,5 +474,58 @@ String struct_pointer_node::dump(int indent)
 	ret += str;
 	ret += "\n";
 	return ret;
+}
+
+void continue_stmt::recycle()
+{
+	FKLOG("recycle continue_stmt");
+	fkdelete<continue_stmt>(fk, this);
+}
+
+void sleep_stmt::recycle()
+{
+	FKLOG("recycle sleep_stmt");
+	time->recycle();
+	fkdelete<sleep_stmt>(fk, this);
+}
+
+void yield_stmt::recycle()
+{
+	FKLOG("recycle yield_stmt");
+	time->recycle();
+	fkdelete<yield_stmt>(fk, this);
+}
+
+void switch_case_node::recycle()
+{
+	FKLOG("recycle switch_case_node");
+	cmp->recycle();
+	if (block)
+	{
+	    block->recycle();
+	}
+	fkdelete<switch_case_node>(fk, this);
+}
+
+void switch_caselist_node::recycle()
+{
+	FKLOG("recycle switch_caselist_node");
+    for (int i = 0; i < (int)list.size(); i++)
+    {
+        list[i]->recycle();
+    }
+	fkdelete<switch_caselist_node>(fk, this);
+}
+
+void switch_stmt::recycle()
+{
+	FKLOG("recycle switch_stmt");
+	cmp->recycle();
+	caselist->recycle();
+	if (def)
+	{
+	    def->recycle();
+	}
+	fkdelete<switch_stmt>(fk, this);
 }
 

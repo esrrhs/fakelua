@@ -1,0 +1,119 @@
+package buffer
+
+func new(size)
+	
+	return buffer(size)
+	
+end
+
+func clear(b)
+	
+	return buffer_clear(b)
+	
+end
+
+func maxsize(b)
+	
+	return buffer_maxsize(b)
+	
+end
+
+func size(b)
+	
+	return buffer_size(b)
+	
+end
+
+func store(b)
+	
+	return buffer_store(b)
+	
+end
+
+func restore(b)
+	
+	return buffer_restore(b)
+	
+end
+
+-----------------------------------------------------------------------------
+
+func push_int(b, data)
+	
+	return buffer_push_int(b, data)
+	
+end
+
+func push_short(b, data)
+	
+	return buffer_push_short(b, data)
+	
+end
+
+func push_char(b, data)
+	
+	return buffer_push_char(b, data)
+	
+end
+
+func push_int64(b, data)
+	
+	return buffer_push_int64(b, data)
+	
+end
+
+func push_string(b, data, len)
+	
+	return buffer_push_string(b, data, len)
+	
+end
+
+func push_buffer(b, data)
+	
+	return buffer_push_buffer(b, data)
+	
+end
+
+-----------------------------------------------------------------------------
+
+func pop_int(b)
+	
+	return buffer_pop_int(b)
+	
+end
+
+func pop_short(b)
+	
+	return buffer_pop_short(b)
+	
+end
+
+func pop_char(b)
+	
+	return buffer_pop_char(b)
+	
+end
+
+func pop_int64(b)
+	
+	return buffer_pop_int64(b)
+	
+end
+
+func pop_string(b, len)
+	
+	return buffer_pop_string(b, len)
+	
+end
+
+func pop_buffer(b, len)
+	
+	return buffer_pop_buffer(b, len)
+	
+end
+
+-----------------------------------------------------------------------------
+
+
+
+

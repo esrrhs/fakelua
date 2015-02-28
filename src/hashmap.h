@@ -316,7 +316,7 @@ public:
 	}
 	force_inline void get_conflict(int * buff, size_t buffsize) const
 	{
-		memset(buff, 0, sizeof(buff) * buffsize);
+		memset(buff, 0, sizeof(int) * buffsize);
 		for (int i = 0; i < (int)m_hashele_size; i++)
 		{
 			hashele & he = m_hashele[i];
@@ -324,6 +324,16 @@ public:
 			{
 				buff[he.size] += (he.size != 0 ? he.size : 1);
 			}
+		}
+	}
+	force_inline void get_conflict_map(int * buff, size_t buffsize) const
+	{
+	    buffsize = FKMIN(buffsize, m_hashele_size);
+		memset(buff, 0, sizeof(int) * buffsize);
+		for (int i = 0; i < (int)buffsize; i++)
+		{
+			hashele & he = m_hashele[i];
+			buff[i] = he.size;
 		}
 	}
 	force_inline void dump(char * buff, size_t buffsize) const
@@ -624,7 +634,7 @@ public:
 	}
 	force_inline void get_conflict(int * buff, size_t buffsize) const
 	{
-		memset(buff, 0, sizeof(buff) * buffsize);
+		memset(buff, 0, sizeof(int) * buffsize);
 		for (int i = 0; i < (int)m_hashele_size; i++)
 		{
 			hashele & he = m_hashele[i];
@@ -632,6 +642,16 @@ public:
 			{
 				buff[he.size] += (he.size != 0 ? he.size : 1);
 			}
+		}
+	}
+	force_inline void get_conflict_map(int * buff, size_t & buffsize) const
+	{
+	    buffsize = FKMIN(buffsize, m_hashele_size);
+		memset(buff, 0, sizeof(int) * buffsize);
+		for (int i = 0; i < (int)buffsize; i++)
+		{
+			hashele & he = m_hashele[i];
+			buff[i] = he.size;
 		}
 	}
 	force_inline void dump(char * buff, size_t buffsize) const

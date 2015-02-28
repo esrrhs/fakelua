@@ -1,0 +1,64 @@
+#include "buildinfuncfile.h"
+#include "fake.h"
+#include "fakescript.h"
+
+// fopen
+void buildin_fopen(fake * fk, interpreter * inter)
+{
+    const char * mod = fkpspopcstrptr(fk);
+    const char * filename = fkpspopcstrptr(fk);
+    FILE * f = fopen(filename, mod);
+    if (f)
+    {
+        fkpspush<FILE *>(fk, f);
+        fkpspush<bool>(fk, true);
+    }
+    else
+    {
+        fkpspush<FILE *>(fk, f);
+        fkpspush<bool>(fk, false);
+    }
+}
+
+// fclose
+void buildin_fclose(fake * fk, interpreter * inter)
+{
+    FILE * f = fkpspop<FILE *>(fk);
+    if (f)
+    {
+        fclose(f);
+    }
+    fkpspush<int>(fk, 1);
+}
+
+// freadall
+void buildin_freadall(fake * fk, interpreter * inter)
+{
+    FILE * f = fkpspop<FILE *>(fk);
+    if (f)
+    {
+        fseek(f, 0, SEEK_END);
+        size_t filesize = ftell(f);
+        fseek(f, 0, SEEK_SET);
+        
+        char * buffer = (char *)safe_fkmalloc(fk, filesize + 1);
+        buffer[filesize] = 0;
+        if (fread(buffer, filesize, 1, f) == 1)
+        {
+            fkpspush<char *>(fk, buffer);
+            safe_fkfree(fk, buffer);
+            return;
+        }
+        safe_fkfree(fk, buffer);
+    }
+    const char * ret = "";
+    fkpspush<const char *>(fk, ret);
+}
+
+void buildinfuncfile::openfilefunc()
+{
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("fopen"), buildin_fopen);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("fclose"), buildin_fclose);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("freadall"), buildin_freadall);
+}
+

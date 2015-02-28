@@ -33,6 +33,17 @@ make clean
 make -j5
 cd ..
 
+#fake
+cd fake
+rm CMakeCache.txt -rf
+rm CMakeFiles -rf
+rm cmake_install.cmake -rf
+rm Makefile -rf
+cmake . $BUILD_FLAG
+make clean
+make -j5
+cd ..
+
 #testjit
 cd testjit
 rm CMakeCache.txt -rf
