@@ -78,6 +78,13 @@ public:
 		f->havebif = true;
 	}
 
+    String dump();
+
+    force_inline size_t size() const
+    {
+        return m_shh.size();
+    }
+
 private:
 	force_inline funcunion * add_func_union(const variant & name)
 	{

@@ -90,6 +90,14 @@ String fkget_token_name(int token)
 		TOKEN_SWITCH(INCLUDE)
 		TOKEN_SWITCH(IDENTIFIER_DOT)
 		TOKEN_SWITCH(IDENTIFIER_POINTER)
+		TOKEN_SWITCH(NOT)
+		TOKEN_SWITCH(IS)
+		TOKEN_SWITCH(CONTINUE)
+		TOKEN_SWITCH(YIELD)
+		TOKEN_SWITCH(SLEEP)
+		TOKEN_SWITCH(SWITCH)
+		TOKEN_SWITCH(CASE)
+		TOKEN_SWITCH(DEFAULT)
     }
 #undef TOKEN_SWITCH
 	return fkitoa(token);
@@ -128,7 +136,7 @@ void seterror(fake * fk, efkerror err, const char *fmt, ...)
 
 String fkstringeletoa(stringele * ele)
 {
-    return ele ? ele->s : "";
+    return ele && ele->s ? ele->s : "";
 }
 
 String vartostring(const variant * v)
@@ -138,6 +146,29 @@ String vartostring(const variant * v)
     return s;
 }
 
+const char * vartypetostring(int type)
+{
+    switch (type)
+    {
+    case variant::NIL:
+        return "NIL";
+    case variant::REAL:
+        return "REAL";
+    case variant::STRING:
+        return "STRING";
+    case variant::POINTER:
+        return "POINTER";
+    case variant::UUID:
+        return "UUID";
+    case variant::ARRAY:
+        return "ARRAY";
+    case variant::MAP:
+        return "MAP";
+    default:
+        return "unknow";
+    }
+}
+
 paramstack * getps(fake * fk)
 {
     return &fk->ps;
@@ -145,10 +176,6 @@ paramstack * getps(fake * fk)
 
 char * stringdump(fake * fk, const char * src, size_t sz)
 {
-    if (sz == 0)
-    {
-        return 0;
-    }
 	char * s = (char*)safe_fkmalloc(fk, sz + 1);
 	memcpy(s, src, sz);
 	s[sz] = 0;

@@ -43,8 +43,12 @@ enum OpCodeType
 	OPCODE_MOREEQUAL,
 	OPCODE_LESSEQUAL,
 	OPCODE_NOTEQUAL,
+	OPCODE_NOT,
 	
     OPCODE_CALL,
+    
+    OPCODE_SLEEP,
+    OPCODE_YIELD,
 };
 
 enum AddrType

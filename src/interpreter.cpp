@@ -9,7 +9,7 @@ void interpreter::call(const variant & func)
 {
     fake * fk = m_fk;
 	const funcunion * f = m_fk->fm.get_func(func);
-	if (!f)
+	if (UNLIKE(!f))
 	{
 		FKERR("fkrun no func %s fail", vartostring(&func).c_str());
 		seterror(m_fk, efk_run_no_func_error, "fkrun no func %s fail", vartostring(&func).c_str());
@@ -23,7 +23,7 @@ void interpreter::call(const variant & func)
 		const func_binary * fb = &f->fb;
 
 		// 空函数处理
-		if (!FUNC_BINARY_CMDSIZE(*fb))
+		if (UNLIKE(!FUNC_BINARY_CMDSIZE(*fb)))
 		{
 			// 所有都完
 			if (ARRAY_EMPTY(m_stack_list))
@@ -35,7 +35,7 @@ void interpreter::call(const variant & func)
 		}
 
 		// 压栈
-		if (ARRAY_SIZE(m_stack_list) >= ARRAY_MAX_SIZE(m_stack_list))
+		if (UNLIKE(ARRAY_SIZE(m_stack_list) >= ARRAY_MAX_SIZE(m_stack_list)))
 		{
 			int newsize = ARRAY_MAX_SIZE(m_stack_list) + 1 + ARRAY_MAX_SIZE(m_stack_list) * m_fk->cfg.array_grow_speed / 100;
 			ARRAY_GROW(m_stack_list, newsize, stack);
@@ -44,7 +44,7 @@ void interpreter::call(const variant & func)
 		stack & s = ARRAY_BACK(m_stack_list);
 		m_cur_stack = &s;
 		STACK_INI(s, m_fk, fb);
-		if (FUNC_BINARY_MAX_STACK(*fb) > (int)ARRAY_MAX_SIZE(s.m_stack_variant_list))
+		if (UNLIKE(FUNC_BINARY_MAX_STACK(*fb) > (int)ARRAY_MAX_SIZE(s.m_stack_variant_list)))
 		{
 			ARRAY_GROW(s.m_stack_variant_list, FUNC_BINARY_MAX_STACK(*fb), variant);
 		}
@@ -94,13 +94,14 @@ void interpreter::call(const variant & func)
 
 	// 返回值
 	paramstack * theps = getps(m_fk);
-	variant * cret;
-	bool err = false;
-	PS_POP_AND_GET(*theps, cret);
+    bool err = false;
+	USE(err);
 
 	// 这种情况是直接跳过脚本调用了C函数
-	if (ARRAY_EMPTY(m_stack_list))
+	if (UNLIKE(ARRAY_EMPTY(m_stack_list)))
 	{
+    	variant * cret;
+    	PS_POP_AND_GET(*theps, cret);
 		m_isend = true;
 		// 直接塞返回值
 		m_ret[0] = *cret;
@@ -109,16 +110,24 @@ void interpreter::call(const variant & func)
 	else
 	{
 		// 塞返回值
-		bool err = false;
-		USE(err);
 		m_cur_stack = &ARRAY_BACK(m_stack_list);
 		const func_binary & fb = *m_cur_stack->m_fb;
-		variant * ret;
-		do { GET_VARIANT(*m_cur_stack, fb, ret, m_cur_stack->m_retvpos[0]); } while (0);
-
-		*ret = *cret;
+		for (int i = 0; i < m_cur_stack->m_retnum; i++)
+		{
+			variant * ret;
+			GET_VARIANT(*m_cur_stack, fb, ret, m_cur_stack->m_retvpos[i]);
+			
+        	variant * cret;
+        	PS_POP_AND_GET(*theps, cret);
+        	
+			*ret = *cret;
+		}
 	}
-
+    if (UNLIKE(err))
+    {
+        m_isend = true;
+    }
+    
 	if (m_fk->pf.isopen())
 	{
 	    bool err = false;
@@ -132,7 +141,7 @@ void interpreter::call(const variant & func)
 
 void interpreter::call(const variant & callpos, int calltype)
 {
-    if (calltype == CALL_NORMAL)
+    if (LIKE(calltype == CALL_NORMAL))
     {
         call(callpos);
     }

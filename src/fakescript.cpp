@@ -65,6 +65,7 @@ FAKE_API void fkrunps(fake * fk, const char * func)
         fk->bin.move();
         fk->sh.checkgc();
         fk->con.clear();
+        fk->bif.clear();
     }
     fk->rn.rundeps++;
 
@@ -373,6 +374,26 @@ FAKE_API void fkopenbaselib(fake * fk)
     fk->bif.openbasefunc();
 }
 
+FAKE_API void fkopenfilelib(fake * fk)
+{
+    fk->bif.openfilefunc();
+}
+
+FAKE_API void fkopennetlib(fake * fk)
+{
+    fk->bif.opennetfunc();
+}
+
+FAKE_API void fkopenoslib(fake * fk)
+{
+    fk->bif.openosfunc();
+}
+
+FAKE_API void fkopenstringlib(fake * fk)
+{
+    fk->bif.openstringfunc();
+}
+
 FAKE_API void fkopenprofile(fake * fk)
 {
     fk->pf.open();
@@ -427,4 +448,9 @@ FAKE_API const char * fkgetcurcallstack(fake * fk)
         return fk->rn.curroutine->m_interpreter.get_running_call_stack();
     }
     return "nil";
+}
+
+FAKE_API void fksetargv(fake * fk, int argc, const char *argv[])
+{
+	fk->bif.setargv(argc, argv);
 }

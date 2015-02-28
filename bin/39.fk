@@ -1,0 +1,61 @@
+
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	fake myfunc2(arg1, arg2)
+	fake myfunc3(arg1, arg2)
+	fake myfunc4(arg1, arg2)
+	fake myfunc5(arg1, arg2)
+	
+	sleep arg1 * 3000
+	return 1
+	
+end
+
+-- func2 comment
+func myfunc2(arg1, arg2)
+	
+	for var i = 0, i < 10, i++ then
+		
+		print("myfunc2 " , i)
+		yield arg1
+		
+	end
+	
+end
+
+-- func3 comment
+func myfunc3(arg1, arg2)
+	
+	for var i = 0, i < 10, i++ then
+		
+		print("myfunc3 " , i)
+		yield arg2 * 5
+		
+	end
+	
+end
+
+-- func4 comment
+func myfunc4(arg1, arg2)
+	
+	for var i = 0, i < 10, i++ then
+		
+		print("myfunc4 " , i)
+		sleep arg1 * 1000
+		
+	end
+	
+end
+
+-- func5 comment
+func myfunc5(arg1, arg2)
+	
+	for var i = 0, i < 10, i++ then
+		
+		print("myfunc5 " , i)
+		sleep arg2 * 1000
+		
+	end
+	
+end

@@ -76,12 +76,21 @@ func myfunc1(arg1, arg2)
 	tt->sample_a = 1
 	tt->sample_b = teststruct()
 	tt->sample_b->sample_a = 10
-	
+
+	-- 分支
+	switch arg1
+		case 1 then
+			print("1")
+		case "a" then
+			print("a")
+		default
+			print("default")
+	end
+
 	-- 多返回值
 	return arg1, arg3
 	
 end
-
 
 使用方法：
 fake * fk = newfake();
@@ -130,6 +139,8 @@ enum efkerror
 	efk_compile_math_type_error,
 	efk_compile_variable_has_define,
 	efk_compile_add_stack_identifier,
+	efk_compile_cmp_error,
+	efk_compile_loop_error,
 
 	efk_reg_memfunc_double_name = 400,
 	
@@ -923,6 +934,10 @@ void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2, T3, T4, T5))
 
 // 开启常用内置函数
 FAKE_API void fkopenbaselib(fake * fk);
+FAKE_API void fkopenfilelib(fake * fk);
+FAKE_API void fkopennetlib(fake * fk);
+FAKE_API void fkopenoslib(fake * fk);
+FAKE_API void fkopenstringlib(fake * fk);
 
 // profile 
 FAKE_API void fkopenprofile(fake * fk);
@@ -937,4 +952,7 @@ FAKE_API const char * fkgetcurfunc(fake * fk);
 FAKE_API const char * fkgetcurfile(fake * fk);
 FAKE_API int fkgetcurline(fake * fk);
 FAKE_API const char * fkgetcurcallstack(fake * fk);
+
+// 设置系统命令行
+FAKE_API void fksetargv(fake * fk, int argc, const char *argv[]);
 

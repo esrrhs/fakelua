@@ -17,6 +17,11 @@ Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "testjit", "testjit\testjit.
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fakescript", "fakescript.vcxproj", "{577D7563-0013-47F8-A6AF-2A025CE98E9A}"
 EndProject
+Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fake", "fake\fake.vcxproj", "{06FDF4DB-7211-44D7-B080-4DA20540E206}"
+	ProjectSection(ProjectDependencies) = postProject
+		{577D7563-0013-47F8-A6AF-2A025CE98E9A} = {577D7563-0013-47F8-A6AF-2A025CE98E9A}
+	EndProjectSection
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Win32 = Debug|Win32
@@ -57,6 +62,14 @@ Global
 		{577D7563-0013-47F8-A6AF-2A025CE98E9A}.Release|Win32.Build.0 = Release|Win32
 		{577D7563-0013-47F8-A6AF-2A025CE98E9A}.Release|x64.ActiveCfg = Release|x64
 		{577D7563-0013-47F8-A6AF-2A025CE98E9A}.Release|x64.Build.0 = Release|x64
+		{06FDF4DB-7211-44D7-B080-4DA20540E206}.Debug|Win32.ActiveCfg = Debug|Win32
+		{06FDF4DB-7211-44D7-B080-4DA20540E206}.Debug|Win32.Build.0 = Debug|Win32
+		{06FDF4DB-7211-44D7-B080-4DA20540E206}.Debug|x64.ActiveCfg = Debug|x64
+		{06FDF4DB-7211-44D7-B080-4DA20540E206}.Debug|x64.Build.0 = Debug|x64
+		{06FDF4DB-7211-44D7-B080-4DA20540E206}.Release|Win32.ActiveCfg = Release|Win32
+		{06FDF4DB-7211-44D7-B080-4DA20540E206}.Release|Win32.Build.0 = Release|Win32
+		{06FDF4DB-7211-44D7-B080-4DA20540E206}.Release|x64.ActiveCfg = Release|x64
+		{06FDF4DB-7211-44D7-B080-4DA20540E206}.Release|x64.Build.0 = Release|x64
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

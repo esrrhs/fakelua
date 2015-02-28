@@ -1,0 +1,22 @@
+package os
+
+func sleeps(t)
+	
+	os_sleep(t)
+	
+end
+
+func argc()
+	
+	return os_argc()
+	
+end
+
+
+func argv(pos)
+	
+	return os_argv(pos)
+	
+end
+
+

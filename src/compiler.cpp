@@ -9,7 +9,20 @@ void compiler::clear()
     m_cur_addr = 0;
 	memset(m_cur_addrs, 0, sizeof(m_cur_addrs));
 	m_loop_break_pos_stack.clear();
+	m_loop_continue_pos_stack.clear();
 	m_func_ret_num = 1;
+	m_cur_compile_func.clear();
+}
+
+void compiler::compile_seterror(syntree_node * node, fake * fk, efkerror err, const char *fmt, ...)
+{
+	char errorstr[128];
+	va_list ap;
+	va_start(ap, fmt);
+    vsnprintf(errorstr, sizeof(errorstr) - 1, fmt, ap);
+	va_end(ap);
+	errorstr[sizeof(errorstr) - 1] = 0;
+	seterror(fk, err, "compile file(%s:%d) func(%s), %s", m_mf->getfilename(), node->lineno(), m_cur_compile_func.c_str(), errorstr);
 }
 
 bool compiler::compile()
@@ -52,11 +65,11 @@ bool compiler::compile_body()
         }
     }
     
-    String str = m_fk->bbin.dump();
-    FKLOG("[compiler] compile_body funclist %d ok backup dump \n%s", funclist.size(), str.c_str());
+    FKLOG("[compiler] compile_body funclist %d ok backup dump \n%s", funclist.size(), m_fk->bbin.dump().c_str());
 
-    str = m_fk->bin.dump();
-    FKLOG("[compiler] compile_body funclist %d ok dump \n%s", funclist.size(), str.c_str());
+    FKLOG("[compiler] compile_body funclist %d ok dump \n%s", funclist.size(), m_fk->bin.dump().c_str());
+
+    FKLOG("[compiler] compile_body funcmap %d ok dump \n%s", m_fk->fm.size(), m_fk->fm.dump().c_str());
 
     return true;
 }
@@ -64,6 +77,8 @@ bool compiler::compile_body()
 bool compiler::compile_func(func_desc_node * funcnode)
 {
     FKLOG("[compiler] compile_func func %s", funcnode->funcname.c_str());
+
+    m_cur_compile_func = funcnode->funcname;
     
     // 不检测重名，直接替换掉老的
     codegen cg(m_fk);
@@ -97,6 +112,14 @@ bool compiler::compile_func(func_desc_node * funcnode)
             FKERR("[compile] compile_func compile_block %s fail", funcnode->funcname.c_str());
             return false;
         }
+    }
+
+    // break必须为空
+    if (!m_loop_break_pos_stack.empty())
+    {
+        FKERR("[compile] compile_func compile_block extra break");
+        compile_seterror(funcnode, m_fk, efk_compile_loop_error, "compile extra break error");
+        return false;
     }
     
     // 编译成功
@@ -285,6 +308,16 @@ bool compiler::compile_node(codegen & cg, syntree_node * node)
             }
         }
         break;
+    case est_continue:
+        {
+            continue_stmt * cs = dynamic_cast<continue_stmt *>(node);
+            if (!compile_continue_stmt(cg, cs))
+            {
+                FKERR("[compiler] compile_node compile_continue_stmt error %d %s", type, node->gettypename());
+                return false;
+            }
+        }
+        break;
     case est_math_expr:
         {
             math_expr_node * mn = dynamic_cast<math_expr_node *>(node);
@@ -315,10 +348,40 @@ bool compiler::compile_node(codegen & cg, syntree_node * node)
             }
         }
         break;
+    case est_sleep:
+        {
+            sleep_stmt * ss = dynamic_cast<sleep_stmt *>(node);
+            if (!compile_sleep_stmt(cg, ss))
+            {
+                FKERR("[compiler] compile_node compile_sleep_stmt error %d %s", type, node->gettypename());
+                return false;
+            }
+        }
+        break;
+    case est_yield:
+        {
+            yield_stmt * ys = dynamic_cast<yield_stmt *>(node);
+            if (!compile_yield_stmt(cg, ys))
+            {
+                FKERR("[compiler] compile_node compile_yield_stmt error %d %s", type, node->gettypename());
+                return false;
+            }
+        }
+        break;
+    case est_switch_stmt:
+        {
+            switch_stmt * ss = dynamic_cast<switch_stmt *>(node);
+            if (!compile_switch_stmt(cg, ss))
+            {
+                FKERR("[compiler] compile_node compile_switch_stmt error %d %s", type, node->gettypename());
+                return false;
+            }
+        }
+        break;
     default:
         {
             FKERR("[compiler] compile_node type error %d %s", type, node->gettypename());
-            seterror(m_fk, efk_compile_stmt_type_error, "compile node type error %d", type);
+            compile_seterror(node, m_fk, efk_compile_stmt_type_error, "compile node type error %d", type);
             return false;
         }
         break;
@@ -339,6 +402,8 @@ bool compiler::compile_while_stmt(codegen & cg, while_stmt * ws)
 	m_loop_break_pos_stack.push_back(beak_pos_list());
 
 	startpos = cg.byte_code_size();
+
+    m_loop_continue_pos_stack.push_back(startpos);
 
 	// 条件
     cg.push_stack_identifiers();
@@ -381,6 +446,8 @@ bool compiler::compile_while_stmt(codegen & cg, while_stmt * ws)
 	}
 	m_loop_break_pos_stack.pop_back();
 
+    m_loop_continue_pos_stack.pop_back();
+    
     FKLOG("[compiler] compile_while_stmt %p OK", ws);
     
     return true;
@@ -417,14 +484,14 @@ bool compiler::compile_if_stmt(codegen & cg, if_stmt * is)
     		return false;
     	}
         cg.pop_stack_identifiers();
-
-        // 跳出if块
-        cg.push(MAKE_OPCODE(OPCODE_JMP), is->lineno());
-        cg.push(EMPTY_CMD, is->lineno()); // 先塞个位置
-        jmpifpos = cg.byte_code_size() - 1;
     }
     
-    // 跳转出if块
+    // 跳出if块
+    cg.push(MAKE_OPCODE(OPCODE_JMP), is->lineno());
+    cg.push(EMPTY_CMD, is->lineno()); // 先塞个位置
+    jmpifpos = cg.byte_code_size() - 1;
+        
+    // 跳转到else
 	cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
 	
 	// else块
@@ -542,7 +609,7 @@ bool compiler::compile_math_assign_stmt(codegen & cg, math_assign_stmt * ms)
     else
     {
         FKERR("[compiler] compile_math_assign_stmt error oper type fail");
-		seterror(m_fk, efk_compile_math_type_error, "compile math assign oper type %s error", ms->oper.c_str());
+		compile_seterror(ms, m_fk, efk_compile_math_type_error, "compile math assign oper type %s error", ms->oper.c_str());
         return false;
     }
 
@@ -585,6 +652,25 @@ bool compiler::compile_break_stmt(codegen & cg, break_stmt * bs)
 	bplist.push_back(jmppos);
 
     FKLOG("[compiler] compile_break_stmt %p OK", bs);
+    
+    return true;
+}
+
+bool compiler::compile_continue_stmt(codegen & cg, continue_stmt * cs)
+{
+    FKLOG("[compiler] compile_continue_stmt %p", cs);
+
+    if (m_loop_continue_pos_stack.empty())
+    {
+		FKERR("[compiler] compile_continue_stmt no loop to continue");
+        compile_seterror(cs, m_fk, efk_compile_loop_error, "no loop to continue");
+		return false;
+    }
+	
+	cg.push(MAKE_OPCODE(OPCODE_JMP), cs->lineno());
+	cg.push(m_loop_continue_pos_stack[m_loop_continue_pos_stack.size() - 1], cs->lineno());
+
+    FKLOG("[compiler] compile_continue_stmt %p OK", cs);
     
     return true;
 }
@@ -647,9 +733,42 @@ bool compiler::compile_cmp_stmt(codegen & cg, cmp_stmt * cs)
 		m_cur_addr = MAKE_ADDR(ADDR_CONST, pos);
 		return true;
 	}
+	else if (cs->cmp == "is")
+	{
+        // left
+        if (!compile_node(cg, cs->left))
+        {
+            FKERR("[compiler] compile_cmp_stmt left fail");
+            return false;
+        }
+        return true;
+	}
+	else if (cs->cmp == "not")
+	{
+        oper = MAKE_OPCODE(OPCODE_NOT);
+        
+        // left
+        if (!compile_node(cg, cs->left))
+        {
+            FKERR("[compiler] compile_cmp_stmt left fail");
+            return false;
+        }
+        left = m_cur_addr;
+    
+        int despos = cg.alloc_stack_identifier();
+        dest = MAKE_ADDR(ADDR_STACK, despos);
+        m_cur_addr = dest;
+    
+        cg.push(oper, cs->lineno());
+        cg.push(left, cs->lineno());
+        cg.push(dest, cs->lineno());
+        
+        return true;
+	}
 	else
 	{
 		FKERR("[compiler] compile_cmp_stmt cmp error %s", cs->cmp.c_str());
+        compile_seterror(cs, m_fk, efk_compile_cmp_error, "cmp error %s", cs->cmp.c_str());
 		return false;
 	}
 
@@ -713,7 +832,7 @@ bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev)
 		break;
 	default:
 		FKERR("[compiler] compile_explicit_value type error %d %s", ev->getvaluetype(), ev->gettypename());
-		seterror(m_fk, efk_compile_explicit_type_error, "compile explicit value type error %d", ev->getvaluetype());
+		compile_seterror(ev, m_fk, efk_compile_explicit_type_error, "compile explicit value type error %d", ev->getvaluetype());
 		return false;
 	}
 
@@ -749,7 +868,7 @@ bool compiler::compile_variable_node(codegen & cg, variable_node * vn)
     if (pos == -1)
     {
         FKERR("[compiler] compile_variable_node variable not found %s", vn->str.c_str());
-        seterror(m_fk, efk_compile_variable_not_found, "variable %s not found", vn->str.c_str());
+        compile_seterror(vn, m_fk, efk_compile_variable_not_found, "variable %s not found", vn->str.c_str());
         return false;
     }
     m_cur_addr = MAKE_ADDR(ADDR_STACK, pos);
@@ -767,7 +886,7 @@ bool compiler::compile_var_node(codegen & cg, var_node * vn)
 	if (cg.get_cur_variable_pos(vn->str) != -1)
 	{
 		FKERR("[compiler] compile_var_node variable has define %s", vn->str.c_str());
-		seterror(m_fk, efk_compile_variable_has_define, "variable %s has define", vn->str.c_str());
+		compile_seterror(vn, m_fk, efk_compile_variable_has_define, "variable %s has define", vn->str.c_str());
 		return false;
 	}
 
@@ -776,7 +895,7 @@ bool compiler::compile_var_node(codegen & cg, var_node * vn)
 	if (pos == -1)
 	{
 		FKERR("[compiler] compile_var_node variable has define %s", vn->str.c_str());
-		seterror(m_fk, efk_compile_add_stack_identifier, "add stack variable %s fail", vn->str.c_str());
+		compile_seterror(vn, m_fk, efk_compile_add_stack_identifier, "add stack variable %s fail", vn->str.c_str());
 		return false;
 	}
 	m_cur_addr = MAKE_ADDR(ADDR_STACK, pos);
@@ -936,7 +1055,7 @@ bool compiler::compile_math_expr_node(codegen & cg, math_expr_node * mn)
     else
     {
         FKERR("[compiler] compile_math_expr_node error oper type fail");
-		seterror(m_fk, efk_compile_math_type_error, "compile math oper type %s error", mn->oper.c_str());
+		compile_seterror(mn, m_fk, efk_compile_math_type_error, "compile math oper type %s error", mn->oper.c_str());
         return false;
     }
 
@@ -992,6 +1111,7 @@ bool compiler::compile_for_stmt(codegen & cg, for_stmt * fs)
 	}
 
 	startpos = cg.byte_code_size();
+    m_loop_continue_pos_stack.push_back(startpos);
 
 	// 条件
 	cg.push_stack_identifiers();
@@ -1045,7 +1165,9 @@ bool compiler::compile_for_stmt(codegen & cg, for_stmt * fs)
 		cg.set(bplist[i], MAKE_POS(cg.byte_code_size()));
 	}
 	m_loop_break_pos_stack.pop_back();
-
+	
+    m_loop_continue_pos_stack.pop_back();
+    
 	// 离开作用域
 	cg.pop_stack_identifiers();
 
@@ -1130,7 +1252,7 @@ bool compiler::compile_container_get(codegen & cg, container_get_node * cn)
     if (pos == -1)
     {
         FKERR("[compiler] compile_container_get variable not found %s", cn->container.c_str());
-        seterror(m_fk, efk_compile_variable_not_found, "variable %s not found", cn->container.c_str());
+        compile_seterror(cn, m_fk, efk_compile_variable_not_found, "variable %s not found", cn->container.c_str());
         return false;
     }
     con = MAKE_ADDR(ADDR_STACK, pos);
@@ -1188,7 +1310,7 @@ bool compiler::compile_struct_pointer(codegen & cg, struct_pointer_node * sn)
     if (pos == -1)
     {
         FKERR("[compiler] compile_struct_pointer variable not found %s", connname.c_str());
-        seterror(m_fk, efk_compile_variable_not_found, "variable %s not found", connname.c_str());
+        compile_seterror(sn, m_fk, efk_compile_variable_not_found, "variable %s not found", connname.c_str());
         return false;
     }
     con = MAKE_ADDR(ADDR_STACK, pos);
@@ -1214,3 +1336,147 @@ bool compiler::compile_struct_pointer(codegen & cg, struct_pointer_node * sn)
 	return true;
 }
 
+bool compiler::compile_sleep_stmt(codegen & cg, sleep_stmt * ss)
+{
+	FKLOG("[compiler] compile_sleep_stmt %p", ss);
+
+    // 编译time
+    command time = 0;
+	if (!compile_node(cg, ss->time))
+	{
+		FKERR("[compiler] compile_sleep_stmt time fail");
+		return false;
+	}
+    time = m_cur_addr;
+
+	cg.push(MAKE_OPCODE(OPCODE_SLEEP), ss->lineno());
+	cg.push(time, ss->lineno());
+    
+	FKLOG("[compiler] compile_sleep_stmt %p OK", ss);
+
+	return true;
+}
+
+bool compiler::compile_yield_stmt(codegen & cg, yield_stmt * ys)
+{
+	FKLOG("[compiler] compile_yield_stmt %p", ys);
+
+    // 编译time
+    command time = 0;
+	if (!compile_node(cg, ys->time))
+	{
+		FKERR("[compiler] compile_sleep_stmt time fail");
+		return false;
+	}
+    time = m_cur_addr;
+
+	cg.push(MAKE_OPCODE(OPCODE_YIELD), ys->lineno());
+	cg.push(time, ys->lineno());
+    
+	FKLOG("[compiler] compile_yield_stmt %p OK", ys);
+
+	return true;
+}
+
+bool compiler::compile_switch_stmt(codegen & cg, switch_stmt * ss)
+{
+	FKLOG("[compiler] compile_switch_stmt %p", ss);
+
+    command caseleft;
+    command caseresult;
+
+    cg.push_stack_identifiers();
+    
+    // caseleft
+    if (!compile_node(cg, ss->cmp))
+    {
+        FKERR("[compiler] compile_switch_stmt cmp fail");
+        return false;
+    }
+    caseleft = m_cur_addr;
+
+    // caseresult
+    int despos = cg.alloc_stack_identifier();
+    caseresult = MAKE_ADDR(ADDR_STACK, despos);
+
+    switch_caselist_node * scln = dynamic_cast<switch_caselist_node *>(ss->caselist);
+
+    std::vector<int> jmpswitchposlist;
+    
+    // 挨个和case的比较
+    for (int i = 0; i < (int)scln->list.size(); i++)
+    {
+        command oper = MAKE_OPCODE(OPCODE_EQUAL);
+        command left = caseleft;
+        command right = 0;
+        command dest = caseresult;
+
+        switch_case_node * scn = dynamic_cast<switch_case_node *>(scln->list[i]);
+    
+        // right
+        if (!compile_node(cg, scn->cmp))
+        {
+            FKERR("[compiler] compile_switch_stmt case cmp fail");
+            return false;
+        }
+        right = m_cur_addr;
+
+        // push case
+        cg.push(oper, scn->lineno());
+        cg.push(left, scn->lineno());
+        cg.push(right, scn->lineno());
+        cg.push(dest, scn->lineno());
+
+        // push jmp
+    	cg.push(MAKE_OPCODE(OPCODE_JNE), scn->lineno());
+        cg.push(dest, scn->lineno());
+        cg.push(EMPTY_CMD, scn->lineno()); // 先塞个位置
+        int jnepos = cg.byte_code_size() - 1;
+
+        // build block
+        if (scn->block)
+        {
+            cg.push_stack_identifiers();
+        	if (!compile_node(cg, scn->block))
+        	{
+        		FKERR("[compiler] compile_switch_stmt block fail");
+        		return false;
+        	}
+            cg.pop_stack_identifiers();
+        }
+        
+        // 跳出switch块
+        cg.push(MAKE_OPCODE(OPCODE_JMP), scn->lineno());
+        cg.push(EMPTY_CMD, scn->lineno()); // 先塞个位置
+        int jmpswitchpos = cg.byte_code_size() - 1;
+        jmpswitchposlist.push_back(jmpswitchpos);
+        
+        // 跳转出case块
+    	cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
+    	
+    }
+
+    // default
+    if (ss->def)
+    {
+        cg.push_stack_identifiers();
+    	if (!compile_node(cg, ss->def))
+    	{
+    		FKERR("[compiler] compile_switch_stmt default fail");
+    		return false;
+    	}
+        cg.pop_stack_identifiers();
+    }
+    
+    cg.pop_stack_identifiers();
+
+    // 塞跳出的
+    for (int i = 0; i < (int)jmpswitchposlist.size(); i++)
+    {
+        cg.set(jmpswitchposlist[i], MAKE_POS(cg.byte_code_size()));
+    }
+    
+	FKLOG("[compiler] compile_switch_stmt %p OK", ss);
+
+	return true;
+}

@@ -27,6 +27,10 @@
     <ClInclude Include="src\bindfunc.h" />
     <ClInclude Include="src\bison.h" />
     <ClInclude Include="src\buildinfunc.h" />
+    <ClInclude Include="src\buildinfuncfile.h" />
+    <ClInclude Include="src\buildinfuncnet.h" />
+    <ClInclude Include="src\buildinfuncos.h" />
+    <ClInclude Include="src\buildinfuncstring.h" />
     <ClInclude Include="src\codegen.h" />
     <ClInclude Include="src\compiler.h" />
     <ClInclude Include="src\container.h" />
@@ -37,6 +41,8 @@
     <ClInclude Include="src\machine.h" />
     <ClInclude Include="src\myflexer.h" />
     <ClInclude Include="src\native.h" />
+    <ClInclude Include="src\package\buffer.h" />
+    <ClInclude Include="src\package\selector.h" />
     <ClInclude Include="src\paramstack.h" />
     <ClInclude Include="src\parser.h" />
     <ClInclude Include="src\pool.h" />
@@ -59,6 +65,10 @@
     <ClCompile Include="src\bindfunc.cpp" />
     <ClCompile Include="src\bison.cpp" />
     <ClCompile Include="src\buildinfunc.cpp" />
+    <ClCompile Include="src\buildinfuncfile.cpp" />
+    <ClCompile Include="src\buildinfuncnet.cpp" />
+    <ClCompile Include="src\buildinfuncos.cpp" />
+    <ClCompile Include="src\buildinfuncstring.cpp" />
     <ClCompile Include="src\codegen.cpp" />
     <ClCompile Include="src\compiler.cpp" />
     <ClCompile Include="src\container.cpp" />
@@ -135,7 +145,7 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <LinkIncremental>true</LinkIncremental>
-    <IncludePath>./include;./src;./src/win32;$(IncludePath)</IncludePath>
+    <IncludePath>./include;./src;./src/win32;./src/package;$(IncludePath)</IncludePath>
     <OutDir>./bin</OutDir>
     <TargetName>$(ProjectName)_d</TargetName>
   </PropertyGroup>
@@ -147,7 +157,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>./include;./src;./src/win32;$(IncludePath)</IncludePath>
+    <IncludePath>./include;./src;./src/win32;./src/package;$(IncludePath)</IncludePath>
     <OutDir>./bin</OutDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -169,6 +179,9 @@
       <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>LIBCMTD.lib</IgnoreSpecificDefaultLibraries>
     </Link>
+    <Lib>
+      <AdditionalDependencies>WSOCK32.LIB</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -203,6 +216,9 @@
       <AdditionalDependencies>%(AdditionalDependencies)</AdditionalDependencies>
       <IgnoreSpecificDefaultLibraries>LIBCMT.lib</IgnoreSpecificDefaultLibraries>
     </Link>
+    <Lib>
+      <AdditionalDependencies>WSOCK32.LIB</AdditionalDependencies>
+    </Lib>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>

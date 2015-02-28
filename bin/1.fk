@@ -3,4 +3,6 @@ func myfunc1(arg1, arg2)
 	
 	arg1 = -0.21
 		
+	print(1.2)
+		
 end

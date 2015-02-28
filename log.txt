@@ -81,5 +81,19 @@
 2015.1.22:实现包的方式
 2015.1.23:添加struct定义，底层是map实现，添加package，朝着工具方向前进
 2015.1.23:添加package list
-
+2015.1.26:添加package file
+2015.1.27:添加LIKE和UNLIKE
+2015.1.30:添加buffer net
+2015.2.2:完善语法
+2015.2.3:加buffer，需要加test库
+2015.2.4:加selector，下一步加socket相关
+2015.2.4:加socket相关，下一步加yield
+2015.2.5:加socket
+2015.2.6:加yield
+2015.2.10:加file readall，下一步加xml解析
+2015.2.12:加switch case
+2015.2.13:加string
+2015.2.19:加float format
+2015.2.20:加fake bin
+2015.2.28:修改xml package的bug，下一步加模板引擎
 

@@ -101,14 +101,54 @@
 	return STRUCT;
 }
 
+"and" {
+	return AND;
+}
+
+"or" {
+	return OR;
+}
+
+"is" {
+	return IS;
+}
+
+"not" {
+	return NOT;
+}
+
+"continue" {
+	return CONTINUE;
+}
+
+"yield" {
+	return YIELD;
+}
+
+"sleep" {
+	return SLEEP;
+}
+
+"switch" {
+	return SWITCH;
+}
+
+"case" {
+	return CASE;
+}
+
+"default" {
+	return DEFAULT;
+}
+
 "\""	yy_push_state(STR); lvalp->str = String();
 <STR>\\n	lvalp->str += String("\n");
 <STR>\\t	lvalp->str += String("\t");
 <STR>\\s	lvalp->str += String(" ");
+<STR>\\r	lvalp->str += String("\r");
 <STR>\\\"	lvalp->str += String("\"");
 <STR>[^\"] 	lvalp->str += String(yytext);
 <STR>"\""	yy_pop_state(); return STRING_DEFINITION; 
-
 
 [a-zA-Z_][a-zA-Z0-9_]* {
 	lvalp->str = String(yytext);
@@ -228,14 +268,6 @@
 
 ")" {
 	return CLOSE_BRACKET;
-}
-
-"&&" {
-	return AND;
-}
-
-"||" {
-	return OR;
 }
 
 ":" {

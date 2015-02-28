@@ -17,7 +17,7 @@ struct paramstack
 };
 
 #define PS_PUSH_AND_GET(ps, v) \
-    if ((ps).m_variant_list_num < REAL_MAX_FAKE_PARAM_NUM) \
+    if (LIKE((ps).m_variant_list_num < REAL_MAX_FAKE_PARAM_NUM)) \
     { \
         v = &(ps).m_variant_list[(ps).m_variant_list_num]; \
         (ps).m_variant_list_num++; \
@@ -31,7 +31,7 @@ struct paramstack
     }
     
 #define PS_POP_AND_GET(ps, v) \
-    if ((ps).m_variant_list_num > 0) \
+    if (LIKE((ps).m_variant_list_num > 0)) \
     { \
         v = &(ps).m_variant_list[(ps).m_variant_list_num - 1]; \
         (ps).m_variant_list_num--; \

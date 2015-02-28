@@ -36,8 +36,12 @@ const char * OpCodeStr(int opcode)
 	OPCODE_DEF(MOREEQUAL)
 	OPCODE_DEF(LESSEQUAL)
 	OPCODE_DEF(NOTEQUAL)
+	OPCODE_DEF(NOT)
 	
 	OPCODE_DEF(CALL)
+	
+	OPCODE_DEF(SLEEP)
+	OPCODE_DEF(YIELD)
 	
 #undef OPCODE_DEF
     }
@@ -92,24 +96,7 @@ String func_binary::dump() const
         ret += "\t[";
         ret += fkitoa(i);
         ret += "]\t";
-        switch (m_const_list[i].type)
-        {
-        case variant::REAL:
-            ret += "REAL";
-            break;
-        case variant::STRING:
-            ret += "STRING";
-            break;
-        case variant::POINTER:
-            ret += "POINTER";
-            break;
-        case variant::UUID:
-            ret += "UUID";
-            break;
-        default:
-            ret += "unknow";
-            break;
-        }
+        ret += vartypetostring(m_const_list[i].type);
         ret += "\t";
         ret += vartostring(&m_const_list[i]);
         ret += "\n";

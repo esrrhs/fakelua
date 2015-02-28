@@ -36,12 +36,6 @@ public:
     variant_array * newarray();
     variant_map * newmap();
     pool<variant>::node * newvariant();
-    pool<variant>::node * newglobalvariant();
-
-    variant_map * get_gmap()
-    {
-        return (variant_map *)&m_gmap;
-    }
     
 private:
     fake * m_fk;
@@ -50,9 +44,5 @@ private:
     poollist<variant_map> m_vm_pl;
     
     poollist<variant> m_v_pl;
-    
-    poollist<variant> m_gv_pl;
-    
-    vhashmap<pool<variant>::node *> m_gmap;
 };
 
