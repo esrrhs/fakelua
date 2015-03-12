@@ -9,7 +9,7 @@ end
 
 func close(f)
 	
-	fclose(f)
+	return fclose(f)
 	
 end
 
@@ -19,3 +19,8 @@ func read_all(f)
 	
 end
 
+func write_all(f, data)
+
+	return fwriteall(f, data)
+	
+end

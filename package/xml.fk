@@ -3,6 +3,12 @@ package xml
 include "file.fk"
 include "string.fk"
 
+struct node
+	name
+	param
+	memlist
+end
+
 const node_header = 0
 const node_begin = 1
 const node_end = 2
@@ -11,7 +17,10 @@ const node_comment = 4
 
 func parse(name)
 	
-	var ret = map()
+	var ret = node()
+	ret->name = ""
+	ret->param = map()
+	ret->memlist = array()
 	
 	var ok, var f = file.open(name, "rb")
 	if not ok then
@@ -24,6 +33,9 @@ func parse(name)
 	if not ok then
 		return false, ret, errormsg
 	end
+	
+	var memlist = ret->memlist
+	ret = memlist[0]
 	
 	return true, ret, errormsg
 	
@@ -46,51 +58,49 @@ func _parse(content, pos, ret)
 				pos = newpos
 		
 			case node_begin then
+			
+				-- 解析子节点
+				var son = node()
+				son->name = name
+				son->param = map()
+				son->memlist = array()
+	
+				ok, newpos, errormsg = _parse(content, newpos, son)
+				if not ok then
+					return false, newpos, errormsg
+				end
 				
 				-- 解析节点属性
-				ok, errormsg = _get_member(mem, ret)
+				ok, errormsg = _get_member(mem, son->param)
 				if not ok then
 					return false, newpos, errormsg
 				end
 				
-				-- 解析子节点
-				var son = map()
-				ok, newpos, errormsg = _parse(content, newpos, son)
-				
-				if not ok then
-					return false, newpos, errormsg
-				end
-				
-				var nodelist = ret[name]
-				if not nodelist then
-					nodelist = array()
-					ret[name] = nodelist
-				end
-				nodelist[size(nodelist)] = son
+				var memlist = ret->memlist
+				memlist[size(memlist)] = son
 			
 				pos = newpos
 			
 			case node_end then
 				
-				return true, newpos
+				return true, newpos, "ok"
 
 			case node_normal then
-								
-				-- 子节点
-				var son = map()				
-				var nodelist = ret[name]
-				if not nodelist then
-					nodelist = array()
-					ret[name] = nodelist
-				end
-				nodelist[size(nodelist)] = son
-			
+						
 				-- 解析子节点属性
-				ok, errormsg = _get_member(mem, son)
+				var son = node()
+				son->name = name
+				son->param = map()
+				son->memlist = array()
+			
+				ok, errormsg = _get_member(mem, son->param)
 				if not ok then
 					return false, newpos, errormsg
 				end
 				
+				var memlist = ret->memlist
+				memlist[size(memlist)] = son
+			
 				pos = newpos
 			
 			case node_comment then
@@ -123,7 +133,7 @@ func _get_element(content, pos, ret)
 		return false, type, newpos, name, mem, "no <"
 	end
 	
-	ok, var node_end_pos = string.find(content, pos, ">")
+	ok, var node_end_pos = string.find(content, node_begin_pos, ">")
 	if not ok then
 		return false, type, newpos, name, mem, "no >"
 	end

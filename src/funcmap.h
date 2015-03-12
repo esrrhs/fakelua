@@ -37,15 +37,16 @@ public:
 
     force_inline void clear()
 	{
-		for (const vhashmap<funcunion>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+		for (const fkhashmap<variant, funcunion>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
 		{
-			const funcunion & f = p->t;
+			const funcunion & f = *p->t;
 			if (f.havefb)
 			{
 				FUNC_BINARY_DELETE(f.fb);
 			}
 		}
         m_shh.clear();
+        m_dump.clear();
     }
 
 	force_inline const funcunion * get_func(const variant & name) const
@@ -78,7 +79,7 @@ public:
 		f->havebif = true;
 	}
 
-    String dump();
+    String & dump();
 
     force_inline size_t size() const
     {
@@ -96,10 +97,11 @@ private:
 
 		funcunion tmp;
 		memset(&tmp, 0, sizeof(tmp));
-		return &m_shh.add(name, tmp)->t;
+		return m_shh.add(name, tmp)->t;
 	}
 
 private:
     fake * m_fk;
-	vhashmap<funcunion> m_shh;
+	fkhashmap<variant, funcunion> m_shh;
+	String m_dump;
 };

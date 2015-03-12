@@ -1,9 +1,10 @@
 #include "funcmap.h"
 #include "fake.h"
 
-String funcmap::dump()
+String & funcmap::dump()
 {
-    String ret;
+    String & ret = m_dump;
+    ret.clear();
 
     ret += "conflict\n";
     const int conflict_len = 10;
@@ -20,7 +21,7 @@ String funcmap::dump()
     
     ret += "\nconflict map\n";
     const int conflict_map_len = 1024;
-    size_t len = conflict_map_len;
+    int len = conflict_map_len;
     int conflict_map[conflict_map_len];
     m_shh.get_conflict_map(conflict_map, len);
     for (int i = 0; i < (int)len; i++)

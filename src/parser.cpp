@@ -18,6 +18,73 @@ void parser::clear()
     m_parse_dep = 0;
 }
 
+bool parser::parsestr(const char * str)
+{
+    fake * fk = m_fk;
+    
+    FKLOG("parsestr %p %s", fk, str);
+
+    // 清空错误
+    fk->clearerr();
+
+    // 输入
+    myflexer mf(fk);
+    mf.clear();
+    bool b = mf.inputstr(str);
+    if (!b)
+    {
+        FKERR("parse inputstr %s fail", fk, str);
+        return false;
+    }
+
+    // 进行语法解析
+    int ret = yyparse((void *)&mf); 
+    if (ret != 0)
+    {
+        FKERR("parse yyparse %s fail ret %d", fk, str, ret);
+        seterror(fk, efk_parse_file_fail, "parse string fail for reason : %s", mf.get_error());
+        return false;
+    }
+    
+    FKLOG("parse yyparse %p %s OK", fk, str);
+
+    // 解析前置文件
+    for (int i = 0; i < (int)mf.get_include_list().size(); i++)
+    {
+        String & name = mf.get_include_list()[i];
+        if (!parse_include("", name))
+        {
+            FKERR("%s parse_include %s fail", "", name.c_str());
+            return false;
+        }
+    }
+
+    // 编译
+    FKLOG("parse compile %p %s", fk, str);
+    compiler mc(fk, &mf);
+    mc.clear();
+    b = mc.compile();
+    if (!b)
+    {
+        FKERR("parse %s compile %s fail", fk, str);
+        return false;
+    }
+
+    // jit 先放弃
+    /*fk->as.clear();
+    assembler & as = fk->as;
+    b = as.compile(&fk->bin);
+    if (!b)
+    {
+        FKERR("fkparse %s jit %s fail", fk, filename);
+        return false;
+    }*/
+    
+    FKLOG("parse %p %s OK", fk, str);
+    
+    return true;
+}
+
 bool parser::parse(const char * filename)
 {
     fake * fk = m_fk;
@@ -101,6 +168,10 @@ bool parser::parse(const char * filename)
         FKERR("fkparse %s jit %s fail", fk, filename);
         return false;
     }*/
+    
+    // 弹出
+    assert(m_parsing_file_list.back() == (String)filename);
+    m_parsing_file_list.pop_back();
     
     FKLOG("parse %p %s OK", fk, filename);
     

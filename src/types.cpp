@@ -239,10 +239,10 @@ String fkmaptoa(variant_map * vm)
     String ret;
     ret += "{";
     int i = 0;
-    for (const vhashmap<pool<variant>::node *>::ele * p = vm->vm.first(); p != 0; p = vm->vm.next())
+    for (const fkhashmap<variant, pool<variant>::node *>::ele * p = vm->vm.first(); p != 0; p = vm->vm.next())
     {
         const variant & key = p->k;
-        const pool<variant>::node * value = p->t;
+        const pool<variant>::node * value = *p->t;
         if (!i)
         {
             ret += "(";
@@ -264,7 +264,3 @@ String fkmaptoa(variant_map * vm)
     return ret;
 }
 
-void fksetcurroutine(fake * fk, routine * r)
-{
-    fk->rn.curroutine = r;
-}

@@ -14,6 +14,7 @@ public:
 	void clear();
 
     bool parse(const char * filename);
+    bool parsestr(const char * str);
     
     const char * get_parsing_file_list();
 

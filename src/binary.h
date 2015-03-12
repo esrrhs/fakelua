@@ -100,18 +100,22 @@ struct func_binary
     const char * m_packagename;
     // 二进制缓冲区
     command * m_buff;
-    size_t m_size;
+    int m_size;
     // 二进制行号缓冲区
     int * m_lineno_buff;
-    size_t m_lineno_size;
+    int m_lineno_size;
     // 常量
     variant * m_const_list;
-    size_t m_const_list_num;
+    int m_const_list_num;
     // container地址
     container_addr * m_container_addr_list;
-    size_t m_container_addr_list_num;
+    int m_container_addr_list_num;
     // 序列
     int m_pos;
+    // 占用标记
+    mutable int m_use;
+    // 备份
+    mutable func_binary * m_backup;
 };
 
 #define FUNC_BINARY_INI(fb) \
@@ -140,6 +144,21 @@ struct func_binary
 
 #define FUNC_BINARY_PARAMNUM(fb) \
 	((fb).m_paramnum)
+	
+#define FUNC_BINARY_USE(fb) \
+	((fb).m_use)
+	
+#define FUNC_BINARY_BACKUP(fb) \
+	((fb).m_backup)
+	
+#define FUNC_BINARY_BACKUP_MOVE(fb) \
+	{ \
+		func_binary * tmp = (fb).m_backup; \
+		(fb).m_backup = 0; \
+		FUNC_BINARY_DELETE(fb); \
+		memcpy((void *)&(fb), tmp, sizeof((fb))); \
+		safe_fkfree(m_fk, tmp); \
+	}
 
 #define FUNC_BINARY_DELETE(fb) \
 	safe_fkfree(m_fk, (fb).m_name); \
@@ -148,53 +167,18 @@ struct func_binary
 	safe_fkfree(m_fk, (fb).m_buff); \
 	safe_fkfree(m_fk, (fb).m_lineno_buff); \
 	safe_fkfree(m_fk, (fb).m_const_list); \
-	safe_fkfree(m_fk, (fb).m_container_addr_list)
-
-class backupbinary
-{
-    friend class binary;
-public:
-    force_inline backupbinary(fake * fk) : m_fk(fk), m_shh(fk)
-    {
-    }
-    force_inline ~backupbinary()
-    {
-        clear();
-    }
-
-    force_inline fake * getfake()
-    {
-        return m_fk;
-    }
-
-    force_inline void clear()
-    {
-        for (const vhashmap<func_binary>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
-        {
-            const func_binary & bin = p->t;
-			FUNC_BINARY_DELETE(bin);
-        }
-        m_shh.clear();
-    }
-
-	force_inline bool add_func(const variant & name, const func_binary & bin)
-    {
-		func_binary * old = m_shh.get(name);
-        if (old)
-		{
-			FUNC_BINARY_DELETE(*old);
-            FKLOG("backupbinary add_func del old %s", vartostring(&name).c_str());
-    	}
-		m_shh.add(name, bin);
-        return true;
-    }
-    
-    String dump() const;
-    
-private:
-    fake * m_fk; 
-    vhashmap<func_binary> m_shh;   
-};
+	safe_fkfree(m_fk, (fb).m_container_addr_list); \
+	if ((fb).m_backup) \
+	{ \
+		safe_fkfree(m_fk, (fb).m_backup->m_name); \
+		safe_fkfree(m_fk, (fb).m_backup->m_filename); \
+		safe_fkfree(m_fk, (fb).m_backup->m_packagename); \
+		safe_fkfree(m_fk, (fb).m_backup->m_buff); \
+		safe_fkfree(m_fk, (fb).m_backup->m_lineno_buff); \
+		safe_fkfree(m_fk, (fb).m_backup->m_const_list); \
+		safe_fkfree(m_fk, (fb).m_backup->m_container_addr_list); \
+	} \
+	safe_fkfree(m_fk, (fb).m_backup)
 
 class binary
 {
@@ -216,15 +200,18 @@ public:
 
     force_inline void clear()
     {
+    	m_dump.clear();
     }
 
 	bool add_func(const variant & name, const func_binary & bin);
     
-    String dump() const;
+    String & dump() const;
+    String & dump(const char * func) const;
     
     void move();
     
 private:
-    fake * m_fk;    
+    fake * m_fk;   
+    mutable String m_dump;
 };
 

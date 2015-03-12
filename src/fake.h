@@ -36,7 +36,7 @@
 
 struct fake
 {
-	fake() : errorno(0), errorcb(0), pa(this), bbin(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this)
+	fake() : errorno(0), errorcb(0), pa(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this)
     {
         POOL_INI(pp, this);
     }
@@ -57,7 +57,6 @@ struct fake
     {
         clearerr();
         pa.clear();
-        bbin.clear();
         bin.clear();
         nt.clear();
         as.clear();
@@ -88,9 +87,6 @@ struct fake
 
     // 解析
     parser pa;
-
-    // 缓存二进制
-    backupbinary bbin;
 
     // 二进制
     binary bin;

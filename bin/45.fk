@@ -1,0 +1,39 @@
+
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	var f2 = "
+	func myfunc2(arg1, arg2)
+		
+		yield 1
+		
+		print(\"this is myfunc2\")
+		
+		var f1 = \"
+			func myfunc1(arg1, arg2)
+				
+				print(\\"this is myfunc1\\")
+				
+			end
+		\"
+		
+		print(f1)
+		dostring(f1)
+		myfunc1(arg1, arg2)
+		
+		return 0
+		
+	end"
+	
+	print(f2)
+	
+	dostring(f2)
+	print(dumpfunc("myfunc2"))
+	print("getcurfunc ", getcurfunc())
+	print("getcurline ", getcurline())
+	
+	fake myfunc2(arg1, arg2)
+	
+	return 1
+	
+end

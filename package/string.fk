@@ -42,3 +42,9 @@ func replace(str, fromstr, tostr)
 	return string_replace(str, fromstr, tostr)
 	
 end
+
+func cat(leftstr, rightstr)
+	
+	return string_cat(leftstr, rightstr)
+	
+end

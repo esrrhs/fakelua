@@ -16,9 +16,9 @@ bool assembler::compile(binary * bin)
 {
     FKLOG("[assembler] compile binary %p", bin);
 	
-	for (const vhashmap<funcunion>::ele * p = m_fk->fm.m_shh.first(); p != 0; p = m_fk->fm.m_shh.next())
+	for (const fkhashmap<variant, funcunion>::ele * p = m_fk->fm.m_shh.first(); p != 0; p = m_fk->fm.m_shh.next())
 	{
-		const funcunion & f = p->t;
+		const funcunion & f = *p->t;
 		if (f.havefb && !compile_func(f.fb))
         {
 			FKERR("[assembler] compile compile_func %s fail", FUNC_BINARY_NAME(f.fb));

@@ -36,7 +36,7 @@ private:
 
 private:
 	fake * m_fk;
-	stringhashmap<stringele*> m_shh;
-	array<stringele*> m_sysstr_list;
+	fkhashmap<const char *, stringele> m_shh;
+	array<const char *> m_todelete;
 };
 

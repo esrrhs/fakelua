@@ -35,6 +35,11 @@ FAKE_API bool fkparse(fake * fk, const char * filename)
     return fk->pa.parse(filename);
 }
 
+FAKE_API bool fkparsestr(fake * fk, const char * str)
+{
+    return fk->pa.parsestr(str);
+}
+
 FAKE_API efkerror fkerror(fake * fk)
 {
     return (efkerror)fk->errorno;
@@ -62,7 +67,6 @@ FAKE_API void fkrunps(fake * fk, const char * func)
     // 预处理，只在完全的退出脚本才执行
     if (!fk->rn.rundeps)
     {
-        fk->bin.move();
         fk->sh.checkgc();
         fk->con.clear();
         fk->bif.clear();
@@ -454,3 +458,19 @@ FAKE_API void fksetargv(fake * fk, int argc, const char *argv[])
 {
 	fk->bif.setargv(argc, argv);
 }
+
+FAKE_API const char * fkdumpallfunc(fake * fk)
+{
+	return fk->bin.dump().c_str();
+}
+
+FAKE_API const char * fkdumpfunc(fake * fk, const char * func)
+{
+	return fk->bin.dump(func).c_str();
+}
+
+FAKE_API const char * fkdumpfuncmap(fake * fk)
+{
+	return fk->fm.dump().c_str();
+}
+
