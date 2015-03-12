@@ -1,0 +1,16 @@
+
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	var a = map()
+	var b = array()
+	var c = 1
+	var d = "aa"
+	print(typeof(a))
+	print(typeof(b))
+	print(typeof(c))
+	print(typeof(d))
+	
+	return 1
+	
+end

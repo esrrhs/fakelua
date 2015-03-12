@@ -1,0 +1,386 @@
+package template
+
+include "string.fk"
+include "xml.fk"
+
+const ele_none = 0
+const ele_member = 1
+const ele_end = 2
+const ele_usercall = 3
+const ele_range = 4
+const ele_if = 5
+const ele_else = 6
+const ele_fake = 7
+const ele_with = 8
+
+-- 从xml生成file
+func gen_file_xml(srcfile, tplfile, desfile)
+
+	-- 解析xml
+	var ok, var ret, var errormsg = xml.parse(srcfile)
+	
+	if not ok then
+		return false, errormsg
+	end
+	
+	-- 读取src
+	ok, var srcf = file.open(tplfile, "rb")
+	if not ok then
+		return false, "open src fail "
+	end
+	
+	var src = file.read_all(srcf)
+	
+	-- 生成
+	ok, var des = gen(ret, src)
+	if not ok then
+		return false, string.cat("template gen fail:", des)
+	end
+	
+	-- 生成des
+	ok, var desf = file.open(desfile, "wb")
+	if not ok then
+		return false, "open des fail"
+	end
+	
+	file.write_all(desf, des)
+	
+	return true, "ok"
+	
+end
+
+-- 生成
+func gen(data, src)
+
+	if not size(src) then
+		return true, ""
+	end
+
+	var ok, var type, var head, var ele, var ele_str, var left, var errormsg = _get_element(src)
+	if not ok then
+		return false, errormsg
+	end
+	
+	var des = head
+	
+	switch type
+	
+		case ele_none then
+			return true, des
+		
+		case ele_member then
+			
+			ok, var v, errormsg = _get_element_value(data, ele)
+			if not ok then
+				return false, errormsg
+			end
+			
+			if typeof(v) != "STRING" then
+				return false, "not string"
+			end
+			
+			des = string.cat(des, v)
+			
+			ok, var son = gen(data, left)
+			if not ok then
+				return false, son
+			end
+			
+			des = string.cat(des, son)
+		
+		case ele_range then
+				
+			ok, var v, errormsg = _get_element_value(data, ele)
+			if not ok then
+				return false, errormsg
+			end
+			
+			if typeof(v) != "ARRAY" then
+				return false, "not array"
+			end
+			
+			ok, var loopstr, var loopleft = _get_element_end(left)
+			if not ok then
+				return false, loopstr
+			end
+			
+			for var i = 0, i < size(v), i++ then
+				var sondata = range(v, i)
+				ok, var son = gen(sondata, loopstr)
+				if not ok then
+					return false, son
+				end
+				des = string.cat(des, son)
+			end
+			
+			ok, var son = gen(data, loopleft)
+			if not ok then
+				return false, son
+			end
+			
+			des = string.cat(des, son)
+		
+		case ele_if then
+						
+			ok, var v, errormsg = _get_element_value(data, ele)
+			if not ok then
+				return false, errormsg
+			end
+			
+			ok, var ifstr, var ifleft = _get_element_end(left)
+			if not ok then
+				return false, ifstr
+			end
+			
+			ok, var iftruestr, var iffalsestr = _get_element_else(ifstr)
+			if not ok then
+				return false, ifstr
+			end
+			
+			if not v then
+				ok, var son = gen(data, iffalsestr)
+				if not ok then
+					return false, son
+				end
+				des = string.cat(des, son)
+			else
+				ok, var son = gen(data, iftruestr)
+				if not ok then
+					return false, son
+				end
+				des = string.cat(des, son)
+			end
+		
+			ok, var son = gen(data, ifleft)
+			if not ok then
+				return false, son
+			end
+			
+			des = string.cat(des, son)
+		
+		case ele_fake then
+			
+			ok = dostring(ele)
+			if not ok then
+				return false, "dostring fail"
+			end
+			
+			ok, var son = gen(data, left)
+			if not ok then
+				return false, son
+			end
+			
+			des = string.cat(des, son)
+		
+		case ele_with then
+		
+			ok, var v, errormsg = _get_element_value(data, ele)
+			if not ok then
+				return false, errormsg
+			end
+			
+			ok, var withstr, var withleft = _get_element_end(left)
+			if not ok then
+				return false, withstr
+			end
+			
+			ok, var son = gen(v, withstr)
+			if not ok then
+				return false, son
+			end
+			des = string.cat(des, son)
+				
+			ok, son = gen(data, withleft)
+			if not ok then
+				return false, son
+			end
+			
+			des = string.cat(des, son)
+		
+		default
+			return false, "type default"
+		
+	end
+	
+	return true, des
+
+end
+
+-- 取得表达式的值
+func _get_element_value(data, ele)
+
+	-- .xxx
+	var ele_begin_str = string.substr(ele, 0, 1)
+	if ele_begin_str == "." then
+		ele = string.substr(ele, 1, -1)
+		var v = data[ele]
+		if not v then
+			return false, 0, "no ele"
+		end
+		return true, v, "ok"
+	end
+	
+	-- 脚本
+	if ele_begin_str == ":" then
+		ele = string.substr(ele, 1, -1)
+		ele = string.cat("func _template_tmp_func(data) ", ele)
+		ele = string.cat(ele, " end")
+		var ok = dostring(ele)
+		if not ok then
+			return false, 0, "value dostring fail"
+		end
+		var v = _template_tmp_func(data)
+		return true, v, "ok"
+	end
+	
+	return false, 0, "not ."
+	
+end
+
+-- 获取一个元素
+func _get_element(src)
+
+	var ok = true
+	var type = ele_none
+	var head = src
+	var ele = ""
+	var ele_str = ""
+	var left = ""
+	var errormsg = "ok"
+	
+	ok, var ele_begin_pos = string.find(src, 0, "{{")
+	if not ok then
+		return true, type, head, ele, ele_str, left, "ok"
+	end
+	
+	ok, var ele_end_pos = string.find(src, ele_begin_pos, "}}")
+	if not ok then
+		return true, type, head, ele, ele_str, left, "ok"
+	end
+	
+	ele_str = string.substr(src, ele_begin_pos, ele_end_pos - ele_begin_pos + 2)
+	
+	var end_str = string.substr(src, ele_begin_pos + 2, ele_end_pos - ele_begin_pos - 2)
+	if end_str == "end" then
+		type = ele_end
+	else 
+		if end_str == "else" then
+			type = ele_else
+		else
+		
+			var ele_begin_str = string.substr(src, ele_begin_pos + 2, 1)
+			if ele_begin_str == "." then
+				type = ele_member
+				ele = string.substr(src, ele_begin_pos + 2, ele_end_pos - ele_begin_pos - 2)
+			else
+				
+				ok, var op_pos = string.find(src, ele_begin_pos + 2, " ")
+				if not ok then
+					return false, type, head, ele, ele_str, left, "no space"
+				end
+				
+				var op_str = string.substr(src, ele_begin_pos + 2, op_pos - ele_begin_pos - 2)
+				switch op_str
+					case "range" then
+						type = ele_range
+						ele = string.substr(src, op_pos + 1, ele_end_pos - op_pos - 1)
+					case "if" then
+						type = ele_if
+						ele = string.substr(src, op_pos + 1, ele_end_pos - op_pos - 1)
+					case "else" then
+						type = ele_else
+						ele = string.substr(src, op_pos + 1, ele_end_pos - op_pos - 1)
+					case "fake" then
+						type = ele_fake
+						ele = string.substr(src, op_pos + 1, ele_end_pos - op_pos - 1)
+					case "with" then
+						type = ele_with
+						ele = string.substr(src, op_pos + 1, ele_end_pos - op_pos - 1)
+					default
+						return false, type, head, ele, ele_str, left, "no op type "
+				end
+				
+			end
+			
+		end
+	end
+	
+	head = string.substr(src, 0, ele_begin_pos)
+	left = string.substr(src, ele_end_pos + 2, -1)
+	
+	return true, type, head, ele, ele_str, left, "ok"
+
+end
+
+-- 查找结束点
+func _get_element_end(src)
+
+	var deps = 1
+	var des = ""
+	
+	while true then
+	
+		var ok, var type, var head, var ele, var ele_str, var left, var errormsg = _get_element(src)
+		if not ok then
+			return false, errormsg, left
+		end
+		
+		des = string.cat(des, head)
+		
+		if type == ele_end and deps == 1 then
+		
+			return true, des, left
+			
+		end
+		
+		if type == ele_range or type == ele_if or type == ele_with then
+			deps += 1
+		end
+		
+		if type == ele_end then
+			deps -= 1
+		end
+	
+		des = string.cat(des, ele_str)
+		src = left
+	
+	end
+	
+end
+
+-- 查找else点
+func _get_element_else(src)
+
+	var deps = 1
+	var iftruestr = ""
+
+	while true then
+	
+		var ok, var type, var head, var ele, var ele_str, var left, var errormsg = _get_element(src)
+		if not ok then
+			return true, iftruestr, left
+		end
+		
+		iftruestr = string.cat(iftruestr, head)
+		
+		if type == ele_else and deps == 1 then
+		
+			return true, iftruestr, left
+			
+		end
+		
+		if type == ele_range or type == ele_if or type == ele_with then
+			deps += 1
+		end
+		
+		if type == ele_end then
+			deps -= 1
+		end
+	
+		iftruestr = string.cat(iftruestr, ele_str)
+		src = left
+	
+	end
+	
+end
+

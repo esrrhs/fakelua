@@ -3,55 +3,61 @@
 
 stringheap::stringheap(fake * fk) : m_fk(fk), m_shh(fk)
 {
-	ARRAY_INI(m_sysstr_list, fk);
+	ARRAY_INI(m_todelete, m_fk);
 }
 
 stringheap::~stringheap()
 {
-	for (const stringhashmap<stringele*>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	for (const fkhashmap<const char *, stringele>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
 	{
 		stringele * e = p->t;
 		safe_fkfree(m_fk, e->s);
-		safe_fkfree(m_fk, e);
 	}
 	m_shh.clear();
-	ARRAY_DELETE(m_sysstr_list);
+	ARRAY_DELETE(m_todelete);
 }
 
 void stringheap::clear()
 {
-    for (const stringhashmap<stringele*>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	ARRAY_CLEAR(m_todelete);
+    for (const fkhashmap<const char *, stringele>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
     {
         stringele * e = p->t;
 		if (!e->sysref)
 		{
 			safe_fkfree(m_fk, e->s);
-			safe_fkfree(m_fk, e);
+			if (ARRAY_SIZE(m_todelete) >= ARRAY_MAX_SIZE(m_todelete))
+			{
+			    size_t newsize = ARRAY_MAX_SIZE(m_todelete) + 1 + ARRAY_MAX_SIZE(m_todelete) * (m_fk->cfg.array_grow_speed) / 100;
+		        ARRAY_GROW(m_todelete, newsize, const char *);
+		    }
+			ARRAY_PUSH_BACK(m_todelete);
+			ARRAY_BACK(m_todelete) = p->k;
 		}
     }
-	m_shh.clear();
-	for (int i = 0; i < (int)ARRAY_SIZE(m_sysstr_list); i++)
+    
+	for (int i = 0; i < (int)ARRAY_SIZE(m_todelete); i++)
 	{
-		stringele * e = ARRAY_GET(m_sysstr_list, i);
-		m_shh.add(e->s, e);
+		const char * str = ARRAY_GET(m_todelete, i);
+		m_shh.del(str);
 	}
+	
+	ARRAY_CLEAR(m_todelete);
 }
 
 stringele * stringheap::allocstring(const char * str)
 {
-	stringele ** p = m_shh.get(str);
+	stringele * p = m_shh.get(str);
     if (p)
     {
-		return *p;
+		return p;
 	}
-	stringele * pe = (stringele*)safe_fkmalloc(m_fk, sizeof(stringele));
-	stringele & e = *pe;
+	stringele e;
 	e.update = 0;
 	e.sz = strlen(str);
 	e.s = stringdump(m_fk, str, e.sz);
 	e.sysref = 0;
-	m_shh.add(str, pe);
-	return pe;
+	return m_shh.add(str, e)->t;
 }
 
 variant stringheap::allocsysstr(const char * str)
@@ -59,17 +65,6 @@ variant stringheap::allocsysstr(const char * str)
 	fake * fk = m_fk;
 	variant v;
 	V_SET_STRING(&v, str);
-	// 存起来，gc完再加回去
-	if (!v.data.str->sysref)
-	{
-		if (ARRAY_SIZE(m_sysstr_list) >= ARRAY_MAX_SIZE(m_sysstr_list))
-		{
-			size_t newsize = ARRAY_MAX_SIZE(m_sysstr_list) + 1 + ARRAY_MAX_SIZE(m_sysstr_list) * (m_fk->cfg.array_grow_speed) / 100;
-			ARRAY_GROW(m_sysstr_list, newsize, stringele*);
-		}
-		ARRAY_PUSH_BACK(m_sysstr_list);
-		ARRAY_BACK(m_sysstr_list) = v.data.str;
-	}
 	v.data.str->sysref++;
 	return v;
 }
@@ -86,3 +81,4 @@ void stringheap::gc()
 {
 	clear();
 }
+

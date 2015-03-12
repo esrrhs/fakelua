@@ -34,6 +34,16 @@ void myflexer::LexerError(const char* msg)
     m_error = buff;
 }
 
+// 输入字符串
+bool myflexer::inputstr(const char * str)
+{
+    m_filename = "string";
+    m_content = str;
+	m_num = m_content.size();
+    m_pos = 0;
+    return true;
+}
+
 // 输入文件
 bool myflexer::inputfile(const char * filename)
 {

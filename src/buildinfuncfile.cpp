@@ -55,10 +55,29 @@ void buildin_freadall(fake * fk, interpreter * inter)
     fkpspush<const char *>(fk, ret);
 }
 
+// fwriteall
+void buildin_fwriteall(fake * fk, interpreter * inter)
+{
+    const char * data = fkpspopcstrptr(fk);
+    FILE * f = fkpspop<FILE *>(fk);
+    if (f && data)
+    {
+        size_t datasize = strlen(data);
+        
+        if (fwrite(data, datasize, 1, f) == 1)
+        {
+			fkpspush<bool>(fk, true);
+            return;
+        }
+    }
+	fkpspush<bool>(fk, false);
+}
+
 void buildinfuncfile::openfilefunc()
 {
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("fopen"), buildin_fopen);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("fclose"), buildin_fclose);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("freadall"), buildin_freadall);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("fwriteall"), buildin_fwriteall);
 }
 

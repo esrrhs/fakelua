@@ -1,6 +1,6 @@
 /************************************************************************/
 /*
-fakescriptÊÇÒ»¿îÇáÁ¿¼¶µÄÇ¶ÈëÊ½½Å±¾ÓïÑÔ£¬ÓëLuaÏà±È£¬ËüµÄÔËĞĞËÙ¶È¸ü¿ì£¬¸üÈİÒ×Ê¹ÓÃ£¬Í¬Ê±Ô´´úÂë¿É¶ÁĞÔ¸üÇ¿¡£
+fakescriptÊÇÒ»¿îÇáÁ¿¼¶µÄÇ¶ÈëÊ½½Å±¾ÓïÑÔ£¬Ê¹ÓÃc++ÓïÑÔ±àĞ´£¬Óï·¨ÎüÈ¡×Ôlua¡¢golang¡¢erlang£¬»ùÓÚflex¡¢bisonÉú³ÉÓï·¨Ê÷£¬±àÒë³É×Ö½ÚÂë½âÊÍÖ´ĞĞ¡£ÓëluaÏà±È£¬ÔËĞĞËÙ¶È²»ÏàÉÏÏÂ£¬¸üÒ×Ê¹ÓÃ£¬Ô´´úÂë¿É¶ÁĞÔ¸üÇ¿
 
 ½Å±¾ÌØĞÔ£º
 @.´úÂë·ç¸ñÀàËÆlua
@@ -20,21 +20,17 @@ fakescriptÊÇÒ»¿îÇáÁ¿¼¶µÄÇ¶ÈëÊ½½Å±¾ÓïÑÔ£¬ÓëLuaÏà±È£¬ËüµÄÔËĞĞËÙ¶È¸ü¿ì£¬¸üÈİÒ×Ê¹ÓÃ£
 Ê¾Àı£º
 -- µ±Ç°°üÃû
 package mypackage.test
-
 -- ÒıÈëµÄÎÄ¼ş
 include "common.fk"
-
 -- ½á¹¹Ìå¶¨Òå
 struct teststruct
 	sample_a
 	sample_b
 	sample_c
 end
-
 -- ³£Á¿Öµ
 const hellostring = "hello"
 const helloint = 1234
-
 -- func1 comment
 func myfunc1(arg1, arg2)
 	
@@ -64,10 +60,8 @@ func myfunc1(arg1, arg2)
 	-- Int64
 	var uid = 1241515236123614u
 	log("uid = ", uid)
-
 	-- ×Óº¯Êıµ÷ÓÃ
 	var ret1, var ret2 = myfunc2()
-
 	-- ÆäËû°üµÄº¯Êıµ÷ÓÃ
 	ret1 = otherpackage.test.myfunc1(arg1, arg2)
 	
@@ -76,7 +70,6 @@ func myfunc1(arg1, arg2)
 	tt->sample_a = 1
 	tt->sample_b = teststruct()
 	tt->sample_b->sample_a = 10
-
 	-- ·ÖÖ§
 	switch arg1
 		case 1 then
@@ -86,20 +79,16 @@ func myfunc1(arg1, arg2)
 		default
 			print("default")
 	end
-
 	-- ¶à·µ»ØÖµ
 	return arg1, arg3
 	
 end
-
 Ê¹ÓÃ·½·¨£º
 fake * fk = newfake();
 fkopenbaselib(fk);
 fkopenprofile(fk);
-
 fkreg(fk, "cfunc1", cfunc1);
 fkreg(fk, "memfunc1", &class1::memfunc1);
-
 fkparse(fk, argv[1]);
 ret = fkrun<int>(fk, "myfunc1", 1, 2);
 delfake(fk);
@@ -117,7 +106,7 @@ esrrhs@163.com
 #include <new>
 #include <stdlib.h>
 
-#define FAKE_VERSION "1.0"
+#define FAKE_VERSION "1.1"
 #define FAKE_VERSION_NUM 100
 #define FAKE_AUTHOR "esrrhs@163.com"
 
@@ -190,8 +179,9 @@ FAKE_API efkerror fkerror(fake * fk);
 FAKE_API const char * fkerrorstr(fake * fk);
 
 // ½âÎöÎÄ¼ş
-// ²»Ö§³ÖÔÚ½Å±¾ÔËĞĞÖĞÖ±½ÓÌæ»»½Å±¾£¬ĞÂµÄ½Å±¾»áÔÚÏÂ´ÎfkrunµÄÊ±ºòÌæ»»
+// ·ÇÔËĞĞÖĞµÄ½Å±¾»áÖ±½ÓÌæ»»£¬·ñÔò»áÔÚÏÂ´ÎfkrunµÄÊ±ºòÌæ»»
 FAKE_API bool fkparse(fake * fk, const char * filename);
+FAKE_API bool fkparsestr(fake * fk, const char * str);
 
 // ÊÇ·ñÓĞº¯Êı
 FAKE_API bool fkisfunc(fake * fk, const char * func);
@@ -955,4 +945,9 @@ FAKE_API const char * fkgetcurcallstack(fake * fk);
 
 // ÉèÖÃÏµÍ³ÃüÁîĞĞ
 FAKE_API void fksetargv(fake * fk, int argc, const char *argv[]);
+
+// dumpº¯Êı
+FAKE_API const char * fkdumpallfunc(fake * fk);
+FAKE_API const char * fkdumpfunc(fake * fk, const char * func);
+FAKE_API const char * fkdumpfuncmap(fake * fk);
 

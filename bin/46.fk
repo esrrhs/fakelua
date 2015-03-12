@@ -1,0 +1,31 @@
+
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	myfunc2(arg1, arg2)
+	
+	myfunc2(arg1, arg2)
+	
+	return 1
+	
+end
+
+-- func2 comment
+func myfunc2(arg1, arg2)
+		
+	print("this is old myfunc2")
+	
+	var f2 = "
+	func myfunc2(arg1, arg2)
+		
+		print(\"this is new myfunc2\")
+		
+		return 0
+		
+	end"
+	
+	dostring(f2)
+	
+	return 0
+	
+end

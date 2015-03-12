@@ -54,16 +54,30 @@ void interpreter::call(const variant & func)
 		
 		paramstack * ps = getps(m_fk);
 
+		if (UNLIKE((int)ps->m_variant_list_num != FUNC_BINARY_PARAMNUM(*fb)))
+		{
+			FKERR("call func %s param not match", vartostring(&func).c_str());
+			seterror(m_fk, efk_run_param_error, "call func %s param not match", vartostring(&func).c_str());
+			m_isend = true;
+			return;
+		}
+
+		assert(FUNC_BINARY_PARAMNUM(*fb) <= (int)ARRAY_MAX_SIZE(s.m_stack_variant_list));
+
 		// 分配栈空间
-		for (int i = 0; i < (int)ps->m_variant_list_num && i < (int)ARRAY_MAX_SIZE(s.m_stack_variant_list); i++)
+		for (int i = 0; i < (int)FUNC_BINARY_PARAMNUM(*fb); i++)
 		{
 			SET_STACK(&(ps->m_variant_list[i]), s, i);
 			FKLOG("call set %s to pos %d", (vartostring(&(ps->m_variant_list[i]))).c_str(), i);
 		}
+		
 		ps->clear();
 
 		// 重置ret
 		V_SET_NIL(&m_ret[0]);
+
+		// 标记
+		FUNC_BINARY_USE(*fb)++;
 
 		return;
 	}

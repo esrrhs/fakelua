@@ -105,6 +105,161 @@ void buildin_debug(fake * fk, interpreter * inter)
     fkpspush<int>(fk, 1);
 }
 
+// typeof
+void buildin_typeof(fake * fk, interpreter * inter)
+{
+	bool err = false;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+	const char * name = vartypetostring(v->type);
+    fkpspush<const char *>(fk, name);
+}
+
+// range
+void buildin_range(fake * fk, interpreter * inter)
+{
+	// pos
+    int pos = fkpspop<int>(fk);
+
+	// container
+	bool err = false;
+    variant * v = 0;
+    PS_POP_AND_GET(fk->ps, v);
+
+	if (v->type == variant::STRING)
+    {
+		if (pos >= 0 && pos < (int)v->data.str->sz)
+		{
+			char data[2];
+			data[0] = v->data.str->s[pos];
+			data[1] = 0;
+	        fkpspush<const char *>(fk, data);
+		}
+		else
+		{
+	        fkpspush<const char *>(fk, "");
+		}
+    }
+    else if (v->type == variant::ARRAY)
+    {
+		if (pos >= 0 && pos < (int)ARRAY_SIZE(v->data.va->va) && ARRAY_GET(v->data.va->va, pos))
+		{
+		    variant * ret = 0;
+		    PS_PUSH_AND_GET(fk->ps, ret);
+		    *ret = ARRAY_GET(v->data.va->va, pos)->t;
+		}
+		else
+		{
+        	fkpspush<bool>(fk, false);
+		}
+    }
+    else if (v->type == variant::MAP)
+    {
+		if (pos >= 0 && pos < (int)v->data.vm->vm.size())
+		{
+		    variant * value = 0;
+		    PS_PUSH_AND_GET(fk->ps, value);
+		    
+		    variant * key = 0;
+		    PS_PUSH_AND_GET(fk->ps, key);
+
+		    const fkhashmap<variant, pool<variant>::node *>::ele * e = v->data.vm->vm.at(pos);
+		    *key = e->k;
+		    *value = (*e->t)->t;
+		}
+		else
+		{
+        	fkpspush<bool>(fk, false);
+        	fkpspush<bool>(fk, false);
+		}
+    }
+	else
+	{
+        fkpspush<bool>(fk, false);
+	}
+}
+
+// dumpallfunc
+void buildin_dumpallfunc(fake * fk, interpreter * inter)
+{
+	const char * str = fk->bin.dump().c_str();
+    fkpspush<const char *>(fk, str);
+}
+
+// dumpfunc
+void buildin_dumpfunc(fake * fk, interpreter * inter)
+{
+    const char * func = fkpspopcstrptr(fk);
+	const char * str = fk->bin.dump(func).c_str();
+    fkpspush<const char *>(fk, str);
+}
+
+// dumpfuncmap
+void buildin_dumpfuncmap(fake * fk, interpreter * inter)
+{
+	const char * str = fk->fm.dump().c_str();
+    fkpspush<const char *>(fk, str);
+}
+
+// dofile
+void buildin_dofile(fake * fk, interpreter * inter)
+{
+    const char * file = fkpspopcstrptr(fk);
+	bool ret = fkparse(fk, file);
+    fkpspush<bool>(fk, ret);
+}
+
+// dostring
+void buildin_dostring(fake * fk, interpreter * inter)
+{
+    const char * str = fkpspopcstrptr(fk);
+	bool ret = fkparsestr(fk, str);
+    fkpspush<bool>(fk, ret);
+}
+
+// getcurfile
+void buildin_getcurfile(fake * fk, interpreter * inter)
+{
+    const char * str = fkgetcurfile(fk);
+    fkpspush<const char *>(fk, str);
+}
+
+// getcurline
+void buildin_getcurline(fake * fk, interpreter * inter)
+{
+    int line = fkgetcurline(fk);
+    fkpspush<int>(fk, line);
+}
+
+// getcurfunc
+void buildin_getcurfunc(fake * fk, interpreter * inter)
+{
+    const char * str = fkgetcurfunc(fk);
+    fkpspush<const char *>(fk, str);
+}
+
+// getcurcallstack
+void buildin_getcurcallstack(fake * fk, interpreter * inter)
+{
+    const char * str = fkgetcurcallstack(fk);
+    fkpspush<const char *>(fk, str);
+}
+
+// geterror
+void buildin_geterror(fake * fk, interpreter * inter)
+{
+    const char * str = fkerrorstr(fk);
+    fkpspush<const char *>(fk, str);
+}
+
+// isfunc
+void buildin_isfunc(fake * fk, interpreter * inter)
+{
+    const char * str = fkpspopcstrptr(fk);
+	bool ret = fkisfunc(fk, str);
+    fkpspush<bool>(fk, ret);
+}
+
 void buildinfunc::openbasefunc()
 {
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("print"), buildin_print);
@@ -112,7 +267,20 @@ void buildinfunc::openbasefunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("array"), buildin_array);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr(MAP_FUNC_NAME), buildin_map);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("size"), buildin_size);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("range"), buildin_range);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("debug"), buildin_debug);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("typeof"), buildin_typeof);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumpallfunc"), buildin_dumpallfunc);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumpfunc"), buildin_dumpfunc);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumpfuncmap"), buildin_dumpfuncmap);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dofile"), buildin_dofile);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dostring"), buildin_dostring);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("getcurfile"), buildin_getcurfile);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("getcurline"), buildin_getcurline);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("getcurfunc"), buildin_getcurfunc);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("getcurcallstack"), buildin_getcurcallstack);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("geterror"), buildin_geterror);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("isfunc"), buildin_isfunc);
 }
 
 void buildinfunc::openfilefunc()

@@ -65,8 +65,6 @@ bool compiler::compile_body()
         }
     }
     
-    FKLOG("[compiler] compile_body funclist %d ok backup dump \n%s", funclist.size(), m_fk->bbin.dump().c_str());
-
     FKLOG("[compiler] compile_body funclist %d ok dump \n%s", funclist.size(), m_fk->bin.dump().c_str());
 
     FKLOG("[compiler] compile_body funcmap %d ok dump \n%s", m_fk->fm.size(), m_fk->fm.dump().c_str());
@@ -125,7 +123,21 @@ bool compiler::compile_func(func_desc_node * funcnode)
     // 编译成功
     String funcname = fkgen_package_name(m_mf->get_package(), funcnode->funcname);
 	cg.output(m_mf->getfilename(), m_mf->get_package(), funcname.c_str(), &bin);
-	m_fk->bbin.add_func(m_fk->sh.allocsysstr(funcname.c_str()), bin);
+
+	// 看立即更新还是延迟更新
+	variant fv = m_fk->sh.allocsysstr(funcname.c_str());
+	const funcunion * f = m_fk->fm.get_func(fv);
+	if (f && f->havefb && FUNC_BINARY_USE(f->fb))
+	{
+		FKLOG("[compiler] compile_func func %s add back bin", funcname.c_str());
+		FUNC_BINARY_BACKUP(f->fb) = (func_binary *)safe_fkmalloc(m_fk, sizeof(func_binary));
+		*FUNC_BINARY_BACKUP(f->fb) = bin;
+	}
+	else
+	{
+		FKLOG("[compiler] compile_func func %s add bin", funcname.c_str());
+		m_fk->bin.add_func(fv, bin);
+	}
     
 	FKLOG("[compiler] compile_func func %s size = %d OK", funcname.c_str(), FUNC_BINARY_SIZE(bin));
     
@@ -822,7 +834,7 @@ bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev)
 		V_SET_REAL((&v), (fkatol(&ev->str)));
 		break;
 	case explicit_value_node::EVT_STR:
-		V_SET_STRING((&v), ev->str.c_str());
+		v = fk->sh.allocsysstr(ev->str.c_str());
 		break;
 	case explicit_value_node::EVT_FLOAT:
 		V_SET_REAL((&v), (fkatof(&ev->str)));
@@ -946,7 +958,7 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
     {
         // 直接替换成map
 	    variant v;
-        V_SET_STRING(&v, MAP_FUNC_NAME);
+        v = fk->sh.allocsysstr(MAP_FUNC_NAME);
         pos = cg.getconst(v);
 	    callpos = MAKE_ADDR(ADDR_CONST, pos);
     }
@@ -957,7 +969,7 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
 	    variant v;
         // 拼上包名
         String pname = fkgen_package_name(mf->get_package(), func);
-        V_SET_STRING(&v, pname.c_str());
+        v = fk->sh.allocsysstr(pname.c_str());
         pos = cg.getconst(v);
 	    callpos = MAKE_ADDR(ADDR_CONST, pos);
     }
@@ -966,7 +978,7 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
     {
         // 申请字符串变量
 	    variant v;
-        V_SET_STRING(&v, func.c_str());
+        v = fk->sh.allocsysstr(func.c_str());
         pos = cg.getconst(v);
 	    callpos = MAKE_ADDR(ADDR_CONST, pos);
     }
@@ -1226,6 +1238,7 @@ bool compiler::compile_return_value_list(codegen & cg, return_value_list_node * 
 {
 	FKLOG("[compiler] compile_return_value_list %p", rn);
 
+	command tmp[MAX_FAKE_RETURN_NUM];
 	for (int i = 0; i < (int)rn->returnlist.size(); i++)
 	{
 		if (!compile_node(cg, rn->returnlist[i]))
@@ -1233,8 +1246,9 @@ bool compiler::compile_return_value_list(codegen & cg, return_value_list_node * 
 			FKERR("[compiler] compile_return_value_list value fail");
 			return false;
 		}
-		m_cur_addrs[i] = m_cur_addr;
+		tmp[i] = m_cur_addr;
 	}
+	memcpy(m_cur_addrs, tmp, sizeof(command) * MAX_FAKE_RETURN_NUM);
 	m_cur_addr = m_cur_addrs[0];
 
 	FKLOG("[compiler] compile_return_value_list %p OK", rn);
@@ -1321,7 +1335,7 @@ bool compiler::compile_struct_pointer(codegen & cg, struct_pointer_node * sn)
         
         // 编译key
 	    variant v;
-		V_SET_STRING((&v), keystr.c_str());
+        v = fk->sh.allocsysstr(keystr.c_str());
     	int pos = cg.getconst(v);
     	command key = MAKE_ADDR(ADDR_CONST, pos);
 

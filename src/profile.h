@@ -54,7 +54,8 @@ public:
 private:
     fake * m_fk;
     bool m_isopen;
-    stringhashmap<profilefuncele> m_shh;
+    typedef fkhashmap<const char *, profilefuncele> stringhashmap;
+    stringhashmap m_shh;
     String m_dumpstr;
 };
 

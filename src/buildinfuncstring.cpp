@@ -220,6 +220,15 @@ void buildin_string_replace(fake * fk, interpreter * inter)
     fkpspush<const char *>(fk, str.c_str());
 }
 
+// cat
+void buildin_string_cat(fake * fk, interpreter * inter)
+{
+    const char * right = fkpspopcstrptr(fk);
+    String leftstr = fkpspopcstrptr(fk);
+	leftstr += right;
+    fkpspush<const char *>(fk, leftstr.c_str());
+}
+
 void buildinfuncstring::openstringfunc()
 {
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_find"), buildin_string_find);
@@ -228,4 +237,5 @@ void buildinfuncstring::openstringfunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_trimleft"), buildin_string_trim_left);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_trimright"), buildin_string_trim_right);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_replace"), buildin_string_replace);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_cat"), buildin_string_cat);
 }

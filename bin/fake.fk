@@ -1,19 +1,54 @@
 include "../package/xml.fk"
 include "../package/os.fk"
+include "../package/template.fk"
 
 func main()
 
 	var filename = os.argv(0)
 	print("xml:", filename)
+	var srcfile = os.argv(1)
+	print("srcfile:", srcfile)
+	var desfile = os.argv(2)
+	print("desfile:", desfile)
 	
-	var ok, var ret, var errormsg = xml.parse(filename)
-	
-	if is ok then
-		print("ok ", ret)
-	else
-		print("fail ",errormsg)
+	var ok, var errormsg = template.gen_file_xml(filename, srcfile, desfile)
+	if not ok then
+		print("gen_file_xml fail ", errormsg)
+		return false
 	end
 	
-	return 1
+	print("template gen ok")
+	
+	return true
 	
 end
+
+
+func printdata(data, tab)
+
+	print(gentab(tab), data->name)
+	for var i = 0, i < size(data->param), i++ then
+		var k, var v = range(data->param, i)
+		print(gentab(tab + 1), k, "->", v)
+	end
+	for var i = 0, i < size(data->memlist), i++ then
+		var son = range(data->memlist, i)
+		printdata(son, tab + 1)
+	end
+
+end
+
+func gentab(num)
+
+	var ret = ""
+
+	for var i = 0, i < num, i++ then
+	
+		ret = string.cat(ret, "  ")
+	
+	end
+	
+	return ret
+	
+end
+

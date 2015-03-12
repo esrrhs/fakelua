@@ -61,6 +61,7 @@ public:
     
 private:
     fake * m_fk;
-    stringhashmap<func_native> m_shh;
+    typedef fkhashmap<const char *, func_native> stringhashmap;
+    stringhashmap m_shh;
 };
 

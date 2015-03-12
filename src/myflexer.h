@@ -55,6 +55,8 @@ public:
     // 输入文件
     bool inputfile(const char * filename);
     const char * getfilename();
+    // 输入字符串
+    bool inputstr(const char * str);
 
     void clear();
 

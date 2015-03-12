@@ -17,7 +17,7 @@ struct variant_array
 
 struct variant_map
 {
-    vhashmap<pool<variant>::node *> vm;
+    fkhashmap<variant, pool<variant>::node *> vm;
 };
 
 #define VARIANT_MAP_DELETE(vvm) HASHMAP_DELETE((vvm).vm)

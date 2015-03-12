@@ -283,6 +283,13 @@ public:
 				FKLOG("pop stack %s", FUNC_BINARY_NAME(fb));
                 // 记录profile
                 endfuncprofile();
+                // 标记
+				FUNC_BINARY_USE(fb)--;
+				// 更新
+				if (UNLIKE(!FUNC_BINARY_USE(fb) && FUNC_BINARY_BACKUP(fb)))
+				{
+					FUNC_BINARY_BACKUP_MOVE(fb);
+				}
                 // 出栈
         		ARRAY_POP_BACK(m_stack_list);
                 // 所有都完

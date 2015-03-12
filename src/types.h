@@ -186,11 +186,6 @@ static force_inline uint32_t fkstrhash(const char * p)
     return hashv;
 }
 
-static force_inline uint32_t fkstrhash(String * p)
-{
-    return fkstrhash(p->c_str());
-}
-
 String fkget_token_name(int token);
 
 void * safe_fkmalloc(fake * fk, size_t size);
@@ -235,7 +230,6 @@ String fkmaptoa(variant_map * vm);
 #endif
 
 struct routine;
-void fksetcurroutine(fake * fk, routine * r);
 
 static force_inline String fkgen_package_name(const String & p, const String & n)
 {
@@ -274,3 +268,4 @@ static force_inline String fkgen_package_name(const String & p, const String & n
 typedef int socklen_t;
 #else
 #endif
+

@@ -96,4 +96,10 @@
 2015.2.19:加float format
 2015.2.20:加fake bin
 2015.2.28:修改xml package的bug，下一步加模板引擎
+2015.3.4:加range typeof，开始加template
+2015.3.6:template加.name的规则，下一步加array
+2015.3.9:template加range的规则，下一步加if和usercall
+2015.3.10:修改掉底层的hashmap，改成节点不被释放，强化了热更新，下一步在template里嵌入脚本
+2015.3.11:修改热更新机制，改成退出函数时判断是否替换，下一步在template里嵌入脚本
+2015.3.12:template里嵌入脚本ok，下一步加下消息包的加解密
 

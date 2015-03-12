@@ -29,10 +29,10 @@ struct profilefuncelesort
 const char * profile::dump()
 {
     std::vector<sortele> sortelevec;
-    for (const stringhashmap<profilefuncele>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+    for (const stringhashmap::ele * p = m_shh.first(); p != 0; p = m_shh.next())
     {
-        const profilefuncele & ele = p->t;
-        sortelevec.push_back(std::make_pair(p->s, ele));
+        const profilefuncele & ele = *p->t;
+        sortelevec.push_back(std::make_pair(p->k, ele));
     }
 
     std::sort(sortelevec.begin(), sortelevec.end(), profilefuncelesort());
