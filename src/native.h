@@ -2,33 +2,62 @@
 
 #include "types.h"
 #include "hashmap.h"
+#ifdef WIN32
+#include <Windows.h>
+#else
+#include <sys/mman.h>
+#endif
 
-class func_native
+struct func_native
 {
-    friend class native;
-    friend class asmgen;
-    friend class assembler;
-    friend class machine;
-public:
-	force_inline func_native(fake * fk) : m_fk(fk), m_buff(0), m_size(0)
-    {
-    }
-    
     String dump() const;
-    
-private:
-    fake * m_fk;
     // 名字
     const char * m_name;
+    // 文件名
+    const char * m_filename;
+    // 包名
+    const char * m_packagename;
     // code
     char * m_buff;
     size_t m_size;
+    // code行号缓冲区
+    int * m_lineno_buff;
+    int m_lineno_size;
+    // 占用标记
+    mutable int m_use;
+    // 备份
+    mutable func_native * m_backup;
 };
+
+#define FUNC_NATIVE_INI(fn) \
+	memset(&(fn), 0, sizeof(func_native))
+
+#ifdef WIN32
+#define FUNC_NATIVE_CODE_FREE(fn) VirtualFree((fn).m_buff, 0, MEM_DECOMMIT | MEM_RELEASE);
+#else
+#define FUNC_NATIVE_CODE_FREE(fn) munmap((fn).m_buff, (fn).m_size);
+#endif 
+
+#define FUNC_NATIVE_DELETE(fn) \
+	safe_fkfree(m_fk, (fn).m_name); \
+	safe_fkfree(m_fk, (fn).m_filename); \
+	safe_fkfree(m_fk, (fn).m_packagename); \
+	safe_fkfree(m_fk, (fn).m_lineno_buff); \
+	FUNC_NATIVE_CODE_FREE(fn); \
+	if ((fn).m_backup) \
+	{ \
+		safe_fkfree(m_fk, (fn).m_backup->m_name); \
+		safe_fkfree(m_fk, (fn).m_backup->m_filename); \
+		safe_fkfree(m_fk, (fn).m_backup->m_packagename); \
+		safe_fkfree(m_fk, (fn).m_backup->m_lineno_buff); \
+		FUNC_NATIVE_CODE_FREE(*((fn).m_backup)); \
+	} \
+	safe_fkfree(m_fk, (fn).m_backup)
 
 class native
 {
 public:
-    force_inline native(fake * fk) : m_fk(fk), m_shh(fk)
+    force_inline native(fake * fk) : m_fk(fk)
     {
     }
     force_inline ~native()
@@ -43,25 +72,13 @@ public:
 
     force_inline void clear()
     {
-        m_shh.clear();
     }
 
-    force_inline bool add_func(const char * name, const func_native & nt)
-    {
-        m_shh.add(name, nt);
-        return true;
-    }
-    
-    force_inline const func_native * get_func(const char * name) const
-    {
-        return m_shh.get(name);
-    }
+    bool add_func(const variant & name, const func_native & nt);
     
     String dump() const;
     
 private:
     fake * m_fk;
-    typedef fkhashmap<const char *, func_native> stringhashmap;
-    stringhashmap m_shh;
 };
 

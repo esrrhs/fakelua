@@ -236,7 +236,7 @@ public:
     }
     
     const char * get_running_call_stack() const;
-    size_t get_max_stack() const;
+    uint32_t get_max_stack() const;
     
     force_inline int run(int cmdnum)
     {
@@ -463,7 +463,7 @@ public:
                     int pos = COMMAND_CODE(GET_CMD(fb, m_cur_stack->m_pos));
                 	m_cur_stack->m_pos++;
                 	
-                    if (!(V_BOOL(cmp)))
+					if (!(V_ISBOOL(cmp)))
                     {
                 	    FKLOG("jne %d", pos);
                         

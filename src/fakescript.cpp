@@ -355,14 +355,22 @@ FAKE_API void fkrunpsjit(fake * fk, const char * func)
 {
     FKLOG("fkrun %p %s", fk, func);
 
+    // 预处理，只在完全的退出脚本才执行
+    if (!fk->rn.rundeps)
+    {
+        fk->sh.checkgc();
+        fk->con.clear();
+        fk->bif.clear();
+    }
+    fk->rn.rundeps++;
+
     fk->clearerr();
     fk->mac.clear();
-    fk->mac.call(&fk->nt, func, &fk->ps);
+    variant funcv;
+	V_SET_STRING(&funcv, func);
+    fk->mac.call(funcv);
 
-    variant * ret = 0;
-	bool err = false;
-    PS_PUSH_AND_GET(fk->ps, ret);
-    *ret = fk->mac.getret();
+    fk->rn.rundeps--;
     
     FKLOG("fkrun %p %s OK", fk, func);
 }
@@ -371,6 +379,16 @@ FAKE_API void fkpushfunctor(fake * fk, const char * name, fkfunctor ff)
 {
     FKLOG("fkpushfunctor %p %s", fk, name);
 	fk->bf.addfunc(fk->sh.allocsysstr(name), ff);
+}
+
+FAKE_API void fkopenalllib(fake * fk)
+{
+	fkopenbaselib(fk);
+	fkopenfilelib(fk);
+	fkopennetlib(fk);
+	fkopenoslib(fk);
+	fkopenstringlib(fk);
+	fkopenmathlib(fk);
 }
 
 FAKE_API void fkopenbaselib(fake * fk)
@@ -396,6 +414,21 @@ FAKE_API void fkopenoslib(fake * fk)
 FAKE_API void fkopenstringlib(fake * fk)
 {
     fk->bif.openstringfunc();
+}
+
+FAKE_API void fkopenmathlib(fake * fk)
+{
+	fk->bif.openmathfunc();
+}
+
+FAKE_API void fkopenjit(fake * fk)
+{
+	fk->as.open();
+}
+
+FAKE_API void fkclosejit(fake * fk)
+{
+	fk->as.close();
 }
 
 FAKE_API void fkopenprofile(fake * fk)

@@ -13,12 +13,6 @@ func substr(str, startpos, count)
 	
 end
 
-func length(str)
-	
-	return string_strlen(str)
-	
-end
-
 func trim(str, trimstr)
 	
 	return string_trim(str, trimstr)

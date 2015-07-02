@@ -45,11 +45,7 @@ int main(int argc, const char *argv[])
     fake * fk = newfake();
 
 	fksetargv(fk, argc - 2, argv + 2);
-    fkopenbaselib(fk);
-    fkopenfilelib(fk);
-    fkopennetlib(fk);
-    fkopenoslib(fk);
-    fkopenstringlib(fk);
+	fkopenalllib(fk);
 #ifdef _DEBUG
     fkopenprofile(fk);
 #endif

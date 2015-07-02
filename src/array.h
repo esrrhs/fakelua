@@ -8,8 +8,8 @@ struct array
 {
     fake * m_fk;
 	T* m_data;
-	size_t m_size;
-	size_t m_max_size;
+	uint32_t m_size;
+	uint32_t m_max_size;
     char m_recurflag;
 };
 

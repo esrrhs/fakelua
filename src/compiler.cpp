@@ -12,6 +12,7 @@ void compiler::clear()
 	m_loop_continue_pos_stack.clear();
 	m_func_ret_num = 1;
 	m_cur_compile_func.clear();
+	m_new_var = false;
 }
 
 void compiler::compile_seterror(syntree_node * node, fake * fk, efkerror err, const char *fmt, ...)
@@ -470,7 +471,7 @@ bool compiler::compile_if_stmt(codegen & cg, if_stmt * is)
     FKLOG("[compiler] compile_if_stmt %p", is);
 
     int jnepos = 0;
-    int jmpifpos = 0;
+    std::vector<int> jmpifpos;
 
     // 条件
     cg.push_stack_identifiers();
@@ -501,7 +502,51 @@ bool compiler::compile_if_stmt(codegen & cg, if_stmt * is)
     // 跳出if块
     cg.push(MAKE_OPCODE(OPCODE_JMP), is->lineno());
     cg.push(EMPTY_CMD, is->lineno()); // 先塞个位置
-    jmpifpos = cg.byte_code_size() - 1;
+    jmpifpos.push_back(cg.byte_code_size() - 1);
+
+	// 开始处理elseif的
+	if (is->elseifs)
+	{
+		stmt_node_list & list = is->elseifs->stmtlist;
+		for (int i = 0; i < (int)list.size(); i++)
+		{
+			elseif_stmt * eis = dynamic_cast<elseif_stmt *>(list[i]);
+			
+		    // 跳转到else if
+			cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
+			
+			// 条件
+			cg.push_stack_identifiers();
+			if (!compile_node(cg, eis->cmp))
+			{
+				FKERR("[compiler] compile_if_stmt cmp fail");
+				return false;
+			}
+			cg.pop_stack_identifiers();
+
+			cg.push(MAKE_OPCODE(OPCODE_JNE), eis->lineno());
+		    cg.push(m_cur_addr, eis->lineno());
+		    cg.push(EMPTY_CMD, eis->lineno()); // 先塞个位置
+		    jnepos = cg.byte_code_size() - 1;
+
+		    // else if块
+			if (eis->block)
+		    {
+		        cg.push_stack_identifiers();
+		    	if (!compile_node(cg, eis->block))
+		    	{
+		    		FKERR("[compiler] compile_if_stmt block fail");
+		    		return false;
+		    	}
+		        cg.pop_stack_identifiers();
+		    }
+		    
+			// 跳出if块
+			cg.push(MAKE_OPCODE(OPCODE_JMP), eis->lineno());
+			cg.push(EMPTY_CMD, eis->lineno()); // 先塞个位置
+			jmpifpos.push_back(cg.byte_code_size() - 1);
+		}
+	}
         
     // 跳转到else
 	cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
@@ -519,9 +564,9 @@ bool compiler::compile_if_stmt(codegen & cg, if_stmt * is)
 	}
 	
     // 跳转到结束
-	if (jmpifpos != 0)
+	for (int i = 0; i < (int)jmpifpos.size(); i++)
 	{
-	    cg.set(jmpifpos, MAKE_POS(cg.byte_code_size()));
+	    cg.set(jmpifpos[i], MAKE_POS(cg.byte_code_size()));
 	}
     
     FKLOG("[compiler] compile_if_stmt %p OK", is);
@@ -566,11 +611,13 @@ bool compiler::compile_assign_stmt(codegen & cg, assign_stmt * as)
     command var = 0;
     command value = 0;
 
+	m_new_var = as->isnew;
     if (!compile_node(cg, as->var))
     {
         FKERR("[compiler] compile_assign_stmt var fail");
         return false;
     }
+    m_new_var = false;
     var = m_cur_addr;
     FKLOG("[compiler] compile_assign_stmt var = %d", m_cur_addr);
     
@@ -879,9 +926,19 @@ bool compiler::compile_variable_node(codegen & cg, variable_node * vn)
     int pos = cg.getvariable(vn->str);
     if (pos == -1)
     {
-        FKERR("[compiler] compile_variable_node variable not found %s", vn->str.c_str());
-        compile_seterror(vn, m_fk, efk_compile_variable_not_found, "variable %s not found", vn->str.c_str());
-        return false;
+    	// 是不是需要new出来
+    	if (m_new_var)
+    	{
+    		var_node tmp;
+    		tmp.str = vn->str;
+    		return compile_var_node(cg, &tmp);
+    	}
+    	else
+    	{
+	        FKERR("[compiler] compile_variable_node variable not found %s", vn->str.c_str());
+	        compile_seterror(vn, m_fk, efk_compile_variable_not_found, "variable %s not found", vn->str.c_str());
+	        return false;
+    	}
     }
     m_cur_addr = MAKE_ADDR(ADDR_STACK, pos);
 
@@ -1196,12 +1253,13 @@ bool compiler::compile_multi_assign_stmt(codegen & cg, multi_assign_stmt * as)
 	std::vector<command> varlist;
 	for (int i = 0; i < (int)as->varlist->varlist.size(); i++)
 	{
+		m_new_var = as->isnew;
 		if (!compile_node(cg, as->varlist->varlist[i]))
 		{
 			FKERR("[compiler] compile_multi_assign_stmt var fail");
 			return false;
 		}
-
+		m_new_var = false;
 		varlist.push_back(m_cur_addr);
 	}
 

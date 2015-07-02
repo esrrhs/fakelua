@@ -64,5 +64,6 @@ private:
 	continue_pos_stack m_loop_continue_pos_stack;
 	int m_func_ret_num;
 	String m_cur_compile_func;
+	bool m_new_var;
 };
 

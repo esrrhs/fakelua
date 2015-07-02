@@ -45,6 +45,7 @@ const char * OpCodeStr(int opcode)
 	
 #undef OPCODE_DEF
     }
+    assert(0);
     return "unknow";
 }
 

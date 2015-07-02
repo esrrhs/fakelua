@@ -51,6 +51,8 @@ enum esyntreetype
 	est_switch_stmt,
 	est_switch_caselist,
 	est_switch_case_node,
+	est_elseif_stmt,
+	est_elseif_stmt_list,
 };
 
 const char * get_syntree_node_name(esyntreetype type);
@@ -324,6 +326,63 @@ struct else_stmt : public syntree_node
     block_node * block;
 };
 
+struct elseif_stmt : public syntree_node
+{
+    elseif_stmt() {}
+    virtual ~elseif_stmt() {}
+    
+    virtual esyntreetype gettype()
+    {
+        return est_elseif_stmt;
+    }
+
+    virtual String dump(int indent);
+    
+    virtual void recycle();
+    
+    cmp_stmt * cmp;
+    syntree_node * block;
+};
+
+typedef std::vector<syntree_node *> stmt_node_list;
+
+struct elseif_stmt_list : public syntree_node
+{
+    elseif_stmt_list() {}
+    virtual ~elseif_stmt_list() {}
+    
+    virtual esyntreetype gettype()
+    {
+        return est_elseif_stmt_list;
+    }
+
+    virtual String dump(int indent)
+    {
+        String ret;
+        ret += gentab(indent);
+        ret += "[elseif_stmt_list]:\n";
+        for (int i = 0; i < (int)stmtlist.size(); i++)
+        {
+            ret += gentab(indent + 1);
+            ret += "[stmt";
+            ret += fkitoa(i);
+            ret += "]:\n";
+            ret += stmtlist[i]->dump(indent + 2);
+        }
+        return ret;
+    }
+    
+    virtual void recycle();
+
+    void add_stmt(syntree_node * stmt)
+    {
+        FKLOG("elseif_stmt_list add stmt %s", stmt->gettypename());
+        stmtlist.push_back(stmt);
+    }
+
+    stmt_node_list stmtlist;
+};
+
 struct if_stmt : public syntree_node
 {
     if_stmt() {}
@@ -340,6 +399,7 @@ struct if_stmt : public syntree_node
     
     cmp_stmt * cmp;
     block_node * block;
+    elseif_stmt_list * elseifs;
     else_stmt * elses;
 };
 
@@ -362,8 +422,6 @@ struct for_stmt : public syntree_node
 	block_node * endblock;
 	block_node * block;
 };
-
-typedef std::vector<syntree_node *> stmt_node_list;
 
 struct block_node : public syntree_node
 {
@@ -467,6 +525,7 @@ struct assign_stmt : public syntree_node
     
     syntree_node * var;
     syntree_node * value;
+    bool isnew;
 };
 
 struct math_assign_stmt : public syntree_node
@@ -722,6 +781,7 @@ struct multi_assign_stmt : public syntree_node
 
 	var_list_node * varlist;
 	syntree_node * value;
+    bool isnew;
 };
 
 struct container_get_node : public syntree_node
@@ -970,6 +1030,4 @@ struct switch_stmt : public syntree_node
     syntree_node * caselist;
     syntree_node * def;
 };
-
-
 

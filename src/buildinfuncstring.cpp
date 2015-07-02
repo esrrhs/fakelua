@@ -14,19 +14,19 @@ void buildin_string_find(fake * fk, interpreter * inter)
         const char * find = strstr(str + pos, findstr);
         if (find)
         {
-            fkpspush<int>(fk, (int)(find - str));
             fkpspush<bool>(fk, true);
+            fkpspush<int>(fk, (int)(find - str));
         }
         else
         {
-            fkpspush<int>(fk, -1);
             fkpspush<bool>(fk, false);
+            fkpspush<int>(fk, -1);
         }
     }
     else
     {
-        fkpspush<int>(fk, -1);
         fkpspush<bool>(fk, false);
+        fkpspush<int>(fk, -1);
     }
 }
 

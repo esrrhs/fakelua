@@ -77,6 +77,7 @@
     <ClInclude Include="src\package\selector.h" />
     <ClInclude Include="src\buildinfuncos.h" />
     <ClInclude Include="src\buildinfuncstring.h" />
+    <ClInclude Include="src\buildinfuncmath.h" />
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -140,8 +141,12 @@
     <ClCompile Include="src\buildinfuncnet.cpp" />
     <ClCompile Include="src\buildinfuncos.cpp" />
     <ClCompile Include="src\buildinfuncstring.cpp" />
+    <ClCompile Include="src\buildinfuncmath.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="CMakeLists.txt" />
+  </ItemGroup>
+  <ItemGroup>
+    <MASM Include="src\win32\nativecall.asm" />
   </ItemGroup>
 </Project>

@@ -41,9 +41,12 @@ const char * get_syntree_node_name(esyntreetype type)
 	SYN_NODE_DEF(est_switch_stmt)
 	SYN_NODE_DEF(est_switch_caselist)
 	SYN_NODE_DEF(est_switch_case_node)
+	SYN_NODE_DEF(est_elseif_stmt)
+	SYN_NODE_DEF(est_elseif_stmt_list)
     
 #undef SYN_NODE_DEF
     }
+    assert(0);
     return "unknow";
 }
 
@@ -91,6 +94,10 @@ String if_stmt::dump(int indent)
     if (block)
     {
         ret += block->dump(indent + 1);
+    }
+    if (elseifs)
+    {
+        ret += elseifs->dump(indent + 1);
     }
     if (elses)
     {
@@ -187,6 +194,10 @@ void if_stmt::recycle()
     if (block)
     {
         block->recycle();
+    }
+    if (elseifs)
+    {
+        elseifs->recycle();
     }
     if (elses)
     {
@@ -527,5 +538,39 @@ void switch_stmt::recycle()
 	    def->recycle();
 	}
 	fkdelete<switch_stmt>(fk, this);
+}
+
+String elseif_stmt::dump(int indent)
+{
+	String ret;
+	ret += gentab(indent);
+	ret += "[elseif_stmt]:\n";
+    ret += cmp->dump(indent + 1);
+    if (block)
+    {
+        ret += block->dump(indent + 1);
+    }
+	return ret;
+}
+
+void elseif_stmt::recycle()
+{
+	FKLOG("recycle elseif_stmt");
+	cmp->recycle();
+	if (block)
+	{
+	    block->recycle();
+	}
+	fkdelete<elseif_stmt>(fk, this);
+}
+
+void elseif_stmt_list::recycle()
+{
+    FKLOG("recycle elseif_stmt_list");
+    for (int i = 0; i < (int)stmtlist.size(); i++)
+    {
+        stmtlist[i]->recycle();
+    }
+    fkdelete<elseif_stmt_list>(fk, this);
 }
 

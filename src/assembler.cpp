@@ -5,6 +5,17 @@
 #include "binary.h"
 #include "asmgen.h"
 
+#ifdef WIN32
+extern "C" void __stdcall call_machine_func()
+#ifndef FK64
+{
+	// JIT不全，先临时
+}
+#else
+;
+#endif
+#endif
+
 void assembler::clear()
 {
     m_pos = 0;
@@ -12,22 +23,70 @@ void assembler::clear()
 	m_caremap.clear();
 }
 
+void assembler::open()
+{
+	m_isopen = true;
+}
+
+void assembler::close()
+{
+	m_isopen = false;
+}
+
+void assembler::compile_seterror(const func_binary & fb, command cmd, efkerror err, const char *fmt, ...)
+{
+	char errorstr[128];
+	va_list ap;
+	va_start(ap, fmt);
+    vsnprintf(errorstr, sizeof(errorstr) - 1, fmt, ap);
+	va_end(ap);
+	errorstr[sizeof(errorstr) - 1] = 0;
+	seterror(m_fk, err, "assembler func(%s) %llu, %s", FUNC_BINARY_FILENAME(fb), cmd, errorstr);
+}
+
 bool assembler::compile(binary * bin)
 {
     FKLOG("[assembler] compile binary %p", bin);
+
+#ifndef FK64
+	// 32位目前不支持
+	return true;
+#endif
+
+	if (!m_isopen)
+	{
+		return true;
+	}
 	
 	for (const fkhashmap<variant, funcunion>::ele * p = m_fk->fm.m_shh.first(); p != 0; p = m_fk->fm.m_shh.next())
 	{
 		const funcunion & f = *p->t;
-		if (f.havefb && !compile_func(f.fb))
-        {
-			FKERR("[assembler] compile compile_func %s fail", FUNC_BINARY_NAME(f.fb));
-            return false;
-        }
+		if (f.havefb && FUNC_BINARY_FRESH(f.fb))
+		{
+			const func_binary & fb = f.fb;
+			if (FUNC_BINARY_BACKUP(fb))
+			{
+				const func_binary & bkfb = *FUNC_BINARY_BACKUP(fb);
+				if (!compile_func(bkfb))
+		        {
+					FKERR("[assembler] compile compile_func %s fail", FUNC_BINARY_NAME(bkfb));
+		            return false;
+		        }
+	        	FUNC_BINARY_FRESH(bkfb)--;
+			}
+			else
+			{
+				if (!compile_func(fb))
+		        {
+					FKERR("[assembler] compile compile_func %s fail", FUNC_BINARY_NAME(fb));
+		            return false;
+		        }
+	        	FUNC_BINARY_FRESH(fb)--;
+			}
+		}
     }
     
-    String str = m_native->dump();
-    FKLOG("[assembler] compile binary %d ok \n%s", bin, str.c_str());
+    FKLOG("[assembler] compile binary %d ok \n%s", bin, m_native->dump().c_str());
 
     return true;
 }
@@ -35,6 +94,8 @@ bool assembler::compile(binary * bin)
 bool assembler::compile_func(const func_binary & fb)
 {
     FKLOG("[assembler] compile_func func_binary %p", &fb);
+
+	clear();
 
     asmgen asg(m_fk);
 
@@ -81,9 +142,11 @@ bool assembler::compile_func(const func_binary & fb)
     }
     
     asg.stop_func();
-    func_native nt(m_fk);
-	asg.output(FUNC_BINARY_NAME(fb), &nt);
-	m_native->add_func(FUNC_BINARY_NAME(fb), nt);
+    func_native nt;
+    FUNC_NATIVE_INI(nt);
+	asg.output(FUNC_BINARY_FILENAME(fb), FUNC_BINARY_PACKAGENAME(fb), FUNC_BINARY_NAME(fb), &nt);
+	variant fv = m_fk->sh.allocsysstr(FUNC_BINARY_NAME(fb));
+	m_native->add_func(fv, nt);
     
     String str = asg.source();
 
@@ -150,6 +213,11 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 			ret = compile_cmp(asg, fb, cmd);
 		}
 		break;
+	case OPCODE_NOT:
+		{
+			ret = compile_single(asg, fb, cmd);
+		}
+		break;
     case OPCODE_JNE:
 		{
 			ret = compile_jne(asg, fb, cmd);
@@ -165,12 +233,20 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 			ret = compile_call(asg, fb, cmd);
 		}
 		break;
+	case OPCODE_SLEEP:
+	case OPCODE_YIELD:
+		{
+	        FKERR("assembler only support SLEEP or YIELD");
+	        compile_seterror(fb, cmd, efk_jit_error, "assembler only support SLEEP or YIELD");
+	        return false;
+		}
+		break;
     default:
         assert(0);
         FKERR("[assembler] compile_next err code %d %s", code, OpCodeStr(code));
         break;
     }
-    return true;
+    return ret;
 }
 
 #define GET_VARIANT_POS(fb, v, pos) \
@@ -178,7 +254,7 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
     assert (COMMAND_TYPE(v##_cmd) == COMMAND_ADDR);\
     int v##_addrtype = ADDR_TYPE(COMMAND_CODE(v##_cmd));\
     int v##_addrpos = ADDR_POS(COMMAND_CODE(v##_cmd));\
-    assert (v##_addrtype == ADDR_STACK || v##_addrtype == ADDR_CONST);\
+    assert (v##_addrtype == ADDR_STACK || v##_addrtype == ADDR_CONST || v##_addrtype == ADDR_CONTAINER);\
     if (v##_addrtype == ADDR_STACK)\
     {\
         v = (v##_addrpos);\
@@ -186,6 +262,12 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
     else if (v##_addrtype == ADDR_CONST)\
     {\
 		v = (v##_addrpos) + FUNC_BINARY_MAX_STACK(fb); \
+    }\
+    else if (v##_addrtype == ADDR_CONTAINER)\
+    {\
+        FKERR("assembler not support container %d %d", v##_addrtype, v##_addrpos);\
+        compile_seterror(fb, cmd, efk_jit_error, "assembler not support container %d %d", v##_addrtype, v##_addrpos);\
+        return false;\
     }\
     else\
     {\
@@ -198,7 +280,7 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 
 bool assembler::compile_assign(asmgen & asg, const func_binary & fb, command cmd)
 {
-    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_STACK);
+    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_STACK || ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_CONTAINER);
     int var = 0;
     GET_VARIANT_POS(fb, var, m_pos);
     m_pos++;
@@ -216,18 +298,31 @@ bool assembler::compile_assign(asmgen & asg, const func_binary & fb, command cmd
 
 bool assembler::compile_return(asmgen & asg, const func_binary & fb, command cmd)
 {
+	asg.variant_ps_clear();
+	
 	if (GET_CMD(fb, m_pos) == EMPTY_CMD)
 	{
 		FKLOG("return empty");
         m_pos++;
+		asg.variant_jmp(fb.m_size);
+		m_caremap[asg.size() - sizeof(int)] = fb.m_size;
 		return true;
 	}
-	
-    int ret = 0;
-    GET_VARIANT_POS(fb, ret, m_pos);
+
+    int retnum = COMMAND_CODE(GET_CMD(fb, m_pos));
     m_pos++;
 
-    asg.variant_ret(ret);
+    for (int i = 0; i < retnum; i++)
+    {
+	    int ret = 0;
+	    GET_VARIANT_POS(fb, ret, m_pos);
+	    m_pos++;
+    	
+    	asg.variant_push(ret);
+    }
+	
+	asg.variant_jmp(fb.m_size);
+	m_caremap[asg.size() - sizeof(int)] = fb.m_size;
 
 	return true;
 }
@@ -244,7 +339,7 @@ bool assembler::compile_math(asmgen & asg, const func_binary & fb, command cmd)
     GET_VARIANT_POS(fb, right, m_pos);
     m_pos++;
 
-    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_STACK);
+    assert (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_STACK || ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_CONTAINER);
     int dest = 0;
     GET_VARIANT_POS(fb, dest, m_pos);
     m_pos++;
@@ -279,7 +374,7 @@ bool assembler::compile_math_assign(asmgen & asg, const func_binary & fb, comman
 {
 	int code = COMMAND_CODE(cmd);
 
-	assert(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_STACK);
+	assert(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_STACK || ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_CONTAINER);
 	int left = 0;
 	GET_VARIANT_POS(fb, left, m_pos);
 	m_pos++;
@@ -326,7 +421,7 @@ bool assembler::compile_cmp(asmgen & asg, const func_binary & fb, command cmd)
 	GET_VARIANT_POS(fb, right, m_pos);
 	m_pos++;
 
-	assert(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_STACK);
+	assert(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_STACK || ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_CONTAINER);
 	int dest = 0;
 	GET_VARIANT_POS(fb, dest, m_pos);
 	m_pos++;
@@ -363,6 +458,33 @@ bool assembler::compile_cmp(asmgen & asg, const func_binary & fb, command cmd)
 		break;
 	}
 
+	return true;
+}
+
+bool assembler::compile_single(asmgen & asg, const func_binary & fb, command cmd)
+{
+	int code = COMMAND_CODE(cmd);
+
+	int left = 0;
+	GET_VARIANT_POS(fb, left, m_pos);
+	m_pos++;
+
+	assert(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_STACK || ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, m_pos))) == ADDR_CONTAINER);
+	int dest = 0;
+	GET_VARIANT_POS(fb, dest, m_pos);
+	m_pos++;
+
+	switch (code)
+	{
+	case OPCODE_NOT:
+		asg.variant_not(dest, left);
+		break;
+	default:
+		assert(0);
+		FKERR("[assembler] compile_single err code %d %s", code, OpCodeStr(code));
+		break;
+	}
+	
 	return true;
 }
 
@@ -432,25 +554,70 @@ bool assembler::compile_call(asmgen & asg, const func_binary & fb, command cmd)
 {
 	int calltype = COMMAND_CODE(GET_CMD(fb, m_pos));
 	m_pos++;
+	if (calltype != CALL_NORMAL)
+	{
+        FKERR("assembler only support normal call %d", calltype);
+        compile_seterror(fb, cmd, efk_jit_error, "assembler only support normal call %d", calltype);
+        return false;
+	}
 
 	int callpos = 0;
-	USE(callpos);
 	GET_VARIANT_POS(fb, callpos, m_pos);
 	m_pos++;
 
     int retnum = COMMAND_CODE(GET_CMD(fb, m_pos));
 	m_pos++;
+
+	std::vector<int> retvec;
+    for (int i = 0; i < retnum; i++)
+    {
+	    int ret = 0;
+	    GET_VARIANT_POS(fb, ret, m_pos);
+	    m_pos++;
+	    retvec.push_back(ret);
+    }
 	
-    m_pos += retnum;
-    
     int argnum = COMMAND_CODE(GET_CMD(fb, m_pos));
 	m_pos++;
-    
-    m_pos += argnum;
-    
-    // TODO
-    USE(calltype);
-    
+
+	// 1.塞参数
+	asg.variant_ps_clear();
+    for (int i = 0; i < argnum; i++)
+    {
+	    int arg = 0;
+	    GET_VARIANT_POS(fb, arg, m_pos);
+	    m_pos++;
+    	
+    	asg.variant_push(arg);
+    }
+
+#ifdef WIN32
+	// 2.准备调用函数
+	asg.mov_ll_rcx((int64_t)m_fk);
+	asg.lea_rbp_rdx(V_OFF(callpos));
+	asg.mov_ll_rdi((int64_t)&machine::static_call);
+
+	// 3.调用
+	asg.call_func((void *)&call_machine_func);
+#else
+	// 2.准备调用函数
+	asg.mov_ll_rdi((int64_t)m_fk);
+	asg.lea_rbp_rsi(V_OFF(callpos));
+
+	// 3.调用
+	asg.call_func((void *)&machine::static_call);
+#endif
+
+	// 4.处理返回值
+    for (int i = (int)retvec.size() - 1; i >= 0; i--)
+    {
+    	int ret = retvec[i];
+    	asg.variant_pop(ret);
+    }
+
+	// 5.清理不需要的
+	asg.variant_ps_clear();
+	
 	return true;
 }
 
