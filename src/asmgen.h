@@ -6,7 +6,6 @@
 
 typedef std::vector<char> asm_code_list;
 
-
 /*
 
 低地址 rsp
@@ -20,7 +19,7 @@ typedef std::vector<char> asm_code_list;
 */
 
 struct fake;
-class func_native;
+struct func_native;
 class asmgen
 {
 public:
@@ -129,6 +128,43 @@ public:
         m_source += ",%rax\n";
     }
 
+	// 把立即数放到rax指向的地方
+	// movq   $num,(%rax)
+    void movq_p_rax(int num)
+	{
+        push(0x48);
+        push(0xc7);
+        push(0x00);
+        push_int(num);
+        m_source += "movq    $";
+        m_source += fkxtoa(num, 16);
+        m_source += ",(%rax)\n";
+	}
+
+    // 把num立即数放到rdi的地方
+    // mov    $num,%rdi
+    void mov_ll_rdi(int64_t num)
+    {
+        push(0x48);
+        push(0xbf);
+        push_int64(num);
+        m_source += "mov    $";
+        m_source += fkxtoa(num, 16);
+        m_source += ",%rdi\n";
+	}
+
+	// 把num立即数放到rcx的地方
+	// mov    $num,%rcx
+	void mov_ll_rcx(int64_t num)
+	{
+		push(0x48);
+		push(0xb9);
+		push_int64(num);
+		m_source += "mov    $";
+		m_source += fkxtoa(num, 16);
+		m_source += ",%rcx\n";
+	}
+	
     // 把rax放到offset的地方
     // mov    %rax,offset(%rbp)
     void mov_rax_rbp(int offset)
@@ -199,6 +235,34 @@ public:
         m_source += "mov    -";
         m_source += fkxtoa(-offset, 8);
         m_source += "(%rbp),%rdx\n";
+    }
+
+    // 把rdi放到offset的地方
+    // mov    %rdi,offset(%rbp)
+    void mov_rdi_rbp(int offset)
+    {
+        assert(offset <= 0);
+        push(0x48);
+        push(0x89);
+        push(0xbd);
+        push_int(offset);
+        m_source += "mov    %rdi,-";
+        m_source += fkxtoa(-offset, 8);
+        m_source += "(%rbp)\n";
+    }
+    
+    // 把offset的地方放到rdi
+    // mov    offset(%rbp),%rdi
+    void mov_rbp_rdi(int offset)
+    {
+        assert(offset <= 0);
+        push(0x48);
+        push(0x8b);
+        push(0xbd);
+        push_int(offset);
+        m_source += "mov    -";
+        m_source += fkxtoa(-offset, 8);
+        m_source += "(%rbp),%rdi\n";
     }
 
     // 弹出rdx
@@ -499,7 +563,7 @@ public:
 	void more_rbp(int leftoff, int rightoff, int destoff)
 	{
 		// 交换律
-		less_rbp(rightoff, leftoff, destoff);
+		less_equal_rbp(rightoff, leftoff, destoff);
 	}
 
 	// EQUAL运算
@@ -584,7 +648,7 @@ public:
 	void more_equal_rbp(int leftoff, int rightoff, int destoff)
 	{
 		// 交换律
-		less_equal_rbp(rightoff, leftoff, destoff);
+		less_rbp(rightoff, leftoff, destoff);
 	}
 
 	// NOT EQUAL运算
@@ -623,6 +687,42 @@ public:
 		m_source += "mov    %rax, -" + fkxtoa(-destoff, 8) + "(%rbp)\n";
 	}
 
+	// 取反运算
+ 	// xorpd  %xmm0,%xmm0
+ 	// ucomisd leftoff(%rbp),%xmm0
+ 	// setne  %al
+ 	// setp   %dl
+ 	// or     %edx,%eax
+ 	// xor    $0x1,%eax
+ 	// movzbl %al,%eax
+ 	// cvtsi2sd %eax,%xmm0
+ 	// movsd  %xmm0,destoff(%rbp)
+	void not_rbp(int leftoff, int destoff)
+	{
+		assert(leftoff <= 0);
+		assert(destoff <= 0);
+		push(0x66); push(0x0f); push(0x57); push(0xc0);	
+		push(0x66); push(0x0f); push(0x2e); push(0x85);
+		push_int(leftoff);
+		push(0x0f); push(0x95); push(0xc0);			
+		push(0x0f); push(0x9a); push(0xc2);			
+		push(0x09); push(0xd0);				
+		push(0x83); push(0xf0); push(0x01);			
+		push(0x0f); push(0xb6); push(0xc0);			
+		push(0xf2); push(0x0f); push(0x2a); push(0xc0); 		
+		push(0xf2); push(0x0f); push(0x11); push(0x85);
+		push_int(destoff);
+		m_source += "xorpd  %xmm0,%xmm0\n";
+		m_source += "ucomisd -" + fkxtoa(-leftoff, 8) + "(%rbp),%xmm0\n";
+		m_source += "setne  %al\n";
+		m_source += "setp   %dl\n";
+		m_source += "or     %edx,%eax\n";
+		m_source += "xor    $0x1,%eax\n";
+		m_source += "movzbl %al,%eax\n";
+		m_source += "cvtsi2sd %eax,%xmm0\n";
+		m_source += "movsd  %xmm0,-" + fkxtoa(-destoff, 8) + "(%rbp)\n";
+	}
+
     // offset的地方为0就jmp jumpoff
     // xorpd  %xmm0,%xmm0
     // ucomisd offset(%rbp),%xmm0
@@ -648,7 +748,91 @@ public:
         push_int(jumpoff);
         m_source += "jmp     .+" + fkxtoa(jumpoff, 8) + "\n";
     }
-    
+
+	// call rax
+    void call_rax()
+    {
+        push(0xff);
+        push(0xd0);
+        m_source += "callq  *%rax\n";
+    }
+
+	// 取得offset的地址到rsi
+	// lea    offset(%rbp),%rsi
+	void lea_rbp_rsi(int offset)
+	{
+        push(0x48);
+        push(0x8d);
+        push(0xb5);
+        push_int(offset);
+        m_source += "lea    -" + fkxtoa(-offset, 8) + "(%rbp),%rsi\n";
+	}
+
+	// 取得offset的地址到rdx
+	// lea    offset(%rbp),%rdx
+	void lea_rbp_rdx(int offset)
+	{
+		push(0x48);
+		push(0x8d);
+		push(0x95);
+		push_int(offset);
+		m_source += "lea    -" + fkxtoa(-offset, 8) + "(%rbp),%rdx\n";
+	}
+
+	// push参数rax:ps rdi:type rdx:data
+	// mov    (%rax),%rbx
+	// shl    $0x4,%rbx
+	// mov    %edi,0x8(%rbx,%rax,1)
+	// mov    (%rax),%rbx
+	// shl    $0x4,%rbx
+	// mov    %rdx,0x10(%rax,%rbx,1)
+	// addq   $0x1,(%rax)
+	void push_var()
+	{
+		push(0x48);  push(0x8b);  push(0x18);       
+		push(0x48);  push(0xc1);  push(0xe3);  push(0x04);    
+		push(0x89);  push(0x7c);  push(0x03);  push(0x08);    
+		push(0x48);  push(0x8b);  push(0x18);       
+		push(0x48);  push(0xc1);  push(0xe3);  push(0x04);    
+		push(0x48);  push(0x89);  push(0x54);  push(0x18);  push(0x10); 
+		push(0x48);  push(0x83);  push(0x00);  push(0x01);    
+	
+        m_source += "mov    (%rax),%rbx\n";
+		m_source += "shl    $0x4,%rbx\n";
+		m_source += "mov    %edi,0x8(%rbx,%rax,1)\n";
+		m_source += "mov    (%rax),%rbx\n";
+		m_source += "shl    $0x4,%rbx\n";
+		m_source += "mov    %rdx,0x10(%rax,%rbx,1)\n";
+		m_source += "addq   $0x1,(%rax)\n";
+	}
+	
+	// pop参数rax:ps rdi:type rdx:data
+	// mov    (%rax),%rbx	
+	// shl    $0x4,%rbx	
+	// mov    -0x8(%rbx,%rax,1),%edi	
+	// mov    (%rax),%rbx	
+	// shl    $0x4,%rbx	
+	// mov    (%rax,%rbx,1),%rdx	
+	// subq   $0x1,(%rax)
+	void pop_var()
+	{
+		push(0x48);  push(0x8b);  push(0x18);       
+		push(0x48);  push(0xc1);  push(0xe3);  push(0x04);    
+		push(0x8b);  push(0x7c);  push(0x03);  push(0xf8);    
+		push(0x48);  push(0x8b);  push(0x18);       
+		push(0x48);  push(0xc1);  push(0xe3);  push(0x04);    
+		push(0x48);  push(0x8b);  push(0x14);  push(0x18);
+		push(0x48);  push(0x83);  push(0x28);  push(0x01);    
+	
+        m_source += "mov    (%rax),%rbx\n";
+		m_source += "shl    $0x4,%rbx\n";
+		m_source += "mov    -0x8(%rbx,%rax,1),%edi\n";
+		m_source += "mov    (%rax),%rbx\n";
+		m_source += "shl    $0x4,%rbx\n";
+		m_source += "mov    (%rax,%rbx,1),%rdx	\n";
+		m_source += "subq   $0x1,(%rax)\n";
+	}
+
     // 返回
     // leaveq
     // retq
@@ -663,7 +847,6 @@ public:
     void copy_const(variant * p, size_t num, int start);
     
     void variant_assign(int leftpos, int rightpos);
-    void variant_ret(int pos);
     void variant_add(int destpos, int leftpos, int rightpos);
     void variant_sub(int destpos, int leftpos, int rightpos);
 	void variant_mul(int destpos, int leftpos, int rightpos);
@@ -677,10 +860,15 @@ public:
     void variant_lessequal(int destpos, int leftpos, int rightpos);
     void variant_moreequal(int destpos, int leftpos, int rightpos);
     void variant_notequal(int destpos, int leftpos, int rightpos);
+	void variant_not(int destpos, int leftpos);
     void variant_jne(int pos, int jmppos);
     void variant_jmp(int jmppos);
+    void variant_push(int pos);
+	void variant_pop(int pos);
+	void variant_ps_clear();
+	void call_func(void * func);
     
-    void output(const char * name, func_native * nt);
+    void output(const char * filename, const char * packagename, const char * name, func_native * nt);
 
     const String & source() const
     {

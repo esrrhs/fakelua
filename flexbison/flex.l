@@ -61,12 +61,12 @@
 
 "true" {
   lvalp->str = yytext;
-  return TRUE;
+  return FTRUE;
 }
 
 "false" {
   lvalp->str = yytext;
-  return FALSE;
+  return FFALSE;
 }
 
 "if" {
@@ -79,6 +79,10 @@
 
 "else" {
 	return ELSE;
+}
+
+"elseif" {
+	return ELSEIF;
 }
 
 "end" {
@@ -206,6 +210,10 @@
 
 "*" {
 	return MULTIPLY;
+}
+
+":=" {
+	return NEW_ASSIGN;
 }
 
 "+=" {

@@ -17,7 +17,7 @@ public:
 public:
     fake * m_fk;
     poollist<routine> m_pl;
-    size_t m_routine_num;
+    uint32_t m_routine_num;
 };
 
 #define PROCESS_INI(pro, fk) (pro).m_fk = fk;\

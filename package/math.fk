@@ -1,0 +1,9 @@
+package math
+
+func srand(seed)
+	return msrand(seed)
+end
+
+func rand()
+	return mrand()
+end

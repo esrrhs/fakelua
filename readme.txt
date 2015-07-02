@@ -38,12 +38,16 @@ const helloint = 1234
 func myfunc1(arg1, arg2)
 	
 	-- C函数和类成员函数的调用
-	var arg3 = cfunc1(helloint) + arg2:memfunc1(arg1)
+	arg3 := cfunc1(helloint) + arg2:memfunc1(arg1)
 	
 	-- 分支
 	if arg1 < arg2 then	
 		-- 创建一个协程
 		fake myfunc2(arg1, arg2)
+	elseif arg1 == arg2 then	
+		print("elseif")
+	else
+		print("else")
 	end
 	
 	-- for循环

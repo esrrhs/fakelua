@@ -104,6 +104,10 @@ void interpreter::call(const variant & func)
 	else
 	{
 		assert(0);
+		FKERR("fkrun no inter func %s fail", vartostring(&func).c_str());
+		seterror(m_fk, efk_run_no_func_error, "fkrun no inter func %s fail", vartostring(&func).c_str());
+		m_isend = true;
+		return;
 	}
 
 	// ·µ»ØÖµ
@@ -132,7 +136,7 @@ void interpreter::call(const variant & func)
 			GET_VARIANT(*m_cur_stack, fb, ret, m_cur_stack->m_retvpos[i]);
 			
         	variant * cret;
-        	PS_POP_AND_GET(*theps, cret);
+        	PS_GET(*theps, cret, i);
         	
 			*ret = *cret;
 		}
@@ -210,7 +214,7 @@ const char * interpreter::get_running_call_stack() const
     return m_fk->rn.curcallstack.c_str();
 }
 
-size_t interpreter::get_max_stack() const
+uint32_t interpreter::get_max_stack() const
 {
     return m_fk->cfg.stack_deps;
 }

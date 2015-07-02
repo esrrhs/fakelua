@@ -35,12 +35,16 @@ const helloint = 1234
 func myfunc1(arg1, arg2)
 	
 	-- C函数和类成员函数的调用
-	var arg3 = cfunc1(helloint) + arg2:memfunc1(arg1)
+	arg3 := cfunc1(helloint) + arg2:memfunc1(arg1)
 	
 	-- 分支
 	if arg1 < arg2 then	
 		-- 创建一个协程
 		fake myfunc2(arg1, arg2)
+	elseif arg1 == arg2 then	
+		print("elseif")
+	else
+		print("else")
 	end
 	
 	-- for循环
@@ -138,6 +142,8 @@ enum efkerror
 	efk_run_data_error,
 	efk_run_cal_error,
 	efk_run_inter_error,
+
+	efk_jit_error = 600,
 };
 
 // 脚本环境
@@ -213,6 +219,11 @@ template<>	inline void fkpspush(fake * fk, char ret)
 }
 
 template<>	inline void fkpspush(fake * fk, unsigned char ret)
+{
+	fkpspushuchar(fk, ret);
+}
+
+template<>	inline void fkpspush(fake * fk, signed char ret)
 {
 	fkpspushuchar(fk, ret);
 }
@@ -310,6 +321,11 @@ template<>	inline char fkpspop(fake * fk)
 }
 
 template<>	inline unsigned char fkpspop(fake * fk)
+{
+	return fkpspopuchar(fk);
+}
+
+template<>	inline signed char fkpspop(fake * fk)
 {
 	return fkpspopuchar(fk);
 }
@@ -923,16 +939,22 @@ void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2, T3, T4, T5))
 }
 
 // 开启常用内置函数
+FAKE_API void fkopenalllib(fake * fk);
 FAKE_API void fkopenbaselib(fake * fk);
 FAKE_API void fkopenfilelib(fake * fk);
 FAKE_API void fkopennetlib(fake * fk);
 FAKE_API void fkopenoslib(fake * fk);
 FAKE_API void fkopenstringlib(fake * fk);
+FAKE_API void fkopenmathlib(fake * fk);
 
 // profile 
 FAKE_API void fkopenprofile(fake * fk);
 FAKE_API void fkcloseprofile(fake * fk);
 FAKE_API const char * fkdumpprofile(fake * fk);
+
+// jit
+FAKE_API void fkopenjit(fake * fk);
+FAKE_API void fkclosejit(fake * fk);
 
 // 设置错误回调
 FAKE_API void fkseterrorfunc(fake * fk, fkerrorcb cb);

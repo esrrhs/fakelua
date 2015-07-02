@@ -157,12 +157,12 @@ void buildin_range(fake * fk, interpreter * inter)
     {
 		if (pos >= 0 && pos < (int)v->data.vm->vm.size())
 		{
+		    variant * key = 0;
+		    PS_PUSH_AND_GET(fk->ps, key);
+		    
 		    variant * value = 0;
 		    PS_PUSH_AND_GET(fk->ps, value);
 		    
-		    variant * key = 0;
-		    PS_PUSH_AND_GET(fk->ps, key);
-
 		    const fkhashmap<variant, pool<variant>::node *>::ele * e = v->data.vm->vm.at(pos);
 		    *key = e->k;
 		    *value = (*e->t)->t;
@@ -303,6 +303,11 @@ void buildinfunc::openstringfunc()
     m_bifstring.openstringfunc();
 }
 
+void buildinfunc::openmathfunc()
+{
+	m_bifmath.openmathfunc();
+}
+
 buffer * buildinfunc::newbuffer(int size)
 {
     return m_bifnet.newbuffer(size);
@@ -325,5 +330,15 @@ int buildinfunc::get_argc() const
 const char * buildinfunc::get_argv(int pos) const
 {
 	return m_bifos.get_argv(pos);
+}
+
+void buildinfunc::setseed(int seed)
+{
+	m_bifmath.setseed(seed);
+}
+
+int buildinfunc::getseed() const
+{
+	return m_bifmath.getseed();
 }
 

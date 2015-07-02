@@ -39,8 +39,8 @@ int my_yyerror(const char *s, void * parm)
 %token BREAK
 %token FUNC
 %token WHILE
-%token TRUE
-%token FALSE
+%token FTRUE
+%token FFALSE
 %token IF
 %token THEN
 %token ELSE
@@ -84,6 +84,8 @@ int my_yyerror(const char *s, void * parm)
 %token IS NOT CONTINUE
 %token YIELD SLEEP
 %token SWITCH CASE DEFAULT
+%token NEW_ASSIGN
+%token ELSEIF
 
 %left PLUS
 %left MINUS
@@ -91,7 +93,7 @@ int my_yyerror(const char *s, void * parm)
 %left MULTIPLY
 %left DIVIDE_MOD
 
-%expect 23
+%expect 26
 
 %type<str> IDENTIFIER  
 %type<str> NUMBER
@@ -103,7 +105,7 @@ int my_yyerror(const char *s, void * parm)
 %type<str> MULTIPLY
 %type<str> DIVIDE_MOD
 %type<str> MORE LESS MORE_OR_EQUAL LESS_OR_EQUAL EQUAL NOT_EQUAL
-%type<str> TRUE FALSE
+%type<str> FTRUE FFALSE
 %type<str> ASSIGN
 %type<str> AND OR
 %type<str> FKFLOAT
@@ -118,6 +120,8 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> stmt
 %type<syntree> while_stmt
 %type<syntree> else_stmt
+%type<syntree> elseif_stmt
+%type<syntree> elseif_stmt_list
 %type<syntree> if_stmt
 %type<syntree> cmp
 %type<syntree> body
@@ -149,7 +153,6 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> switch_stmt
 %type<syntree> switch_case_define
 %type<syntree> switch_case_list
-
 
 %%
 
@@ -564,23 +567,69 @@ while_stmt:
 	;
 	
 if_stmt:
-	IF cmp THEN block else_stmt END
+	IF cmp THEN block elseif_stmt_list else_stmt END
 	{
 		FKLOG("[bison]: if_stmt <- cmp block");
 		NEWTYPE(p, if_stmt);
 		p->cmp = dynamic_cast<cmp_stmt*>($2);
 		p->block = dynamic_cast<block_node*>($4);
-		p->elses = dynamic_cast<else_stmt*>($5);
+		p->elseifs = dynamic_cast<elseif_stmt_list*>($5);
+		p->elses = dynamic_cast<else_stmt*>($6);
 		$$ = p;
 	}
 	|
-	IF cmp THEN else_stmt END
+	IF cmp THEN elseif_stmt_list else_stmt END
 	{
 		FKLOG("[bison]: if_stmt <- cmp");
 		NEWTYPE(p, if_stmt);
 		p->cmp = dynamic_cast<cmp_stmt*>($2);
 		p->block = 0;
-		p->elses = dynamic_cast<else_stmt*>($4);
+		p->elseifs = dynamic_cast<elseif_stmt_list*>($4);
+		p->elses = dynamic_cast<else_stmt*>($5);
+		$$ = p;
+	}
+	;
+	
+elseif_stmt_list:
+	/* empty */
+	{
+		$$ = 0;
+	}
+	| 
+	elseif_stmt_list elseif_stmt
+	{
+		FKLOG("[bison]: elseif_stmt_list <- elseif_stmt_list elseif_stmt");
+		assert($1->gettype() == est_elseif_stmt_list);
+		elseif_stmt_list * p = dynamic_cast<elseif_stmt_list*>($1);
+		p->add_stmt($2);
+		$$ = p;
+	}
+	| 
+	elseif_stmt
+	{
+		FKLOG("[bison]: elseif_stmt_list <- elseif_stmt");
+		NEWTYPE(p, elseif_stmt_list);
+		p->add_stmt($1);
+		$$ = p;
+	}
+	;
+	
+elseif_stmt:
+	ELSEIF cmp THEN block
+	{
+		FKLOG("[bison]: elseif_stmt <- ELSEIF cmp THEN block");
+		NEWTYPE(p, elseif_stmt);
+		p->cmp = dynamic_cast<cmp_stmt*>($2);
+		p->block = $4;
+		$$ = p;
+	}
+	|
+	ELSEIF cmp THEN
+	{
+		FKLOG("[bison]: elseif_stmt <- ELSEIF cmp THEN block");
+		NEWTYPE(p, elseif_stmt);
+		p->cmp = dynamic_cast<cmp_stmt*>($2);
+		p->block = 0;
 		$$ = p;
 	}
 	;
@@ -695,7 +744,7 @@ cmp:
 		$$ = p;
 	}
 	|
-	TRUE
+	FTRUE
 	{
 		FKLOG("[bison]: cmp <- true");
 		NEWTYPE(p, cmp_stmt);
@@ -705,7 +754,7 @@ cmp:
 		$$ = p;
 	}
 	|
-	FALSE
+	FFALSE
 	{
 		FKLOG("[bison]: cmp <- false");
 		NEWTYPE(p, cmp_stmt);
@@ -819,6 +868,17 @@ assign_stmt:
 		NEWTYPE(p, assign_stmt);
 		p->var = $1;
 		p->value = $3;
+		p->isnew = false;
+		$$ = p;
+	}
+	|
+	var NEW_ASSIGN assign_value
+	{
+		FKLOG("[bison]: new assign_stmt <- var assign_value");
+		NEWTYPE(p, assign_stmt);
+		p->var = $1;
+		p->value = $3;
+		p->isnew = true;
 		$$ = p;
 	}
 	;
@@ -830,6 +890,17 @@ multi_assign_stmt:
 		NEWTYPE(p, multi_assign_stmt);
 		p->varlist = dynamic_cast<var_list_node*>($1);
 		p->value = $3;
+		p->isnew = false;
+		$$ = p;
+	}
+	|
+	var_list NEW_ASSIGN function_call
+	{
+		FKLOG("[bison]: new multi_assign_stmt <- var_list function_call");
+		NEWTYPE(p, multi_assign_stmt);
+		p->varlist = dynamic_cast<var_list_node*>($1);
+		p->value = $3;
+		p->isnew = true;
 		$$ = p;
 	}
 	;
@@ -1086,18 +1157,18 @@ expr_value:
 	;
 	
 explicit_value:
-	TRUE 
+	FTRUE 
 	{
-		FKLOG("[bison]: explicit_value <- TRUE");
+		FKLOG("[bison]: explicit_value <- FTRUE");
 		NEWTYPE(p, explicit_value_node);
 		p->str = $1;
 		p->type = explicit_value_node::EVT_TRUE;
 		$$ = p;
 	}
 	|
-	FALSE 
+	FFALSE 
 	{
-		FKLOG("[bison]: explicit_value <- FALSE");
+		FKLOG("[bison]: explicit_value <- FFALSE");
 		NEWTYPE(p, explicit_value_node);
 		p->str = $1;
 		p->type = explicit_value_node::EVT_FALSE;

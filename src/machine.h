@@ -28,16 +28,11 @@ public:
         return m_isend;
     }
     
-    void call(native * nt, const char * func, paramstack * ps);
+    void call(const variant & func);
+    static void static_call(fake * fk, const variant & func);
     
-    force_inline const variant & getret() const
-    {
-        return m_ret;
-    }
-
 private:
     fake * m_fk;
     bool m_isend;
-    variant m_ret;
 };
 

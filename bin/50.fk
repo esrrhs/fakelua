@@ -1,0 +1,16 @@
+include "../package/math.fk"
+
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	math.srand(arg1)
+	
+	for var i = 0, i < 100, i++ then
+	
+		print(math.rand() % 10)
+	
+	end
+	
+	return true
+	
+end

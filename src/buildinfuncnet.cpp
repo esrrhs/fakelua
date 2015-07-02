@@ -319,9 +319,9 @@ void buildin_selector_event(fake * fk, interpreter * inter)
         SELECTOR_OUT(*sel, s, isout);
         SELECTOR_ERR(*sel, s, iserr);
     }
-    fkpspush<bool>(fk, isout);
-    fkpspush<bool>(fk, isin);
     fkpspush<bool>(fk, iserr);
+    fkpspush<bool>(fk, isin);
+    fkpspush<bool>(fk, isout);
 }
 
 void buildin_tcp_socket(fake * fk, interpreter * inter)
@@ -367,15 +367,15 @@ void buildin_tcp_recv(fake * fk, interpreter * inter)
     int s = fkpspop<int>(fk);
     if (!b)
     {
-        fkpspush<int>(fk, 0);
         fkpspush<bool>(fk, false);
+        fkpspush<int>(fk, 0);
         return;
     }
     
 	if (b->full())
 	{
-        fkpspush<int>(fk, 0);
         fkpspush<bool>(fk, true);
+        fkpspush<int>(fk, 0);
         return;
 	}
 	
@@ -385,8 +385,8 @@ void buildin_tcp_recv(fake * fk, interpreter * inter)
 	{
 		if (GET_NET_ERROR != NET_BLOCK_ERROR && GET_NET_ERROR != NET_BLOCK_ERROR_EX)
 		{
-            fkpspush<int>(fk, 0);
             fkpspush<bool>(fk, false);
+            fkpspush<int>(fk, 0);
 		}
 		if (len < 0)
 		{
@@ -398,8 +398,8 @@ void buildin_tcp_recv(fake * fk, interpreter * inter)
 		b->skip_write(len);
 	}
 
-    fkpspush<int>(fk, len);
     fkpspush<bool>(fk, true);
+    fkpspush<int>(fk, len);
 }
 void buildin_tcp_send(fake * fk, interpreter * inter)
 {
@@ -407,15 +407,15 @@ void buildin_tcp_send(fake * fk, interpreter * inter)
     int s = fkpspop<int>(fk);
     if (!b)
     {
-        fkpspush<int>(fk, 0);
         fkpspush<bool>(fk, false);
+        fkpspush<int>(fk, 0);
         return;
     }
     
 	if (b->empty())
 	{
-        fkpspush<int>(fk, 0);
         fkpspush<bool>(fk, true);
+        fkpspush<int>(fk, 0);
         return;
 	}
 	
@@ -425,8 +425,8 @@ void buildin_tcp_send(fake * fk, interpreter * inter)
 	{
 		if (GET_NET_ERROR != NET_BLOCK_ERROR && GET_NET_ERROR != NET_BLOCK_ERROR_EX)
 		{
-            fkpspush<int>(fk, 0);
             fkpspush<bool>(fk, false);
+            fkpspush<int>(fk, 0);
 		}
 		if (len < 0)
 		{
@@ -438,8 +438,8 @@ void buildin_tcp_send(fake * fk, interpreter * inter)
 		b->skip_read(len);
 	}
 
-    fkpspush<int>(fk, len);
     fkpspush<bool>(fk, true);
+    fkpspush<int>(fk, len);
 }
 void buildin_tcp_socket_set_sendbuffer(fake * fk, interpreter * inter)
 {
@@ -461,7 +461,7 @@ void buildin_tcp_socket_set_nonblocking(fake * fk, interpreter * inter)
     int s = fkpspop<int>(fk);
     
 #if defined(WIN32)
-	ioctlsocket(s, FIONBIO, (u_long *)&on) == 0;
+	ioctlsocket(s, FIONBIO, (u_long *)&on);
 #else
 	int32_t opts;
 	opts = fcntl(s, F_GETFL, 0);
@@ -511,8 +511,8 @@ void buildin_tcp_socket_get_local_ip_port(fake * fk, interpreter * inter)
 		port = htons(_local_sockaddr.sin_port);
 	}
 	
-	fkpspush<int>(fk, port);
 	fkpspush<const char *>(fk, ip);
+	fkpspush<int>(fk, port);
 }
 void buildin_tcp_bind(fake * fk, interpreter * inter)
 {
@@ -560,13 +560,13 @@ void buildin_tcp_accept(fake * fk, interpreter * inter)
     int ns = ::accept(s, (sockaddr*)&_sockaddr, &size);
     if (ns == -1)
     {
-        fkpspush<int>(fk, ns);
         fkpspush<bool>(fk, false);
+        fkpspush<int>(fk, ns);
     }
     else
     {
-        fkpspush<int>(fk, ns);
         fkpspush<bool>(fk, true);
+        fkpspush<int>(fk, ns);
     }
 }
 

@@ -71,14 +71,14 @@ bool parser::parsestr(const char * str)
     }
 
     // jit 先放弃
-    /*fk->as.clear();
+    fk->as.clear();
     assembler & as = fk->as;
     b = as.compile(&fk->bin);
     if (!b)
     {
-        FKERR("fkparse %s jit %s fail", fk, filename);
+        FKERR("parse %s jit %s fail", fk, str);
         return false;
-    }*/
+    }
     
     FKLOG("parse %p %s OK", fk, str);
     
@@ -160,14 +160,14 @@ bool parser::parse(const char * filename)
     }
 
     // jit 先放弃
-    /*fk->as.clear();
+    fk->as.clear();
     assembler & as = fk->as;
     b = as.compile(&fk->bin);
     if (!b)
     {
         FKERR("fkparse %s jit %s fail", fk, filename);
         return false;
-    }*/
+    }
     
     // 弹出
     assert(m_parsing_file_list.back() == (String)filename);

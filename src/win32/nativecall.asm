@@ -1,8 +1,11 @@
+
 .code
-	CallNativeFunc proc 
-	
-	push	rbp
-	mov		rbp,rsp
+
+	; 从win32调用过来，采用的rdi rsp方式
+	call_native_func proc 
+
+	push	rdi
+	mov		rdi,rsp
 	push	rsi
 	push	rax
 	push	rbx
@@ -15,7 +18,6 @@
 	; 函数指针在rcx
 	; 参数地址在rdx
 	; 参数个数在r8
-	; 返回指针在r9
 
 	; 塞上参数
 	mov		rax,0
@@ -41,10 +43,6 @@ LOOPBEGIN:
 
 LOOPEND:
 	call    rcx
-
-	; 返回值
-	mov		qword ptr [r9],rax
-	mov		qword ptr [r9+8h],rdx
 	
 	pop		r10
 	pop		r9
@@ -54,7 +52,35 @@ LOOPEND:
 	pop		rbx
 	pop		rax
 	pop		rsi
+	pop		rdi
+	ret 
+
+	call_native_func endp
+	
+	; 从native调用过来，采用的rbp rsp方式
+	call_machine_func proc 
+	
+	push	rbp
+	mov		rbp,rsp
+	
+	push	rax
+	push	rcx
+	push	rdx
+	push	rdi
+	
+	mov		rax,rdi
+	mov		rdi,rbp
+
+	call    rax
+	
+	pop		rdi
+	pop		rdx
+	pop		rcx
+	pop		rax
 	leave
 	ret 
-	CallNativeFunc endp
+
+	call_machine_func endp
+
 end
+

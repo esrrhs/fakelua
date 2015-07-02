@@ -18,7 +18,7 @@ struct func_binary;
 class assembler
 {
 public:
-    assembler(fake * fk, native * nt) : m_fk(fk), m_native(nt)
+	assembler(fake * fk, native * nt) : m_fk(fk), m_native(nt), m_isopen(false)
     {
     }
     ~assembler() 
@@ -28,6 +28,8 @@ public:
 
     void clear();
     bool compile(binary * bin);
+	void open();
+	void close();
 
 private:
     bool compile_func(const func_binary & fb);
@@ -37,15 +39,20 @@ private:
     bool compile_math(asmgen & asg, const func_binary & fb, command cmd);
 	bool compile_math_assign(asmgen & asg, const func_binary & fb, command cmd);
 	bool compile_cmp(asmgen & asg, const func_binary & fb, command cmd);
+	bool compile_single(asmgen & asg, const func_binary & fb, command cmd);
     bool compile_jne(asmgen & asg, const func_binary & fb, command cmd);
     bool compile_jmp(asmgen & asg, const func_binary & fb, command cmd);
     bool compile_call(asmgen & asg, const func_binary & fb, command cmd);
     
+private:
+    void compile_seterror(const func_binary & fb, command cmd, efkerror err, const char *fmt, ...);
+
 private:
     fake * m_fk;
     native * m_native;
 	int m_pos;
 	posmap m_posmap;
 	caremap m_caremap;
+	bool m_isopen;
 };
 

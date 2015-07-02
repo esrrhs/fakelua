@@ -10,13 +10,13 @@ void buildin_fopen(fake * fk, interpreter * inter)
     FILE * f = fopen(filename, mod);
     if (f)
     {
-        fkpspush<FILE *>(fk, f);
         fkpspush<bool>(fk, true);
+        fkpspush<FILE *>(fk, f);
     }
     else
     {
-        fkpspush<FILE *>(fk, f);
         fkpspush<bool>(fk, false);
+        fkpspush<FILE *>(fk, f);
     }
 }
 

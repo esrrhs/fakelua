@@ -5,20 +5,24 @@
 #include "buildinfunc.h"
 #include "binary.h"
 #include "bindfunc.h"
+#include "native.h"
 
 struct funcunion
 {
 	fkfunctor ff;
 	bifunc bif;
 	func_binary fb;
+	func_native fn;
 	bool haveff;
 	bool havebif;
 	bool havefb;
+	bool havefn;
 };
 
 class funcmap
 {
 	friend class binary;
+	friend class native;
 	friend class assembler;
 public:
 	force_inline funcmap(fake * fk) : m_fk(fk), m_shh(fk)
@@ -77,6 +81,17 @@ public:
 		funcunion *  f = add_func_union(name);
 		f->bif = bif;
 		f->havebif = true;
+	}
+
+	force_inline void add_func_native(const variant & name, const func_native & fn)
+	{
+		funcunion *  f = add_func_union(name);
+		if (f->havefn)
+		{
+			FUNC_NATIVE_DELETE(f->fn);
+		}
+		f->fn = fn;
+		f->havefn = true;
 	}
 
     String & dump();

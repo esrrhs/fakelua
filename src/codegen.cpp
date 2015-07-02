@@ -97,5 +97,7 @@ void codegen::output(const char * filename, const char * packagename, const char
 		memcpy(bin->m_container_addr_list, &m_containeraddr_list[0], bin->m_container_addr_list_num * sizeof(container_addr));
     }
 
+	bin->m_fresh++;
+
     FKLOG("codegen out %s %d", name, m_maxstackpos);
 }

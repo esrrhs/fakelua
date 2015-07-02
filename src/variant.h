@@ -212,7 +212,7 @@ struct variant
 
 #define V_NOT(d, l) (d)->data.real = !((l)->data.real);(d)->type = variant::REAL
 
-#define V_BOOL(v) ((v)->data.real != 0)
+#define V_ISBOOL(v) ((v)->data.real != 0)
 #define V_EQUAL_V(b, l, r) \
     if ((l)->type != (r)->type)\
     {\
@@ -225,4 +225,5 @@ struct variant
 
 #define V_TYPE_OFF(stackpos) (-1 * (stackpos + 1) * variant_size + variant_type_off)
 #define V_DATA_OFF(stackpos) (-1 * (stackpos + 1) * variant_size + variant_data_off)
+#define V_OFF(stackpos) (-1 * (stackpos + 1) * variant_size)
 

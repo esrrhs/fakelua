@@ -44,8 +44,8 @@
      BREAK = 260,
      FUNC = 261,
      WHILE = 262,
-     TRUE = 263,
-     FALSE = 264,
+     FTRUE = 263,
+     FFALSE = 264,
      IF = 265,
      THEN = 266,
      ELSE = 267,
@@ -97,7 +97,9 @@
      SLEEP = 313,
      SWITCH = 314,
      CASE = 315,
-     DEFAULT = 316
+     DEFAULT = 316,
+     NEW_ASSIGN = 317,
+     ELSEIF = 318
    };
 #endif
 

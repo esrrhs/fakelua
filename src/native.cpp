@@ -33,11 +33,24 @@ String func_native::dump() const
 String native::dump() const
 {
     String ret;
-    for (const stringhashmap::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	for (const fkhashmap<variant, funcunion>::ele * p = m_fk->fm.m_shh.first(); p != 0; p = m_fk->fm.m_shh.next())
     {
-        const func_native & nt = *p->t;
-        ret += nt.dump();
+		const funcunion & f = *p->t;
+		if (f.havefn)
+		{
+			ret += f.fn.dump();
+		}
     }
     return ret;
 }
+
+bool native::add_func(const variant & name, const func_native & nt)
+{
+	m_fk->fm.add_func_native(name, nt);
+
+	FKLOG("add func native %s", vartostring(&name).c_str());
+
+	return true;
+}
+
 

@@ -12,7 +12,7 @@ struct stringele
     uint32_t update;
 	// string
     char * s;
-    size_t sz;
+    uint32_t sz;
 	// 系统引用
 	uint32_t sysref;
 };

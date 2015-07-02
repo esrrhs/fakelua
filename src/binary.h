@@ -116,6 +116,8 @@ struct func_binary
     mutable int m_use;
     // 备份
     mutable func_binary * m_backup;
+    // 新标记
+    mutable int m_fresh;
 };
 
 #define FUNC_BINARY_INI(fb) \
@@ -159,6 +161,9 @@ struct func_binary
 		memcpy((void *)&(fb), tmp, sizeof((fb))); \
 		safe_fkfree(m_fk, tmp); \
 	}
+
+#define FUNC_BINARY_FRESH(fb) \
+	((fb).m_fresh)
 
 #define FUNC_BINARY_DELETE(fb) \
 	safe_fkfree(m_fk, (fb).m_name); \
