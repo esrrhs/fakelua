@@ -2,6 +2,7 @@
 
 #include "types.h"
 #include "hashmap.h"
+#include "binary.h"
 
 struct profilefuncele
 {
@@ -30,6 +31,7 @@ public:
         m_isopen = false;
         m_shh.clear();
         m_dumpstr.clear();
+		memset(m_codetype, 0, sizeof(m_codetype));
     }
 
     force_inline void open()
@@ -48,6 +50,7 @@ public:
     }
     
     void add_func_sample(const char * func, uint32_t calltime);
+    void add_code_sample(int code);
 
     const char * dump();
 
@@ -57,5 +60,6 @@ private:
     typedef fkhashmap<const char *, profilefuncele> stringhashmap;
     stringhashmap m_shh;
     String m_dumpstr;
+	int m_codetype[OPCODE_MAX];
 };
 

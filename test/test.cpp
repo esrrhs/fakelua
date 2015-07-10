@@ -96,7 +96,9 @@ int main(int argc, const char *argv[])
 	end = time(0);
 
 	printf("call ret %d %d\n", ret, end - begin);
+#ifdef _DEBUG
 	printf("call profile:\n%s", fkdumpprofile(fk));
+#endif
 
 	delfake(fk);
 

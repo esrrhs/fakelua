@@ -49,6 +49,8 @@ enum OpCodeType
     
     OPCODE_SLEEP,
     OPCODE_YIELD,
+    
+    OPCODE_MAX,
 };
 
 enum AddrType

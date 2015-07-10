@@ -2,11 +2,9 @@
 -- func1 comment
 func myfunc1(arg1, arg2)
 	
-	var sel = selector()
 	var s = 1
-	selector_add(sel, s)
-	var eventnum = selector_tick(sel)
-	var iserr, var isin, var isout = selector_event(sel, s)
+	var sel = selector(s)
+	var eventnum, var iserr, var isin, var isout = selector_tick(sel)
 	print(iserr)
 	print(isin)
 	print(isout)

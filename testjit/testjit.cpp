@@ -100,7 +100,9 @@ int main(int argc, const char *argv[])
 	end = time(0);
 
 	printf("jit ret %d %d\n", ret, end - begin);
+#ifdef _DEBUG
 	printf("call profile:\n%s", fkdumpprofile(fk));
+#endif
 
 	char c;
 	std::cin >> c;

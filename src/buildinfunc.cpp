@@ -260,6 +260,14 @@ void buildin_isfunc(fake * fk, interpreter * inter)
     fkpspush<bool>(fk, ret);
 }
 
+// tonumber
+void buildin_tonumber(fake * fk, interpreter * inter)
+{
+    const char * str = fkpspopcstrptr(fk);
+	int ret = atoi(str);
+    fkpspush<int>(fk, ret);
+}
+
 void buildinfunc::openbasefunc()
 {
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("print"), buildin_print);
@@ -281,6 +289,7 @@ void buildinfunc::openbasefunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("getcurcallstack"), buildin_getcurcallstack);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("geterror"), buildin_geterror);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("isfunc"), buildin_isfunc);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("tonumber"), buildin_tonumber);
 }
 
 void buildinfunc::openfilefunc()

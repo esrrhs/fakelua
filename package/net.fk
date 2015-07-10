@@ -12,6 +12,7 @@ end
 
 struct _tcp_server
 	is_open
+	svuserdata
 end
 
 struct _tcp_link
@@ -34,7 +35,7 @@ func _tcp_client_tick(c, ip, port, buffersize, socketbuffersize, cb_connect, cb_
 
 	var isConnect = false
 	var s = 0
-	var sel = selector()
+	var sel = selector(s)
 	var recvbuffer = c->recvbuffer
 	var sendbuffer = c->sendbuffer
 	var local_ip = "empty"
@@ -45,14 +46,12 @@ func _tcp_client_tick(c, ip, port, buffersize, socketbuffersize, cb_connect, cb_
 		if is isConnect then
 		
 			-- 处理事件
-			var eventnum = selector_tick(sel)
+			var eventnum, var iserr, var isin, var isout = selector_tick(sel)
 			
 			if eventnum > 0 then
 				
-				var iserr, var isin, var isout = selector_event(sel, s)
-				
 				if is iserr then
-					selector_del(sel, s)
+					selector_set(sel, -1)
 					close(s)
 					isConnect = false
 					cb_close(c, userdata)
@@ -62,7 +61,7 @@ func _tcp_client_tick(c, ip, port, buffersize, socketbuffersize, cb_connect, cb_
 				if is isin then
 					var ok, var size = tcprecv(s, recvbuffer)
 					if not ok then
-						selector_del(sel, s)
+						selector_set(sel, -1)
 						close(s)
 						isConnect = false
 						cb_close(c, userdata)
@@ -73,7 +72,7 @@ func _tcp_client_tick(c, ip, port, buffersize, socketbuffersize, cb_connect, cb_
 				if is isout then
 					var ok, var size = tcpsend(s, sendbuffer)
 					if not ok then
-						selector_del(sel, s)
+						selector_set(sel, -1)
 						close(s)
 						isConnect = false
 						cb_close(c, userdata)
@@ -104,7 +103,7 @@ func _tcp_client_tick(c, ip, port, buffersize, socketbuffersize, cb_connect, cb_
 				
 			local_ip, local_port = socket_get_local_ip_port(s)
 				
-			selector_add(sel, s)
+			selector_set(sel, s)
 			
 			isConnect = true
 			
@@ -140,10 +139,11 @@ end
 
 -----------------------------------------------------------------------------
 
-func new_tcp_server(ip, port, buffersize, socketbuffersize, backlog, cb_accept, cb_close, cb_parse)
+func new_tcp_server(ip, port, buffersize, socketbuffersize, backlog, cb_accept, cb_close, cb_parse, svuserdata)
 
 	var sv = _tcp_server()
 	sv->is_open = true
+	sv->svuserdata = svuserdata
 	fake _tcp_server_tick(sv, ip, port, buffersize, socketbuffersize, backlog, cb_accept, cb_close, cb_parse)
 	return sv
 	
@@ -152,7 +152,7 @@ end
 func _tcp_server_tick(sv, ip, port, buffersize, socketbuffersize, backlog, cb_accept, cb_close, cb_parse)
 
 	var s = socket()
-	var sel = selector()
+	var sel = selector(s)
 	
 	var ok = bind(s, ip, port)
 	if not ok then
@@ -166,17 +166,13 @@ func _tcp_server_tick(sv, ip, port, buffersize, socketbuffersize, backlog, cb_ac
 	
 	socket_set_nonblocking(s, true)
 	
-	selector_add(sel, s)
-
 	while is sv->is_open then
 	
 		-- 处理事件
-		var eventnum = selector_tick(sel)
+		var eventnum, var iserr, var isin, var isout = selector_tick(sel)
 		
 		if eventnum > 0 then
 			
-			var iserr, var isin, var isout = selector_event(sel, s)
-					
 			if is isin then
 				
 				fake _tcp_server_conn_tick(sv, s, buffersize, socketbuffersize, cb_accept, cb_close, cb_parse)
@@ -203,7 +199,7 @@ func _tcp_server_conn_tick(sv, listens, buffersize, socketbuffersize, cb_accept,
 	l->sendbuffer = buffer.new(buffersize)
 	l->recvbuffer = buffer.new(buffersize)
 	
-	var sel = selector()
+	var sel = selector(s)
 	
 	socket_set_sendbuffer(s, socketbuffersize)
 	socket_set_recvbuffer(s, socketbuffersize)
@@ -213,33 +209,29 @@ func _tcp_server_conn_tick(sv, listens, buffersize, socketbuffersize, cb_accept,
 		
 	var local_ip, var local_port = socket_get_local_ip_port(s)
 		
-	selector_add(sel, s)
-	
 	var sendbuffer = l->sendbuffer
 	var recvbuffer = l->recvbuffer
 	
-	var userdata = cb_accept(l, s)
+	var userdata = cb_accept(sv, l, s)
 	
 	var isConnect = true
 	
 	while sv->is_open == true and isConnect == true then
 	
 		-- 处理事件
-		var eventnum = selector_tick(sel)
+		var eventnum, var iserr, var isin, var isout = selector_tick(sel)
 		
 		if eventnum > 0 then
 			
-			var iserr, var isin, var isout = selector_event(sel, s)
-					
 			if is iserr then
-				cb_close(l, userdata)
+				cb_close(sv, l, userdata)
 				break
 			end
 			
 			if is isin then
 				var ok, var size = tcprecv(s, recvbuffer)
 				if not ok then
-					cb_close(l, userdata)
+					cb_close(sv, l, userdata)
 					break
 				end
 			end
@@ -247,7 +239,7 @@ func _tcp_server_conn_tick(sv, listens, buffersize, socketbuffersize, cb_accept,
 			if is isout then
 				var ok, var size = tcpsend(s, sendbuffer)
 				if not ok then
-					cb_close(l, userdata)
+					cb_close(sv, l, userdata)
 					break
 				end
 			end
@@ -258,7 +250,7 @@ func _tcp_server_conn_tick(sv, listens, buffersize, socketbuffersize, cb_accept,
 		
 		-- 回调
 		if buffer.size(recvbuffer) > 0 then
-			cb_parse(l, userdata, recvbuffer)
+			cb_parse(sv, l, userdata, recvbuffer)
 		end
 	end
 	

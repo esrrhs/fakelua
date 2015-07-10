@@ -1,0 +1,44 @@
+include "../package/net.fk"
+
+-- func1 comment
+func myfunc1(arg1, arg2)
+	
+	msgb := buffer.new(1024)
+	s := net.new_tcp_server("127.0.0.1", 8888, 1024 * 1024, 1024, 5, "on_accept", "on_close", "on_parse", msgb)
+	
+	return 0
+	
+end
+
+func on_accept(sv, l, s)
+
+	print("on_accept")
+
+	msgb := sv->svuserdata
+	buffer.clear(msgb)
+	buffer.push_string(msgb, "haha", 4)
+	
+	net.tcp_send(l, msgb)
+	
+	return 0
+	
+end
+
+func on_close(sv, l, userdata)
+
+	print("on_close")
+
+end
+
+func on_parse(sv, l, userdata, recvbuffer)
+
+	str := buffer.pop_string(recvbuffer, 4)
+	print("recv ", str)
+
+	msgb := sv->svuserdata
+	buffer.clear(msgb)
+	buffer.push_string(msgb, "haha", 4)
+	
+	net.tcp_send(l, msgb)
+	
+end
