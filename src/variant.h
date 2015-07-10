@@ -117,7 +117,7 @@ struct variant
 	(v)->data.vm = m;
 	
 #define V_GET_POINTER(v, p) \
-	if (!((v)->type == variant::POINTER || (v)->type == variant::NIL)) \
+	if (UNLIKE(!((v)->type == variant::POINTER || (v)->type == variant::NIL))) \
 	{ \
 	    err = true; \
 	    String str; \
@@ -132,7 +132,7 @@ struct variant
 	}
     
 #define V_GET_REAL(v, r) \
-	if (!((v)->type == variant::REAL || (v)->type == variant::NIL)) \
+	if (UNLIKE(!((v)->type == variant::REAL || (v)->type == variant::NIL))) \
 	{ \
 	    err = true; \
 	    String str; \
@@ -147,7 +147,7 @@ struct variant
 	}
     
 #define V_GET_STRING(v, ss) \
-	if (!((v)->type == variant::STRING || (v)->type == variant::NIL)) \
+	if (UNLIKE(!((v)->type == variant::STRING || (v)->type == variant::NIL))) \
 	{ \
 	    err = true; \
 	    String str; \
@@ -162,7 +162,7 @@ struct variant
 	}
 
 #define V_GET_UUID(v, id) \
-	if (!((v)->type == variant::UUID || (v)->type == variant::NIL)) \
+	if (UNLIKE(!((v)->type == variant::UUID || (v)->type == variant::NIL))) \
 	{ \
 	    err = true; \
 	    String str; \
@@ -177,7 +177,7 @@ struct variant
 	}
 
 #define V_ASSERT_CAN_CAL(v) \
-    if (!((v)->type == variant::REAL || (v)->type == variant::NIL)) \
+    if (UNLIKE(!((v)->type == variant::REAL || (v)->type == variant::NIL))) \
 	{ \
 	    err = true; \
 	    String str; \
@@ -186,7 +186,7 @@ struct variant
 	    USE(err); \
 	}
 #define V_ASSERT_CAN_DIVIDE(v) \
-    if ((int64_t)(v)->data.real == 0) \
+    if (UNLIKE((int64_t)(v)->data.real == 0)) \
 	{ \
 	    err = true; \
 	    String str; \

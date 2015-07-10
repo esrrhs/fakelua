@@ -270,60 +270,77 @@ void buildin_buffer_popbuffer(fake * fk, interpreter * inter)
     }
     fkpspush<buffer *>(fk, ob);
 }
-
 void buildin_selector_new(fake * fk, interpreter * inter)
 {
+    int s = fkpspop<int>(fk);
     selector * sel = fk->bif.newselector();
+    sel->s = s;
     fkpspush<selector *>(fk, sel);
 }
-void buildin_selector_add(fake * fk, interpreter * inter)
+void buildin_selector_set(fake * fk, interpreter * inter)
 {
     int s = fkpspop<int>(fk);
     selector * sel = fkpspop<selector *>(fk);
-    if (sel)
-    {
-        SELECTOR_ADD(*sel, s);
-    }
-    fkpspush<int>(fk, 1);
-}
-void buildin_selector_del(fake * fk, interpreter * inter)
-{
-    int s = fkpspop<int>(fk);
-    selector * sel = fkpspop<selector *>(fk);
-    if (sel)
-    {
-        SELECTOR_DEL(*sel, s);
-    }
-    fkpspush<int>(fk, 1);
+    sel->s = s;
+    fkpspush<bool>(fk, true);
 }
 void buildin_selector_tick(fake * fk, interpreter * inter)
 {
-    selector * sel = fkpspop<selector *>(fk);
-    int eventnum = 0;
-    if (sel)
-    {
-        SELECTOR_TICK(*sel, eventnum);
-    }
-    fkpspush<int>(fk, eventnum);
-}
-void buildin_selector_event(fake * fk, interpreter * inter)
-{
-    int s = fkpspop<int>(fk);
-    selector * sel = fkpspop<selector *>(fk);
     bool isin = false;
     bool isout = false;
     bool iserr = false;
-    if (sel)
+    
+    selector * sel = fkpspop<selector *>(fk);
+    int eventnum = 0;
+    if (sel && sel->s != -1)
     {
-        SELECTOR_IN(*sel, s, isin);
-        SELECTOR_OUT(*sel, s, isout);
-        SELECTOR_ERR(*sel, s, iserr);
+    	int s = sel->s % FD_SETSIZE;
+    	
+		fd_set readfds;
+		fd_set writefds;
+		fd_set exceptfds;
+		int maxfd;
+		FD_ZERO(&readfds);
+		FD_ZERO(&writefds);
+		FD_ZERO(&exceptfds);
+		maxfd = -1;
+		FD_SET(s, &readfds);
+		FD_SET(s, &writefds);
+		FD_SET(s, &exceptfds);
+		maxfd = s + 1;
+		
+		timeval timeout;
+		timeout.tv_sec = 0;
+		timeout.tv_usec = 0;
+		
+		int ret = ::select(maxfd + 1, 
+			&readfds,
+			&writefds,
+			&exceptfds,
+			&timeout);
+		
+		if (ret > 0)
+		{
+			eventnum = 1;
+			if (FD_ISSET(s, &exceptfds) != 0)
+			{
+				iserr = true;
+			}
+			if (FD_ISSET(s, &readfds) != 0)
+			{
+				isin = true;
+			}
+			if (FD_ISSET(s, &writefds) != 0)
+			{
+				isout = true;
+			}
+		}
     }
+    fkpspush<int>(fk, eventnum);
     fkpspush<bool>(fk, iserr);
     fkpspush<bool>(fk, isin);
     fkpspush<bool>(fk, isout);
 }
-
 void buildin_tcp_socket(fake * fk, interpreter * inter)
 {
 	int s = ::socket(AF_INET, SOCK_STREAM, 0);
@@ -592,10 +609,8 @@ void buildinfuncnet::opennetfunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("buffer_pop_buffer"), buildin_buffer_popbuffer);
 	
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("selector"), buildin_selector_new);
-	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("selector_add"), buildin_selector_add);
-	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("selector_del"), buildin_selector_del);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("selector_set"), buildin_selector_set);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("selector_tick"), buildin_selector_tick);
-	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("selector_event"), buildin_selector_event);
 
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("socket"), buildin_tcp_socket);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("close"), buildin_tcp_close);
@@ -637,7 +652,7 @@ void buildinfuncnet::clear()
 {
     // 节省内存同时让maxsize严格
 	POOLLIST_CLEAR(m_buffer, buffer, BUFFER_DELETE(n->t));
-	POOLLIST_CLEAR(m_selector, selector, SELECTOR_CLR(n->t));
+	POOLLIST_CLEAR(m_selector, selector, USE(n->t));
 }
 
 buffer * buildinfuncnet::newbuffer(int size)
@@ -654,9 +669,7 @@ selector * buildinfuncnet::newselector()
 {
     pool<selector>::node * n = 0;
     POOLLIST_POP(m_selector, n, selector, m_fk->cfg.array_grow_speed);
-
-    SELECTOR_CLR(n->t);
-    
+    n->t.s = 0;
     return &n->t;
 }
 

@@ -727,7 +727,7 @@ bool compiler::compile_continue_stmt(codegen & cg, continue_stmt * cs)
     }
 	
 	cg.push(MAKE_OPCODE(OPCODE_JMP), cs->lineno());
-	cg.push(m_loop_continue_pos_stack[m_loop_continue_pos_stack.size() - 1], cs->lineno());
+	cg.push(MAKE_POS(m_loop_continue_pos_stack[m_loop_continue_pos_stack.size() - 1]), cs->lineno());
 
     FKLOG("[compiler] compile_continue_stmt %p OK", cs);
     

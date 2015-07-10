@@ -71,7 +71,7 @@ int main(int argc, const char *argv[])
 
 	if (isopenprofile)
 	{
-		printf("call profile:\n%s", fkdumpprofile(fk));
+		printf("\n%s", fkdumpprofile(fk));
 	}
 
 	delfake(fk);
