@@ -86,6 +86,7 @@ int my_yyerror(const char *s, void * parm)
 %token SWITCH CASE DEFAULT
 %token NEW_ASSIGN
 %token ELSEIF
+%token RIGHT_POINTER
 
 %left PLUS
 %left MINUS
@@ -93,7 +94,7 @@ int my_yyerror(const char *s, void * parm)
 %left MULTIPLY
 %left DIVIDE_MOD
 
-%expect 26
+%expect 28
 
 %type<str> IDENTIFIER  
 %type<str> NUMBER
@@ -144,6 +145,7 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> expr_value
 %type<syntree> math_assign_stmt
 %type<syntree> for_stmt
+%type<syntree> for_loop_stmt
 %type<syntree> multi_assign_stmt
 %type<syntree> var_list
 %type<syntree> fake_call_stmt
@@ -487,6 +489,12 @@ stmt:
 		$$ = $1;
 	}
 	|
+	for_loop_stmt
+	{
+		FKLOG("[bison]: stmt <- for_loop_stmt");
+		$$ = $1;
+	}
+	|
 	fake_call_stmt
 	{
 		FKLOG("[bison]: stmt <- fake_call_stmt");
@@ -536,11 +544,37 @@ for_stmt:
 	|
 	FOR block ARG_SPLITTER cmp ARG_SPLITTER block THEN END
 	{
-		FKLOG("[bison]: for_stmt <- block cmp block");
+		FKLOG("[bison]: for_stmt <- block cmp");
 		NEWTYPE(p, for_stmt);
 		p->cmp = dynamic_cast<cmp_stmt*>($4);
 		p->beginblock = dynamic_cast<block_node*>($2);
 		p->endblock = dynamic_cast<block_node*>($6);
+		p->block = 0;
+		$$ = p;
+	}
+	;
+
+for_loop_stmt:
+	FOR var ASSIGN assign_value RIGHT_POINTER cmp_value ARG_SPLITTER expr_value THEN block END
+	{
+		FKLOG("[bison]: for_loop_stmt <- block");
+		NEWTYPE(p, for_loop_stmt);
+		p->var = $2;
+		p->begin = $4;
+		p->end = $6;
+		p->add = $8;
+		p->block = dynamic_cast<block_node*>($10);
+		$$ = p;
+	}
+	|
+	FOR var ASSIGN assign_value RIGHT_POINTER cmp_value ARG_SPLITTER expr_value THEN END
+	{
+		FKLOG("[bison]: for_loop_stmt <- empty");
+		NEWTYPE(p, for_loop_stmt);
+		p->var = $2;
+		p->begin = $4;
+		p->end = $6;
+		p->add = $8;
 		p->block = 0;
 		$$ = p;
 	}

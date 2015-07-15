@@ -50,7 +50,7 @@
 
 #include <iostream>
 #  ifndef FLEX_STD
-#    define FLEX_STD std::
+#	define FLEX_STD std::
 #  endif
 
 extern "C++" {

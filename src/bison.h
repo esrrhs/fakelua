@@ -99,7 +99,8 @@
      CASE = 315,
      DEFAULT = 316,
      NEW_ASSIGN = 317,
-     ELSEIF = 318
+     ELSEIF = 318,
+     RIGHT_POINTER = 319
    };
 #endif
 

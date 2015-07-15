@@ -1,6 +1,9 @@
 
--- func1 comment
-func myfunc1(arg1, arg2)
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
 	
 	var f2 = "
 	func myfunc2(arg1, arg2)
@@ -10,7 +13,7 @@ func myfunc1(arg1, arg2)
 		print(\"this is myfunc2\")
 		
 		var f1 = \"
-			func myfunc1(arg1, arg2)
+			func main()
 				
 				print(\\"this is myfunc1\\")
 				
@@ -19,7 +22,7 @@ func myfunc1(arg1, arg2)
 		
 		print(f1)
 		dostring(f1)
-		myfunc1(arg1, arg2)
+		main()
 		
 		return 0
 		

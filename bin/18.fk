@@ -1,6 +1,9 @@
--- func1 comment
-func myfunc1(arg1, arg2)
+-- main comment
+func main()
 	
-	return 1 + arg1:memfunc1(arg2)
+	var arg1 = new_test_class1()
+	var arg2 = 2
+	
+	return print(1 + arg1:test_memfunc1(arg2))
 	
 end

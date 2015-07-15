@@ -26,20 +26,20 @@ class funcmap
 	friend class assembler;
 public:
 	force_inline funcmap(fake * fk) : m_fk(fk), m_shh(fk)
-    {
-    }
+	{
+	}
 
 	force_inline ~funcmap()
-    {
-        clear();
-    }
+	{
+		clear();
+	}
 
-    force_inline fake * getfake()
-    {
-        return m_fk;
-    }
+	force_inline fake * getfake()
+	{
+		return m_fk;
+	}
 
-    force_inline void clear()
+	force_inline void clear()
 	{
 		for (const fkhashmap<variant, funcunion>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
 		{
@@ -49,9 +49,9 @@ public:
 				FUNC_BINARY_DELETE(f.fb);
 			}
 		}
-        m_shh.clear();
-        m_dump.clear();
-    }
+		m_shh.clear();
+		m_dump.clear();
+	}
 
 	force_inline const funcunion * get_func(const variant & name) const
 	{
@@ -94,12 +94,12 @@ public:
 		f->havefn = true;
 	}
 
-    String & dump();
+	String & dump();
 
-    force_inline size_t size() const
-    {
-        return m_shh.size();
-    }
+	force_inline size_t size() const
+	{
+		return m_shh.size();
+	}
 
 private:
 	force_inline funcunion * add_func_union(const variant & name)
@@ -116,7 +116,7 @@ private:
 	}
 
 private:
-    fake * m_fk;
+	fake * m_fk;
 	fkhashmap<variant, funcunion> m_shh;
 	String m_dump;
 };

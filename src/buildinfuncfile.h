@@ -10,25 +10,25 @@ class buildinfuncfile
 {
 public:
 	force_inline buildinfuncfile(fake * fk) : m_fk(fk)
-    {
-    }
-    force_inline ~buildinfuncfile()
-    {
-        clear();
-    }
+	{
+	}
+	force_inline ~buildinfuncfile()
+	{
+		clear();
+	}
 
-    force_inline fake * getfake()
-    {
-        return m_fk;
-    }
+	force_inline fake * getfake()
+	{
+		return m_fk;
+	}
 
-    force_inline void clear()
-    {
-    }
+	force_inline void clear()
+	{
+	}
 
-    void openfilefunc();
-    
+	void openfilefunc();
+	
 private:
-    fake * m_fk;
+	fake * m_fk;
 };
 

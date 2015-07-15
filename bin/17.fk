@@ -1,6 +1,9 @@
--- func1 comment
-func myfunc1(arg1, arg2)
+-- main comment
+func main()
 	
-	return 1 + cfunc1(-10, cfunc1(arg1, arg2))
+	var arg1 = 1
+	var arg2 = 2
+	
+	return 1 + test_cfunc1(-10, test_cfunc1(arg1, arg2))
 	
 end

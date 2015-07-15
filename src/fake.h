@@ -37,89 +37,89 @@
 struct fake
 {
 	fake() : errorno(0), errorcb(0), pa(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this)
-    {
-        POOL_INI(pp, this);
-    }
-    ~fake()
-    {
-        clear();
-        pool<processor>::node * ppn = pp.m_data;
-        while (ppn != 0)
-        {
-            PROCESS_DELETE(ppn->t);
-            ppn = ppn->next;
-        }
-        POOL_DELETE(pp);
-    }
+	{
+		POOL_INI(pp, this);
+	}
+	~fake()
+	{
+		clear();
+		pool<processor>::node * ppn = pp.m_data;
+		while (ppn != 0)
+		{
+			PROCESS_DELETE(ppn->t);
+			ppn = ppn->next;
+		}
+		POOL_DELETE(pp);
+	}
 
-    // 清空
-    void clear()
-    {
-        clearerr();
-        pa.clear();
-        bin.clear();
-        nt.clear();
-        as.clear();
-        ps.clear();
-        POOL_CLEAR(pp);
-        sh.clear();
-        mac.clear();
-        bf.clear();
-        bif.clear();
-        pf.clear();
+	// 清空
+	void clear()
+	{
+		clearerr();
+		pa.clear();
+		bin.clear();
+		nt.clear();
+		as.clear();
+		PS_CLEAR(ps);
+		POOL_CLEAR(pp);
+		sh.clear();
+		mac.clear();
+		bf.clear();
+		bif.clear();
+		pf.clear();
 		con.clear();
 		fm.clear();
 		rn.clear();
-    }
-    
-    void clearerr()
-    {
-        errorno = 0;
-        errorstr[0] = 0;
-    }
-    
-    int errorno;
-    char errorstr[128];
-    fkerrorcb errorcb;
-    
-    // 配置
-    fakeconfig cfg;
+	}
+	
+	void clearerr()
+	{
+		errorno = 0;
+		errorstr[0] = 0;
+	}
+	
+	int errorno;
+	char errorstr[128];
+	fkerrorcb errorcb;
+	
+	// 配置
+	fakeconfig cfg;
 
-    // 解析
-    parser pa;
+	// 解析
+	parser pa;
 
-    // 二进制
-    binary bin;
-    
-    // 本地jit代码
-    native nt;
+	// 二进制
+	binary bin;
+	
+	// 本地jit代码
+	native nt;
 
-    // 汇编器
-    assembler as;
+	// 汇编器
+	assembler as;
 
-    // c的参数栈
-    paramstack ps;
+	// c的参数栈
+	paramstack ps;
 
-    // 执行器池子
-    pool<processor> pp;
+	// 执行器池子
+	pool<processor> pp;
 
-    // 字符串集合
-    stringheap sh;
+	// 字符串集合
+	stringheap sh;
 
-    // 当前线程本地环境
-    machine mac;
+	// 当前线程本地环境
+	machine mac;
 
-    // 绑定C函数集合
-    bindfunc bf;
+	// 绑定C函数集合
+	bindfunc bf;
 
-    // 内建的函数集合
-    buildinfunc bif;
+	// 内建的函数集合
+	buildinfunc bif;
 
-    // 性能检测
-    profile pf;
+	// 性能检测
+	profile pf;
 
-    // 容器
-    container con;
+	// 容器
+	container con;
 
 	// 函数索引
 	funcmap fm;
@@ -131,21 +131,21 @@ struct fake
 template <typename T>
 T * fknew(fake * fk)
 {
-    T * t = (T *)fk->cfg.fkm(sizeof(T));
-    new (t) T();
-    return t;
+	T * t = (T *)fk->cfg.fkm(sizeof(T));
+	new (t) T();
+	return t;
 }
 
 template <typename T, typename P1>
 T * fknew(fake * fk, P1 p1)
 {
-    T * t = (T *)fk->cfg.fkm(sizeof(T));
+	T * t = (T *)fk->cfg.fkm(sizeof(T));
 	if (!t)
 	{
 		return 0;
 	}
-    new (t) T(p1);
-    return t;
+	new (t) T(p1);
+	return t;
 }
 
 template <typename T>

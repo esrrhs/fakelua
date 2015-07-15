@@ -11,13 +11,13 @@
 // sleep
 void buildin_os_sleep(fake * fk, interpreter * inter)
 {
-    int millionseconds = fkpspop<int>(fk);
+	int millionseconds = fkpspop<int>(fk);
 #if defined(WIN32)
 	::Sleep(millionseconds);
 #else
 	usleep(millionseconds * 1000);
 #endif
-    fkpspush<int>(fk, 0);
+	fkpspush<int>(fk, 0);
 }
 
 // argc

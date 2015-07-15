@@ -8,11 +8,11 @@ struct fake;
 
 struct stringele
 {
-    // 更新计数
-    uint32_t update;
+	// 更新计数
+	uint32_t update;
 	// string
-    char * s;
-    uint32_t sz;
+	char * s;
+	uint32_t sz;
 	// 系统引用
 	uint32_t sysref;
 };
@@ -20,7 +20,7 @@ struct stringele
 class stringheap
 {
 public:
-    stringheap(fake * fk);
+	stringheap(fake * fk);
 	~stringheap();
 
 	void clear();

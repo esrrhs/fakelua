@@ -3,30 +3,30 @@
 #include "types.h"
 
 /*
-type:           [1]
-iter:     begin(2)     end(8)
-            |           |
+type:		   [1]
+iter:	 begin(2)	 end(8)
+			|		   |
 data:   _ _ * * * * * * _ _ _ 
 buffer: _ _ _ _ _ _ _ _ _ _ _ 
 index:  0 1 2 3 4 5 6 7 8 9 10
 
-type:           [2]
-iter:      end(2)   begin(7)
-            |         |
+type:		   [2]
+iter:	  end(2)   begin(7)
+			|		 |
 data:   * * _ _ _ _ _ * * * *  
 buffer: _ _ _ _ _ _ _ _ _ _ _ 
 index:  0 1 2 3 4 5 6 7 8 9 10
 
 
-type:           [3]
-iter:      begin(4),end(4)
-                |
+type:		   [3]
+iter:	  begin(4),end(4)
+				|
 data:   _ _ _ _ _ _ _ _ _ _ _ 
 buffer: _ _ _ _ _ _ _ _ _ _ _ 
 index:  0 1 2 3 4 5 6 7 8 9 10
 
-type:           [4]
-iter:      begin(4),end(4)
+type:		   [4]
+iter:	  begin(4),end(4)
 |				 |
 data:   * * * * * * * * * * *
 buffer: _ _ _ _ _ _ _ _ _ _ _
@@ -36,30 +36,30 @@ index:  0 1 2 3 4 5 6 7 8 9 10
 struct fake;
 struct buffer
 {
-    force_inline void ini(fake * fk, size_t len)
-    {
-        m_fk = fk;
-        m_size = len;
-        m_buffer = (char*)safe_fkmalloc(m_fk, len);
+	force_inline void ini(fake * fk, size_t len)
+	{
+		m_fk = fk;
+		m_size = len;
+		m_buffer = (char*)safe_fkmalloc(m_fk, len);
 		m_datasize = 0;
 		m_begin = 0;
 		m_end = 0;
 		m_store_datasize = 0;
 		m_store_begin = 0;
 		m_store_end = 0;
-    }
-    force_inline void fini()
-    {   
-        m_size = 0;
-        safe_fkfree(m_fk, m_buffer);
-        m_buffer = 0;
+	}
+	force_inline void fini()
+	{   
+		m_size = 0;
+		safe_fkfree(m_fk, m_buffer);
+		m_buffer = 0;
 		m_datasize = 0;
 		m_begin = 0;
 		m_end = 0;
 		m_store_datasize = 0;
 		m_store_begin = 0;
 		m_store_end = 0;
-    }
+	}
 	force_inline bool can_write(size_t size)
 	{
 		return m_datasize + size <= m_size;
@@ -128,6 +128,11 @@ struct buffer
 		if (UNLIKE(m_begin >= m_size))
 		{
 			m_begin -= m_size;
+		}
+		if (!m_datasize)
+		{
+			m_begin = 0;
+			m_end = 0;
 		}
 	}
 	force_inline bool read(char * out, size_t size)
@@ -215,7 +220,7 @@ struct buffer
 		return FKMIN(m_size - m_datasize, m_size - m_end);
 	}
 private:
-    fake * m_fk;
+	fake * m_fk;
 	char * m_buffer;
 	size_t m_size;
 	size_t m_datasize;

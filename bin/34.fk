@@ -8,8 +8,11 @@ struct _server
 	b
 end
 
--- func1 comment
-func myfunc1(arg1, arg2)
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
 	
 	var c = _client()
 	c->b = buffer.new(100)
@@ -17,10 +20,10 @@ func myfunc1(arg1, arg2)
 	var client = net.new_tcp_client("127.0.0.1", 8888, 1024 * 1024, 1024 * 8, "on_connnect", "on_close", "on_parse", c)
 	print(client)
 	
-	var server = net.new_tcp_server("127.0.0.1", 8888, 1024 * 1024, 1024 * 8, 5, "on_accept", "on_link_close", "on_link_parse")
+	var server = net.new_tcp_server("127.0.0.1", 8888, 1024 * 1024, 1024 * 8, 5, "on_accept", "on_link_close", "on_link_parse", 0)
 	print(server)
 	
-	sleep 10*1000
+	sleep 3*1000
 	
 	client->is_open = false
 	server->is_open = false
@@ -56,7 +59,7 @@ func on_parse(c, userdata, recvbuffer)
 	
 end
 
-func on_accept(l, s)
+func on_accept(sv, l, s)
 
 	print("on_accept ", s)
 
@@ -66,13 +69,13 @@ func on_accept(l, s)
 	
 end
 
-func on_link_close(l, userdata)
+func on_link_close(sv, l, userdata)
 
 	print("on_link_close ", userdata)
 	
 end
 
-func on_link_parse(l, userdata, recvbuffer)
+func on_link_parse(sv, l, userdata, recvbuffer)
 
 	print("server recv:", buffer.pop_string(recvbuffer, 12))
 	

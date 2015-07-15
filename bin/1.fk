@@ -1,7 +1,7 @@
--- func1 comment
-func myfunc1(arg1, arg2)
+-- main comment
+func main()
 	
-	arg1 = -0.21
+	var arg1 = -0.21
 		
 	return arg1
 		

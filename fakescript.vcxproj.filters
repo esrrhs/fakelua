@@ -7,6 +7,12 @@
     <Filter Include="src">
       <UniqueIdentifier>{59da23e4-842a-491d-be7f-c70f17484dea}</UniqueIdentifier>
     </Filter>
+    <Filter Include="src\win32">
+      <UniqueIdentifier>{6b4f6a9e-9dc3-4524-8ffc-3a50ee1a3f31}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="src\package">
+      <UniqueIdentifier>{85f7bec9-1f0a-4ccf-84b9-15904555d230}</UniqueIdentifier>
+    </Filter>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="src\binary.h">
@@ -48,36 +54,84 @@
     <ClInclude Include="src\bison.h">
       <Filter>src</Filter>
     </ClInclude>
-    <ClInclude Include="src\assembler.h" />
-    <ClInclude Include="src\asmgen.h" />
-    <ClInclude Include="src\machine.h" />
-    <ClInclude Include="src\native.h" />
-    <ClInclude Include="src\win32\unistd.h" />
-    <ClInclude Include="src\win32\FlexLexer.h" />
-    <ClInclude Include="src\funcmap.h" />
-    <ClInclude Include="src\stringheap.h" />
-    <ClInclude Include="src\hashmap.h" />
-    <ClInclude Include="src\bindfunc.h" />
     <ClInclude Include="src\fake.h">
       <Filter>src</Filter>
     </ClInclude>
     <ClInclude Include="include\fakescript.h">
       <Filter>include</Filter>
     </ClInclude>
-    <ClInclude Include="src\buildinfunc.h" />
-    <ClInclude Include="src\profile.h" />
-    <ClInclude Include="src\array.h" />
-    <ClInclude Include="src\pool.h" />
-    <ClInclude Include="src\container.h" />
-    <ClInclude Include="src\running.h" />
-    <ClInclude Include="src\parser.h" />
-    <ClInclude Include="src\buildinfuncfile.h" />
-    <ClInclude Include="src\buildinfuncnet.h" />
-    <ClInclude Include="src\package\buffer.h" />
-    <ClInclude Include="src\package\selector.h" />
-    <ClInclude Include="src\buildinfuncos.h" />
-    <ClInclude Include="src\buildinfuncstring.h" />
-    <ClInclude Include="src\buildinfuncmath.h" />
+    <ClInclude Include="src\array.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\asmgen.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\assembler.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\bindfunc.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\buildinfunc.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\buildinfuncfile.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\buildinfuncmath.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\buildinfuncnet.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\buildinfuncos.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\buildinfuncstring.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\container.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\funcmap.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\hashmap.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\machine.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\native.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\parser.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\pool.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\profile.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\running.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\stringheap.h">
+      <Filter>src</Filter>
+    </ClInclude>
+    <ClInclude Include="src\win32\FlexLexer.h">
+      <Filter>src\win32</Filter>
+    </ClInclude>
+    <ClInclude Include="src\win32\unistd.h">
+      <Filter>src\win32</Filter>
+    </ClInclude>
+    <ClInclude Include="src\package\selector.h">
+      <Filter>src\package</Filter>
+    </ClInclude>
+    <ClInclude Include="src\package\buffer.h">
+      <Filter>src\package</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -119,34 +173,70 @@
     <ClCompile Include="src\flex.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\asmgen.cpp" />
-    <ClCompile Include="src\assembler.cpp" />
-    <ClCompile Include="src\machine.cpp" />
-    <ClCompile Include="src\native.cpp" />
-    <ClCompile Include="src\stringheap.cpp" />
-    <ClCompile Include="src\bindfunc.cpp" />
     <ClCompile Include="src\fake.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\fakescript.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\buildinfunc.cpp" />
-    <ClCompile Include="src\profile.cpp" />
-    <ClCompile Include="src\container.cpp" />
-    <ClCompile Include="src\funcmap.cpp" />
-    <ClCompile Include="src\running.cpp" />
-    <ClCompile Include="src\parser.cpp" />
-    <ClCompile Include="src\buildinfuncfile.cpp" />
-    <ClCompile Include="src\buildinfuncnet.cpp" />
-    <ClCompile Include="src\buildinfuncos.cpp" />
-    <ClCompile Include="src\buildinfuncstring.cpp" />
-    <ClCompile Include="src\buildinfuncmath.cpp" />
+    <ClCompile Include="src\asmgen.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\assembler.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\bindfunc.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\buildinfunc.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\buildinfuncfile.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\buildinfuncmath.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\buildinfuncnet.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\buildinfuncos.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\buildinfuncstring.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\container.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\funcmap.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\machine.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\native.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\parser.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\profile.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\running.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\stringheap.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <Text Include="CMakeLists.txt" />
   </ItemGroup>
   <ItemGroup>
-    <MASM Include="src\win32\nativecall.asm" />
+    <MASM Include="src\win32\nativecall.asm">
+      <Filter>src\win32</Filter>
+    </MASM>
   </ItemGroup>
 </Project>

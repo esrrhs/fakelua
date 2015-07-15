@@ -1,11 +1,14 @@
 #include "../package/os.fk"
 
--- func1 comment
-func myfunc1(arg1, arg2)
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
 	
 	print("myfunc1")
 	
-	os.sleeps(1000)
+	os.sleeps(500)
 	
 	for var i = 0, i < 10, i+=1 then
 		myfunc2()

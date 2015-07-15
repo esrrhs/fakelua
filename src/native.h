@@ -10,23 +10,23 @@
 
 struct func_native
 {
-    String dump() const;
-    // 名字
-    const char * m_name;
-    // 文件名
-    const char * m_filename;
-    // 包名
-    const char * m_packagename;
-    // code
-    char * m_buff;
-    size_t m_size;
-    // code行号缓冲区
-    int * m_lineno_buff;
-    int m_lineno_size;
-    // 占用标记
-    mutable int m_use;
-    // 备份
-    mutable func_native * m_backup;
+	String dump() const;
+	// 名字
+	const char * m_name;
+	// 文件名
+	const char * m_filename;
+	// 包名
+	const char * m_packagename;
+	// code
+	char * m_buff;
+	size_t m_size;
+	// code行号缓冲区
+	int * m_lineno_buff;
+	int m_lineno_size;
+	// 占用标记
+	mutable int m_use;
+	// 备份
+	mutable func_native * m_backup;
 };
 
 #define FUNC_NATIVE_INI(fn) \
@@ -57,28 +57,28 @@ struct func_native
 class native
 {
 public:
-    force_inline native(fake * fk) : m_fk(fk)
-    {
-    }
-    force_inline ~native()
-    {
-        clear();
-    }
+	force_inline native(fake * fk) : m_fk(fk)
+	{
+	}
+	force_inline ~native()
+	{
+		clear();
+	}
 
-    force_inline fake * getfake()
-    {
-        return m_fk;
-    }
+	force_inline fake * getfake()
+	{
+		return m_fk;
+	}
 
-    force_inline void clear()
-    {
-    }
+	force_inline void clear()
+	{
+	}
 
-    bool add_func(const variant & name, const func_native & nt);
-    
-    String dump() const;
-    
+	bool add_func(const variant & name, const func_native & nt);
+	
+	String dump() const;
+	
 private:
-    fake * m_fk;
+	fake * m_fk;
 };
 

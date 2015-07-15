@@ -192,6 +192,10 @@
 	return ARG_SPLITTER;
 }
 
+"->" {
+	return RIGHT_POINTER;
+}
+
 "++" {
 	return INC;
 }

@@ -8,20 +8,20 @@ struct fake;
 class parser
 {
 public:
-    parser(fake * fk);
+	parser(fake * fk);
 	~parser();
 
 	void clear();
 
-    bool parse(const char * filename);
-    bool parsestr(const char * str);
-    
-    const char * get_parsing_file_list();
+	bool parse(const char * filename);
+	bool parsestr(const char * str);
+	
+	const char * get_parsing_file_list();
 
-    bool is_parsing(const char * filename);
+	bool is_parsing(const char * filename);
 
 private:
-    bool parse_include(const String & srcname, const String & includename);
+	bool parse_include(const String & srcname, const String & includename);
 
 private:
 	fake * m_fk;

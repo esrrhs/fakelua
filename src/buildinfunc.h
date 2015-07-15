@@ -17,34 +17,34 @@ class buildinfunc
 {
 public:
 	force_inline buildinfunc(fake * fk) : m_fk(fk), m_bifile(fk), m_bifnet(fk), m_bifos(fk), m_bifstring(fk), m_bifmath(fk)
-    {
-    }
-    force_inline ~buildinfunc()
-    {
-        clear();
-    }
+	{
+	}
+	force_inline ~buildinfunc()
+	{
+		clear();
+	}
 
-    force_inline fake * getfake()
-    {
-        return m_fk;
-    }
+	force_inline fake * getfake()
+	{
+		return m_fk;
+	}
 
-    force_inline void clear()
-    {
-        m_bifile.clear();
-        m_bifnet.clear();
-        m_bifos.clear();
-        m_bifstring.clear();
-    }
+	force_inline void clear()
+	{
+		m_bifile.clear();
+		m_bifnet.clear();
+		m_bifos.clear();
+		m_bifstring.clear();
+	}
 
-    void openbasefunc();
-    void openfilefunc();
-    void opennetfunc();
+	void openbasefunc();
+	void openfilefunc();
+	void opennetfunc();
 	void openosfunc();
 	void openstringfunc();
 	void openmathfunc();
 
-    buffer * newbuffer(int size);
+	buffer * newbuffer(int size);
 	selector * newselector();
 
 	void setargv(int argc, const char *argv[]);
@@ -55,11 +55,11 @@ public:
 	int getseed() const;
 
 private:
-    fake * m_fk;
-    buildinfuncfile m_bifile;
-    buildinfuncnet m_bifnet;
-    buildinfuncos m_bifos;
-    buildinfuncstring m_bifstring;
+	fake * m_fk;
+	buildinfuncfile m_bifile;
+	buildinfuncnet m_bifnet;
+	buildinfuncos m_bifos;
+	buildinfuncstring m_bifstring;
 	buildinfuncmath m_bifmath;
 };
 

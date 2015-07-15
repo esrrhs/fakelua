@@ -3,17 +3,7 @@ Microsoft Visual Studio Solution File, Format Version 12.00
 # Visual Studio 2013
 VisualStudioVersion = 12.0.21005.1
 MinimumVisualStudioVersion = 10.0.40219.1
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "test", "test\test.vcxproj", "{BED6654C-1638-49E1-ABA6-49DD89188598}"
-	ProjectSection(ProjectDependencies) = postProject
-		{577D7563-0013-47F8-A6AF-2A025CE98E9A} = {577D7563-0013-47F8-A6AF-2A025CE98E9A}
-	EndProjectSection
-EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "luatest", "luatest\luatest.vcxproj", "{0D25D834-F7E4-4ED9-9AE0-A145897137D4}"
-EndProject
-Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "testjit", "testjit\testjit.vcxproj", "{5810782D-21EA-412C-AD54-1410CB8ED806}"
-	ProjectSection(ProjectDependencies) = postProject
-		{577D7563-0013-47F8-A6AF-2A025CE98E9A} = {577D7563-0013-47F8-A6AF-2A025CE98E9A}
-	EndProjectSection
 EndProject
 Project("{8BC9CEB8-8B4A-11D0-8D11-00A0C91BC942}") = "fakescript", "fakescript.vcxproj", "{577D7563-0013-47F8-A6AF-2A025CE98E9A}"
 EndProject
@@ -30,14 +20,6 @@ Global
 		Release|x64 = Release|x64
 	EndGlobalSection
 	GlobalSection(ProjectConfigurationPlatforms) = postSolution
-		{BED6654C-1638-49E1-ABA6-49DD89188598}.Debug|Win32.ActiveCfg = Debug|Win32
-		{BED6654C-1638-49E1-ABA6-49DD89188598}.Debug|Win32.Build.0 = Debug|Win32
-		{BED6654C-1638-49E1-ABA6-49DD89188598}.Debug|x64.ActiveCfg = Debug|x64
-		{BED6654C-1638-49E1-ABA6-49DD89188598}.Debug|x64.Build.0 = Debug|x64
-		{BED6654C-1638-49E1-ABA6-49DD89188598}.Release|Win32.ActiveCfg = Release|Win32
-		{BED6654C-1638-49E1-ABA6-49DD89188598}.Release|Win32.Build.0 = Release|Win32
-		{BED6654C-1638-49E1-ABA6-49DD89188598}.Release|x64.ActiveCfg = Release|x64
-		{BED6654C-1638-49E1-ABA6-49DD89188598}.Release|x64.Build.0 = Release|x64
 		{0D25D834-F7E4-4ED9-9AE0-A145897137D4}.Debug|Win32.ActiveCfg = Debug|Win32
 		{0D25D834-F7E4-4ED9-9AE0-A145897137D4}.Debug|Win32.Build.0 = Debug|Win32
 		{0D25D834-F7E4-4ED9-9AE0-A145897137D4}.Debug|x64.ActiveCfg = Debug|x64
@@ -46,14 +28,6 @@ Global
 		{0D25D834-F7E4-4ED9-9AE0-A145897137D4}.Release|Win32.Build.0 = Release|Win32
 		{0D25D834-F7E4-4ED9-9AE0-A145897137D4}.Release|x64.ActiveCfg = Release|x64
 		{0D25D834-F7E4-4ED9-9AE0-A145897137D4}.Release|x64.Build.0 = Release|x64
-		{5810782D-21EA-412C-AD54-1410CB8ED806}.Debug|Win32.ActiveCfg = Debug|Win32
-		{5810782D-21EA-412C-AD54-1410CB8ED806}.Debug|Win32.Build.0 = Debug|Win32
-		{5810782D-21EA-412C-AD54-1410CB8ED806}.Debug|x64.ActiveCfg = Debug|x64
-		{5810782D-21EA-412C-AD54-1410CB8ED806}.Debug|x64.Build.0 = Debug|x64
-		{5810782D-21EA-412C-AD54-1410CB8ED806}.Release|Win32.ActiveCfg = Release|Win32
-		{5810782D-21EA-412C-AD54-1410CB8ED806}.Release|Win32.Build.0 = Release|Win32
-		{5810782D-21EA-412C-AD54-1410CB8ED806}.Release|x64.ActiveCfg = Release|x64
-		{5810782D-21EA-412C-AD54-1410CB8ED806}.Release|x64.Build.0 = Release|x64
 		{577D7563-0013-47F8-A6AF-2A025CE98E9A}.Debug|Win32.ActiveCfg = Debug|Win32
 		{577D7563-0013-47F8-A6AF-2A025CE98E9A}.Debug|Win32.Build.0 = Debug|Win32
 		{577D7563-0013-47F8-A6AF-2A025CE98E9A}.Debug|x64.ActiveCfg = Debug|x64
