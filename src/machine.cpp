@@ -26,12 +26,12 @@ void machine::call(const variant & func)
 	fake * fk = m_fk;
 
 	const funcunion * f = m_fk->fm.get_func(func);
-    if (UNLIKE(!f))
-    {
-        FKERR("fkrun native no func %s fail", vartostring(&func).c_str());
-        seterror(m_fk, efk_run_no_func_error, "fkrun native no func %s fail", vartostring(&func).c_str());
-        m_isend = true;
-        return;
+	if (UNLIKE(!f))
+	{
+		FKERR("fkrun native no func %s fail", vartostring(&func).c_str());
+		seterror(m_fk, efk_run_no_func_error, "fkrun native no func %s fail", vartostring(&func).c_str());
+		m_isend = true;
+		return;
 	}
 
 	// 记录profile
@@ -88,15 +88,15 @@ void machine::call(const variant & func)
 			:
 		);
 		
-	    // push参数
-	    for (i = 0; i < (int)ps->m_variant_list_num; i++)
-	    {
-	        type = ps->m_variant_list[i].type;
+		// push参数
+		for (i = 0; i < (int)ps->m_variant_list_num; i++)
+		{
+			type = ps->m_variant_list[i].type;
 			data = ps->m_variant_list[i].data.buf;
 
 			typeoff = V_TYPE_OFF(i) - 0x10;
 			dataoff = V_DATA_OFF(i) - 0x10;
-	        asm(
+			asm(
 				"mov %%rsp,%%rax \n"
 				"add %0,%%rax \n"
 				"mov %1,(%%rax) \n"
@@ -114,9 +114,9 @@ void machine::call(const variant & func)
 			);
 		}
 		
-	    // call
-	    f();
-	    
+		// call
+		f();
+		
 		asm(
 			"pop %%rdi \n"
 			"pop %%rsi \n"
@@ -155,7 +155,7 @@ void machine::call(const variant & func)
 
 	if (m_fk->pf.isopen())
 	{
-	    bool err = false;
+		bool err = false;
 		const char * name = 0;
 		V_GET_STRING(&func, name);
 		m_fk->pf.add_func_sample(name, fkgetmstick() - s);

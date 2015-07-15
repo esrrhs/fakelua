@@ -7,263 +7,303 @@
 #include "array.h"
 #include "container.h"
 
-struct fake;
+/**************
+[ret pos] .. [ret pos] [ret num] [old ip] [call time] [old fb] [old bp] 
+**************/
+#define BP_SIZE (5)
 
-#define GET_CMD(fb, pos) fb.m_buff[pos]
+#define BP_END(bp) (!bp)
 
-#define GET_CMD_LINENO(fb, pos) (pos >= 0 && pos < (int)fb.m_lineno_size) ? fb.m_lineno_buff[pos] : (fb.m_lineno_size > 0 ? fb.m_lineno_buff[fb.m_lineno_size - 1] : 0)
+#define BP_GET_RETPOS(bp, retnum, retpos, i) \
+	assert(bp - 5 - retnum + i >= 0);\
+	assert(ARRAY_GET(m_stack, bp - 5 - retnum + i).type == variant::NIL);\
+	retpos = ((int)(ARRAY_GET(m_stack, bp - 5 - retnum + i).data.buf))
+	
+#define BP_GET_RETNUM(bp, retnum) \
+	assert(bp - 5 >= 0);\
+	assert(ARRAY_GET(m_stack, bp - 5).type == variant::NIL);\
+	retnum = ((int)(ARRAY_GET(m_stack, bp - 5).data.buf))
+	
+#define BP_GET_IP(bp, oldip) \
+	assert(bp - 4 >= 0);\
+	assert(ARRAY_GET(m_stack, bp - 4).type == variant::NIL);\
+	oldip = ((int)(ARRAY_GET(m_stack, bp - 4).data.buf))
+	
+#define BP_GET_CALLTIME(bp, calltime) \
+	assert(bp - 3 >= 0);\
+	assert(ARRAY_GET(m_stack, bp - 3).type == variant::NIL);\
+	calltime = ((uint32_t)(ARRAY_GET(m_stack, bp - 3).data.buf))
+	
+#define BP_GET_FB(bp, fb) \
+	assert(bp - 2 >= 0);\
+	assert(ARRAY_GET(m_stack, bp - 2).type == variant::NIL);\
+	fb = ((const func_binary *)(ARRAY_GET(m_stack, bp - 2).data.buf))
+	
+#define BP_GET_BP(bp, callbp) \
+	assert(bp - 1 >= 0);\
+	assert(ARRAY_GET(m_stack, bp - 1).type == variant::NIL);\
+	callbp = ((int)(ARRAY_GET(m_stack, bp - 1).data.buf))
+
+#define GET_CMD(fb, ip) (fb).m_buff[ip]
+
+#define GET_CMD_LINENO(fb, pos) (pos >= 0 && pos < (int)(fb).m_lineno_size) ? (fb).m_lineno_buff[pos] : ((fb).m_lineno_size > 0 ? (fb).m_lineno_buff[(fb).m_lineno_size - 1] : 0)
 
 #define GET_CONST(v, fb, pos) \
-    assert(pos >= 0 && pos < (int)fb.m_const_list_num);\
-    v = &fb.m_const_list[pos];
+	assert(pos >= 0 && pos < (int)(fb).m_const_list_num);\
+	v = &((fb).m_const_list[pos]);
 
-#define GET_CONTAINER(v, s, fb, pos) v = get_container_variant(s, fb, pos)
+#define GET_CONTAINER(v, fb, pos) v = get_container_variant(fb, pos)
 
-#define GET_STACK(v, s, pos) \
-	assert(pos >= 0 && pos < (int)ARRAY_MAX_SIZE((s).m_stack_variant_list));\
-    v = &ARRAY_GET((s).m_stack_variant_list, pos);
+#define GET_STACK(bp, v, pos) \
+	assert(pos >= 0 && pos < (int)ARRAY_MAX_SIZE(m_stack));\
+	v = &ARRAY_GET(m_stack, bp + pos);
 
-#define SET_STACK(v, s, pos) \
-	assert(pos >= 0 && pos < (int)ARRAY_MAX_SIZE((s).m_stack_variant_list));\
-    ARRAY_GET((s).m_stack_variant_list, pos) = *v;
-    
-#define GET_VARIANT(s, fb, v, pos) \
-    GET_VARIANT_BY_CMD(s, fb, v, GET_CMD(fb, pos))
-    
-#define GET_VARIANT_BY_CMD(s, fb, v, cmd) \
-    command v##_cmd = cmd;\
-    assert (COMMAND_TYPE(v##_cmd) == COMMAND_ADDR);\
-    int v##_addrtype = ADDR_TYPE(COMMAND_CODE(v##_cmd));\
-    int v##_addrpos = ADDR_POS(COMMAND_CODE(v##_cmd));\
-    assert (v##_addrtype == ADDR_STACK || v##_addrtype == ADDR_CONST || v##_addrtype == ADDR_CONTAINER);\
-    if (v##_addrtype == ADDR_STACK)\
-    {\
-        GET_STACK(v, s, (v##_addrpos));\
-    }\
-    else if (v##_addrtype == ADDR_CONST)\
-    {\
+#define CHECK_STACK_POS(fb, ip) (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, ip))) == ADDR_STACK)
+#define CHECK_CONTAINER_POS(fb, ip) (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, ip))) == ADDR_CONTAINER)
+#define POS_TYPE_NAME(fb, ip) vartypetostring((int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, ip))))
+
+#define GET_VARIANT(fb, bp, v, pos) \
+	GET_VARIANT_BY_CMD(fb, bp, v, GET_CMD(fb, pos))
+	
+#define GET_VARIANT_BY_CMD(fb, bp, v, cmd) \
+	command v##_cmd = cmd;\
+	assert (COMMAND_TYPE(v##_cmd) == COMMAND_ADDR);\
+	int v##_addrtype = ADDR_TYPE(COMMAND_CODE(v##_cmd));\
+	int v##_addrpos = ADDR_POS(COMMAND_CODE(v##_cmd));\
+	assert (v##_addrtype == ADDR_STACK || v##_addrtype == ADDR_CONST || v##_addrtype == ADDR_CONTAINER);\
+	if (LIKE(v##_addrtype == ADDR_STACK))\
+	{\
+		GET_STACK(bp, v, (v##_addrpos));\
+	}\
+	else if (v##_addrtype == ADDR_CONST)\
+	{\
 		GET_CONST(v, fb, (v##_addrpos)); \
-    }\
-    else if (v##_addrtype == ADDR_CONTAINER)\
-    {\
-		GET_CONTAINER(v, s, fb, (v##_addrpos)); \
+	}\
+	else if (v##_addrtype == ADDR_CONTAINER)\
+	{\
+		GET_CONTAINER(v, fb, (v##_addrpos)); \
 		if (!v) \
 		{ \
-		    err = true; \
-		    break;\
+			err = true; \
+			break;\
 		} \
-    }\
-    else\
-    {\
+	}\
+	else\
+	{\
 		v = 0;\
-        assert(0);\
-        FKERR("next_assign assignaddrtype cannot be %d %d", v##_addrtype, v##_addrpos);\
-        err = true;\
-        break;\
-    }
+		assert(0);\
+		FKERR("addrtype cannot be %d %d", v##_addrtype, v##_addrpos);\
+		err = true;\
+		break;\
+	}
 
-#define LOG_VARIANT(s, fb, pos, prefix) \
-    FKLOG(prefix " variant %d %d", \
-        ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, pos))),\
-        ADDR_POS(COMMAND_CODE(GET_CMD(fb, pos))));
+#define LOG_VARIANT(fb, ip, prefix) \
+	FKLOG(prefix " variant %d %d", \
+		ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, ip))),\
+		ADDR_POS(COMMAND_CODE(GET_CMD(fb, ip))));
 
-#define MATH_OPER(s, fb, oper) \
+#define MATH_OPER(fb, bp, ip, oper) \
 	const variant * left = 0;\
-	LOG_VARIANT(s, fb, (s).m_pos, "left");\
-    GET_VARIANT(s, fb, left, (s).m_pos);\
-    (s).m_pos++;\
-    \
+	LOG_VARIANT(fb, ip, "left");\
+	GET_VARIANT(fb, bp, left, ip);\
+	ip++;\
+	\
 	const variant * right = 0;\
-	LOG_VARIANT(s, fb, (s).m_pos, "right");\
-    GET_VARIANT(s, fb, right, (s).m_pos);\
-    (s).m_pos++;\
-    \
+	LOG_VARIANT(fb, ip, "right");\
+	GET_VARIANT(fb, bp, right, ip);\
+	ip++;\
+	\
 	variant * dest;\
-	if (UNLIKE(!(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK))) \
+	if (UNLIKE(!(CHECK_STACK_POS(fb, ip)))) \
 	{ \
-	    err = true; \
-	    seterror(fk, efk_run_inter_error, "interpreter math oper error, dest is not stack, type %s", vartypetostring((int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))))); \
-	    break; \
+		err = true; \
+		seterror(fk, efk_run_inter_error, "interpreter math oper error, dest is not stack, type %s", POS_TYPE_NAME(fb, ip)); \
+		break; \
 	} \
-    LOG_VARIANT(s, fb, (s).m_pos, "dest");\
-	GET_VARIANT(s, fb, dest, (s).m_pos);\
-    (s).m_pos++;\
-    \
+	LOG_VARIANT(fb, ip, "dest");\
+	GET_VARIANT(fb, bp, dest, ip);\
+	ip++;\
+	\
 	FKLOG("math left %s right %s", (vartostring(left)).c_str(), (vartostring(right)).c_str());\
-    \
-    V_##oper(dest, left, right);\
-    \
-    FKLOG("math %s %s", OpCodeStr(code), (vartostring(dest)).c_str());
+	\
+	V_##oper(dest, left, right);\
+	\
+	FKLOG("math %s %s", OpCodeStr(code), (vartostring(dest)).c_str());
  
-#define MATH_ASSIGN_OPER(s, fb, oper) \
+#define MATH_ASSIGN_OPER(fb, bp, ip, oper) \
 	variant * var = 0;\
-    if (UNLIKE(!(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK || ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_CONTAINER)))\
-    { \
-	    err = true; \
-	    seterror(fk, efk_run_inter_error, "interpreter math assign oper error, dest is not stack or container, type %s", vartypetostring((int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))))); \
-	    break; \
-    } \
-	LOG_VARIANT(s, fb, (s).m_pos, "var");\
-    GET_VARIANT(s, fb, var, (s).m_pos);\
-    (s).m_pos++;\
-    \
-	const variant * value = 0;\
-	LOG_VARIANT(s, fb, (s).m_pos, "value");\
-    GET_VARIANT(s, fb, value, (s).m_pos);\
-    (s).m_pos++;\
-    \
-	FKLOG("math var %s value %s", (vartostring(var)).c_str(), (vartostring(value)).c_str());\
-    \
-    V_##oper(var, var, value);\
-    \
-    FKLOG("math %s %s", OpCodeStr(code), (vartostring(var)).c_str());
-
-#define MATH_SINGLE_OPER(s, fb, oper) \
-	const variant * left = 0;\
-	LOG_VARIANT(s, fb, (s).m_pos, "left");\
-    GET_VARIANT(s, fb, left, (s).m_pos);\
-    (s).m_pos++;\
-    \
-	variant * dest;\
-	if (UNLIKE(!(ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))) == ADDR_STACK))) \
+	if (UNLIKE(!(CHECK_STACK_POS(fb, ip) || CHECK_CONTAINER_POS(fb, ip))))\
 	{ \
-	    err = true; \
-	    seterror(fk, efk_run_inter_error, "interpreter math oper error, dest is not stack, type %s", vartypetostring((int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, (s).m_pos))))); \
-	    break; \
+		err = true; \
+		seterror(fk, efk_run_inter_error, "interpreter math assign oper error, dest is not stack or container, type %s", POS_TYPE_NAME(fb, ip)); \
+		break; \
 	} \
-    LOG_VARIANT(s, fb, (s).m_pos, "dest");\
-	GET_VARIANT(s, fb, dest, (s).m_pos);\
-    (s).m_pos++;\
-    \
+	LOG_VARIANT(fb, ip, "var");\
+	GET_VARIANT(fb, bp, var, ip);\
+	ip++;\
+	\
+	const variant * value = 0;\
+	LOG_VARIANT(fb, ip, "value");\
+	GET_VARIANT(fb, bp, value, ip);\
+	ip++;\
+	\
+	FKLOG("math var %s value %s", (vartostring(var)).c_str(), (vartostring(value)).c_str());\
+	\
+	V_##oper(var, var, value);\
+	\
+	FKLOG("math %s %s", OpCodeStr(code), (vartostring(var)).c_str());
+
+#define MATH_SINGLE_OPER(fb, bp, ip, oper) \
+	const variant * left = 0;\
+	LOG_VARIANT(fb, ip, "left");\
+	GET_VARIANT(fb, bp, left, ip);\
+	ip++;\
+	\
+	variant * dest;\
+	if (UNLIKE(!(CHECK_STACK_POS(fb, ip)))) \
+	{ \
+		err = true; \
+		seterror(fk, efk_run_inter_error, "interpreter math oper error, dest is not stack, type %s", POS_TYPE_NAME(fb, ip)); \
+		break; \
+	} \
+	LOG_VARIANT(fb, ip, "dest");\
+	GET_VARIANT(fb, bp, dest, ip);\
+	ip++;\
+	\
 	FKLOG("single math left %s", (vartostring(left)).c_str());\
-    \
-    V_##oper(dest, left);\
-    \
-    FKLOG("single math %s %s", OpCodeStr(code), (vartostring(dest)).c_str());
- 
-struct stack
-{
-    fake * m_fk;
-    // 函数二进制
-    const func_binary * m_fb;
-    // 当前执行位置
-    int m_pos;
-    // 当前栈上的变量
-	array<variant> m_stack_variant_list;
-	// 调用的函数返回本栈的个数和位置
-	int m_retnum;
-	int m_retvpos[MAX_FAKE_RETURN_NUM];
-	// 调用开始时间
-	uint32_t m_calltime;
-};
+	\
+	V_##oper(dest, left);\
+	\
+	FKLOG("single math %s %s", OpCodeStr(code), (vartostring(dest)).c_str());
+	
+#define MATH_OPER_JNE(fb, bp, ip, oper) \
+	const variant * left = 0;\
+	LOG_VARIANT(fb, ip, "left");\
+	GET_VARIANT(fb, bp, left, ip);\
+	ip++;\
+	\
+	const variant * right = 0;\
+	LOG_VARIANT(fb, ip, "right");\
+	GET_VARIANT(fb, bp, right, ip);\
+	ip++;\
+	\
+	/*dest*/\
+	ip++;\
+	int destip = COMMAND_CODE(GET_CMD(fb, ip));\
+	ip++;\
+	\
+	FKLOG("math left %s right %s", (vartostring(left)).c_str(), (vartostring(right)).c_str());\
+	\
+	bool b = false;\
+	V_##oper(b, left, right);\
+	\
+	if (!b)\
+	{\
+		FKLOG("jne %d", destip);\
+		ip = destip;\
+	}\
+	FKLOG("math %s %d", OpCodeStr(code), ip);
 
-#define STACK_DELETE(s) ARRAY_DELETE((s).m_stack_variant_list)
-#define STACK_INI(s, fk, fb) (s).m_fk = fk;\
-    (s).m_fb = fb;\
-    ARRAY_INI((s).m_stack_variant_list, fk);\
-    (s).m_pos = 0
+#define MATH_SINGLE_OPER_JNE(fb, bp, ip, oper) \
+	const variant * left = 0;\
+	LOG_VARIANT(fb, ip, "left");\
+	GET_VARIANT(fb, bp, left, ip);\
+	ip++;\
+	\
+	/*dest*/\
+	ip++;\
+	int destip = COMMAND_CODE(GET_CMD(fb, ip));\
+	ip++;\
+	\
+	FKLOG("single math left %s", (vartostring(left)).c_str());\
+	\
+	bool b = false;\
+	V_##oper(b, left);\
+	\
+	if (!b)\
+	{\
+		FKLOG("jne %d", destip);\
+		ip = destip;\
+	}\
+	FKLOG("single math %s %d", OpCodeStr(code), ip);
 
+
+struct fake;
 struct processor;
 struct interpreter
 {
 public:
-    force_inline bool isend() const
-    {
-        return m_isend;
-    }
-    
-    void call(const variant & func);
-
-    variant * get_container_variant(stack & s, const func_binary & fb, int conpos)
-    {
-        variant * v = 0;
-        assert(conpos >= 0 && conpos < (int)fb.m_container_addr_list_num);
-        const container_addr & ca = fb.m_container_addr_list[conpos];
-        bool err = false;
-	    USE(err);
-        variant * conv = 0;
-        do {GET_VARIANT_BY_CMD(s, fb, conv, ca.con);}while(0);
-        const variant * keyv = 0;
-        do {GET_VARIANT_BY_CMD(s, fb, keyv, ca.key);}while(0);
-
-        if (UNLIKE(err))
-        {   
-            return 0;
-        }
-    
-        if (UNLIKE(!(conv->type == variant::ARRAY || conv->type == variant::MAP)))
-        {
-    	    seterror(m_fk, efk_run_inter_error, "interpreter get container variant fail, container type error, type %s", vartypetostring(conv->type));
-    	    return 0;
-        }
-        
-        if (conv->type == variant::MAP)
-        {
-            v = con_map_get(m_fk, conv->data.vm, keyv);
-        }
-        else if (conv->type == variant::ARRAY)
-        {
-            v = con_array_get(m_fk, conv->data.va, keyv);
-        }
-
-        return v;
-    }
-
-    force_inline const variant & getret() const
-    {
-        return m_ret[0];
-    }
-
-    force_inline const char * get_running_func_name() const
-    {
-		return FUNC_BINARY_NAME(*(m_cur_stack->m_fb));
-    }
-
-    force_inline const char * get_running_file_name() const
-    {
-		return FUNC_BINARY_FILENAME(*(m_cur_stack->m_fb));
-    }
-    
-    force_inline int get_running_file_line() const
-    {
-        const func_binary & fb = *m_cur_stack->m_fb;
-        int pos = m_cur_stack->m_pos;
-        if (pos < 0 || pos >= (int)FUNC_BINARY_LINENO_SIZE(fb))
-        {
-		    return 0;
-        }
-        return GET_CMD_LINENO(fb, pos);
-    }
-    
-    const char * get_running_call_stack() const;
+	force_inline bool isend() const
+	{
+		return m_isend;
+	}
 	
-    int run(int cmdnum);
+	void call(const variant & func, int retnum, int * retpos);
+
+	variant * get_container_variant(const func_binary & fb, int conpos);
+
+	force_inline const variant & getret() const
+	{
+		return m_ret[0];
+	}
+
+	force_inline const char * get_running_func_name() const
+	{
+		return m_fb ? FUNC_BINARY_NAME(*m_fb) : "";
+	}
+
+	force_inline const char * get_running_file_name() const
+	{
+		return m_fb ? FUNC_BINARY_FILENAME(*m_fb) : "";
+	}
+	
+	force_inline int get_running_file_line() const
+	{
+		return m_fb ? GET_CMD_LINENO(*m_fb, m_ip) : 0;
+	}
+	
+	const char * get_running_call_stack() const;
+	
+	int run(int cmdnum);
 
 public:
-    fake * m_fk;
-    bool m_isend;
+	fake * m_fk;
+	bool m_isend;
 	variant m_ret[MAX_FAKE_RETURN_NUM];
-	stack * m_cur_stack;
-	array<stack> m_stack_list;
-	processor * m_processor;
+	array<variant> m_stack;
+	const func_binary * m_fb;
+	int m_ip;
+	int m_bp;
+	int m_sp;
 	uint32_t m_wakeuptime;
 	uint32_t m_yieldtime;
 	bool m_sleeping;
+	processor * m_processor;
 };
 
-#define INTER_DELETE(inter) \
-	for (int i = 0; i < (int)ARRAY_MAX_SIZE((inter).m_stack_list); i++)\
-	{\
-	    STACK_DELETE(ARRAY_GET((inter).m_stack_list, i));\
-	}\
-	ARRAY_DELETE((inter).m_stack_list)
+#define INTER_DELETE(inter) ARRAY_DELETE((inter).m_stack)
 	
 #define INTER_INI(inter, fk) (inter).m_fk = fk;\
-    ARRAY_INI((inter).m_stack_list, fk)
-    
+	(inter).m_isend = false;\
+	ARRAY_INI((inter).m_stack, fk);\
+	(inter).m_fb = 0;\
+	(inter).m_ip = 0;\
+	(inter).m_bp = 0;\
+	(inter).m_sp = 0;\
+	(inter).m_wakeuptime = 0;\
+	(inter).m_yieldtime = 0;\
+	(inter).m_sleeping = false
+	
+	
 #define INTER_CLEAR(inter) (inter).m_isend = false;\
-    (inter).m_cur_stack = 0;\
-    ARRAY_CLEAR((inter).m_stack_list);\
-    (inter).m_sleeping = false;
-    
+	ARRAY_CLEAR((inter).m_stack);\
+	(inter).m_fb = 0;\
+	(inter).m_ip = 0;\
+	(inter).m_bp = 0;\
+	(inter).m_sp = 0;\
+	(inter).m_wakeuptime = 0;\
+	(inter).m_yieldtime = 0;\
+	(inter).m_sleeping = false;
+	
 #define INTER_SET_PRO(inter, pro) (inter).m_processor = pro
+

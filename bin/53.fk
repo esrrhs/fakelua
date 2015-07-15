@@ -1,0 +1,63 @@
+
+-- main comment
+func main()
+	
+	for var i = 1 -> 10, 1 then
+		
+		for var j = i -> 10, j then
+			
+			if i == 3 then
+				continue
+			end
+			
+			print(i, " ", j)
+			
+		end
+	
+	end
+	
+	print("...")
+	
+	for var i = 1 -> 10, 1 then
+		
+		print(i)
+		
+	end
+	
+	print("...")
+	
+	var i = 1
+	var n = 10
+	var c = 2
+	for i = -10 -> -30, -3 then
+		
+		print(i)
+		
+	end
+	
+	print("...")
+	
+	for i = 1 -> n + 1, c - 1 then
+		
+		if i == 3 then
+			break
+		end
+		print(i)
+		
+	end
+	
+	print("...")
+	
+	for i = 1 -> n + 1, c - 1 then
+		
+		if i == 3 then
+			continue
+		end
+		print(i)
+		
+	end
+	
+	
+	return 0
+	
+end

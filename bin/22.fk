@@ -1,5 +1,8 @@
--- func1 comment
-func myfunc1(arg1, arg2)
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
 	
 	var ret1, var ret2 = myfunc2(arg1, arg2)
 	

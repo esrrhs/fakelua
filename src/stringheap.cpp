@@ -20,22 +20,22 @@ stringheap::~stringheap()
 void stringheap::clear()
 {
 	ARRAY_CLEAR(m_todelete);
-    for (const fkhashmap<const char *, stringele>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
-    {
-        stringele * e = p->t;
+	for (const fkhashmap<const char *, stringele>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	{
+		stringele * e = p->t;
 		if (!e->sysref)
 		{
 			safe_fkfree(m_fk, e->s);
 			if (ARRAY_SIZE(m_todelete) >= ARRAY_MAX_SIZE(m_todelete))
 			{
-			    size_t newsize = ARRAY_MAX_SIZE(m_todelete) + 1 + ARRAY_MAX_SIZE(m_todelete) * (m_fk->cfg.array_grow_speed) / 100;
-		        ARRAY_GROW(m_todelete, newsize, const char *);
-		    }
+				size_t newsize = ARRAY_MAX_SIZE(m_todelete) + 1 + ARRAY_MAX_SIZE(m_todelete) * (m_fk->cfg.array_grow_speed) / 100;
+				ARRAY_GROW(m_todelete, newsize, const char *);
+			}
 			ARRAY_PUSH_BACK(m_todelete);
 			ARRAY_BACK(m_todelete) = p->k;
 		}
-    }
-    
+	}
+	
 	for (int i = 0; i < (int)ARRAY_SIZE(m_todelete); i++)
 	{
 		const char * str = ARRAY_GET(m_todelete, i);
@@ -48,8 +48,8 @@ void stringheap::clear()
 stringele * stringheap::allocstring(const char * str)
 {
 	stringele * p = m_shh.get(str);
-    if (p)
-    {
+	if (p)
+	{
 		return p;
 	}
 	stringele e;
@@ -73,7 +73,7 @@ void stringheap::checkgc()
 {
 	if ((int)m_shh.size() > m_fk->cfg.string_heap_num)
 	{
-	    gc();
+		gc();
 	}
 }
 

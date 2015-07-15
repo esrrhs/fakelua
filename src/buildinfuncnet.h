@@ -14,22 +14,22 @@ class buildinfuncnet
 {
 public:
 	buildinfuncnet(fake * fk);
-    ~buildinfuncnet();
+	~buildinfuncnet();
 
-    force_inline fake * getfake()
-    {
-        return m_fk;
-    }
+	force_inline fake * getfake()
+	{
+		return m_fk;
+	}
 
-    void clear();
+	void clear();
 
-    void opennetfunc();
+	void opennetfunc();
 
-    buffer * newbuffer(int size);
-    selector * newselector();
+	buffer * newbuffer(int size);
+	selector * newselector();
 private:
-    fake * m_fk;
-    poollist<buffer> m_buffer;
-    poollist<selector> m_selector;
+	fake * m_fk;
+	poollist<buffer> m_buffer;
+	poollist<selector> m_selector;
 };
 

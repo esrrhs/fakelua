@@ -1,10 +1,16 @@
 include "../package/net.fk"
 
--- func1 comment
-func myfunc1(arg1, arg2)
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
 	
 	msgb := buffer.new(1024)
 	s := net.new_tcp_server("127.0.0.1", 8888, 1024 * 1024, 1024, 5, "on_accept", "on_close", "on_parse", msgb)
+	
+	sleep 3*1000
+	s->is_open = false
 	
 	return 0
 	

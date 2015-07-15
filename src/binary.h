@@ -9,24 +9,24 @@ typedef uint64_t command;
 
 enum CommandType
 {
-    COMMAND_OPCODE,
-    COMMAND_ADDR,
-    COMMAND_POS,
+	COMMAND_OPCODE,
+	COMMAND_ADDR,
+	COMMAND_POS,
 };
 
 enum OpCodeType
 {
-    OPCODE_ASSIGN,
+	OPCODE_ASSIGN,
 
-    OPCODE_PLUS,
-    OPCODE_MINUS,
-    OPCODE_MULTIPLY,
+	OPCODE_PLUS,
+	OPCODE_MINUS,
+	OPCODE_MULTIPLY,
 	OPCODE_DIVIDE,
 	OPCODE_DIVIDE_MOD,
 
-    OPCODE_PLUS_ASSIGN,
-    OPCODE_MINUS_ASSIGN,
-    OPCODE_MULTIPLY_ASSIGN,
+	OPCODE_PLUS_ASSIGN,
+	OPCODE_MINUS_ASSIGN,
+	OPCODE_MULTIPLY_ASSIGN,
 	OPCODE_DIVIDE_ASSIGN,
 	OPCODE_DIVIDE_MOD_ASSIGN,
 
@@ -35,9 +35,12 @@ enum OpCodeType
 	OPCODE_JNE,
 	OPCODE_JMP,
 	
-    OPCODE_AND,
-    OPCODE_OR,
-    OPCODE_LESS,
+	OPCODE_FORBEGIN,
+	OPCODE_FORLOOP,
+	
+	OPCODE_AND,
+	OPCODE_OR,
+	OPCODE_LESS,
 	OPCODE_MORE,
 	OPCODE_EQUAL,
 	OPCODE_MOREEQUAL,
@@ -45,12 +48,22 @@ enum OpCodeType
 	OPCODE_NOTEQUAL,
 	OPCODE_NOT,
 	
-    OPCODE_CALL,
-    
-    OPCODE_SLEEP,
-    OPCODE_YIELD,
-    
-    OPCODE_MAX,
+	OPCODE_AND_JNE,
+	OPCODE_OR_JNE,
+	OPCODE_LESS_JNE,
+	OPCODE_MORE_JNE,
+	OPCODE_EQUAL_JNE,
+	OPCODE_MOREEQUAL_JNE,
+	OPCODE_LESSEQUAL_JNE,
+	OPCODE_NOTEQUAL_JNE,
+	OPCODE_NOT_JNE,
+	
+	OPCODE_CALL,
+	
+	OPCODE_SLEEP,
+	OPCODE_YIELD,
+	
+	OPCODE_MAX,
 };
 
 enum AddrType
@@ -62,8 +75,8 @@ enum AddrType
 
 struct container_addr
 {
-    command con;
-    command key;
+	command con;
+	command key;
 };
 
 enum CallType
@@ -89,37 +102,39 @@ struct fake;
 class codegen;
 struct func_binary
 {
-    String dump() const;
-    // 最大栈空间
-    int m_maxstack;
-    // 参数个数
-    int m_paramnum;
-    // 名字
-    const char * m_name;
-    // 文件名
-    const char * m_filename;
-    // 包名
-    const char * m_packagename;
-    // 二进制缓冲区
-    command * m_buff;
-    int m_size;
-    // 二进制行号缓冲区
-    int * m_lineno_buff;
-    int m_lineno_size;
-    // 常量
-    variant * m_const_list;
-    int m_const_list_num;
-    // container地址
-    container_addr * m_container_addr_list;
-    int m_container_addr_list_num;
-    // 序列
-    int m_pos;
-    // 占用标记
-    mutable int m_use;
-    // 备份
-    mutable func_binary * m_backup;
-    // 新标记
-    mutable int m_fresh;
+	String dump() const;
+	bool save(fake * fk, buffer * b) const;
+	bool load(fake * fk, buffer * b);
+	// 最大栈空间
+	int m_maxstack;
+	// 参数个数
+	int m_paramnum;
+	// 名字
+	const char * m_name;
+	// 文件名
+	const char * m_filename;
+	// 包名
+	const char * m_packagename;
+	// 二进制缓冲区
+	command * m_buff;
+	int m_size;
+	// 二进制行号缓冲区
+	int * m_lineno_buff;
+	int m_lineno_size;
+	// 常量
+	variant * m_const_list;
+	int m_const_list_num;
+	// container地址
+	container_addr * m_container_addr_list;
+	int m_container_addr_list_num;
+	// 序列
+	int m_pos;
+	// 占用标记
+	mutable int m_use;
+	// 备份
+	mutable func_binary * m_backup;
+	// 新标记
+	mutable int m_fresh;
 };
 
 #define FUNC_BINARY_INI(fb) \
@@ -189,36 +204,39 @@ struct func_binary
 
 class binary
 {
-    friend class assembler;
+	friend class assembler;
 public:
-    force_inline binary(fake * fk) : m_fk(fk)
-    {
-    }
+	force_inline binary(fake * fk) : m_fk(fk)
+	{
+	}
 
-    force_inline ~binary()
-    {
-        clear();
-    }
+	force_inline ~binary()
+	{
+		clear();
+	}
 
-    force_inline fake * getfake()
-    {
-        return m_fk;
-    }
+	force_inline fake * getfake()
+	{
+		return m_fk;
+	}
 
-    force_inline void clear()
-    {
-    	m_dump.clear();
-    }
+	force_inline void clear()
+	{
+		m_dump.clear();
+	}
 
 	bool add_func(const variant & name, const func_binary & bin);
-    
-    String & dump() const;
-    String & dump(const char * func) const;
-    
-    void move();
-    
+	
+	String & dump() const;
+	String & dump(const char * func) const;
+
+	bool save(buffer * b) const;
+	bool load(buffer * b);
+	
+	void move();
+	
 private:
-    fake * m_fk;   
-    mutable String m_dump;
+	fake * m_fk;   
+	mutable String m_dump;
 };
 

@@ -5,8 +5,8 @@
 
 typedef struct _YYSTYPE 
 {
-    String str;
-    syntree_node * syntree;
+	String str;
+	syntree_node * syntree;
 } YYSTYPE;
 
 extern int yyparse(void * param);

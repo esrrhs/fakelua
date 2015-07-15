@@ -165,7 +165,7 @@ struct fakeconfig
         array_grow_speed(100), 
         string_heap_num(100), 
         include_deps(100), 
-        stack_deps(100)
+        stack_max(10000)
         {}
     fkmalloc fkm;
     fkfree fkf;	// 内存管理
@@ -173,7 +173,7 @@ struct fakeconfig
 	int array_grow_speed;		    // 增长速度，百分比，10%代表增长10%
 	int string_heap_num;    		// 字符串集合的最大数目
 	int include_deps;    		    // 解析include最大深度
-	int stack_deps;    		        // stack最大深度
+	int stack_max;    		        // stack最大尺寸
 };
 
 // 申请回收

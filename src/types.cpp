@@ -8,6 +8,7 @@
 #else
 #include <sys/time.h>
 #endif
+#include "buffer.h"
 
 void fklog(const char * header, const char * file, const char * func, int pos, const char *fmt, ...)
 {
@@ -41,9 +42,9 @@ void fklog(const char * header, const char * file, const char * func, int pos, c
 String fkget_token_name(int token)
 {
 #define TOKEN_SWITCH(x) case x: return #x;
-    switch (token)
-    {
-        TOKEN_SWITCH(0)
+	switch (token)
+	{
+		TOKEN_SWITCH(0)
 		TOKEN_SWITCH(VAR_BEGIN)
 		TOKEN_SWITCH(RETURN)
 		TOKEN_SWITCH(BREAK)
@@ -105,7 +106,8 @@ String fkget_token_name(int token)
 		TOKEN_SWITCH(DEFAULT)
 		TOKEN_SWITCH(NEW_ASSIGN)
 		TOKEN_SWITCH(ELSEIF)
-    }
+		TOKEN_SWITCH(RIGHT_POINTER)
+	}
 #undef TOKEN_SWITCH
 	assert(0);
 	return fkitoa(token);
@@ -113,73 +115,73 @@ String fkget_token_name(int token)
 
 void * safe_fkmalloc(fake * fk, size_t size)
 {
-    if (fk && size)
-    {
-        return fk->cfg.fkm(size);
-    }
-    return 0;
+	if (fk && size)
+	{
+		return fk->cfg.fkm(size);
+	}
+	return 0;
 }
 
 void safe_fkfree(fake * fk, const void * p)
 {
-    if (fk && p)
-    {
-        fk->cfg.fkf((void *)p);
-    }
+	if (fk && p)
+	{
+		fk->cfg.fkf((void *)p);
+	}
 }
 
 void seterror(fake * fk, efkerror err, const char *fmt, ...)
 {
-    fk->errorno = err;
+	fk->errorno = err;
 	va_list ap;
 	va_start(ap, fmt);
-    vsnprintf(fk->errorstr, sizeof(fk->errorstr) - 1, fmt, ap);
+	vsnprintf(fk->errorstr, sizeof(fk->errorstr) - 1, fmt, ap);
 	va_end(ap);
 	fk->errorstr[sizeof(fk->errorstr) - 1] = 0;
 	if (fk->errorcb)
 	{
-	    fk->errorcb(fk, fk->errorno, fk->errorstr);
+		fk->errorcb(fk, fk->errorno, fk->errorstr);
 	}
 }
 
 String fkstringeletoa(stringele * ele)
 {
-    return ele && ele->s ? ele->s : "";
+	return ele && ele->s ? ele->s : "";
 }
 
 String vartostring(const variant * v)
 {
-    String s;
-    V_TOSTRING(v, s);
-    return s;
+	String s;
+	V_TOSTRING(v, s);
+	return s;
 }
 
 const char * vartypetostring(int type)
 {
-    switch (type)
-    {
-    case variant::NIL:
-        return "NIL";
-    case variant::REAL:
-        return "REAL";
-    case variant::STRING:
-        return "STRING";
-    case variant::POINTER:
-        return "POINTER";
-    case variant::UUID:
-        return "UUID";
-    case variant::ARRAY:
-        return "ARRAY";
-    case variant::MAP:
-        return "MAP";
-    default:
-        return "unknow";
-    }
+	switch (type)
+	{
+	case variant::NIL:
+		return "NIL";
+	case variant::REAL:
+		return "REAL";
+	case variant::STRING:
+		return "STRING";
+	case variant::POINTER:
+		return "POINTER";
+	case variant::UUID:
+		return "UUID";
+	case variant::ARRAY:
+		return "ARRAY";
+	case variant::MAP:
+		return "MAP";
+	default:
+		return "unknow";
+	}
 }
 
 paramstack * getps(fake * fk)
 {
-    return &fk->ps;
+	return &fk->ps;
 }
 
 char * stringdump(fake * fk, const char * src, size_t sz)
@@ -208,67 +210,147 @@ uint32_t fkgetmstick()
 
 String fkarraytoa(variant_array * va)
 {
-    if (ARRAY_RECUR(va->va))
-    {
-        return "ARRAY IN RECUR";
-    }
-    ARRAY_ENTER(va->va);
-    
-    String ret;
-    ret += "[";
-    for (int i = 0; i < (int)ARRAY_MAX_SIZE(va->va); i++)
-    {
-        pool<variant>::node * n = ARRAY_GET(va->va, i);
-        if (n)
-        {
-            ret += vartostring(&(n->t));
-        }
-        else
-        {
-            ret += " ";
-        }
-        ret += ",";
-    }
-    ret += "]";
-    
-    ARRAY_LEAVE(va->va);
-    
-    return ret;
+	if (ARRAY_RECUR(va->va))
+	{
+		return "ARRAY IN RECUR";
+	}
+	ARRAY_ENTER(va->va);
+	
+	String ret;
+	ret += "[";
+	for (int i = 0; i < (int)ARRAY_MAX_SIZE(va->va); i++)
+	{
+		pool<variant>::node * n = ARRAY_GET(va->va, i);
+		if (n)
+		{
+			ret += vartostring(&(n->t));
+		}
+		else
+		{
+			ret += " ";
+		}
+		ret += ",";
+	}
+	ret += "]";
+	
+	ARRAY_LEAVE(va->va);
+	
+	return ret;
 }
 
 String fkmaptoa(variant_map * vm)
 {
-    if (HASHMAP_RECUR(vm->vm))
-    {
-        return "MAP IN RECUR";
-    }
-    HASHMAP_ENTER(vm->vm);
-    
-    String ret;
-    ret += "{";
-    int i = 0;
-    for (const fkhashmap<variant, pool<variant>::node *>::ele * p = vm->vm.first(); p != 0; p = vm->vm.next())
-    {
-        const variant & key = p->k;
-        const pool<variant>::node * value = *p->t;
-        if (!i)
-        {
-            ret += "(";
-        }
-        else
-        {
-            ret += ",(";
-        }
-        ret += vartostring(&key);
-        ret += ",";
-        ret += vartostring(&(value->t));
-        ret += ")";
-        i++;
-    }
-    ret += "}";
-    
-    HASHMAP_LEAVE(vm->vm);
-    
-    return ret;
+	if (HASHMAP_RECUR(vm->vm))
+	{
+		return "MAP IN RECUR";
+	}
+	HASHMAP_ENTER(vm->vm);
+	
+	String ret;
+	ret += "{";
+	int i = 0;
+	for (const fkhashmap<variant, pool<variant>::node *>::ele * p = vm->vm.first(); p != 0; p = vm->vm.next())
+	{
+		const variant & key = p->k;
+		const pool<variant>::node * value = *p->t;
+		if (!i)
+		{
+			ret += "(";
+		}
+		else
+		{
+			ret += ",(";
+		}
+		ret += vartostring(&key);
+		ret += ",";
+		ret += vartostring(&(value->t));
+		ret += ")";
+		i++;
+	}
+	ret += "}";
+	
+	HASHMAP_LEAVE(vm->vm);
+	
+	return ret;
+}
+
+bool save_variant(fake * fk, const variant * v, buffer * b)
+{
+	if (v->type == variant::REAL ||
+		v->type == variant::UUID ||
+		v->type == variant::NIL)
+	{
+		return b->write((const char *)v, sizeof(variant));
+	}
+	else if (v->type == variant::STRING)
+	{
+		const char * ss = v->data.str ? v->data.str->s : "";
+		return save_string(fk, ss, b);
+	}
+	else if (v->type == variant::POINTER ||
+		v->type == variant::ARRAY ||
+		v->type == variant::MAP)
+	{
+		// 暂时不支持
+	}
+	
+	return false;
+}
+
+bool load_variant(fake * fk, variant * v, buffer * b)
+{
+	if (v->type == variant::REAL ||
+		v->type == variant::UUID ||
+		v->type == variant::NIL)
+	{
+		return b->read((char *)v, sizeof(variant));
+	}
+	else if (v->type == variant::STRING)
+	{
+		String s;
+		if (!load_string(fk, s, b))
+		{
+			return false;
+		}
+		const char * ss = s.c_str();
+		V_SET_STRING(v, ss);
+		return true;
+	}
+	else if (v->type == variant::POINTER ||
+		v->type == variant::ARRAY ||
+		v->type == variant::MAP)
+	{
+		// 暂时不支持
+	}
+	
+	return false;
+}
+
+bool save_string(fake * fk, const char * str, buffer * b)
+{
+	int len = strlen(str);
+	if (!b->write((const char *)&len, sizeof(len)))
+	{
+		return false;
+	}
+	return b->write(str, len);
+}
+
+bool load_string(fake * fk, String & str, buffer * b)
+{
+	int len = 0;
+	if (!b->read((char *)&len, sizeof(len)))
+	{
+		return false;
+	}
+	char * ss = (char *)safe_fkmalloc(fk, len + 1);
+	ss[len] = 0;
+	if (!b->read(ss, len))
+	{
+		safe_fkfree(fk, ss);
+		return false;
+	}
+	str = ss;
+	return true;
 }
 

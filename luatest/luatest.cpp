@@ -47,6 +47,7 @@ int main(int argc, const char *argv[])
 		printf("lua_open error\n");
 		return false;
 	}
+	luaL_openlibs(L);
 
     lua_tinker::def(L, "cfunc1", cfunc1); 
 
@@ -61,7 +62,7 @@ int main(int argc, const char *argv[])
 #endif
 
 #ifndef _DEBUG
-	for (int i = 0; i < 9000000; i++)
+	for (int i = 0; i < 1/*9000000*/; i++)
 #else
 	for (int i = 0; i < 1; i++)
 #endif
@@ -75,9 +76,6 @@ int main(int argc, const char *argv[])
 	unsigned int end = time(0);
 
 	printf("call ret %d %d\n", ret, end - begin);
-
-	char c;
-	std::cin>>c;
 
     return 0;
 }

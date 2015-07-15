@@ -69,74 +69,74 @@ union MarshallPoiner
 
 static force_inline bool fkisint(double real)
 {
-    return (real - (int64_t)real == 0);
+	return (real - (int64_t)real == 0);
 }
 
 static force_inline int32_t fkatoi(const String * p)
 {
-    if (p)
-    {
-        return atoi(p->c_str());
-    }
-    return 0;
+	if (p)
+	{
+		return atoi(p->c_str());
+	}
+	return 0;
 }
 
 static force_inline int64_t fkatol(const String * p)
 {
-    if (p)
-    {
+	if (p)
+	{
 #ifdef WIN32
-        return _atoi64(p->c_str());
+		return _atoi64(p->c_str());
 #else
 		return atoll(p->c_str());
 #endif
-    }
-    return 0;
+	}
+	return 0;
 }
 static force_inline float fkatof(const String * p)
 {
-    if (p)
-    {
-        return (float)atof(p->c_str());
-    }
-    return 0;
+	if (p)
+	{
+		return (float)atof(p->c_str());
+	}
+	return 0;
 }
 static force_inline double fkatod(const String * p)
 {
-    if (p)
-    {
-        return atof(p->c_str());
-    }
-    return 0;
+	if (p)
+	{
+		return atof(p->c_str());
+	}
+	return 0;
 }
 static force_inline String fkitoa(int64_t d)
 {
-    char buff[100];
-    sprintf(buff, "%lld", (long long int)d);
-    return buff;
+	char buff[100];
+	sprintf(buff, "%lld", (long long int)d);
+	return buff;
 }
 static force_inline String fkuitoa(uint64_t d)
 {
-    char buff[100];
-    sprintf(buff, "%llu", (unsigned long long int)d);
-    return buff;
+	char buff[100];
+	sprintf(buff, "%llu", (unsigned long long int)d);
+	return buff;
 }
 static force_inline String fkdtoa(double d)
 {
-    char buff[100];
-    sprintf(buff, "%f", d);
-    return buff;
+	char buff[100];
+	sprintf(buff, "%f", d);
+	return buff;
 }
 static force_inline String fkptoa(void * p)
 {
-    char buff[100];
-    sprintf(buff, "%p", p);
-    return buff;
+	char buff[100];
+	sprintf(buff, "%p", p);
+	return buff;
 }
 static force_inline String fkxtoa(int64_t d, int wid = 16)
 {
-    String ret;
-    
+	String ret;
+	
 	char tmpbuf[32]={0};
 	uint32_t idx = 31;
 
@@ -147,29 +147,29 @@ static force_inline String fkxtoa(int64_t d, int wid = 16)
 		tmpbuf[30] = '0';
 		ret = &tmpbuf[30];
 	}
-    else
-    {
-    	// add numbers
-    	const uint8_t chars[]="0123456789ABCDEF";
-    	while(d && idx)
-    	{
-    		--idx;
-    		tmpbuf[idx] = chars[(d % 16)];
-    		d /= 16;
-    	}
+	else
+	{
+		// add numbers
+		const uint8_t chars[]="0123456789ABCDEF";
+		while(d && idx)
+		{
+			--idx;
+			tmpbuf[idx] = chars[(d % 16)];
+			d /= 16;
+		}
 
-    	ret = &tmpbuf[idx];
-    }
+		ret = &tmpbuf[idx];
+	}
 
-    if ((int)ret.size() < wid)
-    {
-        String tmp;
-        tmp.insert(0, wid - ret.size(), '0');
-        ret = tmp + ret;
-    }
+	if ((int)ret.size() < wid)
+	{
+		String tmp;
+		tmp.insert(0, wid - ret.size(), '0');
+		ret = tmp + ret;
+	}
 
-    String tmp = "0x";
-    ret = tmp + ret;
+	String tmp = "0x";
+	ret = tmp + ret;
 	return ret;
 }
 
@@ -178,12 +178,12 @@ String fkstringeletoa(stringele * ele);
 
 static force_inline uint32_t fkstrhash(const char * p)
 {
-    uint32_t hashv = 0;
-    for (int i = 0; p[i]; i++)
-    {
-        hashv = ((hashv << 5) + hashv) + p[i]; /* hash * 33 + c */
-    }
-    return hashv;
+	uint32_t hashv = 0;
+	for (int i = 0; p[i]; i++)
+	{
+		hashv = ((hashv << 5) + hashv) + p[i]; /* hash * 33 + c */
+	}
+	return hashv;
 }
 
 String fkget_token_name(int token);
@@ -233,14 +233,14 @@ struct routine;
 
 static force_inline String fkgen_package_name(const String & p, const String & n)
 {
-    if (p.empty())
-    {
-        return n;
-    }
-    else
-    {
-        return p + "." + n;
-    }
+	if (p.empty())
+	{
+		return n;
+	}
+	else
+	{
+		return p + "." + n;
+	}
 }
 
 #define MAP_FUNC_NAME "map"
@@ -268,4 +268,10 @@ static force_inline String fkgen_package_name(const String & p, const String & n
 typedef int socklen_t;
 #else
 #endif
+
+struct buffer;
+bool save_variant(fake * fk, const variant * v, buffer * b);
+bool load_variant(fake * fk, variant * v, buffer * b);
+bool save_string(fake * fk, const char * str, buffer * b);
+bool load_string(fake * fk, String & str, buffer * b);
 
