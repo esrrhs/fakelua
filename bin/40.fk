@@ -7,7 +7,7 @@ func main()
 	
 	switch arg1
 	
-		case 1 then
+		case 2 - 1 then
 			print("1")
 			
 		case 2 then

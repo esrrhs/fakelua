@@ -5,6 +5,7 @@
 #include "routine.h"
 #include "processor.h"
 #include "paramstack.h"
+#include "buffer.h"
 
 FAKE_API fake * newfake(fakeconfig * cfg)
 {
@@ -505,5 +506,28 @@ FAKE_API const char * fkdumpfunc(fake * fk, const char * func)
 FAKE_API const char * fkdumpfuncmap(fake * fk)
 {
 	return fk->fm.dump().c_str();
+}
+
+FAKE_API int fksavefunc(fake * fk, char * buff, int size)
+{
+	buffer b;
+	b.ini(fk, buff, size);
+	if (!fk->bin.save(&b))
+	{
+		return -1;
+	}
+	return b.size();
+}
+
+FAKE_API int fkloadfunc(fake * fk, char * buff, int size)
+{
+	buffer b;
+	b.ini(fk, buff, size);
+	b.skip_write(size);
+	if (!fk->bin.load(&b))
+	{
+		return -1;
+	}
+	return b.size();
 }
 
