@@ -110,7 +110,7 @@ esrrhs@163.com
 #include <new>
 #include <stdlib.h>
 
-#define FAKE_VERSION "1.1"
+#define FAKE_VERSION "1.2"
 #define FAKE_VERSION_NUM 100
 #define FAKE_AUTHOR "esrrhs@163.com"
 
