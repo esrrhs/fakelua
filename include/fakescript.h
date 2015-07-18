@@ -16,6 +16,7 @@ fakescript是一款轻量级的嵌入式脚本语言，使用c++语言编写，语法吸取自lua、golang、
 @.支持const定义
 @.支持包
 @.支持struct
+@.支持打包bin文件
 
 示例：
 -- 当前包名
