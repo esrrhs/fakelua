@@ -222,7 +222,18 @@ String & binary::dump(const char * func) const
 
 bool binary::add_func(const variant & name, const func_binary & bin)
 {
-	m_fk->fm.add_func(name, bin);
+	const funcunion * f = m_fk->fm.get_func(name);
+	if (f && f->havefb && FUNC_BINARY_USE(f->fb))
+	{
+		FKLOG("[binary] add_func func %s add back bin", vartostring(&name).c_str());
+		FUNC_BINARY_BACKUP(f->fb) = (func_binary *)safe_fkmalloc(m_fk, sizeof(func_binary));
+		*FUNC_BINARY_BACKUP(f->fb) = bin;
+	}
+	else
+	{
+		FKLOG("[binary] add_func func %s add bin", vartostring(&name).c_str());
+		m_fk->fm.add_func(name, bin);
+	}
 
 	FKLOG("add func %s", vartostring(&name).c_str());
 
@@ -260,7 +271,7 @@ bool binary::save(buffer * b) const
 			{
 				return false;
 			}
-			FKLOG("save func_binary %s", vartostring(&fv).c_str());
+			FKLOG("save func_binary %s %d", vartostring(&fv).c_str(), (int)b->size());
 		}
 	}
 	return true;
@@ -292,138 +303,98 @@ bool binary::load(buffer * b)
 		{
 			return false;
 		}
-		FKLOG("load func_binary %s", vartostring(&fv).c_str());
+		FKLOG("load func_binary %s %d", vartostring(&fv).c_str(), (int)b->capacity() - (int)b->size());
 	}
 	return true;
 }
 
+#define SAVE_NORMAL(x) \
+	if (!b->write((const char *)&(x), sizeof(x))) \
+	{ \
+		return false; \
+	}
+	
+#define SAVE_STRING(x) \
+	if (!save_string(fk, (x), b)) \
+	{ \
+		return false; \
+	}
+	
+#define SAVE_ARRAY(x, len) \
+	SAVE_NORMAL(len); \
+	if (!b->write((const char *)(x), (len) * sizeof((x)[0]))) \
+	{ \
+		return false; \
+	}
+	
+#define SAVE_VARRAY(x, len) \
+	SAVE_NORMAL(len); \
+	for (int i = 0 ; i < (len); i++) \
+	{ \
+		if (!save_variant(fk, &((x)[i]), b)) \
+		{ \
+			return false; \
+		} \
+	}
+	
+#define LOAD_NORMAL(x) \
+		if (!b->read((char *)&(x), sizeof(x))) \
+		{ \
+			return false; \
+		}
+		
+#define LOAD_STRING(x) \
+		String x##name; \
+		if (!load_string(fk, x##name, b)) \
+		{ \
+			return false; \
+		} \
+		(x) = stringdump(fk, x##name.c_str(), x##name.size());
+		
+#define LOAD_ARRAY(x, len, type) \
+		LOAD_NORMAL(len); \
+		(x) = (type *)safe_fkmalloc(fk, (len) * sizeof(type)); \
+		if (!b->read((char *)(x), (len) * sizeof(type))) \
+		{ \
+			return false; \
+		}
+		
+#define LOAD_VARRAY(x, len) \
+		LOAD_NORMAL(len); \
+		(x) = (variant *)safe_fkmalloc(fk, ((len) * sizeof(variant))); \
+		for (int i = 0 ; i < (len); i++) \
+		{ \
+			if (!load_variant(fk, &((x)[i]), b)) \
+			{ \
+				return false; \
+			} \
+		}
+
 bool func_binary::save(fake * fk, buffer * b) const
 {
-	if (!b->write((const char *)&m_maxstack, sizeof(m_maxstack)))
-	{
-		return false;
-	}
-	if (!b->write((const char *)&m_paramnum, sizeof(m_paramnum)))
-	{
-		return false;
-	}
-	if (!save_string(fk, m_name, b))
-	{
-		return false;
-	}
-	if (!save_string(fk, m_filename, b))
-	{
-		return false;
-	}
-	if (!save_string(fk, m_packagename, b))
-	{
-		return false;
-	}
-	if (!b->write((const char *)&m_size, sizeof(m_size)))
-	{
-		return false;
-	}
-	if (!b->write((const char *)m_buff, m_size * sizeof(command)))
-	{
-		return false;
-	}
-	if (!b->write((const char *)&m_lineno_size, sizeof(m_lineno_size)))
-	{
-		return false;
-	}
-	if (!b->write((const char *)m_lineno_buff, m_lineno_size * sizeof(int)))
-	{
-		return false;
-	}
-	if (!b->write((const char *)&m_const_list_num, sizeof(m_const_list_num)))
-	{
-		return false;
-	}
-	for (int i = 0 ; i < m_const_list_num; i++)
-	{
-		if (!save_variant(fk, &m_const_list[i], b))
-		{
-			return false;
-		}
-	}
-	if (!b->write((const char *)&m_container_addr_list_num, sizeof(m_container_addr_list_num)))
-	{
-		return false;
-	}
-	if (!b->write((const char *)m_container_addr_list, m_container_addr_list_num * sizeof(container_addr)))
-	{
-		return false;
-	}
+	SAVE_NORMAL(m_maxstack);
+	SAVE_NORMAL(m_paramnum);
+	SAVE_STRING(m_name);
+	SAVE_STRING(m_filename);
+	SAVE_STRING(m_packagename);
+	SAVE_ARRAY(m_buff, m_size);
+	SAVE_ARRAY(m_lineno_buff, m_lineno_size);
+	SAVE_VARRAY(m_const_list, m_const_list_num);
+	SAVE_ARRAY(m_container_addr_list, m_container_addr_list_num);
 	return true;
 }
 
 bool func_binary::load(fake * fk, buffer * b)
 {
-	if (!b->read((char *)&m_maxstack, sizeof(m_maxstack)))
-	{
-		return false;
-	}
-	if (!b->read((char *)&m_paramnum, sizeof(m_paramnum)))
-	{
-		return false;
-	}
-	String name;
-	if (!load_string(fk, name, b))
-	{
-		return false;
-	}
-	m_name = stringdump(fk, name.c_str(), name.size());
-	String filename;
-	if (!load_string(fk, filename, b))
-	{
-		return false;
-	}
-	m_filename = stringdump(fk, filename.c_str(), filename.size());
-	String packagename;
-	if (!load_string(fk, packagename, b))
-	{
-		return false;
-	}
-	m_packagename = stringdump(fk, packagename.c_str(), packagename.size());
-	if (!b->read((char *)&m_size, sizeof(m_size)))
-	{
-		return false;
-	}
-	m_buff = (command *)safe_fkmalloc(fk, (m_size * sizeof(command)));
-	if (!b->read((char *)m_buff, m_size * sizeof(command)))
-	{
-		return false;
-	}
-	if (!b->read((char *)&m_lineno_size, sizeof(m_lineno_size)))
-	{
-		return false;
-	}
-	m_lineno_buff = (int *)safe_fkmalloc(fk, (m_lineno_size * sizeof(int)));
-	if (!b->read((char *)m_lineno_buff, m_lineno_size * sizeof(int)))
-	{
-		return false;
-	}
-	if (!b->read((char *)&m_const_list_num, sizeof(m_const_list_num)))
-	{
-		return false;
-	}
-	m_const_list = (variant *)safe_fkmalloc(fk, (m_const_list_num * sizeof(variant)));
-	for (int i = 0 ; i < m_const_list_num; i++)
-	{
-		if (!load_variant(fk, &m_const_list[i], b))
-		{
-			return false;
-		}
-	}
-	if (!b->write((const char *)&m_container_addr_list_num, sizeof(m_container_addr_list_num)))
-	{
-		return false;
-	}
-	m_container_addr_list = (container_addr *)safe_fkmalloc(fk, (m_container_addr_list_num * sizeof(container_addr)));
-	if (!b->write((const char *)m_container_addr_list, m_container_addr_list_num * sizeof(container_addr)))
-	{
-		return false;
-	}
+	LOAD_NORMAL(m_maxstack);
+	LOAD_NORMAL(m_paramnum);
+	LOAD_STRING(m_name);
+	LOAD_STRING(m_filename);
+	LOAD_STRING(m_packagename);
+	LOAD_ARRAY(m_buff, m_size, command);
+	LOAD_ARRAY(m_lineno_buff, m_lineno_size, int);
+	LOAD_VARRAY(m_const_list, m_const_list_num);
+	LOAD_ARRAY(m_container_addr_list, m_container_addr_list_num, container_addr);
 	m_fresh++;
 	return true;
 }

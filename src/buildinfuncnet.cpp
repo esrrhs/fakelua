@@ -294,7 +294,11 @@ void buildin_selector_tick(fake * fk, interpreter * inter)
 	int eventnum = 0;
 	if (sel && sel->s != -1)
 	{
+#ifdef WIN32
+		int s = sel->s;
+#else
 		int s = sel->s % FD_SETSIZE;
+#endif
 		
 		fd_set readfds;
 		fd_set writefds;
