@@ -122,3 +122,8 @@
 2015.7.15:重构ok,primes减少了3秒，下一步再优化下for循环
 2015.7.15:优化for循环ok，与lua的差距只有1s了。下一步优化下cmp和jmp，合二为一
 2015.7.15:cmp和jne合二为一，还比lua快1s了。for循环进一步优化，速度更快一步。下一步做save load
+2015.7.17:完成save load
+2015.7.18:给fake加print result和time，修复win下的bug
+2015.7.20:加编译为exe的功能
+2015.7.23:修复template的bug
+2015.7.28:给template加个do的功能

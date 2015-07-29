@@ -16,6 +16,7 @@ fakescript是一款轻量级的嵌入式脚本语言，使用c++语言编写，语法吸取自lua、golang、
 @.支持const定义
 @.支持包
 @.支持struct
+@.支持打包bin文件
 
 示例：
 -- 当前包名
@@ -110,23 +111,23 @@ esrrhs@163.com
 #include <new>
 #include <stdlib.h>
 
-#define FAKE_VERSION "1.1"
+#define FAKE_VERSION "1.2"
 #define FAKE_VERSION_NUM 100
 #define FAKE_AUTHOR "esrrhs@163.com"
 
 // 错误号
 enum efkerror
 {
-    efk_ok = 0,
-    efk_strsize = 100,
-    
-    efk_open_file_fail = 200,
-    efk_open_file_empty,
-    efk_parse_file_fail,
-    
-    efk_compile_func_not_define = 300,
-    efk_compile_stack_identifier_error,
-    efk_compile_stmt_type_error,
+	efk_ok = 0,
+	efk_strsize = 100,
+	
+	efk_open_file_fail = 200,
+	efk_open_file_empty,
+	efk_parse_file_fail,
+	
+	efk_compile_func_not_define = 300,
+	efk_compile_stack_identifier_error,
+	efk_compile_stmt_type_error,
 	efk_compile_variable_not_found,
 	efk_compile_explicit_type_error,
 	efk_compile_math_type_error,
@@ -160,20 +161,20 @@ typedef void (*fkfree)(void *ptr);
 
 struct fakeconfig
 {
-    fakeconfig() : fkm(&malloc), fkf(&free), 
-        per_frame_cmd_num(10), 
-        array_grow_speed(100), 
-        string_heap_num(100), 
-        include_deps(100), 
-        stack_max(10000)
-        {}
-    fkmalloc fkm;
-    fkfree fkf;	// 内存管理
-    int per_frame_cmd_num;			// 每帧执行命令数目
-	int array_grow_speed;		    // 增长速度，百分比，10%代表增长10%
-	int string_heap_num;    		// 字符串集合的最大数目
-	int include_deps;    		    // 解析include最大深度
-	int stack_max;    		        // stack最大尺寸
+	fakeconfig() : fkm(&malloc), fkf(&free), 
+		per_frame_cmd_num(10), 
+		array_grow_speed(100), 
+		string_heap_num(100), 
+		include_deps(100), 
+		stack_max(10000)
+		{}
+	fkmalloc fkm;
+	fkfree fkf;	// 内存管理
+	int per_frame_cmd_num;			// 每帧执行命令数目
+	int array_grow_speed;			// 增长速度，百分比，10%代表增长10%
+	int string_heap_num;			// 字符串集合的最大数目
+	int include_deps;				// 解析include最大深度
+	int stack_max;					// stack最大尺寸
 };
 
 // 申请回收
@@ -211,7 +212,7 @@ FAKE_API void fkpspushuint64(fake * fk, uint64_t ret);
 template<typename T>  
 inline void fkpspush(fake * fk, T ret)
 { 
-    fkpspushpointer(fk, (void*)ret); 
+	fkpspushpointer(fk, (void*)ret); 
 }
 template<>	inline void fkpspush(fake * fk, char ret)
 {
@@ -305,9 +306,9 @@ FAKE_API uint64_t fkpspopuint64(fake * fk);
 template<typename T>  
 inline T fkpspop(fake * fk)
 { 
-    void * ret = 0; 
-    fkpspoppointer(fk, ret); 
-    return (T)ret; 
+	void * ret = 0; 
+	fkpspoppointer(fk, ret); 
+	return (T)ret; 
 }
 
 template<>	inline void fkpspop(fake * fk)
@@ -395,64 +396,64 @@ FAKE_API void fkrunps(fake * fk, const char * func);
 template<typename RVal>
 RVal fkrun(fake * fk, const char * func)
 {
-    fkpsclear(fk);
-    fkrunps(fk, func);
-    return fkpspop<RVal>(fk);
+	fkpsclear(fk);
+	fkrunps(fk, func);
+	return fkpspop<RVal>(fk);
 }
 
 template<typename RVal, typename T1>
 RVal fkrun(fake * fk, const char * func, T1 arg1)
 {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkrunps(fk, func);
-    return fkpspop<RVal>(fk);
+	fkpsclear(fk);
+	fkpspush<T1>(fk, arg1);
+	fkrunps(fk, func);
+	return fkpspop<RVal>(fk);
 }
 
 template<typename RVal, typename T1, typename T2>
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2)
 {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkrunps(fk, func);
-    return fkpspop<RVal>(fk);
+	fkpsclear(fk);
+	fkpspush<T1>(fk, arg1);
+	fkpspush<T2>(fk, arg2);
+	fkrunps(fk, func);
+	return fkpspop<RVal>(fk);
 }
 
 template<typename RVal, typename T1, typename T2, typename T3>
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3)
 {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkpspush<T3>(fk, arg3);
-    fkrunps(fk, func);
-    return fkpspop<RVal>(fk);
+	fkpsclear(fk);
+	fkpspush<T1>(fk, arg1);
+	fkpspush<T2>(fk, arg2);
+	fkpspush<T3>(fk, arg3);
+	fkrunps(fk, func);
+	return fkpspop<RVal>(fk);
 }
 
 template<typename RVal, typename T1, typename T2, typename T3, typename T4>
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkpspush<T3>(fk, arg3);
-    fkpspush<T4>(fk, arg4);
-    fkrunps(fk, func);
-    return fkpspop<RVal>(fk);
+	fkpsclear(fk);
+	fkpspush<T1>(fk, arg1);
+	fkpspush<T2>(fk, arg2);
+	fkpspush<T3>(fk, arg3);
+	fkpspush<T4>(fk, arg4);
+	fkrunps(fk, func);
+	return fkpspop<RVal>(fk);
 }
 
 template<typename RVal, typename T1, typename T2, typename T3, typename T4, typename T5>
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
 {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkpspush<T3>(fk, arg3);
-    fkpspush<T4>(fk, arg4);
-    fkpspush<T5>(fk, arg5);
-    fkrunps(fk, func);
-    return fkpspop<RVal>(fk);
+	fkpsclear(fk);
+	fkpspush<T1>(fk, arg1);
+	fkpspush<T2>(fk, arg2);
+	fkpspush<T3>(fk, arg3);
+	fkpspush<T4>(fk, arg4);
+	fkpspush<T5>(fk, arg5);
+	fkrunps(fk, func);
+	return fkpspop<RVal>(fk);
 }
 
 
@@ -463,64 +464,64 @@ FAKE_API void fkrunpsjit(fake * fk, const char * func);
 template<typename RVal>
 RVal fkrunjit(fake * fk, const char * func)
 {
-    fkpsclear(fk);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
+	fkpsclear(fk);
+	fkrunpsjit(fk, func);
+	return fkpspop<RVal>(fk);
 }
 
 template<typename RVal, typename T1>
 RVal fkrunjit(fake * fk, const char * func, T1 arg1)
 {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
+	fkpsclear(fk);
+	fkpspush<T1>(fk, arg1);
+	fkrunpsjit(fk, func);
+	return fkpspop<RVal>(fk);
 }
 
 template<typename RVal, typename T1, typename T2>
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2)
 {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
+	fkpsclear(fk);
+	fkpspush<T1>(fk, arg1);
+	fkpspush<T2>(fk, arg2);
+	fkrunpsjit(fk, func);
+	return fkpspop<RVal>(fk);
 }
 
 template<typename RVal, typename T1, typename T2, typename T3>
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3)
 {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkpspush<T3>(fk, arg3);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
+	fkpsclear(fk);
+	fkpspush<T1>(fk, arg1);
+	fkpspush<T2>(fk, arg2);
+	fkpspush<T3>(fk, arg3);
+	fkrunpsjit(fk, func);
+	return fkpspop<RVal>(fk);
 }
 
 template<typename RVal, typename T1, typename T2, typename T3, typename T4>
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkpspush<T3>(fk, arg3);
-    fkpspush<T4>(fk, arg4);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
+	fkpsclear(fk);
+	fkpspush<T1>(fk, arg1);
+	fkpspush<T2>(fk, arg2);
+	fkpspush<T3>(fk, arg3);
+	fkpspush<T4>(fk, arg4);
+	fkrunpsjit(fk, func);
+	return fkpspop<RVal>(fk);
 }
 
 template<typename RVal, typename T1, typename T2, typename T3, typename T4, typename T5>
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
 {
-    fkpsclear(fk);
-    fkpspush<T1>(fk, arg1);
-    fkpspush<T2>(fk, arg2);
-    fkpspush<T3>(fk, arg3);
-    fkpspush<T4>(fk, arg4);
-    fkpspush<T5>(fk, arg5);
-    fkrunpsjit(fk, func);
-    return fkpspop<RVal>(fk);
+	fkpsclear(fk);
+	fkpspush<T1>(fk, arg1);
+	fkpspush<T2>(fk, arg2);
+	fkpspush<T3>(fk, arg3);
+	fkpspush<T4>(fk, arg4);
+	fkpspush<T5>(fk, arg5);
+	fkrunpsjit(fk, func);
+	return fkpspop<RVal>(fk);
 }
 
 // 一个成员函数指针存放的空间，一般16个字节
@@ -531,16 +532,16 @@ struct fkfunctor;
 typedef void (*fkcfunction) (fake * fk, const fkfunctor * ff);
 struct fkfunctor
 {
-    fkfunctor() : ff(0), param1(0) {}
-    fkfunctor(fkcfunction _ff, const void * _param1) : ff(_ff), param1(_param1) {}
-    template <typename F>
+	fkfunctor() : ff(0), param1(0) {}
+	fkfunctor(fkcfunction _ff, const void * _param1) : ff(_ff), param1(_param1) {}
+	template <typename F>
 	fkfunctor(fkcfunction _ff, const void * _param1, F f) : ff(_ff), param1(_param1)
-    {
-        new(param2) F(f);
-    }
-    fkcfunction ff;
+	{
+		new(param2) F(f);
+	}
+	fkcfunction ff;
 	const void * param1;
-    char param2[FAKE_MEMFUNC_SIZE];
+	char param2[FAKE_MEMFUNC_SIZE];
 };
 
 template<typename RVal, typename T1=void, typename T2=void, typename T3=void, typename T4=void, typename T5=void>
@@ -548,12 +549,12 @@ struct fkinvoker
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{ 
-	    RVal ret = ((RVal(*)(T1,T2,T3,T4,T5))ff->param1)(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk),
-	        fkpspop<T3>(fk),
-	        fkpspop<T4>(fk),
-	        fkpspop<T5>(fk));
-	    fkpspush<RVal>(fk, ret);
+		RVal ret = ((RVal(*)(T1,T2,T3,T4,T5))ff->param1)(fkpspop<T1>(fk),
+			fkpspop<T2>(fk),
+			fkpspop<T3>(fk),
+			fkpspop<T4>(fk),
+			fkpspop<T5>(fk));
+		fkpspush<RVal>(fk, ret);
 	}
 };
 
@@ -562,11 +563,11 @@ struct fkinvoker<RVal, T1, T2, T3, T4>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    RVal ret = ((RVal(*)(T1,T2,T3,T4))ff->param1)(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk),
-	        fkpspop<T3>(fk),
-	        fkpspop<T4>(fk));
-	    fkpspush<RVal>(fk, ret);
+		RVal ret = ((RVal(*)(T1,T2,T3,T4))ff->param1)(fkpspop<T1>(fk),
+			fkpspop<T2>(fk),
+			fkpspop<T3>(fk),
+			fkpspop<T4>(fk));
+		fkpspush<RVal>(fk, ret);
 	}
 };
 
@@ -575,10 +576,10 @@ struct fkinvoker<RVal, T1, T2, T3>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    RVal ret = ((RVal(*)(T1,T2,T3))ff->param1)(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk),
-	        fkpspop<T3>(fk));
-	    fkpspush<RVal>(fk, ret);
+		RVal ret = ((RVal(*)(T1,T2,T3))ff->param1)(fkpspop<T1>(fk),
+			fkpspop<T2>(fk),
+			fkpspop<T3>(fk));
+		fkpspush<RVal>(fk, ret);
 	}
 };
 
@@ -587,9 +588,9 @@ struct fkinvoker<RVal, T1, T2>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    RVal ret = ((RVal(*)(T1,T2))ff->param1)(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk));
-	    fkpspush<RVal>(fk, ret);
+		RVal ret = ((RVal(*)(T1,T2))ff->param1)(fkpspop<T1>(fk),
+			fkpspop<T2>(fk));
+		fkpspush<RVal>(fk, ret);
 	}
 };
 
@@ -598,8 +599,8 @@ struct fkinvoker<RVal, T1>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    RVal ret = ((RVal(*)(T1))ff->param1)(fkpspop<T1>(fk));
-	    fkpspush<RVal>(fk, ret);
+		RVal ret = ((RVal(*)(T1))ff->param1)(fkpspop<T1>(fk));
+		fkpspush<RVal>(fk, ret);
 	}
 };
 
@@ -608,8 +609,8 @@ struct fkinvoker<RVal>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    RVal ret = ((RVal(*)(void))ff->param1)();
-	    fkpspush<RVal>(fk, ret);
+		RVal ret = ((RVal(*)(void))ff->param1)();
+		fkpspush<RVal>(fk, ret);
 	}
 };
 
@@ -619,12 +620,12 @@ struct fkinvoker<void, T1, T2, T3, T4, T5>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    ((void(*)(T1,T2,T3,T4,T5))ff->param1)(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk),
-	        fkpspop<T3>(fk),
-	        fkpspop<T4>(fk),
-	        fkpspop<T5>(fk));
-	    fkpspush<int>(fk, 0);
+		((void(*)(T1,T2,T3,T4,T5))ff->param1)(fkpspop<T1>(fk),
+			fkpspop<T2>(fk),
+			fkpspop<T3>(fk),
+			fkpspop<T4>(fk),
+			fkpspop<T5>(fk));
+		fkpspush<int>(fk, 0);
 	}
 };
 
@@ -633,11 +634,11 @@ struct fkinvoker<void, T1, T2, T3, T4>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    ((void(*)(T1,T2,T3,T4))ff->param1)(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk),
-	        fkpspop<T3>(fk),
-	        fkpspop<T4>(fk));
-	    fkpspush<int>(fk, 0);
+		((void(*)(T1,T2,T3,T4))ff->param1)(fkpspop<T1>(fk),
+			fkpspop<T2>(fk),
+			fkpspop<T3>(fk),
+			fkpspop<T4>(fk));
+		fkpspush<int>(fk, 0);
 	}
 };
 
@@ -646,10 +647,10 @@ struct fkinvoker<void, T1, T2, T3>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    ((void(*)(T1,T2,T3))ff->param1)(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk),
-	        fkpspop<T3>(fk));
-	    fkpspush<int>(fk, 0);
+		((void(*)(T1,T2,T3))ff->param1)(fkpspop<T1>(fk),
+			fkpspop<T2>(fk),
+			fkpspop<T3>(fk));
+		fkpspush<int>(fk, 0);
 	}
 };
 
@@ -658,9 +659,9 @@ struct fkinvoker<void, T1, T2>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    ((void(*)(T1,T2))ff->param1)(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk));
-	    fkpspush<int>(fk, 0);
+		((void(*)(T1,T2))ff->param1)(fkpspop<T1>(fk),
+			fkpspop<T2>(fk));
+		fkpspush<int>(fk, 0);
 	}
 };
 
@@ -669,8 +670,8 @@ struct fkinvoker<void, T1>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    ((void(*)(T1))ff->param1)(fkpspop<T1>(fk));
-	    fkpspush<int>(fk, 0);
+		((void(*)(T1))ff->param1)(fkpspop<T1>(fk));
+		fkpspush<int>(fk, 0);
 	}
 };
 
@@ -679,8 +680,8 @@ struct fkinvoker<void>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    ((void(*)(void))ff->param1)();
-	    fkpspush<int>(fk, 0);
+		((void(*)(void))ff->param1)();
+		fkpspush<int>(fk, 0);
 	}
 };
 
@@ -690,37 +691,37 @@ FAKE_API void fkpushfunctor(fake * fk, const char * name, fkfunctor ff);
 template<typename RVal>
 void fkreg(fake * fk, const char * name, RVal (*func)())
 {
-    fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal>::invoke, (void*)func));
+	fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal>::invoke, (void*)func));
 }
 
 template<typename RVal, typename T1>
 void fkreg(fake * fk, const char * name, RVal (*func)(T1))
 {
-    fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1>::invoke, (void*)func));
+	fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1>::invoke, (void*)func));
 }
 
 template<typename RVal, typename T1, typename T2>
 void fkreg(fake * fk, const char * name, RVal (*func)(T1, T2))
 {
-    fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1, T2>::invoke, (void*)func));
+	fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1, T2>::invoke, (void*)func));
 }
 
 template<typename RVal, typename T1, typename T2, typename T3>
 void fkreg(fake * fk, const char * name, RVal (*func)(T1, T2, T3))
 {
-    fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1, T2, T3>::invoke, (void*)func));
+	fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1, T2, T3>::invoke, (void*)func));
 }
 
 template<typename RVal, typename T1, typename T2, typename T3, typename T4>
 void fkreg(fake * fk, const char * name, RVal (*func)(T1, T2, T3, T4))
 {
-    fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1, T2, T3, T4>::invoke, (void*)func));
+	fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1, T2, T3, T4>::invoke, (void*)func));
 }
 
 template<typename RVal, typename T1, typename T2, typename T3, typename T4, typename T5>
 void fkreg(fake * fk, const char * name, RVal (*func)(T1, T2, T3, T4, T5))
 {
-    fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1, T2, T3, T4, T5>::invoke, (void*)func));
+	fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1, T2, T3, T4, T5>::invoke, (void*)func));
 }
 
 template<typename RVal, typename T, typename T1=void, typename T2=void, typename T3=void, typename T4=void, typename T5=void>
@@ -728,15 +729,15 @@ struct fkmeminvoker
 {
 	static void invoke(fake * fk, const fkfunctor * ff) 
 	{ 
-	    T * p = fkpspop<T*>(fk);    // 不同编译器顺序不一样，提出来安全
-	    if (!p)
-	        return;
-	    RVal ret = ((p)->*(*(RVal(T::**)(T1,T2,T3,T4,T5))(ff->param2)))(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk),
-	        fkpspop<T3>(fk),
-	        fkpspop<T4>(fk),
-	        fkpspop<T5>(fk));
-	    fkpspush<RVal>(fk, ret);
+		T * p = fkpspop<T*>(fk);	// 不同编译器顺序不一样，提出来安全
+		if (!p)
+			return;
+		RVal ret = ((p)->*(*(RVal(T::**)(T1,T2,T3,T4,T5))(ff->param2)))(fkpspop<T1>(fk),
+			fkpspop<T2>(fk),
+			fkpspop<T3>(fk),
+			fkpspop<T4>(fk),
+			fkpspop<T5>(fk));
+		fkpspush<RVal>(fk, ret);
 	}
 };
 
@@ -745,14 +746,14 @@ struct fkmeminvoker<RVal, T, T1, T2, T3, T4>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    T * p = fkpspop<T*>(fk);
-	    if (!p)
-	        return;
-	    RVal ret = ((p)->*(*(RVal(T::**)(T1,T2,T3,T4))(ff->param2)))(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk),
-	        fkpspop<T3>(fk),
-	        fkpspop<T4>(fk));
-	    fkpspush<RVal>(fk, ret);
+		T * p = fkpspop<T*>(fk);
+		if (!p)
+			return;
+		RVal ret = ((p)->*(*(RVal(T::**)(T1,T2,T3,T4))(ff->param2)))(fkpspop<T1>(fk),
+			fkpspop<T2>(fk),
+			fkpspop<T3>(fk),
+			fkpspop<T4>(fk));
+		fkpspush<RVal>(fk, ret);
 	}
 };
 
@@ -761,13 +762,13 @@ struct fkmeminvoker<RVal, T, T1, T2, T3>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    T * p = fkpspop<T*>(fk);
-	    if (!p)
-	        return;
-	    RVal ret = ((p)->*(*(RVal(T::**)(T1,T2,T3))(ff->param2)))(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk),
-	        fkpspop<T3>(fk));
-	    fkpspush<RVal>(fk, ret);
+		T * p = fkpspop<T*>(fk);
+		if (!p)
+			return;
+		RVal ret = ((p)->*(*(RVal(T::**)(T1,T2,T3))(ff->param2)))(fkpspop<T1>(fk),
+			fkpspop<T2>(fk),
+			fkpspop<T3>(fk));
+		fkpspush<RVal>(fk, ret);
 	}
 };
 
@@ -776,12 +777,12 @@ struct fkmeminvoker<RVal, T, T1 ,T2>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    T * p = fkpspop<T*>(fk);
-	    if (!p)
-	        return;
-	    RVal ret = ((p)->*(*(RVal(T::**)(T1,T2))(ff->param2)))(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk));
-	    fkpspush<RVal>(fk, ret);
+		T * p = fkpspop<T*>(fk);
+		if (!p)
+			return;
+		RVal ret = ((p)->*(*(RVal(T::**)(T1,T2))(ff->param2)))(fkpspop<T1>(fk),
+			fkpspop<T2>(fk));
+		fkpspush<RVal>(fk, ret);
 	}
 };
 
@@ -790,12 +791,12 @@ struct fkmeminvoker<RVal, T, T1>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    T * p = fkpspop<T*>(fk);
-	    if (!p)
-	        return;
-	    RVal(T::*func)(T1) = *(RVal(T::**)(T1))(ff->param2);
-	    RVal ret = ((p)->*(func))(fkpspop<T1>(fk));
-	    fkpspush<RVal>(fk, ret);
+		T * p = fkpspop<T*>(fk);
+		if (!p)
+			return;
+		RVal(T::*func)(T1) = *(RVal(T::**)(T1))(ff->param2);
+		RVal ret = ((p)->*(func))(fkpspop<T1>(fk));
+		fkpspush<RVal>(fk, ret);
 	}
 };
 
@@ -804,11 +805,11 @@ struct fkmeminvoker<RVal, T>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    T * p = fkpspop<T*>(fk);
-	    if (!p)
-	        return;
-	    RVal ret = ((p)->*(*(RVal(T::**)(void))(ff->param2)))();
-	    fkpspush<RVal>(fk, ret);
+		T * p = fkpspop<T*>(fk);
+		if (!p)
+			return;
+		RVal ret = ((p)->*(*(RVal(T::**)(void))(ff->param2)))();
+		fkpspush<RVal>(fk, ret);
 	}
 };
 
@@ -818,15 +819,15 @@ struct fkmeminvoker<void, T, T1, T2, T3, T4, T5>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    T * p = fkpspop<T*>(fk);
-	    if (!p)
-	        return;
-	    ((p)->*(*(void(T::**)(T1,T2,T3,T4,T5))(ff->param2)))(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk),
-	        fkpspop<T3>(fk),
-	        fkpspop<T4>(fk),
-	        fkpspop<T5>(fk));
-	    fkpspush<int>(fk, 0);
+		T * p = fkpspop<T*>(fk);
+		if (!p)
+			return;
+		((p)->*(*(void(T::**)(T1,T2,T3,T4,T5))(ff->param2)))(fkpspop<T1>(fk),
+			fkpspop<T2>(fk),
+			fkpspop<T3>(fk),
+			fkpspop<T4>(fk),
+			fkpspop<T5>(fk));
+		fkpspush<int>(fk, 0);
 	}
 };
 
@@ -835,14 +836,14 @@ struct fkmeminvoker<void, T, T1, T2, T3, T4>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    T * p = fkpspop<T*>(fk);
-	    if (!p)
-	        return;
-	    ((p)->*(*(void(T::**)(T1,T2,T3,T4))(ff->param2)))(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk),
-	        fkpspop<T3>(fk),
-	        fkpspop<T4>(fk));
-	    fkpspush<int>(fk, 0);
+		T * p = fkpspop<T*>(fk);
+		if (!p)
+			return;
+		((p)->*(*(void(T::**)(T1,T2,T3,T4))(ff->param2)))(fkpspop<T1>(fk),
+			fkpspop<T2>(fk),
+			fkpspop<T3>(fk),
+			fkpspop<T4>(fk));
+		fkpspush<int>(fk, 0);
 	}
 };
 
@@ -851,13 +852,13 @@ struct fkmeminvoker<void, T, T1, T2, T3>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    T * p = fkpspop<T*>(fk);
-	    if (!p)
-	        return;
-	    ((p)->*(*(void(T::**)(T1,T2,T3))(ff->param2)))(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk),
-	        fkpspop<T3>(fk));
-	    fkpspush<int>(fk, 0);
+		T * p = fkpspop<T*>(fk);
+		if (!p)
+			return;
+		((p)->*(*(void(T::**)(T1,T2,T3))(ff->param2)))(fkpspop<T1>(fk),
+			fkpspop<T2>(fk),
+			fkpspop<T3>(fk));
+		fkpspush<int>(fk, 0);
 	}
 };
 
@@ -866,12 +867,12 @@ struct fkmeminvoker<void, T, T1, T2>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    T * p = fkpspop<T*>(fk);
-	    if (!p)
-	        return;
-	    ((p)->*(*(void(T::**)(T1,T2))(ff->param2)))(fkpspop<T1>(fk),
-	        fkpspop<T2>(fk));
-	    fkpspush<int>(fk, 0);
+		T * p = fkpspop<T*>(fk);
+		if (!p)
+			return;
+		((p)->*(*(void(T::**)(T1,T2))(ff->param2)))(fkpspop<T1>(fk),
+			fkpspop<T2>(fk));
+		fkpspush<int>(fk, 0);
 	}
 };
 
@@ -880,11 +881,11 @@ struct fkmeminvoker<void, T, T1>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    T * p = fkpspop<T*>(fk);
-	    if (!p)
-	        return;
-	    ((p)->*(*(void(T::**)(T1))(ff->param2)))(fkpspop<T1>(fk));
-	    fkpspush<int>(fk, 0);
+		T * p = fkpspop<T*>(fk);
+		if (!p)
+			return;
+		((p)->*(*(void(T::**)(T1))(ff->param2)))(fkpspop<T1>(fk));
+		fkpspush<int>(fk, 0);
 	}
 };
 
@@ -893,11 +894,11 @@ struct fkmeminvoker<void, T>
 {
 	static void invoke(fake * fk, const fkfunctor * ff)
 	{
-	    T * p = fkpspop<T*>(fk);
-	    if (!p)
-	        return;
-	    ((p)->*(*(void(T::**)(void))(ff->param2)))();
-	    fkpspush<int>(fk, 0);
+		T * p = fkpspop<T*>(fk);
+		if (!p)
+			return;
+		((p)->*(*(void(T::**)(void))(ff->param2)))();
+		fkpspush<int>(fk, 0);
 	}
 };
 
@@ -905,37 +906,37 @@ struct fkmeminvoker<void, T>
 template<typename RVal, typename T>
 void fkreg(fake * fk, const char * name, RVal (T::*func)())
 {
-    fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T>::invoke, 0, func));
+	fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T>::invoke, 0, func));
 }
 
 template<typename RVal, typename T, typename T1>
 void fkreg(fake * fk, const char * name, RVal (T::*func)(T1))
 {
-    fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1>::invoke, 0, func));
+	fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1>::invoke, 0, func));
 }
 
 template<typename RVal, typename T, typename T1, typename T2>
 void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2))
 {
-    fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2>::invoke, 0, func));
+	fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2>::invoke, 0, func));
 }
 
 template<typename RVal, typename T, typename T1, typename T2, typename T3>
 void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2, T3))
 {
-    fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3>::invoke, 0, func));
+	fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3>::invoke, 0, func));
 }
 
 template<typename RVal, typename T, typename T1, typename T2, typename T3, typename T4>
 void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2, T3, T4))
 {
-    fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3, T4>::invoke, 0, func));
+	fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3, T4>::invoke, 0, func));
 }
 
 template<typename RVal, typename T, typename T1, typename T2, typename T3, typename T4, typename T5>
 void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2, T3, T4, T5))
 {
-    fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3, T4, T5>::invoke, 0, func));
+	fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3, T4, T5>::invoke, 0, func));
 }
 
 // 开启常用内置函数
@@ -972,4 +973,8 @@ FAKE_API void fksetargv(fake * fk, int argc, const char *argv[]);
 FAKE_API const char * fkdumpallfunc(fake * fk);
 FAKE_API const char * fkdumpfunc(fake * fk, const char * func);
 FAKE_API const char * fkdumpfuncmap(fake * fk);
+
+// save load函数
+FAKE_API int fksavefunc(fake * fk, char * buff, int size);
+FAKE_API int fkloadfunc(fake * fk, char * buff, int size);
 
