@@ -12,6 +12,7 @@ const ele_if = 5
 const ele_else = 6
 const ele_fake = 7
 const ele_with = 8
+const ele_do = 9
 
 -- 从xml生成file
 func gen_file_xml(srcfile, tplfile, desfile)
@@ -32,7 +33,8 @@ func gen_file_xml(srcfile, tplfile, desfile)
 	var src = file.read_all(srcf)
 	
 	-- 生成
-	ok, var des = gen(ret, src)
+	global := map()
+	ok, var des = gen(global, ret, src)
 	if not ok then
 		return false, string.cat("template gen fail:", des)
 	end
@@ -50,7 +52,7 @@ func gen_file_xml(srcfile, tplfile, desfile)
 end
 
 -- 生成
-func gen(data, src)
+func gen(global, data, src)
 
 	if not size(src) then
 		return true, ""
@@ -70,7 +72,7 @@ func gen(data, src)
 		
 		case ele_member then
 			
-			ok, var v, errormsg = _get_element_value(data, ele)
+			ok, var v, errormsg = _get_element_value(global, data, ele)
 			if not ok then
 				return false, errormsg
 			end
@@ -81,7 +83,7 @@ func gen(data, src)
 			
 			des = string.cat(des, v)
 			
-			ok, var son = gen(data, left)
+			ok, var son = gen(global, data, left)
 			if not ok then
 				return false, son
 			end
@@ -90,7 +92,7 @@ func gen(data, src)
 		
 		case ele_range then
 				
-			ok, var v, errormsg = _get_element_value(data, ele)
+			ok, var v, errormsg = _get_element_value(global, data, ele)
 			if not ok then
 				return false, errormsg
 			end
@@ -106,14 +108,14 @@ func gen(data, src)
 			
 			for var i = 0, i < size(v), i++ then
 				var sondata = range(v, i)
-				ok, var son = gen(sondata, loopstr)
+				ok, var son = gen(global, sondata, loopstr)
 				if not ok then
 					return false, son
 				end
 				des = string.cat(des, son)
 			end
 			
-			ok, var son = gen(data, loopleft)
+			ok, var son = gen(global, data, loopleft)
 			if not ok then
 				return false, son
 			end
@@ -122,7 +124,7 @@ func gen(data, src)
 		
 		case ele_if then
 						
-			ok, var v, errormsg = _get_element_value(data, ele)
+			ok, var v, errormsg = _get_element_value(global, data, ele)
 			if not ok then
 				return false, errormsg
 			end
@@ -138,20 +140,20 @@ func gen(data, src)
 			end
 			
 			if not v then
-				ok, var son = gen(data, iffalsestr)
+				ok, var son = gen(global, data, iffalsestr)
 				if not ok then
 					return false, son
 				end
 				des = string.cat(des, son)
 			else
-				ok, var son = gen(data, iftruestr)
+				ok, var son = gen(global, data, iftruestr)
 				if not ok then
 					return false, son
 				end
 				des = string.cat(des, son)
 			end
 		
-			ok, var son = gen(data, ifleft)
+			ok, var son = gen(global, data, ifleft)
 			if not ok then
 				return false, son
 			end
@@ -165,7 +167,7 @@ func gen(data, src)
 				return false, "dostring fail"
 			end
 			
-			ok, var son = gen(data, left)
+			ok, var son = gen(global, data, left)
 			if not ok then
 				return false, son
 			end
@@ -173,8 +175,8 @@ func gen(data, src)
 			des = string.cat(des, son)
 		
 		case ele_with then
-		
-			ok, var v, errormsg = _get_element_value(data, ele)
+			
+			ok, var v, errormsg = _get_element_value(global, data, ele)
 			if not ok then
 				return false, errormsg
 			end
@@ -184,13 +186,33 @@ func gen(data, src)
 				return false, withstr
 			end
 			
-			ok, var son = gen(v, withstr)
+			ok, var son = gen(global, v, withstr)
 			if not ok then
 				return false, son
 			end
 			des = string.cat(des, son)
 				
-			ok, son = gen(data, withleft)
+			ok, son = gen(global, data, withleft)
+			if not ok then
+				return false, son
+			end
+			
+			des = string.cat(des, son)
+		
+		case ele_do then
+			
+			ok, var v, errormsg = _get_element_value(global, data, ele)
+			if not ok then
+				return false, errormsg
+			end
+						
+			if typeof(v) != "STRING" then
+				return false, "not string"
+			end
+			
+			des = string.cat(des, v)
+			
+			ok, var son = gen(global, data, left)
 			if not ok then
 				return false, son
 			end
@@ -207,7 +229,7 @@ func gen(data, src)
 end
 
 -- 取得表达式的值
-func _get_element_value(data, ele)
+func _get_element_value(global, data, ele)
 
 	-- .xxx
 	var ele_begin_str = string.substr(ele, 0, 1)
@@ -215,7 +237,7 @@ func _get_element_value(data, ele)
 		ele = string.substr(ele, 1, -1)
 		var v = data[ele]
 		if not v then
-			return false, 0, "no ele"
+			return false, 0, string.cat("no ele ", ele)
 		end
 		return true, v, "ok"
 	end
@@ -223,13 +245,13 @@ func _get_element_value(data, ele)
 	-- 脚本
 	if ele_begin_str == ":" then
 		ele = string.substr(ele, 1, -1)
-		ele = string.cat("func _template_tmp_func(data) ", ele)
+		ele = string.cat("func _template_tmp_func(global, data) ", ele)
 		ele = string.cat(ele, " end")
 		var ok = dostring(ele)
 		if not ok then
 			return false, 0, "value dostring fail"
 		end
-		var v = _template_tmp_func(data)
+		var v = _template_tmp_func(global, data)
 		return true, v, "ok"
 	end
 	
@@ -296,6 +318,9 @@ func _get_element(src)
 					case "with" then
 						type = ele_with
 						ele = string.substr(src, op_pos + 1, ele_end_pos - op_pos - 1)
+					case "do" then
+						type = ele_do
+						ele = string.substr(src, op_pos + 1, ele_end_pos - op_pos - 1)
 					default
 						return false, type, head, ele, ele_str, left, "no op type "
 				end
@@ -333,6 +358,12 @@ func _get_element_end(src)
 			
 		end
 		
+		if type == ele_none then
+		
+			return false, "end not match", left
+			
+		end
+		
 		if type == ele_range or type == ele_if or type == ele_with then
 			deps += 1
 		end
@@ -366,6 +397,12 @@ func _get_element_else(src)
 		if type == ele_else and deps == 1 then
 		
 			return true, iftruestr, left
+			
+		end
+		
+		if type == ele_none and deps == 1 then
+		
+			return true, iftruestr, ""
 			
 		end
 		

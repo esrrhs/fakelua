@@ -166,7 +166,7 @@ bool parser::parse(const char * filename)
 		return false;
 	}
 
-	// jit ÏÈ·ÅÆú
+	// jit
 	fk->as.clear();
 	assembler & as = fk->as;
 	b = as.compile(&fk->bin);

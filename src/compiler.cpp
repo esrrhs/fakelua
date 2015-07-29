@@ -130,18 +130,7 @@ bool compiler::compile_func(func_desc_node * funcnode)
 
 	// 看立即更新还是延迟更新
 	variant fv = m_fk->sh.allocsysstr(funcname.c_str());
-	const funcunion * f = m_fk->fm.get_func(fv);
-	if (f && f->havefb && FUNC_BINARY_USE(f->fb))
-	{
-		FKLOG("[compiler] compile_func func %s add back bin", funcname.c_str());
-		FUNC_BINARY_BACKUP(f->fb) = (func_binary *)safe_fkmalloc(m_fk, sizeof(func_binary));
-		*FUNC_BINARY_BACKUP(f->fb) = bin;
-	}
-	else
-	{
-		FKLOG("[compiler] compile_func func %s add bin", funcname.c_str());
-		m_fk->bin.add_func(fv, bin);
-	}
+	m_fk->bin.add_func(fv, bin);
 	
 	FKLOG("[compiler] compile_func func %s size = %d OK", funcname.c_str(), FUNC_BINARY_SIZE(bin));
 	

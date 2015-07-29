@@ -276,11 +276,16 @@ String fkmaptoa(variant_map * vm)
 
 bool save_variant(fake * fk, const variant * v, buffer * b)
 {
+	if (!b->write((const char *)&(v->type), sizeof(v->type)))
+	{
+		return false;
+	}
+	
 	if (v->type == variant::REAL ||
 		v->type == variant::UUID ||
 		v->type == variant::NIL)
 	{
-		return b->write((const char *)v, sizeof(variant));
+		return b->write((const char *)&(v->data), sizeof(v->data));
 	}
 	else if (v->type == variant::STRING)
 	{
@@ -299,11 +304,16 @@ bool save_variant(fake * fk, const variant * v, buffer * b)
 
 bool load_variant(fake * fk, variant * v, buffer * b)
 {
+	if (!b->read((char *)&(v->type), sizeof(v->type)))
+	{
+		return false;
+	}
+	
 	if (v->type == variant::REAL ||
 		v->type == variant::UUID ||
 		v->type == variant::NIL)
 	{
-		return b->read((char *)v, sizeof(variant));
+		return b->read((char *)&(v->data), sizeof(v->data));
 	}
 	else if (v->type == variant::STRING)
 	{
@@ -312,8 +322,8 @@ bool load_variant(fake * fk, variant * v, buffer * b)
 		{
 			return false;
 		}
-		const char * ss = s.c_str();
-		V_SET_STRING(v, ss);
+
+		*v = fk->sh.allocsysstr(s.c_str());
 		return true;
 	}
 	else if (v->type == variant::POINTER ||
