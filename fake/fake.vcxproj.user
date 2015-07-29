@@ -4,11 +4,7 @@
     <ShowAllFiles>false</ShowAllFiles>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-<<<<<<< HEAD
     <LocalDebuggerCommandArguments>9.fk a b c</LocalDebuggerCommandArguments>
-=======
-    <LocalDebuggerCommandArguments>52.fk</LocalDebuggerCommandArguments>
->>>>>>> d4e2059dc786584de9022bc675cabe96df303641
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>../bin</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
