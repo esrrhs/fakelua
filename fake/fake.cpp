@@ -68,8 +68,28 @@ int main(int argc, const char *argv[])
 	fake * fk = newfake();
 
 	// 解析参数
+<<<<<<< HEAD
 	int parseret = parsearg(fk, argc, argv);
 	if (parseret != 0)
+=======
+	if (argc < 2)
+	{
+		printf("try -h for help\n");
+		return 0;
+	}
+	
+	fake * fk = newfake();
+
+	// 开关选项
+	bool isopenprofile = false;
+	bool isopenjit = false;
+	bool isopengoogleprofile = false;
+	int testnum = 1;
+	bool issave = false;
+	bool isload = false;
+	bool isprintoutput = false;
+	if (argv[1][0] == '-')
+>>>>>>> d4e2059dc786584de9022bc675cabe96df303641
 	{
 		return parseret;
 	}
@@ -99,7 +119,22 @@ int main(int argc, const char *argv[])
 		int selfsize = 0;
 		if (!readfile(g_selfname, 0, selftmpbuf, selfsize))
 		{
+<<<<<<< HEAD
 			return -1;
+=======
+			printf("\
+fakescript\n\narg : [-hjpgtsl] file [arg]\n\
+-h help\n\
+-j open jit\n\
+-p open profile\n\
+-g open google profile\n\
+-t open test mode\n\
+-s save func to fake.bin\n\
+-l load func from file\n\
+-o print return value and time\n\
+sample:./fake a.fk\n\n");
+			return 0;
+>>>>>>> d4e2059dc786584de9022bc675cabe96df303641
 		}
 
 		int startpos = 0;
@@ -109,8 +144,13 @@ int main(int argc, const char *argv[])
 
 		if (fkloadfunc(fk, selftmpbuf + startpos, size) == -1)
 		{
+<<<<<<< HEAD
 			printf("load func fail\n");
 			return -1;
+=======
+			fkopenjit(fk);
+			isopenjit = true;
+>>>>>>> d4e2059dc786584de9022bc675cabe96df303641
 		}
 
 		free(selftmpbuf);
@@ -121,7 +161,12 @@ int main(int argc, const char *argv[])
 		fkparse(fk, argv[1]);
 		if (fkerror(fk))
 		{
+<<<<<<< HEAD
 			return -1;
+=======
+			fkopenprofile(fk);
+			isopenprofile = true;
+>>>>>>> d4e2059dc786584de9022bc675cabe96df303641
 		}
 	}
 	// 读文件
@@ -132,13 +177,36 @@ int main(int argc, const char *argv[])
 		int size = 0;
 		if (!readfile(argv[1], 0, tmpbuf, size))
 		{
+<<<<<<< HEAD
 			return -1;
+=======
+			isopengoogleprofile = true;
+>>>>>>> d4e2059dc786584de9022bc675cabe96df303641
 		}
 
 		if (fkloadfunc(fk, tmpbuf, size) == -1)
 		{
+<<<<<<< HEAD
 			printf("load func fail\n");
 			return -1;
+=======
+			testnum = 9000000;
+		}
+		
+		if (strstr(argv[1], "s"))
+		{
+			issave = true;
+		}
+		
+		if (strstr(argv[1], "l"))
+		{
+			isload = true;
+		}
+
+		if (strstr(argv[1], "o"))
+		{
+			isprintoutput = true;
+>>>>>>> d4e2059dc786584de9022bc675cabe96df303641
 		}
 
 		free(tmpbuf);
@@ -224,6 +292,95 @@ int main(int argc, const char *argv[])
 		return 0;
 	}
 
+<<<<<<< HEAD
+=======
+	fksetargv(fk, argc - 2, argv + 2);
+	fkopenalllib(fk);
+	fkseterrorfunc(fk, error_log);
+
+	// for test
+	fkreg(fk, "test_cfunc1", test_cfunc1);
+	fkreg(fk, "new_test_class1", new_test_class1);
+	test_class1 c1;
+	fkreg(fk, "test_memfunc1", &test_class1::test_memfunc1); 
+	
+	// 解析文件
+	if (!isload)
+	{
+		fkparse(fk, argv[1]);
+		if (fkerror(fk))
+		{
+			return -1;
+		}
+	}
+	// 读文件
+	else
+	{
+		// 读文件
+		FILE * fp = fopen(argv[1], "rb");
+		if (!fp)
+		{
+			printf("open %s for read fail\n", argv[1]);
+			return -1;
+		}
+
+		fseek(fp, 0, SEEK_END);
+		int size = ftell(fp);
+		fseek(fp, 0, SEEK_SET);
+		
+		char * tmpbuf = (char *)malloc(size);
+		if (fread(tmpbuf, size, 1, fp) != 1)
+		{
+			printf("read %s fail\n", argv[1]);
+			return -1;
+		}
+
+		if (fkloadfunc(fk, tmpbuf, size) == -1)
+		{
+			printf("load func fail\n");
+			return -1;
+		}
+
+		fclose(fp);
+		free(tmpbuf);
+		printf("load from %s ok, size %d\n", argv[1], size);
+	}
+
+	// 存文件
+	if (issave)
+	{
+		int tmpsize = 1024 * 1024;
+		char * tmpbuf = (char *)malloc(tmpsize);
+		int size = fksavefunc(fk, tmpbuf, tmpsize);
+		if (size == -1)
+		{
+			printf("save func fail\n");
+			return -1;
+		}
+
+		const char * filename = "fake.bin";
+		FILE * fp = fopen(filename, "w");
+		if (!fp)
+		{
+			printf("open %s for write fail\n", filename);
+			return -1;
+		}
+
+		if (fwrite(tmpbuf, size, 1, fp) != 1)
+		{
+			printf("write %s fail\n", filename);
+			return -1;
+		}
+
+		fclose(fp);
+		free(tmpbuf);
+		
+		printf("save to %s ok, size %d\n", filename, size);
+		
+		return 0;
+	}
+
+>>>>>>> d4e2059dc786584de9022bc675cabe96df303641
 #ifndef WIN32
 	if (g_isopengoogleprofile)
 	{
@@ -235,7 +392,11 @@ int main(int argc, const char *argv[])
 	int fkret = 0;
 
 	// run
+<<<<<<< HEAD
 	for (int i = 0; i < g_testnum; i++)
+=======
+	for (int i = 0; i < testnum; i++)
+>>>>>>> d4e2059dc786584de9022bc675cabe96df303641
 	{
 		if (!g_isopenjit)
 		{
@@ -266,7 +427,11 @@ int main(int argc, const char *argv[])
 		printf("\n%s", fkdumpprofile(fk));
 	}
 
+<<<<<<< HEAD
 	if (g_isprintoutput)
+=======
+	if (isprintoutput)
+>>>>>>> d4e2059dc786584de9022bc675cabe96df303641
 	{
 		printf("main return : %d, use time %d\n", fkret, endtime - begintime);
 	}
@@ -274,6 +439,7 @@ int main(int argc, const char *argv[])
 	delfake(fk);
 
 	return 0;
+<<<<<<< HEAD
 }
 
 bool readfile(const char * filename, int addsize, char * & buf, int & filesize)
@@ -322,6 +488,8 @@ bool writefile(const char * filename, const char * buf, int filesize)
 	fclose(fp);
 
 	return true;
+=======
+>>>>>>> d4e2059dc786584de9022bc675cabe96df303641
 }
 
 int parsearg(fake * fk, int & argc, const char ** & argv)
