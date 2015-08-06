@@ -33,6 +33,7 @@ FAKE_API void delfake(fake * fk)
 // ½âÎöÎÄ¼þ
 FAKE_API bool fkparse(fake * fk, const char * filename)
 {
+	fk->pa.clear();
 	return fk->pa.parse(filename);
 }
 
@@ -531,3 +532,43 @@ FAKE_API int fkloadfunc(fake * fk, char * buff, int size)
 	return b.size();
 }
 
+FAKE_API const char ** fkgetkeyword()
+{
+	static const char * keyword[] = {
+		"var",
+		"return",
+		"break",
+		"func",
+		"fake",
+		"while",
+		"for",
+		"true",
+		"false",
+		"if",
+		"then",
+		"else",
+		"elseif",
+		"end",
+		"const",
+		"package",
+		"include",
+		"struct",
+		"and",
+		"or",
+		"is",
+		"not",
+		"continue",
+		"yield",
+		"sleep",
+		"switch",
+		"case",
+		"default",
+		"",
+	};
+	return keyword;
+}
+
+FAKE_API void fksetprintfunc(fake * fk, fkprint func)
+{
+	fk->bif.set_print_func(func);
+}

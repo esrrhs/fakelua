@@ -16,7 +16,14 @@ void buildin_print(fake * fk, interpreter * inter)
 		str += vartostring(&fk->ps.m_variant_list[i]);
 	}
 	// printf
-	printf("%s\n", str.c_str());
+	if (fk->bif.get_print_func())
+	{
+		fk->bif.get_print_func()(fk, str.c_str());
+	}
+	else
+	{
+		printf("%s\n", str.c_str());
+	}
 	PS_CLEAR(fk->ps);
 	// ret
 	fkpspush<int>(fk, (int)str.size());
@@ -356,3 +363,12 @@ int buildinfunc::getseed() const
 	return m_bifmath.getseed();
 }
 
+void buildinfunc::set_print_func(fkprint func)
+{
+	m_fkprint = func;
+}
+
+fkprint buildinfunc::get_print_func() const
+{
+	return m_fkprint;
+}

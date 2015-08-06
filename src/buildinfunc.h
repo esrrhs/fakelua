@@ -54,8 +54,12 @@ public:
 	void setseed(int seed);
 	int getseed() const;
 
+	void set_print_func(fkprint func);
+	fkprint get_print_func() const;
+
 private:
 	fake * m_fk;
+	fkprint m_fkprint;
 	buildinfuncfile m_bifile;
 	buildinfuncnet m_bifnet;
 	buildinfuncos m_bifos;
