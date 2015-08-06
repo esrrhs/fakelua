@@ -127,3 +127,10 @@
 2015.7.20:加编译为exe的功能
 2015.7.23:修复template的bug
 2015.7.28:给template加个do的功能
+2015.7.30:加ide，方便调试
+2015.7.31:去掉ide，mfc还是太麻烦，update to vs2015
+2015.8.3:加ide的保存、statusbar，加了两个窗口做variant和bytecode的查看，引入fake库
+2015.8.4:加ide的高亮
+2015.8.5:加run的menu，下一步加parse逻辑
+2015.8.5:加parse逻辑，下一步加run，已经修改print函数
+2015.8.6:加run，下一步加调试单步断点

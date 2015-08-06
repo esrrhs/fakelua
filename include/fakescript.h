@@ -153,7 +153,8 @@ struct fake;
 typedef void (*fkerrorcb)(fake * fk, int eno, const char * str);
 
 typedef void * (*fkmalloc)(size_t size);
-typedef void (*fkfree)(void *ptr);
+typedef void (*fkfree)(void * ptr);
+typedef void(*fkprint)(fake * fk, const char * str);
 
 #define FAKE_API extern "C"
 #define MAX_FAKE_PARAM_NUM 10	// 最大10个参数
@@ -978,3 +979,6 @@ FAKE_API const char * fkdumpfuncmap(fake * fk);
 FAKE_API int fksavefunc(fake * fk, char * buff, int size);
 FAKE_API int fkloadfunc(fake * fk, char * buff, int size);
 
+// debug相关
+FAKE_API const char ** fkgetkeyword();
+FAKE_API void fksetprintfunc(fake * fk, fkprint func);
