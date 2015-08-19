@@ -603,11 +603,13 @@ static yyconst flex_int32_t yy_rule_can_match_eol[75] =
 
 #define FLEX_DEBUG(x, ...) printf("FLEX DEBUG %d:", yylineno); printf(x, ##__VA_ARGS__);
 
-#define YY_DECL int myflexer::yylex(YYSTYPE * lvalp)
+#define YY_DECL int myflexer::yylex(YYSTYPE * lvalp, YYLTYPE * loc)
+
+#define YY_USER_ACTION loc->first_line = loc->last_line = yylineno;
+	
 
 
-
-#line 611 "../flex.cpp"
+#line 613 "../flex.cpp"
 
 #define INITIAL 0
 #define STR 1
@@ -709,10 +711,10 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	register int yy_act;
     
-#line 24 "flex.l"
+#line 26 "flex.l"
 
 
-#line 716 "../flex.cpp"
+#line 718 "../flex.cpp"
 
 	if ( !(yy_init) )
 		{
@@ -803,19 +805,19 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 26 "flex.l"
+#line 28 "flex.l"
 yy_push_state(SINGLE_LINE_COMMENT);
 	YY_BREAK
 
 case 2:
 YY_RULE_SETUP
-#line 28 "flex.l"
+#line 30 "flex.l"
 ;
 	YY_BREAK
 case 3:
 /* rule 3 can match eol */
 YY_RULE_SETUP
-#line 29 "flex.l"
+#line 31 "flex.l"
 {
 		yy_pop_state(); 
 	}
@@ -823,56 +825,56 @@ YY_RULE_SETUP
 
 case 4:
 YY_RULE_SETUP
-#line 34 "flex.l"
+#line 36 "flex.l"
 {
 	return VAR_BEGIN;
 }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 38 "flex.l"
+#line 40 "flex.l"
 {
 	return RETURN;
 }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 42 "flex.l"
+#line 44 "flex.l"
 {
     return BREAK;
 }
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 46 "flex.l"
+#line 48 "flex.l"
 {
 	return FUNC;
 }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 50 "flex.l"
+#line 52 "flex.l"
 {
 	return FAKE;
 }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 54 "flex.l"
+#line 56 "flex.l"
 {
 	return WHILE;
 }
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 58 "flex.l"
+#line 60 "flex.l"
 {
 	return FOR;
 }
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 62 "flex.l"
+#line 64 "flex.l"
 {
   lvalp->str = yytext;
   return FTRUE;
@@ -880,7 +882,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 67 "flex.l"
+#line 69 "flex.l"
 {
   lvalp->str = yytext;
   return FFALSE;
@@ -888,181 +890,181 @@ YY_RULE_SETUP
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 72 "flex.l"
+#line 74 "flex.l"
 {
 	return IF;
 }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 76 "flex.l"
+#line 78 "flex.l"
 {
 	return THEN;
 }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 80 "flex.l"
+#line 82 "flex.l"
 {
 	return ELSE;
 }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 84 "flex.l"
+#line 86 "flex.l"
 {
 	return ELSEIF;
 }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 88 "flex.l"
+#line 90 "flex.l"
 {
 	return END;
 }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 92 "flex.l"
+#line 94 "flex.l"
 {
 	return FCONST;
 }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 96 "flex.l"
+#line 98 "flex.l"
 {
 	return PACKAGE;
 }
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 100 "flex.l"
+#line 102 "flex.l"
 {
 	return INCLUDE;
 }
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 104 "flex.l"
+#line 106 "flex.l"
 {
 	return STRUCT;
 }
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 108 "flex.l"
+#line 110 "flex.l"
 {
 	return AND;
 }
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 112 "flex.l"
+#line 114 "flex.l"
 {
 	return OR;
 }
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 116 "flex.l"
+#line 118 "flex.l"
 {
 	return IS;
 }
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 120 "flex.l"
+#line 122 "flex.l"
 {
 	return NOT;
 }
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 124 "flex.l"
+#line 126 "flex.l"
 {
 	return CONTINUE;
 }
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 128 "flex.l"
+#line 130 "flex.l"
 {
 	return YIELD;
 }
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 132 "flex.l"
+#line 134 "flex.l"
 {
 	return SLEEP;
 }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 136 "flex.l"
+#line 138 "flex.l"
 {
 	return SWITCH;
 }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 140 "flex.l"
+#line 142 "flex.l"
 {
 	return CASE;
 }
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 144 "flex.l"
+#line 146 "flex.l"
 {
 	return DEFAULT;
 }
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 148 "flex.l"
+#line 150 "flex.l"
 yy_push_state(STR); lvalp->str = String();
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 149 "flex.l"
+#line 151 "flex.l"
 lvalp->str += String("\n");
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 150 "flex.l"
+#line 152 "flex.l"
 lvalp->str += String("\t");
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 151 "flex.l"
+#line 153 "flex.l"
 lvalp->str += String(" ");
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 152 "flex.l"
+#line 154 "flex.l"
 lvalp->str += String("\r");
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 153 "flex.l"
+#line 155 "flex.l"
 lvalp->str += String("\"");
 	YY_BREAK
 case 38:
 /* rule 38 can match eol */
 YY_RULE_SETUP
-#line 154 "flex.l"
+#line 156 "flex.l"
 lvalp->str += String(yytext);
 	YY_BREAK
 case 39:
 YY_RULE_SETUP
-#line 155 "flex.l"
+#line 157 "flex.l"
 yy_pop_state(); return STRING_DEFINITION; 
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 157 "flex.l"
+#line 159 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return IDENTIFIER;
@@ -1070,7 +1072,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 162 "flex.l"
+#line 164 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return IDENTIFIER_DOT;
@@ -1078,7 +1080,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 167 "flex.l"
+#line 169 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return IDENTIFIER_POINTER;
@@ -1086,7 +1088,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 172 "flex.l"
+#line 174 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return FKUUID;
@@ -1094,7 +1096,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 177 "flex.l"
+#line 179 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return NUMBER;
@@ -1102,7 +1104,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 182 "flex.l"
+#line 184 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return FKFLOAT;
@@ -1110,112 +1112,112 @@ YY_RULE_SETUP
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 187 "flex.l"
+#line 189 "flex.l"
 {
   return DIVIDE_MOD;
 }
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 191 "flex.l"
+#line 193 "flex.l"
 {
 	return ARG_SPLITTER;
 }
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 195 "flex.l"
+#line 197 "flex.l"
 {
 	return RIGHT_POINTER;
 }
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 199 "flex.l"
+#line 201 "flex.l"
 {
 	return INC;
 }
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 203 "flex.l"
+#line 205 "flex.l"
 {
 	return PLUS;
 }
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 207 "flex.l"
+#line 209 "flex.l"
 {
 	return MINUS;
 }
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 211 "flex.l"
+#line 213 "flex.l"
 {
 	return DIVIDE;
 }
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 215 "flex.l"
+#line 217 "flex.l"
 {
 	return MULTIPLY;
 }
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
-#line 219 "flex.l"
+#line 221 "flex.l"
 {
 	return NEW_ASSIGN;
 }
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
-#line 223 "flex.l"
+#line 225 "flex.l"
 {
 	return PLUS_ASSIGN;
 }
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 227 "flex.l"
+#line 229 "flex.l"
 {
 	return MINUS_ASSIGN;
 }
 	YY_BREAK
 case 57:
 YY_RULE_SETUP
-#line 231 "flex.l"
+#line 233 "flex.l"
 {
 	return DIVIDE_ASSIGN;
 }
 	YY_BREAK
 case 58:
 YY_RULE_SETUP
-#line 235 "flex.l"
+#line 237 "flex.l"
 {
 	return MULTIPLY_ASSIGN;
 }
 	YY_BREAK
 case 59:
 YY_RULE_SETUP
-#line 239 "flex.l"
+#line 241 "flex.l"
 {
   return DIVIDE_MOD_ASSIGN;
 }
 	YY_BREAK
 case 60:
 YY_RULE_SETUP
-#line 243 "flex.l"
+#line 245 "flex.l"
 {
 	return ASSIGN;
 }
 	YY_BREAK
 case 61:
 YY_RULE_SETUP
-#line 247 "flex.l"
+#line 249 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return MORE;
@@ -1223,7 +1225,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 62:
 YY_RULE_SETUP
-#line 252 "flex.l"
+#line 254 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return LESS;
@@ -1231,7 +1233,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 63:
 YY_RULE_SETUP
-#line 257 "flex.l"
+#line 259 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return MORE_OR_EQUAL;
@@ -1239,7 +1241,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 64:
 YY_RULE_SETUP
-#line 262 "flex.l"
+#line 264 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return LESS_OR_EQUAL;
@@ -1247,7 +1249,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 65:
 YY_RULE_SETUP
-#line 267 "flex.l"
+#line 269 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return EQUAL;
@@ -1255,7 +1257,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 66:
 YY_RULE_SETUP
-#line 272 "flex.l"
+#line 274 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return NOT_EQUAL;
@@ -1263,35 +1265,35 @@ YY_RULE_SETUP
 	YY_BREAK
 case 67:
 YY_RULE_SETUP
-#line 277 "flex.l"
+#line 279 "flex.l"
 {
 	return OPEN_BRACKET;
 }
 	YY_BREAK
 case 68:
 YY_RULE_SETUP
-#line 281 "flex.l"
+#line 283 "flex.l"
 {
 	return CLOSE_BRACKET;
 }
 	YY_BREAK
 case 69:
 YY_RULE_SETUP
-#line 285 "flex.l"
+#line 287 "flex.l"
 {
 	return COLON;
 }
 	YY_BREAK
 case 70:
 YY_RULE_SETUP
-#line 289 "flex.l"
+#line 291 "flex.l"
 {
 	return OPEN_SQUARE_BRACKET;
 }
 	YY_BREAK
 case 71:
 YY_RULE_SETUP
-#line 293 "flex.l"
+#line 295 "flex.l"
 {
 	return CLOSE_SQUARE_BRACKET;
 }
@@ -1299,22 +1301,22 @@ YY_RULE_SETUP
 case 72:
 /* rule 72 can match eol */
 YY_RULE_SETUP
-#line 297 "flex.l"
+#line 299 "flex.l"
 {
 }
 	YY_BREAK
 case 73:
 YY_RULE_SETUP
-#line 300 "flex.l"
+#line 302 "flex.l"
 {
 }
 	YY_BREAK
 case 74:
 YY_RULE_SETUP
-#line 303 "flex.l"
+#line 305 "flex.l"
 ECHO;
 	YY_BREAK
-#line 1318 "../flex.cpp"
+#line 1320 "../flex.cpp"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(STR):
 case YY_STATE_EOF(SINGLE_LINE_COMMENT):
@@ -2226,7 +2228,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 303 "flex.l"
+#line 305 "flex.l"
 
 
 int yyFlexLexer::yywrap()

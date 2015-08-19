@@ -88,7 +88,7 @@ String dump_addr(int code)
 	return ret;
 }
 
-String func_binary::dump() const
+String func_binary::dump(int pos) const
 {
 	String ret;
 
@@ -136,6 +136,22 @@ String func_binary::dump() const
 		ret += dump_addr(keycode);
 		ret += "\n";
 	}
+
+	// ±‰¡øµÿ÷∑
+	ret += "\n\t////// stack variant addr ";
+	ret += fkitoa(m_debug_stack_variant_info_num);
+	ret += " //////\n";
+	for (int i = 0; i < (int)m_debug_stack_variant_info_num; i++)
+	{  
+		stack_variant_info info = m_debug_stack_variant_info[i];
+		ret += "\t[";
+		ret += fkitoa(info.pos);
+		ret += "]\t";
+		ret += info.name;
+		ret += "\t\tLINE\t";
+		ret += fkitoa(info.line);
+		ret += "\n";
+	}
 	
 	ret += "\n\t////// byte code ";
 	ret += fkitoa(m_size);
@@ -146,11 +162,15 @@ String func_binary::dump() const
 		command cmd = m_buff[i];
 		int type = COMMAND_TYPE(cmd);
 		int code = COMMAND_CODE(cmd);
+		if (i == pos)
+		{
+			ret += "->";
+		}
 		ret += "\t[";
 		ret += fkitoa(i);
 		ret += "]";
 		ret += "[LINE ";
-		ret += fkitoa(m_lineno_buff[i]);
+		ret += fkitoa(FUNC_BINARY_LINENO(*this, i));
 		ret += "]\t";
 		ret += fkxtoa(cmd);
 		ret += "\t";
@@ -201,7 +221,7 @@ String & binary::dump() const
 	return m_dump;
 }
 	
-String & binary::dump(const char * func) const
+String & binary::dump(const char * func, int pos) const
 {
 	fake * fk = m_fk;
 	m_dump.clear();
@@ -210,7 +230,7 @@ String & binary::dump(const char * func) const
 	const funcunion * f = m_fk->fm.get_func(funcv);
 	if (f && f->havefb)
 	{
-		m_dump += f->fb.dump();
+		m_dump += f->fb.dump(pos);
 	}
 	else
 	{
@@ -378,7 +398,6 @@ bool func_binary::save(fake * fk, buffer * b) const
 	SAVE_STRING(m_filename);
 	SAVE_STRING(m_packagename);
 	SAVE_ARRAY(m_buff, m_size);
-	SAVE_ARRAY(m_lineno_buff, m_lineno_size);
 	SAVE_VARRAY(m_const_list, m_const_list_num);
 	SAVE_ARRAY(m_container_addr_list, m_container_addr_list_num);
 	return true;
@@ -392,11 +411,9 @@ bool func_binary::load(fake * fk, buffer * b)
 	LOAD_STRING(m_filename);
 	LOAD_STRING(m_packagename);
 	LOAD_ARRAY(m_buff, m_size, command);
-	LOAD_ARRAY(m_lineno_buff, m_lineno_size, int);
 	LOAD_VARRAY(m_const_list, m_const_list_num);
 	LOAD_ARRAY(m_container_addr_list, m_container_addr_list_num, container_addr);
 	m_fresh++;
 	return true;
 }
-
 

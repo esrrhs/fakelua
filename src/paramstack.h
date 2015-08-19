@@ -22,7 +22,7 @@ struct paramstack
 	else \
 	{ \
 		err = true; \
-		seterror(fk, efk_run_param_error, "push fail, param stack is full %d", REAL_MAX_FAKE_PARAM_NUM); \
+		seterror(fk, efk_run_param_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "push fail, param stack is full %d", REAL_MAX_FAKE_PARAM_NUM); \
 		v = &(ps).m_variant_list[REAL_MAX_FAKE_PARAM_NUM - 1]; \
 		USE(err); \
 	}
@@ -36,7 +36,7 @@ struct paramstack
 	else \
 	{ \
 		err = true; \
-		seterror(fk, efk_run_param_error, "pop fail, param stack is empty"); \
+		seterror(fk, efk_run_param_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "pop fail, param stack is empty"); \
 		v = &(ps).m_variant_list[0]; \
 		USE(err); \
 	}
@@ -49,7 +49,7 @@ struct paramstack
 	else \
 	{ \
 		err = true; \
-		seterror(fk, efk_run_param_error, "get fail, i %d, stack len %d", i, (ps).m_variant_list_num); \
+		seterror(fk, efk_run_param_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "get fail, i %d, stack len %d", i, (ps).m_variant_list_num); \
 		v = &(ps).m_variant_list[0]; \
 		USE(err); \
 	}

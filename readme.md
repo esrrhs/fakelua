@@ -18,6 +18,7 @@ fakescript - 轻量级嵌入式脚本语言
 * 支持包
 * 支持struct
 * 支持打包bin文件
+* 自带gdb风格的命令行调试，以及vs风格的可视化编辑调试ide
 
 # 标准库 #
 * 文件
@@ -29,6 +30,7 @@ fakescript - 轻量级嵌入式脚本语言
 # 示例 #
 
 ```
+#!lua
 
 
 -- 当前包名
@@ -109,6 +111,15 @@ func myfunc1(arg1, arg2)
 	
 end
 ```
+# 调试环境 #
+* IDE
+
+![QQ图片20150819174501.png](https://bitbucket.org/repo/pAEqqM/images/188608728-QQ%E5%9B%BE%E7%89%8720150819174501.png)
+
+* 命令行
+
+![QQ图片20150819175022.png](https://bitbucket.org/repo/pAEqqM/images/1059284915-QQ%E5%9B%BE%E7%89%8720150819175022.png)
+
 # 欢迎捐赠 #
 ![donation.png](https://bitbucket.org/repo/pAEqqM/images/2041212420-donation.png)
 

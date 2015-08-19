@@ -2,6 +2,7 @@
 
 #include "types.h"
 #include "syntree.h"
+#include "bison.h"
 
 typedef struct _YYSTYPE 
 {
@@ -10,7 +11,7 @@ typedef struct _YYSTYPE
 } YYSTYPE;
 
 extern int yyparse(void * param);
-extern int yylex(YYSTYPE *lvalp, void * parm);
+extern int yylex(YYSTYPE *lvalp, YYLTYPE * loc, void * parm);
 extern void yyerror(const char *str);
 extern int yylex_destroy();
 

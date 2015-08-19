@@ -4,12 +4,11 @@
 #include "fake.h"
 #include "variant.h"
 
-int codegen::add_stack_identifier(const String & name)
+int codegen::add_stack_identifier(const String & name, int line)
 {
 	assert(m_block_identifiers_stack.size() > 0);
 	if (get_cur_variable_pos(name) != -1)
 	{
-		seterror(m_fk, efk_compile_stack_identifier_error, "double %s identifier error", name.c_str());
 		return -1;
 	}
 	block_identifiers_list & list = m_block_identifiers_stack.back();
@@ -20,6 +19,15 @@ int codegen::add_stack_identifier(const String & name)
 	{
 		m_maxstackpos = m_stackpos;
 	}
+	
+	stack_variant_info tmp;
+	memset(&tmp, 0, sizeof(tmp));
+	strncpy(tmp.name, name.c_str(), name.size());
+	tmp.name[sizeof(tmp.name) - 1] = 0;
+	tmp.line = line;
+	tmp.pos = ret;
+	m_debug_block_identifiers_list.push_back(tmp);
+	
 	return ret;
 }
 
@@ -95,6 +103,13 @@ void codegen::output(const char * filename, const char * packagename, const char
 	{
 		bin->m_container_addr_list = (container_addr *)safe_fkmalloc(m_fk, (bin->m_container_addr_list_num * sizeof(container_addr)));
 		memcpy(bin->m_container_addr_list, &m_containeraddr_list[0], bin->m_container_addr_list_num * sizeof(container_addr));
+	}
+
+	bin->m_debug_stack_variant_info_num = m_debug_block_identifiers_list.size();
+	if (bin->m_debug_stack_variant_info_num > 0)
+	{
+		bin->m_debug_stack_variant_info = (stack_variant_info *)safe_fkmalloc(m_fk, (bin->m_debug_stack_variant_info_num * sizeof(stack_variant_info)));
+		memcpy(bin->m_debug_stack_variant_info, &m_debug_block_identifiers_list[0], bin->m_debug_stack_variant_info_num * sizeof(stack_variant_info));
 	}
 
 	bin->m_fresh++;

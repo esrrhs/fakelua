@@ -35,13 +35,13 @@ void assembler::close()
 
 void assembler::compile_seterror(const func_binary & fb, command cmd, efkerror err, const char *fmt, ...)
 {
-	char errorstr[128];
+	char errorstr[512];
 	va_list ap;
 	va_start(ap, fmt);
 	vsnprintf(errorstr, sizeof(errorstr) - 1, fmt, ap);
 	va_end(ap);
 	errorstr[sizeof(errorstr) - 1] = 0;
-	seterror(m_fk, err, "assembler func(%s) %llu, %s", FUNC_BINARY_FILENAME(fb), cmd, errorstr);
+	seterror(m_fk, err, FUNC_BINARY_FILENAME(fb), FUNC_BINARY_LINENO(fb, m_pos), FUNC_BINARY_NAME(fb), "assembler %llu, %s", cmd, errorstr);
 }
 
 bool assembler::compile(binary * bin)

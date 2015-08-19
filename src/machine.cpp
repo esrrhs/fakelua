@@ -29,7 +29,7 @@ void machine::call(const variant & func)
 	if (UNLIKE(!f))
 	{
 		FKERR("fkrun native no func %s fail", vartostring(&func).c_str());
-		seterror(m_fk, efk_run_no_func_error, "fkrun native no func %s fail", vartostring(&func).c_str());
+		seterror(m_fk, efk_run_no_func_error, "", 0, "", "fkrun native no func %s fail", vartostring(&func).c_str());
 		m_isend = true;
 		return;
 	}
@@ -148,7 +148,7 @@ void machine::call(const variant & func)
 	else
 	{
 		FKERR("fkrun no jit func %s fail", vartostring(&func).c_str());
-		seterror(m_fk, efk_run_no_func_error, "fkrun no inter func %s fail", vartostring(&func).c_str());
+		seterror(m_fk, efk_run_no_func_error, "", 0, "", "fkrun no inter func %s fail", vartostring(&func).c_str());
 		m_isend = true;
 		return;
 	}

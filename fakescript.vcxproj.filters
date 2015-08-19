@@ -173,9 +173,6 @@
     <ClCompile Include="src\flex.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\fake.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\fakescript.cpp">
       <Filter>src</Filter>
     </ClCompile>

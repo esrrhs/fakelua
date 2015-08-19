@@ -83,8 +83,3 @@ struct poollist
 	ARRAY_PUSH_BACK((pl).l);\
 	ARRAY_BACK((pl).l) = n
 	
-#define POOLLIST_POP_ROLLBACK(pl, n)\
-	POOL_PUSH((pl).p, n);\
-	ARRAY_BACK((pl).l) = 0; \
-	ARRAY_POP_BACK((pl).l)
-	

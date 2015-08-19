@@ -14,6 +14,8 @@
 #include <QShortcut>
 #include <QSyntaxHighlighter>
 #include <QTextCharFormat>
+#include <qvector.h>
+#include <qlistwidget.h>
 
 #include "../include/fakescript.h"
 
@@ -21,6 +23,14 @@ namespace Ui
 {
     class MainWindow;
 }
+
+struct Breakpoint
+{
+    QString file;
+    int line;
+};
+
+typedef QVector<Breakpoint> BreakpointList;
 
 class MainWindow : public QMainWindow
 {
@@ -31,6 +41,7 @@ public:
     ~MainWindow();
 
     void Output(QString str);
+    void SetError(const char * file, int lineno, const char * func);
 
 private slots:
     void on_actionCopy_triggered();
@@ -98,10 +109,28 @@ private slots:
 
     void on_txtgo_returnPressed();
 
+    void on_actionRun_With_Debug_triggered();
+
+    void on_actionStep_In_triggered();
+
+    void on_txtedit_cursorPositionChanged();
+
+    void on_callstackview_clicked(const QModelIndex &index);
+
+    void on_routineview_clicked(const QModelIndex &index);
+
+    void on_variant_value_editingFinished();
+
+    void on_memview_itemClicked(QListWidgetItem *item);
+
 private:
     void UpdateStatusBar();
     void CheckSave();
     bool Build();
+    bool Check_trigger_breakpoint();
+    void Openfile(QString file);
+    void UpdateDebugView();
+    void StopDebug(int ret);
 
 protected:
     virtual void closeEvent(QCloseEvent *);
@@ -110,8 +139,15 @@ private:
     Ui::MainWindow * m_ui;
     QString m_file_name;
     QString m_saved;
+
     fake * m_fk;
     const char * m_argv[100];
+    int m_errorline;
+    BreakpointList m_BreakpointList;
+    bool m_isdebug;
+    int m_runline;
+    int m_frame;
+    int m_rid;
 };
 
 QT_BEGIN_NAMESPACE

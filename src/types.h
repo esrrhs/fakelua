@@ -191,7 +191,7 @@ String fkget_token_name(int token);
 void * safe_fkmalloc(fake * fk, size_t size);
 void safe_fkfree(fake * fk, const void * p);
 
-void seterror(fake * fk, efkerror err, const char *fmt, ...);
+void seterror(fake * fk, efkerror err, const char * file, int lineno, const char * func, const char *fmt, ...);
 
 struct variant;
 String vartostring(const variant * v);

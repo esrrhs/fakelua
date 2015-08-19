@@ -26,7 +26,7 @@ void compiler::compile_seterror(syntree_node * node, fake * fk, efkerror err, co
 	vsnprintf(errorstr, sizeof(errorstr) - 1, fmt, ap);
 	va_end(ap);
 	errorstr[sizeof(errorstr) - 1] = 0;
-	seterror(fk, err, "compile file(%s:%d) func(%s), %s", m_mf->getfilename(), node->lineno(), m_cur_compile_func.c_str(), errorstr);
+	seterror(fk, err, m_mf->getfilename(), node->lineno(), "compile func(%s), %s", m_mf->getfilename(), node->lineno(), m_cur_compile_func.c_str(), errorstr);
 }
 
 bool compiler::compile()
@@ -86,6 +86,7 @@ bool compiler::compile_func(func_desc_node * funcnode)
 	codegen cg(m_fk);
 	func_binary bin;
 	FUNC_BINARY_INI(bin);
+	bin.m_end_lineno = funcnode->endline;
 	
 	// Ñ¹Õ»
 	cg.push_stack_identifiers();
@@ -97,9 +98,10 @@ bool compiler::compile_func(func_desc_node * funcnode)
 		for (int i = 0; i < (int)arglist.size(); i++)
 		{
 			const String & arg = arglist[i];
-			if (cg.add_stack_identifier(arg) == -1)
+			if (cg.add_stack_identifier(arg, funcnode->arglist->lineno()) == -1)
 			{
 				FKERR("[compile] compile_func %s arg error %s", funcnode->funcname.c_str(), arg.c_str());
+				compile_seterror(funcnode->arglist, m_fk, efk_compile_stack_identifier_error, "double %s identifier error", arg.c_str());
 				return false;
 			}
 		}
@@ -1031,11 +1033,11 @@ bool compiler::compile_var_node(codegen & cg, var_node * vn)
 	}
 
 	// ÉêÇëÕ»ÉÏ¿Õ¼ä
-	int pos = cg.add_stack_identifier(vn->str);
+	int pos = cg.add_stack_identifier(vn->str, vn->lineno());
 	if (pos == -1)
 	{
 		FKERR("[compiler] compile_var_node variable has define %s", vn->str.c_str());
-		compile_seterror(vn, m_fk, efk_compile_add_stack_identifier, "add stack variable %s fail", vn->str.c_str());
+		compile_seterror(vn, m_fk, efk_compile_stack_identifier_error, "double %s identifier error", vn->str.c_str());
 		return false;
 	}
 	m_cur_addr = MAKE_ADDR(ADDR_STACK, pos);

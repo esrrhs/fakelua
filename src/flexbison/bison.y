@@ -8,11 +8,11 @@
 
 #define yyerror(msg) my_yyerror(msg, YYPARSE_PARAM)
 
-int yylex(YYSTYPE *lvalp, void * parm)
+int yylex(YYSTYPE *lvalp, YYLTYPE * loc, void * parm)
 {
 	myflexer *l = (myflexer *)parm;
-	int ret = l->yylex(lvalp);
-	FKLOG("[bison]: bison get token[%s] str[%s]", fkget_token_name(ret).c_str(), lvalp->str.c_str());
+	int ret = l->yylex(lvalp, loc);
+	FKLOG("[bison]: bison get token[%s] str[%s] line[%d,%d]", fkget_token_name(ret).c_str(), lvalp->str.c_str(), loc->first_line, loc->last_line);
 	return ret;
 }
 
@@ -27,13 +27,14 @@ int my_yyerror(const char *s, void * parm)
 	x* p = (x*)(((myflexer *)parm)->malloc(sizeof(x), #x)); \
 	new (p) x(); \
 	p->fk = ((myflexer *)parm)->getfake(); \
-	p->lno = ((myflexer *)parm)->lineno(); \
-	FKLOG("[bison]: bison new type %s %p line %d", #x, p, p->lno);
+	p->lno = yylsp->first_line; \
+	FKLOG("[bison]: bison new type %s %p line %d %d %d", #x, p, ((myflexer *)parm)->lineno(), yylloc.first_line, yylsp->first_line);
 	
 %}
 
 %pure_parser
 
+%locations
 %token VAR_BEGIN
 %token RETURN
 %token BREAK
@@ -282,22 +283,24 @@ body:
 function_declaration:
 	FUNC IDENTIFIER OPEN_BRACKET function_declaration_arguments CLOSE_BRACKET block END
 	{
-		FKLOG("[bison]: function_declaration <- block %s", $2.c_str());
+		FKLOG("[bison]: function_declaration <- block %s %d", $2.c_str(), yylloc.first_line);
 		NEWTYPE(p, func_desc_node);
 		p->funcname = $2;
 		p->arglist = dynamic_cast<func_desc_arglist_node*>($4);
 		p->block = dynamic_cast<block_node*>($6);
+		p->endline = yylloc.first_line;
 		myflexer *l = (myflexer *)parm;
 		l->add_func_desc(p);
 	}
 	|
 	FUNC IDENTIFIER OPEN_BRACKET function_declaration_arguments CLOSE_BRACKET END
 	{
-		FKLOG("[bison]: function_declaration <- empty %s", $2.c_str());
+		FKLOG("[bison]: function_declaration <- empty %s %d", $2.c_str(), yylloc.first_line);
 		NEWTYPE(p, func_desc_node);
 		p->funcname = $2;
 		p->arglist = 0;
 		p->block = 0;
+		p->endline = yylloc.first_line;
 		myflexer *l = (myflexer *)parm;
 		l->add_func_desc(p);
 	}
