@@ -122,7 +122,7 @@ struct variant
 		err = true; \
 		String str; \
 		V_TOSTRING(v, str); \
-		seterror(fk, efk_run_data_error, "variant get pointer fail, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
+		seterror(fk, efk_run_data_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "variant get pointer fail, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
 		p = 0; \
 		USE(err); \
 	} \
@@ -137,7 +137,7 @@ struct variant
 		err = true; \
 		String str; \
 		V_TOSTRING(v, str); \
-		seterror(fk, efk_run_data_error, "variant get real fail, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
+		seterror(fk, efk_run_data_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "variant get real fail, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
 		r = 0; \
 		USE(err); \
 	} \
@@ -152,7 +152,7 @@ struct variant
 		err = true; \
 		String str; \
 		V_TOSTRING(v, str); \
-		seterror(fk, efk_run_data_error, "variant get string fail, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
+		seterror(fk, efk_run_data_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "variant get string fail, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
 		ss = 0; \
 		USE(err); \
 	} \
@@ -167,7 +167,7 @@ struct variant
 		err = true; \
 		String str; \
 		V_TOSTRING(v, str); \
-		seterror(fk, efk_run_data_error, "variant get uuid fail, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
+		seterror(fk, efk_run_data_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "variant get uuid fail, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
 		id = 0; \
 		USE(err); \
 	} \
@@ -182,7 +182,7 @@ struct variant
 		err = true; \
 		String str; \
 		V_TOSTRING(v, str); \
-		seterror(fk, efk_run_cal_error, "variant can not calculate, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
+		seterror(fk, efk_run_cal_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "variant can not calculate, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
 		USE(err); \
 	}
 #define V_ASSERT_CAN_DIVIDE(v) \
@@ -191,7 +191,7 @@ struct variant
 		err = true; \
 		String str; \
 		V_TOSTRING(v, str); \
-		seterror(fk, efk_run_cal_error, "variant can not be divide, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
+		seterror(fk, efk_run_cal_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "variant can not be divide, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
 		USE(err); \
 	}
 #define V_ASSERT_CAN_CAL_BIN(l, r) V_ASSERT_CAN_CAL(l);V_ASSERT_CAN_CAL(r)
@@ -237,4 +237,6 @@ struct variant
 #define V_TYPE_OFF(stackpos) (-1 * (stackpos + 1) * variant_size + variant_type_off)
 #define V_DATA_OFF(stackpos) (-1 * (stackpos + 1) * variant_size + variant_data_off)
 #define V_OFF(stackpos) (-1 * (stackpos + 1) * variant_size)
+
+static const variant NILV = {variant::NIL, {0}};
 

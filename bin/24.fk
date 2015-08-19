@@ -4,9 +4,18 @@ func main()
 	var arg1 = 1
 	var arg2 = 2
 	
-	fake myfunc2(1)
+	fake myfunc1(1)
 	fake myfunc2(2)
-	fake myfunc2(3)
+	fake myfunc3(3)
+	
+end
+
+-- func1 comment
+func myfunc1(index)
+	
+	for var i = 0, i < 10, i++ then
+		print("myfunc1 ", index)
+	end
 	
 end
 
@@ -15,6 +24,15 @@ func myfunc2(index)
 	
 	for var i = 0, i < 10, i++ then
 		print("myfunc2 ", index)
+	end
+	
+end
+
+-- func3 comment
+func myfunc3(index)
+	
+	for var i = 0, i < 10, i++ then
+		print("myfunc3 ", index)
 	end
 	
 end

@@ -130,7 +130,7 @@ void safe_fkfree(fake * fk, const void * p)
 	}
 }
 
-void seterror(fake * fk, efkerror err, const char *fmt, ...)
+void seterror(fake * fk, efkerror err, const char * file, int lineno, const char * func, const char *fmt, ...)
 {
 	fk->errorno = err;
 	va_list ap;
@@ -140,7 +140,7 @@ void seterror(fake * fk, efkerror err, const char *fmt, ...)
 	fk->errorstr[sizeof(fk->errorstr) - 1] = 0;
 	if (fk->errorcb)
 	{
-		fk->errorcb(fk, fk->errorno, fk->errorstr);
+		fk->errorcb(fk, fk->errorno, file, lineno, func, fk->errorstr);
 	}
 }
 

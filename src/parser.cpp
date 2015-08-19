@@ -42,7 +42,7 @@ bool parser::parsestr(const char * str)
 	if (ret != 0)
 	{
 		FKERR("parse yyparse %s fail ret %d", fk, str, ret);
-		seterror(fk, efk_parse_file_fail, "parse string fail for reason : %s", mf.get_error());
+		seterror(fk, efk_parse_file_fail, "", mf.get_error_line(), "", "parse string fail for reason : %s", mf.get_error());
 		return false;
 	}
 	
@@ -92,7 +92,7 @@ bool parser::parse(const char * filename)
 	if (!filename)
 	{
 		FKERR("parse filename is empty");
-		seterror(fk, efk_parse_file_fail, "parse filename is empty");
+		seterror(fk, efk_parse_file_fail, "", 0, "", "parse filename is empty");
 		return false;
 	}
 	
@@ -104,7 +104,7 @@ bool parser::parse(const char * filename)
 	if (m_parse_dep >= m_fk->cfg.include_deps)
 	{
 		FKERR("parse %s file too deep %d", filename, m_parse_dep);
-		seterror(fk, efk_parse_file_fail, "parse %s file too deep %d", filename, m_parse_dep);
+		seterror(fk, efk_parse_file_fail, filename, 0, "", "parse %s file too deep %d", filename, m_parse_dep);
 		return false;
 	}
 
@@ -112,7 +112,7 @@ bool parser::parse(const char * filename)
 	if (is_parsing(filename))
 	{
 		FKERR("parse open %s fail", fk, filename);
-		seterror(fk, efk_parse_file_fail, "already parsing %s file...include list \n%s", filename, get_parsing_file_list());
+		seterror(fk, efk_parse_file_fail, filename, 0, "", "already parsing %s file...include list \n%s", filename, get_parsing_file_list());
 		return false;
 	}
 
@@ -138,7 +138,7 @@ bool parser::parse(const char * filename)
 	if (ret != 0)
 	{
 		FKERR("parse yyparse %s fail ret %d", fk, filename, ret);
-		seterror(fk, efk_parse_file_fail, "parse %s file fail for reason : %s", filename, mf.get_error());
+		seterror(fk, efk_parse_file_fail, filename, mf.get_error_line(), "", "parse %s file fail for reason : %s", filename, mf.get_error());
 		return false;
 	}
 	

@@ -61,7 +61,7 @@
 #define YYPULL 1
 
 /* Using locations.  */
-#define YYLSP_NEEDED 0
+#define YYLSP_NEEDED 1
 
 
 
@@ -79,11 +79,11 @@
 
 #define yyerror(msg) my_yyerror(msg, YYPARSE_PARAM)
 
-int yylex(YYSTYPE *lvalp, void * parm)
+int yylex(YYSTYPE *lvalp, YYLTYPE * loc, void * parm)
 {
 	myflexer *l = (myflexer *)parm;
-	int ret = l->yylex(lvalp);
-	FKLOG("[bison]: bison get token[%s] str[%s]", fkget_token_name(ret).c_str(), lvalp->str.c_str());
+	int ret = l->yylex(lvalp, loc);
+	FKLOG("[bison]: bison get token[%s] str[%s] line[%d,%d]", fkget_token_name(ret).c_str(), lvalp->str.c_str(), loc->first_line, loc->last_line);
 	return ret;
 }
 
@@ -98,8 +98,8 @@ int my_yyerror(const char *s, void * parm)
 	x* p = (x*)(((myflexer *)parm)->malloc(sizeof(x), #x)); \
 	new (p) x(); \
 	p->fk = ((myflexer *)parm)->getfake(); \
-	p->lno = ((myflexer *)parm)->lineno(); \
-	FKLOG("[bison]: bison new type %s %p line %d", #x, p, p->lno);
+	p->lno = yylsp->first_line; \
+	FKLOG("[bison]: bison new type %s %p line %d %d %d", #x, p, ((myflexer *)parm)->lineno(), yylloc.first_line, yylsp->first_line);
 	
 
 
@@ -204,12 +204,25 @@ int my_yyerror(const char *s, void * parm)
 # define YYSTYPE_IS_DECLARED 1
 #endif
 
+#if ! defined YYLTYPE && ! defined YYLTYPE_IS_DECLARED
+typedef struct YYLTYPE
+{
+  int first_line;
+  int first_column;
+  int last_line;
+  int last_column;
+} YYLTYPE;
+# define yyltype YYLTYPE /* obsolescent; will be withdrawn */
+# define YYLTYPE_IS_DECLARED 1
+# define YYLTYPE_IS_TRIVIAL 1
+#endif
+
 
 /* Copy the second part of user declarations.  */
 
 
 /* Line 264 of yacc.c  */
-#line 213 "bison.tab.c"
+#line 226 "bison.tab.c"
 
 #ifdef short
 # undef short
@@ -367,13 +380,15 @@ void free (void *); /* INFRINGES ON USER NAME SPACE */
 
 #if (! defined yyoverflow \
      && (! defined __cplusplus \
-	 || (defined YYSTYPE_IS_TRIVIAL && YYSTYPE_IS_TRIVIAL)))
+	 || (defined YYLTYPE_IS_TRIVIAL && YYLTYPE_IS_TRIVIAL \
+	     && defined YYSTYPE_IS_TRIVIAL && YYSTYPE_IS_TRIVIAL)))
 
 /* A type that is properly aligned for any stack member.  */
 union yyalloc
 {
   yytype_int16 yyss_alloc;
   YYSTYPE yyvs_alloc;
+  YYLTYPE yyls_alloc;
 };
 
 /* The size of the maximum gap between one aligned stack and the next.  */
@@ -382,8 +397,8 @@ union yyalloc
 /* The size of an array large to enough to hold all stacks, each with
    N elements.  */
 # define YYSTACK_BYTES(N) \
-     ((N) * (sizeof (yytype_int16) + sizeof (YYSTYPE)) \
-      + YYSTACK_GAP_MAXIMUM)
+     ((N) * (sizeof (yytype_int16) + sizeof (YYSTYPE) + sizeof (YYLTYPE)) \
+      + 2 * YYSTACK_GAP_MAXIMUM)
 
 /* Copy COUNT objects from FROM to TO.  The source and destination do
    not overlap.  */
@@ -555,21 +570,21 @@ static const yytype_int8 yyrhs[] =
 /* YYRLINE[YYN] -- source line where rule number YYN was defined.  */
 static const yytype_uint16 yyrline[] =
 {
-       0,   162,   162,   171,   174,   181,   190,   193,   195,   199,
-     209,   212,   214,   218,   229,   233,   242,   253,   256,   258,
-     262,   272,   275,   277,   283,   294,   308,   312,   321,   331,
-     341,   351,   361,   380,   384,   393,   403,   413,   422,   432,
-     438,   444,   450,   456,   462,   468,   474,   480,   486,   492,
-     498,   504,   510,   516,   524,   534,   545,   558,   570,   584,
-     593,   604,   615,   629,   633,   642,   652,   661,   673,   677,
-     685,   695,   701,   711,   721,   731,   741,   751,   761,   771,
-     781,   791,   801,   811,   823,   829,   835,   843,   851,   861,
-     870,   879,   885,   891,   899,   909,   921,   931,   943,   952,
-     961,   967,   973,   981,   991,  1001,  1011,  1021,  1031,  1047,
-    1055,  1063,  1071,  1080,  1090,  1096,  1102,  1110,  1116,  1126,
-    1136,  1146,  1156,  1168,  1174,  1180,  1186,  1194,  1203,  1212,
-    1221,  1230,  1239,  1250,  1259,  1268,  1277,  1287,  1297,  1309,
-    1317,  1328,  1337
+       0,   163,   163,   172,   175,   182,   191,   194,   196,   200,
+     210,   213,   215,   219,   230,   234,   243,   254,   257,   259,
+     263,   273,   276,   278,   284,   296,   311,   315,   324,   334,
+     344,   354,   364,   383,   387,   396,   406,   416,   425,   435,
+     441,   447,   453,   459,   465,   471,   477,   483,   489,   495,
+     501,   507,   513,   519,   527,   537,   548,   561,   573,   587,
+     596,   607,   618,   632,   636,   645,   655,   664,   676,   680,
+     688,   698,   704,   714,   724,   734,   744,   754,   764,   774,
+     784,   794,   804,   814,   826,   832,   838,   846,   854,   864,
+     873,   882,   888,   894,   902,   912,   924,   934,   946,   955,
+     964,   970,   976,   984,   994,  1004,  1014,  1024,  1034,  1050,
+    1058,  1066,  1074,  1083,  1093,  1099,  1105,  1113,  1119,  1129,
+    1139,  1149,  1159,  1171,  1177,  1183,  1189,  1197,  1206,  1215,
+    1224,  1233,  1242,  1253,  1262,  1271,  1280,  1290,  1300,  1312,
+    1320,  1331,  1340
 };
 #endif
 
@@ -1098,9 +1113,9 @@ while (YYID (0))
 /* YYLEX -- calling `yylex' with the right arguments.  */
 
 #ifdef YYLEX_PARAM
-# define YYLEX yylex (&yylval, YYLEX_PARAM)
+# define YYLEX yylex (&yylval, &yylloc, YYLEX_PARAM)
 #else
-# define YYLEX yylex (&yylval)
+# define YYLEX yylex (&yylval, &yylloc)
 #endif
 
 /* Enable debugging if requested.  */
@@ -1123,7 +1138,7 @@ do {									  \
     {									  \
       YYFPRINTF (stderr, "%s ", Title);					  \
       yy_symbol_print (stderr,						  \
-		  Type, Value); \
+		  Type, Value, Location); \
       YYFPRINTF (stderr, "\n");						  \
     }									  \
 } while (YYID (0))
@@ -1137,17 +1152,19 @@ do {									  \
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yy_symbol_value_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep)
+yy_symbol_value_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp)
 #else
 static void
-yy_symbol_value_print (yyoutput, yytype, yyvaluep)
+yy_symbol_value_print (yyoutput, yytype, yyvaluep, yylocationp)
     FILE *yyoutput;
     int yytype;
     YYSTYPE const * const yyvaluep;
+    YYLTYPE const * const yylocationp;
 #endif
 {
   if (!yyvaluep)
     return;
+  YYUSE (yylocationp);
 # ifdef YYPRINT
   if (yytype < YYNTOKENS)
     YYPRINT (yyoutput, yytoknum[yytype], *yyvaluep);
@@ -1169,13 +1186,14 @@ yy_symbol_value_print (yyoutput, yytype, yyvaluep)
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yy_symbol_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep)
+yy_symbol_print (FILE *yyoutput, int yytype, YYSTYPE const * const yyvaluep, YYLTYPE const * const yylocationp)
 #else
 static void
-yy_symbol_print (yyoutput, yytype, yyvaluep)
+yy_symbol_print (yyoutput, yytype, yyvaluep, yylocationp)
     FILE *yyoutput;
     int yytype;
     YYSTYPE const * const yyvaluep;
+    YYLTYPE const * const yylocationp;
 #endif
 {
   if (yytype < YYNTOKENS)
@@ -1183,7 +1201,9 @@ yy_symbol_print (yyoutput, yytype, yyvaluep)
   else
     YYFPRINTF (yyoutput, "nterm %s (", yytname[yytype]);
 
-  yy_symbol_value_print (yyoutput, yytype, yyvaluep);
+  YY_LOCATION_PRINT (yyoutput, *yylocationp);
+  YYFPRINTF (yyoutput, ": ");
+  yy_symbol_value_print (yyoutput, yytype, yyvaluep, yylocationp);
   YYFPRINTF (yyoutput, ")");
 }
 
@@ -1226,11 +1246,12 @@ do {								\
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yy_reduce_print (YYSTYPE *yyvsp, int yyrule)
+yy_reduce_print (YYSTYPE *yyvsp, YYLTYPE *yylsp, int yyrule)
 #else
 static void
-yy_reduce_print (yyvsp, yyrule)
+yy_reduce_print (yyvsp, yylsp, yyrule)
     YYSTYPE *yyvsp;
+    YYLTYPE *yylsp;
     int yyrule;
 #endif
 {
@@ -1245,7 +1266,7 @@ yy_reduce_print (yyvsp, yyrule)
       YYFPRINTF (stderr, "   $%d = ", yyi + 1);
       yy_symbol_print (stderr, yyrhs[yyprhs[yyrule] + yyi],
 		       &(yyvsp[(yyi + 1) - (yynrhs)])
-		       		       );
+		       , &(yylsp[(yyi + 1) - (yynrhs)])		       );
       YYFPRINTF (stderr, "\n");
     }
 }
@@ -1253,7 +1274,7 @@ yy_reduce_print (yyvsp, yyrule)
 # define YY_REDUCE_PRINT(Rule)		\
 do {					\
   if (yydebug)				\
-    yy_reduce_print (yyvsp, Rule); \
+    yy_reduce_print (yyvsp, yylsp, Rule); \
 } while (YYID (0))
 
 /* Nonzero means print parse trace.  It is left uninitialized so that
@@ -1504,16 +1525,18 @@ yysyntax_error (char *yyresult, int yystate, int yychar)
 #if (defined __STDC__ || defined __C99__FUNC__ \
      || defined __cplusplus || defined _MSC_VER)
 static void
-yydestruct (const char *yymsg, int yytype, YYSTYPE *yyvaluep)
+yydestruct (const char *yymsg, int yytype, YYSTYPE *yyvaluep, YYLTYPE *yylocationp)
 #else
 static void
-yydestruct (yymsg, yytype, yyvaluep)
+yydestruct (yymsg, yytype, yyvaluep, yylocationp)
     const char *yymsg;
     int yytype;
     YYSTYPE *yyvaluep;
+    YYLTYPE *yylocationp;
 #endif
 {
   YYUSE (yyvaluep);
+  YYUSE (yylocationp);
 
   if (!yymsg)
     yymsg = "Deleting";
@@ -1578,6 +1601,9 @@ int yychar;
 /* The semantic value of the lookahead symbol.  */
 YYSTYPE yylval;
 
+/* Location data for the lookahead symbol.  */
+YYLTYPE yylloc;
+
     /* Number of syntax errors so far.  */
     int yynerrs;
 
@@ -1588,6 +1614,7 @@ YYSTYPE yylval;
     /* The stacks and their tools:
        `yyss': related to states.
        `yyvs': related to semantic values.
+       `yyls': related to locations.
 
        Refer to the stacks thru separate pointers, to allow yyoverflow
        to reallocate them elsewhere.  */
@@ -1602,6 +1629,14 @@ YYSTYPE yylval;
     YYSTYPE *yyvs;
     YYSTYPE *yyvsp;
 
+    /* The location stack.  */
+    YYLTYPE yylsa[YYINITDEPTH];
+    YYLTYPE *yyls;
+    YYLTYPE *yylsp;
+
+    /* The locations where the error started and ended.  */
+    YYLTYPE yyerror_range[2];
+
     YYSIZE_T yystacksize;
 
   int yyn;
@@ -1611,6 +1646,7 @@ YYSTYPE yylval;
   /* The variables used to return semantic value and location from the
      action routines.  */
   YYSTYPE yyval;
+  YYLTYPE yyloc;
 
 #if YYERROR_VERBOSE
   /* Buffer for error messages, and its allocated size.  */
@@ -1619,7 +1655,7 @@ YYSTYPE yylval;
   YYSIZE_T yymsg_alloc = sizeof yymsgbuf;
 #endif
 
-#define YYPOPSTACK(N)   (yyvsp -= (N), yyssp -= (N))
+#define YYPOPSTACK(N)   (yyvsp -= (N), yyssp -= (N), yylsp -= (N))
 
   /* The number of symbols on the RHS of the reduced rule.
      Keep to zero when no symbol should be popped.  */
@@ -1628,6 +1664,7 @@ YYSTYPE yylval;
   yytoken = 0;
   yyss = yyssa;
   yyvs = yyvsa;
+  yyls = yylsa;
   yystacksize = YYINITDEPTH;
 
   YYDPRINTF ((stderr, "Starting parse\n"));
@@ -1643,6 +1680,13 @@ YYSTYPE yylval;
      The wasted elements are never initialized.  */
   yyssp = yyss;
   yyvsp = yyvs;
+  yylsp = yyls;
+
+#if YYLTYPE_IS_TRIVIAL
+  /* Initialize the default location before parsing starts.  */
+  yylloc.first_line   = yylloc.last_line   = 1;
+  yylloc.first_column = yylloc.last_column = 1;
+#endif
 
   goto yysetstate;
 
@@ -1669,6 +1713,7 @@ YYSTYPE yylval;
 	   memory.  */
 	YYSTYPE *yyvs1 = yyvs;
 	yytype_int16 *yyss1 = yyss;
+	YYLTYPE *yyls1 = yyls;
 
 	/* Each stack pointer address is followed by the size of the
 	   data in use in that stack, in bytes.  This used to be a
@@ -1677,8 +1722,10 @@ YYSTYPE yylval;
 	yyoverflow (YY_("memory exhausted"),
 		    &yyss1, yysize * sizeof (*yyssp),
 		    &yyvs1, yysize * sizeof (*yyvsp),
+		    &yyls1, yysize * sizeof (*yylsp),
 		    &yystacksize);
 
+	yyls = yyls1;
 	yyss = yyss1;
 	yyvs = yyvs1;
       }
@@ -1701,6 +1748,7 @@ YYSTYPE yylval;
 	  goto yyexhaustedlab;
 	YYSTACK_RELOCATE (yyss_alloc, yyss);
 	YYSTACK_RELOCATE (yyvs_alloc, yyvs);
+	YYSTACK_RELOCATE (yyls_alloc, yyls);
 #  undef YYSTACK_RELOCATE
 	if (yyss1 != yyssa)
 	  YYSTACK_FREE (yyss1);
@@ -1710,6 +1758,7 @@ YYSTYPE yylval;
 
       yyssp = yyss + yysize - 1;
       yyvsp = yyvs + yysize - 1;
+      yylsp = yyls + yysize - 1;
 
       YYDPRINTF ((stderr, "Stack size increased to %lu\n",
 		  (unsigned long int) yystacksize));
@@ -1785,7 +1834,7 @@ yybackup:
 
   yystate = yyn;
   *++yyvsp = yylval;
-
+  *++yylsp = yylloc;
   goto yynewstate;
 
 
@@ -1816,14 +1865,15 @@ yyreduce:
      GCC warning that YYVAL may be used uninitialized.  */
   yyval = yyvsp[1-yylen];
 
-
+  /* Default location.  */
+  YYLLOC_DEFAULT (yyloc, (yylsp - yylen), yylen);
   YY_REDUCE_PRINT (yyn);
   switch (yyn)
     {
         case 3:
 
 /* Line 1455 of yacc.c  */
-#line 171 "bison.y"
+#line 172 "bison.y"
     {
 	;}
     break;
@@ -1831,7 +1881,7 @@ yyreduce:
   case 4:
 
 /* Line 1455 of yacc.c  */
-#line 175 "bison.y"
+#line 176 "bison.y"
     {
 		FKLOG("[bison]: package %s", (yyvsp[(2) - (2)].str).c_str());
 		myflexer *l = (myflexer *)parm;
@@ -1842,7 +1892,7 @@ yyreduce:
   case 5:
 
 /* Line 1455 of yacc.c  */
-#line 182 "bison.y"
+#line 183 "bison.y"
     {
 		FKLOG("[bison]: package %s", (yyvsp[(2) - (2)].str).c_str());
 		myflexer *l = (myflexer *)parm;
@@ -1853,7 +1903,7 @@ yyreduce:
   case 6:
 
 /* Line 1455 of yacc.c  */
-#line 190 "bison.y"
+#line 191 "bison.y"
     {
 	;}
     break;
@@ -1861,7 +1911,7 @@ yyreduce:
   case 9:
 
 /* Line 1455 of yacc.c  */
-#line 200 "bison.y"
+#line 201 "bison.y"
     {
 		FKLOG("[bison]: include %s", (yyvsp[(2) - (2)].str).c_str());
 		myflexer *l = (myflexer *)parm;
@@ -1872,7 +1922,7 @@ yyreduce:
   case 10:
 
 /* Line 1455 of yacc.c  */
-#line 209 "bison.y"
+#line 210 "bison.y"
     {
 	;}
     break;
@@ -1880,7 +1930,7 @@ yyreduce:
   case 13:
 
 /* Line 1455 of yacc.c  */
-#line 219 "bison.y"
+#line 220 "bison.y"
     {
 		FKLOG("[bison]: struct_define %s", (yyvsp[(2) - (4)].str).c_str());
 		myflexer *l = (myflexer *)parm;
@@ -1892,7 +1942,7 @@ yyreduce:
   case 14:
 
 /* Line 1455 of yacc.c  */
-#line 229 "bison.y"
+#line 230 "bison.y"
     {
 		(yyval.syntree) = 0;
 	;}
@@ -1901,7 +1951,7 @@ yyreduce:
   case 15:
 
 /* Line 1455 of yacc.c  */
-#line 234 "bison.y"
+#line 235 "bison.y"
     {
 		FKLOG("[bison]: struct_mem_declaration <- IDENTIFIER struct_mem_declaration");
 		assert((yyvsp[(1) - (2)].syntree)->gettype() == est_struct_memlist);
@@ -1914,7 +1964,7 @@ yyreduce:
   case 16:
 
 /* Line 1455 of yacc.c  */
-#line 243 "bison.y"
+#line 244 "bison.y"
     {
 		FKLOG("[bison]: struct_mem_declaration <- IDENTIFIER");
 		NEWTYPE(p, struct_desc_memlist_node);
@@ -1926,7 +1976,7 @@ yyreduce:
   case 17:
 
 /* Line 1455 of yacc.c  */
-#line 253 "bison.y"
+#line 254 "bison.y"
     {
 	;}
     break;
@@ -1934,7 +1984,7 @@ yyreduce:
   case 20:
 
 /* Line 1455 of yacc.c  */
-#line 263 "bison.y"
+#line 264 "bison.y"
     {
 		FKLOG("[bison]: const_define %s", (yyvsp[(2) - (4)].str).c_str());
 		myflexer *l = (myflexer *)parm;
@@ -1945,7 +1995,7 @@ yyreduce:
   case 21:
 
 /* Line 1455 of yacc.c  */
-#line 272 "bison.y"
+#line 273 "bison.y"
     {
 	;}
     break;
@@ -1953,13 +2003,14 @@ yyreduce:
   case 24:
 
 /* Line 1455 of yacc.c  */
-#line 284 "bison.y"
+#line 285 "bison.y"
     {
-		FKLOG("[bison]: function_declaration <- block %s", (yyvsp[(2) - (7)].str).c_str());
+		FKLOG("[bison]: function_declaration <- block %s %d", (yyvsp[(2) - (7)].str).c_str(), yylloc.first_line);
 		NEWTYPE(p, func_desc_node);
 		p->funcname = (yyvsp[(2) - (7)].str);
 		p->arglist = dynamic_cast<func_desc_arglist_node*>((yyvsp[(4) - (7)].syntree));
 		p->block = dynamic_cast<block_node*>((yyvsp[(6) - (7)].syntree));
+		p->endline = yylloc.first_line;
 		myflexer *l = (myflexer *)parm;
 		l->add_func_desc(p);
 	;}
@@ -1968,13 +2019,14 @@ yyreduce:
   case 25:
 
 /* Line 1455 of yacc.c  */
-#line 295 "bison.y"
+#line 297 "bison.y"
     {
-		FKLOG("[bison]: function_declaration <- empty %s", (yyvsp[(2) - (6)].str).c_str());
+		FKLOG("[bison]: function_declaration <- empty %s %d", (yyvsp[(2) - (6)].str).c_str(), yylloc.first_line);
 		NEWTYPE(p, func_desc_node);
 		p->funcname = (yyvsp[(2) - (6)].str);
 		p->arglist = 0;
 		p->block = 0;
+		p->endline = yylloc.first_line;
 		myflexer *l = (myflexer *)parm;
 		l->add_func_desc(p);
 	;}
@@ -1983,7 +2035,7 @@ yyreduce:
   case 26:
 
 /* Line 1455 of yacc.c  */
-#line 308 "bison.y"
+#line 311 "bison.y"
     {
 		(yyval.syntree) = 0;
 	;}
@@ -1992,7 +2044,7 @@ yyreduce:
   case 27:
 
 /* Line 1455 of yacc.c  */
-#line 313 "bison.y"
+#line 316 "bison.y"
     {
 		FKLOG("[bison]: function_declaration_arguments <- arg function_declaration_arguments");
 		assert((yyvsp[(1) - (3)].syntree)->gettype() == est_arglist);
@@ -2005,7 +2057,7 @@ yyreduce:
   case 28:
 
 /* Line 1455 of yacc.c  */
-#line 322 "bison.y"
+#line 325 "bison.y"
     {
 		FKLOG("[bison]: function_declaration_arguments <- arg");
 		NEWTYPE(p, func_desc_arglist_node);
@@ -2017,7 +2069,7 @@ yyreduce:
   case 29:
 
 /* Line 1455 of yacc.c  */
-#line 332 "bison.y"
+#line 335 "bison.y"
     {
 		FKLOG("[bison]: arg <- IDENTIFIER %s", (yyvsp[(1) - (1)].str).c_str());
 		NEWTYPE(p, identifier_node);
@@ -2029,7 +2081,7 @@ yyreduce:
   case 30:
 
 /* Line 1455 of yacc.c  */
-#line 342 "bison.y"
+#line 345 "bison.y"
     {
 		FKLOG("[bison]: function_call <- function_call_arguments %s", (yyvsp[(1) - (4)].str).c_str());
 		NEWTYPE(p, function_call_node);
@@ -2043,7 +2095,7 @@ yyreduce:
   case 31:
 
 /* Line 1455 of yacc.c  */
-#line 352 "bison.y"
+#line 355 "bison.y"
     {
 		FKLOG("[bison]: function_call <- function_call_arguments %s", (yyvsp[(1) - (4)].str).c_str());
 		NEWTYPE(p, function_call_node);
@@ -2057,7 +2109,7 @@ yyreduce:
   case 32:
 
 /* Line 1455 of yacc.c  */
-#line 362 "bison.y"
+#line 365 "bison.y"
     {
 		FKLOG("[bison]: function_call <- mem function_call_arguments %s", (yyvsp[(3) - (6)].str).c_str());
 		NEWTYPE(p, function_call_node);
@@ -2077,7 +2129,7 @@ yyreduce:
   case 33:
 
 /* Line 1455 of yacc.c  */
-#line 380 "bison.y"
+#line 383 "bison.y"
     {
 		(yyval.syntree) = 0;
 	;}
@@ -2086,7 +2138,7 @@ yyreduce:
   case 34:
 
 /* Line 1455 of yacc.c  */
-#line 385 "bison.y"
+#line 388 "bison.y"
     {
 		FKLOG("[bison]: function_call_arguments <- arg_expr function_call_arguments");
 		assert((yyvsp[(1) - (3)].syntree)->gettype() == est_call_arglist);
@@ -2099,7 +2151,7 @@ yyreduce:
   case 35:
 
 /* Line 1455 of yacc.c  */
-#line 394 "bison.y"
+#line 397 "bison.y"
     {
 		FKLOG("[bison]: function_call_arguments <- arg_expr");
 		NEWTYPE(p, function_call_arglist_node);
@@ -2111,7 +2163,7 @@ yyreduce:
   case 36:
 
 /* Line 1455 of yacc.c  */
-#line 404 "bison.y"
+#line 407 "bison.y"
     {
 		FKLOG("[bison]: arg_expr <- expr_value");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2121,7 +2173,7 @@ yyreduce:
   case 37:
 
 /* Line 1455 of yacc.c  */
-#line 414 "bison.y"
+#line 417 "bison.y"
     {
 		FKLOG("[bison]: block <- block stmt");
 		assert((yyvsp[(1) - (2)].syntree)->gettype() == est_block);
@@ -2134,7 +2186,7 @@ yyreduce:
   case 38:
 
 /* Line 1455 of yacc.c  */
-#line 423 "bison.y"
+#line 426 "bison.y"
     {
 		FKLOG("[bison]: block <- stmt");
 		NEWTYPE(p, block_node);
@@ -2146,7 +2198,7 @@ yyreduce:
   case 39:
 
 /* Line 1455 of yacc.c  */
-#line 433 "bison.y"
+#line 436 "bison.y"
     {
 		FKLOG("[bison]: stmt <- while_stmt");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2156,7 +2208,7 @@ yyreduce:
   case 40:
 
 /* Line 1455 of yacc.c  */
-#line 439 "bison.y"
+#line 442 "bison.y"
     {
 		FKLOG("[bison]: stmt <- if_stmt");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2166,7 +2218,7 @@ yyreduce:
   case 41:
 
 /* Line 1455 of yacc.c  */
-#line 445 "bison.y"
+#line 448 "bison.y"
     {
 		FKLOG("[bison]: stmt <- return_stmt");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2176,7 +2228,7 @@ yyreduce:
   case 42:
 
 /* Line 1455 of yacc.c  */
-#line 451 "bison.y"
+#line 454 "bison.y"
     {
 		FKLOG("[bison]: stmt <- assign_stmt");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2186,7 +2238,7 @@ yyreduce:
   case 43:
 
 /* Line 1455 of yacc.c  */
-#line 457 "bison.y"
+#line 460 "bison.y"
     {
 		FKLOG("[bison]: stmt <- multi_assign_stmt");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2196,7 +2248,7 @@ yyreduce:
   case 44:
 
 /* Line 1455 of yacc.c  */
-#line 463 "bison.y"
+#line 466 "bison.y"
     {
 		FKLOG("[bison]: stmt <- break");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2206,7 +2258,7 @@ yyreduce:
   case 45:
 
 /* Line 1455 of yacc.c  */
-#line 469 "bison.y"
+#line 472 "bison.y"
     {
 		FKLOG("[bison]: stmt <- continue");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2216,7 +2268,7 @@ yyreduce:
   case 46:
 
 /* Line 1455 of yacc.c  */
-#line 475 "bison.y"
+#line 478 "bison.y"
     {
 		FKLOG("[bison]: stmt <- expr");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2226,7 +2278,7 @@ yyreduce:
   case 47:
 
 /* Line 1455 of yacc.c  */
-#line 481 "bison.y"
+#line 484 "bison.y"
     {
 		FKLOG("[bison]: stmt <- math_assign_stmt");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2236,7 +2288,7 @@ yyreduce:
   case 48:
 
 /* Line 1455 of yacc.c  */
-#line 487 "bison.y"
+#line 490 "bison.y"
     {
 		FKLOG("[bison]: stmt <- for_stmt");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2246,7 +2298,7 @@ yyreduce:
   case 49:
 
 /* Line 1455 of yacc.c  */
-#line 493 "bison.y"
+#line 496 "bison.y"
     {
 		FKLOG("[bison]: stmt <- for_loop_stmt");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2256,7 +2308,7 @@ yyreduce:
   case 50:
 
 /* Line 1455 of yacc.c  */
-#line 499 "bison.y"
+#line 502 "bison.y"
     {
 		FKLOG("[bison]: stmt <- fake_call_stmt");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2266,7 +2318,7 @@ yyreduce:
   case 51:
 
 /* Line 1455 of yacc.c  */
-#line 505 "bison.y"
+#line 508 "bison.y"
     {
 		FKLOG("[bison]: stmt <- sleep_stmt");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2276,7 +2328,7 @@ yyreduce:
   case 52:
 
 /* Line 1455 of yacc.c  */
-#line 511 "bison.y"
+#line 514 "bison.y"
     {
 		FKLOG("[bison]: stmt <- yield_stmt");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2286,7 +2338,7 @@ yyreduce:
   case 53:
 
 /* Line 1455 of yacc.c  */
-#line 517 "bison.y"
+#line 520 "bison.y"
     {
 		FKLOG("[bison]: stmt <- switch_stmt");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2296,7 +2348,7 @@ yyreduce:
   case 54:
 
 /* Line 1455 of yacc.c  */
-#line 525 "bison.y"
+#line 528 "bison.y"
     {
 		FKLOG("[bison]: fake_call_stmt <- fake function_call");
 		function_call_node * p = dynamic_cast<function_call_node*>((yyvsp[(2) - (2)].syntree));
@@ -2308,7 +2360,7 @@ yyreduce:
   case 55:
 
 /* Line 1455 of yacc.c  */
-#line 535 "bison.y"
+#line 538 "bison.y"
     {
 		FKLOG("[bison]: for_stmt <- block cmp block");
 		NEWTYPE(p, for_stmt);
@@ -2323,7 +2375,7 @@ yyreduce:
   case 56:
 
 /* Line 1455 of yacc.c  */
-#line 546 "bison.y"
+#line 549 "bison.y"
     {
 		FKLOG("[bison]: for_stmt <- block cmp");
 		NEWTYPE(p, for_stmt);
@@ -2338,7 +2390,7 @@ yyreduce:
   case 57:
 
 /* Line 1455 of yacc.c  */
-#line 559 "bison.y"
+#line 562 "bison.y"
     {
 		FKLOG("[bison]: for_loop_stmt <- block");
 		NEWTYPE(p, for_loop_stmt);
@@ -2354,7 +2406,7 @@ yyreduce:
   case 58:
 
 /* Line 1455 of yacc.c  */
-#line 571 "bison.y"
+#line 574 "bison.y"
     {
 		FKLOG("[bison]: for_loop_stmt <- empty");
 		NEWTYPE(p, for_loop_stmt);
@@ -2370,7 +2422,7 @@ yyreduce:
   case 59:
 
 /* Line 1455 of yacc.c  */
-#line 585 "bison.y"
+#line 588 "bison.y"
     {
 		FKLOG("[bison]: while_stmt <- cmp block");
 		NEWTYPE(p, while_stmt);
@@ -2383,7 +2435,7 @@ yyreduce:
   case 60:
 
 /* Line 1455 of yacc.c  */
-#line 594 "bison.y"
+#line 597 "bison.y"
     {
 		FKLOG("[bison]: while_stmt <- cmp");
 		NEWTYPE(p, while_stmt);
@@ -2396,7 +2448,7 @@ yyreduce:
   case 61:
 
 /* Line 1455 of yacc.c  */
-#line 605 "bison.y"
+#line 608 "bison.y"
     {
 		FKLOG("[bison]: if_stmt <- cmp block");
 		NEWTYPE(p, if_stmt);
@@ -2411,7 +2463,7 @@ yyreduce:
   case 62:
 
 /* Line 1455 of yacc.c  */
-#line 616 "bison.y"
+#line 619 "bison.y"
     {
 		FKLOG("[bison]: if_stmt <- cmp");
 		NEWTYPE(p, if_stmt);
@@ -2426,7 +2478,7 @@ yyreduce:
   case 63:
 
 /* Line 1455 of yacc.c  */
-#line 629 "bison.y"
+#line 632 "bison.y"
     {
 		(yyval.syntree) = 0;
 	;}
@@ -2435,7 +2487,7 @@ yyreduce:
   case 64:
 
 /* Line 1455 of yacc.c  */
-#line 634 "bison.y"
+#line 637 "bison.y"
     {
 		FKLOG("[bison]: elseif_stmt_list <- elseif_stmt_list elseif_stmt");
 		assert((yyvsp[(1) - (2)].syntree)->gettype() == est_elseif_stmt_list);
@@ -2448,7 +2500,7 @@ yyreduce:
   case 65:
 
 /* Line 1455 of yacc.c  */
-#line 643 "bison.y"
+#line 646 "bison.y"
     {
 		FKLOG("[bison]: elseif_stmt_list <- elseif_stmt");
 		NEWTYPE(p, elseif_stmt_list);
@@ -2460,7 +2512,7 @@ yyreduce:
   case 66:
 
 /* Line 1455 of yacc.c  */
-#line 653 "bison.y"
+#line 656 "bison.y"
     {
 		FKLOG("[bison]: elseif_stmt <- ELSEIF cmp THEN block");
 		NEWTYPE(p, elseif_stmt);
@@ -2473,7 +2525,7 @@ yyreduce:
   case 67:
 
 /* Line 1455 of yacc.c  */
-#line 662 "bison.y"
+#line 665 "bison.y"
     {
 		FKLOG("[bison]: elseif_stmt <- ELSEIF cmp THEN block");
 		NEWTYPE(p, elseif_stmt);
@@ -2486,7 +2538,7 @@ yyreduce:
   case 68:
 
 /* Line 1455 of yacc.c  */
-#line 673 "bison.y"
+#line 676 "bison.y"
     {
 		(yyval.syntree) = 0;
 	;}
@@ -2495,7 +2547,7 @@ yyreduce:
   case 69:
 
 /* Line 1455 of yacc.c  */
-#line 678 "bison.y"
+#line 681 "bison.y"
     {
 		FKLOG("[bison]: else_stmt <- block");
 		NEWTYPE(p, else_stmt);
@@ -2507,7 +2559,7 @@ yyreduce:
   case 70:
 
 /* Line 1455 of yacc.c  */
-#line 686 "bison.y"
+#line 689 "bison.y"
     {
 		FKLOG("[bison]: else_stmt <- empty");
 		NEWTYPE(p, else_stmt);
@@ -2519,7 +2571,7 @@ yyreduce:
   case 71:
 
 /* Line 1455 of yacc.c  */
-#line 696 "bison.y"
+#line 699 "bison.y"
     {
 		FKLOG("[bison]: cmp <- ( cmp )");
 		(yyval.syntree) = (yyvsp[(2) - (3)].syntree);
@@ -2529,7 +2581,7 @@ yyreduce:
   case 72:
 
 /* Line 1455 of yacc.c  */
-#line 702 "bison.y"
+#line 705 "bison.y"
     {
 		FKLOG("[bison]: cmp <- cmp AND cmp");
 		NEWTYPE(p, cmp_stmt);
@@ -2543,7 +2595,7 @@ yyreduce:
   case 73:
 
 /* Line 1455 of yacc.c  */
-#line 712 "bison.y"
+#line 715 "bison.y"
     {
 		FKLOG("[bison]: cmp <- cmp OR cmp");
 		NEWTYPE(p, cmp_stmt);
@@ -2557,7 +2609,7 @@ yyreduce:
   case 74:
 
 /* Line 1455 of yacc.c  */
-#line 722 "bison.y"
+#line 725 "bison.y"
     {
 		FKLOG("[bison]: cmp <- cmp_value LESS cmp_value");
 		NEWTYPE(p, cmp_stmt);
@@ -2571,7 +2623,7 @@ yyreduce:
   case 75:
 
 /* Line 1455 of yacc.c  */
-#line 732 "bison.y"
+#line 735 "bison.y"
     {
 		FKLOG("[bison]: cmp <- cmp_value MORE cmp_value");
 		NEWTYPE(p, cmp_stmt);
@@ -2585,7 +2637,7 @@ yyreduce:
   case 76:
 
 /* Line 1455 of yacc.c  */
-#line 742 "bison.y"
+#line 745 "bison.y"
     {
 		FKLOG("[bison]: cmp <- cmp_value EQUAL cmp_value");
 		NEWTYPE(p, cmp_stmt);
@@ -2599,7 +2651,7 @@ yyreduce:
   case 77:
 
 /* Line 1455 of yacc.c  */
-#line 752 "bison.y"
+#line 755 "bison.y"
     {
 		FKLOG("[bison]: cmp <- cmp_value MORE_OR_EQUAL cmp_value");
 		NEWTYPE(p, cmp_stmt);
@@ -2613,7 +2665,7 @@ yyreduce:
   case 78:
 
 /* Line 1455 of yacc.c  */
-#line 762 "bison.y"
+#line 765 "bison.y"
     {
 		FKLOG("[bison]: cmp <- cmp_value LESS_OR_EQUAL cmp_value");
 		NEWTYPE(p, cmp_stmt);
@@ -2627,7 +2679,7 @@ yyreduce:
   case 79:
 
 /* Line 1455 of yacc.c  */
-#line 772 "bison.y"
+#line 775 "bison.y"
     {
 		FKLOG("[bison]: cmp <- cmp_value NOT_EQUAL cmp_value");
 		NEWTYPE(p, cmp_stmt);
@@ -2641,7 +2693,7 @@ yyreduce:
   case 80:
 
 /* Line 1455 of yacc.c  */
-#line 782 "bison.y"
+#line 785 "bison.y"
     {
 		FKLOG("[bison]: cmp <- true");
 		NEWTYPE(p, cmp_stmt);
@@ -2655,7 +2707,7 @@ yyreduce:
   case 81:
 
 /* Line 1455 of yacc.c  */
-#line 792 "bison.y"
+#line 795 "bison.y"
     {
 		FKLOG("[bison]: cmp <- false");
 		NEWTYPE(p, cmp_stmt);
@@ -2669,7 +2721,7 @@ yyreduce:
   case 82:
 
 /* Line 1455 of yacc.c  */
-#line 802 "bison.y"
+#line 805 "bison.y"
     {
 		FKLOG("[bison]: cmp <- cmp_value IS cmp_value");
 		NEWTYPE(p, cmp_stmt);
@@ -2683,7 +2735,7 @@ yyreduce:
   case 83:
 
 /* Line 1455 of yacc.c  */
-#line 812 "bison.y"
+#line 815 "bison.y"
     {
 		FKLOG("[bison]: cmp <- cmp_value NOT cmp_value");
 		NEWTYPE(p, cmp_stmt);
@@ -2697,7 +2749,7 @@ yyreduce:
   case 84:
 
 /* Line 1455 of yacc.c  */
-#line 824 "bison.y"
+#line 827 "bison.y"
     {
 		FKLOG("[bison]: cmp_value <- explicit_value");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2707,7 +2759,7 @@ yyreduce:
   case 85:
 
 /* Line 1455 of yacc.c  */
-#line 830 "bison.y"
+#line 833 "bison.y"
     {
 		FKLOG("[bison]: cmp_value <- variable");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2717,7 +2769,7 @@ yyreduce:
   case 86:
 
 /* Line 1455 of yacc.c  */
-#line 836 "bison.y"
+#line 839 "bison.y"
     {
 		FKLOG("[bison]: cmp_value <- expr");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2727,7 +2779,7 @@ yyreduce:
   case 87:
 
 /* Line 1455 of yacc.c  */
-#line 844 "bison.y"
+#line 847 "bison.y"
     {
 		FKLOG("[bison]: return_stmt <- RETURN return_value_list");
 		NEWTYPE(p, return_stmt);
@@ -2739,7 +2791,7 @@ yyreduce:
   case 88:
 
 /* Line 1455 of yacc.c  */
-#line 852 "bison.y"
+#line 855 "bison.y"
     {
 		FKLOG("[bison]: return_stmt <- RETURN");
 		NEWTYPE(p, return_stmt);
@@ -2751,7 +2803,7 @@ yyreduce:
   case 89:
 
 /* Line 1455 of yacc.c  */
-#line 862 "bison.y"
+#line 865 "bison.y"
     {
 		FKLOG("[bison]: return_value_list <- return_value_list return_value");
 		assert((yyvsp[(1) - (3)].syntree)->gettype() == est_return_value_list);
@@ -2764,7 +2816,7 @@ yyreduce:
   case 90:
 
 /* Line 1455 of yacc.c  */
-#line 871 "bison.y"
+#line 874 "bison.y"
     {
 		NEWTYPE(p, return_value_list_node);
 		p->add_arg((yyvsp[(1) - (1)].syntree));
@@ -2775,7 +2827,7 @@ yyreduce:
   case 91:
 
 /* Line 1455 of yacc.c  */
-#line 880 "bison.y"
+#line 883 "bison.y"
     {
 		FKLOG("[bison]: return_value <- explicit_value");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2785,7 +2837,7 @@ yyreduce:
   case 92:
 
 /* Line 1455 of yacc.c  */
-#line 886 "bison.y"
+#line 889 "bison.y"
     {
 		FKLOG("[bison]: return_value <- variable");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2795,7 +2847,7 @@ yyreduce:
   case 93:
 
 /* Line 1455 of yacc.c  */
-#line 892 "bison.y"
+#line 895 "bison.y"
     {
 		FKLOG("[bison]: return_value <- expr");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2805,7 +2857,7 @@ yyreduce:
   case 94:
 
 /* Line 1455 of yacc.c  */
-#line 900 "bison.y"
+#line 903 "bison.y"
     {
 		FKLOG("[bison]: assign_stmt <- var assign_value");
 		NEWTYPE(p, assign_stmt);
@@ -2819,7 +2871,7 @@ yyreduce:
   case 95:
 
 /* Line 1455 of yacc.c  */
-#line 910 "bison.y"
+#line 913 "bison.y"
     {
 		FKLOG("[bison]: new assign_stmt <- var assign_value");
 		NEWTYPE(p, assign_stmt);
@@ -2833,7 +2885,7 @@ yyreduce:
   case 96:
 
 /* Line 1455 of yacc.c  */
-#line 922 "bison.y"
+#line 925 "bison.y"
     {
 		FKLOG("[bison]: multi_assign_stmt <- var_list function_call");
 		NEWTYPE(p, multi_assign_stmt);
@@ -2847,7 +2899,7 @@ yyreduce:
   case 97:
 
 /* Line 1455 of yacc.c  */
-#line 932 "bison.y"
+#line 935 "bison.y"
     {
 		FKLOG("[bison]: new multi_assign_stmt <- var_list function_call");
 		NEWTYPE(p, multi_assign_stmt);
@@ -2861,7 +2913,7 @@ yyreduce:
   case 98:
 
 /* Line 1455 of yacc.c  */
-#line 944 "bison.y"
+#line 947 "bison.y"
     {
 		FKLOG("[bison]: var_list <- var_list var");
 		assert((yyvsp[(1) - (3)].syntree)->gettype() == est_var_list);
@@ -2874,7 +2926,7 @@ yyreduce:
   case 99:
 
 /* Line 1455 of yacc.c  */
-#line 953 "bison.y"
+#line 956 "bison.y"
     {
 		NEWTYPE(p, var_list_node);
 		p->add_arg((yyvsp[(1) - (1)].syntree));
@@ -2885,7 +2937,7 @@ yyreduce:
   case 100:
 
 /* Line 1455 of yacc.c  */
-#line 962 "bison.y"
+#line 965 "bison.y"
     {
 		FKLOG("[bison]: assign_value <- explicit_value");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2895,7 +2947,7 @@ yyreduce:
   case 101:
 
 /* Line 1455 of yacc.c  */
-#line 968 "bison.y"
+#line 971 "bison.y"
     {
 		FKLOG("[bison]: assign_value <- variable");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2905,7 +2957,7 @@ yyreduce:
   case 102:
 
 /* Line 1455 of yacc.c  */
-#line 974 "bison.y"
+#line 977 "bison.y"
     {
 		FKLOG("[bison]: assign_value <- expr");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -2915,7 +2967,7 @@ yyreduce:
   case 103:
 
 /* Line 1455 of yacc.c  */
-#line 982 "bison.y"
+#line 985 "bison.y"
     {
 		FKLOG("[bison]: math_assign_stmt <- variable assign_value");
 		NEWTYPE(p, math_assign_stmt);
@@ -2929,7 +2981,7 @@ yyreduce:
   case 104:
 
 /* Line 1455 of yacc.c  */
-#line 992 "bison.y"
+#line 995 "bison.y"
     {
 		FKLOG("[bison]: math_assign_stmt <- variable assign_value");
 		NEWTYPE(p, math_assign_stmt);
@@ -2943,7 +2995,7 @@ yyreduce:
   case 105:
 
 /* Line 1455 of yacc.c  */
-#line 1002 "bison.y"
+#line 1005 "bison.y"
     {
 		FKLOG("[bison]: math_assign_stmt <- variable assign_value");
 		NEWTYPE(p, math_assign_stmt);
@@ -2957,7 +3009,7 @@ yyreduce:
   case 106:
 
 /* Line 1455 of yacc.c  */
-#line 1012 "bison.y"
+#line 1015 "bison.y"
     {
 		FKLOG("[bison]: math_assign_stmt <- variable assign_value");
 		NEWTYPE(p, math_assign_stmt);
@@ -2971,7 +3023,7 @@ yyreduce:
   case 107:
 
 /* Line 1455 of yacc.c  */
-#line 1022 "bison.y"
+#line 1025 "bison.y"
     {
 		FKLOG("[bison]: math_assign_stmt <- variable assign_value");
 		NEWTYPE(p, math_assign_stmt);
@@ -2985,7 +3037,7 @@ yyreduce:
   case 108:
 
 /* Line 1455 of yacc.c  */
-#line 1032 "bison.y"
+#line 1035 "bison.y"
     {
 		FKLOG("[bison]: math_assign_stmt <- variable INC");
 		NEWTYPE(pp, explicit_value_node);
@@ -3003,7 +3055,7 @@ yyreduce:
   case 109:
 
 /* Line 1455 of yacc.c  */
-#line 1048 "bison.y"
+#line 1051 "bison.y"
     {
 		FKLOG("[bison]: var <- VAR_BEGIN IDENTIFIER %s", (yyvsp[(2) - (2)].str).c_str());
 		NEWTYPE(p, var_node);
@@ -3015,7 +3067,7 @@ yyreduce:
   case 110:
 
 /* Line 1455 of yacc.c  */
-#line 1056 "bison.y"
+#line 1059 "bison.y"
     {
 		FKLOG("[bison]: var <- variable");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -3025,7 +3077,7 @@ yyreduce:
   case 111:
 
 /* Line 1455 of yacc.c  */
-#line 1064 "bison.y"
+#line 1067 "bison.y"
     {
 		FKLOG("[bison]: variable <- IDENTIFIER %s", (yyvsp[(1) - (1)].str).c_str());
 		NEWTYPE(p, variable_node);
@@ -3037,7 +3089,7 @@ yyreduce:
   case 112:
 
 /* Line 1455 of yacc.c  */
-#line 1072 "bison.y"
+#line 1075 "bison.y"
     {
 		FKLOG("[bison]: container_get_node <- IDENTIFIER[expr_value] %s", (yyvsp[(1) - (4)].str).c_str());
 		NEWTYPE(p, container_get_node);
@@ -3050,7 +3102,7 @@ yyreduce:
   case 113:
 
 /* Line 1455 of yacc.c  */
-#line 1081 "bison.y"
+#line 1084 "bison.y"
     {
 		FKLOG("[bison]: variable <- IDENTIFIER_POINTER %s", (yyvsp[(1) - (1)].str).c_str());
 		NEWTYPE(p, struct_pointer_node);
@@ -3062,7 +3114,7 @@ yyreduce:
   case 114:
 
 /* Line 1455 of yacc.c  */
-#line 1091 "bison.y"
+#line 1094 "bison.y"
     {
 		FKLOG("[bison]: expr <- (expr)");
 		(yyval.syntree) = (yyvsp[(2) - (3)].syntree);
@@ -3072,7 +3124,7 @@ yyreduce:
   case 115:
 
 /* Line 1455 of yacc.c  */
-#line 1097 "bison.y"
+#line 1100 "bison.y"
     {
 		FKLOG("[bison]: expr <- function_call");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -3082,7 +3134,7 @@ yyreduce:
   case 116:
 
 /* Line 1455 of yacc.c  */
-#line 1103 "bison.y"
+#line 1106 "bison.y"
     {
 		FKLOG("[bison]: expr <- math_expr");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -3092,7 +3144,7 @@ yyreduce:
   case 117:
 
 /* Line 1455 of yacc.c  */
-#line 1111 "bison.y"
+#line 1114 "bison.y"
     {
 		FKLOG("[bison]: math_expr <- (math_expr)");
 		(yyval.syntree) = (yyvsp[(2) - (3)].syntree);
@@ -3102,7 +3154,7 @@ yyreduce:
   case 118:
 
 /* Line 1455 of yacc.c  */
-#line 1117 "bison.y"
+#line 1120 "bison.y"
     {
 		FKLOG("[bison]: math_expr <- expr_value %s expr_value", (yyvsp[(2) - (3)].str).c_str());
 		NEWTYPE(p, math_expr_node);
@@ -3116,7 +3168,7 @@ yyreduce:
   case 119:
 
 /* Line 1455 of yacc.c  */
-#line 1127 "bison.y"
+#line 1130 "bison.y"
     {
 		FKLOG("[bison]: math_expr <- expr_value %s expr_value", (yyvsp[(2) - (3)].str).c_str());
 		NEWTYPE(p, math_expr_node);
@@ -3130,7 +3182,7 @@ yyreduce:
   case 120:
 
 /* Line 1455 of yacc.c  */
-#line 1137 "bison.y"
+#line 1140 "bison.y"
     {
 		FKLOG("[bison]: math_expr <- expr_value %s expr_value", (yyvsp[(2) - (3)].str).c_str());
 		NEWTYPE(p, math_expr_node);
@@ -3144,7 +3196,7 @@ yyreduce:
   case 121:
 
 /* Line 1455 of yacc.c  */
-#line 1147 "bison.y"
+#line 1150 "bison.y"
     {
 		FKLOG("[bison]: math_expr <- expr_value %s expr_value", (yyvsp[(2) - (3)].str).c_str());
 		NEWTYPE(p, math_expr_node);
@@ -3158,7 +3210,7 @@ yyreduce:
   case 122:
 
 /* Line 1455 of yacc.c  */
-#line 1157 "bison.y"
+#line 1160 "bison.y"
     {
 		FKLOG("[bison]: math_expr <- expr_value %s expr_value", (yyvsp[(2) - (3)].str).c_str());
 		NEWTYPE(p, math_expr_node);
@@ -3172,7 +3224,7 @@ yyreduce:
   case 123:
 
 /* Line 1455 of yacc.c  */
-#line 1169 "bison.y"
+#line 1172 "bison.y"
     {
 		FKLOG("[bison]: expr_value <- math_expr");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -3182,7 +3234,7 @@ yyreduce:
   case 124:
 
 /* Line 1455 of yacc.c  */
-#line 1175 "bison.y"
+#line 1178 "bison.y"
     {
 		FKLOG("[bison]: expr_value <- explicit_value");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -3192,7 +3244,7 @@ yyreduce:
   case 125:
 
 /* Line 1455 of yacc.c  */
-#line 1181 "bison.y"
+#line 1184 "bison.y"
     {
 		FKLOG("[bison]: expr_value <- function_call");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -3202,7 +3254,7 @@ yyreduce:
   case 126:
 
 /* Line 1455 of yacc.c  */
-#line 1187 "bison.y"
+#line 1190 "bison.y"
     {
 		FKLOG("[bison]: expr_value <- variable");
 		(yyval.syntree) = (yyvsp[(1) - (1)].syntree);
@@ -3212,7 +3264,7 @@ yyreduce:
   case 127:
 
 /* Line 1455 of yacc.c  */
-#line 1195 "bison.y"
+#line 1198 "bison.y"
     {
 		FKLOG("[bison]: explicit_value <- FTRUE");
 		NEWTYPE(p, explicit_value_node);
@@ -3225,7 +3277,7 @@ yyreduce:
   case 128:
 
 /* Line 1455 of yacc.c  */
-#line 1204 "bison.y"
+#line 1207 "bison.y"
     {
 		FKLOG("[bison]: explicit_value <- FFALSE");
 		NEWTYPE(p, explicit_value_node);
@@ -3238,7 +3290,7 @@ yyreduce:
   case 129:
 
 /* Line 1455 of yacc.c  */
-#line 1213 "bison.y"
+#line 1216 "bison.y"
     {
 		FKLOG("[bison]: explicit_value <- NUMBER %s", (yyvsp[(1) - (1)].str).c_str());
 		NEWTYPE(p, explicit_value_node);
@@ -3251,7 +3303,7 @@ yyreduce:
   case 130:
 
 /* Line 1455 of yacc.c  */
-#line 1222 "bison.y"
+#line 1225 "bison.y"
     {
 		FKLOG("[bison]: explicit_value <- FKUUID %s", (yyvsp[(1) - (1)].str).c_str());
 		NEWTYPE(p, explicit_value_node);
@@ -3264,7 +3316,7 @@ yyreduce:
   case 131:
 
 /* Line 1455 of yacc.c  */
-#line 1231 "bison.y"
+#line 1234 "bison.y"
     {
 		FKLOG("[bison]: explicit_value <- STRING_DEFINITION %s", (yyvsp[(1) - (1)].str).c_str());
 		NEWTYPE(p, explicit_value_node);
@@ -3277,7 +3329,7 @@ yyreduce:
   case 132:
 
 /* Line 1455 of yacc.c  */
-#line 1240 "bison.y"
+#line 1243 "bison.y"
     {
 		FKLOG("[bison]: explicit_value <- FKFLOAT %s", (yyvsp[(1) - (1)].str).c_str());
 		NEWTYPE(p, explicit_value_node);
@@ -3290,7 +3342,7 @@ yyreduce:
   case 133:
 
 /* Line 1455 of yacc.c  */
-#line 1251 "bison.y"
+#line 1254 "bison.y"
     {
 		FKLOG("[bison]: break <- BREAK");
 		NEWTYPE(p, break_stmt);
@@ -3301,7 +3353,7 @@ yyreduce:
   case 134:
 
 /* Line 1455 of yacc.c  */
-#line 1260 "bison.y"
+#line 1263 "bison.y"
     {
 		FKLOG("[bison]: CONTINUE");
 		NEWTYPE(p, continue_stmt);
@@ -3312,7 +3364,7 @@ yyreduce:
   case 135:
 
 /* Line 1455 of yacc.c  */
-#line 1269 "bison.y"
+#line 1272 "bison.y"
     {
 		FKLOG("[bison]: SLEEP");
 		NEWTYPE(p, sleep_stmt);
@@ -3324,7 +3376,7 @@ yyreduce:
   case 136:
 
 /* Line 1455 of yacc.c  */
-#line 1278 "bison.y"
+#line 1281 "bison.y"
     {
 		FKLOG("[bison]: YIELD");
 		NEWTYPE(p, yield_stmt);
@@ -3336,7 +3388,7 @@ yyreduce:
   case 137:
 
 /* Line 1455 of yacc.c  */
-#line 1288 "bison.y"
+#line 1291 "bison.y"
     {
 		FKLOG("[bison]: switch_stmt");
 		NEWTYPE(p, switch_stmt);
@@ -3350,7 +3402,7 @@ yyreduce:
   case 138:
 
 /* Line 1455 of yacc.c  */
-#line 1298 "bison.y"
+#line 1301 "bison.y"
     {
 		FKLOG("[bison]: switch_stmt");
 		NEWTYPE(p, switch_stmt);
@@ -3364,7 +3416,7 @@ yyreduce:
   case 139:
 
 /* Line 1455 of yacc.c  */
-#line 1310 "bison.y"
+#line 1313 "bison.y"
     {
 		FKLOG("[bison]: switch_case_list <- switch_case_define");
 		NEWTYPE(p, switch_caselist_node);
@@ -3376,7 +3428,7 @@ yyreduce:
   case 140:
 
 /* Line 1455 of yacc.c  */
-#line 1318 "bison.y"
+#line 1321 "bison.y"
     {
 		FKLOG("[bison]: switch_case_list <- switch_case_list switch_case_define");
 		assert((yyvsp[(2) - (2)].syntree)->gettype() == est_switch_case_node);
@@ -3389,7 +3441,7 @@ yyreduce:
   case 141:
 
 /* Line 1455 of yacc.c  */
-#line 1329 "bison.y"
+#line 1332 "bison.y"
     {
 		FKLOG("[bison]: switch_case_define");
 		NEWTYPE(p, switch_case_node);
@@ -3402,7 +3454,7 @@ yyreduce:
   case 142:
 
 /* Line 1455 of yacc.c  */
-#line 1338 "bison.y"
+#line 1341 "bison.y"
     {
 		FKLOG("[bison]: switch_case_define");
 		NEWTYPE(p, switch_case_node);
@@ -3415,7 +3467,7 @@ yyreduce:
 
 
 /* Line 1455 of yacc.c  */
-#line 3419 "bison.tab.c"
+#line 3471 "bison.tab.c"
       default: break;
     }
   YY_SYMBOL_PRINT ("-> $$ =", yyr1[yyn], &yyval, &yyloc);
@@ -3425,6 +3477,7 @@ yyreduce:
   YY_STACK_PRINT (yyss, yyssp);
 
   *++yyvsp = yyval;
+  *++yylsp = yyloc;
 
   /* Now `shift' the result of the reduction.  Determine what state
      that goes to, based on the state we popped back to and the rule
@@ -3486,7 +3539,7 @@ yyerrlab:
 #endif
     }
 
-
+  yyerror_range[0] = yylloc;
 
   if (yyerrstatus == 3)
     {
@@ -3502,7 +3555,7 @@ yyerrlab:
       else
 	{
 	  yydestruct ("Error: discarding",
-		      yytoken, &yylval);
+		      yytoken, &yylval, &yylloc);
 	  yychar = YYEMPTY;
 	}
     }
@@ -3523,6 +3576,7 @@ yyerrorlab:
   if (/*CONSTCOND*/ 0)
      goto yyerrorlab;
 
+  yyerror_range[0] = yylsp[1-yylen];
   /* Do not reclaim the symbols of the rule which action triggered
      this YYERROR.  */
   YYPOPSTACK (yylen);
@@ -3556,9 +3610,9 @@ yyerrlab1:
       if (yyssp == yyss)
 	YYABORT;
 
-
+      yyerror_range[0] = *yylsp;
       yydestruct ("Error: popping",
-		  yystos[yystate], yyvsp);
+		  yystos[yystate], yyvsp, yylsp);
       YYPOPSTACK (1);
       yystate = *yyssp;
       YY_STACK_PRINT (yyss, yyssp);
@@ -3566,6 +3620,11 @@ yyerrlab1:
 
   *++yyvsp = yylval;
 
+  yyerror_range[1] = yylloc;
+  /* Using YYLLOC is tempting, but would change the location of
+     the lookahead.  YYLOC is available though.  */
+  YYLLOC_DEFAULT (yyloc, (yyerror_range - 1), 2);
+  *++yylsp = yyloc;
 
   /* Shift the error token.  */
   YY_SYMBOL_PRINT ("Shifting", yystos[yyn], yyvsp, yylsp);
@@ -3601,7 +3660,7 @@ yyexhaustedlab:
 yyreturn:
   if (yychar != YYEMPTY)
      yydestruct ("Cleanup: discarding lookahead",
-		 yytoken, &yylval);
+		 yytoken, &yylval, &yylloc);
   /* Do not reclaim the symbols of the rule which action triggered
      this YYABORT or YYACCEPT.  */
   YYPOPSTACK (yylen);
@@ -3609,7 +3668,7 @@ yyreturn:
   while (yyssp != yyss)
     {
       yydestruct ("Cleanup: popping",
-		  yystos[*yyssp], yyvsp);
+		  yystos[*yyssp], yyvsp, yylsp);
       YYPOPSTACK (1);
     }
 #ifndef yyoverflow

@@ -46,7 +46,7 @@
 
 #define GET_CMD(fb, ip) (fb).m_buff[ip]
 
-#define GET_CMD_LINENO(fb, pos) (pos >= 0 && pos < (int)(fb).m_lineno_size) ? (fb).m_lineno_buff[pos] : ((fb).m_lineno_size > 0 ? (fb).m_lineno_buff[(fb).m_lineno_size - 1] : 0)
+#define GET_CMD_LINENO(fb, pos) FUNC_BINARY_LINENO(fb, pos)
 
 #define GET_CONST(v, fb, pos) \
 	assert(pos >= 0 && pos < (int)(fb).m_const_list_num);\
@@ -117,7 +117,7 @@
 	if (UNLIKE(!(CHECK_STACK_POS(fb, ip)))) \
 	{ \
 		err = true; \
-		seterror(fk, efk_run_inter_error, "interpreter math oper error, dest is not stack, type %s", POS_TYPE_NAME(fb, ip)); \
+		seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "interpreter math oper error, dest is not stack, type %s", POS_TYPE_NAME(fb, ip)); \
 		break; \
 	} \
 	LOG_VARIANT(fb, ip, "dest");\
@@ -135,7 +135,7 @@
 	if (UNLIKE(!(CHECK_STACK_POS(fb, ip) || CHECK_CONTAINER_POS(fb, ip))))\
 	{ \
 		err = true; \
-		seterror(fk, efk_run_inter_error, "interpreter math assign oper error, dest is not stack or container, type %s", POS_TYPE_NAME(fb, ip)); \
+		seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "interpreter math assign oper error, dest is not stack or container, type %s", POS_TYPE_NAME(fb, ip)); \
 		break; \
 	} \
 	LOG_VARIANT(fb, ip, "var");\
@@ -163,7 +163,7 @@
 	if (UNLIKE(!(CHECK_STACK_POS(fb, ip)))) \
 	{ \
 		err = true; \
-		seterror(fk, efk_run_inter_error, "interpreter math oper error, dest is not stack, type %s", POS_TYPE_NAME(fb, ip)); \
+		seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "interpreter math oper error, dest is not stack, type %s", POS_TYPE_NAME(fb, ip)); \
 		break; \
 	} \
 	LOG_VARIANT(fb, ip, "dest");\
@@ -257,12 +257,26 @@ public:
 		return m_fb ? FUNC_BINARY_FILENAME(*m_fb) : "";
 	}
 	
+	force_inline int get_running_bytecode_pos() const
+	{
+		return m_fb ? m_ip : -1;
+	}
+	
 	force_inline int get_running_file_line() const
 	{
 		return m_fb ? GET_CMD_LINENO(*m_fb, m_ip) : 0;
 	}
 	
 	const char * get_running_call_stack() const;
+	int get_running_call_stack_length() const;
+	void get_running_call_stack_frame_info(int frame, 
+		const char * & stackinfo, 
+		const char * & func, 
+		const char * & file, 
+		int & line) const;
+
+	void get_running_vaiant(int frame, const char * name, int line, const char * & value, int & outline);
+	void set_running_vaiant(int frame, const char * name, int line, const char * value);
 	
 	int run(int cmdnum);
 

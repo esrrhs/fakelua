@@ -79,7 +79,7 @@ struct fake
 	}
 	
 	int errorno;
-	char errorstr[128];
+	char errorstr[512];
 	fkerrorcb errorcb;
 	
 	// ≈‰÷√

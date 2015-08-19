@@ -45,7 +45,7 @@ public:
 	virtual void LexerError(const char* msg);
 
 	// 在flex.cpp中实现
-	int yylex(YYSTYPE * yylval);
+	int yylex(YYSTYPE * yylval, YYLTYPE * loc);
 
 	fake * getfake()
 	{
@@ -70,9 +70,14 @@ public:
 	void add_const_desc(const char * name, syntree_node * p);
 	explicit_value_map & get_const_map();
 	
-	const char * get_error()
+	const char * get_error() const
 	{
 		return m_error.c_str();
+	}
+
+	int get_error_line() const
+	{
+		return m_errorline;
 	}
 
 	void set_package(const char * package_name)
@@ -95,7 +100,7 @@ public:
 
 	void add_struct_desc(const char * name, struct_desc_memlist_node * p);
 	bool is_have_struct(const String & name);
-	
+
 private:
 	fake * m_fk;
 	String m_filename;
@@ -108,5 +113,6 @@ private:
 	include_file_list m_includelist;
 	struct_list m_struct_list;
 	String m_error;
+	int m_errorline;
 }; 
 

@@ -494,6 +494,7 @@ struct func_desc_node : public syntree_node
 	String funcname;
 	func_desc_arglist_node * arglist;
 	block_node * block;
+	int endline;
 };
 
 typedef std::vector<func_desc_node*> func_desc_list;

@@ -10,8 +10,10 @@
 
 #define FLEX_DEBUG(x, ...) printf("FLEX DEBUG %d:", yylineno); printf(x, ##__VA_ARGS__);
 
-#define YY_DECL int myflexer::yylex(YYSTYPE * lvalp)
+#define YY_DECL int myflexer::yylex(YYSTYPE * lvalp, YYLTYPE * loc)
 
+#define YY_USER_ACTION loc->first_line = loc->last_line = yylineno;
+	
 %}
 
 %option c++

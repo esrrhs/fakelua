@@ -98,11 +98,18 @@ enum CallType
 
 const char * OpCodeStr(int opcode);
 
+struct stack_variant_info
+{
+	char name[32];
+	int line;
+	int pos;
+};
+
 struct fake;
 class codegen;
 struct func_binary
 {
-	String dump() const;
+	String dump(int pos = -1) const;
 	bool save(fake * fk, buffer * b) const;
 	bool load(fake * fk, buffer * b);
 	// 最大栈空间
@@ -121,12 +128,16 @@ struct func_binary
 	// 二进制行号缓冲区
 	int * m_lineno_buff;
 	int m_lineno_size;
+	int m_end_lineno;
 	// 常量
 	variant * m_const_list;
 	int m_const_list_num;
 	// container地址
 	container_addr * m_container_addr_list;
 	int m_container_addr_list_num;
+	// 调试信息，栈变量
+	stack_variant_info * m_debug_stack_variant_info;
+	int m_debug_stack_variant_info_num;
 	// 序列
 	int m_pos;
 	// 占用标记
@@ -154,7 +165,13 @@ struct func_binary
 
 #define FUNC_BINARY_LINENO_SIZE(fb) \
 	((fb).m_lineno_size)
+
+#define FUNC_BINARY_LINENO(fb, pos) \
+	(pos >= 0 && pos < (int)(fb).m_lineno_size) ? (fb).m_lineno_buff[pos] : ((fb).m_lineno_size > 0 ? FUNC_BINARY_END_LINENO(fb) : 0)
 	
+#define FUNC_BINARY_END_LINENO(fb) \
+	((fb).m_end_lineno)
+
 #define FUNC_BINARY_SIZE(fb) \
 	((fb).m_size * sizeof(command))
 
@@ -190,6 +207,7 @@ struct func_binary
 	safe_fkfree(m_fk, (fb).m_lineno_buff); \
 	safe_fkfree(m_fk, (fb).m_const_list); \
 	safe_fkfree(m_fk, (fb).m_container_addr_list); \
+	safe_fkfree(m_fk, (fb).m_debug_stack_variant_info); \
 	if ((fb).m_backup) \
 	{ \
 		safe_fkfree(m_fk, (fb).m_backup->m_name); \
@@ -199,6 +217,7 @@ struct func_binary
 		safe_fkfree(m_fk, (fb).m_backup->m_lineno_buff); \
 		safe_fkfree(m_fk, (fb).m_backup->m_const_list); \
 		safe_fkfree(m_fk, (fb).m_backup->m_container_addr_list); \
+		safe_fkfree(m_fk, (fb).m_backup->m_debug_stack_variant_info); \
 	} \
 	safe_fkfree(m_fk, (fb).m_backup)
 
@@ -228,7 +247,7 @@ public:
 	bool add_func(const variant & name, const func_binary & bin);
 	
 	String & dump() const;
-	String & dump(const char * func) const;
+	String & dump(const char * func, int pos = -1) const;
 
 	bool save(buffer * b) const;
 	bool load(buffer * b);

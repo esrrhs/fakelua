@@ -10,13 +10,13 @@ void interpreter::call(const variant & func, int retnum, int * retpos)
 	fake * fk = m_fk;
 	paramstack * ps = getps(m_fk);
 	const funcunion * f = m_fk->fm.get_func(func);
-	bool err = false;
+	bool & err = m_isend;
 	USE(err);
 	if (UNLIKE(!f))
 	{
 		FKERR("fkrun no func %s fail", vartostring(&func).c_str());
-		seterror(m_fk, efk_run_no_func_error, "fkrun no func %s fail", vartostring(&func).c_str());
 		m_isend = true;
+		seterror(m_fk, efk_run_no_func_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "fkrun no func %s fail", vartostring(&func).c_str());
 		return;
 	}
 
@@ -86,8 +86,8 @@ void interpreter::call(const variant & func, int retnum, int * retpos)
 		if (UNLIKE((int)ps->m_variant_list_num != FUNC_BINARY_PARAMNUM(*fb)))
 		{
 			FKERR("call func %s param not match", vartostring(&func).c_str());
-			seterror(m_fk, efk_run_param_error, "call func %s param not match", vartostring(&func).c_str());
 			m_isend = true;
+			seterror(m_fk, efk_run_param_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "call func %s param not match", vartostring(&func).c_str());
 			return;
 		}
 
@@ -134,8 +134,8 @@ void interpreter::call(const variant & func, int retnum, int * retpos)
 	{
 		assert(0);
 		FKERR("fkrun no inter func %s fail", vartostring(&func).c_str());
-		seterror(m_fk, efk_run_no_func_error, "fkrun no inter func %s fail", vartostring(&func).c_str());
 		m_isend = true;
+		seterror(m_fk, efk_run_no_func_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "fkrun no inter func %s fail", vartostring(&func).c_str());
 		return;
 	}
 
@@ -156,8 +156,8 @@ void interpreter::call(const variant & func, int retnum, int * retpos)
 		if (UNLIKE((int)ps->m_variant_list_num != retnum))
 		{
 			FKERR("native func %s param not match, give %d need %d", vartostring(&func).c_str(), (int)ps->m_variant_list_num, retnum);
-			seterror(m_fk, efk_run_param_error, "native func %s param not match, give %d need %d", vartostring(&func).c_str(), (int)ps->m_variant_list_num, retnum);
 			m_isend = true;
+			seterror(m_fk, efk_run_param_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "native func %s param not match, give %d need %d", vartostring(&func).c_str(), (int)ps->m_variant_list_num, retnum);
 			return;
 		}
 		
@@ -173,14 +173,9 @@ void interpreter::call(const variant & func, int retnum, int * retpos)
 			*ret = *cret;
 		}
 	}
-	if (UNLIKE(err))
-	{
-		m_isend = true;
-	}
 	
 	if (UNLIKE(m_fk->pf.isopen()))
 	{
-		bool err = false;
 		const char * name = 0;
 		V_GET_STRING(&func, name);
 		m_fk->pf.add_func_sample(name, fkgetmstick() - s);
@@ -192,14 +187,14 @@ void interpreter::call(const variant & func, int retnum, int * retpos)
 int interpreter::run(int cmdnum)
 {
 	fake * fk = m_fk;
-	bool err = false;
+	bool & err = m_isend;
 	int i = 0;
 	
 	// Õ»Òç³ö¼ì²é
 	if (UNLIKE((int)ARRAY_MAX_SIZE(m_stack) > m_fk->cfg.stack_max))
 	{	
-		seterror(fk, efk_run_inter_error, "stack too big %d", ARRAY_MAX_SIZE(m_stack));
 		m_isend = true;
+		seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "stack too big %d", ARRAY_MAX_SIZE(m_stack));
 		return 0;
 	}
 
@@ -219,6 +214,11 @@ int interpreter::run(int cmdnum)
 		{
 			m_wakeuptime = 0;
 		}
+	}
+	
+	if (UNLIKE(m_isend))
+	{
+		return 0;
 	}
 	
 	while (1)
@@ -301,7 +301,7 @@ int interpreter::run(int cmdnum)
 				if (UNLIKE(!(CHECK_STACK_POS(*m_fb, m_ip) || CHECK_CONTAINER_POS(*m_fb, m_ip))))
 				{	
 					err = true;
-					seterror(fk, efk_run_inter_error, "interpreter assign error, dest is not stack or container, type %s", POS_TYPE_NAME(*m_fb, m_ip));
+					seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "interpreter assign error, dest is not stack or container, type %s", POS_TYPE_NAME(*m_fb, m_ip));
 					break;
 				}
 
@@ -575,7 +575,7 @@ int interpreter::run(int cmdnum)
 				if (UNLIKE(!(CHECK_STACK_POS(*m_fb, m_ip) || CHECK_CONTAINER_POS(*m_fb, m_ip))))
 				{	
 					err = true;
-					seterror(fk, efk_run_inter_error, "interpreter assign error, dest is not stack or container, type %s", POS_TYPE_NAME(*m_fb, m_ip));
+					seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "interpreter assign error, dest is not stack or container, type %s", POS_TYPE_NAME(*m_fb, m_ip));
 					break;
 				}
 
@@ -733,21 +733,22 @@ variant * interpreter::get_container_variant(const func_binary & fb, int conpos)
 	variant * v = 0;
 	assert(conpos >= 0 && conpos < (int)fb.m_container_addr_list_num);
 	const container_addr & ca = fb.m_container_addr_list[conpos];
-	bool err = false;
+	bool & err = m_isend;
 	USE(err);
 	variant * conv = 0;
 	do {GET_VARIANT_BY_CMD(fb, m_bp, conv, ca.con);}while(0);
 	const variant * keyv = 0;
 	do {GET_VARIANT_BY_CMD(fb, m_bp, keyv, ca.key);}while(0);
 
-	if (UNLIKE(err))
+	if (UNLIKE(m_isend))
 	{	
 		return 0;
 	}
 
 	if (UNLIKE(!(conv->type == variant::ARRAY || conv->type == variant::MAP)))
 	{
-		seterror(m_fk, efk_run_inter_error, "interpreter get container variant fail, container type error, type %s", vartypetostring(conv->type));
+		m_isend = true;
+		seterror(m_fk, efk_run_inter_error, fkgetcurfile(m_fk), fkgetcurline(m_fk), fkgetcurfunc(m_fk), "interpreter get container variant fail, container type error, type %s", vartypetostring(conv->type));
 		return 0;
 	}
 	
@@ -770,7 +771,7 @@ const char * interpreter::get_running_call_stack() const
 		return "";
 	}
 	
-	m_fk->rn.curcallstack.clear();
+	m_fk->rn.cur_runinginfo.clear();
 	int deps = 0;
 
 	int ip = m_ip;
@@ -779,37 +780,276 @@ const char * interpreter::get_running_call_stack() const
 
 	while (!BP_END(bp))
 	{
-		m_fk->rn.curcallstack += "#";
-		m_fk->rn.curcallstack += fkitoa(deps);
-		m_fk->rn.curcallstack += "	";
-		m_fk->rn.curcallstack += fb ? FUNC_BINARY_NAME(*fb) : "";
-		m_fk->rn.curcallstack += " at ";
-		m_fk->rn.curcallstack += fb ? FUNC_BINARY_FILENAME(*fb) : "";
-		m_fk->rn.curcallstack += ":";
-		m_fk->rn.curcallstack += fkitoa(GET_CMD_LINENO(*m_fb, ip));
-		m_fk->rn.curcallstack += "\n";
-		for (int j = 0; j < FUNC_BINARY_MAX_STACK(*m_fb) && j < (int)ARRAY_MAX_SIZE(m_stack); j++)
+		m_fk->rn.cur_runinginfo += "#";
+		m_fk->rn.cur_runinginfo += fkitoa(deps);
+		m_fk->rn.cur_runinginfo += "	";
+		m_fk->rn.cur_runinginfo += fb ? FUNC_BINARY_NAME(*fb) : "";
+		m_fk->rn.cur_runinginfo += " at ";
+		m_fk->rn.cur_runinginfo += fb ? FUNC_BINARY_FILENAME(*fb) : "";
+		m_fk->rn.cur_runinginfo += ":";
+		m_fk->rn.cur_runinginfo += fb ? fkitoa(GET_CMD_LINENO(*fb, ip)) : 0;
+		m_fk->rn.cur_runinginfo += "\n";
+		for (int j = 0; fb && j < FUNC_BINARY_MAX_STACK(*fb); j++)
 		{
-			m_fk->rn.curcallstack += "		[";
-			m_fk->rn.curcallstack += fkitoa(j);
-			m_fk->rn.curcallstack += "]\t";
-			m_fk->rn.curcallstack += vartostring(&ARRAY_GET(m_stack, j));
-			m_fk->rn.curcallstack += "\n";
+			m_fk->rn.cur_runinginfo += "		";
+			
+			String variant_name;
+			for (int i = 0; i < fb->m_debug_stack_variant_info_num; i++)
+			{
+				const stack_variant_info & info = fb->m_debug_stack_variant_info[i];
+				if (info.pos == j)
+				{
+					variant_name += info.name;
+					variant_name += "(line:";
+					variant_name += fkitoa(info.line);
+					variant_name += ") ";
+				}
+			}
+			if (variant_name.empty())
+			{
+				variant_name = "(anonymous)";
+			}
+			
+			m_fk->rn.cur_runinginfo += variant_name;
+			m_fk->rn.cur_runinginfo += "\t[";
+			m_fk->rn.cur_runinginfo += fkitoa(j);
+			m_fk->rn.cur_runinginfo += "]\t";
+			variant * v = 0;
+			GET_STACK(bp, v, j);
+			m_fk->rn.cur_runinginfo += vartostring(v);
+			m_fk->rn.cur_runinginfo += "\n";
 		}
 
+		BP_GET_FB(bp, fb);
+		BP_GET_IP(bp, ip);
 		int callbp = 0;
 		BP_GET_BP(bp, callbp);
 		bp = callbp;
-		if (!bp)
+		if (BP_END(bp))
 		{
 			break;
 		}
-		BP_GET_FB(bp, fb);
-		BP_GET_IP(bp, ip);
 		
 		deps++;
 	}
 	
-	return m_fk->rn.curcallstack.c_str();
+	return m_fk->rn.cur_runinginfo.c_str();
 }
+
+int interpreter::get_running_call_stack_length() const
+{
+	if (!m_fb)
+	{
+		return 0;
+	}
+	
+	int deps = 0;
+
+	int bp = m_bp;
+
+	while (!BP_END(bp))
+	{
+		deps++;
+		int callbp = 0;
+		BP_GET_BP(bp, callbp);
+		bp = callbp;
+		if (BP_END(bp))
+		{
+			break;
+		}
+	}
+	
+	return deps;
+}
+
+void interpreter::get_running_call_stack_frame_info(int frame, 
+	const char * & stackinfo, 
+	const char * & func, 
+	const char * & file, 
+	int & line) const
+{
+	stackinfo = "";
+	func = "";
+	file = "";
+	line = 0;
+	
+	if (!m_fb)
+	{
+		return;
+	}
+	
+	m_fk->rn.cur_runinginfo.clear();
+	int deps = 0;
+
+	int ip = m_ip;
+	int bp = m_bp;
+	const func_binary * fb = m_fb;
+
+	while (!BP_END(bp))
+	{
+		if (deps >= frame)
+		{
+			func = fb ? FUNC_BINARY_NAME(*fb) : "";
+			file = fb ? FUNC_BINARY_FILENAME(*fb) : "";
+			line = fb ? GET_CMD_LINENO(*fb, ip) : 0;
+			
+			m_fk->rn.cur_runinginfo += "#";
+			m_fk->rn.cur_runinginfo += fkitoa(deps);
+			m_fk->rn.cur_runinginfo += "	";
+			m_fk->rn.cur_runinginfo += func;
+			m_fk->rn.cur_runinginfo += " at ";
+			m_fk->rn.cur_runinginfo += file;
+			m_fk->rn.cur_runinginfo += ":";
+			m_fk->rn.cur_runinginfo += fkitoa(line);
+			m_fk->rn.cur_runinginfo += "\n";
+			
+			stackinfo = m_fk->rn.cur_runinginfo.c_str();
+			
+			return;
+		}
+		
+		BP_GET_FB(bp, fb);
+		BP_GET_IP(bp, ip);
+		int callbp = 0;
+		BP_GET_BP(bp, callbp);
+		bp = callbp;
+		if (BP_END(bp))
+		{
+			break;
+		}
+		
+		deps++;
+	}
+
+}
+
+void interpreter::get_running_vaiant(int frame, const char * name, int line, const char * & value, int & outline)
+{
+	value = "";
+	outline = 0;
+	
+	if (!m_fb)
+	{
+		return;
+	}
+	
+	m_fk->rn.cur_runinginfo.clear();
+	int deps = 0;
+
+	int ip = m_ip;
+	int bp = m_bp;
+	const func_binary * fb = m_fb;
+
+	while (!BP_END(bp))
+	{
+		if (deps >= frame)
+		{
+			for (int i = 0; i < fb->m_debug_stack_variant_info_num; i++)
+			{
+				const stack_variant_info & info = fb->m_debug_stack_variant_info[i];
+				if ((line != -1 && !strcmp(info.name, name) && info.line == line) ||
+					(line == -1 && !strcmp(info.name, name)))
+				{
+					variant * v = 0;
+					GET_STACK(bp, v, info.pos);
+					if (v->type == variant::STRING)
+					{
+						m_fk->rn.cur_runinginfo += "\"";
+						m_fk->rn.cur_runinginfo += vartostring(v);
+						m_fk->rn.cur_runinginfo += "\"";
+					}
+					else
+					{
+						m_fk->rn.cur_runinginfo += vartostring(v);
+					}
+					
+					value = m_fk->rn.cur_runinginfo.c_str();
+					outline = info.line;
+					return;
+				}
+			}
+			break;
+		}
+		
+		BP_GET_FB(bp, fb);
+		BP_GET_IP(bp, ip);
+		int callbp = 0;
+		BP_GET_BP(bp, callbp);
+		bp = callbp;
+		if (BP_END(bp))
+		{
+			break;
+		}
+		
+		deps++;
+	}
+	
+	return;
+}
+
+void interpreter::set_running_vaiant(int frame, const char * name, int line, const char * value)
+{
+	if (!m_fb)
+	{
+		return;
+	}
+	
+	int deps = 0;
+
+	int ip = m_ip;
+	int bp = m_bp;
+	const func_binary * fb = m_fb;
+
+	while (!BP_END(bp))
+	{
+		if (deps >= frame)
+		{
+			for (int i = 0; i < fb->m_debug_stack_variant_info_num; i++)
+			{
+				const stack_variant_info & info = fb->m_debug_stack_variant_info[i];
+				if ((line != -1 && !strcmp(info.name, name) && info.line == line) ||
+					(line == -1 && !strcmp(info.name, name)))
+				{
+					fake * fk = m_fk;
+					
+					variant * v = 0;
+					GET_STACK(bp, v, info.pos);
+
+					std::string valuestr = value;
+					if (valuestr.empty())
+					{
+						return;
+					}
+
+					if (valuestr[0] == '\"')
+					{
+						valuestr[valuestr.size() - 1] = 0;
+						V_SET_STRING(v, &valuestr[1]);
+					}
+					else
+					{	
+						V_SET_REAL(v, atoi(value));
+					}
+					
+					return;
+				}
+			}
+			break;
+		}
+		
+		BP_GET_FB(bp, fb);
+		BP_GET_IP(bp, ip);
+		int callbp = 0;
+		BP_GET_BP(bp, callbp);
+		bp = callbp;
+		if (BP_END(bp))
+		{
+			break;
+		}
+		
+		deps++;
+	}
+	
+}
+
 

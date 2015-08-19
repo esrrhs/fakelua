@@ -17,6 +17,7 @@ fakescript是一款轻量级的嵌入式脚本语言，使用c++语言编写，语法吸取自lua、golang、
 @.支持包
 @.支持struct
 @.支持打包bin文件
+@.自带gdb风格的命令行调试，以及vs风格的可视化编辑调试ide
 
 示例：
 -- 当前包名
@@ -111,7 +112,7 @@ esrrhs@163.com
 #include <new>
 #include <stdlib.h>
 
-#define FAKE_VERSION "1.2"
+#define FAKE_VERSION "1.3"
 #define FAKE_VERSION_NUM 100
 #define FAKE_AUTHOR "esrrhs@163.com"
 
@@ -150,7 +151,7 @@ enum efkerror
 // 脚本环境
 struct fake;
 
-typedef void (*fkerrorcb)(fake * fk, int eno, const char * str);
+typedef void(*fkerrorcb)(fake * fk, int eno, const char * file, int lineno, const char * func, const char * str);
 
 typedef void * (*fkmalloc)(size_t size);
 typedef void (*fkfree)(void * ptr);
@@ -193,6 +194,16 @@ FAKE_API bool fkparsestr(fake * fk, const char * str);
 
 // 是否有函数
 FAKE_API bool fkisfunc(fake * fk, const char * func);
+// 获取函数所在的文件名
+FAKE_API const char * fkgetfuncfile(fake * fk, const char * func);
+// 获取函数所在的起始行号
+FAKE_API int fkgetfuncstartline(fake * fk, const char * func);
+// 获取函数内变量数目
+FAKE_API int fkgetfuncvariantnum(fake * fk, const char * func);
+// 获取函数内变量名
+FAKE_API const char * fkgetfuncvariantname(fake * fk, const char * func, int index);
+// 获取函数内变量行号
+FAKE_API int fkgetfuncvariantline(fake * fk, const char * func, int index);
 
 // 参数传递
 FAKE_API void fkpspushpointer(fake * fk, void * p);
@@ -965,20 +976,71 @@ FAKE_API void fkseterrorfunc(fake * fk, fkerrorcb cb);
 FAKE_API const char * fkgetcurfunc(fake * fk);
 FAKE_API const char * fkgetcurfile(fake * fk);
 FAKE_API int fkgetcurline(fake * fk);
+FAKE_API int fkgetcurbytecodepos(fake * fk);
+FAKE_API const char * fkgetcurcode(fake * fk);
 FAKE_API const char * fkgetcurcallstack(fake * fk);
+FAKE_API int fkgetcurcallstacklength(fake * fk);
+FAKE_API const char * fkgetcurcallstackbyframe(fake * fk, int frame);
+FAKE_API const char * fkgetfilecode(fake * fk, const char * filename, int line);
+
+// 获取当前运行状态
+FAKE_API const char * fkgetcurfuncbyframe(fake * fk, int frame);
+FAKE_API const char * fkgetcurfilebyframe(fake * fk, int frame);
+FAKE_API int fkgetcurlinebyframe(fake * fk, int frame);
+FAKE_API const char * fkgetcurvaiantbyframe(fake * fk, int frame, const char * name, int line = -1);
+FAKE_API int fkgetcurvaiantlinebyframe(fake * fk, int frame, const char * name, int line = -1);
+FAKE_API void fksetcurvaiantbyframe(fake * fk, int frame, const char * name, const char * value, int line = -1);
+
+// 获取当前运行状态
+FAKE_API const char * fkgetcurroutine(fake * fk);
+FAKE_API int fkgetcurroutinenum(fake * fk);
+FAKE_API const char * fkgetcurroutinebyindex(fake * fk, int index);
+FAKE_API const char * fkgetcurroutinebyid(fake * fk, int rid);
+FAKE_API int fkgetroutineidbyindex(fake * fk, int index);
+FAKE_API bool fkishaveroutine(fake * fk, int rid);
+FAKE_API int fkgetcurroutineid(fake * fk);
+FAKE_API const char * fkgetcurvaiantbyroutinebyframe(fake * fk, int rid, int frame, const char * name, int line = -1);
+FAKE_API int fkgetcurvaiantlinebyroutinebyframe(fake * fk, int rid, int frame, const char * name, int line = -1);
+FAKE_API void fksetcurvaiantbyroutinebyframe(fake * fk, int rid, int frame, const char * name, const char * value, int line = -1);
+FAKE_API int fkgetcurlinebyroutinebyframe(fake * fk, int rid, int frame);
+FAKE_API const char * fkgetcurfuncbyroutinebyframe(fake * fk, int rid, int frame);
+FAKE_API const char * fkgetcurfilebyroutinebyframe(fake * fk, int rid, int frame);
+FAKE_API int fkgetcurcallstacklengthbyroutine(fake * fk, int rid);
+FAKE_API const char * fkgetcurcallstackbyroutinebyframe(fake * fk, int rid, int frame);
+FAKE_API int fkgetcurbytecodeposbyroutine(fake * fk, int rid);
+
 
 // 设置系统命令行
 FAKE_API void fksetargv(fake * fk, int argc, const char *argv[]);
 
 // dump函数
 FAKE_API const char * fkdumpallfunc(fake * fk);
-FAKE_API const char * fkdumpfunc(fake * fk, const char * func);
+FAKE_API const char * fkdumpfunc(fake * fk, const char * func, int pos = -1);
 FAKE_API const char * fkdumpfuncmap(fake * fk);
 
 // save load函数
 FAKE_API int fksavefunc(fake * fk, char * buff, int size);
 FAKE_API int fkloadfunc(fake * fk, char * buff, int size);
 
-// debug相关
+// 获取关键词
 FAKE_API const char ** fkgetkeyword();
+
+// 设置print位置
 FAKE_API void fksetprintfunc(fake * fk, fkprint func);
+
+// 单步执行
+FAKE_API void fkopenstepmod(fake * fk);
+FAKE_API void fkclosestepmod(fake * fk);
+
+// 继续上次的执行
+FAKE_API void fkresumeps(fake * fk, bool & isend);
+
+// 继续上次的执行
+template<typename RVal>
+RVal fkresume(fake * fk, bool & isend)
+{
+	fkpsclear(fk);
+	fkresumeps(fk, isend);
+	return fkpspop<RVal>(fk);
+}
+

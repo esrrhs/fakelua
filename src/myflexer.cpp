@@ -32,6 +32,7 @@ void myflexer::LexerError(const char* msg)
 	char buff[100];
 	tsnprintf(buff, sizeof(buff)-1, "%s at line(%d) near(%s)", msg, lineno(), yytext);
 	m_error = buff;
+	m_errorline = lineno();
 }
 
 // ÊäÈë×Ö·û´®
@@ -51,7 +52,7 @@ bool myflexer::inputfile(const char * filename)
 	FILE * file = fopen(filename, "r");
 	if (!file)
 	{
-		seterror(m_fk, efk_open_file_fail, "open %s fail", filename);
+		seterror(m_fk, efk_open_file_fail, filename, 0, "", "open %s fail", filename);
 		return false;
 	}
 
@@ -68,7 +69,7 @@ bool myflexer::inputfile(const char * filename)
 
 	if (m_content.empty())
 	{
-		seterror(m_fk, efk_open_file_empty, "open %s empty", filename);
+		seterror(m_fk, efk_open_file_empty, filename, 0, "", "open %s empty", filename);
 		return false;
 	}
 	
@@ -106,6 +107,7 @@ void myflexer::clear()
 	m_struct_list.clear();
 	m_error.clear();
 	yylineno = 1;
+	m_errorline = 0;
 }
 
 void * myflexer::malloc(size_t size, const char * name)

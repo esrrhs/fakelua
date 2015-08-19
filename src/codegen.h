@@ -18,6 +18,7 @@ typedef std::vector<command> byte_code_list;
 typedef std::vector<int> byte_lineno_list;
 typedef std::vector<variant> const_list;
 typedef std::vector<container_addr> containeraddr_list;
+typedef std::vector<stack_variant_info> debug_block_identifiers_list;
 
 struct fake;
 class codegen
@@ -38,9 +39,10 @@ public:
 		m_byte_lineno_list.clear();
 		m_const_list.clear();
 		m_containeraddr_list.clear();
+		m_debug_block_identifiers_list.clear();
 	}
 	
-	int add_stack_identifier(const String & name);
+	int add_stack_identifier(const String & name, int line);
 
 	int alloc_stack_identifier()
 	{
@@ -133,5 +135,6 @@ private:
 	byte_lineno_list m_byte_lineno_list;
 	const_list m_const_list;
 	containeraddr_list m_containeraddr_list;
+	debug_block_identifiers_list m_debug_block_identifiers_list;
 };
 

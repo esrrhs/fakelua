@@ -77,16 +77,16 @@
       <item>
        <layout class="QVBoxLayout" name="verticalLayout">
         <item>
-         <widget class="QTableView" name="memview"/>
+         <widget class="QListWidget" name="memview"/>
         </item>
         <item>
-         <widget class="QTextBrowser" name="routinueview"/>
-        </item>
-        <item>
-         <widget class="QTextBrowser" name="callstackview"/>
+         <widget class="QListWidget" name="routineview"/>
         </item>
         <item>
          <widget class="QTextBrowser" name="byteview"/>
+        </item>
+        <item>
+         <widget class="QListWidget" name="callstackview"/>
         </item>
        </layout>
       </item>
@@ -150,7 +150,9 @@
     <addaction name="actionBuild"/>
     <addaction name="actionRun"/>
     <addaction name="actionRun_Args"/>
+    <addaction name="actionRun_With_Debug"/>
     <addaction name="actionStep"/>
+    <addaction name="actionStep_In"/>
     <addaction name="actionBreakpoint"/>
    </widget>
    <addaction name="menuFile"/>
@@ -652,6 +654,22 @@
    </property>
    <property name="shortcut">
     <string>F9</string>
+   </property>
+  </action>
+  <action name="actionRun_With_Debug">
+   <property name="text">
+    <string>Run With Debug</string>
+   </property>
+   <property name="shortcut">
+    <string>F6</string>
+   </property>
+  </action>
+  <action name="actionStep_In">
+   <property name="text">
+    <string>Step In</string>
+   </property>
+   <property name="shortcut">
+    <string>F11</string>
    </property>
   </action>
  </widget>

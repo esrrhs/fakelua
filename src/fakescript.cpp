@@ -6,6 +6,7 @@
 #include "processor.h"
 #include "paramstack.h"
 #include "buffer.h"
+#include "pool.h"
 
 FAKE_API fake * newfake(fakeconfig * cfg)
 {
@@ -61,13 +62,73 @@ FAKE_API bool fkisfunc(fake * fk, const char * func)
 	return fk->fm.get_func(funcv) != 0;
 }
 
+FAKE_API const char * fkgetfuncfile(fake * fk, const char * func)
+{
+	variant funcv;
+	V_SET_STRING(&funcv, func);
+	const funcunion * f = fk->fm.get_func(funcv);
+	if (f && f->havefb)
+	{
+		return FUNC_BINARY_FILENAME(f->fb);
+	}
+	return "";
+}
+
+FAKE_API int fkgetfuncstartline(fake * fk, const char * func)
+{
+	variant funcv;
+	V_SET_STRING(&funcv, func);
+	const funcunion * f = fk->fm.get_func(funcv);
+	if (f && f->havefb)
+	{
+		return FUNC_BINARY_LINENO(f->fb, 0);
+	}
+	return 0;
+}
+
+FAKE_API int fkgetfuncvariantnum(fake * fk, const char * func)
+{
+	variant funcv;
+	V_SET_STRING(&funcv, func);
+	const funcunion * f = fk->fm.get_func(funcv);
+	if (f && f->havefb)
+	{
+		return f->fb.m_debug_stack_variant_info_num;
+	}
+	return 0;
+}
+
+FAKE_API const char * fkgetfuncvariantname(fake * fk, const char * func, int index)
+{
+	variant funcv;
+	V_SET_STRING(&funcv, func);
+	const funcunion * f = fk->fm.get_func(funcv);
+	if (f && f->havefb && index >= 0 && index < f->fb.m_debug_stack_variant_info_num)
+	{
+		return f->fb.m_debug_stack_variant_info[index].name;
+	}
+	return "";
+}
+
+FAKE_API int fkgetfuncvariantline(fake * fk, const char * func, int index)
+{
+	variant funcv;
+	V_SET_STRING(&funcv, func);
+	const funcunion * f = fk->fm.get_func(funcv);
+	if (f && f->havefb && index >= 0 && index < f->fb.m_debug_stack_variant_info_num)
+	{
+		return f->fb.m_debug_stack_variant_info[index].line;
+	}
+	return 0;
+}
+
 // 调用函数
 FAKE_API void fkrunps(fake * fk, const char * func)
 {
-	FKLOG("fkrun %p %s", fk, func);
+	FKLOG("fkrunps %p %s", fk, func);
 
 	// 预处理，只在完全的退出脚本才执行
-	if (!fk->rn.rundeps)
+	if (LIKE(!fk->rn.rundeps))
 	{
 		fk->sh.checkgc();
 		fk->con.clear();
@@ -80,7 +141,7 @@ FAKE_API void fkrunps(fake * fk, const char * func)
 
 	// 分配个
 	pool<processor>::node * n = 0;
-	if (POOL_EMPTY(fk->pp))
+	if (UNLIKE(POOL_EMPTY(fk->pp)))
 	{
 		POOL_GROW(fk->pp, pool<processor>::node, n);
 		PROCESS_INI(n->t, fk);
@@ -94,7 +155,20 @@ FAKE_API void fkrunps(fake * fk, const char * func)
 	V_SET_STRING(&funcv, func);
 	routine * r = pro.start_routine(funcv, 0, 0);
 
+	PUSH_CUR_PROCESSOR(n, fk->rn);
+	// 单独执行，下次再跑run
+	if (UNLIKE(fk->rn.stepmod))
+	{
+		variant * ret = 0;
+		bool err = false;
+		PS_PUSH_AND_GET(fk->ps, ret);
+		*ret = NILV;
+		FKLOG("fkrunps %p %s yield", fk, func);
+		return;
+	}
+	
 	pro.run();
+	POP_CUR_PROCESSOR(fk->rn);
 	
 	variant * ret = 0;
 	bool err = false;
@@ -105,7 +179,7 @@ FAKE_API void fkrunps(fake * fk, const char * func)
 	
 	fk->rn.rundeps--;
 	
-	FKLOG("fkrun %p %s OK", fk, func);
+	FKLOG("fkrunps %p %s OK", fk, func);
 }
 
 FAKE_API void fkpspushpointer(fake * fk, void * p)
@@ -455,38 +529,417 @@ FAKE_API void fkseterrorfunc(fake * fk, fkerrorcb cb)
 
 FAKE_API const char * fkgetcurfunc(fake * fk)
 {
-	if (fk->rn.curroutine)
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
 	{
-		return fk->rn.curroutine->m_interpreter.get_running_func_name();
+		return p->t.m_curroutine->m_interpreter.get_running_func_name();
 	}
 	return "nil";
 }
 
 FAKE_API const char * fkgetcurfile(fake * fk)
 {
-	if (fk->rn.curroutine)
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
 	{
-		return fk->rn.curroutine->m_interpreter.get_running_file_name();
+		return p->t.m_curroutine->m_interpreter.get_running_file_name();
 	}
 	return "nil";
 }
 
 FAKE_API int fkgetcurline(fake * fk)
 {
-	if (fk->rn.curroutine)
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
 	{
-		return fk->rn.curroutine->m_interpreter.get_running_file_line();
+		return p->t.m_curroutine->m_interpreter.get_running_file_line();
 	}
+	return 0;
+}
+
+FAKE_API int fkgetcurbytecodepos(fake * fk)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
+	{
+		return p->t.m_curroutine->m_interpreter.get_running_bytecode_pos();
+	}
+	return -1;
+}
+
+FAKE_API const char * fkgetcurcode(fake * fk)
+{
+	const char * filename = fkgetcurfile(fk);
+	int line = fkgetcurline(fk);
+
+	return fkgetfilecode(fk, filename, line);
+}
+
+FAKE_API const char * fkgetfilecode(fake * fk, const char * filename, int line)
+{
+	if (!filename || line <= 0)
+	{
+		return 0;
+	}
+	
+	char buff[512];
+	
+	FILE * file = fopen(filename, "rb");
+	if (!file)
+	{
+		tsnprintf(buff, sizeof(buff), "open file(%s:%d) fail", filename, line);
+		fk->rn.curcode = buff;
+		return fk->rn.curcode.c_str();
+	}
+
+	int i = 0;
+	while (!feof(file))
+	{
+		if (!fgets(buff, sizeof(buff), file))
+		{
+			return 0;
+		}
+		i++;
+		if (i >= line)
+		{
+			fclose(file);
+			fk->rn.curcode = buff;
+			return fk->rn.curcode.c_str();
+		}
+	}
+	
+	fclose(file);
+	
 	return 0;
 }
 
 FAKE_API const char * fkgetcurcallstack(fake * fk)
 {
-	if (fk->rn.curroutine)
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
 	{
-		return fk->rn.curroutine->m_interpreter.get_running_call_stack();
+		return p->t.m_curroutine->m_interpreter.get_running_call_stack();
 	}
 	return "nil";
+}
+
+FAKE_API int fkgetcurcallstacklength(fake * fk)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
+	{
+		return p->t.m_curroutine->m_interpreter.get_running_call_stack_length();
+	}
+	return 0;
+}
+
+FAKE_API const char * fkgetcurcallstackbyframe(fake * fk, int frame)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
+	{
+		const char * stackinfo = 0;
+		const char * func = 0;
+		const char * file = 0;
+		int line = 0;
+		p->t.m_curroutine->m_interpreter.get_running_call_stack_frame_info(frame, stackinfo, func, file, line);
+		return stackinfo;
+	}
+	return "nil";
+}
+
+FAKE_API const char * fkgetcurfuncbyframe(fake * fk, int frame)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
+	{
+		const char * stackinfo = 0;
+		const char * func = 0;
+		const char * file = 0;
+		int line = 0;
+		p->t.m_curroutine->m_interpreter.get_running_call_stack_frame_info(frame, stackinfo, func, file, line);
+		return func;
+	}
+	return "nil";
+}
+
+FAKE_API const char * fkgetcurfilebyframe(fake * fk, int frame)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
+	{
+		const char * stackinfo = 0;
+		const char * func = 0;
+		const char * file = 0;
+		int line = 0;
+		p->t.m_curroutine->m_interpreter.get_running_call_stack_frame_info(frame, stackinfo, func, file, line);
+		return file;
+	}
+	return "nil";
+}
+
+FAKE_API int fkgetcurlinebyframe(fake * fk, int frame)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
+	{
+		const char * stackinfo = 0;
+		const char * func = 0;
+		const char * file = 0;
+		int line = 0;
+		p->t.m_curroutine->m_interpreter.get_running_call_stack_frame_info(frame, stackinfo, func, file, line);
+		return line;
+	}
+	return 0;
+}
+
+FAKE_API const char * fkgetcurvaiantbyframe(fake * fk, int frame, const char * name, int line)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
+	{
+		const char * ret = "";
+		int retline = 0;
+		p->t.m_curroutine->m_interpreter.get_running_vaiant(frame, name, line, ret, retline);
+		return ret;
+	}
+	return "";
+}
+
+FAKE_API int fkgetcurvaiantlinebyframe(fake * fk, int frame, const char * name, int line)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
+	{
+		const char * ret = "";
+		int retline = 0;
+		p->t.m_curroutine->m_interpreter.get_running_vaiant(frame, name, line, ret, retline);
+		return retline;
+	}
+	return 0;
+}
+
+FAKE_API void fksetcurvaiantbyframe(fake * fk, int frame, const char * name, const char * value, int line)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
+	{
+		p->t.m_curroutine->m_interpreter.set_running_vaiant(frame, name, line, value);
+	}
+}
+
+FAKE_API const char * fkgetcurroutine(fake * fk)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p)
+	{
+		return p->t.get_routine_info();
+	}
+	return "";
+}
+
+FAKE_API int fkgetcurroutinenum(fake * fk)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p)
+	{
+		return p->t.get_routine_num();
+	}
+	return 0;
+}
+
+FAKE_API const char * fkgetcurroutinebyindex(fake * fk, int index)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p)
+	{
+		return p->t.get_routine_info_by_index(index);
+	}
+	return "";
+}
+
+FAKE_API const char * fkgetcurroutinebyid(fake * fk, int rid)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p)
+	{
+		return p->t.get_routine_info_by_id(rid);
+	}
+	return "";
+}
+
+FAKE_API int fkgetroutineidbyindex(fake * fk, int index)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.get_routine_by_index(index))
+	{
+		return ROUTINE_ID(*(p->t.get_routine_by_index(index)));
+	}
+	return 0;
+}
+
+FAKE_API bool fkishaveroutine(fake * fk, int rid)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p)
+	{
+		return p->t.get_routine_by_id(rid) != 0;
+	}
+	return false;
+}
+
+FAKE_API int fkgetcurroutineid(fake * fk)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.m_curroutine)
+	{
+		return ROUTINE_ID(*(p->t.m_curroutine));
+	}
+	return 0;
+}
+
+FAKE_API const char * fkgetcurvaiantbyroutinebyframe(fake * fk, int rid, int frame, const char * name, int line)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.get_routine_by_id(rid))
+	{
+		const char * ret = "";
+		int retline = 0;
+		p->t.get_routine_by_id(rid)->m_interpreter.get_running_vaiant(frame, name, line, ret, retline);
+		return ret;
+	}
+	return "";
+}
+
+FAKE_API int fkgetcurvaiantlinebyroutinebyframe(fake * fk, int rid, int frame, const char * name, int line)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.get_routine_by_id(rid))
+	{
+		const char * ret = "";
+		int retline = 0;
+		p->t.get_routine_by_id(rid)->m_interpreter.get_running_vaiant(frame, name, line, ret, retline);
+		return retline;
+	}
+	return 0;
+}
+
+FAKE_API void fksetcurvaiantbyroutinebyframe(fake * fk, int rid, int frame, const char * name, const char * value, int line)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.get_routine_by_id(rid))
+	{
+		p->t.get_routine_by_id(rid)->m_interpreter.set_running_vaiant(frame, name, line, value);
+	}
+}
+
+FAKE_API int fkgetcurlinebyroutinebyframe(fake * fk, int rid, int frame)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.get_routine_by_id(rid))
+	{
+		const char * stackinfo = 0;
+		const char * func = 0;
+		const char * file = 0;
+		int line = 0;
+		p->t.get_routine_by_id(rid)->m_interpreter.get_running_call_stack_frame_info(frame, stackinfo, func, file, line);
+		return line;
+	}
+	return 0;
+}
+
+FAKE_API const char * fkgetcurfuncbyroutinebyframe(fake * fk, int rid, int frame)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.get_routine_by_id(rid))
+	{
+		const char * stackinfo = 0;
+		const char * func = 0;
+		const char * file = 0;
+		int line = 0;
+		p->t.get_routine_by_id(rid)->m_interpreter.get_running_call_stack_frame_info(frame, stackinfo, func, file, line);
+		return func;
+	}
+	return "nil";
+}
+
+FAKE_API const char * fkgetcurfilebyroutinebyframe(fake * fk, int rid, int frame)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.get_routine_by_id(rid))
+	{
+		const char * stackinfo = 0;
+		const char * func = 0;
+		const char * file = 0;
+		int line = 0;
+		p->t.get_routine_by_id(rid)->m_interpreter.get_running_call_stack_frame_info(frame, stackinfo, func, file, line);
+		return file;
+	}
+	return "nil";
+}
+
+FAKE_API int fkgetcurcallstacklengthbyroutine(fake * fk, int rid)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.get_routine_by_id(rid))
+	{
+		return p->t.get_routine_by_id(rid)->m_interpreter.get_running_call_stack_length();
+	}
+	return 0;
+}
+
+FAKE_API const char * fkgetcurcallstackbyroutinebyframe(fake * fk, int rid, int frame)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.get_routine_by_id(rid))
+	{
+		const char * stackinfo = 0;
+		const char * func = 0;
+		const char * file = 0;
+		int line = 0;
+		p->t.get_routine_by_id(rid)->m_interpreter.get_running_call_stack_frame_info(frame, stackinfo, func, file, line);
+		return stackinfo;
+	}
+	return "nil";
+}
+
+FAKE_API int fkgetcurbytecodeposbyroutine(fake * fk, int rid)
+{
+	pool<processor>::node * p = 0;
+	GET_CUR_PROCESSOR(p, fk->rn);
+	if (p && p->t.get_routine_by_id(rid))
+	{
+		return p->t.get_routine_by_id(rid)->m_interpreter.get_running_bytecode_pos();
+	}
+	return -1;	
 }
 
 FAKE_API void fksetargv(fake * fk, int argc, const char *argv[])
@@ -499,9 +952,9 @@ FAKE_API const char * fkdumpallfunc(fake * fk)
 	return fk->bin.dump().c_str();
 }
 
-FAKE_API const char * fkdumpfunc(fake * fk, const char * func)
+FAKE_API const char * fkdumpfunc(fake * fk, const char * func, int pos)
 {
-	return fk->bin.dump(func).c_str();
+	return fk->bin.dump(func, pos).c_str();
 }
 
 FAKE_API const char * fkdumpfuncmap(fake * fk)
@@ -572,3 +1025,66 @@ FAKE_API void fksetprintfunc(fake * fk, fkprint func)
 {
 	fk->bif.set_print_func(func);
 }
+
+FAKE_API void fkopenstepmod(fake * fk)
+{
+	fk->rn.stepmod = true;
+}
+
+FAKE_API void fkclosestepmod(fake * fk)
+{
+	fk->rn.stepmod = false;
+}
+
+FAKE_API void fkresumeps(fake * fk, bool & isend)
+{
+	FKLOG("fkresumeps %p", fk);
+
+	isend = false;
+
+	// 上次的processor
+	pool<processor>::node * n = 0;
+	GET_CUR_PROCESSOR(n, fk->rn);
+	if (UNLIKE(!n))
+	{
+		variant * ret = 0;
+		bool err = false;
+		PS_PUSH_AND_GET(fk->ps, ret);
+		*ret = NILV;
+		FKLOG("fkresumeps %p no processor", fk);
+		return;
+	}
+
+	// 先pop防止重入
+	POP_CUR_PROCESSOR(fk->rn);
+	
+	processor & pro = n->t;
+	pro.run();
+	if (LIKE(!PROCESS_END(pro)))
+	{
+		// 重新塞入
+		PUSH_CUR_PROCESSOR(n, fk->rn);
+	
+		variant * ret = 0;
+		bool err = false;
+		PS_PUSH_AND_GET(fk->ps, ret);
+		*ret = NILV;
+		FKLOG("fkresumeps %p not end", fk);
+		return;
+	}
+
+	// 结束了
+	variant * ret = 0;
+	bool err = false;
+	PS_PUSH_AND_GET(fk->ps, ret);
+	*ret = ROUTINE_GETRET(*pro.m_entryroutine);
+
+	POOL_PUSH(fk->pp, n);
+	
+	fk->rn.rundeps--;
+	
+	isend = true;
+	
+	FKLOG("fkresumeps %p OK", fk);
+}
+

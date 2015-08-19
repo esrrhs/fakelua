@@ -4,26 +4,55 @@
 
 struct running
 {
-	running(fake * fk) : m_fk(fk), rundeps(0), curroutine(0)
+	running(fake * fk) : m_fk(fk), rundeps(0), stepmod(false)
 	{
+		ARRAY_INI(curprocessor, fk);
 	}
 	~running()
 	{
 		clear();
+		ARRAY_DELETE(curprocessor);
 	}
 	void clear()
 	{
 		rundeps = 0;
-		curroutine = 0;
-		curcallstack.clear();
+		ARRAY_CLEAR(curprocessor);
+		cur_runinginfo.clear();
+		stepmod = false;
+		curcode.clear();
 	}
 
 	fake * m_fk;
 	// 执行迭代计数
 	int rundeps;
-	// 当前执行的routine
-	routine * curroutine;
-	// call stack
-	String curcallstack;
+	// 当前执行的processor
+	array<pool<processor>::node *> curprocessor;
+	// running info
+	String cur_runinginfo;
+	// step mod
+	bool stepmod;
+	// 当前执行代码
+	String curcode;
 };
+
+#define GET_CUR_PROCESSOR(pro, ri) if (UNLIKE(ARRAY_EMPTY((ri).curprocessor))) \
+	{ \
+		pro = 0; \
+	} \
+	else \
+	{ \
+		pro = ARRAY_BACK((ri).curprocessor); \
+	}
+
+#define PUSH_CUR_PROCESSOR(pro, ri) if (UNLIKE(ARRAY_SIZE((ri).curprocessor) >= ARRAY_MAX_SIZE((ri).curprocessor))) \
+	{ \
+		int newsize = 1 + ARRAY_SIZE((ri).curprocessor) + ARRAY_SIZE((ri).curprocessor) * (ri).m_fk->cfg.array_grow_speed / 100; \
+		ARRAY_GROW((ri).curprocessor, newsize, pool<processor>::node *); \
+	} \
+	ARRAY_PUSH_BACK((ri).curprocessor); \
+	ARRAY_BACK((ri).curprocessor) = pro;
+
+#define POP_CUR_PROCESSOR(ri) assert(!ARRAY_EMPTY((ri).curprocessor)); \
+	ARRAY_POP_BACK((ri).curprocessor); \
+
 
