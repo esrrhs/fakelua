@@ -31,6 +31,7 @@ MainWindow::MainWindow(QWidget *parent) :
     m_ui(new Ui::MainWindow),
     m_errorline(-1),
     m_isdebug(false),
+    m_isrun(false),
     m_runline(-1),
     m_frame(0),
     m_rid(0)
@@ -508,13 +509,14 @@ void MainWindow::on_actionBuild_triggered()
 
 void MainWindow::on_actionRun_triggered()
 {    
-    if (m_isdebug)
+    if (m_isdebug || m_isrun)
     {
         return;
     }
 
     if (Build())
     {
+        m_isrun = true;
         fkclosestepmod(m_fk);
         int ret = fkrun<int>(m_fk, "main");
         if (fkerror(m_fk))
@@ -522,6 +524,7 @@ void MainWindow::on_actionRun_triggered()
             return;
         }
         Output("Exit " + QString::number(ret, 10));
+        m_isrun = false;
     }
 }
 
@@ -536,7 +539,7 @@ void MainWindow::on_actionRun_Args_triggered()
 
 void MainWindow::on_actionStep_triggered()
 {
-    if (!m_isdebug)
+    if (!m_isdebug || m_isrun)
     {
         return;
     }
@@ -579,7 +582,7 @@ void MainWindow::on_actionStep_triggered()
 
 bool MainWindow::Build()
 {
-    if (m_isdebug)
+    if (m_isdebug || m_isrun)
     {
         return false;
     }
@@ -593,6 +596,7 @@ bool MainWindow::Build()
     QTextCodec * code = QTextCodec::codecForName("GB2312");
     std::string tmp = code->fromUnicode(m_file_name).data();
 
+    fkclear(m_fk);
     fkparse(m_fk, tmp.c_str());
 
     if (fkerror(m_fk))
@@ -649,7 +653,7 @@ void MainWindow::on_actionRun_With_Debug_triggered()
     m_frame = 0;
     m_rid = fkgetcurroutineid(m_fk);
 
-    if (m_isdebug)
+    if (m_isdebug || m_isrun)
     {
         while (1)
         {
@@ -741,7 +745,7 @@ void MainWindow::SetError(const char * file, int lineno, const char * func)
 
 void MainWindow::on_actionStep_In_triggered()
 {
-    if (!m_isdebug)
+    if (!m_isdebug || m_isrun)
     {
         return;
     }
@@ -802,6 +806,7 @@ void MainWindow::UpdateDebugView()
     }
 
     // stack
+    if (m_isdebug)
     {
         m_ui->callstackview->clear();
 
@@ -823,6 +828,7 @@ void MainWindow::UpdateDebugView()
     }
 
     // byte
+    if (m_isdebug)
     {
         const char * func = fkgetcurfuncbyroutinebyframe(m_fk, m_rid, m_frame);
         int pos = fkgetcurbytecodeposbyroutine(m_fk, m_rid);
@@ -831,6 +837,7 @@ void MainWindow::UpdateDebugView()
     }
 
     // routine
+    if (m_isdebug)
     {
         m_ui->routineview->clear();
 
@@ -862,6 +869,7 @@ void MainWindow::UpdateDebugView()
     }
 
     // mem
+    if (m_isdebug)
     {
         m_ui->memview->clear();
 

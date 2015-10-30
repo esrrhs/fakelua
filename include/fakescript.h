@@ -16,8 +16,9 @@ fakescript是一款轻量级的嵌入式脚本语言，使用c++语言编写，语法吸取自lua、golang、
 @.支持const定义
 @.支持包
 @.支持struct
-@.支持打包bin文件
-@.自带gdb风格的命令行调试，以及vs风格的可视化编辑调试ide
+@.支持打包bin文件或可执行文件
+@.自带gdb风格的命令行调试器，以及vs风格的可视化编辑调试ide
+@.可在C里直接通过接口调用，开始命令行调试
 
 示例：
 -- 当前包名
@@ -96,7 +97,7 @@ fkopenprofile(fk);
 fkreg(fk, "cfunc1", cfunc1);
 fkreg(fk, "memfunc1", &class1::memfunc1);
 fkparse(fk, argv[1]);
-ret = fkrun<int>(fk, "myfunc1", 1, 2);
+ret = fkrun<int>(fk, "myfunc1", 1, 2);	// 或调用fkdebugrun调试
 delfake(fk);
 
 BUG反馈：
@@ -191,6 +192,9 @@ FAKE_API const char * fkerrorstr(fake * fk);
 // 非运行中的脚本会直接替换，否则会在下次fkrun的时候替换
 FAKE_API bool fkparse(fake * fk, const char * filename);
 FAKE_API bool fkparsestr(fake * fk, const char * str);
+
+// 清空脚本函数，不会清空c函数和内置函数
+FAKE_API void fkclear(fake * fk);
 
 // 是否有函数
 FAKE_API bool fkisfunc(fake * fk, const char * func);
@@ -468,6 +472,67 @@ RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 
 	return fkpspop<RVal>(fk);
 }
 
+// 单步执行
+FAKE_API void fkopenstepmod(fake * fk);
+FAKE_API void fkclosestepmod(fake * fk);
+
+// 此函数内部使用，推荐使用模板
+FAKE_API void fkrundebugps(fake * fk);
+
+// 调用函数，调试解释执行
+template<typename RVal>
+RVal fkdebugrun(fake * fk, const char * func)
+{
+	fkopenstepmod(fk);
+	fkrun<RVal>(fk, func);
+	fkrundebugps(fk);
+	return fkpspop<RVal>(fk);
+}
+
+template<typename RVal, typename T1>
+RVal fkdebugrun(fake * fk, const char * func, T1 arg1)
+{
+	fkopenstepmod(fk);
+	fkrun<RVal>(fk, func, arg1);
+	fkrundebugps(fk);
+	return fkpspop<RVal>(fk);
+}
+
+template<typename RVal, typename T1, typename T2>
+RVal fkdebugrun(fake * fk, const char * func, T1 arg1, T2 arg2)
+{
+	fkopenstepmod(fk);
+	fkrun<RVal>(fk, func, arg1, arg2);
+	fkrundebugps(fk);
+	return fkpspop<RVal>(fk);
+}
+
+template<typename RVal, typename T1, typename T2, typename T3>
+RVal fkdebugrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3)
+{
+	fkopenstepmod(fk);
+	fkrun<RVal>(fk, func, arg1, arg2, arg3);
+	fkrundebugps(fk);
+	return fkpspop<RVal>(fk);
+}
+
+template<typename RVal, typename T1, typename T2, typename T3, typename T4>
+RVal fkdebugrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
+{
+	fkopenstepmod(fk);
+	fkrun<RVal>(fk, func, arg1, arg2, arg3, arg4);
+	fkrundebugps(fk);
+	return fkpspop<RVal>(fk);
+}
+
+template<typename RVal, typename T1, typename T2, typename T3, typename T4, typename T5>
+RVal fkdebugrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
+{
+	fkopenstepmod(fk);
+	fkrun<RVal>(fk, func, arg1, arg2, arg3, arg4, arg5);
+	fkrundebugps(fk);
+	return fkpspop<RVal>(fk);
+}
 
 // 此函数内部使用，推荐使用模板
 FAKE_API void fkrunpsjit(fake * fk, const char * func);
@@ -1027,10 +1092,6 @@ FAKE_API const char ** fkgetkeyword();
 
 // 设置print位置
 FAKE_API void fksetprintfunc(fake * fk, fkprint func);
-
-// 单步执行
-FAKE_API void fkopenstepmod(fake * fk);
-FAKE_API void fkclosestepmod(fake * fk);
 
 // 继续上次的执行
 FAKE_API void fkresumeps(fake * fk, bool & isend);

@@ -7,15 +7,20 @@ void buildin_string_find(fake * fk, interpreter * inter)
 {
 	const char * findstr = fkpspopcstrptr(fk);
 	int pos = fkpspop<int>(fk);
-	const char * str = fkpspopcstrptr(fk);
-	int len = str ? strlen(str) : 0;
-	if (pos >= 0 && pos < len && str && findstr)
+	const char * srcstr = 0;
+	variant * v = 0;
+	bool err = false;
+	PS_POP_AND_GET(fk->ps, v);
+	V_GET_STRING(v, srcstr);
+	
+	int len = srcstr ? v->data.str->sz : 0;
+	if (pos >= 0 && pos < len && srcstr && findstr)
 	{
-		const char * find = strstr(str + pos, findstr);
+		const char * find = strstr(srcstr + pos, findstr);
 		if (find)
 		{
 			fkpspush<bool>(fk, true);
-			fkpspush<int>(fk, (int)(find - str));
+			fkpspush<int>(fk, (int)(find - srcstr));
 		}
 		else
 		{
@@ -35,8 +40,13 @@ void buildin_string_substr(fake * fk, interpreter * inter)
 {
 	int count = fkpspop<int>(fk);
 	int pos = fkpspop<int>(fk);
-	const char * str = fkpspopcstrptr(fk);
-	int len = str ? strlen(str) : 0;
+	const char * srcstr = 0;
+	variant * v = 0;
+	bool err = false;
+	PS_POP_AND_GET(fk->ps, v);
+	V_GET_STRING(v, srcstr);
+	
+	int len = srcstr ? v->data.str->sz : 0;
 	if (count == -1)
 	{
 		count = 0x7FFFFFFF;
@@ -51,11 +61,11 @@ void buildin_string_substr(fake * fk, interpreter * inter)
 		count = len - pos;
 	}
 	
-	if (pos >= 0 && pos < len && str && count > 0)
+	if (pos >= 0 && pos < len && srcstr && count > 0)
 	{
 		char * buf = (char *)safe_fkmalloc(fk, count + 1);
 		buf[count] = 0;
-		memcpy(buf, str + pos, count);
+		memcpy(buf, srcstr + pos, count);
 		fkpspush<const char *>(fk, buf);
 		safe_fkfree(fk, buf);
 	}

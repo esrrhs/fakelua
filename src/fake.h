@@ -33,10 +33,11 @@
 #include "funcmap.h"
 #include "running.h"
 #include "parser.h"
+#include "debuging.h"
 
 struct fake
 {
-	fake() : errorno(0), errorcb(0), pa(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this)
+	fake() : errorno(0), errorcb(0), pa(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this), dbg(this)
 	{
 		POOL_INI(pp, this);
 	}
@@ -70,6 +71,7 @@ struct fake
 		con.clear();
 		fm.clear();
 		rn.clear();
+		dbg.clear();
 	}
 	
 	void clearerr()
@@ -126,6 +128,9 @@ struct fake
 
 	// 当前运行状态
 	running rn;
+
+	// debug容器
+	debuging dbg;
 };
 
 template <typename T>

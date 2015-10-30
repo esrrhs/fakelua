@@ -99,6 +99,8 @@ func _tcp_client_tick(c, ip, port, buffersize, socketbuffersize, cb_connect, cb_
 			socket_set_recvbuffer(s, socketbuffersize)
 				
 			socket_set_nonblocking(s, true)
+			socket_set_nodelay(s, true)
+			socket_set_keepalive(s, true, 120, 10, 3)
 			socket_set_linger(s, 0)
 				
 			local_ip, local_port = socket_get_local_ip_port(s)
@@ -205,6 +207,8 @@ func _tcp_server_conn_tick(sv, listens, buffersize, socketbuffersize, cb_accept,
 	socket_set_recvbuffer(s, socketbuffersize)
 		
 	socket_set_nonblocking(s, true)
+	socket_set_nodelay(s, true)
+	socket_set_keepalive(s, true, 120, 10, 3)
 	socket_set_linger(s, 0)
 		
 	var local_ip, var local_port = socket_get_local_ip_port(s)

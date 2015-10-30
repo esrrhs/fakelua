@@ -936,7 +936,6 @@ void interpreter::get_running_vaiant(int frame, const char * name, int line, con
 	m_fk->rn.cur_runinginfo.clear();
 	int deps = 0;
 
-	int ip = m_ip;
 	int bp = m_bp;
 	const func_binary * fb = m_fb;
 
@@ -972,7 +971,6 @@ void interpreter::get_running_vaiant(int frame, const char * name, int line, con
 		}
 		
 		BP_GET_FB(bp, fb);
-		BP_GET_IP(bp, ip);
 		int callbp = 0;
 		BP_GET_BP(bp, callbp);
 		bp = callbp;
@@ -996,7 +994,6 @@ void interpreter::set_running_vaiant(int frame, const char * name, int line, con
 	
 	int deps = 0;
 
-	int ip = m_ip;
 	int bp = m_bp;
 	const func_binary * fb = m_fb;
 
@@ -1038,7 +1035,6 @@ void interpreter::set_running_vaiant(int frame, const char * name, int line, con
 		}
 		
 		BP_GET_FB(bp, fb);
-		BP_GET_IP(bp, ip);
 		int callbp = 0;
 		BP_GET_BP(bp, callbp);
 		bp = callbp;

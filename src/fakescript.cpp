@@ -43,6 +43,11 @@ FAKE_API bool fkparsestr(fake * fk, const char * str)
 	return fk->pa.parsestr(str);
 }
 
+FAKE_API void fkclear(fake * fk)
+{
+	fk->fm.clearfb();
+}
+
 FAKE_API efkerror fkerror(fake * fk)
 {
 	return (efkerror)fk->errorno;
@@ -1086,5 +1091,11 @@ FAKE_API void fkresumeps(fake * fk, bool & isend)
 	isend = true;
 	
 	FKLOG("fkresumeps %p OK", fk);
+}
+
+FAKE_API void fkrundebugps(fake * fk)
+{
+	FKLOG("fkrundebugps %p", fk);
+	fk->dbg.debug();
 }
 

@@ -41,16 +41,22 @@ public:
 
 	force_inline void clear()
 	{
-		for (const fkhashmap<variant, funcunion>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+		clearfb();
+		m_shh.clear();
+		m_dump.clear();
+	}
+
+	force_inline void clearfb()
+	{
+		for (fkhashmap<variant, funcunion>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
 		{
-			const funcunion & f = *p->t;
+			funcunion & f = *p->t;
 			if (f.havefb)
 			{
 				FUNC_BINARY_DELETE(f.fb);
 			}
+			f.havefb = false;
 		}
-		m_shh.clear();
-		m_dump.clear();
 	}
 
 	force_inline const funcunion * get_func(const variant & name) const
