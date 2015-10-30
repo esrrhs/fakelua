@@ -258,10 +258,12 @@ static force_inline String fkgen_package_name(const String & p, const String & n
 	#define GET_NET_ERROR WSAGetLastError()
 	#define NET_BLOCK_ERROR WSAEWOULDBLOCK
 	#define NET_BLOCK_ERROR_EX WSAEWOULDBLOCK
+	#define NET_INTR_ERROR WSAEINTR
 #else
 	#define GET_NET_ERROR errno
 	#define NET_BLOCK_ERROR EWOULDBLOCK
 	#define NET_BLOCK_ERROR_EX EAGAIN
+	#define NET_INTR_ERROR EINTR
 #endif
 
 #if defined(WIN32)
@@ -274,4 +276,27 @@ bool save_variant(fake * fk, const variant * v, buffer * b);
 bool load_variant(fake * fk, variant * v, buffer * b);
 bool save_string(fake * fk, const char * str, buffer * b);
 bool load_string(fake * fk, String & str, buffer * b);
+
+enum debug_command
+{
+	debug_next,
+	debug_step,
+	debug_next_instruction,
+	debug_step_instruction,
+	debug_continue,
+	debug_breakpoint,
+	debug_enable,
+	debug_disable,
+	debug_delete,
+	debug_info,
+	debug_finish,
+	debug_list,
+	debug_print,
+	debug_set,
+	debug_watch,
+	debug_backtrace,
+	debug_frame,
+	debug_disa,
+	debug_routine,
+};
 

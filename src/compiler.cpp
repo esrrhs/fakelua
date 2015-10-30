@@ -26,7 +26,7 @@ void compiler::compile_seterror(syntree_node * node, fake * fk, efkerror err, co
 	vsnprintf(errorstr, sizeof(errorstr) - 1, fmt, ap);
 	va_end(ap);
 	errorstr[sizeof(errorstr) - 1] = 0;
-	seterror(fk, err, m_mf->getfilename(), node->lineno(), "compile func(%s), %s", m_mf->getfilename(), node->lineno(), m_cur_compile_func.c_str(), errorstr);
+	seterror(fk, err, m_mf->getfilename(), node->lineno(), m_cur_compile_func.c_str(), "compile func(%s), %s", m_cur_compile_func.c_str(), errorstr);
 }
 
 bool compiler::compile()

@@ -145,6 +145,7 @@ private:
     int m_errorline;
     BreakpointList m_BreakpointList;
     bool m_isdebug;
+    bool m_isrun;
     int m_runline;
     int m_frame;
     int m_rid;

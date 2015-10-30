@@ -132,6 +132,9 @@
     <ClInclude Include="src\package\buffer.h">
       <Filter>src\package</Filter>
     </ClInclude>
+    <ClInclude Include="src\debuging.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -225,6 +228,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\stringheap.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\debuging.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

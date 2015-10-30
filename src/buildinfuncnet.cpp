@@ -34,6 +34,7 @@
 #include <sys/syscall.h> 
 #include <sys/reg.h>
 #include <sys/user.h>
+#include <netinet/tcp.h>
 #endif
 #include "selector.h"
 
@@ -401,10 +402,18 @@ void buildin_tcp_recv(fake * fk, interpreter * inter)
 	}
 	
 	int len = ::recv(s, b->get_write_line_buffer(), b->get_write_line_size(), 0);
-		
-	if (len == 0 || len < 0)
+
+	if (len == 0)
 	{
-		if (GET_NET_ERROR != NET_BLOCK_ERROR && GET_NET_ERROR != NET_BLOCK_ERROR_EX)
+		fkpspush<bool>(fk, false);
+		fkpspush<int>(fk, 0);
+		return;
+	}
+	else if (len < 0)
+	{
+		if (GET_NET_ERROR != NET_BLOCK_ERROR && 
+			GET_NET_ERROR != NET_BLOCK_ERROR_EX &&
+			GET_NET_ERROR != NET_INTR_ERROR)
 		{
 			fkpspush<bool>(fk, false);
 			fkpspush<int>(fk, 0);
@@ -442,10 +451,18 @@ void buildin_tcp_send(fake * fk, interpreter * inter)
 	}
 	
 	int len = ::send(s, b->get_read_line_buffer(), b->get_read_line_size(), 0);
-		
-	if (len == 0 || len < 0)
+
+	if (len == 0)
 	{
-		if (GET_NET_ERROR != NET_BLOCK_ERROR && GET_NET_ERROR != NET_BLOCK_ERROR_EX)
+		fkpspush<bool>(fk, false);
+		fkpspush<int>(fk, 0);
+		return;
+	}
+	else if (len < 0)
+	{
+		if (GET_NET_ERROR != NET_BLOCK_ERROR &&
+			GET_NET_ERROR != NET_BLOCK_ERROR_EX &&
+			GET_NET_ERROR != NET_INTR_ERROR)
 		{
 			fkpspush<bool>(fk, false);
 			fkpspush<int>(fk, 0);
@@ -468,15 +485,15 @@ void buildin_tcp_socket_set_sendbuffer(fake * fk, interpreter * inter)
 {
 	int size = fkpspop<int>(fk);
 	int s = fkpspop<int>(fk);
-	::setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char *)&size, sizeof(int));
-	fkpspush<int>(fk, 1);
+	bool ret = ::setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char *)&size, sizeof(int)) == 0;
+	fkpspush<bool>(fk, ret);
 }
 void buildin_tcp_socket_set_recvbuffer(fake * fk, interpreter * inter)
 {
 	int size = fkpspop<int>(fk);
 	int s = fkpspop<int>(fk);
-	::setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char *)&size, sizeof(int));
-	fkpspush<int>(fk, 1);
+	bool ret = ::setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char *)&size, sizeof(int)) == 0;
+	fkpspush<bool>(fk, ret);
 }
 void buildin_tcp_socket_set_nonblocking(fake * fk, interpreter * inter)
 {
@@ -484,7 +501,7 @@ void buildin_tcp_socket_set_nonblocking(fake * fk, interpreter * inter)
 	int s = fkpspop<int>(fk);
 	
 #if defined(WIN32)
-	ioctlsocket(s, FIONBIO, (u_long *)&on);
+	bool ret = ioctlsocket(s, FIONBIO, (u_long *)&on) == 0;
 #else
 	int32_t opts;
 	opts = fcntl(s, F_GETFL, 0);
@@ -502,9 +519,56 @@ void buildin_tcp_socket_set_nonblocking(fake * fk, interpreter * inter)
 
 		fcntl(s, F_SETFL, opts);
 	}
+	bool ret = opts < 0 ? false : true;
 #endif
 
-	fkpspush<int>(fk, 1);
+	fkpspush<bool>(fk, ret);
+}
+void buildin_tcp_socket_set_nodelay(fake * fk, interpreter * inter)
+{
+	bool on = fkpspop<bool>(fk);
+	int s = fkpspop<int>(fk);
+
+	int32_t optval = on ? 1 : 0;
+	int32_t optlen = sizeof(int32_t);
+	bool ret = ::setsockopt(s, IPPROTO_TCP, TCP_NODELAY, (const char *)&optval, optlen) == 0;
+	fkpspush<bool>(fk, ret);
+}
+void buildin_tcp_socket_set_keepalive(fake * fk, interpreter * inter)
+{
+	int keepcount = fkpspop<int>(fk);
+	int keepinterval = fkpspop<int>(fk);
+	int keepidle = fkpspop<int>(fk);
+	bool on = fkpspop<bool>(fk);
+	int s = fkpspop<int>(fk);
+
+#ifndef WIN32
+	int nkeepalive = on ? 1 : 0;
+	if (setsockopt(s, SOL_SOCKET, SO_KEEPALIVE, (void *)&nkeepalive, sizeof(nkeepalive)) != 0)
+	{
+		fkpspush<bool>(fk, false);
+		return;
+	}
+
+	if (setsockopt(s, SOL_TCP, TCP_KEEPIDLE, (void *)&keepidle, sizeof(keepidle)) != 0)
+	{
+		fkpspush<bool>(fk, false);
+		return;
+	}
+
+	if (setsockopt(s, SOL_TCP, TCP_KEEPINTVL, (void *)&keepinterval, sizeof(keepinterval)) != 0)
+	{
+		fkpspush<bool>(fk, false);
+		return;
+	}
+
+	if (setsockopt(s, SOL_TCP, TCP_KEEPCNT, (void *)&keepcount, sizeof(keepcount)) != 0)
+	{
+		fkpspush<bool>(fk, false);
+		return;
+	}
+#endif
+	fkpspush<bool>(fk, true);
 }
 void buildin_tcp_socket_set_linger(fake * fk, interpreter * inter)
 {
@@ -626,6 +690,8 @@ void buildinfuncnet::opennetfunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("socket_set_sendbuffer"), buildin_tcp_socket_set_sendbuffer);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("socket_set_recvbuffer"), buildin_tcp_socket_set_recvbuffer);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("socket_set_nonblocking"), buildin_tcp_socket_set_nonblocking);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("socket_set_nodelay"), buildin_tcp_socket_set_nodelay);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("socket_set_keepalive"), buildin_tcp_socket_set_keepalive);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("socket_set_linger"), buildin_tcp_socket_set_linger);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("socket_get_local_ip_port"), buildin_tcp_socket_get_local_ip_port);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("bind"), buildin_tcp_bind);
