@@ -150,3 +150,4 @@
 2015.9.23:增加nodelay keepalive
 2015.10.29:修复bug
 2015.10.30:把debug代码挪到lib中，这样可以直接在嵌入状态进行命令行调试
+2015.11.10:修复bug，增加string package接口

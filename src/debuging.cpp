@@ -21,7 +21,7 @@ void debuging::debug()
 		show_watch_variant(fk, rid, frame, watchvec);
 		check_show_func_header(fk, rid, frame, lastrid, lastfunc);
 		show_debug_code(fk, rid, frame, range);
-INPUT:
+FAKEINPUT:
 		get_debug_command(fk, command, paramvec);
 		switch (command)
 		{
@@ -394,7 +394,7 @@ INPUT:
 					listrange = fkatoi(&paramvec[0]);
 				}
 				show_debug_code(fk, rid, frame, listrange);
-				goto INPUT;
+				goto FAKEINPUT;
 			}
 			break;
 		case debug_print:
@@ -442,7 +442,7 @@ INPUT:
 				{
 					printf("%s%s\n", i == frame ? "*" : " ", fkgetcurcallstackbyroutinebyframe(fk, rid, i));
 				}
-				goto INPUT;
+				goto FAKEINPUT;
 			}
 			break;
 		case debug_frame:

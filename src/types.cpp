@@ -218,7 +218,7 @@ String fkarraytoa(variant_array * va)
 	
 	String ret;
 	ret += "[";
-	for (int i = 0; i < (int)ARRAY_MAX_SIZE(va->va); i++)
+	for (int i = 0; i < (int)ARRAY_SIZE(va->va); i++)
 	{
 		pool<variant>::node * n = ARRAY_GET(va->va, i);
 		if (n)
