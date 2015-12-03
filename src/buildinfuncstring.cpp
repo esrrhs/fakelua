@@ -35,6 +35,44 @@ void buildin_string_find(fake * fk, interpreter * inter)
 	}
 }
 
+// find not
+void buildin_string_find_not(fake * fk, interpreter * inter)
+{
+	const char * findstr = 0;
+	variant * findv = 0;
+	bool err = false;
+	PS_POP_AND_GET(fk->ps, findv);
+	V_GET_STRING(findv, findstr);
+
+	int pos = fkpspop<int>(fk);
+	const char * srcstr = 0;
+	variant * v = 0;
+	PS_POP_AND_GET(fk->ps, v);
+	V_GET_STRING(v, srcstr);
+
+	int len = srcstr ? v->data.str->sz : 0;
+	int findlen = findstr ? findv->data.str->sz : 0;
+	if (pos >= 0 && pos < len && srcstr && findstr)
+	{
+		for (int i = pos; i < len; i++)
+		{
+			if (strncmp(srcstr + i, findstr, findlen))
+			{
+				fkpspush<bool>(fk, true);
+				fkpspush<int>(fk, i);
+				return;
+			}
+		}
+		fkpspush<bool>(fk, false);
+		fkpspush<int>(fk, -1);
+	}
+	else
+	{
+		fkpspush<bool>(fk, false);
+		fkpspush<int>(fk, -1);
+	}
+}
+
 // substr
 void buildin_string_substr(fake * fk, interpreter * inter)
 {
@@ -241,6 +279,7 @@ void buildin_string_cat(fake * fk, interpreter * inter)
 void buildinfuncstring::openstringfunc()
 {
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_find"), buildin_string_find);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_find_not"), buildin_string_find_not);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_substr"), buildin_string_substr);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_trim"), buildin_string_trim);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_trimleft"), buildin_string_trim_left);

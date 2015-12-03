@@ -521,6 +521,7 @@ void MainWindow::on_actionRun_triggered()
         int ret = fkrun<int>(m_fk, "main");
         if (fkerror(m_fk))
         {
+            m_isrun = false;
             return;
         }
         Output("Exit " + QString::number(ret, 10));
