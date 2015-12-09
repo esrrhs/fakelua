@@ -227,6 +227,16 @@
 	}\
 	FKLOG("single math %s %d", OpCodeStr(code), ip);
 
+#define CHECK_ERR(err) \
+	if (UNLIKE(err)) \
+	{ \
+		pool<processor>::node * p = 0; \
+		GET_CUR_PROCESSOR(p, fk->rn); \
+		if (p && p->t.m_curroutine) \
+		{ \
+			p->t.m_curroutine->m_interpreter.end(); \
+		} \
+	}
 
 struct fake;
 struct processor;
@@ -236,6 +246,10 @@ public:
 	force_inline bool isend() const
 	{
 		return m_isend;
+	}
+	force_inline void end()
+	{
+		m_isend = true;
 	}
 	
 	void call(const variant & func, int retnum, int * retpos);

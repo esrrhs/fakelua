@@ -72,12 +72,13 @@ variant * con_array_get(fake * fk, variant_array * va, const variant * k)
 	bool err = false;
 	int index = 0;
 	V_GET_REAL(k, index);
-	if (err)
+	CHECK_ERR(err);
+	if (UNLIKE(err))
 	{
 		return 0;
 	}
 	
-	if (index >= (int)ARRAY_MAX_SIZE(va->va))
+	if (UNLIKE(index >= (int)ARRAY_MAX_SIZE(va->va)))
 	{
 		size_t newsize = index + 1 + ARRAY_MAX_SIZE(va->va) * fk->cfg.array_grow_speed / 100;
 		ARRAY_GROW(va->va, newsize, pool<variant>::node *);

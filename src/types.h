@@ -48,6 +48,12 @@ void fklog(const char * header, const char * file, const char * func, int pos, c
 #define force_inline __inline__ __attribute__((always_inline))
 #endif
 
+#if defined(WIN32)
+#define tsnprintf   _snprintf
+#else
+#define tsnprintf   snprintf
+#endif
+
 typedef std::string String;
 
 template<class T>
@@ -112,25 +118,25 @@ static force_inline double fkatod(const String * p)
 static force_inline String fkitoa(int64_t d)
 {
 	char buff[100];
-	sprintf(buff, "%lld", (long long int)d);
+	tsnprintf(buff, sizeof(buff) - 1, "%lld", (long long int)d);
 	return buff;
 }
 static force_inline String fkuitoa(uint64_t d)
 {
 	char buff[100];
-	sprintf(buff, "%llu", (unsigned long long int)d);
+	tsnprintf(buff, sizeof(buff) - 1, "%llu", (unsigned long long int)d);
 	return buff;
 }
 static force_inline String fkdtoa(double d)
 {
 	char buff[100];
-	sprintf(buff, "%f", d);
+	tsnprintf(buff, sizeof(buff) - 1, "%f", d);
 	return buff;
 }
 static force_inline String fkptoa(void * p)
 {
 	char buff[100];
-	sprintf(buff, "%p", p);
+	tsnprintf(buff, sizeof(buff) - 1, "%p", p);
 	return buff;
 }
 static force_inline String fkxtoa(int64_t d, int wid = 16)
@@ -207,12 +213,6 @@ paramstack * getps(fake * fk);
 char * stringdump(fake * fk, const char * src, size_t sz);
 
 uint32_t fkgetmstick();
-
-#if defined(WIN32)
-#define tsnprintf   _snprintf
-#else
-#define tsnprintf   snprintf
-#endif
 
 struct pointerele;
 struct variant_array;

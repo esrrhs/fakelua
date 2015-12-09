@@ -12,6 +12,7 @@ void buildin_string_find(fake * fk, interpreter * inter)
 	bool err = false;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_STRING(v, srcstr);
+	CHECK_ERR(err);
 	
 	int len = srcstr ? v->data.str->sz : 0;
 	if (pos >= 0 && pos < len && srcstr && findstr)
@@ -43,6 +44,7 @@ void buildin_string_find_not(fake * fk, interpreter * inter)
 	bool err = false;
 	PS_POP_AND_GET(fk->ps, findv);
 	V_GET_STRING(findv, findstr);
+	CHECK_ERR(err);
 
 	int pos = fkpspop<int>(fk);
 	const char * srcstr = 0;
@@ -83,6 +85,7 @@ void buildin_string_substr(fake * fk, interpreter * inter)
 	bool err = false;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_STRING(v, srcstr);
+	CHECK_ERR(err);
 	
 	int len = srcstr ? v->data.str->sz : 0;
 	if (count == -1)

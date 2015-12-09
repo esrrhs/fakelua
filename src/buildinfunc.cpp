@@ -213,6 +213,20 @@ void buildin_dumpfuncmap(fake * fk, interpreter * inter)
 	fkpspush<const char *>(fk, str);
 }
 
+// dumpstringheap
+void buildin_dumpstringheap(fake * fk, interpreter * inter)
+{
+	const char * str = fk->sh.dump();
+	fkpspush<const char *>(fk, str);
+}
+
+// dumppointerheap
+void buildin_dumppointerheap(fake * fk, interpreter * inter)
+{
+	const char * str = fk->ph.dump();
+	fkpspush<const char *>(fk, str);
+}
+
 // dofile
 void buildin_dofile(fake * fk, interpreter * inter)
 {
@@ -293,6 +307,8 @@ void buildinfunc::openbasefunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumpallfunc"), buildin_dumpallfunc);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumpfunc"), buildin_dumpfunc);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumpfuncmap"), buildin_dumpfuncmap);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumpstringheap"), buildin_dumpstringheap);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumppointerheap"), buildin_dumppointerheap);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dofile"), buildin_dofile);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dostring"), buildin_dostring);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("getcurfile"), buildin_getcurfile);

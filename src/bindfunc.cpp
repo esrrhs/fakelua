@@ -5,7 +5,7 @@ void bindfunc::addfunc(const variant & name, const fkfunctor & ff)
 {
 	if (m_fk->fm.get_func(name) && m_fk->fm.get_func(name)->haveff)
 	{
-		seterror(m_fk, efk_reg_memfunc_double_name, "", 0, vartostring(&name).c_str(), "addfunc double name %s", vartostring(&name).c_str());
+		seterror(m_fk, efk_reg_func_double_name, "", 0, vartostring(&name).c_str(), "addfunc double name %s", vartostring(&name).c_str());
 		FKERR("addfunc double name %s", vartostring(&name).c_str());
 		return;
 	}

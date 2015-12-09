@@ -1,49 +1,72 @@
 #include "pointerheap.h"
 #include "fake.h"
 
-pointerheap::pointerheap(fake * fk) : m_fk(fk)
+pointerheap::pointerheap(fake * fk) : m_fk(fk), m_shh(fk)
 {
-	ARRAY_INI(m_pointers, m_fk);
 }
 
 pointerheap::~pointerheap()
 {
-	ARRAY_DELETE(m_pointers);
+	clear();
 }
 
 void pointerheap::clear()
 {
-	for (int i = 0; i < (int)ARRAY_SIZE(m_pointers); i++)
+	for (const fkhashmap<void *, pointerele>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
 	{
-		pointerele * ptr = ARRAY_GET(m_pointers, i);
-		fkdelete<pointerele>(m_fk, ptr);
+		pointerele * e = p->t;
+		safe_fkfree(m_fk, e->type);
 	}
-	
-	ARRAY_CLEAR(m_pointers);
+	m_shh.clear();
+	m_dumpstr.clear();
 }
 
 pointerele * pointerheap::allocpointer(void * ptr, const char * type)
 {
-	pointerele * pointer = fknew<pointerele>(m_fk);
-	pointer->ptr = ptr;
-	pointer->type = type;
-	
-	if (ARRAY_SIZE(m_pointers) >= ARRAY_MAX_SIZE(m_pointers))
+	pointerele * p = m_shh.get(ptr);
+	if (LIKE(p != 0))
 	{
-		size_t newsize = ARRAY_MAX_SIZE(m_pointers) + 1 + ARRAY_MAX_SIZE(m_pointers) * (m_fk->cfg.array_grow_speed) / 100;
-		ARRAY_GROW(m_pointers, newsize, pointerele *);
+		if (UNLIKE(strcmp(p->type, type) != 0))
+		{
+			safe_fkfree(m_fk, p->type);
+			p->typesz = strlen(type);
+			p->type = stringdump(m_fk, type, p->typesz);
+		}
+		return p;
 	}
-	ARRAY_PUSH_BACK(m_pointers);
-	ARRAY_BACK(m_pointers) = pointer;
-
-	return pointer;
+	
+	pointerele e;
+	e.ptr = ptr;
+	e.typesz = strlen(type);
+	e.type = stringdump(m_fk, type, e.typesz);
+	
+	return m_shh.add(ptr, e)->t;
 }
 
 void pointerheap::checkgc()
 {
-	if ((int)ARRAY_SIZE(m_pointers) > m_fk->cfg.pointer_heap_num)
+	if (UNLIKE((int)m_shh.size() > m_fk->cfg.pointer_heap_num))
 	{
-		clear();
+		gc();
 	}
+}
+
+void pointerheap::gc()
+{
+	clear();
+}
+
+const char * pointerheap::dump()
+{
+	m_dumpstr.clear();
+	for (const fkhashmap<void *, pointerele>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	{
+		pointerele * e = p->t;
+		m_dumpstr += fkptoa(e->ptr);
+		m_dumpstr += "(";
+		m_dumpstr += e->type;
+		m_dumpstr += ")\n";
+	}
+	return m_dumpstr.c_str();
 }
 

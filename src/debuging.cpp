@@ -504,6 +504,7 @@ FAKEINPUT:
 		bool err = false;
 		PS_PUSH_AND_GET(fk->ps, ret);
 		*ret = m_ret;
+		CHECK_ERR(err);
 	}
 }
 
@@ -516,6 +517,7 @@ void debuging::resume(bool & isend)
 	bool err = false;
 	PS_POP_AND_GET(fk->ps, ret);
 	m_ret = *ret;
+	CHECK_ERR(err);
 }
 
 void debuging::show_debug_code(fake * fk, int rid, int frame, int range)

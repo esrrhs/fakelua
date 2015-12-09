@@ -130,7 +130,7 @@ struct variant
 	else \
 	{ \
 		p = (v)->data.ponter->ptr; \
-		t = (v)->data.ponter->type.c_str(); \
+		t = (v)->data.ponter->type; \
 	}
 	
 #define V_GET_REAL(v, r) \

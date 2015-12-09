@@ -43,12 +43,13 @@ void stringheap::clear()
 	}
 	
 	ARRAY_CLEAR(m_todelete);
+	m_dumpstr.clear();
 }
 
 stringele * stringheap::allocstring(const char * str)
 {
 	stringele * p = m_shh.get(str);
-	if (p)
+	if (LIKE(p != 0))
 	{
 		return p;
 	}
@@ -71,7 +72,7 @@ variant stringheap::allocsysstr(const char * str)
 
 void stringheap::checkgc()
 {
-	if ((int)m_shh.size() > m_fk->cfg.string_heap_num)
+	if (UNLIKE((int)m_shh.size() > m_fk->cfg.string_heap_num))
 	{
 		gc();
 	}
@@ -80,5 +81,21 @@ void stringheap::checkgc()
 void stringheap::gc()
 {
 	clear();
+}
+
+const char * stringheap::dump()
+{
+	m_dumpstr.clear();
+	for (const fkhashmap<const char *, stringele>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	{
+		stringele * e = p->t;
+		m_dumpstr += e->s;
+		if (e->sysref)
+		{
+			m_dumpstr += "(system)";
+		}
+		m_dumpstr += "\n";
+	}
+	return m_dumpstr.c_str();
 }
 
