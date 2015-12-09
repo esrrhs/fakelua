@@ -139,7 +139,8 @@ enum efkerror
 	efk_compile_cmp_error,
 	efk_compile_loop_error,
 
-	efk_reg_memfunc_double_name = 400,
+	efk_reg_func_double_name = 400,
+	efk_reg_func_toolong,
 	
 	efk_run_no_func_error = 500,
 	efk_run_param_error,
@@ -162,6 +163,7 @@ typedef void(*fkprint)(fake * fk, const char * str);
 #define FAKE_API extern "C"
 #define MAX_FAKE_PARAM_NUM 10	// 最大10个参数
 #define MAX_FAKE_RETURN_NUM 10	// 最大10个返回值
+#define MAX_FAKE_REG_FUNC_NAME_LEN 256	// 最大注册函数名字长度
 
 struct fakeconfig
 {
@@ -309,7 +311,7 @@ template<>	inline void fkpspush(fake * fk, uint64_t ret)
 	fkpspushuint64(fk, ret);
 }
 
-FAKE_API void fkpspoppointer(fake * fk, void * & p);
+FAKE_API void fkpspoppointer(fake * fk, void * & p, const char * type);
 FAKE_API char fkpspopchar(fake * fk);
 FAKE_API unsigned char fkpspopuchar(fake * fk);
 FAKE_API short fkpspopshort(fake * fk);
@@ -327,7 +329,7 @@ template<typename T>
 inline T fkpspop(fake * fk)
 { 
 	void * ret = 0; 
-	fkpspoppointer(fk, ret); 
+	fkpspoppointer(fk, ret, typeid(T).name()); 
 	return (T)ret; 
 }
 

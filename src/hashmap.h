@@ -136,6 +136,37 @@ force_inline String fkkeytostr(const variant & k)
 	return vartostring(&k);
 }
 
+// 特化
+template <>
+force_inline uint32_t fkkeyhash(void * const & k)
+{
+	MarshallPoiner tmp;
+	tmp.p = k;
+	return tmp.i;
+}
+
+template <>
+force_inline bool fkkeycmp(void * const & lk, void * const & rk)
+{
+	return lk == rk;
+}
+
+template <>
+force_inline void * fkkeycpy(fake * fk, void * const & k)
+{
+	return k;
+}
+
+template <>
+force_inline void fkkeydel(fake * fk, void * const & k)
+{
+}
+
+template <>
+force_inline String fkkeytostr(void * const & k)
+{
+	return fkptoa(k);
+}
 
 // T需要原始C结构 支持memcpy memset
 template <typename K, typename T>
@@ -370,10 +401,10 @@ public:
 		for (int i = 0; i < (int)m_hashele_size; i++)
 		{
 			hashele & he = m_hashele[i];
-			for (int j = 0; j < (int)he.size; j++)
+			for (int j = 0; j < (int)he.size && off < buffsize; j++)
 			{
 				ele & e = GET_HASHELE(he, j);
-				off += sprintf(buff + off, "key:%s\n", fkkeytostr(e.k).c_str());
+				off += tsnprintf(buff + off, buffsize - off, "key:%s\n", fkkeytostr(e.k).c_str());
 			}
 		}
 	}

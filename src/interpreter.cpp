@@ -540,7 +540,8 @@ int interpreter::run(int cmdnum)
 				{
 					void * classptr = 0;
 					const char * classprefix = 0;
-				
+
+					// prefix
 					variant * classvar;
 					PS_GET(ps, classvar, PS_SIZE(ps) - 1);
 					V_GET_POINTER(classvar, classptr, classprefix);
@@ -550,6 +551,7 @@ int interpreter::run(int cmdnum)
 						break;
 					}
 
+					// mem func name
 					const char * funcname = 0;
 					V_GET_STRING(callpos, funcname);
 					
@@ -565,10 +567,21 @@ int interpreter::run(int cmdnum)
 						break;
 					}
 
-					String wholename = (String)classprefix + funcname;
+					// whole name
+					char wholename[MAX_FAKE_REG_FUNC_NAME_LEN];
+					if (UNLIKE(classvar->data.ponter->typesz + callpos->data.str->sz >= MAX_FAKE_REG_FUNC_NAME_LEN))
+					{
+						err = true;
+						seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "interpreter class mem call error, the name is too long, func %s %s", classprefix, funcname);
+						break;
+					}
+					memcpy(wholename, classprefix, classvar->data.ponter->typesz);
+					memcpy(wholename + classvar->data.ponter->typesz, funcname, callpos->data.str->sz);
+					wholename[classvar->data.ponter->typesz + callpos->data.str->sz] = 0;
 
+					// call it
 					variant tmp;
-					V_SET_STRING(&tmp, wholename.c_str());
+					V_SET_STRING(&tmp, wholename);
 
 					call(tmp, retnum, retpos);
 				}

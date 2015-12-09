@@ -30,6 +30,8 @@ public:
 	variant allocsysstr(const char * str);
 
 	void checkgc();
+
+	const char * dump();
 	
 private:
 	void gc();
@@ -38,5 +40,6 @@ private:
 	fake * m_fk;
 	fkhashmap<const char *, stringele> m_shh;
 	array<const char *> m_todelete;
+	String m_dumpstr;
 };
 

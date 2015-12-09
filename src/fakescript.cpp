@@ -170,6 +170,7 @@ FAKE_API void fkrunps(fake * fk, const char * func)
 		PS_PUSH_AND_GET(fk->ps, ret);
 		*ret = NILV;
 		FKLOG("fkrunps %p %s yield", fk, func);
+		CHECK_ERR(err);
 		return;
 	}
 	
@@ -180,6 +181,7 @@ FAKE_API void fkrunps(fake * fk, const char * func)
 	bool err = false;
 	PS_PUSH_AND_GET(fk->ps, ret);
 	*ret = ROUTINE_GETRET(*r);
+	CHECK_ERR(err);
 
 	POOL_PUSH(fk->pp, n);
 	
@@ -194,6 +196,7 @@ FAKE_API void fkpspushpointer(fake * fk, void * p, const char * type)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_POINTER(v, p, type);
+	CHECK_ERR(err);
 }
 
 FAKE_API void fkpspushchar(fake * fk, char ret)
@@ -202,6 +205,7 @@ FAKE_API void fkpspushchar(fake * fk, char ret)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_REAL(v, ret);
+	CHECK_ERR(err);
 }
 
 FAKE_API void fkpspushuchar(fake * fk, unsigned char ret)
@@ -210,6 +214,7 @@ FAKE_API void fkpspushuchar(fake * fk, unsigned char ret)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_REAL(v, ret);
+	CHECK_ERR(err);
 }
 
 FAKE_API void fkpspushshort(fake * fk, short ret)
@@ -218,6 +223,7 @@ FAKE_API void fkpspushshort(fake * fk, short ret)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_REAL(v, ret);
+	CHECK_ERR(err);
 }
 
 FAKE_API void fkpspushushort(fake * fk, unsigned short ret)
@@ -226,6 +232,7 @@ FAKE_API void fkpspushushort(fake * fk, unsigned short ret)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_REAL(v, ret);
+	CHECK_ERR(err);
 }
 
 FAKE_API void fkpspushint(fake * fk, int ret)
@@ -234,6 +241,7 @@ FAKE_API void fkpspushint(fake * fk, int ret)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_REAL(v, ret);
+	CHECK_ERR(err);
 }
 
 FAKE_API void fkpspushuint(fake * fk, unsigned int ret)
@@ -242,6 +250,7 @@ FAKE_API void fkpspushuint(fake * fk, unsigned int ret)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_REAL(v, ret);
+	CHECK_ERR(err);
 }
 
 FAKE_API void fkpspushfloat(fake * fk, float ret)
@@ -250,6 +259,7 @@ FAKE_API void fkpspushfloat(fake * fk, float ret)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_REAL(v, ret);
+	CHECK_ERR(err);
 }
 
 FAKE_API void fkpspushdouble(fake * fk, double ret)
@@ -258,6 +268,7 @@ FAKE_API void fkpspushdouble(fake * fk, double ret)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_REAL(v, ret);
+	CHECK_ERR(err);
 }
 
 FAKE_API void fkpspushcharptr(fake * fk, char * ret)
@@ -266,6 +277,7 @@ FAKE_API void fkpspushcharptr(fake * fk, char * ret)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_STRING(v, ret);
+	CHECK_ERR(err);
 }
 
 FAKE_API void fkpspushccharptr(fake * fk, const char * ret)
@@ -274,6 +286,7 @@ FAKE_API void fkpspushccharptr(fake * fk, const char * ret)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_STRING(v, ret);
+	CHECK_ERR(err);
 }
 
 FAKE_API void fkpspushbool(fake * fk, bool ret)
@@ -282,6 +295,7 @@ FAKE_API void fkpspushbool(fake * fk, bool ret)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_REAL(v, ret);
+	CHECK_ERR(err);
 }
 
 FAKE_API void fkpspushint64(fake * fk, int64_t ret)
@@ -290,6 +304,7 @@ FAKE_API void fkpspushint64(fake * fk, int64_t ret)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_UUID(v, ret);
+	CHECK_ERR(err);
 }
 
 FAKE_API void fkpspushuint64(fake * fk, uint64_t ret)
@@ -298,16 +313,23 @@ FAKE_API void fkpspushuint64(fake * fk, uint64_t ret)
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_UUID(v, ret);
+	CHECK_ERR(err);
 }
 
-FAKE_API void fkpspoppointer(fake * fk, void * & p)
+FAKE_API void fkpspoppointer(fake * fk, void * & p, const char * type)
 {
-	const char * type = 0;
 	bool err = false;
+	const char * t = 0;
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
-	V_GET_POINTER(v, p, type);
-	USE(type);
+	V_GET_POINTER(v, p, t);
+	if (LIKE((!err && strcmp(t, type) != 0)))
+	{
+		err = true;
+		seterror(fk, efk_run_data_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "variant get pointer %s fail, the variant type is %s", type, t);
+		p = 0;
+	}
+	CHECK_ERR(err);
 }
 
 FAKE_API char fkpspopchar(fake * fk)
@@ -317,6 +339,7 @@ FAKE_API char fkpspopchar(fake * fk)
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_REAL(v, ret);
+	CHECK_ERR(err);
 	return ret;
 }
 
@@ -327,6 +350,7 @@ FAKE_API unsigned char fkpspopuchar(fake * fk)
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_REAL(v, ret);
+	CHECK_ERR(err);
 	return ret;
 }
 
@@ -337,6 +361,7 @@ FAKE_API short fkpspopshort(fake * fk)
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_REAL(v, ret);
+	CHECK_ERR(err);
 	return ret;
 }
 
@@ -347,6 +372,7 @@ FAKE_API unsigned short fkpspopushort(fake * fk)
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_REAL(v, ret);
+	CHECK_ERR(err);
 	return ret;
 }
 
@@ -357,6 +383,7 @@ FAKE_API int fkpspopint(fake * fk)
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_REAL(v, ret);
+	CHECK_ERR(err);
 	return ret;
 }
 
@@ -367,6 +394,7 @@ FAKE_API unsigned int fkpspopuint(fake * fk)
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_REAL(v, ret);
+	CHECK_ERR(err);
 	return ret;
 }
 
@@ -377,6 +405,7 @@ FAKE_API float fkpspopfloat(fake * fk)
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_REAL(v, ret);
+	CHECK_ERR(err);
 	return ret;
 }
 
@@ -387,6 +416,7 @@ FAKE_API double fkpspopdouble(fake * fk)
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_REAL(v, ret);
+	CHECK_ERR(err);
 	return ret;
 }
 
@@ -397,6 +427,7 @@ FAKE_API const char * fkpspopcstrptr(fake * fk)
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_STRING(v, ret);
+	CHECK_ERR(err);
 	return ret;
 }
 
@@ -407,6 +438,7 @@ FAKE_API bool fkpspopbool(fake * fk)
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_REAL(v, ret);
+	CHECK_ERR(err);
 	return ret;
 }
 
@@ -417,6 +449,7 @@ FAKE_API int64_t fkpspopint64(fake * fk)
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_UUID(v, ret);
+	CHECK_ERR(err);
 	return ret;
 }
 
@@ -427,6 +460,7 @@ FAKE_API uint64_t fkpspopuint64(fake * fk)
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_UUID(v, ret);
+	CHECK_ERR(err);
 	return ret;
 }
 
@@ -464,6 +498,12 @@ FAKE_API void fkpushfunctor(fake * fk, const char * prefix, const char * name, f
 {
 	FKLOG("fkpushfunctor %p %s %s", fk, prefix, name);
 	String tmp = (String)prefix + name;
+	if (UNLIKE(tmp.size() >= MAX_FAKE_REG_FUNC_NAME_LEN))
+	{
+		seterror(fk, efk_reg_func_toolong, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "reg func name too long, func %s, max %d", tmp.c_str(), MAX_FAKE_REG_FUNC_NAME_LEN);
+		FKERR("reg func name too long, func %s, max %d", tmp.c_str(), MAX_FAKE_REG_FUNC_NAME_LEN);
+		return;
+	}
 	fk->bf.addfunc(fk->sh.allocsysstr(tmp.c_str()), ff);
 }
 
@@ -1062,6 +1102,7 @@ FAKE_API void fkresumeps(fake * fk, bool & isend)
 		PS_PUSH_AND_GET(fk->ps, ret);
 		*ret = NILV;
 		FKLOG("fkresumeps %p no processor", fk);
+		CHECK_ERR(err);
 		return;
 	}
 
@@ -1080,6 +1121,7 @@ FAKE_API void fkresumeps(fake * fk, bool & isend)
 		PS_PUSH_AND_GET(fk->ps, ret);
 		*ret = NILV;
 		FKLOG("fkresumeps %p not end", fk);
+		CHECK_ERR(err);
 		return;
 	}
 
@@ -1088,6 +1130,7 @@ FAKE_API void fkresumeps(fake * fk, bool & isend)
 	bool err = false;
 	PS_PUSH_AND_GET(fk->ps, ret);
 	*ret = ROUTINE_GETRET(*pro.m_entryroutine);
+	CHECK_ERR(err);
 
 	POOL_PUSH(fk->pp, n);
 	

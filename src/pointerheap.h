@@ -9,7 +9,8 @@ struct fake;
 struct pointerele
 {
 	void * ptr;
-	String type;
+	char * type;
+	uint32_t typesz;
 };
 
 class pointerheap
@@ -23,9 +24,15 @@ public:
 	pointerele * allocpointer(void * ptr, const char * type);
 
 	void checkgc();
+
+	const char * dump();
+	
+private:
+	void gc();
 	
 private:
 	fake * m_fk;
-	array<pointerele*> m_pointers;
+	fkhashmap<void *, pointerele> m_shh;
+	String m_dumpstr;
 };
 
