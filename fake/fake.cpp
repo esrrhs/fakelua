@@ -32,11 +32,33 @@ public:
 private:
 	int b;
 };
+class test_class2
+{
+public:
+	test_class2()
+	{
+		b = 10;
+	}
+	int test_memfunc1(int a)
+	{
+		return a + b;
+	}
+	int test_memfunc2(int a)
+	{
+		return a * b;
+	}
+private:
+	int b;
+};
 
 // for test
 test_class1 * new_test_class1()
 {
 	return new test_class1();
+}
+test_class2 * new_test_class2()
+{
+	return new test_class2();
 }
 
 void error_log(fake * fk, int eno, const char * file, int lineno, const char * func, const char * str)
@@ -92,8 +114,10 @@ int main(int argc, const char *argv[])
 	// for test
 	fkreg(fk, "test_cfunc1", test_cfunc1);
 	fkreg(fk, "new_test_class1", new_test_class1);
-	test_class1 c1;
+	fkreg(fk, "new_test_class2", new_test_class2);
 	fkreg(fk, "test_memfunc1", &test_class1::test_memfunc1); 
+	fkreg(fk, "test_memfunc1", &test_class2::test_memfunc1); 
+	fkreg(fk, "test_memfunc2", &test_class2::test_memfunc2); 
 
 	// ±àÒëºóÎÄ¼ş
 	if (g_iscompiled)

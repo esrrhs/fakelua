@@ -671,6 +671,10 @@ struct function_call_node : public syntree_node
 		{
 			ret += "[func_fake_call]:";
 		}
+		else if (classmem_call)
+		{
+			ret += "[class_mem_call]:";
+		}
 		else
 		{
 			ret += "[func_call]:";
@@ -687,6 +691,7 @@ struct function_call_node : public syntree_node
 	virtual void recycle();
 
 	bool fakecall;
+	bool classmem_call;
 	String fuc;
 	function_call_arglist_node * arglist;
 };

@@ -536,6 +536,42 @@ int interpreter::run(int cmdnum)
 				{
 					call(*callpos, retnum, retpos);
 				}
+				else if (LIKE(calltype == CALL_CLASSMEM))
+				{
+					void * classptr = 0;
+					const char * classprefix = 0;
+				
+					variant * classvar;
+					PS_GET(ps, classvar, PS_SIZE(ps) - 1);
+					V_GET_POINTER(classvar, classptr, classprefix);
+
+					if (UNLIKE(err))
+					{
+						break;
+					}
+
+					const char * funcname = 0;
+					V_GET_STRING(callpos, funcname);
+					
+					if (UNLIKE(err))
+					{
+						break;
+					}
+
+					if (UNLIKE(!classptr))
+					{
+						err = true;
+						seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "interpreter class mem call error, the class ptr is null, type %s", classprefix);
+						break;
+					}
+
+					String wholename = (String)classprefix + funcname;
+
+					variant tmp;
+					V_SET_STRING(&tmp, wholename.c_str());
+
+					call(tmp, retnum, retpos);
+				}
 				else
 				{
 					m_processor->start_routine(*callpos, retnum, retpos);

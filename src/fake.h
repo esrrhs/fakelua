@@ -34,10 +34,11 @@
 #include "running.h"
 #include "parser.h"
 #include "debuging.h"
+#include "pointerheap.h"
 
 struct fake
 {
-	fake() : errorno(0), errorcb(0), pa(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this), dbg(this)
+	fake() : errorno(0), errorcb(0), pa(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this), dbg(this), ph(this)
 	{
 		POOL_INI(pp, this);
 	}
@@ -72,6 +73,7 @@ struct fake
 		fm.clear();
 		rn.clear();
 		dbg.clear();
+		ph.clear();
 	}
 	
 	void clearerr()
@@ -131,6 +133,9 @@ struct fake
 
 	// debugÈÝÆ÷
 	debuging dbg;
+
+	// pointerÈÝÆ÷
+	pointerheap ph;
 };
 
 template <typename T>

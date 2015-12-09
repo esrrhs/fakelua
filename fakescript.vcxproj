@@ -47,6 +47,7 @@
     <ClInclude Include="src\package\selector.h" />
     <ClInclude Include="src\paramstack.h" />
     <ClInclude Include="src\parser.h" />
+    <ClInclude Include="src\pointerheap.h" />
     <ClInclude Include="src\pool.h" />
     <ClInclude Include="src\processor.h" />
     <ClInclude Include="src\profile.h" />
@@ -85,6 +86,7 @@
     <ClCompile Include="src\native.cpp" />
     <ClCompile Include="src\paramstack.cpp" />
     <ClCompile Include="src\parser.cpp" />
+    <ClCompile Include="src\pointerheap.cpp" />
     <ClCompile Include="src\processor.cpp" />
     <ClCompile Include="src\profile.cpp" />
     <ClCompile Include="src\routine.cpp" />

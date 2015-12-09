@@ -3,6 +3,7 @@
 #include "types.h"
 
 struct stringele;
+struct pointerele;
 struct variant_array;
 struct variant_map;
 struct variant 
@@ -10,11 +11,11 @@ struct variant
 	enum Type 
 	{
 		NIL,
-		REAL,	   // 参与计算的数值
-		STRING,	 // 字符串
+		REAL,	   	// 参与计算的数值
+		STRING,	 	// 字符串
 		POINTER,	// 指针
-		UUID,	   // int64的uuid，不参与计算，为了效率
-		ARRAY,	  // 数组
+		UUID,	   	// int64的uuid，不参与计算，为了效率
+		ARRAY,	  	// 数组
 		MAP,		// 集合
 	};	
 	
@@ -22,7 +23,7 @@ struct variant
 	{
 		double real;
 		stringele * str;
-		void * ptr;
+		pointerele * ponter;
 		uint64_t uuid;
 		variant_array * va;
 		variant_map * vm;
@@ -65,7 +66,7 @@ struct variant
 	}\
 	else if ((v)->type == variant::POINTER)\
 	{\
-		ss = fkptoa((v)->data.ptr); \
+		ss = fkpointertoa((v)->data.ponter); \
 	}\
 	else if ((v)->type == variant::ARRAY)\
 	{\
@@ -88,10 +89,10 @@ struct variant
 	(v)->type = variant::NIL; \
 	(v)->data.buf = 0;
 
-#define V_SET_POINTER(v, p) \
+#define V_SET_POINTER(v, p, t) \
 	(v)->type = variant::POINTER; \
 	V_SAFE_PTR_CLEAN(v); \
-	(v)->data.ptr = p;
+	(v)->data.ponter = fk->ph.allocpointer(p, t);
 
 #define V_SET_REAL(v, r) \
 	(v)->type = variant::REAL; \
@@ -116,7 +117,7 @@ struct variant
 	V_SAFE_PTR_CLEAN(v); \
 	(v)->data.vm = m;
 	
-#define V_GET_POINTER(v, p) \
+#define V_GET_POINTER(v, p, t) \
 	if (UNLIKE(!((v)->type == variant::POINTER || (v)->type == variant::NIL))) \
 	{ \
 		err = true; \
@@ -128,7 +129,8 @@ struct variant
 	} \
 	else \
 	{ \
-		p = (v)->data.ptr; \
+		p = (v)->data.ponter->ptr; \
+		t = (v)->data.ponter->type.c_str(); \
 	}
 	
 #define V_GET_REAL(v, r) \

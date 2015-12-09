@@ -348,6 +348,7 @@ function_call:
 		p->fuc = $1;
 		p->arglist = dynamic_cast<function_call_arglist_node*>($3);
 		p->fakecall = false;
+		p->classmem_call = false;
 		$$ = p;
 	} 
 	|
@@ -358,6 +359,7 @@ function_call:
 		p->fuc = $1;
 		p->arglist = dynamic_cast<function_call_arglist_node*>($3);
 		p->fakecall = false;
+		p->classmem_call = false;
 		$$ = p;
 	} 
 	|
@@ -374,6 +376,7 @@ function_call:
 		}
 		p->arglist->add_arg($1);
 		p->fakecall = false;
+		p->classmem_call = true;
 		$$ = p;
 	} 
 	;

@@ -208,6 +208,16 @@ uint32_t fkgetmstick()
 #endif
 }
 
+String fkpointertoa(pointerele * pe)
+{
+	String ret;
+	ret += "(";
+	ret += pe->type;
+	ret += ")";
+	ret += fkptoa(pe->ptr);
+	return ret;
+}
+
 String fkarraytoa(variant_array * va)
 {
 	if (ARRAY_RECUR(va->va))

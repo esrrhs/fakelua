@@ -1123,6 +1123,10 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
 	{
 		calltype = MAKE_POS(CALL_FAKE);
 	}
+	else if (fn->classmem_call)
+	{
+		calltype = MAKE_POS(CALL_CLASSMEM);
+	}
 	else
 	{
 		calltype = MAKE_POS(CALL_NORMAL);
