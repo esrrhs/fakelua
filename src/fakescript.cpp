@@ -136,6 +136,7 @@ FAKE_API void fkrunps(fake * fk, const char * func)
 	if (LIKE(!fk->rn.rundeps))
 	{
 		fk->sh.checkgc();
+		fk->ph.checkgc();
 		fk->con.clear();
 		fk->bif.clear();
 	}
@@ -187,12 +188,12 @@ FAKE_API void fkrunps(fake * fk, const char * func)
 	FKLOG("fkrunps %p %s OK", fk, func);
 }
 
-FAKE_API void fkpspushpointer(fake * fk, void * p)
+FAKE_API void fkpspushpointer(fake * fk, void * p, const char * type)
 {
 	bool err = false;
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
-	V_SET_POINTER(v, p);
+	V_SET_POINTER(v, p, type);
 }
 
 FAKE_API void fkpspushchar(fake * fk, char ret)
@@ -301,10 +302,12 @@ FAKE_API void fkpspushuint64(fake * fk, uint64_t ret)
 
 FAKE_API void fkpspoppointer(fake * fk, void * & p)
 {
+	const char * type = 0;
 	bool err = false;
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
-	V_GET_POINTER(v, p);
+	V_GET_POINTER(v, p, type);
+	USE(type);
 }
 
 FAKE_API char fkpspopchar(fake * fk)
@@ -440,6 +443,7 @@ FAKE_API void fkrunpsjit(fake * fk, const char * func)
 	if (!fk->rn.rundeps)
 	{
 		fk->sh.checkgc();
+		fk->ph.checkgc();
 		fk->con.clear();
 		fk->bif.clear();
 	}
@@ -456,10 +460,11 @@ FAKE_API void fkrunpsjit(fake * fk, const char * func)
 	FKLOG("fkrun %p %s OK", fk, func);
 }
 
-FAKE_API void fkpushfunctor(fake * fk, const char * name, fkfunctor ff)
+FAKE_API void fkpushfunctor(fake * fk, const char * prefix, const char * name, fkfunctor ff)
 {
-	FKLOG("fkpushfunctor %p %s", fk, name);
-	fk->bf.addfunc(fk->sh.allocsysstr(name), ff);
+	FKLOG("fkpushfunctor %p %s %s", fk, prefix, name);
+	String tmp = (String)prefix + name;
+	fk->bf.addfunc(fk->sh.allocsysstr(tmp.c_str()), ff);
 }
 
 FAKE_API void fkopenalllib(fake * fk)

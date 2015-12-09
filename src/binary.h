@@ -83,6 +83,7 @@ enum CallType
 {
 	CALL_NORMAL,
 	CALL_FAKE,
+	CALL_CLASSMEM,
 };
 
 #define MAKE_COMMAND(type, code) MAKEINT64(type, code)

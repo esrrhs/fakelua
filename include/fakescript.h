@@ -112,6 +112,7 @@ esrrhs@163.com
 #include <string>
 #include <new>
 #include <stdlib.h>
+#include <typeinfo>
 
 #define FAKE_VERSION "1.3"
 #define FAKE_VERSION_NUM 100
@@ -167,7 +168,8 @@ struct fakeconfig
 	fakeconfig() : fkm(&malloc), fkf(&free), 
 		per_frame_cmd_num(10), 
 		array_grow_speed(100), 
-		string_heap_num(100), 
+		string_heap_num(1000), 
+		pointer_heap_num(1000), 
 		include_deps(100), 
 		stack_max(10000)
 		{}
@@ -176,6 +178,7 @@ struct fakeconfig
 	int per_frame_cmd_num;			// 每帧执行命令数目
 	int array_grow_speed;			// 增长速度，百分比，10%代表增长10%
 	int string_heap_num;			// 字符串集合的最大数目
+	int pointer_heap_num;			// 指针集合的最大数目
 	int include_deps;				// 解析include最大深度
 	int stack_max;					// stack最大尺寸
 };
@@ -210,7 +213,7 @@ FAKE_API const char * fkgetfuncvariantname(fake * fk, const char * func, int ind
 FAKE_API int fkgetfuncvariantline(fake * fk, const char * func, int index);
 
 // 参数传递
-FAKE_API void fkpspushpointer(fake * fk, void * p);
+FAKE_API void fkpspushpointer(fake * fk, void * p, const char * type);
 FAKE_API void fkpspushchar(fake * fk, char ret);
 FAKE_API void fkpspushuchar(fake * fk, unsigned char ret);
 FAKE_API void fkpspushshort(fake * fk, short ret);
@@ -228,8 +231,9 @@ FAKE_API void fkpspushuint64(fake * fk, uint64_t ret);
 template<typename T>  
 inline void fkpspush(fake * fk, T ret)
 { 
-	fkpspushpointer(fk, (void*)ret); 
+	fkpspushpointer(fk, ret, typeid(T).name()); 
 }
+
 template<>	inline void fkpspush(fake * fk, char ret)
 {
 	fkpspushchar(fk, ret);
@@ -762,43 +766,43 @@ struct fkinvoker<void>
 	}
 };
 
-FAKE_API void fkpushfunctor(fake * fk, const char * name, fkfunctor ff);
+FAKE_API void fkpushfunctor(fake * fk, const char * prefix, const char * name, fkfunctor ff);
 
 // 注册C函数
 template<typename RVal>
 void fkreg(fake * fk, const char * name, RVal (*func)())
 {
-	fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal>::invoke, (void*)func));
+	fkpushfunctor(fk, "", name, fkfunctor(fkinvoker<RVal>::invoke, (void*)func));
 }
 
 template<typename RVal, typename T1>
 void fkreg(fake * fk, const char * name, RVal (*func)(T1))
 {
-	fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1>::invoke, (void*)func));
+	fkpushfunctor(fk, "", name, fkfunctor(fkinvoker<RVal, T1>::invoke, (void*)func));
 }
 
 template<typename RVal, typename T1, typename T2>
 void fkreg(fake * fk, const char * name, RVal (*func)(T1, T2))
 {
-	fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1, T2>::invoke, (void*)func));
+	fkpushfunctor(fk, "", name, fkfunctor(fkinvoker<RVal, T1, T2>::invoke, (void*)func));
 }
 
 template<typename RVal, typename T1, typename T2, typename T3>
 void fkreg(fake * fk, const char * name, RVal (*func)(T1, T2, T3))
 {
-	fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1, T2, T3>::invoke, (void*)func));
+	fkpushfunctor(fk, "", name, fkfunctor(fkinvoker<RVal, T1, T2, T3>::invoke, (void*)func));
 }
 
 template<typename RVal, typename T1, typename T2, typename T3, typename T4>
 void fkreg(fake * fk, const char * name, RVal (*func)(T1, T2, T3, T4))
 {
-	fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1, T2, T3, T4>::invoke, (void*)func));
+	fkpushfunctor(fk, "", name, fkfunctor(fkinvoker<RVal, T1, T2, T3, T4>::invoke, (void*)func));
 }
 
 template<typename RVal, typename T1, typename T2, typename T3, typename T4, typename T5>
 void fkreg(fake * fk, const char * name, RVal (*func)(T1, T2, T3, T4, T5))
 {
-	fkpushfunctor(fk, name, fkfunctor(fkinvoker<RVal, T1, T2, T3, T4, T5>::invoke, (void*)func));
+	fkpushfunctor(fk, "", name, fkfunctor(fkinvoker<RVal, T1, T2, T3, T4, T5>::invoke, (void*)func));
 }
 
 template<typename RVal, typename T, typename T1=void, typename T2=void, typename T3=void, typename T4=void, typename T5=void>
@@ -983,37 +987,37 @@ struct fkmeminvoker<void, T>
 template<typename RVal, typename T>
 void fkreg(fake * fk, const char * name, RVal (T::*func)())
 {
-	fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T>::invoke, 0, func));
+	fkpushfunctor(fk, typeid(T*).name(), name, fkfunctor(fkmeminvoker<RVal, T>::invoke, 0, func));
 }
 
 template<typename RVal, typename T, typename T1>
 void fkreg(fake * fk, const char * name, RVal (T::*func)(T1))
 {
-	fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1>::invoke, 0, func));
+	fkpushfunctor(fk, typeid(T*).name(), name, fkfunctor(fkmeminvoker<RVal, T, T1>::invoke, 0, func));
 }
 
 template<typename RVal, typename T, typename T1, typename T2>
 void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2))
 {
-	fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2>::invoke, 0, func));
+	fkpushfunctor(fk, typeid(T*).name(), name, fkfunctor(fkmeminvoker<RVal, T, T1, T2>::invoke, 0, func));
 }
 
 template<typename RVal, typename T, typename T1, typename T2, typename T3>
 void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2, T3))
 {
-	fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3>::invoke, 0, func));
+	fkpushfunctor(fk, typeid(T*).name(), name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3>::invoke, 0, func));
 }
 
 template<typename RVal, typename T, typename T1, typename T2, typename T3, typename T4>
 void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2, T3, T4))
 {
-	fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3, T4>::invoke, 0, func));
+	fkpushfunctor(fk, typeid(T*).name(), name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3, T4>::invoke, 0, func));
 }
 
 template<typename RVal, typename T, typename T1, typename T2, typename T3, typename T4, typename T5>
 void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2, T3, T4, T5))
 {
-	fkpushfunctor(fk, name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3, T4, T5>::invoke, 0, func));
+	fkpushfunctor(fk, typeid(T*).name(), name, fkfunctor(fkmeminvoker<RVal, T, T1, T2, T3, T4, T5>::invoke, 0, func));
 }
 
 // 开启常用内置函数

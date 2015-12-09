@@ -214,8 +214,10 @@ uint32_t fkgetmstick();
 #define tsnprintf   snprintf
 #endif
 
+struct pointerele;
 struct variant_array;
 struct variant_map;
+String fkpointertoa(pointerele * pe);
 String fkarraytoa(variant_array * va);
 String fkmaptoa(variant_map * vm);
 

@@ -42,9 +42,9 @@ struct paramstack
 	}
 	
 #define PS_GET(ps, v, i) \
-	if (LIKE(i >= 0 && i < (int)(ps).m_variant_list_num)) \
+	if (LIKE((i) >= 0 && (int)(i) < (int)(ps).m_variant_list_num)) \
 	{ \
-		v = &(ps).m_variant_list[i]; \
+		v = &(ps).m_variant_list[(i)]; \
 	} \
 	else \
 	{ \
@@ -53,4 +53,6 @@ struct paramstack
 		v = &(ps).m_variant_list[0]; \
 		USE(err); \
 	}
+	
+#define PS_SIZE(ps) ((ps).m_variant_list_num)
 	
