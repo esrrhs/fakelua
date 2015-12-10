@@ -225,6 +225,8 @@ struct variant
 
 #define V_NOT_JNE(d, l) (d) = !((l)->data.real);
 
+#define V_STRING_CAT(d, l, r) V_SET_STRING(d, (vartostring(l) + vartostring(r)).c_str());
+
 #define V_ISBOOL(v) ((v)->data.real != 0)
 #define V_EQUAL_V(b, l, r) \
 	if ((l)->type != (r)->type)\

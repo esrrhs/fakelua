@@ -88,12 +88,14 @@ int my_yyerror(const char *s, void * parm)
 %token NEW_ASSIGN
 %token ELSEIF
 %token RIGHT_POINTER
+%token STRING_CAT
 
 %left PLUS
 %left MINUS
 %left DIVIDE
 %left MULTIPLY
 %left DIVIDE_MOD
+%left STRING_CAT
 
 %expect 28
 
@@ -106,6 +108,7 @@ int my_yyerror(const char *s, void * parm)
 %type<str> DIVIDE
 %type<str> MULTIPLY
 %type<str> DIVIDE_MOD
+%type<str> STRING_CAT
 %type<str> MORE LESS MORE_OR_EQUAL LESS_OR_EQUAL EQUAL NOT_EQUAL
 %type<str> FTRUE FFALSE
 %type<str> ASSIGN
@@ -1164,6 +1167,16 @@ math_expr:
 		FKLOG("[bison]: math_expr <- expr_value %s expr_value", $2.c_str());
 		NEWTYPE(p, math_expr_node);
 		p->oper = "%";
+		p->left = $1;
+		p->right = $3;
+		$$ = p;
+	}
+	|
+	expr_value STRING_CAT expr_value
+	{
+		FKLOG("[bison]: math_expr <- expr_value %s expr_value", $2.c_str());
+		NEWTYPE(p, math_expr_node);
+		p->oper = "..";
 		p->left = $1;
 		p->right = $3;
 		$$ = p;

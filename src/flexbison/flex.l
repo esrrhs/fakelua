@@ -296,6 +296,10 @@
 	return CLOSE_SQUARE_BRACKET;
 }
 
+".." {
+	return STRING_CAT;
+}
+
 \n {
 }
 
