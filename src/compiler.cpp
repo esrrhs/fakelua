@@ -1204,6 +1204,10 @@ bool compiler::compile_math_expr_node(codegen & cg, math_expr_node * mn)
 	{
 		oper = MAKE_OPCODE(OPCODE_DIVIDE_MOD);
 	}
+	else if (mn->oper == "..")
+	{
+		oper = MAKE_OPCODE(OPCODE_STRING_CAT);
+	}
 	else
 	{
 		FKERR("[compiler] compile_math_expr_node error oper type fail");

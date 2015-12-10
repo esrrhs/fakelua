@@ -70,7 +70,7 @@ bool parser::parsestr(const char * str)
 		return false;
 	}
 
-	// jit ÏÈ·ÅÆú
+	// jit
 	fk->as.clear();
 	assembler & as = fk->as;
 	b = as.compile(&fk->bin);

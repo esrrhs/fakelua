@@ -347,6 +347,11 @@ int interpreter::run(int cmdnum)
 				MATH_OPER(*m_fb, m_bp, m_ip, DIVIDE_MOD);
 			}
 			break;
+		case OPCODE_STRING_CAT:
+			{
+				MATH_OPER(*m_fb, m_bp, m_ip, STRING_CAT);
+			}
+			break;
 		case OPCODE_AND:
 			{
 				MATH_OPER(*m_fb, m_bp, m_ip, AND);

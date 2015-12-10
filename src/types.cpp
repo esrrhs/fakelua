@@ -107,6 +107,7 @@ String fkget_token_name(int token)
 		TOKEN_SWITCH(NEW_ASSIGN)
 		TOKEN_SWITCH(ELSEIF)
 		TOKEN_SWITCH(RIGHT_POINTER)
+		TOKEN_SWITCH(STRING_CAT)
 	}
 #undef TOKEN_SWITCH
 	assert(0);
