@@ -214,6 +214,13 @@ FAKE_API const char * fkgetfuncvariantname(fake * fk, const char * func, int ind
 // 获取函数内变量行号
 FAKE_API int fkgetfuncvariantline(fake * fk, const char * func, int index);
 
+// 字节流封装，方便与C交互，使用方法如fakebytes b = fkrun<fakebytes>(fk, "test")或者fakebytes b; fkrun<int>(fk, "test", b);
+struct fakebytes
+{
+	char * data;
+	size_t size;
+};
+
 // 参数传递
 FAKE_API void fkpspushpointer(fake * fk, void * p, const char * type);
 FAKE_API void fkpspushchar(fake * fk, char ret);
@@ -229,6 +236,7 @@ FAKE_API void fkpspushccharptr(fake * fk, const char * ret);
 FAKE_API void fkpspushbool(fake * fk, bool ret);
 FAKE_API void fkpspushint64(fake * fk, int64_t ret);
 FAKE_API void fkpspushuint64(fake * fk, uint64_t ret);
+FAKE_API void fkpspushbuffer(fake * fk, fakebytes ret);
 
 template<typename T>  
 inline void fkpspush(fake * fk, T ret)
@@ -311,6 +319,11 @@ template<>	inline void fkpspush(fake * fk, uint64_t ret)
 	fkpspushuint64(fk, ret);
 }
 
+template<>	inline void fkpspush(fake * fk, fakebytes ret)
+{
+	fkpspushbuffer(fk, ret);
+}
+
 FAKE_API void fkpspoppointer(fake * fk, void * & p, const char * type);
 FAKE_API char fkpspopchar(fake * fk);
 FAKE_API unsigned char fkpspopuchar(fake * fk);
@@ -324,6 +337,7 @@ FAKE_API const char * fkpspopcstrptr(fake * fk);
 FAKE_API bool fkpspopbool(fake * fk);
 FAKE_API int64_t fkpspopint64(fake * fk);
 FAKE_API uint64_t fkpspopuint64(fake * fk);
+FAKE_API fakebytes fkpspopbuffer(fake * fk);
 
 template<typename T>  
 inline T fkpspop(fake * fk)
@@ -409,16 +423,25 @@ template<>	inline const char * fkpspop(fake * fk)
 	return fkpspopcstrptr(fk);
 }
 
+template<>	inline fakebytes fkpspop(fake * fk)
+{
+	return fkpspopbuffer(fk);
+}
+
 FAKE_API void fkpsclear(fake * fk);
 
 // 此函数内部使用，推荐使用模板
 FAKE_API void fkrunps(fake * fk, const char * func);
+
+// 检查回收
+FAKE_API void fkcheckgc(fake * fk);
 
 // 调用函数，解释执行
 template<typename RVal>
 RVal fkrun(fake * fk, const char * func)
 {
 	fkpsclear(fk);
+	fkcheckgc(fk);
 	fkrunps(fk, func);
 	return fkpspop<RVal>(fk);
 }
@@ -427,6 +450,7 @@ template<typename RVal, typename T1>
 RVal fkrun(fake * fk, const char * func, T1 arg1)
 {
 	fkpsclear(fk);
+	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkrunps(fk, func);
 	return fkpspop<RVal>(fk);
@@ -436,6 +460,7 @@ template<typename RVal, typename T1, typename T2>
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2)
 {
 	fkpsclear(fk);
+	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkrunps(fk, func);
@@ -446,6 +471,7 @@ template<typename RVal, typename T1, typename T2, typename T3>
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3)
 {
 	fkpsclear(fk);
+	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -457,6 +483,7 @@ template<typename RVal, typename T1, typename T2, typename T3, typename T4>
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
 	fkpsclear(fk);
+	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -469,6 +496,7 @@ template<typename RVal, typename T1, typename T2, typename T3, typename T4, type
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
 {
 	fkpsclear(fk);
+	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -548,6 +576,7 @@ template<typename RVal>
 RVal fkrunjit(fake * fk, const char * func)
 {
 	fkpsclear(fk);
+	fkcheckgc(fk);
 	fkrunpsjit(fk, func);
 	return fkpspop<RVal>(fk);
 }
@@ -556,6 +585,7 @@ template<typename RVal, typename T1>
 RVal fkrunjit(fake * fk, const char * func, T1 arg1)
 {
 	fkpsclear(fk);
+	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkrunpsjit(fk, func);
 	return fkpspop<RVal>(fk);
@@ -565,6 +595,7 @@ template<typename RVal, typename T1, typename T2>
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2)
 {
 	fkpsclear(fk);
+	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkrunpsjit(fk, func);
@@ -575,6 +606,7 @@ template<typename RVal, typename T1, typename T2, typename T3>
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3)
 {
 	fkpsclear(fk);
+	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -586,6 +618,7 @@ template<typename RVal, typename T1, typename T2, typename T3, typename T4>
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
 	fkpsclear(fk);
+	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -598,6 +631,7 @@ template<typename RVal, typename T1, typename T2, typename T3, typename T4, type
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
 {
 	fkpsclear(fk);
+	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);

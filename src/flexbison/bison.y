@@ -34,6 +34,8 @@ int my_yyerror(const char *s, void * parm)
 
 %pure_parser
 
+%error_verbose
+
 %locations
 %token VAR_BEGIN
 %token RETURN
@@ -97,7 +99,7 @@ int my_yyerror(const char *s, void * parm)
 %left DIVIDE_MOD
 %left STRING_CAT
 
-%expect 28
+%expect 29
 
 %type<str> IDENTIFIER  
 %type<str> NUMBER
@@ -1090,6 +1092,14 @@ variable:
 	{
 		FKLOG("[bison]: variable <- IDENTIFIER_POINTER %s", $1.c_str());
 		NEWTYPE(p, struct_pointer_node);
+		p->str = $1;
+		$$ = p;
+	}
+	|
+	IDENTIFIER_DOT
+	{
+		FKLOG("[bison]: variable <- IDENTIFIER_DOT %s", $1.c_str());
+		NEWTYPE(p, variable_node);
 		p->str = $1;
 		$$ = p;
 	}

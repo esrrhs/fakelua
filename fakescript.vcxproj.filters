@@ -164,9 +164,6 @@
     <ClCompile Include="src\types.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\variant.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\interpreter.cpp">
       <Filter>src</Filter>
     </ClCompile>

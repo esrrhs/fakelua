@@ -49,7 +49,29 @@ bool compiler::compile()
 bool compiler::compile_const_head()
 {
 	FKLOG("[compiler] compile_const_head");
-	// do nothing
+	
+	myflexer * mf = m_mf;
+
+	// 注册全局常量表
+	explicit_value_map & evm = mf->get_const_map();
+	for (explicit_value_map::iterator it = evm.begin(); it != evm.end(); it++)
+	{   
+		String name = it->first;
+		explicit_value_node* ev = it->second;
+		
+		variant v;
+		if (!compile_explicit_value_node_to_variant(ev, v))
+		{
+			FKERR("[compiler] compile_explicit_value_node_to_variant %s %s fail", name.c_str(), ev->str.c_str());
+			return false;
+		}
+		
+		String constname = fkgen_package_name(m_mf->get_package(), name);
+
+		m_fk->pa.reg_const_define(constname.c_str(), v);
+		FKLOG("[compiler] reg_const_define %s %s", constname.c_str(), vartostring(&v).c_str());
+	}
+	
 	return true;
 }
 
@@ -939,32 +961,10 @@ bool compiler::compile_explicit_value(codegen & cg, explicit_value_node * ev)
 {
 	FKLOG("[compiler] compile_explicit_value %p %s", ev, ev->str.c_str());
 
-	fake * fk = m_fk;
-
 	variant v;
-	switch (ev->getvaluetype())
+	if (!compile_explicit_value_node_to_variant(ev, v))
 	{
-	case explicit_value_node::EVT_TRUE:
-		V_SET_REAL((&v), 1);
-		break;
-	case explicit_value_node::EVT_FALSE:
-		V_SET_REAL((&v), 0);
-		break;
-	case explicit_value_node::EVT_NUM:
-		V_SET_REAL((&v), (fkatol(&ev->str)));
-		break;
-	case explicit_value_node::EVT_STR:
-		v = fk->sh.allocsysstr(ev->str.c_str());
-		break;
-	case explicit_value_node::EVT_FLOAT:
-		V_SET_REAL((&v), (fkatof(&ev->str)));
-		break;
-	case explicit_value_node::EVT_UUID:
-		V_SET_UUID((&v), (fkatol(&ev->str)));
-		break;
-	default:
-		FKERR("[compiler] compile_explicit_value type error %d %s", ev->getvaluetype(), ev->gettypename());
-		compile_seterror(ev, m_fk, efk_compile_explicit_type_error, "compile explicit value type error %d", ev->getvaluetype());
+		FKERR("[compiler] compile_explicit_value_node_to_variant %s fail", ev->str.c_str());
 		return false;
 	}
 
@@ -991,6 +991,16 @@ bool compiler::compile_variable_node(codegen & cg, variable_node * vn)
 			FKERR("[compiler] compile_variable_node const fail %s", ev->str.c_str());
 			return false;
 		}
+		FKLOG("[compiler] compile_variable_node %p OK", vn);
+		return true;
+	}
+
+	// 看看是否是全局常量定义
+	variant * gcv = m_fk->pa.get_const_define(vn->str.c_str());
+	if (gcv)
+	{
+		int pos = cg.getconst(*gcv);
+		m_cur_addr = MAKE_ADDR(ADDR_CONST, pos);
 		FKLOG("[compiler] compile_variable_node %p OK", vn);
 		return true;
 	}
@@ -1778,6 +1788,39 @@ bool compiler::compile_for_loop_stmt(codegen & cg, for_loop_stmt * fs)
 	cg.pop_stack_identifiers();
 
 	FKLOG("[compiler] compile_for_loop_stmt %p OK", fs);
+
+	return true;
+}
+
+bool compiler::compile_explicit_value_node_to_variant(explicit_value_node* ev, variant & v)
+{
+	fake * fk = m_fk;
+	
+	switch (ev->getvaluetype())
+	{
+	case explicit_value_node::EVT_TRUE:
+		V_SET_REAL((&v), 1);
+		break;
+	case explicit_value_node::EVT_FALSE:
+		V_SET_REAL((&v), 0);
+		break;
+	case explicit_value_node::EVT_NUM:
+		V_SET_REAL((&v), (fkatol(&ev->str)));
+		break;
+	case explicit_value_node::EVT_STR:
+		v = fk->sh.allocsysstr(ev->str.c_str());
+		break;
+	case explicit_value_node::EVT_FLOAT:
+		V_SET_REAL((&v), (fkatof(&ev->str)));
+		break;
+	case explicit_value_node::EVT_UUID:
+		V_SET_UUID((&v), (fkatol(&ev->str)));
+		break;
+	default:
+		FKERR("[compiler] compile_explicit_value type error %d %s", ev->getvaluetype(), ev->gettypename());
+		compile_seterror(ev, m_fk, efk_compile_explicit_type_error, "compile explicit value type error %d", ev->getvaluetype());
+		return false;
+	}
 
 	return true;
 }

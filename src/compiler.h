@@ -52,6 +52,7 @@ private:
 
 private:
 	void compile_seterror(syntree_node * node, fake * fk, efkerror err, const char *fmt, ...);
+	bool compile_explicit_value_node_to_variant(explicit_value_node* ev, variant & v);
 	
 private:
 	fake * m_fk;

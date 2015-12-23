@@ -1,7 +1,7 @@
 #include "parser.h"
 #include "fake.h"
 
-parser::parser(fake * fk) : m_fk(fk)
+parser::parser(fake * fk) : m_fk(fk), m_shh(fk)
 {
 	clear();
 }
@@ -16,6 +16,7 @@ void parser::clear()
 	m_parsing_file_list.clear();
 	m_parsing_file_list_str.clear();
 	m_parse_dep = 0;
+	// m_shhÓÀ¾Ã´æÔÚ
 }
 
 bool parser::parsestr(const char * str)
@@ -232,4 +233,27 @@ bool parser::parse_include(const String & srcname, const String & includename)
 		return false;
 	}
 	return true;
+}
+
+void parser::reg_const_define(const char * constname, const variant & v)
+{
+	variant * p = m_shh.get(constname);
+	if (UNLIKE(p != 0))
+	{
+		*p = v;
+		return;
+	}
+	
+	m_shh.add(constname, v);
+}
+
+
+variant * parser::get_const_define(const char * constname)
+{
+	variant * p = m_shh.get(constname);
+	if (LIKE(p != 0))
+	{
+		return p;
+	}
+	return 0;
 }

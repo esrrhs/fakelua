@@ -1,0 +1,10 @@
+include "../package/template.fk"
+
+-- main comment
+func main()
+	
+	var a = template.ele_member
+	print(a..template.ele_do)
+	return 0
+	
+end

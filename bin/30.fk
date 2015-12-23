@@ -8,6 +8,7 @@ func main()
 	
 	var f = get_c_string()
 	f()
+	print(c_int)
 	
 	return get_c_int() * 2
 	
