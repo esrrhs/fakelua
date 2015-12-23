@@ -132,14 +132,6 @@ FAKE_API void fkrunps(fake * fk, const char * func)
 {
 	FKLOG("fkrunps %p %s", fk, func);
 
-	// 预处理，只在完全的退出脚本才执行
-	if (LIKE(!fk->rn.rundeps))
-	{
-		fk->sh.checkgc();
-		fk->ph.checkgc();
-		fk->con.clear();
-		fk->bif.clear();
-	}
 	fk->rn.rundeps++;
 
 	// 清空运行环境	
@@ -188,6 +180,18 @@ FAKE_API void fkrunps(fake * fk, const char * func)
 	fk->rn.rundeps--;
 	
 	FKLOG("fkrunps %p %s OK", fk, func);
+}
+
+FAKE_API void fkcheckgc(fake * fk)
+{
+	// 预处理，只在完全的退出脚本才执行
+	if (LIKE(!fk->rn.rundeps))
+	{
+		fk->sh.checkgc();
+		fk->ph.checkgc();
+		fk->con.clear();
+		fk->bif.clear();
+	}
 }
 
 FAKE_API void fkpspushpointer(fake * fk, void * p, const char * type)
@@ -314,6 +318,14 @@ FAKE_API void fkpspushuint64(fake * fk, uint64_t ret)
 	PS_PUSH_AND_GET(fk->ps, v);
 	V_SET_UUID(v, ret);
 	CHECK_ERR(err);
+}
+
+FAKE_API void fkpspushbuffer(fake * fk, fakebytes ret)
+{
+	buffer * b = fk->bif.newbuffer(ret.size);
+	b->ini(fk, ret.data, ret.size);
+	b->skip_write(ret.size);
+	fkpspush<buffer *>(fk, b);
 }
 
 FAKE_API void fkpspoppointer(fake * fk, void * & p, const char * type)
@@ -464,6 +476,23 @@ FAKE_API uint64_t fkpspopuint64(fake * fk)
 	return ret;
 }
 
+FAKE_API fakebytes fkpspopbuffer(fake * fk)
+{
+	fakebytes ret;
+	buffer * b = fkpspop<buffer *>(fk);
+	if (LIKE(b != 0))
+	{
+		ret.data = b->get_buffer();
+		ret.size = b->size();
+	}
+	else
+	{
+		ret.data = 0;
+		ret.size = 0;
+	}
+	return ret;
+}
+
 FAKE_API void fkpsclear(fake * fk)
 {
 	PS_CLEAR(fk->ps);
@@ -473,14 +502,6 @@ FAKE_API void fkrunpsjit(fake * fk, const char * func)
 {
 	FKLOG("fkrun %p %s", fk, func);
 
-	// 预处理，只在完全的退出脚本才执行
-	if (!fk->rn.rundeps)
-	{
-		fk->sh.checkgc();
-		fk->ph.checkgc();
-		fk->con.clear();
-		fk->bif.clear();
-	}
 	fk->rn.rundeps++;
 
 	fk->clearerr();

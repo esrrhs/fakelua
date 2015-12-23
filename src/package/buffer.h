@@ -39,6 +39,7 @@ struct buffer
 	force_inline void ini(fake * fk, size_t len)
 	{
 		ini(fk, (char*)safe_fkmalloc(fk, len), len);
+		m_extra = false;
 	}
 	force_inline void ini(fake * fk, char* buffer, size_t len)
 	{
@@ -51,11 +52,15 @@ struct buffer
 		m_store_datasize = 0;
 		m_store_begin = 0;
 		m_store_end = 0;
+		m_extra = true;
 	}
 	force_inline void fini()
 	{   
 		m_size = 0;
-		safe_fkfree(m_fk, m_buffer);
+		if (!m_extra)
+		{
+			safe_fkfree(m_fk, m_buffer);
+		}
 		m_buffer = 0;
 		m_datasize = 0;
 		m_begin = 0;
@@ -223,6 +228,10 @@ struct buffer
 	{
 		return FKMIN(m_size - m_datasize, m_size - m_end);
 	}
+	force_inline char * get_buffer() const
+	{
+		return m_buffer;
+	}
 private:
 	fake * m_fk;
 	char * m_buffer;
@@ -233,6 +242,7 @@ private:
 	size_t m_store_datasize;
 	size_t m_store_begin;
 	size_t m_store_end;
+	bool m_extra;
 };
 
 #define BUFFER_DELETE(b) (b).fini()

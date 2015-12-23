@@ -94,7 +94,6 @@
     <ClCompile Include="src\stringheap.cpp" />
     <ClCompile Include="src\syntree.cpp" />
     <ClCompile Include="src\types.cpp" />
-    <ClCompile Include="src\variant.cpp" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="CMakeLists.txt" />
