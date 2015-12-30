@@ -24,15 +24,15 @@ func size(b)
 	
 end
 
-func store(b)
+func store(b, i)
 	
-	return buffer_store(b)
+	return buffer_store(b, i)
 	
 end
 
-func restore(b)
+func restore(b, i)
 	
-	return buffer_restore(b)
+	return buffer_restore(b, i)
 	
 end
 
@@ -78,37 +78,43 @@ end
 
 func pop_int(b)
 	
-	return buffer_pop_int(b)
+	ret, data := buffer_pop_int(b)
+	return ret, data
 	
 end
 
 func pop_short(b)
 	
-	return buffer_pop_short(b)
+	ret, data := buffer_pop_short(b)
+	return ret, data
 	
 end
 
 func pop_char(b)
 	
-	return buffer_pop_char(b)
+	ret, data := buffer_pop_char(b)
+	return ret, data
 	
 end
 
 func pop_int64(b)
 	
-	return buffer_pop_int64(b)
+	ret, data := buffer_pop_int64(b)
+	return ret, data
 	
 end
 
 func pop_string(b, len)
 	
-	return buffer_pop_string(b, len)
+	ret, data := buffer_pop_string(b, len)
+	return ret, data
 	
 end
 
 func pop_buffer(b, len)
 	
-	return buffer_pop_buffer(b, len)
+	ret, data := buffer_pop_buffer(b, len)
+	return ret, data
 	
 end
 

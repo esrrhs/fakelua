@@ -80,19 +80,21 @@ void buildin_buffer_size(fake * fk, interpreter * inter)
 }
 void buildin_buffer_store(fake * fk, interpreter * inter)
 {
+	int i = fkpspop<int>(fk);
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
-		b->store();
+		b->store(i);
 	}
 	fkpspush<int>(fk, 1);
 }
 void buildin_buffer_restore(fake * fk, interpreter * inter)
 {
+	int i = fkpspop<int>(fk);
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
-		b->restore();
+		b->restore(i);
 	}
 	fkpspush<int>(fk, 1);
 }
@@ -102,12 +104,12 @@ void buildin_buffer_pushint(fake * fk, interpreter * inter)
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
-		b->write((const char *)&data, sizeof(data));
-		fkpspush<int>(fk, b->size());
+		bool ret = b->write((const char *)&data, sizeof(data));
+		fkpspush<bool>(fk, ret);
 	}
 	else
 	{
-		fkpspush<int>(fk, 0);
+		fkpspush<bool>(fk, false);
 	}
 }
 void buildin_buffer_pushchar(fake * fk, interpreter * inter)
@@ -116,12 +118,12 @@ void buildin_buffer_pushchar(fake * fk, interpreter * inter)
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
-		b->write((const char *)&data, sizeof(data));
-		fkpspush<int>(fk, b->size());
+		bool ret = b->write((const char *)&data, sizeof(data));
+		fkpspush<bool>(fk, ret);
 	}
 	else
 	{
-		fkpspush<int>(fk, 0);
+		fkpspush<bool>(fk, false);
 	}
 }
 void buildin_buffer_pushshort(fake * fk, interpreter * inter)
@@ -130,12 +132,12 @@ void buildin_buffer_pushshort(fake * fk, interpreter * inter)
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
-		b->write((const char *)&data, sizeof(data));
-		fkpspush<int>(fk, b->size());
+		bool ret = b->write((const char *)&data, sizeof(data));
+		fkpspush<bool>(fk, ret);
 	}
 	else
 	{
-		fkpspush<int>(fk, 0);
+		fkpspush<bool>(fk, false);
 	}
 }
 void buildin_buffer_pushint64(fake * fk, interpreter * inter)
@@ -144,12 +146,12 @@ void buildin_buffer_pushint64(fake * fk, interpreter * inter)
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
-		b->write((const char *)&data, sizeof(data));
-		fkpspush<int>(fk, b->size());
+		bool ret = b->write((const char *)&data, sizeof(data));
+		fkpspush<bool>(fk, ret);
 	}
 	else
 	{
-		fkpspush<int>(fk, 0);
+		fkpspush<bool>(fk, false);
 	}
 }
 void buildin_buffer_pushstring(fake * fk, interpreter * inter)
@@ -160,9 +162,10 @@ void buildin_buffer_pushstring(fake * fk, interpreter * inter)
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
+		bool ret = false;
 		if (srclen >= len)
 		{
-			b->write(data, len);
+			ret = b->write(data, len);
 		}
 		else
 		{
@@ -172,13 +175,14 @@ void buildin_buffer_pushstring(fake * fk, interpreter * inter)
 				const char end = 0;
 				b->write(&end, sizeof(end));
 				b->skip_write(len - srclen - sizeof(end));
+				ret = true;
 			}
 		}
-		fkpspush<int>(fk, b->size());
+		fkpspush<bool>(fk, ret);
 	}
 	else
 	{
-		fkpspush<int>(fk, 0);
+		fkpspush<bool>(fk, false);
 	}
 }
 void buildin_buffer_pushbuffer(fake * fk, interpreter * inter)
@@ -187,77 +191,90 @@ void buildin_buffer_pushbuffer(fake * fk, interpreter * inter)
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b && ob)
 	{
+		bool ret = false;
 		if (b->can_write(ob->size()))
 		{
-			ob->store();
+			ob->store(0);
 			b->write(ob->get_read_line_buffer(), ob->get_read_line_size());
 			ob->skip_read(ob->get_read_line_size());
 			b->write(ob->get_read_line_buffer(), ob->get_read_line_size());
 			ob->skip_read(ob->get_read_line_size());
-			ob->restore();
+			ob->restore(0);
+			ret = true;
 		}
-		fkpspush<int>(fk, b->size());
+		fkpspush<bool>(fk, ret);
 	}
 	else
 	{
-		fkpspush<int>(fk, 0);
+		fkpspush<bool>(fk, false);
 	}
 }
 void buildin_buffer_popint(fake * fk, interpreter * inter)
 {
 	int data = 0;
+	bool ret = false;
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
-		b->read((char *)&data, sizeof(data));
+		ret = b->read((char *)&data, sizeof(data));
 	}
+	fkpspush<bool>(fk, ret);
 	fkpspush<int>(fk, data);
 }
 void buildin_buffer_popshort(fake * fk, interpreter * inter)
 {
 	short data = 0;
+	bool ret = false;
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
-		b->read((char *)&data, sizeof(data));
+		ret = b->read((char *)&data, sizeof(data));
 	}
+	fkpspush<bool>(fk, ret);
 	fkpspush<short>(fk, data);
 }
 void buildin_buffer_popchar(fake * fk, interpreter * inter)
 {
 	char data = 0;
+	bool ret = false;
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
-		b->read((char *)&data, sizeof(data));
+		ret = b->read((char *)&data, sizeof(data));
 	}
+	fkpspush<bool>(fk, ret);
 	fkpspush<char>(fk, data);
 }
 void buildin_buffer_popint64(fake * fk, interpreter * inter)
 {
 	int64_t data = 0;
+	bool ret = false;
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
-		b->read((char *)&data, sizeof(data));
+		ret = b->read((char *)&data, sizeof(data));
 	}
+	fkpspush<bool>(fk, ret);
 	fkpspush<int64_t>(fk, data);
 }
 void buildin_buffer_popstring(fake * fk, interpreter * inter)
 {
+	bool ret = false;
 	int len = fkpspop<int>(fk);
 	char * data = (char *)safe_fkmalloc(fk, len + 1);
 	memset(data, 0, len + 1);
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
-		b->read(data, len);
+		ret = b->read(data, len);
 	}
+	fkpspush<bool>(fk, ret);
 	fkpspush<const char *>(fk, data);
 	safe_fkfree(fk, data);
 }
 void buildin_buffer_popbuffer(fake * fk, interpreter * inter)
 {
+	bool ret = false;
 	int len = fkpspop<int>(fk);
 	buffer * ob = fk->bif.newbuffer(len);
 	buffer * b = fkpspop<buffer *>(fk);
@@ -267,8 +284,10 @@ void buildin_buffer_popbuffer(fake * fk, interpreter * inter)
 		{
 			b->read(ob->get_write_line_buffer(), ob->get_write_line_size());
 			ob->skip_write(ob->get_write_line_size());
+			ret = true;
 		}
 	}
+	fkpspush<bool>(fk, ret);
 	fkpspush<buffer *>(fk, ob);
 }
 void buildin_selector_new(fake * fk, interpreter * inter)

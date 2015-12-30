@@ -30,7 +30,7 @@ end
 
 func on_parse(c, userdata, recvbuffer)
 
-	str := buffer.pop_string(recvbuffer, 4)
+	b, str := buffer.pop_string(recvbuffer, 4)
 	print("recv ", str)
 
 	msgb := userdata
