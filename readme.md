@@ -27,6 +27,7 @@ fakescript - 轻量级嵌入式脚本语言
 * 字符串
 * xml
 * 模板类
+* json
 
 # 示例 #
 
@@ -157,6 +158,7 @@ fakescript - Lightweight embedded scripting language
 * String
 * Xml
 * Template
+* Json
 
 # Sample #
 
