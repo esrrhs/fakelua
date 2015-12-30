@@ -50,7 +50,8 @@ end
 
 func on_parse(c, userdata, recvbuffer)
 
-	print("client recv:", buffer.pop_string(recvbuffer, 12))
+	b, str := buffer.pop_string(recvbuffer, 12)
+	print("client recv:", str)
 	
 	-- 发包
 	buffer.push_string(userdata->b, "haha", 12)
@@ -77,7 +78,8 @@ end
 
 func on_link_parse(sv, l, userdata, recvbuffer)
 
-	print("server recv:", buffer.pop_string(recvbuffer, 12))
+	b, str := buffer.pop_string(recvbuffer, 12)
+	print("server recv:", str)
 	
 	-- 发包
 	buffer.push_string(userdata->b, "hehe", 12)

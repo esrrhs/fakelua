@@ -2,6 +2,8 @@
 
 #include "types.h"
 
+#define BUFFER_STORE_SIZE 2
+
 /*
 type:		   [1]
 iter:	 begin(2)	 end(8)
@@ -49,9 +51,6 @@ struct buffer
 		m_datasize = 0;
 		m_begin = 0;
 		m_end = 0;
-		m_store_datasize = 0;
-		m_store_begin = 0;
-		m_store_end = 0;
 		m_extra = true;
 	}
 	force_inline void fini()
@@ -65,9 +64,6 @@ struct buffer
 		m_datasize = 0;
 		m_begin = 0;
 		m_end = 0;
-		m_store_datasize = 0;
-		m_store_begin = 0;
-		m_store_end = 0;
 	}
 	force_inline bool can_write(size_t size)
 	{
@@ -178,17 +174,25 @@ struct buffer
 
 		return true;
 	}
-	force_inline void store()
+	force_inline void store(int i)
 	{
-		m_store_datasize = m_datasize;
-		m_store_begin = m_begin;
-		m_store_end = m_end;
+		assert(i >= 0 && i < BUFFER_STORE_SIZE);
+		if (LIKE(i >= 0 && i < BUFFER_STORE_SIZE))
+		{
+			m_store_datasize[i] = m_datasize;
+			m_store_begin[i] = m_begin;
+			m_store_end[i] = m_end;
+		}
 	}
-	force_inline void restore()
+	force_inline void restore(int i)
 	{
-		m_datasize = m_store_datasize;
-		m_begin = m_store_begin;
-		m_end = m_store_end;
+		assert(i >= 0 && i < BUFFER_STORE_SIZE);
+		if (LIKE(i >= 0 && i < BUFFER_STORE_SIZE))
+		{
+			m_datasize = m_store_datasize[i];
+			m_begin = m_store_begin[i];
+			m_end = m_store_end[i];
+		}
 	}
 	force_inline void clear()
 	{
@@ -239,9 +243,9 @@ private:
 	size_t m_datasize;
 	size_t m_begin;
 	size_t m_end;
-	size_t m_store_datasize;
-	size_t m_store_begin;
-	size_t m_store_end;
+	size_t m_store_datasize[BUFFER_STORE_SIZE];
+	size_t m_store_begin[BUFFER_STORE_SIZE];
+	size_t m_store_end[BUFFER_STORE_SIZE];
 	bool m_extra;
 };
 

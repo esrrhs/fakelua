@@ -38,7 +38,7 @@ end
 
 func on_parse(sv, l, userdata, recvbuffer)
 
-	str := buffer.pop_string(recvbuffer, 4)
+	b, str := buffer.pop_string(recvbuffer, 4)
 	print("recv ", str)
 
 	msgb := sv->svuserdata
