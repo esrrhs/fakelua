@@ -29,6 +29,46 @@ void buildin_print(fake * fk, interpreter * inter)
 	fkpspush<int>(fk, (int)str.size());
 }
 
+// format, very slow
+void buildin_format(fake * fk, interpreter * inter)
+{
+	String formatstr;
+	if (fk->ps.m_variant_list_num > 0)
+	{
+		formatstr = vartostring(&fk->ps.m_variant_list[0]);
+	}
+
+	String str;
+	int j = 1;
+	for (int i = 0; i < (int)formatstr.size(); i++)
+	{
+		if (formatstr[i] == '%')
+		{
+			if (i + 1 < (int)formatstr.size() && formatstr[i + 1] == '%')
+			{
+				str += formatstr[i];
+				i++;
+			}
+			else
+			{
+				if (j < (int)fk->ps.m_variant_list_num)
+				{
+					str += vartostring(&fk->ps.m_variant_list[j]);
+					j++;
+				}
+			}
+		}
+		else
+		{
+			str += formatstr[i];
+		}
+	}
+	
+	PS_CLEAR(fk->ps);
+	// ret
+	fkpspush<const char *>(fk, str.c_str());
+}
+
 // log, very slow
 void buildin_log(fake * fk, interpreter * inter)
 {
@@ -289,8 +329,22 @@ void buildin_isfunc(fake * fk, interpreter * inter)
 // tonumber
 void buildin_tonumber(fake * fk, interpreter * inter)
 {
-	const char * str = fkpspopcstrptr(fk);
-	double ret = atof(str);
+	bool err = false;
+	variant * v = 0;
+	PS_POP_AND_GET(fk->ps, v);
+	double ret = 0;
+	if (v->type == variant::STRING)
+	{
+	 	ret = atof(v->data.str->s);
+	}
+	else if (v->type == variant::REAL)
+	{
+		ret = v->data.real;
+	}
+	else if (v->type == variant::UUID)
+	{
+		ret = (double)v->data.uuid;
+	}
 	fkpspush<double>(fk, ret);
 }
 
@@ -314,6 +368,7 @@ void buildin_tostring(fake * fk, interpreter * inter)
 void buildinfunc::openbasefunc()
 {
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("print"), buildin_print);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("format"), buildin_format);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("log"), buildin_log);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("array"), buildin_array);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr(MAP_FUNC_NAME), buildin_map);

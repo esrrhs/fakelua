@@ -10,12 +10,12 @@ func main()
 		
 		yield 1
 		
-		print(\"this is myfunc2\")
+		print(\"enter myfunc2, this is myfunc2\")
 		
 		var f1 = \"
 			func main()
 				
-				print(\\"this is myfunc1\\")
+				print(\\"enter main, this is main\\")
 				
 			end
 		\"
