@@ -764,6 +764,35 @@ int interpreter::run(int cmdnum)
 		{
 			// 发生错误
 			m_isend = true;
+
+			// 清除当前栈上函数的使用标记
+			{
+				int ip = m_ip;
+				int bp = m_bp;
+				const func_binary * fb = m_fb;
+
+				while (!BP_END(bp))
+				{
+					// 标记
+					FUNC_BINARY_USE(*fb)--;
+					
+					// 更新
+					if (UNLIKE(!FUNC_BINARY_USE(*fb) && FUNC_BINARY_BACKUP(*fb)))
+					{
+						FUNC_BINARY_BACKUP_MOVE(*fb);
+					}
+					
+					BP_GET_FB(bp, fb);
+					BP_GET_IP(bp, ip);
+					int callbp = 0;
+					BP_GET_BP(bp, callbp);
+					bp = callbp;
+					if (BP_END(bp))
+					{
+						break;
+					}
+				}
+			}
 		}
 
 		if (UNLIKE(m_isend))

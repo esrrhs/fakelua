@@ -247,6 +247,12 @@ bool binary::add_func(const variant & name, const func_binary & bin)
 	if (f && f->havefb && FUNC_BINARY_USE(f->fb))
 	{
 		FKLOG("[binary] add_func func %s add back bin", vartostring(&name).c_str());
+		if (FUNC_BINARY_BACKUP(f->fb))
+		{
+			func_binary & fb = *FUNC_BINARY_BACKUP(f->fb);
+			FUNC_BINARY_DELETE(fb);
+			safe_fkfree(m_fk, FUNC_BINARY_BACKUP(f->fb));
+		}
 		FUNC_BINARY_BACKUP(f->fb) = (func_binary *)safe_fkmalloc(m_fk, sizeof(func_binary));
 		*FUNC_BINARY_BACKUP(f->fb) = bin;
 	}

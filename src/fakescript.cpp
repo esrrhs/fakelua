@@ -199,7 +199,14 @@ FAKE_API void fkpspushpointer(fake * fk, void * p, const char * type)
 	bool err = false;
 	variant * v = 0;
 	PS_PUSH_AND_GET(fk->ps, v);
-	V_SET_POINTER(v, p, type);
+	if (UNLIKE(p == 0))
+	{
+		V_SET_NIL(v);
+	}
+	else
+	{
+		V_SET_POINTER(v, p, type);
+	}
 	CHECK_ERR(err);
 }
 
@@ -335,7 +342,7 @@ FAKE_API void fkpspoppointer(fake * fk, void * & p, const char * type)
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_POINTER(v, p, t);
-	if (LIKE((!err && strcmp(t, type) != 0)))
+	if (UNLIKE((p != 0 && !err && strcmp(t, type) != 0)))
 	{
 		err = true;
 		seterror(fk, efk_run_data_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "variant get pointer %s fail, the variant type is %s", type, t);

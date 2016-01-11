@@ -17,6 +17,7 @@
 #include <time.h>
 #include <stdarg.h>
 #include <assert.h>
+#include <math.h>
 #include "fakescript.h"
 
 #ifdef _DEBUG

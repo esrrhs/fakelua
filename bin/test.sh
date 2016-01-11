@@ -1,6 +1,6 @@
 #! /bin/sh
 
-NUM=56
+NUM=57
 chmod a+x fake
 for i in `seq $NUM`; do
 	echo "----------------running $i.fk----------------"

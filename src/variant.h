@@ -129,8 +129,8 @@ struct variant
 	} \
 	else \
 	{ \
-		p = (v)->data.ponter->ptr; \
-		t = (v)->data.ponter->type; \
+		p = (v)->data.ponter ? (v)->data.ponter->ptr : 0; \
+		t = (v)->data.ponter ? (v)->data.ponter->type : ""; \
 	}
 	
 #define V_GET_REAL(v, r) \
