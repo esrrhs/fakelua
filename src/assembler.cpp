@@ -9,7 +9,6 @@
 extern "C" void __stdcall call_machine_func()
 #ifndef FK64
 {
-	// JIT不全，先临时
 }
 #else
 ;
@@ -101,7 +100,7 @@ bool assembler::compile_func(const func_binary & fb)
 
 	asg.start_func();
 
-	int stacksize = (fb.m_maxstack + fb.m_const_list_num) * variant_size;
+	int stacksize = (fb.m_maxstack + fb.m_const_list_num + MAX_ASSEMBLER_CONTAINER_NUM) * variant_size;
 	FKLOG("[assembler] compile_func stack size %d", stacksize);
 	asg.alloc_stack(stacksize);
 
@@ -167,6 +166,9 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 	assert (type == COMMAND_OPCODE);
 
 	m_pos++;
+
+	m_conposnum = 0;
+	memset(m_conpos, 0, sizeof(m_conpos));
 
 	bool ret = false;
 	USE(ret);
@@ -276,7 +278,10 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 }
 
 #define GET_VARIANT_POS(fb, v, pos) \
-	command v##_cmd = GET_CMD(fb, pos);\
+	GET_VARIANT_POS_BY_CMD(fb, v, GET_CMD(fb, pos))
+	
+#define GET_VARIANT_POS_BY_CMD(fb, v, cmd) \
+	command v##_cmd = cmd;\
 	assert (COMMAND_TYPE(v##_cmd) == COMMAND_ADDR);\
 	int v##_addrtype = ADDR_TYPE(COMMAND_CODE(v##_cmd));\
 	int v##_addrpos = ADDR_POS(COMMAND_CODE(v##_cmd));\
@@ -291,18 +296,40 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 	}\
 	else if (v##_addrtype == ADDR_CONTAINER)\
 	{\
-		FKERR("assembler dont support container %d %d", v##_addrtype, v##_addrpos);\
-		compile_seterror(fb, cmd, efk_jit_error, "assembler dont support container %d %d", v##_addrtype, v##_addrpos);\
-		return false;\
+		assert(m_conposnum >= 0 && m_conposnum < MAX_ASSEMBLER_CONTAINER_NUM); \
+		if (!(m_conposnum >= 0 && m_conposnum < MAX_ASSEMBLER_CONTAINER_NUM)) \
+		{ \
+			v = 0;\
+			FKERR("container pos recursion too much %d", m_conposnum);\
+			compile_seterror(fb, cmd, efk_jit_error, "container pos recursion too much %d", m_conposnum);\
+			return false;\
+		} \
+		m_conpos[m_conposnum] = v##_cmd; \
+		v = FUNC_BINARY_MAX_CONST(fb) + FUNC_BINARY_MAX_STACK(fb) + m_conposnum; \
+		m_conposnum++; \
+		compile_container_to_pos(asg, fb, v##_addrpos, v); \
 	}\
 	else\
 	{\
 		v = 0;\
 		assert(0);\
-		FKERR("next_assign assignaddrtype cannot be %d %d", v##_addrtype, v##_addrpos);\
+		FKERR("addr type cannot be %d %d", v##_addrtype, v##_addrpos);\
+		compile_seterror(fb, cmd, efk_jit_error, "addr type cannot be %d %d", v##_addrtype, v##_addrpos);\
 		return false;\
 	}
 
+#define CHECK_VARIANT_CON_POS(fb, v) \
+	if (v >= FUNC_BINARY_MAX_CONST(fb) + FUNC_BINARY_MAX_STACK(fb)) \
+	{ \
+		int v##_off = v - FUNC_BINARY_MAX_CONST(fb) - FUNC_BINARY_MAX_STACK(fb); \
+		assert(v##_off >= 0 && v##_off < MAX_ASSEMBLER_CONTAINER_NUM); \
+		command v##_cmd = m_conpos[v##_off]; \
+		int v##_addrtype = ADDR_TYPE(COMMAND_CODE(v##_cmd)); \
+		USE(v##_addrtype); \
+		int v##_addrpos = ADDR_POS(COMMAND_CODE(v##_cmd)); \
+		assert (v##_addrtype == ADDR_CONTAINER);\
+		compile_pos_to_container(asg, fb, v, v##_addrpos); \
+	}
 
 bool assembler::compile_assign(asmgen & asg, const func_binary & fb, command cmd)
 {
@@ -316,6 +343,8 @@ bool assembler::compile_assign(asmgen & asg, const func_binary & fb, command cmd
 	m_pos++;
 
 	asg.variant_assign(var, value);
+
+	CHECK_VARIANT_CON_POS(fb, var);
 
 	FKLOG("assign from %d to pos %d", var, value);
 	
@@ -431,6 +460,8 @@ bool assembler::compile_math_assign(asmgen & asg, const func_binary & fb, comman
 		FKERR("[assembler] compile_math_assign err code %d %s", code, OpCodeStr(code));
 		break;
 	}
+
+	CHECK_VARIANT_CON_POS(fb, left);
 
 	return true;
 }
@@ -774,6 +805,82 @@ bool assembler::compile_call(asmgen & asg, const func_binary & fb, command cmd)
 
 	// 5.清理不需要的
 	asg.variant_ps_clear();
+	
+	return true;
+}
+
+variant * assembler_get_container(fake * fk, variant * conv, variant * keyv)
+{
+	variant * v = 0;
+	if (conv->type == variant::MAP)
+	{
+		v = con_map_get(fk, conv->data.vm, keyv);
+	}
+	else if (conv->type == variant::ARRAY)
+	{
+		v = con_array_get(fk, conv->data.va, keyv);
+	}
+	return v;
+}
+
+bool assembler::compile_container_to_pos(asmgen & asg, const func_binary & fb, int conpos, int despos)
+{
+	assert(conpos >= 0 && conpos < (int)fb.m_container_addr_list_num);
+	const container_addr & ca = fb.m_container_addr_list[conpos];
+	
+	int conv = 0;
+	GET_VARIANT_POS_BY_CMD(fb, conv, ca.con);
+	
+	int keyv = 0;
+	GET_VARIANT_POS_BY_CMD(fb, keyv, ca.key);
+	
+#ifdef WIN32
+	asg.mov_ll_rcx((int64_t)m_fk);
+	asg.lea_rbp_rdx(V_OFF(conv));
+	asg.lea_rbp_r8d(V_OFF(keyv));
+	asg.mov_ll_rdi((int64_t)&assembler_get_container);
+
+	asg.call_func((void *)&call_machine_func);
+#else
+	asg.mov_ll_rdi((int64_t)m_fk);
+	asg.lea_rbp_rsi(V_OFF(conv));
+	asg.lea_rbp_rdx(V_OFF(keyv));
+	
+	asg.call_func((void *)&assembler_get_container);
+#endif
+
+	asg.variant_from_rax(despos);
+
+	return true;
+}
+
+bool assembler::compile_pos_to_container(asmgen & asg, const func_binary & fb, int srcpos, int conpos)
+{
+	assert(conpos >= 0 && conpos < (int)fb.m_container_addr_list_num);
+	const container_addr & ca = fb.m_container_addr_list[conpos];
+	
+	int conv = 0;
+	GET_VARIANT_POS_BY_CMD(fb, conv, ca.con);
+	
+	int keyv = 0;
+	GET_VARIANT_POS_BY_CMD(fb, keyv, ca.key);
+	
+#ifdef WIN32
+	asg.mov_ll_rcx((int64_t)m_fk);
+	asg.lea_rbp_rdx(V_OFF(conv));
+	asg.lea_rbp_r8d(V_OFF(keyv));
+	asg.mov_ll_rdi((int64_t)&assembler_get_container);
+
+	asg.call_func((void *)&call_machine_func);
+#else
+	asg.mov_ll_rdi((int64_t)m_fk);
+	asg.lea_rbp_rsi(V_OFF(conv));
+	asg.lea_rbp_rdx(V_OFF(keyv));
+	
+	asg.call_func((void *)&assembler_get_container);
+#endif
+
+	asg.variant_to_rax(srcpos);
 	
 	return true;
 }

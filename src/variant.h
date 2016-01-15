@@ -155,12 +155,12 @@ struct variant
 		String str; \
 		V_TOSTRING(v, str); \
 		seterror(fk, efk_run_data_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "variant get string fail, the variant is %s %s", vartypetostring((v)->type), str.c_str()); \
-		ss = 0; \
+		ss = ""; \
 		USE(err); \
 	} \
 	else \
 	{ \
-		ss = (v)->data.str ? (v)->data.str->s : 0; \
+		ss = (v)->data.str ? (v)->data.str->s : ""; \
 	}
 
 #define V_GET_UUID(v, id) \

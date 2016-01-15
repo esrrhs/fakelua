@@ -11,6 +11,8 @@ typedef std::map<int, int> posmap;
 // key为jump地址在机器码中的位置，value为bytecode pos
 typedef std::map<int, int> caremap;
 
+#define MAX_ASSEMBLER_CONTAINER_NUM 20
+
 struct fake;
 class native;
 class binary;
@@ -48,6 +50,9 @@ private:
 private:
 	void compile_seterror(const func_binary & fb, command cmd, efkerror err, const char *fmt, ...);
 
+	bool compile_container_to_pos(asmgen & asg, const func_binary & fb, int conpos, int despos);
+	bool compile_pos_to_container(asmgen & asg, const func_binary & fb, int srcpos, int conpos);
+	
 private:
 	fake * m_fk;
 	native * m_native;
@@ -55,5 +60,7 @@ private:
 	posmap m_posmap;
 	caremap m_caremap;
 	bool m_isopen;
+	command m_conpos[MAX_ASSEMBLER_CONTAINER_NUM];
+	int m_conposnum;
 };
 

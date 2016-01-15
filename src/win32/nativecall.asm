@@ -72,11 +72,13 @@ LOOPEND:
 	mov		rdi,rbp
 
 	call    rax
+	mov		rbx,rax
 	
 	pop		rdi
 	pop		rdx
 	pop		rcx
 	pop		rax
+	mov		rax,rbx
 	leave
 	ret 
 

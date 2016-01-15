@@ -779,6 +779,17 @@ public:
 		m_source += "lea	-" + fkxtoa(-offset, 8) + "(%rbp),%rdx\n";
 	}
 
+	// 取得offset的地址到rdx
+	// lea  offset(%rbp),%r8d
+	void lea_rbp_r8d(int offset)
+	{
+		push(0x44);
+		push(0x8d);
+		push(0x85);
+		push_int(offset);
+		m_source += "lea	-" + fkxtoa(-offset, 8) + "(%rbp),%r8d\n";
+	}
+
 	// push参数rax:ps rdi:type rdx:data
 	// mov	(%rax),%rbx
 	// shl	$0x4,%rbx
@@ -833,6 +844,34 @@ public:
 		m_source += "subq   $0x1,(%rax)\n";
 	}
 
+	// 把rax offset指向的赋给rdx
+	// mov    offset(%rax),%rdx
+	// 
+	void mov_raxv_rdx(int offset)
+	{
+		push(0x48);
+		push(0x8b);
+		push(0x90);
+		push_int(offset);
+		m_source += "mov   ";
+		m_source += fkxtoa(offset, 8);
+		m_source += "(%rax), %rdx\n";
+	}
+
+	// 把rdx赋给rax offset指向的
+	// mov    %rdx,offset(%rax)
+	// 
+	void mov_rdx_raxv(int offset)
+	{
+		push(0x48);
+		push(0x89);
+		push(0x90);
+		push_int(offset);
+		m_source += "mov   %rdx,";
+		m_source += fkxtoa(offset, 8);
+		m_source += "(%rax)\n";
+	}
+
 	// 返回
 	// leaveq
 	// retq
@@ -867,6 +906,8 @@ public:
 	void variant_pop(int pos);
 	void variant_ps_clear();
 	void call_func(void * func);
+	void variant_from_rax(int destpos);
+	void variant_to_rax(int srcpos);
 	
 	void output(const char * filename, const char * packagename, const char * name, func_native * nt);
 
