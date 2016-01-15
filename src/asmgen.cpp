@@ -252,3 +252,23 @@ void asmgen::call_func(void * func)
 	call_rax();
 }
 
+void asmgen::variant_from_rax(int destpos)
+{
+	int dataoff = V_DATA_OFF(destpos);
+	int typeoff = V_TYPE_OFF(destpos);
+	mov_raxv_rdx(8);
+	mov_rdx_rbp(dataoff);
+	mov_raxv_rdx(0);
+	mov_rdx_rbp(typeoff);
+}
+
+void asmgen::variant_to_rax(int srcpos)
+{
+	int dataoff = V_DATA_OFF(srcpos);
+	int typeoff = V_TYPE_OFF(srcpos);
+	mov_rbp_rdx(dataoff);
+	mov_rdx_raxv(8);
+	mov_rbp_rdx(typeoff);
+	mov_rdx_raxv(0);
+}
+

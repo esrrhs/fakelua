@@ -442,7 +442,7 @@ FAKE_API double fkpspopdouble(fake * fk)
 FAKE_API const char * fkpspopcstrptr(fake * fk)
 {
 	bool err = false;
-	const char * ret;
+	const char * ret = 0;
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
 	V_GET_STRING(v, ret);

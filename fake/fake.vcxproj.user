@@ -4,22 +4,22 @@
     <ShowAllFiles>false</ShowAllFiles>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
-    <LocalDebuggerCommandArguments>9.fk a b c</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>-j 26.fk</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>../bin</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
-    <LocalDebuggerCommandArguments>24.fk</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>-j 26.fk</LocalDebuggerCommandArguments>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
     <LocalDebuggerWorkingDirectory>../bin</LocalDebuggerWorkingDirectory>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
-    <LocalDebuggerCommandArguments>17.fk</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>-j 26.fk</LocalDebuggerCommandArguments>
     <LocalDebuggerWorkingDirectory>../bin</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
-    <LocalDebuggerCommandArguments>18.fk</LocalDebuggerCommandArguments>
+    <LocalDebuggerCommandArguments>-j 26.fk</LocalDebuggerCommandArguments>
     <LocalDebuggerWorkingDirectory>../bin</LocalDebuggerWorkingDirectory>
     <DebuggerFlavor>WindowsLocalDebugger</DebuggerFlavor>
   </PropertyGroup>

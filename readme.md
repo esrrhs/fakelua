@@ -113,6 +113,25 @@ func myfunc1(arg1, arg2)
 	
 end
 ```
+
+# C++示例 #
+
+```
+#!c++
+// 创建一个实例
+fake * fk = newfake();
+// 注册全局函数
+fkreg(fk, "cfunc1", cfunc1);
+// 注册类成员函数，不同的类注册一样的函数名字不冲突
+fkreg(fk, "memfunc1", &class1::memfunc1);
+// 解析fake脚本文件
+fkparse(fk, argv[1]);
+// 执行myfunc1函数，传入两个参数分别为1和2
+ret = fkrun<int>(fk, "myfunc1", 1, 2);
+// 删除实例
+delfake(fk);
+```
+
 # 调试环境 #
 * IDE
 
@@ -244,6 +263,25 @@ func myfunc1(arg1, arg2)
 	
 end
 ```
+
+# C++ Sample #
+
+```
+#!c++
+// create instance
+fake * fk = newfake();
+// regist global func
+fkreg(fk, "cfunc1", cfunc1);
+// regist class mem func, diffent class type can regist the same name
+fkreg(fk, "memfunc1", &class1::memfunc1);
+// parse script file
+fkparse(fk, argv[1]);
+// run script func myfunc1, put in two param 1 and 2
+ret = fkrun<int>(fk, "myfunc1", 1, 2);
+// delete instance
+delfake(fk);
+```
+
 # Debugging environment #
 * IDE
 

@@ -42,7 +42,13 @@ end
 
 func jsontostring(j)
 
-	return _tostring(j, 0)
+	return _tostring(j)
+
+end
+
+func jsontostringh(j)
+
+	return _tostringh(j, 0)
 
 end
 
@@ -414,7 +420,68 @@ func _gen_tab(tab)
 
 end
 
-func _tostring(j, tab)
+func _tostring(j)
+
+	var ret = ""
+
+	if typeof(j) == "MAP" then
+	
+		ret = ret.."{"
+		for var i = 0, i < size(j), i++ then
+			
+			var k, var v = range(j, i)
+			ret = ret.."\""..k.."\""..":".._tostring(v)
+			
+			if i != size(j) - 1 then
+				ret = ret..","
+			end
+			
+		end
+		
+		ret = ret.."}"
+		
+	end
+	
+	if typeof(j) == "ARRAY" then
+		
+		ret = ret.."["
+		for var i = 0, i < size(j), i++ then
+			
+			var v = range(j, i)
+			
+			if typeof(v) == "STRING" or typeof(v) == "REAL" then
+				ret = ret.._tostring(v)
+			else
+				ret = ret.._tostring(v)
+			end
+			
+			if i != size(j) - 1 then
+				ret = ret..","
+			end
+			
+		end
+		
+		ret = ret.."]"
+		
+	end
+
+	if typeof(j) == "STRING" then
+		
+		ret = "\""..j.."\""
+		
+	end
+	
+	if typeof(j) == "REAL" then
+		
+		ret = tostring(j)
+		
+	end
+	
+	return ret
+	
+end
+
+func _tostringh(j, tab)
 
 	var ret = ""
 
@@ -424,7 +491,7 @@ func _tostring(j, tab)
 		for var i = 0, i < size(j), i++ then
 			
 			var k, var v = range(j, i)
-			ret = ret.._gen_tab(tab + 1).."\""..k.."\""..":".._tostring(v, tab + 1)
+			ret = ret.._gen_tab(tab + 1).."\""..k.."\""..":".._tostringh(v, tab + 1)
 			
 			if i != size(j) - 1 then
 				ret = ret..","
@@ -446,9 +513,9 @@ func _tostring(j, tab)
 			var v = range(j, i)
 			
 			if typeof(v) == "STRING" or typeof(v) == "REAL" then
-				ret = ret.._gen_tab(tab + 1).._tostring(v, tab + 1)
+				ret = ret.._gen_tab(tab + 1).._tostringh(v, tab + 1)
 			else
-				ret = ret.._tostring(v, tab + 1)
+				ret = ret.._tostringh(v, tab + 1)
 			end
 			
 			if i != size(j) - 1 then

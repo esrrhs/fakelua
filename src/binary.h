@@ -179,7 +179,10 @@ struct func_binary
 
 #define FUNC_BINARY_MAX_STACK(fb) \
 	((fb).m_maxstack)
-
+	
+#define FUNC_BINARY_MAX_CONST(fb) \
+	((fb).m_const_list_num)
+	
 #define FUNC_BINARY_PARAMNUM(fb) \
 	((fb).m_paramnum)
 	
