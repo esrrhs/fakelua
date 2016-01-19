@@ -34,6 +34,7 @@ end
 -- ³£Á¿Öµ
 const hellostring = "hello"
 const helloint = 1234
+const hellomap = {1 : "a" 2 : "b" 3 : [1 2 3]}
 -- func1 comment
 func myfunc1(arg1, arg2)
 	
@@ -114,7 +115,7 @@ esrrhs@163.com
 #include <stdlib.h>
 #include <typeinfo>
 
-#define FAKE_VERSION "1.3"
+#define FAKE_VERSION "1.4"
 #define FAKE_VERSION_NUM 100
 #define FAKE_AUTHOR "esrrhs@163.com"
 

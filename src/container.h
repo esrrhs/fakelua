@@ -11,6 +11,7 @@ struct fake;
 struct variant_array
 {
 	array<pool<variant>::node *> va;
+	bool isconst;
 };
 
 #define VARIANT_ARRAY_DELETE(vva) ARRAY_DELETE((vva).va)
@@ -18,6 +19,7 @@ struct variant_array
 struct variant_map
 {
 	fkhashmap<variant, pool<variant>::node *> vm;
+	bool isconst;
 };
 
 #define VARIANT_MAP_DELETE(vvm) HASHMAP_DELETE((vvm).vm)
@@ -37,6 +39,18 @@ public:
 	variant_map * newmap();
 	pool<variant>::node * newvariant();
 	
+	variant_array * newconstarray();
+	variant_map * newconstmap();
+	pool<variant>::node * newconstvariant();
+
+	size_t get_map_size() const;
+	size_t get_array_size() const;
+	size_t get_variant_size() const;
+
+	size_t get_cmap_size() const;
+	size_t get_carray_size() const;
+	size_t get_cvariant_size() const;
+
 private:
 	fake * m_fk;
 	poollist<variant_array> m_va_pl;
@@ -44,5 +58,11 @@ private:
 	poollist<variant_map> m_vm_pl;
 	
 	poollist<variant> m_v_pl;
+	
+	poollist<variant_array> m_cva_pl;
+	
+	poollist<variant_map> m_cvm_pl;
+	
+	poollist<variant> m_cv_pl;
 };
 

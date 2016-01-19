@@ -13,9 +13,11 @@ struct pool
 	};
 	fake * m_fk;
 	node * m_data;
+	uint32_t m_growsize;
 };
 
 #define POOL_DELETE(po) \
+	(po).m_growsize++;\
 	while ((po).m_data != 0)\
 	{\
 		void * p = (po).m_data;\
@@ -32,7 +34,10 @@ struct pool
 		n = (node *)safe_fkmalloc((po).m_fk, sizeof(node));\
 		memset(n, 0, sizeof(node));\
 		POOL_PUSH(po, n);\
+		(po).m_growsize++;\
 	}
+
+#define POOL_GROW_SIZE(po) ((po).m_growsize)
 
 #define POOL_EMPTY(po) (!(po).m_data)
 	

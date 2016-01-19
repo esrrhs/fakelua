@@ -27,6 +27,9 @@ public:
 
 	buffer * newbuffer(int size);
 	selector * newselector();
+	
+	size_t get_buffer_size() const;
+	size_t get_selector_size() const;
 private:
 	fake * m_fk;
 	poollist<buffer> m_buffer;

@@ -1435,14 +1435,25 @@ bool compiler::compile_container_get(codegen & cg, container_get_node * cn)
 
 	// 编译con
 	command con = 0;
-	int pos = cg.getvariable(cn->container);
-	if (pos == -1)
+
+	// 看看是否是全局常量定义
+	variant * gcv = m_fk->pa.get_const_define(cn->container.c_str());
+	if (gcv)
 	{
-		FKERR("[compiler] compile_container_get variable not found %s", cn->container.c_str());
-		compile_seterror(cn, m_fk, efk_compile_variable_not_found, "variable %s not found", cn->container.c_str());
-		return false;
+		int pos = cg.getconst(*gcv);
+		con = MAKE_ADDR(ADDR_CONST, pos);
 	}
-	con = MAKE_ADDR(ADDR_STACK, pos);
+	else
+	{
+		int pos = cg.getvariable(cn->container);
+		if (pos == -1)
+		{
+			FKERR("[compiler] compile_container_get variable not found %s", cn->container.c_str());
+			compile_seterror(cn, m_fk, efk_compile_variable_not_found, "variable %s not found", cn->container.c_str());
+			return false;
+		}
+		con = MAKE_ADDR(ADDR_STACK, pos);
+	}
 
 	// 编译key
 	command key = 0;
@@ -1493,14 +1504,25 @@ bool compiler::compile_struct_pointer(codegen & cg, struct_pointer_node * sn)
 	
 	// 编译con
 	command con = 0;
-	int pos = cg.getvariable(connname);
-	if (pos == -1)
+	
+	// 看看是否是全局常量定义
+	variant * gcv = m_fk->pa.get_const_define(connname.c_str());
+	if (gcv)
 	{
-		FKERR("[compiler] compile_struct_pointer variable not found %s", connname.c_str());
-		compile_seterror(sn, m_fk, efk_compile_variable_not_found, "variable %s not found", connname.c_str());
-		return false;
+		int pos = cg.getconst(*gcv);
+		con = MAKE_ADDR(ADDR_CONST, pos);
 	}
-	con = MAKE_ADDR(ADDR_STACK, pos);
+	else
+	{
+		int pos = cg.getvariable(connname);
+		if (pos == -1)
+		{
+			FKERR("[compiler] compile_struct_pointer variable not found %s", connname.c_str());
+			compile_seterror(sn, m_fk, efk_compile_variable_not_found, "variable %s not found", connname.c_str());
+			return false;
+		}
+		con = MAKE_ADDR(ADDR_STACK, pos);
+	}
 	
 	for (int i = 1; i < (int)tmp.size(); i++)
 	{
@@ -1815,6 +1837,59 @@ bool compiler::compile_explicit_value_node_to_variant(explicit_value_node* ev, v
 		break;
 	case explicit_value_node::EVT_UUID:
 		V_SET_UUID((&v), (fkatol(&ev->str)));
+		break;
+	case explicit_value_node::EVT_MAP:
+		{
+			const_map_list_value_node * cml = dynamic_cast<const_map_list_value_node *>(ev->v);
+			assert(cml);
+			variant_map * vm = fk->con.newconstmap();
+			for (int i = 0; i < (int)cml->lists.size(); i++)
+			{
+				const_map_value_node * cmv = dynamic_cast<const_map_value_node *>(cml->lists[i]);
+				assert(cmv);
+				explicit_value_node * kn = dynamic_cast<explicit_value_node *>(cmv->k);
+				explicit_value_node * vn = dynamic_cast<explicit_value_node *>(cmv->v);
+				assert(kn);
+				assert(vn);
+				variant kv;
+				variant vv;
+				if (!compile_explicit_value_node_to_variant(kn, kv))
+				{
+					return false;
+				}
+				if (!compile_explicit_value_node_to_variant(vn, vv))
+				{
+					return false;
+				}
+				
+				variant * des = con_map_get(fk, vm, &kv);
+				*des = vv;
+			}
+			V_SET_MAP(&v, vm);
+		}
+		break;
+	case explicit_value_node::EVT_ARRAY:
+		{
+			const_array_list_value_node * cal = dynamic_cast<const_array_list_value_node *>(ev->v);
+			assert(cal);
+			variant_array * va = fk->con.newconstarray();
+			for (int i = 0; i < (int)cal->lists.size(); i++)
+			{
+				explicit_value_node * vn = dynamic_cast<explicit_value_node *>(cal->lists[i]);
+				assert(vn);
+				variant kv;
+				V_SET_REAL((&kv), i);
+				variant vv;
+				if (!compile_explicit_value_node_to_variant(vn, vv))
+				{
+					return false;
+				}
+				
+				variant * des = con_array_get(fk, va, &kv);
+				*des = vv;
+			}
+			V_SET_ARRAY(&v, va);
+		}
 		break;
 	default:
 		FKERR("[compiler] compile_explicit_value type error %d %s", ev->getvaluetype(), ev->gettypename());

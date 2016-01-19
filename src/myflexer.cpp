@@ -91,17 +91,15 @@ void myflexer::clear()
 	m_filename.clear();
 	m_packagename.clear();
 	m_content.clear();
-	for (int i = 0; i < (int)m_funclist.size(); i++)
+	for (int i = 0; i < (int)m_nodelist.size(); i++)
 	{
-		func_desc_node * p = m_funclist[i];
-		p->recycle();
+		syntree_node * p = m_nodelist[i];
+		FKLOG("flexer free %p", p);
+		p->~syntree_node();
+		safe_fkfree(m_fk, p);
 	}
+	m_nodelist.clear();
 	m_funclist.clear();
-	for (explicit_value_map::iterator it = m_constmap.begin(); it != m_constmap.end(); it++)
-	{
-		explicit_value_node * p = it->second;
-		p->recycle();
-	}
 	m_constmap.clear();
 	m_includelist.clear();
 	m_struct_list.clear();
@@ -114,12 +112,8 @@ void * myflexer::malloc(size_t size, const char * name)
 {
 	void * p = safe_fkmalloc(m_fk, size);
 	FKLOG("flexer malloc %p %d %s", p, (int)size, name);
+	m_nodelist.push_back((syntree_node*)p);
 	return p;
-}
-
-void myflexer::free(void * p)
-{
-	safe_fkfree(m_fk, p);
 }
 
 void myflexer::add_func_desc(func_desc_node * p)
@@ -150,12 +144,10 @@ bool myflexer::is_have_func(const String & funcname)
 
 void myflexer::add_const_desc(const char * name, syntree_node * p)
 {
+	assert(p->gettype() == est_explicit_value);
 	explicit_value_node * ev = dynamic_cast<explicit_value_node *>(p);
-	FKLOG("add_const_desc %s = %s", name, ev->str.c_str());
-	if (m_constmap[name])
-	{
-		m_constmap[name]->recycle();
-	}
+	assert(ev);
+	FKLOG("add_const_desc %s = %s", name, ev->dump(0).c_str());
 	m_constmap[name] = ev;
 }
 
@@ -179,10 +171,10 @@ void myflexer::add_struct_desc(const char * name, struct_desc_memlist_node * p)
 {
 	FKLOG("add_struct_desc %s\n%s", name, p->dump(0).c_str());
 	m_struct_list[name] = p->memlist;
-	p->recycle();
 }
 
 bool myflexer::is_have_struct(const String & name)
 {
 	return m_struct_list.find(name) != m_struct_list.end();
 }
+

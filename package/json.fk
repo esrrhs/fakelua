@@ -354,7 +354,10 @@ func _get_array(ret, content)
 				ret[size(ret)] = son
 				
 				content = son_left
-						
+
+			case array_end then
+				break
+			
 			default
 				return false, "array not begin with \" or { or ["
 		end

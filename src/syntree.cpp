@@ -44,6 +44,9 @@ const char * get_syntree_node_name(esyntreetype type)
 	SYN_NODE_DEF(est_elseif_stmt)
 	SYN_NODE_DEF(est_elseif_stmt_list)
 	SYN_NODE_DEF(est_for_loop_stmt)
+	SYN_NODE_DEF(est_constmaplist)
+	SYN_NODE_DEF(est_constmapvalue)
+	SYN_NODE_DEF(est_constarraylist)
 	
 #undef SYN_NODE_DEF
 	}
@@ -139,227 +142,12 @@ String for_stmt::dump(int indent)
 	return ret;
 }
 
-void for_stmt::recycle()
-{
-	FKLOG("recycle for_stmt");
-	if (beginblock)
-	{
-		beginblock->recycle();
-	}
-	if (cmp)
-	{
-		cmp->recycle();
-	}
-	if (endblock)
-	{
-		endblock->recycle();
-	}
-	if (block)
-	{
-		block->recycle();
-	}
-	safe_fkfree(fk, this);
-}
-
-void while_stmt::recycle()
-{
-	FKLOG("recycle while_stmt");
-	if (cmp)
-	{
-		cmp->recycle();
-	}
-	if (block)
-	{
-		block->recycle();
-	}
-	safe_fkfree(fk, this);
-}
-
-void else_stmt::recycle()
-{
-	FKLOG("recycle else_stmt");
-	if (block)
-	{
-		block->recycle();
-	}
-	safe_fkfree(fk, this);
-}
-
-void if_stmt::recycle()
-{
-	FKLOG("recycle if_stmt");
-	if (cmp)
-	{
-		cmp->recycle();
-	}
-	if (block)
-	{
-		block->recycle();
-	}
-	if (elseifs)
-	{
-		elseifs->recycle();
-	}
-	if (elses)
-	{
-		elses->recycle();
-	}
-	safe_fkfree(fk, this);
-}
-
-void identifier_node::recycle()
-{
-	FKLOG("recycle identifier_node");
-	fkdelete<identifier_node>(fk, this);
-}
-
 void func_desc_arglist_node::add_arg(syntree_node * p)
 {
 	assert(p->gettype() == est_identifier);		
 	identifier_node * pi = dynamic_cast<identifier_node*>(p);
 	arglist.push_back(pi->str);
 	FKLOG("%p add arg %s", this, pi->str.c_str());
-	fkdelete<identifier_node>(fk, pi);
-}
-
-void func_desc_arglist_node::recycle()
-{
-	FKLOG("recycle func_desc_arglist_node");
-	fkdelete<func_desc_arglist_node>(fk, this);
-}
-	
-void explicit_value_node::recycle()
-{
-	FKLOG("recycle explicit_value_node");
-	fkdelete<explicit_value_node>(fk, this);
-}
-
-void return_stmt::recycle()
-{
-	FKLOG("recycle return_stmt");
-	if (returnlist)
-	{
-		returnlist->recycle();
-	}
-	fkdelete<return_stmt>(fk, this);
-}
-
-void cmp_stmt::recycle()
-{
-	FKLOG("recycle cmp_stmt");
-	if (left)
-	{
-		left->recycle();
-	}
-	if (right)
-	{
-		right->recycle();
-	}
-	fkdelete<cmp_stmt>(fk, this);
-}
-
-void block_node::recycle()
-{
-	FKLOG("recycle block_node");
-	for (int i = 0; i < (int)stmtlist.size(); i++)
-	{
-		stmtlist[i]->recycle();
-	}
-	fkdelete<block_node>(fk, this);
-}
-
-void func_desc_node::recycle()
-{
-	FKLOG("recycle func_desc_node");
-	if (arglist)
-	{
-		arglist->recycle();
-	}
-	if (block)
-	{
-		block->recycle();
-	}
-	fkdelete<func_desc_node>(fk, this);
-}
-
-void assign_stmt::recycle()
-{
-	FKLOG("recycle assign_stmt");
-	if (var)
-	{
-		var->recycle();
-	}
-	if (value)
-	{
-		value->recycle();
-	}
-	fkdelete<assign_stmt>(fk, this);
-}
-
-void math_assign_stmt::recycle()
-{
-	FKLOG("recycle math_assign_stmt");
-	if (var)
-	{
-		var->recycle();
-	}
-	if (value)
-	{
-		value->recycle();
-	}
-	fkdelete<math_assign_stmt>(fk, this);
-}
-
-void variable_node::recycle()
-{
-	FKLOG("recycle variable_node");
-	fkdelete<variable_node>(fk, this);
-}
-
-void var_node::recycle()
-{
-	FKLOG("recycle var_node");
-	fkdelete<var_node>(fk, this);
-}
-
-void function_call_arglist_node::recycle()
-{
-	FKLOG("recycle function_call_arglist_node");
-	for (int i = 0; i < (int)arglist.size(); i++)
-	{
-		arglist[i]->recycle();
-	}
-	fkdelete<function_call_arglist_node>(fk, this);
-}
-
-void function_call_node::recycle()
-{
-	FKLOG("recycle function_call_node");
-	if (arglist)
-	{
-		arglist->recycle();
-	}
-	fkdelete<function_call_node>(fk, this);
-}
-
-void math_expr_node::recycle()
-{
-	FKLOG("recycle math_expr_node");
-	if (left)
-	{
-		left->recycle();
-	}
-	if (right)
-	{
-		right->recycle();
-	}
-	fkdelete<math_expr_node>(fk, this);
-}
-
-void break_stmt::recycle()
-{
-	FKLOG("recycle break_stmt");
-	fkdelete<break_stmt>(fk, this);
 }
 
 String return_value_list_node::dump(int indent)
@@ -372,16 +160,6 @@ String return_value_list_node::dump(int indent)
 		ret += returnlist[i]->dump(indent + 1);
 	}
 	return ret;
-}
-
-void return_value_list_node::recycle()
-{
-	FKLOG("recycle return_value_list_node");
-	for (int i = 0; i < (int)returnlist.size(); i++)
-	{
-		returnlist[i]->recycle();
-	}
-	fkdelete<return_value_list_node>(fk, this);
 }
 
 void return_value_list_node::add_arg(syntree_node * p)
@@ -399,16 +177,6 @@ String var_list_node::dump(int indent)
 		ret += varlist[i]->dump(indent + 1);
 	}
 	return ret;
-}
-
-void var_list_node::recycle()
-{
-	FKLOG("recycle var_list_node");
-	for (int i = 0; i < (int)varlist.size(); i++)
-	{
-		varlist[i]->recycle();
-	}
-	fkdelete<var_list_node>(fk, this);
 }
 
 void var_list_node::add_arg(syntree_node * p)
@@ -433,13 +201,6 @@ String multi_assign_stmt::dump(int indent)
 
 }
 
-void container_get_node::recycle()
-{
-	FKLOG("recycle container_get_node");
-	key->recycle();
-	fkdelete<container_get_node>(fk, this);
-}
-
 String container_get_node::dump(int indent)
 {
 	String ret;
@@ -458,26 +219,6 @@ String container_get_node::dump(int indent)
 
 }
 
-void multi_assign_stmt::recycle()
-{
-	FKLOG("recycle var_list_node");
-	varlist->recycle();
-	value->recycle();
-	fkdelete<multi_assign_stmt>(fk, this);
-}
-
-void struct_desc_memlist_node::recycle()
-{
-	FKLOG("recycle struct_desc_memlist_node");
-	fkdelete<struct_desc_memlist_node>(fk, this);
-}
-
-void struct_pointer_node::recycle()
-{
-	FKLOG("recycle struct_pointer_node");
-	fkdelete<struct_pointer_node>(fk, this);
-}
-
 String struct_pointer_node::dump(int indent)
 {
 	String ret;
@@ -486,59 +227,6 @@ String struct_pointer_node::dump(int indent)
 	ret += str;
 	ret += "\n";
 	return ret;
-}
-
-void continue_stmt::recycle()
-{
-	FKLOG("recycle continue_stmt");
-	fkdelete<continue_stmt>(fk, this);
-}
-
-void sleep_stmt::recycle()
-{
-	FKLOG("recycle sleep_stmt");
-	time->recycle();
-	fkdelete<sleep_stmt>(fk, this);
-}
-
-void yield_stmt::recycle()
-{
-	FKLOG("recycle yield_stmt");
-	time->recycle();
-	fkdelete<yield_stmt>(fk, this);
-}
-
-void switch_case_node::recycle()
-{
-	FKLOG("recycle switch_case_node");
-	cmp->recycle();
-	if (block)
-	{
-		block->recycle();
-	}
-	fkdelete<switch_case_node>(fk, this);
-}
-
-void switch_caselist_node::recycle()
-{
-	FKLOG("recycle switch_caselist_node");
-	for (int i = 0; i < (int)list.size(); i++)
-	{
-		list[i]->recycle();
-	}
-	fkdelete<switch_caselist_node>(fk, this);
-}
-
-void switch_stmt::recycle()
-{
-	FKLOG("recycle switch_stmt");
-	cmp->recycle();
-	caselist->recycle();
-	if (def)
-	{
-		def->recycle();
-	}
-	fkdelete<switch_stmt>(fk, this);
 }
 
 String elseif_stmt::dump(int indent)
@@ -552,40 +240,5 @@ String elseif_stmt::dump(int indent)
 		ret += block->dump(indent + 1);
 	}
 	return ret;
-}
-
-void elseif_stmt::recycle()
-{
-	FKLOG("recycle elseif_stmt");
-	cmp->recycle();
-	if (block)
-	{
-		block->recycle();
-	}
-	fkdelete<elseif_stmt>(fk, this);
-}
-
-void elseif_stmt_list::recycle()
-{
-	FKLOG("recycle elseif_stmt_list");
-	for (int i = 0; i < (int)stmtlist.size(); i++)
-	{
-		stmtlist[i]->recycle();
-	}
-	fkdelete<elseif_stmt_list>(fk, this);
-}
-
-void for_loop_stmt::recycle()
-{
-	FKLOG("recycle for_loop_stmt");
-	var->recycle();
-	begin->recycle();
-	end->recycle();
-	add->recycle();
-	if (block)
-	{
-		block->recycle();
-	}
-	fkdelete<for_loop_stmt>(fk, this);
 }
 

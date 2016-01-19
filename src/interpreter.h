@@ -60,6 +60,8 @@
 
 #define CHECK_STACK_POS(fb, ip) (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, ip))) == ADDR_STACK)
 #define CHECK_CONTAINER_POS(fb, ip) (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, ip))) == ADDR_CONTAINER)
+#define CHECK_CONST_MAP_POS(v) ((v)->type == variant::MAP && (v)->data.vm->isconst)
+#define CHECK_CONST_ARRAY_POS(v) ((v)->type == variant::ARRAY && (v)->data.va->isconst)
 #define POS_TYPE_NAME(fb, ip) vartypetostring((int)ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, ip))))
 
 #define GET_VARIANT(fb, bp, v, pos) \
@@ -140,6 +142,12 @@
 	} \
 	LOG_VARIANT(fb, ip, "var");\
 	GET_VARIANT(fb, bp, var, ip);\
+	if (UNLIKE(CHECK_CONST_MAP_POS(var) || CHECK_CONST_ARRAY_POS(var)))\
+	{\
+		err = true;\
+		seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "interpreter assign error, dest is const container"); \
+		break;\
+	}\
 	ip++;\
 	\
 	const variant * value = 0;\

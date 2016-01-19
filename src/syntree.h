@@ -54,6 +54,9 @@ enum esyntreetype
 	est_elseif_stmt,
 	est_elseif_stmt_list,
 	est_for_loop_stmt,
+	est_constmaplist,
+	est_constmapvalue,
+	est_constarraylist,
 };
 
 const char * get_syntree_node_name(esyntreetype type);
@@ -78,8 +81,6 @@ struct syntree_node
 		return gentab(indent) + "nil\n";
 	}
 
-	virtual void recycle() = 0;
-	
 	String gentab(int indent)
 	{
 		String ret;
@@ -102,6 +103,8 @@ struct syntree_node
 	int lno;
 };
 
+typedef std::vector<syntree_node *> syntree_node_list;
+
 struct identifier_node : public syntree_node
 {
 	identifier_node() {}
@@ -122,8 +125,6 @@ struct identifier_node : public syntree_node
 		return ret;
 	}
 
-	virtual void recycle();
-	
 	String str;
 };
 
@@ -153,8 +154,6 @@ struct func_desc_arglist_node : public syntree_node
 		return ret;
 	}
 
-	virtual void recycle();
-	
 	void add_arg(syntree_node * p);
 
 	func_desc_arglist arglist;
@@ -173,6 +172,8 @@ struct explicit_value_node : public syntree_node
 		EVT_STR,
 		EVT_FLOAT,
 		EVT_UUID,
+		EVT_MAP,
+		EVT_ARRAY,
 	};
 
 	virtual esyntreetype gettype()
@@ -190,8 +191,6 @@ struct explicit_value_node : public syntree_node
 		return ret;
 	}
 	
-	virtual void recycle();
-	
 	explicit_value_type getvaluetype() const
 	{
 		return type;
@@ -199,6 +198,7 @@ struct explicit_value_node : public syntree_node
 
 	String str;
 	explicit_value_type type;
+	syntree_node * v;
 };
 
 typedef std::map<String, explicit_value_node*> explicit_value_map;
@@ -216,8 +216,6 @@ struct return_value_list_node : public syntree_node
 	}
 
 	virtual String dump(int indent);
-
-	virtual void recycle();
 
 	void add_arg(syntree_node * p);
 
@@ -246,8 +244,6 @@ struct return_stmt : public syntree_node
 		}
 		return sret;
 	}
-	
-	virtual void recycle();
 	
 	return_value_list_node * returnlist;
 };
@@ -284,8 +280,6 @@ struct cmp_stmt : public syntree_node
 		return ret;
 	}
 	
-	virtual void recycle();
-	
 	String cmp;
 	syntree_node * left;
 	syntree_node * right;
@@ -304,8 +298,6 @@ struct while_stmt : public syntree_node
 
 	virtual String dump(int indent);
 	
-	virtual void recycle();
-	
 	cmp_stmt * cmp;
 	block_node * block;
 };
@@ -322,8 +314,6 @@ struct else_stmt : public syntree_node
 
 	virtual String dump(int indent);
 	
-	virtual void recycle();
-	
 	block_node * block;
 };
 
@@ -338,8 +328,6 @@ struct elseif_stmt : public syntree_node
 	}
 
 	virtual String dump(int indent);
-	
-	virtual void recycle();
 	
 	cmp_stmt * cmp;
 	syntree_node * block;
@@ -373,8 +361,6 @@ struct elseif_stmt_list : public syntree_node
 		return ret;
 	}
 	
-	virtual void recycle();
-
 	void add_stmt(syntree_node * stmt)
 	{
 		FKLOG("elseif_stmt_list add stmt %s", stmt->gettypename());
@@ -396,8 +382,6 @@ struct if_stmt : public syntree_node
 
 	virtual String dump(int indent);
 	
-	virtual void recycle();
-	
 	cmp_stmt * cmp;
 	block_node * block;
 	elseif_stmt_list * elseifs;
@@ -415,8 +399,6 @@ struct for_stmt : public syntree_node
 	}
 
 	virtual String dump(int indent);
-
-	virtual void recycle();
 
 	block_node * beginblock;
 	cmp_stmt * cmp;
@@ -449,8 +431,6 @@ struct block_node : public syntree_node
 		}
 		return ret;
 	}
-	
-	virtual void recycle();
 	
 	void add_stmt(syntree_node * stmt)
 	{
@@ -489,8 +469,6 @@ struct func_desc_node : public syntree_node
 		return ret;
 	}
 	
-	virtual void recycle();
-	
 	String funcname;
 	func_desc_arglist_node * arglist;
 	block_node * block;
@@ -523,8 +501,6 @@ struct assign_stmt : public syntree_node
 		return ret;
 	}
 	
-	virtual void recycle();
-	
 	syntree_node * var;
 	syntree_node * value;
 	bool isnew;
@@ -556,8 +532,6 @@ struct math_assign_stmt : public syntree_node
 		return ret;
 	}
 	
-	virtual void recycle();
-	
 	syntree_node * var;
 	String oper;
 	syntree_node * value;
@@ -583,8 +557,6 @@ struct variable_node : public syntree_node
 		return ret;
 	}
 	
-	virtual void recycle();
-	
 	String str;
 };
 
@@ -607,8 +579,6 @@ struct var_node : public syntree_node
 		ret += "\n";
 		return ret;
 	}
-	
-	virtual void recycle();
 	
 	String str;
 };
@@ -640,8 +610,6 @@ struct function_call_arglist_node : public syntree_node
 		}
 		return ret;
 	}
-	
-	virtual void recycle();
 	
 	virtual void add_arg(syntree_node * p)
 	{	
@@ -688,8 +656,6 @@ struct function_call_node : public syntree_node
 		return ret;
 	}
 
-	virtual void recycle();
-
 	bool fakecall;
 	bool classmem_call;
 	String fuc;
@@ -722,8 +688,6 @@ struct math_expr_node : public syntree_node
 		return ret;
 	}
 
-	virtual void recycle();
-	
 	String oper;
 	syntree_node * left;
 	syntree_node * right;
@@ -747,8 +711,6 @@ struct break_stmt : public syntree_node
 		return ret;
 	}
 	
-	virtual void recycle();
-	
 };
 
 typedef std::vector<syntree_node *> var_list;
@@ -764,8 +726,6 @@ struct var_list_node : public syntree_node
 	}
 
 	virtual String dump(int indent);
-
-	virtual void recycle();
 
 	void add_arg(syntree_node * p);
 
@@ -784,8 +744,6 @@ struct multi_assign_stmt : public syntree_node
 
 	virtual String dump(int indent);
 
-	virtual void recycle();
-
 	var_list_node * varlist;
 	syntree_node * value;
 	bool isnew;
@@ -802,8 +760,6 @@ struct container_get_node : public syntree_node
 	}
 
 	virtual String dump(int indent);
-
-	virtual void recycle();
 
 	String container;
 	syntree_node * key;
@@ -835,8 +791,6 @@ struct struct_desc_memlist_node : public syntree_node
 		return ret;
 	}
 
-	virtual void recycle();
-
 	void add_arg(String mem)
 	{
 		memlist.push_back(mem);
@@ -856,8 +810,6 @@ struct struct_pointer_node : public syntree_node
 	}
 
 	virtual String dump(int indent);
-
-	virtual void recycle();
 
 	String str;
 };
@@ -879,8 +831,6 @@ struct continue_stmt : public syntree_node
 		ret += "[continue]:\n";
 		return ret;
 	}
-	
-	virtual void recycle();
 	
 };
 
@@ -905,8 +855,6 @@ struct sleep_stmt : public syntree_node
 		return ret;
 	}
 	
-	virtual void recycle();
-
 	syntree_node * time;
 };
 
@@ -930,8 +878,6 @@ struct yield_stmt : public syntree_node
 		ret += time->dump(indent + 2);
 		return ret;
 	}
-	
-	virtual void recycle();
 	
 	syntree_node * time;
 };
@@ -963,8 +909,6 @@ struct switch_case_node : public syntree_node
 		return ret;
 	}
 
-	virtual void recycle();
-	
 	syntree_node * cmp;
 	syntree_node * block;
 };
@@ -995,8 +939,6 @@ struct switch_caselist_node : public syntree_node
 	{
 		list.push_back(p);
 	}
-	
-	virtual void recycle();
 	
 	switch_case_list list;
 };
@@ -1030,8 +972,6 @@ struct switch_stmt : public syntree_node
 		}
 		return ret;
 	}
-	
-	virtual void recycle();
 	
 	syntree_node * cmp;
 	syntree_node * caselist;
@@ -1074,12 +1014,103 @@ struct for_loop_stmt : public syntree_node
 		return ret;
 	}
 	
-	virtual void recycle();
-	
 	syntree_node * var;
 	syntree_node * begin;
 	syntree_node * end;
 	syntree_node * add;
 	block_node * block;
+};
+
+typedef std::vector<syntree_node *> map_ele_node_list;
+
+struct const_map_list_value_node : public syntree_node
+{
+	const_map_list_value_node() {}
+	virtual ~const_map_list_value_node() {}
+
+	virtual esyntreetype gettype()
+	{
+		return est_constmaplist;
+	}
+	
+	virtual String dump(int indent)
+	{
+		String ret;
+		for (int i = 0; i < (int)lists.size(); i++)
+		{
+			ret += gentab(indent);
+			ret += fkitoa(i);
+			ret += "\n";
+			ret += lists[i]->dump(indent + 1);
+		}
+		return ret;
+	}
+
+	void add_ele(syntree_node * e)
+	{
+		lists.push_back(e);
+	}
+
+	map_ele_node_list lists;
+};
+
+struct const_map_value_node : public syntree_node
+{
+	const_map_value_node() {}
+	virtual ~const_map_value_node() {}
+
+	virtual esyntreetype gettype()
+	{
+		return est_constmapvalue;
+	}
+	
+	virtual String dump(int indent)
+	{
+		String ret;
+		ret += gentab(indent);
+		ret += "(";
+		ret += k->dump(indent + 1);
+		ret += ":\n";
+		ret += v->dump(indent + 1);
+		ret += gentab(indent);
+		ret += ")\n";
+		return ret;
+	}
+
+	syntree_node * k;
+	syntree_node * v;
+};
+
+typedef std::vector<syntree_node *> array_ele_node_list;
+
+struct const_array_list_value_node : public syntree_node
+{
+	const_array_list_value_node() {}
+	virtual ~const_array_list_value_node() {}
+
+	virtual esyntreetype gettype()
+	{
+		return est_constarraylist;
+	}
+	
+	virtual String dump(int indent)
+	{
+		String ret;
+		for (int i = 0; i < (int)lists.size(); i++)
+		{
+			ret += gentab(indent);
+			ret += fkitoa(i);
+			ret += "\n";
+			ret += lists[i]->dump(indent + 1);
+		}
+		return ret;
+	}
+	
+	void add_ele(syntree_node * e)
+	{
+		lists.push_back(e);
+	}
+
+	array_ele_node_list lists;
 };
 

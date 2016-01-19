@@ -509,6 +509,12 @@ FAKE_API void fkrunpsjit(fake * fk, const char * func)
 {
 	FKLOG("fkrun %p %s", fk, func);
 
+#ifndef FK64
+	// 32位目前不支持
+	seterror(fk, efk_jit_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "current platform not support jit");
+	return;
+#endif
+
 	fk->rn.rundeps++;
 
 	fk->clearerr();
