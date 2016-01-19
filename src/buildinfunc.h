@@ -47,6 +47,9 @@ public:
 	buffer * newbuffer(int size);
 	selector * newselector();
 
+	size_t get_buffer_size() const;
+	size_t get_selector_size() const;
+
 	void setargv(int argc, const char *argv[]);
 	int get_argc() const;
 	const char * get_argv(int pos) const;

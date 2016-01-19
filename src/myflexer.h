@@ -61,7 +61,6 @@ public:
 	void clear();
 
 	void * malloc(size_t size, const char * name);
-	void free(void * p);
 
 	void add_func_desc(func_desc_node * p);
 	func_desc_list & get_func_list();
@@ -108,6 +107,7 @@ private:
 	String m_content;
 	int m_num;
 	int m_pos;
+	syntree_node_list m_nodelist;
 	func_desc_list m_funclist;
 	explicit_value_map m_constmap;
 	include_file_list m_includelist;

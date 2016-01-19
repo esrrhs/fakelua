@@ -6,27 +6,52 @@ container::container(fake * fk) : m_fk(fk)
 	POOLLIST_INI(m_va_pl, fk);
 	POOLLIST_INI(m_vm_pl, fk);
 	POOLLIST_INI(m_v_pl, fk);
+	POOLLIST_INI(m_cva_pl, fk);
+	POOLLIST_INI(m_cvm_pl, fk);
+	POOLLIST_INI(m_cv_pl, fk);
 }
 
 container::~container()
 {
 	clear();
-	pool<variant_array>::node * pvan = m_va_pl.p.m_data;
-	while (pvan != 0)
-	{
-		VARIANT_ARRAY_DELETE(pvan->t);
-		pvan = pvan->next;
-	}
-	POOLLIST_DELETE(m_va_pl);
-	pool<variant_map>::node * pvmn = m_vm_pl.p.m_data;
-	while (pvmn != 0)
-	{
-		VARIANT_MAP_DELETE(pvmn->t);
-		pvmn = pvmn->next;
-	}
-	POOLLIST_DELETE(m_vm_pl);
 	
-	POOLLIST_DELETE(m_v_pl);
+	{
+		pool<variant_array>::node * pvan = m_va_pl.p.m_data;
+		while (pvan != 0)
+		{
+			VARIANT_ARRAY_DELETE(pvan->t);
+			pvan = pvan->next;
+		}
+		POOLLIST_DELETE(m_va_pl);
+		pool<variant_map>::node * pvmn = m_vm_pl.p.m_data;
+		while (pvmn != 0)
+		{
+			VARIANT_MAP_DELETE(pvmn->t);
+			pvmn = pvmn->next;
+		}
+		POOLLIST_DELETE(m_vm_pl);
+		
+		POOLLIST_DELETE(m_v_pl);
+	}
+	
+	{
+		pool<variant_array>::node * pvan = m_cva_pl.p.m_data;
+		while (pvan != 0)
+		{
+			VARIANT_ARRAY_DELETE(pvan->t);
+			pvan = pvan->next;
+		}
+		POOLLIST_DELETE(m_cva_pl);
+		pool<variant_map>::node * pvmn = m_cvm_pl.p.m_data;
+		while (pvmn != 0)
+		{
+			VARIANT_MAP_DELETE(pvmn->t);
+			pvmn = pvmn->next;
+		}
+		POOLLIST_DELETE(m_cvm_pl);
+		
+		POOLLIST_DELETE(m_cv_pl);
+	}
 }
 
 void container::clear()
@@ -43,6 +68,8 @@ variant_array * container::newarray()
 	
 	ARRAY_INI(n->t.va, m_fk);
 	ARRAY_CLEAR(n->t.va);
+
+	n->t.isconst = false;
 	
 	return &n->t;
 }
@@ -54,6 +81,8 @@ variant_map * container::newmap()
 	
 	HASHMAP_INI(n->t.vm, m_fk);
 	HASHMAP_CLEAR(n->t.vm);
+	
+	n->t.isconst = false;
 	
 	return &n->t;
 }
@@ -87,7 +116,7 @@ variant * con_array_get(fake * fk, variant_array * va, const variant * k)
 	if (!ARRAY_GET(va->va, index))
 	{
 		// 分配个新的
-		ARRAY_GET(va->va, index) = fk->con.newvariant();
+		ARRAY_GET(va->va, index) = va->isconst ? fk->con.newconstvariant() : fk->con.newvariant();
 	}
 
 	ARRAY_SIZE(va->va) = FKMAX((int)ARRAY_SIZE(va->va), index + 1);
@@ -104,8 +133,73 @@ variant * con_map_get(fake * fk, variant_map * vm, const variant * k)
 		n = *p;
 		return &(n->t);
 	}
-	n = fk->con.newvariant();
+	n = vm->isconst ? fk->con.newconstvariant() : fk->con.newvariant();
 	vm->vm.add(*k, n);
 	return &(n->t);
+}
+
+variant_array * container::newconstarray()
+{
+	pool<variant_array>::node * n = 0;
+	POOLLIST_POP(m_cva_pl, n, variant_array, m_fk->cfg.array_grow_speed);
+	
+	ARRAY_INI(n->t.va, m_fk);
+	ARRAY_CLEAR(n->t.va);
+	
+	n->t.isconst = true;
+	
+	return &n->t;
+}
+
+variant_map * container::newconstmap()
+{
+	pool<variant_map>::node * n = 0;
+	POOLLIST_POP(m_cvm_pl, n, variant_map, m_fk->cfg.array_grow_speed);
+	
+	HASHMAP_INI(n->t.vm, m_fk);
+	HASHMAP_CLEAR(n->t.vm);
+	
+	n->t.isconst = true;
+	
+	return &n->t;
+}
+
+pool<variant>::node * container::newconstvariant()
+{
+	pool<variant>::node * n = 0;
+	POOLLIST_POP(m_cv_pl, n, variant, m_fk->cfg.array_grow_speed);
+	
+	V_SET_NIL(&(n->t));
+	return n;
+}
+
+size_t container::get_map_size() const
+{
+	return POOL_GROW_SIZE(m_vm_pl.p);
+}
+
+size_t container::get_array_size() const
+{
+	return POOL_GROW_SIZE(m_va_pl.p);
+}
+
+size_t container::get_variant_size() const
+{
+	return POOL_GROW_SIZE(m_v_pl.p);
+}
+
+size_t container::get_cmap_size() const
+{
+	return POOL_GROW_SIZE(m_cvm_pl.p);
+}
+
+size_t container::get_carray_size() const
+{
+	return POOL_GROW_SIZE(m_cva_pl.p);
+}
+
+size_t container::get_cvariant_size() const
+{
+	return POOL_GROW_SIZE(m_cv_pl.p);
 }
 

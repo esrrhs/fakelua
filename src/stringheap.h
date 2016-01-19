@@ -32,6 +32,11 @@ public:
 	void checkgc();
 
 	const char * dump();
+
+	force_inline size_t size() const 
+	{
+		return m_shh.size();
+	}
 	
 private:
 	void gc();

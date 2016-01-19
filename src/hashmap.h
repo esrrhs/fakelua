@@ -314,12 +314,6 @@ public:
 		*e->t = t;
 		return e;
 	}
-	ele * add(const K & v, T * t)
-	{
-		ele * e = _add(v);
-		e->t = t;
-		return e;
-	}
 	force_inline bool del(const K & k)
 	{
 		if (!m_ele_size)
@@ -445,9 +439,12 @@ private:
 					ele * e = &GET_HASHELE(he, j);
 					add(e->k, e->t);
 				}
-				for (int j = ELE_FAST_BUFFER; j < (int)he.maxsize; j++)
+				for (int j = 0; j < (int)he.maxsize; j++)
 				{
 					fkkeydel(m_fk, GET_HASHELE(he, j).k);
+				}
+				for (int j = he.size; j < (int)he.maxsize; j++)
+				{
 					safe_fkfree(m_fk, GET_HASHELE(he, j).t);
 				}
 				safe_fkfree(m_fk, he.overflow);
@@ -491,6 +488,7 @@ private:
 				// ·ÖÅä
 				ele * oldoverflow = he.overflow;
 				he.overflow = (ele *)safe_fkmalloc(m_fk, sizeof(ele) * (newelesize - ELE_FAST_BUFFER));
+				memset(he.overflow, 0, sizeof(ele) * (newelesize - ELE_FAST_BUFFER));
 				he.maxsize = newelesize;
 				memcpy(he.overflow, oldoverflow, sizeof(ele) * (he.size - ELE_FAST_BUFFER));
 				safe_fkfree(m_fk, oldoverflow);
@@ -504,10 +502,17 @@ private:
 		// add
 		ele & e = GET_HASHELE(he, he.size);
 		e.hv = hv;
+		fkkeydel(m_fk, e.k);
 		e.k = fkkeycpy(m_fk, k);
 		he.size++;
 		m_ele_size++;
 		return &e;
+	}
+	ele * add(const K & v, T * t)
+	{
+		ele * e = _add(v);
+		e->t = t;
+		return e;
 	}
 public:
 	fake * m_fk;

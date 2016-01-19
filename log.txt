@@ -166,3 +166,6 @@
 2016.1.12:字符串传递异常情况处理
 2016.1.14:json加个方便机器的接口
 2016.1.15:jit添加container的支持，下一步加jit的字符串粘结符、类成员函数调用、for优化
+2016.1.16:update ide exe
+2016.1.18:修正hashmap可能的泄漏问题，开始加map array的const定义
+2016.1.19:支持常量map array的定义，包括不能修改的判定，添加dumpstat接口，修复1.2e3这样的解析，加getconst获取dostring得来的常量，优化string replace

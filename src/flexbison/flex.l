@@ -181,7 +181,7 @@
 	return NUMBER;
 }
 
--?[0-9]+\.[0-9]+ {
+-?[0-9]+\.[0-9]+([Ee]-?[0-9]+)? {
 	lvalp->str = String(yytext);
 	return FKFLOAT;
 }
@@ -294,6 +294,14 @@
 
 "]" {
 	return CLOSE_SQUARE_BRACKET;
+}
+
+"{" {
+	return OPEN_BIG_BRACKET;
+}
+
+"}" {
+	return CLOSE_BIG_BRACKET;
 }
 
 ".." {

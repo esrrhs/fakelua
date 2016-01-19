@@ -73,3 +73,58 @@ const char * profile::dump()
 	
 	return m_dumpstr.c_str();
 }
+
+const char * profile::dumpstat()
+{
+	m_dumpstr.clear();
+	
+	m_dumpstr += "Func Map size:";
+	m_dumpstr += fkitoa(m_fk->fm.size());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += "String Heap size:";
+	m_dumpstr += fkitoa(m_fk->sh.size());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += "Pointer Heap size:";
+	m_dumpstr += fkitoa(m_fk->ph.size());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += "Processor Pool size:";
+	m_dumpstr += fkitoa(POOL_GROW_SIZE(m_fk->pp));
+	m_dumpstr += "\n";
+	
+	m_dumpstr += "Buffer Pool size:";
+	m_dumpstr += fkitoa(m_fk->bif.get_buffer_size());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += "Selector Pool size:";
+	m_dumpstr += fkitoa(m_fk->bif.get_selector_size());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += "Map Container Pool size:";
+	m_dumpstr += fkitoa(m_fk->con.get_map_size());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += "Array Container Pool size:";
+	m_dumpstr += fkitoa(m_fk->con.get_array_size());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += "Variant Container Pool size:";
+	m_dumpstr += fkitoa(m_fk->con.get_variant_size());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += "Const Map Container Pool size:";
+	m_dumpstr += fkitoa(m_fk->con.get_cmap_size());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += "Const Array Container Pool size:";
+	m_dumpstr += fkitoa(m_fk->con.get_carray_size());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += "Const Variant Container Pool size:";
+	m_dumpstr += fkitoa(m_fk->con.get_cvariant_size());
+	m_dumpstr += "\n";
+	
+	return m_dumpstr.c_str();
+}

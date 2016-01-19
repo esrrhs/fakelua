@@ -250,24 +250,97 @@ void buildin_string_trim_right(fake * fk, interpreter * inter)
 // replace
 void buildin_string_replace(fake * fk, interpreter * inter)
 {
-	String tostr = fkpspopcstrptr(fk);
-	String fromstr = fkpspopcstrptr(fk);
-	String str = fkpspopcstrptr(fk);
+	const char * tostr = fkpspopcstrptr(fk);
+	const char * fromstr = fkpspopcstrptr(fk);
+	const char * str = fkpspopcstrptr(fk);
 
-	if (fromstr.empty())
+	if (!tostr || !fromstr || !str)
 	{
-		fkpspush<const char *>(fk, str.c_str());
+		fkpspush<const char *>(fk, "");
+		return;
+	}
+	
+	int str_size = strlen(str);
+	int from_size = strlen(fromstr);
+	int to_size = strlen(tostr);
+
+	if (from_size == 0)
+	{
+		fkpspush<const char *>(fk, str);
 		return;
 	}
 
-	int pos = 0;
-	while ((int)(pos = str.find(fromstr, pos)) != (int)str.npos)
+	char * tmpbuff = 0;
+
+	int delta = to_size - from_size;
+	if (delta == 0)
 	{
-		str.replace(pos, fromstr.length(), tostr);
-		pos += tostr.length();
+		tmpbuff = (char *)safe_fkmalloc(fk, str_size + 1);
+		memcpy(tmpbuff, str, str_size);
+		tmpbuff[str_size] = 0;
+			
+		int pos = 0;
+		const char * find = strstr(tmpbuff + pos, fromstr);
+		while (find)
+		{
+	        memcpy((void*)find, tostr, to_size);
+			pos = find - tmpbuff + to_size;
+			find = strstr(tmpbuff + pos, fromstr);
+		}
+	}
+	else
+	{
+		int num = 0;
+		
+		int pos = 0;
+		const char * find = strstr(str + pos, fromstr);
+		while (find)
+		{
+			num++;
+			pos = find - str + from_size;
+			find = strstr(str + pos, fromstr);
+		}
+
+		if (num >= 0)
+		{
+			int new_str_size = str_size + num * delta + 1;
+			tmpbuff = (char *)safe_fkmalloc(fk, new_str_size);
+			tmpbuff[str_size + num * delta] = 0;
+		
+			char * pbuff = tmpbuff;
+			
+			int pos = 0;
+			const char * find = strstr(str + pos, fromstr);
+			while (find)
+			{
+				int skip_size = find - str - pos;
+				if (skip_size > 0)
+				{
+					memcpy(pbuff, str + pos, skip_size);
+					pbuff += skip_size;
+				}
+
+				memcpy(pbuff, tostr, to_size);
+				pbuff += to_size;
+			
+				pos = find - str + from_size;
+				find = strstr(str + pos, fromstr);
+			}
+
+			if (pos < str_size)
+			{
+				memcpy(pbuff, str + pos, str_size - pos);
+			}			
+		}
+		else
+		{
+			fkpspush<const char *>(fk, str);
+			return;
+		}
 	}
 	
-	fkpspush<const char *>(fk, str.c_str());
+	fkpspush<const char *>(fk, tmpbuff);
+	safe_fkfree(fk, tmpbuff);
 }
 
 // cat

@@ -51,6 +51,7 @@ end
 -- 常量值
 const hellostring = "hello"
 const helloint = 1234
+const hellomap = {1 : "a" 2 : "b" 3 : [1 2 3]}
 
 -- func1 comment
 func myfunc1(arg1, arg2)
@@ -201,6 +202,7 @@ end
 -- const define
 const hellostring = "hello"
 const helloint = 1234
+const hellomap = {1 : "a" 2 : "b" 3 : [1 2 3]}
 
 -- func1 comment
 func myfunc1(arg1, arg2)

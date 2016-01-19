@@ -764,3 +764,14 @@ selector * buildinfuncnet::newselector()
 	return &n->t;
 }
 
+size_t buildinfuncnet::get_buffer_size() const
+{
+	return POOL_GROW_SIZE(m_buffer.p);
+}
+
+size_t buildinfuncnet::get_selector_size() const
+{
+	return POOL_GROW_SIZE(m_selector.p);
+}
+
+

@@ -266,6 +266,13 @@ void buildin_dumppointerheap(fake * fk, interpreter * inter)
 	const char * str = fk->ph.dump();
 	fkpspush<const char *>(fk, str);
 }
+	
+// dumpstat
+void buildin_dumpstat(fake * fk, interpreter * inter)
+{
+	const char * str = fk->pf.dumpstat();
+	fkpspush<const char *>(fk, str);
+}
 
 // dofile
 void buildin_dofile(fake * fk, interpreter * inter)
@@ -365,6 +372,34 @@ void buildin_tostring(fake * fk, interpreter * inter)
 	}
 }
 
+// getconst
+void buildin_getconst(fake * fk, interpreter * inter)
+{	
+	bool err = false;
+	const char * str = fkpspopcstrptr(fk);
+	
+	variant * v = 0;
+	PS_PUSH_AND_GET(fk->ps, v);
+	
+	variant * gcv = fk->pa.get_const_define(str);
+	if (gcv)
+	{
+		*v = *gcv;
+	}
+	else
+	{
+		*v = NILV;
+	}	
+}
+
+// pause
+void buildin_pause(fake * fk, interpreter * inter)
+{
+	printf("press any key to continue\n");
+	getchar();
+	fkpspush<bool>(fk, true);
+}
+
 void buildinfunc::openbasefunc()
 {
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("print"), buildin_print);
@@ -381,6 +416,7 @@ void buildinfunc::openbasefunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumpfuncmap"), buildin_dumpfuncmap);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumpstringheap"), buildin_dumpstringheap);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumppointerheap"), buildin_dumppointerheap);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumpstat"), buildin_dumpstat);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dofile"), buildin_dofile);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dostring"), buildin_dostring);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("getcurfile"), buildin_getcurfile);
@@ -391,6 +427,8 @@ void buildinfunc::openbasefunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("isfunc"), buildin_isfunc);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("tonumber"), buildin_tonumber);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("tostring"), buildin_tostring);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("getconst"), buildin_getconst);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("pause"), buildin_pause);
 }
 
 void buildinfunc::openfilefunc()
@@ -422,9 +460,20 @@ buffer * buildinfunc::newbuffer(int size)
 {
 	return m_bifnet.newbuffer(size);
 }
+
 selector * buildinfunc::newselector()
 {
 	return m_bifnet.newselector();
+}
+
+size_t buildinfunc::get_buffer_size() const
+{
+	return m_bifnet.get_buffer_size();
+}
+
+size_t buildinfunc::get_selector_size() const
+{
+	return m_bifnet.get_selector_size();
 }
 
 void buildinfunc::setargv(int argc, const char *argv[])

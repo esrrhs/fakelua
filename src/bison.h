@@ -101,7 +101,9 @@
      NEW_ASSIGN = 317,
      ELSEIF = 318,
      RIGHT_POINTER = 319,
-     STRING_CAT = 320
+     STRING_CAT = 320,
+     OPEN_BIG_BRACKET = 321,
+     CLOSE_BIG_BRACKET = 322
    };
 #endif
 

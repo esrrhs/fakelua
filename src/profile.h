@@ -53,6 +53,7 @@ public:
 	void add_code_sample(int code);
 
 	const char * dump();
+	const char * dumpstat();
 
 private:
 	fake * m_fk;

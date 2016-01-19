@@ -108,6 +108,8 @@ String fkget_token_name(int token)
 		TOKEN_SWITCH(ELSEIF)
 		TOKEN_SWITCH(RIGHT_POINTER)
 		TOKEN_SWITCH(STRING_CAT)
+		TOKEN_SWITCH(OPEN_BIG_BRACKET)
+		TOKEN_SWITCH(CLOSE_BIG_BRACKET)
 	}
 #undef TOKEN_SWITCH
 	assert(0);
@@ -116,17 +118,15 @@ String fkget_token_name(int token)
 
 void * safe_fkmalloc(fake * fk, size_t size)
 {
-	if (fk && size)
-	{
-		return fk->cfg.fkm(size);
-	}
-	return 0;
+	assert(fk && size >= 0);
+	return fk->cfg.fkm(size);
 }
 
 void safe_fkfree(fake * fk, const void * p)
 {
-	if (fk && p)
+	if (LIKE(p != 0))
 	{
+		assert(fk);
 		fk->cfg.fkf((void *)p);
 	}
 }

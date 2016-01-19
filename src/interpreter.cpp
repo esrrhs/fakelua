@@ -308,6 +308,12 @@ int interpreter::run(int cmdnum)
 				variant * varv = 0;
 				LOG_VARIANT(*m_fb, m_ip, "var");
 				GET_VARIANT(*m_fb, m_bp, varv, m_ip);
+				if (UNLIKE(CHECK_CONST_MAP_POS(varv) || CHECK_CONST_ARRAY_POS(varv)))
+				{
+					err = true;
+					seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "interpreter assign error, dest is const container");
+					break;
+				}
 				m_ip++;
 				
 				// ¸³ÖµÀ´Ô´

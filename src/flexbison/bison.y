@@ -91,6 +91,8 @@ int my_yyerror(const char *s, void * parm)
 %token ELSEIF
 %token RIGHT_POINTER
 %token STRING_CAT
+%token OPEN_BIG_BRACKET
+%token CLOSE_BIG_BRACKET
 
 %left PLUS
 %left MINUS
@@ -99,7 +101,7 @@ int my_yyerror(const char *s, void * parm)
 %left DIVIDE_MOD
 %left STRING_CAT
 
-%expect 29
+%expect 48
 
 %type<str> IDENTIFIER  
 %type<str> NUMBER
@@ -161,6 +163,9 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> switch_stmt
 %type<syntree> switch_case_define
 %type<syntree> switch_case_list
+%type<syntree> const_map_list_value
+%type<syntree> const_map_value
+%type<syntree> const_array_list_value
 
 %%
 
@@ -1273,8 +1278,91 @@ explicit_value:
 		p->type = explicit_value_node::EVT_FLOAT;
 		$$ = p;
 	}
+	|
+	OPEN_BIG_BRACKET const_map_list_value CLOSE_BIG_BRACKET
+	{
+		FKLOG("[bison]: explicit_value <- const_map_list_value");
+		NEWTYPE(p, explicit_value_node);
+		p->str = "";
+		p->type = explicit_value_node::EVT_MAP;
+		p->v = $2;
+		$$ = p;
+	}
+	|
+	OPEN_SQUARE_BRACKET const_array_list_value CLOSE_SQUARE_BRACKET
+	{
+		FKLOG("[bison]: explicit_value <- const_array_list_value");
+		NEWTYPE(p, explicit_value_node);
+		p->str = "";
+		p->type = explicit_value_node::EVT_ARRAY;
+		p->v = $2;
+		$$ = p;
+	}
 	;
       
+const_map_list_value:
+	/* empty */
+	{
+		FKLOG("[bison]: const_map_list_value <- null");
+		NEWTYPE(p, const_map_list_value_node);
+		$$ = p;
+	}
+	|
+	const_map_value
+	{
+		FKLOG("[bison]: const_map_list_value <- const_map_value");
+		NEWTYPE(p, const_map_list_value_node);
+		p->add_ele($1);
+		$$ = p;
+	}
+	|
+	const_map_list_value const_map_value
+	{
+		FKLOG("[bison]: const_map_list_value <- const_map_list_value const_map_value");
+		assert($1->gettype() == est_constmaplist);
+		const_map_list_value_node * p = dynamic_cast<const_map_list_value_node*>($1);
+		p->add_ele($2);
+		$$ = p;
+	}
+	;
+	
+const_map_value:
+	explicit_value COLON explicit_value
+	{
+		FKLOG("[bison]: const_map_value <- explicit_value");
+		NEWTYPE(p, const_map_value_node);
+		p->k = $1;
+		p->v = $3;
+		$$ = p;
+	}
+	;
+
+const_array_list_value:
+	/* empty */
+	{
+		FKLOG("[bison]: const_array_list_value <- null");
+		NEWTYPE(p, const_array_list_value_node);
+		$$ = p;
+	}
+	|
+	explicit_value
+	{
+		FKLOG("[bison]: const_array_list_value <- explicit_value");
+		NEWTYPE(p, const_array_list_value_node);
+		p->add_ele($1);
+		$$ = p;
+	}
+	|
+	const_array_list_value explicit_value
+	{
+		FKLOG("[bison]: const_array_list_value <- const_array_list_value explicit_value");
+		assert($1->gettype() == est_constarraylist);
+		const_array_list_value_node * p = dynamic_cast<const_array_list_value_node*>($1);
+		p->add_ele($2);
+		$$ = p;
+	}
+	;
+	
 break:
 	BREAK 
 	{

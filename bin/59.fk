@@ -1,0 +1,29 @@
+include "../package/file.fk"
+include "../package/string.fk"
+
+-- main comment
+func main()
+	
+	var ok, var srcf = file.open("59.lua", "rb")
+	if not ok then
+		return 0
+	end
+	
+	var src = file.read_all(srcf)
+	
+	src = string.replace(src, "['", "\"")
+	src = string.replace(src, "'] =", "\" :")
+	src = string.replace(src, "']=", "\" :")
+	src = string.replace(src, "},", "}")
+	src = string.replace(src, ",\n", "\n")
+	src = "const "..src
+	
+	dostring(src)
+	var c = getconst("MonsterConfig")
+	print(size(c))
+	print(c["10000000"])
+	
+	return 0
+	
+end
+
