@@ -188,7 +188,7 @@ struct variant
 		USE(err); \
 	}
 #define V_ASSERT_CAN_DIVIDE(v) \
-	if (UNLIKE((int64_t)(v)->data.real == 0)) \
+	if (UNLIKE((v)->data.real == 0)) \
 	{ \
 		err = true; \
 		String str; \

@@ -8,6 +8,8 @@ func main()
 	fake myfunc2(2)
 	fake myfunc3(3)
 	
+	return 0
+	
 end
 
 -- func1 comment

@@ -104,7 +104,7 @@ void buildin_string_substr(fake * fk, interpreter * inter)
 	
 	if (pos >= 0 && pos < len && srcstr && count > 0)
 	{
-		char * buf = (char *)safe_fkmalloc(fk, count + 1);
+		char * buf = (char *)safe_fkmalloc(fk, count + 1, emt_tmp);
 		buf[count] = 0;
 		memcpy(buf, srcstr + pos, count);
 		fkpspush<const char *>(fk, buf);
@@ -163,7 +163,7 @@ void buildin_string_trim(fake * fk, interpreter * inter)
 		}
 		int afterlen = endpos - trimlen * trimnum;
 		assert(afterlen >= 0);
-		char * buf = (char *)safe_fkmalloc(fk, afterlen + 1);
+		char * buf = (char *)safe_fkmalloc(fk, afterlen + 1, emt_tmp);
 		buf[afterlen] = 0;
 		memcpy(buf, srcstr, afterlen);
 		fkpspush<const char *>(fk, buf);
@@ -235,7 +235,7 @@ void buildin_string_trim_right(fake * fk, interpreter * inter)
 		}
 		int afterlen = endpos - trimlen * trimnum;
 		assert(afterlen >= 0);
-		char * buf = (char *)safe_fkmalloc(fk, afterlen + 1);
+		char * buf = (char *)safe_fkmalloc(fk, afterlen + 1, emt_tmp);
 		buf[afterlen] = 0;
 		memcpy(buf, srcstr, afterlen);
 		fkpspush<const char *>(fk, buf);
@@ -275,7 +275,7 @@ void buildin_string_replace(fake * fk, interpreter * inter)
 	int delta = to_size - from_size;
 	if (delta == 0)
 	{
-		tmpbuff = (char *)safe_fkmalloc(fk, str_size + 1);
+		tmpbuff = (char *)safe_fkmalloc(fk, str_size + 1, emt_tmp);
 		memcpy(tmpbuff, str, str_size);
 		tmpbuff[str_size] = 0;
 			
@@ -304,7 +304,7 @@ void buildin_string_replace(fake * fk, interpreter * inter)
 		if (num >= 0)
 		{
 			int new_str_size = str_size + num * delta + 1;
-			tmpbuff = (char *)safe_fkmalloc(fk, new_str_size);
+			tmpbuff = (char *)safe_fkmalloc(fk, new_str_size, emt_tmp);
 			tmpbuff[str_size + num * delta] = 0;
 		
 			char * pbuff = tmpbuff;

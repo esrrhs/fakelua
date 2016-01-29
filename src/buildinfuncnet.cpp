@@ -261,7 +261,7 @@ void buildin_buffer_popstring(fake * fk, interpreter * inter)
 {
 	bool ret = false;
 	int len = fkpspop<int>(fk);
-	char * data = (char *)safe_fkmalloc(fk, len + 1);
+	char * data = (char *)safe_fkmalloc(fk, len + 1, emt_tmp);
 	memset(data, 0, len + 1);
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)

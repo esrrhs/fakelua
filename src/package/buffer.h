@@ -40,7 +40,7 @@ struct buffer
 {
 	force_inline void ini(fake * fk, size_t len)
 	{
-		ini(fk, (char*)safe_fkmalloc(fk, len), len);
+		ini(fk, (char*)safe_fkmalloc(fk, len, emt_buffer), len);
 		m_extra = false;
 	}
 	force_inline void ini(fake * fk, char* buffer, size_t len)

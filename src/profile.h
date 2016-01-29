@@ -10,6 +10,12 @@ struct profilefuncele
 	uint32_t calltime;
 };
 
+struct profilememele
+{
+	e_mem_type type;
+	uint32_t size;
+};
+
 class profile
 {
 public:
@@ -30,8 +36,11 @@ public:
 	{
 		m_isopen = false;
 		m_shh.clear();
+		m_memuse.clear();
 		m_dumpstr.clear();
 		memset(m_codetype, 0, sizeof(m_codetype));
+		m_memmalloc_num = 0;
+		m_memfree_num = 0;
 	}
 
 	force_inline void open()
@@ -54,6 +63,10 @@ public:
 
 	const char * dump();
 	const char * dumpstat();
+	const char * dumpmem();
+
+	void add_mem(void * p, size_t size, e_mem_type type);
+	void dec_mem(void * p);
 
 private:
 	fake * m_fk;
@@ -62,5 +75,9 @@ private:
 	stringhashmap m_shh;
 	String m_dumpstr;
 	int m_codetype[OPCODE_MAX];
+	typedef std::map<void *, profilememele> memhashmap;
+	memhashmap m_memuse;	// ∑¿÷πµ›πÈ
+	size_t m_memmalloc_num;
+	size_t m_memfree_num;
 };
 

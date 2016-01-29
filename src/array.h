@@ -23,7 +23,7 @@ struct array
 #define ARRAY_GROW(array, newsize, T) \
 	{ \
 		assert((int)newsize > (int)(array).m_max_size); \
-		T * newbuff = (T *)safe_fkmalloc((array).m_fk, (newsize * sizeof(T))); \
+		T * newbuff = (T *)safe_fkmalloc((array).m_fk, (newsize * sizeof(T)), emt_array); \
 		if ((array).m_data) \
 		{ \
 			memcpy(newbuff, (array).m_data, (array).m_max_size * sizeof(T)); \

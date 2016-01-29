@@ -6,17 +6,6 @@
 
 struct fake;
 
-struct stringele
-{
-	// 更新计数
-	uint32_t update;
-	// string
-	char * s;
-	uint32_t sz;
-	// 系统引用
-	uint32_t sysref;
-};
-
 class stringheap
 {
 public:
@@ -38,13 +27,18 @@ public:
 		return m_shh.size();
 	}
 	
+	size_t sys_size() const;
+	
+	size_t bytesize() const;
+	size_t sys_bytesize() const;
+	
 private:
 	void gc();
 
 private:
 	fake * m_fk;
-	fkhashmap<const char *, stringele> m_shh;
-	array<const char *> m_todelete;
+	fkhashset<stringele *> m_shh;
+	array<stringele *> m_todelete;
 	String m_dumpstr;
 };
 

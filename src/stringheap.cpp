@@ -8,38 +8,39 @@ stringheap::stringheap(fake * fk) : m_fk(fk), m_shh(fk)
 
 stringheap::~stringheap()
 {
-	for (const fkhashmap<const char *, stringele>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	for (const fkhashset<stringele *>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
 	{
-		stringele * e = p->t;
+		stringele * e = p->k;
 		safe_fkfree(m_fk, e->s);
+		safe_fkfree(m_fk, e);
 	}
-	m_shh.clear();
 	ARRAY_DELETE(m_todelete);
 }
 
 void stringheap::clear()
 {
 	ARRAY_CLEAR(m_todelete);
-	for (const fkhashmap<const char *, stringele>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	for (const fkhashset<stringele *>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
 	{
-		stringele * e = p->t;
+		stringele * e = p->k;
 		if (!e->sysref)
 		{
-			safe_fkfree(m_fk, e->s);
 			if (ARRAY_SIZE(m_todelete) >= ARRAY_MAX_SIZE(m_todelete))
 			{
 				size_t newsize = ARRAY_MAX_SIZE(m_todelete) + 1 + ARRAY_MAX_SIZE(m_todelete) * (m_fk->cfg.array_grow_speed) / 100;
-				ARRAY_GROW(m_todelete, newsize, const char *);
+				ARRAY_GROW(m_todelete, newsize, stringele *);
 			}
 			ARRAY_PUSH_BACK(m_todelete);
-			ARRAY_BACK(m_todelete) = p->k;
+			ARRAY_BACK(m_todelete) = e;
 		}
 	}
 	
 	for (int i = 0; i < (int)ARRAY_SIZE(m_todelete); i++)
 	{
-		const char * str = ARRAY_GET(m_todelete, i);
-		m_shh.del(str);
+		stringele * e = ARRAY_GET(m_todelete, i);
+		m_shh.del(e);
+		safe_fkfree(m_fk, e->s);
+		safe_fkfree(m_fk, e);
 	}
 	
 	ARRAY_CLEAR(m_todelete);
@@ -48,17 +49,18 @@ void stringheap::clear()
 
 stringele * stringheap::allocstring(const char * str)
 {
-	stringele * p = m_shh.get(str);
+	stringele tmp;
+	tmp.s = (char*)str;
+	fkhashset<stringele *>::ele * p = m_shh.get(&tmp);
 	if (LIKE(p != 0))
 	{
-		return p;
+		return p->k;
 	}
-	stringele e;
-	e.update = 0;
-	e.sz = strlen(str);
-	e.s = stringdump(m_fk, str, e.sz);
-	e.sysref = 0;
-	return m_shh.add(str, e)->t;
+	stringele * e = (stringele *)safe_fkmalloc(m_fk, sizeof(stringele), emt_stringele);
+	e->sz = strlen(str);
+	e->s = stringdump(m_fk, str, e->sz, emt_stringheap);
+	e->sysref = 0;
+	return m_shh.add(e)->k;
 }
 
 variant stringheap::allocsysstr(const char * str)
@@ -86,9 +88,9 @@ void stringheap::gc()
 const char * stringheap::dump()
 {
 	m_dumpstr.clear();
-	for (const fkhashmap<const char *, stringele>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	for (const fkhashset<stringele *>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
 	{
-		stringele * e = p->t;
+		stringele * e = p->k;
 		m_dumpstr += e->s;
 		if (e->sysref)
 		{
@@ -97,5 +99,44 @@ const char * stringheap::dump()
 		m_dumpstr += "\n";
 	}
 	return m_dumpstr.c_str();
+}
+
+size_t stringheap::sys_size() const
+{
+	size_t ret = 0;
+	for (const fkhashset<stringele *>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	{
+		stringele * e = p->k;
+		if (e->sysref)
+		{
+			ret++;
+		}
+	}
+	return ret;
+}
+
+size_t stringheap::bytesize() const
+{
+	size_t ret = 0;
+	for (const fkhashset<stringele *>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	{
+		stringele * e = p->k;
+		ret += e->sz;
+	}
+	return ret;
+}
+
+size_t stringheap::sys_bytesize() const
+{
+	size_t ret = 0;
+	for (const fkhashset<stringele *>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+	{
+		stringele * e = p->k;
+		if (e->sysref)
+		{
+			ret += e->sz;
+		}
+	}
+	return ret;
 }
 

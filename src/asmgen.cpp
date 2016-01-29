@@ -272,3 +272,37 @@ void asmgen::variant_to_rax(int srcpos)
 	mov_rdx_raxv(0);
 }
 
+void asmgen::call_func_param2(void * func, fake * fk, int pos2)
+{
+#ifdef WIN32
+	mov_ll_rcx((int64_t)fk);
+	lea_rbp_rdx(V_OFF(pos2));
+	mov_ll_rdi((int64_t)func);
+
+	call_func((void *)&call_machine_func);
+#else
+	mov_ll_rdi((int64_t)fk);
+	lea_rbp_rsi(V_OFF(pos2));
+
+	call_func(func);
+#endif
+}
+
+void asmgen::call_func_param3(void * func, fake * fk, int pos2, int pos3)
+{
+#ifdef WIN32
+	mov_ll_rcx((int64_t)fk);
+	lea_rbp_rdx(V_OFF(pos2));
+	lea_rbp_r8d(V_OFF(pos3));
+	mov_ll_rdi((int64_t)func);
+
+	call_func((void *)&call_machine_func);
+#else
+	mov_ll_rdi((int64_t)fk);
+	lea_rbp_rsi(V_OFF(pos2));
+	lea_rbp_rdx(V_OFF(pos3));
+	
+	call_func(func);
+#endif
+}
+

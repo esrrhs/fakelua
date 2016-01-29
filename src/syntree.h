@@ -87,10 +87,7 @@ struct syntree_node
 		ret += "LINE:";
 		ret += fkitoa(lno);
 		ret += " ";
-		for (int i = 0; i < indent; i++)
-		{
-			ret += "\t";
-		}
+		ret.append(indent, '\t');
 		return ret;
 	}
 

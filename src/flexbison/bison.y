@@ -94,11 +94,8 @@ int my_yyerror(const char *s, void * parm)
 %token OPEN_BIG_BRACKET
 %token CLOSE_BIG_BRACKET
 
-%left PLUS
-%left MINUS
-%left DIVIDE
-%left MULTIPLY
-%left DIVIDE_MOD
+%left PLUS MINUS
+%left DIVIDE MULTIPLY DIVIDE_MOD
 %left STRING_CAT
 
 %expect 48

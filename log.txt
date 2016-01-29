@@ -169,3 +169,9 @@
 2016.1.16:update ide exe
 2016.1.18:修正hashmap可能的泄漏问题，开始加map array的const定义
 2016.1.19:支持常量map array的定义，包括不能修改的判定，添加dumpstat接口，修复1.2e3这样的解析，加getconst获取dostring得来的常量，优化string replace
+2016.1.20:优化hashmap的内存，添加jit的mem func call
+2016.1.21:加内存监控，优化dump输出
+2016.1.22:优化内存，下一步继续优化内存，现在解析59.lua就好几百M
+2016.1.27:修复运算符优先级bug
+2016.1.29:修复除0判断bug
+

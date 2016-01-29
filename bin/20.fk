@@ -23,4 +23,6 @@ func main()
 		end
 	end
 	
+	return arg1
+	
 end
