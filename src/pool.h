@@ -31,7 +31,7 @@ struct pool
 
 #define POOL_GROW(po, node, n)\
 	{\
-		n = (node *)safe_fkmalloc((po).m_fk, sizeof(node));\
+		n = (node *)safe_fkmalloc((po).m_fk, sizeof(node), emt_pool);\
 		memset(n, 0, sizeof(node));\
 		POOL_PUSH(po, n);\
 		(po).m_growsize++;\

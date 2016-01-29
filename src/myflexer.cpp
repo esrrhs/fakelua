@@ -110,7 +110,7 @@ void myflexer::clear()
 
 void * myflexer::malloc(size_t size, const char * name)
 {
-	void * p = safe_fkmalloc(m_fk, size);
+	void * p = safe_fkmalloc(m_fk, size, emt_flexer);
 	FKLOG("flexer malloc %p %d %s", p, (int)size, name);
 	m_nodelist.push_back((syntree_node*)p);
 	return p;

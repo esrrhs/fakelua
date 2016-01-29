@@ -47,15 +47,25 @@ const char * profile::dump()
 
 	m_dumpstr.clear();
 	
+	int wraplen = 30;
+	
 	m_dumpstr += "Call Func:\n";
+	m_dumpstr += "\t";
+	m_dumpstr += fix_string_wrap("Func", wraplen);
+	m_dumpstr += fix_string_wrap("Calls", wraplen);
+	m_dumpstr += fix_string_wrap("TotalTime(ms)", wraplen);
+	m_dumpstr += fix_string_wrap("PerCallTime(ms)", wraplen);
+	m_dumpstr += "\n";
 	for (int i = 0; i < (int)sortelevec.size(); i++)
 	{
 		const sortele & se = sortelevec[i];
 		const profilefuncele & ele = se.second;
-		char buff[1024];
-		tsnprintf(buff, sizeof(buff)-1, "\tFunc[%s]\tCalls[%d]\tTotalTime(ms)[%u]\tPerCallTime(ms)[%u]\n",
-			se.first.c_str(), ele.callnum, ele.calltime, ele.callnum ? ele.calltime / ele.callnum : 0);
-		m_dumpstr += buff;
+		m_dumpstr += "\t";
+		m_dumpstr += fix_string_wrap(se.first, wraplen);
+		m_dumpstr += fix_string_wrap(fkitoa(ele.callnum), wraplen);
+		m_dumpstr += fix_string_wrap(fkitoa(ele.calltime), wraplen);
+		m_dumpstr += fix_string_wrap(fkitoa(ele.callnum ? ele.calltime / ele.callnum : 0), wraplen);
+		m_dumpstr += "\n";
 	}
 
 	m_dumpstr += "Code Num:\n";
@@ -77,54 +87,166 @@ const char * profile::dump()
 const char * profile::dumpstat()
 {
 	m_dumpstr.clear();
+
+	int wraplen = 40;
 	
-	m_dumpstr += "Func Map size:";
+	m_dumpstr += fix_string_wrap("Func Map size:", wraplen);
 	m_dumpstr += fkitoa(m_fk->fm.size());
 	m_dumpstr += "\n";
 	
-	m_dumpstr += "String Heap size:";
+	m_dumpstr += fix_string_wrap("String Heap size:", wraplen);
 	m_dumpstr += fkitoa(m_fk->sh.size());
 	m_dumpstr += "\n";
 	
-	m_dumpstr += "Pointer Heap size:";
+	m_dumpstr += fix_string_wrap("System String Heap size:", wraplen);
+	m_dumpstr += fkitoa(m_fk->sh.sys_size());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += fix_string_wrap("Stack String Heap size:", wraplen);
+	m_dumpstr += fkitoa(m_fk->sh.size() - m_fk->sh.sys_size());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += fix_string_wrap("String Heap Byte size:", wraplen);
+	m_dumpstr += fkitoa(m_fk->sh.bytesize());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += fix_string_wrap("System String Heap Byte size:", wraplen);
+	m_dumpstr += fkitoa(m_fk->sh.sys_bytesize());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += fix_string_wrap("Stack String Heap Byte size:", wraplen);
+	m_dumpstr += fkitoa(m_fk->sh.bytesize() - m_fk->sh.sys_bytesize());
+	m_dumpstr += "\n";
+	
+	m_dumpstr += fix_string_wrap("Pointer Heap size:", wraplen);
 	m_dumpstr += fkitoa(m_fk->ph.size());
 	m_dumpstr += "\n";
 	
-	m_dumpstr += "Processor Pool size:";
+	m_dumpstr += fix_string_wrap("Processor Pool size:", wraplen);
 	m_dumpstr += fkitoa(POOL_GROW_SIZE(m_fk->pp));
 	m_dumpstr += "\n";
 	
-	m_dumpstr += "Buffer Pool size:";
+	m_dumpstr += fix_string_wrap("Buffer Pool size:", wraplen);
 	m_dumpstr += fkitoa(m_fk->bif.get_buffer_size());
 	m_dumpstr += "\n";
 	
-	m_dumpstr += "Selector Pool size:";
+	m_dumpstr += fix_string_wrap("Selector Pool size:", wraplen);
 	m_dumpstr += fkitoa(m_fk->bif.get_selector_size());
 	m_dumpstr += "\n";
 	
-	m_dumpstr += "Map Container Pool size:";
+	m_dumpstr += fix_string_wrap("Map Container Pool size:", wraplen);
 	m_dumpstr += fkitoa(m_fk->con.get_map_size());
 	m_dumpstr += "\n";
 	
-	m_dumpstr += "Array Container Pool size:";
+	m_dumpstr += fix_string_wrap("Array Container Pool size:", wraplen);
 	m_dumpstr += fkitoa(m_fk->con.get_array_size());
 	m_dumpstr += "\n";
 	
-	m_dumpstr += "Variant Container Pool size:";
+	m_dumpstr += fix_string_wrap("Variant Container Pool size:", wraplen);
 	m_dumpstr += fkitoa(m_fk->con.get_variant_size());
 	m_dumpstr += "\n";
 	
-	m_dumpstr += "Const Map Container Pool size:";
+	m_dumpstr += fix_string_wrap("Const Map Container Pool size:", wraplen);
 	m_dumpstr += fkitoa(m_fk->con.get_cmap_size());
 	m_dumpstr += "\n";
 	
-	m_dumpstr += "Const Array Container Pool size:";
+	m_dumpstr += fix_string_wrap("Const Array Container Pool size:", wraplen);
 	m_dumpstr += fkitoa(m_fk->con.get_carray_size());
 	m_dumpstr += "\n";
 	
-	m_dumpstr += "Const Variant Container Pool size:";
+	m_dumpstr += fix_string_wrap("Const Variant Container Pool size:", wraplen);
 	m_dumpstr += fkitoa(m_fk->con.get_cvariant_size());
 	m_dumpstr += "\n";
 	
 	return m_dumpstr.c_str();
 }
+
+const char * profile::dumpmem()
+{
+	if (!m_isopen)
+	{
+		return "not open profile\n";
+	}
+
+	m_dumpstr.clear();
+
+	int wraplen = 20;
+
+	m_dumpstr += fix_string_wrap("Malloc Num:", wraplen);
+	m_dumpstr += fkitoa(m_memmalloc_num);
+	m_dumpstr += "\n";
+	
+	m_dumpstr += fix_string_wrap("Free Num:", wraplen);
+	m_dumpstr += fkitoa(m_memfree_num);
+	m_dumpstr += "\n";
+	
+	m_dumpstr += fix_string_wrap("Mem Pointer Num:", wraplen);
+	m_dumpstr += fkitoa(m_memuse.size());
+	m_dumpstr += "\n";
+
+	size_t memnumtotal[emt_max];
+	size_t memsizetotal[emt_max];
+	memset(memnumtotal, 0, sizeof(memnumtotal));
+	memset(memsizetotal, 0, sizeof(memsizetotal));
+	for (memhashmap::iterator it = m_memuse.begin(); it != m_memuse.end(); it++)
+	{
+		const profilememele & ele = it->second;
+		assert(ele.type >= 0 && ele.type < emt_max);
+		memsizetotal[ele.type] += ele.size;
+		memnumtotal[ele.type]++;
+	}
+	
+	m_dumpstr += "[Mem Type Num]:\n";
+	for (int i = 0; i < emt_max; i++)
+	{
+		e_mem_type type = (e_mem_type)i;
+		m_dumpstr += fix_string_wrap(get_mem_type_name(type), wraplen);
+		m_dumpstr += ":";
+		m_dumpstr += fkitoa(memnumtotal[type]);
+		m_dumpstr += "\n";
+	}
+	
+	m_dumpstr += "[Mem Type Size]:\n";
+	for (int i = 0; i < emt_max; i++)
+	{
+		e_mem_type type = (e_mem_type)i;
+		m_dumpstr += fix_string_wrap(get_mem_type_name(type), wraplen);
+		m_dumpstr += ":";
+		m_dumpstr += fkitoa(memsizetotal[type]);
+		m_dumpstr += "\n";
+	}
+	
+	return m_dumpstr.c_str();
+}
+
+void profile::add_mem(void * p, size_t size, e_mem_type type)
+{
+	memhashmap::iterator it = m_memuse.find(p);
+	if (it == m_memuse.end())
+	{
+		profilememele tmp;
+		tmp.type = type;
+		tmp.size = size;
+		m_memuse[p] = tmp;
+		m_memmalloc_num++;
+	}
+	else
+	{
+		assert(0);
+	}
+}
+
+void profile::dec_mem(void * p)
+{
+	memhashmap::iterator it = m_memuse.find(p);
+	if (it == m_memuse.end())
+	{
+		assert(0);
+	}
+	else
+	{
+		m_memuse.erase(p);
+		m_memfree_num++;
+	}
+}
+

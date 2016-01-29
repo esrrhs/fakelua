@@ -28,7 +28,7 @@ FAKE_API void delfake(fake * fk)
 {
 	FKLOG("delfake %p", fk);
 	fk->~fake();
-	safe_fkfree(fk, fk);
+	fk->cfg.fkf(fk);
 }
 
 // ╫БнЖнд╪Ч

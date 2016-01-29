@@ -41,7 +41,7 @@ void buildin_freadall(fake * fk, interpreter * inter)
 		size_t filesize = ftell(f);
 		fseek(f, 0, SEEK_SET);
 		
-		char * buffer = (char *)safe_fkmalloc(fk, filesize + 1);
+		char * buffer = (char *)safe_fkmalloc(fk, filesize + 1, emt_tmp);
 		buffer[filesize] = 0;
 		if (fread(buffer, filesize, 1, f) == 1)
 		{

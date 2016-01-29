@@ -195,10 +195,31 @@ static force_inline uint32_t fkstrhash(const char * p)
 
 String fkget_token_name(int token);
 
-void * safe_fkmalloc(fake * fk, size_t size);
+enum e_mem_type
+{
+	emt_tmp,
+	emt_array,
+	emt_func_binary,
+	emt_buffer,
+	emt_hashmap,
+	emt_hashset,
+	emt_hashlist,
+	emt_flexer,
+	emt_pool,
+	emt_string,
+	emt_native,
+	emt_stringheap,
+	emt_hashstring,
+	emt_stringele,
+	emt_max,
+};
+const char * get_mem_type_name(e_mem_type type);
+
+void * safe_fkmalloc(fake * fk, size_t size, e_mem_type type);
 void safe_fkfree(fake * fk, const void * p);
 
 void seterror(fake * fk, efkerror err, const char * file, int lineno, const char * func, const char *fmt, ...);
+void setwarn(fake * fk, const char *fmt, ...);
 
 struct variant;
 String vartostring(const variant * v);
@@ -211,7 +232,7 @@ void USE(T t) {}
 struct paramstack;
 paramstack * getps(fake * fk);
 
-char * stringdump(fake * fk, const char * src, size_t sz);
+char * stringdump(fake * fk, const char * src, size_t sz, e_mem_type type = emt_string);
 
 uint32_t fkgetmstick();
 
@@ -301,5 +322,15 @@ enum debug_command
 	debug_frame,
 	debug_disa,
 	debug_routine,
+};
+
+String fix_string_wrap(const String & str, int len);
+
+struct stringele
+{
+	// string
+	char * s;
+	uint32_t sz;
+	uint32_t sysref;
 };
 

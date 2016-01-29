@@ -80,35 +80,35 @@ void codegen::output(const char * filename, const char * packagename, const char
 	bin->m_size = m_byte_code_list.size();
 	if (bin->m_size > 0)
 	{
-		bin->m_buff = (command *)safe_fkmalloc(m_fk, (bin->m_size * sizeof(command)));
+		bin->m_buff = (command *)safe_fkmalloc(m_fk, (bin->m_size * sizeof(command)), emt_func_binary);
 		memcpy(bin->m_buff, &m_byte_code_list[0], bin->m_size * sizeof(command));
 	}
 	
 	bin->m_lineno_size = m_byte_lineno_list.size();
 	if (bin->m_lineno_size > 0)
 	{
-		bin->m_lineno_buff = (int *)safe_fkmalloc(m_fk, (bin->m_lineno_size * sizeof(int)));
+		bin->m_lineno_buff = (int *)safe_fkmalloc(m_fk, (bin->m_lineno_size * sizeof(int)), emt_func_binary);
 		memcpy(bin->m_lineno_buff, &m_byte_lineno_list[0], bin->m_lineno_size * sizeof(int));
 	}
 
 	bin->m_const_list_num = m_const_list.size();
 	if (bin->m_const_list_num > 0)
 	{
-		bin->m_const_list = (variant *)safe_fkmalloc(m_fk, (bin->m_const_list_num * sizeof(variant)));
+		bin->m_const_list = (variant *)safe_fkmalloc(m_fk, (bin->m_const_list_num * sizeof(variant)), emt_func_binary);
 		memcpy(bin->m_const_list, &m_const_list[0], bin->m_const_list_num * sizeof(variant));
 	}
 
 	bin->m_container_addr_list_num = m_containeraddr_list.size();
 	if (bin->m_container_addr_list_num > 0)
 	{
-		bin->m_container_addr_list = (container_addr *)safe_fkmalloc(m_fk, (bin->m_container_addr_list_num * sizeof(container_addr)));
+		bin->m_container_addr_list = (container_addr *)safe_fkmalloc(m_fk, (bin->m_container_addr_list_num * sizeof(container_addr)), emt_func_binary);
 		memcpy(bin->m_container_addr_list, &m_containeraddr_list[0], bin->m_container_addr_list_num * sizeof(container_addr));
 	}
 
 	bin->m_debug_stack_variant_info_num = m_debug_block_identifiers_list.size();
 	if (bin->m_debug_stack_variant_info_num > 0)
 	{
-		bin->m_debug_stack_variant_info = (stack_variant_info *)safe_fkmalloc(m_fk, (bin->m_debug_stack_variant_info_num * sizeof(stack_variant_info)));
+		bin->m_debug_stack_variant_info = (stack_variant_info *)safe_fkmalloc(m_fk, (bin->m_debug_stack_variant_info_num * sizeof(stack_variant_info)), emt_func_binary);
 		memcpy(bin->m_debug_stack_variant_info, &m_debug_block_identifiers_list[0], bin->m_debug_stack_variant_info_num * sizeof(stack_variant_info));
 	}
 

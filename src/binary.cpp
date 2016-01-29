@@ -253,7 +253,7 @@ bool binary::add_func(const variant & name, const func_binary & bin)
 			FUNC_BINARY_DELETE(fb);
 			safe_fkfree(m_fk, FUNC_BINARY_BACKUP(f->fb));
 		}
-		FUNC_BINARY_BACKUP(f->fb) = (func_binary *)safe_fkmalloc(m_fk, sizeof(func_binary));
+		FUNC_BINARY_BACKUP(f->fb) = (func_binary *)safe_fkmalloc(m_fk, sizeof(func_binary), emt_func_binary);
 		*FUNC_BINARY_BACKUP(f->fb) = bin;
 	}
 	else
@@ -380,7 +380,7 @@ bool binary::load(buffer * b)
 		
 #define LOAD_ARRAY(x, len, type) \
 		LOAD_NORMAL(len); \
-		(x) = (type *)safe_fkmalloc(fk, (len) * sizeof(type)); \
+		(x) = (type *)safe_fkmalloc(fk, (len) * sizeof(type), emt_func_binary); \
 		if (!b->read((char *)(x), (len) * sizeof(type))) \
 		{ \
 			return false; \
@@ -388,7 +388,7 @@ bool binary::load(buffer * b)
 		
 #define LOAD_VARRAY(x, len) \
 		LOAD_NORMAL(len); \
-		(x) = (variant *)safe_fkmalloc(fk, ((len) * sizeof(variant))); \
+		(x) = (variant *)safe_fkmalloc(fk, ((len) * sizeof(variant)), emt_func_binary); \
 		for (int i = 0 ; i < (len); i++) \
 		{ \
 			if (!load_variant(fk, &((x)[i]), b)) \

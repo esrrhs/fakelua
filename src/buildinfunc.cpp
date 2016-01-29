@@ -84,7 +84,7 @@ void buildin_log(fake * fk, interpreter * inter)
 	{
 		time_t clock1 = time(0);
 		struct tm * tptr = localtime(&clock1);
-		const char * func = inter->get_running_func_name();
+		const char * func = fkgetcurfunc(fk);
 		
 		fprintf(pLog, "[%d.%d.%d, %d.%d.%d][%s] : %s\n", 
 			tptr->tm_year + 1990, tptr->tm_mon + 1, tptr->tm_mday, tptr->tm_hour, tptr->tm_min, tptr->tm_sec,
@@ -274,6 +274,13 @@ void buildin_dumpstat(fake * fk, interpreter * inter)
 	fkpspush<const char *>(fk, str);
 }
 
+// dumpmem
+void buildin_dumpmem(fake * fk, interpreter * inter)
+{
+	const char * str = fk->pf.dumpmem();
+	fkpspush<const char *>(fk, str);
+}
+
 // dofile
 void buildin_dofile(fake * fk, interpreter * inter)
 {
@@ -417,6 +424,7 @@ void buildinfunc::openbasefunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumpstringheap"), buildin_dumpstringheap);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumppointerheap"), buildin_dumppointerheap);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumpstat"), buildin_dumpstat);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dumpmem"), buildin_dumpmem);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dofile"), buildin_dofile);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("dostring"), buildin_dostring);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("getcurfile"), buildin_getcurfile);

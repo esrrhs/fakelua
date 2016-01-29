@@ -37,12 +37,12 @@ const uint32_t c_hashsize[] = {
 	3221225473ul, 
 };
 
-#define HASHMAP_INI(hm, fk) (hm).m_fk = fk
+#define HASHMAP_INI(hm, fk) (hm).m_set.m_fk = fk
 #define HASHMAP_CLEAR(hm) (hm).clear()
 #define HASHMAP_DELETE(hm) (hm).~fkhashmap()
-#define HASHMAP_RECUR(hm) ((hm).m_recurflag != 0)
-#define HASHMAP_ENTER(hm) ((hm).m_recurflag++)
-#define HASHMAP_LEAVE(hm) ((hm).m_recurflag--)
+#define HASHMAP_RECUR(hm) ((hm).m_set.m_recurflag != 0)
+#define HASHMAP_ENTER(hm) ((hm).m_set.m_recurflag++)
+#define HASHMAP_LEAVE(hm) ((hm).m_set.m_recurflag--)
 
 template <typename T>
 force_inline uint32_t fkkeyhash(const T & k)
@@ -57,7 +57,7 @@ force_inline bool fkkeycmp(const T & lk, const T & rk)
 }
 
 template <typename T>
-force_inline T fkkeycpy(fake * fk, const T & k)
+force_inline T fkkeycpy(fake * fk, const T & ok, const T & k)
 {
 	return k;
 }
@@ -87,9 +87,10 @@ force_inline bool fkkeycmp(const char * const & lk, const char * const & rk)
 }
 
 template <>
-force_inline const char * fkkeycpy(fake * fk, const char * const & k)
+force_inline const char * fkkeycpy(fake * fk, const char * const & ok, const char * const & k)
 {
-	return stringdump(fk, k, strlen(k));
+	safe_fkfree(fk, ok);
+	return stringdump(fk, k, strlen(k), emt_hashstring);
 }
 
 template <>
@@ -120,7 +121,7 @@ force_inline bool fkkeycmp(const variant & lk, const variant & rk)
 }
 
 template <>
-force_inline variant fkkeycpy(fake * fk, const variant & k)
+force_inline variant fkkeycpy(fake * fk, const variant & ok, const variant & k)
 {
 	return k;
 }
@@ -152,7 +153,7 @@ force_inline bool fkkeycmp(void * const & lk, void * const & rk)
 }
 
 template <>
-force_inline void * fkkeycpy(fake * fk, void * const & k)
+force_inline void * fkkeycpy(fake * fk, void * const & ok, void * const & k)
 {
 	return k;
 }
@@ -168,19 +169,89 @@ force_inline String fkkeytostr(void * const & k)
 	return fkptoa(k);
 }
 
-// T需要原始C结构 支持memcpy memset
+// 特化
+template <>
+force_inline uint32_t fkkeyhash(stringele * const & k)
+{
+	return fkstrhash(k->s);
+}
+
+template <>
+force_inline bool fkkeycmp(stringele * const & lk, stringele * const & rk)
+{
+	return !strcmp(lk->s, rk->s);
+}
+
+template <>
+force_inline stringele * fkkeycpy(fake * fk, stringele * const & ok, stringele * const & k)
+{
+	return k;
+}
+
+template <>
+force_inline void fkkeydel(fake * fk, stringele * const & k)
+{
+}
+
+template <>
+force_inline String fkkeytostr(stringele * const & k)
+{
+	return k->s;
+}
+
 template <typename K, typename T>
-class fkhashmap
+struct fkhashmapele
+{
+	K k;
+	T * t;
+};
+
+// 特化
+template <typename K, typename T>
+force_inline uint32_t fkkeyhash(const fkhashmapele<K, T> & k)
+{
+	return fkkeyhash(k.k);
+}
+
+template <typename K, typename T>
+force_inline bool fkkeycmp(const fkhashmapele<K, T> & lk, const fkhashmapele<K, T> & rk)
+{
+	return fkkeycmp(lk.k, rk.k);
+}
+
+template <typename K, typename T>
+force_inline fkhashmapele<K, T> fkkeycpy(fake * fk, const fkhashmapele<K, T> & ok, const fkhashmapele<K, T> & k)
+{
+	fkhashmapele<K, T> ret;
+	ret.k = fkkeycpy(fk, ok.k, k.k);
+	ret.t = k.t;
+	return ret;
+}
+
+template <typename K, typename T>
+force_inline void fkkeydel(fake * fk, const fkhashmapele<K, T> & k)
+{
+	fkkeydel(fk, k.k);
+}
+
+template <typename K, typename T>
+force_inline String fkkeytostr(const fkhashmapele<K, T> & k)
+{
+	return fkkeytostr(k.k);
+}
+
+#define ELE_FAST_BUFFER (2)
+#define GET_HASHELE(he, i) (LIKE((i) < ELE_FAST_BUFFER) ? (he).fe[(i)] : (he).overflow[(i) - ELE_FAST_BUFFER])
+
+template <typename K>
+class fkhashset
 {
 public:
 	struct ele
 	{
 		uint32_t hv;
 		K k;
-		T * t;
 	};
-#define ELE_FAST_BUFFER (8)
-#define GET_HASHELE(he, i) (LIKE((i) < ELE_FAST_BUFFER) ? (he).fe[(i)] : (he).overflow[(i) - ELE_FAST_BUFFER])
 	struct hashele
 	{
 		ele fe[ELE_FAST_BUFFER];
@@ -189,12 +260,12 @@ public:
 		ele * overflow;
 	};
 public:
-	force_inline fkhashmap(fake * fk) : m_fk(fk), m_hashele(0), m_hashele_size(0), m_ele_size(0), m_grow_times(0),
+	force_inline fkhashset(fake * fk) : m_fk(fk), m_hashele(0), m_hashele_size(0), m_ele_size(0), m_grow_times(0),
 		m_hashele_iter(0), m_ele_iter(0), m_recurflag(0)
 	{
 
 	}
-	force_inline ~fkhashmap()
+	force_inline ~fkhashset()
 	{
 		// 清掉旧的
 		for (int i = 0; i < m_hashele_size; i++)
@@ -203,7 +274,6 @@ public:
 			for (int j = 0; j < he.maxsize; j++)
 			{
 				fkkeydel(m_fk, GET_HASHELE(he, j).k);
-				safe_fkfree(m_fk, GET_HASHELE(he, j).t);
 			}
 			safe_fkfree(m_fk, he.overflow);
 		}
@@ -304,15 +374,9 @@ public:
 		}
 		return 0;
 	}
-	ele * add(const K & v, const T & t)
+	ele * add(const K & k)
 	{
-		ele * e = _add(v);
-		if (!e->t)
-		{
-			e->t = (T*)safe_fkmalloc(m_fk, sizeof(T));
-		}
-		*e->t = t;
-		return e;
+		return _add(k);
 	}
 	force_inline bool del(const K & k)
 	{
@@ -344,9 +408,9 @@ public:
 
 		return false;
 	}
-	force_inline T * get(const K & k) const
+	force_inline ele * get(const K & k) const
 	{
-		if (!m_ele_size)
+		if (UNLIKE(!m_ele_size))
 		{
 			return 0;
 		}
@@ -358,10 +422,10 @@ public:
 		for (int i = 0; i < he.size; i++)
 		{
 			// find
-			const ele & e = GET_HASHELE(he, i);
+			ele & e = GET_HASHELE(he, i);
 			if (LIKE(e.hv == hv && fkkeycmp(e.k, k)))
 			{
-				return e.t;
+				return &e;
 			}
 		}
 
@@ -425,7 +489,7 @@ private:
 			hashele* oldhashele = m_hashele;
 			int old_hashele_size = m_hashele_size;
 			int old_ele_size = m_ele_size;
-			m_hashele = (hashele*)safe_fkmalloc(m_fk, sizeof(hashele) * newsize);
+			m_hashele = (hashele*)safe_fkmalloc(m_fk, sizeof(hashele) * newsize, emt_hashset);
 			m_hashele_size = newsize;
 			m_ele_size = 0;
 			memset(m_hashele, 0, sizeof(hashele) * newsize);
@@ -437,15 +501,11 @@ private:
 				for (int j = 0; j < he.size; j++)
 				{
 					ele * e = &GET_HASHELE(he, j);
-					add(e->k, e->t);
+					add(e->k);
 				}
 				for (int j = 0; j < (int)he.maxsize; j++)
 				{
 					fkkeydel(m_fk, GET_HASHELE(he, j).k);
-				}
-				for (int j = he.size; j < (int)he.maxsize; j++)
-				{
-					safe_fkfree(m_fk, GET_HASHELE(he, j).t);
 				}
 				safe_fkfree(m_fk, he.overflow);
 			}
@@ -487,7 +547,7 @@ private:
 
 				// 分配
 				ele * oldoverflow = he.overflow;
-				he.overflow = (ele *)safe_fkmalloc(m_fk, sizeof(ele) * (newelesize - ELE_FAST_BUFFER));
+				he.overflow = (ele *)safe_fkmalloc(m_fk, sizeof(ele) * (newelesize - ELE_FAST_BUFFER), emt_hashlist);
 				memset(he.overflow, 0, sizeof(ele) * (newelesize - ELE_FAST_BUFFER));
 				he.maxsize = newelesize;
 				memcpy(he.overflow, oldoverflow, sizeof(ele) * (he.size - ELE_FAST_BUFFER));
@@ -502,17 +562,10 @@ private:
 		// add
 		ele & e = GET_HASHELE(he, he.size);
 		e.hv = hv;
-		fkkeydel(m_fk, e.k);
-		e.k = fkkeycpy(m_fk, k);
+		e.k = fkkeycpy(m_fk, e.k, k);
 		he.size++;
 		m_ele_size++;
 		return &e;
-	}
-	ele * add(const K & v, T * t)
-	{
-		ele * e = _add(v);
-		e->t = t;
-		return e;
 	}
 public:
 	fake * m_fk;
@@ -523,5 +576,114 @@ public:
 	mutable int m_hashele_iter;
 	mutable int m_ele_iter;
 	char m_recurflag;
+};
+
+// T需要原始C结构 支持memcpy memset
+template <typename K, typename T>
+class fkhashmap
+{
+public:
+	typedef fkhashmapele<K, T> ele;
+public:
+	force_inline fkhashmap(fake * fk) : m_set(fk)
+	{
+
+	}
+	force_inline ~fkhashmap()
+	{
+		for (int i = 0; i < m_set.m_hashele_size; i++)
+		{
+			typename fkhashset<ele>::hashele & he = m_set.m_hashele[i];
+			for (int j = 0; j < he.maxsize; j++)
+			{
+				safe_fkfree(m_set.m_fk, GET_HASHELE(he, j).k.t);
+			}
+		}
+	}
+	force_inline void clear()
+	{
+		m_set.clear();
+	}
+	force_inline size_t size() const
+	{
+		return m_set.size();
+	}
+	force_inline bool empty() const
+	{
+		return m_set.empty();
+	}
+	force_inline ele * first()
+	{
+		typename fkhashset<ele>::ele * e = m_set.first();
+		return e ? &e->k : 0;
+	}
+	force_inline const ele * first() const
+	{
+		const typename fkhashset<ele>::ele * e = m_set.first();
+		return e ? &e->k : 0;
+	}
+	force_inline ele * next()
+	{
+		typename fkhashset<ele>::ele * e = m_set.next();
+		return e ? &e->k : 0;
+	}
+	force_inline const ele * next() const
+	{
+		const typename fkhashset<ele>::ele * e = m_set.next();
+		return e ? &e->k : 0;
+	}
+	force_inline const ele * at(int pos) const
+	{
+		const typename fkhashset<ele>::ele * e = m_set.at(pos);
+		return e ? &e->k : 0;
+	}
+	ele * add(const K & k, const T & t)
+	{
+		ele tmp;
+		tmp.k = k;
+		typename fkhashset<ele>::ele * e = m_set.get(tmp);
+		if (!e)
+		{
+			tmp.t = (T*)safe_fkmalloc(m_set.m_fk, sizeof(T), emt_hashmap);
+			*(tmp.t) = t;
+			return &(m_set.add(tmp)->k);
+		}
+		else
+		{
+			*(e->k.t) = t;
+			return &(e->k);
+		}
+	}
+	force_inline bool del(const K & k)
+	{
+		ele tmp;
+		tmp.k = k;
+		return m_set.del(tmp);
+	}
+	force_inline T * get(const K & k) const
+	{
+		ele tmp;
+		tmp.k = k;
+		typename fkhashset<ele>::ele * e = m_set.get(tmp);
+		if (UNLIKE(e == 0))
+		{
+			return 0;
+		}
+		return e->k.t;
+	}
+	force_inline void get_conflict(int * buff, int buffsize) const
+	{
+		m_set.get_conflict(buff, buffsize);
+	}
+	force_inline void get_conflict_map(int * buff, int & buffsize) const
+	{
+		m_set.get_conflict_map(buff, buffsize);
+	}
+	force_inline void dump(char * buff, int buffsize) const
+	{
+		m_set.dump(buff, buffsize);
+	}
+public:
+	fkhashset<ele> m_set;
 };
 

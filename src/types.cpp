@@ -116,10 +116,45 @@ String fkget_token_name(int token)
 	return fkitoa(token);
 }
 
-void * safe_fkmalloc(fake * fk, size_t size)
+const char * get_mem_type_name(e_mem_type type)
+{
+#define TOKEN_SWITCH(x) case emt_##x: return #x;
+	switch (type)
+	{
+		TOKEN_SWITCH(tmp)
+		TOKEN_SWITCH(array)
+		TOKEN_SWITCH(func_binary)
+		TOKEN_SWITCH(buffer)
+		TOKEN_SWITCH(hashmap)
+		TOKEN_SWITCH(hashset)
+		TOKEN_SWITCH(hashlist)
+		TOKEN_SWITCH(flexer)
+		TOKEN_SWITCH(pool)
+		TOKEN_SWITCH(string)
+		TOKEN_SWITCH(native)
+		TOKEN_SWITCH(stringheap)
+		TOKEN_SWITCH(hashstring)
+		TOKEN_SWITCH(stringele)
+		TOKEN_SWITCH(max)
+	}
+#undef TOKEN_SWITCH
+	assert(0);
+	return "error";
+}
+
+void * safe_fkmalloc(fake * fk, size_t size, e_mem_type type)
 {
 	assert(fk && size >= 0);
-	return fk->cfg.fkm(size);
+	if (UNLIKE(fk->pf.isopen()))
+	{
+		void * p = fk->cfg.fkm(size);
+		fk->pf.add_mem(p, size, type);
+		return p;
+	}
+	else
+	{
+		return fk->cfg.fkm(size);
+	}
 }
 
 void safe_fkfree(fake * fk, const void * p)
@@ -127,7 +162,15 @@ void safe_fkfree(fake * fk, const void * p)
 	if (LIKE(p != 0))
 	{
 		assert(fk);
-		fk->cfg.fkf((void *)p);
+		if (UNLIKE(fk->pf.isopen()))
+		{
+			fk->pf.dec_mem((void *)p);
+			fk->cfg.fkf((void *)p);
+		}
+		else
+		{
+			fk->cfg.fkf((void *)p);
+		}
 	}
 }
 
@@ -142,6 +185,24 @@ void seterror(fake * fk, efkerror err, const char * file, int lineno, const char
 	if (fk->errorcb)
 	{
 		fk->errorcb(fk, fk->errorno, file, lineno, func, fk->errorstr);
+	}
+}
+
+void setwarn(fake * fk, const char *fmt, ...)
+{
+	char warnstr[512];
+	va_list ap;
+	va_start(ap, fmt);
+	vsnprintf(warnstr, sizeof(warnstr) - 1, fmt, ap);
+	va_end(ap);
+	warnstr[sizeof(warnstr) - 1] = 0;
+	if (fk->bif.get_print_func())
+	{
+		fk->bif.get_print_func()(fk, warnstr);
+	}
+	else
+	{
+		printf("%s\n", warnstr);
 	}
 }
 
@@ -185,9 +246,9 @@ paramstack * getps(fake * fk)
 	return &fk->ps;
 }
 
-char * stringdump(fake * fk, const char * src, size_t sz)
+char * stringdump(fake * fk, const char * src, size_t sz, e_mem_type type)
 {
-	char * s = (char*)safe_fkmalloc(fk, sz + 1);
+	char * s = (char*)safe_fkmalloc(fk, sz + 1, type);
 	memcpy(s, src, sz);
 	s[sz] = 0;
 	return s;
@@ -364,7 +425,7 @@ bool load_string(fake * fk, String & str, buffer * b)
 	{
 		return false;
 	}
-	char * ss = (char *)safe_fkmalloc(fk, len + 1);
+	char * ss = (char *)safe_fkmalloc(fk, len + 1, emt_tmp);
 	ss[len] = 0;
 	if (!b->read(ss, len))
 	{
@@ -372,6 +433,17 @@ bool load_string(fake * fk, String & str, buffer * b)
 		return false;
 	}
 	str = ss;
+	safe_fkfree(fk, ss);
 	return true;
+}
+
+String fix_string_wrap(const String & str, int len)
+{
+	String ret = str;
+	if ((int)ret.size() < len)
+	{
+		ret.append(len - ret.size(), ' ');
+	}
+	return ret;
 }
 

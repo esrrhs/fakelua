@@ -18,6 +18,7 @@ func main()
 	print({"a":1 "b":2})
 	print({"a":1 "b":[{1:1} {2:2}]})
 	print(dumpstat())
+	print(dumpmem())
 	print(getconst("c_table_data"))
 	return 0
 	

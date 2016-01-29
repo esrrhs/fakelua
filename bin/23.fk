@@ -14,6 +14,8 @@ func main()
 		myfunc2()
 	end
 	
+	return arg1
+	
 end
 
 -- func2 comment

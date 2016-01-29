@@ -908,6 +908,8 @@ public:
 	void call_func(void * func);
 	void variant_from_rax(int destpos);
 	void variant_to_rax(int srcpos);
+	void call_func_param2(void * func, fake * fk, int pos2);
+	void call_func_param3(void * func, fake * fk, int pos2, int pos3);
 	
 	void output(const char * filename, const char * packagename, const char * name, func_native * nt);
 

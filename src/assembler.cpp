@@ -100,7 +100,7 @@ bool assembler::compile_func(const func_binary & fb)
 
 	asg.start_func();
 
-	int stacksize = (fb.m_maxstack + fb.m_const_list_num + MAX_ASSEMBLER_CONTAINER_NUM) * variant_size;
+	int stacksize = (fb.m_maxstack + fb.m_const_list_num + MAX_ASSEMBLER_CONTAINER_NUM + 1) * variant_size;
 	FKLOG("[assembler] compile_func stack size %d", stacksize);
 	asg.alloc_stack(stacksize);
 
@@ -255,9 +255,9 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 	case OPCODE_SLEEP:
 	case OPCODE_YIELD:
 		{
-			FKERR("assembler dont support SLEEP or YIELD");
-			compile_seterror(fb, cmd, efk_jit_error, "assembler only support SLEEP or YIELD");
-			return false;
+			setwarn(m_fk, "assembler only support SLEEP or YIELD, skip code");
+			ret = true;
+			m_pos++;
 		}
 		break;
 	case OPCODE_FORBEGIN:
@@ -330,6 +330,8 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 		assert (v##_addrtype == ADDR_CONTAINER);\
 		compile_pos_to_container(asg, fb, v, v##_addrpos); \
 	}
+
+#define GET_TMP_POS(fb, v) v = FUNC_BINARY_MAX_CONST(fb) + FUNC_BINARY_MAX_STACK(fb) + MAX_ASSEMBLER_CONTAINER_NUM
 
 bool assembler::compile_assign(asmgen & asg, const func_binary & fb, command cmd)
 {
@@ -738,73 +740,167 @@ bool assembler::compile_jmp(asmgen & asg, const func_binary & fb, command cmd)
 	return true;
 }
 
+variant * assembler_get_classmem_call(fake * fk, variant * classvar, variant * callpos)
+{
+	bool err = false;
+	pool<variant>::node * n = fk->con.newvariant();
+	
+	void * classptr = 0;
+	const char * classprefix = 0;
+	
+	// prefix
+	V_GET_POINTER(classvar, classptr, classprefix);
+	
+	if (UNLIKE(err))
+	{
+		return 0;
+	}
+	
+	const char * funcname = 0;
+	V_GET_STRING(callpos, funcname);
+	
+	if (UNLIKE(err))
+	{
+		return 0;
+	}
+	
+	if (UNLIKE(!classptr))
+	{
+		err = true;
+		seterror(fk, efk_jit_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "jit class mem call error, the class ptr is null, type %s", classprefix);
+		return 0;
+	}
+	
+	// whole name
+	char wholename[MAX_FAKE_REG_FUNC_NAME_LEN];
+	if (UNLIKE(classvar->data.ponter->typesz + callpos->data.str->sz >= MAX_FAKE_REG_FUNC_NAME_LEN))
+	{
+		err = true;
+		seterror(fk, efk_jit_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "jit class mem call error, the name is too long, func %s %s", classprefix, funcname);
+		return 0;
+	}
+	memcpy(wholename, classprefix, classvar->data.ponter->typesz);
+	memcpy(wholename + classvar->data.ponter->typesz, funcname, callpos->data.str->sz);
+	wholename[classvar->data.ponter->typesz + callpos->data.str->sz] = 0;
+	
+	// call it
+	V_SET_STRING(&(n->t), wholename);
+	
+	return &(n->t);
+}
+
 bool assembler::compile_call(asmgen & asg, const func_binary & fb, command cmd)
 {
 	int calltype = COMMAND_CODE(GET_CMD(fb, m_pos));
 	m_pos++;
-	if (calltype != CALL_NORMAL)
+
+	if (calltype == CALL_FAKE)
 	{
-		FKERR("assembler only support normal call %d", calltype);
-		compile_seterror(fb, cmd, efk_jit_error, "assembler only support normal call %d", calltype);
-		return false;
-	}
-
-	int callpos = 0;
-	GET_VARIANT_POS(fb, callpos, m_pos);
-	m_pos++;
-
-	int retnum = COMMAND_CODE(GET_CMD(fb, m_pos));
-	m_pos++;
-
-	std::vector<int> retvec;
-	for (int i = 0; i < retnum; i++)
-	{
-		int ret = 0;
-		GET_VARIANT_POS(fb, ret, m_pos);
-		m_pos++;
-		retvec.push_back(ret);
+		setwarn(m_fk, "assembler not supprt fake call, change to normal call");
+		calltype = CALL_NORMAL;
 	}
 	
-	int argnum = COMMAND_CODE(GET_CMD(fb, m_pos));
-	m_pos++;
-
-	// 1.塞参数
-	asg.variant_ps_clear();
-	for (int i = 0; i < argnum; i++)
+	if (calltype == CALL_NORMAL)
 	{
-		int arg = 0;
-		GET_VARIANT_POS(fb, arg, m_pos);
+		int callpos = 0;
+		GET_VARIANT_POS(fb, callpos, m_pos);
 		m_pos++;
+
+		int retnum = COMMAND_CODE(GET_CMD(fb, m_pos));
+		m_pos++;
+
+		std::vector<int> retvec;
+		for (int i = 0; i < retnum; i++)
+		{
+			int ret = 0;
+			GET_VARIANT_POS(fb, ret, m_pos);
+			m_pos++;
+			retvec.push_back(ret);
+		}
 		
-		asg.variant_push(arg);
+		int argnum = COMMAND_CODE(GET_CMD(fb, m_pos));
+		m_pos++;
+
+		// 1.塞参数
+		asg.variant_ps_clear();
+		for (int i = 0; i < argnum; i++)
+		{
+			int arg = 0;
+			GET_VARIANT_POS(fb, arg, m_pos);
+			m_pos++;
+			
+			asg.variant_push(arg);
+		}
+
+		// 2.准备调用函数
+		// 3.调用
+		asg.call_func_param2((void *)&machine::static_call, m_fk, callpos);
+
+		// 4.处理返回值
+		for (int i = (int)retvec.size() - 1; i >= 0; i--)
+		{
+			int ret = retvec[i];
+			asg.variant_pop(ret);
+		}
+
+		// 5.清理不需要的
+		asg.variant_ps_clear();
 	}
-
-#ifdef WIN32
-	// 2.准备调用函数
-	asg.mov_ll_rcx((int64_t)m_fk);
-	asg.lea_rbp_rdx(V_OFF(callpos));
-	asg.mov_ll_rdi((int64_t)&machine::static_call);
-
-	// 3.调用
-	asg.call_func((void *)&call_machine_func);
-#else
-	// 2.准备调用函数
-	asg.mov_ll_rdi((int64_t)m_fk);
-	asg.lea_rbp_rsi(V_OFF(callpos));
-
-	// 3.调用
-	asg.call_func((void *)&machine::static_call);
-#endif
-
-	// 4.处理返回值
-	for (int i = (int)retvec.size() - 1; i >= 0; i--)
+	else if (calltype == CALL_CLASSMEM)
 	{
-		int ret = retvec[i];
-		asg.variant_pop(ret);
-	}
+		int callpos = 0;
+		GET_VARIANT_POS(fb, callpos, m_pos);
+		m_pos++;
 
-	// 5.清理不需要的
-	asg.variant_ps_clear();
+		int retnum = COMMAND_CODE(GET_CMD(fb, m_pos));
+		m_pos++;
+
+		std::vector<int> retvec;
+		for (int i = 0; i < retnum; i++)
+		{
+			int ret = 0;
+			GET_VARIANT_POS(fb, ret, m_pos);
+			m_pos++;
+			retvec.push_back(ret);
+		}
+
+		int argnum = COMMAND_CODE(GET_CMD(fb, m_pos));
+		m_pos++;
+
+		// 0.取出实际的函数名
+		int classpos = 0;
+		GET_VARIANT_POS(fb, classpos, m_pos + argnum - 1);
+		int tmppos = 0;
+		GET_TMP_POS(fb, tmppos);
+		
+		asg.call_func_param3((void*)&assembler_get_classmem_call, m_fk, classpos, callpos);
+		asg.variant_from_rax(tmppos);
+
+		// 1.塞参数
+		asg.variant_ps_clear();
+		for (int i = 0; i < argnum; i++)
+		{
+			int arg = 0;
+			GET_VARIANT_POS(fb, arg, m_pos);
+			m_pos++;
+			
+			asg.variant_push(arg);
+		}
+
+		// 2.准备调用函数
+		// 3.调用
+		asg.call_func_param2((void *)&machine::static_call, m_fk, tmppos);
+
+		// 4.处理返回值
+		for (int i = (int)retvec.size() - 1; i >= 0; i--)
+		{
+			int ret = retvec[i];
+			asg.variant_pop(ret);
+		}
+
+		// 5.清理不需要的
+		asg.variant_ps_clear();
+	}
 	
 	return true;
 }
@@ -834,20 +930,7 @@ bool assembler::compile_container_to_pos(asmgen & asg, const func_binary & fb, i
 	int keyv = 0;
 	GET_VARIANT_POS_BY_CMD(fb, keyv, ca.key);
 	
-#ifdef WIN32
-	asg.mov_ll_rcx((int64_t)m_fk);
-	asg.lea_rbp_rdx(V_OFF(conv));
-	asg.lea_rbp_r8d(V_OFF(keyv));
-	asg.mov_ll_rdi((int64_t)&assembler_get_container);
-
-	asg.call_func((void *)&call_machine_func);
-#else
-	asg.mov_ll_rdi((int64_t)m_fk);
-	asg.lea_rbp_rsi(V_OFF(conv));
-	asg.lea_rbp_rdx(V_OFF(keyv));
-	
-	asg.call_func((void *)&assembler_get_container);
-#endif
+	asg.call_func_param3((void *)&assembler_get_container, m_fk, conv, keyv);
 
 	asg.variant_from_rax(despos);
 
@@ -865,20 +948,7 @@ bool assembler::compile_pos_to_container(asmgen & asg, const func_binary & fb, i
 	int keyv = 0;
 	GET_VARIANT_POS_BY_CMD(fb, keyv, ca.key);
 	
-#ifdef WIN32
-	asg.mov_ll_rcx((int64_t)m_fk);
-	asg.lea_rbp_rdx(V_OFF(conv));
-	asg.lea_rbp_r8d(V_OFF(keyv));
-	asg.mov_ll_rdi((int64_t)&assembler_get_container);
-
-	asg.call_func((void *)&call_machine_func);
-#else
-	asg.mov_ll_rdi((int64_t)m_fk);
-	asg.lea_rbp_rsi(V_OFF(conv));
-	asg.lea_rbp_rdx(V_OFF(keyv));
-	
-	asg.call_func((void *)&assembler_get_container);
-#endif
+	asg.call_func_param3((void *)&assembler_get_container, m_fk, conv, keyv);
 
 	asg.variant_to_rax(srcpos);
 	
