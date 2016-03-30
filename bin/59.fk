@@ -18,10 +18,12 @@ func main()
 	src = string.replace(src, ",\n", "\n")
 	src = "const "..src
 	
-	dostring(src)
-	var c = getconst("MonsterConfig")
-	print(size(c))
-	print(c["10000000"])
+	ok, var desf = file.open("59data.fk", "wb")
+	if not ok then
+		return 0
+	end
+	
+	file.write_all(desf, src)
 	
 	return 0
 	

@@ -5,16 +5,6 @@
 #include "binary.h"
 #include "asmgen.h"
 
-#ifdef WIN32
-extern "C" void __stdcall call_machine_func()
-#ifndef FK64
-{
-}
-#else
-;
-#endif
-#endif
-
 void assembler::clear()
 {
 	m_pos = 0;
@@ -743,7 +733,7 @@ bool assembler::compile_jmp(asmgen & asg, const func_binary & fb, command cmd)
 variant * assembler_get_classmem_call(fake * fk, variant * classvar, variant * callpos)
 {
 	bool err = false;
-	pool<variant>::node * n = fk->con.newvariant();
+	variant * n = fk->con.newvariant();
 	
 	void * classptr = 0;
 	const char * classprefix = 0;
@@ -784,9 +774,9 @@ variant * assembler_get_classmem_call(fake * fk, variant * classvar, variant * c
 	wholename[classvar->data.ponter->typesz + callpos->data.str->sz] = 0;
 	
 	// call it
-	V_SET_STRING(&(n->t), wholename);
+	V_SET_STRING(n, wholename);
 	
-	return &(n->t);
+	return n;
 }
 
 bool assembler::compile_call(asmgen & asg, const func_binary & fb, command cmd)

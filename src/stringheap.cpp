@@ -11,7 +11,6 @@ stringheap::~stringheap()
 	for (const fkhashset<stringele *>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
 	{
 		stringele * e = p->k;
-		safe_fkfree(m_fk, e->s);
 		safe_fkfree(m_fk, e);
 	}
 	ARRAY_DELETE(m_todelete);
@@ -27,7 +26,7 @@ void stringheap::clear()
 		{
 			if (ARRAY_SIZE(m_todelete) >= ARRAY_MAX_SIZE(m_todelete))
 			{
-				size_t newsize = ARRAY_MAX_SIZE(m_todelete) + 1 + ARRAY_MAX_SIZE(m_todelete) * (m_fk->cfg.array_grow_speed) / 100;
+				size_t newsize = ARRAY_SIZE(m_todelete) + 1 + ARRAY_MAX_SIZE(m_todelete) * (m_fk->cfg.array_grow_speed) / 100;
 				ARRAY_GROW(m_todelete, newsize, stringele *);
 			}
 			ARRAY_PUSH_BACK(m_todelete);
@@ -39,7 +38,6 @@ void stringheap::clear()
 	{
 		stringele * e = ARRAY_GET(m_todelete, i);
 		m_shh.del(e);
-		safe_fkfree(m_fk, e->s);
 		safe_fkfree(m_fk, e);
 	}
 	
@@ -56,10 +54,16 @@ stringele * stringheap::allocstring(const char * str)
 	{
 		return p->k;
 	}
-	stringele * e = (stringele *)safe_fkmalloc(m_fk, sizeof(stringele), emt_stringele);
-	e->sz = strlen(str);
-	e->s = stringdump(m_fk, str, e->sz, emt_stringheap);
+	int len = strlen(str);
+	stringele * e = (stringele *)safe_fkmalloc(m_fk, sizeof(stringele) + len + 1, emt_stringele);
+	e->sz = len;
+	e->s = (char*)e + sizeof(stringele);
 	e->sysref = 0;
+	if (LIKE(e->sz > 0))
+	{
+		memcpy(e->s, str, e->sz);
+	}
+	e->s[e->sz] = 0;
 	return m_shh.add(e)->k;
 }
 

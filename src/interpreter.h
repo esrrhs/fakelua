@@ -238,11 +238,11 @@
 #define CHECK_ERR(err) \
 	if (UNLIKE(err)) \
 	{ \
-		pool<processor>::node * p = 0; \
+		processor * p = 0; \
 		GET_CUR_PROCESSOR(p, fk->rn); \
-		if (p && p->t.m_curroutine) \
+		if (p && p->m_curroutine) \
 		{ \
-			p->t.m_curroutine->m_interpreter.end(); \
+			p->m_curroutine->m_interpreter.end(); \
 		} \
 	}
 

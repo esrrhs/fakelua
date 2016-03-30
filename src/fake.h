@@ -45,13 +45,7 @@ struct fake
 	~fake()
 	{
 		clear();
-		pool<processor>::node * ppn = pp.m_data;
-		while (ppn != 0)
-		{
-			PROCESS_DELETE(ppn->t);
-			ppn = ppn->next;
-		}
-		POOL_DELETE(pp);
+		POOL_DELETE(pp, processor, PROCESS_DELETE(*n));
 	}
 
 	// Çå¿Õ

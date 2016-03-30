@@ -20,11 +20,6 @@ struct func_native
 	// code
 	char * m_buff;
 	size_t m_size;
-	// code行号缓冲区
-	int * m_lineno_buff;
-	int m_lineno_size;
-	// 占用标记
-	mutable int m_use;
 	// 备份
 	mutable func_native * m_backup;
 };
@@ -42,14 +37,12 @@ struct func_native
 	safe_fkfree(m_fk, (fn).m_name); \
 	safe_fkfree(m_fk, (fn).m_filename); \
 	safe_fkfree(m_fk, (fn).m_packagename); \
-	safe_fkfree(m_fk, (fn).m_lineno_buff); \
 	FUNC_NATIVE_CODE_FREE(fn); \
 	if ((fn).m_backup) \
 	{ \
 		safe_fkfree(m_fk, (fn).m_backup->m_name); \
 		safe_fkfree(m_fk, (fn).m_backup->m_filename); \
 		safe_fkfree(m_fk, (fn).m_backup->m_packagename); \
-		safe_fkfree(m_fk, (fn).m_backup->m_lineno_buff); \
 		FUNC_NATIVE_CODE_FREE(*((fn).m_backup)); \
 	} \
 	safe_fkfree(m_fk, (fn).m_backup)

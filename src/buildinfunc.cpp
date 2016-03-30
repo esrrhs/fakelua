@@ -198,7 +198,14 @@ void buildin_range(fake * fk, interpreter * inter)
 		{
 			variant * ret = 0;
 			PS_PUSH_AND_GET(fk->ps, ret);
-			*ret = ARRAY_GET(v->data.va->va, pos)->t;
+			if (ARRAY_GET(v->data.va->va, pos))
+			{
+				*ret = *(ARRAY_GET(v->data.va->va, pos));
+			}
+			else
+			{
+				*ret = NILV;
+			}
 		}
 		else
 		{
@@ -215,9 +222,9 @@ void buildin_range(fake * fk, interpreter * inter)
 			variant * value = 0;
 			PS_PUSH_AND_GET(fk->ps, value);
 			
-			const fkhashmap<variant, pool<variant>::node *>::ele * e = v->data.vm->vm.at(pos);
+			const fkhashmap<variant, variant *>::ele * e = v->data.vm->vm.at(pos);
 			*key = e->k;
-			*value = (*e->t)->t;
+			*value = *(*e->t);
 		}
 		else
 		{

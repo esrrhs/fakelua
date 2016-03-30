@@ -30,7 +30,7 @@ void interpreter::call(const variant & func, int retnum, int * retpos)
 		int needsize = m_sp + BP_SIZE + retnum + FUNC_BINARY_MAX_STACK(*fb);
 		if (UNLIKE(needsize > (int)ARRAY_MAX_SIZE(m_stack)))
 		{
-			int newsize = needsize + needsize * m_fk->cfg.array_grow_speed / 100;
+			int newsize = needsize + 1 + ARRAY_MAX_SIZE(m_stack) * m_fk->cfg.array_grow_speed / 100;
 			ARRAY_GROW(m_stack, newsize, variant);
 		}
 

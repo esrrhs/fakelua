@@ -292,10 +292,10 @@ String fkarraytoa(variant_array * va)
 	ret += "[";
 	for (int i = 0; i < (int)ARRAY_SIZE(va->va); i++)
 	{
-		pool<variant>::node * n = ARRAY_GET(va->va, i);
+		variant * n = ARRAY_GET(va->va, i);
 		if (n)
 		{
-			ret += vartostring(&(n->t));
+			ret += vartostring(n);
 		}
 		else
 		{
@@ -321,10 +321,10 @@ String fkmaptoa(variant_map * vm)
 	String ret;
 	ret += "{";
 	int i = 0;
-	for (const fkhashmap<variant, pool<variant>::node *>::ele * p = vm->vm.first(); p != 0; p = vm->vm.next())
+	for (const fkhashmap<variant, variant *>::ele * p = vm->vm.first(); p != 0; p = vm->vm.next())
 	{
 		const variant & key = p->k;
-		const pool<variant>::node * value = *p->t;
+		const variant * value = *p->t;
 		if (!i)
 		{
 			ret += "(";
@@ -335,7 +335,7 @@ String fkmaptoa(variant_map * vm)
 		}
 		ret += vartostring(&key);
 		ret += ",";
-		ret += vartostring(&(value->t));
+		ret += vartostring(value);
 		ret += ")";
 		i++;
 	}
@@ -364,9 +364,63 @@ bool save_variant(fake * fk, const variant * v, buffer * b)
 		const char * ss = v->data.str ? v->data.str->s : "";
 		return save_string(fk, ss, b);
 	}
-	else if (v->type == variant::POINTER ||
-		v->type == variant::ARRAY ||
-		v->type == variant::MAP)
+	else if (v->type == variant::ARRAY)
+	{
+		if (!v->data.va->isconst)
+		{
+			return false;
+		}
+
+		int size = ARRAY_SIZE(v->data.va->va);
+		if (!b->write((const char *)&(size), sizeof(size)))
+		{
+			return false;
+		}
+	
+		for (int i = 0; i < size; i++)
+		{
+			variant * ele = ARRAY_GET(v->data.va->va, i);
+			if (!save_variant(fk, ele, b))
+			{
+				return false;
+			}
+		}
+
+		return true;
+	}
+	else if (v->type == variant::MAP)
+	{
+		if (!v->data.vm->isconst)
+		{
+			return false;
+		}
+
+		fkhashmap<variant, variant *> & vm = v->data.vm->vm;
+		int size = vm.size();
+		if (!b->write((const char *)&(size), sizeof(size)))
+		{
+			return false;
+		}
+		
+		for (const fkhashmap<variant, variant *>::ele * p = vm.first(); p != 0; p = vm.next())
+		{
+			const variant & kv = p->k;
+			const variant * vv = *p->t;
+		
+			if (!save_variant(fk, &kv, b))
+			{
+				return false;
+			}
+			
+			if (!save_variant(fk, vv, b))
+			{
+				return false;
+			}
+		}
+		
+		return true;
+	}
+	else if (v->type == variant::POINTER)
 	{
 		// 暂时不支持
 	}
@@ -398,9 +452,64 @@ bool load_variant(fake * fk, variant * v, buffer * b)
 		*v = fk->sh.allocsysstr(s.c_str());
 		return true;
 	}
-	else if (v->type == variant::POINTER ||
-		v->type == variant::ARRAY ||
-		v->type == variant::MAP)
+	else if (v->type == variant::ARRAY)
+	{	
+		variant_array * va = fk->con.newconstarray();
+		
+		int size = 0;
+		if (!b->read((char *)&(size), sizeof(size)))
+		{
+			return false;
+		}
+	
+		for (int i = 0; i < size; i++)
+		{
+			variant ele;
+			if (!load_variant(fk, &ele, b))
+			{
+				return false;
+			}
+			
+			variant kv;
+			V_SET_REAL((&kv), i);
+
+			variant * des = con_array_get(fk, va, &kv);
+			*des = ele;
+		}
+		V_SET_ARRAY(v, va);
+		return true;
+	}
+	else if (v->type == variant::MAP)
+	{
+		variant_map * vm = fk->con.newconstmap();
+
+		int size = 0;
+		if (!b->read((char *)&(size), sizeof(size)))
+		{
+			return false;
+		}
+		
+		for (int i = 0; i < size; i++)
+		{
+			variant kv;
+			if (!load_variant(fk, &kv, b))
+			{
+				return false;
+			}
+			
+			variant vv;
+			if (!load_variant(fk, &vv, b))
+			{
+				return false;
+			}
+
+			variant * des = con_map_get(fk, vm, &kv);
+			*des = vv;
+		}
+		V_SET_MAP(v, vm);
+		return true;
+	}
+	else if (v->type == variant::POINTER)
 	{
 		// 暂时不支持
 	}
@@ -438,12 +547,39 @@ bool load_string(fake * fk, String & str, buffer * b)
 }
 
 String fix_string_wrap(const String & str, int len)
-{
+{
+
 	String ret = str;
 	if ((int)ret.size() < len)
-	{
+	{
+
 		ret.append(len - ret.size(), ' ');
 	}
 	return ret;
 }
+
+const fakeconfig & get_fakeconfig(fake * fk)
+{
+	return fk->cfg;
+}
+
+void * fk_mmap_alloc(size_t size)
+{
+#ifdef WIN32
+	return (char*)VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
+#else  
+	return (char*)mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+#endif
+}
+
+void fk_mmap_set_exec(void * buff, size_t size)
+{
+#ifdef WIN32
+	DWORD dwOld; 
+	VirtualProtect(buff, size, PAGE_EXECUTE_READ, &dwOld);
+#else  
+	mprotect(buff, size, PROT_READ | PROT_EXEC);
+#endif
+}
+
 

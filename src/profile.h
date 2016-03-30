@@ -41,6 +41,8 @@ public:
 		memset(m_codetype, 0, sizeof(m_codetype));
 		m_memmalloc_num = 0;
 		m_memfree_num = 0;
+		m_memmalloc_size = 0;
+		m_memfree_size = 0;
 	}
 
 	force_inline void open()
@@ -79,5 +81,7 @@ private:
 	memhashmap m_memuse;	// ∑¿÷πµ›πÈ
 	size_t m_memmalloc_num;
 	size_t m_memfree_num;
+	size_t m_memmalloc_size;
+	size_t m_memfree_size;
 };
 

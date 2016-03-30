@@ -3,28 +3,28 @@
 
 routine * processor::start_routine(const variant & func, int retnum, int * retpos)
 {
-	pool<routine>::node * n = 0;
-	POOLLIST_POP(m_pl, n, routine, m_fk->cfg.array_grow_speed);
+	routine * n = 0;
+	POOLLIST_POP(m_pl, n, routine);
 	
 	if (!m_entryroutine)
 	{
-		m_entryroutine = &n->t;
+		m_entryroutine = n;
 	}
 	
 	// 初始化下
-	ROUTINE_INI(n->t, m_fk, m_genid);
+	ROUTINE_INI(*n, m_fk, m_genid);
 	m_genid++;
-	ROUTINE_CLEAR(n->t);
-	ROUTINE_SET_PRO(n->t, this);
-	ROUTINE_ENTRY(n->t, func, retnum, retpos);
+	ROUTINE_CLEAR(*n);
+	ROUTINE_SET_PRO(*n, this);
+	ROUTINE_ENTRY(*n, func, retnum, retpos);
 	
 	m_routine_num++;
 	if (!m_curroutine)
 	{
-		m_curroutine = &n->t;
+		m_curroutine = n;
 	}
 
-	return &n->t;
+	return n;
 }
 	
 void processor::run()
@@ -41,14 +41,14 @@ void processor::run()
 			return;
 		}
 
-		pool<routine>::node * n = ARRAY_GET(m_pl.l, m_lastroutine);
+		routine * n = ARRAY_GET(m_pl.l, m_lastroutine);
 		assert(n);
-		ROUTINE_RUN(n->t, 1);
+		ROUTINE_RUN(*n, 1);
 		m_lastroutine_runnum++;
 		bool needupdate = false;
-		if (UNLIKE(ROUTINE_ISEND(n->t)))
+		if (UNLIKE(ROUTINE_ISEND(*n)))
 		{
-			POOL_PUSH(m_pl.p, n);
+			POOL_PUSH(m_pl.p, n, routine);
 			ARRAY_GET(m_pl.l, m_lastroutine) = 0;
 			m_routine_num--;
 			needupdate = true;
@@ -68,13 +68,13 @@ void processor::run()
 					index = index % ARRAY_SIZE(m_pl.l);
 				}
 				
-				pool<routine>::node * n = ARRAY_GET(m_pl.l, index);
+				routine * n = ARRAY_GET(m_pl.l, index);
 				if (UNLIKE(!n))
 				{
 					continue;
 				}
 				
-				m_curroutine = &n->t;
+				m_curroutine = n;
 				m_lastroutine = index;
 				break;
 			}
@@ -90,17 +90,17 @@ void processor::run()
 		{
 			for (int i = 0; LIKE(i < (int)ARRAY_SIZE(m_pl.l)); i++)
 			{
-				pool<routine>::node * n = ARRAY_GET(m_pl.l, i);
+				routine * n = ARRAY_GET(m_pl.l, i);
 				if (UNLIKE(!n))
 				{
 					continue;
 				}
-				m_curroutine = &n->t;
+				m_curroutine = n;
 				// 注意:此函数内部可能会调用到add接口
-				ROUTINE_RUN(n->t, m_fk->cfg.per_frame_cmd_num);
-				if (UNLIKE(ROUTINE_ISEND(n->t)))
+				ROUTINE_RUN(*n, m_fk->cfg.per_frame_cmd_num);
+				if (UNLIKE(ROUTINE_ISEND(*n)))
 				{
-					POOL_PUSH(m_pl.p, n);
+					POOL_PUSH(m_pl.p, n, routine);
 					ARRAY_GET(m_pl.l, i) = 0;
 					m_routine_num--;
 				}
@@ -114,15 +114,15 @@ routine * processor::get_routine_by_id(int id)
 {
 	for (int i = 0; LIKE(i < (int)ARRAY_SIZE(m_pl.l)); i++)
 	{
-		pool<routine>::node * n = ARRAY_GET(m_pl.l, i);
+		routine * n = ARRAY_GET(m_pl.l, i);
 		if (UNLIKE(!n))
 		{
 			continue;
 		}
 
-		if (ROUTINE_ID(n->t) == id)
+		if (ROUTINE_ID(*n) == id)
 		{
-			return &n->t;
+			return n;
 		}
 	}
 	return 0;
@@ -144,28 +144,28 @@ const char * processor::get_routine_info_by_id(int id)
 	int j = 0;
 	for (int i = 0; LIKE(i < (int)ARRAY_SIZE(m_pl.l)); i++)
 	{
-		pool<routine>::node * n = ARRAY_GET(m_pl.l, i);
+		routine * n = ARRAY_GET(m_pl.l, i);
 		if (UNLIKE(!n))
 		{
 			continue;
 		}
 
-		if (ROUTINE_ID(n->t) == id)
+		if (ROUTINE_ID(*n) == id)
 		{
 			m_fk->rn.cur_runinginfo.clear();
 			
 			m_fk->rn.cur_runinginfo += "#";
 			m_fk->rn.cur_runinginfo += fkitoa(j);
 			m_fk->rn.cur_runinginfo += "\tId:";
-			m_fk->rn.cur_runinginfo += fkitoa(ROUTINE_ID(n->t));
+			m_fk->rn.cur_runinginfo += fkitoa(ROUTINE_ID(*n));
 			m_fk->rn.cur_runinginfo += "\t";
-			m_fk->rn.cur_runinginfo += n->t.m_interpreter.get_running_func_name();
+			m_fk->rn.cur_runinginfo += n->m_interpreter.get_running_func_name();
 			m_fk->rn.cur_runinginfo += "(";
-			m_fk->rn.cur_runinginfo += n->t.m_interpreter.get_running_file_name();
+			m_fk->rn.cur_runinginfo += n->m_interpreter.get_running_file_name();
 			m_fk->rn.cur_runinginfo += ":";
-			m_fk->rn.cur_runinginfo += fkitoa(n->t.m_interpreter.get_running_file_line());
+			m_fk->rn.cur_runinginfo += fkitoa(n->m_interpreter.get_running_file_line());
 			m_fk->rn.cur_runinginfo += ")\t";
-			m_fk->rn.cur_runinginfo += ROUTINE_ISEND(n->t) ? "Dead" : "Alive";
+			m_fk->rn.cur_runinginfo += ROUTINE_ISEND(*n) ? "Dead" : "Alive";
 			m_fk->rn.cur_runinginfo += "\n";
 			return m_fk->rn.cur_runinginfo.c_str();
 		}
@@ -179,7 +179,7 @@ const char * processor::get_routine_info_by_index(int index)
 	int j = 0;
 	for (int i = 0; LIKE(i < (int)ARRAY_SIZE(m_pl.l)); i++)
 	{
-		pool<routine>::node * n = ARRAY_GET(m_pl.l, i);
+		routine * n = ARRAY_GET(m_pl.l, i);
 		if (UNLIKE(!n))
 		{
 			continue;
@@ -187,7 +187,7 @@ const char * processor::get_routine_info_by_index(int index)
 
 		if (j >= index)
 		{
-			return get_routine_info_by_id(ROUTINE_ID(n->t));
+			return get_routine_info_by_id(ROUTINE_ID(*n));
 		}
 		j++;
 	}
@@ -199,7 +199,7 @@ routine * processor::get_routine_by_index(int index)
 	int j = 0;
 	for (int i = 0; LIKE(i < (int)ARRAY_SIZE(m_pl.l)); i++)
 	{
-		pool<routine>::node * n = ARRAY_GET(m_pl.l, i);
+		routine * n = ARRAY_GET(m_pl.l, i);
 		if (UNLIKE(!n))
 		{
 			continue;
@@ -207,7 +207,7 @@ routine * processor::get_routine_by_index(int index)
 
 		if (j >= index)
 		{
-			return &n->t;
+			return n;
 		}
 		j++;
 	}

@@ -26,7 +26,7 @@ struct running
 	// 执行迭代计数
 	int rundeps;
 	// 当前执行的processor
-	array<pool<processor>::node *> curprocessor;
+	array<processor *> curprocessor;
 	// running info
 	String cur_runinginfo;
 	// step mod
@@ -46,8 +46,8 @@ struct running
 
 #define PUSH_CUR_PROCESSOR(pro, ri) if (UNLIKE(ARRAY_SIZE((ri).curprocessor) >= ARRAY_MAX_SIZE((ri).curprocessor))) \
 	{ \
-		int newsize = 1 + ARRAY_SIZE((ri).curprocessor) + ARRAY_SIZE((ri).curprocessor) * (ri).m_fk->cfg.array_grow_speed / 100; \
-		ARRAY_GROW((ri).curprocessor, newsize, pool<processor>::node *); \
+		int newsize = ARRAY_SIZE((ri).curprocessor) + 1 + ARRAY_MAX_SIZE((ri).curprocessor) * (ri).m_fk->cfg.array_grow_speed / 100; \
+		ARRAY_GROW((ri).curprocessor, newsize, processor *); \
 	} \
 	ARRAY_PUSH_BACK((ri).curprocessor); \
 	ARRAY_BACK((ri).curprocessor) = pro;
