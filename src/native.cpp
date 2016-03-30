@@ -1,5 +1,6 @@
 #include "native.h"
 #include "fake.h"
+#include "buffer.h"
 
 String func_native::dump() const
 {
@@ -52,5 +53,4 @@ bool native::add_func(const variant & name, const func_native & nt)
 
 	return true;
 }
-
 

@@ -4,6 +4,7 @@
 #include "variant.h"
 
 const uint32_t c_hashsize[] = {
+	1ul,
 	3ul,
 	5ul,
 	9ul,
@@ -240,7 +241,7 @@ force_inline String fkkeytostr(const fkhashmapele<K, T> & k)
 	return fkkeytostr(k.k);
 }
 
-#define ELE_FAST_BUFFER (2)
+#define ELE_FAST_BUFFER (1)
 #define GET_HASHELE(he, i) (LIKE((i) < ELE_FAST_BUFFER) ? (he).fe[(i)] : (he).overflow[(i) - ELE_FAST_BUFFER])
 
 template <typename K>
@@ -255,8 +256,8 @@ public:
 	struct hashele
 	{
 		ele fe[ELE_FAST_BUFFER];
-		int size;
-		int maxsize;
+		uint16_t size;
+		uint16_t maxsize;
 		ele * overflow;
 	};
 public:
@@ -470,7 +471,7 @@ private:
 	ele * _add(const K & k)
 	{
 		// ¼ì²é¿Õ¼ä
-		int newsize = m_ele_size * 2;
+		int newsize = m_ele_size;
 		if (UNLIKE(newsize >= m_hashele_size))
 		{
 			m_grow_times++;

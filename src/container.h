@@ -10,7 +10,7 @@ struct fake;
 
 struct variant_array
 {
-	array<pool<variant>::node *> va;
+	array<variant *> va;
 	bool isconst;
 };
 
@@ -18,7 +18,7 @@ struct variant_array
 
 struct variant_map
 {
-	fkhashmap<variant, pool<variant>::node *> vm;
+	fkhashmap<variant, variant *> vm;
 	bool isconst;
 };
 
@@ -37,11 +37,11 @@ public:
 
 	variant_array * newarray();
 	variant_map * newmap();
-	pool<variant>::node * newvariant();
+	variant * newvariant();
 	
 	variant_array * newconstarray();
 	variant_map * newconstmap();
-	pool<variant>::node * newconstvariant();
+	variant * newconstvariant();
 
 	size_t get_map_size() const;
 	size_t get_array_size() const;

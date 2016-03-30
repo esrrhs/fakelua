@@ -179,7 +179,15 @@ const char * profile::dumpmem()
 	m_dumpstr += fix_string_wrap("Free Num:", wraplen);
 	m_dumpstr += fkitoa(m_memfree_num);
 	m_dumpstr += "\n";
-	
+
+	m_dumpstr += fix_string_wrap("Malloc Size:", wraplen);
+	m_dumpstr += fkitoa(m_memmalloc_size);
+	m_dumpstr += "\n";
+
+	m_dumpstr += fix_string_wrap("Free Size:", wraplen);
+	m_dumpstr += fkitoa(m_memfree_size);
+	m_dumpstr += "\n";
+
 	m_dumpstr += fix_string_wrap("Mem Pointer Num:", wraplen);
 	m_dumpstr += fkitoa(m_memuse.size());
 	m_dumpstr += "\n";
@@ -229,6 +237,7 @@ void profile::add_mem(void * p, size_t size, e_mem_type type)
 		tmp.size = size;
 		m_memuse[p] = tmp;
 		m_memmalloc_num++;
+		m_memmalloc_size += size;
 	}
 	else
 	{
@@ -245,8 +254,9 @@ void profile::dec_mem(void * p)
 	}
 	else
 	{
-		m_memuse.erase(p);
 		m_memfree_num++;
+		m_memfree_size += it->second.size;
+		m_memuse.erase(p);
 	}
 }
 

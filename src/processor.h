@@ -47,13 +47,7 @@ public:
 	(pro).m_genid = 0
 
 #define PROCESS_DELETE(pro) \
-		pool<routine>::node * prn = (pro).m_pl.p.m_data;\
-		while (prn != 0)\
-		{\
-			ROUTINE_DELETE(prn->t);\
-			prn = prn->next;\
-		}\
-		POOLLIST_DELETE((pro).m_pl)
+		POOLLIST_DELETE((pro).m_pl, routine, ROUTINE_DELETE(*n))
 
 #define PROCESS_CLEAR(pro) POOLLIST_CLEAR((pro).m_pl, routine, USE(n));\
 	(pro).m_routine_num = 0;\

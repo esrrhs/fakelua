@@ -329,8 +329,75 @@ String fix_string_wrap(const String & str, int len);
 struct stringele
 {
 	// string
-	char * s;
 	uint32_t sz;
 	uint32_t sysref;
+	char * s;
 };
+
+const fakeconfig & get_fakeconfig(fake * fk);
+
+#define SAVE_NORMAL(x) \
+	if (!b->write((const char *)&(x), sizeof(x))) \
+	{ \
+		return false; \
+	}
+	
+#define SAVE_STRING(x) \
+	if (!save_string(fk, (x), b)) \
+	{ \
+		return false; \
+	}
+	
+#define SAVE_ARRAY(x, len) \
+	SAVE_NORMAL(len); \
+	if (!b->write((const char *)(x), (len) * sizeof((x)[0]))) \
+	{ \
+		return false; \
+	}
+	
+#define SAVE_VARRAY(x, len) \
+	SAVE_NORMAL(len); \
+	for (int i = 0 ; i < (len); i++) \
+	{ \
+		if (!save_variant(fk, &((x)[i]), b)) \
+		{ \
+			return false; \
+		} \
+	}
+	
+#define LOAD_NORMAL(x) \
+	if (!b->read((char *)&(x), sizeof(x))) \
+	{ \
+		return false; \
+	}
+		
+#define LOAD_STRING(x) \
+	String x##name; \
+	if (!load_string(fk, x##name, b)) \
+	{ \
+		return false; \
+	} \
+	(x) = stringdump(fk, x##name.c_str(), x##name.size());
+		
+#define LOAD_ARRAY(x, len, type) \
+	LOAD_NORMAL(len); \
+	(x) = (type *)safe_fkmalloc(fk, (len) * sizeof((x)[0]), emt_func_binary); \
+	if (!b->read((char *)(x), (len) * sizeof(type))) \
+	{ \
+		return false; \
+	}
+		
+#define LOAD_VARRAY(x, len) \
+	LOAD_NORMAL(len); \
+	(x) = (variant *)safe_fkmalloc(fk, ((len) * sizeof(variant)), emt_func_binary); \
+	for (int i = 0 ; i < (len); i++) \
+	{ \
+		if (!load_variant(fk, &((x)[i]), b)) \
+		{ \
+			return false; \
+		} \
+	}
+	
+void * fk_mmap_alloc(size_t size);
+void fk_mmap_set_exec(void * buff, size_t size);
 

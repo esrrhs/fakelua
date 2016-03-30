@@ -735,33 +735,31 @@ buildinfuncnet::buildinfuncnet(fake * fk) : m_fk(fk)
 buildinfuncnet::~buildinfuncnet()
 {
 	clear();
-	POOLLIST_DELETE(m_buffer);
-	POOLLIST_DELETE(m_selector);
+	POOLLIST_DELETE(m_buffer, buffer, USE(n));
+	POOLLIST_DELETE(m_selector, selector, USE(n));
 }
 
 void buildinfuncnet::clear()
 {
 	// 节省内存同时让maxsize严格
-	POOLLIST_CLEAR(m_buffer, buffer, BUFFER_DELETE(n->t));
-	POOLLIST_CLEAR(m_selector, selector, USE(n->t));
+	POOLLIST_CLEAR(m_buffer, buffer, BUFFER_DELETE(*n));
+	POOLLIST_CLEAR(m_selector, selector, USE(n));
 }
 
 buffer * buildinfuncnet::newbuffer(int size)
 {
-	pool<buffer>::node * n = 0;
-	POOLLIST_POP(m_buffer, n, buffer, m_fk->cfg.array_grow_speed);
-
-	n->t.ini(m_fk, size);
-
-	return &n->t;
+	buffer * n = 0;
+	POOLLIST_POP(m_buffer, n, buffer);
+	n->ini(m_fk, size);
+	return n;
 }
 
 selector * buildinfuncnet::newselector()
 {
-	pool<selector>::node * n = 0;
-	POOLLIST_POP(m_selector, n, selector, m_fk->cfg.array_grow_speed);
-	n->t.s = 0;
-	return &n->t;
+	selector * n = 0;
+	POOLLIST_POP(m_selector, n, selector);
+	n->s = 0;
+	return n;
 }
 
 size_t buildinfuncnet::get_buffer_size() const

@@ -9,6 +9,16 @@
 #include <sys/mman.h>
 #endif
 
+#ifdef WIN32
+extern "C" void __stdcall call_machine_func()
+#ifndef FK64
+{
+}
+#else
+;
+#endif
+#endif
+
 void asmgen::output(const char * filename, const char * packagename, const char * name, func_native * nt)
 {
 	nt->m_name = stringdump(m_fk, name, strlen(name));
@@ -17,21 +27,11 @@ void asmgen::output(const char * filename, const char * packagename, const char 
 
 	nt->m_size = m_asm_code_list.size();
 	
-#ifdef WIN32
-	nt->m_buff = (char*)VirtualAlloc(0, nt->m_size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-#else  
-	nt->m_buff = (char*)mmap(0, nt->m_size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-#endif
+	nt->m_buff = (char*)fk_mmap_alloc(nt->m_size);
 
 	memcpy(nt->m_buff, &m_asm_code_list[0], nt->m_size);
-	
-#ifdef WIN32
-	DWORD dwOld; 
-	VirtualProtect(nt->m_buff, nt->m_size, PAGE_EXECUTE_READ, &dwOld);
-#else  
-	mprotect(nt->m_buff, nt->m_size, PROT_READ | PROT_EXEC);
-#endif
 
+	fk_mmap_set_exec(nt->m_buff, nt->m_size);
 }
 
 void asmgen::copy_param(size_t num)

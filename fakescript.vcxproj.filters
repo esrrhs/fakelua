@@ -155,9 +155,6 @@
     <ClCompile Include="src\processor.cpp">
       <Filter>src</Filter>
     </ClCompile>
-    <ClCompile Include="src\routine.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
     <ClCompile Include="src\syntree.cpp">
       <Filter>src</Filter>
     </ClCompile>
@@ -165,9 +162,6 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\interpreter.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\paramstack.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\bison.cpp">
@@ -222,9 +216,6 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\profile.cpp">
-      <Filter>src</Filter>
-    </ClCompile>
-    <ClCompile Include="src\running.cpp">
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\stringheap.cpp">

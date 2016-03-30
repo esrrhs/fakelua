@@ -84,13 +84,10 @@
     <ClCompile Include="src\machine.cpp" />
     <ClCompile Include="src\myflexer.cpp" />
     <ClCompile Include="src\native.cpp" />
-    <ClCompile Include="src\paramstack.cpp" />
     <ClCompile Include="src\parser.cpp" />
     <ClCompile Include="src\pointerheap.cpp" />
     <ClCompile Include="src\processor.cpp" />
     <ClCompile Include="src\profile.cpp" />
-    <ClCompile Include="src\routine.cpp" />
-    <ClCompile Include="src\running.cpp" />
     <ClCompile Include="src\stringheap.cpp" />
     <ClCompile Include="src\syntree.cpp" />
     <ClCompile Include="src\types.cpp" />
