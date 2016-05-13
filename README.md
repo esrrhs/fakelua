@@ -1,6 +1,5 @@
-#fakescript - Lightweight embedded scripting language
-======================================
-
+#fakescript 
+>Lightweight embedded scripting language
 
 ## Brief introduction [中文] (https://github.com/Qihoo360/pika/blob/master/README_CN.md)
 **fakescript** is a lightweight embedded scripting language , using c ++ language, grammar lessons from lua, golang, erlang, based on flex, bison generative grammar tree , compiled into byte code interpreted. Compared with lua, comparable speed , easier to use , more readable source code
