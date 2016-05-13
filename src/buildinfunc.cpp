@@ -122,6 +122,8 @@ void buildin_map(fake * fk, interpreter * inter)
 // size
 void buildin_size(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	bool err = false;
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
@@ -160,6 +162,8 @@ void buildin_debug(fake * fk, interpreter * inter)
 // typeof
 void buildin_typeof(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	bool err = false;
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
@@ -170,6 +174,8 @@ void buildin_typeof(fake * fk, interpreter * inter)
 // range
 void buildin_range(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	// pos
 	int pos = fkpspop<int>(fk);
 
@@ -248,6 +254,8 @@ void buildin_dumpallfunc(fake * fk, interpreter * inter)
 // dumpfunc
 void buildin_dumpfunc(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	const char * func = fkpspopcstrptr(fk);
 	const char * str = fk->bin.dump(func).c_str();
 	fkpspush<const char *>(fk, str);
@@ -291,6 +299,8 @@ void buildin_dumpmem(fake * fk, interpreter * inter)
 // dofile
 void buildin_dofile(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	const char * file = fkpspopcstrptr(fk);
 	bool ret = fkparse(fk, file);
 	fkpspush<bool>(fk, ret);
@@ -299,6 +309,8 @@ void buildin_dofile(fake * fk, interpreter * inter)
 // dostring
 void buildin_dostring(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	const char * str = fkpspopcstrptr(fk);
 	bool ret = fkparsestr(fk, str);
 	fkpspush<bool>(fk, ret);
@@ -342,6 +354,8 @@ void buildin_geterror(fake * fk, interpreter * inter)
 // isfunc
 void buildin_isfunc(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	const char * str = fkpspopcstrptr(fk);
 	bool ret = fkisfunc(fk, str);
 	fkpspush<bool>(fk, ret);
@@ -350,6 +364,8 @@ void buildin_isfunc(fake * fk, interpreter * inter)
 // tonumber
 void buildin_tonumber(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	bool err = false;
 	variant * v = 0;
 	PS_POP_AND_GET(fk->ps, v);
@@ -372,6 +388,8 @@ void buildin_tonumber(fake * fk, interpreter * inter)
 // tostring
 void buildin_tostring(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	// container
 	bool err = false;
 	variant * v = 0;
@@ -388,7 +406,9 @@ void buildin_tostring(fake * fk, interpreter * inter)
 
 // getconst
 void buildin_getconst(fake * fk, interpreter * inter)
-{	
+{
+	BIF_CHECK_ARG_NUM(1);
+
 	bool err = false;
 	const char * str = fkpspopcstrptr(fk);
 	

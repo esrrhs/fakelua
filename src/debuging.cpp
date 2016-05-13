@@ -413,7 +413,7 @@ FAKEINPUT:
 			{
 				if (paramvec.size() < 2)
 				{
-					printf("need arg, useage: s variant value\n");
+					printf("need arg, useage: set variant value\n");
 					continue;
 				}
 

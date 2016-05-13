@@ -5,6 +5,8 @@
 // find
 void buildin_string_find(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(3);
+
 	const char * findstr = fkpspopcstrptr(fk);
 	int pos = fkpspop<int>(fk);
 	const char * srcstr = 0;
@@ -39,6 +41,8 @@ void buildin_string_find(fake * fk, interpreter * inter)
 // find not
 void buildin_string_find_not(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(3);
+
 	const char * findstr = 0;
 	variant * findv = 0;
 	bool err = false;
@@ -78,6 +82,8 @@ void buildin_string_find_not(fake * fk, interpreter * inter)
 // substr
 void buildin_string_substr(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(3);
+
 	int count = fkpspop<int>(fk);
 	int pos = fkpspop<int>(fk);
 	const char * srcstr = 0;
@@ -119,6 +125,8 @@ void buildin_string_substr(fake * fk, interpreter * inter)
 // trim
 void buildin_string_trim(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	const char * trimstr = fkpspopcstrptr(fk);
 	const char * str = fkpspopcstrptr(fk);
 	if (trimstr && str)
@@ -178,6 +186,8 @@ void buildin_string_trim(fake * fk, interpreter * inter)
 // trim left
 void buildin_string_trim_left(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	const char * trimstr = fkpspopcstrptr(fk);
 	const char * str = fkpspopcstrptr(fk);
 	if (trimstr && str)
@@ -206,6 +216,8 @@ void buildin_string_trim_left(fake * fk, interpreter * inter)
 // trim
 void buildin_string_trim_right(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	const char * trimstr = fkpspopcstrptr(fk);
 	const char * str = fkpspopcstrptr(fk);
 	if (trimstr && str)
@@ -250,6 +262,8 @@ void buildin_string_trim_right(fake * fk, interpreter * inter)
 // replace
 void buildin_string_replace(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(3);
+
 	const char * tostr = fkpspopcstrptr(fk);
 	const char * fromstr = fkpspopcstrptr(fk);
 	const char * str = fkpspopcstrptr(fk);
@@ -346,6 +360,8 @@ void buildin_string_replace(fake * fk, interpreter * inter)
 // cat
 void buildin_string_cat(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	const char * right = fkpspopcstrptr(fk);
 	String leftstr = fkpspopcstrptr(fk);
 	leftstr += right;

@@ -5,6 +5,8 @@
 // msrand
 void buildin_srand(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	int seed = fkpspop<int>(fk);
 	fk->bif.setseed(seed);
 	fkpspush<bool>(fk, true);
@@ -22,6 +24,8 @@ void buildin_rand(fake * fk, interpreter * inter)
 // ceil
 void buildin_ceil(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	double data = fkpspop<double>(fk);
 	int ret = (int)ceil(data);
 	fkpspush<int>(fk, ret);
@@ -30,6 +34,8 @@ void buildin_ceil(fake * fk, interpreter * inter)
 // floor
 void buildin_floor(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	double data = fkpspop<double>(fk);
 	int ret = (int)floor(data);
 	fkpspush<int>(fk, ret);

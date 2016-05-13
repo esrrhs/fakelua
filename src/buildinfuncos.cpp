@@ -11,6 +11,8 @@
 // sleep
 void buildin_os_sleep(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	int millionseconds = fkpspop<int>(fk);
 #if defined(WIN32)
 	::Sleep(millionseconds);
@@ -29,6 +31,8 @@ void buildin_os_argc(fake * fk, interpreter * inter)
 // argv
 void buildin_os_argv(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	int pos = fkpspop<int>(fk);
 	const char * arg = fk->bif.get_argv(pos);
 	if (arg)

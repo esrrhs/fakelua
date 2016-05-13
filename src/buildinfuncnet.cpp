@@ -41,12 +41,16 @@
 // buffer
 void buildin_buffer_new(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	int size = fkpspop<int>(fk);
 	buffer * b = fk->bif.newbuffer(size);
 	fkpspush<buffer *>(fk, b);
 }
 void buildin_buffer_clear(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
@@ -56,6 +60,8 @@ void buildin_buffer_clear(fake * fk, interpreter * inter)
 }
 void buildin_buffer_maxsize(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
@@ -68,6 +74,8 @@ void buildin_buffer_maxsize(fake * fk, interpreter * inter)
 }
 void buildin_buffer_size(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
 	{
@@ -80,6 +88,8 @@ void buildin_buffer_size(fake * fk, interpreter * inter)
 }
 void buildin_buffer_store(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	int i = fkpspop<int>(fk);
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
@@ -90,6 +100,8 @@ void buildin_buffer_store(fake * fk, interpreter * inter)
 }
 void buildin_buffer_restore(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	int i = fkpspop<int>(fk);
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
@@ -100,6 +112,8 @@ void buildin_buffer_restore(fake * fk, interpreter * inter)
 }
 void buildin_buffer_pushint(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	int data = fkpspop<int>(fk);
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
@@ -114,6 +128,8 @@ void buildin_buffer_pushint(fake * fk, interpreter * inter)
 }
 void buildin_buffer_pushchar(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	char data = fkpspop<char>(fk);
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
@@ -128,6 +144,8 @@ void buildin_buffer_pushchar(fake * fk, interpreter * inter)
 }
 void buildin_buffer_pushshort(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	short data = fkpspop<short>(fk);
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
@@ -142,6 +160,8 @@ void buildin_buffer_pushshort(fake * fk, interpreter * inter)
 }
 void buildin_buffer_pushint64(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	int64_t data = fkpspop<int64_t>(fk);
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b)
@@ -156,6 +176,8 @@ void buildin_buffer_pushint64(fake * fk, interpreter * inter)
 }
 void buildin_buffer_pushstring(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(3);
+
 	int len = fkpspop<int>(fk);
 	const char * data = fkpspopcstrptr(fk);
 	int srclen = strlen(data);
@@ -187,6 +209,8 @@ void buildin_buffer_pushstring(fake * fk, interpreter * inter)
 }
 void buildin_buffer_pushbuffer(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	buffer * ob = fkpspop<buffer *>(fk);
 	buffer * b = fkpspop<buffer *>(fk);
 	if (b && ob)
@@ -211,6 +235,8 @@ void buildin_buffer_pushbuffer(fake * fk, interpreter * inter)
 }
 void buildin_buffer_popint(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	int data = 0;
 	bool ret = false;
 	buffer * b = fkpspop<buffer *>(fk);
@@ -223,6 +249,8 @@ void buildin_buffer_popint(fake * fk, interpreter * inter)
 }
 void buildin_buffer_popshort(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	short data = 0;
 	bool ret = false;
 	buffer * b = fkpspop<buffer *>(fk);
@@ -235,6 +263,8 @@ void buildin_buffer_popshort(fake * fk, interpreter * inter)
 }
 void buildin_buffer_popchar(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	char data = 0;
 	bool ret = false;
 	buffer * b = fkpspop<buffer *>(fk);
@@ -247,6 +277,8 @@ void buildin_buffer_popchar(fake * fk, interpreter * inter)
 }
 void buildin_buffer_popint64(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	int64_t data = 0;
 	bool ret = false;
 	buffer * b = fkpspop<buffer *>(fk);
@@ -259,6 +291,8 @@ void buildin_buffer_popint64(fake * fk, interpreter * inter)
 }
 void buildin_buffer_popstring(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	bool ret = false;
 	int len = fkpspop<int>(fk);
 	char * data = (char *)safe_fkmalloc(fk, len + 1, emt_tmp);
@@ -274,6 +308,8 @@ void buildin_buffer_popstring(fake * fk, interpreter * inter)
 }
 void buildin_buffer_popbuffer(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	bool ret = false;
 	int len = fkpspop<int>(fk);
 	buffer * ob = fk->bif.newbuffer(len);
@@ -292,6 +328,8 @@ void buildin_buffer_popbuffer(fake * fk, interpreter * inter)
 }
 void buildin_selector_new(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	int s = fkpspop<int>(fk);
 	selector * sel = fk->bif.newselector();
 	sel->s = s;
@@ -299,6 +337,8 @@ void buildin_selector_new(fake * fk, interpreter * inter)
 }
 void buildin_selector_set(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	int s = fkpspop<int>(fk);
 	selector * sel = fkpspop<selector *>(fk);
 	sel->s = s;
@@ -306,6 +346,8 @@ void buildin_selector_set(fake * fk, interpreter * inter)
 }
 void buildin_selector_tick(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	bool isin = false;
 	bool isout = false;
 	bool iserr = false;
@@ -372,6 +414,8 @@ void buildin_tcp_socket(fake * fk, interpreter * inter)
 }
 void buildin_tcp_close(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	int s = fkpspop<int>(fk);
 #if defined(WIN32)
 	::closesocket(s);
@@ -382,6 +426,8 @@ void buildin_tcp_close(fake * fk, interpreter * inter)
 }
 void buildin_tcp_connect(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(3);
+
 	int port = fkpspop<int>(fk);
 	const char * ip = fkpspopcstrptr(fk);
 	int s = fkpspop<int>(fk);
@@ -404,6 +450,8 @@ void buildin_tcp_connect(fake * fk, interpreter * inter)
 }
 void buildin_tcp_recv(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	buffer * b = fkpspop<buffer *>(fk);
 	int s = fkpspop<int>(fk);
 	if (!b)
@@ -453,6 +501,8 @@ void buildin_tcp_recv(fake * fk, interpreter * inter)
 }
 void buildin_tcp_send(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	buffer * b = fkpspop<buffer *>(fk);
 	int s = fkpspop<int>(fk);
 	if (!b)
@@ -502,6 +552,8 @@ void buildin_tcp_send(fake * fk, interpreter * inter)
 }
 void buildin_tcp_socket_set_sendbuffer(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	int size = fkpspop<int>(fk);
 	int s = fkpspop<int>(fk);
 	bool ret = ::setsockopt(s, SOL_SOCKET, SO_RCVBUF, (const char *)&size, sizeof(int)) == 0;
@@ -509,6 +561,8 @@ void buildin_tcp_socket_set_sendbuffer(fake * fk, interpreter * inter)
 }
 void buildin_tcp_socket_set_recvbuffer(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	int size = fkpspop<int>(fk);
 	int s = fkpspop<int>(fk);
 	bool ret = ::setsockopt(s, SOL_SOCKET, SO_SNDBUF, (const char *)&size, sizeof(int)) == 0;
@@ -516,6 +570,8 @@ void buildin_tcp_socket_set_recvbuffer(fake * fk, interpreter * inter)
 }
 void buildin_tcp_socket_set_nonblocking(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	bool on = fkpspop<bool>(fk);
 	int s = fkpspop<int>(fk);
 	
@@ -545,6 +601,8 @@ void buildin_tcp_socket_set_nonblocking(fake * fk, interpreter * inter)
 }
 void buildin_tcp_socket_set_nodelay(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	bool on = fkpspop<bool>(fk);
 	int s = fkpspop<int>(fk);
 
@@ -555,6 +613,8 @@ void buildin_tcp_socket_set_nodelay(fake * fk, interpreter * inter)
 }
 void buildin_tcp_socket_set_keepalive(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(5);
+
 	int keepcount = fkpspop<int>(fk);
 	int keepinterval = fkpspop<int>(fk);
 	int keepidle = fkpspop<int>(fk);
@@ -591,6 +651,8 @@ void buildin_tcp_socket_set_keepalive(fake * fk, interpreter * inter)
 }
 void buildin_tcp_socket_set_linger(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	int lingertime = fkpspop<int>(fk);
 	int s = fkpspop<int>(fk);
 	
@@ -603,6 +665,8 @@ void buildin_tcp_socket_set_linger(fake * fk, interpreter * inter)
 }
 void buildin_tcp_socket_get_local_ip_port(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	int s = fkpspop<int>(fk);
 	
 	char ip[64] = {0};
@@ -622,6 +686,8 @@ void buildin_tcp_socket_get_local_ip_port(fake * fk, interpreter * inter)
 }
 void buildin_tcp_bind(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(3);
+
 	int port = fkpspop<int>(fk);
 	const char * ip = fkpspopcstrptr(fk);
 	int s = fkpspop<int>(fk);
@@ -643,6 +709,8 @@ void buildin_tcp_bind(fake * fk, interpreter * inter)
 }
 void buildin_tcp_listen(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	int backlog = fkpspop<int>(fk);
 	int s = fkpspop<int>(fk);
 	
@@ -658,6 +726,8 @@ void buildin_tcp_listen(fake * fk, interpreter * inter)
 }
 void buildin_tcp_accept(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	int s = fkpspop<int>(fk);
 	
 	sockaddr_in _sockaddr;

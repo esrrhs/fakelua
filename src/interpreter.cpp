@@ -121,6 +121,15 @@ void interpreter::call(const variant & func, int retnum, int * retpos)
 	// 绑定函数
 	if (f->haveff)
 	{
+		// 检查返回值数目对不对
+		if (UNLIKE((int)ps->m_variant_list_num != f->ff.argnum))
+		{
+			FKERR("bind func %s param not match, give %d need %d", vartostring(&func).c_str(), (int)ps->m_variant_list_num, f->ff.argnum);
+			m_isend = true;
+			seterror(m_fk, efk_run_param_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "bind func %s param not match, give %d need %d", vartostring(&func).c_str(), (int)ps->m_variant_list_num, f->ff.argnum);
+			return;
+		}
+
 		BIND_FUNC_CALL(f, this);
 		FKLOG("call C func %s", vartostring(&func).c_str());
 	}
@@ -1021,6 +1030,25 @@ void interpreter::get_running_vaiant(int frame, const char * name, int line, con
 	{
 		return;
 	}
+
+	// const define
+	variant * gcv = m_fk->pa.get_const_define(name);
+	if (gcv)
+	{
+		if (gcv->type == variant::STRING)
+		{
+			m_fk->rn.cur_runinginfo += "\"";
+			m_fk->rn.cur_runinginfo += vartostring(gcv);
+			m_fk->rn.cur_runinginfo += "\"";
+		}
+		else
+		{
+			m_fk->rn.cur_runinginfo += vartostring(gcv);
+		}
+		value = m_fk->rn.cur_runinginfo.c_str();
+		outline = m_fk->pa.get_const_define_lineno(name);
+		return;
+	}
 	
 	m_fk->rn.cur_runinginfo.clear();
 	int deps = 0;
@@ -1076,8 +1104,18 @@ void interpreter::get_running_vaiant(int frame, const char * name, int line, con
 
 void interpreter::set_running_vaiant(int frame, const char * name, int line, const char * value)
 {
+	fake * fk = m_fk;
+					
 	if (!m_fb)
 	{
+		return;
+	}
+	
+	// const define
+	variant * gcv = m_fk->pa.get_const_define(name);
+	if (gcv)
+	{
+		// can not change
 		return;
 	}
 	
@@ -1095,9 +1133,7 @@ void interpreter::set_running_vaiant(int frame, const char * name, int line, con
 				const stack_variant_info & info = fb->m_debug_stack_variant_info[i];
 				if ((line != -1 && !strcmp(info.name, name) && info.line == line) ||
 					(line == -1 && !strcmp(info.name, name)))
-				{
-					fake * fk = m_fk;
-					
+				{					
 					variant * v = 0;
 					GET_STACK(bp, v, info.pos);
 

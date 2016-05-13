@@ -68,7 +68,7 @@ bool compiler::compile_const_head()
 		
 		String constname = fkgen_package_name(m_mf->get_package(), name);
 
-		m_fk->pa.reg_const_define(constname.c_str(), v);
+		m_fk->pa.reg_const_define(constname.c_str(), v, ev->lineno());
 		FKLOG("[compiler] reg_const_define %s %s", constname.c_str(), vartostring(&v).c_str());
 	}
 	
@@ -980,23 +980,9 @@ bool compiler::compile_variable_node(codegen & cg, variable_node * vn)
 {
 	FKLOG("[compiler] compile_variable_node %p", vn);
 
-	// 看看是否是常量定义
-	myflexer * mf = m_mf;
-	explicit_value_map & evm = mf->get_const_map();
-	if (evm.find(vn->str) != evm.end())
-	{   
-		explicit_value_node* ev = evm[vn->str];
-		if (!compile_node(cg, ev))
-		{
-			FKERR("[compiler] compile_variable_node const fail %s", ev->str.c_str());
-			return false;
-		}
-		FKLOG("[compiler] compile_variable_node %p OK", vn);
-		return true;
-	}
-
 	// 看看是否是全局常量定义
-	variant * gcv = m_fk->pa.get_const_define(vn->str.c_str());
+	String constname = fkgen_package_name(m_mf->get_package(), vn->str.c_str());
+	variant * gcv = m_fk->pa.get_const_define(constname.c_str());
 	if (gcv)
 	{
 		int pos = cg.getconst(*gcv);
@@ -1039,6 +1025,25 @@ bool compiler::compile_var_node(codegen & cg, var_node * vn)
 	{
 		FKERR("[compiler] compile_var_node variable has define %s", vn->str.c_str());
 		compile_seterror(vn, m_fk, efk_compile_variable_has_define, "variable %s has define", vn->str.c_str());
+		return false;
+	}
+
+	// 看看是否是常量定义
+	myflexer * mf = m_mf;
+	explicit_value_map & evm = mf->get_const_map();
+	if (evm.find(vn->str) != evm.end())
+	{   
+		FKERR("[compiler] compile_var_node variable has defined const %s", vn->str.c_str());
+		compile_seterror(vn, m_fk, efk_compile_variable_has_define, "variable %s has defined const", vn->str.c_str());
+		return false;
+	}
+
+	// 看看是否是全局常量定义
+	variant * gcv = m_fk->pa.get_const_define(vn->str.c_str());
+	if (gcv)
+	{
+		FKERR("[compiler] compile_var_node variable has defined global const %s", vn->str.c_str());
+		compile_seterror(vn, m_fk, efk_compile_variable_has_define, "variable %s has defined global const", vn->str.c_str());
 		return false;
 	}
 
