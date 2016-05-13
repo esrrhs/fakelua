@@ -26,8 +26,8 @@ Lightweight embedded scripting language
 
 ## In Production
 
-<a href="http://bitly.com"><img src="http://nsq.io/static/img/bitly_logo.png" width="84" align="middle"/></a>&nbsp;&nbsp;
-<a href="https://www.life360.com/"><img src="http://nsq.io/static/img/life360_logo.png" width="100" align="middle"/></a>&nbsp;&nbsp;
+<a href="http://dzz.youxi.com/"><img src="https://ss1.baidu.com/70cFfyinKgQFm2e88IuM_a/forum/pic/item/d8f9d72a6059252d8aa6c584329b033b5ab5b9f9.jpg" width="84" align="middle"/></a>&nbsp;&nbsp;
+<a href="http://ttxd.qq.com/act/a20160419brandP/"><img src="https://ss1.baidu.com/70cFfyinKgQFm2e88IuM_a/forum/pic/item/9f510fb30f2442a71a9ae83ad443ad4bd013029c.jpg" width="100" align="middle"/></a>&nbsp;&nbsp;
 
 ## Standard Library
 * File
