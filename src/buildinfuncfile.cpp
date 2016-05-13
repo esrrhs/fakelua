@@ -5,6 +5,8 @@
 // fopen
 void buildin_fopen(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	const char * mod = fkpspopcstrptr(fk);
 	const char * filename = fkpspopcstrptr(fk);
 	FILE * f = fopen(filename, mod);
@@ -23,6 +25,8 @@ void buildin_fopen(fake * fk, interpreter * inter)
 // fclose
 void buildin_fclose(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	FILE * f = fkpspop<FILE *>(fk);
 	if (f)
 	{
@@ -34,6 +38,8 @@ void buildin_fclose(fake * fk, interpreter * inter)
 // freadall
 void buildin_freadall(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(1);
+
 	FILE * f = fkpspop<FILE *>(fk);
 	if (f)
 	{
@@ -58,6 +64,8 @@ void buildin_freadall(fake * fk, interpreter * inter)
 // fwriteall
 void buildin_fwriteall(fake * fk, interpreter * inter)
 {
+	BIF_CHECK_ARG_NUM(2);
+
 	const char * data = fkpspopcstrptr(fk);
 	FILE * f = fkpspop<FILE *>(fk);
 	if (f && data)

@@ -180,3 +180,4 @@
 2016.3.28:加memblock，优化内存占用，flex bison解析会消耗200M内存，linux释放还在，windows释放了没有了，16M文本加载占用120M内存
 2016.3.29:去掉难看的pool node
 2016.3.30:修复save load const
+2016.5.10:bind func buildin func 传参数个数判断

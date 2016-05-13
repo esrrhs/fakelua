@@ -235,25 +235,40 @@ bool parser::parse_include(const String & srcname, const String & includename)
 	return true;
 }
 
-void parser::reg_const_define(const char * constname, const variant & v)
+void parser::reg_const_define(const char * constname, const variant & v, int lineno)
 {
-	variant * p = m_shh.get(constname);
+	const_parser_info * p = m_shh.get(constname);
 	if (UNLIKE(p != 0))
 	{
-		*p = v;
+		p->v = v;
+		p->lineno = lineno;
 		return;
 	}
+
+	const_parser_info tmp;
+	tmp.v = v;
+	tmp.lineno = lineno;
 	
-	m_shh.add(constname, v);
+	m_shh.add(constname, tmp);
 }
 
 
 variant * parser::get_const_define(const char * constname)
 {
-	variant * p = m_shh.get(constname);
+	const_parser_info * p = m_shh.get(constname);
 	if (LIKE(p != 0))
 	{
-		return p;
+		return &p->v;
+	}
+	return 0;
+}
+
+int parser::get_const_define_lineno(const char * constname)
+{
+	const_parser_info * p = m_shh.get(constname);
+	if (LIKE(p != 0))
+	{
+		return p->lineno;
 	}
 	return 0;
 }
