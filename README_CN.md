@@ -3,6 +3,7 @@
 
 ## 简介
 **fakescript**是一款轻量级的嵌入式脚本语言，使用c++语言编写，语法吸取自lua、golang、erlang，基于flex、bison生成语法树，编译成字节码解释执行。与lua相比，运行速度不相上下，更易使用，源代码可读性更强
+<a href="https://github.com/esrrhs/fakescript-java">Java版本fakescript</a>
 
 ## 脚本特性
 * 语法类似lua
