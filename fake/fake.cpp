@@ -47,6 +47,10 @@ public:
 	{
 		return a * b;
 	}
+	test_class2 * self()
+	{
+		return this;
+	}
 private:
 	int b;
 };
@@ -128,6 +132,7 @@ int main(int argc, const char *argv[])
 	fkreg(fk, "test_memfunc1", &test_class1::test_memfunc1); 
 	fkreg(fk, "test_memfunc1", &test_class2::test_memfunc1); 
 	fkreg(fk, "test_memfunc2", &test_class2::test_memfunc2); 
+	fkreg(fk, "self", &test_class2::self); 
 
 	// ±àÒëºóÎÄ¼ş
 	if (g_iscompiled)
