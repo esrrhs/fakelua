@@ -98,7 +98,7 @@ int my_yyerror(const char *s, void * parm)
 %left DIVIDE MULTIPLY DIVIDE_MOD
 %left STRING_CAT
 
-%expect 48
+%expect 53
 
 %type<str> IDENTIFIER  
 %type<str> NUMBER
@@ -353,6 +353,7 @@ function_call:
 		FKLOG("[bison]: function_call <- function_call_arguments %s", $1.c_str());
 		NEWTYPE(p, function_call_node);
 		p->fuc = $1;
+		p->prefunc = 0;
 		p->arglist = dynamic_cast<function_call_arglist_node*>($3);
 		p->fakecall = false;
 		p->classmem_call = false;
@@ -364,17 +365,49 @@ function_call:
 		FKLOG("[bison]: function_call <- function_call_arguments %s", $1.c_str());
 		NEWTYPE(p, function_call_node);
 		p->fuc = $1;
+		p->prefunc = 0;
 		p->arglist = dynamic_cast<function_call_arglist_node*>($3);
 		p->fakecall = false;
 		p->classmem_call = false;
 		$$ = p;
 	} 
 	|
+	function_call OPEN_BRACKET function_call_arguments CLOSE_BRACKET 
+	{
+		FKLOG("[bison]: function_call <- function_call_arguments %s", $1.c_str());
+		NEWTYPE(p, function_call_node);
+		p->fuc = "";
+		p->prefunc = $1;
+		p->arglist = dynamic_cast<function_call_arglist_node*>($3);
+		p->fakecall = false;
+		p->classmem_call = false;
+		$$ = p;
+	} 
+	|
+	function_call COLON IDENTIFIER OPEN_BRACKET function_call_arguments CLOSE_BRACKET 
+	{
+		FKLOG("[bison]: function_call <- mem function_call_arguments %s", $3.c_str());
+		NEWTYPE(p, function_call_node);
+		p->fuc = $3;
+		p->prefunc = 0;
+		p->arglist = dynamic_cast<function_call_arglist_node*>($5);
+		if (p->arglist == 0)
+		{
+			NEWTYPE(pa, function_call_arglist_node);
+			p->arglist = pa;
+		}
+		p->arglist->add_arg($1);
+		p->fakecall = false;
+		p->classmem_call = true;
+		$$ = p;
+	}
+	|
 	variable COLON IDENTIFIER OPEN_BRACKET function_call_arguments CLOSE_BRACKET 
 	{
 		FKLOG("[bison]: function_call <- mem function_call_arguments %s", $3.c_str());
 		NEWTYPE(p, function_call_node);
 		p->fuc = $3;
+		p->prefunc = 0;
 		p->arglist = dynamic_cast<function_call_arglist_node*>($5);
 		if (p->arglist == 0)
 		{

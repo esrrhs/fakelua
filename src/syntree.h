@@ -644,7 +644,14 @@ struct function_call_node : public syntree_node
 		{
 			ret += "[func_call]:";
 		}
-		ret += fuc;
+		if (prefunc)
+		{
+			ret += prefunc->dump(indent + 1);
+		}
+		else
+		{
+			ret += fuc;
+		}
 		ret += "\n";
 		if (arglist)
 		{
@@ -656,6 +663,7 @@ struct function_call_node : public syntree_node
 	bool fakecall;
 	bool classmem_call;
 	String fuc;
+	syntree_node * prefunc;
 	function_call_arglist_node * arglist;
 };
 

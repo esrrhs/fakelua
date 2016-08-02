@@ -1090,42 +1090,55 @@ bool compiler::compile_function_call_node(codegen & cg, function_call_node * fn)
 
 	// 调用位置
 	command callpos;
-	String func = fn->fuc;
-	// 1 检查变量
-	int pos = cg.getvariable(func);
-	if (pos != -1)
+	if (!fn->prefunc)
 	{
-		// 是用变量来调用函数
-		callpos = MAKE_ADDR(ADDR_STACK, pos);
+		String func = fn->fuc;
+		// 1 检查变量
+		int pos = cg.getvariable(func);
+		if (pos != -1)
+		{
+			// 是用变量来调用函数
+			callpos = MAKE_ADDR(ADDR_STACK, pos);
+		}
+		// 2 检查struct
+		else if (mf->is_have_struct(func))
+		{
+			// 直接替换成map
+			variant v;
+			v = fk->sh.allocsysstr(MAP_FUNC_NAME);
+			pos = cg.getconst(v);
+			callpos = MAKE_ADDR(ADDR_CONST, pos);
+		}
+		// 3 检查本地函数
+		else if (mf->is_have_func(func))
+		{
+			// 申请字符串变量
+			variant v;
+			// 拼上包名
+			String pname = fkgen_package_name(mf->get_package(), func);
+			v = fk->sh.allocsysstr(pname.c_str());
+			pos = cg.getconst(v);
+			callpos = MAKE_ADDR(ADDR_CONST, pos);
+		}
+		// 4 直接字符串使用
+		else
+		{
+			// 申请字符串变量
+			variant v;
+			v = fk->sh.allocsysstr(func.c_str());
+			pos = cg.getconst(v);
+			callpos = MAKE_ADDR(ADDR_CONST, pos);
+		}
 	}
-	// 2 检查struct
-	else if (mf->is_have_struct(func))
-	{
-		// 直接替换成map
-		variant v;
-		v = fk->sh.allocsysstr(MAP_FUNC_NAME);
-		pos = cg.getconst(v);
-		callpos = MAKE_ADDR(ADDR_CONST, pos);
-	}
-	// 3 检查本地函数
-	else if (mf->is_have_func(func))
-	{
-		// 申请字符串变量
-		variant v;
-		// 拼上包名
-		String pname = fkgen_package_name(mf->get_package(), func);
-		v = fk->sh.allocsysstr(pname.c_str());
-		pos = cg.getconst(v);
-		callpos = MAKE_ADDR(ADDR_CONST, pos);
-	}
-	// 4 直接字符串使用
 	else
 	{
-		// 申请字符串变量
-		variant v;
-		v = fk->sh.allocsysstr(func.c_str());
-		pos = cg.getconst(v);
-		callpos = MAKE_ADDR(ADDR_CONST, pos);
+		if (!compile_node(cg, fn->prefunc))
+		{
+			FKERR("[compiler] compile_function_call_node arg fail");
+			return false;
+		}
+
+		callpos = m_cur_addr;
 	}
 
 	// oper
