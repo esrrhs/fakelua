@@ -374,7 +374,7 @@ function_call:
 	|
 	function_call OPEN_BRACKET function_call_arguments CLOSE_BRACKET 
 	{
-		FKLOG("[bison]: function_call <- function_call_arguments %s", $1.c_str());
+		FKLOG("[bison]: function_call <- function_call_arguments");
 		NEWTYPE(p, function_call_node);
 		p->fuc = "";
 		p->prefunc = $1;

@@ -7,7 +7,6 @@ func main()
 	for var i = 0, i < 10 , i++ then
 		
 		if i == 5 then
-			i++
 			continue
 		end
 		

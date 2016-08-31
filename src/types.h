@@ -21,8 +21,8 @@
 #include "fakescript.h"
 
 #ifdef _DEBUG
-#define FKLOG(...) //fklog("[DEBUG] ", __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
-#define FKERR(...) //fklog("[ERROR] ", __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
+#define FKLOG(...) fklog("[DEBUG] ", __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
+#define FKERR(...) fklog("[ERROR] ", __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
 #define ISLOG 1
 #else
 #define FKLOG(...)
