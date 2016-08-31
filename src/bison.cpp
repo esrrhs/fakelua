@@ -2169,7 +2169,7 @@ yyreduce:
 /* Line 1455 of yacc.c  */
 #line 376 "bison.y"
     {
-		FKLOG("[bison]: function_call <- function_call_arguments %s", (yyvsp[(1) - (4)].syntree).c_str());
+		FKLOG("[bison]: function_call <- function_call_arguments");
 		NEWTYPE(p, function_call_node);
 		p->fuc = "";
 		p->prefunc = (yyvsp[(1) - (4)].syntree);

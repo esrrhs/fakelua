@@ -1280,8 +1280,10 @@ bool compiler::compile_for_stmt(codegen & cg, for_stmt * fs)
 
 	int startpos = 0;
 	int jnepos = 0;
+	int continuepos = 0;
 
 	m_loop_break_pos_stack.push_back(beak_pos_list());
+	m_continue_end_pos_stack.push_back(continue_end_pos_list());
 
 	// 开始语句，这个作用域是全for都有效的
 	cg.push_stack_identifiers();
@@ -1295,7 +1297,9 @@ bool compiler::compile_for_stmt(codegen & cg, for_stmt * fs)
 	}
 
 	startpos = cg.byte_code_size();
-	m_loop_continue_pos_stack.push_back(startpos);
+
+	// 需要continue end
+	m_loop_continue_pos_stack.push_back(-1);
 
 	// 条件
 	cg.push_stack_identifiers();
@@ -1334,6 +1338,8 @@ bool compiler::compile_for_stmt(codegen & cg, for_stmt * fs)
 		cg.pop_stack_identifiers();
 	}
 
+	continuepos = cg.byte_code_size();
+
 	// 结束
 	if (fs->endblock)
 	{
@@ -1360,6 +1366,14 @@ bool compiler::compile_for_stmt(codegen & cg, for_stmt * fs)
 		cg.set(bplist[i], MAKE_POS(cg.byte_code_size()));
 	}
 	m_loop_break_pos_stack.pop_back();
+	
+	// 替换掉continue
+	continue_end_pos_list & cplist = m_continue_end_pos_stack[m_continue_end_pos_stack.size() - 1];
+	for (int i = 0; i < (int)cplist.size(); i++)
+	{
+		cg.set(cplist[i], MAKE_POS(continuepos));
+	}
+	m_continue_end_pos_stack.pop_back();
 	
 	m_loop_continue_pos_stack.pop_back();
 	
