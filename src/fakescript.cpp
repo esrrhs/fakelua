@@ -1108,6 +1108,7 @@ FAKE_API const char ** fkgetkeyword()
 		"switch",
 		"case",
 		"default",
+		"null",
 		"",
 	};
 	return keyword;

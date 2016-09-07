@@ -1852,6 +1852,9 @@ bool compiler::compile_explicit_value_node_to_variant(explicit_value_node* ev, v
 	
 	switch (ev->getvaluetype())
 	{
+	case explicit_value_node::EVT_NULL:
+		V_SET_REAL((&v), 0);
+		break;
 	case explicit_value_node::EVT_TRUE:
 		V_SET_REAL((&v), 1);
 		break;

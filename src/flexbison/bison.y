@@ -93,12 +93,13 @@ int my_yyerror(const char *s, void * parm)
 %token STRING_CAT
 %token OPEN_BIG_BRACKET
 %token CLOSE_BIG_BRACKET
+%token FNULL
 
 %left PLUS MINUS
 %left DIVIDE MULTIPLY DIVIDE_MOD
 %left STRING_CAT
 
-%expect 53
+%expect 56
 
 %type<str> IDENTIFIER  
 %type<str> NUMBER
@@ -114,7 +115,7 @@ int my_yyerror(const char *s, void * parm)
 %type<str> FTRUE FFALSE
 %type<str> ASSIGN
 %type<str> AND OR
-%type<str> FKFLOAT
+%type<str> FKFLOAT FNULL
 %type<str> PLUS_ASSIGN MINUS_ASSIGN DIVIDE_ASSIGN MULTIPLY_ASSIGN DIVIDE_MOD_ASSIGN
 %type<str> IDENTIFIER_DOT  
 %type<str> IDENTIFIER_POINTER  
@@ -1306,6 +1307,15 @@ explicit_value:
 		NEWTYPE(p, explicit_value_node);
 		p->str = $1;
 		p->type = explicit_value_node::EVT_FLOAT;
+		$$ = p;
+	}
+	|
+	FNULL
+	{
+		FKLOG("[bison]: explicit_value <- FNULL %s", $1.c_str());
+		NEWTYPE(p, explicit_value_node);
+		p->str = $1;
+		p->type = explicit_value_node::EVT_NULL;
 		$$ = p;
 	}
 	|
