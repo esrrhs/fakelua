@@ -147,6 +147,10 @@
 	return DEFAULT;
 }
 
+"null" {
+	return FNULL;
+}
+
 "\""	yy_push_state(STR); lvalp->str = String();
 <STR>\\n	lvalp->str += String("\n");
 <STR>\\t	lvalp->str += String("\t");

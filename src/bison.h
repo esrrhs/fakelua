@@ -103,7 +103,8 @@
      RIGHT_POINTER = 319,
      STRING_CAT = 320,
      OPEN_BIG_BRACKET = 321,
-     CLOSE_BIG_BRACKET = 322
+     CLOSE_BIG_BRACKET = 322,
+     FNULL = 323
    };
 #endif
 

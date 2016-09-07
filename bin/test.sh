@@ -5,7 +5,7 @@ if [ $# == 1 ] && [ $1 == "-j" ];then
     echo "use jit"
 fi
 
-NUM=61
+NUM=62
 chmod a+x fake
 for i in `seq $NUM`; do
 	echo "----------------running $i.fk----------------"

@@ -184,3 +184,4 @@
 2016.5.13:老宋帮忙优化了下readme
 2016.8.2:增加了c:memfunc1():memfunc2()和a()(arg1)(arg2)的语法
 2016.8.30:修复for循环里continue跳过end block的bug
+2016.9.7:更新下ide，加下null关键字和java版本统一
