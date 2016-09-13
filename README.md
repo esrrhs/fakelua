@@ -25,6 +25,7 @@ Lightweight embedded scripting language
 * Support packaged bin file or executable file
 * Own command line style debugger like gdb, and vs style debugging ide
 * Can start a command-line debugging in C through the interface call
+* Support byte code optimize
 
 
 
