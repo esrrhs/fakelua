@@ -591,6 +591,16 @@ FAKE_API void fkclosejit(fake * fk)
 	fk->as.close();
 }
 
+FAKE_API void fkopenoptimize(fake * fk)
+{
+	fk->opt.open();
+}
+
+FAKE_API void fkcloseoptimize(fake * fk)
+{
+	fk->opt.close();
+}
+
 FAKE_API void fkopenprofile(fake * fk)
 {
 	fk->pf.open();

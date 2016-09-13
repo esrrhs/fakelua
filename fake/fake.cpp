@@ -417,6 +417,7 @@ fakescript\n\narg : [-hjpgtsl] file [arg]\n\
 -o print return value and time\n\
 -c compile script to out.exe\n\
 -d debug step mod\n\
+-y open optimize\n\
 sample:./fake a.fk\n\n");
 			return -1;
 		}
@@ -431,6 +432,11 @@ sample:./fake a.fk\n\n");
 		{
 			fkopenprofile(fk);
 			g_isopenprofile = true;
+		}
+		
+		if (strstr(argv[1], "y"))
+		{
+			fkopenoptimize(fk);
 		}
 
 #ifndef WIN32

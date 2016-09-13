@@ -530,7 +530,7 @@ int interpreter::run(int cmdnum)
 
 				for (int i = 0; i < retnum; i++)
 				{
-					assert(CHECK_STACK_POS(*m_fb, m_ip));
+					assert(CHECK_STACK_POS(*m_fb, m_ip) || CHECK_CONTAINER_POS(*m_fb, m_ip));
 					retpos[i] = m_ip;
 					m_ip++;
 				}

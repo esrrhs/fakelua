@@ -1,7 +1,8 @@
 #! /bin/sh
 
+JIT_FLAG=" -y "
 if [ $# == 1 ] && [ $1 == "-j" ];then
-    JIT_FLAG=" -j "
+    JIT_FLAG=" -jy "
     echo "use jit"
 fi
 
