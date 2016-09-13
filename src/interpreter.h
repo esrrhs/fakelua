@@ -116,7 +116,7 @@
 	ip++;\
 	\
 	variant * dest;\
-	if (UNLIKE(!(CHECK_STACK_POS(fb, ip)))) \
+	if (UNLIKE(!(CHECK_STACK_POS(fb, ip) || CHECK_CONTAINER_POS(fb, ip)))) \
 	{ \
 		err = true; \
 		seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "interpreter math oper error, dest is not stack, type %s", POS_TYPE_NAME(fb, ip)); \
@@ -168,7 +168,7 @@
 	ip++;\
 	\
 	variant * dest;\
-	if (UNLIKE(!(CHECK_STACK_POS(fb, ip)))) \
+	if (UNLIKE(!(CHECK_STACK_POS(fb, ip) || CHECK_CONTAINER_POS(fb, ip)))) \
 	{ \
 		err = true; \
 		seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "interpreter math oper error, dest is not stack, type %s", POS_TYPE_NAME(fb, ip)); \
