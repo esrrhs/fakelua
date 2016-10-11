@@ -4,7 +4,7 @@ include "../package/string.fk"
 -- main comment
 func main()
 	
-	var ok, var srcf = file.open("59.lua", "rb")
+	var ok, var srcf = file.open("59.luafile", "rb")
 	if not ok then
 		return 0
 	end
