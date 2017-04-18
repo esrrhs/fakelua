@@ -1,4 +1,4 @@
-#fakescript 
+# fakescript 
 轻量级嵌入式脚本语言
 
 ## 简介
