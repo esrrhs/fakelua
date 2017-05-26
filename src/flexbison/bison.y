@@ -605,11 +605,38 @@ for_loop_stmt:
 	FOR var ASSIGN assign_value RIGHT_POINTER cmp_value ARG_SPLITTER expr_value THEN block END
 	{
 		FKLOG("[bison]: for_loop_stmt <- block");
-		NEWTYPE(p, for_loop_stmt);
-		p->var = $2;
-		p->begin = $4;
-		p->end = $6;
-		p->add = $8;
+		NEWTYPE(p, for_stmt);
+		
+		syntree_node * pi = $2;
+		if (pi->gettype() == est_var)
+		{
+			NEWTYPE(pvar, variable_node);
+			pvar->str = (dynamic_cast<var_node*>(pi))->str;
+			pi = pvar;
+		}
+		
+		NEWTYPE(pcmp, cmp_stmt);
+		pcmp->cmp = "<";
+		pcmp->left = pi;
+		pcmp->right = $6;
+		p->cmp = pcmp;
+		
+		NEWTYPE(pbeginblockassign, assign_stmt);
+		pbeginblockassign->var = $2;
+		pbeginblockassign->value = $4;
+		pbeginblockassign->isnew = false;
+		NEWTYPE(pbeginblock, block_node);
+		pbeginblock->add_stmt(pbeginblockassign);
+		p->beginblock = pbeginblock;
+		
+		NEWTYPE(pendblockassign, math_assign_stmt);
+		pendblockassign->var = pi;
+		pendblockassign->oper = "+=";
+		pendblockassign->value = $8;
+		NEWTYPE(pendblock, block_node);
+		pendblock->add_stmt(pendblockassign);
+		p->endblock = pendblock;
+		
 		p->block = dynamic_cast<block_node*>($10);
 		$$ = p;
 	}
@@ -617,11 +644,30 @@ for_loop_stmt:
 	FOR var ASSIGN assign_value RIGHT_POINTER cmp_value ARG_SPLITTER expr_value THEN END
 	{
 		FKLOG("[bison]: for_loop_stmt <- empty");
-		NEWTYPE(p, for_loop_stmt);
-		p->var = $2;
-		p->begin = $4;
-		p->end = $6;
-		p->add = $8;
+		NEWTYPE(p, for_stmt);
+		
+		NEWTYPE(pcmp, cmp_stmt);
+		pcmp->cmp = "<";
+		pcmp->left = $2;
+		pcmp->right = $6;
+		p->cmp = pcmp;
+		
+		NEWTYPE(pbeginblockassign, assign_stmt);
+		pbeginblockassign->var = $2;
+		pbeginblockassign->value = $4;
+		pbeginblockassign->isnew = false;
+		NEWTYPE(pbeginblock, block_node);
+		pbeginblock->add_stmt(pbeginblockassign);
+		p->beginblock = pbeginblock;
+		
+		NEWTYPE(pendblockassign, math_assign_stmt);
+		pendblockassign->var = $2;
+		pendblockassign->oper = "+=";
+		pendblockassign->value = $8;
+		NEWTYPE(pendblock, block_node);
+		pendblock->add_stmt(pendblockassign);
+		p->endblock = pendblock;
+		
 		p->block = 0;
 		$$ = p;
 	}

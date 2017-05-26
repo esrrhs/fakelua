@@ -138,6 +138,9 @@
     <ClInclude Include="src\pointerheap.h">
       <Filter>src</Filter>
     </ClInclude>
+    <ClInclude Include="src\optimizer.h">
+      <Filter>src</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="src\binary.cpp">
@@ -225,6 +228,9 @@
       <Filter>src</Filter>
     </ClCompile>
     <ClCompile Include="src\pointerheap.cpp">
+      <Filter>src</Filter>
+    </ClCompile>
+    <ClCompile Include="src\optimizer.cpp">
       <Filter>src</Filter>
     </ClCompile>
   </ItemGroup>

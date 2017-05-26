@@ -53,7 +53,6 @@ enum esyntreetype
 	est_switch_case_node,
 	est_elseif_stmt,
 	est_elseif_stmt_list,
-	est_for_loop_stmt,
 	est_constmaplist,
 	est_constmapvalue,
 	est_constarraylist,
@@ -982,49 +981,6 @@ struct switch_stmt : public syntree_node
 	syntree_node * cmp;
 	syntree_node * caselist;
 	syntree_node * def;
-};
-
-struct for_loop_stmt : public syntree_node
-{
-	for_loop_stmt() {}
-	virtual ~for_loop_stmt() {}
-
-	virtual esyntreetype gettype()
-	{
-		return est_for_loop_stmt;
-	}
-	
-	virtual String dump(int indent)
-	{
-		String ret;
-		ret += gentab(indent);
-		ret += "[for_loop_stmt]:\n";
-		ret += gentab(indent + 1);
-		ret += "[var]:\n";
-		ret += var->dump(indent + 2);
-		ret += gentab(indent + 1);
-		ret += "[begin]:\n";
-		ret += begin->dump(indent + 2);
-		ret += gentab(indent + 1);
-		ret += "[end]:\n";
-		ret += end->dump(indent + 2);
-		ret += gentab(indent + 1);
-		ret += "[add]:\n";
-		ret += add->dump(indent + 2);
-		ret += gentab(indent + 1);
-		if (block)
-		{
-			ret += "[block]:\n";
-			ret += block->dump(indent + 2);
-		}
-		return ret;
-	}
-	
-	syntree_node * var;
-	syntree_node * begin;
-	syntree_node * end;
-	syntree_node * add;
-	block_node * block;
 };
 
 typedef std::vector<syntree_node *> map_ele_node_list;

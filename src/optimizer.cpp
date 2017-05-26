@@ -658,48 +658,6 @@ void optimizer::trans_inslist(func_binary & fb)
 			}
 			break;
 			
-			case OPCODE_FORBEGIN:
-			{
-				// var
-				set_ins_read(ins, fb, ip);
-				set_ins_write(ins, fb, ip);
-				ip++;
-
-				// begin
-				set_ins_read(ins, fb, ip);
-				ip++;
-
-				// end
-				set_ins_read(ins, fb, ip);
-				ip++;
-
-				// add
-				set_ins_read(ins, fb, ip);
-				ip++;
-
-				ip++;
-			}
-			break;
-			
-			case OPCODE_FORLOOP:
-			{
-				// var
-				set_ins_read(ins, fb, ip);
-				set_ins_write(ins, fb, ip);
-				ip++;
-
-				// end
-				set_ins_read(ins, fb, ip);
-				ip++;
-
-				// add
-				set_ins_read(ins, fb, ip);
-				ip++;
-
-				ip++;
-			}
-			break;
-			
 			case OPCODE_SLEEP:
 			{
 				set_ins_read(ins, fb, ip);
@@ -817,7 +775,6 @@ void optimizer::remove_ins(func_binary & fb, opt_ins & delins)
 			case OPCODE_MOREEQUAL_JNE:
 			case OPCODE_LESSEQUAL_JNE:
 			case OPCODE_NOTEQUAL_JNE:
-			case OPCODE_FORLOOP:
 			{
 				int destip = COMMAND_CODE(fb.m_buff[ins.offset + 4]);
 				if (destip > delins.offset)
@@ -853,16 +810,6 @@ void optimizer::remove_ins(func_binary & fb, opt_ins & delins)
 				if (destip > delins.offset)
 				{
 					fb.m_buff[ins.offset + 1] = MAKE_POS(destip - delins.size);
-				}
-			}
-			break;
-			
-			case OPCODE_FORBEGIN:
-			{
-				int destip = COMMAND_CODE(fb.m_buff[ins.offset + 5]);
-				if (destip > delins.offset)
-				{
-					fb.m_buff[ins.offset + 5] = MAKE_POS(destip - delins.size);
 				}
 			}
 			break;
