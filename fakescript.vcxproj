@@ -43,6 +43,7 @@
     <ClInclude Include="src\machine.h" />
     <ClInclude Include="src\myflexer.h" />
     <ClInclude Include="src\native.h" />
+    <ClInclude Include="src\optimizer.h" />
     <ClInclude Include="src\package\buffer.h" />
     <ClInclude Include="src\package\selector.h" />
     <ClInclude Include="src\paramstack.h" />
@@ -84,6 +85,7 @@
     <ClCompile Include="src\machine.cpp" />
     <ClCompile Include="src\myflexer.cpp" />
     <ClCompile Include="src\native.cpp" />
+    <ClCompile Include="src\optimizer.cpp" />
     <ClCompile Include="src\parser.cpp" />
     <ClCompile Include="src\pointerheap.cpp" />
     <ClCompile Include="src\processor.cpp" />

@@ -180,6 +180,7 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 	case OPCODE_MULTIPLY:
 	case OPCODE_DIVIDE:
 	case OPCODE_DIVIDE_MOD:
+	case OPCODE_STRING_CAT:
 		{
 			ret = compile_math(asg, fb, cmd);
 		}
@@ -248,14 +249,6 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 			setwarn(m_fk, "assembler only support SLEEP or YIELD, skip code");
 			ret = true;
 			m_pos++;
-		}
-		break;
-	case OPCODE_FORBEGIN:
-	case OPCODE_FORLOOP:
-		{
-			FKERR("assembler dont support for i -> n, j");
-			compile_seterror(fb, cmd, efk_jit_error, "assembler dont support for i -> n, j");
-			return false;
 		}
 		break;
 	default:
@@ -374,6 +367,13 @@ bool assembler::compile_return(asmgen & asg, const func_binary & fb, command cmd
 	return true;
 }
 
+variant * assembler_string_cat(fake * fk, variant * left, variant * right)
+{
+	variant * v = fk->con.newvariant();
+	V_STRING_CAT(v, left, right);
+	return v;
+}
+
 bool assembler::compile_math(asmgen & asg, const func_binary & fb, command cmd)
 {
 	int code = COMMAND_CODE(cmd);
@@ -408,12 +408,18 @@ bool assembler::compile_math(asmgen & asg, const func_binary & fb, command cmd)
 	case OPCODE_DIVIDE_MOD:
 		asg.variant_div_mod(dest, left, right);
 		break;
+	case OPCODE_STRING_CAT:
+		asg.call_func_param3((void *)&assembler_string_cat, m_fk, left, right);
+		asg.variant_from_rax(dest);
+		break;
 	default:
 		assert(0);
 		FKERR("[assembler] compile_math err code %d %s", code, OpCodeStr(code));
 		break;
 	}
 	
+	CHECK_VARIANT_CON_POS(fb, dest);
+
 	return true;
 }
 
@@ -831,6 +837,8 @@ bool assembler::compile_call(asmgen & asg, const func_binary & fb, command cmd)
 		{
 			int ret = retvec[i];
 			asg.variant_pop(ret);
+			
+			CHECK_VARIANT_CON_POS(fb, ret);
 		}
 
 		// 5.清理不需要的
@@ -886,6 +894,8 @@ bool assembler::compile_call(asmgen & asg, const func_binary & fb, command cmd)
 		{
 			int ret = retvec[i];
 			asg.variant_pop(ret);
+			
+			CHECK_VARIANT_CON_POS(fb, ret);
 		}
 
 		// 5.清理不需要的
@@ -944,4 +954,3 @@ bool assembler::compile_pos_to_container(asmgen & asg, const func_binary & fb, i
 	
 	return true;
 }
-
