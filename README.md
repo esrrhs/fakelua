@@ -12,9 +12,9 @@ Lightweight embedded scripting language
 * The syntax is similar to lua
 * All function
 * Support array, map, unlimited nested
-* Support generating routine like fake testfunc (param1), to achieve the effect of multithreading
+* Support generating routine like fake testfunc (param1), to achieve the effect of multithreading(JIT no support)
 * Support binding C functions and class member functions
-* With interpreter, JIT part support
+* With interpreter, support JIT
 * Support multi return value
 * Support profile, can get the script running time of each function
 * Support hot update
