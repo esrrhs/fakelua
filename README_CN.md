@@ -9,7 +9,7 @@
 * 语法类似lua
 * 全部为函数
 * 支持array，map，可以无限嵌套
-* 支持fake testfunc(param1)产生routine，实现假多线程效果(暂不支持JIT)
+* 支持fake testfunc(param1)产生routine，实现假多线程效果(此特性暂不支持JIT)
 * 支持C函数和类成员函数的绑定
 * 自带解释器，自带JIT
 * 支持多返回值
