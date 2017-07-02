@@ -984,6 +984,15 @@ bool compiler::compile_variable_node(codegen & cg, variable_node * vn)
 		return true;
 	}
 
+	gcv = m_fk->pa.get_const_define(vn->str.c_str());
+	if (gcv)
+	{
+		int pos = cg.getconst(*gcv);
+		m_cur_addr = MAKE_ADDR(ADDR_CONST, pos);
+		FKLOG("[compiler] compile_variable_node %p OK", vn);
+		return true;
+	}
+
 	// 从当前堆栈往上找
 	int pos = cg.getvariable(vn->str);
 	if (pos == -1)
