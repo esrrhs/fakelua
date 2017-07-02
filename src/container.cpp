@@ -85,6 +85,12 @@ variant * con_array_get(fake * fk, variant_array * va, const variant * k)
 		return 0;
 	}
 	
+	if (UNLIKE(index < 0))
+	{
+		seterror(fk, efk_run_inter_error, fkgetcurfile(fk), fkgetcurline(fk), fkgetcurfunc(fk), "interpreter get array fail, index %d", index);
+		return 0;
+	}
+	
 	if (UNLIKE(index >= (int)ARRAY_MAX_SIZE(va->va)))
 	{
 		size_t newsize = index + 1 + ARRAY_MAX_SIZE(va->va) * fk->cfg.array_grow_speed / 100;
