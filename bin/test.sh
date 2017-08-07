@@ -6,7 +6,7 @@ if [ $# == 1 ] && [ $1 == "-j" ];then
     echo "use jit"
 fi
 
-NUM=62
+NUM=63
 chmod a+x fake
 for i in `seq $NUM`; do
 	if [ "$i" == "34" ] && [ "$JIT_FLAG" == " -jy " ];then

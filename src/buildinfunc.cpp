@@ -434,6 +434,29 @@ void buildin_pause(fake * fk, interpreter * inter)
 	fkpspush<bool>(fk, true);
 }
 
+// isinteger
+void buildin_isinteger(fake * fk, interpreter * inter)
+{
+	BIF_CHECK_ARG_NUM(1);
+
+	bool err = false;
+	variant * v = 0;
+	PS_POP_AND_GET(fk->ps, v);
+	if (v)
+	{
+		if (v->type == variant::REAL)
+		{
+			if ((int)v->data.real == v->data.real)
+			{
+				fkpspush<bool>(fk, true);
+				return;
+			}
+		}
+	}
+	
+	fkpspush<bool>(fk, false);
+}
+
 void buildinfunc::openbasefunc()
 {
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("print"), buildin_print);
@@ -464,6 +487,7 @@ void buildinfunc::openbasefunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("tostring"), buildin_tostring);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("getconst"), buildin_getconst);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("pause"), buildin_pause);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("isinteger"), buildin_isinteger);
 }
 
 void buildinfunc::openfilefunc()

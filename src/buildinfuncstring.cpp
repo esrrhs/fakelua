@@ -368,6 +368,43 @@ void buildin_string_cat(fake * fk, interpreter * inter)
 	fkpspush<const char *>(fk, leftstr.c_str());
 }
 
+// cmp
+void buildin_string_cmp(fake * fk, interpreter * inter)
+{
+	BIF_CHECK_ARG_NUM(2);
+
+	const char * right = fkpspopcstrptr(fk);
+	const char * left = fkpspopcstrptr(fk);
+	int ret = strcmp(right, left);
+	fkpspush<int>(fk, ret);
+}
+
+// tolower
+void buildin_string_tolower(fake * fk, interpreter * inter)
+{
+	BIF_CHECK_ARG_NUM(1);
+
+	String str = fkpspopcstrptr(fk);
+	for (int i = 0; i < (int)str.size(); i++)
+	{
+		str[i] = tolower(str[i]);
+	}
+	fkpspush<const char *>(fk, str.c_str());
+}
+
+// toupper
+void buildin_string_toupper(fake * fk, interpreter * inter)
+{
+	BIF_CHECK_ARG_NUM(1);
+
+	String str = fkpspopcstrptr(fk);
+	for (int i = 0; i < (int)str.size(); i++)
+	{
+		str[i] = toupper(str[i]);
+	}
+	fkpspush<const char *>(fk, str.c_str());
+}
+
 void buildinfuncstring::openstringfunc()
 {
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_find"), buildin_string_find);
@@ -378,4 +415,7 @@ void buildinfuncstring::openstringfunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_trimright"), buildin_string_trim_right);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_replace"), buildin_string_replace);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_cat"), buildin_string_cat);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_cmp"), buildin_string_cmp);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_tolower"), buildin_string_tolower);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("string_toupper"), buildin_string_toupper);
 }

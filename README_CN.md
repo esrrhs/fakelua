@@ -1,9 +1,8 @@
-# fakescript 
+#fakescript 
 轻量级嵌入式脚本语言
 
 ## 简介
 **fakescript**是一款轻量级的嵌入式脚本语言，使用c++语言编写，语法吸取自lua、golang、erlang，基于flex、bison生成语法树，编译成字节码解释执行。与lua相比，运行速度不相上下，更易使用，源代码可读性更强
-<a href="https://github.com/esrrhs/fakescript-java">Java版本fakescript</a>
 
 ## 脚本特性
 * 语法类似lua
@@ -23,6 +22,10 @@
 * 自带gdb风格的命令行调试器，以及vs风格的可视化编辑调试ide
 * 可在C里直接通过接口调用，开始命令行调试
 * 支持字节码优化
+
+## 产品应用
+![d8f9d72a6059252d8aa6c584329b033b5ab5b9f9.jpg](https://bitbucket.org/repo/pAEqqM/images/870497708-d8f9d72a6059252d8aa6c584329b033b5ab5b9f9.jpg)[我是大主宰](http://dzz.youxi.com)
+![9f510fb30f2442a71a9ae83ad443ad4bd013029c.jpg](https://bitbucket.org/repo/pAEqqM/images/3631286140-9f510fb30f2442a71a9ae83ad443ad4bd013029c.jpg)[天天炫斗](http://ttxd.qq.com/act/a20160419brandP/)
 
 ## 标准库
 * 文件
