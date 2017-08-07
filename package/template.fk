@@ -2,6 +2,7 @@ package template
 
 include "string.fk"
 include "xml.fk"
+include "json.fk"
 
 const ele_none = 0
 const ele_member = 1
@@ -15,10 +16,20 @@ const ele_with = 8
 const ele_do = 9
 
 -- 从xml生成file
-func gen_file_xml(srcfile, tplfile, desfile)
+func gen_file(srcfile, tplfile, desfile)
 
 	-- 解析xml
-	var ok, var ret, var errormsg = xml.parse(srcfile)
+	var ok = false
+	var ret = 0
+	var errormsg = ""
+	
+	if is string.is_endwith(srcfile, ".xml") then
+		ok, ret, errormsg = xml.parse(srcfile)
+	elseif is string.is_endwith(srcfile, ".json") then
+		ok, ret, errormsg = json.parse(srcfile)
+	else
+		return false, "not support srcfile"
+	end
 	
 	if not ok then
 		return false, errormsg
@@ -231,6 +242,11 @@ end
 -- 取得表达式的值
 func _get_element_value(global, data, ele)
 
+	-- .
+	if ele == "." then
+		return true, data, "ok"
+	end
+	
 	-- .xxx
 	var ele_begin_str = string.substr(ele, 0, 1)
 	if ele_begin_str == "." then

@@ -1,4 +1,4 @@
-# fakescript
+#fakescript
 
 [![Author](https://img.shields.io/badge/author-errhrs-blue.svg?style=flat)](https://github.com/esrrhs/fakescript) [![Platform](https://img.shields.io/badge/platform-Linux,%20Windows-green.svg?style=flat)](https://github.com/esrrhs/fakescript)[![Script](https://img.shields.io/badge/embed-script-pink.svg?style=flat)](https://github.com/esrrhs/fakescript) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000?style=flat)](LICENSE)
 
@@ -6,7 +6,6 @@ Lightweight embedded scripting language
 
 ## Brief introduction [中文](./README_CN.md)
 **fakescript** is a lightweight embedded scripting language , using c ++ language, grammar lessons from lua, golang, erlang, based on flex, bison generative grammar tree , compiled into byte code interpreted. Compared with lua, comparable speed , easier to use , more readable source code
-<a href="https://github.com/esrrhs/fakescript-java">fakescript for Java</a>
 
 ## Script feature
 * The syntax is similar to lua
@@ -30,9 +29,9 @@ Lightweight embedded scripting language
 
 
 ## In Production
+![d8f9d72a6059252d8aa6c584329b033b5ab5b9f9.jpg](https://bitbucket.org/repo/pAEqqM/images/870497708-d8f9d72a6059252d8aa6c584329b033b5ab5b9f9.jpg)[我是大主宰](http://dzz.youxi.com)
+![9f510fb30f2442a71a9ae83ad443ad4bd013029c.jpg](https://bitbucket.org/repo/pAEqqM/images/3631286140-9f510fb30f2442a71a9ae83ad443ad4bd013029c.jpg)[天天炫斗](http://ttxd.qq.com/act/a20160419brandP/)
 
-<a href="http://dzz.youxi.com/"><img src="https://ss1.baidu.com/70cFfyinKgQFm2e88IuM_a/forum/pic/item/d8f9d72a6059252d8aa6c584329b033b5ab5b9f9.jpg" width="84" align="middle"/></a>&nbsp;&nbsp;
-<a href="http://ttxd.qq.com/act/a20160419brandP/"><img src="https://ss1.baidu.com/70cFfyinKgQFm2e88IuM_a/forum/pic/item/9f510fb30f2442a71a9ae83ad443ad4bd013029c.jpg" width="100" align="middle"/></a>&nbsp;&nbsp;
 
 ## Standard Library
 * File
