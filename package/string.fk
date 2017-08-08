@@ -134,3 +134,17 @@ func capital(str)
 	b := substr(str, 1, -1)
 	return cat(string_toupper(a), b)
 end
+
+func nocapital(str)
+	a := substr(str, 0, 1)
+	b := substr(str, 1, -1)
+	return cat(string_tolower(a), b)
+end
+
+func toupper(str)
+	return string_toupper(str)
+end
+
+func tolower(str)
+	return string_tolower(str)
+end
