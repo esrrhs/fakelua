@@ -385,6 +385,30 @@ void buildin_tonumber(fake * fk, interpreter * inter)
 	fkpspush<double>(fk, ret);
 }
 
+// tolong
+void buildin_tolong(fake * fk, interpreter * inter)
+{
+	BIF_CHECK_ARG_NUM(1);
+
+	bool err = false;
+	variant * v = 0;
+	PS_POP_AND_GET(fk->ps, v);
+	uint64_t ret = 0;
+	if (v->type == variant::STRING)
+	{
+	 	ret = (uint64_t)atoll(v->data.str->s);
+	}
+	else if (v->type == variant::REAL)
+	{
+		ret = (uint64_t)v->data.real;
+	}
+	else if (v->type == variant::UUID)
+	{
+		ret = (uint64_t)v->data.uuid;
+	}
+	fkpspush<uint64_t>(fk, ret);
+}
+
 // tostring
 void buildin_tostring(fake * fk, interpreter * inter)
 {
@@ -485,6 +509,7 @@ void buildinfunc::openbasefunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("isfunc"), buildin_isfunc);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("tonumber"), buildin_tonumber);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("tostring"), buildin_tostring);
+	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("tolong"), buildin_tolong);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("getconst"), buildin_getconst);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("pause"), buildin_pause);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("isinteger"), buildin_isinteger);
