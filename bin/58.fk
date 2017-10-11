@@ -20,6 +20,8 @@ func main()
 	print(dumpstat())
 	print(dumpmem())
 	print(getconst("c_table_data"))
+	print(tonumber(1507709860358u))
+	print(tolong(tonumber(1507709860358u)))
 	return 0
 	
 end
