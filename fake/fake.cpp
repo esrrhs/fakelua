@@ -344,6 +344,7 @@ bool readfile(const char * filename, int addsize, char * & buf, int & filesize)
 	if (fread(tmpbuf, size, 1, fp) != 1)
 	{
 		printf("read %s fail\n", filename);
+		free(tmpbuf);
 		return false;
 	}
 	fclose(fp);
