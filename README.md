@@ -44,7 +44,6 @@ Lightweight embedded scripting language
 ## Sample
 
 ```
-#!lua
 
 
 -- Current package name
@@ -130,7 +129,6 @@ end
 ## C++ Sample
 
 ```
-#!c++
 // create instance
 fake * fk = newfake();
 // regist global func
