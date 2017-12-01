@@ -11,7 +11,9 @@ extern "C"
 };
 #include "lua_tinker.h"
 #ifndef WIN32
+#ifdef USE_GOOGLE_POFILER
 #include "gperftools/profiler.h"
+#endif
 #endif
 
 int cfunc1(int a, int b)
@@ -58,7 +60,9 @@ int main(int argc, const char *argv[])
 	unsigned int begin = time(0);
 
 #ifndef WIN32
+#ifdef USE_GOOGLE_POFILER
 	ProfilerStart("luatest.prof");
+#endif
 #endif
 
 #ifndef _DEBUG
@@ -71,7 +75,9 @@ int main(int argc, const char *argv[])
 	}
 
 #ifndef WIN32
+#ifdef USE_GOOGLE_POFILER
 	ProfilerStop();
+#endif
 #endif
 	unsigned int end = time(0);
 
