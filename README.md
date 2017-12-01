@@ -168,6 +168,6 @@ delfake(fk);
 ![image](img/debug.png)
 
 ## Welcome to donate 
-![image](img/donation.png)
+![image](img/donate.png)
 
 Donated money will be used to improve performance and subsequent continuous optimization fakescript
