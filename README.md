@@ -161,13 +161,13 @@ delfake(fk);
 ## Debugging environment
 * IDE
 
-![image](img/ide.jpg)
+![image](img/ide.png)
 
 * Command-line
 
-![image](img/debug.jpg)
+![image](img/debug.png)
 
 ## Welcome to donate 
-![image](img/donation.jpg)
+![image](img/donation.png)
 
 Donated money will be used to improve performance and subsequent continuous optimization fakescript
