@@ -8,7 +8,9 @@
 #include <algorithm>
 #ifdef WIN32
 #else
+#ifdef USE_GOOGLE_POFILER
 #include "gperftools/profiler.h"
+#endif
 #endif
 
 // for test
@@ -268,10 +270,12 @@ int main(int argc, const char *argv[])
 	}
 
 #ifndef WIN32
+#ifdef USE_GOOGLE_POFILER
 	if (g_isopengoogleprofile)
 	{
 		ProfilerStart("fake.prof");
 	}
+#endif
 #endif
 
 	uint32_t begintime = time(0);
@@ -300,10 +304,12 @@ int main(int argc, const char *argv[])
 	uint32_t endtime = time(0);
 
 #ifndef WIN32
+#ifdef USE_GOOGLE_POFILER
 	if (g_isopengoogleprofile)
 	{
 		ProfilerStop();
 	}
+#endif
 #endif
 
 	if (fkerror(fk))
