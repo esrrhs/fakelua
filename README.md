@@ -29,8 +29,8 @@ Lightweight embedded scripting language
 
 
 ## In Production
-![d8f9d72a6059252d8aa6c584329b033b5ab5b9f9.jpg](https://bitbucket.org/repo/pAEqqM/images/870497708-d8f9d72a6059252d8aa6c584329b033b5ab5b9f9.jpg)[我是大主宰](http://dzz.youxi.com)
-![9f510fb30f2442a71a9ae83ad443ad4bd013029c.jpg](https://bitbucket.org/repo/pAEqqM/images/3631286140-9f510fb30f2442a71a9ae83ad443ad4bd013029c.jpg)[天天炫斗](http://ttxd.qq.com/act/a20160419brandP/)
+![image](img/use1.jpg)[我是大主宰](http://dzz.youxi.com)
+![image](img/use2.jpg)[天天炫斗](http://ttxd.qq.com/act/a20160419brandP/)
 
 
 ## Standard Library
@@ -161,13 +161,13 @@ delfake(fk);
 ## Debugging environment
 * IDE
 
-![QQ图片20150819174501.png](https://bitbucket.org/repo/pAEqqM/images/188608728-QQ%E5%9B%BE%E7%89%8720150819174501.png)
+![image](img/ide.jpg)
 
 * Command-line
 
-![QQ图片20150819175022.png](https://bitbucket.org/repo/pAEqqM/images/1059284915-QQ%E5%9B%BE%E7%89%8720150819175022.png)
+![image](img/debug.jpg)
 
 ## Welcome to donate 
-![donation.png](https://bitbucket.org/repo/pAEqqM/images/2041212420-donation.png)
+![image](img/donation.jpg)
 
 Donated money will be used to improve performance and subsequent continuous optimization fakescript
