@@ -1,4 +1,4 @@
-#fakescript 
+# fakescript 
 轻量级嵌入式脚本语言
 
 ## 简介
@@ -138,6 +138,19 @@ ret = fkrun<int>(fk, "myfunc1", 1, 2);
 // 删除实例
 delfake(fk);
 ```
+
+## 使用
+#### Windows
+1. 下载源码
+2. 用Microsoft Visual Studio 2015打开fakescript.sln
+3. 编译
+4. 复制 include/**fakescript.h** 和 bin/**fakescript.lib** 到你的工程
+#### Linux
+1. 下载源码
+2. 安装CMake
+2. 运行```./build.sh release```
+3. 复制 include/**fakescript.h** and bin/**libfkcript.a** 到你的工程
+
 
 ## 调试环境
 * IDE

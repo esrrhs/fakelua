@@ -1,4 +1,4 @@
-#fakescript
+# fakescript
 
 [![Author](https://img.shields.io/badge/author-errhrs-blue.svg?style=flat)](https://github.com/esrrhs/fakescript) [![Platform](https://img.shields.io/badge/platform-Linux,%20Windows-green.svg?style=flat)](https://github.com/esrrhs/fakescript)[![Script](https://img.shields.io/badge/embed-script-pink.svg?style=flat)](https://github.com/esrrhs/fakescript) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000?style=flat)](LICENSE)
 
@@ -127,7 +127,7 @@ func myfunc1(arg1, arg2)
 end
 ```
 
-# C++ Sample #
+## C++ Sample
 
 ```
 #!c++
@@ -144,6 +144,19 @@ ret = fkrun<int>(fk, "myfunc1", 1, 2);
 // delete instance
 delfake(fk);
 ```
+
+## How to use
+#### Windows
+1. clone source
+2. open **fakescript.sln** by Microsoft Visual Studio 2015
+3. compile
+4. copy include/**fakescript.h** and bin/**fakescript.lib** to your project
+#### Linux
+1. clone source
+2. install CMake
+2. run```./build.sh release```
+3. copy include/**fakescript.h** and bin/**libfkcript.a** to your project
+
 
 ## Debugging environment
 * IDE
