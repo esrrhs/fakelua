@@ -76,8 +76,6 @@ private:
 
 	void remove_ins(func_binary & fb, opt_ins & delins);
 
-	void optimize_assign_read(func_binary & fb);
-
 	void optimize_write_write(func_binary & fb);
 
 	void optimize_write_assign(func_binary & fb);
