@@ -49,10 +49,6 @@ void optimizer::optimize(func_binary & fb)
 		}
 		if (!m_isopt)
 		{
-			optimize_assign_read(fb);
-		}
-		if (!m_isopt)
-		{
 			optimize_no_use_const(fb);
 		}
 		if (!m_isopt)
@@ -838,58 +834,6 @@ void optimizer::remove_ins(func_binary & fb, opt_ins & delins)
 	safe_fkfree(m_fk, fb.m_lineno_buff);
 	fb.m_lineno_buff = newlinenobuff;
 	fb.m_lineno_size -= delins.size;
-}
-
-void optimizer::optimize_assign_read(func_binary & fb)
-{
-	// eg.a=1 b=a c=a
-	// 唯一一次赋值后，并没有write，只有read，就替换这些read，container除外
-	for (int i = 0; i < (int)m_inslist.size(); i++)
-	{
-		opt_ins & ins = m_inslist[i];
-		if (ins.code == OPCODE_ASSIGN)
-		{
-			opt_ins_addr & src = ins.src[0];
-			opt_ins_addr & dst = ins.dst[0];
-
-			if (ADDR_TYPE(COMMAND_CODE(src.addr)) == ADDR_CONTAINER)
-			{
-				continue;
-			}
-
-			if (ADDR_TYPE(COMMAND_CODE(dst.addr)) == ADDR_CONTAINER)
-			{
-				continue;
-			}
-
-			if (get_assign_dst_ins_from(0, dst.addr) != &ins || get_assign_dst_ins_from(i + 1, dst.addr) != 0)
-			{
-				continue;
-			}
-
-			if (get_write_ins_from(0, dst.addr) != &ins || get_write_ins_from(i + 1, dst.addr) != 0)
-			{
-				continue;
-			}
-
-			for (int j = i + 1; j < (int)m_inslist.size(); j++)
-			{
-				opt_ins & replaceins = m_inslist[j];
-				for (int z = 0; z < (int)replaceins.src.size(); z++)
-				{
-					opt_ins_addr & replaceaddr = replaceins.src[z];
-					if (replaceaddr.addr == dst.addr)
-					{
-						replace_ins_addr(fb, replaceaddr, src);
-					}
-				}
-			}
-
-			remove_ins(fb, ins);
-			m_isopt = true;
-			return;
-		}
-	}
 }
 
 void optimizer::optimize_write_write(func_binary & fb)
