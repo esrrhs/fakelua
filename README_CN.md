@@ -140,7 +140,7 @@ delfake(fk);
 ## 使用
 #### Windows
 1. 下载源码
-2. 用Microsoft Visual Studio 2015打开fakescript.sln
+2. 用Microsoft Visual Studio 2017打开fakescript.sln
 3. 编译
 4. 复制 include/**fakescript.h** 和 bin/**fakescript.lib** 到你的工程
 #### Linux

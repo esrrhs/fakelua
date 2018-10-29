@@ -146,7 +146,7 @@ delfake(fk);
 ## How to use
 #### Windows
 1. clone source
-2. open **fakescript.sln** by Microsoft Visual Studio 2015
+2. open **fakescript.sln** by Microsoft Visual Studio 2017
 3. compile
 4. copy include/**fakescript.h** and bin/**fakescript.lib** to your project
 #### Linux
