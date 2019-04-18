@@ -9,11 +9,16 @@
 #include "myflexer.h"
 
 #define FLEX_DEBUG(x, ...) printf("FLEX DEBUG %d:", yylineno); printf(x, ##__VA_ARGS__);
+#define FLEX_DEBUG(x, ...) printf("FLEX DEBUG %d:", yylineno); printf(x, ##__VA_ARGS__);
 
-#define YY_DECL int myflexer::yylex(YYSTYPE * lvalp, YYLTYPE * loc)
+#ifdef __APPLE__
+#define YY_DECL int myflexer::yylexex(YYSTYPE * lvalp, YYLTYPE * loc)
+#else
+#define YY_DECL int myflexer::yylex(YYSTYPE * yylval, YYLTYPE * loc)
+#endif
 
 #define YY_USER_ACTION loc->first_line = loc->last_line = yylineno;
-	
+
 %}
 
 %option c++
@@ -21,12 +26,12 @@
 %option stack
 %option yylineno
 %x STR
-%x SINGLE_LINE_COMMENT
+%x SINGLE_LINE_COMMENT_STATE
 
 %%
 
-"--"	yy_push_state(SINGLE_LINE_COMMENT);
-<SINGLE_LINE_COMMENT>{
+"--"	yy_push_state(SINGLE_LINE_COMMENT_STATE);
+<SINGLE_LINE_COMMENT_STATE>{
 	[^\n]*	;
 	"\n"	{
 		yy_pop_state(); 

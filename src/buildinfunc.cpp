@@ -516,11 +516,6 @@ void buildinfunc::openfilefunc()
 	m_bifile.openfilefunc();
 }
 
-void buildinfunc::opennetfunc()
-{
-	m_bifnet.opennetfunc();
-}
-
 void buildinfunc::openosfunc()
 {
 	m_bifos.openosfunc();
@@ -534,26 +529,6 @@ void buildinfunc::openstringfunc()
 void buildinfunc::openmathfunc()
 {
 	m_bifmath.openmathfunc();
-}
-
-buffer * buildinfunc::newbuffer(int size)
-{
-	return m_bifnet.newbuffer(size);
-}
-
-selector * buildinfunc::newselector()
-{
-	return m_bifnet.newselector();
-}
-
-size_t buildinfunc::get_buffer_size() const
-{
-	return m_bifnet.get_buffer_size();
-}
-
-size_t buildinfunc::get_selector_size() const
-{
-	return m_bifnet.get_selector_size();
 }
 
 void buildinfunc::setargv(int argc, const char *argv[])

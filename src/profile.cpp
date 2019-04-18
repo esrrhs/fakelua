@@ -125,15 +125,7 @@ const char * profile::dumpstat()
 	m_dumpstr += fix_string_wrap("Processor Pool size:", wraplen);
 	m_dumpstr += fkitoa(POOL_GROW_SIZE(m_fk->pp));
 	m_dumpstr += "\n";
-	
-	m_dumpstr += fix_string_wrap("Buffer Pool size:", wraplen);
-	m_dumpstr += fkitoa(m_fk->bif.get_buffer_size());
-	m_dumpstr += "\n";
-	
-	m_dumpstr += fix_string_wrap("Selector Pool size:", wraplen);
-	m_dumpstr += fkitoa(m_fk->bif.get_selector_size());
-	m_dumpstr += "\n";
-	
+
 	m_dumpstr += fix_string_wrap("Map Container Pool size:", wraplen);
 	m_dumpstr += fkitoa(m_fk->con.get_map_size());
 	m_dumpstr += "\n";

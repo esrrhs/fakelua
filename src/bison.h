@@ -1,23 +1,24 @@
-
-/* A Bison parser, made by GNU Bison 2.4.1.  */
+/* A Bison parser, made by GNU Bison 2.3.  */
 
 /* Skeleton interface for Bison's Yacc-like parsers in C
-   
-      Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006
+
+   Copyright (C) 1984, 1989, 1990, 2000, 2001, 2002, 2003, 2004, 2005, 2006
    Free Software Foundation, Inc.
-   
-   This program is free software: you can redistribute it and/or modify
+
+   This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
-   the Free Software Foundation, either version 3 of the License, or
-   (at your option) any later version.
-   
+   the Free Software Foundation; either version 2, or (at your option)
+   any later version.
+
    This program is distributed in the hope that it will be useful,
    but WITHOUT ANY WARRANTY; without even the implied warranty of
    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
    GNU General Public License for more details.
-   
+
    You should have received a copy of the GNU General Public License
-   along with this program.  If not, see <http://www.gnu.org/licenses/>.  */
+   along with this program; if not, write to the Free Software
+   Foundation, Inc., 51 Franklin Street, Fifth Floor,
+   Boston, MA 02110-1301, USA.  */
 
 /* As a special exception, you may create a larger work that contains
    part or all of the Bison parser skeleton and distribute that work
@@ -28,10 +29,9 @@
    special exception, which will cause the skeleton and the resulting
    Bison output files to be licensed under the GNU General Public
    License without this special exception.
-   
+
    This special exception was added by the Free Software Foundation in
    version 2.2 of Bison.  */
-
 
 /* Tokens.  */
 #ifndef YYTOKENTYPE
@@ -107,13 +107,82 @@
      FNULL = 323
    };
 #endif
+/* Tokens.  */
+#define VAR_BEGIN 258
+#define RETURN 259
+#define BREAK 260
+#define FUNC 261
+#define WHILE 262
+#define FTRUE 263
+#define FFALSE 264
+#define IF 265
+#define THEN 266
+#define ELSE 267
+#define END 268
+#define STRING_DEFINITION 269
+#define IDENTIFIER 270
+#define NUMBER 271
+#define SINGLE_LINE_COMMENT 272
+#define DIVIDE_MOD 273
+#define ARG_SPLITTER 274
+#define PLUS 275
+#define MINUS 276
+#define DIVIDE 277
+#define MULTIPLY 278
+#define ASSIGN 279
+#define MORE 280
+#define LESS 281
+#define MORE_OR_EQUAL 282
+#define LESS_OR_EQUAL 283
+#define EQUAL 284
+#define NOT_EQUAL 285
+#define OPEN_BRACKET 286
+#define CLOSE_BRACKET 287
+#define AND 288
+#define OR 289
+#define FKFLOAT 290
+#define PLUS_ASSIGN 291
+#define MINUS_ASSIGN 292
+#define DIVIDE_ASSIGN 293
+#define MULTIPLY_ASSIGN 294
+#define DIVIDE_MOD_ASSIGN 295
+#define COLON 296
+#define FOR 297
+#define INC 298
+#define FAKE 299
+#define FKUUID 300
+#define OPEN_SQUARE_BRACKET 301
+#define CLOSE_SQUARE_BRACKET 302
+#define FCONST 303
+#define PACKAGE 304
+#define INCLUDE 305
+#define IDENTIFIER_DOT 306
+#define IDENTIFIER_POINTER 307
+#define STRUCT 308
+#define IS 309
+#define NOT 310
+#define CONTINUE 311
+#define YIELD 312
+#define SLEEP 313
+#define SWITCH 314
+#define CASE 315
+#define DEFAULT 316
+#define NEW_ASSIGN 317
+#define ELSEIF 318
+#define RIGHT_POINTER 319
+#define STRING_CAT 320
+#define OPEN_BIG_BRACKET 321
+#define CLOSE_BIG_BRACKET 322
+#define FNULL 323
+
 
 
 
 #if ! defined YYSTYPE && ! defined YYSTYPE_IS_DECLARED
-
+typedef int YYSTYPE;
 # define yystype YYSTYPE /* obsolescent; will be withdrawn */
 # define YYSTYPE_IS_DECLARED 1
+# define YYSTYPE_IS_TRIVIAL 1
 #endif
 
 
@@ -130,6 +199,5 @@ typedef struct YYLTYPE
 # define YYLTYPE_IS_DECLARED 1
 # define YYLTYPE_IS_TRIVIAL 1
 #endif
-
 
 

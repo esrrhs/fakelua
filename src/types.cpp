@@ -1,9 +1,11 @@
 #include "types.h"
+#include "semantic.h"
 #include "bison.h"
 #include "fake.h"
 #include "variant.h"
 #include "paramstack.h"
 #include <sys/time.h>
+#include "buffer.h"
 
 void fklog(const char * header, const char * file, const char * func, int pos, const char *fmt, ...)
 {

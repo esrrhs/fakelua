@@ -3,7 +3,6 @@
 #include "types.h"
 #include "hashmap.h"
 #include "buildinfuncfile.h"
-#include "buildinfuncnet.h"
 #include "buildinfuncos.h"
 #include "buildinfuncstring.h"
 #include "buildinfuncmath.h"
@@ -26,7 +25,7 @@ typedef void (*bifunc)(fake * fk, interpreter * inter);
 class buildinfunc
 {
 public:
-	force_inline buildinfunc(fake * fk) : m_fk(fk), m_bifile(fk), m_bifnet(fk), m_bifos(fk), m_bifstring(fk), m_bifmath(fk)
+	force_inline buildinfunc(fake * fk) : m_fk(fk), m_bifile(fk), m_bifos(fk), m_bifstring(fk), m_bifmath(fk)
 	{
 	}
 	force_inline ~buildinfunc()
@@ -42,23 +41,15 @@ public:
 	force_inline void clear()
 	{
 		m_bifile.clear();
-		m_bifnet.clear();
 		m_bifos.clear();
 		m_bifstring.clear();
 	}
 
 	void openbasefunc();
 	void openfilefunc();
-	void opennetfunc();
 	void openosfunc();
 	void openstringfunc();
 	void openmathfunc();
-
-	buffer * newbuffer(int size);
-	selector * newselector();
-
-	size_t get_buffer_size() const;
-	size_t get_selector_size() const;
 
 	void setargv(int argc, const char *argv[]);
 	int get_argc() const;
@@ -74,7 +65,6 @@ private:
 	fake * m_fk;
 	fkprint m_fkprint;
 	buildinfuncfile m_bifile;
-	buildinfuncnet m_bifnet;
 	buildinfuncos m_bifos;
 	buildinfuncstring m_bifstring;
 	buildinfuncmath m_bifmath;

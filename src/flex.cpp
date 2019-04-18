@@ -51,6 +51,7 @@ typedef int16_t flex_int16_t;
 typedef uint16_t flex_uint16_t;
 typedef int32_t flex_int32_t;
 typedef uint32_t flex_uint32_t;
+typedef uint64_t flex_uint64_t;
 #else
 typedef signed char flex_int8_t;
 typedef short int flex_int16_t;
@@ -94,7 +95,6 @@ typedef unsigned int flex_uint32_t;
 /* begin standard C++ headers. */
 #include <iostream> 
 #include <errno.h>
-#include <cstdio>
 #include <cstdlib>
 #include <cstring>
 /* end standard C++ headers. */
@@ -165,7 +165,12 @@ typedef unsigned int flex_uint32_t;
 typedef struct yy_buffer_state *YY_BUFFER_STATE;
 #endif
 
-extern int yyleng;
+#ifndef YY_TYPEDEF_YY_SIZE_T
+#define YY_TYPEDEF_YY_SIZE_T
+typedef size_t yy_size_t;
+#endif
+
+extern yy_size_t yyleng;
 
 #define EOB_ACT_CONTINUE_SCAN 0
 #define EOB_ACT_END_OF_FILE 1
@@ -180,7 +185,7 @@ extern int yyleng;
      */
     #define  YY_LESS_LINENO(n) \
             do { \
-                int yyl;\
+                yy_size_t yyl;\
                 for ( yyl = n; yyl < yyleng; ++yyl )\
                     if ( yytext[yyl] == '\n' )\
                         --yylineno;\
@@ -202,11 +207,6 @@ extern int yyleng;
 
 #define unput(c) yyunput( c, (yytext_ptr)  )
 
-#ifndef YY_TYPEDEF_YY_SIZE_T
-#define YY_TYPEDEF_YY_SIZE_T
-typedef size_t yy_size_t;
-#endif
-
 #ifndef YY_STRUCT_YY_BUFFER_STATE
 #define YY_STRUCT_YY_BUFFER_STATE
 struct yy_buffer_state
@@ -225,7 +225,7 @@ struct yy_buffer_state
 	/* Number of characters read into yy_ch_buf, not including EOB
 	 * characters.
 	 */
-	int yy_n_chars;
+	yy_size_t yy_n_chars;
 
 	/* Whether we "own" the buffer - i.e., we know we created it,
 	 * and can realloc() it to grow it, and should free() it to
@@ -329,7 +329,7 @@ typedef unsigned char YY_CHAR;
  */
 #define YY_DO_BEFORE_ACTION \
 	(yytext_ptr) = yy_bp; \
-	yyleng = (size_t) (yy_cp - yy_bp); \
+	yyleng = (yy_size_t) (yy_cp - yy_bp); \
 	(yy_hold_char) = *yy_cp; \
 	*yy_cp = '\0'; \
 	(yy_c_buf_p) = yy_cp;
@@ -611,18 +611,23 @@ static yyconst flex_int32_t yy_rule_can_match_eol[79] =
 #include "myflexer.h"
 
 #define FLEX_DEBUG(x, ...) printf("FLEX DEBUG %d:", yylineno); printf(x, ##__VA_ARGS__);
+#define FLEX_DEBUG(x, ...) printf("FLEX DEBUG %d:", yylineno); printf(x, ##__VA_ARGS__);
 
-#define YY_DECL int myflexer::yylex(YYSTYPE * lvalp, YYLTYPE * loc)
+#ifdef __APPLE__
+#define YY_DECL int myflexer::yylexex(YYSTYPE * lvalp, YYLTYPE * loc)
+#else
+#define YY_DECL int myflexer::yylex(YYSTYPE * yylval, YYLTYPE * loc)
+#endif
 
 #define YY_USER_ACTION loc->first_line = loc->last_line = yylineno;
-	
 
 
-#line 622 "../flex.cpp"
+
+#line 627 "../flex.cpp"
 
 #define INITIAL 0
 #define STR 1
-#define SINGLE_LINE_COMMENT 2
+#define SINGLE_LINE_COMMENT_STATE 2
 
 #ifndef YY_NO_UNISTD_H
 /* Special case for "unistd.h", since it is non-ANSI. We include it way
@@ -720,10 +725,10 @@ YY_DECL
 	register char *yy_cp, *yy_bp;
 	register int yy_act;
     
-#line 26 "flex.l"
+#line 31 "flex.l"
 
 
-#line 727 "../flex.cpp"
+#line 732 "../flex.cpp"
 
 	if ( !(yy_init) )
 		{
@@ -793,7 +798,7 @@ yy_find_action:
 
 		if ( yy_act != YY_END_OF_BUFFER && yy_rule_can_match_eol[yy_act] )
 			{
-			int yyl;
+			yy_size_t yyl;
 			for ( yyl = 0; yyl < yyleng; ++yyl )
 				if ( yytext[yyl] == '\n' )
 					   
@@ -814,19 +819,19 @@ do_action:	/* This label is used only to access EOF actions. */
 
 case 1:
 YY_RULE_SETUP
-#line 28 "flex.l"
-yy_push_state(SINGLE_LINE_COMMENT);
+#line 33 "flex.l"
+yy_push_state(SINGLE_LINE_COMMENT_STATE);
 	YY_BREAK
 
 case 2:
 YY_RULE_SETUP
-#line 30 "flex.l"
+#line 35 "flex.l"
 ;
 	YY_BREAK
 case 3:
 /* rule 3 can match eol */
 YY_RULE_SETUP
-#line 31 "flex.l"
+#line 36 "flex.l"
 {
 		yy_pop_state(); 
 	}
@@ -834,56 +839,56 @@ YY_RULE_SETUP
 
 case 4:
 YY_RULE_SETUP
-#line 36 "flex.l"
+#line 41 "flex.l"
 {
 	return VAR_BEGIN;
 }
 	YY_BREAK
 case 5:
 YY_RULE_SETUP
-#line 40 "flex.l"
+#line 45 "flex.l"
 {
 	return RETURN;
 }
 	YY_BREAK
 case 6:
 YY_RULE_SETUP
-#line 44 "flex.l"
+#line 49 "flex.l"
 {
     return BREAK;
 }
 	YY_BREAK
 case 7:
 YY_RULE_SETUP
-#line 48 "flex.l"
+#line 53 "flex.l"
 {
 	return FUNC;
 }
 	YY_BREAK
 case 8:
 YY_RULE_SETUP
-#line 52 "flex.l"
+#line 57 "flex.l"
 {
 	return FAKE;
 }
 	YY_BREAK
 case 9:
 YY_RULE_SETUP
-#line 56 "flex.l"
+#line 61 "flex.l"
 {
 	return WHILE;
 }
 	YY_BREAK
 case 10:
 YY_RULE_SETUP
-#line 60 "flex.l"
+#line 65 "flex.l"
 {
 	return FOR;
 }
 	YY_BREAK
 case 11:
 YY_RULE_SETUP
-#line 64 "flex.l"
+#line 69 "flex.l"
 {
   lvalp->str = yytext;
   return FTRUE;
@@ -891,7 +896,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 12:
 YY_RULE_SETUP
-#line 69 "flex.l"
+#line 74 "flex.l"
 {
   lvalp->str = yytext;
   return FFALSE;
@@ -899,188 +904,188 @@ YY_RULE_SETUP
 	YY_BREAK
 case 13:
 YY_RULE_SETUP
-#line 74 "flex.l"
+#line 79 "flex.l"
 {
 	return IF;
 }
 	YY_BREAK
 case 14:
 YY_RULE_SETUP
-#line 78 "flex.l"
+#line 83 "flex.l"
 {
 	return THEN;
 }
 	YY_BREAK
 case 15:
 YY_RULE_SETUP
-#line 82 "flex.l"
+#line 87 "flex.l"
 {
 	return ELSE;
 }
 	YY_BREAK
 case 16:
 YY_RULE_SETUP
-#line 86 "flex.l"
+#line 91 "flex.l"
 {
 	return ELSEIF;
 }
 	YY_BREAK
 case 17:
 YY_RULE_SETUP
-#line 90 "flex.l"
+#line 95 "flex.l"
 {
 	return END;
 }
 	YY_BREAK
 case 18:
 YY_RULE_SETUP
-#line 94 "flex.l"
+#line 99 "flex.l"
 {
 	return FCONST;
 }
 	YY_BREAK
 case 19:
 YY_RULE_SETUP
-#line 98 "flex.l"
+#line 103 "flex.l"
 {
 	return PACKAGE;
 }
 	YY_BREAK
 case 20:
 YY_RULE_SETUP
-#line 102 "flex.l"
+#line 107 "flex.l"
 {
 	return INCLUDE;
 }
 	YY_BREAK
 case 21:
 YY_RULE_SETUP
-#line 106 "flex.l"
+#line 111 "flex.l"
 {
 	return STRUCT;
 }
 	YY_BREAK
 case 22:
 YY_RULE_SETUP
-#line 110 "flex.l"
+#line 115 "flex.l"
 {
 	return AND;
 }
 	YY_BREAK
 case 23:
 YY_RULE_SETUP
-#line 114 "flex.l"
+#line 119 "flex.l"
 {
 	return OR;
 }
 	YY_BREAK
 case 24:
 YY_RULE_SETUP
-#line 118 "flex.l"
+#line 123 "flex.l"
 {
 	return IS;
 }
 	YY_BREAK
 case 25:
 YY_RULE_SETUP
-#line 122 "flex.l"
+#line 127 "flex.l"
 {
 	return NOT;
 }
 	YY_BREAK
 case 26:
 YY_RULE_SETUP
-#line 126 "flex.l"
+#line 131 "flex.l"
 {
 	return CONTINUE;
 }
 	YY_BREAK
 case 27:
 YY_RULE_SETUP
-#line 130 "flex.l"
+#line 135 "flex.l"
 {
 	return YIELD;
 }
 	YY_BREAK
 case 28:
 YY_RULE_SETUP
-#line 134 "flex.l"
+#line 139 "flex.l"
 {
 	return SLEEP;
 }
 	YY_BREAK
 case 29:
 YY_RULE_SETUP
-#line 138 "flex.l"
+#line 143 "flex.l"
 {
 	return SWITCH;
 }
 	YY_BREAK
 case 30:
 YY_RULE_SETUP
-#line 142 "flex.l"
+#line 147 "flex.l"
 {
 	return CASE;
 }
 	YY_BREAK
 case 31:
 YY_RULE_SETUP
-#line 146 "flex.l"
+#line 151 "flex.l"
 {
 	return DEFAULT;
 }
 	YY_BREAK
 case 32:
 YY_RULE_SETUP
-#line 150 "flex.l"
+#line 155 "flex.l"
 {
 	return FNULL;
 }
 	YY_BREAK
 case 33:
 YY_RULE_SETUP
-#line 154 "flex.l"
+#line 159 "flex.l"
 yy_push_state(STR); lvalp->str = String();
 	YY_BREAK
 case 34:
 YY_RULE_SETUP
-#line 155 "flex.l"
+#line 160 "flex.l"
 lvalp->str += String("\n");
 	YY_BREAK
 case 35:
 YY_RULE_SETUP
-#line 156 "flex.l"
+#line 161 "flex.l"
 lvalp->str += String("\t");
 	YY_BREAK
 case 36:
 YY_RULE_SETUP
-#line 157 "flex.l"
+#line 162 "flex.l"
 lvalp->str += String(" ");
 	YY_BREAK
 case 37:
 YY_RULE_SETUP
-#line 158 "flex.l"
+#line 163 "flex.l"
 lvalp->str += String("\r");
 	YY_BREAK
 case 38:
 YY_RULE_SETUP
-#line 159 "flex.l"
+#line 164 "flex.l"
 lvalp->str += String("\"");
 	YY_BREAK
 case 39:
 /* rule 39 can match eol */
 YY_RULE_SETUP
-#line 160 "flex.l"
+#line 165 "flex.l"
 lvalp->str += String(yytext);
 	YY_BREAK
 case 40:
 YY_RULE_SETUP
-#line 161 "flex.l"
+#line 166 "flex.l"
 yy_pop_state(); return STRING_DEFINITION; 
 	YY_BREAK
 case 41:
 YY_RULE_SETUP
-#line 163 "flex.l"
+#line 168 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return IDENTIFIER;
@@ -1088,7 +1093,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 42:
 YY_RULE_SETUP
-#line 168 "flex.l"
+#line 173 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return IDENTIFIER_DOT;
@@ -1096,7 +1101,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 43:
 YY_RULE_SETUP
-#line 173 "flex.l"
+#line 178 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return IDENTIFIER_POINTER;
@@ -1104,7 +1109,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 44:
 YY_RULE_SETUP
-#line 178 "flex.l"
+#line 183 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return FKUUID;
@@ -1112,7 +1117,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 45:
 YY_RULE_SETUP
-#line 183 "flex.l"
+#line 188 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return NUMBER;
@@ -1120,7 +1125,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 46:
 YY_RULE_SETUP
-#line 188 "flex.l"
+#line 193 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return FKFLOAT;
@@ -1128,112 +1133,112 @@ YY_RULE_SETUP
 	YY_BREAK
 case 47:
 YY_RULE_SETUP
-#line 193 "flex.l"
+#line 198 "flex.l"
 {
   return DIVIDE_MOD;
 }
 	YY_BREAK
 case 48:
 YY_RULE_SETUP
-#line 197 "flex.l"
+#line 202 "flex.l"
 {
 	return ARG_SPLITTER;
 }
 	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 201 "flex.l"
+#line 206 "flex.l"
 {
 	return RIGHT_POINTER;
 }
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
-#line 205 "flex.l"
+#line 210 "flex.l"
 {
 	return INC;
 }
 	YY_BREAK
 case 51:
 YY_RULE_SETUP
-#line 209 "flex.l"
+#line 214 "flex.l"
 {
 	return PLUS;
 }
 	YY_BREAK
 case 52:
 YY_RULE_SETUP
-#line 213 "flex.l"
+#line 218 "flex.l"
 {
 	return MINUS;
 }
 	YY_BREAK
 case 53:
 YY_RULE_SETUP
-#line 217 "flex.l"
+#line 222 "flex.l"
 {
 	return DIVIDE;
 }
 	YY_BREAK
 case 54:
 YY_RULE_SETUP
-#line 221 "flex.l"
+#line 226 "flex.l"
 {
 	return MULTIPLY;
 }
 	YY_BREAK
 case 55:
 YY_RULE_SETUP
-#line 225 "flex.l"
+#line 230 "flex.l"
 {
 	return NEW_ASSIGN;
 }
 	YY_BREAK
 case 56:
 YY_RULE_SETUP
-#line 229 "flex.l"
+#line 234 "flex.l"
 {
 	return PLUS_ASSIGN;
 }
 	YY_BREAK
 case 57:
 YY_RULE_SETUP
-#line 233 "flex.l"
+#line 238 "flex.l"
 {
 	return MINUS_ASSIGN;
 }
 	YY_BREAK
 case 58:
 YY_RULE_SETUP
-#line 237 "flex.l"
+#line 242 "flex.l"
 {
 	return DIVIDE_ASSIGN;
 }
 	YY_BREAK
 case 59:
 YY_RULE_SETUP
-#line 241 "flex.l"
+#line 246 "flex.l"
 {
 	return MULTIPLY_ASSIGN;
 }
 	YY_BREAK
 case 60:
 YY_RULE_SETUP
-#line 245 "flex.l"
+#line 250 "flex.l"
 {
   return DIVIDE_MOD_ASSIGN;
 }
 	YY_BREAK
 case 61:
 YY_RULE_SETUP
-#line 249 "flex.l"
+#line 254 "flex.l"
 {
 	return ASSIGN;
 }
 	YY_BREAK
 case 62:
 YY_RULE_SETUP
-#line 253 "flex.l"
+#line 258 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return MORE;
@@ -1241,7 +1246,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 63:
 YY_RULE_SETUP
-#line 258 "flex.l"
+#line 263 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return LESS;
@@ -1249,7 +1254,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 64:
 YY_RULE_SETUP
-#line 263 "flex.l"
+#line 268 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return MORE_OR_EQUAL;
@@ -1257,7 +1262,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 65:
 YY_RULE_SETUP
-#line 268 "flex.l"
+#line 273 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return LESS_OR_EQUAL;
@@ -1265,7 +1270,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 66:
 YY_RULE_SETUP
-#line 273 "flex.l"
+#line 278 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return EQUAL;
@@ -1273,7 +1278,7 @@ YY_RULE_SETUP
 	YY_BREAK
 case 67:
 YY_RULE_SETUP
-#line 278 "flex.l"
+#line 283 "flex.l"
 {
 	lvalp->str = String(yytext);
 	return NOT_EQUAL;
@@ -1281,56 +1286,56 @@ YY_RULE_SETUP
 	YY_BREAK
 case 68:
 YY_RULE_SETUP
-#line 283 "flex.l"
+#line 288 "flex.l"
 {
 	return OPEN_BRACKET;
 }
 	YY_BREAK
 case 69:
 YY_RULE_SETUP
-#line 287 "flex.l"
+#line 292 "flex.l"
 {
 	return CLOSE_BRACKET;
 }
 	YY_BREAK
 case 70:
 YY_RULE_SETUP
-#line 291 "flex.l"
+#line 296 "flex.l"
 {
 	return COLON;
 }
 	YY_BREAK
 case 71:
 YY_RULE_SETUP
-#line 295 "flex.l"
+#line 300 "flex.l"
 {
 	return OPEN_SQUARE_BRACKET;
 }
 	YY_BREAK
 case 72:
 YY_RULE_SETUP
-#line 299 "flex.l"
+#line 304 "flex.l"
 {
 	return CLOSE_SQUARE_BRACKET;
 }
 	YY_BREAK
 case 73:
 YY_RULE_SETUP
-#line 303 "flex.l"
+#line 308 "flex.l"
 {
 	return OPEN_BIG_BRACKET;
 }
 	YY_BREAK
 case 74:
 YY_RULE_SETUP
-#line 307 "flex.l"
+#line 312 "flex.l"
 {
 	return CLOSE_BIG_BRACKET;
 }
 	YY_BREAK
 case 75:
 YY_RULE_SETUP
-#line 311 "flex.l"
+#line 316 "flex.l"
 {
 	return STRING_CAT;
 }
@@ -1338,25 +1343,25 @@ YY_RULE_SETUP
 case 76:
 /* rule 76 can match eol */
 YY_RULE_SETUP
-#line 315 "flex.l"
+#line 320 "flex.l"
 {
 }
 	YY_BREAK
 case 77:
 YY_RULE_SETUP
-#line 318 "flex.l"
+#line 323 "flex.l"
 {
 }
 	YY_BREAK
 case 78:
 YY_RULE_SETUP
-#line 321 "flex.l"
+#line 326 "flex.l"
 ECHO;
 	YY_BREAK
-#line 1357 "../flex.cpp"
+#line 1362 "../flex.cpp"
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(STR):
-case YY_STATE_EOF(SINGLE_LINE_COMMENT):
+case YY_STATE_EOF(SINGLE_LINE_COMMENT_STATE):
 	yyterminate();
 
 	case YY_END_OF_BUFFER:
@@ -1544,9 +1549,9 @@ void yyFlexLexer::switch_streams( std::istream* new_in, std::ostream* new_out )
 }
 
 #ifdef YY_INTERACTIVE
-int yyFlexLexer::LexerInput( char* buf, int /* max_size */ )
+size_t yyFlexLexer::LexerInput( char* buf, size_t /* max_size */ )
 #else
-int yyFlexLexer::LexerInput( char* buf, int max_size )
+size_t yyFlexLexer::LexerInput( char* buf, size_t max_size )
 #endif
 {
 	if ( yyin->eof() || yyin->fail() )
@@ -1573,7 +1578,7 @@ int yyFlexLexer::LexerInput( char* buf, int max_size )
 #endif
 }
 
-void yyFlexLexer::LexerOutput( const char* buf, int size )
+void yyFlexLexer::LexerOutput( const char* buf, size_t size )
 {
 	(void) yyout->write( buf, size );
 }
@@ -1631,7 +1636,7 @@ int yyFlexLexer::yy_get_next_buffer()
 
 	else
 		{
-			int num_to_read =
+			yy_size_t num_to_read =
 			YY_CURRENT_BUFFER_LVALUE->yy_buf_size - number_to_move - 1;
 
 		while ( num_to_read <= 0 )
@@ -1645,7 +1650,7 @@ int yyFlexLexer::yy_get_next_buffer()
 
 			if ( b->yy_is_our_buffer )
 				{
-				int new_size = b->yy_buf_size * 2;
+				yy_size_t new_size = b->yy_buf_size * 2;
 
 				if ( new_size <= 0 )
 					b->yy_buf_size += b->yy_buf_size / 8;
@@ -1676,7 +1681,7 @@ int yyFlexLexer::yy_get_next_buffer()
 
 		/* Read in more data. */
 		YY_INPUT( (&YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[number_to_move]),
-			(yy_n_chars), (size_t) num_to_read );
+			(yy_n_chars), num_to_read );
 
 		YY_CURRENT_BUFFER_LVALUE->yy_n_chars = (yy_n_chars);
 		}
@@ -1786,7 +1791,7 @@ int yyFlexLexer::yy_get_next_buffer()
 	if ( yy_cp < YY_CURRENT_BUFFER_LVALUE->yy_ch_buf + 2 )
 		{ /* need to shift things up to make room */
 		/* +2 for EOB chars. */
-		register int number_to_move = (yy_n_chars) + 2;
+		register yy_size_t number_to_move = (yy_n_chars) + 2;
 		register char *dest = &YY_CURRENT_BUFFER_LVALUE->yy_ch_buf[
 					YY_CURRENT_BUFFER_LVALUE->yy_buf_size + 2];
 		register char *source =
@@ -1833,7 +1838,7 @@ int yyFlexLexer::yy_get_next_buffer()
 
 		else
 			{ /* need more input */
-			int offset = (yy_c_buf_p) - (yytext_ptr);
+			yy_size_t offset = (yy_c_buf_p) - (yytext_ptr);
 			++(yy_c_buf_p);
 
 			switch ( yy_get_next_buffer(  ) )
@@ -1857,7 +1862,7 @@ int yyFlexLexer::yy_get_next_buffer()
 				case EOB_ACT_END_OF_FILE:
 					{
 					if ( yywrap(  ) )
-						return EOF;
+						return 0;
 
 					if ( ! (yy_did_buffer_switch_on_eof) )
 						YY_NEW_FILE;
@@ -2110,7 +2115,7 @@ void yyFlexLexer::yypop_buffer_state (void)
  */
 void yyFlexLexer::yyensure_buffer_stack(void)
 {
-	int num_to_alloc;
+	yy_size_t num_to_alloc;
     
 	if (!(yy_buffer_stack)) {
 
@@ -2265,7 +2270,7 @@ void yyfree (void * ptr )
 
 #define YYTABLES_NAME "yytables"
 
-#line 321 "flex.l"
+#line 326 "flex.l"
 
 
 int yyFlexLexer::yywrap()

@@ -2,8 +2,13 @@
 #include "fakescript.h"
 #include "fake.h"
 
+
 // flex通过调用这个方法取得要解析的字符串的
+#ifdef __APPLE__
+size_t myflexer::LexerInput(char* buf, size_t max_size)
+#else
 int myflexer::LexerInput(char* buf, int max_size)
+#endif
 {
 	if (m_pos == m_num)
 	{
@@ -21,7 +26,11 @@ int myflexer::LexerInput(char* buf, int max_size)
 	return len; 
 }
 
+#ifdef __APPLE__
+void myflexer::LexerOutput( const char* buf, size_t size )
+#else
 void myflexer::LexerOutput( const char* buf, int size )
+#endif
 {
 }
 

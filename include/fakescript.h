@@ -237,7 +237,6 @@ FAKE_API void fkpspushccharptr(fake * fk, const char * ret);
 FAKE_API void fkpspushbool(fake * fk, bool ret);
 FAKE_API void fkpspushint64(fake * fk, int64_t ret);
 FAKE_API void fkpspushuint64(fake * fk, uint64_t ret);
-FAKE_API void fkpspushbuffer(fake * fk, fakebytes ret);
 
 template<typename T>
 struct fkremoveconst { typedef T type; };
@@ -333,11 +332,6 @@ template<>	inline void fkpspush(fake * fk, int64_t ret)
 template<>	inline void fkpspush(fake * fk, uint64_t ret)
 {
 	fkpspushuint64(fk, ret);
-}
-
-template<>	inline void fkpspush(fake * fk, fakebytes ret)
-{
-	fkpspushbuffer(fk, ret);
 }
 
 FAKE_API void fkpspoppointer(fake * fk, void * & p, const char * type);
@@ -1315,7 +1309,6 @@ void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2, T3, T4, T5, T6,
 FAKE_API void fkopenalllib(fake * fk);
 FAKE_API void fkopenbaselib(fake * fk);
 FAKE_API void fkopenfilelib(fake * fk);
-FAKE_API void fkopennetlib(fake * fk);
 FAKE_API void fkopenoslib(fake * fk);
 FAKE_API void fkopenstringlib(fake * fk);
 FAKE_API void fkopenmathlib(fake * fk);
