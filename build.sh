@@ -27,33 +27,4 @@ if [ $? -ne 0 ];then
 	exit 1
 fi
 
-#fake
-cd fake
-rm CMakeCache.txt -rf
-rm CMakeFiles -rf
-rm cmake_install.cmake -rf
-rm Makefile -rf
-cmake . $BUILD_FLAG
-make clean
-make -j5
-if [ $? -ne 0 ];then
-	echo "build fake fail"
-	exit 1
-fi
-cd ..
-
-#luatest
-cd luatest
-rm CMakeCache.txt -rf
-rm CMakeFiles -rf
-rm cmake_install.cmake -rf
-rm Makefile -rf
-cmake . $BUILD_FLAG
-make clean
-make -j5
-if [ $? -ne 0 ];then
-	echo "build luatest fail"
-	exit 1
-fi
-
 echo "build ok"
