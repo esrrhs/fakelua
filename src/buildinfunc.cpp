@@ -1,11 +1,7 @@
 #include "bindfunc.h"
 #include "fake.h"
 #include "fakescript.h"
-#ifdef WIN32
-#include <Windows.h>
-#else
 #include <unistd.h>
-#endif
 
 // print, very slow
 void buildin_print(fake * fk, interpreter * inter)

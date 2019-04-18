@@ -43,17 +43,9 @@ void fklog(const char * header, const char * file, const char * func, int pos, c
 #define FKMIN(a, b) ((a) < (b) ? (a) : (b))
 #define FKMAX(a, b) ((a) > (b) ? (a) : (b))
 
-#ifdef WIN32
-#define force_inline __forceinline
-#else
 #define force_inline __inline__ __attribute__((always_inline))
-#endif
 
-#if defined(WIN32)
-#define tsnprintf   _snprintf
-#else
 #define tsnprintf   snprintf
-#endif
 
 typedef std::string String;
 
@@ -92,11 +84,7 @@ static force_inline int64_t fkatol(const String * p)
 {
 	if (p)
 	{
-#ifdef WIN32
-		return _atoi64(p->c_str());
-#else
 		return atoll(p->c_str());
-#endif
 	}
 	return 0;
 }
@@ -243,14 +231,8 @@ String fkpointertoa(pointerele * pe);
 String fkarraytoa(variant_array * va);
 String fkmaptoa(variant_map * vm);
 
-#if defined(WIN32)
-#ifdef _M_X64 
-#define FK64
-#endif
-#else
 #ifdef __x86_64
 #define FK64
-#endif
 #endif
 
 struct routine;
@@ -269,31 +251,8 @@ static force_inline String fkgen_package_name(const String & p, const String & n
 
 #define MAP_FUNC_NAME "map"
 
-#ifdef WIN32
-#define LIKE(x) (x)
-#define UNLIKE(x) (x)
-#else
 #define LIKE(x) __builtin_expect((x),1)
 #define UNLIKE(x) __builtin_expect((x),0)
-#endif
-
-// socket
-#ifdef WIN32
-	#define GET_NET_ERROR WSAGetLastError()
-	#define NET_BLOCK_ERROR WSAEWOULDBLOCK
-	#define NET_BLOCK_ERROR_EX WSAEWOULDBLOCK
-	#define NET_INTR_ERROR WSAEINTR
-#else
-	#define GET_NET_ERROR errno
-	#define NET_BLOCK_ERROR EWOULDBLOCK
-	#define NET_BLOCK_ERROR_EX EAGAIN
-	#define NET_INTR_ERROR EINTR
-#endif
-
-#if defined(WIN32)
-typedef int socklen_t;
-#else
-#endif
 
 struct buffer;
 bool save_variant(fake * fk, const variant * v, buffer * b);
