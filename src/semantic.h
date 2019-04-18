@@ -1,5 +1,9 @@
 #pragma once
 
+#if ! defined YYSTYPE_IS_DECLARED
+#define YYSTYPE_IS_DECLARED
+#endif
+
 #include "types.h"
 #include "syntree.h"
 #include "bison.h"

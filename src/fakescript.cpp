@@ -327,14 +327,6 @@ FAKE_API void fkpspushuint64(fake * fk, uint64_t ret)
 	CHECK_ERR(err);
 }
 
-FAKE_API void fkpspushbuffer(fake * fk, fakebytes ret)
-{
-	buffer * b = fk->bif.newbuffer(ret.size);
-	b->ini(fk, ret.data, ret.size);
-	b->skip_write(ret.size);
-	fkpspush<buffer *>(fk, b);
-}
-
 FAKE_API void fkpspoppointer(fake * fk, void * & p, const char * type)
 {
 	bool err = false;
@@ -545,7 +537,6 @@ FAKE_API void fkopenalllib(fake * fk)
 {
 	fkopenbaselib(fk);
 	fkopenfilelib(fk);
-	fkopennetlib(fk);
 	fkopenoslib(fk);
 	fkopenstringlib(fk);
 	fkopenmathlib(fk);
@@ -559,11 +550,6 @@ FAKE_API void fkopenbaselib(fake * fk)
 FAKE_API void fkopenfilelib(fake * fk)
 {
 	fk->bif.openfilefunc();
-}
-
-FAKE_API void fkopennetlib(fake * fk)
-{
-	fk->bif.opennetfunc();
 }
 
 FAKE_API void fkopenoslib(fake * fk)

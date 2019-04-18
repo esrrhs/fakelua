@@ -114,8 +114,7 @@ void machine::call(const variant & func)
 			:
 			:
 		);
-			
-#endif
+
 	}
 	// °ó¶¨º¯Êı
 	else if (f->haveff)

@@ -14,10 +14,10 @@ mv bison.tab.h	../bison.h
 cd ../../
 
 #lib
-rm CMakeCache.txt -rf
-rm CMakeFiles -rf
-rm cmake_install.cmake -rf
-rm Makefile -rf
+rm -rf CMakeCache.txt
+rm -rf CMakeFiles
+rm -rf cmake_install.cmake
+rm -rf Makefile
 cmake . $BUILD_FLAG
 make clean
 make -j5
