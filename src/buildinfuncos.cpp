@@ -1,12 +1,7 @@
 #include "buildinfuncos.h"
 #include "fake.h"
 #include "fakescript.h"
-#ifdef WIN32
-#include <windows.h>
-#include <winsock.h>
-#else 
 #include <unistd.h>
-#endif
 
 // sleep
 void buildin_os_sleep(fake * fk, interpreter * inter)
@@ -14,11 +9,7 @@ void buildin_os_sleep(fake * fk, interpreter * inter)
 	BIF_CHECK_ARG_NUM(1);
 
 	int millionseconds = fkpspop<int>(fk);
-#if defined(WIN32)
-	::Sleep(millionseconds);
-#else
 	usleep(millionseconds * 1000);
-#endif
 	fkpspush<int>(fk, 0);
 }
 

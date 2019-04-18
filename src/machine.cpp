@@ -3,18 +3,6 @@
 #include "binary.h"
 #include "paramstack.h"
 
-#ifdef WIN32
-extern "C" void __stdcall call_native_func(const void * func, void * param,
-	size_t size)
-#ifndef FK64
-{
-	// JIT不全，先临时
-}
-#else
-;
-#endif
-#endif
-
 void machine::static_call(fake * fk, const variant & func)
 {
 	fk->mac.call(func);
@@ -61,11 +49,7 @@ void machine::call(const variant & func)
 			}
 			FKLOG("machine call \n%s\n", paramstr.c_str());
 		}
-		
-#ifdef WIN32
-		// win64不支持嵌入汇编，只能去.asm文件
-		call_native_func(fn->m_buff, ps->m_variant_list, ps->m_variant_list_num);
-#else
+
 		typedef void (*macfunc) ();
 		macfunc f = (macfunc)fn->m_buff;
 		int64_t i = 0;

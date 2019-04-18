@@ -3,21 +3,7 @@
 #include "myflexer.h"
 #include "fake.h"
 #include "variant.h"
-#ifdef WIN32
-#include <Windows.h>
-#else  
 #include <sys/mman.h>
-#endif
-
-#ifdef WIN32
-extern "C" void __stdcall call_machine_func()
-#ifndef FK64
-{
-}
-#else
-;
-#endif
-#endif
 
 void asmgen::output(const char * filename, const char * packagename, const char * name, func_native * nt)
 {
@@ -274,35 +260,18 @@ void asmgen::variant_to_rax(int srcpos)
 
 void asmgen::call_func_param2(void * func, fake * fk, int pos2)
 {
-#ifdef WIN32
-	mov_ll_rcx((int64_t)fk);
-	lea_rbp_rdx(V_OFF(pos2));
-	mov_ll_rdi((int64_t)func);
-
-	call_func((void *)&call_machine_func);
-#else
 	mov_ll_rdi((int64_t)fk);
 	lea_rbp_rsi(V_OFF(pos2));
 
 	call_func(func);
-#endif
 }
 
 void asmgen::call_func_param3(void * func, fake * fk, int pos2, int pos3)
 {
-#ifdef WIN32
-	mov_ll_rcx((int64_t)fk);
-	lea_rbp_rdx(V_OFF(pos2));
-	lea_rbp_r8d(V_OFF(pos3));
-	mov_ll_rdi((int64_t)func);
-
-	call_func((void *)&call_machine_func);
-#else
 	mov_ll_rdi((int64_t)fk);
 	lea_rbp_rsi(V_OFF(pos2));
 	lea_rbp_rdx(V_OFF(pos3));
 	
 	call_func(func);
-#endif
 }
 

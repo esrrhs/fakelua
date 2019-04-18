@@ -2,11 +2,8 @@
 
 #include "types.h"
 #include "hashmap.h"
-#ifdef WIN32
-#include <Windows.h>
-#else
 #include <sys/mman.h>
-#endif
+
 
 struct func_native
 {
@@ -27,11 +24,8 @@ struct func_native
 #define FUNC_NATIVE_INI(fn) \
 	memset(&(fn), 0, sizeof(func_native))
 
-#ifdef WIN32
-#define FUNC_NATIVE_CODE_FREE(fn) VirtualFree((fn).m_buff, 0, MEM_DECOMMIT | MEM_RELEASE);
-#else
+
 #define FUNC_NATIVE_CODE_FREE(fn) munmap((fn).m_buff, (fn).m_size);
-#endif 
 
 #define FUNC_NATIVE_DELETE(fn) \
 	safe_fkfree(m_fk, (fn).m_name); \

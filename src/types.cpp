@@ -3,12 +3,7 @@
 #include "fake.h"
 #include "variant.h"
 #include "paramstack.h"
-#ifdef WIN32
-#include <windows.h>
-#else
 #include <sys/time.h>
-#endif
-#include "buffer.h"
 
 void fklog(const char * header, const char * file, const char * func, int pos, const char *fmt, ...)
 {
@@ -257,9 +252,6 @@ char * stringdump(fake * fk, const char * src, size_t sz, e_mem_type type)
 
 uint32_t fkgetmstick()
 {
-#ifdef WIN32
-	return ::GetTickCount();
-#else
 	struct timeval tv;
 	if(::gettimeofday(&tv, 0) == 0)
 	{
@@ -268,7 +260,6 @@ uint32_t fkgetmstick()
 		return t & 0xffffffff;
 	}
 	return 0;
-#endif
 }
 
 String fkpointertoa(pointerele * pe)
@@ -566,21 +557,12 @@ const fakeconfig & get_fakeconfig(fake * fk)
 
 void * fk_mmap_alloc(size_t size)
 {
-#ifdef WIN32
-	return (char*)VirtualAlloc(0, size, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
-#else  
 	return (char*)mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-#endif
 }
 
 void fk_mmap_set_exec(void * buff, size_t size)
 {
-#ifdef WIN32
-	DWORD dwOld; 
-	VirtualProtect(buff, size, PAGE_EXECUTE_READ, &dwOld);
-#else  
 	mprotect(buff, size, PROT_READ | PROT_EXEC);
-#endif
 }
 
 
