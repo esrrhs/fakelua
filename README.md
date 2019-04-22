@@ -149,6 +149,10 @@ delfake(fk);
 2. 运行```./build.sh release```
 3. 复制 include/**fakescript.h** and bin/**libfkcript.a** 到你的工程
 
+## 编译
+1. 安装cmake
+2. 安装flex
+3. 安装gcc, gcc-c++
 
 ## 调试环境
 * IDE
