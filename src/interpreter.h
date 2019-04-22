@@ -27,7 +27,8 @@
 #define BP_GET_IP(bp, oldip) \
 	assert(bp - 4 >= 0);\
 	assert(ARRAY_GET(m_stack, bp - 4).type == variant::NIL);\
-	oldip = ((int)(ARRAY_GET(m_stack, bp - 4).data.buf))
+	oldip = ((int)(ARRAY_GET(m_stack, bp - 4).data.buf));\
+	USE(oldip);
 	
 #define BP_GET_CALLTIME(bp, calltime) \
 	assert(bp - 3 >= 0);\
