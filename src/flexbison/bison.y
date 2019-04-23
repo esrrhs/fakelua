@@ -6,7 +6,7 @@
 #define YYPARSE_PARAM   parm
 #define YYLEX_PARAM     parm
 
-#define yyerror(msg) my_yyerror(msg, YYPARSE_PARAM)
+#define yyerror(loc, param, msg) my_yyerror(msg, param)
 
 int yylex(YYSTYPE *lvalp, YYLTYPE * loc, void * parm)
 {
@@ -36,9 +36,11 @@ int my_yyerror(const char *s, void * parm)
 	
 %}
 
-%pure_parser
+%pure-parser
 
-%error_verbose
+%define parse.error verbose
+
+%param       {void * parm}
 
 %locations
 %token VAR_BEGIN

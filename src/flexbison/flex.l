@@ -14,7 +14,7 @@
 #ifdef __APPLE__
 #define YY_DECL int myflexer::yylexex(YYSTYPE * lvalp, YYLTYPE * loc)
 #else
-#define YY_DECL int myflexer::yylex(YYSTYPE * yylval, YYLTYPE * loc)
+#define YY_DECL int myflexer::yylex(YYSTYPE * lvalp, YYLTYPE * loc)
 #endif
 
 #define YY_USER_ACTION loc->first_line = loc->last_line = yylineno;
