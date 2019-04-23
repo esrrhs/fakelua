@@ -152,9 +152,6 @@ bool compiler::compile_func(func_desc_node * funcnode)
 	String funcname = fkgen_package_name(m_mf->get_package(), funcnode->funcname);
 	cg.output(m_mf->getfilename(), m_mf->get_package(), funcname.c_str(), &bin);
 
-	// 优化
-	m_fk->opt.optimize(bin);
-		
 	// 看立即更新还是延迟更新
 	variant fv = m_fk->sh.allocsysstr(funcname.c_str());
 	m_fk->bin.add_func(fv, bin);
