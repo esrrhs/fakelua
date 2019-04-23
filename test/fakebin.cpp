@@ -413,7 +413,7 @@ int parsearg(fake * fk, int & argc, const char ** & argv)
 		if (strstr(argv[1], "h"))
 		{
 			printf("\
-fakescript\n\narg : [-hjpgtsl] file [arg]\n\
+fakescript\n\narg : [-hjpgtslocd] file [arg]\n\
 -h help\n\
 -j open jit\n\
 -p open profile\n\
