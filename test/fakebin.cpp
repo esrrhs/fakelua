@@ -2,7 +2,7 @@
 #include <stdlib.h>
 #include <iostream>
 #include <time.h>
-#include "fakescript.h"
+#include "fake-inc.h"
 #include <string.h>
 #include <vector>
 #include <algorithm>

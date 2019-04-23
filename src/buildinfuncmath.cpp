@@ -1,6 +1,6 @@
 #include "buildinfuncmath.h"
 #include "fake.h"
-#include "fakescript.h"
+#include "fake-inc.h"
 
 // msrand
 void buildin_srand(fake * fk, interpreter * inter)

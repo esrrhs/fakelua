@@ -1,5 +1,5 @@
 #include "myflexer.h"
-#include "fakescript.h"
+#include "fake-inc.h"
 #include "fake.h"
 
 

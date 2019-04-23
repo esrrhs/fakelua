@@ -2,13 +2,13 @@
 轻量级嵌入式脚本语言
 
 ## 简介[english](./README_EN.md)
-**fakescript**是一款轻量级的嵌入式脚本语言，使用c++语言编写，语法吸取自lua、golang、erlang，基于flex、bison生成语法树，编译成字节码解释执行。与lua相比，运行速度不相上下，更易使用，源代码可读性更强
+**fakescript**是一款轻量级的嵌入式脚本语言，使用c++语言编写，语法吸取自lua、golang、erlang，基于flex、bison生成语法树，编译成字节码解释执行。
 
 ## 脚本特性
 * 语法类似lua
 * 全部为函数
 * 支持array，map，可以无限嵌套
-* 支持fake testfunc(param1)产生routine，实现假多线程效果(此特性暂不支持JIT)
+* 支持fake testfunc(param1)产生routine，实现假多线程效果(此特性不支持JIT)
 * 支持C函数和类成员函数的绑定
 * 自带解释器，自带JIT
 * 支持多返回值
@@ -21,19 +21,10 @@
 * 支持打包bin文件或可执行文件
 * 自带gdb风格的命令行调试器，以及vs风格的可视化编辑调试ide
 * 可在C里直接通过接口调用，开始命令行调试
-* 支持字节码优化
 
 ## 产品应用
 ![image](img/use1.jpg)[我是大主宰](http://dzz.youxi.com)
 ![image](img/use2.jpg)[天天炫斗](http://ttxd.qq.com/act/a20160419brandP/)
-
-## 标准库
-* 文件
-* 网络
-* 字符串
-* xml
-* 模板类
-* json
 
 ## 示例
 
@@ -138,21 +129,14 @@ delfake(fk);
 ```
 
 ## 使用
-#### Windows
-1. 下载源码
-2. 用Microsoft Visual Studio 2017打开fakescript.sln
-3. 编译
-4. 复制 include/**fakescript.h** 和 bin/**fakescript.lib** 到你的工程
-#### Linux
-1. 下载源码
-2. 安装CMake
-2. 运行```./build.sh release```
-3. 复制 include/**fakescript.h** and bin/**libfkcript.a** 到你的工程
+1. 复制 include/**fake-inc.h** 和 bin/**libfake.so** 到你的工程，直接使用
+2. 使用vcpkg(TODO)
 
 ## 编译
 1. 安装cmake
-2. 安装flex
+2. 安装flex, bison
 3. 安装gcc, gcc-c++
+4. ```./build.sh``` 或者 ```./build.sh release```
 
 ## 调试环境
 * IDE

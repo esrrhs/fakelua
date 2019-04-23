@@ -1,6 +1,6 @@
 #include "buildinfuncos.h"
 #include "fake.h"
-#include "fakescript.h"
+#include "fake-inc.h"
 #include <unistd.h>
 
 // sleep

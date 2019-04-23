@@ -18,7 +18,7 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <math.h>
-#include "fakescript.h"
+#include "fake-inc.h"
 
 #ifdef _DEBUG
 #define FKLOG(...) fklog("[DEBUG] ", __FILE__, __FUNCTION__, __LINE__, __VA_ARGS__);
