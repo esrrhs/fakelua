@@ -20,7 +20,7 @@ rm -rf cmake_install.cmake
 rm -rf Makefile
 cmake . $BUILD_FLAG
 make clean
-make -j5
+make 
 
 if [ $? -ne 0 ];then
 	echo "build lib fail"
