@@ -1322,10 +1322,6 @@ FAKE_API const char * fkdumpprofile(fake * fk);
 FAKE_API void fkopenjit(fake * fk);
 FAKE_API void fkclosejit(fake * fk);
 
-// optimize
-FAKE_API void fkopenoptimize(fake * fk);
-FAKE_API void fkcloseoptimize(fake * fk);
-
 // …Ë÷√¥ÌŒÛªÿµ˜
 FAKE_API void fkseterrorfunc(fake * fk, fkerrorcb cb);
 

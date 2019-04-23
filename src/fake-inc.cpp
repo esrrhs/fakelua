@@ -1,4 +1,4 @@
-#include "fakescript.h"
+#include "fake-inc.h"
 #include "semantic.h"
 #include "fake.h"
 #include "compiler.h"
@@ -575,16 +575,6 @@ FAKE_API void fkopenjit(fake * fk)
 FAKE_API void fkclosejit(fake * fk)
 {
 	fk->as.close();
-}
-
-FAKE_API void fkopenoptimize(fake * fk)
-{
-	fk->opt.open();
-}
-
-FAKE_API void fkcloseoptimize(fake * fk)
-{
-	fk->opt.close();
 }
 
 FAKE_API void fkopenprofile(fake * fk)

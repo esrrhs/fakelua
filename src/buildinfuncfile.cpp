@@ -1,6 +1,6 @@
 #include "buildinfuncfile.h"
 #include "fake.h"
-#include "fakescript.h"
+#include "fake-inc.h"
 
 // fopen
 void buildin_fopen(fake * fk, interpreter * inter)

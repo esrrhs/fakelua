@@ -1,6 +1,6 @@
 #include "bindfunc.h"
 #include "fake.h"
-#include "fakescript.h"
+#include "fake-inc.h"
 #include <unistd.h>
 
 // print, very slow

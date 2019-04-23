@@ -1,6 +1,6 @@
 #include "buildinfuncstring.h"
 #include "fake.h"
-#include "fakescript.h"
+#include "fake-inc.h"
 
 // find
 void buildin_string_find(fake * fk, interpreter * inter)

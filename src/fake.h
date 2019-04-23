@@ -15,7 +15,7 @@
 #include <algorithm>
 #include "types.h"
 #include "myflexer.h"
-#include "fakescript.h"
+#include "fake-inc.h"
 #include "compiler.h"
 #include "binary.h"
 #include "paramstack.h"
@@ -35,11 +35,10 @@
 #include "parser.h"
 #include "debuging.h"
 #include "pointerheap.h"
-#include "optimizer.h"
 
 struct fake
 {
-	fake() : errorno(0), errorcb(0), pa(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this), dbg(this), ph(this), opt(this)
+	fake() : errorno(0), errorcb(0), pa(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this), dbg(this), ph(this)
 	{
 		POOL_INI(pp, this);
 	}
@@ -69,7 +68,6 @@ struct fake
 		rn.clear();
 		dbg.clear();
 		ph.clear();
-		opt.clear();
 	}
 	
 	void clearerr()
@@ -132,9 +130,6 @@ struct fake
 
 	// pointerÈÝÆ÷
 	pointerheap ph;
-	
-	// ×Ö½ÚÂëÓÅ»¯
-	optimizer opt;
 };
 
 template <typename T>
