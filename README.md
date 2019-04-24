@@ -2,25 +2,22 @@
 轻量级嵌入式脚本语言
 
 ## 简介[english](./README_EN.md)
-**fakescript**是一款轻量级的嵌入式脚本语言，使用c++语言编写，语法吸取自lua、golang、erlang，基于flex、bison生成语法树，编译成字节码解释执行。
+**fakescript**是一款轻量级的嵌入式脚本语言, 使用c++语言编写, 语法吸取自lua、golang、erlang, 基于flex、bison生成语法树, 编译成字节码解释执行。
 
 ## 脚本特性
-* 语法类似lua
-* 全部为函数
-* 支持array，map，可以无限嵌套
-* 支持fake testfunc(param1)产生routine，实现假多线程效果(此特性不支持JIT)
-* 支持C函数和类成员函数的绑定
-* 自带解释器，自带JIT
-* 支持多返回值
-* 自带profile，可获取脚本各个函数运行时间
+* 支持JIT
+* 支持fake testfunc(param1)产生routine, 在单线程上实现多线程效果(此特性不支持JIT)
+* 支持调试, 自带gdb风格的命令行调试器, 以及vs风格的可视化编辑调试ide, 也可在C里直接通过接口调用, 开始命令行调试
 * 支持热更新
+* 支持C函数和类成员函数的绑定
+* 支持profile, 可获取脚本各个函数运行时间
+* 支持array, map, 可以无限嵌套
+* 支持多返回值
 * 支持Int64
 * 支持const定义
 * 支持包
 * 支持struct
 * 支持打包bin文件或可执行文件
-* 自带gdb风格的命令行调试器，以及vs风格的可视化编辑调试ide
-* 可在C里直接通过接口调用，开始命令行调试
 
 ## 产品应用
 ![image](img/use1.jpg)[我是大主宰](http://dzz.youxi.com)
@@ -118,18 +115,18 @@ end
 fake * fk = newfake();
 // 注册全局函数
 fkreg(fk, "cfunc1", cfunc1);
-// 注册类成员函数，不同的类注册一样的函数名字不冲突
+// 注册类成员函数, 不同的类注册一样的函数名字不冲突
 fkreg(fk, "memfunc1", &class1::memfunc1);
 // 解析fake脚本文件
 fkparse(fk, argv[1]);
-// 执行myfunc1函数，传入两个参数分别为1和2
+// 执行myfunc1函数, 传入两个参数分别为1和2
 ret = fkrun<int>(fk, "myfunc1", 1, 2);
 // 删除实例
 delfake(fk);
 ```
 
 ## 使用
-1. 复制 include/**fake-inc.h** 和 bin/**libfake.so** 到你的工程，直接使用
+1. 复制 include/**fake-inc.h** 和 bin/**libfake.so** 到你的工程, 直接使用
 2. 使用vcpkg(TODO)
 
 ## 编译
@@ -140,15 +137,11 @@ delfake(fk);
 
 ## 调试环境
 * IDE
-
 ![image](img/ide.png)
 
 * 命令行
-
 ![image](img/debug.png)
 
-## 欢迎捐赠
-![image](img/donate.png)
-
-欢迎使用支付宝手扫描上面的二维码，对该项目进行捐赠。捐赠款项将用于改进fakescript性能以及后续持续优化。
+## 欢迎交流
+微信：esrrhs
 

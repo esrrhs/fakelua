@@ -14,7 +14,7 @@ void fklog(const char * header, const char * file, const char * func, int pos, c
 	struct tm * tptr;
 	va_list ap;
 	
-	pLog = fopen("fakescript.log", "a+");
+	pLog = fopen("fake.log", "a+");
 	if (pLog == NULL)
 	{
 		return;
