@@ -6,31 +6,25 @@ if [ $# == 1 ] && [ $1 == "-j" ];then
     echo "use jit"
 fi
 
-NUM=63
-chmod a+x fake
+cd sample
+
+NUM=64
 for i in `seq $NUM`; do
-	if [ "$i" == "34" ] && [ "$JIT_FLAG" == " -jy " ];then
-		continue
-	fi
 	if [ "$i" == "45" ] && [ "$JIT_FLAG" == " -jy " ];then
 		continue
 	fi
 	if [ "$i" == "46" ] && [ "$JIT_FLAG" == " -jy " ];then
 		continue
 	fi
-	if [ "$i" == "51" ] && [ "$JIT_FLAG" == " -jy " ];then
-		continue
-	fi
-	if [ "$i" == "52" ] && [ "$JIT_FLAG" == " -jy " ];then
-		continue
-	fi
 	echo "----------------running $i.fk----------------"
-	./fake $JIT_FLAG $i.fk
+	../../bin/fakebin $JIT_FLAG $i.fk
 	if [ $? -ne 0 ];then
 		echo "----------------run $i.fk fail----------------"
 		exit 1
 	fi
 	echo "----------------run $i.fk ok----------------"
 done    
+
+cd ..
 
 echo "all ok"

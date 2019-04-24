@@ -1,4 +1,4 @@
-include "../package/json.fk"
+include "./package/json.fk"
 
 -- main comment
 func main()

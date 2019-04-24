@@ -1,4 +1,3 @@
-include "../package/net.fk"
 
 struct _client
 	b
@@ -15,75 +14,11 @@ func main()
 	var arg2 = 2
 	
 	var c = _client()
-	c->b = buffer.new(100)
+	c->b = arg1
 	
-	var client = net.new_tcp_client("127.0.0.1", 8888, 1024 * 1024, 1024 * 8, "on_connnect", "on_close", "on_parse", c)
-	print(client)
-	
-	var server = net.new_tcp_server("127.0.0.1", 8888, 1024 * 1024, 1024 * 8, 5, "on_accept", "on_link_close", "on_link_parse", 0)
-	print(server)
-	
-	sleep 3*1000
-	
-	client->is_open = false
-	server->is_open = false
+	print(c)
 	
 	return arg1 + arg2
 	
 end
 
-func on_connnect(c, userdata)
-
-	print("on_connnect ", userdata)
-	
-	-- 发包
-	buffer.push_string(userdata->b, "i come", 12)
-	net.tcp_send(c, userdata->b)
-	buffer.clear(userdata->b)
-end
-
-func on_close(c, userdata)
-
-	print("on_close ", userdata)
-	
-end
-
-func on_parse(c, userdata, recvbuffer)
-
-	b, str := buffer.pop_string(recvbuffer, 12)
-	print("client recv:", str)
-	
-	-- 发包
-	buffer.push_string(userdata->b, "haha", 12)
-	net.tcp_send(c, userdata->b)
-	buffer.clear(userdata->b)
-	
-end
-
-func on_accept(sv, l, s)
-
-	print("on_accept ", s)
-
-	var u = _server()
-	u->b = buffer.new(100)
-	return u
-	
-end
-
-func on_link_close(sv, l, userdata)
-
-	print("on_link_close ", userdata)
-	
-end
-
-func on_link_parse(sv, l, userdata, recvbuffer)
-
-	b, str := buffer.pop_string(recvbuffer, 12)
-	print("server recv:", str)
-	
-	-- 发包
-	buffer.push_string(userdata->b, "hehe", 12)
-	net.tcp_send(l, userdata->b)
-	buffer.clear(userdata->b)
-	
-end

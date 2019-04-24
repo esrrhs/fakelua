@@ -1,4 +1,4 @@
-include "../package/template.fk"
+include "./package/template.fk"
 
 -- main comment
 func main()

@@ -1,4 +1,4 @@
-#include "../package/os.fk"
+#include "./package/os.fk"
 
 -- main comment
 func main()
