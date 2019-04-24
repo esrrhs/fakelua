@@ -1,0 +1,30 @@
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
+	
+	for var i = 0, i < 10 , i++ then
+		
+		if i == 5 then
+			continue
+		end
+		
+		print("haha i ", i)
+		
+		var j = 0
+		while j < 10 then
+			
+			if j != 3 then
+				j++
+				continue
+			end
+			print("haha j ", j)
+			break
+		end
+		
+	end
+	
+	return 0
+	
+end

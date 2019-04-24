@@ -1,0 +1,16 @@
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
+	
+	return myfunc2(arg1)
+	
+end
+
+-- func2 comment
+func myfunc2(arg1)
+	
+	return arg1 + 1
+	
+end

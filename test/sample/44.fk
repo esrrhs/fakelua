@@ -1,0 +1,40 @@
+
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
+	
+	var a = map()
+	var b = array()
+	var d = "abast"
+	
+	a["haha"] = 1
+	a["ha"] = "aa"
+	a[3] = b
+	
+	print("map:")
+	for var i = 0, i < size(a), i++ then
+		var k, var v = range(a, i)
+		print(k, "->", v)
+	end
+	
+	b[0] = 0
+	b[1] = "aa"
+	b[5] = 1124
+	
+	print("array:")
+	for var i = 0, i < size(b), i++ then
+		var v = range(b, i)
+		print(i, "->", v)
+	end
+	
+	print("string:")
+	for var i = 0, i < size(d), i++ then
+		var v = range(d, i)
+		print(i, "->", v)
+	end
+	
+	return 1
+	
+end

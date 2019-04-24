@@ -1,0 +1,26 @@
+package file
+
+func open(name, mod)
+	
+	var ret, var f = fopen(name, mod)
+	return ret, f
+	
+end
+
+func close(f)
+	
+	return fclose(f)
+	
+end
+
+func read_all(f)
+	
+	return freadall(f)
+	
+end
+
+func write_all(f, data)
+
+	return fwriteall(f, data)
+	
+end

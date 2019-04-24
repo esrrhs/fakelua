@@ -1,0 +1,22 @@
+-- main comment
+func main()
+	
+	var arg1 = new_test_class1()
+	var arg2 = 2
+	var arg3 = new_test_class2()
+	
+	print(arg3:test_memfunc1(arg2))
+	print(arg3:test_memfunc2(arg2))
+	
+	var arg4 = (1 + arg1:test_memfunc1(arg2))
+	print(arg4)
+	
+	delete_test_class1(arg1)
+	delete_test_class2(arg3)
+	
+	print(dumpstringheap())
+	print(dumppointerheap())
+	
+	return arg4
+	
+end

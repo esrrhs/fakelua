@@ -1,0 +1,42 @@
+
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
+	
+	var f2 = "
+	func myfunc2(arg1, arg2)
+		
+		yield 1
+		
+		print(\"enter myfunc2, this is myfunc2\")
+		
+		var f1 = \"
+			func main()
+				
+				print(\\"enter main, this is main\\")
+				
+			end
+		\"
+		
+		print(f1)
+		dostring(f1)
+		main()
+		
+		return 0
+		
+	end"
+	
+	print(f2)
+	
+	dostring(f2)
+	print(dumpfunc("myfunc2"))
+	print("getcurfunc ", getcurfunc())
+	print("getcurline ", getcurline())
+	
+	fake myfunc2(arg1, arg2)
+	
+	return 1
+	
+end
