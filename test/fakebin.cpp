@@ -83,7 +83,7 @@ void error_log(fake * fk, int eno, const char * file, int lineno, const char * f
 	printf("cur routine :\n%s\n", fkgetcurroutine(fk));
 }
 
-static const char * g_replacebuff = "start compile";
+static char g_replacebuff[] = "start compile";
 
 // º¯Êý
 bool readfile(const char * filename, int addsize, char * & buf, int & filesize);
