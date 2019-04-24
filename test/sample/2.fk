@@ -1,0 +1,11 @@
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
+	
+	arg1 = arg2
+	
+	return arg1	
+	
+end

@@ -1,0 +1,23 @@
+<root>
+	
+	<Enum name="e1" type="14" />
+
+	<Struct name="s">
+	
+		<Mem name="a" type="int" />
+		<Mem name="b" type="string" />
+		<Mem name="c" type="float" />
+	
+	</Struct>
+
+	<XXX name="x" type="xxx" />
+		
+	<Struct name="s2">
+	
+		<Mem name="a" type="int" />
+		<Mem name="b" type="string" />
+		<Mem name="c" type="float" />
+	
+	</Struct>
+	
+</root>

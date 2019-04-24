@@ -1,0 +1,29 @@
+
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
+	
+	var a = 100
+	if a < 1 then
+	
+		print("1")
+		
+	elseif a > 3 then
+	
+		print("2")
+		
+	elseif a > 5 then
+		
+		print("3")
+		
+	else
+		
+		print("4")
+		
+	end
+	
+	return true
+	
+end

@@ -1,0 +1,19 @@
+include "../package/template.fk"
+
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
+	
+	var ok, var errormsg = template.gen_file("47.xml", "47.tpl", "47.h")
+	if not ok then
+		print("gen_file fail ", errormsg)
+		return false
+	end
+	
+	print("template gen ok")
+	
+	return true
+	
+end

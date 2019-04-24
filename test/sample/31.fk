@@ -1,0 +1,38 @@
+struct _test
+	a
+	b
+	c
+	d
+	subtest
+end
+
+struct _subtest
+	a
+	f
+end
+
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
+	
+	var t = _test()
+	
+	t->a = "agfasf"
+	t->b = 0
+	t->b++
+	t->c = t->b + 3
+	t->d = t->c * t->b
+	
+	print("haha ", t->a, " ", t->b, " ", t->c, " ", t->d)
+	
+	t->subtest = _subtest()
+	t->subtest->a = t->d + t->c
+	t->subtest->f = "print"
+	var f = t->subtest->f
+	f("haha ", t->subtest->a)
+	
+	return arg1 + arg2
+	
+end

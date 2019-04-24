@@ -1,0 +1,11 @@
+-- main comment
+func main()
+	
+	var arg1 = -0.21
+	var arg2 = 1.0000000000000009E-2
+	print(arg2)
+	var arg3 = 1.0000000000000009e3
+	print(arg3)
+	return arg1
+		
+end

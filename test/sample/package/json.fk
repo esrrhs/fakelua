@@ -1,0 +1,550 @@
+package json
+
+include "file.fk"
+include "string.fk"
+
+const ele_none = 0
+const obj_begin = 1
+const obj_end = 2
+const array_begin = 3
+const array_end = 4
+const string_tag = 5
+const ele_seq = 6
+const member_seq = 7
+const ele_num = 8
+
+func parse(name)
+
+	var ok, var f = file.open(name, "rb")
+	if not ok then
+		return false, 0
+	end
+	
+	var content = file.read_all(f)
+	
+	ok, var ret, var errormsg = parse_string(content)
+	
+	return ok, ret, errormsg
+	
+end
+
+func parse_string(content)
+
+	var ok, var ret, var errormsg = _parse(content)
+	
+	if not ok then
+		return false, ret, errormsg
+	end
+	
+	return true, ret, errormsg
+	
+end
+
+func jsontostring(j)
+
+	return _tostring(j)
+
+end
+
+func jsontostringh(j)
+
+	return _tostringh(j, 0)
+
+end
+
+func _parse(content)
+	
+	var ret = 0
+	
+	var ok, var errormsg, var ele_type, var left, var ele_string = _get_element(content)
+	if not ok then
+		return ok, ret, errormsg
+	end
+
+	switch ele_type 
+		case obj_begin then
+			
+			ret = map()
+			ok, errormsg = _get_member(ret, left)
+			if not ok then
+				return ok, ret, errormsg
+			end
+			
+		case array_begin then
+		
+			ret = array()
+			ok, errormsg = _get_array(ret, left)
+			if not ok then
+				return ok, ret, errormsg
+			end
+		
+		default
+			return false, ret, "type default "..ele_type
+			
+	end
+	
+	return true, ret, "ok"
+	
+end
+
+func _get_element(content)
+
+	for var i = 0, i < size(content), i++ then
+
+		var c = range(content, i)
+		
+		switch c 
+			case " " then
+			
+			case "\r" then
+			
+			case "\n" then
+						
+			case "\t" then
+						
+			case "{" then
+				var left = string.substr(content, i + 1, -1)
+				return true, "ok", obj_begin, left, c
+					
+			case "}" then
+				var left = string.substr(content, i + 1, -1)
+				return true, "ok", obj_end, left, c
+					
+			case "[" then
+				var left = string.substr(content, i + 1, -1)
+				return true, "ok", array_begin, left, c
+					
+			case "]" then
+				var left = string.substr(content, i + 1, -1)
+				return true, "ok", array_end, left, c
+					
+			case "\"" then
+				var left = string.substr(content, i + 1, -1)
+				return true, "ok", string_tag, left, c
+					
+			case "," then
+				var left = string.substr(content, i + 1, -1)
+				return true, "ok", ele_seq, left, c
+				
+			case ":" then
+				var left = string.substr(content, i + 1, -1)
+				return true, "ok", ele_seq, left, c
+					
+			default
+				for var j = i, j < size(content), j++ then
+					var c = range(content, j)
+					if c == "," or c == "}" or c == "]" then
+					
+						var str = string.substr(content, i, j - i)
+						var left = string.substr(content, j, -1)
+						
+						return true, "ok", ele_num, left, str
+					end
+				end
+				
+				var left = string.substr(content, i + 1, -1)
+				return false, "syntax error "..left, ele_none, left, ""
+		end
+	end
+
+	return true, "ok", ele_none, ""
+	
+end
+
+func _get_member(ret, content)
+
+	while true then
+	
+		var ok, var errormsg, var ele_type, var left, var ele_string = _get_element(content)
+		if not ok then
+			return ok, errormsg
+		end
+
+		if ele_type != string_tag then
+			return false, "name not begin with \""
+		end
+		
+		ok, var name_end_pos = string.find(left, 0, "\"")
+		if not ok then
+			return false, "name not end with \""
+		end
+		
+		var name = string.substr(left, 0, name_end_pos)
+		content = string.substr(left, name_end_pos + 1, -1)
+		
+		ok, errormsg, ele_type, left, ele_string = _get_element(content)
+		if not ok then
+			return ok, errormsg
+		end
+		
+		if ele_type != ele_seq then
+			return false, "no :"
+		end
+		
+		content = left
+		ok, errormsg, ele_type, left, ele_string = _get_element(content)
+		if not ok then
+			return ok, errormsg
+		end
+		
+		switch ele_type 
+			case string_tag then
+				
+				ok, var value_end_pos = string.find(left, 0, "\"")
+				if not ok then
+					return false, "value not end with \""
+				end
+				
+				var value = string.substr(left, 0, value_end_pos)
+				content = string.substr(left, value_end_pos + 1, -1)
+				
+				ret[name] = value
+				
+			case ele_num then
+
+				ret[name] = tonumber(ele_string)
+				content = left
+				
+			case obj_begin then
+			
+				ok, errormsg, var son_content, var son_left = _get_obj_end(left)
+				if not ok then
+					return false, errormsg
+				end
+				
+				var son = map()
+				ok, errormsg = _get_member(son, son_content)
+				if not ok then
+					return false, errormsg
+				end
+				
+				ret[name] = son
+				
+				content = son_left
+			
+			case array_begin then
+			
+				ok, errormsg, var son_content, var son_left = _get_array_end(left)
+				if not ok then
+					return false, errormsg
+				end
+								
+				var son = array()
+				ok, errormsg = _get_array(son, son_content)
+				if not ok then
+					return false, errormsg
+				end
+			
+				ret[name] = son
+				
+				content = son_left
+						
+			default
+				return false, "value not begin with \" or { or ["
+		end
+		
+		ok, errormsg, ele_type, left, ele_string = _get_element(content)
+		if not ok then
+			return ok, errormsg
+		end
+		
+		if ele_type != obj_end and ele_type != ele_seq then
+			return false, "obj not end"
+		end
+		
+		if ele_type == obj_end then
+			break
+		end
+		
+		content = left
+		
+	end
+
+	return true, "ok"
+	
+end
+
+func _get_obj_end(content)
+
+	var deps = 1
+
+	for var i = 0, i < size(content), i++ then
+	
+		var c = range(content, i)
+		
+		if c == "{" then 
+			deps = deps + 1
+		end
+		
+		if c == "}" then
+			deps = deps - 1
+		end
+		
+		if deps == 0 then
+			
+			var son_content = string.substr(content, 0, i + 1)
+			var son_left = string.substr(content, i + 1, -1)
+			return true, "ok", son_content, son_left
+			
+		end
+		
+	end
+
+	return false, "not find son end", "", ""
+	
+end
+
+func _get_array(ret, content)
+	
+	while true then
+	
+		var ok, var errormsg, var ele_type, var left, var ele_string = _get_element(content)
+		if not ok then
+			return ok, errormsg
+		end
+
+		switch ele_type 
+			case string_tag then
+			
+				ok, var value_end_pos = string.find(left, 0, "\"")
+				if not ok then
+					return false, "value not end with \""
+				end
+				
+				var value = string.substr(left, 0, value_end_pos)
+				content = string.substr(left, value_end_pos + 1, -1)
+				
+				ret[size(ret)] = value
+				
+			case ele_num then
+			
+				ret[size(ret)] = tonumber(ele_string)
+				content = left
+				
+			case obj_begin then
+			
+				ok, errormsg, var son_content, var son_left = _get_obj_end(left)
+				if not ok then
+					return false, errormsg
+				end
+				
+				var son = map()
+				ok, errormsg = _get_member(son, son_content)
+				if not ok then
+					return false, errormsg
+				end
+				
+				ret[size(ret)] = son
+				
+				content = son_left
+			
+			case array_begin then
+					
+				ok, errormsg, var son_content, var son_left = _get_array_end(left)
+				if not ok then
+					return false, errormsg
+				end
+								
+				var son = array()
+				ok, errormsg = _get_array(son, son_content)
+				if not ok then
+					return false, errormsg
+				end
+			
+				ret[size(ret)] = son
+				
+				content = son_left
+
+			case array_end then
+				break
+			
+			default
+				return false, "array not begin with \" or { or ["
+		end
+		
+		ok, errormsg, ele_type, left, ele_string = _get_element(content)
+		if not ok then
+			return ok, errormsg
+		end
+		
+		if ele_type != array_end and ele_type != ele_seq then
+			return false, "array not end"
+		end
+		
+		if ele_type == array_end then
+			break
+		end
+		
+		content = left
+		
+	end
+	
+	return true, "ok"
+	
+end
+
+func _get_array_end(content)
+
+	var deps = 1
+
+	for var i = 0, i < size(content), i++ then
+	
+		var c = range(content, i)
+		
+		if c == "[" then 
+			deps = deps + 1
+		end
+		
+		if c == "]" then
+			deps = deps - 1
+		end
+		
+		if deps == 0 then
+			
+			var son_content = string.substr(content, 0, i + 1)
+			var son_left = string.substr(content, i + 1, -1)
+			return true, "ok", son_content, son_left
+			
+		end
+		
+	end
+
+	return false, "not find son end", "", ""
+	
+end
+
+func _gen_tab(tab)
+
+	var ret = ""
+	for var i = 0, i < tab, i++ then
+		ret = ret.."\t"
+	end
+	return ret
+
+end
+
+func _tostring(j)
+
+	var ret = ""
+
+	if typeof(j) == "MAP" then
+	
+		ret = ret.."{"
+		for var i = 0, i < size(j), i++ then
+			
+			var k, var v = range(j, i)
+			ret = ret.."\""..k.."\""..":".._tostring(v)
+			
+			if i != size(j) - 1 then
+				ret = ret..","
+			end
+			
+		end
+		
+		ret = ret.."}"
+		
+	end
+	
+	if typeof(j) == "ARRAY" then
+		
+		ret = ret.."["
+		for var i = 0, i < size(j), i++ then
+			
+			var v = range(j, i)
+			
+			if typeof(v) == "STRING" or typeof(v) == "REAL" then
+				ret = ret.._tostring(v)
+			else
+				ret = ret.._tostring(v)
+			end
+			
+			if i != size(j) - 1 then
+				ret = ret..","
+			end
+			
+		end
+		
+		ret = ret.."]"
+		
+	end
+
+	if typeof(j) == "STRING" then
+		
+		ret = "\""..j.."\""
+		
+	end
+	
+	if typeof(j) == "REAL" then
+		
+		ret = tostring(j)
+		
+	end
+	
+	return ret
+	
+end
+
+func _tostringh(j, tab)
+
+	var ret = ""
+
+	if typeof(j) == "MAP" then
+	
+		ret = ret.._gen_tab(tab).."{\n"
+		for var i = 0, i < size(j), i++ then
+			
+			var k, var v = range(j, i)
+			ret = ret.._gen_tab(tab + 1).."\""..k.."\""..":".._tostringh(v, tab + 1)
+			
+			if i != size(j) - 1 then
+				ret = ret..","
+			end
+			
+			ret = ret.."\n"
+			
+		end
+		
+		ret = ret.._gen_tab(tab).."}"
+		
+	end
+	
+	if typeof(j) == "ARRAY" then
+		
+		ret = ret.._gen_tab(tab).."[\n"
+		for var i = 0, i < size(j), i++ then
+			
+			var v = range(j, i)
+			
+			if typeof(v) == "STRING" or typeof(v) == "REAL" then
+				ret = ret.._gen_tab(tab + 1).._tostringh(v, tab + 1)
+			else
+				ret = ret.._tostringh(v, tab + 1)
+			end
+			
+			if i != size(j) - 1 then
+				ret = ret..","
+			end
+			
+			ret = ret.."\n"
+			
+		end
+		
+		ret = ret.._gen_tab(tab).."]"
+		
+	end
+
+	if typeof(j) == "STRING" then
+		
+		ret = "\""..j.."\""
+		
+	end
+	
+	if typeof(j) == "REAL" then
+		
+		ret = tostring(j)
+		
+	end
+	
+	return ret
+	
+end

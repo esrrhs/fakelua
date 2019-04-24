@@ -1,0 +1,123 @@
+[
+  {
+    "roomId": 101, 
+    "name": "快乐海滩", 
+    "minCoin": 0, 
+    "maxCoin": 500000, 
+    "minBetLimit": 1, 
+    "maxBetLimit": 30, 
+    "bossType": [
+      26, 
+      27
+    ], 
+    "fee": 2, 
+    "interfereCoin": 50000, 
+    "hpRange": [
+      800, 
+      1200
+    ], 
+    "type1Num": [
+      6, 
+      10
+    ], 
+    "type2Num": [
+      6, 
+      10
+    ], 
+    "type3Num": [
+      5, 
+      8
+    ], 
+    "type4Num": [
+      4, 
+      6
+    ], 
+    "type5Num": [
+      0, 
+      1
+    ], 
+    "bg": "tsd_02.png"
+  }, 
+  {
+    "roomId": 102, 
+    "name": "奇幻海底", 
+    "minCoin": 200000, 
+    "maxCoin": 10000000, 
+    "minBetLimit": 30, 
+    "maxBetLimit": 200, 
+    "bossType": [
+      26, 
+      27, 
+      28
+    ], 
+    "fee": 3, 
+    "interfereCoin": 200000, 
+    "hpRange": [
+      1000, 
+      1500
+    ], 
+    "type1Num": [
+      8, 
+      12
+    ], 
+    "type2Num": [
+      8, 
+      12
+    ], 
+    "type3Num": [
+      6, 
+      8
+    ], 
+    "type4Num": [
+      4, 
+      6
+    ], 
+    "type5Num": [
+      0, 
+      2
+    ], 
+    "bg": "tsd_03.png"
+  }, 
+  {
+    "roomId": 103, 
+    "name": "无尽深渊", 
+    "minCoin": 2000000, 
+    "maxCoin": 0, 
+    "minBetLimit": 100, 
+    "maxBetLimit": 0, 
+    "bossType": [
+      26, 
+      27, 
+      28, 
+      29, 
+      30
+    ], 
+    "fee": 5, 
+    "interfereCoin": 1000000, 
+    "hpRange": [
+      1200, 
+      2000
+    ], 
+    "type1Num": [
+      10, 
+      15
+    ], 
+    "type2Num": [
+      10, 
+      15
+    ], 
+    "type3Num": [
+      6, 
+      8
+    ], 
+    "type4Num": [
+      4, 
+      6
+    ], 
+    "type5Num": [
+      0, 
+      3
+    ], 
+    "bg": "tsd_04.png"
+  }
+]

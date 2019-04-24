@@ -1,0 +1,15 @@
+include "29.fk"
+
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
+	
+	var f = get_c_string()
+	f()
+	print(c_int)
+	
+	return get_c_int() * 2
+	
+end

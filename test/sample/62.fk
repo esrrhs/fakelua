@@ -1,0 +1,14 @@
+
+-- main comment
+func main()
+	
+	print(null)
+	
+	var a = 1
+	if a != null then
+		print("a != null")
+	end
+	
+	return 0
+	
+end

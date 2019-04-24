@@ -1,0 +1,44 @@
+#include "../package/buffer.fk"
+
+-- main comment
+func main()
+	
+	var arg1 = 1
+	var arg2 = 2
+	
+	var b = buffer.new(10)
+	
+	print(buffer.size(b))
+	print(buffer.maxsize(b))
+	
+	buffer.push_int(b, 12)
+	buffer.push_short(b, 1)
+	
+	ret, data := buffer.pop_int(b)
+	print(data)
+	
+	ret, data = buffer.pop_short(b)
+	print(data)
+	
+	buffer.push_string(b, "hahaha", 9)
+	print(buffer.size(b))
+	
+	ret, data = buffer.pop_string(b, 9)
+	print(data)
+	
+	buffer.clear(b)
+	print(buffer.size(b))
+	
+	var nb = buffer.new(5)
+	buffer.push_int(nb, 12)
+	buffer.push_buffer(b, nb)
+	print(buffer.size(b))
+	ret, var nb1 = buffer.pop_buffer(b, 4)
+	print(buffer.size(nb1))
+	
+	ret, data = buffer.pop_int(nb1)
+	print(data)
+	
+	return buffer.size(b)
+	
+end
