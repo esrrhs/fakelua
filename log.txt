@@ -194,4 +194,5 @@
 2018.1.17:修复优化的bug
 2019.4.18:更名fake，重新组织项目，去掉windows的支持，对远期有利，去掉不必要的buildin
 2019.4.23:centos7编译通过,添加test
+2019.4.24:修改完test，剩下的有修改fakebin编译的bug、ide编译、gc
 

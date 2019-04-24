@@ -21,6 +21,7 @@
 * 支持打包bin文件或可执行文件
 
 ## 产品应用
+![image](img/use3.jpg)[疯狂炸翻天](https://www.muzhiwan.com/com.fkzft.gamewin.mzw.html)
 ![image](img/use1.jpg)[我是大主宰](http://dzz.youxi.com)
 ![image](img/use2.jpg)[天天炫斗](http://ttxd.qq.com/act/a20160419brandP/)
 
