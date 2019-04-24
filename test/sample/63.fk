@@ -1,6 +1,6 @@
-include "../package/template.fk"
-include "../package/math.fk"
-include "../package/string.fk"
+include "./package/template.fk"
+include "./package/math.fk"
+include "./package/string.fk"
 
 func elecmp(left, right)
 

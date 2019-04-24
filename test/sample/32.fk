@@ -1,4 +1,4 @@
-include "../package/list.fk"
+include "./package/list.fk"
 
 -- main comment
 func main()
