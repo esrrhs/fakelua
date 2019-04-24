@@ -5,11 +5,12 @@
 **fakescript**是一款轻量级的嵌入式脚本语言, 使用c++语言编写, 语法吸取自lua、golang、erlang, 基于flex、bison生成语法树, 编译成字节码解释执行。
 
 ## 脚本特性
-* 支持JIT
+* 运行环境linux x86_64
+* 支持VM, JIT
 * 支持fake testfunc(param1)产生routine, 在单线程上实现多线程效果(此特性不支持JIT)
 * 支持调试, 自带gdb风格的命令行调试器, 以及vs风格的可视化编辑调试ide, 也可在C里直接通过接口调用, 开始命令行调试
 * 支持热更新
-* 支持C函数和类成员函数的绑定
+* 支持C风格函数和C++类成员函数的绑定
 * 支持profile, 可获取脚本各个函数运行时间
 * 支持array, map, 可以无限嵌套
 * 支持多返回值
@@ -20,6 +21,7 @@
 * 支持打包bin文件或可执行文件
 
 ## 产品应用
+![image](img/use3.jpg)[疯狂炸翻天](https://www.muzhiwan.com/com.fkzft.gamewin.mzw.html)
 ![image](img/use1.jpg)[我是大主宰](http://dzz.youxi.com)
 ![image](img/use2.jpg)[天天炫斗](http://ttxd.qq.com/act/a20160419brandP/)
 
@@ -125,23 +127,31 @@ ret = fkrun<int>(fk, "myfunc1", 1, 2);
 delfake(fk);
 ```
 
-## 使用
+## 如何使用
 1. 复制 include/**fake-inc.h** 和 bin/**libfake.so** 到你的工程, 直接使用
 2. 使用vcpkg(TODO)
 
-## 编译
+## 如何编译
 1. 安装cmake
 2. 安装flex, bison
 3. 安装gcc, gcc-c++
 4. ```./build.sh``` 或者 ```./build.sh release```
 
+## 示例
+1. test/sample 目录下有脚本示例代码
+2. 运行方法 ```cd test && ./test.sh```
+3. bin/fakebin 为可执行文件，可以自己编写运行，如：```./fakebin your.fk```
+
+
 ## 调试环境
 * IDE
+
 ![image](img/ide.png)
 
 * 命令行
+
 ![image](img/debug.png)
 
 ## 欢迎交流
-微信：esrrhs
+微信：**esrrhs**
 
