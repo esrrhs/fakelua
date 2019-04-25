@@ -76,11 +76,9 @@
 int yylex(YYSTYPE *lvalp, YYLTYPE * loc, void * parm)
 {
 	myflexer *l = (myflexer *)parm;
-#ifdef __APPLE__
-	int ret = l->yylexex(lvalp, loc);
-#else
+
 	int ret = l->yylex(lvalp, loc);
-#endif
+
 	FKLOG("[bison]: bison get token[%s] str[%s] line[%d,%d]", fkget_token_name(ret).c_str(), lvalp->str.c_str(), loc->first_line, loc->last_line);
 	return ret;
 }
