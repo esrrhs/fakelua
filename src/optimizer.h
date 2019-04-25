@@ -70,6 +70,7 @@ private:
 
 	void optimize_write_assign(func_binary & fb);
 
+	int get_assign_src_ins_num(command);
 private:
 	fake * m_fk;
 	bool m_isopt;
