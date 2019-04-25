@@ -36,28 +36,18 @@ public:
 		clear();
 	}
 
-#ifdef __APPLE__
-    // flex通过调用这个方法取得要解析的字符串的
-    virtual size_t LexerInput(char* buf, size_t max_size);
 
-    virtual void LexerOutput( const char* buf, size_t size );
-#else
 	// flex通过调用这个方法取得要解析的字符串的
 	virtual int LexerInput(char* buf, int max_size);
 	
 	virtual void LexerOutput( const char* buf, int size );
-#endif
+
 
 	//错误函数
 	virtual void LexerError(const char* msg);
 
-#ifdef __APPLE__
-    // 在flex.cpp中实现
-    int yylexex(YYSTYPE * yylval, YYLTYPE * loc);
-#else
 	// 在flex.cpp中实现
 	int yylex(YYSTYPE * yylval, YYLTYPE * loc);
-#endif
 
 	fake * getfake()
 	{
