@@ -257,7 +257,7 @@ int main(int argc, const char *argv[])
 		free(tmpbuf);
 
 		// Êä³ö
-		const char * filename = "out.exe";
+		const char * filename = "fakebinout";
 		if (!writefile(filename, selftmpbuf, selfsize + size))
 		{
 			return -1;
@@ -422,7 +422,7 @@ fake\n\narg : [-hjpgtslocd] file [arg]\n\
 -s save func to fake.bin\n\
 -l load func from file\n\
 -o print return value and time\n\
--c compile script to out.exe\n\
+-c compile script to fakebinout\n\
 -d debug step mod\n\
 sample:./fake a.fk\n\n");
 			return -1;
