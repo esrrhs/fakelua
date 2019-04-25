@@ -605,7 +605,7 @@ void optimizer::trans_inslist(func_binary & fb)
 int optimizer::get_assign_src_ins_num(command cmd)
 {
     int num = 0;
-    for (int i = pos; i < (int)m_inslist.size(); i++)
+    for (int i = 0; i < (int)m_inslist.size(); i++)
     {
         opt_ins & ins = m_inslist[i];
         if (ins.code == OPCODE_ASSIGN)
