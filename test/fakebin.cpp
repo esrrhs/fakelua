@@ -6,11 +6,8 @@
 #include <string.h>
 #include <vector>
 #include <algorithm>
-#ifdef WIN32
-#else
 #ifdef USE_GOOGLE_POFILER
 #include "gperftools/profiler.h"
-#endif
 #endif
 
 // for test
