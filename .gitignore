@@ -5,7 +5,6 @@ bison.output
 cmake_install.cmake
 .vscode
 .idea
-bin
 test/sample/*.h
 test/sample/*.java
 *.log
