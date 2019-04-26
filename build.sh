@@ -6,12 +6,22 @@ if [ $# == 1 ] && [ $1 == "release" ];then
     BUILD_FLAG=" -DREMOD=ON"
 fi
 
-cd src/flexbison
-flex -o ../flex.cpp flex.l
-bison -v -t -d bison.y
-mv bison.tab.c ../bison.cpp
-mv bison.tab.h	../bison.h
-cd ../../
+if [[ "$OSTYPE" == "linux-gnu" ]]; then
+    echo "os "$OSTYPE
+
+    cd src/flexbison
+    flex -o ../flex.cpp flex.l
+    bison -v -t -d bison.y
+    mv bison.tab.c ../bison.cpp
+    mv bison.tab.h	../bison.h
+    cd ../../
+
+elif [[ "$OSTYPE" == "darwin"* ]]; then
+    echo "os "$OSTYPE
+else
+	echo "not support "$OSTYPE
+	exit 1
+fi
 
 #lib
 rm -rf CMakeCache.txt
