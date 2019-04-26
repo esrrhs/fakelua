@@ -14,7 +14,7 @@
 #include <stdio.h>
 #include "types.h"
 #undef yyFlexLexer
-#include <FlexLexer.h> 
+#include <FlexLexer.h>
 #include "semantic.h"
 
 typedef std::vector<String> include_file_list;
