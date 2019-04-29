@@ -5,7 +5,7 @@
 **fakescript**是一款轻量级的嵌入式脚本语言, 使用c++语言编写, 语法吸取自lua、golang、erlang, 基于flex、bison生成语法树, 编译成字节码解释执行。
 
 ## 脚本特性
-* 运行环境linux x86_64、MacOS
+* 运行环境linux amd64、MacOS amd64
 * 支持VM, JIT
 * 支持fake testfunc(param1)产生routine, 在单线程上实现多线程效果(此特性不支持JIT)
 * 支持调试, 自带gdb风格的命令行调试器, 以及VS风格的可视化编辑调试ide, 也可在C里直接通过接口调用, 开始命令行调试
