@@ -82,7 +82,7 @@ void interpreter::call(const variant & func, int retnum, int * retpos)
 
 		// 设置sp
 		m_sp = m_bp + FUNC_BINARY_MAX_STACK(*fb);
-		
+
 		if (UNLIKE((int)ps->m_variant_list_num != FUNC_BINARY_PARAMNUM(*fb)))
 		{
 			FKERR("call func %s param not match", vartostring(&func).c_str());
@@ -98,7 +98,10 @@ void interpreter::call(const variant & func, int retnum, int * retpos)
 		memcpy(&ARRAY_GET(m_stack, m_bp), ps->m_variant_list, FUNC_BINARY_PARAMNUM(*fb) * sizeof(variant));
 		PS_CLEAR(*ps);
 
-		// 重置ret
+        // 清空栈区
+        memset(&ARRAY_GET(m_stack, m_bp + FUNC_BINARY_PARAMNUM(*fb)), 0, (FUNC_BINARY_MAX_STACK(*fb) - FUNC_BINARY_PARAMNUM(*fb)) * sizeof(variant));
+
+        // 重置ret
 		V_SET_NIL(&m_ret[0]);
 
 		// 标记

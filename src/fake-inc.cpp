@@ -190,7 +190,6 @@ FAKE_API void fkcheckgc(fake * fk)
 		fk->sh.checkgc();
 		fk->ph.checkgc();
 		fk->con.clear();
-		fk->bif.clear();
 	}
 }
 
@@ -499,7 +498,7 @@ FAKE_API void fkpsclear(fake * fk)
 
 FAKE_API void fkrunpsjit(fake * fk, const char * func)
 {
-	FKLOG("fkrun %p %s", fk, func);
+	FKLOG("fkrunpsjit %p %s", fk, func);
 
 #ifndef FK64
 	// 32位目前不支持
@@ -517,7 +516,7 @@ FAKE_API void fkrunpsjit(fake * fk, const char * func)
 
 	fk->rn.rundeps--;
 	
-	FKLOG("fkrun %p %s OK", fk, func);
+	FKLOG("fkrunpsjit %p %s OK", fk, func);
 }
 
 FAKE_API void fkpushfunctor(fake * fk, const char * prefix, const char * name, fkfunctor ff)
