@@ -1,7 +1,7 @@
 #include "container.h"
 #include "fake.h"
 
-container::container(fake * fk) : m_fk(fk)
+container::container(fake * fk) : m_fk(fk), m_gm(0)
 {
 	POOLLIST_INI(m_va_pl, fk);
 	POOLLIST_INI(m_vm_pl, fk);
@@ -63,6 +63,16 @@ variant_map * container::newmap()
 	n->isconst = false;
 	
 	return n;
+}
+
+variant_map * container::newgmap()
+{
+    if (!m_gm)
+    {
+        m_gm = newmap();
+    }
+
+    return m_gm;
 }
 
 variant * container::newvariant()

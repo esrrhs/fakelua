@@ -38,6 +38,8 @@ public:
 	variant_array * newarray();
 	variant_map * newmap();
 	variant * newvariant();
+
+    variant_map * newgmap();
 	
 	variant_array * newconstarray();
 	variant_map * newconstmap();
@@ -64,5 +66,7 @@ private:
 	poollist<variant_map> m_cvm_pl;
 	
 	poollist<variant> m_cv_pl;
+
+    variant_map * m_gm;
 };
 

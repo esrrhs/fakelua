@@ -115,6 +115,16 @@ void buildin_map(fake * fk, interpreter * inter)
 	V_SET_MAP(v, m);
 }
 
+// gmap
+void buildin_gmap(fake * fk, interpreter * inter)
+{
+    bool err = false;
+    variant_map * m = fk->con.newmap();
+    variant * v = 0;
+    PS_PUSH_AND_GET(fk->ps, v);
+    V_SET_MAP(v, m);
+}
+
 // size
 void buildin_size(fake * fk, interpreter * inter)
 {
@@ -484,6 +494,7 @@ void buildinfunc::openbasefunc()
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("log"), buildin_log);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("array"), buildin_array);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr(MAP_FUNC_NAME), buildin_map);
+    m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr(GMAP_FUNC_NAME), buildin_gmap);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("size"), buildin_size);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("range"), buildin_range);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("debug"), buildin_debug);

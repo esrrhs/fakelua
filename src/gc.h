@@ -18,8 +18,7 @@ public:
 
 	const char * dump();
 
-private:
-    void go();
+    array<stringele *> get_used_stringele();
 	
 private:
 	fake * m_fk;
