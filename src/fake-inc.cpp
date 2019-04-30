@@ -534,16 +534,10 @@ FAKE_API void fkpushfunctor(fake * fk, const char * prefix, const char * name, f
 
 FAKE_API void fkopenalllib(fake * fk)
 {
-	fkopenbaselib(fk);
 	fkopenfilelib(fk);
 	fkopenoslib(fk);
 	fkopenstringlib(fk);
 	fkopenmathlib(fk);
-}
-
-FAKE_API void fkopenbaselib(fake * fk)
-{
-	fk->bif.openbasefunc();
 }
 
 FAKE_API void fkopenfilelib(fake * fk)

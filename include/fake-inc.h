@@ -168,20 +168,18 @@ typedef void(*fkprint)(fake * fk, const char * str);
 
 struct fakeconfig
 {
-	fakeconfig() : fkm(&malloc), fkf(&free), 
-		per_frame_cmd_num(10), 
-		array_grow_speed(50), 
-		string_heap_num(1000), 
-		pointer_heap_num(1000), 
-		include_deps(100), 
-		stack_max(10000)
-		{}
+	fakeconfig() : fkm(&malloc), fkf(&free),
+                   per_frame_cmd_num(10),
+                   array_grow_speed(50),
+                   gc_grow_speed(50),
+                   include_deps(100),
+                   stack_max(10000)
+    {}
 	fkmalloc fkm;
 	fkfree fkf;	// 内存管理
 	int per_frame_cmd_num;			// 每帧执行命令数目
-	int array_grow_speed;			// 增长速度，百分比，10%代表增长10%
-	int string_heap_num;			// 字符串集合的最大数目
-	int pointer_heap_num;			// 指针集合的最大数目
+    int array_grow_speed;			// 增长速度，百分比，10%代表增长10%
+    int gc_grow_speed;			    // gc速度，百分比，10%代表每增加10%gc
 	int include_deps;				// 解析include最大深度
 	int stack_max;					// stack最大尺寸
 };
@@ -1291,7 +1289,6 @@ void fkreg(fake * fk, const char * name, RVal (T::*func)(T1, T2, T3, T4, T5, T6,
 
 // 开启常用内置函数
 FAKE_API void fkopenalllib(fake * fk);
-FAKE_API void fkopenbaselib(fake * fk);
 FAKE_API void fkopenfilelib(fake * fk);
 FAKE_API void fkopenoslib(fake * fk);
 FAKE_API void fkopenstringlib(fake * fk);

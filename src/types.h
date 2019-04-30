@@ -56,13 +56,13 @@ struct GetSimpleType {
 
 union MarshallFloat 
 {
-	uint32_t i; ///< int
+    uint64_t i; ///< int
 	float f; ///< float
 };
 
 union MarshallPoiner
 {
-	uint32_t i; ///< int
+    uint64_t i; ///< int
 	void * p; ///< p
 };
 
@@ -171,9 +171,9 @@ static force_inline String fkxtoa(int64_t d, int wid = 16)
 struct stringele;
 String fkstringeletoa(stringele * ele);
 
-static force_inline uint32_t fkstrhash(const char * p)
+static force_inline uint64_t fkstrhash(const char * p)
 {
-	uint32_t hashv = 0;
+    uint64_t hashv = 0;
 	for (int i = 0; p[i]; i++)
 	{
 		hashv = ((hashv << 5) + hashv) + p[i]; /* hash * 33 + c */
@@ -250,6 +250,7 @@ static force_inline String fkgen_package_name(const String & p, const String & n
 }
 
 #define MAP_FUNC_NAME "map"
+#define GMAP_FUNC_NAME "_G"
 
 #define LIKE(x) __builtin_expect((x),1)
 #define UNLIKE(x) __builtin_expect((x),0)

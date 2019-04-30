@@ -16,10 +16,9 @@ void gc::clear()
 
 void gc::check()
 {
-}
+    m_fk->sh.checkgc();
 
-void gc::go()
-{
+    // TODO
 }
 
 const char * gc::dump()
@@ -27,4 +26,14 @@ const char * gc::dump()
 	m_dumpstr.clear();
 	return m_dumpstr.c_str();
 }
+
+array<stringele *> gc::get_used_stringele()
+{
+    array<stringele *> ret;
+
+    // TODO
+
+    return ret;
+}
+
 

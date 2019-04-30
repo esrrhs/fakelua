@@ -46,7 +46,7 @@ const uint32_t c_hashsize[] = {
 #define HASHMAP_LEAVE(hm) ((hm).m_set.m_recurflag--)
 
 template <typename T>
-force_inline uint32_t fkkeyhash(const T & k)
+force_inline uint64_t fkkeyhash(const T & k)
 {
 	return k;
 }
@@ -76,7 +76,7 @@ force_inline String fkkeytostr(const T & k)
 
 // 特化
 template <>
-force_inline uint32_t fkkeyhash(const char * const & k)
+force_inline uint64_t fkkeyhash(const char * const & k)
 {
 	return fkstrhash(k);
 }
@@ -108,7 +108,7 @@ force_inline String fkkeytostr(const char * const & k)
 
 // 特化
 template <>
-force_inline uint32_t fkkeyhash(const variant & k)
+force_inline uint64_t fkkeyhash(const variant & k)
 {
 	return k.data.buf;
 }
@@ -140,7 +140,7 @@ force_inline String fkkeytostr(const variant & k)
 
 // 特化
 template <>
-force_inline uint32_t fkkeyhash(void * const & k)
+force_inline uint64_t fkkeyhash(void * const & k)
 {
 	MarshallPoiner tmp;
 	tmp.p = k;
@@ -172,7 +172,7 @@ force_inline String fkkeytostr(void * const & k)
 
 // 特化
 template <>
-force_inline uint32_t fkkeyhash(stringele * const & k)
+force_inline uint64_t fkkeyhash(stringele * const & k)
 {
 	return fkstrhash(k->s);
 }
@@ -209,7 +209,7 @@ struct fkhashmapele
 
 // 特化
 template <typename K, typename T>
-force_inline uint32_t fkkeyhash(const fkhashmapele<K, T> & k)
+force_inline uint64_t fkkeyhash(const fkhashmapele<K, T> & k)
 {
 	return fkkeyhash(k.k);
 }
@@ -387,7 +387,7 @@ public:
 		}
 
 		// hash
-		uint32_t hv = fkkeyhash(k);
+		uint64_t hv = fkkeyhash(k);
 		uint32_t index = hv % m_hashele_size;
 		hashele & he = m_hashele[index];
 		for (int i = 0; i < he.size; i++)
@@ -417,7 +417,7 @@ public:
 		}
 
 		// hash
-		uint32_t hv = fkkeyhash(k);
+        uint64_t hv = fkkeyhash(k);
 		uint32_t index = hv % m_hashele_size;
 		hashele & he = m_hashele[index];
 		for (int i = 0; i < he.size; i++)
@@ -517,7 +517,7 @@ private:
 		}
 
 		// hash
-		uint32_t hv = fkkeyhash(k);
+        uint64_t hv = fkkeyhash(k);
 		uint32_t index = hv % m_hashele_size;
 		hashele & he = m_hashele[index];
 		for (int i = 0; i < he.size; i++)

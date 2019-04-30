@@ -37,8 +37,10 @@ private:
 
 private:
 	fake * m_fk;
-	fkhashset<stringele *> m_shh;
+    fkhashset<stringele *> m_shh;
+    fkhashset<void *> m_shh_gc;
 	array<stringele *> m_todelete;
 	String m_dumpstr;
+	size_t m_last_gc_size;
 };
 
