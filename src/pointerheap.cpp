@@ -45,10 +45,7 @@ pointerele * pointerheap::allocpointer(void * ptr, const char * type)
 
 void pointerheap::checkgc()
 {
-	if (UNLIKE((int)m_shh.size() > m_fk->cfg.pointer_heap_num))
-	{
-		gc();
-	}
+	// TODO
 }
 
 void pointerheap::gc()
