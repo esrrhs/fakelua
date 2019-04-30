@@ -36,10 +36,11 @@
 #include "debuging.h"
 #include "pointerheap.h"
 #include "optimizer.h"
+#include "gc.h"
 
 struct fake
 {
-	fake() : errorno(0), errorcb(0), pa(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this), dbg(this), ph(this), opt(this)
+	fake() : errorno(0), errorcb(0), pa(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this), dbg(this), ph(this), opt(this), g(this)
 	{
 		POOL_INI(pp, this);
 	}
@@ -70,6 +71,7 @@ struct fake
 		dbg.clear();
 		ph.clear();
         opt.clear();
+        g.clear();
 	}
 	
 	void clearerr()
@@ -135,6 +137,9 @@ struct fake
 
 	// ”≈ªØ
     optimizer opt;
+
+    // gc
+    gc g;
 };
 
 template <typename T>

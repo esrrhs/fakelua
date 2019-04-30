@@ -451,7 +451,6 @@ template<typename RVal>
 RVal fkrun(fake * fk, const char * func)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkrunps(fk, func);
 	return fkpspop<RVal>(fk);
 }
@@ -460,7 +459,6 @@ template<typename RVal, typename T1>
 RVal fkrun(fake * fk, const char * func, T1 arg1)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkrunps(fk, func);
 	return fkpspop<RVal>(fk);
@@ -470,7 +468,6 @@ template<typename RVal, typename T1, typename T2>
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkrunps(fk, func);
@@ -481,7 +478,6 @@ template<typename RVal, typename T1, typename T2, typename T3>
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -493,7 +489,6 @@ template<typename RVal, typename T1, typename T2, typename T3, typename T4>
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -506,7 +501,6 @@ template<typename RVal, typename T1, typename T2, typename T3, typename T4, type
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -520,7 +514,6 @@ template<typename RVal, typename T1, typename T2, typename T3, typename T4, type
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -535,7 +528,6 @@ template<typename RVal, typename T1, typename T2, typename T3, typename T4, type
 RVal fkrun(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -635,7 +627,6 @@ template<typename RVal>
 RVal fkrunjit(fake * fk, const char * func)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkrunpsjit(fk, func);
 	return fkpspop<RVal>(fk);
 }
@@ -644,7 +635,6 @@ template<typename RVal, typename T1>
 RVal fkrunjit(fake * fk, const char * func, T1 arg1)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkrunpsjit(fk, func);
 	return fkpspop<RVal>(fk);
@@ -654,7 +644,6 @@ template<typename RVal, typename T1, typename T2>
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkrunpsjit(fk, func);
@@ -665,7 +654,6 @@ template<typename RVal, typename T1, typename T2, typename T3>
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -677,7 +665,6 @@ template<typename RVal, typename T1, typename T2, typename T3, typename T4>
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -690,7 +677,6 @@ template<typename RVal, typename T1, typename T2, typename T3, typename T4, type
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -704,7 +690,6 @@ template<typename RVal, typename T1, typename T2, typename T3, typename T4, type
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6, T7 arg7)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
@@ -720,7 +705,6 @@ template<typename RVal, typename T1, typename T2, typename T3, typename T4, type
 RVal fkrunjit(fake * fk, const char * func, T1 arg1, T2 arg2, T3 arg3, T4 arg4, T5 arg5, T6 arg6)
 {
 	fkpsclear(fk);
-	fkcheckgc(fk);
 	fkpspush<T1>(fk, arg1);
 	fkpspush<T2>(fk, arg2);
 	fkpspush<T3>(fk, arg3);
