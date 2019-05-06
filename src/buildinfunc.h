@@ -27,7 +27,6 @@ class buildinfunc
 public:
 	force_inline buildinfunc(fake * fk) : m_fk(fk), m_bifile(fk), m_bifos(fk), m_bifstring(fk), m_bifmath(fk)
 	{
-        openbasefunc();
 	}
 	force_inline ~buildinfunc()
 	{

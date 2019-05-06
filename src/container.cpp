@@ -45,7 +45,7 @@ variant_array * container::newarray()
 	POOLLIST_POP(m_va_pl, n, variant_array);
 	
 	ARRAY_INI(n->va, m_fk);
-	ARRAY_CLEAR(n->va);
+	ARRAY_DEEP_CLEAR(n->va, variant_array *);
 
 	n->isconst = false;
 	
@@ -61,7 +61,7 @@ variant_map * container::newmap()
 	HASHMAP_CLEAR(n->vm);
 	
 	n->isconst = false;
-	
+
 	return n;
 }
 
@@ -141,7 +141,7 @@ variant_array * container::newconstarray()
 	ARRAY_CLEAR(n->va);
 	
 	n->isconst = true;
-	
+
 	return n;
 }
 
@@ -154,7 +154,7 @@ variant_map * container::newconstmap()
 	HASHMAP_CLEAR(n->vm);
 	
 	n->isconst = true;
-	
+
 	return n;
 }
 

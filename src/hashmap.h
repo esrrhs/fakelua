@@ -241,7 +241,7 @@ force_inline String fkkeytostr(const fkhashmapele<K, T> & k)
 	return fkkeytostr(k.k);
 }
 
-#define ELE_FAST_BUFFER (1)
+#define ELE_FAST_BUFFER (2)
 #define GET_HASHELE(he, i) (LIKE((i) < ELE_FAST_BUFFER) ? (he).fe[(i)] : (he).overflow[(i) - ELE_FAST_BUFFER])
 
 template <typename K>
@@ -250,7 +250,7 @@ class fkhashset
 public:
 	struct ele
 	{
-		uint32_t hv;
+		uint64_t hv;
 		K k;
 	};
 	struct hashele

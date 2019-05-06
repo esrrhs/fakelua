@@ -14,7 +14,7 @@ public:
 
 	void clear();
 
-	void check();
+	void check(bool force);
 
 	const char * dump();
 
