@@ -20,6 +20,7 @@ FAKE_API fake * newfake(fakeconfig * cfg)
 	memset(ret, 0, sizeof(fake));
 	new (ret) fake();
 	ret->cfg = _cfg;
+    ret->bif.openbasefunc();
 	FKLOG("newfake ret %p", ret);
 	return ret;
 }
@@ -182,15 +183,9 @@ FAKE_API void fkrunps(fake * fk, const char * func)
 	FKLOG("fkrunps %p %s OK", fk, func);
 }
 
-FAKE_API void fkcheckgc(fake * fk)
+FAKE_API void fkcheckgc(fake * fk, bool forcegc)
 {
-	// 预处理，只在完全的退出脚本才执行
-	if (LIKE(!fk->rn.rundeps))
-	{
-		fk->sh.checkgc();
-		fk->ph.checkgc();
-		fk->con.clear();
-	}
+    fk->g.check(forcegc);
 }
 
 FAKE_API void fkpspushpointer(fake * fk, void * p, const char * type)

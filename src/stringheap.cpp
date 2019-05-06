@@ -1,7 +1,7 @@
 #include "stringheap.h"
 #include "fake.h"
 
-stringheap::stringheap(fake * fk) : m_fk(fk), m_shh(fk), m_shh_gc(fk), m_last_gc_size(0)
+stringheap::stringheap(fake * fk) : m_fk(fk), m_shh(fk), m_last_gc_size(0)
 {
 	ARRAY_INI(m_todelete, m_fk);
 }
@@ -18,7 +18,6 @@ void stringheap::clear()
         safe_fkfree(m_fk, e);
     }
     m_shh.clear();
-    m_shh_gc.clear();
     ARRAY_DELETE(m_todelete);
 }
 
@@ -42,7 +41,6 @@ stringele * stringheap::allocstring(const char * str)
 	}
 	e->s[e->sz] = 0;
     stringele * ret = m_shh.add(e)->k;
-    m_shh_gc.add(ret);
     return ret;
 }
 
@@ -55,10 +53,10 @@ variant stringheap::allocsysstr(const char * str)
 	return v;
 }
 
-void stringheap::checkgc()
+void stringheap::checkgc(bool force)
 {
     size_t newsize = m_last_gc_size + 1 + m_last_gc_size * (m_fk->cfg.gc_grow_speed) / 100;
-    if (UNLIKE((int)m_shh.size() >= newsize))
+    if (force || UNLIKE((int)m_shh.size() >= newsize))
 	{
 		gc();
         m_last_gc_size = m_shh.size();
@@ -69,19 +67,28 @@ void stringheap::gc()
 {
     ARRAY_CLEAR(m_todelete);
 
+    int before = m_shh.size();
+
     array<stringele *> used = m_fk->g.get_used_stringele();
 
+    fkhashset<void*> usedset(m_fk);
     for (int i = 0; LIKE(i < (int)ARRAY_SIZE(used)); i++)
     {
         stringele * n = ARRAY_GET(used, i);
+        usedset.add(n);
+    }
+
+    for (const fkhashset<stringele *>::ele * p = m_shh.first(); p != 0; p = m_shh.next())
+    {
+        stringele * n = p->k;
 
         if (UNLIKE(n->sysref))
         {
             continue;
         }
 
-        fkhashset<void *>::ele * p = m_shh_gc.get(n);
-        if (UNLIKE(!p))
+        fkhashset<void *>::ele * pp = usedset.get(n);
+        if (UNLIKE(pp != 0))
         {
             continue;
         }
@@ -101,12 +108,15 @@ void stringheap::gc()
     {
         stringele * e = ARRAY_GET(m_todelete, i);
         m_shh.del(e);
-        m_shh_gc.del(e);
         safe_fkfree(m_fk, e);
     }
 
     ARRAY_CLEAR(m_todelete);
     m_dumpstr.clear();
+
+    int end = m_shh.size();
+
+    FKLOG("stringheap gc from %d to %d", m_fk, before, end);
 }
 
 const char * stringheap::dump()

@@ -3,6 +3,15 @@
 #include "fake-inc.h"
 #include <unistd.h>
 
+void buildin_gc(fake * fk, interpreter * inter)
+{
+    BIF_CHECK_ARG_NUM(1);
+
+    int force = fkpspop<int>(fk);
+
+    fkcheckgc(fk, force != 0);
+}
+
 // print, very slow
 void buildin_print(fake * fk, interpreter * inter)
 {
@@ -489,6 +498,7 @@ void buildin_isinteger(fake * fk, interpreter * inter)
 
 void buildinfunc::openbasefunc()
 {
+    m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("gc"), buildin_gc);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("print"), buildin_print);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("format"), buildin_format);
 	m_fk->fm.add_buildin_func(m_fk->sh.allocsysstr("log"), buildin_log);

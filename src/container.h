@@ -8,18 +8,21 @@
 
 struct fake;
 
-struct variant_array
+struct variant_container_base
+{
+    bool isconst;
+};
+
+struct variant_array : public variant_container_base
 {
 	array<variant *> va;
-	bool isconst;
 };
 
 #define VARIANT_ARRAY_DELETE(vva) ARRAY_DELETE((vva).va)
 
-struct variant_map
+struct variant_map : public variant_container_base
 {
 	fkhashmap<variant, variant *> vm;
-	bool isconst;
 };
 
 #define VARIANT_MAP_DELETE(vvm) HASHMAP_DELETE((vvm).vm)

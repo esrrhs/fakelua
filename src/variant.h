@@ -6,6 +6,7 @@ struct stringele;
 struct pointerele;
 struct variant_array;
 struct variant_map;
+struct variant_container_base;
 struct variant 
 {
 	enum Type 
@@ -27,6 +28,7 @@ struct variant
 		uint64_t uuid;
 		variant_array * va;
 		variant_map * vm;
+        variant_container_base * vcb;
 		uint64_t buf;	// 只是用作64位传递 
 	};
 

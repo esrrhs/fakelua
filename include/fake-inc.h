@@ -442,7 +442,7 @@ FAKE_API void fkpsclear(fake * fk);
 FAKE_API void fkrunps(fake * fk, const char * func);
 
 // 检查回收
-FAKE_API void fkcheckgc(fake * fk);
+FAKE_API void fkcheckgc(fake * fk, bool forcegc);
 
 // 调用函数，解释执行
 template<typename RVal>

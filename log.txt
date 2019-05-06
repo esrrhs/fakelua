@@ -196,4 +196,5 @@
 2019.4.23:centos7编译通过,添加test
 2019.4.24:修改完test，剩下的有修改fakebin编译的bug、ide编译、gc
 2019.4.26:修改完fakebin编译的bug、ide编译，剩下gc
+2019.5.6:添加了string的gc，编译通过，下一步测试效果
 

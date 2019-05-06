@@ -36,14 +36,20 @@
 	calltime = ((uint32_t)(ARRAY_GET(m_stack, bp - 3).data.buf))
 	
 #define BP_GET_FB(bp, fb) \
+	BP_GET_FB_BY_INTER(bp, fb, *this)
+
+#define BP_GET_FB_BY_INTER(bp, fb, inter) \
 	assert(bp - 2 >= 0);\
-	assert(ARRAY_GET(m_stack, bp - 2).type == variant::NIL);\
-	fb = ((const func_binary *)(ARRAY_GET(m_stack, bp - 2).data.buf))
-	
-#define BP_GET_BP(bp, callbp) \
+	assert(ARRAY_GET((inter).m_stack, bp - 2).type == variant::NIL);\
+	fb = ((const func_binary *)(ARRAY_GET((inter).m_stack, bp - 2).data.buf))
+
+#define BP_GET_BP(bp, fb) \
+	BP_GET_BP_BY_INTER(bp, fb, *this)
+
+#define BP_GET_BP_BY_INTER(bp, callbp, inter) \
 	assert(bp - 1 >= 0);\
-	assert(ARRAY_GET(m_stack, bp - 1).type == variant::NIL);\
-	callbp = ((int)(ARRAY_GET(m_stack, bp - 1).data.buf))
+	assert(ARRAY_GET((inter).m_stack, bp - 1).type == variant::NIL);\
+	callbp = ((int)(ARRAY_GET((inter).m_stack, bp - 1).data.buf))
 
 #define GET_CMD(fb, ip) (fb).m_buff[ip]
 
@@ -56,8 +62,11 @@
 #define GET_CONTAINER(v, fb, pos) v = get_container_variant(fb, pos)
 
 #define GET_STACK(bp, v, pos) \
-	assert(pos >= 0 && pos < (int)ARRAY_MAX_SIZE(m_stack));\
-	v = &ARRAY_GET(m_stack, bp + pos);
+	GET_STACK_BY_INTER(bp, v, pos, *this);
+
+#define GET_STACK_BY_INTER(bp, v, pos, inter) \
+	assert(pos >= 0 && pos < (int)ARRAY_MAX_SIZE((inter).m_stack));\
+	v = &ARRAY_GET((inter).m_stack, bp + pos);
 
 #define CHECK_STACK_POS(fb, ip) (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, ip))) == ADDR_STACK)
 #define CHECK_CONTAINER_POS(fb, ip) (ADDR_TYPE(COMMAND_CODE(GET_CMD(fb, ip))) == ADDR_CONTAINER)
@@ -300,8 +309,8 @@ public:
 
 	void get_running_vaiant(int frame, const char * name, int line, const char * & value, int & outline);
 	void set_running_vaiant(int frame, const char * name, int line, const char * value);
-	
-	int run(int cmdnum);
+
+    int run(int cmdnum);
 
 public:
 	fake * m_fk;
