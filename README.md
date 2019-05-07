@@ -133,7 +133,7 @@ delfake(fk);
 
 ## 如何编译
 1. 安装cmake
-2. 安装flex, bison
+2. (可选)安装flex, bison, 运行```./gen.sh```
 3. 安装gcc, gcc-c++
 4. ```./build.sh``` 或者 ```./build.sh release```
 
