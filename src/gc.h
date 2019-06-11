@@ -18,10 +18,12 @@ public:
 
 	const char * dump();
 
-    array<stringele *> get_used_stringele();
+    array<void *> get_used_stringele();
 	
 private:
 	fake * m_fk;
 	String m_dumpstr;
+    array<void *> m_ret;
+    array<variant *> m_entry;
 };
 
