@@ -3,6 +3,8 @@
 
 gc::gc(fake * fk) : m_fk(fk)
 {
+    ARRAY_INI(m_ret, fk);
+    ARRAY_INI(m_entry, fk);
 }
 
 gc::~gc()
@@ -12,6 +14,8 @@ gc::~gc()
 
 void gc::clear()
 {
+    ARRAY_DELETE(m_ret);
+    ARRAY_DELETE(m_entry);
 }
 
 void gc::check(bool forcegc)
@@ -32,10 +36,10 @@ const char * gc::dump()
     if (UNLIKE(ARRAY_SIZE(ret) >= ARRAY_MAX_SIZE(ret))) \
     { \
         size_t newsize = ARRAY_SIZE(ret) + 1 + ARRAY_MAX_SIZE(ret) * (m_fk->cfg.array_grow_speed) / 100; \
-        ARRAY_GROW(ret, newsize, stringele *); \
+        ARRAY_GROW(ret, newsize, void *); \
     } \
     ARRAY_PUSH_BACK(ret); \
-    ARRAY_BACK(ret) = ss; \
+    ARRAY_BACK(ret) = (void *)ss; \
     \
     FKLOG("PUSH_STRING_RET %p add string %s", m_fk, v->data.str->s);
 
@@ -58,15 +62,19 @@ const char * gc::dump()
         FKLOG("PUSH_ENTRY %p looped %s %s", m_fk, vartypetostring(v->type), vartostring(v).c_str()); \
     }
 
-array<stringele *> gc::get_used_stringele()
+array<void *> gc::get_used_stringele()
 {
     FKLOG("start get_used_stringele %p", m_fk);
 
-    array<stringele *> ret;
+    fake * fk = m_fk;
+
+    array<void *> & ret = m_ret;
+    ARRAY_CLEAR(ret);
 
     array<processor *> & curprocessor = m_fk->rn.curprocessor;
 
-    array<variant *> entry;
+    array<variant *> & entry = m_entry;
+    ARRAY_CLEAR(entry);
 
     fkhashset<void *> find(m_fk);
 
@@ -172,7 +180,7 @@ array<stringele *> gc::get_used_stringele()
         }
     }
 
-    ARRAY_DELETE(entry);
+    ARRAY_CLEAR(entry);
 
     FKLOG("end get_used_stringele %p %u", m_fk, ARRAY_SIZE(ret));
 

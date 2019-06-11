@@ -227,7 +227,10 @@ int interpreter::run(int cmdnum)
 			m_wakeuptime = 0;
 		}
 	}
-	
+
+	// gc
+	fkcheckgc(fk, false);
+
 	if (UNLIKE(m_isend))
 	{
 		return 0;
