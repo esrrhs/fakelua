@@ -13,11 +13,11 @@ public:
 	}
 	force_inline ~bindfunc()
 	{
-		clear();
 	}
 
 	force_inline fake * getfake()
 	{
+	    return m_fk;
 	}
 
 	force_inline void clear()
