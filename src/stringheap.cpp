@@ -58,7 +58,20 @@ void stringheap::checkgc(bool force)
     size_t newsize = m_last_gc_size + 1 + m_last_gc_size * (m_fk->cfg.gc_grow_speed) / 100;
     if (UNLIKE(force || (int)m_shh.size() >= (int)newsize))
 	{
+        // ¼ÇÂ¼profile
+        uint32_t s = 0;
+        if (m_fk->pf.isopen())
+        {
+            s = fkgetmstick();
+        }
+
 		gc();
+
+        if (m_fk->pf.isopen())
+        {
+            m_fk->pf.add_gc_sample(egt_string, fkgetmstick() - s);
+        }
+
         m_last_gc_size = m_shh.size();
     }
 }

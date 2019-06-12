@@ -361,3 +361,10 @@ const fakeconfig & get_fakeconfig(fake * fk);
 void * fk_mmap_alloc(size_t size);
 void fk_mmap_set_exec(void * buff, size_t size);
 
+enum e_gc_type
+{
+    egt_string,
+    egt_max
+};
+
+const char * get_gc_type_name(int type);
