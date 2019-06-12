@@ -56,7 +56,7 @@ variant stringheap::allocsysstr(const char * str)
 void stringheap::checkgc(bool force)
 {
     size_t newsize = m_last_gc_size + 1 + m_last_gc_size * (m_fk->cfg.gc_grow_speed) / 100;
-    if (UNLIKE(force || (int)m_shh.size() >= newsize))
+    if (UNLIKE(force || (int)m_shh.size() >= (int)newsize))
 	{
 		gc();
         m_last_gc_size = m_shh.size();
@@ -65,8 +65,6 @@ void stringheap::checkgc(bool force)
 
 void stringheap::gc()
 {
-    fake * fk = m_fk;
-
     ARRAY_CLEAR(m_todelete);
 
     int before = m_shh.size();

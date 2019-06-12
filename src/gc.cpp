@@ -65,8 +65,6 @@ array<void *> gc::get_used_stringele()
 {
     FKLOG("start get_used_stringele %p", m_fk);
 
-    fake * fk = m_fk;
-
     array<void *> & ret = m_ret;
     ARRAY_CLEAR(ret);
 
@@ -130,7 +128,7 @@ array<void *> gc::get_used_stringele()
         {
             variant_array * va = v->data.va;
 
-            for (int i = 0; LIKE(i < va->va.m_max_size); ++i)
+            for (int i = 0; LIKE(i < (int)va->va.m_max_size); ++i)
             {
                 variant * n = ARRAY_GET(va->va, i);
                 if (LIKE(n != 0))
