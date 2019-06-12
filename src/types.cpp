@@ -573,6 +573,7 @@ const char * get_gc_type_name(int type)
     switch (type)
     {
         GC_SWITCH(string)
+        GC_SWITCH(pointer)
         GC_SWITCH(max)
     }
 #undef GC_SWITCH

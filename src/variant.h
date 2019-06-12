@@ -29,7 +29,8 @@ struct variant
 		variant_array * va;
 		variant_map * vm;
         variant_container_base * vcb;
-		uint64_t buf;	// 只是用作64位传递 
+        uint64_t buf;	// 只是用作64位传递
+        void * p;	        // 只是用作指针传递
 	};
 
 	Type type;

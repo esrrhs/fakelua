@@ -19,7 +19,9 @@ public:
 	const char * dump();
 
     array<void *> get_used_stringele();
-	
+    array<void *> get_used_pointer();
+private:
+    array<void *> & get_used_by_type(int type);
 private:
 	fake * m_fk;
 	String m_dumpstr;
