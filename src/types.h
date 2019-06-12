@@ -364,6 +364,7 @@ void fk_mmap_set_exec(void * buff, size_t size);
 enum e_gc_type
 {
     egt_string,
+    egt_pointer,
     egt_max
 };
 

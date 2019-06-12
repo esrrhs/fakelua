@@ -20,7 +20,7 @@ void gc::clear()
 void gc::check(bool forcegc)
 {
     m_fk->sh.checkgc(forcegc);
-
+    m_fk->ph.checkgc(forcegc);
     // TODO
 }
 
@@ -30,7 +30,7 @@ const char * gc::dump()
 	return m_dumpstr.c_str();
 }
 
-#define PUSH_STRING_RET(ret, ss) \
+#define PUSH_NORMAL_RET(ret, ss) \
     \
     if (UNLIKE(ARRAY_SIZE(ret) >= ARRAY_MAX_SIZE(ret))) \
     { \
@@ -63,7 +63,19 @@ const char * gc::dump()
 
 array<void *> gc::get_used_stringele()
 {
-    FKLOG("start get_used_stringele %p", m_fk);
+    array<void *> & ret = get_used_by_type(variant::STRING);
+    return ret;
+}
+
+array<void *> gc::get_used_pointer()
+{
+    array<void *> & ret = get_used_by_type(variant::POINTER);
+    return ret;
+}
+
+array<void *> & gc::get_used_by_type(int type)
+{
+    FKLOG("start get_used_by_type %p", m_fk);
 
     array<void *> & ret = m_ret;
     ARRAY_CLEAR(ret);
@@ -92,12 +104,12 @@ array<void *> gc::get_used_stringele()
                 {
                     variant * v = 0;
                     GET_STACK_BY_INTER(bp, v, z, n->m_interpreter);
-                    if (UNLIKE(v->type == variant::STRING))
+                    if (UNLIKE(v->type == type))
                     {
-                        PUSH_STRING_RET(ret, v->data.str);
+                        PUSH_NORMAL_RET(ret, v->data.p);
                     }
                     else if (UNLIKE(v->type == variant::ARRAY ||
-                        v->type == variant::MAP))
+                                    v->type == variant::MAP))
                     {
                         PUSH_ENTRY(ret, v, find);
                     }
@@ -120,9 +132,9 @@ array<void *> gc::get_used_stringele()
     {
         variant * v = ARRAY_BACK(entry);
         ARRAY_POP_BACK(entry);
-        if (LIKE(v->type == variant::STRING))
+        if (LIKE(v->type == type))
         {
-            PUSH_STRING_RET(ret, v->data.str);
+            PUSH_NORMAL_RET(ret, v->data.p);
         }
         else if (UNLIKE(v->type == variant::ARRAY))
         {
@@ -133,9 +145,9 @@ array<void *> gc::get_used_stringele()
                 variant * n = ARRAY_GET(va->va, i);
                 if (LIKE(n != 0))
                 {
-                    if (UNLIKE(n->type == variant::STRING))
+                    if (UNLIKE(n->type == type))
                     {
-                        PUSH_STRING_RET(ret, n->data.str);
+                        PUSH_NORMAL_RET(ret, n->data.str);
                     }
                     else if (UNLIKE(n->type == variant::ARRAY ||
                                     n->type == variant::MAP))
@@ -154,22 +166,22 @@ array<void *> gc::get_used_stringele()
                 const variant *key = &(p->k);
                 const variant *value = *p->t;
 
-                if (UNLIKE(key->type == variant::STRING))
+                if (UNLIKE(key->type == type))
                 {
-                    PUSH_STRING_RET(ret, key->data.str);
+                    PUSH_NORMAL_RET(ret, key->data.p);
                 }
                 else if (UNLIKE(key->type == variant::ARRAY ||
-                                         key->type == variant::MAP))
+                                key->type == variant::MAP))
                 {
                     PUSH_ENTRY(ret, key, find);
                 }
 
-                if (UNLIKE(value->type == variant::STRING))
+                if (UNLIKE(value->type == type))
                 {
-                    PUSH_STRING_RET(ret, value->data.str);
+                    PUSH_NORMAL_RET(ret, value->data.p);
                 }
                 else if (UNLIKE(value->type == variant::ARRAY ||
-                                        value->type == variant::MAP))
+                                value->type == variant::MAP))
                 {
                     PUSH_ENTRY(ret, value, find);
                 }
@@ -179,9 +191,8 @@ array<void *> gc::get_used_stringele()
 
     ARRAY_CLEAR(entry);
 
-    FKLOG("end get_used_stringele %p %u", m_fk, ARRAY_SIZE(ret));
+    FKLOG("end get_used_by_type %p %u", m_fk, ARRAY_SIZE(ret));
 
     return ret;
 }
-
 
