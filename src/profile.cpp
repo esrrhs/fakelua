@@ -25,6 +25,22 @@ void profile::add_code_sample(int code)
 	}
 }
 
+void profile::add_gc_sample(int type, uint32_t calltime)
+{
+    profilefuncele * p = m_gcshh.get(type);
+    if (!p)
+    {
+        profilefuncele tmp;
+        tmp.callnum = 1;
+        tmp.calltime = calltime;
+        m_gcshh.add(type, tmp);
+        return;
+    }
+
+    p->callnum++;
+    p->calltime += calltime;
+}
+
 typedef std::pair<String, profilefuncele> sortele;
 struct profilefuncelesort
 {
@@ -44,6 +60,15 @@ const char * profile::dump()
 	}
 
 	std::sort(sortelevec.begin(), sortelevec.end(), profilefuncelesort());
+
+    std::vector<sortele> gcsortelevec;
+    for (const gchashmap::ele * p = m_gcshh.first(); p != 0; p = m_gcshh.next())
+    {
+        const profilefuncele & ele = *p->t;
+        gcsortelevec.push_back(std::make_pair(get_gc_type_name(p->k), ele));
+    }
+
+    std::sort(gcsortelevec.begin(), gcsortelevec.end(), profilefuncelesort());
 
 	m_dumpstr.clear();
 	
@@ -67,6 +92,25 @@ const char * profile::dump()
 		m_dumpstr += fix_string_wrap(fkitoa(ele.callnum ? ele.calltime / ele.callnum : 0), wraplen);
 		m_dumpstr += "\n";
 	}
+
+    m_dumpstr += "GC:\n";
+    m_dumpstr += "\t";
+    m_dumpstr += fix_string_wrap("Type", wraplen);
+    m_dumpstr += fix_string_wrap("Calls", wraplen);
+    m_dumpstr += fix_string_wrap("TotalTime(ms)", wraplen);
+    m_dumpstr += fix_string_wrap("PerCallTime(ms)", wraplen);
+    m_dumpstr += "\n";
+    for (int i = 0; i < (int)gcsortelevec.size(); i++)
+    {
+        const sortele & se = gcsortelevec[i];
+        const profilefuncele & ele = se.second;
+        m_dumpstr += "\t";
+        m_dumpstr += fix_string_wrap(se.first, wraplen);
+        m_dumpstr += fix_string_wrap(fkitoa(ele.callnum), wraplen);
+        m_dumpstr += fix_string_wrap(fkitoa(ele.calltime), wraplen);
+        m_dumpstr += fix_string_wrap(fkitoa(ele.callnum ? ele.calltime / ele.callnum : 0), wraplen);
+        m_dumpstr += "\n";
+    }
 
 	m_dumpstr += "Code Num:\n";
 	for (int i = 0; i < OPCODE_MAX; i++)
