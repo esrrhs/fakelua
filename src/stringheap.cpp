@@ -129,7 +129,7 @@ void stringheap::gc()
 
     int end = m_shh.size();
 
-    FKLOG("stringheap gc from %d to %d", m_fk, before, end);
+    FKLOG("stringheap %p gc from %d to %d", m_fk, before, end);
 }
 
 const char * stringheap::dump()
