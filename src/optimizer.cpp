@@ -7,6 +7,10 @@ optimizer::optimizer(fake * fk)
 	m_isopt = false;
 }
 
+optimizer::~optimizer()
+{
+}
+
 void optimizer::clear()
 {
 	m_isopt = false;

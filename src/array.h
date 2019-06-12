@@ -13,7 +13,8 @@ struct array
 	char m_recurflag;
 };
 
-#define ARRAY_DELETE(array) safe_fkfree((array).m_fk, (array).m_data)
+#define ARRAY_DELETE(array) safe_fkfree((array).m_fk, (array).m_data); \
+    (array).m_data = 0
 #define ARRAY_CLEAR(array) (array).m_size = 0
 #define ARRAY_DEEP_CLEAR(array, T) (array).m_size = 0;\
 	memset((array).m_data, 0, (array).m_max_size * sizeof(T))

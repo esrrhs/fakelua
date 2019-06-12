@@ -15,7 +15,6 @@ public:
 	}
 	force_inline ~machine()
 	{
-		clear();
 	}
 
 	force_inline void clear()

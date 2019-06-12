@@ -10,8 +10,6 @@ struct running
 	}
 	~running()
 	{
-		clear();
-		ARRAY_DELETE(curprocessor);
 	}
 	void clear()
 	{
@@ -20,6 +18,7 @@ struct running
 		cur_runinginfo.clear();
 		stepmod = false;
 		curcode.clear();
+        ARRAY_DELETE(curprocessor);
 	}
 
 	fake * m_fk;

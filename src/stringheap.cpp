@@ -104,7 +104,7 @@ void stringheap::gc()
         ARRAY_BACK(m_todelete) = n;
     }
 
-    ARRAY_DELETE(used);
+    ARRAY_CLEAR(used);
 
     for (int i = 0; i < (int)ARRAY_SIZE(m_todelete); i++)
     {

@@ -13,23 +13,6 @@ container::container(fake * fk) : m_fk(fk), m_gm(0)
 
 container::~container()
 {
-	clear();
-	
-	{
-		POOLLIST_DELETE(m_va_pl, variant_array, VARIANT_ARRAY_DELETE(*n));
-		POOLLIST_DELETE(m_vm_pl, variant_map, VARIANT_MAP_DELETE(*n));
-		POOLLIST_DELETE(m_v_pl, variant, USE(n));
-	}
-	
-	{
-		POOLLIST_CLEAR(m_cva_pl, variant_array, ARRAY_DEEP_CLEAR(n->va, variant_array *));
-		POOLLIST_CLEAR(m_cvm_pl, variant_map, HASHMAP_CLEAR(n->vm));
-		POOLLIST_CLEAR(m_cv_pl, variant, USE(n));
-		
-		POOLLIST_DELETE(m_cva_pl, variant_array, VARIANT_ARRAY_DELETE(*n));
-		POOLLIST_DELETE(m_cvm_pl, variant_map, VARIANT_MAP_DELETE(*n));
-		POOLLIST_DELETE(m_cv_pl, variant, USE(n));
-	}
 }
 
 void container::clear()
@@ -37,6 +20,22 @@ void container::clear()
 	POOLLIST_CLEAR(m_va_pl, variant_array, ARRAY_DEEP_CLEAR(n->va, variant_array *));
 	POOLLIST_CLEAR(m_vm_pl, variant_map, HASHMAP_CLEAR(n->vm));
 	POOLLIST_CLEAR(m_v_pl, variant, USE(n));
+
+    {
+        POOLLIST_DELETE(m_va_pl, variant_array, VARIANT_ARRAY_DELETE(*n));
+        POOLLIST_DELETE(m_vm_pl, variant_map, VARIANT_MAP_DELETE(*n));
+        POOLLIST_DELETE(m_v_pl, variant, USE(n));
+    }
+
+    {
+        POOLLIST_CLEAR(m_cva_pl, variant_array, ARRAY_DEEP_CLEAR(n->va, variant_array *));
+        POOLLIST_CLEAR(m_cvm_pl, variant_map, HASHMAP_CLEAR(n->vm));
+        POOLLIST_CLEAR(m_cv_pl, variant, USE(n));
+
+        POOLLIST_DELETE(m_cva_pl, variant_array, VARIANT_ARRAY_DELETE(*n));
+        POOLLIST_DELETE(m_cvm_pl, variant_map, VARIANT_MAP_DELETE(*n));
+        POOLLIST_DELETE(m_cv_pl, variant, USE(n));
+    }
 }
 
 variant_array * container::newarray()

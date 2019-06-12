@@ -7,7 +7,6 @@ pointerheap::pointerheap(fake * fk) : m_fk(fk), m_shh(fk)
 
 pointerheap::~pointerheap()
 {
-	clear();
 }
 
 void pointerheap::clear()

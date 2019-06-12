@@ -9,7 +9,6 @@ gc::gc(fake * fk) : m_fk(fk)
 
 gc::~gc()
 {
-	clear();
 }
 
 void gc::clear()

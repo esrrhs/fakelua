@@ -11,7 +11,6 @@ public:
 	}
 	force_inline ~debuging()
 	{
-		clear();
 	}
 
 	force_inline fake * getfake()
