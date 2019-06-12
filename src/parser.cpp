@@ -8,7 +8,6 @@ parser::parser(fake * fk) : m_fk(fk), m_shh(fk)
 
 parser::~parser()
 {
-	clear();
 }
 
 void parser::clear()

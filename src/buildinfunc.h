@@ -30,7 +30,6 @@ public:
 	}
 	force_inline ~buildinfunc()
 	{
-		clear();
 	}
 
 	force_inline fake * getfake()

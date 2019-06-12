@@ -29,7 +29,8 @@ struct opt_ins
 class optimizer
 {
 public:
-	optimizer(fake * fk);
+    optimizer(fake * fk);
+    ~optimizer();
 
 	void clear();
 

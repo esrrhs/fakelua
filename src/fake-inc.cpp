@@ -18,8 +18,8 @@ FAKE_API fake * newfake(fakeconfig * cfg)
 	
 	fake * ret = (fake *)_cfg.fkm(sizeof(fake));
 	memset(ret, 0, sizeof(fake));
+    ret->cfg = _cfg;
 	new (ret) fake();
-	ret->cfg = _cfg;
     ret->bif.openbasefunc();
 	FKLOG("newfake ret %p", ret);
 	return ret;

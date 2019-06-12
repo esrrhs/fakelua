@@ -102,7 +102,11 @@ const char * g_selfname = 0;
 
 int main(int argc, const char *argv[])
 {
-	fake * fk = newfake();
+    fakeconfig cfg;
+#ifdef _DEBUG
+    cfg.check_mem_alloc = true;
+#endif
+	fake * fk = newfake(&cfg);
 
 	// ½âÎö²ÎÊı
 	int parseret = parsearg(fk, argc, argv);

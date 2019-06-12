@@ -49,7 +49,6 @@ public:
 	}
 	force_inline ~native()
 	{
-		clear();
 	}
 
 	force_inline fake * getfake()

@@ -233,7 +233,6 @@ public:
 
 	force_inline ~binary()
 	{
-		clear();
 	}
 
 	force_inline fake * getfake()

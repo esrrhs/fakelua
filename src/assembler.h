@@ -25,7 +25,6 @@ public:
 	}
 	~assembler() 
 	{
-		clear();
 	}
 
 	void clear();

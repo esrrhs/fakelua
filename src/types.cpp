@@ -143,7 +143,7 @@ const char * get_mem_type_name(e_mem_type type)
 void * safe_fkmalloc(fake * fk, size_t size, e_mem_type type)
 {
 	assert(fk && size >= 0);
-	if (UNLIKE(fk->pf.isopen()))
+	if (UNLIKE(fk->cfg.check_mem_alloc))
 	{
 		void * p = fk->cfg.fkm(size);
 		fk->pf.add_mem(p, size, type);
@@ -160,7 +160,7 @@ void safe_fkfree(fake * fk, const void * p)
 	if (LIKE(p != 0))
 	{
 		assert(fk);
-		if (UNLIKE(fk->pf.isopen()))
+		if (UNLIKE(fk->cfg.check_mem_alloc))
 		{
 			fk->pf.dec_mem((void *)p);
 			fk->cfg.fkf((void *)p);

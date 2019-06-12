@@ -31,7 +31,6 @@ public:
 
 	force_inline ~funcmap()
 	{
-		clear();
 	}
 
 	force_inline fake * getfake()

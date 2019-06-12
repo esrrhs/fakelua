@@ -48,6 +48,7 @@ struct fake
 	{
 		clear();
 		POOL_DELETE(pp, processor, PROCESS_DELETE(*n));
+        pf.clear(); // must at end
 	}
 
 	// Çå¿Õ
@@ -64,7 +65,6 @@ struct fake
 		mac.clear();
 		bf.clear();
 		bif.clear();
-		pf.clear();
 		con.clear();
 		fm.clear();
 		rn.clear();
