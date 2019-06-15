@@ -379,11 +379,11 @@ public:
 	{
 		return _add(k);
 	}
-	force_inline bool del(const K & k)
+	force_inline ele * del(const K & k)
 	{
 		if (!m_ele_size)
 		{
-			return false;
+			return 0;
 		}
 
 		// hash
@@ -401,13 +401,14 @@ public:
 				GET_HASHELE(he, i) = GET_HASHELE(he, he.size - 1);
 				GET_HASHELE(he, he.size - 1) = tmp;
 
+                ele * ret = &(GET_HASHELE(he, he.size - 1));
 				he.size--;
 				m_ele_size--;
-				return true;
+				return ret;
 			}
 		}
 
-		return false;
+		return 0;
 	}
 	force_inline ele * get(const K & k) const
 	{
@@ -643,7 +644,7 @@ public:
 		ele tmp;
 		tmp.k = k;
 		typename fkhashset<ele>::ele * e = m_set.get(tmp);
-		if (!e)
+		if (LIKE(!e))
 		{
 			tmp.t = (T*)safe_fkmalloc(m_set.m_fk, sizeof(T), emt_hashmap);
 			*(tmp.t) = t;
@@ -659,7 +660,14 @@ public:
 	{
 		ele tmp;
 		tmp.k = k;
-		return m_set.del(tmp);
+        typename fkhashset<ele>::ele * e = m_set.del(tmp);
+        if (LIKE(e != 0))
+        {
+            safe_fkfree(m_set.m_fk, e->k.t);
+            e->k.t = 0;
+            return true;
+        }
+        return false;
 	}
 	force_inline T * get(const K & k) const
 	{

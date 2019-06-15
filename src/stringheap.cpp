@@ -82,7 +82,7 @@ void stringheap::gc()
 
     int before = m_shh.size();
 
-    array<void *> used = m_fk->g.get_used_stringele();
+    array<void *> & used = m_fk->g.get_used_stringele();
 
     fkhashset<void*> usedset(m_fk);
     for (int i = 0; LIKE(i < (int)ARRAY_SIZE(used)); i++)
@@ -115,8 +115,6 @@ void stringheap::gc()
         ARRAY_BACK(m_todelete) = n;
     }
 
-    ARRAY_CLEAR(used);
-
     for (int i = 0; i < (int)ARRAY_SIZE(m_todelete); i++)
     {
         stringele * e = ARRAY_GET(m_todelete, i);
@@ -124,6 +122,7 @@ void stringheap::gc()
         safe_fkfree(m_fk, e);
     }
 
+    ARRAY_CLEAR(used);
     ARRAY_CLEAR(m_todelete);
     m_dumpstr.clear();
 

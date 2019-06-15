@@ -172,7 +172,7 @@ struct fakeconfig
                    check_mem_alloc(false),
                    per_frame_cmd_num(10),
                    array_grow_speed(50),
-                   gc_grow_speed(50),
+                   gc_grow_speed(100),
                    include_deps(100),
                    stack_max(10000)
     {}
