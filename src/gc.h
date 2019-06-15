@@ -18,8 +18,8 @@ public:
 
 	const char * dump();
 
-    array<void *> get_used_stringele();
-    array<void *> get_used_pointer();
+    array<void *> & get_used_stringele();
+    array<void *> & get_used_pointer();
 private:
     array<void *> & get_used_by_type(int type);
 private:

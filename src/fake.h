@@ -40,7 +40,7 @@
 
 struct fake
 {
-	fake() : errorno(0), errorcb(0), pa(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this), dbg(this), ph(this), opt(this), g(this)
+	fake(fakeconfig c) : errorno(0), errorcb(0), cfg(c), pa(this), bin(this), nt(this), as(this, &nt), sh(this), mac(this), bf(this), bif(this), pf(this), con(this), fm(this), rn(this), dbg(this), ph(this), opt(this), g(this)
 	{
 		POOL_INI(pp, this);
 	}

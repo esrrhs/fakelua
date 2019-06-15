@@ -61,13 +61,13 @@ const char * gc::dump()
         FKLOG("PUSH_ENTRY %p looped %s %s", m_fk, vartypetostring((v)->type), vartostring(v).c_str()); \
     }
 
-array<void *> gc::get_used_stringele()
+array<void *> & gc::get_used_stringele()
 {
     array<void *> & ret = get_used_by_type(variant::STRING);
     return ret;
 }
 
-array<void *> gc::get_used_pointer()
+array<void *> & gc::get_used_pointer()
 {
     array<void *> & ret = get_used_by_type(variant::POINTER);
     return ret;

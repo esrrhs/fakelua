@@ -60,7 +60,7 @@ void pointerheap::checkgc(bool force)
 
         if (m_fk->pf.isopen())
         {
-            m_fk->pf.add_gc_sample(egt_string, fkgetmstick() - s);
+            m_fk->pf.add_gc_sample(egt_pointer, fkgetmstick() - s);
         }
 
         m_last_gc_size = m_shh.size();
@@ -73,7 +73,7 @@ void pointerheap::gc()
 
     int before = m_shh.size();
 
-    array<void *> used = m_fk->g.get_used_pointer();
+    array<void *> & used = m_fk->g.get_used_pointer();
 
     fkhashset<void*> usedset(m_fk);
     for (int i = 0; LIKE(i < (int)ARRAY_SIZE(used)); i++)
@@ -101,15 +101,14 @@ void pointerheap::gc()
         ARRAY_BACK(m_todelete) = n;
     }
 
-    ARRAY_CLEAR(used);
-
     for (int i = 0; i < (int)ARRAY_SIZE(m_todelete); i++)
     {
         pointerele * e = ARRAY_GET(m_todelete, i);
-        m_shh.del(e);
-        safe_fkfree(m_fk, e);
+        safe_fkfree(m_fk, e->type);
+        m_shh.del(e->ptr);
     }
 
+    ARRAY_CLEAR(used);
     ARRAY_CLEAR(m_todelete);
     m_dumpstr.clear();
 
