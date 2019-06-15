@@ -268,17 +268,7 @@ public:
 	}
 	force_inline ~fkhashset()
 	{
-		// Çåµô¾ÉµÄ
-		for (int i = 0; i < m_hashele_size; i++)
-		{
-			hashele & he = m_hashele[i];
-			for (int j = 0; j < he.maxsize; j++)
-			{
-				fkkeydel(m_fk, GET_HASHELE(he, j).k);
-			}
-			safe_fkfree(m_fk, he.overflow);
-		}
-		safe_fkfree(m_fk, m_hashele);
+        clear();
 	}
 	force_inline void clear()
 	{
@@ -286,11 +276,23 @@ public:
 		for (int i = 0; i < m_hashele_size; i++)
 		{
 			hashele & he = m_hashele[i];
-			he.size = 0;
+            for (int j = 0; j < he.size; j++)
+            {
+                fkkeydel(m_fk, GET_HASHELE(he, j).k);
+            }
+            safe_fkfree(m_fk, he.overflow);
+            he.size = 0;
+            he.maxsize = 0;
+            he.overflow = 0;
 		}
+        safe_fkfree(m_fk, m_hashele);
+		m_hashele = 0;
+		m_hashele_size = 0;
 		m_ele_size = 0;
-		m_hashele_iter = 0;
-		m_ele_iter = 0;
+		m_grow_times = 0;
+        m_hashele_iter = 0;
+        m_ele_iter = 0;
+        m_recurflag = 0;
 	}
 	force_inline size_t size() const
 	{
@@ -396,12 +398,15 @@ public:
 			ele & e = GET_HASHELE(he, i);
 			if (LIKE(e.hv == hv && fkkeycmp(e.k, k)))
 			{
+                fkkeydel(m_fk, GET_HASHELE(he, i).k);
+
 				// swap
 				ele tmp = GET_HASHELE(he, i);
 				GET_HASHELE(he, i) = GET_HASHELE(he, he.size - 1);
 				GET_HASHELE(he, he.size - 1) = tmp;
 
                 ele * ret = &(GET_HASHELE(he, he.size - 1));
+
 				he.size--;
 				m_ele_size--;
 				return ret;
@@ -593,17 +598,18 @@ public:
 	}
 	force_inline ~fkhashmap()
 	{
-		for (int i = 0; i < m_set.m_hashele_size; i++)
-		{
-			typename fkhashset<ele>::hashele & he = m_set.m_hashele[i];
-			for (int j = 0; j < he.maxsize; j++)
-			{
-				safe_fkfree(m_set.m_fk, GET_HASHELE(he, j).k.t);
-			}
-		}
+        clear();
 	}
 	force_inline void clear()
 	{
+        for (int i = 0; i < m_set.m_hashele_size; i++)
+        {
+            typename fkhashset<ele>::hashele & he = m_set.m_hashele[i];
+            for (int j = 0; j < he.size; j++)
+            {
+                safe_fkfree(m_set.m_fk, GET_HASHELE(he, j).k.t);
+            }
+        }
 		m_set.clear();
 	}
 	force_inline size_t size() const
@@ -664,7 +670,6 @@ public:
         if (LIKE(e != 0))
         {
             safe_fkfree(m_set.m_fk, e->k.t);
-            e->k.t = 0;
             return true;
         }
         return false;
