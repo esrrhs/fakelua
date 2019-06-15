@@ -19,9 +19,9 @@ void gc::clear()
 
 void gc::check(bool forcegc)
 {
+    m_fk->con.checkgc(forcegc);
     m_fk->sh.checkgc(forcegc);
     m_fk->ph.checkgc(forcegc);
-    // TODO
 }
 
 const char * gc::dump()
@@ -281,6 +281,8 @@ array<void *> & gc::get_used_container()
                 continue;
             }
 
+            PUSH_RET(ret, va);
+
             for (int i = 0; LIKE(i < (int)va->va.m_max_size); ++i)
             {
                 variant * n = ARRAY_GET(va->va, i);
@@ -293,7 +295,7 @@ array<void *> & gc::get_used_container()
                     }
                     else
                     {
-                        PUSH_RET(ret, n->data.str);
+                        PUSH_RET(ret, n);
                     }
                 }
             }
@@ -307,6 +309,8 @@ array<void *> & gc::get_used_container()
                 continue;
             }
 
+            PUSH_RET(ret, vm);
+
             for (const fkhashmap<variant, variant *>::ele * p = vm->vm.first(); p != 0; p = vm->vm.next())
             {
                 const variant *key = &(p->k);
@@ -319,7 +323,7 @@ array<void *> & gc::get_used_container()
                 }
                 else
                 {
-                    PUSH_RET(ret, key->data.p);
+                    PUSH_RET(ret, key);
                 }
 
                 if (UNLIKE(value->type == variant::ARRAY ||
@@ -330,7 +334,7 @@ array<void *> & gc::get_used_container()
                 else
                 {
 
-                    PUSH_RET(ret, value->data.p);
+                    PUSH_RET(ret, value);
                 }
             }
         }

@@ -186,7 +186,9 @@ String fkget_token_name(int token);
 enum e_mem_type
 {
 	emt_tmp,
-	emt_array,
+    emt_array,
+	emt_map,
+    emt_variant,
 	emt_func_binary,
 	emt_buffer,
 	emt_hashmap,
@@ -195,8 +197,6 @@ enum e_mem_type
 	emt_flexer,
 	emt_pool,
 	emt_string,
-	emt_native,
-	emt_stringheap,
 	emt_hashstring,
 	emt_stringele,
 	emt_max,
@@ -365,6 +365,7 @@ enum e_gc_type
 {
     egt_string,
     egt_pointer,
+    egt_container,
     egt_max
 };
 
