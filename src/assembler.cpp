@@ -38,7 +38,12 @@ bool assembler::compile(binary * bin)
 	FKLOG("[assembler] compile binary %p", bin);
 
 #ifndef FK64
-	// 32位目前不支持
+	// 32位不支持
+	return true;
+#endif
+
+#ifdef __MINGW64__
+    // MINGW不支持
 	return true;
 #endif
 
