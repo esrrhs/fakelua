@@ -200,6 +200,102 @@ force_inline String fkkeytostr(stringele * const & k)
 	return k->s;
 }
 
+// 特化
+template <>
+force_inline uint64_t fkkeyhash(variant * const & k)
+{
+    MarshallPoiner tmp;
+    tmp.p = k;
+    return tmp.i;
+}
+
+template <>
+force_inline bool fkkeycmp(variant * const & lk, variant * const & rk)
+{
+    return lk == rk;
+}
+
+template <>
+force_inline variant * fkkeycpy(fake * fk, variant * const & ok, variant * const & k)
+{
+    return k;
+}
+
+template <>
+force_inline void fkkeydel(fake * fk, variant * const & k)
+{
+}
+
+template <>
+force_inline String fkkeytostr(variant * const & k)
+{
+    return fkptoa(k);
+}
+
+// 特化
+template <>
+force_inline uint64_t fkkeyhash(variant_array * const & k)
+{
+    MarshallPoiner tmp;
+    tmp.p = k;
+    return tmp.i;
+}
+
+template <>
+force_inline bool fkkeycmp(variant_array * const & lk, variant_array * const & rk)
+{
+    return lk == rk;
+}
+
+template <>
+force_inline variant_array * fkkeycpy(fake * fk, variant_array * const & ok, variant_array * const & k)
+{
+    return k;
+}
+
+template <>
+force_inline void fkkeydel(fake * fk, variant_array * const & k)
+{
+}
+
+template <>
+force_inline String fkkeytostr(variant_array * const & k)
+{
+    return fkptoa(k);
+}
+
+// 特化
+template <>
+force_inline uint64_t fkkeyhash(variant_map * const & k)
+{
+    MarshallPoiner tmp;
+    tmp.p = k;
+    return tmp.i;
+}
+
+template <>
+force_inline bool fkkeycmp(variant_map * const & lk, variant_map * const & rk)
+{
+    return lk == rk;
+}
+
+template <>
+force_inline variant_map * fkkeycpy(fake * fk, variant_map * const & ok, variant_map * const & k)
+{
+    return k;
+}
+
+template <>
+force_inline void fkkeydel(fake * fk, variant_map * const & k)
+{
+}
+
+template <>
+force_inline String fkkeytostr(variant_map * const & k)
+{
+    return fkptoa(k);
+}
+
 template <typename K, typename T>
 struct fkhashmapele
 {

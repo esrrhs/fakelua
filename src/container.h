@@ -56,20 +56,28 @@ public:
 	size_t get_carray_size() const;
 	size_t get_cvariant_size() const;
 
+    void checkgc(bool force);
+
+private:
+    void gc();
+
 private:
 	fake * m_fk;
-	poollist<variant_array> m_va_pl;
-	
-	poollist<variant_map> m_vm_pl;
-	
-	poollist<variant> m_v_pl;
-	
-	poollist<variant_array> m_cva_pl;
-	
-	poollist<variant_map> m_cvm_pl;
-	
-	poollist<variant> m_cv_pl;
-
     variant_map * m_gm;
+    size_t m_last_gc_size;
+
+	fkhashset<variant_array *> m_va_pl;
+
+    fkhashset<variant_map *> m_vm_pl;
+
+    fkhashset<variant *> m_v_pl;
+
+    fkhashset<variant_array *> m_cva_pl;
+
+    fkhashset<variant_map *> m_cvm_pl;
+
+    fkhashset<variant *> m_cv_pl;
+
+    array<void *> m_todelete;
 };
 
