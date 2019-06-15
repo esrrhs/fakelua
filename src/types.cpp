@@ -559,12 +559,16 @@ const fakeconfig & get_fakeconfig(fake * fk)
 
 void * fk_mmap_alloc(size_t size)
 {
+#ifndef __MINGW64__
 	return (char*)mmap(0, size, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+#endif
 }
 
 void fk_mmap_set_exec(void * buff, size_t size)
 {
+#ifndef __MINGW64__
 	mprotect(buff, size, PROT_READ | PROT_EXEC);
+#endif
 }
 
 const char * get_gc_type_name(int type)

@@ -2,8 +2,9 @@
 
 #include "types.h"
 #include "hashmap.h"
+#ifndef __MINGW64__
 #include <sys/mman.h>
-
+#endif
 
 struct func_native
 {
@@ -21,9 +22,10 @@ struct func_native
 	mutable func_native * m_backup;
 };
 
+#ifndef __MINGW64__
+
 #define FUNC_NATIVE_INI(fn) \
 	memset(&(fn), 0, sizeof(func_native))
-
 
 #define FUNC_NATIVE_CODE_FREE(fn) munmap((fn).m_buff, (fn).m_size);
 
@@ -40,6 +42,11 @@ struct func_native
 		FUNC_NATIVE_CODE_FREE(*((fn).m_backup)); \
 	} \
 	safe_fkfree(m_fk, (fn).m_backup)
+#else
+#define FUNC_NATIVE_INI(fn)
+#define FUNC_NATIVE_CODE_FREE(fn)
+#define FUNC_NATIVE_DELETE(fn)
+#endif
 
 class native
 {

@@ -52,13 +52,13 @@ const char * gc::dump()
             ARRAY_GROW(entry, newsize, variant *); \
         } \
         ARRAY_PUSH_BACK(entry); \
-        ARRAY_BACK(entry) = (variant*)v; \
-        find.add((void*)v); \
-        FKLOG("PUSH_ENTRY %p add %s %s", m_fk, vartypetostring(v->type), vartostring(v).c_str()); \
+        ARRAY_BACK(entry) = (variant*)(v); \
+        find.add((void*)(v)); \
+        FKLOG("PUSH_ENTRY %p add %s %s", m_fk, vartypetostring((v)->type), vartostring(v).c_str()); \
     } \
     else \
     { \
-        FKLOG("PUSH_ENTRY %p looped %s %s", m_fk, vartypetostring(v->type), vartostring(v).c_str()); \
+        FKLOG("PUSH_ENTRY %p looped %s %s", m_fk, vartypetostring((v)->type), vartostring(v).c_str()); \
     }
 
 array<void *> gc::get_used_stringele()
@@ -127,6 +127,11 @@ array<void *> & gc::get_used_by_type(int type)
 
         }
     }
+
+    variant_map * m = m_fk->con.newgmap();
+    variant v;
+    V_SET_MAP(&v, m);
+    PUSH_ENTRY(ret, &v, find);
 
     while (UNLIKE(!ARRAY_EMPTY(entry)))
     {

@@ -128,7 +128,7 @@ void buildin_map(fake * fk, interpreter * inter)
 void buildin_gmap(fake * fk, interpreter * inter)
 {
     bool err = false;
-    variant_map * m = fk->con.newmap();
+    variant_map * m = fk->con.newgmap();
     variant * v = 0;
     PS_PUSH_AND_GET(fk->ps, v);
     V_SET_MAP(v, m);

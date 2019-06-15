@@ -3,8 +3,9 @@
 #include "myflexer.h"
 #include "fake.h"
 #include "variant.h"
+#ifndef __MINGW64__
 #include <sys/mman.h>
-
+#endif
 void asmgen::output(const char * filename, const char * packagename, const char * name, func_native * nt)
 {
 	nt->m_name = stringdump(m_fk, name, strlen(name));
