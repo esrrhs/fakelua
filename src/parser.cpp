@@ -21,7 +21,7 @@ void parser::clear()
 bool parser::parsestr(const char * str)
 {
 	fake * fk = m_fk;
-	
+
 	FKLOG("parsestr %p %s", fk, str);
 
 	// Çå¿Õ´íÎó
