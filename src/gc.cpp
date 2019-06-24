@@ -94,6 +94,10 @@ array<void *> & gc::get_used_by_type(int type)
         for (int j = 0; LIKE(j < (int)ARRAY_SIZE(pro->m_pl.l)); j++)
         {
             routine * n = ARRAY_GET(pro->m_pl.l, j);
+            if (UNLIKE(!n))
+            {
+                continue;
+            }
 
             int bp = n->m_interpreter.m_bp;
             const func_binary * fb = n->m_interpreter.m_fb;
@@ -297,10 +301,7 @@ array<void *> & gc::get_used_container()
                     {
                         PUSH_ENTRY(ret, n, find);
                     }
-                    else
-                    {
-                        PUSH_RET(ret, n);
-                    }
+                    PUSH_RET(ret, n);
                 }
             }
         }
@@ -325,26 +326,19 @@ array<void *> & gc::get_used_container()
                 {
                     PUSH_ENTRY(ret, key, find);
                 }
-                else
-                {
-                    PUSH_RET(ret, key);
-                }
+                PUSH_RET(ret, key);
 
                 if (UNLIKE(value->type == variant::ARRAY ||
                                 value->type == variant::MAP))
                 {
                     PUSH_ENTRY(ret, value, find);
                 }
-                else
-                {
-
-                    PUSH_RET(ret, value);
-                }
+                PUSH_RET(ret, value);
             }
         }
         else
         {
-            PUSH_RET(ret, v);
+            assert(0);
         }
     }
 
