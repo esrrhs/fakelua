@@ -232,6 +232,10 @@ array<void *> & gc::get_used_container()
         for (int j = 0; LIKE(j < (int)ARRAY_SIZE(pro->m_pl.l)); j++)
         {
             routine * n = ARRAY_GET(pro->m_pl.l, j);
+            if (UNLIKE(!n))
+            {
+                continue;
+            }
 
             int bp = n->m_interpreter.m_bp;
             const func_binary * fb = n->m_interpreter.m_fb;
