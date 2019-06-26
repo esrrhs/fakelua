@@ -1,21 +1,26 @@
 #include "parser.h"
 #include "fake.h"
 
-parser::parser(fake * fk) : m_fk(fk), m_shh(fk)
+parser::parser(fake * fk) : m_fk(fk), m_shh(fk), m_parse_dep(0)
 {
-	clear();
 }
 
 parser::~parser()
 {
 }
 
+void parser::reset()
+{
+    m_parsing_file_list.clear();
+    m_parsing_file_list_str.clear();
+    m_parse_dep = 0;
+    // m_shhÓÀ¾Ã´æÔÚ
+}
+
 void parser::clear()
 {
-	m_parsing_file_list.clear();
-	m_parsing_file_list_str.clear();
-	m_parse_dep = 0;
-	// m_shhÓÀ¾Ã´æÔÚ
+    reset();
+    m_shh.clear();
 }
 
 bool parser::parsestr(const char * str)
