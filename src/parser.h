@@ -18,7 +18,8 @@ public:
 	parser(fake * fk);
 	~parser();
 
-	void clear();
+    void clear();
+    void reset();
 
 	bool parse(const char * filename);
 	bool parsestr(const char * str);

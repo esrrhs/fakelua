@@ -34,7 +34,7 @@ FAKE_API void delfake(fake * fk)
 // ½âÎöÎÄ¼ş
 FAKE_API bool fkparse(fake * fk, const char * filename)
 {
-	fk->pa.clear();
+	fk->pa.reset();
 	return fk->pa.parse(filename);
 }
 
