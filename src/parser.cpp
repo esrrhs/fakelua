@@ -1,7 +1,7 @@
 #include "parser.h"
 #include "fake.h"
 
-parser::parser(fake * fk) : m_fk(fk), m_shh(fk), m_parse_dep(0)
+parser::parser(fake * fk) : m_fk(fk), m_parse_dep(0), m_shh(fk)
 {
 }
 
