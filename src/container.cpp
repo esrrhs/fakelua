@@ -252,6 +252,9 @@ void container::gc()
     int before = m_v_pl.size();
     int beforeva = m_va_pl.size();
     int beforevm = m_vm_pl.size();
+    USE(before);
+    USE(beforeva);
+    USE(beforevm);
 
     ////////////////////////////////////////////////////////////
 
