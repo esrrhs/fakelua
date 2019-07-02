@@ -279,6 +279,7 @@ void container::gc()
     {
         void * e = ARRAY_GET(m_todelete, i);
         m_v_pl.del((variant *)e);
+        FKLOG("container del variant %p %s", e, vartostring((variant*)e).c_str());
         safe_fkfree(m_fk, e);
     }
 
