@@ -398,6 +398,7 @@ public:
 	{
 		return m_ele_size == 0;
 	}
+	// 小心循环内重入遍历的bug
 	force_inline ele * first()
 	{
 		for (m_hashele_iter = 0; m_hashele_iter < m_hashele_size; m_hashele_iter++)
@@ -411,6 +412,7 @@ public:
 		}
 		return 0;
 	}
+    // 小心循环内重入遍历的bug
 	force_inline const ele * first() const
 	{
 		for (m_hashele_iter = 0; m_hashele_iter < m_hashele_size; m_hashele_iter++)
@@ -716,11 +718,13 @@ public:
 	{
 		return m_set.empty();
 	}
+    // 小心循环内重入遍历的bug
 	force_inline ele * first()
 	{
 		typename fkhashset<ele>::ele * e = m_set.first();
 		return e ? &e->k : 0;
 	}
+    // 小心循环内重入遍历的bug
 	force_inline const ele * first() const
 	{
 		const typename fkhashset<ele>::ele * e = m_set.first();

@@ -40,7 +40,7 @@ const char * gc::dump()
     ARRAY_PUSH_BACK(ret); \
     ARRAY_BACK(ret) = (void *)ss; \
     \
-    FKLOG("PUSH_RET %p add string %s", m_fk, v->data.str->s);
+    FKLOG("PUSH_RET %p add %p", m_fk, ss);
 
 
 #define PUSH_ENTRY(ret, v, find) \
@@ -54,11 +54,11 @@ const char * gc::dump()
         ARRAY_PUSH_BACK(entry); \
         ARRAY_BACK(entry) = (variant*)(v); \
         find.add((void*)(v)); \
-        FKLOG("PUSH_ENTRY %p add %s %s", m_fk, vartypetostring((v)->type), vartostring(v).c_str()); \
+        FKLOG("PUSH_ENTRY %p %p add", m_fk, v); \
     } \
     else \
     { \
-        FKLOG("PUSH_ENTRY %p looped %s %s", m_fk, vartypetostring((v)->type), vartostring(v).c_str()); \
+        FKLOG("PUSH_ENTRY %p %p looped", m_fk, v); \
     }
 
 array<void *> & gc::get_used_stringele()
@@ -279,6 +279,7 @@ array<void *> & gc::get_used_container()
     {
         variant * v = ARRAY_BACK(entry);
         ARRAY_POP_BACK(entry);
+        FKLOG("POP_ENTRY %p %p", m_fk, v);
 
         if (UNLIKE(v->type == variant::ARRAY))
         {
@@ -302,6 +303,7 @@ array<void *> & gc::get_used_container()
                         PUSH_ENTRY(ret, n, find);
                     }
                     PUSH_RET(ret, n);
+                    FKLOG("get_used_container add variant %p", n);
                 }
             }
         }
@@ -316,6 +318,7 @@ array<void *> & gc::get_used_container()
 
             PUSH_RET(ret, vm);
 
+            FKLOG("get_used_container map %p start loop size %d", v, vm->vm.size());
             for (const fkhashmap<variant, variant *>::ele * p = vm->vm.first(); p != 0; p = vm->vm.next())
             {
                 const variant *key = &(p->k);
@@ -327,6 +330,7 @@ array<void *> & gc::get_used_container()
                     PUSH_ENTRY(ret, key, find);
                 }
                 PUSH_RET(ret, key);
+                FKLOG("get_used_container add variant %p", key);
 
                 if (UNLIKE(value->type == variant::ARRAY ||
                                 value->type == variant::MAP))
@@ -334,7 +338,9 @@ array<void *> & gc::get_used_container()
                     PUSH_ENTRY(ret, value, find);
                 }
                 PUSH_RET(ret, value);
+                FKLOG("get_used_container add variant %p", value);
             }
+            FKLOG("get_used_container map %p end loop size %d", v, vm->vm.size());
         }
         else
         {
