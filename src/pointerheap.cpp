@@ -72,6 +72,7 @@ void pointerheap::gc()
     ARRAY_CLEAR(m_todelete);
 
     int before = m_shh.size();
+    USE(before);
 
     array<void *> & used = m_fk->g.get_used_pointer();
 
@@ -113,6 +114,7 @@ void pointerheap::gc()
     m_dumpstr.clear();
 
     int end = m_shh.size();
+    USE(end);
 
     FKLOG("pointerheap %p gc from %d to %d", m_fk, before, end);
 }

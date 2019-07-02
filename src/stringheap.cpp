@@ -81,6 +81,7 @@ void stringheap::gc()
     ARRAY_CLEAR(m_todelete);
 
     int before = m_shh.size();
+    USE(before);
 
     array<void *> & used = m_fk->g.get_used_stringele();
 
@@ -127,6 +128,7 @@ void stringheap::gc()
     m_dumpstr.clear();
 
     int end = m_shh.size();
+    USE(end);
 
     FKLOG("stringheap %p gc from %d to %d", m_fk, before, end);
 }
