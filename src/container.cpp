@@ -351,6 +351,9 @@ void container::gc()
     int end = m_v_pl.size();
     int endva = m_va_pl.size();
     int endvm = m_vm_pl.size();
+    USE(end);
+    USE(endva);
+    USE(endvm);
 
     FKLOG("container %p gc from %d %d %d to %d %d %d", m_fk, before, beforeva, beforevm, end, endva, endvm);
 }
