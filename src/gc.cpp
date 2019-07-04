@@ -329,8 +329,6 @@ array<void *> & gc::get_used_container()
                 {
                     PUSH_ENTRY(ret, key, find);
                 }
-                PUSH_RET(ret, key);
-                FKLOG("get_used_container add variant %p", key);
 
                 if (UNLIKE(value->type == variant::ARRAY ||
                                 value->type == variant::MAP))
