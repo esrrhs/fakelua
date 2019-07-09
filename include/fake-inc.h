@@ -170,7 +170,7 @@ struct fakeconfig
 {
 	fakeconfig() : fkm(&malloc), fkf(&free),
                    check_mem_alloc(false),
-                   per_frame_cmd_num(10),
+                   per_frame_cmd_num(100),
                    array_grow_speed(50),
                    gc_grow_speed(100),
                    include_deps(100),
