@@ -1,0 +1,18 @@
+
+func main()
+
+	var a = loop(10 * 10000000)
+	print(a)
+
+	return a	
+	
+end
+
+func loop(n)
+	var count = 0
+	for var i = 2 -> n, 1 then
+		count++
+	end
+	return count
+end
+
