@@ -1,9 +1,5 @@
 #! /bin/sh
 
-echo "fake loop"
-time ../bin/fakebin loop.fk
-echo "------------"
-
 echo "lua loop"
 time lua loop.lua
 echo "------------"
@@ -12,8 +8,12 @@ echo "python loop"
 time python loop.py
 echo "------------"
 
-echo "fake prime"
-time ../bin/fakebin prime.fk
+echo "fake loop"
+time ../bin/fakebin loop.fk
+echo "------------"
+
+echo "fake JIT loop"
+time ../bin/fakebin -j loop.fk
 echo "------------"
 
 echo "lua prime"
@@ -22,4 +22,12 @@ echo "------------"
 
 echo "python prime"
 time python prime.py
+echo "------------"
+
+echo "fake prime"
+time ../bin/fakebin prime.fk
+echo "------------"
+
+echo "fake JIT prime"
+time ../bin/fakebin -j prime.fk
 echo "------------"
