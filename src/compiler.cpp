@@ -220,6 +220,16 @@ bool compiler::compile_node(codegen & cg, syntree_node * node)
 			}
 		}
 		break;
+	case est_for_loop_stmt:
+        {
+            for_loop_stmt * fs = dynamic_cast<for_loop_stmt *>(node);
+            if (!compile_for_loop_stmt(cg, fs))
+            {
+                FKERR("[compiler] compile_node for_stmt error %d %s", type, node->gettypename());
+                return false;
+            }
+        }
+        break;
 	case est_multi_assign_stmt:
 		{
 			multi_assign_stmt * as = dynamic_cast<multi_assign_stmt *>(node);
@@ -1274,6 +1284,17 @@ bool compiler::compile_math_expr_node(codegen & cg, math_expr_node * mn)
 	FKLOG("[compiler] compile_math_expr_node %p OK", mn);
 	
 	return true;
+}
+
+bool compiler::compile_for_loop_stmt(codegen & cg, for_loop_stmt * fs)
+{
+    FKLOG("[compiler] compile_for_loop_stmt %p", fs);
+
+    // TODO
+
+    FKLOG("[compiler] compile_for_loop_stmt %p OK", mn);
+
+    return true;
 }
 
 bool compiler::compile_for_stmt(codegen & cg, for_stmt * fs)
