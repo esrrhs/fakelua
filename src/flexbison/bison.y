@@ -138,6 +138,7 @@ int my_yyerror(const char *s, void * parm)
 %type<syntree> return_value
 %type<syntree> return_value_list
 %type<syntree> explicit_value
+%type<syntree> for_loop_value
 %type<syntree> variable
 %type<syntree> arg_expr
 %type<syntree> expr
