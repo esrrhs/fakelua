@@ -1,45 +1,34 @@
 # fakescript
 
-[![Author](https://img.shields.io/badge/author-errhrs-blue.svg?style=flat)](https://github.com/esrrhs/fakescript) [![Platform](https://img.shields.io/badge/platform-Linux,%20Windows-green.svg?style=flat)](https://github.com/esrrhs/fakescript)[![Script](https://img.shields.io/badge/embed-script-pink.svg?style=flat)](https://github.com/esrrhs/fakescript) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000?style=flat)](LICENSE)
+[![Author](https://img.shields.io/badge/Author-esrrhs-yellowgreen.svg)](https://github.com/esrrhs/fakescript) [![Platform](https://img.shields.io/badge/Platform-Linux%2CMac-green.svg)](https://github.com/esrrhs/fakescript)[![Script](https://img.shields.io/badge/embed-script-pink.svg?style=flat)](https://github.com/esrrhs/fakescript) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000?style=flat)](LICENSE)
 
 Lightweight embedded scripting language
 
 ## Brief introduction
-**fakescript** is a lightweight embedded scripting language , using c ++ language, grammar lessons from lua, golang, erlang, based on flex, bison generative grammar tree , compiled into byte code interpreted. Compared with lua, comparable speed , easier to use , more readable source code
+**fakescript** is a lightweight embedded scripting language , using c ++ language, grammar lessons from lua, golang, erlang, based on flex, bison generative grammar tree , compiled into byte code interpreted. 
 
 ## Script feature
-* The syntax is similar to lua
-* All function
-* Support array, map, unlimited nested
-* Support generating routine like fake testfunc (param1), to achieve the effect of multithreading(JIT no support)
-* Support binding C functions and class member functions
-* With interpreter, support JIT
-* Support multi return value
-* Support profile, can get the script running time of each function
-* Support hot update
+* Operating environment linux amd64, MacOS amd64
+* Support VM, JIT
+* Support fake testfunc (param1) to generate routine, achieve multi-threading effect on a single thread (this feature does not support JIT)
+* Support debugging, self-contained gdb-style command line debugger, and VS-style visual editing debug ide, can also be called directly in the C through the interface, start command line debugging
+* Support for hot updates
+* Support for binding of C-style functions and C++ class member functions
+* Support profile, can get the running time of each function of the script
+* Support array, map, can be nested infinitely
+* Support multiple return values
 * Support Int64
-* Support const definitions
-* Support Package
+* Support const definition
+* Support package
 * Support struct
-* Support packaged bin file or executable file
-* Own command line style debugger like gdb, and vs style debugging ide
-* Can start a command-line debugging in C through the interface call
-* Support byte code optimize
+* Support for packaging bin files or executable files
 
 
 
 ## In Production
+![image](img/use3.jpg)[疯狂炸翻天](https://www.muzhiwan.com/com.fkzft.gamewin.mzw.html)
 ![image](img/use1.jpg)[我是大主宰](http://dzz.youxi.com)
 ![image](img/use2.jpg)[天天炫斗](http://ttxd.qq.com/act/a20160419brandP/)
-
-
-## Standard Library
-* File
-* Network
-* String
-* Xml
-* Template
-* Json
 
 ## Sample
 
@@ -144,17 +133,13 @@ delfake(fk);
 ```
 
 ## How to use
-#### Windows
-1. clone source
-2. open **fakescript.sln** by Microsoft Visual Studio 2017
-3. compile
-4. copy include/**fakescript.h** and bin/**fakescript.lib** to your project
-#### Linux
-1. clone source
-2. install CMake
-2. run```./build.sh release```
-3. copy include/**fakescript.h** and bin/**libfkcript.a** to your project
+copy include/**fakescript.h** and bin/**libfake.so** to your project
 
+## How to compile
+1. Install cmake
+2. (Optional) Install flex, bison, run ```./gen.sh```
+3. Install gcc, gcc-c++
+4. ```./build.sh``` or ```./build.sh release```
 
 ## Debugging environment
 * IDE
@@ -164,8 +149,3 @@ delfake(fk);
 * Command-line
 
 ![image](img/debug.png)
-
-## Welcome to donate 
-![image](img/donate.png)
-
-Donated money will be used to improve performance and subsequent continuous optimization fakescript

@@ -1,4 +1,6 @@
 # fakescript 
+[![Author](https://img.shields.io/badge/Author-esrrhs-yellowgreen.svg)](https://github.com/esrrhs/fakescript) [![Platform](https://img.shields.io/badge/Platform-Linux%2CMac-green.svg)](https://github.com/esrrhs/fakescript)[![Script](https://img.shields.io/badge/embed-script-pink.svg?style=flat)](https://github.com/esrrhs/fakescript) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000?style=flat)](LICENSE)
+
 轻量级嵌入式脚本语言
  
 ## 简介[english](./README_EN.md)
@@ -151,7 +153,4 @@ delfake(fk);
 * 命令行 **（bin/fakebin）**
 
 ![image](img/debug.png)
-
-## 欢迎交流
-微信：**esrrhs**
 
