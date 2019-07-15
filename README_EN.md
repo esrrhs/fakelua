@@ -151,10 +151,10 @@ copy include/**fake-inc.h** and bin/**libfake.so** to your project
 4. ```./build.sh``` or ```./build.sh release```
 
 ## Debugging environment
-* IDE
+* IDE（bin/fakeide.app）
 
 ![image](img/ide.png)
 
-* Command-line
+* Command-line（bin/fakebin）
 
 ![image](img/debug.png)
