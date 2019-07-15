@@ -636,7 +636,7 @@ for_loop_stmt:
 	FOR var ASSIGN for_loop_value RIGHT_POINTER for_loop_value ARG_SPLITTER for_loop_value THEN END
 	{
 		FKLOG("[bison]: for_loop_stmt <- empty");
-		NEWTYPE(p, for_stmt);
+		NEWTYPE(p, for_loop_stmt);
 		
 		p->iter = $2;
 		p->begin = $4;
