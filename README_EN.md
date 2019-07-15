@@ -1,11 +1,11 @@
-# fakescript
+# fake
 
-[![Author](https://img.shields.io/badge/Author-esrrhs-yellowgreen.svg)](https://github.com/esrrhs/fakescript) [![Platform](https://img.shields.io/badge/Platform-Linux%2CMac-green.svg)](https://github.com/esrrhs/fakescript)[![Script](https://img.shields.io/badge/embed-script-pink.svg?style=flat)](https://github.com/esrrhs/fakescript) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000?style=flat)](LICENSE)
+[![Author](https://img.shields.io/badge/Author-esrrhs-yellowgreen.svg)](https://github.com/esrrhs/fake) [![Platform](https://img.shields.io/badge/Platform-Linux%2CMac-green.svg)](https://github.com/esrrhs/fake)[![Script](https://img.shields.io/badge/embed-script-pink.svg?style=flat)](https://github.com/esrrhs/fake) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000?style=flat)](LICENSE)
 
 Lightweight embedded scripting language
 
 ## Brief introduction
-**fakescript** is a lightweight embedded scripting language , using c ++ language, grammar lessons from lua, golang, erlang, based on flex, bison generative grammar tree , compiled into byte code interpreted. 
+**fake** is a lightweight embedded scripting language , using c ++ language, grammar lessons from lua, golang, erlang, based on flex, bison generative grammar tree , compiled into byte code interpreted. 
 
 ## Script feature
 * Operating environment linux amd64, MacOS amd64
@@ -142,7 +142,7 @@ Data on the MacBook Pro 2.3 GHz Intel Core i5
 
 
 ## How to use
-copy include/**fakescript.h** and bin/**libfake.so** to your project
+copy include/**fake-inc.h** and bin/**libfake.so** to your project
 
 ## How to compile
 1. Install cmake
