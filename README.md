@@ -133,10 +133,11 @@ delfake(fk);
 ## 性能比较
 在MacBook Pro 2.3 GHz Intel Core i5上的数据
 
-|       | Lua   | Python |  Fake |  Fake JIT |
-|-------|-------|:------:|------:|----------:|
-| Loop  | 0.8s  |  2.3s  |  2.1s |    0.2s   |
-| Prime | 13.5s |  20.9s | 16.9s |    5.9s   |
+|       | Lua   | Python |  Fake | Fake JIT |
+|-------|-------|:------:|------:|----------|
+| Loop  | 0.8s  |  2.3s  |  2.1s | 0.2s     |
+| Prime | 13.5s |  20.9s | 16.9s | 5.9s     |
+
 
 
 ## 如何使用
