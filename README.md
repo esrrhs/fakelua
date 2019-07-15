@@ -128,8 +128,8 @@ delfake(fk);
 ```
 
 ## 如何使用
-1. 复制 include/**fake-inc.h** 和 bin/**libfake.so** 到你的工程, 直接使用
-2. 使用vcpkg(TODO)
+复制 include/**fake-inc.h** 和 bin/**libfake.so** 到你的工程, 直接使用
+
 
 ## 如何编译
 1. 安装cmake
