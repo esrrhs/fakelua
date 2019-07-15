@@ -616,6 +616,7 @@ for_loop_value:
 		FKLOG("[bison]: for_loop_value <- variable");
 		$$ = $1;
 	}
+    ;
 
 for_loop_stmt:
 	FOR var ASSIGN for_loop_value RIGHT_POINTER for_loop_value ARG_SPLITTER for_loop_value THEN block END
