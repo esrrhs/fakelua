@@ -154,3 +154,11 @@ delfake(fk);
 
 ![image](img/debug.png)
 
+
+## 性能比较
+在MacBook Pro 2.3 GHz Intel Core i5上的数据
+
+|       | Lua   | Python |  Fake |
+|-------|-------|:------:|------:|
+| Loop  | 0.8s  |  2.3s  |  2.1s |
+| Prime | 13.5s |  20.9s | 16.9s |
