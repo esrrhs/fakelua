@@ -27,7 +27,8 @@ enum esyntreetype
 	est_cmp_stmt,
 	est_if_stmt,
 	est_else_stmt,
-	est_for_stmt,
+    est_for_stmt,
+    est_for_loop_stmt,
 	est_explicit_value,
 	est_return_stmt,
 	est_return_value_list,
@@ -402,6 +403,28 @@ struct for_stmt : public syntree_node
 	block_node * endblock;
 	block_node * block;
 };
+
+
+struct variable_node;
+struct for_loop_stmt : public syntree_node
+{
+    for_loop_stmt() {}
+    virtual ~for_loop_stmt() {}
+
+    virtual esyntreetype gettype()
+    {
+        return est_for_loop_stmt;
+    }
+
+    virtual String dump(int indent);
+
+    syntree_node * iter;
+    syntree_node * begin;
+    syntree_node * end;
+    syntree_node * step;
+    block_node * block;
+};
+
 
 struct block_node : public syntree_node
 {

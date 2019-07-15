@@ -28,7 +28,8 @@ const char * get_syntree_node_name(esyntreetype type)
 	SYN_NODE_DEF(est_math_expr)
 	SYN_NODE_DEF(est_break)
 	SYN_NODE_DEF(est_identifier)
-	SYN_NODE_DEF(est_for_stmt)
+    SYN_NODE_DEF(est_for_stmt)
+    SYN_NODE_DEF(est_for_loop_stmt)
 	SYN_NODE_DEF(est_return_value_list)
 	SYN_NODE_DEF(est_multi_assign_stmt)
 	SYN_NODE_DEF(est_var_list)
@@ -139,6 +140,44 @@ String for_stmt::dump(int indent)
 		ret += block->dump(indent + 2);
 	}
 	return ret;
+}
+
+String for_loop_stmt::dump(int indent)
+{
+    String ret;
+    ret += gentab(indent);
+    ret += "[for]:\n";
+    ret += gentab(indent + 1);
+    ret += "[iter]:\n";
+    if (iter)
+    {
+        ret += iter->dump(indent + 2);
+    }
+    ret += gentab(indent + 1);
+    ret += "[begin]:\n";
+    if (begin)
+    {
+        ret += begin->dump(indent + 2);
+    }
+    ret += gentab(indent + 1);
+    ret += "[end]:\n";
+    if (end)
+    {
+        ret += end->dump(indent + 2);
+    }
+    ret += gentab(indent + 1);
+    ret += "[step]:\n";
+    if (step)
+    {
+        ret += step->dump(indent + 2);
+    }
+    ret += gentab(indent + 1);
+    ret += "[block]:\n";
+    if (block)
+    {
+        ret += block->dump(indent + 2);
+    }
+    return ret;
 }
 
 void func_desc_arglist_node::add_arg(syntree_node * p)
