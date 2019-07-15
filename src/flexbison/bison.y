@@ -603,8 +603,21 @@ for_stmt:
 	}
 	;
 
+for_loop_value:
+	explicit_value
+	{
+		FKLOG("[bison]: for_loop_value <- explicit_value");
+		$$ = $1;
+	}
+	|
+	variable
+	{
+		FKLOG("[bison]: for_loop_value <- variable");
+		$$ = $1;
+	}
+
 for_loop_stmt:
-	FOR var ASSIGN assign_value RIGHT_POINTER cmp_value ARG_SPLITTER expr_value THEN block END
+	FOR var ASSIGN for_loop_value RIGHT_POINTER for_loop_value ARG_SPLITTER for_loop_value THEN block END
 	{
 		FKLOG("[bison]: for_loop_stmt <- block");
 		NEWTYPE(p, for_stmt);
