@@ -29,6 +29,7 @@ private:
 	bool compile_node(codegen & cg, syntree_node * node);
 	bool compile_while_stmt(codegen & cg, while_stmt * ws);
 	bool compile_for_stmt(codegen & cg, for_stmt * fs);
+	bool compile_for_loop_stmt(codegen & cg, for_loop_stmt * fs);
 	bool compile_if_stmt(codegen & cg, if_stmt * is);
 	bool compile_return_stmt(codegen & cg, return_stmt * rs);
 	bool compile_assign_stmt(codegen & cg, assign_stmt * as);
