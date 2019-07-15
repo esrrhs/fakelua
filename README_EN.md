@@ -149,3 +149,11 @@ copy include/**fakescript.h** and bin/**libfake.so** to your project
 * Command-line
 
 ![image](img/debug.png)
+
+## Performance comparison
+Data on the MacBook Pro 2.3 GHz Intel Core i5
+
+|       | Lua   | Python |  Fake |
+|-------|-------|:------:|------:|
+| Loop  | 0.8s  |  2.3s  |  2.1s |
+| Prime | 13.5s |  20.9s | 16.9s |
