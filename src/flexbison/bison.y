@@ -628,7 +628,7 @@ for_loop_stmt:
 		p->begin = $4;
 		p->end = $6;
 		p->step = $8;
-		p->block = $10;
+		p->block = dynamic_cast<block_node*>($10);
 
 		$$ = p;
 	}
