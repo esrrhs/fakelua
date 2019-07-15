@@ -9,7 +9,7 @@ Lightweight embedded scripting language
 
 ## Script feature
 * Operating environment linux amd64, MacOS amd64
-* Support VM, JIT
+* Support VM, JIT(Experimental nature)
 * Support fake testfunc (param1) to generate routine, achieve multi-threading effect on a single thread (this feature does not support JIT)
 * Support debugging, self-contained gdb-style command line debugger, and VS-style visual editing debug ide, can also be called directly in the C through the interface, start command line debugging
 * Support for hot updates
