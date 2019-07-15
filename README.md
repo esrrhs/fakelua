@@ -129,6 +129,16 @@ ret = fkrun<int>(fk, "myfunc1", 1, 2);
 delfake(fk);
 ```
 
+
+## 性能比较
+在MacBook Pro 2.3 GHz Intel Core i5上的数据
+
+|       | Lua   | Python |  Fake |
+|-------|-------|:------:|------:|
+| Loop  | 0.8s  |  2.3s  |  2.1s |
+| Prime | 13.5s |  20.9s | 16.9s |
+
+
 ## 如何使用
 复制 include/**fake-inc.h** 和 bin/**libfake.so** 到你的工程, 直接使用
 
@@ -153,12 +163,3 @@ delfake(fk);
 * 命令行 **（bin/fakebin）**
 
 ![image](img/debug.png)
-
-
-## 性能比较
-在MacBook Pro 2.3 GHz Intel Core i5上的数据
-
-|       | Lua   | Python |  Fake |
-|-------|-------|:------:|------:|
-| Loop  | 0.8s  |  2.3s  |  2.1s |
-| Prime | 13.5s |  20.9s | 16.9s |
