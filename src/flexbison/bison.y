@@ -658,7 +658,7 @@ for_loop_stmt:
 		$$ = p;
 	}
 	|
-	FOR var ASSIGN assign_value RIGHT_POINTER cmp_value ARG_SPLITTER expr_value THEN END
+	FOR var ASSIGN for_loop_value RIGHT_POINTER for_loop_value ARG_SPLITTER for_loop_value THEN END
 	{
 		FKLOG("[bison]: for_loop_stmt <- empty");
 		NEWTYPE(p, for_stmt);
