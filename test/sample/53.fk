@@ -37,7 +37,7 @@ func main()
 	
 	print("...")
 	
-	for i = 1 -> n + 1, c - 1 then
+	for i = 1 -> n, c then
 		
 		if i == 3 then
 			break
@@ -48,7 +48,7 @@ func main()
 	
 	print("...")
 	
-	for i = 1 -> n + 1, c - 1 then
+	for i = 1 -> n, c then
 		
 		if i == 3 then
 			continue
