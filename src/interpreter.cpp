@@ -634,6 +634,9 @@ int interpreter::run(int cmdnum)
                 GET_VARIANT(*m_fb, m_bp, step, m_ip);
                 m_ip++;
 
+                // tmp dest
+                m_ip++;
+
                 int ip = COMMAND_CODE(GET_CMD(*m_fb, m_ip));
                 m_ip++;
 

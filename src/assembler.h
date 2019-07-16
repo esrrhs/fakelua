@@ -46,6 +46,7 @@ private:
 	bool compile_call(asmgen & asg, const func_binary & fb, command cmd);
 	bool compile_cmp_jne(asmgen & asg, const func_binary & fb, command cmd);
 	bool compile_single_jne(asmgen & asg, const func_binary & fb, command cmd);
+    bool compile_for(asmgen & asg, const func_binary & fb, command cmd);
 private:
 	void compile_seterror(const func_binary & fb, command cmd, efkerror err, const char *fmt, ...);
 

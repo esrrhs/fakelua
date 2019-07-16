@@ -1372,6 +1372,9 @@ bool compiler::compile_for_loop_stmt(codegen & cg, for_loop_stmt * fs)
     cg.push(iter, fs->lineno());
     cg.push(end, fs->lineno());
     cg.push(step, fs->lineno());
+    tmpdespos = cg.alloc_stack_identifier();
+    tmpdest = MAKE_ADDR(ADDR_STACK, tmpdespos);
+    cg.push(tmpdest, fs->lineno());
     cg.push(MAKE_POS(startpos), fs->lineno());
 
     // Ìø×ª³öblock¿é

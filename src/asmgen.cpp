@@ -276,3 +276,23 @@ void asmgen::call_func_param3(void * func, fake * fk, int pos2, int pos3)
 	call_func(func);
 }
 
+void asmgen::call_func_param4(void * func, fake * fk, int pos2, int pos3, int pos4)
+{
+    mov_ll_rdi((int64_t)fk);
+    lea_rbp_rsi(V_OFF(pos2));
+    lea_rbp_rdx(V_OFF(pos3));
+    lea_rbp_rcx(V_OFF(pos4));
+
+    call_func(func);
+}
+
+void asmgen::call_func_param5(void * func, fake * fk, int pos2, int pos3, int pos4, int pos5)
+{
+    mov_ll_rdi((int64_t)fk);
+    lea_rbp_rsi(V_OFF(pos2));
+    lea_rbp_rdx(V_OFF(pos3));
+    lea_rbp_rcx(V_OFF(pos4));
+    lea_rbp_r8(V_OFF(pos5));
+
+    call_func(func);
+}
