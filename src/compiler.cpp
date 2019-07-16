@@ -1290,9 +1290,115 @@ bool compiler::compile_for_loop_stmt(codegen & cg, for_loop_stmt * fs)
 {
     FKLOG("[compiler] compile_for_loop_stmt %p", fs);
 
-    // TODO
+    int startpos = 0;
+    int jnepos = 0;
+    int continuepos = 0;
 
-    FKLOG("[compiler] compile_for_loop_stmt %p OK", mn);
+    m_loop_break_pos_stack.push_back(beak_pos_list());
+    m_continue_end_pos_stack.push_back(continue_end_pos_list());
+
+    // 开始语句，这个作用域是全for都有效的
+    cg.push_stack_identifiers();
+
+    command iter;
+    if (!compile_node(cg, fs->iter))
+    {
+        FKERR("[compiler] compile_for_loop_stmt iter fail");
+        return false;
+    }
+    iter = m_cur_addr;
+    FKLOG("[compiler] compile_for_loop_stmt iter = %d", m_cur_addr);
+
+    command begin;
+    if (!compile_node(cg, fs->begin))
+    {
+        FKERR("[compiler] compile_for_loop_stmt begin fail");
+        return false;
+    }
+    begin = m_cur_addr;
+    FKLOG("[compiler] compile_for_loop_stmt begin = %d", m_cur_addr);
+
+    command end;
+    if (!compile_node(cg, fs->end))
+    {
+        FKERR("[compiler] compile_for_loop_stmt end fail");
+        return false;
+    }
+    end = m_cur_addr;
+    FKLOG("[compiler] compile_for_loop_stmt end = %d", m_cur_addr);
+
+    command step;
+    if (!compile_node(cg, fs->step))
+    {
+        FKERR("[compiler] compile_for_loop_stmt step fail");
+        return false;
+    }
+    step = m_cur_addr;
+    FKLOG("[compiler] compile_for_loop_stmt step = %d", m_cur_addr);
+
+    cg.push(MAKE_OPCODE(OPCODE_ASSIGN), fs->lineno());
+    cg.push(iter, fs->lineno());
+    cg.push(begin, fs->lineno());
+
+    cg.push(MAKE_OPCODE(OPCODE_LESS_JNE), fs->lineno());
+    cg.push(iter, fs->lineno());
+    cg.push(end, fs->lineno());
+    int tmpdespos = cg.alloc_stack_identifier();
+    command tmpdest = MAKE_ADDR(ADDR_STACK, tmpdespos);
+    cg.push(tmpdest, fs->lineno());
+    cg.push(EMPTY_CMD, fs->lineno()); // 先塞个位置
+    jnepos = cg.byte_code_size() - 1;
+
+    startpos = cg.byte_code_size();
+
+    // 需要continue end
+    m_loop_continue_pos_stack.push_back(-1);
+
+    // block块
+    if (fs->block)
+    {
+        cg.push_stack_identifiers();
+        if (!compile_node(cg, fs->block))
+        {
+            FKERR("[compiler] compile_for_loop_stmt block fail");
+            return false;
+        }
+        cg.pop_stack_identifiers();
+    }
+
+    continuepos = cg.byte_code_size();
+
+    cg.push(MAKE_OPCODE(OPCODE_FOR), fs->lineno());
+    cg.push(iter, fs->lineno());
+    cg.push(end, fs->lineno());
+    cg.push(step, fs->lineno());
+    cg.push(MAKE_POS(startpos), fs->lineno());
+
+    // 跳转出block块
+    cg.set(jnepos, MAKE_POS(cg.byte_code_size()));
+
+    // 替换掉break
+    beak_pos_list & bplist = m_loop_break_pos_stack[m_loop_break_pos_stack.size() - 1];
+    for (int i = 0; i < (int)bplist.size(); i++)
+    {
+        cg.set(bplist[i], MAKE_POS(cg.byte_code_size()));
+    }
+    m_loop_break_pos_stack.pop_back();
+
+    // 替换掉continue
+    continue_end_pos_list & cplist = m_continue_end_pos_stack[m_continue_end_pos_stack.size() - 1];
+    for (int i = 0; i < (int)cplist.size(); i++)
+    {
+        cg.set(cplist[i], MAKE_POS(continuepos));
+    }
+    m_continue_end_pos_stack.pop_back();
+
+    m_loop_continue_pos_stack.pop_back();
+
+    // 离开作用域
+    cg.pop_stack_identifiers();
+
+    FKLOG("[compiler] compile_for_loop_stmt %p OK", fs);
 
     return true;
 }

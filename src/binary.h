@@ -60,7 +60,9 @@ enum OpCodeType
 	
 	OPCODE_SLEEP,
 	OPCODE_YIELD,
-	
+
+    OPCODE_FOR,
+
 	OPCODE_MAX,
 };
 

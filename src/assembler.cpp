@@ -248,6 +248,11 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 			ret = compile_call(asg, fb, cmd);
 		}
 		break;
+	case OPCODE_FOR:
+        {
+            // TODO
+        }
+        break;
 	case OPCODE_SLEEP:
 	case OPCODE_YIELD:
 		{

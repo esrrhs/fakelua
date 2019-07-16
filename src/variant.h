@@ -215,6 +215,8 @@ struct variant
 #define V_LESSEQUAL(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d)->data.real = (l)->data.real <= (r)->data.real;(d)->type = variant::REAL
 #define V_NOTEQUAL(d, l, r) (d)->data.real = (l)->data.real != (r)->data.real;(d)->type = variant::REAL
 
+#define V_FOR_LESS(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d) = (l)->data.real < (r)->data.real;
+
 #define V_AND_JNE(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d) = ((l)->data.real != 0) & ((r)->data.real != 0);
 #define V_OR_JNE(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d) = ((l)->data.real != 0) | ((r)->data.real != 0);
 #define V_LESS_JNE(d, l, r) V_ASSERT_CAN_CAL_BIN(l, r);(d) = (l)->data.real < (r)->data.real;

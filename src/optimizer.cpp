@@ -566,7 +566,23 @@ void optimizer::trans_inslist(func_binary & fb)
 				}
 			}
 			break;
-			
+
+            case OPCODE_FOR:
+            {
+                set_ins_read(ins, fb, ip);
+                set_ins_write(ins, fb, ip);
+                ip++;
+
+                set_ins_read(ins, fb, ip);
+                ip++;
+
+                set_ins_read(ins, fb, ip);
+                ip++;
+
+                ip++;
+            }
+            break;
+
 			case OPCODE_RETURN:
 			{
 				int returnnum = COMMAND_CODE(fb.m_buff[ip]);
@@ -721,8 +737,18 @@ void optimizer::remove_ins(func_binary & fb, opt_ins & delins)
 				}
 			}
 			break;
-			
-		}
+
+            case OPCODE_FOR:
+            {
+                int destip = COMMAND_CODE(fb.m_buff[ins.offset + 4]);
+                if (destip > delins.offset)
+                {
+                    fb.m_buff[ins.offset + 4] = MAKE_POS(destip - delins.size);
+                }
+            }
+            break;
+
+        }
 	}
 
 	command * newbuff = (command *)safe_fkmalloc(m_fk, (fb.m_size - delins.size) * sizeof(command), emt_func_binary);

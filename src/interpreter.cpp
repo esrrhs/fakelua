@@ -617,6 +617,38 @@ int interpreter::run(int cmdnum)
 				}
 			}
 			break;
+		case OPCODE_FOR:
+            {
+                variant * iter = 0;
+                LOG_VARIANT(*m_fb, m_ip, "iter");
+                GET_VARIANT(*m_fb, m_bp, iter, m_ip);
+                m_ip++;
+
+                const variant * end = 0;
+                LOG_VARIANT(*m_fb, m_ip, "end");
+                GET_VARIANT(*m_fb, m_bp, end, m_ip);
+                m_ip++;
+
+                const variant * step = 0;
+                LOG_VARIANT(*m_fb, m_ip, "step");
+                GET_VARIANT(*m_fb, m_bp, step, m_ip);
+                m_ip++;
+
+                int ip = COMMAND_CODE(GET_CMD(*m_fb, m_ip));
+                m_ip++;
+
+                V_PLUS(iter, iter, step);
+
+                bool b = false;
+                V_FOR_LESS(b, iter, end);
+
+                if (LIKE(b))
+                {
+                    FKLOG("jne %d", ip);
+                    m_ip = ip;
+                }
+            }
+            break;
 		case OPCODE_RETURN:
 			{
 				int returnnum = COMMAND_CODE(GET_CMD(*m_fb, m_ip));
