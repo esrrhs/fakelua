@@ -779,11 +779,22 @@ public:
 		m_source += "lea	-" + fkxtoa(-offset, 8) + "(%rbp),%rdx\n";
 	}
 
+    // 取得offset的地址到rcx
+    // lea	offset(%rbp),%rcx
+	void lea_rbp_rcx(int offset)
+    {
+        push(0x48);
+        push(0x8d);
+        push(0x8d);
+        push_int(offset);
+        m_source += "lea	-" + fkxtoa(-offset, 8) + "(%rbp),%rcx\n";
+    }
+
 	// 取得offset的地址到rdx
 	// lea  offset(%rbp),%r8d
-	void lea_rbp_r8d(int offset)
+	void lea_rbp_r8(int offset)
 	{
-		push(0x44);
+		push(0x4c);
 		push(0x8d);
 		push(0x85);
 		push_int(offset);
@@ -909,9 +920,11 @@ public:
 	void variant_from_rax(int destpos);
 	void variant_to_rax(int srcpos);
 	void call_func_param2(void * func, fake * fk, int pos2);
-	void call_func_param3(void * func, fake * fk, int pos2, int pos3);
-	
-	void output(const char * filename, const char * packagename, const char * name, func_native * nt);
+    void call_func_param3(void * func, fake * fk, int pos2, int pos3);
+    void call_func_param4(void * func, fake * fk, int pos2, int pos3, int pos4);
+    void call_func_param5(void * func, fake * fk, int pos2, int pos3, int pos4, int pos5);
+
+    void output(const char * filename, const char * packagename, const char * name, func_native * nt);
 
 	const String & source() const
 	{

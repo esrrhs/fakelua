@@ -250,7 +250,7 @@ bool assembler::compile_next(asmgen & asg, const func_binary & fb)
 		break;
 	case OPCODE_FOR:
         {
-            // TODO
+            ret = compile_for(asg, fb, cmd);
         }
         break;
 	case OPCODE_SLEEP:
@@ -377,11 +377,20 @@ bool assembler::compile_return(asmgen & asg, const func_binary & fb, command cmd
 	return true;
 }
 
-variant * assembler_string_cat(fake * fk, variant * left, variant * right)
+void assembler_string_cat(fake * fk, variant * left, variant * right, variant * dest)
 {
-	variant * v = fk->con.newvariant();
-	V_STRING_CAT(v, left, right);
-	return v;
+	V_STRING_CAT(dest, left, right);
+}
+
+void assembler_for(fake * fk, variant * iter, variant * end, variant * step, variant * dest)
+{
+    FKLOG("assembler_for %s %s %s", vartostring(iter).c_str(), vartostring(step).c_str(), vartostring(dest).c_str());
+
+    bool err = false;
+    V_PLUS(iter, iter, step);
+
+    // 为了配合jne
+    V_MOREEQUAL(dest, iter, end);
 }
 
 bool assembler::compile_math(asmgen & asg, const func_binary & fb, command cmd)
@@ -419,8 +428,7 @@ bool assembler::compile_math(asmgen & asg, const func_binary & fb, command cmd)
 		asg.variant_div_mod(dest, left, right);
 		break;
 	case OPCODE_STRING_CAT:
-		asg.call_func_param3((void *)&assembler_string_cat, m_fk, left, right);
-		asg.variant_from_rax(dest);
+		asg.call_func_param4((void *)&assembler_string_cat, m_fk, left, right, dest);
 		break;
 	default:
 		assert(0);
@@ -602,6 +610,55 @@ bool assembler::compile_cmp(asmgen & asg, const func_binary & fb, command cmd)
 	}
 
 	return true;
+}
+
+bool assembler::compile_for(asmgen & asg, const func_binary & fb, command cmd)
+{
+    int iter = 0;
+    GET_VARIANT_POS(fb, iter, m_pos);
+    m_pos++;
+
+    int end = 0;
+    GET_VARIANT_POS(fb, end, m_pos);
+    m_pos++;
+
+    int step = 0;
+    GET_VARIANT_POS(fb, step, m_pos);
+    m_pos++;
+
+    int dest = 0;
+    GET_VARIANT_POS(fb, dest, m_pos);
+    m_pos++;
+
+    int jump_bytecode_pos = COMMAND_CODE(GET_CMD(fb, m_pos));
+    m_pos++;
+
+    // 1.计算, 是否需要jmp
+    asg.call_func_param5((void *)&assembler_for, m_fk, iter, end, step, dest);
+
+    // 2.再jne
+    int jumppos = -1;
+    if (m_posmap.find(jump_bytecode_pos) != m_posmap.end())
+    {
+        jumppos = m_posmap[jump_bytecode_pos];
+    }
+
+    asg.variant_jne(dest, jumppos);
+
+    int jmpoffset = asg.size() - sizeof(int);
+    if (jumppos == -1)
+    {
+        // 记录下来
+        m_caremap[jmpoffset] = jump_bytecode_pos;
+        FKLOG("compile_for caremap add %d %d", jmpoffset, jump_bytecode_pos);
+    }
+    else
+    {
+        asg.set_int(jmpoffset, jumppos - asg.size());
+        FKLOG("compile_for set jne add %d -> %d", jmpoffset, jumppos - asg.size());
+    }
+
+    return true;
 }
 
 bool assembler::compile_single_jne(asmgen & asg, const func_binary & fb, command cmd)
