@@ -382,17 +382,6 @@ void assembler_string_cat(fake * fk, variant * left, variant * right, variant * 
 	V_STRING_CAT(dest, left, right);
 }
 
-void assembler_for(fake * fk, variant * iter, variant * end, variant * step, variant * dest)
-{
-    FKLOG("assembler_for %s %s %s", vartostring(iter).c_str(), vartostring(step).c_str(), vartostring(dest).c_str());
-
-    bool err = false;
-    V_PLUS(iter, iter, step);
-
-    // 为了配合jne
-    V_MOREEQUAL(dest, iter, end);
-}
-
 bool assembler::compile_math(asmgen & asg, const func_binary & fb, command cmd)
 {
 	int code = COMMAND_CODE(cmd);
@@ -633,10 +622,12 @@ bool assembler::compile_for(asmgen & asg, const func_binary & fb, command cmd)
     int jump_bytecode_pos = COMMAND_CODE(GET_CMD(fb, m_pos));
     m_pos++;
 
-    // 1.计算, 是否需要jmp
-    asg.call_func_param5((void *)&assembler_for, m_fk, iter, end, step, dest);
+    // 1.计算
+    asg.variant_add(iter, iter, step);
 
     // 2.再jne
+    asg.variant_moreequal(dest, iter, end);
+
     int jumppos = -1;
     if (m_posmap.find(jump_bytecode_pos) != m_posmap.end())
     {
@@ -657,6 +648,8 @@ bool assembler::compile_for(asmgen & asg, const func_binary & fb, command cmd)
         asg.set_int(jmpoffset, jumppos - asg.size());
         FKLOG("compile_for set jne add %d -> %d", jmpoffset, jumppos - asg.size());
     }
+
+    CHECK_VARIANT_CON_POS(fb, iter);
 
     return true;
 }

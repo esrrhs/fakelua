@@ -133,12 +133,14 @@ delfake(fk);
 ```
 
 ## Performance comparison
+Run```cd benchmark/ && ./benchmark.sh```
 Data on the MacBook Pro 2.3 GHz Intel Core i5
 
 |       | Lua   | Python |  Fake | Fake JIT |
 |-------|-------|:------:|------:|----------|
-| Loop  | 0.8s  |  2.3s  |  2.1s | 0.2s     |
-| Prime | 13.5s |  20.9s | 16.9s | 5.9s     |
+| Loop  | 0.8s  |  2.3s  |  1.3s | 0.2s     |
+| Prime | 13.5s |  20.9s | 12.8s | 5.9s     |
+
 
 
 ## How to use
