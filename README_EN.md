@@ -152,6 +152,11 @@ copy include/**fake-inc.h** and bin/**libfake.so** to your project
 3. Install gcc, gcc-c++
 4. ```./build.sh``` or ```./build.sh release```
 
+## Test
+1. Script sample code under the directory ```test/sample```
+2. run ```cd test && ./test.sh```
+3. ```bin/fakebin``` is an executable file that you can write and run yourself script. ```./fakebin your.fk```
+
 ## Debugging environment
 * IDE（bin/fakeide.app）
 

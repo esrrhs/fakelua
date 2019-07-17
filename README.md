@@ -151,7 +151,7 @@ delfake(fk);
 3. 安装gcc, gcc-c++
 4. ```./build.sh``` 或者 ```./build.sh release```
 
-## 示例
+## 测试示例
 1. test/sample 目录下有脚本示例代码
 2. 运行方法 ```cd test && ./test.sh```
 3. bin/fakebin 为可执行文件，可以自己编写运行，如：```./fakebin your.fk```

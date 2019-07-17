@@ -145,8 +145,7 @@ delfake(fk);
 #include <stdlib.h>
 #include <typeinfo>
 
-#define FAKE_VERSION "1.4"
-#define FAKE_VERSION_NUM 100
+#define FAKE_VERSION "1.5"
 #define FAKE_AUTHOR "esrrhs@163.com"
 
 // ´íÎóºÅ
