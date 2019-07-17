@@ -208,5 +208,6 @@
 2019.7.11:定位了是for优化的问题，之前fake的for是单独的指令，后来为了jit方便拆开了，lua是单独的指令，所以更快。看看怎么优化下
 2019.7.12:添加python的benchmark
 2019.7.16:添加特殊for指令，现在benchmark和lua差不多了
+2019.7.17:添加string benchmark，需要研究下JIT的gc咋弄，需要知道栈信息即可
 
 

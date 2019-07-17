@@ -1,5 +1,5 @@
 
-function primes(n)
+function loop(n)
     local count = 0
 
     for i = 2, n do
@@ -10,4 +10,4 @@ end
 
 local N = 10 * 10000000
 
-print(primes(N))
+print(loop(N))

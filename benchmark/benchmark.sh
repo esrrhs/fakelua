@@ -1,33 +1,20 @@
 #! /bin/sh
 
-echo "lua loop"
-time lua loop.lua
-echo "------------"
+TEST="loop prime string"
+for i in $TEST; do
+    echo "lua $i"
+    time lua $i.lua
+    echo "------------"
 
-echo "python loop"
-time python loop.py
-echo "------------"
+    echo "python $i"
+    time python $i.py
+    echo "------------"
 
-echo "fake loop"
-time ../bin/fakebin loop.fk
-echo "------------"
+    echo "fake $i"
+    time ../bin/fakebin $i.fk
+    echo "------------"
 
-echo "fake JIT loop"
-time ../bin/fakebin -j loop.fk
-echo "------------"
-
-echo "lua prime"
-time lua prime.lua
-echo "------------"
-
-echo "python prime"
-time python prime.py
-echo "------------"
-
-echo "fake prime"
-time ../bin/fakebin prime.fk
-echo "------------"
-
-echo "fake JIT prime"
-time ../bin/fakebin -j prime.fk
-echo "------------"
+    echo "fake JIT $i"
+    time ../bin/fakebin -j $i.fk
+    echo "------------"
+done

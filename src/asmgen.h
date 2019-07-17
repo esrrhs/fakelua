@@ -740,6 +740,23 @@ public:
 		m_source += "je	 .+" + fkxtoa(jumpoff, 8) + "\n";
 	}
 
+    // offset的地方不为0就jmp jumpoff
+    // xorpd  %xmm0,%xmm0
+    // ucomisd offset(%rbp),%xmm0
+    // jne	 .+jumpoff
+    void je_rbp(int offset, int jumpoff)
+    {
+        assert(offset <= 0);
+        push(0x66); push(0x0f); push(0x57); push(0xc0);
+        push(0x66); push(0x0f); push(0x2e); push(0x85);
+        push_int(offset);
+        push(0x0f); push(0x85);
+        push_int(jumpoff);
+        m_source += "xorpd  %xmm0,%xmm0\n";
+        m_source += "ucomisd -" + fkxtoa(-offset, 8) + "(%rbp),%xmm0\n";
+        m_source += "jne	 .+" + fkxtoa(jumpoff, 8) + "\n";
+    }
+
 	// 跳转jumpoff
 	// jmp	 .+jumpoff
 	void jmp(int jumpoff)
@@ -911,7 +928,8 @@ public:
 	void variant_moreequal(int destpos, int leftpos, int rightpos);
 	void variant_notequal(int destpos, int leftpos, int rightpos);
 	void variant_not(int destpos, int leftpos);
-	void variant_jne(int pos, int jmppos);
+    void variant_jne(int pos, int jmppos);
+    void variant_je(int pos, int jmppos);
 	void variant_jmp(int jmppos);
 	void variant_push(int pos);
 	void variant_pop(int pos);

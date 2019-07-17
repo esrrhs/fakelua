@@ -625,8 +625,8 @@ bool assembler::compile_for(asmgen & asg, const func_binary & fb, command cmd)
     // 1.º∆À„
     asg.variant_add(iter, iter, step);
 
-    // 2.‘Ÿjne
-    asg.variant_moreequal(dest, iter, end);
+    // 2.‘Ÿje
+    asg.variant_less(dest, iter, end);
 
     int jumppos = -1;
     if (m_posmap.find(jump_bytecode_pos) != m_posmap.end())
@@ -634,7 +634,7 @@ bool assembler::compile_for(asmgen & asg, const func_binary & fb, command cmd)
         jumppos = m_posmap[jump_bytecode_pos];
     }
 
-    asg.variant_jne(dest, jumppos);
+    asg.variant_je(dest, jumppos);
 
     int jmpoffset = asg.size() - sizeof(int);
     if (jumppos == -1)
