@@ -1,0 +1,20 @@
+
+func main()
+
+	var a = loop(1000000)
+	print(a)
+
+	return 0
+	
+end
+
+func loop(n)
+	var ret = ""
+	var last = ""
+	for var i = 2 -> n, 1 then
+		ret = last.."ret"..i
+		last = "last"..i
+	end
+	return ret
+end
+

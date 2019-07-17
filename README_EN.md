@@ -140,6 +140,9 @@ Data on the MacBook Pro 2.3 GHz Intel Core i5
 |-------|-------|:------:|------:|----------|
 | Loop  | 0.8s  |  2.3s  |  1.3s | 0.2s     |
 | Prime | 13.5s |  20.9s | 12.8s | 5.9s     |
+| String | 0.8s |  0.4s | 1.2s | 3.2s     |
+
+Note: Because JIT is currently unable to GC, String is the slowest
 
 
 

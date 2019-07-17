@@ -1,5 +1,5 @@
 
-def primes(n):
+def loop(n):
     count = 0
 
     for i in xrange(2, n):
@@ -9,4 +9,4 @@ def primes(n):
 
 N = 10 * 10000000
 
-print(primes(N))
+print(loop(N))

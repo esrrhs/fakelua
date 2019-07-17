@@ -198,8 +198,14 @@ void asmgen::variant_not(int destpos, int leftpos)
 
 void asmgen::variant_jne(int pos, int jmppos)
 {
-	int dataoff = V_DATA_OFF(pos);
-	jne_rbp(dataoff, jmppos);
+    int dataoff = V_DATA_OFF(pos);
+    jne_rbp(dataoff, jmppos);
+}
+
+void asmgen::variant_je(int pos, int jmppos)
+{
+    int dataoff = V_DATA_OFF(pos);
+    je_rbp(dataoff, jmppos);
 }
 
 void asmgen::variant_jmp(int jmppos)
