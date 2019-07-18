@@ -209,5 +209,6 @@
 2019.7.12:添加python的benchmark
 2019.7.16:添加特殊for指令，现在benchmark和lua差不多了
 2019.7.17:添加string benchmark，需要研究下JIT的gc咋弄，需要知道栈信息即可
+2019.7.18:JIT的gc，在machine调用函数的地方记录栈信息，然后gc的时候就可以遍历gc了
 
 
