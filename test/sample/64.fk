@@ -25,6 +25,7 @@ func primes(n)
 		if is isprime(i) then
 			count++
 		end
+		print(i)
 	end
 	return count
 end
