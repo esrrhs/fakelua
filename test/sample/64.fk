@@ -1,7 +1,7 @@
 
 func main()
 
-	var a = primes(10 * 10000)
+	var a = primes(10000)
 	print(a)
 
 	return a	
