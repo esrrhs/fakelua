@@ -10,6 +10,7 @@
 | ![lin-badge]      |
 
 [lin-badge]: https://api.travis-ci.org/esrrhs/fake.svg?branch=master "Travis build status"
+[lin-link]:  https://api.travis-ci.org/esrrhs/fake "Travis build status"
 
 ## 简介[english](./README_EN.md)
 **fake**是一款轻量级的嵌入式脚本语言, 使用c++语言编写, 语法吸取自lua、golang、erlang, 基于flex、bison生成语法树, 编译成字节码解释执行。
