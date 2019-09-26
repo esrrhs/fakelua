@@ -18,5 +18,5 @@ script:
   - ./build.sh
   - ./build.sh release
   - cd test
-  - ./test.sh
-  - ./test.sh -j
+  - bash ./test.sh
+  - bash ./test.sh -j
