@@ -4,6 +4,15 @@
 
 Lightweight embedded scripting language
 
+## Build status
+
+| [Linux][lin-link] | 
+| :---------------: |
+| ![lin-badge]      |
+
+[lin-badge]: https://api.travis-ci.org/esrrhs/fake.svg?branch=master "Travis build status"
+[lin-link]:  https://travis-ci.org/esrrhs/fake "Travis build status"
+
 ## Brief introduction
 **fake** is a lightweight embedded scripting language , using c ++ language, grammar lessons from lua, golang, erlang, based on flex, bison generative grammar tree , compiled into byte code interpreted. 
 
