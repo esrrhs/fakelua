@@ -12,3 +12,6 @@ before_install:
 script:
   - ./build.sh
   - ./build.sh release
+  - cd test
+  - ./test.sh
+  - ./test.sh -j
