@@ -2,7 +2,15 @@
 [![Author](https://img.shields.io/badge/Author-esrrhs-yellowgreen.svg)](https://github.com/esrrhs/fake) [![Platform](https://img.shields.io/badge/Platform-Linux%2CMac-green.svg)](https://github.com/esrrhs/fake)[![Script](https://img.shields.io/badge/embed-script-pink.svg?style=flat)](https://github.com/esrrhs/fake) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000?style=flat)](LICENSE)
 
 轻量级嵌入式脚本语言
- 
+
+## Build status
+
+| [Linux][lin-link] | 
+| :---------------: |
+| ![lin-badge]      |
+
+[lin-badge]: https://api.travis-ci.org/esrrhs/fake.svg?branch=master "Travis build status"
+
 ## 简介[english](./README_EN.md)
 **fake**是一款轻量级的嵌入式脚本语言, 使用c++语言编写, 语法吸取自lua、golang、erlang, 基于flex、bison生成语法树, 编译成字节码解释执行。
 
