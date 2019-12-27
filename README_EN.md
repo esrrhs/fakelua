@@ -177,3 +177,8 @@ copy include/**fake-inc.h** and bin/**libfake.so** to your project
 * Command-line（bin/fakebin）
 
 ![image](img/debug.png)
+
+## Stargazers over time
+
+[![Stargazers over time](https://starchart.cc/esrrhs/fake.svg)](https://starchart.cc/esrrhs/fake)
+      
