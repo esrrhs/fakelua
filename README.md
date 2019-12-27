@@ -175,3 +175,8 @@ delfake(fk);
 * 命令行 **（bin/fakebin）**
 
 ![image](img/debug.png)
+
+## Stargazers over time
+
+[![Stargazers over time](https://starchart.cc/esrrhs/fake.svg)](https://starchart.cc/esrrhs/fake)
+      
