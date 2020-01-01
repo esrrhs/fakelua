@@ -1,8 +1,8 @@
 # fake
 
-[<img src="https://img.shields.io/github/license/esrrhs/fake">]()
-[<img src="https://img.shields.io/github/languages/top/esrrhs/fake">]()
-[<img src="https://img.shields.io/github/v/release/esrrhs/fake">]()
+[<img src="https://img.shields.io/github/license/esrrhs/fake">](https://github.com/esrrhs/fake)
+[<img src="https://img.shields.io/github/languages/top/esrrhs/fake">](https://github.com/esrrhs/fake)
+[<img src="https://img.shields.io/github/v/release/esrrhs/fake">](https://github.com/esrrhs/fake)
 [<img src="https://img.shields.io/travis/esrrhs/fake">](https://travis-ci.org/esrrhs/fake)
 
 Lightweight embedded scripting language
