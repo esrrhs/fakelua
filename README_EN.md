@@ -1,17 +1,11 @@
 # fake
 
-[![Author](https://img.shields.io/badge/Author-esrrhs-yellowgreen.svg)](https://github.com/esrrhs/fake) [![Platform](https://img.shields.io/badge/Platform-Linux%2CMac-green.svg)](https://github.com/esrrhs/fake)[![Script](https://img.shields.io/badge/embed-script-pink.svg?style=flat)](https://github.com/esrrhs/fake) [![License](https://img.shields.io/github/license/mashape/apistatus.svg?maxAge=2592000?style=flat)](LICENSE)
+[<img src="https://img.shields.io/github/license/esrrhs/fake">]()
+[<img src="https://img.shields.io/github/languages/top/esrrhs/fake">]()
+[<img src="https://img.shields.io/github/v/release/esrrhs/fake">]()
+[<img src="https://img.shields.io/travis/esrrhs/fake">](https://travis-ci.org/esrrhs/fake)
 
 Lightweight embedded scripting language
-
-## Build status
-
-| [Linux][lin-link] | 
-| :---------------: |
-| ![lin-badge]      |
-
-[lin-badge]: https://api.travis-ci.org/esrrhs/fake.svg?branch=master "Travis build status"
-[lin-link]:  https://travis-ci.org/esrrhs/fake "Travis build status"
 
 ## Brief introduction
 **fake** is a lightweight embedded scripting language , using c ++ language, grammar lessons from lua, golang, erlang, based on flex, bison generative grammar tree , compiled into byte code interpreted. 
