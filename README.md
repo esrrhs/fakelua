@@ -4,6 +4,7 @@
 [<img src="https://img.shields.io/github/languages/top/esrrhs/fake">](https://github.com/esrrhs/fake)
 [<img src="https://img.shields.io/github/v/release/esrrhs/fake">](https://github.com/esrrhs/fake)
 [<img src="https://img.shields.io/travis/esrrhs/fake">](https://travis-ci.org/esrrhs/fake)
+[![Language grade: C/C++](https://img.shields.io/lgtm/grade/cpp/g/esrrhs/fake.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/esrrhs/fake/context:cpp)
 
 轻量级嵌入式脚本语言
 
