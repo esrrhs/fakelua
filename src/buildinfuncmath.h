@@ -6,34 +6,31 @@
 struct interpreter;
 struct funcunion;
 
-class buildinfuncmath
-{
+class buildinfuncmath {
 public:
-	force_inline buildinfuncmath(fake * fk) : m_fk(fk), m_seed(0)
-	{
-	}
-	force_inline ~buildinfuncmath()
-	{
-		clear();
-	}
+    force_inline buildinfuncmath(fake *fk) : m_fk(fk), m_seed(0) {
+    }
 
-	force_inline fake * getfake()
-	{
-		return m_fk;
-	}
+    force_inline ~buildinfuncmath() {
+        clear();
+    }
 
-	force_inline void clear()
-	{
-		m_seed = 0;
-	}
+    force_inline fake *getfake() {
+        return m_fk;
+    }
 
-	void openmathfunc();
+    force_inline void clear() {
+        m_seed = 0;
+    }
 
-	void setseed(int seed);
-	int getseed() const;
+    void openmathfunc();
+
+    void setseed(int seed);
+
+    int getseed() const;
 
 private:
-	fake * m_fk;
-	int m_seed;
+    fake *m_fk;
+    int m_seed;
 };
 

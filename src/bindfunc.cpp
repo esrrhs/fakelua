@@ -1,16 +1,15 @@
 #include "bindfunc.h"
 #include "fake.h"
 
-void bindfunc::addfunc(const variant & name, const fkfunctor & ff)
-{
-	if (m_fk->fm.get_func(name) && m_fk->fm.get_func(name)->haveff)
-	{
-		seterror(m_fk, efk_reg_func_double_name, "", 0, vartostring(&name).c_str(), "addfunc double name %s", vartostring(&name).c_str());
-		FKERR("addfunc double name %s", vartostring(&name).c_str());
-		return;
-	}
+void bindfunc::addfunc(const variant &name, const fkfunctor &ff) {
+    if (m_fk->fm.get_func(name) && m_fk->fm.get_func(name)->haveff) {
+        seterror(m_fk, efk_reg_func_double_name, "", 0, vartostring(&name).c_str(), "addfunc double name %s",
+                 vartostring(&name).c_str());
+        FKERR("addfunc double name %s", vartostring(&name).c_str());
+        return;
+    }
 
-	m_fk->fm.add_bind_func(name, ff);
+    m_fk->fm.add_bind_func(name, ff);
 
-	FKLOG("add bind func %s", vartostring(&name).c_str());
+    FKLOG("add bind func %s", vartostring(&name).c_str());
 }

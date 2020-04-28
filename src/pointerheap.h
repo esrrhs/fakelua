@@ -6,39 +6,37 @@
 
 struct fake;
 
-struct pointerele
-{
-	void * ptr;
-	char * type;
-	uint32_t typesz;
+struct pointerele {
+    void *ptr;
+    char *type;
+    uint32_t typesz;
 };
 
-class pointerheap
-{
+class pointerheap {
 public:
-	pointerheap(fake * fk);
-	~pointerheap();
+    pointerheap(fake *fk);
 
-	void clear();
+    ~pointerheap();
 
-	pointerele * allocpointer(void * ptr, const char * type);
+    void clear();
 
-	void checkgc(bool force);
+    pointerele *allocpointer(void *ptr, const char *type);
 
-	const char * dump();
-	
-	force_inline size_t size() const 
-	{
-		return m_shh.size();
-	}
-	
+    void checkgc(bool force);
+
+    const char *dump();
+
+    force_inline size_t size() const {
+        return m_shh.size();
+    }
+
 private:
-	void gc();
-	
+    void gc();
+
 private:
-	fake * m_fk;
-	fkhashmap<void *, pointerele> m_shh;
-	String m_dumpstr;
+    fake *m_fk;
+    fkhashmap<void *, pointerele> m_shh;
+    String m_dumpstr;
     array<pointerele *> m_todelete;
     size_t m_last_gc_size;
 };

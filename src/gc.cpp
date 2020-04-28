@@ -1,33 +1,28 @@
 #include "gc.h"
 #include "fake.h"
 
-gc::gc(fake * fk) : m_fk(fk)
-{
+gc::gc(fake *fk) : m_fk(fk) {
     ARRAY_INI(m_ret, fk);
     ARRAY_INI(m_entry, fk);
 }
 
-gc::~gc()
-{
+gc::~gc() {
 }
 
-void gc::clear()
-{
+void gc::clear() {
     ARRAY_DELETE(m_ret);
     ARRAY_DELETE(m_entry);
 }
 
-void gc::check(bool forcegc)
-{
+void gc::check(bool forcegc) {
     m_fk->con.checkgc(forcegc);
     m_fk->sh.checkgc(forcegc);
     m_fk->ph.checkgc(forcegc);
 }
 
-const char * gc::dump()
-{
-	m_dumpstr.clear();
-	return m_dumpstr.c_str();
+const char *gc::dump() {
+    m_dumpstr.clear();
+    return m_dumpstr.c_str();
 }
 
 #define PUSH_RET(ret, ss) \
@@ -61,60 +56,49 @@ const char * gc::dump()
         FKLOG("PUSH_ENTRY %p %p looped", m_fk, v); \
     }
 
-array<void *> & gc::get_used_stringele()
-{
-    array<void *> & ret = get_used_by_type(variant::STRING);
+array<void *> &gc::get_used_stringele() {
+    array<void *> &ret = get_used_by_type(variant::STRING);
     return ret;
 }
 
-array<void *> & gc::get_used_pointer()
-{
-    array<void *> & ret = get_used_by_type(variant::POINTER);
+array<void *> &gc::get_used_pointer() {
+    array<void *> &ret = get_used_by_type(variant::POINTER);
     return ret;
 }
 
-array<void *> & gc::get_used_by_type(int type)
-{
+array<void *> &gc::get_used_by_type(int type) {
     FKLOG("start get_used_by_type %p", m_fk);
 
-    array<void *> & ret = m_ret;
+    array<void *> &ret = m_ret;
     ARRAY_CLEAR(ret);
 
-    array<processor *> & curprocessor = m_fk->rn.curprocessor;
+    array<processor *> &curprocessor = m_fk->rn.curprocessor;
 
-    array<variant *> & entry = m_entry;
+    array<variant *> &entry = m_entry;
     ARRAY_CLEAR(entry);
 
     fkhashset<void *> find(m_fk);
 
-    for (int i = 0; LIKE(i < (int)ARRAY_SIZE(curprocessor)); i++)
-    {
-        processor * pro = ARRAY_GET(curprocessor, i);
+    for (int i = 0; LIKE(i < (int) ARRAY_SIZE(curprocessor)); i++) {
+        processor *pro = ARRAY_GET(curprocessor, i);
 
-        for (int j = 0; LIKE(j < (int)ARRAY_SIZE(pro->m_pl.l)); j++)
-        {
-            routine * n = ARRAY_GET(pro->m_pl.l, j);
-            if (UNLIKE(!n))
-            {
+        for (int j = 0; LIKE(j < (int) ARRAY_SIZE(pro->m_pl.l)); j++) {
+            routine *n = ARRAY_GET(pro->m_pl.l, j);
+            if (UNLIKE(!n)) {
                 continue;
             }
 
             int bp = n->m_interpreter.m_bp;
-            const func_binary * fb = n->m_interpreter.m_fb;
+            const func_binary *fb = n->m_interpreter.m_fb;
 
-            while (LIKE((!BP_END(bp))))
-            {
-                for (int z = 0; LIKE(z < fb->m_maxstack); z++)
-                {
-                    variant * v = 0;
+            while (LIKE((!BP_END(bp)))) {
+                for (int z = 0; LIKE(z < fb->m_maxstack); z++) {
+                    variant *v = 0;
                     GET_STACK_BY_INTER(bp, v, z, n->m_interpreter);
-                    if (UNLIKE(v->type == type))
-                    {
+                    if (UNLIKE(v->type == type)) {
                         PUSH_RET(ret, v->data.p);
-                    }
-                    else if (UNLIKE(v->type == variant::ARRAY ||
-                                    v->type == variant::MAP))
-                    {
+                    } else if (UNLIKE(v->type == variant::ARRAY ||
+                                      v->type == variant::MAP)) {
                         PUSH_ENTRY(ret, v, find);
                     }
                 }
@@ -123,8 +107,7 @@ array<void *> & gc::get_used_by_type(int type)
                 int callbp = 0;
                 BP_GET_BP_BY_INTER(bp, callbp, n->m_interpreter);
                 bp = callbp;
-                if (UNLIKE(BP_END(bp)))
-                {
+                if (UNLIKE(BP_END(bp))) {
                     break;
                 }
             }
@@ -132,76 +115,56 @@ array<void *> & gc::get_used_by_type(int type)
         }
     }
 
-    variant_map * m = m_fk->con.newgmap();
+    variant_map *m = m_fk->con.newgmap();
     variant v;
     V_SET_MAP(&v, m);
     PUSH_ENTRY(ret, &v, find);
 
-    while (UNLIKE(!ARRAY_EMPTY(entry)))
-    {
-        variant * v = ARRAY_BACK(entry);
+    while (UNLIKE(!ARRAY_EMPTY(entry))) {
+        variant *v = ARRAY_BACK(entry);
         ARRAY_POP_BACK(entry);
-        if (LIKE(v->type == type))
-        {
+        if (LIKE(v->type == type)) {
             PUSH_RET(ret, v->data.p);
-        }
-        else if (UNLIKE(v->type == variant::ARRAY))
-        {
-            variant_array * va = v->data.va;
+        } else if (UNLIKE(v->type == variant::ARRAY)) {
+            variant_array *va = v->data.va;
 
-            if (UNLIKE(va->isconst))
-            {
+            if (UNLIKE(va->isconst)) {
                 continue;
             }
 
-            for (int i = 0; LIKE(i < (int)va->va.m_max_size); ++i)
-            {
-                variant * n = ARRAY_GET(va->va, i);
-                if (LIKE(n != 0))
-                {
-                    if (UNLIKE(n->type == type))
-                    {
+            for (int i = 0; LIKE(i < (int) va->va.m_max_size); ++i) {
+                variant *n = ARRAY_GET(va->va, i);
+                if (LIKE(n != 0)) {
+                    if (UNLIKE(n->type == type)) {
                         PUSH_RET(ret, n->data.str);
-                    }
-                    else if (UNLIKE(n->type == variant::ARRAY ||
-                                    n->type == variant::MAP))
-                    {
+                    } else if (UNLIKE(n->type == variant::ARRAY ||
+                                      n->type == variant::MAP)) {
                         PUSH_ENTRY(ret, n, find);
                     }
                 }
             }
-        }
-        else if (UNLIKE(v->type == variant::MAP))
-        {
-            variant_map * vm = v->data.vm;
+        } else if (UNLIKE(v->type == variant::MAP)) {
+            variant_map *vm = v->data.vm;
 
-            if (UNLIKE(vm->isconst))
-            {
+            if (UNLIKE(vm->isconst)) {
                 continue;
             }
 
-            for (const fkhashmap<variant, variant *>::ele * p = vm->vm.first(); p != 0; p = vm->vm.next())
-            {
+            for (const fkhashmap<variant, variant *>::ele *p = vm->vm.first(); p != 0; p = vm->vm.next()) {
                 const variant *key = &(p->k);
                 const variant *value = *p->t;
 
-                if (UNLIKE(key->type == type))
-                {
+                if (UNLIKE(key->type == type)) {
                     PUSH_RET(ret, key->data.p);
-                }
-                else if (UNLIKE(key->type == variant::ARRAY ||
-                                key->type == variant::MAP))
-                {
+                } else if (UNLIKE(key->type == variant::ARRAY ||
+                                  key->type == variant::MAP)) {
                     PUSH_ENTRY(ret, key, find);
                 }
 
-                if (UNLIKE(value->type == type))
-                {
+                if (UNLIKE(value->type == type)) {
                     PUSH_RET(ret, value->data.p);
-                }
-                else if (UNLIKE(value->type == variant::ARRAY ||
-                                value->type == variant::MAP))
-                {
+                } else if (UNLIKE(value->type == variant::ARRAY ||
+                                  value->type == variant::MAP)) {
                     PUSH_ENTRY(ret, value, find);
                 }
             }
@@ -215,44 +178,37 @@ array<void *> & gc::get_used_by_type(int type)
     return ret;
 }
 
-array<void *> & gc::get_used_container()
-{
+array<void *> &gc::get_used_container() {
     FKLOG("start get_used_container %p", m_fk);
 
-    array<void *> & ret = m_ret;
+    array<void *> &ret = m_ret;
     ARRAY_CLEAR(ret);
 
-    array<processor *> & curprocessor = m_fk->rn.curprocessor;
+    array<processor *> &curprocessor = m_fk->rn.curprocessor;
 
-    array<variant *> & entry = m_entry;
+    array<variant *> &entry = m_entry;
     ARRAY_CLEAR(entry);
 
     fkhashset<void *> find(m_fk);
 
-    for (int i = 0; LIKE(i < (int)ARRAY_SIZE(curprocessor)); i++)
-    {
-        processor * pro = ARRAY_GET(curprocessor, i);
+    for (int i = 0; LIKE(i < (int) ARRAY_SIZE(curprocessor)); i++) {
+        processor *pro = ARRAY_GET(curprocessor, i);
 
-        for (int j = 0; LIKE(j < (int)ARRAY_SIZE(pro->m_pl.l)); j++)
-        {
-            routine * n = ARRAY_GET(pro->m_pl.l, j);
-            if (UNLIKE(!n))
-            {
+        for (int j = 0; LIKE(j < (int) ARRAY_SIZE(pro->m_pl.l)); j++) {
+            routine *n = ARRAY_GET(pro->m_pl.l, j);
+            if (UNLIKE(!n)) {
                 continue;
             }
 
             int bp = n->m_interpreter.m_bp;
-            const func_binary * fb = n->m_interpreter.m_fb;
+            const func_binary *fb = n->m_interpreter.m_fb;
 
-            while (LIKE((!BP_END(bp))))
-            {
-                for (int z = 0; LIKE(z < fb->m_maxstack); z++)
-                {
-                    variant * v = 0;
+            while (LIKE((!BP_END(bp)))) {
+                for (int z = 0; LIKE(z < fb->m_maxstack); z++) {
+                    variant *v = 0;
                     GET_STACK_BY_INTER(bp, v, z, n->m_interpreter);
                     if (UNLIKE(v->type == variant::ARRAY ||
-                                    v->type == variant::MAP))
-                    {
+                               v->type == variant::MAP)) {
                         PUSH_ENTRY(ret, v, find);
                     }
                 }
@@ -261,8 +217,7 @@ array<void *> & gc::get_used_container()
                 int callbp = 0;
                 BP_GET_BP_BY_INTER(bp, callbp, n->m_interpreter);
                 bp = callbp;
-                if (UNLIKE(BP_END(bp)))
-                {
+                if (UNLIKE(BP_END(bp))) {
                     break;
                 }
             }
@@ -270,78 +225,64 @@ array<void *> & gc::get_used_container()
         }
     }
 
-    variant_map * m = m_fk->con.newgmap();
+    variant_map *m = m_fk->con.newgmap();
     variant v;
     V_SET_MAP(&v, m);
     PUSH_ENTRY(ret, &v, find);
 
-    while (UNLIKE(!ARRAY_EMPTY(entry)))
-    {
-        variant * v = ARRAY_BACK(entry);
+    while (UNLIKE(!ARRAY_EMPTY(entry))) {
+        variant *v = ARRAY_BACK(entry);
         ARRAY_POP_BACK(entry);
         FKLOG("POP_ENTRY %p %p", m_fk, v);
 
-        if (UNLIKE(v->type == variant::ARRAY))
-        {
-            variant_array * va = v->data.va;
+        if (UNLIKE(v->type == variant::ARRAY)) {
+            variant_array *va = v->data.va;
 
-            if (UNLIKE(va->isconst))
-            {
+            if (UNLIKE(va->isconst)) {
                 continue;
             }
 
             PUSH_RET(ret, va);
 
-            for (int i = 0; LIKE(i < (int)va->va.m_max_size); ++i)
-            {
-                variant * n = ARRAY_GET(va->va, i);
-                if (LIKE(n != 0))
-                {
+            for (int i = 0; LIKE(i < (int) va->va.m_max_size); ++i) {
+                variant *n = ARRAY_GET(va->va, i);
+                if (LIKE(n != 0)) {
                     if (UNLIKE(n->type == variant::ARRAY ||
-                                    n->type == variant::MAP))
-                    {
+                               n->type == variant::MAP)) {
                         PUSH_ENTRY(ret, n, find);
                     }
                     PUSH_RET(ret, n);
                     FKLOG("get_used_container add variant %p", n);
                 }
             }
-        }
-        else if (UNLIKE(v->type == variant::MAP))
-        {
-            variant_map * vm = v->data.vm;
+        } else if (UNLIKE(v->type == variant::MAP)) {
+            variant_map *vm = v->data.vm;
 
-            if (UNLIKE(vm->isconst))
-            {
+            if (UNLIKE(vm->isconst)) {
                 continue;
             }
 
             PUSH_RET(ret, vm);
 
             FKLOG("get_used_container map %p start loop size %d", v, vm->vm.size());
-            for (const fkhashmap<variant, variant *>::ele * p = vm->vm.first(); p != 0; p = vm->vm.next())
-            {
+            for (const fkhashmap<variant, variant *>::ele *p = vm->vm.first(); p != 0; p = vm->vm.next()) {
                 const variant *key = &(p->k);
                 const variant *value = *p->t;
 
                 if (UNLIKE(key->type == variant::ARRAY ||
-                                key->type == variant::MAP))
-                {
+                           key->type == variant::MAP)) {
                     PUSH_ENTRY(ret, key, find);
                 }
 
                 if (UNLIKE(value->type == variant::ARRAY ||
-                                value->type == variant::MAP))
-                {
+                           value->type == variant::MAP)) {
                     PUSH_ENTRY(ret, value, find);
                 }
                 PUSH_RET(ret, value);
                 FKLOG("get_used_container add variant %p", value);
             }
             FKLOG("get_used_container map %p end loop size %d", v, vm->vm.size());
-        }
-        else
-        {
+        } else {
             assert(0);
         }
     }
