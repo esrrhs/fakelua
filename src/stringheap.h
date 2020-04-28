@@ -6,40 +6,40 @@
 
 struct fake;
 
-class stringheap
-{
+class stringheap {
 public:
-	stringheap(fake * fk);
-	~stringheap();
+    stringheap(fake *fk);
 
-	void clear();
+    ~stringheap();
 
-	stringele * allocstring(const char * str);
+    void clear();
 
-	variant allocsysstr(const char * str);
+    stringele *allocstring(const char *str);
 
-	void checkgc(bool force);
+    variant allocsysstr(const char *str);
 
-	const char * dump();
+    void checkgc(bool force);
 
-	force_inline size_t size() const 
-	{
-		return m_shh.size();
-	}
-	
-	size_t sys_size() const;
-	
-	size_t bytesize() const;
-	size_t sys_bytesize() const;
-	
-private:
-	void gc();
+    const char *dump();
+
+    force_inline size_t size() const {
+        return m_shh.size();
+    }
+
+    size_t sys_size() const;
+
+    size_t bytesize() const;
+
+    size_t sys_bytesize() const;
 
 private:
-	fake * m_fk;
+    void gc();
+
+private:
+    fake *m_fk;
     fkhashset<stringele *> m_shh;
-	array<stringele *> m_todelete;
-	String m_dumpstr;
-	size_t m_last_gc_size;
+    array<stringele *> m_todelete;
+    String m_dumpstr;
+    size_t m_last_gc_size;
 };
 

@@ -6,26 +6,30 @@
 
 struct fake;
 
-class gc
-{
+class gc {
 public:
-	gc(fake * fk);
-	~gc();
+    gc(fake *fk);
 
-	void clear();
+    ~gc();
 
-	void check(bool force);
+    void clear();
 
-	const char * dump();
+    void check(bool force);
 
-    array<void *> & get_used_stringele();
-    array<void *> & get_used_pointer();
-    array<void *> & get_used_container();
+    const char *dump();
+
+    array<void *> &get_used_stringele();
+
+    array<void *> &get_used_pointer();
+
+    array<void *> &get_used_container();
+
 private:
-    array<void *> & get_used_by_type(int type);
+    array<void *> &get_used_by_type(int type);
+
 private:
-	fake * m_fk;
-	String m_dumpstr;
+    fake *m_fk;
+    String m_dumpstr;
     array<void *> m_ret;
     array<variant *> m_entry;
 };

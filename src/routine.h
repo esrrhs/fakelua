@@ -5,19 +5,20 @@
 #include "interpreter.h"
 
 struct fake;
+
 class binary;
+
 struct paramstack;
-struct routine
-{
-	fake * m_fk;
-	int m_id;
-	// ½âÊÍÆ÷
-	interpreter m_interpreter;
+struct routine {
+    fake *m_fk;
+    int m_id;
+    // ½âÊÍÆ÷
+    interpreter m_interpreter;
 };
 
 #define ROUTINE_INI(rou, fk, id) (rou).m_fk = fk;\
-	(rou).m_id = id;\
-	INTER_INI((rou).m_interpreter, fk)
+    (rou).m_id = id;\
+    INTER_INI((rou).m_interpreter, fk)
 
 #define ROUTINE_ID(rou) ((rou).m_id)
 

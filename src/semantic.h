@@ -1,6 +1,6 @@
 #pragma once
 
-#if ! defined YYSTYPE_IS_DECLARED
+#if !defined YYSTYPE_IS_DECLARED
 #define YYSTYPE_IS_DECLARED
 #endif
 
@@ -8,15 +8,17 @@
 #include "syntree.h"
 #include "bison.h"
 
-typedef struct _YYSTYPE 
-{
-	String str;
-	syntree_node * syntree;
+typedef struct _YYSTYPE {
+    String str;
+    syntree_node *syntree;
 } YYSTYPE;
 
-extern int yyparse(void * param);
-extern int yylex(YYSTYPE *lvalp, YYLTYPE * loc, void * parm);
+extern int yyparse(void *param);
+
+extern int yylex(YYSTYPE *lvalp, YYLTYPE *loc, void *parm);
+
 extern void yyerror(const char *str);
+
 extern int yylex_destroy();
 
 #define YYSTYPE _YYSTYPE
