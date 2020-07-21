@@ -178,4 +178,4 @@ delfake(fk);
 ## Stargazers over time
 
 [![Stargazers over time](https://starchart.cc/esrrhs/fake.svg)](https://starchart.cc/esrrhs/fake)
-      
+
