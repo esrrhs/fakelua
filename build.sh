@@ -2,7 +2,7 @@
 
 BUILD_FLAG=""
 
-if [ $# == 1 ] && [ $1 == "release" ];then
+if [ "$#" == 1 ] && [ $1 == "release" ];then
     BUILD_FLAG=" -DREMOD=ON"
 fi
 
