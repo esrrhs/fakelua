@@ -1,2 +1,4 @@
 # fakelua
-用現代C ++实现的另一個luajit。Another luajit implemented in modern C++
+fakelua是另一种Lua的JIT实现，旨在充分利用现代C++的特性简化代码，及GCC JIT提高Lua的运行速度。
+
+
