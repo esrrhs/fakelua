@@ -4,6 +4,7 @@ project(test)
 
 aux_source_directory(./ TEST_SRC_LIST)
 include_directories(../src)
+include_directories(../src/internal)
 
 add_executable(unit_tests ${TEST_SRC_LIST})
 

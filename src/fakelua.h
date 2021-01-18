@@ -1,6 +1,6 @@
 #pragma once
 
-struct fakelua_State;
+struct fakelua_state;
 
-extern "C" fakelua_State * fakelua_newstate();
+extern "C" fakelua_state * fakelua_newstate();
 
