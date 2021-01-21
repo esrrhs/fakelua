@@ -18,5 +18,10 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <math.h>
+#include <fstream>
+#include <filesystem>
+#include <string_view>
+#include <experimental/source_location>
 
-
+void log(const std::string_view &message,
+         const std::experimental::source_location &location = std::experimental::source_location::current());

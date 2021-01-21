@@ -1,10 +1,12 @@
 #pragma once
 
-#include "state.h"
+#include "types.h"
 
 class fakelua_state {
 public:
-    fakelua_state() {}
+    fakelua_state();
+
+    ~fakelua_state();
 
     fakelua_state(const fakelua_state &) = delete;
 
