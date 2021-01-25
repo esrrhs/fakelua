@@ -7,6 +7,7 @@ include_directories(../src)
 include_directories(../src/internal)
 
 add_executable(unit_tests ${TEST_SRC_LIST})
+target_compile_options(unit_tests PRIVATE -std=c++2a -g3 -Wall)
 
 target_link_libraries(unit_tests gtest_main fakelua)
 
