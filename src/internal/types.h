@@ -125,7 +125,7 @@ inline constexpr auto get_type_name_v = get_type_name<E>();
 template<typename E, E V>
 inline constexpr auto get_val_name_v = get_val_name<E, V>();
 
-// Returns type name of enum.
+// Returns type name of enum type
 template<typename E>
 [[nodiscard]] constexpr auto
 enum_type_name() noexcept -> std::enable_if_t<std::is_enum_v<std::decay_t<E>>, std::string_view> {
@@ -135,6 +135,7 @@ enum_type_name() noexcept -> std::enable_if_t<std::is_enum_v<std::decay_t<E>>, s
     return name;
 }
 
+// Returns type name of enum value
 template<auto V>
 [[nodiscard]] constexpr auto
 enum_name() noexcept -> std::enable_if_t<std::is_enum_v<std::decay_t<decltype(V)>>, std::string_view> {
@@ -143,5 +144,120 @@ enum_name() noexcept -> std::enable_if_t<std::is_enum_v<std::decay_t<decltype(V)
     static_assert(name.size() > 0, "Enum value does not have a name.");
     return name;
 }
+
+template<typename T>
+inline constexpr bool is_enum_v = std::is_enum_v<T> && std::is_same_v<T, std::decay_t<T>>;
+
+template<typename E, auto V>
+constexpr bool is_valid() noexcept {
+    return get_val_name<E, static_cast<E>(V)>().size() != 0;
+}
+
+template<typename E, int O, typename U = std::underlying_type_t<E>>
+constexpr E enum_value(std::size_t i) noexcept {
+    static_assert(is_enum_v<E>, "enum_value requires enum type.");
+    return static_cast<E>(static_cast<int>(i) + O);
+}
+
+template<std::size_t N>
+constexpr std::size_t enum_values_count(const std::array<bool, N> &valid) noexcept {
+    auto count = std::size_t{0};
+    for (std::size_t i = 0; i < valid.size(); ++i) {
+        if (valid[i]) {
+            ++count;
+        }
+    }
+
+    return count;
+}
+
+template<typename E, int Min, std::size_t... I>
+constexpr auto enum_values(std::index_sequence<I...>) noexcept {
+    static_assert(is_enum_v<E>, "enum_values requires enum type.");
+    constexpr std::array<bool, sizeof...(I)> valid{{is_valid<E, enum_value<E, Min>(I)>()...}};
+    constexpr std::size_t count = enum_values_count(valid);
+
+    std::array<E, count> values{};
+    for (std::size_t i = 0, v = 0; v < count; ++i) {
+        if (valid[i]) {
+            values[v++] = enum_value<E, Min>(i);
+        }
+    }
+
+    return values;
+}
+
+template<typename L, typename R>
+constexpr bool cmp_less(L lhs, R rhs) noexcept {
+    static_assert(std::is_integral_v<L> && std::is_integral_v<R>, "cmp_less requires integral type.");
+
+    if constexpr (std::is_signed_v<L> == std::is_signed_v<R>) {
+        // If same signedness (both signed or both unsigned).
+        return lhs < rhs;
+    } else if constexpr (std::is_signed_v<R>) {
+        // If 'right' is negative, then result is 'false', otherwise cast & compare.
+        return rhs > 0 && lhs < static_cast<std::make_unsigned_t<R>>(rhs);
+    } else {
+        // If 'left' is negative, then result is 'true', otherwise cast & compare.
+        return lhs < 0 || static_cast<std::make_unsigned_t<L>>(lhs) < rhs;
+    }
+}
+
+inline constexpr int MIN_ENUM_VALUE = -128;
+inline constexpr int MAX_ENUM_VALUE = 128;
+
+template<typename E, typename U = std::underlying_type_t<E>>
+constexpr auto enum_values() noexcept {
+    static_assert(is_enum_v<E>, "enum_values requires enum type.");
+    constexpr int min = MIN_ENUM_VALUE;
+    constexpr int max = MAX_ENUM_VALUE;
+    constexpr auto range_size = max - min + 1;
+    static_assert(range_size > 0, "enum_range requires valid size.");
+    static_assert(range_size < (std::numeric_limits<std::uint16_t>::max)(), "enum_range requires valid size.");
+    if constexpr (cmp_less((std::numeric_limits<U>::min)(), min)) {
+        static_assert(!is_valid<E, enum_value<E, min - 1>(0)>(),
+                      "enum_range detects enum value smaller than min range size.");
+    }
+    if constexpr (cmp_less(range_size, (std::numeric_limits<U>::max)())) {
+        static_assert(!is_valid<E, enum_value<E, min>(range_size + 1)>(),
+                      "enum_range detects enum value larger than max range size.");
+    }
+
+    return enum_values<E, min>(std::make_index_sequence<range_size>{});
+}
+
+template<typename E>
+inline constexpr auto enum_values_v = enum_values<E>();
+
+template<typename E>
+inline constexpr auto enum_count_v = enum_values_v<E>.size();
+
+template<typename E, typename U = std::underlying_type_t<E>>
+inline constexpr auto enum_min_v = static_cast<U>(enum_values_v<E>.front());
+
+template<typename E, typename U = std::underlying_type_t<E>>
+inline constexpr auto enum_max_v = static_cast<U>(enum_values_v<E>.back());
+
+template<typename E, typename U = std::underlying_type_t<E>>
+constexpr std::size_t range_size() noexcept {
+    static_assert(is_enum_v<E>, "range_size requires enum type.");
+    constexpr auto max = enum_max_v<E>;
+    constexpr auto min = enum_min_v<E>;
+    constexpr auto range_size = max - min + U{1};
+    static_assert(range_size > 0, "enum_range requires valid size.");
+    static_assert(range_size < (std::numeric_limits<std::uint16_t>::max)(), "enum_range requires valid size.");
+    return static_cast<std::size_t>(range_size);
+}
+
+template<typename E, bool IsFlags = false>
+inline constexpr auto range_size_v = range_size<E, IsFlags>();
+
+template<typename E, bool IsFlags = false>
+using index_t = std::conditional_t<
+        range_size_v<E, IsFlags> < (std::numeric_limits<std::uint8_t>::max)(), std::uint8_t, std::uint16_t>;
+
+template<typename E, bool IsFlags = false>
+inline constexpr auto invalid_index_v = (std::numeric_limits<index_t<E, IsFlags>>::max)();
+
 
 ////////////////////////////////////
