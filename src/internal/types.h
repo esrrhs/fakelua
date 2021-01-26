@@ -24,6 +24,15 @@
 #include <sstream>
 
 ////////////////////////////////////
+// macro define
+
+#ifndef NDEBUG
+#define FAKELUA_DEBUG
+#else
+#endif
+
+////////////////////////////////////
+// debug log module
 
 const std::string LOG_DEBUG = "DEBUG";
 const std::string LOG_ERROR = "ERROR";
@@ -58,15 +67,16 @@ inline void error(const std::experimental::source_location &location, const Form
     log(location, LOG_ERROR, fmt, std::forward<Args>(args)...);
 }
 
-#ifndef NDEBUG
+#ifdef FAKELUA_DEBUG
 #define DEBUG(...) debug(std::experimental::source_location::current(), __VA_ARGS__)
 #define ERR(...) error(std::experimental::source_location::current(), __VA_ARGS__)
 #else
-#define DEBUG
-#define ERR
+#define DEBUG(...)
+#define ERR(...)
 #endif
 
 ////////////////////////////////////
+// enum to string templates
 
 constexpr std::string_view pretty_name(std::string_view name) noexcept {
     for (std::size_t i = name.size(); i > 0; --i) {
