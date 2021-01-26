@@ -334,4 +334,77 @@ enum_name(E value) noexcept -> std::enable_if_t<std::is_enum_v<std::decay_t<E>>,
     return {}; // Invalid value or out of range.
 }
 
+struct char_equal_to {
+    constexpr bool operator()(char lhs, char rhs) const noexcept {
+        return lhs == rhs;
+    }
+};
+
+template<typename BinaryPredicate>
+constexpr bool cmp_equal(std::string_view lhs, std::string_view rhs,
+                         BinaryPredicate &&p) noexcept(std::is_nothrow_invocable_r_v<bool, BinaryPredicate, char, char>) {
+    constexpr bool default_predicate = std::is_same_v<std::decay_t<BinaryPredicate>, char_equal_to>;
+
+    if constexpr (default_predicate) {
+        static_cast<void>(p);
+        return lhs == rhs;
+    } else {
+        if (lhs.size() != rhs.size()) {
+            return false;
+        }
+
+        const auto size = lhs.size();
+        for (std::size_t i = 0; i < size; ++i) {
+            if (!p(lhs[i], rhs[i])) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+}
+
+// Returns enum value at specified index.
+// No bounds checking is performed: the behavior is undefined if index >= number of enum values.
+template<typename E>
+[[nodiscard]] constexpr auto
+enum_value(std::size_t index) noexcept -> std::enable_if_t<std::is_enum_v<std::decay_t<E>>, std::decay_t<E>> {
+    using D = std::decay_t<E>;
+    static_assert(enum_count_v<D> > 0, "magic_enum requires enum implementation and valid max and min.");
+
+    if constexpr (is_enum_sparse_v<D>) {
+        return assert((index < enum_count_v<D>)), enum_values_v<D>[index];
+    } else {
+        return assert((index < enum_count_v<D>)), enum_value<D, enum_min_v<D>>(index);
+    }
+}
+
+// Obtains enum value from name.
+// Returns optional with enum value.
+template<typename E, typename BinaryPredicate>
+[[nodiscard]] constexpr auto enum_cast(std::string_view value,
+                                       BinaryPredicate p) noexcept(std::is_nothrow_invocable_r_v<bool, BinaryPredicate, char, char>) -> std::enable_if_t<std::is_enum_v<std::decay_t<E>>, std::optional<std::decay_t<E>>> {
+    static_assert(std::is_invocable_r_v<bool, BinaryPredicate, char, char>,
+                  "enum_cast requires bool(char, char) invocable predicate.");
+    using D = std::decay_t<E>;
+
+    for (std::size_t i = 0; i < enum_count_v<D>; ++i) {
+        if (cmp_equal(value, enum_names_v<D>[i], p)) {
+            return enum_value<D>(i);
+        }
+    }
+
+    return {}; // Invalid value or out of range.
+}
+
+// Obtains enum value from name.
+// Returns optional with enum value.
+template<typename E>
+[[nodiscard]] constexpr auto enum_cast(
+        std::string_view value) noexcept -> std::enable_if_t<std::is_enum_v<std::decay_t<E>>, std::optional<std::decay_t<E>>> {
+    using D = std::decay_t<E>;
+
+    return enum_cast<D>(value, char_equal_to{});
+}
+
 ////////////////////////////////////

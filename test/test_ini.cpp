@@ -1,4 +1,5 @@
 #include "gtest/gtest.h"
+#include "types.h"
 #include "fakelua.h"
 
 TEST(ini, newstate) {

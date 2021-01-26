@@ -37,6 +37,12 @@ TEST(common, enum_value) {
     DEBUG("name %s %d", n.data(), n.size());
 }
 
+TEST(common, enum_cast) {
+    auto n = enum_cast<TestEnum>("One");
+    ASSERT_EQ(n, TestEnum::One);
+    DEBUG("n %d", n);
+}
+
 TEST(common, enumtypename_s) {
     std::string_view n = enum_type_name<TestEnumSparse>();
     ASSERT_NE(n.empty(), true);
@@ -62,4 +68,11 @@ TEST(common, enum_value_s) {
     std::string_view n = enum_name(a);
     ASSERT_NE(n.empty(), true);
     DEBUG("name %s %d", n.data(), n.size());
+}
+
+TEST(common, enum_cast_s) {
+    auto n = enum_cast<TestEnumSparse>("SparseOne");
+    ASSERT_EQ(n, TestEnumSparse::SparseOne);
+    ASSERT_NE(n, TestEnumSparse::SparseTwo);
+    DEBUG("n %d", n);
 }
