@@ -30,6 +30,13 @@ TEST(common, enum_min_max) {
     DEBUG("min %d max %d", min, max);
 }
 
+TEST(common, enum_value) {
+    auto a = TestEnum::One;
+    std::string_view n = enum_name(a);
+    ASSERT_NE(n.empty(), true);
+    DEBUG("name %s %d", n.data(), n.size());
+}
+
 TEST(common, enumtypename_s) {
     std::string_view n = enum_type_name<TestEnumSparse>();
     ASSERT_NE(n.empty(), true);
@@ -48,4 +55,11 @@ TEST(common, enum_min_max_s) {
     ASSERT_EQ(min, 1);
     ASSERT_EQ(max, 5);
     DEBUG("min %d max %d", min, max);
+}
+
+TEST(common, enum_value_s) {
+    auto a = TestEnumSparse::SparseOne;
+    std::string_view n = enum_name(a);
+    ASSERT_NE(n.empty(), true);
+    DEBUG("name %s %d", n.data(), n.size());
 }

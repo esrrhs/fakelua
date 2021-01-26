@@ -239,8 +239,8 @@ template<typename E, typename U = std::underlying_type_t<E>>
 inline constexpr auto enum_max_v = static_cast<U>(enum_values_v<E>.back());
 
 template<typename E, typename U = std::underlying_type_t<E>>
-constexpr std::size_t range_size() noexcept {
-    static_assert(is_enum_v<E>, "range_size requires enum type.");
+constexpr std::size_t enum_range_size() noexcept {
+    static_assert(is_enum_v<E>, "enum_range_size requires enum type.");
     constexpr auto max = enum_max_v<E>;
     constexpr auto min = enum_min_v<E>;
     constexpr auto range_size = max - min + U{1};
@@ -249,15 +249,79 @@ constexpr std::size_t range_size() noexcept {
     return static_cast<std::size_t>(range_size);
 }
 
-template<typename E, bool IsFlags = false>
-inline constexpr auto range_size_v = range_size<E, IsFlags>();
+template<typename E>
+inline constexpr auto enum_range_size_v = enum_range_size<E>();
 
-template<typename E, bool IsFlags = false>
-using index_t = std::conditional_t<
-        range_size_v<E, IsFlags> < (std::numeric_limits<std::uint8_t>::max)(), std::uint8_t, std::uint16_t>;
+template<typename E>
+using enum_index_t = std::conditional_t<
+        enum_range_size_v<E> < (std::numeric_limits<std::uint8_t>::max)(), std::uint8_t, std::uint16_t>;
 
-template<typename E, bool IsFlags = false>
-inline constexpr auto invalid_index_v = (std::numeric_limits<index_t<E, IsFlags>>::max)();
+template<typename E>
+inline constexpr auto invalid_index_v = (std::numeric_limits<enum_index_t<E>>::max)();
 
+template<typename E, std::size_t... I>
+constexpr auto enum_names(std::index_sequence<I...>) noexcept {
+    static_assert(is_enum_v<E>, "enum_names requires enum type.");
+    return std::array<std::string_view, sizeof...(I)>{{get_val_name_v<E, enum_values_v<E>[I]> ...}};
+}
+
+template<typename E>
+inline constexpr auto enum_names_v = enum_names<E>(std::make_index_sequence<enum_count_v<E>>{});
+
+
+template<typename E, typename U = std::underlying_type_t<E>>
+constexpr bool is_enum_sparse() noexcept {
+    static_assert(is_enum_v<E>, "is_enum_sparse requires enum type.");
+
+    return enum_range_size_v<E> != enum_count_v<E>;
+}
+
+template<typename E>
+inline constexpr bool is_enum_sparse_v = is_enum_sparse<E>();
+
+template<typename E, std::size_t... I>
+constexpr auto enum_indexes(std::index_sequence<I...>) noexcept {
+    static_assert(is_enum_v<E>, "enum_indexes requires enum type.");
+    constexpr auto min = enum_min_v<E>;
+    [[maybe_unused]] auto i = enum_index_t<E>{0};
+
+    return std::array<decltype(i), sizeof...(I)>{{(is_valid<E, enum_value<E, min>(I)>() ? i++
+                                                                                        : invalid_index_v<E>)...}};
+}
+
+template<typename E>
+inline constexpr auto enum_indexes_v = enum_indexes<E>(std::make_index_sequence<enum_range_size_v<E>>{});
+
+template<typename E, typename U = std::underlying_type_t<E>>
+constexpr std::size_t enum_index(E v) noexcept {
+    static_assert(is_enum_v<E>, "enum_index requires enum type.");
+
+    U value = static_cast<U>(v);
+
+    if (const auto i = static_cast<std::size_t>(value - enum_min_v<E>); value >= enum_min_v<E> &&
+                                                                        value <= enum_max_v<E>) {
+        if constexpr (is_enum_sparse_v<E>) {
+            if (const auto idx = enum_indexes_v<E>[i]; idx != invalid_index_v<E>) {
+                return idx;
+            }
+        } else {
+            return i;
+        }
+    }
+
+    return invalid_index_v<E>; // Value out of range.
+}
+
+// Returns name from enum value.
+// If enum value does not have name or value out of range, returns empty string.
+template<typename E>
+[[nodiscard]] constexpr auto
+enum_name(E value) noexcept -> std::enable_if_t<std::is_enum_v<std::decay_t<E>>, std::string_view> {
+    using D = std::decay_t<E>;
+    if (const auto i = enum_index<D>(value); i != invalid_index_v<D>) {
+        return enum_names_v<D>[i];
+    }
+    return {}; // Invalid value or out of range.
+}
 
 ////////////////////////////////////
