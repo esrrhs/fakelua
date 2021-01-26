@@ -1,6 +1,6 @@
 #pragma once
 
-// 此文件为对外接口，尽量与lua接口保持一致
+// This file define interface, try to be consistent with the lua interface
 class fakelua_state;
 
 enum fakelua_error {
@@ -8,14 +8,14 @@ enum fakelua_error {
     FAKELUA_FILE_FAIL,
 };
 
-// 创建虚拟机
+// create fake lua state
 extern "C" fakelua_state *fakelua_newstate();
 
-// 销毁虚拟机
+// close fake lua state
 extern "C" void fakelua_close(fakelua_state *L);
 
-// 加载执行文件
+// do lua file
 extern "C" int fakelua_dofile(fakelua_state *L, const char *file_path);
 
-// 加载执行字符串
+// do lua string
 extern "C" int fakelua_dostring(fakelua_state *L, const char *content);
