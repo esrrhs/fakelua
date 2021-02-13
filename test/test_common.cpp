@@ -1,6 +1,8 @@
 #include "gtest/gtest.h"
 #include "types.h"
 #include "fakelua.h"
+#include "location.h"
+#include "token.h"
 
 enum TestEnum {
     One, Two, Three
@@ -75,4 +77,32 @@ TEST(common, enum_cast_s) {
     ASSERT_EQ(n, TestEnumSparse::SparseOne);
     ASSERT_NE(n, TestEnumSparse::SparseTwo);
     DEBUG("n %d", n);
+}
+
+TEST(common, loc) {
+    location a("test.lua", 100, 200);
+    std::string left = "test.lua:100,200";
+    ASSERT_EQ(left, std::string(a.to_string()));
+    DEBUG("%s", a.to_string());
+}
+
+TEST(common, loc_empty) {
+    location a;
+    std::string left = "";
+    ASSERT_EQ(left, std::string(a.to_string()));
+}
+
+TEST(common, token) {
+    location a("test.lua", 100, 200);
+    token b(TK_THEN, a);
+    std::string left = "then(test.lua:100,200)";
+    ASSERT_EQ(left, std::string(b.to_string()));
+    DEBUG("%s", b.to_string());
+}
+
+TEST(common, token_empty) {
+    location a;
+    token b(TK_THEN, a);
+    std::string left = "then";
+    ASSERT_EQ(left, std::string(b.to_string()));
 }
