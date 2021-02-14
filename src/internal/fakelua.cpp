@@ -4,7 +4,7 @@
 #include "parser.h"
 
 extern "C" fakelua_state *fakelua_newstate() {
-    fakelua_state *L = new fakelua_state();
+    auto L = new fakelua_state();
     return L;
 }
 
@@ -29,6 +29,8 @@ extern "C" int fakelua_dofile(fakelua_state *L, const char *file_path) {
         ERR("read fail %s", file_path);
         return FAKELUA_FILE_FAIL;
     }
+    f.close();
+
     parser p;
     int ret = p.parse(file_path, content);
     if (ret != FAKELUA_OK) {
