@@ -43,8 +43,8 @@ const std::string TOKEN_NAME[] = {
 };
 
 std::string token::to_string() {
-    auto token_name =
-            m_tk > TK_NONE && m_tk < TK_MAX ? TOKEN_NAME[int(m_tk)] : string_format("error token %d", int(m_tk));
+    auto token_name = m_tk > TK_NONE && m_tk < TK_MAX ?
+                      TOKEN_NAME[static_cast<int>(m_tk)] : string_format("error token %d", static_cast<int>(m_tk));
     auto loc_str = m_loc.to_string();
     if (loc_str.empty()) {
         return token_name;
