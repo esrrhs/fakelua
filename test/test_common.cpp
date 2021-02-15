@@ -85,6 +85,7 @@ TEST(common, loc) {
     std::string left = "test.lua:100,200";
     DEBUG("%s", a.to_string());
     ASSERT_EQ(left, a.to_string());
+    ASSERT_EQ(left.size(), a.to_string().size());
 }
 
 TEST(common, loc_empty) {
@@ -92,6 +93,7 @@ TEST(common, loc_empty) {
     location a(filename, 0, 0);
     std::string left = "";
     ASSERT_EQ(left, a.to_string());
+    ASSERT_EQ(left.size(), a.to_string().size());
 }
 
 TEST(common, token) {
@@ -101,6 +103,7 @@ TEST(common, token) {
     std::string left = "then(test.lua:100,200)";
     DEBUG("%s", b.to_string());
     ASSERT_EQ(left, b.to_string());
+    ASSERT_EQ(left.size(), b.to_string().size());
 }
 
 TEST(common, token_empty) {
@@ -109,4 +112,5 @@ TEST(common, token_empty) {
     token b(TK_THEN, a);
     std::string left = "then";
     ASSERT_EQ(left, b.to_string());
+    ASSERT_EQ(left.size(), b.to_string().size());
 }
