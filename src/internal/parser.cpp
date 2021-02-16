@@ -3,7 +3,7 @@
 
 int parser::parse(const std::string &file_name, const std::string &content) {
 
-    auto ret = lexer(file_name, content);
+    auto ret = lex(file_name, content);
     if (ret != FAKELUA_OK) {
         return ret;
     }
@@ -21,8 +21,11 @@ int parser::parse(const std::string &file_name, const std::string &content) {
     return ret;
 }
 
-int parser::lexer(const std::string &file_name, const std::string &content) {
-    // TODO
+int parser::lex(const std::string &file_name, const std::string &content) {
+    // replace comment with space
+    auto tmp = replace_multi_comment(content);
+    tmp = replace_comment(tmp);
+
     return FAKELUA_OK;
 }
 

@@ -14,7 +14,7 @@ public:
     int parse(const std::string & file_name, const std::string & content);
 
 private:
-    int lexer(const std::string & file_name, const std::string & content);
+    int lex(const std::string & file_name, const std::string & content);
     int parsing();
     int compile();
 
