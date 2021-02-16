@@ -411,10 +411,10 @@ template<typename E>
 // strings
 
 template<typename ... Args>
-std::string string_format(const std::string &format, Args &&...args) {
-    auto size = std::snprintf(nullptr, 0, format.c_str(), std::forward<Args>(args)...);
+std::string string_format(const std::string_view &format, Args &&...args) {
+    auto size = std::snprintf(nullptr, 0, format.data(), std::forward<Args>(args)...);
     std::vector<char> buf(size + 1);
-    std::snprintf(&buf[0], buf.size(), format.c_str(), std::forward<Args>(args)...);
+    std::snprintf(&buf[0], buf.size(), format.data(), std::forward<Args>(args)...);
     return std::string(&buf[0], &buf[0] + buf.size() - 1);
 }
 
