@@ -30,3 +30,9 @@ std::string replace_comment(std::string str) {
     ret += str;
     return ret;
 }
+
+std::vector<std::tuple<std::string, int, int>> token_string(std::string str) {
+    std::vector<std::tuple<std::string, int, int>> ret;
+    // TODO
+    return ret;
+}

@@ -26,6 +26,8 @@ int parser::lex(const std::string &file_name, const std::string &content) {
     auto tmp = replace_multi_comment(content);
     tmp = replace_comment(tmp);
 
+    auto tokens = token_string(tmp);
+
     return FAKELUA_OK;
 }
 
