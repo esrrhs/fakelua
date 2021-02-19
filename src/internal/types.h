@@ -420,6 +420,9 @@ std::string string_format(const std::string_view &format, Args &&...args) {
     return std::string(&buf[0], &buf[0] + buf.size() - 1);
 }
 
+////////////////////////////////////
+// common function
+
 std::string change_comment_to_space(std::string str);
 std::string replace_multi_comment(std::string str);
 std::string replace_comment(std::string str);
