@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.h"
+#include "stringheap.h"
 
 class fakelua_state {
 public:
@@ -12,4 +13,8 @@ public:
 
     fakelua_state &operator=(const fakelua_state &) = delete;
 
+    stringheap &get_stringheap() { return m_sh; }
+
+private:
+    stringheap m_sh;
 };

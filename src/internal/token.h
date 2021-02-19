@@ -5,6 +5,7 @@
 
 enum TOKEN {
     TK_NONE,
+
     TK_AND,
     TK_BREAK,
     TK_DO,
@@ -42,6 +43,7 @@ enum TOKEN {
     TK_INT,
     TK_NAME,
     TK_STRING,
+
     TK_MAX,
 };
 

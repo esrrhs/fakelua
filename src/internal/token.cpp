@@ -2,6 +2,7 @@
 
 const std::string TOKEN_NAME[] = {
         "NONE",
+
         "and",
         "break",
         "do",
@@ -39,6 +40,7 @@ const std::string TOKEN_NAME[] = {
         "<integer>",
         "<name>",
         "<string>",
+
         "MAX",
 };
 
