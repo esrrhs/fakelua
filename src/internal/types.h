@@ -423,6 +423,4 @@ std::string string_format(const std::string_view &format, Args &&...args) {
 ////////////////////////////////////
 // common function
 
-std::vector<std::tuple<std::string, int, int>> token_string(const std::string &str);
-
 ////////////////////////////////////

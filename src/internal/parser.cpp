@@ -36,3 +36,9 @@ int parser::compile() {
     // TODO
     return FAKELUA_OK;
 }
+
+std::vector<std::tuple<std::string, int, int>> parser::token_string(const std::string &str) {
+    std::vector<std::tuple<std::string, int, int>> ret;
+    // TODO
+    return ret;
+}
