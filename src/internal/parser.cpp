@@ -22,11 +22,7 @@ int parser::parse(const std::string &file_name, const std::string &content) {
 }
 
 int parser::lex(const std::string &file_name, const std::string &content) {
-    // replace comment with space
-    auto tmp = replace_multi_comment(content);
-    tmp = replace_comment(tmp);
-
-    auto tokens = token_string(tmp);
+    auto tokens = token_string(content);
 
     return FAKELUA_OK;
 }

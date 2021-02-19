@@ -2,7 +2,6 @@
 #include "types.h"
 #include "fakelua.h"
 #include "location.h"
-#include "token.h"
 
 enum TestEnum {
     One, Two, Three
