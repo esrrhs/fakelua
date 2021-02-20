@@ -1,6 +1,7 @@
 #pragma once
 
 #include "types.h"
+#include "variant.h"
 
 class fakelua_state;
 
@@ -15,6 +16,7 @@ public:
     stringheap &operator=(const stringheap &) = delete;
 
 public:
+    variant new_string(const std::string &str);
 
 private:
     fakelua_state *m_l = nullptr;

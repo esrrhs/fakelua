@@ -3,6 +3,9 @@
 // This file define interface, try to be consistent with the lua interface
 class fakelua_state;
 
+// Type for C functions registered with fakelua
+typedef int (*fakelua_cfunction) (fakelua_state *L);
+
 enum fakelua_error {
     FAKELUA_OK,
     FAKELUA_FILE_FAIL,

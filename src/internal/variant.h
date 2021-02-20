@@ -3,6 +3,7 @@
 #include "types.h"
 #include "gcobject.h"
 #include "object.h"
+#include "fakelua.h"
 
 class variant {
 public:
@@ -11,7 +12,8 @@ public:
     ~variant();
 
 private:
-    gcobject m_gcobject;
+    gcobject *m_gcobject = nullptr;
+    
     union {
         // light userdata
         void *p;
@@ -20,7 +22,7 @@ private:
         bool b;
 
         // light C functions
-        // TODO
+        fakelua_cfunction f;
 
         // integer numbers
         uint64_t i;
