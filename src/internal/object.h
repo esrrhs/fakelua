@@ -1,14 +1,16 @@
 #pragma once
 
 #include "types.h"
+#include "gcobject.h"
 
-class string_object {
+class fakelua_state;
+
+class string_object : public gcobject {
 public:
-    string_object();
+    string_object(fakelua_state *L, const std::string &str);
 
     ~string_object();
 
 private:
-    std::string_view m_short_str;
-    std::string m_long_str;
+    std::string m_str;
 };

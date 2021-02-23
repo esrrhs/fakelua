@@ -19,5 +19,9 @@ public:
     variant new_string(const std::string &str);
 
 private:
+    variant new_short_string(const std::string &str);
+    variant new_long_string(const std::string &str);
+
+private:
     fakelua_state *m_l = nullptr;
 };

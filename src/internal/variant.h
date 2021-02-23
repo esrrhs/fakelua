@@ -9,6 +9,8 @@ class variant {
 public:
     variant();
 
+    variant(string_object *s);
+
     ~variant();
 
 private:

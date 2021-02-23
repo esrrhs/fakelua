@@ -34,15 +34,18 @@ enum NUMBERS_TYPE {
     VT_NT_INTEGER_NUMBERS, // integer numbers
 };
 
+class fakelua_state;
+
 class gcobject {
 public:
-    gcobject();
+    gcobject(fakelua_state *L, int type, int subtype);
 
     ~gcobject();
 
 private:
-    gcobject *m_next = 0;
+    gcobject *m_next = nullptr;
     int m_type = 0;
     int m_subtype = 0;
-    int m_mark;
+    int m_mark = 0;
 };
+
