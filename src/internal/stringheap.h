@@ -9,7 +9,7 @@ class stringheap {
 public:
     stringheap(fakelua_state *l);
 
-    ~stringheap();
+    virtual ~stringheap();
 
     stringheap(const stringheap &) = delete;
 

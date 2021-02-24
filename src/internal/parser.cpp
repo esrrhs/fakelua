@@ -1,6 +1,12 @@
 #include "parser.h"
 #include "fakelua.h"
 
+parser::parser() {
+}
+
+parser::~parser() {
+}
+
 int parser::parse(const std::string &file_name, const std::string &content) {
 
 

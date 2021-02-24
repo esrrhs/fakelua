@@ -9,7 +9,7 @@ class gc {
 public:
     gc(fakelua_state *l);
 
-    ~gc();
+    virtual ~gc();
 
     gc(const gc &) = delete;
 

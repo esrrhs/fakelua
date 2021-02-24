@@ -11,7 +11,7 @@ public:
 
     variant(string_object *s);
 
-    ~variant();
+    virtual ~variant();
 
 private:
     gcobject *m_gcobject = nullptr;

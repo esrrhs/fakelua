@@ -44,6 +44,14 @@ const std::string TOKEN_NAME[] = {
         "MAX",
 };
 
+token::token(TOKEN tk, const location &loc) : m_tk(tk), m_loc(loc) {
+
+}
+
+token::~token() {
+
+}
+
 std::string token::to_string() {
     auto token_name = m_tk > TK_NONE && m_tk < TK_MAX ?
                       TOKEN_NAME[static_cast<int>(m_tk)] : string_format("error token %d", static_cast<int>(m_tk));

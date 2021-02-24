@@ -40,7 +40,7 @@ class gcobject {
 public:
     gcobject(fakelua_state *L, int type, int subtype);
 
-    ~gcobject();
+    virtual ~gcobject();
 
 private:
     gcobject *m_next = nullptr;

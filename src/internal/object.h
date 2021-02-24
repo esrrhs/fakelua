@@ -9,7 +9,7 @@ class string_object : public gcobject {
 public:
     string_object(fakelua_state *L, const std::string &str);
 
-    ~string_object();
+    virtual ~string_object();
 
 private:
     std::string m_str;

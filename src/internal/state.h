@@ -9,7 +9,7 @@ class fakelua_state {
 public:
     fakelua_state();
 
-    ~fakelua_state();
+    virtual ~fakelua_state();
 
     fakelua_state(const fakelua_state &) = delete;
 

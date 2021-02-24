@@ -11,6 +11,8 @@ public:
 
     std::string to_string();
 
+    virtual ~location();
+
 public:
     std::string_view m_file_name;
     int m_line_no = 0;

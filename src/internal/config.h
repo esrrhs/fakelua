@@ -9,7 +9,7 @@ class config {
 public:
     config(fakelua_state *l);
 
-    ~config();
+    virtual ~config();
 
     config(const config &) = delete;
 

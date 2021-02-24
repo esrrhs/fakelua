@@ -49,7 +49,9 @@ enum TOKEN {
 
 class token {
 public:
-    token(TOKEN tk, const location &loc) : m_tk(tk), m_loc(loc) {}
+    token(TOKEN tk, const location &loc);
+
+    virtual ~token();
 
     std::string to_string();
 

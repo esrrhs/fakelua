@@ -7,7 +7,9 @@ class parser {
     friend class tester;
 
 public:
-    parser() {}
+    parser();
+
+    virtual ~parser();
 
     parser(const parser &) = delete;
 
