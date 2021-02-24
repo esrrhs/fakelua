@@ -23,6 +23,5 @@ variant stringheap::new_short_string(const std::string &str) {
 }
 
 variant stringheap::new_long_string(const std::string &str) {
-    auto pso = std::make_unique<string_object>(m_l, str);
-    return variant{pso.get()};
+    return variant{string_object::create(m_l, str)};
 }

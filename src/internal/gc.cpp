@@ -7,6 +7,7 @@ gc::gc(fakelua_state *l) : m_l(l) {
 gc::~gc() {
 }
 
-void gc::add(gcobject *gco) {
-    // TODO
+gcobject *gc::add(std::unique_ptr<gcobject> gco) {
+    m_gcobject_list.emplace(m_gcobject_list.end(), std::move(gco));
+    return gco.get();
 }
