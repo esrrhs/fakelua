@@ -24,6 +24,7 @@
 #include <sstream>
 #include <regex>
 #include <array>
+#include <variant>
 
 ////////////////////////////////////
 // macro define

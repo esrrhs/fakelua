@@ -14,25 +14,11 @@ public:
     virtual ~variant();
 
 private:
-    gcobject *m_gcobject = nullptr;
-    
-    union {
-        // light userdata
-        void *p;
-
-        // booleans
-        bool b;
-
-        // light C functions
-        fakelua_cfunction f;
-
-        // integer numbers
-        uint64_t i;
-
-        // float numbers
-        double n;
-
-        // string
-        string_object *s;
-    } m_data;
+    // void * == light userdata
+    // bool == booleans
+    // fakelua_cfunction == light C functions
+    // uint64_t == integer numbers
+    // double == float numbers
+    // string_object * == string
+    std::variant<void *, bool, fakelua_cfunction, uint64_t, double, string_object *> m_data;
 };
