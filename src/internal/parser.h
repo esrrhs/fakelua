@@ -2,6 +2,7 @@
 
 #include "types.h"
 #include "tester.h"
+#include "err.h"
 
 class parser {
     friend class tester;
@@ -26,8 +27,12 @@ private:
     int compile();
 
 private:
-    std::vector<std::tuple<std::string, int, int>> token_string(const std::string &str);
+    std::tuple<err, std::vector<std::tuple<std::string, int, int>>> split_string(const std::string &file_name,
+                                                                                 const std::string &str);
+
     std::string change_comment_to_space(std::string str);
+
     std::string replace_multi_comment(std::string str);
+
     std::string replace_comment(std::string str);
 };

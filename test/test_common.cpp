@@ -81,16 +81,16 @@ TEST(common, enum_cast_s) {
 TEST(common, loc) {
     std::string filename = "test.lua";
     location a(filename, 100, 200);
-    std::string left = "test.lua:100,200";
+    std::string right = "test.lua:100,200";
     DEBUG("%s", a.to_string());
-    ASSERT_EQ(left, a.to_string());
-    ASSERT_EQ(left.size(), a.to_string().size());
+    ASSERT_EQ(a.to_string(), right);
+    ASSERT_EQ(a.to_string().size(), right.size());
 }
 
 TEST(common, loc_empty) {
     std::string filename = "";
     location a(filename, 0, 0);
-    std::string left = "";
-    ASSERT_EQ(left, a.to_string());
-    ASSERT_EQ(left.size(), a.to_string().size());
+    std::string right = "";
+    ASSERT_EQ(a.to_string(), right);
+    ASSERT_EQ(a.to_string().size(), right.size());
 }

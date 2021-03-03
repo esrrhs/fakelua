@@ -10,7 +10,6 @@ parser::~parser() {
 int parser::parse(const std::string &file_name, const std::string &content) {
 
 
-
     auto ret = lex(file_name, content);
     if (ret != FAKELUA_OK) {
         return ret;
@@ -34,7 +33,7 @@ int parser::lex(const std::string &file_name, const std::string &content) {
     auto content_no_comment = replace_multi_comment(content);
     content_no_comment = replace_comment(content_no_comment);
 
-    auto tokens = token_string(content_no_comment);
+    auto[err, params] = split_string(file_name, content_no_comment);
 
     return FAKELUA_OK;
 }
@@ -49,12 +48,96 @@ int parser::compile() {
     return FAKELUA_OK;
 }
 
-std::vector<std::tuple<std::string, int, int>> parser::token_string(const std::string &str) {
+std::tuple<err, std::vector<std::tuple<std::string, int, int>>> parser::split_string(const std::string &file_name,
+                                                                                     const std::string &str) {
     std::vector<std::tuple<std::string, int, int>> ret;
-    // TODO
-    return ret;
-}
 
+    int curline = 1;
+    int curcol = 1;
+
+    std::string curstr;
+    int curstr_col = 0;
+
+    bool string_mod = false;
+    char string_begin = 0;
+    int string_begin_line = 1;
+    int string_begin_col = 1;
+
+    auto save = [&](bool force) {
+        if (!curstr.empty() || force) {
+            ret.push_back({curstr, curline, curstr_col});
+            curstr.clear();
+            curstr_col = 0;
+        }
+    };
+
+    for (int i = 0; i < (int) str.size(); i++) {
+        auto c = str[i];
+
+        if (string_mod) {
+            if (c == '\n') {
+                curline++;
+                curcol = 1;
+            }
+
+            if (curstr_col == 0) {
+                curstr_col = curcol;
+            }
+
+            if (c == string_begin) {
+                save(true);
+                curcol++;
+                string_mod = false;
+                string_begin = 0;
+                continue;
+            }
+
+            curstr += c;
+            curcol++;
+
+        } else {
+            if (c == '\n') {
+                save(false);
+                curline++;
+                curcol = 1;
+                continue;
+            }
+
+            if (c == ' ' || c == '\t') {
+                save(false);
+                curcol++;
+                continue;
+            }
+
+            if (curstr_col == 0) {
+                curstr_col = curcol;
+            }
+
+            if (c == '\'' || c == '"') {
+                save(false);
+                string_mod = true;
+                string_begin = c;
+                string_begin_line = curline;
+                string_begin_col = curcol;
+                curcol++;
+                continue;
+            }
+
+            curstr += c;
+            curcol++;
+        }
+    }
+
+    save(false);
+
+    if (string_mod) {
+        return {{FAKELUA_LEX_FAIL,
+                 string_format("unfinished string in file %s:%d,%d", file_name.c_str(), string_begin_line,
+                               string_begin_col)}, ret};
+    }
+
+    return {{}, ret};
+}
 
 std::string parser::change_comment_to_space(std::string str) {
     std::replace_if(str.begin(), str.end(), [](char x) { return x != '\n'; }, ' ');

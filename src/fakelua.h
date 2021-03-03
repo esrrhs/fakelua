@@ -9,6 +9,7 @@ typedef int (*fakelua_cfunction)(fakelua_state *L);
 enum fakelua_error {
     FAKELUA_OK,
     FAKELUA_FILE_FAIL,
+    FAKELUA_LEX_FAIL,
 };
 
 // get error code
