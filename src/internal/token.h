@@ -53,6 +53,7 @@ public:
 
     virtual ~token();
 
+public:
     std::string to_string();
 
 public:

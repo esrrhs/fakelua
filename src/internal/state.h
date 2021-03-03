@@ -4,6 +4,7 @@
 #include "stringheap.h"
 #include "gc.h"
 #include "config.h"
+#include "err.h"
 
 class fakelua_state {
 public:
@@ -15,14 +16,21 @@ public:
 
     fakelua_state &operator=(const fakelua_state &) = delete;
 
-    stringheap &get_stringheap() { return m_sh; }
+public:
+    stringheap &get_stringheap();
 
-    gc &get_gc() { return m_gc; }
+    gc &get_gc();
 
-    config &get_config() { return m_config; }
+    config &get_config();
+
+    err &get_err();
+
+    void add_err(const err &e);
+
 
 private:
     config m_config;
+    err m_err;
     stringheap m_sh;
     gc m_gc;
 };

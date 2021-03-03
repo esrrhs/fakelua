@@ -16,16 +16,19 @@ extern "C" int fakelua_dofile(fakelua_state *L, const char *file_path) {
     std::ifstream f(file_path, std::ios::in | std::ios::binary);
     if (!f.is_open()) {
         ERR("open fail %s", file_path);
+        L->add_err({FAKELUA_FILE_FAIL, string_format("can not open file %s", file_path)});
         return FAKELUA_FILE_FAIL;
     }
     const auto sz = std::filesystem::file_size(file_path);
     if (sz < 0) {
         ERR("file_size %s", file_path);
+        L->add_err({FAKELUA_FILE_FAIL, string_format("get file %s size error", file_path)});
         return FAKELUA_FILE_FAIL;
     }
     std::string content(sz, '\0');
     f.read(content.data(), sz);
     if (!f) {
+        L->add_err({FAKELUA_FILE_FAIL, string_format("read file %s fail", file_path)});
         ERR("read fail %s", file_path);
         return FAKELUA_FILE_FAIL;
     }
@@ -34,6 +37,7 @@ extern "C" int fakelua_dofile(fakelua_state *L, const char *file_path) {
     parser p;
     int ret = p.parse(file_path, content);
     if (ret != FAKELUA_OK) {
+        L->add_err({FAKELUA_FILE_FAIL, string_format("parse file %s fail", file_path)});
         ERR("parse fail %s", file_path);
         return ret;
     }
@@ -47,6 +51,7 @@ extern "C" int fakelua_dostring(fakelua_state *L, const char *content) {
     parser p;
     int ret = p.parse("", content);
     if (ret != FAKELUA_OK) {
+        L->add_err({FAKELUA_FILE_FAIL, string_format("parse content %s fail", content)});
         ERR("parse fail %s", content);
         return ret;
     }
@@ -54,4 +59,12 @@ extern "C" int fakelua_dostring(fakelua_state *L, const char *content) {
     // TODO run
 
     return FAKELUA_OK;
+}
+
+extern "C" int fakelua_errno(fakelua_state *L) {
+    return L->get_err().code();
+}
+
+extern "C" const char *fakelua_errstr(fakelua_state *L) {
+    return L->get_err().str().c_str();
 }
