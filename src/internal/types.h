@@ -423,5 +423,8 @@ std::string string_format(const std::string_view &format, Args &&...args) {
 
 ////////////////////////////////////
 // common function
+template<typename T>
+void USE(T t) {
+}
 
 ////////////////////////////////////
