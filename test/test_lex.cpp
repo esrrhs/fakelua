@@ -1,4 +1,4 @@
-#include "gtest/gtest.h"
+#include "ftest.h"
 #include "types.h"
 #include "fakelua.h"
 #include "location.h"
@@ -10,7 +10,7 @@ TEST(lex, token) {
     location a(filename, 100, 200);
     token b(TK_THEN, a);
     std::string right = "then(test.lua:100,200)";
-    DEBUG("%s", b.to_string());
+    DEBUG("%s", b.to_string().c_str());
     ASSERT_EQ(b.to_string(), right);
     ASSERT_EQ(b.to_string().size(), right.size());
 }

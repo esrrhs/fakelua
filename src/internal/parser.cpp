@@ -136,7 +136,7 @@ std::tuple<err, std::vector<std::tuple<std::string, int, int>>> parser::split_st
                                string_begin_col)}, ret};
     }
 
-    return {{}, ret};
+    return {err{}, ret};
 }
 
 std::string parser::change_comment_to_space(std::string str) {

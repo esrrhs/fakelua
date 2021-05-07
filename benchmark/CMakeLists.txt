@@ -7,9 +7,9 @@ include_directories(../src)
 include_directories(../src/internal)
 
 add_executable(bench_mark ${BENCHMARK_SRC_LIST})
-target_compile_options(bench_mark PRIVATE -std=c++2a -g3 -Wall)
+target_compile_options(bench_mark PRIVATE -std=c++2a -g3 -Wall -Werror)
 
-target_link_libraries(bench_mark benchmark_main fakelua)
+target_link_libraries(bench_mark fakelua)
 
 add_custom_command(
         TARGET bench_mark

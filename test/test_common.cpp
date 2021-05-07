@@ -1,4 +1,4 @@
-#include "gtest/gtest.h"
+#include "ftest.h"
 #include "types.h"
 #include "fakelua.h"
 #include "location.h"
@@ -41,7 +41,7 @@ TEST(common, enum_value) {
 TEST(common, enum_cast) {
     auto n = enum_cast<TestEnum>("One");
     DEBUG("n %d", n);
-    ASSERT_EQ(n, TestEnum::One);
+    ASSERT_EQ(n.value(), TestEnum::One);
 }
 
 TEST(common, enumtypename_s) {
@@ -74,15 +74,15 @@ TEST(common, enum_value_s) {
 TEST(common, enum_cast_s) {
     auto n = enum_cast<TestEnumSparse>("SparseOne");
     DEBUG("n %d", n);
-    ASSERT_EQ(n, TestEnumSparse::SparseOne);
-    ASSERT_NE(n, TestEnumSparse::SparseTwo);
+    ASSERT_EQ(n.value(), TestEnumSparse::SparseOne);
+    ASSERT_NE(n.value(), TestEnumSparse::SparseTwo);
 }
 
 TEST(common, loc) {
     std::string filename = "test.lua";
     location a(filename, 100, 200);
     std::string right = "test.lua:100,200";
-    DEBUG("%s", a.to_string());
+    DEBUG("%s", a.to_string().c_str());
     ASSERT_EQ(a.to_string(), right);
     ASSERT_EQ(a.to_string().size(), right.size());
 }

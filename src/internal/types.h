@@ -25,6 +25,7 @@
 #include <regex>
 #include <array>
 #include <variant>
+#include <optional>
 
 ////////////////////////////////////
 // macro define
