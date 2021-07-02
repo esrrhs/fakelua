@@ -12,9 +12,9 @@ Lightweight embedded scripting language
 ## Brief introduction
 **fake** is a lightweight embedded scripting language , using c ++ language, grammar lessons from lua, golang, erlang, based on flex, bison generative grammar tree , compiled into byte code interpreted. 
 
-[fakescript for Java](https://github.com/esrrhs/fakejava)
+[fake for Java](https://github.com/esrrhs/fakejava)
 
-[fakescript for Go](https://github.com/esrrhs/fakego)
+[fake for Go](https://github.com/esrrhs/fakego)
 
 ## Script feature
 * Operating environment linux amd64, MacOS amd64
