@@ -11,11 +11,11 @@ public:
     virtual ~err();
 
 public:
-    bool empty();
+    bool empty()const;
 
-    int code();
+    int code()const;
 
-    const std::string &str();
+    const std::string &str()const;
 
 private:
     int m_code = 0;

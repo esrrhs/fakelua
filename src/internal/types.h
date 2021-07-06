@@ -103,8 +103,8 @@ constexpr std::string_view pretty_name(std::string_view name) noexcept {
 template<std::size_t N>
 class static_string {
 public:
-    constexpr explicit static_string(std::string_view str) noexcept : static_string{str,
-                                                                                    std::make_index_sequence<N>{}} {
+    constexpr explicit static_string(std::string_view str) noexcept: static_string{str,
+                                                                                   std::make_index_sequence<N>{}} {
         assert(str.size() == N);
     }
 
@@ -420,6 +420,12 @@ std::string string_format(const std::string_view &format, Args &&...args) {
     std::vector<char> buf(size + 1);
     std::snprintf(&buf[0], buf.size(), format.data(), std::forward<Args>(args)...);
     return std::string(&buf[0], &buf[0] + buf.size() - 1);
+}
+
+template<int N>
+void string_to_cstr(char buff[N], const std::string &source) {
+    std::strncpy(buff, source.c_str(), N - 1);
+    buff[source.length()] = '\0';
 }
 
 ////////////////////////////////////

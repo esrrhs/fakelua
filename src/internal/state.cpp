@@ -19,12 +19,9 @@ config &fakelua_state::get_config() {
     return m_config;
 }
 
-err &fakelua_state::get_err() {
-    return m_err;
-}
-
-void fakelua_state::add_err(const err &e) {
-    if (m_err.empty()) {
-        m_err = e;
-    }
+void fakelua_state::throw_err(const err &e) {
+    fakelua_exception fe;
+    fe.code = static_cast<fakelua_error>(e.code());
+    string_to_cstr<fakelua_exception_string_length>(fe.msg, e.str());
+    throw fe;
 }

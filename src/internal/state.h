@@ -23,14 +23,10 @@ public:
 
     config &get_config();
 
-    err &get_err();
-
-    void add_err(const err &e);
-
+    void throw_err(const err &e);
 
 private:
     config m_config;
-    err m_err;
     stringheap m_sh;
     gc m_gc;
 };
