@@ -3,13 +3,15 @@
 
 int main(int argc, char **argv) {
     if (argc < 2) {
-        std::cout<<"usage: [script [args]]"<<std::endl;
+        std::cout << "usage: [script [args]]" << std::endl;
         return 0;
     }
 
-    auto state = fakelua_newstate();
+    auto L = fakelua_newstate();
 
-    fakelua_close(state);
+    auto code = fakelua_dofile(L, argv[1]);
 
-    return 0;
+    fakelua_close(L);
+
+    return code;
 }

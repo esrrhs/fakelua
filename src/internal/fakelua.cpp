@@ -13,6 +13,7 @@ extern "C" void fakelua_close(fakelua_state *L) {
 }
 
 extern "C" int fakelua_dofile(fakelua_state *L, const char *file_path) {
+    DEBUG("fakelua_dofile start %s", file_path);
     std::ifstream f(file_path, std::ios::in | std::ios::binary);
     if (!f.is_open()) {
         ERR("open fail %s", file_path);
@@ -44,6 +45,7 @@ extern "C" int fakelua_dofile(fakelua_state *L, const char *file_path) {
 
     // TODO run
 
+    DEBUG("fakelua_dofile ok %s", file_path);
     return FAKELUA_OK;
 }
 
