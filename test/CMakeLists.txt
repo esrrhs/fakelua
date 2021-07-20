@@ -7,7 +7,12 @@ include_directories(../src)
 include_directories(../src/internal)
 
 add_executable(unit_tests ${TEST_SRC_LIST})
-target_compile_options(unit_tests PRIVATE -std=c++2a -g3 -Wall -Werror)
+
+IF (CMAKE_BUILD_TYPE STREQUAL "release")
+    target_compile_options(unit_tests PRIVATE -std=c++2a -g3 -Wall -Werror -O3)
+ELSE()
+    target_compile_options(unit_tests PRIVATE -std=c++2a -g3 -Wall -Werror -O0)
+ENDIF()
 
 target_link_libraries(unit_tests fakelua)
 
