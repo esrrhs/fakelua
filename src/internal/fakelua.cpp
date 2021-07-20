@@ -20,6 +20,8 @@ extern "C" int fakelua_dofile(fakelua_state *L, const char *file_path) {
         L->throw_err({FAKELUA_FILE_FAIL, string_format("can not open file %s", file_path)});
         return FAKELUA_FILE_FAIL;
     }
+    defer(f.close());
+
     const auto sz = std::filesystem::file_size(file_path);
     if (sz < 0) {
         ERR("file_size %s", file_path);
@@ -33,7 +35,6 @@ extern "C" int fakelua_dofile(fakelua_state *L, const char *file_path) {
         ERR("read fail %s", file_path);
         return FAKELUA_FILE_FAIL;
     }
-    f.close();
 
     parser p;
     int ret = p.parse(file_path, content);
