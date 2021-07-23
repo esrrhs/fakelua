@@ -10,8 +10,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
 
 IF (CMAKE_BUILD_TYPE STREQUAL "release")
     message("build release fakelua")
+    add_compile_options(-std=c++2a -g3 -Wall -Werror -O3)
 ELSE()
     message("build debug fakelua")
+    add_compile_options(-std=c++2a -g3 -Wall -Werror -O0 -fno-omit-frame-pointer -fsanitize=address)
+    link_libraries(-fno-omit-frame-pointer -fsanitize=address -static-libasan)
 ENDIF()
 
 add_subdirectory(src)

@@ -8,12 +8,6 @@ include_directories(../src/internal)
 
 add_executable(bench_mark ${BENCHMARK_SRC_LIST})
 
-IF (CMAKE_BUILD_TYPE STREQUAL "release")
-    target_compile_options(bench_mark PRIVATE -std=c++2a -g3 -Wall -Werror -O3)
-ELSE()
-    target_compile_options(bench_mark PRIVATE -std=c++2a -g3 -Wall -Werror -O0)
-ENDIF()
-
 target_link_libraries(bench_mark fakelua)
 
 add_custom_command(

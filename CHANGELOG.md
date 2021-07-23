@@ -16,3 +16,5 @@
 添加cmd完成，下一步添加词法分析，生成token list
 ### 2021-07-20
 添加defer，下一步添加词法分析，生成token list
+### 2021-07-23
+添加asan，下一步添加词法分析，生成token list

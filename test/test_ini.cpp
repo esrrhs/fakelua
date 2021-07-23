@@ -5,6 +5,7 @@
 TEST(ini, newstate) {
     fakelua_state * L = fakelua_newstate();
     ASSERT_NE(L, nullptr);
+    fakelua_close(L);
 }
 
 TEST(ini, close) {
@@ -18,6 +19,7 @@ TEST(ini, dofile) {
     ASSERT_NE(L, nullptr);
     int ret = fakelua_dofile(L, "test.lua");
     ASSERT_EQ(ret, 0);
+    fakelua_close(L);
 }
 
 TEST(ini, dostring) {
@@ -25,4 +27,5 @@ TEST(ini, dostring) {
     ASSERT_NE(L, nullptr);
     int ret = fakelua_dostring(L, "test.lua");
     ASSERT_EQ(ret, 0);
+    fakelua_close(L);
 }

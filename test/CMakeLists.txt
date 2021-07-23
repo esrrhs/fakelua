@@ -8,12 +8,6 @@ include_directories(../src/internal)
 
 add_executable(unit_tests ${TEST_SRC_LIST})
 
-IF (CMAKE_BUILD_TYPE STREQUAL "release")
-    target_compile_options(unit_tests PRIVATE -std=c++2a -g3 -Wall -Werror -O3)
-ELSE()
-    target_compile_options(unit_tests PRIVATE -std=c++2a -g3 -Wall -Werror -O0)
-ENDIF()
-
 target_link_libraries(unit_tests fakelua)
 
 add_test(NAME unit COMMAND ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/unit_tests WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
