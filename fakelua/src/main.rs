@@ -1,4 +1,4 @@
-use lua::lua::fakelua_newstate;
+use lua::fakelua_newstate;
 
 fn main() {
     fakelua_newstate();
