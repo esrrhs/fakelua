@@ -1,6 +1,14 @@
-[workspace]
+[package]
+name = "fakelua"
+version = "0.0.1"
+authors = ["esrrhs"]
+description = "Another LuaJIT implemented with Rust and GCC JIT "
+documentation = "https://docs.rs/fakelua"
+repository = "https://github.com/esrrhs/fakelua"
+readme = "README.md"
+keywords = ["lua"]
+license = "MIT"
 
-members = [
-    "fakelua",
-    "lua",
-]
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]

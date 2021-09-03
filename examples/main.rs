@@ -1,4 +1,6 @@
-use lua::fakelua_newstate;
+extern crate fakelua;
+
+use fakelua::fakelua_newstate;
 
 fn main() {
     fakelua_newstate();
