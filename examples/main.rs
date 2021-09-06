@@ -1,8 +1,9 @@
 extern crate fakelua;
 
-use fakelua::fakelua_newstate;
+use fakelua::*;
 
 fn main() {
-    fakelua_newstate();
-    println!("Hello, world!");
+    let mut l = fakelua_newstate();
+    let str = fakelua_dofile(&l, "test.lua").expect("Failed to dofile");
+    println!("{}\n", str);
 }
