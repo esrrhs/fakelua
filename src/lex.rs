@@ -1,3 +1,6 @@
+use object::TString;
+use zio::{Zio, zgetc};
+
 const FIRST_RESERVED: u8 = std::u8::MAX;
 
 enum RESERVED {
@@ -40,4 +43,64 @@ enum RESERVED {
     TK_INT,
     TK_NAME,
     TK_STRING,
+}
+
+/* semantics information */
+struct SemInfo {
+    r: f64,
+    i: i64,
+    ts: TString,
+}
+
+struct Token {
+    token: u32,
+    seminfo: SemInfo,
+}
+
+
+struct LexState {
+    /* current character (charint) */
+    current: u32,
+    /* input line counter */
+    linenumber: u32,
+    /* line of last token 'consumed' */
+    lastline: u32,
+    /* current token */
+    t: Token,
+    /* look ahead token */
+    lookahead: Token,
+    /* input stream */
+    z: Zio,
+}
+
+const const_r: u32 = '\r' as u32;
+const const_n: u32 = '\n' as u32;
+
+fn next(ls: &mut LexState) {
+    ls.current = zgetc(&mut ls.z)
+}
+
+fn currIsNewline(ls: &LexState) -> bool {
+    ls.current == const_r || ls.current == const_n
+}
+
+fn inclinenumber(ls: &mut LexState) {
+    let old = ls.current;
+    next(ls);  /* skip '\n' or '\r' */
+    if currIsNewline(ls) && ls.current != old {
+        next(ls);  /* skip '\n\r' or '\r\n' */
+    }
+    ls.linenumber += 1;
+}
+
+fn llex(ls: &mut LexState) {
+    loop {
+        match ls.current {
+            const_r | const_n => {
+                inclinenumber(ls);
+                break;
+            }
+            _ => {}
+        }
+    }
 }
