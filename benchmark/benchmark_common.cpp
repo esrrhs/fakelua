@@ -1,13 +1,15 @@
-#include "fbenchmark.h"
-#include "types.h"
-#include "fakelua.h"
-#include "location.h"
+#include "benchmark/benchmark.h"
+#include "fakelua/fakelua.h"
 
-enum TestEnum {
-    One, Two, Three
-};
+using namespace fakelua;
 
-FBENCHMARK(common, enum_type_name) {
-    std::string_view n = enum_type_name<TestEnum>();
-    USE(n);
+static void BM_ini(benchmark::State &state) {
+    for (auto _: state) {
+        for (int i = 0; i < state.range(0); ++i) {
+            fakelua_state *L = fakelua_newstate();
+            fakelua_close(L);
+        }
+    }
 }
+
+BENCHMARK(BM_ini)->Range(8, 8 << 10);

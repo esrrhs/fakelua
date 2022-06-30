@@ -1,5 +1,7 @@
-#include "fakelua.h"
+#include "fakelua/fakelua.h"
 #include <iostream>
+
+using namespace fakelua;
 
 int main(int argc, char **argv) {
     if (argc < 2) {
@@ -9,9 +11,7 @@ int main(int argc, char **argv) {
 
     auto L = fakelua_newstate();
 
-    auto code = fakelua_dofile(L, argv[1]);
-
     fakelua_close(L);
 
-    return code;
+    return 0;
 }
