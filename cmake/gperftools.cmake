@@ -1,7 +1,7 @@
 include(FetchContent)
 
 set(GPERFTOOLS_VER 2.10)
-set(GPERFTOOLS_URL https://mirrors.tencent.com/github.com/gperftools/gperftools/releases/download/gperftools-${GPERFTOOLS_VER}/gperftools-${GPERFTOOLS_VER}.tar.gz)
+set(GPERFTOOLS_URL https://github.com/gperftools/gperftools/releases/download/gperftools-${GPERFTOOLS_VER}/gperftools-${GPERFTOOLS_VER}.tar.gz)
 
 set(GPERFTOOLS_BUILD_CPU_PROFILER ON CACHE BOOL "" FORCE)
 set(GPERFTOOLS_BUILD_HEAP_PROFILER OFF CACHE BOOL "" FORCE)

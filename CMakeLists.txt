@@ -28,6 +28,7 @@ include(cmake/gflags.cmake)
 include(cmake/gperftools.cmake)
 include(cmake/benchmark.cmake)
 include(cmake/googletest.cmake)
+include(cmake/glog.cmake)
 
 add_subdirectory(src)
 add_subdirectory(cmd)

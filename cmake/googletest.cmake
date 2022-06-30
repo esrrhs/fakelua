@@ -1,7 +1,7 @@
 include(FetchContent)
 
 set(GOOGLETEST_VER 1.10.0)
-set(GOOGLETEST_URL https://mirrors.tencent.com/github.com/google/googletest/archive/refs/tags/release-${GOOGLETEST_VER}.tar.gz)
+set(GOOGLETEST_URL https://github.com/google/googletest/archive/refs/tags/release-${GOOGLETEST_VER}.tar.gz)
 
 FetchContent_Declare(
         com_github_googletest

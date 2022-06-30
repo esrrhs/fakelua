@@ -1,7 +1,7 @@
 include(FetchContent)
 
 set(BENCHMARK_VER 1.6.1)
-set(BENCHMARK_URL https://mirrors.tencent.com/github.com/google/benchmark/archive/refs/tags/v${BENCHMARK_VER}.tar.gz)
+set(BENCHMARK_URL https://github.com/google/benchmark/archive/refs/tags/v${BENCHMARK_VER}.tar.gz)
 
 set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 
