@@ -25,5 +25,7 @@ jobs:
           cd build
           cmake ..
           make -j8
+          ldd bin/lua
+          ldd bin/unit_tests
           gdb bin/unit_tests -ex r
           ctest -V
