@@ -1,7 +1,7 @@
 include(FetchContent)
 
 set(GLOG_VER 0.6.0)
-set(GLOG_DOWNLOAD_URL https://https://github.com/google/glog/archive/refs/tags/v${GFLAGS_VER}.tar.gz)
+set(GLOG_DOWNLOAD_URL https://github.com/google/glog/archive/refs/tags/v${GLOG_VER}.tar.gz)
 
 # 定义外部库的版本
 FetchContent_Declare(

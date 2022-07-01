@@ -11,4 +11,4 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(com_github_gflags)
 
-include_directories($ENV{FAKELUA_HOME}/cmake_third_party/gflags/src)
+include_directories(${FETCHCONTENT_BASE_DIR}/com_github_gflags-build/include)

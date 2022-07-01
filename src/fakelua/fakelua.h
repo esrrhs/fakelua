@@ -1,14 +1,27 @@
 #pragma once
 
+#include <string>
+#include <memory>
+
 namespace fakelua {
 
-// This file define interface, try to be consistent with the lua interface
-class fakelua_state;
+// fake lua state interface
+class fakelua_state {
+public:
+    fakelua_state() {}
+
+    virtual ~fakelua_state() {}
+};
+
+using fakelua_state_ptr = std::shared_ptr<fakelua_state>;
 
 // create fake lua state
-fakelua_state *fakelua_newstate();
+fakelua_state_ptr fakelua_newstate();
 
-// close fake lua state
-void fakelua_close(fakelua_state *L);
+// open global profiler by gperftools
+void open_profiler(const std::string &fname);
+
+// stop global profiler by gperftools
+void stop_profiler();
 
 }

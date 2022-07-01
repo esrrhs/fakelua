@@ -14,8 +14,10 @@ int main(int argc, char **argv) {
     }
 
     auto L = fakelua_newstate();
-
-    fakelua_close(L);
-
+    if (L.get() == nullptr) {
+        std::cout << "failed to create lua state" << std::endl;
+        return 1;
+    }
+    
     return 0;
 }
