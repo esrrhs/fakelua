@@ -8,4 +8,4 @@ include_directories(../src/)
 
 add_executable(lua ${LUA_SRC_LIST})
 
-target_link_libraries(lua PRIVATE -static fakelua gflags::gflags)
+target_link_libraries(lua PRIVATE -static fakelua gflags_nothreads_static)
