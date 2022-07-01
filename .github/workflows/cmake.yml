@@ -20,4 +20,5 @@ jobs:
           cd build
           cmake ..
           make -j8
+          gdb bin/unit_tests -ex r
           ctest -V
