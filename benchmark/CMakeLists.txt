@@ -8,7 +8,7 @@ include_directories(../src)
 
 add_executable(bench_mark ${BENCHMARK_SRC_LIST})
 
-target_link_libraries(bench_mark PRIVATE -static fakelua benchmark)
+target_link_libraries(bench_mark PRIVATE fakelua benchmark)
 
 add_custom_command(
         TARGET bench_mark
