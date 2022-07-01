@@ -18,12 +18,26 @@ jobs:
           g++ -v
           gdb -v
           cmake --version
+          set -x
 
       - name: Build
         run: |
-          set -x
+          rm build -rf
           mkdir build
           cd build
           cmake ..
           make -j8
           ctest -V
+          ./bin/bench_mark
+          cd ..
+
+      - name: Build with asan
+        run: |
+          rm build -rf
+          mkdir build
+          cd build
+          cmake -DUSE_ASAN=ON ..
+          make -j8
+          ctest -V
+          ./bin/bench_mark
+          cd ..
