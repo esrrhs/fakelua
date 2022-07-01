@@ -12,3 +12,6 @@ FetchContent_Declare(
 FetchContent_MakeAvailable(com_github_gflags)
 
 include_directories(${FETCHCONTENT_BASE_DIR}/com_github_gflags-build/include)
+
+set(gflags_DIR ${FETCHCONTENT_BASE_DIR}/com_github_gflags-build)
+message(STATUS "gflags_DIR: ${gflags_DIR}")
