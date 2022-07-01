@@ -1,29 +1,31 @@
-name: CMake
+name: CI
 
-on:
-  push:
-    branches: [ master ]
-  pull_request:
-    branches: [ master ]
+on: [ push ]
 
 jobs:
   build:
+
     runs-on: ubuntu-latest
 
     steps:
-      - uses: actions/checkout@v2
-      
+      - uses: actions/checkout@v1
+
       - name: Prepare
         run: |
           sudo apt-get update
           sudo apt-get install gdb
+          gcc -v
+          g++ -v
+          gdb -v
+          cmake --version
 
       - name: Build
         run: |
-          gcc -v
           mkdir build
           cd build
           cmake ..
           make -j8
+          ./bin/lua
+          ldd bin/unit_tests
           gdb bin/unit_tests -ex r
           ctest -V
