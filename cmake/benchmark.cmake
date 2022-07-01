@@ -9,8 +9,8 @@ set(BENCHMARK_ENABLE_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
         com_github_benchmark
         URL ${BENCHMARK_URL}
-        SOURCE_DIR $ENV{FAKELUA_HOME}/cmake_third_party/benchmark
+        SOURCE_DIR ${CMAKE_BINARY_DIR}/cmake_third_party/benchmark
 )
 FetchContent_MakeAvailable(com_github_benchmark)
 
-include_directories($ENV{FAKELUA_HOME}/cmake_third_party/benchmark/include)
+include_directories({CMAKE_BINARY_DIR}/cmake_third_party/benchmark/include)

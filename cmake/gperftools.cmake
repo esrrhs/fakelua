@@ -13,8 +13,8 @@ set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
 FetchContent_Declare(
         com_github_gperftools
         URL ${GPERFTOOLS_URL}
-        SOURCE_DIR $ENV{FAKELUA_HOME}/cmake_third_party/gperftools
+        SOURCE_DIR ${CMAKE_BINARY_DIR}/cmake_third_party/gperftools
 )
 FetchContent_MakeAvailable(com_github_gperftools)
 
-include_directories($ENV{FAKELUA_HOME}/cmake_third_party/gperftools/src)
+include_directories(${CMAKE_BINARY_DIR}/cmake_third_party/gperftools/src)

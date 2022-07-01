@@ -7,7 +7,7 @@ set(GFLAGS_DOWNLOAD_URL https://github.com/gflags/gflags/archive/v${GFLAGS_VER}.
 FetchContent_Declare(
         com_github_gflags
         URL ${GFLAGS_DOWNLOAD_URL}
-        SOURCE_DIR $ENV{FAKELUA_HOME}/cmake_third_party/gflags
+        SOURCE_DIR ${CMAKE_BINARY_DIR}/cmake_third_party/gflags
 )
 FetchContent_MakeAvailable(com_github_gflags)
 
