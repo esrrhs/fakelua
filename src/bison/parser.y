@@ -14,6 +14,9 @@
 namespace fakelua {
     class myflexer;
 }
+
+// https://www.gnu.org/software/bison/manual/html_node/A-Simple-C_002b_002b-Example.html
+
 }
 
 // The parsing context.
