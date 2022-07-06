@@ -7,6 +7,8 @@
 #include "bison/parser.h"
 #include "compile/myflexer.h"
 
+// https://westes.github.io/flex/manual/Cxx.html
+
 // Give Flex the prototype of yylex we want ...
 # define YY_DECL \
     yy::parser::symbol_type fakelua::myflexer::my_yylex()
