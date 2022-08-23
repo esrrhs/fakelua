@@ -1,5 +1,5 @@
 # FakeLua(Work in process)
-fakelua是一个专注于速度，语法类似Lua的语言。
+FakeLua是一个专注于速度，语法类似Lua的语言。
 
 # 特性
 * C++20编译
