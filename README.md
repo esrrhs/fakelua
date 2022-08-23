@@ -1,8 +1,10 @@
 # FakeLua(Work in process)
-fakelua是另一种Lua的JIT实现，利用Rust的特性编写安全高效的代码，通过GCC JIT提高Lua的运行速度。
+fakelua是一个专注于速度，语法类似Lua的语言。
 
 # 特性
-* 使用C++20编译
-* 使用Flex、Bison做词法语法分析
-
+* C++20编译
+* Flex、Bison做词法语法分析
+* 并发API接口
+* 无GC
+* 使用LLVM/GCC JIT生成机器码执行
 
