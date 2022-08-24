@@ -52,6 +52,7 @@ number  {num1}|{num2}
 ws      loc.step ();
 \n+     loc.lines(yyleng); loc.step();
 
+"="        return yy::parser::make_ASSIGN(loc);
 "-"        return yy::parser::make_MINUS(loc);
 "+"        return yy::parser::make_PLUS(loc);
 "*"        return yy::parser::make_STAR(loc);

@@ -19,7 +19,7 @@ public:
     void compile_file(const std::string &file);
 
     // compile the lua string
-    void compile_string(const std::string &file);
+    void compile_string(const std::string &str);
 
 public:
 };

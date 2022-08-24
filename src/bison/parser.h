@@ -53,7 +53,10 @@ namespace fakelua {
     class myflexer;
 }
 
-#line 57 "parser.h"
+// https://www.gnu.org/software/bison/manual/html_node/A-Simple-C_002b_002b-Example.html
+
+
+#line 60 "parser.h"
 
 # include <cassert>
 # include <cstdlib> // std::abort
@@ -193,7 +196,7 @@ namespace fakelua {
 #endif
 
 namespace yy {
-#line 197 "parser.h"
+#line 200 "parser.h"
 
 
 
@@ -413,7 +416,6 @@ namespace yy {
     union union_type
     {
       // "number"
-      // exp
       char dummy1[sizeof (int)];
 
       // "identifier"
@@ -469,15 +471,51 @@ namespace yy {
     TOK_YYEOF = 0,                 // "end of file"
     TOK_YYerror = 1,               // error
     TOK_YYUNDEF = 2,               // "invalid token"
-    TOK_ASSIGN = 3,                // ":="
+    TOK_ASSIGN = 3,                // "="
     TOK_MINUS = 4,                 // "-"
     TOK_PLUS = 5,                  // "+"
     TOK_STAR = 6,                  // "*"
     TOK_SLASH = 7,                 // "/"
     TOK_LPAREN = 8,                // "("
     TOK_RPAREN = 9,                // ")"
-    TOK_IDENTIFIER = 10,           // "identifier"
-    TOK_NUMBER = 11                // "number"
+    TOK_LCURLY = 10,               // "{"
+    TOK_RCURLY = 11,               // "}"
+    TOK_LSQUARE = 12,              // "["
+    TOK_RSQUARE = 13,              // "]"
+    TOK_AND = 14,                  // "and"
+    TOK_BREAK = 15,                // "break"
+    TOK_DO = 16,                   // "do"
+    TOK_ELSE = 17,                 // "else"
+    TOK_ELSEIF = 18,               // "elseif"
+    TOK_END = 19,                  // "end"
+    TOK_FALSE = 20,                // "false"
+    TOK_FOR = 21,                  // "for"
+    TOK_FUNCTION = 22,             // "function"
+    TOK_goto = 23,                 // "goto"
+    TOK_IF = 24,                   // "if"
+    TOK_IN = 25,                   // "in"
+    TOK_LOCAL = 26,                // "local"
+    TOK_NIL = 27,                  // "nil"
+    TOK_NOT = 28,                  // "not"
+    TOK_OR = 29,                   // "or"
+    TOK_REPEAT = 30,               // "repeat"
+    TOK_RETURN = 31,               // "return"
+    TOK_THEN = 32,                 // "then"
+    TOK_TRUE = 33,                 // "true"
+    TOK_UNTIL = 34,                // "until"
+    TOK_WHILE = 35,                // "while"
+    TOK_DOUBLE_SLASH = 36,         // "//"
+    TOK_CONCAT = 37,               // ".."
+    TOK_VAR_PARAMS = 38,           // "..."
+    TOK_EQUAL = 39,                // "=="
+    TOK_MORE_EQUAL = 40,           // ">="
+    TOK_LESS_EQUAL = 41,           // "<="
+    TOK_NOT_EQUAL = 42,            // "~="
+    TOK_LEFT_SHIFT = 43,           // "<<"
+    TOK_RIGHT_SHIFT = 44,          // ">>"
+    TOK_GOTO_TAG = 45,             // "::"
+    TOK_IDENTIFIER = 46,           // "identifier"
+    TOK_NUMBER = 47                // "number"
       };
       /// Backward compatibility alias (Bison 3.6).
       typedef token_kind_type yytokentype;
@@ -494,25 +532,63 @@ namespace yy {
     {
       enum symbol_kind_type
       {
-        YYNTOKENS = 12, ///< Number of tokens.
+        YYNTOKENS = 48, ///< Number of tokens.
         S_YYEMPTY = -2,
         S_YYEOF = 0,                             // "end of file"
         S_YYerror = 1,                           // error
         S_YYUNDEF = 2,                           // "invalid token"
-        S_ASSIGN = 3,                            // ":="
+        S_ASSIGN = 3,                            // "="
         S_MINUS = 4,                             // "-"
         S_PLUS = 5,                              // "+"
         S_STAR = 6,                              // "*"
         S_SLASH = 7,                             // "/"
         S_LPAREN = 8,                            // "("
         S_RPAREN = 9,                            // ")"
-        S_IDENTIFIER = 10,                       // "identifier"
-        S_NUMBER = 11,                           // "number"
-        S_YYACCEPT = 12,                         // $accept
-        S_unit = 13,                             // unit
-        S_assignments = 14,                      // assignments
-        S_assignment = 15,                       // assignment
-        S_exp = 16                               // exp
+        S_LCURLY = 10,                           // "{"
+        S_RCURLY = 11,                           // "}"
+        S_LSQUARE = 12,                          // "["
+        S_RSQUARE = 13,                          // "]"
+        S_AND = 14,                              // "and"
+        S_BREAK = 15,                            // "break"
+        S_DO = 16,                               // "do"
+        S_ELSE = 17,                             // "else"
+        S_ELSEIF = 18,                           // "elseif"
+        S_END = 19,                              // "end"
+        S_FALSE = 20,                            // "false"
+        S_FOR = 21,                              // "for"
+        S_FUNCTION = 22,                         // "function"
+        S_goto = 23,                             // "goto"
+        S_IF = 24,                               // "if"
+        S_IN = 25,                               // "in"
+        S_LOCAL = 26,                            // "local"
+        S_NIL = 27,                              // "nil"
+        S_NOT = 28,                              // "not"
+        S_OR = 29,                               // "or"
+        S_REPEAT = 30,                           // "repeat"
+        S_RETURN = 31,                           // "return"
+        S_THEN = 32,                             // "then"
+        S_TRUE = 33,                             // "true"
+        S_UNTIL = 34,                            // "until"
+        S_WHILE = 35,                            // "while"
+        S_DOUBLE_SLASH = 36,                     // "//"
+        S_CONCAT = 37,                           // ".."
+        S_VAR_PARAMS = 38,                       // "..."
+        S_EQUAL = 39,                            // "=="
+        S_MORE_EQUAL = 40,                       // ">="
+        S_LESS_EQUAL = 41,                       // "<="
+        S_NOT_EQUAL = 42,                        // "~="
+        S_LEFT_SHIFT = 43,                       // "<<"
+        S_RIGHT_SHIFT = 44,                      // ">>"
+        S_GOTO_TAG = 45,                         // "::"
+        S_IDENTIFIER = 46,                       // "identifier"
+        S_NUMBER = 47,                           // "number"
+        S_YYACCEPT = 48,                         // $accept
+        S_chunk = 49,                            // chunk
+        S_block = 50,                            // block
+        S_stmts = 51,                            // stmts
+        S_stmt = 52,                             // stmt
+        S_label = 53,                            // label
+        S_retstmt = 54                           // retstmt
       };
     };
 
@@ -550,7 +626,6 @@ namespace yy {
         switch (this->kind ())
     {
       case symbol_kind::S_NUMBER: // "number"
-      case symbol_kind::S_exp: // exp
         value.move< int > (std::move (that.value));
         break;
 
@@ -632,7 +707,6 @@ namespace yy {
 switch (yykind)
     {
       case symbol_kind::S_NUMBER: // "number"
-      case symbol_kind::S_exp: // exp
         value.template destroy< int > ();
         break;
 
@@ -736,7 +810,7 @@ switch (yykind)
       {
 #if !defined _MSC_VER || defined __clang__
         YY_ASSERT (tok == token::TOK_YYEOF
-                   || (token::TOK_YYerror <= tok && tok <= token::TOK_RPAREN));
+                   || (token::TOK_YYerror <= tok && tok <= token::TOK_GOTO_TAG));
 #endif
       }
 #if 201103L <= YY_CPLUSPLUS
@@ -964,6 +1038,546 @@ switch (yykind)
 #if 201103L <= YY_CPLUSPLUS
       static
       symbol_type
+      make_LCURLY (location_type l)
+      {
+        return symbol_type (token::TOK_LCURLY, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_LCURLY (const location_type& l)
+      {
+        return symbol_type (token::TOK_LCURLY, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_RCURLY (location_type l)
+      {
+        return symbol_type (token::TOK_RCURLY, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_RCURLY (const location_type& l)
+      {
+        return symbol_type (token::TOK_RCURLY, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_LSQUARE (location_type l)
+      {
+        return symbol_type (token::TOK_LSQUARE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_LSQUARE (const location_type& l)
+      {
+        return symbol_type (token::TOK_LSQUARE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_RSQUARE (location_type l)
+      {
+        return symbol_type (token::TOK_RSQUARE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_RSQUARE (const location_type& l)
+      {
+        return symbol_type (token::TOK_RSQUARE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_AND (location_type l)
+      {
+        return symbol_type (token::TOK_AND, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_AND (const location_type& l)
+      {
+        return symbol_type (token::TOK_AND, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_BREAK (location_type l)
+      {
+        return symbol_type (token::TOK_BREAK, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_BREAK (const location_type& l)
+      {
+        return symbol_type (token::TOK_BREAK, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_DO (location_type l)
+      {
+        return symbol_type (token::TOK_DO, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_DO (const location_type& l)
+      {
+        return symbol_type (token::TOK_DO, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_ELSE (location_type l)
+      {
+        return symbol_type (token::TOK_ELSE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_ELSE (const location_type& l)
+      {
+        return symbol_type (token::TOK_ELSE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_ELSEIF (location_type l)
+      {
+        return symbol_type (token::TOK_ELSEIF, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_ELSEIF (const location_type& l)
+      {
+        return symbol_type (token::TOK_ELSEIF, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_END (location_type l)
+      {
+        return symbol_type (token::TOK_END, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_END (const location_type& l)
+      {
+        return symbol_type (token::TOK_END, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_FALSE (location_type l)
+      {
+        return symbol_type (token::TOK_FALSE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_FALSE (const location_type& l)
+      {
+        return symbol_type (token::TOK_FALSE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_FOR (location_type l)
+      {
+        return symbol_type (token::TOK_FOR, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_FOR (const location_type& l)
+      {
+        return symbol_type (token::TOK_FOR, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_FUNCTION (location_type l)
+      {
+        return symbol_type (token::TOK_FUNCTION, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_FUNCTION (const location_type& l)
+      {
+        return symbol_type (token::TOK_FUNCTION, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_goto (location_type l)
+      {
+        return symbol_type (token::TOK_goto, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_goto (const location_type& l)
+      {
+        return symbol_type (token::TOK_goto, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_IF (location_type l)
+      {
+        return symbol_type (token::TOK_IF, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_IF (const location_type& l)
+      {
+        return symbol_type (token::TOK_IF, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_IN (location_type l)
+      {
+        return symbol_type (token::TOK_IN, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_IN (const location_type& l)
+      {
+        return symbol_type (token::TOK_IN, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_LOCAL (location_type l)
+      {
+        return symbol_type (token::TOK_LOCAL, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_LOCAL (const location_type& l)
+      {
+        return symbol_type (token::TOK_LOCAL, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_NIL (location_type l)
+      {
+        return symbol_type (token::TOK_NIL, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_NIL (const location_type& l)
+      {
+        return symbol_type (token::TOK_NIL, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_NOT (location_type l)
+      {
+        return symbol_type (token::TOK_NOT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_NOT (const location_type& l)
+      {
+        return symbol_type (token::TOK_NOT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_OR (location_type l)
+      {
+        return symbol_type (token::TOK_OR, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_OR (const location_type& l)
+      {
+        return symbol_type (token::TOK_OR, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_REPEAT (location_type l)
+      {
+        return symbol_type (token::TOK_REPEAT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_REPEAT (const location_type& l)
+      {
+        return symbol_type (token::TOK_REPEAT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_RETURN (location_type l)
+      {
+        return symbol_type (token::TOK_RETURN, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_RETURN (const location_type& l)
+      {
+        return symbol_type (token::TOK_RETURN, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_THEN (location_type l)
+      {
+        return symbol_type (token::TOK_THEN, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_THEN (const location_type& l)
+      {
+        return symbol_type (token::TOK_THEN, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_TRUE (location_type l)
+      {
+        return symbol_type (token::TOK_TRUE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_TRUE (const location_type& l)
+      {
+        return symbol_type (token::TOK_TRUE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_UNTIL (location_type l)
+      {
+        return symbol_type (token::TOK_UNTIL, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_UNTIL (const location_type& l)
+      {
+        return symbol_type (token::TOK_UNTIL, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_WHILE (location_type l)
+      {
+        return symbol_type (token::TOK_WHILE, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_WHILE (const location_type& l)
+      {
+        return symbol_type (token::TOK_WHILE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_DOUBLE_SLASH (location_type l)
+      {
+        return symbol_type (token::TOK_DOUBLE_SLASH, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_DOUBLE_SLASH (const location_type& l)
+      {
+        return symbol_type (token::TOK_DOUBLE_SLASH, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_CONCAT (location_type l)
+      {
+        return symbol_type (token::TOK_CONCAT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_CONCAT (const location_type& l)
+      {
+        return symbol_type (token::TOK_CONCAT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_VAR_PARAMS (location_type l)
+      {
+        return symbol_type (token::TOK_VAR_PARAMS, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_VAR_PARAMS (const location_type& l)
+      {
+        return symbol_type (token::TOK_VAR_PARAMS, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_EQUAL (location_type l)
+      {
+        return symbol_type (token::TOK_EQUAL, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_EQUAL (const location_type& l)
+      {
+        return symbol_type (token::TOK_EQUAL, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_MORE_EQUAL (location_type l)
+      {
+        return symbol_type (token::TOK_MORE_EQUAL, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_MORE_EQUAL (const location_type& l)
+      {
+        return symbol_type (token::TOK_MORE_EQUAL, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_LESS_EQUAL (location_type l)
+      {
+        return symbol_type (token::TOK_LESS_EQUAL, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_LESS_EQUAL (const location_type& l)
+      {
+        return symbol_type (token::TOK_LESS_EQUAL, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_NOT_EQUAL (location_type l)
+      {
+        return symbol_type (token::TOK_NOT_EQUAL, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_NOT_EQUAL (const location_type& l)
+      {
+        return symbol_type (token::TOK_NOT_EQUAL, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_LEFT_SHIFT (location_type l)
+      {
+        return symbol_type (token::TOK_LEFT_SHIFT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_LEFT_SHIFT (const location_type& l)
+      {
+        return symbol_type (token::TOK_LEFT_SHIFT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_RIGHT_SHIFT (location_type l)
+      {
+        return symbol_type (token::TOK_RIGHT_SHIFT, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_RIGHT_SHIFT (const location_type& l)
+      {
+        return symbol_type (token::TOK_RIGHT_SHIFT, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_GOTO_TAG (location_type l)
+      {
+        return symbol_type (token::TOK_GOTO_TAG, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_GOTO_TAG (const location_type& l)
+      {
+        return symbol_type (token::TOK_GOTO_TAG, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
       make_IDENTIFIER (std::string v, location_type l)
       {
         return symbol_type (token::TOK_IDENTIFIER, std::move (v), std::move (l));
@@ -1099,7 +1713,7 @@ switch (yykind)
 
 #if YYDEBUG
     // YYRLINE[YYN] -- Source line where rule number YYN was defined.
-    static const signed char yyrline_[];
+    static const unsigned char yyrline_[];
     /// Report on the debug stream that the rule \a r is going to be reduced.
     virtual void yy_reduce_print_ (int r) const;
     /// Print the state stack on the debug stream.
@@ -1335,9 +1949,9 @@ switch (yykind)
     /// Constants.
     enum
     {
-      yylast_ = 26,     ///< Last index in yytable_.
-      yynnts_ = 5,  ///< Number of nonterminal symbols.
-      yyfinal_ = 3 ///< Termination state number.
+      yylast_ = 4,     ///< Last index in yytable_.
+      yynnts_ = 7,  ///< Number of nonterminal symbols.
+      yyfinal_ = 8 ///< Termination state number.
     };
 
 
@@ -1363,7 +1977,6 @@ switch (yykind)
     switch (this->kind ())
     {
       case symbol_kind::S_NUMBER: // "number"
-      case symbol_kind::S_exp: // exp
         value.copy< int > (YY_MOVE (that.value));
         break;
 
@@ -1401,7 +2014,6 @@ switch (yykind)
     switch (this->kind ())
     {
       case symbol_kind::S_NUMBER: // "number"
-      case symbol_kind::S_exp: // exp
         value.move< int > (YY_MOVE (s.value));
         break;
 
@@ -1471,7 +2083,7 @@ switch (yykind)
   }
 
 } // yy
-#line 1475 "parser.h"
+#line 2087 "parser.h"
 
 
 

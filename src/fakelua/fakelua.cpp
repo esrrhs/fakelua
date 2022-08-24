@@ -1,6 +1,6 @@
 #include "fakelua/fakelua.h"
 #include "gperftools/profiler.h"
-#include "state.h"
+#include "state/state.h"
 #include "glog/logging.h"
 
 namespace fakelua {

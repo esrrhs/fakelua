@@ -32,53 +32,114 @@ namespace fakelua {
 #include "compile/myflexer.h"
 
 yy::parser::symbol_type yylex(fakelua::myflexer* l) {
-	auto ret = l->my_yylex();
-	LOG(INFO) << "[bison]: bison get token: " << ret.name() << " " << *ret.location.begin.filename
-	    << "(" << ret.location.begin.line << ":" << ret.location.begin.column << ")";
-	return ret;
+    auto ret = l->my_yylex();
+    LOG(INFO) << "[bison]: bison get token: " << ret.name() << " " << *ret.location.begin.filename
+        << "(" << ret.location.begin.line << ":" << ret.location.begin.column << ")";
+    return ret;
 }
 
 }
 
 %define api.token.prefix {TOK_}
 %token
-  ASSIGN  ":="
-  MINUS   "-"
-  PLUS    "+"
-  STAR    "*"
-  SLASH   "/"
-  LPAREN  "("
-  RPAREN  ")"
+  ASSIGN        "="
+  MINUS         "-"
+  PLUS          "+"
+  STAR          "*"
+  SLASH         "/"
+  LPAREN        "("
+  RPAREN        ")"
+  LCURLY        "{"
+  RCURLY        "}"
+  LSQUARE       "["
+  RSQUARE       "]"
+  AND           "and"
+  BREAK         "break"
+  DO            "do"
+  ELSE          "else"
+  ELSEIF        "elseif"
+  END           "end"
+  FALSE         "false"
+  FOR           "for"
+  FUNCTION      "function"
+  goto          "goto"
+  IF            "if"
+  IN            "in"
+  LOCAL         "local"
+  NIL           "nil"
+  NOT           "not"
+  OR            "or"
+  REPEAT        "repeat"
+  RETURN        "return"
+  THEN          "then"
+  TRUE          "true"
+  UNTIL         "until"
+  WHILE         "while"
+  DOUBLE_SLASH  "//"
+  CONCAT        ".."
+  VAR_PARAMS    "..."
+  EQUAL         "=="
+  MORE_EQUAL    ">="
+  LESS_EQUAL    "<="
+  NOT_EQUAL     "~="
+  LEFT_SHIFT    "<<"
+  RIGHT_SHIFT   ">>"
+  GOTO_TAG      "::"
 ;
 
 %token <std::string> IDENTIFIER "identifier"
 %token <int> NUMBER "number"
-%nterm <int> exp
 
 %printer { yyo << $$; } <*>;
 
 %%
-%start unit;
+%start chunk;
 
-unit: assignments exp  {  $2; };
+chunk:
+	block
+	{
+	}
+	;
 
-assignments:
-  %empty                 {}
-| assignments assignment {};
+block:
+	stmts retstmt
+	{
+	}
+	;
 
-assignment:
-  "identifier" ":=" exp {  $3; };
+stmts:
+  	%empty
+  	{
+  	}
+	|
+	stmt
+  	{
+  	}
+	|
+	stmts stmt
+	{
+	}
+	;
 
-%left "+" "-";
-%left "*" "/";
-exp:
-  "number"
-| "identifier"  { $$ = 0; }
-| exp "+" exp   { $$ = $1 + $3; }
-| exp "-" exp   { $$ = $1 - $3; }
-| exp "*" exp   { $$ = $1 * $3; }
-| exp "/" exp   { $$ = $1 / $3; }
-| "(" exp ")"   { $$ = $2; }
+stmt:
+  	label
+  	{
+
+  	}
+  	;
+
+label:
+	GOTO_TAG IDENTIFIER GOTO_TAG
+	{
+
+	}
+	;
+
+retstmt:
+  	%empty
+  	{
+  	}
+	;
 %%
 
 void
