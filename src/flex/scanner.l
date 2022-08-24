@@ -49,16 +49,52 @@ number  {num1}|{num2}
   loc.step ();
 %}
 
-ws      loc.step ();
-\n+     loc.lines(yyleng); loc.step();
+ws              loc.step ();
+\n+             loc.lines(yyleng); loc.step();
 
-"="        return yy::parser::make_ASSIGN(loc);
-"-"        return yy::parser::make_MINUS(loc);
-"+"        return yy::parser::make_PLUS(loc);
-"*"        return yy::parser::make_STAR(loc);
-"/"        return yy::parser::make_SLASH(loc);
-"("        return yy::parser::make_LPAREN(loc);
-")"        return yy::parser::make_RPAREN(loc);
+"..."           return yy::parser::make_VAR_PARAMS(loc);
+"=="            return yy::parser::make_EQUAL(loc);
+">="            return yy::parser::make_MORE_EQUAL(loc);
+"<="            return yy::parser::make_LESS_EQUAL(loc);
+"~="            return yy::parser::make_NOT_EQUAL(loc);
+"<<"            return yy::parser::make_LEFT_SHIFT(loc);
+">>"            return yy::parser::make_RIGHT_SHIFT(loc);
+"::"            return yy::parser::make_GOTO_TAG(loc);
+"="             return yy::parser::make_ASSIGN(loc);
+"-"             return yy::parser::make_MINUS(loc);
+"+"             return yy::parser::make_PLUS(loc);
+"*"             return yy::parser::make_STAR(loc);
+"/"             return yy::parser::make_SLASH(loc);
+"("             return yy::parser::make_LPAREN(loc);
+")"             return yy::parser::make_RPAREN(loc);
+"{"             return yy::parser::make_LCURLY(loc);
+"}"             return yy::parser::make_RCURLY(loc);
+"["             return yy::parser::make_LSQUARE(loc);
+"]"             return yy::parser::make_RSQUARE(loc);
+"and"           return yy::parser::make_AND(loc);
+"break"         return yy::parser::make_BREAK(loc);
+"do"            return yy::parser::make_DO(loc);
+"else"          return yy::parser::make_ELSE(loc);
+"elseif"        return yy::parser::make_ELSEIF(loc);
+"end"           return yy::parser::make_END(loc);
+"false"         return yy::parser::make_FALSE(loc);
+"for"           return yy::parser::make_FOR(loc);
+"function"      return yy::parser::make_FUNCTION(loc);
+"goto"          return yy::parser::make_goto(loc);
+"if"            return yy::parser::make_IF(loc);
+"in"            return yy::parser::make_IN(loc);
+"local"         return yy::parser::make_LOCAL(loc);
+"nil"           return yy::parser::make_NIL(loc);
+"not"           return yy::parser::make_NOT(loc);
+"or"            return yy::parser::make_OR(loc);
+"repeat"        return yy::parser::make_REPEAT(loc);
+"return"        return yy::parser::make_RETURN(loc);
+"then"          return yy::parser::make_THEN(loc);
+"true"          return yy::parser::make_TRUE(loc);
+"until"         return yy::parser::make_UNTIL(loc);
+"while"         return yy::parser::make_WHILE(loc);
+"//"            return yy::parser::make_DOUBLE_SLASH(loc);
+".."            return yy::parser::make_CONCAT(loc);
 
 {number}     return yy::parser::make_NUMBER(0, loc);
 

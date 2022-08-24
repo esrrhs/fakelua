@@ -11,6 +11,10 @@ public:
     fakelua_state() {}
 
     virtual ~fakelua_state() {}
+
+    virtual void compile_file(const std::string &filename) = 0;
+
+    virtual void compile_string(const std::string &str) = 0;
 };
 
 using fakelua_state_ptr = std::shared_ptr<fakelua_state>;

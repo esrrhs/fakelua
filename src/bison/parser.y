@@ -38,6 +38,8 @@ yy::parser::symbol_type yylex(fakelua::myflexer* l) {
     return ret;
 }
 
+int yyFlexLexer::yylex() { return -1; }
+
 }
 
 %define api.token.prefix {TOK_}

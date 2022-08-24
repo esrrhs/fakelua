@@ -53,8 +53,10 @@ yy::parser::symbol_type yylex(fakelua::myflexer* l) {
     return ret;
 }
 
+int yyFlexLexer::yylex() { return -1; }
 
-#line 58 "parser.cpp"
+
+#line 60 "parser.cpp"
 
 
 #ifndef YY_
@@ -146,7 +148,7 @@ yy::parser::symbol_type yylex(fakelua::myflexer* l) {
 #define YYRECOVERING()  (!!yyerrstatus_)
 
 namespace yy {
-#line 150 "parser.cpp"
+#line 152 "parser.cpp"
 
   /// Build a parser object.
   parser::parser (fakelua::myflexer* l_yyarg)
@@ -328,15 +330,15 @@ namespace yy {
         switch (yykind)
     {
       case symbol_kind::S_IDENTIFIER: // "identifier"
-#line 93 "parser.y"
+#line 95 "parser.y"
                  { yyo << yysym.value.template as < std::string > (); }
-#line 334 "parser.cpp"
+#line 336 "parser.cpp"
         break;
 
       case symbol_kind::S_NUMBER: // "number"
-#line 93 "parser.y"
+#line 95 "parser.y"
                  { yyo << yysym.value.template as < int > (); }
-#line 340 "parser.cpp"
+#line 342 "parser.cpp"
         break;
 
       default:
@@ -605,65 +607,65 @@ namespace yy {
           switch (yyn)
             {
   case 2: // chunk: block
-#line 100 "parser.y"
+#line 102 "parser.y"
         {
 	}
-#line 612 "parser.cpp"
+#line 614 "parser.cpp"
     break;
 
   case 3: // block: stmts retstmt
-#line 106 "parser.y"
+#line 108 "parser.y"
         {
 	}
-#line 619 "parser.cpp"
+#line 621 "parser.cpp"
     break;
 
   case 4: // stmts: %empty
-#line 112 "parser.y"
+#line 114 "parser.y"
         {
   	}
-#line 626 "parser.cpp"
+#line 628 "parser.cpp"
     break;
 
   case 5: // stmts: stmt
-#line 116 "parser.y"
+#line 118 "parser.y"
         {
   	}
-#line 633 "parser.cpp"
+#line 635 "parser.cpp"
     break;
 
   case 6: // stmts: stmts stmt
-#line 120 "parser.y"
+#line 122 "parser.y"
         {
 	}
-#line 640 "parser.cpp"
+#line 642 "parser.cpp"
     break;
 
   case 7: // stmt: label
-#line 126 "parser.y"
+#line 128 "parser.y"
         {
 
   	}
-#line 648 "parser.cpp"
+#line 650 "parser.cpp"
     break;
 
   case 8: // label: "::" "identifier" "::"
-#line 133 "parser.y"
+#line 135 "parser.y"
         {
 
 	}
-#line 656 "parser.cpp"
+#line 658 "parser.cpp"
     break;
 
   case 9: // retstmt: %empty
-#line 140 "parser.y"
+#line 142 "parser.y"
         {
   	}
-#line 663 "parser.cpp"
+#line 665 "parser.cpp"
     break;
 
 
-#line 667 "parser.cpp"
+#line 669 "parser.cpp"
 
             default:
               break;
@@ -1189,7 +1191,7 @@ namespace yy {
   const unsigned char
   parser::yyrline_[] =
   {
-       0,    99,    99,   105,   111,   115,   119,   125,   132,   139
+       0,   101,   101,   107,   113,   117,   121,   127,   134,   141
   };
 
   void
@@ -1221,9 +1223,9 @@ namespace yy {
 
 
 } // yy
-#line 1225 "parser.cpp"
+#line 1227 "parser.cpp"
 
-#line 143 "parser.y"
+#line 145 "parser.y"
 
 
 void
