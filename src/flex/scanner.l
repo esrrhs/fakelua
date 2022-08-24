@@ -51,6 +51,7 @@ number  {num1}|{num2}
 
 ws              loc.step ();
 \n+             loc.lines(yyleng); loc.step();
+\r+             {}
 
 "..."           return yy::parser::make_VAR_PARAMS(loc);
 "=="            return yy::parser::make_EQUAL(loc);
@@ -96,15 +97,12 @@ ws              loc.step ();
 "//"            return yy::parser::make_DOUBLE_SLASH(loc);
 ".."            return yy::parser::make_CONCAT(loc);
 
-{number}     return yy::parser::make_NUMBER(0, loc);
+{number}        return yy::parser::make_NUMBER(0, loc);
 
-{name}       return yy::parser::make_IDENTIFIER(yytext, loc);
+{name}          return yy::parser::make_IDENTIFIER(yytext, loc);
 
-.          {
-             throw yy::parser::syntax_error
-               (loc, "invalid character: " + std::string(yytext));
-}
+<<EOF>>         return yy::parser::make_YYEOF (loc);
 
-<<EOF>>    return yy::parser::make_YYEOF (loc);
+.               { throw yy::parser::syntax_error(loc, "invalid character: [" + std::string(yytext) + "]"); }
 
 %%
