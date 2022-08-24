@@ -581,7 +581,7 @@ static const flex_int16_t yy_rule_linenum[50] =
        64,   65,   66,   67,   68,   69,   70,   71,   72,   73,
        74,   75,   76,   77,   78,   79,   80,   81,   82,   83,
        84,   85,   86,   87,   88,   89,   90,   91,   92,   93,
-       94,   95,   96,   97,   98,   99,  101,  103,  107
+       94,   95,   96,   97,   98,   99,  101,  103,  105
     } ;
 
 /* The intent behind this definition is that it'll catch
@@ -1149,14 +1149,14 @@ YY_RULE_SETUP
 #line 103 "scanner.l"
 return yy::parser::make_IDENTIFIER(yytext, loc);
 	YY_BREAK
-case YY_STATE_EOF(INITIAL):
-#line 105 "scanner.l"
-return yy::parser::make_YYEOF (loc);
-	YY_BREAK
 case 49:
 YY_RULE_SETUP
-#line 107 "scanner.l"
+#line 105 "scanner.l"
 { throw yy::parser::syntax_error(loc, "invalid character: [" + std::string(yytext) + "]"); }
+	YY_BREAK
+case YY_STATE_EOF(INITIAL):
+#line 107 "scanner.l"
+return yy::parser::make_YYEOF (loc);
 	YY_BREAK
 case 50:
 YY_RULE_SETUP
