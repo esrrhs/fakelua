@@ -18,7 +18,7 @@ void myflexer::input_file(const std::string &file) {
     }
     filename_ = file;
     location_.initialize(&filename_);
-    yy_flex_debug = trace_scanning_;
+    set_debug(0);
     switch_streams(&file_, nullptr);
 }
 
@@ -28,9 +28,17 @@ void myflexer::input_string(const std::string &str) {
     }
     filename_ = "<string>";
     location_.initialize(&filename_);
-    yy_flex_debug = trace_scanning_;
+    set_debug(0);
     string_ = std::istringstream(str);
     switch_streams(&string_, nullptr);
+}
+
+void myflexer::set_chunk(const syntax_tree_interface_ptr &chunk) {
+    chunk_ = chunk;
+}
+
+syntax_tree_interface_ptr myflexer::get_chunk() const {
+    return chunk_;
 }
 
 }

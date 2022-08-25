@@ -668,7 +668,7 @@ namespace yy {
 #line 108 "parser.y"
         {
   		LOG(INFO) << "[bison]: chunk: " << "block";
-  		yylhs.value.as < syntax_tree_interface_ptr > () = yystack_[0].value.as < syntax_tree_interface_ptr > ();
+  		l->set_chunk(yystack_[0].value.as < syntax_tree_interface_ptr > ());
 	}
 #line 674 "parser.cpp"
     break;

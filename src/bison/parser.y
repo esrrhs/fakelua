@@ -107,7 +107,7 @@ chunk:
 	block
 	{
   		LOG(INFO) << "[bison]: chunk: " << "block";
-  		$$ = $1;
+  		l->set_chunk($1);
 	}
 	;
 

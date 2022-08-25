@@ -7,6 +7,10 @@
 
 namespace fakelua {
 
+struct compile_result {
+    syntax_tree_interface_ptr chunk;
+};
+
 // lua compiler class, make the code to JIT binary code
 class compiler {
 public:
@@ -16,10 +20,10 @@ public:
 
 public:
     // compile the lua file
-    void compile_file(const std::string &file);
+    compile_result compile_file(const std::string &file);
 
     // compile the lua string
-    void compile_string(const std::string &str);
+    compile_result compile_string(const std::string &str);
 
 public:
 };
