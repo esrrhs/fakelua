@@ -109,17 +109,13 @@
 
   <a name="rule_1" id="rule_1">  1</a> <span class="i">chunk</span> → <span class="i">block</span>
 
-  <a name="rule_2" id="rule_2">  2</a> <span class="i">block</span> → <span class="i">stmts</span> <span class="i">retstmt</span>
+  <a name="rule_2" id="rule_2">  2</a> <span class="i">block</span> → %empty
+  <a name="rule_3" id="rule_3">  3</a>       | <span class="i">stmt</span>
+  <a name="rule_4" id="rule_4">  4</a>       | <span class="i">block</span> <span class="i">stmt</span>
 
-  <a name="rule_3" id="rule_3">  3</a> <span class="i">stmts</span> → %empty
-  <a name="rule_4" id="rule_4">  4</a>       | <span class="i">stmt</span>
-  <a name="rule_5" id="rule_5">  5</a>       | <span class="i">stmts</span> <span class="i">stmt</span>
+  <a name="rule_5" id="rule_5">  5</a> <span class="i">stmt</span> → <span class="i">label</span>
 
-  <a name="rule_6" id="rule_6">  6</a> <span class="i">stmt</span> → <span class="i">label</span>
-
-  <a name="rule_7" id="rule_7">  7</a> <span class="i">label</span> → <b>"::"</b> <b>"identifier"</b> <b>"::"</b>
-
-  <a name="rule_8" id="rule_8">  8</a> <span class="i">retstmt</span> → %empty
+  <a name="rule_6" id="rule_6">  6</a> <span class="i">label</span> → <b>"::"</b> <b>"identifier"</b> <b>"::"</b>
 </p>
 
 <h3><a name="terminals" id="terminals"></a> Terminals, with rules where they appear</h3>
@@ -169,8 +165,8 @@
   <li><b>"~="</b> (297)</li>
   <li><b>"&lt;&lt;"</b> (298)</li>
   <li><b>"&gt;&gt;"</b> (299)</li>
-  <li><b>"::"</b> (300) <a href="#rule_7">7</a></li>
-  <li><b>"identifier"</b> &lt;std::string&gt; (301) <a href="#rule_7">7</a></li>
+  <li><b>"::"</b> (300) <a href="#rule_6">6</a></li>
+  <li><b>"identifier"</b> &lt;std::string&gt; (301) <a href="#rule_6">6</a></li>
   <li><b>"number"</b> &lt;int&gt; (302)</li>
 </ul>
 
@@ -182,40 +178,28 @@
       <li>on left: <a href="#rule_0">0</a></li>
     </ul>
   </li>
-  <li><b>chunk</b> (49)
+  <li><b>chunk</b> &lt;syntax_tree_interface_ptr&gt; (49)
     <ul>
       <li>on left: <a href="#rule_1">1</a></li>
       <li>on right: <a href="#rule_0">0</a></li>
     </ul>
   </li>
-  <li><b>block</b> (50)
+  <li><b>block</b> &lt;syntax_tree_interface_ptr&gt; (50)
     <ul>
-      <li>on left: <a href="#rule_2">2</a></li>
-      <li>on right: <a href="#rule_1">1</a></li>
+      <li>on left: <a href="#rule_2">2</a> <a href="#rule_3">3</a> <a href="#rule_4">4</a></li>
+      <li>on right: <a href="#rule_1">1</a> <a href="#rule_4">4</a></li>
     </ul>
   </li>
-  <li><b>stmts</b> (51)
+  <li><b>stmt</b> &lt;syntax_tree_interface_ptr&gt; (51)
     <ul>
-      <li>on left: <a href="#rule_3">3</a> <a href="#rule_4">4</a> <a href="#rule_5">5</a></li>
-      <li>on right: <a href="#rule_2">2</a> <a href="#rule_5">5</a></li>
+      <li>on left: <a href="#rule_5">5</a></li>
+      <li>on right: <a href="#rule_3">3</a> <a href="#rule_4">4</a></li>
     </ul>
   </li>
-  <li><b>stmt</b> (52)
+  <li><b>label</b> &lt;syntax_tree_interface_ptr&gt; (52)
     <ul>
       <li>on left: <a href="#rule_6">6</a></li>
-      <li>on right: <a href="#rule_4">4</a> <a href="#rule_5">5</a></li>
-    </ul>
-  </li>
-  <li><b>label</b> (53)
-    <ul>
-      <li>on left: <a href="#rule_7">7</a></li>
-      <li>on right: <a href="#rule_6">6</a></li>
-    </ul>
-  </li>
-  <li><b>retstmt</b> (54)
-    <ul>
-      <li>on left: <a href="#rule_8">8</a></li>
-      <li>on right: <a href="#rule_2">2</a></li>
+      <li>on right: <a href="#rule_5">5</a></li>
     </ul>
   </li>
 </ul><h2><a name="automaton" id="automaton"></a> Automaton</h2>
@@ -224,110 +208,92 @@
 
 <p class="pre">  <a href="#rule_0">  0</a> <span class="i">$accept</span> → <span class="dot">•</span> <span class="i">chunk</span> <b>$end</b>
   <a href="#rule_1">  1</a> <span class="i">chunk</span> → <span class="dot">•</span> <span class="i">block</span>
-  <a href="#rule_2">  2</a> <span class="i">block</span> → <span class="dot">•</span> <span class="i">stmts</span> <span class="i">retstmt</span>
-  <a href="#rule_3">  3</a> <span class="i">stmts</span> → <span class="dot">•</span> %empty  [$end, "::"]
-  <a href="#rule_4">  4</a>       | <span class="dot">•</span> <span class="i">stmt</span>
-  <a href="#rule_5">  5</a>       | <span class="dot">•</span> <span class="i">stmts</span> <span class="i">stmt</span>
-  <a href="#rule_6">  6</a> <span class="i">stmt</span> → <span class="dot">•</span> <span class="i">label</span>
-  <a href="#rule_7">  7</a> <span class="i">label</span> → <span class="dot">•</span> <b>"::"</b> <b>"identifier"</b> <b>"::"</b>
+  <a href="#rule_2">  2</a> <span class="i">block</span> → <span class="dot">•</span> %empty  [$end, "::"]
+  <a href="#rule_3">  3</a>       | <span class="dot">•</span> <span class="i">stmt</span>
+  <a href="#rule_4">  4</a>       | <span class="dot">•</span> <span class="i">block</span> <span class="i">stmt</span>
+  <a href="#rule_5">  5</a> <span class="i">stmt</span> → <span class="dot">•</span> <span class="i">label</span>
+  <a href="#rule_6">  6</a> <span class="i">label</span> → <span class="dot">•</span> <b>"::"</b> <b>"identifier"</b> <b>"::"</b>
 
     "::"  <a href="#state_1">shift, and go to state 1</a>
 
-    "::"      [<a href="#rule_3">reduce using rule 3</a> (stmts)]
-    $default  <a href="#rule_3">reduce using rule 3</a> (stmts)
+    "::"      [<a href="#rule_2">reduce using rule 2</a> (block)]
+    $default  <a href="#rule_2">reduce using rule 2</a> (block)
 
     chunk  <a href="#state_2">go to state 2</a>
     block  <a href="#state_3">go to state 3</a>
-    stmts  <a href="#state_4">go to state 4</a>
-    stmt   <a href="#state_5">go to state 5</a>
-    label  <a href="#state_6">go to state 6</a>
+    stmt   <a href="#state_4">go to state 4</a>
+    label  <a href="#state_5">go to state 5</a>
 </p>
 
 <h3><a name="state_1" id="state_1"></a>State 1</h3>
 
-<p class="pre">  <a href="#rule_7">  7</a> <span class="i">label</span> → <b>"::"</b> <span class="dot">•</span> <b>"identifier"</b> <b>"::"</b>
+<p class="pre">  <a href="#rule_6">  6</a> <span class="i">label</span> → <b>"::"</b> <span class="dot">•</span> <b>"identifier"</b> <b>"::"</b>
 
-    "identifier"  <a href="#state_7">shift, and go to state 7</a>
+    "identifier"  <a href="#state_6">shift, and go to state 6</a>
 </p>
 
 <h3><a name="state_2" id="state_2"></a>State 2</h3>
 
 <p class="pre">  <a href="#rule_0">  0</a> <span class="i">$accept</span> → <span class="i">chunk</span> <span class="dot">•</span> <b>$end</b>
 
-    $end  <a href="#state_8">shift, and go to state 8</a>
+    $end  <a href="#state_7">shift, and go to state 7</a>
 </p>
 
 <h3><a name="state_3" id="state_3"></a>State 3</h3>
 
-<p class="pre">  <a href="#rule_1">  1</a> <span class="i">chunk</span> → <span class="i">block</span> <span class="dot">•</span>
+<p class="pre">  <a href="#rule_1">  1</a> <span class="i">chunk</span> → <span class="i">block</span> <span class="dot">•</span>  [$end]
+  <a href="#rule_4">  4</a> <span class="i">block</span> → <span class="i">block</span> <span class="dot">•</span> <span class="i">stmt</span>
+  <a href="#rule_5">  5</a> <span class="i">stmt</span> → <span class="dot">•</span> <span class="i">label</span>
+  <a href="#rule_6">  6</a> <span class="i">label</span> → <span class="dot">•</span> <b>"::"</b> <b>"identifier"</b> <b>"::"</b>
+
+    "::"  <a href="#state_1">shift, and go to state 1</a>
 
     $default  <a href="#rule_1">reduce using rule 1</a> (chunk)
+
+    stmt   <a href="#state_8">go to state 8</a>
+    label  <a href="#state_5">go to state 5</a>
 </p>
 
 <h3><a name="state_4" id="state_4"></a>State 4</h3>
 
-<p class="pre">  <a href="#rule_2">  2</a> <span class="i">block</span> → <span class="i">stmts</span> <span class="dot">•</span> <span class="i">retstmt</span>
-  <a href="#rule_5">  5</a> <span class="i">stmts</span> → <span class="i">stmts</span> <span class="dot">•</span> <span class="i">stmt</span>
-  <a href="#rule_6">  6</a> <span class="i">stmt</span> → <span class="dot">•</span> <span class="i">label</span>
-  <a href="#rule_7">  7</a> <span class="i">label</span> → <span class="dot">•</span> <b>"::"</b> <b>"identifier"</b> <b>"::"</b>
-  <a href="#rule_8">  8</a> <span class="i">retstmt</span> → <span class="dot">•</span> %empty  [$end]
+<p class="pre">  <a href="#rule_3">  3</a> <span class="i">block</span> → <span class="i">stmt</span> <span class="dot">•</span>
 
-    "::"  <a href="#state_1">shift, and go to state 1</a>
-
-    $default  <a href="#rule_8">reduce using rule 8</a> (retstmt)
-
-    stmt     <a href="#state_9">go to state 9</a>
-    label    <a href="#state_6">go to state 6</a>
-    retstmt  <a href="#state_10">go to state 10</a>
+    $default  <a href="#rule_3">reduce using rule 3</a> (block)
 </p>
 
 <h3><a name="state_5" id="state_5"></a>State 5</h3>
 
-<p class="pre">  <a href="#rule_4">  4</a> <span class="i">stmts</span> → <span class="i">stmt</span> <span class="dot">•</span>
+<p class="pre">  <a href="#rule_5">  5</a> <span class="i">stmt</span> → <span class="i">label</span> <span class="dot">•</span>
 
-    $default  <a href="#rule_4">reduce using rule 4</a> (stmts)
+    $default  <a href="#rule_5">reduce using rule 5</a> (stmt)
 </p>
 
 <h3><a name="state_6" id="state_6"></a>State 6</h3>
 
-<p class="pre">  <a href="#rule_6">  6</a> <span class="i">stmt</span> → <span class="i">label</span> <span class="dot">•</span>
+<p class="pre">  <a href="#rule_6">  6</a> <span class="i">label</span> → <b>"::"</b> <b>"identifier"</b> <span class="dot">•</span> <b>"::"</b>
 
-    $default  <a href="#rule_6">reduce using rule 6</a> (stmt)
+    "::"  <a href="#state_9">shift, and go to state 9</a>
 </p>
 
 <h3><a name="state_7" id="state_7"></a>State 7</h3>
-
-<p class="pre">  <a href="#rule_7">  7</a> <span class="i">label</span> → <b>"::"</b> <b>"identifier"</b> <span class="dot">•</span> <b>"::"</b>
-
-    "::"  <a href="#state_11">shift, and go to state 11</a>
-</p>
-
-<h3><a name="state_8" id="state_8"></a>State 8</h3>
 
 <p class="pre">  <a href="#rule_0">  0</a> <span class="i">$accept</span> → <span class="i">chunk</span> <b>$end</b> <span class="dot">•</span>
 
     $default  accept
 </p>
 
+<h3><a name="state_8" id="state_8"></a>State 8</h3>
+
+<p class="pre">  <a href="#rule_4">  4</a> <span class="i">block</span> → <span class="i">block</span> <span class="i">stmt</span> <span class="dot">•</span>
+
+    $default  <a href="#rule_4">reduce using rule 4</a> (block)
+</p>
+
 <h3><a name="state_9" id="state_9"></a>State 9</h3>
 
-<p class="pre">  <a href="#rule_5">  5</a> <span class="i">stmts</span> → <span class="i">stmts</span> <span class="i">stmt</span> <span class="dot">•</span>
+<p class="pre">  <a href="#rule_6">  6</a> <span class="i">label</span> → <b>"::"</b> <b>"identifier"</b> <b>"::"</b> <span class="dot">•</span>
 
-    $default  <a href="#rule_5">reduce using rule 5</a> (stmts)
-</p>
-
-<h3><a name="state_10" id="state_10"></a>State 10</h3>
-
-<p class="pre">  <a href="#rule_2">  2</a> <span class="i">block</span> → <span class="i">stmts</span> <span class="i">retstmt</span> <span class="dot">•</span>
-
-    $default  <a href="#rule_2">reduce using rule 2</a> (block)
-</p>
-
-<h3><a name="state_11" id="state_11"></a>State 11</h3>
-
-<p class="pre">  <a href="#rule_7">  7</a> <span class="i">label</span> → <b>"::"</b> <b>"identifier"</b> <b>"::"</b> <span class="dot">•</span>
-
-    $default  <a href="#rule_7">reduce using rule 7</a> (label)
+    $default  <a href="#rule_6">reduce using rule 6</a> (label)
 </p>
 
 <div id="footer"><hr />This document was generated using

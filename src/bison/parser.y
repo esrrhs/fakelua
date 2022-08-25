@@ -9,8 +9,10 @@
 %define parse.assert
 
 %code requires {
-#include <string>
 #include "glog/logging.h"
+#include "util/common.h"
+#include "compile/syntax_tree.h"
+
 namespace fakelua {
     class myflexer;
 }
@@ -33,8 +35,7 @@ namespace fakelua {
 
 yy::parser::symbol_type yylex(fakelua::myflexer* l) {
     auto ret = l->my_yylex();
-    LOG(INFO) << "[bison]: bison get token: " << ret.name() << " " << *ret.location.begin.filename
-        << "(" << ret.location.begin.line << ":" << ret.location.begin.column << ")";
+    LOG(INFO) << "[bison]: bison get token: " << ret.name() << " loc:" << ret.location;
     return ret;
 }
 
@@ -92,6 +93,11 @@ int yyFlexLexer::yylex() { return -1; }
 %token <std::string> IDENTIFIER "identifier"
 %token <int> NUMBER "number"
 
+%type <syntax_tree_interface_ptr> label
+%type <syntax_tree_interface_ptr> stmt
+%type <syntax_tree_interface_ptr> block
+%type <syntax_tree_interface_ptr> chunk
+
 %printer { yyo << $$; } <*>;
 
 %%
@@ -100,48 +106,54 @@ int yyFlexLexer::yylex() { return -1; }
 chunk:
 	block
 	{
+  		LOG(INFO) << "[bison]: chunk: " << "block";
+  		$$ = $1;
 	}
 	;
 
 block:
-	stmts retstmt
-	{
-	}
-	;
-
-stmts:
   	%empty
   	{
   	}
 	|
 	stmt
   	{
+		LOG(INFO) << "[bison]: block: " << "stmt";
+		auto block = std::make_shared<syntax_tree_block>(@1);
+		block->add_stmt($1);
+  		$$ = block;
   	}
 	|
-	stmts stmt
+	block stmt
 	{
+		LOG(INFO) << "[bison]: block: " << "block stmt";
+		auto block = std::dynamic_pointer_cast<syntax_tree_block>($1);
+		if (block == nullptr) {
+			LOG(ERROR) << "[bison]: block: " << "block is not a block";
+			throw std::runtime_error("block is not a block");
+		}
+		block->add_stmt($2);
+  		$$ = block;
 	}
 	;
 
 stmt:
   	label
   	{
-
+  		LOG(INFO) << "[bison]: stmt: " << "label";
+  		$$ = $1;
   	}
   	;
 
 label:
 	GOTO_TAG IDENTIFIER GOTO_TAG
 	{
-
+		LOG(INFO) << "[bison]: bison get label: " << $2 << " loc: " << @2;
+		auto label = std::make_shared<syntax_tree_label>($2, @2);
+		$$ = label;
 	}
 	;
 
-retstmt:
-  	%empty
-  	{
-  	}
-	;
 %%
 
 void

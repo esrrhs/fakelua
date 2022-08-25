@@ -47,8 +47,10 @@
 // "%code requires" blocks.
 #line 11 "parser.y"
 
-#include <string>
 #include "glog/logging.h"
+#include "util/common.h"
+#include "compile/syntax_tree.h"
+
 namespace fakelua {
     class myflexer;
 }
@@ -56,7 +58,7 @@ namespace fakelua {
 // https://www.gnu.org/software/bison/manual/html_node/A-Simple-C_002b_002b-Example.html
 
 
-#line 60 "parser.h"
+#line 62 "parser.h"
 
 # include <cassert>
 # include <cstdlib> // std::abort
@@ -196,7 +198,7 @@ namespace fakelua {
 #endif
 
 namespace yy {
-#line 200 "parser.h"
+#line 202 "parser.h"
 
 
 
@@ -420,6 +422,12 @@ namespace yy {
 
       // "identifier"
       char dummy2[sizeof (std::string)];
+
+      // chunk
+      // block
+      // stmt
+      // label
+      char dummy3[sizeof (syntax_tree_interface_ptr)];
     };
 
     /// The size of the largest semantic type.
@@ -585,10 +593,8 @@ namespace yy {
         S_YYACCEPT = 48,                         // $accept
         S_chunk = 49,                            // chunk
         S_block = 50,                            // block
-        S_stmts = 51,                            // stmts
-        S_stmt = 52,                             // stmt
-        S_label = 53,                            // label
-        S_retstmt = 54                           // retstmt
+        S_stmt = 51,                             // stmt
+        S_label = 52                             // label
       };
     };
 
@@ -631,6 +637,13 @@ namespace yy {
 
       case symbol_kind::S_IDENTIFIER: // "identifier"
         value.move< std::string > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_chunk: // chunk
+      case symbol_kind::S_block: // block
+      case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_label: // label
+        value.move< syntax_tree_interface_ptr > (std::move (that.value));
         break;
 
       default:
@@ -684,6 +697,20 @@ namespace yy {
       {}
 #endif
 
+#if 201103L <= YY_CPLUSPLUS
+      basic_symbol (typename Base::kind_type t, syntax_tree_interface_ptr&& v, location_type&& l)
+        : Base (t)
+        , value (std::move (v))
+        , location (std::move (l))
+      {}
+#else
+      basic_symbol (typename Base::kind_type t, const syntax_tree_interface_ptr& v, const location_type& l)
+        : Base (t)
+        , value (v)
+        , location (l)
+      {}
+#endif
+
       /// Destroy the symbol.
       ~basic_symbol ()
       {
@@ -712,6 +739,13 @@ switch (yykind)
 
       case symbol_kind::S_IDENTIFIER: // "identifier"
         value.template destroy< std::string > ();
+        break;
+
+      case symbol_kind::S_chunk: // chunk
+      case symbol_kind::S_block: // block
+      case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_label: // label
+        value.template destroy< syntax_tree_interface_ptr > ();
         break;
 
       default:
@@ -1949,9 +1983,9 @@ switch (yykind)
     /// Constants.
     enum
     {
-      yylast_ = 4,     ///< Last index in yytable_.
-      yynnts_ = 7,  ///< Number of nonterminal symbols.
-      yyfinal_ = 8 ///< Termination state number.
+      yylast_ = 5,     ///< Last index in yytable_.
+      yynnts_ = 5,  ///< Number of nonterminal symbols.
+      yyfinal_ = 7 ///< Termination state number.
     };
 
 
@@ -1982,6 +2016,13 @@ switch (yykind)
 
       case symbol_kind::S_IDENTIFIER: // "identifier"
         value.copy< std::string > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_chunk: // chunk
+      case symbol_kind::S_block: // block
+      case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_label: // label
+        value.copy< syntax_tree_interface_ptr > (YY_MOVE (that.value));
         break;
 
       default:
@@ -2019,6 +2060,13 @@ switch (yykind)
 
       case symbol_kind::S_IDENTIFIER: // "identifier"
         value.move< std::string > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_chunk: // chunk
+      case symbol_kind::S_block: // block
+      case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_label: // label
+        value.move< syntax_tree_interface_ptr > (YY_MOVE (s.value));
         break;
 
       default:
@@ -2083,7 +2131,7 @@ switch (yykind)
   }
 
 } // yy
-#line 2087 "parser.h"
+#line 2135 "parser.h"
 
 
 
