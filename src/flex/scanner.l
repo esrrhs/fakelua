@@ -53,6 +53,19 @@ ws              loc.step ();
 \n+             loc.lines(yyleng); loc.step();
 \r+             {}
 
+"%"             return yy::parser::make_MOD(loc);
+"&"             return yy::parser::make_BITAND(loc);
+"|"             return yy::parser::make_BITOR(loc);
+"~"             return yy::parser::make_BITNOT(loc);
+">"             return yy::parser::make_MORE(loc);
+"<"             return yy::parser::make_LESS(loc);
+"#"             return yy::parser::make_NUMBER_SIGN(loc);
+"^"             return yy::parser::make_XOR(loc);
+";"             return yy::parser::make_SEMICOLON(loc);
+":"             return yy::parser::make_COLON(loc);
+","             return yy::parser::make_COMMA(loc);
+"."             return yy::parser::make_DOT(loc);
+".."            return yy::parser::make_CONCAT(loc);
 "..."           return yy::parser::make_VAR_PARAMS(loc);
 "=="            return yy::parser::make_EQUAL(loc);
 ">="            return yy::parser::make_MORE_EQUAL(loc);
@@ -95,11 +108,12 @@ ws              loc.step ();
 "until"         return yy::parser::make_UNTIL(loc);
 "while"         return yy::parser::make_WHILE(loc);
 "//"            return yy::parser::make_DOUBLE_SLASH(loc);
-".."            return yy::parser::make_CONCAT(loc);
 
 {number}        return yy::parser::make_NUMBER(0, loc);
 
 {name}          return yy::parser::make_IDENTIFIER(yytext, loc);
+
+{string}        return yy::parser::make_STRING(yytext, loc);
 
 .               { throw yy::parser::syntax_error(loc, "invalid character: [" + std::string(yytext) + "]"); }
 

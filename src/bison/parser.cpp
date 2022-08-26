@@ -217,10 +217,11 @@ namespace yy {
     switch (that.kind ())
     {
       case symbol_kind::S_NUMBER: // "number"
-        value.YY_MOVE_OR_COPY< int > (YY_MOVE (that.value));
+        value.YY_MOVE_OR_COPY< double > (YY_MOVE (that.value));
         break;
 
       case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
         value.YY_MOVE_OR_COPY< std::string > (YY_MOVE (that.value));
         break;
 
@@ -247,10 +248,11 @@ namespace yy {
     switch (that.kind ())
     {
       case symbol_kind::S_NUMBER: // "number"
-        value.move< int > (YY_MOVE (that.value));
+        value.move< double > (YY_MOVE (that.value));
         break;
 
       case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
         value.move< std::string > (YY_MOVE (that.value));
         break;
 
@@ -277,10 +279,11 @@ namespace yy {
     switch (that.kind ())
     {
       case symbol_kind::S_NUMBER: // "number"
-        value.copy< int > (that.value);
+        value.copy< double > (that.value);
         break;
 
       case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
         value.copy< std::string > (that.value);
         break;
 
@@ -306,10 +309,11 @@ namespace yy {
     switch (that.kind ())
     {
       case symbol_kind::S_NUMBER: // "number"
-        value.move< int > (that.value);
+        value.move< double > (that.value);
         break;
 
       case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
         value.move< std::string > (that.value);
         break;
 
@@ -357,39 +361,45 @@ namespace yy {
         switch (yykind)
     {
       case symbol_kind::S_IDENTIFIER: // "identifier"
-#line 101 "parser.y"
+#line 114 "parser.y"
                  { yyo << yysym.value.template as < std::string > (); }
-#line 363 "parser.cpp"
+#line 367 "parser.cpp"
+        break;
+
+      case symbol_kind::S_STRING: // "string"
+#line 114 "parser.y"
+                 { yyo << yysym.value.template as < std::string > (); }
+#line 373 "parser.cpp"
         break;
 
       case symbol_kind::S_NUMBER: // "number"
-#line 101 "parser.y"
-                 { yyo << yysym.value.template as < int > (); }
-#line 369 "parser.cpp"
+#line 114 "parser.y"
+                 { yyo << yysym.value.template as < double > (); }
+#line 379 "parser.cpp"
         break;
 
       case symbol_kind::S_chunk: // chunk
-#line 101 "parser.y"
+#line 114 "parser.y"
                  { yyo << yysym.value.template as < syntax_tree_interface_ptr > (); }
-#line 375 "parser.cpp"
+#line 385 "parser.cpp"
         break;
 
       case symbol_kind::S_block: // block
-#line 101 "parser.y"
+#line 114 "parser.y"
                  { yyo << yysym.value.template as < syntax_tree_interface_ptr > (); }
-#line 381 "parser.cpp"
+#line 391 "parser.cpp"
         break;
 
       case symbol_kind::S_stmt: // stmt
-#line 101 "parser.y"
+#line 114 "parser.y"
                  { yyo << yysym.value.template as < syntax_tree_interface_ptr > (); }
-#line 387 "parser.cpp"
+#line 397 "parser.cpp"
         break;
 
       case symbol_kind::S_label: // label
-#line 101 "parser.y"
+#line 114 "parser.y"
                  { yyo << yysym.value.template as < syntax_tree_interface_ptr > (); }
-#line 393 "parser.cpp"
+#line 403 "parser.cpp"
         break;
 
       default:
@@ -630,10 +640,11 @@ namespace yy {
       switch (yyr1_[yyn])
     {
       case symbol_kind::S_NUMBER: // "number"
-        yylhs.value.emplace< int > ();
+        yylhs.value.emplace< double > ();
         break;
 
       case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
         yylhs.value.emplace< std::string > ();
         break;
 
@@ -665,34 +676,36 @@ namespace yy {
           switch (yyn)
             {
   case 2: // chunk: block
-#line 108 "parser.y"
+#line 121 "parser.y"
         {
   		LOG(INFO) << "[bison]: chunk: " << "block";
   		l->set_chunk(yystack_[0].value.as < syntax_tree_interface_ptr > ());
 	}
-#line 674 "parser.cpp"
+#line 685 "parser.cpp"
     break;
 
   case 3: // block: %empty
-#line 116 "parser.y"
+#line 129 "parser.y"
         {
-  	}
-#line 681 "parser.cpp"
-    break;
-
-  case 4: // block: stmt
-#line 120 "parser.y"
-        {
-		LOG(INFO) << "[bison]: block: " << "stmt";
-		auto block = std::make_shared<syntax_tree_block>(yystack_[0].location);
-		block->add_stmt(yystack_[0].value.as < syntax_tree_interface_ptr > ());
-  		yylhs.value.as < syntax_tree_interface_ptr > () = block;
   	}
 #line 692 "parser.cpp"
     break;
 
+  case 4: // block: stmt
+#line 133 "parser.y"
+        {
+		LOG(INFO) << "[bison]: block: " << "stmt";
+		auto block = std::make_shared<syntax_tree_block>(yystack_[0].location);
+		if (yystack_[0].value.as < syntax_tree_interface_ptr > () != nullptr) {
+			block->add_stmt(yystack_[0].value.as < syntax_tree_interface_ptr > ());
+		}
+  		yylhs.value.as < syntax_tree_interface_ptr > () = block;
+  	}
+#line 705 "parser.cpp"
+    break;
+
   case 5: // block: block stmt
-#line 128 "parser.y"
+#line 143 "parser.y"
         {
 		LOG(INFO) << "[bison]: block: " << "block stmt";
 		auto block = std::dynamic_pointer_cast<syntax_tree_block>(yystack_[1].value.as < syntax_tree_interface_ptr > ());
@@ -700,33 +713,628 @@ namespace yy {
 			LOG(ERROR) << "[bison]: block: " << "block is not a block";
 			throw std::runtime_error("block is not a block");
 		}
-		block->add_stmt(yystack_[0].value.as < syntax_tree_interface_ptr > ());
+		if (yystack_[0].value.as < syntax_tree_interface_ptr > () != nullptr) {
+			block->add_stmt(yystack_[0].value.as < syntax_tree_interface_ptr > ());
+		}
   		yylhs.value.as < syntax_tree_interface_ptr > () = block;
 	}
-#line 707 "parser.cpp"
+#line 722 "parser.cpp"
     break;
 
-  case 6: // stmt: label
-#line 142 "parser.y"
+  case 6: // stmt: retstat
+#line 159 "parser.y"
+        {
+        	LOG(INFO) << "[bison]: stmt: " << "retstat";
+        	yylhs.value.as < syntax_tree_interface_ptr > () = nullptr;
+        }
+#line 731 "parser.cpp"
+    break;
+
+  case 7: // stmt: ";"
+#line 165 "parser.y"
+        {
+		LOG(INFO) << "[bison]: stmt: " << "SEMICOLON";
+		yylhs.value.as < syntax_tree_interface_ptr > () = nullptr;
+	}
+#line 740 "parser.cpp"
+    break;
+
+  case 8: // stmt: varlist "=" explist
+#line 171 "parser.y"
+        {
+		LOG(INFO) << "[bison]: stmt: " << "varlist ASSIGN explist";
+		yylhs.value.as < syntax_tree_interface_ptr > () = nullptr;
+	}
+#line 749 "parser.cpp"
+    break;
+
+  case 9: // stmt: label
+#line 177 "parser.y"
         {
   		LOG(INFO) << "[bison]: stmt: " << "label";
   		yylhs.value.as < syntax_tree_interface_ptr > () = yystack_[0].value.as < syntax_tree_interface_ptr > ();
   	}
-#line 716 "parser.cpp"
+#line 758 "parser.cpp"
     break;
 
-  case 7: // label: "::" "identifier" "::"
-#line 150 "parser.y"
+  case 10: // retstat: "return"
+#line 185 "parser.y"
+        {
+		LOG(INFO) << "[bison]: retstat: " << "RETURN";
+	}
+#line 766 "parser.cpp"
+    break;
+
+  case 11: // retstat: "return" explist
+#line 190 "parser.y"
+        {
+		LOG(INFO) << "[bison]: retstat: " << "RETURN explist";
+	}
+#line 774 "parser.cpp"
+    break;
+
+  case 12: // label: "::" "identifier" "::"
+#line 197 "parser.y"
         {
 		LOG(INFO) << "[bison]: bison get label: " << yystack_[1].value.as < std::string > () << " loc: " << yystack_[1].location;
-		auto label = std::make_shared<syntax_tree_label>(yystack_[1].value.as < std::string > (), yystack_[1].location);
-		yylhs.value.as < syntax_tree_interface_ptr > () = label;
 	}
-#line 726 "parser.cpp"
+#line 782 "parser.cpp"
+    break;
+
+  case 13: // varlist: var
+#line 228 "parser.y"
+        {
+		LOG(INFO) << "[bison]: varlist: " << "var";
+	}
+#line 790 "parser.cpp"
+    break;
+
+  case 14: // varlist: varlist "," var
+#line 233 "parser.y"
+        {
+		LOG(INFO) << "[bison]: varlist: " << "varlist COMMA var";
+	}
+#line 798 "parser.cpp"
+    break;
+
+  case 15: // var: "identifier"
+#line 240 "parser.y"
+        {
+		LOG(INFO) << "[bison]: var: " << "IDENTIFIER";
+	}
+#line 806 "parser.cpp"
+    break;
+
+  case 16: // var: prefixexp "[" exp "]"
+#line 245 "parser.y"
+        {
+		LOG(INFO) << "[bison]: var: " << "prefixexp LSQUARE exp RSQUARE";
+	}
+#line 814 "parser.cpp"
+    break;
+
+  case 17: // var: prefixexp "." "identifier"
+#line 250 "parser.y"
+        {
+		LOG(INFO) << "[bison]: var: " << "prefixexp DOT IDENTIFIER";
+	}
+#line 822 "parser.cpp"
+    break;
+
+  case 18: // namelist: "identifier"
+#line 257 "parser.y"
+        {
+		LOG(INFO) << "[bison]: namelist: " << "IDENTIFIER";
+	}
+#line 830 "parser.cpp"
+    break;
+
+  case 19: // namelist: namelist "," "identifier"
+#line 262 "parser.y"
+        {
+		LOG(INFO) << "[bison]: namelist: " << "namelist COMMA IDENTIFIER";
+	}
+#line 838 "parser.cpp"
+    break;
+
+  case 20: // explist: exp
+#line 269 "parser.y"
+        {
+		LOG(INFO) << "[bison]: explist: " << "exp";
+	}
+#line 846 "parser.cpp"
+    break;
+
+  case 21: // explist: explist "," exp
+#line 274 "parser.y"
+        {
+		LOG(INFO) << "[bison]: explist: " << "explist COMMA exp";
+	}
+#line 854 "parser.cpp"
+    break;
+
+  case 22: // exp: "nil"
+#line 281 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "NIL";
+	}
+#line 862 "parser.cpp"
+    break;
+
+  case 23: // exp: "true"
+#line 286 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "TRUE";
+	}
+#line 870 "parser.cpp"
+    break;
+
+  case 24: // exp: "false"
+#line 291 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "FALSE";
+	}
+#line 878 "parser.cpp"
+    break;
+
+  case 25: // exp: "number"
+#line 296 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "NUMBER";
+	}
+#line 886 "parser.cpp"
+    break;
+
+  case 26: // exp: "string"
+#line 301 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "STRING";
+	}
+#line 894 "parser.cpp"
+    break;
+
+  case 27: // exp: "..."
+#line 306 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "VAR_PARAMS";
+	}
+#line 902 "parser.cpp"
+    break;
+
+  case 28: // exp: functiondef
+#line 311 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "functiondef";
+	}
+#line 910 "parser.cpp"
+    break;
+
+  case 29: // exp: prefixexp
+#line 316 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "prefixexp";
+	}
+#line 918 "parser.cpp"
+    break;
+
+  case 30: // exp: tableconstructor
+#line 321 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "tableconstructor";
+	}
+#line 926 "parser.cpp"
+    break;
+
+  case 31: // exp: exp binop exp
+#line 326 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "exp binop exp";
+	}
+#line 934 "parser.cpp"
+    break;
+
+  case 32: // exp: unop exp
+#line 331 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "unop exp";
+	}
+#line 942 "parser.cpp"
+    break;
+
+  case 33: // prefixexp: var
+#line 338 "parser.y"
+        {
+		LOG(INFO) << "[bison]: prefixexp: " << "var";
+	}
+#line 950 "parser.cpp"
+    break;
+
+  case 34: // prefixexp: functioncall
+#line 343 "parser.y"
+        {
+		LOG(INFO) << "[bison]: prefixexp: " << "functioncall";
+	}
+#line 958 "parser.cpp"
+    break;
+
+  case 35: // prefixexp: "(" exp ")"
+#line 348 "parser.y"
+        {
+		LOG(INFO) << "[bison]: prefixexp: " << "LPAREN exp RPAREN";
+	}
+#line 966 "parser.cpp"
+    break;
+
+  case 36: // functioncall: prefixexp args
+#line 354 "parser.y"
+        {
+		LOG(INFO) << "[bison]: functioncall: " << "prefixexp args";
+	}
+#line 974 "parser.cpp"
+    break;
+
+  case 37: // functioncall: prefixexp ":" "identifier" args
+#line 359 "parser.y"
+        {
+		LOG(INFO) << "[bison]: functioncall: " << "prefixexp COLON IDENTIFIER args";
+	}
+#line 982 "parser.cpp"
+    break;
+
+  case 38: // args: "(" explist ")"
+#line 366 "parser.y"
+        {
+		LOG(INFO) << "[bison]: args: " << "LPAREN explist RPAREN";
+	}
+#line 990 "parser.cpp"
+    break;
+
+  case 39: // args: "(" ")"
+#line 371 "parser.y"
+        {
+		LOG(INFO) << "[bison]: args: " << "LPAREN RPAREN";
+	}
+#line 998 "parser.cpp"
+    break;
+
+  case 40: // args: tableconstructor
+#line 376 "parser.y"
+        {
+		LOG(INFO) << "[bison]: args: " << "tableconstructor";
+	}
+#line 1006 "parser.cpp"
+    break;
+
+  case 41: // args: "string"
+#line 381 "parser.y"
+        {
+		LOG(INFO) << "[bison]: args: " << "STRING";
+	}
+#line 1014 "parser.cpp"
+    break;
+
+  case 42: // functiondef: "function" funcbody
+#line 388 "parser.y"
+        {
+		LOG(INFO) << "[bison]: functiondef: " << "FUNCTION funcbody";
+	}
+#line 1022 "parser.cpp"
+    break;
+
+  case 43: // funcbody: "(" parlist ")" block "end"
+#line 395 "parser.y"
+        {
+		LOG(INFO) << "[bison]: funcbody: " << "LPAREN parlist RPAREN block END";
+	}
+#line 1030 "parser.cpp"
+    break;
+
+  case 44: // funcbody: "(" ")" block "end"
+#line 400 "parser.y"
+        {
+		LOG(INFO) << "[bison]: funcbody: " << "LPAREN RPAREN block END";
+	}
+#line 1038 "parser.cpp"
+    break;
+
+  case 45: // parlist: namelist
+#line 407 "parser.y"
+        {
+		LOG(INFO) << "[bison]: parlist: " << "namelist";
+	}
+#line 1046 "parser.cpp"
+    break;
+
+  case 46: // parlist: namelist "," "..."
+#line 412 "parser.y"
+        {
+		LOG(INFO) << "[bison]: parlist: " << "namelist COMMA VAR_PARAMS";
+	}
+#line 1054 "parser.cpp"
+    break;
+
+  case 47: // parlist: "..."
+#line 417 "parser.y"
+        {
+		LOG(INFO) << "[bison]: parlist: " << "VAR_PARAMS";
+	}
+#line 1062 "parser.cpp"
+    break;
+
+  case 48: // tableconstructor: "{" fieldlist "}"
+#line 424 "parser.y"
+        {
+		LOG(INFO) << "[bison]: tableconstructor: " << "LCURLY fieldlist RCURLY";
+	}
+#line 1070 "parser.cpp"
+    break;
+
+  case 49: // tableconstructor: "{" "}"
+#line 429 "parser.y"
+        {
+		LOG(INFO) << "[bison]: tableconstructor: " << "LCURLY RCURLY";
+	}
+#line 1078 "parser.cpp"
+    break;
+
+  case 50: // fieldlist: field
+#line 436 "parser.y"
+        {
+		LOG(INFO) << "[bison]: fieldlist: " << "field";
+	}
+#line 1086 "parser.cpp"
+    break;
+
+  case 51: // fieldlist: fieldlist fieldsep field
+#line 441 "parser.y"
+        {
+		LOG(INFO) << "[bison]: fieldlist: " << "fieldlist fieldsep field";
+	}
+#line 1094 "parser.cpp"
+    break;
+
+  case 52: // field: "[" exp "]" "=" exp
+#line 449 "parser.y"
+        {
+		LOG(INFO) << "[bison]: field: " << "LSQUARE exp RSQUARE ASSIGN exp";
+	}
+#line 1102 "parser.cpp"
+    break;
+
+  case 53: // field: "identifier" "=" exp
+#line 454 "parser.y"
+        {
+		LOG(INFO) << "[bison]: field: " << "IDENTIFIER ASSIGN exp";
+	}
+#line 1110 "parser.cpp"
+    break;
+
+  case 54: // field: exp
+#line 459 "parser.y"
+        {
+		LOG(INFO) << "[bison]: field: " << "exp";
+	}
+#line 1118 "parser.cpp"
+    break;
+
+  case 55: // fieldsep: ","
+#line 467 "parser.y"
+        {
+		LOG(INFO) << "[bison]: fieldsep: " << "COMMA";
+	}
+#line 1126 "parser.cpp"
+    break;
+
+  case 56: // fieldsep: ";"
+#line 472 "parser.y"
+        {
+		LOG(INFO) << "[bison]: fieldsep: " << "SEMICOLON";
+	}
+#line 1134 "parser.cpp"
+    break;
+
+  case 57: // binop: "+"
+#line 479 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "PLUS";
+	}
+#line 1142 "parser.cpp"
+    break;
+
+  case 58: // binop: "-"
+#line 484 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "MINUS";
+	}
+#line 1150 "parser.cpp"
+    break;
+
+  case 59: // binop: "*"
+#line 489 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "STAR";
+	}
+#line 1158 "parser.cpp"
+    break;
+
+  case 60: // binop: "/"
+#line 494 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "SLASH";
+	}
+#line 1166 "parser.cpp"
+    break;
+
+  case 61: // binop: "//"
+#line 499 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "DOUBLE_SLASH";
+	}
+#line 1174 "parser.cpp"
+    break;
+
+  case 62: // binop: "^"
+#line 504 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "XOR";
+	}
+#line 1182 "parser.cpp"
+    break;
+
+  case 63: // binop: "%"
+#line 509 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "MOD";
+	}
+#line 1190 "parser.cpp"
+    break;
+
+  case 64: // binop: "&"
+#line 514 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "BITAND";
+	}
+#line 1198 "parser.cpp"
+    break;
+
+  case 65: // binop: "~"
+#line 519 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "BITNOT";
+	}
+#line 1206 "parser.cpp"
+    break;
+
+  case 66: // binop: "|"
+#line 524 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "BITOR";
+	}
+#line 1214 "parser.cpp"
+    break;
+
+  case 67: // binop: ">>"
+#line 529 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "RIGHT_SHIFT";
+	}
+#line 1222 "parser.cpp"
+    break;
+
+  case 68: // binop: "<<"
+#line 534 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "LEFT_SHIFT";
+	}
+#line 1230 "parser.cpp"
+    break;
+
+  case 69: // binop: ".."
+#line 539 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "CONCAT";
+	}
+#line 1238 "parser.cpp"
+    break;
+
+  case 70: // binop: "<"
+#line 544 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "LESS";
+	}
+#line 1246 "parser.cpp"
+    break;
+
+  case 71: // binop: "<="
+#line 549 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "LESS_EQUAL";
+	}
+#line 1254 "parser.cpp"
+    break;
+
+  case 72: // binop: ">"
+#line 554 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "MORE";
+	}
+#line 1262 "parser.cpp"
+    break;
+
+  case 73: // binop: ">="
+#line 559 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "MORE_EQUAL";
+	}
+#line 1270 "parser.cpp"
+    break;
+
+  case 74: // binop: "=="
+#line 564 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "EQUAL";
+	}
+#line 1278 "parser.cpp"
+    break;
+
+  case 75: // binop: "~="
+#line 569 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "NOT_EQUAL";
+	}
+#line 1286 "parser.cpp"
+    break;
+
+  case 76: // binop: "and"
+#line 574 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "AND";
+	}
+#line 1294 "parser.cpp"
+    break;
+
+  case 77: // binop: "or"
+#line 579 "parser.y"
+        {
+		LOG(INFO) << "[bison]: binop: " << "OR";
+	}
+#line 1302 "parser.cpp"
+    break;
+
+  case 78: // unop: "-"
+#line 586 "parser.y"
+        {
+		LOG(INFO) << "[bison]: unop: " << "MINUS";
+	}
+#line 1310 "parser.cpp"
+    break;
+
+  case 79: // unop: "not"
+#line 591 "parser.y"
+        {
+		LOG(INFO) << "[bison]: unop: " << "NOT";
+	}
+#line 1318 "parser.cpp"
+    break;
+
+  case 80: // unop: "#"
+#line 596 "parser.y"
+        {
+		LOG(INFO) << "[bison]: unop: " << "NUMBER_SIGN";
+	}
+#line 1326 "parser.cpp"
+    break;
+
+  case 81: // unop: "~"
+#line 601 "parser.y"
+        {
+		LOG(INFO) << "[bison]: unop: " << "BITNOT";
+	}
+#line 1334 "parser.cpp"
     break;
 
 
-#line 730 "parser.cpp"
+#line 1338 "parser.cpp"
 
             default:
               break;
@@ -914,8 +1522,12 @@ namespace yy {
   ")", "{", "}", "[", "]", "and", "break", "do", "else", "elseif", "end",
   "false", "for", "function", "goto", "if", "in", "local", "nil", "not",
   "or", "repeat", "return", "then", "true", "until", "while", "//", "..",
-  "...", "==", ">=", "<=", "~=", "<<", ">>", "::", "identifier", "number",
-  "$accept", "chunk", "block", "stmt", "label", YY_NULLPTR
+  "...", "==", ">=", "<=", "~=", "<<", ">>", "::", ";", ":", ",", ".", "^",
+  "%", "&", "|", "~", ">", "<", "#", "identifier", "string", "number",
+  "$accept", "chunk", "block", "stmt", "retstat", "label", "varlist",
+  "var", "namelist", "explist", "exp", "prefixexp", "functioncall", "args",
+  "functiondef", "funcbody", "parlist", "tableconstructor", "fieldlist",
+  "field", "fieldsep", "binop", "unop", YY_NULLPTR
     };
     return yy_sname[yysymbol];
   }
@@ -1184,72 +1796,217 @@ namespace yy {
   }
 
 
-  const signed char parser::yypact_ninf_ = -46;
+  const signed char parser::yypact_ninf_ = -73;
 
-  const signed char parser::yytable_ninf_ = -1;
+  const signed char parser::yytable_ninf_ = -15;
 
-  const signed char
+  const short
   parser::yypact_[] =
   {
-     -45,   -44,     1,   -45,   -46,   -46,   -42,   -46,   -46,   -46
+      21,   178,   178,   -44,   -73,   -73,    20,    21,   -73,   -73,
+     -73,     8,    25,    38,   -73,   -73,     5,   -73,    15,   -73,
+     -73,   -73,   -73,   -73,   -73,   -73,   -73,   -73,   213,    38,
+     -73,   -73,   178,   -24,   372,   -15,   -73,   -73,   178,    -5,
+     112,   178,   -22,    16,   -73,   -73,   -73,   -73,   178,    55,
+     372,    78,   -73,    32,   -73,   -73,   -73,   -73,   -73,   -73,
+     -73,   -73,   -73,   -73,   -73,   -73,   -73,   -73,   -73,   -73,
+     -73,   -73,   -73,   -73,   -73,   -73,   -73,   178,   372,   178,
+     -73,   -24,    52,   -73,    12,   266,     2,   -73,   319,   178,
+     -73,   -73,   -73,   121,    21,   -73,   -73,    28,    68,   372,
+     372,   -73,   -73,   -73,    75,   372,   -73,    23,   -32,    21,
+     178,   -73,   -73,   -73,    26,   372,   -73
   };
 
   const signed char
   parser::yydefact_[] =
   {
-       3,     0,     0,     2,     4,     6,     0,     1,     5,     7
+       3,     0,    10,     0,     7,    15,     0,     2,     4,     6,
+       9,     0,    33,     0,    34,    78,     0,    24,     0,    22,
+      79,    23,    27,    81,    80,    26,    25,    33,     0,    29,
+      28,    30,     0,    11,    20,     0,     1,     5,     0,     0,
+       0,     0,     0,     0,    41,    36,    40,    49,     0,    15,
+      54,     0,    50,     0,    42,    58,    57,    59,    60,    35,
+      76,    77,    61,    69,    74,    73,    71,    75,    68,    67,
+      62,    63,    64,    66,    65,    72,    70,     0,    32,     0,
+      12,     8,    33,    39,     0,     0,     0,    17,     0,     0,
+      48,    56,    55,     0,     3,    47,    18,    45,     0,    31,
+      21,    38,    16,    37,     0,    53,    51,     0,     0,     3,
+       0,    44,    46,    19,     0,    52,    43
   };
 
   const signed char
   parser::yypgoto_[] =
   {
-     -46,   -46,   -46,     2,   -46
+     -73,   -73,   -72,    -2,   -73,   -73,   -73,     0,   -73,     9,
+       3,     1,   -73,    -3,   -73,   -73,   -73,   -11,   -73,    -7,
+     -73,   -73,   -73
   };
 
   const signed char
   parser::yydefgoto_[] =
   {
-       0,     2,     3,     4,     5
+       0,     6,     7,     8,     9,    10,    11,    27,    97,    33,
+      34,    29,    14,    45,    30,    54,    98,    31,    51,    52,
+      93,    77,    32
   };
 
   const signed char
   parser::yytable_[] =
   {
-       1,     7,     6,     9,     0,     8
+      12,    13,    46,     1,    28,    37,   112,    12,    13,    15,
+      40,    38,    16,     1,    35,    16,    47,    48,    46,    50,
+      36,   101,   107,    53,    79,    17,   113,    18,   -13,     1,
+      80,     1,    19,    20,     1,    78,    86,   114,    21,    82,
+      13,    94,   111,    22,    85,   116,    40,    81,    16,    84,
+      41,    88,     2,     5,     2,   -14,    39,     2,    89,    23,
+      79,    44,    24,    49,    25,    26,     3,     4,     3,     4,
+      95,     3,     4,   -13,    87,    46,   108,   109,   110,     5,
+      99,     5,   100,   103,     5,    42,   106,    43,     0,    90,
+      96,     0,   105,     0,    12,    13,    50,    44,     0,     0,
+     -14,     0,     0,     0,     0,    37,     0,    12,    13,    12,
+      13,     0,    37,   115,    12,    13,    15,     0,     0,     0,
+       1,    83,    16,     0,    91,    15,    92,     0,     0,     1,
+       0,    16,    17,    48,    18,     0,     0,     0,     0,    19,
+      20,    17,     0,    18,     0,    21,     0,     0,    19,    20,
+      22,     0,     0,     0,    21,     0,     0,     0,     0,    22,
+       0,     0,     0,     0,     0,     0,    23,     0,     0,    24,
+       5,    25,    26,     0,     0,    23,     0,     0,    24,    49,
+      25,    26,    15,     0,     0,     0,     1,     0,    16,     0,
+       0,     0,     0,     0,     0,     0,     0,     0,    17,     0,
+      18,     0,     0,     0,     0,    19,    20,     0,     0,     0,
+       0,    21,     0,     0,     0,     0,    22,    55,    56,    57,
+      58,     0,    59,     0,     0,     0,     0,    60,     0,     0,
+       0,     0,    23,     0,     0,    24,     5,    25,    26,     0,
+       0,     0,    61,     0,     0,     0,     0,     0,     0,    62,
+      63,     0,    64,    65,    66,    67,    68,    69,     0,     0,
+       0,     0,     0,    70,    71,    72,    73,    74,    75,    76,
+      55,    56,    57,    58,     0,     0,     0,     0,     0,   102,
+      60,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,     0,     0,    61,     0,     0,     0,     0,
+       0,     0,    62,    63,     0,    64,    65,    66,    67,    68,
+      69,     0,     0,     0,     0,     0,    70,    71,    72,    73,
+      74,    75,    76,    55,    56,    57,    58,     0,     0,     0,
+       0,     0,   104,    60,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,     0,     0,     0,     0,     0,    61,     0,
+       0,     0,     0,     0,     0,    62,    63,     0,    64,    65,
+      66,    67,    68,    69,     0,     0,     0,     0,     0,    70,
+      71,    72,    73,    74,    75,    76,    55,    56,    57,    58,
+       0,     0,     0,     0,     0,     0,    60,     0,     0,     0,
+       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+       0,    61,     0,     0,     0,     0,     0,     0,    62,    63,
+       0,    64,    65,    66,    67,    68,    69,     0,     0,     0,
+       0,     0,    70,    71,    72,    73,    74,    75,    76
   };
 
   const signed char
   parser::yycheck_[] =
   {
-      45,     0,    46,    45,    -1,     3
+       0,     0,    13,     8,     1,     7,    38,     7,     7,     4,
+       8,     3,    10,     8,    58,    10,    11,    12,    29,    16,
+       0,     9,    94,     8,    48,    20,    58,    22,     3,     8,
+      45,     8,    27,    28,     8,    32,    58,   109,    33,    39,
+      39,     9,    19,    38,    41,    19,     8,    38,    10,    40,
+      12,    48,    31,    58,    31,     3,    48,    31,     3,    54,
+      48,    59,    57,    58,    59,    60,    45,    46,    45,    46,
+      38,    45,    46,    48,    58,    86,    48,     9,     3,    58,
+      77,    58,    79,    86,    58,    47,    93,    49,    -1,    11,
+      58,    -1,    89,    -1,    94,    94,    93,    59,    -1,    -1,
+      48,    -1,    -1,    -1,    -1,   107,    -1,   107,   107,   109,
+     109,    -1,   114,   110,   114,   114,     4,    -1,    -1,    -1,
+       8,     9,    10,    -1,    46,     4,    48,    -1,    -1,     8,
+      -1,    10,    20,    12,    22,    -1,    -1,    -1,    -1,    27,
+      28,    20,    -1,    22,    -1,    33,    -1,    -1,    27,    28,
+      38,    -1,    -1,    -1,    33,    -1,    -1,    -1,    -1,    38,
+      -1,    -1,    -1,    -1,    -1,    -1,    54,    -1,    -1,    57,
+      58,    59,    60,    -1,    -1,    54,    -1,    -1,    57,    58,
+      59,    60,     4,    -1,    -1,    -1,     8,    -1,    10,    -1,
+      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    20,    -1,
+      22,    -1,    -1,    -1,    -1,    27,    28,    -1,    -1,    -1,
+      -1,    33,    -1,    -1,    -1,    -1,    38,     4,     5,     6,
+       7,    -1,     9,    -1,    -1,    -1,    -1,    14,    -1,    -1,
+      -1,    -1,    54,    -1,    -1,    57,    58,    59,    60,    -1,
+      -1,    -1,    29,    -1,    -1,    -1,    -1,    -1,    -1,    36,
+      37,    -1,    39,    40,    41,    42,    43,    44,    -1,    -1,
+      -1,    -1,    -1,    50,    51,    52,    53,    54,    55,    56,
+       4,     5,     6,     7,    -1,    -1,    -1,    -1,    -1,    13,
+      14,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
+      -1,    -1,    -1,    -1,    -1,    29,    -1,    -1,    -1,    -1,
+      -1,    -1,    36,    37,    -1,    39,    40,    41,    42,    43,
+      44,    -1,    -1,    -1,    -1,    -1,    50,    51,    52,    53,
+      54,    55,    56,     4,     5,     6,     7,    -1,    -1,    -1,
+      -1,    -1,    13,    14,    -1,    -1,    -1,    -1,    -1,    -1,
+      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    29,    -1,
+      -1,    -1,    -1,    -1,    -1,    36,    37,    -1,    39,    40,
+      41,    42,    43,    44,    -1,    -1,    -1,    -1,    -1,    50,
+      51,    52,    53,    54,    55,    56,     4,     5,     6,     7,
+      -1,    -1,    -1,    -1,    -1,    -1,    14,    -1,    -1,    -1,
+      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
+      -1,    29,    -1,    -1,    -1,    -1,    -1,    -1,    36,    37,
+      -1,    39,    40,    41,    42,    43,    44,    -1,    -1,    -1,
+      -1,    -1,    50,    51,    52,    53,    54,    55,    56
   };
 
   const signed char
   parser::yystos_[] =
   {
-       0,    45,    49,    50,    51,    52,    46,     0,    51,    45
+       0,     8,    31,    45,    46,    58,    62,    63,    64,    65,
+      66,    67,    68,    72,    73,     4,    10,    20,    22,    27,
+      28,    33,    38,    54,    57,    59,    60,    68,    71,    72,
+      75,    78,    83,    70,    71,    58,     0,    64,     3,    48,
+       8,    12,    47,    49,    59,    74,    78,    11,    12,    58,
+      71,    79,    80,     8,    76,     4,     5,     6,     7,     9,
+      14,    29,    36,    37,    39,    40,    41,    42,    43,    44,
+      50,    51,    52,    53,    54,    55,    56,    82,    71,    48,
+      45,    70,    68,     9,    70,    71,    58,    58,    71,     3,
+      11,    46,    48,    81,     9,    38,    58,    69,    77,    71,
+      71,     9,    13,    74,    13,    71,    80,    63,    48,     9,
+       3,    19,    38,    58,    63,    71,    19
   };
 
   const signed char
   parser::yyr1_[] =
   {
-       0,    48,    49,    50,    50,    50,    51,    52
+       0,    61,    62,    63,    63,    63,    64,    64,    64,    64,
+      65,    65,    66,    67,    67,    68,    68,    68,    69,    69,
+      70,    70,    71,    71,    71,    71,    71,    71,    71,    71,
+      71,    71,    71,    72,    72,    72,    73,    73,    74,    74,
+      74,    74,    75,    76,    76,    77,    77,    77,    78,    78,
+      79,    79,    80,    80,    80,    81,    81,    82,    82,    82,
+      82,    82,    82,    82,    82,    82,    82,    82,    82,    82,
+      82,    82,    82,    82,    82,    82,    82,    82,    83,    83,
+      83,    83
   };
 
   const signed char
   parser::yyr2_[] =
   {
-       0,     2,     1,     0,     1,     2,     1,     3
+       0,     2,     1,     0,     1,     2,     1,     1,     3,     1,
+       1,     2,     3,     1,     3,     1,     4,     3,     1,     3,
+       1,     3,     1,     1,     1,     1,     1,     1,     1,     1,
+       1,     3,     2,     1,     1,     3,     2,     4,     3,     2,
+       1,     1,     2,     5,     4,     1,     3,     1,     3,     2,
+       1,     3,     5,     3,     1,     1,     1,     1,     1,     1,
+       1,     1,     1,     1,     1,     1,     1,     1,     1,     1,
+       1,     1,     1,     1,     1,     1,     1,     1,     1,     1,
+       1,     1
   };
 
 
 
 
 #if YYDEBUG
-  const unsigned char
+  const short
   parser::yyrline_[] =
   {
-       0,   107,   107,   115,   119,   127,   141,   149
+       0,   120,   120,   128,   132,   142,   158,   164,   170,   176,
+     184,   189,   196,   227,   232,   239,   244,   249,   256,   261,
+     268,   273,   280,   285,   290,   295,   300,   305,   310,   315,
+     320,   325,   330,   337,   342,   347,   353,   358,   365,   370,
+     375,   380,   387,   394,   399,   406,   411,   416,   423,   428,
+     435,   440,   448,   453,   458,   466,   471,   478,   483,   488,
+     493,   498,   503,   508,   513,   518,   523,   528,   533,   538,
+     543,   548,   553,   558,   563,   568,   573,   578,   585,   590,
+     595,   600
   };
 
   void
@@ -1281,9 +2038,9 @@ namespace yy {
 
 
 } // yy
-#line 1285 "parser.cpp"
+#line 2042 "parser.cpp"
 
-#line 157 "parser.y"
+#line 605 "parser.y"
 
 
 void
