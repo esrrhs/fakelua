@@ -777,564 +777,565 @@ namespace yy {
 #line 197 "parser.y"
         {
 		LOG(INFO) << "[bison]: bison get label: " << yystack_[1].value.as < std::string > () << " loc: " << yystack_[1].location;
+		yylhs.value.as < syntax_tree_interface_ptr > () = std::make_shared<syntax_tree_label>(yystack_[1].value.as < std::string > (), yystack_[1].location);
 	}
-#line 782 "parser.cpp"
+#line 783 "parser.cpp"
     break;
 
   case 13: // varlist: var
-#line 228 "parser.y"
+#line 229 "parser.y"
         {
 		LOG(INFO) << "[bison]: varlist: " << "var";
 	}
-#line 790 "parser.cpp"
+#line 791 "parser.cpp"
     break;
 
   case 14: // varlist: varlist "," var
-#line 233 "parser.y"
+#line 234 "parser.y"
         {
 		LOG(INFO) << "[bison]: varlist: " << "varlist COMMA var";
 	}
-#line 798 "parser.cpp"
+#line 799 "parser.cpp"
     break;
 
   case 15: // var: "identifier"
-#line 240 "parser.y"
+#line 241 "parser.y"
         {
 		LOG(INFO) << "[bison]: var: " << "IDENTIFIER";
 	}
-#line 806 "parser.cpp"
+#line 807 "parser.cpp"
     break;
 
   case 16: // var: prefixexp "[" exp "]"
-#line 245 "parser.y"
+#line 246 "parser.y"
         {
 		LOG(INFO) << "[bison]: var: " << "prefixexp LSQUARE exp RSQUARE";
 	}
-#line 814 "parser.cpp"
+#line 815 "parser.cpp"
     break;
 
   case 17: // var: prefixexp "." "identifier"
-#line 250 "parser.y"
+#line 251 "parser.y"
         {
 		LOG(INFO) << "[bison]: var: " << "prefixexp DOT IDENTIFIER";
 	}
-#line 822 "parser.cpp"
+#line 823 "parser.cpp"
     break;
 
   case 18: // namelist: "identifier"
-#line 257 "parser.y"
+#line 258 "parser.y"
         {
 		LOG(INFO) << "[bison]: namelist: " << "IDENTIFIER";
 	}
-#line 830 "parser.cpp"
+#line 831 "parser.cpp"
     break;
 
   case 19: // namelist: namelist "," "identifier"
-#line 262 "parser.y"
+#line 263 "parser.y"
         {
 		LOG(INFO) << "[bison]: namelist: " << "namelist COMMA IDENTIFIER";
 	}
-#line 838 "parser.cpp"
+#line 839 "parser.cpp"
     break;
 
   case 20: // explist: exp
-#line 269 "parser.y"
+#line 270 "parser.y"
         {
 		LOG(INFO) << "[bison]: explist: " << "exp";
 	}
-#line 846 "parser.cpp"
+#line 847 "parser.cpp"
     break;
 
   case 21: // explist: explist "," exp
-#line 274 "parser.y"
+#line 275 "parser.y"
         {
 		LOG(INFO) << "[bison]: explist: " << "explist COMMA exp";
 	}
-#line 854 "parser.cpp"
+#line 855 "parser.cpp"
     break;
 
   case 22: // exp: "nil"
-#line 281 "parser.y"
+#line 282 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "NIL";
 	}
-#line 862 "parser.cpp"
+#line 863 "parser.cpp"
     break;
 
   case 23: // exp: "true"
-#line 286 "parser.y"
+#line 287 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "TRUE";
 	}
-#line 870 "parser.cpp"
+#line 871 "parser.cpp"
     break;
 
   case 24: // exp: "false"
-#line 291 "parser.y"
+#line 292 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "FALSE";
 	}
-#line 878 "parser.cpp"
+#line 879 "parser.cpp"
     break;
 
   case 25: // exp: "number"
-#line 296 "parser.y"
+#line 297 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "NUMBER";
 	}
-#line 886 "parser.cpp"
+#line 887 "parser.cpp"
     break;
 
   case 26: // exp: "string"
-#line 301 "parser.y"
+#line 302 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "STRING";
 	}
-#line 894 "parser.cpp"
+#line 895 "parser.cpp"
     break;
 
   case 27: // exp: "..."
-#line 306 "parser.y"
+#line 307 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "VAR_PARAMS";
 	}
-#line 902 "parser.cpp"
+#line 903 "parser.cpp"
     break;
 
   case 28: // exp: functiondef
-#line 311 "parser.y"
+#line 312 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "functiondef";
 	}
-#line 910 "parser.cpp"
+#line 911 "parser.cpp"
     break;
 
   case 29: // exp: prefixexp
-#line 316 "parser.y"
+#line 317 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "prefixexp";
 	}
-#line 918 "parser.cpp"
+#line 919 "parser.cpp"
     break;
 
   case 30: // exp: tableconstructor
-#line 321 "parser.y"
+#line 322 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "tableconstructor";
 	}
-#line 926 "parser.cpp"
+#line 927 "parser.cpp"
     break;
 
   case 31: // exp: exp binop exp
-#line 326 "parser.y"
+#line 327 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "exp binop exp";
 	}
-#line 934 "parser.cpp"
+#line 935 "parser.cpp"
     break;
 
   case 32: // exp: unop exp
-#line 331 "parser.y"
+#line 332 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "unop exp";
 	}
-#line 942 "parser.cpp"
+#line 943 "parser.cpp"
     break;
 
   case 33: // prefixexp: var
-#line 338 "parser.y"
+#line 339 "parser.y"
         {
 		LOG(INFO) << "[bison]: prefixexp: " << "var";
 	}
-#line 950 "parser.cpp"
+#line 951 "parser.cpp"
     break;
 
   case 34: // prefixexp: functioncall
-#line 343 "parser.y"
+#line 344 "parser.y"
         {
 		LOG(INFO) << "[bison]: prefixexp: " << "functioncall";
 	}
-#line 958 "parser.cpp"
+#line 959 "parser.cpp"
     break;
 
   case 35: // prefixexp: "(" exp ")"
-#line 348 "parser.y"
+#line 349 "parser.y"
         {
 		LOG(INFO) << "[bison]: prefixexp: " << "LPAREN exp RPAREN";
 	}
-#line 966 "parser.cpp"
+#line 967 "parser.cpp"
     break;
 
   case 36: // functioncall: prefixexp args
-#line 354 "parser.y"
+#line 355 "parser.y"
         {
 		LOG(INFO) << "[bison]: functioncall: " << "prefixexp args";
 	}
-#line 974 "parser.cpp"
+#line 975 "parser.cpp"
     break;
 
   case 37: // functioncall: prefixexp ":" "identifier" args
-#line 359 "parser.y"
+#line 360 "parser.y"
         {
 		LOG(INFO) << "[bison]: functioncall: " << "prefixexp COLON IDENTIFIER args";
 	}
-#line 982 "parser.cpp"
+#line 983 "parser.cpp"
     break;
 
   case 38: // args: "(" explist ")"
-#line 366 "parser.y"
+#line 367 "parser.y"
         {
 		LOG(INFO) << "[bison]: args: " << "LPAREN explist RPAREN";
 	}
-#line 990 "parser.cpp"
+#line 991 "parser.cpp"
     break;
 
   case 39: // args: "(" ")"
-#line 371 "parser.y"
+#line 372 "parser.y"
         {
 		LOG(INFO) << "[bison]: args: " << "LPAREN RPAREN";
 	}
-#line 998 "parser.cpp"
+#line 999 "parser.cpp"
     break;
 
   case 40: // args: tableconstructor
-#line 376 "parser.y"
+#line 377 "parser.y"
         {
 		LOG(INFO) << "[bison]: args: " << "tableconstructor";
 	}
-#line 1006 "parser.cpp"
+#line 1007 "parser.cpp"
     break;
 
   case 41: // args: "string"
-#line 381 "parser.y"
+#line 382 "parser.y"
         {
 		LOG(INFO) << "[bison]: args: " << "STRING";
 	}
-#line 1014 "parser.cpp"
+#line 1015 "parser.cpp"
     break;
 
   case 42: // functiondef: "function" funcbody
-#line 388 "parser.y"
+#line 389 "parser.y"
         {
 		LOG(INFO) << "[bison]: functiondef: " << "FUNCTION funcbody";
 	}
-#line 1022 "parser.cpp"
+#line 1023 "parser.cpp"
     break;
 
   case 43: // funcbody: "(" parlist ")" block "end"
-#line 395 "parser.y"
+#line 396 "parser.y"
         {
 		LOG(INFO) << "[bison]: funcbody: " << "LPAREN parlist RPAREN block END";
 	}
-#line 1030 "parser.cpp"
+#line 1031 "parser.cpp"
     break;
 
   case 44: // funcbody: "(" ")" block "end"
-#line 400 "parser.y"
+#line 401 "parser.y"
         {
 		LOG(INFO) << "[bison]: funcbody: " << "LPAREN RPAREN block END";
 	}
-#line 1038 "parser.cpp"
+#line 1039 "parser.cpp"
     break;
 
   case 45: // parlist: namelist
-#line 407 "parser.y"
+#line 408 "parser.y"
         {
 		LOG(INFO) << "[bison]: parlist: " << "namelist";
 	}
-#line 1046 "parser.cpp"
+#line 1047 "parser.cpp"
     break;
 
   case 46: // parlist: namelist "," "..."
-#line 412 "parser.y"
+#line 413 "parser.y"
         {
 		LOG(INFO) << "[bison]: parlist: " << "namelist COMMA VAR_PARAMS";
 	}
-#line 1054 "parser.cpp"
+#line 1055 "parser.cpp"
     break;
 
   case 47: // parlist: "..."
-#line 417 "parser.y"
+#line 418 "parser.y"
         {
 		LOG(INFO) << "[bison]: parlist: " << "VAR_PARAMS";
 	}
-#line 1062 "parser.cpp"
+#line 1063 "parser.cpp"
     break;
 
   case 48: // tableconstructor: "{" fieldlist "}"
-#line 424 "parser.y"
+#line 425 "parser.y"
         {
 		LOG(INFO) << "[bison]: tableconstructor: " << "LCURLY fieldlist RCURLY";
 	}
-#line 1070 "parser.cpp"
+#line 1071 "parser.cpp"
     break;
 
   case 49: // tableconstructor: "{" "}"
-#line 429 "parser.y"
+#line 430 "parser.y"
         {
 		LOG(INFO) << "[bison]: tableconstructor: " << "LCURLY RCURLY";
 	}
-#line 1078 "parser.cpp"
+#line 1079 "parser.cpp"
     break;
 
   case 50: // fieldlist: field
-#line 436 "parser.y"
+#line 437 "parser.y"
         {
 		LOG(INFO) << "[bison]: fieldlist: " << "field";
 	}
-#line 1086 "parser.cpp"
+#line 1087 "parser.cpp"
     break;
 
   case 51: // fieldlist: fieldlist fieldsep field
-#line 441 "parser.y"
+#line 442 "parser.y"
         {
 		LOG(INFO) << "[bison]: fieldlist: " << "fieldlist fieldsep field";
 	}
-#line 1094 "parser.cpp"
+#line 1095 "parser.cpp"
     break;
 
   case 52: // field: "[" exp "]" "=" exp
-#line 449 "parser.y"
+#line 450 "parser.y"
         {
 		LOG(INFO) << "[bison]: field: " << "LSQUARE exp RSQUARE ASSIGN exp";
 	}
-#line 1102 "parser.cpp"
+#line 1103 "parser.cpp"
     break;
 
   case 53: // field: "identifier" "=" exp
-#line 454 "parser.y"
+#line 455 "parser.y"
         {
 		LOG(INFO) << "[bison]: field: " << "IDENTIFIER ASSIGN exp";
 	}
-#line 1110 "parser.cpp"
+#line 1111 "parser.cpp"
     break;
 
   case 54: // field: exp
-#line 459 "parser.y"
+#line 460 "parser.y"
         {
 		LOG(INFO) << "[bison]: field: " << "exp";
 	}
-#line 1118 "parser.cpp"
+#line 1119 "parser.cpp"
     break;
 
   case 55: // fieldsep: ","
-#line 467 "parser.y"
+#line 468 "parser.y"
         {
 		LOG(INFO) << "[bison]: fieldsep: " << "COMMA";
 	}
-#line 1126 "parser.cpp"
+#line 1127 "parser.cpp"
     break;
 
   case 56: // fieldsep: ";"
-#line 472 "parser.y"
+#line 473 "parser.y"
         {
 		LOG(INFO) << "[bison]: fieldsep: " << "SEMICOLON";
 	}
-#line 1134 "parser.cpp"
+#line 1135 "parser.cpp"
     break;
 
   case 57: // binop: "+"
-#line 479 "parser.y"
+#line 480 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "PLUS";
 	}
-#line 1142 "parser.cpp"
+#line 1143 "parser.cpp"
     break;
 
   case 58: // binop: "-"
-#line 484 "parser.y"
+#line 485 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "MINUS";
 	}
-#line 1150 "parser.cpp"
+#line 1151 "parser.cpp"
     break;
 
   case 59: // binop: "*"
-#line 489 "parser.y"
+#line 490 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "STAR";
 	}
-#line 1158 "parser.cpp"
+#line 1159 "parser.cpp"
     break;
 
   case 60: // binop: "/"
-#line 494 "parser.y"
+#line 495 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "SLASH";
 	}
-#line 1166 "parser.cpp"
+#line 1167 "parser.cpp"
     break;
 
   case 61: // binop: "//"
-#line 499 "parser.y"
+#line 500 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "DOUBLE_SLASH";
 	}
-#line 1174 "parser.cpp"
+#line 1175 "parser.cpp"
     break;
 
   case 62: // binop: "^"
-#line 504 "parser.y"
+#line 505 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "XOR";
 	}
-#line 1182 "parser.cpp"
+#line 1183 "parser.cpp"
     break;
 
   case 63: // binop: "%"
-#line 509 "parser.y"
+#line 510 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "MOD";
 	}
-#line 1190 "parser.cpp"
+#line 1191 "parser.cpp"
     break;
 
   case 64: // binop: "&"
-#line 514 "parser.y"
+#line 515 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "BITAND";
 	}
-#line 1198 "parser.cpp"
+#line 1199 "parser.cpp"
     break;
 
   case 65: // binop: "~"
-#line 519 "parser.y"
+#line 520 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "BITNOT";
 	}
-#line 1206 "parser.cpp"
+#line 1207 "parser.cpp"
     break;
 
   case 66: // binop: "|"
-#line 524 "parser.y"
+#line 525 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "BITOR";
 	}
-#line 1214 "parser.cpp"
+#line 1215 "parser.cpp"
     break;
 
   case 67: // binop: ">>"
-#line 529 "parser.y"
+#line 530 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "RIGHT_SHIFT";
 	}
-#line 1222 "parser.cpp"
+#line 1223 "parser.cpp"
     break;
 
   case 68: // binop: "<<"
-#line 534 "parser.y"
+#line 535 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "LEFT_SHIFT";
 	}
-#line 1230 "parser.cpp"
+#line 1231 "parser.cpp"
     break;
 
   case 69: // binop: ".."
-#line 539 "parser.y"
+#line 540 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "CONCAT";
 	}
-#line 1238 "parser.cpp"
+#line 1239 "parser.cpp"
     break;
 
   case 70: // binop: "<"
-#line 544 "parser.y"
+#line 545 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "LESS";
 	}
-#line 1246 "parser.cpp"
+#line 1247 "parser.cpp"
     break;
 
   case 71: // binop: "<="
-#line 549 "parser.y"
+#line 550 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "LESS_EQUAL";
 	}
-#line 1254 "parser.cpp"
+#line 1255 "parser.cpp"
     break;
 
   case 72: // binop: ">"
-#line 554 "parser.y"
+#line 555 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "MORE";
 	}
-#line 1262 "parser.cpp"
+#line 1263 "parser.cpp"
     break;
 
   case 73: // binop: ">="
-#line 559 "parser.y"
+#line 560 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "MORE_EQUAL";
 	}
-#line 1270 "parser.cpp"
+#line 1271 "parser.cpp"
     break;
 
   case 74: // binop: "=="
-#line 564 "parser.y"
+#line 565 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "EQUAL";
 	}
-#line 1278 "parser.cpp"
+#line 1279 "parser.cpp"
     break;
 
   case 75: // binop: "~="
-#line 569 "parser.y"
+#line 570 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "NOT_EQUAL";
 	}
-#line 1286 "parser.cpp"
+#line 1287 "parser.cpp"
     break;
 
   case 76: // binop: "and"
-#line 574 "parser.y"
+#line 575 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "AND";
 	}
-#line 1294 "parser.cpp"
+#line 1295 "parser.cpp"
     break;
 
   case 77: // binop: "or"
-#line 579 "parser.y"
+#line 580 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "OR";
 	}
-#line 1302 "parser.cpp"
+#line 1303 "parser.cpp"
     break;
 
   case 78: // unop: "-"
-#line 586 "parser.y"
+#line 587 "parser.y"
         {
 		LOG(INFO) << "[bison]: unop: " << "MINUS";
 	}
-#line 1310 "parser.cpp"
+#line 1311 "parser.cpp"
     break;
 
   case 79: // unop: "not"
-#line 591 "parser.y"
+#line 592 "parser.y"
         {
 		LOG(INFO) << "[bison]: unop: " << "NOT";
 	}
-#line 1318 "parser.cpp"
+#line 1319 "parser.cpp"
     break;
 
   case 80: // unop: "#"
-#line 596 "parser.y"
+#line 597 "parser.y"
         {
 		LOG(INFO) << "[bison]: unop: " << "NUMBER_SIGN";
 	}
-#line 1326 "parser.cpp"
+#line 1327 "parser.cpp"
     break;
 
   case 81: // unop: "~"
-#line 601 "parser.y"
+#line 602 "parser.y"
         {
 		LOG(INFO) << "[bison]: unop: " << "BITNOT";
 	}
-#line 1334 "parser.cpp"
+#line 1335 "parser.cpp"
     break;
 
 
-#line 1338 "parser.cpp"
+#line 1339 "parser.cpp"
 
             default:
               break;
@@ -1999,14 +2000,14 @@ namespace yy {
   parser::yyrline_[] =
   {
        0,   120,   120,   128,   132,   142,   158,   164,   170,   176,
-     184,   189,   196,   227,   232,   239,   244,   249,   256,   261,
-     268,   273,   280,   285,   290,   295,   300,   305,   310,   315,
-     320,   325,   330,   337,   342,   347,   353,   358,   365,   370,
-     375,   380,   387,   394,   399,   406,   411,   416,   423,   428,
-     435,   440,   448,   453,   458,   466,   471,   478,   483,   488,
-     493,   498,   503,   508,   513,   518,   523,   528,   533,   538,
-     543,   548,   553,   558,   563,   568,   573,   578,   585,   590,
-     595,   600
+     184,   189,   196,   228,   233,   240,   245,   250,   257,   262,
+     269,   274,   281,   286,   291,   296,   301,   306,   311,   316,
+     321,   326,   331,   338,   343,   348,   354,   359,   366,   371,
+     376,   381,   388,   395,   400,   407,   412,   417,   424,   429,
+     436,   441,   449,   454,   459,   467,   472,   479,   484,   489,
+     494,   499,   504,   509,   514,   519,   524,   529,   534,   539,
+     544,   549,   554,   559,   564,   569,   574,   579,   586,   591,
+     596,   601
   };
 
   void
@@ -2038,9 +2039,9 @@ namespace yy {
 
 
 } // yy
-#line 2042 "parser.cpp"
+#line 2043 "parser.cpp"
 
-#line 605 "parser.y"
+#line 606 "parser.y"
 
 
 void

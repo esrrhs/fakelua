@@ -196,6 +196,7 @@ label:
 	GOTO_TAG IDENTIFIER GOTO_TAG
 	{
 		LOG(INFO) << "[bison]: bison get label: " << $2 << " loc: " << @2;
+		$$ = std::make_shared<syntax_tree_label>($2, @2);
 	}
 	;
 
