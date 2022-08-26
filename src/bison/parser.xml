@@ -645,9 +645,9 @@
       <nonterminal symbol-number="68" name="var" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="69" name="namelist" type="" usefulness="useful"/>
       <nonterminal symbol-number="70" name="explist" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
-      <nonterminal symbol-number="71" name="exp" type="" usefulness="useful"/>
-      <nonterminal symbol-number="72" name="prefixexp" type="" usefulness="useful"/>
-      <nonterminal symbol-number="73" name="functioncall" type="" usefulness="useful"/>
+      <nonterminal symbol-number="71" name="exp" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
+      <nonterminal symbol-number="72" name="prefixexp" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
+      <nonterminal symbol-number="73" name="functioncall" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="74" name="args" type="" usefulness="useful"/>
       <nonterminal symbol-number="75" name="functiondef" type="" usefulness="useful"/>
       <nonterminal symbol-number="76" name="funcbody" type="" usefulness="useful"/>

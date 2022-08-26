@@ -428,6 +428,9 @@ namespace yy {
       // varlist
       // var
       // explist
+      // exp
+      // prefixexp
+      // functioncall
       char dummy2[sizeof (fakelua::syntax_tree_interface_ptr)];
 
       // "identifier"
@@ -692,6 +695,9 @@ namespace yy {
       case symbol_kind::S_varlist: // varlist
       case symbol_kind::S_var: // var
       case symbol_kind::S_explist: // explist
+      case symbol_kind::S_exp: // exp
+      case symbol_kind::S_prefixexp: // prefixexp
+      case symbol_kind::S_functioncall: // functioncall
         value.move< fakelua::syntax_tree_interface_ptr > (std::move (that.value));
         break;
 
@@ -799,6 +805,9 @@ switch (yykind)
       case symbol_kind::S_varlist: // varlist
       case symbol_kind::S_var: // var
       case symbol_kind::S_explist: // explist
+      case symbol_kind::S_exp: // exp
+      case symbol_kind::S_prefixexp: // prefixexp
+      case symbol_kind::S_functioncall: // functioncall
         value.template destroy< fakelua::syntax_tree_interface_ptr > ();
         break;
 
@@ -2276,6 +2285,9 @@ switch (yykind)
       case symbol_kind::S_varlist: // varlist
       case symbol_kind::S_var: // var
       case symbol_kind::S_explist: // explist
+      case symbol_kind::S_exp: // exp
+      case symbol_kind::S_prefixexp: // prefixexp
+      case symbol_kind::S_functioncall: // functioncall
         value.copy< fakelua::syntax_tree_interface_ptr > (YY_MOVE (that.value));
         break;
 
@@ -2325,6 +2337,9 @@ switch (yykind)
       case symbol_kind::S_varlist: // varlist
       case symbol_kind::S_var: // var
       case symbol_kind::S_explist: // explist
+      case symbol_kind::S_exp: // exp
+      case symbol_kind::S_prefixexp: // prefixexp
+      case symbol_kind::S_functioncall: // functioncall
         value.move< fakelua::syntax_tree_interface_ptr > (YY_MOVE (s.value));
         break;
 
@@ -2395,7 +2410,7 @@ switch (yykind)
   }
 
 } // yy
-#line 2399 "parser.h"
+#line 2414 "parser.h"
 
 
 

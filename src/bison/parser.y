@@ -114,6 +114,9 @@ int yyFlexLexer::yylex() { return -1; }
 %type <fakelua::syntax_tree_interface_ptr> varlist
 %type <fakelua::syntax_tree_interface_ptr> explist
 %type <fakelua::syntax_tree_interface_ptr> var
+%type <fakelua::syntax_tree_interface_ptr> exp
+%type <fakelua::syntax_tree_interface_ptr> prefixexp
+%type <fakelua::syntax_tree_interface_ptr> functioncall
 
 %printer { yyo << $$; } <*>;
 
@@ -267,16 +270,45 @@ var:
 	IDENTIFIER
 	{
 		LOG(INFO) << "[bison]: var: " << "IDENTIFIER";
+		auto var = std::make_shared<fakelua::syntax_tree_var>(@1);
+		var->set_name($1);
+		var->set_type("simple");
+		$$ = var;
 	}
 	|
 	prefixexp LSQUARE exp RSQUARE
 	{
 		LOG(INFO) << "[bison]: var: " << "prefixexp LSQUARE exp RSQUARE";
+		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
+		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($3);
+		if (prefixexp == nullptr) {
+			LOG(ERROR) << "[bison]: var: " << "prefixexp is not a prefixexp";
+			throw std::runtime_error("prefixexp is not a prefixexp");
+		}
+		if (exp == nullptr) {
+			LOG(ERROR) << "[bison]: var: " << "exp is not a exp";
+			throw std::runtime_error("exp is not a exp");
+		}
+		auto var = std::make_shared<fakelua::syntax_tree_var>(@2);
+		var->set_prefixexp(prefixexp);
+		var->set_exp(exp);
+		var->set_type("square");
+		$$ = var;
 	}
 	|
 	prefixexp DOT IDENTIFIER
 	{
 		LOG(INFO) << "[bison]: var: " << "prefixexp DOT IDENTIFIER";
+		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
+		if (prefixexp == nullptr) {
+			LOG(ERROR) << "[bison]: var: " << "prefixexp is not a prefixexp";
+			throw std::runtime_error("prefixexp is not a prefixexp");
+		}
+		auto var = std::make_shared<fakelua::syntax_tree_var>(@2);
+		var->set_prefixexp(prefixexp);
+		var->set_name($3);
+		var->set_type("dot");
+		$$ = var;
 	}
 	;
 
@@ -365,16 +397,19 @@ prefixexp:
 	var
 	{
 		LOG(INFO) << "[bison]: prefixexp: " << "var";
+		$$ = $1;
 	}
 	|
 	functioncall
 	{
 		LOG(INFO) << "[bison]: prefixexp: " << "functioncall";
+		$$ = $1;
 	}
 	|
 	LPAREN exp RPAREN
 	{
 		LOG(INFO) << "[bison]: prefixexp: " << "LPAREN exp RPAREN";
+		$$ = $2;
 	}
 
 functioncall:

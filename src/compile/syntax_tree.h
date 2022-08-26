@@ -14,6 +14,7 @@ enum syntax_tree_type {
     syntax_tree_type_assign,
     syntax_tree_type_varlist,
     syntax_tree_type_explist,
+    syntax_tree_type_var,
 };
 
 // syntax tree location type
@@ -168,5 +169,38 @@ private:
     std::vector<syntax_tree_interface_ptr> exps_;
 };
 
+// var
+class syntax_tree_var : public syntax_tree_interface {
+public:
+    syntax_tree_var(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_var() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_var; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_name(const std::string &name) {
+        name_ = name;
+    }
+
+    void set_prefixexp(const syntax_tree_interface_ptr &prefixexp) {
+        prefixexp_ = prefixexp;
+    }
+
+    void set_exp(const syntax_tree_interface_ptr &exp) {
+        exp_ = exp;
+    }
+
+    void set_type(const std::string &type) {
+        type_ = type;
+    }
+
+private:
+    std::string name_;
+    syntax_tree_interface_ptr exp_;
+    syntax_tree_interface_ptr prefixexp_;
+    std::string type_;
+};
 
 }
