@@ -636,15 +636,15 @@
     </terminals>
     <nonterminals>
       <nonterminal symbol-number="61" name="$accept" type="" usefulness="useful"/>
-      <nonterminal symbol-number="62" name="chunk" type="syntax_tree_interface_ptr" usefulness="useful"/>
-      <nonterminal symbol-number="63" name="block" type="syntax_tree_interface_ptr" usefulness="useful"/>
-      <nonterminal symbol-number="64" name="stmt" type="syntax_tree_interface_ptr" usefulness="useful"/>
-      <nonterminal symbol-number="65" name="retstat" type="" usefulness="useful"/>
-      <nonterminal symbol-number="66" name="label" type="syntax_tree_interface_ptr" usefulness="useful"/>
-      <nonterminal symbol-number="67" name="varlist" type="" usefulness="useful"/>
-      <nonterminal symbol-number="68" name="var" type="" usefulness="useful"/>
+      <nonterminal symbol-number="62" name="chunk" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
+      <nonterminal symbol-number="63" name="block" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
+      <nonterminal symbol-number="64" name="stmt" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
+      <nonterminal symbol-number="65" name="retstat" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
+      <nonterminal symbol-number="66" name="label" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
+      <nonterminal symbol-number="67" name="varlist" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
+      <nonterminal symbol-number="68" name="var" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="69" name="namelist" type="" usefulness="useful"/>
-      <nonterminal symbol-number="70" name="explist" type="" usefulness="useful"/>
+      <nonterminal symbol-number="70" name="explist" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="71" name="exp" type="" usefulness="useful"/>
       <nonterminal symbol-number="72" name="prefixexp" type="" usefulness="useful"/>
       <nonterminal symbol-number="73" name="functioncall" type="" usefulness="useful"/>

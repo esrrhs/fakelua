@@ -420,15 +420,19 @@ namespace yy {
       // "number"
       char dummy1[sizeof (double)];
 
-      // "identifier"
-      // "string"
-      char dummy2[sizeof (std::string)];
-
       // chunk
       // block
       // stmt
+      // retstat
       // label
-      char dummy3[sizeof (syntax_tree_interface_ptr)];
+      // varlist
+      // var
+      // explist
+      char dummy2[sizeof (fakelua::syntax_tree_interface_ptr)];
+
+      // "identifier"
+      // "string"
+      char dummy3[sizeof (std::string)];
     };
 
     /// The size of the largest semantic type.
@@ -680,16 +684,20 @@ namespace yy {
         value.move< double > (std::move (that.value));
         break;
 
-      case symbol_kind::S_IDENTIFIER: // "identifier"
-      case symbol_kind::S_STRING: // "string"
-        value.move< std::string > (std::move (that.value));
-        break;
-
       case symbol_kind::S_chunk: // chunk
       case symbol_kind::S_block: // block
       case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_retstat: // retstat
       case symbol_kind::S_label: // label
-        value.move< syntax_tree_interface_ptr > (std::move (that.value));
+      case symbol_kind::S_varlist: // varlist
+      case symbol_kind::S_var: // var
+      case symbol_kind::S_explist: // explist
+        value.move< fakelua::syntax_tree_interface_ptr > (std::move (that.value));
+        break;
+
+      case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
+        value.move< std::string > (std::move (that.value));
         break;
 
       default:
@@ -730,13 +738,13 @@ namespace yy {
 #endif
 
 #if 201103L <= YY_CPLUSPLUS
-      basic_symbol (typename Base::kind_type t, std::string&& v, location_type&& l)
+      basic_symbol (typename Base::kind_type t, fakelua::syntax_tree_interface_ptr&& v, location_type&& l)
         : Base (t)
         , value (std::move (v))
         , location (std::move (l))
       {}
 #else
-      basic_symbol (typename Base::kind_type t, const std::string& v, const location_type& l)
+      basic_symbol (typename Base::kind_type t, const fakelua::syntax_tree_interface_ptr& v, const location_type& l)
         : Base (t)
         , value (v)
         , location (l)
@@ -744,13 +752,13 @@ namespace yy {
 #endif
 
 #if 201103L <= YY_CPLUSPLUS
-      basic_symbol (typename Base::kind_type t, syntax_tree_interface_ptr&& v, location_type&& l)
+      basic_symbol (typename Base::kind_type t, std::string&& v, location_type&& l)
         : Base (t)
         , value (std::move (v))
         , location (std::move (l))
       {}
 #else
-      basic_symbol (typename Base::kind_type t, const syntax_tree_interface_ptr& v, const location_type& l)
+      basic_symbol (typename Base::kind_type t, const std::string& v, const location_type& l)
         : Base (t)
         , value (v)
         , location (l)
@@ -783,16 +791,20 @@ switch (yykind)
         value.template destroy< double > ();
         break;
 
-      case symbol_kind::S_IDENTIFIER: // "identifier"
-      case symbol_kind::S_STRING: // "string"
-        value.template destroy< std::string > ();
-        break;
-
       case symbol_kind::S_chunk: // chunk
       case symbol_kind::S_block: // block
       case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_retstat: // retstat
       case symbol_kind::S_label: // label
-        value.template destroy< syntax_tree_interface_ptr > ();
+      case symbol_kind::S_varlist: // varlist
+      case symbol_kind::S_var: // var
+      case symbol_kind::S_explist: // explist
+        value.template destroy< fakelua::syntax_tree_interface_ptr > ();
+        break;
+
+      case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
+        value.template destroy< std::string > ();
         break;
 
       default:
@@ -2256,16 +2268,20 @@ switch (yykind)
         value.copy< double > (YY_MOVE (that.value));
         break;
 
-      case symbol_kind::S_IDENTIFIER: // "identifier"
-      case symbol_kind::S_STRING: // "string"
-        value.copy< std::string > (YY_MOVE (that.value));
-        break;
-
       case symbol_kind::S_chunk: // chunk
       case symbol_kind::S_block: // block
       case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_retstat: // retstat
       case symbol_kind::S_label: // label
-        value.copy< syntax_tree_interface_ptr > (YY_MOVE (that.value));
+      case symbol_kind::S_varlist: // varlist
+      case symbol_kind::S_var: // var
+      case symbol_kind::S_explist: // explist
+        value.copy< fakelua::syntax_tree_interface_ptr > (YY_MOVE (that.value));
+        break;
+
+      case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
+        value.copy< std::string > (YY_MOVE (that.value));
         break;
 
       default:
@@ -2301,16 +2317,20 @@ switch (yykind)
         value.move< double > (YY_MOVE (s.value));
         break;
 
-      case symbol_kind::S_IDENTIFIER: // "identifier"
-      case symbol_kind::S_STRING: // "string"
-        value.move< std::string > (YY_MOVE (s.value));
-        break;
-
       case symbol_kind::S_chunk: // chunk
       case symbol_kind::S_block: // block
       case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_retstat: // retstat
       case symbol_kind::S_label: // label
-        value.move< syntax_tree_interface_ptr > (YY_MOVE (s.value));
+      case symbol_kind::S_varlist: // varlist
+      case symbol_kind::S_var: // var
+      case symbol_kind::S_explist: // explist
+        value.move< fakelua::syntax_tree_interface_ptr > (YY_MOVE (s.value));
+        break;
+
+      case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
+        value.move< std::string > (YY_MOVE (s.value));
         break;
 
       default:
@@ -2375,7 +2395,7 @@ switch (yykind)
   }
 
 } // yy
-#line 2379 "parser.h"
+#line 2399 "parser.h"
 
 
 

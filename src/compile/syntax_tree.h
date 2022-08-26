@@ -3,11 +3,17 @@
 #include "util/common.h"
 #include "bison/location.hh"
 
+namespace fakelua {
+
 // syntax tree type
 enum syntax_tree_type {
     syntax_tree_type_none = 0,
     syntax_tree_type_block,
     syntax_tree_type_label,
+    syntax_tree_type_return,
+    syntax_tree_type_assign,
+    syntax_tree_type_varlist,
+    syntax_tree_type_explist,
 };
 
 // syntax tree location type
@@ -89,3 +95,78 @@ public:
 private:
     std::string name_;
 };
+
+// return
+class syntax_tree_return : public syntax_tree_interface {
+public:
+    syntax_tree_return(const syntax_tree_interface_ptr &explist, const syntax_tree_location &loc)
+            : syntax_tree_interface(loc), explist_(explist) {}
+
+    virtual ~syntax_tree_return() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_return; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+private:
+    syntax_tree_interface_ptr explist_;
+};
+
+// assign
+class syntax_tree_assign : public syntax_tree_interface {
+public:
+    syntax_tree_assign(const syntax_tree_interface_ptr &varlist, const syntax_tree_interface_ptr &explist,
+                       const syntax_tree_location &loc) : syntax_tree_interface(loc), varlist_(varlist),
+                                                          explist_(explist) {}
+
+    virtual ~syntax_tree_assign() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_assign; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+private:
+    syntax_tree_interface_ptr varlist_;
+    syntax_tree_interface_ptr explist_;
+};
+
+// varlist
+class syntax_tree_varlist : public syntax_tree_interface {
+public:
+    syntax_tree_varlist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_varlist() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_varlist; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void add_var(const syntax_tree_interface_ptr &var) {
+        vars_.push_back(var);
+    }
+
+private:
+    std::vector<syntax_tree_interface_ptr> vars_;
+};
+
+// explist
+class syntax_tree_explist : public syntax_tree_interface {
+public:
+    syntax_tree_explist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_explist() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_explist; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void add_exp(const syntax_tree_interface_ptr &exp) {
+        exps_.push_back(exp);
+    }
+
+private:
+    std::vector<syntax_tree_interface_ptr> exps_;
+};
+
+
+}

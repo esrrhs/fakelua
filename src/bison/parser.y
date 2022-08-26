@@ -106,10 +106,14 @@ int yyFlexLexer::yylex() { return -1; }
 %token <std::string> STRING "string"
 %token <double> NUMBER "number"
 
-%type <syntax_tree_interface_ptr> label
-%type <syntax_tree_interface_ptr> stmt
-%type <syntax_tree_interface_ptr> block
-%type <syntax_tree_interface_ptr> chunk
+%type <fakelua::syntax_tree_interface_ptr> label
+%type <fakelua::syntax_tree_interface_ptr> stmt
+%type <fakelua::syntax_tree_interface_ptr> block
+%type <fakelua::syntax_tree_interface_ptr> chunk
+%type <fakelua::syntax_tree_interface_ptr> retstat
+%type <fakelua::syntax_tree_interface_ptr> varlist
+%type <fakelua::syntax_tree_interface_ptr> explist
+%type <fakelua::syntax_tree_interface_ptr> var
 
 %printer { yyo << $$; } <*>;
 
@@ -132,7 +136,7 @@ block:
 	stmt
   	{
 		LOG(INFO) << "[bison]: block: " << "stmt";
-		auto block = std::make_shared<syntax_tree_block>(@1);
+		auto block = std::make_shared<fakelua::syntax_tree_block>(@1);
 		if ($1 != nullptr) {
 			block->add_stmt($1);
 		}
@@ -142,7 +146,7 @@ block:
 	block stmt
 	{
 		LOG(INFO) << "[bison]: block: " << "block stmt";
-		auto block = std::dynamic_pointer_cast<syntax_tree_block>($1);
+		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>($1);
 		if (block == nullptr) {
 			LOG(ERROR) << "[bison]: block: " << "block is not a block";
 			throw std::runtime_error("block is not a block");
@@ -158,7 +162,7 @@ stmt:
         retstat
         {
         	LOG(INFO) << "[bison]: stmt: " << "retstat";
-        	$$ = nullptr;
+		$$ = $1;
         }
         |
 	SEMICOLON
@@ -170,7 +174,18 @@ stmt:
 	varlist ASSIGN explist
 	{
 		LOG(INFO) << "[bison]: stmt: " << "varlist ASSIGN explist";
-		$$ = nullptr;
+		auto varlist = std::dynamic_pointer_cast<fakelua::syntax_tree_varlist>($1);
+		auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>($3);
+		if (varlist == nullptr) {
+			LOG(ERROR) << "[bison]: stmt: " << "varlist is not a varlist";
+			throw std::runtime_error("varlist is not a varlist");
+		}
+		if (explist == nullptr) {
+			LOG(ERROR) << "[bison]: stmt: " << "explist is not a explist";
+			throw std::runtime_error("explist is not a explist");
+		}
+		auto assign = std::make_shared<fakelua::syntax_tree_assign>(varlist, explist, @2);
+		$$ = assign;
 	}
 	|
   	label
@@ -184,11 +199,13 @@ retstat:
 	RETURN
 	{
 		LOG(INFO) << "[bison]: retstat: " << "RETURN";
+		$$ = std::make_shared<fakelua::syntax_tree_return>(nullptr, @1);
 	}
 	|
 	RETURN explist
 	{
 		LOG(INFO) << "[bison]: retstat: " << "RETURN explist";
+		$$ = std::make_shared<fakelua::syntax_tree_return>($2, @1);
 	}
 	;
 
@@ -196,7 +213,7 @@ label:
 	GOTO_TAG IDENTIFIER GOTO_TAG
 	{
 		LOG(INFO) << "[bison]: bison get label: " << $2 << " loc: " << @2;
-		$$ = std::make_shared<syntax_tree_label>($2, @2);
+		$$ = std::make_shared<fakelua::syntax_tree_label>($2, @2);
 	}
 	;
 
@@ -228,11 +245,21 @@ varlist:
 	var
 	{
 		LOG(INFO) << "[bison]: varlist: " << "var";
+		auto varlist = std::make_shared<fakelua::syntax_tree_varlist>(@1);
+		varlist->add_var($1);
+		$$ = varlist;
 	}
 	|
 	varlist COMMA var
 	{
 		LOG(INFO) << "[bison]: varlist: " << "varlist COMMA var";
+		auto varlist = std::dynamic_pointer_cast<fakelua::syntax_tree_varlist>($1);
+		if (varlist == nullptr) {
+			LOG(ERROR) << "[bison]: varlist: " << "varlist is not a varlist";
+			throw std::runtime_error("varlist is not a varlist");
+		}
+		varlist->add_var($3);
+		$$ = varlist;
 	}
 	;
 
