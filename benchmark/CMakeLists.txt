@@ -5,6 +5,7 @@ project(benchmark)
 aux_source_directory(./ BENCHMARK_SRC_LIST)
 include_directories(./)
 include_directories(../src)
+include_directories(../src/platform)
 
 add_executable(bench_mark ${BENCHMARK_SRC_LIST})
 
