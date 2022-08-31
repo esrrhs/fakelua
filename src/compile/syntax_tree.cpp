@@ -101,4 +101,16 @@ std::string syntax_tree_fieldlist::dump(int tab) const {
     return str;
 }
 
+std::string syntax_tree_fieldassignment::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(fieldassignment)[" + loc_str() + "]\n";
+    if (name_.empty()) {
+        str += field_->dump(tab + 1);
+    } else {
+        str += gen_tab(tab + 1) + "name: " + name_ + "\n";
+    }
+    str += exp_->dump(tab + 1);
+    return str;
+}
+
 }

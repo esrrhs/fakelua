@@ -19,6 +19,7 @@ enum syntax_tree_type {
     syntax_tree_type_functioncall,
     syntax_tree_type_tableconstructor,
     syntax_tree_type_fieldlist,
+    syntax_tree_type_fieldassignment,
 };
 
 // syntax tree location type
@@ -145,7 +146,7 @@ private:
     syntax_tree_interface_ptr explist_;
 };
 
-// varlist
+// var list
 class syntax_tree_varlist : public syntax_tree_interface {
 public:
     syntax_tree_varlist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
@@ -164,7 +165,7 @@ private:
     std::vector<syntax_tree_interface_ptr> vars_;
 };
 
-// explist
+// exp list
 class syntax_tree_explist : public syntax_tree_interface {
 public:
     syntax_tree_explist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
@@ -217,7 +218,7 @@ private:
     std::string type_;
 };
 
-// functioncall
+// function call
 class syntax_tree_functioncall : public syntax_tree_interface {
 public:
     syntax_tree_functioncall(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
@@ -246,7 +247,7 @@ private:
     std::string name_;
 };
 
-// tableconstructor
+// table constructor
 class syntax_tree_tableconstructor : public syntax_tree_interface {
 public:
     syntax_tree_tableconstructor(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
@@ -265,7 +266,7 @@ private:
     syntax_tree_interface_ptr fieldlist_;
 };
 
-// fieldlist
+// field list
 class syntax_tree_fieldlist : public syntax_tree_interface {
 public:
     syntax_tree_fieldlist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
@@ -282,6 +283,35 @@ public:
 
 private:
     std::vector<syntax_tree_interface_ptr> fields_;
+};
+
+// field assignment
+class syntax_tree_fieldassignment : public syntax_tree_interface {
+public:
+    syntax_tree_fieldassignment(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_fieldassignment() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_fieldassignment; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_field(const syntax_tree_interface_ptr &field) {
+        field_ = field;
+    }
+
+    void set_exp(const syntax_tree_interface_ptr &exp) {
+        exp_ = exp;
+    }
+
+    void set_name(const std::string &name) {
+        name_ = name;
+    }
+
+private:
+    syntax_tree_interface_ptr field_;
+    syntax_tree_interface_ptr exp_;
+    std::string name_;
 };
 
 }

@@ -1337,244 +1337,268 @@ namespace yy {
 #line 578 "parser.y"
         {
 		LOG(INFO) << "[bison]: field: " << "LSQUARE exp RSQUARE ASSIGN exp";
+		auto assignment = std::make_shared<fakelua::syntax_tree_fieldassignment>(yystack_[4].location);
+		auto field = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[3].value.as < fakelua::syntax_tree_interface_ptr > ());
+		if (field == nullptr) {
+			LOG(ERROR) << "[bison]: field: " << "field is not a field";
+			throw std::runtime_error("field is not a field");
+		}
+		assignment->set_field(field);
+		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+		if (exp == nullptr) {
+			LOG(ERROR) << "[bison]: field: " << "exp is not a exp";
+			throw std::runtime_error("exp is not a exp");
+		}
+		assignment->set_exp(exp);
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = assignment;
 	}
-#line 1342 "parser.cpp"
+#line 1356 "parser.cpp"
     break;
 
   case 53: // field: "identifier" "=" exp
-#line 583 "parser.y"
+#line 597 "parser.y"
         {
 		LOG(INFO) << "[bison]: field: " << "IDENTIFIER ASSIGN exp";
+		auto assignment = std::make_shared<fakelua::syntax_tree_fieldassignment>(yystack_[2].location);
+		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+		if (exp == nullptr) {
+			LOG(ERROR) << "[bison]: field: " << "exp is not a exp";
+			throw std::runtime_error("exp is not a exp");
+		}
+		assignment->set_name(yystack_[2].value.as < std::string > ());
+		assignment->set_exp(exp);
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = assignment;
 	}
-#line 1350 "parser.cpp"
+#line 1373 "parser.cpp"
     break;
 
   case 54: // field: exp
-#line 588 "parser.y"
+#line 611 "parser.y"
         {
 		LOG(INFO) << "[bison]: field: " << "exp";
-	}
-#line 1358 "parser.cpp"
-    break;
-
-  case 55: // fieldsep: ","
-#line 596 "parser.y"
-        {
-		LOG(INFO) << "[bison]: fieldsep: " << "COMMA";
-	}
-#line 1366 "parser.cpp"
-    break;
-
-  case 56: // fieldsep: ";"
-#line 601 "parser.y"
-        {
-		LOG(INFO) << "[bison]: fieldsep: " << "SEMICOLON";
-	}
-#line 1374 "parser.cpp"
-    break;
-
-  case 57: // binop: "+"
-#line 608 "parser.y"
-        {
-		LOG(INFO) << "[bison]: binop: " << "PLUS";
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ();
 	}
 #line 1382 "parser.cpp"
     break;
 
-  case 58: // binop: "-"
-#line 613 "parser.y"
+  case 55: // fieldsep: ","
+#line 620 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "MINUS";
+		LOG(INFO) << "[bison]: fieldsep: " << "COMMA";
 	}
 #line 1390 "parser.cpp"
     break;
 
-  case 59: // binop: "*"
-#line 618 "parser.y"
+  case 56: // fieldsep: ";"
+#line 625 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "STAR";
+		LOG(INFO) << "[bison]: fieldsep: " << "SEMICOLON";
 	}
 #line 1398 "parser.cpp"
     break;
 
-  case 60: // binop: "/"
-#line 623 "parser.y"
+  case 57: // binop: "+"
+#line 632 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "SLASH";
+		LOG(INFO) << "[bison]: binop: " << "PLUS";
 	}
 #line 1406 "parser.cpp"
     break;
 
-  case 61: // binop: "//"
-#line 628 "parser.y"
+  case 58: // binop: "-"
+#line 637 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "DOUBLE_SLASH";
+		LOG(INFO) << "[bison]: binop: " << "MINUS";
 	}
 #line 1414 "parser.cpp"
     break;
 
-  case 62: // binop: "^"
-#line 633 "parser.y"
+  case 59: // binop: "*"
+#line 642 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "XOR";
+		LOG(INFO) << "[bison]: binop: " << "STAR";
 	}
 #line 1422 "parser.cpp"
     break;
 
-  case 63: // binop: "%"
-#line 638 "parser.y"
+  case 60: // binop: "/"
+#line 647 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "MOD";
+		LOG(INFO) << "[bison]: binop: " << "SLASH";
 	}
 #line 1430 "parser.cpp"
     break;
 
-  case 64: // binop: "&"
-#line 643 "parser.y"
+  case 61: // binop: "//"
+#line 652 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "BITAND";
+		LOG(INFO) << "[bison]: binop: " << "DOUBLE_SLASH";
 	}
 #line 1438 "parser.cpp"
     break;
 
-  case 65: // binop: "~"
-#line 648 "parser.y"
+  case 62: // binop: "^"
+#line 657 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "BITNOT";
+		LOG(INFO) << "[bison]: binop: " << "XOR";
 	}
 #line 1446 "parser.cpp"
     break;
 
-  case 66: // binop: "|"
-#line 653 "parser.y"
+  case 63: // binop: "%"
+#line 662 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "BITOR";
+		LOG(INFO) << "[bison]: binop: " << "MOD";
 	}
 #line 1454 "parser.cpp"
     break;
 
-  case 67: // binop: ">>"
-#line 658 "parser.y"
+  case 64: // binop: "&"
+#line 667 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "RIGHT_SHIFT";
+		LOG(INFO) << "[bison]: binop: " << "BITAND";
 	}
 #line 1462 "parser.cpp"
     break;
 
-  case 68: // binop: "<<"
-#line 663 "parser.y"
+  case 65: // binop: "~"
+#line 672 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "LEFT_SHIFT";
+		LOG(INFO) << "[bison]: binop: " << "BITNOT";
 	}
 #line 1470 "parser.cpp"
     break;
 
-  case 69: // binop: ".."
-#line 668 "parser.y"
+  case 66: // binop: "|"
+#line 677 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "CONCAT";
+		LOG(INFO) << "[bison]: binop: " << "BITOR";
 	}
 #line 1478 "parser.cpp"
     break;
 
-  case 70: // binop: "<"
-#line 673 "parser.y"
+  case 67: // binop: ">>"
+#line 682 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "LESS";
+		LOG(INFO) << "[bison]: binop: " << "RIGHT_SHIFT";
 	}
 #line 1486 "parser.cpp"
     break;
 
-  case 71: // binop: "<="
-#line 678 "parser.y"
+  case 68: // binop: "<<"
+#line 687 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "LESS_EQUAL";
+		LOG(INFO) << "[bison]: binop: " << "LEFT_SHIFT";
 	}
 #line 1494 "parser.cpp"
     break;
 
-  case 72: // binop: ">"
-#line 683 "parser.y"
+  case 69: // binop: ".."
+#line 692 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "MORE";
+		LOG(INFO) << "[bison]: binop: " << "CONCAT";
 	}
 #line 1502 "parser.cpp"
     break;
 
-  case 73: // binop: ">="
-#line 688 "parser.y"
+  case 70: // binop: "<"
+#line 697 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "MORE_EQUAL";
+		LOG(INFO) << "[bison]: binop: " << "LESS";
 	}
 #line 1510 "parser.cpp"
     break;
 
-  case 74: // binop: "=="
-#line 693 "parser.y"
+  case 71: // binop: "<="
+#line 702 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "EQUAL";
+		LOG(INFO) << "[bison]: binop: " << "LESS_EQUAL";
 	}
 #line 1518 "parser.cpp"
     break;
 
-  case 75: // binop: "~="
-#line 698 "parser.y"
+  case 72: // binop: ">"
+#line 707 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "NOT_EQUAL";
+		LOG(INFO) << "[bison]: binop: " << "MORE";
 	}
 #line 1526 "parser.cpp"
     break;
 
-  case 76: // binop: "and"
-#line 703 "parser.y"
+  case 73: // binop: ">="
+#line 712 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "AND";
+		LOG(INFO) << "[bison]: binop: " << "MORE_EQUAL";
 	}
 #line 1534 "parser.cpp"
     break;
 
-  case 77: // binop: "or"
-#line 708 "parser.y"
+  case 74: // binop: "=="
+#line 717 "parser.y"
         {
-		LOG(INFO) << "[bison]: binop: " << "OR";
+		LOG(INFO) << "[bison]: binop: " << "EQUAL";
 	}
 #line 1542 "parser.cpp"
     break;
 
-  case 78: // unop: "-"
-#line 715 "parser.y"
+  case 75: // binop: "~="
+#line 722 "parser.y"
         {
-		LOG(INFO) << "[bison]: unop: " << "MINUS";
+		LOG(INFO) << "[bison]: binop: " << "NOT_EQUAL";
 	}
 #line 1550 "parser.cpp"
     break;
 
-  case 79: // unop: "not"
-#line 720 "parser.y"
+  case 76: // binop: "and"
+#line 727 "parser.y"
         {
-		LOG(INFO) << "[bison]: unop: " << "NOT";
+		LOG(INFO) << "[bison]: binop: " << "AND";
 	}
 #line 1558 "parser.cpp"
     break;
 
-  case 80: // unop: "#"
-#line 725 "parser.y"
+  case 77: // binop: "or"
+#line 732 "parser.y"
         {
-		LOG(INFO) << "[bison]: unop: " << "NUMBER_SIGN";
+		LOG(INFO) << "[bison]: binop: " << "OR";
 	}
 #line 1566 "parser.cpp"
     break;
 
-  case 81: // unop: "~"
-#line 730 "parser.y"
+  case 78: // unop: "-"
+#line 739 "parser.y"
         {
-		LOG(INFO) << "[bison]: unop: " << "BITNOT";
+		LOG(INFO) << "[bison]: unop: " << "MINUS";
 	}
 #line 1574 "parser.cpp"
     break;
 
+  case 79: // unop: "not"
+#line 744 "parser.y"
+        {
+		LOG(INFO) << "[bison]: unop: " << "NOT";
+	}
+#line 1582 "parser.cpp"
+    break;
 
-#line 1578 "parser.cpp"
+  case 80: // unop: "#"
+#line 749 "parser.y"
+        {
+		LOG(INFO) << "[bison]: unop: " << "NUMBER_SIGN";
+	}
+#line 1590 "parser.cpp"
+    break;
+
+  case 81: // unop: "~"
+#line 754 "parser.y"
+        {
+		LOG(INFO) << "[bison]: unop: " << "BITNOT";
+	}
+#line 1598 "parser.cpp"
+    break;
+
+
+#line 1602 "parser.cpp"
 
             default:
               break;
@@ -2243,10 +2267,10 @@ namespace yy {
      337,   342,   349,   354,   359,   364,   369,   374,   379,   384,
      389,   394,   399,   406,   412,   418,   425,   444,   466,   472,
      478,   484,   491,   498,   503,   510,   515,   520,   527,   535,
-     545,   558,   577,   582,   587,   595,   600,   607,   612,   617,
-     622,   627,   632,   637,   642,   647,   652,   657,   662,   667,
-     672,   677,   682,   687,   692,   697,   702,   707,   714,   719,
-     724,   729
+     545,   558,   577,   596,   610,   619,   624,   631,   636,   641,
+     646,   651,   656,   661,   666,   671,   676,   681,   686,   691,
+     696,   701,   706,   711,   716,   721,   726,   731,   738,   743,
+     748,   753
   };
 
   void
@@ -2278,9 +2302,9 @@ namespace yy {
 
 
 } // yy
-#line 2282 "parser.cpp"
+#line 2306 "parser.cpp"
 
-#line 734 "parser.y"
+#line 758 "parser.y"
 
 
 void

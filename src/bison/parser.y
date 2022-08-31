@@ -577,16 +577,40 @@ field:
 	LSQUARE exp RSQUARE ASSIGN exp
 	{
 		LOG(INFO) << "[bison]: field: " << "LSQUARE exp RSQUARE ASSIGN exp";
+		auto assignment = std::make_shared<fakelua::syntax_tree_fieldassignment>(@1);
+		auto field = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($2);
+		if (field == nullptr) {
+			LOG(ERROR) << "[bison]: field: " << "field is not a field";
+			throw std::runtime_error("field is not a field");
+		}
+		assignment->set_field(field);
+		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($5);
+		if (exp == nullptr) {
+			LOG(ERROR) << "[bison]: field: " << "exp is not a exp";
+			throw std::runtime_error("exp is not a exp");
+		}
+		assignment->set_exp(exp);
+		$$ = assignment;
 	}
 	|
 	IDENTIFIER ASSIGN exp
 	{
 		LOG(INFO) << "[bison]: field: " << "IDENTIFIER ASSIGN exp";
+		auto assignment = std::make_shared<fakelua::syntax_tree_fieldassignment>(@1);
+		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($3);
+		if (exp == nullptr) {
+			LOG(ERROR) << "[bison]: field: " << "exp is not a exp";
+			throw std::runtime_error("exp is not a exp");
+		}
+		assignment->set_name($1);
+		assignment->set_exp(exp);
+		$$ = assignment;
 	}
 	|
 	exp
 	{
 		LOG(INFO) << "[bison]: field: " << "exp";
+		$$ = $1;
 	}
 	;
 
