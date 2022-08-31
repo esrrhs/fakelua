@@ -2,6 +2,10 @@
 
 namespace fakelua {
 
+std::string syntax_tree_empty::dump(int tab) const {
+    return gen_tab(tab) + "(empty)[" + loc_str() + "]\n";
+}
+
 std::string syntax_tree_block::dump(int tab) const {
     std::string str;
     str += gen_tab(tab) + "(block)[" + loc_str() + "]\n";
@@ -70,5 +74,31 @@ std::string syntax_tree_var::dump(int tab) const {
     return str;
 }
 
+std::string syntax_tree_functioncall::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(functioncall)[" + loc_str() + "]\n";
+    str += prefixexp_->dump(tab + 1);
+    if (!name_.empty()) {
+        str += gen_tab(tab + 1) + "name: " + name_ + "\n";
+    }
+    str += args_->dump(tab + 1);
+    return str;
+}
+
+std::string syntax_tree_tableconstructor::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(tableconstructor)[" + loc_str() + "]\n";
+    str += fieldlist_->dump(tab + 1);
+    return str;
+}
+
+std::string syntax_tree_fieldlist::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(fieldlist)[" + loc_str() + "]\n";
+    for (auto &field: fields_) {
+        str += field->dump(tab + 1);
+    }
+    return str;
+}
 
 }

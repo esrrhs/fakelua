@@ -117,6 +117,10 @@ int yyFlexLexer::yylex() { return -1; }
 %type <fakelua::syntax_tree_interface_ptr> exp
 %type <fakelua::syntax_tree_interface_ptr> prefixexp
 %type <fakelua::syntax_tree_interface_ptr> functioncall
+%type <fakelua::syntax_tree_interface_ptr> args
+%type <fakelua::syntax_tree_interface_ptr> tableconstructor
+%type <fakelua::syntax_tree_interface_ptr> fieldlist
+%type <fakelua::syntax_tree_interface_ptr> field
 
 %printer { yyo << $$; } <*>;
 
@@ -140,9 +144,11 @@ block:
   	{
 		LOG(INFO) << "[bison]: block: " << "stmt";
 		auto block = std::make_shared<fakelua::syntax_tree_block>(@1);
-		if ($1 != nullptr) {
-			block->add_stmt($1);
+		auto stmt = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
+		if (stmt == nullptr) {
+			LOG(ERROR) << "[bison]: block: " << "stmt is nullptr";
 		}
+		block->add_stmt(stmt);
   		$$ = block;
   	}
 	|
@@ -154,9 +160,12 @@ block:
 			LOG(ERROR) << "[bison]: block: " << "block is not a block";
 			throw std::runtime_error("block is not a block");
 		}
-		if ($2 != nullptr) {
-			block->add_stmt($2);
+		auto stmt = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($2);
+		if (stmt == nullptr) {
+			LOG(ERROR) << "[bison]: block: " << "stmt is not a stmt";
+			throw std::runtime_error("stmt is not a stmt");
 		}
+		block->add_stmt(stmt);
   		$$ = block;
 	}
 	;
@@ -171,7 +180,7 @@ stmt:
 	SEMICOLON
 	{
 		LOG(INFO) << "[bison]: stmt: " << "SEMICOLON";
-		$$ = nullptr;
+		$$ = std::make_shared<fakelua::syntax_tree_empty>(@1);
 	}
 	|
 	varlist ASSIGN explist
@@ -416,11 +425,40 @@ functioncall:
 	prefixexp args
 	{
 		LOG(INFO) << "[bison]: functioncall: " << "prefixexp args";
+		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
+		auto args = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($2);
+		if (prefixexp == nullptr) {
+			LOG(ERROR) << "[bison]: functioncall: " << "prefixexp is not a prefixexp";
+			throw std::runtime_error("prefixexp is not a prefixexp");
+		}
+		if (args == nullptr) {
+			LOG(ERROR) << "[bison]: functioncall: " << "args is not a args";
+			throw std::runtime_error("args is not a args");
+		}
+		auto functioncall = std::make_shared<fakelua::syntax_tree_functioncall>(@1);
+		functioncall->set_prefixexp(prefixexp);
+		functioncall->set_args(args);
+		$$ = functioncall;
 	}
 	|
 	prefixexp COLON IDENTIFIER args
 	{
 		LOG(INFO) << "[bison]: functioncall: " << "prefixexp COLON IDENTIFIER args";
+		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
+		if (prefixexp == nullptr) {
+			LOG(ERROR) << "[bison]: functioncall: " << "prefixexp is not a prefixexp";
+			throw std::runtime_error("prefixexp is not a prefixexp");
+		}
+		auto functioncall = std::make_shared<fakelua::syntax_tree_functioncall>(@1);
+		functioncall->set_prefixexp(prefixexp);
+		functioncall->set_name($3);
+		auto args = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($4);
+		if (args == nullptr) {
+			LOG(ERROR) << "[bison]: functioncall: " << "args is not a args";
+			throw std::runtime_error("args is not a args");
+		}
+		functioncall->set_args(args);
+		$$ = functioncall;
 	}
 	;
 
@@ -428,16 +466,19 @@ args:
 	LPAREN explist RPAREN
 	{
 		LOG(INFO) << "[bison]: args: " << "LPAREN explist RPAREN";
+		$$ = $2;
 	}
 	|
 	LPAREN RPAREN
 	{
 		LOG(INFO) << "[bison]: args: " << "LPAREN RPAREN";
+		$$ = std::make_shared<fakelua::syntax_tree_empty>(@1);
 	}
 	|
 	tableconstructor
 	{
 		LOG(INFO) << "[bison]: args: " << "tableconstructor";
+		$$ = $1;
 	}
 	|
 	STRING
@@ -486,11 +527,17 @@ tableconstructor:
 	LCURLY fieldlist RCURLY
 	{
 		LOG(INFO) << "[bison]: tableconstructor: " << "LCURLY fieldlist RCURLY";
+		auto tableconstructor = std::make_shared<fakelua::syntax_tree_tableconstructor>(@1);
+		tableconstructor->set_fieldlist($2);
+		$$ = tableconstructor;
 	}
 	|
 	LCURLY RCURLY
 	{
 		LOG(INFO) << "[bison]: tableconstructor: " << "LCURLY RCURLY";
+		auto tableconstructor = std::make_shared<fakelua::syntax_tree_tableconstructor>(@1);
+		tableconstructor->set_fieldlist(std::make_shared<fakelua::syntax_tree_empty>(@1));
+		$$ = tableconstructor;
 	}
 	;
 
@@ -498,14 +545,33 @@ fieldlist:
 	field
 	{
 		LOG(INFO) << "[bison]: fieldlist: " << "field";
+		auto fieldlist = std::make_shared<fakelua::syntax_tree_fieldlist>(@1);
+		auto field = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
+		if (field == nullptr) {
+			LOG(ERROR) << "[bison]: fieldlist: " << "field is not a field";
+			throw std::runtime_error("field is not a field");
+		}
+		fieldlist->add_field(field);
+		$$ = fieldlist;
 	}
 	|
 	fieldlist fieldsep field
 	{
 		LOG(INFO) << "[bison]: fieldlist: " << "fieldlist fieldsep field";
+		auto fieldlist = std::dynamic_pointer_cast<fakelua::syntax_tree_fieldlist>($1);
+		if (fieldlist == nullptr) {
+			LOG(ERROR) << "[bison]: fieldlist: " << "fieldlist is not a fieldlist";
+			throw std::runtime_error("fieldlist is not a fieldlist");
+		}
+		auto field = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($3);
+		if (field == nullptr) {
+			LOG(ERROR) << "[bison]: fieldlist: " << "field is not a field";
+			throw std::runtime_error("field is not a field");
+		}
+		fieldlist->add_field(field);
+		$$ = fieldlist;
 	}
 	;
-
 
 field:
 	LSQUARE exp RSQUARE ASSIGN exp

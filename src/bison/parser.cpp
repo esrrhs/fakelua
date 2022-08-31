@@ -231,6 +231,10 @@ namespace yy {
       case symbol_kind::S_exp: // exp
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         value.YY_MOVE_OR_COPY< fakelua::syntax_tree_interface_ptr > (YY_MOVE (that.value));
         break;
 
@@ -269,6 +273,10 @@ namespace yy {
       case symbol_kind::S_exp: // exp
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         value.move< fakelua::syntax_tree_interface_ptr > (YY_MOVE (that.value));
         break;
 
@@ -307,6 +315,10 @@ namespace yy {
       case symbol_kind::S_exp: // exp
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         value.copy< fakelua::syntax_tree_interface_ptr > (that.value);
         break;
 
@@ -344,6 +356,10 @@ namespace yy {
       case symbol_kind::S_exp: // exp
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         value.move< fakelua::syntax_tree_interface_ptr > (that.value);
         break;
 
@@ -389,87 +405,111 @@ namespace yy {
         switch (yykind)
     {
       case symbol_kind::S_IDENTIFIER: // "identifier"
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < std::string > (); }
-#line 395 "parser.cpp"
+#line 411 "parser.cpp"
         break;
 
       case symbol_kind::S_STRING: // "string"
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < std::string > (); }
-#line 401 "parser.cpp"
+#line 417 "parser.cpp"
         break;
 
       case symbol_kind::S_NUMBER: // "number"
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < double > (); }
-#line 407 "parser.cpp"
+#line 423 "parser.cpp"
         break;
 
       case symbol_kind::S_chunk: // chunk
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 413 "parser.cpp"
+#line 429 "parser.cpp"
         break;
 
       case symbol_kind::S_block: // block
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 419 "parser.cpp"
+#line 435 "parser.cpp"
         break;
 
       case symbol_kind::S_stmt: // stmt
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 425 "parser.cpp"
+#line 441 "parser.cpp"
         break;
 
       case symbol_kind::S_retstat: // retstat
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 431 "parser.cpp"
+#line 447 "parser.cpp"
         break;
 
       case symbol_kind::S_label: // label
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 437 "parser.cpp"
+#line 453 "parser.cpp"
         break;
 
       case symbol_kind::S_varlist: // varlist
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 443 "parser.cpp"
+#line 459 "parser.cpp"
         break;
 
       case symbol_kind::S_var: // var
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 449 "parser.cpp"
+#line 465 "parser.cpp"
         break;
 
       case symbol_kind::S_explist: // explist
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 455 "parser.cpp"
+#line 471 "parser.cpp"
         break;
 
       case symbol_kind::S_exp: // exp
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 461 "parser.cpp"
+#line 477 "parser.cpp"
         break;
 
       case symbol_kind::S_prefixexp: // prefixexp
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 467 "parser.cpp"
+#line 483 "parser.cpp"
         break;
 
       case symbol_kind::S_functioncall: // functioncall
-#line 121 "parser.y"
+#line 125 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 473 "parser.cpp"
+#line 489 "parser.cpp"
+        break;
+
+      case symbol_kind::S_args: // args
+#line 125 "parser.y"
+                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+#line 495 "parser.cpp"
+        break;
+
+      case symbol_kind::S_tableconstructor: // tableconstructor
+#line 125 "parser.y"
+                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+#line 501 "parser.cpp"
+        break;
+
+      case symbol_kind::S_fieldlist: // fieldlist
+#line 125 "parser.y"
+                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+#line 507 "parser.cpp"
+        break;
+
+      case symbol_kind::S_field: // field
+#line 125 "parser.y"
+                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+#line 513 "parser.cpp"
         break;
 
       default:
@@ -724,6 +764,10 @@ namespace yy {
       case symbol_kind::S_exp: // exp
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         yylhs.value.emplace< fakelua::syntax_tree_interface_ptr > ();
         break;
 
@@ -753,36 +797,38 @@ namespace yy {
           switch (yyn)
             {
   case 2: // chunk: block
-#line 128 "parser.y"
+#line 132 "parser.y"
         {
   		LOG(INFO) << "[bison]: chunk: " << "block";
   		l->set_chunk(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
 	}
-#line 762 "parser.cpp"
+#line 806 "parser.cpp"
     break;
 
   case 3: // block: %empty
-#line 136 "parser.y"
+#line 140 "parser.y"
         {
   	}
-#line 769 "parser.cpp"
+#line 813 "parser.cpp"
     break;
 
   case 4: // block: stmt
-#line 140 "parser.y"
+#line 144 "parser.y"
         {
 		LOG(INFO) << "[bison]: block: " << "stmt";
 		auto block = std::make_shared<fakelua::syntax_tree_block>(yystack_[0].location);
-		if (yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > () != nullptr) {
-			block->add_stmt(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+		auto stmt = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+		if (stmt == nullptr) {
+			LOG(ERROR) << "[bison]: block: " << "stmt is nullptr";
 		}
+		block->add_stmt(stmt);
   		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = block;
   	}
-#line 782 "parser.cpp"
+#line 828 "parser.cpp"
     break;
 
   case 5: // block: block stmt
-#line 150 "parser.y"
+#line 156 "parser.y"
         {
 		LOG(INFO) << "[bison]: block: " << "block stmt";
 		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -790,34 +836,37 @@ namespace yy {
 			LOG(ERROR) << "[bison]: block: " << "block is not a block";
 			throw std::runtime_error("block is not a block");
 		}
-		if (yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > () != nullptr) {
-			block->add_stmt(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+		auto stmt = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+		if (stmt == nullptr) {
+			LOG(ERROR) << "[bison]: block: " << "stmt is not a stmt";
+			throw std::runtime_error("stmt is not a stmt");
 		}
+		block->add_stmt(stmt);
   		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = block;
 	}
-#line 799 "parser.cpp"
+#line 848 "parser.cpp"
     break;
 
   case 6: // stmt: retstat
-#line 166 "parser.y"
+#line 175 "parser.y"
         {
         	LOG(INFO) << "[bison]: stmt: " << "retstat";
 		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ();
         }
-#line 808 "parser.cpp"
+#line 857 "parser.cpp"
     break;
 
   case 7: // stmt: ";"
-#line 172 "parser.y"
+#line 181 "parser.y"
         {
 		LOG(INFO) << "[bison]: stmt: " << "SEMICOLON";
-		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = nullptr;
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = std::make_shared<fakelua::syntax_tree_empty>(yystack_[0].location);
 	}
-#line 817 "parser.cpp"
+#line 866 "parser.cpp"
     break;
 
   case 8: // stmt: varlist "=" explist
-#line 178 "parser.y"
+#line 187 "parser.y"
         {
 		LOG(INFO) << "[bison]: stmt: " << "varlist ASSIGN explist";
 		auto varlist = std::dynamic_pointer_cast<fakelua::syntax_tree_varlist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -833,58 +882,58 @@ namespace yy {
 		auto assign = std::make_shared<fakelua::syntax_tree_assign>(varlist, explist, yystack_[1].location);
 		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = assign;
 	}
-#line 837 "parser.cpp"
+#line 886 "parser.cpp"
     break;
 
   case 9: // stmt: label
-#line 195 "parser.y"
+#line 204 "parser.y"
         {
   		LOG(INFO) << "[bison]: stmt: " << "label";
   		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ();
   	}
-#line 846 "parser.cpp"
+#line 895 "parser.cpp"
     break;
 
   case 10: // retstat: "return"
-#line 203 "parser.y"
+#line 212 "parser.y"
         {
 		LOG(INFO) << "[bison]: retstat: " << "RETURN";
 		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = std::make_shared<fakelua::syntax_tree_return>(nullptr, yystack_[0].location);
 	}
-#line 855 "parser.cpp"
+#line 904 "parser.cpp"
     break;
 
   case 11: // retstat: "return" explist
-#line 209 "parser.y"
+#line 218 "parser.y"
         {
 		LOG(INFO) << "[bison]: retstat: " << "RETURN explist";
 		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = std::make_shared<fakelua::syntax_tree_return>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > (), yystack_[1].location);
 	}
-#line 864 "parser.cpp"
+#line 913 "parser.cpp"
     break;
 
   case 12: // label: "::" "identifier" "::"
-#line 217 "parser.y"
+#line 226 "parser.y"
         {
 		LOG(INFO) << "[bison]: bison get label: " << yystack_[1].value.as < std::string > () << " loc: " << yystack_[1].location;
 		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = std::make_shared<fakelua::syntax_tree_label>(yystack_[1].value.as < std::string > (), yystack_[1].location);
 	}
-#line 873 "parser.cpp"
+#line 922 "parser.cpp"
     break;
 
   case 13: // varlist: var
-#line 249 "parser.y"
+#line 258 "parser.y"
         {
 		LOG(INFO) << "[bison]: varlist: " << "var";
 		auto varlist = std::make_shared<fakelua::syntax_tree_varlist>(yystack_[0].location);
 		varlist->add_var(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
 		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = varlist;
 	}
-#line 884 "parser.cpp"
+#line 933 "parser.cpp"
     break;
 
   case 14: // varlist: varlist "," var
-#line 257 "parser.y"
+#line 266 "parser.y"
         {
 		LOG(INFO) << "[bison]: varlist: " << "varlist COMMA var";
 		auto varlist = std::dynamic_pointer_cast<fakelua::syntax_tree_varlist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -895,11 +944,11 @@ namespace yy {
 		varlist->add_var(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
 		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = varlist;
 	}
-#line 899 "parser.cpp"
+#line 948 "parser.cpp"
     break;
 
   case 15: // var: "identifier"
-#line 271 "parser.y"
+#line 280 "parser.y"
         {
 		LOG(INFO) << "[bison]: var: " << "IDENTIFIER";
 		auto var = std::make_shared<fakelua::syntax_tree_var>(yystack_[0].location);
@@ -907,11 +956,11 @@ namespace yy {
 		var->set_type("simple");
 		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = var;
 	}
-#line 911 "parser.cpp"
+#line 960 "parser.cpp"
     break;
 
   case 16: // var: prefixexp "[" exp "]"
-#line 280 "parser.y"
+#line 289 "parser.y"
         {
 		LOG(INFO) << "[bison]: var: " << "prefixexp LSQUARE exp RSQUARE";
 		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[3].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -930,11 +979,11 @@ namespace yy {
 		var->set_type("square");
 		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = var;
 	}
-#line 934 "parser.cpp"
+#line 983 "parser.cpp"
     break;
 
   case 17: // var: prefixexp "." "identifier"
-#line 300 "parser.y"
+#line 309 "parser.y"
         {
 		LOG(INFO) << "[bison]: var: " << "prefixexp DOT IDENTIFIER";
 		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -948,526 +997,584 @@ namespace yy {
 		var->set_type("dot");
 		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = var;
 	}
-#line 952 "parser.cpp"
+#line 1001 "parser.cpp"
     break;
 
   case 18: // namelist: "identifier"
-#line 317 "parser.y"
+#line 326 "parser.y"
         {
 		LOG(INFO) << "[bison]: namelist: " << "IDENTIFIER";
 	}
-#line 960 "parser.cpp"
+#line 1009 "parser.cpp"
     break;
 
   case 19: // namelist: namelist "," "identifier"
-#line 322 "parser.y"
+#line 331 "parser.y"
         {
 		LOG(INFO) << "[bison]: namelist: " << "namelist COMMA IDENTIFIER";
 	}
-#line 968 "parser.cpp"
+#line 1017 "parser.cpp"
     break;
 
   case 20: // explist: exp
-#line 329 "parser.y"
+#line 338 "parser.y"
         {
 		LOG(INFO) << "[bison]: explist: " << "exp";
 	}
-#line 976 "parser.cpp"
+#line 1025 "parser.cpp"
     break;
 
   case 21: // explist: explist "," exp
-#line 334 "parser.y"
+#line 343 "parser.y"
         {
 		LOG(INFO) << "[bison]: explist: " << "explist COMMA exp";
 	}
-#line 984 "parser.cpp"
+#line 1033 "parser.cpp"
     break;
 
   case 22: // exp: "nil"
-#line 341 "parser.y"
+#line 350 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "NIL";
 	}
-#line 992 "parser.cpp"
+#line 1041 "parser.cpp"
     break;
 
   case 23: // exp: "true"
-#line 346 "parser.y"
+#line 355 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "TRUE";
 	}
-#line 1000 "parser.cpp"
+#line 1049 "parser.cpp"
     break;
 
   case 24: // exp: "false"
-#line 351 "parser.y"
+#line 360 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "FALSE";
 	}
-#line 1008 "parser.cpp"
+#line 1057 "parser.cpp"
     break;
 
   case 25: // exp: "number"
-#line 356 "parser.y"
+#line 365 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "NUMBER";
 	}
-#line 1016 "parser.cpp"
+#line 1065 "parser.cpp"
     break;
 
   case 26: // exp: "string"
-#line 361 "parser.y"
+#line 370 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "STRING";
 	}
-#line 1024 "parser.cpp"
+#line 1073 "parser.cpp"
     break;
 
   case 27: // exp: "..."
-#line 366 "parser.y"
+#line 375 "parser.y"
         {
 		LOG(INFO) << "[bison]: exp: " << "VAR_PARAMS";
-	}
-#line 1032 "parser.cpp"
-    break;
-
-  case 28: // exp: functiondef
-#line 371 "parser.y"
-        {
-		LOG(INFO) << "[bison]: exp: " << "functiondef";
-	}
-#line 1040 "parser.cpp"
-    break;
-
-  case 29: // exp: prefixexp
-#line 376 "parser.y"
-        {
-		LOG(INFO) << "[bison]: exp: " << "prefixexp";
-	}
-#line 1048 "parser.cpp"
-    break;
-
-  case 30: // exp: tableconstructor
-#line 381 "parser.y"
-        {
-		LOG(INFO) << "[bison]: exp: " << "tableconstructor";
-	}
-#line 1056 "parser.cpp"
-    break;
-
-  case 31: // exp: exp binop exp
-#line 386 "parser.y"
-        {
-		LOG(INFO) << "[bison]: exp: " << "exp binop exp";
-	}
-#line 1064 "parser.cpp"
-    break;
-
-  case 32: // exp: unop exp
-#line 391 "parser.y"
-        {
-		LOG(INFO) << "[bison]: exp: " << "unop exp";
-	}
-#line 1072 "parser.cpp"
-    break;
-
-  case 33: // prefixexp: var
-#line 398 "parser.y"
-        {
-		LOG(INFO) << "[bison]: prefixexp: " << "var";
-		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ();
 	}
 #line 1081 "parser.cpp"
     break;
 
+  case 28: // exp: functiondef
+#line 380 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "functiondef";
+	}
+#line 1089 "parser.cpp"
+    break;
+
+  case 29: // exp: prefixexp
+#line 385 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "prefixexp";
+	}
+#line 1097 "parser.cpp"
+    break;
+
+  case 30: // exp: tableconstructor
+#line 390 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "tableconstructor";
+	}
+#line 1105 "parser.cpp"
+    break;
+
+  case 31: // exp: exp binop exp
+#line 395 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "exp binop exp";
+	}
+#line 1113 "parser.cpp"
+    break;
+
+  case 32: // exp: unop exp
+#line 400 "parser.y"
+        {
+		LOG(INFO) << "[bison]: exp: " << "unop exp";
+	}
+#line 1121 "parser.cpp"
+    break;
+
+  case 33: // prefixexp: var
+#line 407 "parser.y"
+        {
+		LOG(INFO) << "[bison]: prefixexp: " << "var";
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ();
+	}
+#line 1130 "parser.cpp"
+    break;
+
   case 34: // prefixexp: functioncall
-#line 404 "parser.y"
+#line 413 "parser.y"
         {
 		LOG(INFO) << "[bison]: prefixexp: " << "functioncall";
 		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ();
 	}
-#line 1090 "parser.cpp"
+#line 1139 "parser.cpp"
     break;
 
   case 35: // prefixexp: "(" exp ")"
-#line 410 "parser.y"
+#line 419 "parser.y"
         {
 		LOG(INFO) << "[bison]: prefixexp: " << "LPAREN exp RPAREN";
 		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ();
 	}
-#line 1099 "parser.cpp"
+#line 1148 "parser.cpp"
     break;
 
   case 36: // functioncall: prefixexp args
-#line 417 "parser.y"
+#line 426 "parser.y"
         {
 		LOG(INFO) << "[bison]: functioncall: " << "prefixexp args";
+		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+		auto args = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+		if (prefixexp == nullptr) {
+			LOG(ERROR) << "[bison]: functioncall: " << "prefixexp is not a prefixexp";
+			throw std::runtime_error("prefixexp is not a prefixexp");
+		}
+		if (args == nullptr) {
+			LOG(ERROR) << "[bison]: functioncall: " << "args is not a args";
+			throw std::runtime_error("args is not a args");
+		}
+		auto functioncall = std::make_shared<fakelua::syntax_tree_functioncall>(yystack_[1].location);
+		functioncall->set_prefixexp(prefixexp);
+		functioncall->set_args(args);
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = functioncall;
 	}
-#line 1107 "parser.cpp"
+#line 1170 "parser.cpp"
     break;
 
   case 37: // functioncall: prefixexp ":" "identifier" args
-#line 422 "parser.y"
+#line 445 "parser.y"
         {
 		LOG(INFO) << "[bison]: functioncall: " << "prefixexp COLON IDENTIFIER args";
+		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[3].value.as < fakelua::syntax_tree_interface_ptr > ());
+		if (prefixexp == nullptr) {
+			LOG(ERROR) << "[bison]: functioncall: " << "prefixexp is not a prefixexp";
+			throw std::runtime_error("prefixexp is not a prefixexp");
+		}
+		auto functioncall = std::make_shared<fakelua::syntax_tree_functioncall>(yystack_[3].location);
+		functioncall->set_prefixexp(prefixexp);
+		functioncall->set_name(yystack_[1].value.as < std::string > ());
+		auto args = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+		if (args == nullptr) {
+			LOG(ERROR) << "[bison]: functioncall: " << "args is not a args";
+			throw std::runtime_error("args is not a args");
+		}
+		functioncall->set_args(args);
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = functioncall;
 	}
-#line 1115 "parser.cpp"
+#line 1193 "parser.cpp"
     break;
 
   case 38: // args: "(" explist ")"
-#line 429 "parser.y"
+#line 467 "parser.y"
         {
 		LOG(INFO) << "[bison]: args: " << "LPAREN explist RPAREN";
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ();
 	}
-#line 1123 "parser.cpp"
+#line 1202 "parser.cpp"
     break;
 
   case 39: // args: "(" ")"
-#line 434 "parser.y"
+#line 473 "parser.y"
         {
 		LOG(INFO) << "[bison]: args: " << "LPAREN RPAREN";
-	}
-#line 1131 "parser.cpp"
-    break;
-
-  case 40: // args: tableconstructor
-#line 439 "parser.y"
-        {
-		LOG(INFO) << "[bison]: args: " << "tableconstructor";
-	}
-#line 1139 "parser.cpp"
-    break;
-
-  case 41: // args: "string"
-#line 444 "parser.y"
-        {
-		LOG(INFO) << "[bison]: args: " << "STRING";
-	}
-#line 1147 "parser.cpp"
-    break;
-
-  case 42: // functiondef: "function" funcbody
-#line 451 "parser.y"
-        {
-		LOG(INFO) << "[bison]: functiondef: " << "FUNCTION funcbody";
-	}
-#line 1155 "parser.cpp"
-    break;
-
-  case 43: // funcbody: "(" parlist ")" block "end"
-#line 458 "parser.y"
-        {
-		LOG(INFO) << "[bison]: funcbody: " << "LPAREN parlist RPAREN block END";
-	}
-#line 1163 "parser.cpp"
-    break;
-
-  case 44: // funcbody: "(" ")" block "end"
-#line 463 "parser.y"
-        {
-		LOG(INFO) << "[bison]: funcbody: " << "LPAREN RPAREN block END";
-	}
-#line 1171 "parser.cpp"
-    break;
-
-  case 45: // parlist: namelist
-#line 470 "parser.y"
-        {
-		LOG(INFO) << "[bison]: parlist: " << "namelist";
-	}
-#line 1179 "parser.cpp"
-    break;
-
-  case 46: // parlist: namelist "," "..."
-#line 475 "parser.y"
-        {
-		LOG(INFO) << "[bison]: parlist: " << "namelist COMMA VAR_PARAMS";
-	}
-#line 1187 "parser.cpp"
-    break;
-
-  case 47: // parlist: "..."
-#line 480 "parser.y"
-        {
-		LOG(INFO) << "[bison]: parlist: " << "VAR_PARAMS";
-	}
-#line 1195 "parser.cpp"
-    break;
-
-  case 48: // tableconstructor: "{" fieldlist "}"
-#line 487 "parser.y"
-        {
-		LOG(INFO) << "[bison]: tableconstructor: " << "LCURLY fieldlist RCURLY";
-	}
-#line 1203 "parser.cpp"
-    break;
-
-  case 49: // tableconstructor: "{" "}"
-#line 492 "parser.y"
-        {
-		LOG(INFO) << "[bison]: tableconstructor: " << "LCURLY RCURLY";
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = std::make_shared<fakelua::syntax_tree_empty>(yystack_[1].location);
 	}
 #line 1211 "parser.cpp"
     break;
 
-  case 50: // fieldlist: field
+  case 40: // args: tableconstructor
+#line 479 "parser.y"
+        {
+		LOG(INFO) << "[bison]: args: " << "tableconstructor";
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ();
+	}
+#line 1220 "parser.cpp"
+    break;
+
+  case 41: // args: "string"
+#line 485 "parser.y"
+        {
+		LOG(INFO) << "[bison]: args: " << "STRING";
+	}
+#line 1228 "parser.cpp"
+    break;
+
+  case 42: // functiondef: "function" funcbody
+#line 492 "parser.y"
+        {
+		LOG(INFO) << "[bison]: functiondef: " << "FUNCTION funcbody";
+	}
+#line 1236 "parser.cpp"
+    break;
+
+  case 43: // funcbody: "(" parlist ")" block "end"
 #line 499 "parser.y"
         {
-		LOG(INFO) << "[bison]: fieldlist: " << "field";
+		LOG(INFO) << "[bison]: funcbody: " << "LPAREN parlist RPAREN block END";
 	}
-#line 1219 "parser.cpp"
+#line 1244 "parser.cpp"
+    break;
+
+  case 44: // funcbody: "(" ")" block "end"
+#line 504 "parser.y"
+        {
+		LOG(INFO) << "[bison]: funcbody: " << "LPAREN RPAREN block END";
+	}
+#line 1252 "parser.cpp"
+    break;
+
+  case 45: // parlist: namelist
+#line 511 "parser.y"
+        {
+		LOG(INFO) << "[bison]: parlist: " << "namelist";
+	}
+#line 1260 "parser.cpp"
+    break;
+
+  case 46: // parlist: namelist "," "..."
+#line 516 "parser.y"
+        {
+		LOG(INFO) << "[bison]: parlist: " << "namelist COMMA VAR_PARAMS";
+	}
+#line 1268 "parser.cpp"
+    break;
+
+  case 47: // parlist: "..."
+#line 521 "parser.y"
+        {
+		LOG(INFO) << "[bison]: parlist: " << "VAR_PARAMS";
+	}
+#line 1276 "parser.cpp"
+    break;
+
+  case 48: // tableconstructor: "{" fieldlist "}"
+#line 528 "parser.y"
+        {
+		LOG(INFO) << "[bison]: tableconstructor: " << "LCURLY fieldlist RCURLY";
+		auto tableconstructor = std::make_shared<fakelua::syntax_tree_tableconstructor>(yystack_[2].location);
+		tableconstructor->set_fieldlist(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = tableconstructor;
+	}
+#line 1287 "parser.cpp"
+    break;
+
+  case 49: // tableconstructor: "{" "}"
+#line 536 "parser.y"
+        {
+		LOG(INFO) << "[bison]: tableconstructor: " << "LCURLY RCURLY";
+		auto tableconstructor = std::make_shared<fakelua::syntax_tree_tableconstructor>(yystack_[1].location);
+		tableconstructor->set_fieldlist(std::make_shared<fakelua::syntax_tree_empty>(yystack_[1].location));
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = tableconstructor;
+	}
+#line 1298 "parser.cpp"
+    break;
+
+  case 50: // fieldlist: field
+#line 546 "parser.y"
+        {
+		LOG(INFO) << "[bison]: fieldlist: " << "field";
+		auto fieldlist = std::make_shared<fakelua::syntax_tree_fieldlist>(yystack_[0].location);
+		auto field = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+		if (field == nullptr) {
+			LOG(ERROR) << "[bison]: fieldlist: " << "field is not a field";
+			throw std::runtime_error("field is not a field");
+		}
+		fieldlist->add_field(field);
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = fieldlist;
+	}
+#line 1314 "parser.cpp"
     break;
 
   case 51: // fieldlist: fieldlist fieldsep field
-#line 504 "parser.y"
+#line 559 "parser.y"
         {
 		LOG(INFO) << "[bison]: fieldlist: " << "fieldlist fieldsep field";
+		auto fieldlist = std::dynamic_pointer_cast<fakelua::syntax_tree_fieldlist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+		if (fieldlist == nullptr) {
+			LOG(ERROR) << "[bison]: fieldlist: " << "fieldlist is not a fieldlist";
+			throw std::runtime_error("fieldlist is not a fieldlist");
+		}
+		auto field = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+		if (field == nullptr) {
+			LOG(ERROR) << "[bison]: fieldlist: " << "field is not a field";
+			throw std::runtime_error("field is not a field");
+		}
+		fieldlist->add_field(field);
+		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = fieldlist;
 	}
-#line 1227 "parser.cpp"
+#line 1334 "parser.cpp"
     break;
 
   case 52: // field: "[" exp "]" "=" exp
-#line 512 "parser.y"
+#line 578 "parser.y"
         {
 		LOG(INFO) << "[bison]: field: " << "LSQUARE exp RSQUARE ASSIGN exp";
 	}
-#line 1235 "parser.cpp"
+#line 1342 "parser.cpp"
     break;
 
   case 53: // field: "identifier" "=" exp
-#line 517 "parser.y"
+#line 583 "parser.y"
         {
 		LOG(INFO) << "[bison]: field: " << "IDENTIFIER ASSIGN exp";
 	}
-#line 1243 "parser.cpp"
+#line 1350 "parser.cpp"
     break;
 
   case 54: // field: exp
-#line 522 "parser.y"
+#line 588 "parser.y"
         {
 		LOG(INFO) << "[bison]: field: " << "exp";
 	}
-#line 1251 "parser.cpp"
+#line 1358 "parser.cpp"
     break;
 
   case 55: // fieldsep: ","
-#line 530 "parser.y"
+#line 596 "parser.y"
         {
 		LOG(INFO) << "[bison]: fieldsep: " << "COMMA";
 	}
-#line 1259 "parser.cpp"
+#line 1366 "parser.cpp"
     break;
 
   case 56: // fieldsep: ";"
-#line 535 "parser.y"
+#line 601 "parser.y"
         {
 		LOG(INFO) << "[bison]: fieldsep: " << "SEMICOLON";
 	}
-#line 1267 "parser.cpp"
+#line 1374 "parser.cpp"
     break;
 
   case 57: // binop: "+"
-#line 542 "parser.y"
+#line 608 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "PLUS";
 	}
-#line 1275 "parser.cpp"
+#line 1382 "parser.cpp"
     break;
 
   case 58: // binop: "-"
-#line 547 "parser.y"
+#line 613 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "MINUS";
 	}
-#line 1283 "parser.cpp"
+#line 1390 "parser.cpp"
     break;
 
   case 59: // binop: "*"
-#line 552 "parser.y"
+#line 618 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "STAR";
 	}
-#line 1291 "parser.cpp"
+#line 1398 "parser.cpp"
     break;
 
   case 60: // binop: "/"
-#line 557 "parser.y"
+#line 623 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "SLASH";
 	}
-#line 1299 "parser.cpp"
+#line 1406 "parser.cpp"
     break;
 
   case 61: // binop: "//"
-#line 562 "parser.y"
+#line 628 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "DOUBLE_SLASH";
 	}
-#line 1307 "parser.cpp"
+#line 1414 "parser.cpp"
     break;
 
   case 62: // binop: "^"
-#line 567 "parser.y"
+#line 633 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "XOR";
 	}
-#line 1315 "parser.cpp"
+#line 1422 "parser.cpp"
     break;
 
   case 63: // binop: "%"
-#line 572 "parser.y"
+#line 638 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "MOD";
 	}
-#line 1323 "parser.cpp"
+#line 1430 "parser.cpp"
     break;
 
   case 64: // binop: "&"
-#line 577 "parser.y"
+#line 643 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "BITAND";
 	}
-#line 1331 "parser.cpp"
+#line 1438 "parser.cpp"
     break;
 
   case 65: // binop: "~"
-#line 582 "parser.y"
+#line 648 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "BITNOT";
 	}
-#line 1339 "parser.cpp"
+#line 1446 "parser.cpp"
     break;
 
   case 66: // binop: "|"
-#line 587 "parser.y"
+#line 653 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "BITOR";
 	}
-#line 1347 "parser.cpp"
+#line 1454 "parser.cpp"
     break;
 
   case 67: // binop: ">>"
-#line 592 "parser.y"
+#line 658 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "RIGHT_SHIFT";
 	}
-#line 1355 "parser.cpp"
+#line 1462 "parser.cpp"
     break;
 
   case 68: // binop: "<<"
-#line 597 "parser.y"
+#line 663 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "LEFT_SHIFT";
 	}
-#line 1363 "parser.cpp"
+#line 1470 "parser.cpp"
     break;
 
   case 69: // binop: ".."
-#line 602 "parser.y"
+#line 668 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "CONCAT";
 	}
-#line 1371 "parser.cpp"
+#line 1478 "parser.cpp"
     break;
 
   case 70: // binop: "<"
-#line 607 "parser.y"
+#line 673 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "LESS";
 	}
-#line 1379 "parser.cpp"
+#line 1486 "parser.cpp"
     break;
 
   case 71: // binop: "<="
-#line 612 "parser.y"
+#line 678 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "LESS_EQUAL";
 	}
-#line 1387 "parser.cpp"
+#line 1494 "parser.cpp"
     break;
 
   case 72: // binop: ">"
-#line 617 "parser.y"
+#line 683 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "MORE";
 	}
-#line 1395 "parser.cpp"
+#line 1502 "parser.cpp"
     break;
 
   case 73: // binop: ">="
-#line 622 "parser.y"
+#line 688 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "MORE_EQUAL";
 	}
-#line 1403 "parser.cpp"
+#line 1510 "parser.cpp"
     break;
 
   case 74: // binop: "=="
-#line 627 "parser.y"
+#line 693 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "EQUAL";
 	}
-#line 1411 "parser.cpp"
+#line 1518 "parser.cpp"
     break;
 
   case 75: // binop: "~="
-#line 632 "parser.y"
+#line 698 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "NOT_EQUAL";
 	}
-#line 1419 "parser.cpp"
+#line 1526 "parser.cpp"
     break;
 
   case 76: // binop: "and"
-#line 637 "parser.y"
+#line 703 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "AND";
 	}
-#line 1427 "parser.cpp"
+#line 1534 "parser.cpp"
     break;
 
   case 77: // binop: "or"
-#line 642 "parser.y"
+#line 708 "parser.y"
         {
 		LOG(INFO) << "[bison]: binop: " << "OR";
 	}
-#line 1435 "parser.cpp"
+#line 1542 "parser.cpp"
     break;
 
   case 78: // unop: "-"
-#line 649 "parser.y"
+#line 715 "parser.y"
         {
 		LOG(INFO) << "[bison]: unop: " << "MINUS";
 	}
-#line 1443 "parser.cpp"
+#line 1550 "parser.cpp"
     break;
 
   case 79: // unop: "not"
-#line 654 "parser.y"
+#line 720 "parser.y"
         {
 		LOG(INFO) << "[bison]: unop: " << "NOT";
 	}
-#line 1451 "parser.cpp"
+#line 1558 "parser.cpp"
     break;
 
   case 80: // unop: "#"
-#line 659 "parser.y"
+#line 725 "parser.y"
         {
 		LOG(INFO) << "[bison]: unop: " << "NUMBER_SIGN";
 	}
-#line 1459 "parser.cpp"
+#line 1566 "parser.cpp"
     break;
 
   case 81: // unop: "~"
-#line 664 "parser.y"
+#line 730 "parser.y"
         {
 		LOG(INFO) << "[bison]: unop: " << "BITNOT";
 	}
-#line 1467 "parser.cpp"
+#line 1574 "parser.cpp"
     break;
 
 
-#line 1471 "parser.cpp"
+#line 1578 "parser.cpp"
 
             default:
               break;
@@ -2131,15 +2238,15 @@ namespace yy {
   const short
   parser::yyrline_[] =
   {
-       0,   127,   127,   135,   139,   149,   165,   171,   177,   194,
-     202,   208,   216,   248,   256,   270,   279,   299,   316,   321,
-     328,   333,   340,   345,   350,   355,   360,   365,   370,   375,
-     380,   385,   390,   397,   403,   409,   416,   421,   428,   433,
-     438,   443,   450,   457,   462,   469,   474,   479,   486,   491,
-     498,   503,   511,   516,   521,   529,   534,   541,   546,   551,
-     556,   561,   566,   571,   576,   581,   586,   591,   596,   601,
-     606,   611,   616,   621,   626,   631,   636,   641,   648,   653,
-     658,   663
+       0,   131,   131,   139,   143,   155,   174,   180,   186,   203,
+     211,   217,   225,   257,   265,   279,   288,   308,   325,   330,
+     337,   342,   349,   354,   359,   364,   369,   374,   379,   384,
+     389,   394,   399,   406,   412,   418,   425,   444,   466,   472,
+     478,   484,   491,   498,   503,   510,   515,   520,   527,   535,
+     545,   558,   577,   582,   587,   595,   600,   607,   612,   617,
+     622,   627,   632,   637,   642,   647,   652,   657,   662,   667,
+     672,   677,   682,   687,   692,   697,   702,   707,   714,   719,
+     724,   729
   };
 
   void
@@ -2171,9 +2278,9 @@ namespace yy {
 
 
 } // yy
-#line 2175 "parser.cpp"
+#line 2282 "parser.cpp"
 
-#line 668 "parser.y"
+#line 734 "parser.y"
 
 
 void

@@ -648,13 +648,13 @@
       <nonterminal symbol-number="71" name="exp" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="72" name="prefixexp" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="73" name="functioncall" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
-      <nonterminal symbol-number="74" name="args" type="" usefulness="useful"/>
+      <nonterminal symbol-number="74" name="args" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="75" name="functiondef" type="" usefulness="useful"/>
       <nonterminal symbol-number="76" name="funcbody" type="" usefulness="useful"/>
       <nonterminal symbol-number="77" name="parlist" type="" usefulness="useful"/>
-      <nonterminal symbol-number="78" name="tableconstructor" type="" usefulness="useful"/>
-      <nonterminal symbol-number="79" name="fieldlist" type="" usefulness="useful"/>
-      <nonterminal symbol-number="80" name="field" type="" usefulness="useful"/>
+      <nonterminal symbol-number="78" name="tableconstructor" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
+      <nonterminal symbol-number="79" name="fieldlist" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
+      <nonterminal symbol-number="80" name="field" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="81" name="fieldsep" type="" usefulness="useful"/>
       <nonterminal symbol-number="82" name="binop" type="" usefulness="useful"/>
       <nonterminal symbol-number="83" name="unop" type="" usefulness="useful"/>

@@ -8,6 +8,7 @@ namespace fakelua {
 // syntax tree type
 enum syntax_tree_type {
     syntax_tree_type_none = 0,
+    syntax_tree_type_empty,
     syntax_tree_type_block,
     syntax_tree_type_label,
     syntax_tree_type_return,
@@ -15,6 +16,9 @@ enum syntax_tree_type {
     syntax_tree_type_varlist,
     syntax_tree_type_explist,
     syntax_tree_type_var,
+    syntax_tree_type_functioncall,
+    syntax_tree_type_tableconstructor,
+    syntax_tree_type_fieldlist,
 };
 
 // syntax tree location type
@@ -60,6 +64,16 @@ private:
 
 // syntax tree shared pointer
 typedef std::shared_ptr<syntax_tree_interface> syntax_tree_interface_ptr;
+
+// empty
+class syntax_tree_empty : public syntax_tree_interface {
+public:
+    syntax_tree_empty(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    syntax_tree_type type() const { return syntax_tree_type_empty; }
+
+    std::string dump(int tab = 0) const;
+};
 
 // block
 class syntax_tree_block : public syntax_tree_interface {
@@ -201,6 +215,73 @@ private:
     syntax_tree_interface_ptr exp_;
     syntax_tree_interface_ptr prefixexp_;
     std::string type_;
+};
+
+// functioncall
+class syntax_tree_functioncall : public syntax_tree_interface {
+public:
+    syntax_tree_functioncall(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_functioncall() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_functioncall; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_prefixexp(const syntax_tree_interface_ptr &prefixexp) {
+        prefixexp_ = prefixexp;
+    }
+
+    void set_args(const syntax_tree_interface_ptr &args) {
+        args_ = args;
+    }
+
+    void set_name(const std::string &name) {
+        name_ = name;
+    }
+
+private:
+    syntax_tree_interface_ptr prefixexp_;
+    syntax_tree_interface_ptr args_;
+    std::string name_;
+};
+
+// tableconstructor
+class syntax_tree_tableconstructor : public syntax_tree_interface {
+public:
+    syntax_tree_tableconstructor(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_tableconstructor() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_tableconstructor; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_fieldlist(const syntax_tree_interface_ptr &fieldlist) {
+        fieldlist_ = fieldlist;
+    }
+
+private:
+    syntax_tree_interface_ptr fieldlist_;
+};
+
+// fieldlist
+class syntax_tree_fieldlist : public syntax_tree_interface {
+public:
+    syntax_tree_fieldlist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_fieldlist() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_fieldlist; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void add_field(const syntax_tree_interface_ptr &field) {
+        fields_.push_back(field);
+    }
+
+private:
+    std::vector<syntax_tree_interface_ptr> fields_;
 };
 
 }

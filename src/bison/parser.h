@@ -431,6 +431,10 @@ namespace yy {
       // exp
       // prefixexp
       // functioncall
+      // args
+      // tableconstructor
+      // fieldlist
+      // field
       char dummy2[sizeof (fakelua::syntax_tree_interface_ptr)];
 
       // "identifier"
@@ -698,6 +702,10 @@ namespace yy {
       case symbol_kind::S_exp: // exp
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         value.move< fakelua::syntax_tree_interface_ptr > (std::move (that.value));
         break;
 
@@ -808,6 +816,10 @@ switch (yykind)
       case symbol_kind::S_exp: // exp
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         value.template destroy< fakelua::syntax_tree_interface_ptr > ();
         break;
 
@@ -2288,6 +2300,10 @@ switch (yykind)
       case symbol_kind::S_exp: // exp
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         value.copy< fakelua::syntax_tree_interface_ptr > (YY_MOVE (that.value));
         break;
 
@@ -2340,6 +2356,10 @@ switch (yykind)
       case symbol_kind::S_exp: // exp
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         value.move< fakelua::syntax_tree_interface_ptr > (YY_MOVE (s.value));
         break;
 
@@ -2410,7 +2430,7 @@ switch (yykind)
   }
 
 } // yy
-#line 2414 "parser.h"
+#line 2434 "parser.h"
 
 
 
