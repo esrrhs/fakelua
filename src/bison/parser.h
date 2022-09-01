@@ -511,19 +511,19 @@ namespace yy {
     TOK_FALSE = 20,                // "false"
     TOK_FOR = 21,                  // "for"
     TOK_FUNCTION = 22,             // "function"
-    TOK_goto = 23,                 // "goto"
-    TOK_IF = 24,                   // "if"
-    TOK_IN = 25,                   // "in"
-    TOK_LOCAL = 26,                // "local"
-    TOK_NIL = 27,                  // "nil"
-    TOK_NOT = 28,                  // "not"
-    TOK_OR = 29,                   // "or"
-    TOK_REPEAT = 30,               // "repeat"
-    TOK_RETURN = 31,               // "return"
-    TOK_THEN = 32,                 // "then"
-    TOK_TRUE = 33,                 // "true"
-    TOK_UNTIL = 34,                // "until"
-    TOK_WHILE = 35,                // "while"
+    TOK_IF = 23,                   // "if"
+    TOK_IN = 24,                   // "in"
+    TOK_LOCAL = 25,                // "local"
+    TOK_NIL = 26,                  // "nil"
+    TOK_NOT = 27,                  // "not"
+    TOK_OR = 28,                   // "or"
+    TOK_REPEAT = 29,               // "repeat"
+    TOK_RETURN = 30,               // "return"
+    TOK_THEN = 31,                 // "then"
+    TOK_TRUE = 32,                 // "true"
+    TOK_UNTIL = 33,                // "until"
+    TOK_WHILE = 34,                // "while"
+    TOK_GOTO = 35,                 // "goto"
     TOK_DOUBLE_SLASH = 36,         // "//"
     TOK_CONCAT = 37,               // ".."
     TOK_VAR_PARAMS = 38,           // "..."
@@ -590,19 +590,19 @@ namespace yy {
         S_FALSE = 20,                            // "false"
         S_FOR = 21,                              // "for"
         S_FUNCTION = 22,                         // "function"
-        S_goto = 23,                             // "goto"
-        S_IF = 24,                               // "if"
-        S_IN = 25,                               // "in"
-        S_LOCAL = 26,                            // "local"
-        S_NIL = 27,                              // "nil"
-        S_NOT = 28,                              // "not"
-        S_OR = 29,                               // "or"
-        S_REPEAT = 30,                           // "repeat"
-        S_RETURN = 31,                           // "return"
-        S_THEN = 32,                             // "then"
-        S_TRUE = 33,                             // "true"
-        S_UNTIL = 34,                            // "until"
-        S_WHILE = 35,                            // "while"
+        S_IF = 23,                               // "if"
+        S_IN = 24,                               // "in"
+        S_LOCAL = 25,                            // "local"
+        S_NIL = 26,                              // "nil"
+        S_NOT = 27,                              // "not"
+        S_OR = 28,                               // "or"
+        S_REPEAT = 29,                           // "repeat"
+        S_RETURN = 30,                           // "return"
+        S_THEN = 31,                             // "then"
+        S_TRUE = 32,                             // "true"
+        S_UNTIL = 33,                            // "until"
+        S_WHILE = 34,                            // "while"
+        S_GOTO = 35,                             // "goto"
         S_DOUBLE_SLASH = 36,                     // "//"
         S_CONCAT = 37,                           // ".."
         S_VAR_PARAMS = 38,                       // "..."
@@ -1347,21 +1347,6 @@ switch (yykind)
 #if 201103L <= YY_CPLUSPLUS
       static
       symbol_type
-      make_goto (location_type l)
-      {
-        return symbol_type (token::TOK_goto, std::move (l));
-      }
-#else
-      static
-      symbol_type
-      make_goto (const location_type& l)
-      {
-        return symbol_type (token::TOK_goto, l);
-      }
-#endif
-#if 201103L <= YY_CPLUSPLUS
-      static
-      symbol_type
       make_IF (location_type l)
       {
         return symbol_type (token::TOK_IF, std::move (l));
@@ -1537,6 +1522,21 @@ switch (yykind)
       make_WHILE (const location_type& l)
       {
         return symbol_type (token::TOK_WHILE, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
+      make_GOTO (location_type l)
+      {
+        return symbol_type (token::TOK_GOTO, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_GOTO (const location_type& l)
+      {
+        return symbol_type (token::TOK_GOTO, l);
       }
 #endif
 #if 201103L <= YY_CPLUSPLUS
@@ -1954,7 +1954,7 @@ switch (yykind)
     void yy_lac_discard_ (const char* event);
 
     /// Stored state numbers (used for stacks).
-    typedef signed char state_type;
+    typedef unsigned char state_type;
 
     /// The arguments of the error message.
     int yy_syntax_error_arguments_ (const context& yyctx,
@@ -2005,9 +2005,9 @@ switch (yykind)
     // YYTABLE[YYPACT[STATE-NUM]] -- What to do in state STATE-NUM.  If
     // positive, shift that token.  If negative, reduce the rule whose
     // number is the opposite.  If YYTABLE_NINF, syntax error.
-    static const signed char yytable_[];
+    static const short yytable_[];
 
-    static const signed char yycheck_[];
+    static const short yycheck_[];
 
     // YYSTOS[STATE-NUM] -- The symbol kind of the accessing symbol of
     // state STATE-NUM.
@@ -2258,9 +2258,9 @@ switch (yykind)
     /// Constants.
     enum
     {
-      yylast_ = 428,     ///< Last index in yytable_.
+      yylast_ = 664,     ///< Last index in yytable_.
       yynnts_ = 23,  ///< Number of nonterminal symbols.
-      yyfinal_ = 36 ///< Termination state number.
+      yyfinal_ = 45 ///< Termination state number.
     };
 
 

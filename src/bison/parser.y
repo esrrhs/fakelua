@@ -65,7 +65,6 @@ int yyFlexLexer::yylex() { return -1; }
   FALSE         "false"
   FOR           "for"
   FUNCTION      "function"
-  goto          "goto"
   IF            "if"
   IN            "in"
   LOCAL         "local"
@@ -78,6 +77,7 @@ int yyFlexLexer::yylex() { return -1; }
   TRUE          "true"
   UNTIL         "until"
   WHILE         "while"
+  GOTO          "goto"
   DOUBLE_SLASH  "//"
   CONCAT        ".."
   VAR_PARAMS    "..."
@@ -204,6 +204,44 @@ stmt:
   	{
   		LOG(INFO) << "[bison]: stmt: " << "label";
   		$$ = $1;
+  	}
+  	|
+  	BREAK
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "break";
+  		$$ = std::make_shared<fakelua::syntax_tree_break>(@1);
+  	}
+  	|
+  	GOTO IDENTIFIER
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "goto IDENTIFIER";
+  		auto go = std::make_shared<fakelua::syntax_tree_goto>(@2);
+  		go->set_label($2);
+  		$$ = go;
+  	}
+  	|
+  	DO block END
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "do block end";
+  		$$ = $2;
+  	}
+  	|
+  	WHILE exp DO block END
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "while exp do block end";
+  		auto while_stmt = std::make_shared<fakelua::syntax_tree_while>(@1);
+  		while_stmt->set_exp($2);
+  		while_stmt->set_block($4);
+  		$$ = while_stmt;
+  	}
+  	|
+  	REPEAT block UNTIL exp
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "repeat block until exp";
+  		auto repeat = std::make_shared<fakelua::syntax_tree_repeat>(@1);
+  		repeat->set_block($2);
+  		repeat->set_exp($4);
+  		$$ = repeat;
   	}
   	;
 

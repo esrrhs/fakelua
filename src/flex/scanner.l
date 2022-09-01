@@ -94,7 +94,7 @@ ws              loc.step ();
 "false"         return yy::parser::make_FALSE(loc);
 "for"           return yy::parser::make_FOR(loc);
 "function"      return yy::parser::make_FUNCTION(loc);
-"goto"          return yy::parser::make_goto(loc);
+"goto"          return yy::parser::make_GOTO(loc);
 "if"            return yy::parser::make_IF(loc);
 "in"            return yy::parser::make_IN(loc);
 "local"         return yy::parser::make_LOCAL(loc);

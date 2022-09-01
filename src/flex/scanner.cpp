@@ -1143,7 +1143,7 @@ return yy::parser::make_FUNCTION(loc);
 case 45:
 YY_RULE_SETUP
 #line 98 "scanner.l"
-return yy::parser::make_goto(loc);
+return yy::parser::make_GOTO(loc);
 	YY_BREAK
 case 46:
 YY_RULE_SETUP

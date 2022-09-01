@@ -20,6 +20,10 @@ enum syntax_tree_type {
     syntax_tree_type_tableconstructor,
     syntax_tree_type_fieldlist,
     syntax_tree_type_fieldassignment,
+    syntax_tree_type_break,
+    syntax_tree_type_goto,
+    syntax_tree_type_while,
+    syntax_tree_type_repeat,
 };
 
 // syntax tree location type
@@ -312,6 +316,85 @@ private:
     syntax_tree_interface_ptr field_;
     syntax_tree_interface_ptr exp_;
     std::string name_;
+};
+
+// break
+class syntax_tree_break : public syntax_tree_interface {
+public:
+    syntax_tree_break(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_break() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_break; }
+
+    virtual std::string dump(int tab = 0) const override;
+};
+
+// goto
+class syntax_tree_goto : public syntax_tree_interface {
+public:
+    syntax_tree_goto(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_goto() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_goto; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_label(const std::string &label) {
+        label_ = label;
+    }
+
+private:
+    std::string label_;
+};
+
+// while
+class syntax_tree_while : public syntax_tree_interface {
+public:
+    syntax_tree_while(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_while() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_while; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_exp(const syntax_tree_interface_ptr &exp) {
+        exp_ = exp;
+    }
+
+    void set_block(const syntax_tree_interface_ptr &block) {
+        block_ = block;
+    }
+
+private:
+    syntax_tree_interface_ptr exp_;
+    syntax_tree_interface_ptr block_;
+};
+
+// repeat
+class syntax_tree_repeat : public syntax_tree_interface {
+public:
+    syntax_tree_repeat(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_repeat() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_repeat; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_exp(const syntax_tree_interface_ptr &exp) {
+        exp_ = exp;
+    }
+
+    void set_block(const syntax_tree_interface_ptr &block) {
+        block_ = block;
+    }
+
+private:
+    syntax_tree_interface_ptr exp_;
+    syntax_tree_interface_ptr block_;
 };
 
 }

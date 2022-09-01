@@ -113,4 +113,33 @@ std::string syntax_tree_fieldassignment::dump(int tab) const {
     return str;
 }
 
+std::string syntax_tree_break::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(break)[" + loc_str() + "]\n";
+    return str;
+}
+
+std::string syntax_tree_goto::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(goto)[" + loc_str() + "]\n";
+    str += gen_tab(tab + 1) + "label: " + label_ + "\n";
+    return str;
+}
+
+std::string syntax_tree_while::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(while)[" + loc_str() + "]\n";
+    str += exp_->dump(tab + 1);
+    str += block_->dump(tab + 1);
+    return str;
+}
+
+std::string syntax_tree_repeat::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(repeat)[" + loc_str() + "]\n";
+    str += block_->dump(tab + 1);
+    str += exp_->dump(tab + 1);
+    return str;
+}
+
 }
