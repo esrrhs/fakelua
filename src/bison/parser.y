@@ -121,6 +121,7 @@ int yyFlexLexer::yylex() { return -1; }
 %type <fakelua::syntax_tree_interface_ptr> tableconstructor
 %type <fakelua::syntax_tree_interface_ptr> fieldlist
 %type <fakelua::syntax_tree_interface_ptr> field
+%type <fakelua::syntax_tree_interface_ptr> elseifs
 
 %printer { yyo << $$; } <*>;
 
@@ -138,6 +139,8 @@ chunk:
 block:
   	%empty
   	{
+  		LOG(INFO) << "[bison]: block: " << "empty";
+  		$$ = std::make_shared<fakelua::syntax_tree_block>(@0);
   	}
 	|
 	stmt
@@ -243,7 +246,66 @@ stmt:
   		repeat->set_exp($4);
   		$$ = repeat;
   	}
+  	|
+  	IF exp THEN block elseifs ELSE block END
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "if exp then block elseifs else block end";
+  		auto if_stmt = std::make_shared<fakelua::syntax_tree_if>(@1);
+  		if_stmt->set_exp($2);
+  		if_stmt->set_block($4);
+  		auto elseifs = std::dynamic_pointer_cast<fakelua::syntax_tree_elseiflist>($5);
+  		if (elseifs == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "elseiflist is not a elseiflist";
+  			throw std::runtime_error("elseiflist is not a elseiflist");
+  		}
+  		if_stmt->set_elseiflist(elseifs);
+  		if_stmt->set_else_block($7);
+  		$$ = if_stmt;
+  	}
+  	|
+  	IF exp THEN block elseifs END
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "if exp then block elseifs end";
+  		auto if_stmt = std::make_shared<fakelua::syntax_tree_if>(@1);
+  		if_stmt->set_exp($2);
+  		if_stmt->set_block($4);
+  		auto elseifs = std::dynamic_pointer_cast<fakelua::syntax_tree_elseiflist>($5);
+  		if (elseifs == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "elseiflist is not a elseiflist";
+  			throw std::runtime_error("elseiflist is not a elseiflist");
+  		}
+  		if_stmt->set_elseiflist(elseifs);
+  		$$ = if_stmt;
+  	}
   	;
+
+elseifs:
+	%empty
+	{
+		LOG(INFO) << "[bison]: elseifs: " << "empty";
+		$$ = std::make_shared<fakelua::syntax_tree_elseiflist>(@0);
+	}
+	|
+	ELSEIF exp THEN block
+	{
+		LOG(INFO) << "[bison]: elseifs: " << "elseif exp then block";
+		auto elseifs = std::make_shared<fakelua::syntax_tree_elseiflist>(@1);
+		elseifs->add_elseif($2, $4);
+		$$ = elseifs;
+	}
+	|
+	elseifs ELSEIF exp THEN block
+	{
+		LOG(INFO) << "[bison]: elseifs: " << "elseifs elseif exp then block";
+		auto elseifs = std::dynamic_pointer_cast<fakelua::syntax_tree_elseiflist>($1);
+		if (elseifs == nullptr) {
+			LOG(ERROR) << "[bison]: elseifs: " << "elseifs is not a elseifs";
+			throw std::runtime_error("elseifs is not a elseifs");
+		}
+		elseifs->add_elseif($3, $5);
+		$$ = elseifs;
+	}
+	;
 
 retstat:
 	RETURN

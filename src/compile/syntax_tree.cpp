@@ -142,4 +142,26 @@ std::string syntax_tree_repeat::dump(int tab) const {
     return str;
 }
 
+std::string syntax_tree_if::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(if)[" + loc_str() + "]\n";
+    str += exp_->dump(tab + 1);
+    str += block_->dump(tab + 1);
+    str += elseifs_->dump(tab + 1);
+    if (elseblock_) {
+        str += elseblock_->dump(tab + 1);
+    }
+    return str;
+}
+
+std::string syntax_tree_elseiflist::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(elseif)[" + loc_str() + "]\n";
+    for (int i = 0; i < exps_.size(); ++i) {
+        str += exps_[i]->dump(tab + 1);
+        str += blocks_[i]->dump(tab + 1);
+    }
+    return str;
+}
+
 }

@@ -24,6 +24,8 @@ enum syntax_tree_type {
     syntax_tree_type_goto,
     syntax_tree_type_while,
     syntax_tree_type_repeat,
+    syntax_tree_type_if,
+    syntax_tree_type_elseiflist,
 };
 
 // syntax tree location type
@@ -395,6 +397,61 @@ public:
 private:
     syntax_tree_interface_ptr exp_;
     syntax_tree_interface_ptr block_;
+};
+
+// if
+class syntax_tree_if : public syntax_tree_interface {
+public:
+    syntax_tree_if(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_if() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_if; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_exp(const syntax_tree_interface_ptr &exp) {
+        exp_ = exp;
+    }
+
+    void set_block(const syntax_tree_interface_ptr &block) {
+        block_ = block;
+    }
+
+    void set_elseiflist(const syntax_tree_interface_ptr &elseifs) {
+        elseifs_ = elseifs;
+    }
+
+    void set_else_block(const syntax_tree_interface_ptr &elseblock) {
+        elseblock_ = elseblock;
+    }
+
+private:
+    syntax_tree_interface_ptr exp_;
+    syntax_tree_interface_ptr block_;
+    syntax_tree_interface_ptr elseifs_;
+    syntax_tree_interface_ptr elseblock_;
+};
+
+// elseif_list
+class syntax_tree_elseiflist : public syntax_tree_interface {
+public:
+    syntax_tree_elseiflist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_elseiflist() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_elseiflist; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void add_elseif(const syntax_tree_interface_ptr &exp, const syntax_tree_interface_ptr &block) {
+        exps_.push_back(exp);
+        blocks_.push_back(block);
+    }
+
+private:
+    std::vector<syntax_tree_interface_ptr> exps_;
+    std::vector<syntax_tree_interface_ptr> blocks_;
 };
 
 }
