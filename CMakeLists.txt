@@ -12,7 +12,7 @@ set(ENV{FAKELUA_HOME} "${CMAKE_CURRENT_SOURCE_DIR}/")
 
 option(USE_ASAN "use asan" OFF)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-local-typedefs -Wno-unused-function -std=c++11 -DNDEBUG -O2 -g3 -ggdb -fPIC")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-local-typedefs -Wno-unused-function -std=c++20 -DNDEBUG -O2 -g3 -ggdb -fPIC")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -DNDEBUG -O2 -g3 -ggdb -fPIC")
 if (USE_ASAN)
     message("build with asan")
