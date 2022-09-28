@@ -157,10 +157,23 @@ std::string syntax_tree_if::dump(int tab) const {
 std::string syntax_tree_elseiflist::dump(int tab) const {
     std::string str;
     str += gen_tab(tab) + "(elseif)[" + loc_str() + "]\n";
-    for (int i = 0; i < exps_.size(); ++i) {
+    for (int i = 0; i < (int) exps_.size(); ++i) {
         str += exps_[i]->dump(tab + 1);
         str += blocks_[i]->dump(tab + 1);
     }
+    return str;
+}
+
+std::string syntax_tree_for_loop::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(for_loop)[" + loc_str() + "]\n";
+    str += gen_tab(tab + 1) + "name: " + name_ + "\n";
+    str += exp_begin_->dump(tab + 1);
+    str += exp_end_->dump(tab + 1);
+    if (exp_step_) {
+        str += exp_step_->dump(tab + 1);
+    }
+    str += block_->dump(tab + 1);
     return str;
 }
 

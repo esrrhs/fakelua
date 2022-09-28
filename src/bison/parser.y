@@ -277,6 +277,29 @@ stmt:
   		if_stmt->set_elseiflist(elseifs);
   		$$ = if_stmt;
   	}
+  	|
+  	FOR IDENTIFIER ASSIGN exp COMMA exp DO block END
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "for IDENTIFIER assign exp COMMA exp do block end";
+  		auto for_loop_stmt = std::make_shared<fakelua::syntax_tree_for_loop>(@1);
+  		for_loop_stmt->set_name($2);
+  		for_loop_stmt->set_exp_begin($4);
+  		for_loop_stmt->set_exp_end($6);
+  		for_loop_stmt->set_block($8);
+  		$$ = for_loop_stmt;
+  	}
+  	|
+  	FOR IDENTIFIER ASSIGN exp COMMA exp COMMA exp DO block END
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "for IDENTIFIER assign exp COMMA exp COMMA exp do block end";
+  		auto for_loop_stmt = std::make_shared<fakelua::syntax_tree_for_loop>(@1);
+  		for_loop_stmt->set_name($2);
+  		for_loop_stmt->set_exp_begin($4);
+  		for_loop_stmt->set_exp_end($6);
+  		for_loop_stmt->set_exp_step($8);
+  		for_loop_stmt->set_block($10);
+  		$$ = for_loop_stmt;
+  	}
   	;
 
 elseifs:

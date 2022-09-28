@@ -26,6 +26,7 @@ enum syntax_tree_type {
     syntax_tree_type_repeat,
     syntax_tree_type_if,
     syntax_tree_type_elseiflist,
+    syntax_tree_type_for_loop,
 };
 
 // syntax tree location type
@@ -452,6 +453,45 @@ public:
 private:
     std::vector<syntax_tree_interface_ptr> exps_;
     std::vector<syntax_tree_interface_ptr> blocks_;
+};
+
+// for loop
+class syntax_tree_for_loop : public syntax_tree_interface {
+public:
+    syntax_tree_for_loop(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_for_loop() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_for_loop; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_name(const std::string &name) {
+        name_ = name;
+    }
+
+    void set_block(const syntax_tree_interface_ptr &block) {
+        block_ = block;
+    }
+
+    void set_exp_begin(const syntax_tree_interface_ptr &exp) {
+        exp_begin_ = exp;
+    }
+
+    void set_exp_end(const syntax_tree_interface_ptr &exp) {
+        exp_end_ = exp;
+    }
+
+    void set_exp_step(const syntax_tree_interface_ptr &exp) {
+        exp_step_ = exp;
+    }
+
+private:
+    std::string name_;
+    syntax_tree_interface_ptr block_;
+    syntax_tree_interface_ptr exp_begin_;
+    syntax_tree_interface_ptr exp_end_;
+    syntax_tree_interface_ptr exp_step_;
 };
 
 }
