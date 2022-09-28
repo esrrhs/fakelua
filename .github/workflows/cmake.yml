@@ -10,12 +10,6 @@ jobs:
     steps:
       - uses: actions/checkout@v1
 
-      - name: Set up GCC
-        uses: egor-tensin/setup-gcc@v1
-        with:
-          version: latest
-          platform: x64
-          
       - name: Prepare
         run: |
           sudo apt-get update
