@@ -428,6 +428,7 @@ namespace yy {
       // label
       // varlist
       // var
+      // namelist
       // explist
       // exp
       // prefixexp
@@ -701,6 +702,7 @@ namespace yy {
       case symbol_kind::S_label: // label
       case symbol_kind::S_varlist: // varlist
       case symbol_kind::S_var: // var
+      case symbol_kind::S_namelist: // namelist
       case symbol_kind::S_explist: // explist
       case symbol_kind::S_exp: // exp
       case symbol_kind::S_prefixexp: // prefixexp
@@ -816,6 +818,7 @@ switch (yykind)
       case symbol_kind::S_label: // label
       case symbol_kind::S_varlist: // varlist
       case symbol_kind::S_var: // var
+      case symbol_kind::S_namelist: // namelist
       case symbol_kind::S_explist: // explist
       case symbol_kind::S_exp: // exp
       case symbol_kind::S_prefixexp: // prefixexp
@@ -2001,7 +2004,7 @@ switch (yykind)
     static const signed char yydefact_[];
 
     // YYPGOTO[NTERM-NUM].
-    static const signed char yypgoto_[];
+    static const short yypgoto_[];
 
     // YYDEFGOTO[NTERM-NUM].
     static const unsigned char yydefgoto_[];
@@ -2262,9 +2265,9 @@ switch (yykind)
     /// Constants.
     enum
     {
-      yylast_ = 1244,     ///< Last index in yytable_.
+      yylast_ = 1338,     ///< Last index in yytable_.
       yynnts_ = 24,  ///< Number of nonterminal symbols.
-      yyfinal_ = 49 ///< Termination state number.
+      yyfinal_ = 50 ///< Termination state number.
     };
 
 
@@ -2301,6 +2304,7 @@ switch (yykind)
       case symbol_kind::S_label: // label
       case symbol_kind::S_varlist: // varlist
       case symbol_kind::S_var: // var
+      case symbol_kind::S_namelist: // namelist
       case symbol_kind::S_explist: // explist
       case symbol_kind::S_exp: // exp
       case symbol_kind::S_prefixexp: // prefixexp
@@ -2358,6 +2362,7 @@ switch (yykind)
       case symbol_kind::S_label: // label
       case symbol_kind::S_varlist: // varlist
       case symbol_kind::S_var: // var
+      case symbol_kind::S_namelist: // namelist
       case symbol_kind::S_explist: // explist
       case symbol_kind::S_exp: // exp
       case symbol_kind::S_prefixexp: // prefixexp
@@ -2436,7 +2441,7 @@ switch (yykind)
   }
 
 } // yy
-#line 2440 "parser.h"
+#line 2445 "parser.h"
 
 
 

@@ -27,6 +27,8 @@ enum syntax_tree_type {
     syntax_tree_type_if,
     syntax_tree_type_elseiflist,
     syntax_tree_type_for_loop,
+    syntax_tree_type_for_in,
+    syntax_tree_type_namelist,
 };
 
 // syntax tree location type
@@ -106,14 +108,17 @@ private:
 // label
 class syntax_tree_label : public syntax_tree_interface {
 public:
-    syntax_tree_label(const std::string &name, const syntax_tree_location &loc) : syntax_tree_interface(loc),
-                                                                                  name_(name) {}
+    syntax_tree_label(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
 
     virtual ~syntax_tree_label() {}
 
     virtual syntax_tree_type type() const override { return syntax_tree_type_label; }
 
     virtual std::string dump(int tab = 0) const override;
+
+    void set_name(const std::string &name) {
+        name_ = name;
+    }
 
 private:
     std::string name_;
@@ -122,14 +127,17 @@ private:
 // return
 class syntax_tree_return : public syntax_tree_interface {
 public:
-    syntax_tree_return(const syntax_tree_interface_ptr &explist, const syntax_tree_location &loc)
-            : syntax_tree_interface(loc), explist_(explist) {}
+    syntax_tree_return(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
 
     virtual ~syntax_tree_return() {}
 
     virtual syntax_tree_type type() const override { return syntax_tree_type_return; }
 
     virtual std::string dump(int tab = 0) const override;
+
+    void set_explist(const syntax_tree_interface_ptr &explist) {
+        explist_ = explist;
+    }
 
 private:
     syntax_tree_interface_ptr explist_;
@@ -138,15 +146,21 @@ private:
 // assign
 class syntax_tree_assign : public syntax_tree_interface {
 public:
-    syntax_tree_assign(const syntax_tree_interface_ptr &varlist, const syntax_tree_interface_ptr &explist,
-                       const syntax_tree_location &loc) : syntax_tree_interface(loc), varlist_(varlist),
-                                                          explist_(explist) {}
+    syntax_tree_assign(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
 
     virtual ~syntax_tree_assign() {}
 
     virtual syntax_tree_type type() const override { return syntax_tree_type_assign; }
 
     virtual std::string dump(int tab = 0) const override;
+
+    void set_varlist(const syntax_tree_interface_ptr &varlist) {
+        varlist_ = varlist;
+    }
+
+    void set_explist(const syntax_tree_interface_ptr &explist) {
+        explist_ = explist;
+    }
 
 private:
     syntax_tree_interface_ptr varlist_;
@@ -492,6 +506,54 @@ private:
     syntax_tree_interface_ptr exp_begin_;
     syntax_tree_interface_ptr exp_end_;
     syntax_tree_interface_ptr exp_step_;
+};
+
+// for in
+class syntax_tree_for_in : public syntax_tree_interface {
+public:
+    syntax_tree_for_in(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_for_in() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_for_in; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_namelist(const syntax_tree_interface_ptr &namelist) {
+        namelist_ = namelist;
+    }
+
+    void set_explist(const syntax_tree_interface_ptr &explist) {
+        explist_ = explist;
+    }
+
+    void set_block(const syntax_tree_interface_ptr &block) {
+        block_ = block;
+    }
+
+private:
+    syntax_tree_interface_ptr namelist_;
+    syntax_tree_interface_ptr explist_;
+    syntax_tree_interface_ptr block_;
+};
+
+// name list
+class syntax_tree_namelist : public syntax_tree_interface {
+public:
+    syntax_tree_namelist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_namelist() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_namelist; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void add_name(const std::string &name) {
+        names_.push_back(name);
+    }
+
+private:
+    std::vector<std::string> names_;
 };
 
 }

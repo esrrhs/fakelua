@@ -177,4 +177,22 @@ std::string syntax_tree_for_loop::dump(int tab) const {
     return str;
 }
 
+std::string syntax_tree_for_in::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(for_in)[" + loc_str() + "]\n";
+    str += namelist_->dump(tab + 1);
+    str += explist_->dump(tab + 1);
+    str += block_->dump(tab + 1);
+    return str;
+}
+
+std::string syntax_tree_namelist::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(namelist)[" + loc_str() + "]\n";
+    for (auto &name: names_) {
+        str += gen_tab(tab + 1) + "name: " + name + "\n";
+    }
+    return str;
+}
+
 }

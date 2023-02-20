@@ -122,6 +122,7 @@ int yyFlexLexer::yylex() { return -1; }
 %type <fakelua::syntax_tree_interface_ptr> fieldlist
 %type <fakelua::syntax_tree_interface_ptr> field
 %type <fakelua::syntax_tree_interface_ptr> elseifs
+%type <fakelua::syntax_tree_interface_ptr> namelist
 
 %printer { yyo << $$; } <*>;
 
@@ -199,7 +200,9 @@ stmt:
 			LOG(ERROR) << "[bison]: stmt: " << "explist is not a explist";
 			throw std::runtime_error("explist is not a explist");
 		}
-		auto assign = std::make_shared<fakelua::syntax_tree_assign>(varlist, explist, @2);
+		auto assign = std::make_shared<fakelua::syntax_tree_assign>(@2);
+		assign->set_varlist(varlist);
+		assign->set_explist(explist);
 		$$ = assign;
 	}
 	|
@@ -300,6 +303,26 @@ stmt:
   		for_loop_stmt->set_block($10);
   		$$ = for_loop_stmt;
   	}
+  	|
+  	FOR namelist IN explist DO block END
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "for namelist in explist do block end";
+  		auto for_in_stmt = std::make_shared<fakelua::syntax_tree_for_in>(@1);
+  		auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>($2);
+  		if (namelist == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "namelist is not a namelist";
+  			throw std::runtime_error("namelist is not a namelist");
+  		}
+  		auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>($4);
+  		if (explist == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "explist is not a explist";
+  			throw std::runtime_error("explist is not a explist");
+  		}
+  		for_in_stmt->set_namelist(namelist);
+  		for_in_stmt->set_explist(explist);
+  		for_in_stmt->set_block($6);
+  		$$ = for_in_stmt;
+  	}
   	;
 
 elseifs:
@@ -334,13 +357,17 @@ retstat:
 	RETURN
 	{
 		LOG(INFO) << "[bison]: retstat: " << "RETURN";
-		$$ = std::make_shared<fakelua::syntax_tree_return>(nullptr, @1);
+		auto ret = std::make_shared<fakelua::syntax_tree_return>(@1);
+		ret->set_explist(nullptr);
+		$$ = ret;
 	}
 	|
 	RETURN explist
 	{
 		LOG(INFO) << "[bison]: retstat: " << "RETURN explist";
-		$$ = std::make_shared<fakelua::syntax_tree_return>($2, @1);
+		auto ret = std::make_shared<fakelua::syntax_tree_return>(@1);
+		ret->set_explist($2);
+		$$ = ret;
 	}
 	;
 
@@ -348,7 +375,9 @@ label:
 	GOTO_TAG IDENTIFIER GOTO_TAG
 	{
 		LOG(INFO) << "[bison]: bison get label: " << $2 << " loc: " << @2;
-		$$ = std::make_shared<fakelua::syntax_tree_label>($2, @2);
+		auto ret = std::make_shared<fakelua::syntax_tree_label>(@2);
+		ret->set_name($2);
+		$$ = ret;
 	}
 	;
 
