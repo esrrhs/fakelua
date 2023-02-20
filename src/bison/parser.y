@@ -123,6 +123,10 @@ int yyFlexLexer::yylex() { return -1; }
 %type <fakelua::syntax_tree_interface_ptr> field
 %type <fakelua::syntax_tree_interface_ptr> elseifs
 %type <fakelua::syntax_tree_interface_ptr> namelist
+%type <fakelua::syntax_tree_interface_ptr> parlist
+%type <fakelua::syntax_tree_interface_ptr> funcbody
+%type <fakelua::syntax_tree_interface_ptr> funcname
+%type <fakelua::syntax_tree_interface_ptr> funcnamelist
 
 %printer { yyo << $$; } <*>;
 
@@ -323,6 +327,25 @@ stmt:
   		for_in_stmt->set_block($6);
   		$$ = for_in_stmt;
   	}
+  	|
+  	FUNCTION funcname funcbody
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "function funcname funcbody";
+  		auto func_stmt = std::make_shared<fakelua::syntax_tree_function>(@1);
+  		auto funcname = std::dynamic_pointer_cast<fakelua::syntax_tree_funcname>($2);
+  		if (funcname == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "funcname is not a funcname";
+  			throw std::runtime_error("funcname is not a funcname");
+  		}
+  		auto funcbody = std::dynamic_pointer_cast<fakelua::syntax_tree_funcbody>($3);
+  		if (funcbody == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "funcbody is not a funcbody";
+  			throw std::runtime_error("funcbody is not a funcbody");
+  		}
+  		func_stmt->set_funcname(funcname);
+  		func_stmt->set_funcbody(funcbody);
+  		$$ = func_stmt;
+  	}
   	;
 
 elseifs:
@@ -385,11 +408,21 @@ funcnamelist:
 	IDENTIFIER
 	{
 		LOG(INFO) << "[bison]: funcnamelist: " << "IDENTIFIER";
+		auto funcnamelist = std::make_shared<fakelua::syntax_tree_funcnamelist>(@1);
+		funcnamelist->add_name($1);
+		$$ = funcnamelist;
 	}
 	|
 	funcnamelist DOT IDENTIFIER
 	{
 		LOG(INFO) << "[bison]: funcnamelist: " << "funcnamelist DOT IDENTIFIER";
+		auto funcnamelist = std::dynamic_pointer_cast<fakelua::syntax_tree_funcnamelist>($1);
+		if (funcnamelist == nullptr) {
+			LOG(ERROR) << "[bison]: funcnamelist: " << "funcnamelist is not a funcnamelist";
+			throw std::runtime_error("funcnamelist is not a funcnamelist");
+		}
+		funcnamelist->add_name($3);
+		$$ = funcnamelist;
 	}
 	;
 
@@ -397,11 +430,28 @@ funcname:
 	funcnamelist
 	{
 		LOG(INFO) << "[bison]: funcname: " << "funcnamelist";
+		auto funcname = std::make_shared<fakelua::syntax_tree_funcname>(@1);
+		auto funcnamelist = std::dynamic_pointer_cast<fakelua::syntax_tree_funcnamelist>($1);
+		if (funcnamelist == nullptr) {
+			LOG(ERROR) << "[bison]: funcname: " << "funcnamelist is not a funcnamelist";
+			throw std::runtime_error("funcnamelist is not a funcnamelist");
+		}
+		funcname->set_funcnamelist(funcnamelist);
+		$$ = funcname;
 	}
 	|
 	funcnamelist COLON IDENTIFIER
 	{
 		LOG(INFO) << "[bison]: funcname: " << "funcnamelist COLON IDENTIFIER";
+		auto funcname = std::make_shared<fakelua::syntax_tree_funcname>(@1);
+		auto funcnamelist = std::dynamic_pointer_cast<fakelua::syntax_tree_funcnamelist>($1);
+		if (funcnamelist == nullptr) {
+			LOG(ERROR) << "[bison]: funcname: " << "funcnamelist is not a funcnamelist";
+			throw std::runtime_error("funcnamelist is not a funcnamelist");
+		}
+		funcname->set_funcnamelist(funcnamelist);
+		funcname->set_colon_name($3);
+		$$ = funcname;
 	}
 	;
 
@@ -650,11 +700,33 @@ funcbody:
 	LPAREN parlist RPAREN block END
 	{
 		LOG(INFO) << "[bison]: funcbody: " << "LPAREN parlist RPAREN block END";
+		auto parlist = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($2);
+		if (parlist == nullptr) {
+			LOG(ERROR) << "[bison]: funcbody: " << "parlist is not a parlist";
+			throw std::runtime_error("parlist is not a parlist");
+		}
+		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($4);
+		if (block == nullptr) {
+			LOG(ERROR) << "[bison]: funcbody: " << "block is not a block";
+			throw std::runtime_error("block is not a block");
+		}
+		auto funcbody = std::make_shared<fakelua::syntax_tree_funcbody>(@1);
+		funcbody->set_parlist(parlist);
+		funcbody->set_block(block);
+		$$ = funcbody;
 	}
 	|
 	LPAREN RPAREN block END
 	{
 		LOG(INFO) << "[bison]: funcbody: " << "LPAREN RPAREN block END";
+		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($3);
+		if (block == nullptr) {
+			LOG(ERROR) << "[bison]: funcbody: " << "block is not a block";
+			throw std::runtime_error("block is not a block");
+		}
+		auto funcbody = std::make_shared<fakelua::syntax_tree_funcbody>(@1);
+		funcbody->set_block(block);
+		$$ = funcbody;
 	}
 	;
 
@@ -662,16 +734,36 @@ parlist:
 	namelist
 	{
 		LOG(INFO) << "[bison]: parlist: " << "namelist";
+		auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
+		if (namelist == nullptr) {
+			LOG(ERROR) << "[bison]: parlist: " << "namelist is not a namelist";
+			throw std::runtime_error("namelist is not a namelist");
+		}
+		auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(@1);
+		parlist->set_namelist(namelist);
+		$$ = parlist;
 	}
 	|
 	namelist COMMA VAR_PARAMS
 	{
 		LOG(INFO) << "[bison]: parlist: " << "namelist COMMA VAR_PARAMS";
+		auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
+		if (namelist == nullptr) {
+			LOG(ERROR) << "[bison]: parlist: " << "namelist is not a namelist";
+			throw std::runtime_error("namelist is not a namelist");
+		}
+		auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(@1);
+		parlist->set_namelist(namelist);
+		parlist->set_var_params(true);
+		$$ = parlist;
 	}
 	|
 	VAR_PARAMS
 	{
 		LOG(INFO) << "[bison]: parlist: " << "VAR_PARAMS";
+		auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(@1);
+		parlist->set_var_params(true);
+		$$ = parlist;
 	}
 	;
 

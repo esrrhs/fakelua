@@ -195,4 +195,51 @@ std::string syntax_tree_namelist::dump(int tab) const {
     return str;
 }
 
+std::string syntax_tree_function::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(function)[" + loc_str() + "]\n";
+    str += funcname_->dump(tab + 1);
+    str += funcbody_->dump(tab + 1);
+    return str;
+}
+
+std::string syntax_tree_funcnamelist::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(funcnamelist)[" + loc_str() + "]\n";
+    for (auto &name: funcnames_) {
+        str += gen_tab(tab + 1) + "name: " + name + "\n";
+    }
+    return str;
+}
+
+std::string syntax_tree_funcname::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(funcname)[" + loc_str() + "]\n";
+    str += funcnamelist_->dump(tab + 1);
+    str += gen_tab(tab + 1) + "colon_name: " + colon_name_ + "\n";
+    return str;
+}
+
+std::string syntax_tree_funcbody::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(funcbody)[" + loc_str() + "]\n";
+    if (parlist_) {
+        str += parlist_->dump(tab + 1);
+    }
+    str += block_->dump(tab + 1);
+    return str;
+}
+
+std::string syntax_tree_parlist::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(parlist)[" + loc_str() + "]\n";
+    if (namelist_) {
+        str += namelist_->dump(tab + 1);
+    }
+    if (var_params_) {
+        str += gen_tab(tab + 1) + "var_params: " + std::to_string(var_params_) + "\n";
+    }
+    return str;
+}
+
 }

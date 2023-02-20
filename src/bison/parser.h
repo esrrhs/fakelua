@@ -426,6 +426,8 @@ namespace yy {
       // elseifs
       // retstat
       // label
+      // funcnamelist
+      // funcname
       // varlist
       // var
       // namelist
@@ -434,6 +436,8 @@ namespace yy {
       // prefixexp
       // functioncall
       // args
+      // funcbody
+      // parlist
       // tableconstructor
       // fieldlist
       // field
@@ -637,23 +641,25 @@ namespace yy {
         S_elseifs = 65,                          // elseifs
         S_retstat = 66,                          // retstat
         S_label = 67,                            // label
-        S_varlist = 68,                          // varlist
-        S_var = 69,                              // var
-        S_namelist = 70,                         // namelist
-        S_explist = 71,                          // explist
-        S_exp = 72,                              // exp
-        S_prefixexp = 73,                        // prefixexp
-        S_functioncall = 74,                     // functioncall
-        S_args = 75,                             // args
-        S_functiondef = 76,                      // functiondef
-        S_funcbody = 77,                         // funcbody
-        S_parlist = 78,                          // parlist
-        S_tableconstructor = 79,                 // tableconstructor
-        S_fieldlist = 80,                        // fieldlist
-        S_field = 81,                            // field
-        S_fieldsep = 82,                         // fieldsep
-        S_binop = 83,                            // binop
-        S_unop = 84                              // unop
+        S_funcnamelist = 68,                     // funcnamelist
+        S_funcname = 69,                         // funcname
+        S_varlist = 70,                          // varlist
+        S_var = 71,                              // var
+        S_namelist = 72,                         // namelist
+        S_explist = 73,                          // explist
+        S_exp = 74,                              // exp
+        S_prefixexp = 75,                        // prefixexp
+        S_functioncall = 76,                     // functioncall
+        S_args = 77,                             // args
+        S_functiondef = 78,                      // functiondef
+        S_funcbody = 79,                         // funcbody
+        S_parlist = 80,                          // parlist
+        S_tableconstructor = 81,                 // tableconstructor
+        S_fieldlist = 82,                        // fieldlist
+        S_field = 83,                            // field
+        S_fieldsep = 84,                         // fieldsep
+        S_binop = 85,                            // binop
+        S_unop = 86                              // unop
       };
     };
 
@@ -700,6 +706,8 @@ namespace yy {
       case symbol_kind::S_elseifs: // elseifs
       case symbol_kind::S_retstat: // retstat
       case symbol_kind::S_label: // label
+      case symbol_kind::S_funcnamelist: // funcnamelist
+      case symbol_kind::S_funcname: // funcname
       case symbol_kind::S_varlist: // varlist
       case symbol_kind::S_var: // var
       case symbol_kind::S_namelist: // namelist
@@ -708,6 +716,8 @@ namespace yy {
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
       case symbol_kind::S_args: // args
+      case symbol_kind::S_funcbody: // funcbody
+      case symbol_kind::S_parlist: // parlist
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
@@ -816,6 +826,8 @@ switch (yykind)
       case symbol_kind::S_elseifs: // elseifs
       case symbol_kind::S_retstat: // retstat
       case symbol_kind::S_label: // label
+      case symbol_kind::S_funcnamelist: // funcnamelist
+      case symbol_kind::S_funcname: // funcname
       case symbol_kind::S_varlist: // varlist
       case symbol_kind::S_var: // var
       case symbol_kind::S_namelist: // namelist
@@ -824,6 +836,8 @@ switch (yykind)
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
       case symbol_kind::S_args: // args
+      case symbol_kind::S_funcbody: // funcbody
+      case symbol_kind::S_parlist: // parlist
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
@@ -2004,7 +2018,7 @@ switch (yykind)
     static const signed char yydefact_[];
 
     // YYPGOTO[NTERM-NUM].
-    static const short yypgoto_[];
+    static const signed char yypgoto_[];
 
     // YYDEFGOTO[NTERM-NUM].
     static const unsigned char yydefgoto_[];
@@ -2265,9 +2279,9 @@ switch (yykind)
     /// Constants.
     enum
     {
-      yylast_ = 1338,     ///< Last index in yytable_.
-      yynnts_ = 24,  ///< Number of nonterminal symbols.
-      yyfinal_ = 50 ///< Termination state number.
+      yylast_ = 1270,     ///< Last index in yytable_.
+      yynnts_ = 26,  ///< Number of nonterminal symbols.
+      yyfinal_ = 54 ///< Termination state number.
     };
 
 
@@ -2302,6 +2316,8 @@ switch (yykind)
       case symbol_kind::S_elseifs: // elseifs
       case symbol_kind::S_retstat: // retstat
       case symbol_kind::S_label: // label
+      case symbol_kind::S_funcnamelist: // funcnamelist
+      case symbol_kind::S_funcname: // funcname
       case symbol_kind::S_varlist: // varlist
       case symbol_kind::S_var: // var
       case symbol_kind::S_namelist: // namelist
@@ -2310,6 +2326,8 @@ switch (yykind)
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
       case symbol_kind::S_args: // args
+      case symbol_kind::S_funcbody: // funcbody
+      case symbol_kind::S_parlist: // parlist
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
@@ -2360,6 +2378,8 @@ switch (yykind)
       case symbol_kind::S_elseifs: // elseifs
       case symbol_kind::S_retstat: // retstat
       case symbol_kind::S_label: // label
+      case symbol_kind::S_funcnamelist: // funcnamelist
+      case symbol_kind::S_funcname: // funcname
       case symbol_kind::S_varlist: // varlist
       case symbol_kind::S_var: // var
       case symbol_kind::S_namelist: // namelist
@@ -2368,6 +2388,8 @@ switch (yykind)
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
       case symbol_kind::S_args: // args
+      case symbol_kind::S_funcbody: // funcbody
+      case symbol_kind::S_parlist: // parlist
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
@@ -2441,7 +2463,7 @@ switch (yykind)
   }
 
 } // yy
-#line 2445 "parser.h"
+#line 2467 "parser.h"
 
 
 

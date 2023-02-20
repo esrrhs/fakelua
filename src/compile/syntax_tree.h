@@ -29,6 +29,11 @@ enum syntax_tree_type {
     syntax_tree_type_for_loop,
     syntax_tree_type_for_in,
     syntax_tree_type_namelist,
+    syntax_tree_type_function,
+    syntax_tree_type_funcnamelist,
+    syntax_tree_type_funcname,
+    syntax_tree_type_funcbody,
+    syntax_tree_type_parlist,
 };
 
 // syntax tree location type
@@ -554,6 +559,121 @@ public:
 
 private:
     std::vector<std::string> names_;
+};
+
+// function
+class syntax_tree_function : public syntax_tree_interface {
+public:
+    syntax_tree_function(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_function() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_function; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_funcname(const syntax_tree_interface_ptr &funcname) {
+        funcname_ = funcname;
+    }
+
+    void set_funcbody(const syntax_tree_interface_ptr &funcbody) {
+        funcbody_ = funcbody;
+    }
+
+private:
+    syntax_tree_interface_ptr funcname_;
+    syntax_tree_interface_ptr funcbody_;
+};
+
+// funcnamelist
+class syntax_tree_funcnamelist : public syntax_tree_interface {
+public:
+    syntax_tree_funcnamelist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_funcnamelist() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_funcnamelist; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void add_name(const std::string &funcname) {
+        funcnames_.push_back(funcname);
+    }
+
+private:
+    std::vector<std::string> funcnames_;
+};
+
+// funcname
+class syntax_tree_funcname : public syntax_tree_interface {
+public:
+    syntax_tree_funcname(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_funcname() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_funcname; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_funcnamelist(const syntax_tree_interface_ptr &funcnamelist) {
+        funcnamelist_ = funcnamelist;
+    }
+
+    void set_colon_name(const std::string &name) {
+        colon_name_ = name;
+    }
+
+private:
+    syntax_tree_interface_ptr funcnamelist_;
+    std::string colon_name_;
+};
+
+// funcbody
+class syntax_tree_funcbody : public syntax_tree_interface {
+public:
+    syntax_tree_funcbody(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_funcbody() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_funcbody; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_parlist(const syntax_tree_interface_ptr &parlist) {
+        parlist_ = parlist;
+    }
+
+    void set_block(const syntax_tree_interface_ptr &block) {
+        block_ = block;
+    }
+
+private:
+    syntax_tree_interface_ptr parlist_;
+    syntax_tree_interface_ptr block_;
+};
+
+// parlist
+class syntax_tree_parlist : public syntax_tree_interface {
+public:
+    syntax_tree_parlist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_parlist() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_parlist; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_namelist(const syntax_tree_interface_ptr &namelist) {
+        namelist_ = namelist;
+    }
+
+    void set_var_params(bool var_params) {
+        var_params_ = var_params;
+    }
+
+private:
+    syntax_tree_interface_ptr namelist_;
+    bool var_params_ = false;
 };
 
 }
