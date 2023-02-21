@@ -242,4 +242,12 @@ std::string syntax_tree_parlist::dump(int tab) const {
     return str;
 }
 
+std::string syntax_tree_local_function::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(local_function)[" + loc_str() + "]\n";
+    str += gen_tab(tab + 1) + "name: " + name_ + "\n";
+    str += funcbody_->dump(tab + 1);
+    return str;
+}
+
 }

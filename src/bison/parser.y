@@ -346,6 +346,20 @@ stmt:
   		func_stmt->set_funcbody(funcbody);
   		$$ = func_stmt;
   	}
+  	|
+  	LOCAL FUNCTION IDENTIFIER funcbody
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "local function NAME funcbody";
+  		auto local_func_stmt = std::make_shared<fakelua::syntax_tree_local_function>(@1);
+  		local_func_stmt->set_name($3);
+  		auto funcbody = std::dynamic_pointer_cast<fakelua::syntax_tree_funcbody>($4);
+  		if (funcbody == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "funcbody is not a funcbody";
+  			throw std::runtime_error("funcbody is not a funcbody");
+  		}
+  		local_func_stmt->set_funcbody(funcbody);
+  		$$ = local_func_stmt;
+  	}
   	;
 
 elseifs:

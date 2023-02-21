@@ -34,6 +34,7 @@ enum syntax_tree_type {
     syntax_tree_type_funcname,
     syntax_tree_type_funcbody,
     syntax_tree_type_parlist,
+    syntax_tree_type_local_function,
 };
 
 // syntax tree location type
@@ -674,6 +675,30 @@ public:
 private:
     syntax_tree_interface_ptr namelist_;
     bool var_params_ = false;
+};
+
+// local function
+class syntax_tree_local_function : public syntax_tree_interface {
+public:
+    syntax_tree_local_function(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_local_function() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_local_function; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_name(const std::string &name) {
+        name_ = name;
+    }
+
+    void set_funcbody(const syntax_tree_interface_ptr &funcbody) {
+        funcbody_ = funcbody;
+    }
+
+private:
+    std::string name_;
+    syntax_tree_interface_ptr funcbody_;
 };
 
 }
