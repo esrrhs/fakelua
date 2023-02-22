@@ -360,6 +360,38 @@ stmt:
   		local_func_stmt->set_funcbody(funcbody);
   		$$ = local_func_stmt;
   	}
+  	|
+  	LOCAL namelist
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "local namelist";
+  		auto local_stmt = std::make_shared<fakelua::syntax_tree_local_var>(@1);
+  		auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>($2);
+  		if (namelist == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "namelist is not a namelist";
+  			throw std::runtime_error("namelist is not a namelist");
+  		}
+  		local_stmt->set_namelist(namelist);
+  		$$ = local_stmt;
+  	}
+  	|
+  	LOCAL namelist ASSIGN explist
+  	{
+  		LOG(INFO) << "[bison]: stmt: " << "local namelist assign explist";
+  		auto local_stmt = std::make_shared<fakelua::syntax_tree_local_var>(@1);
+  		auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>($2);
+  		if (namelist == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "namelist is not a namelist";
+  			throw std::runtime_error("namelist is not a namelist");
+  		}
+  		auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>($4);
+  		if (explist == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "explist is not a explist";
+  			throw std::runtime_error("explist is not a explist");
+  		}
+  		local_stmt->set_namelist(namelist);
+  		local_stmt->set_explist(explist);
+  		$$ = local_stmt;
+  	}
   	;
 
 elseifs:
@@ -541,11 +573,21 @@ namelist:
 	IDENTIFIER
 	{
 		LOG(INFO) << "[bison]: namelist: " << "IDENTIFIER";
+		auto namelist = std::make_shared<fakelua::syntax_tree_namelist>(@1);
+		namelist->add_name($1);
+		$$ = namelist;
 	}
 	|
 	namelist COMMA IDENTIFIER
 	{
 		LOG(INFO) << "[bison]: namelist: " << "namelist COMMA IDENTIFIER";
+		auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>($1);
+		if (namelist == nullptr) {
+			LOG(ERROR) << "[bison]: namelist: " << "namelist is not a namelist";
+			throw std::runtime_error("namelist is not a namelist");
+		}
+		namelist->add_name($3);
+		$$ = namelist;
 	}
 	;
 
@@ -748,7 +790,7 @@ parlist:
 	namelist
 	{
 		LOG(INFO) << "[bison]: parlist: " << "namelist";
-		auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
+		auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>($1);
 		if (namelist == nullptr) {
 			LOG(ERROR) << "[bison]: parlist: " << "namelist is not a namelist";
 			throw std::runtime_error("namelist is not a namelist");
@@ -761,7 +803,7 @@ parlist:
 	namelist COMMA VAR_PARAMS
 	{
 		LOG(INFO) << "[bison]: parlist: " << "namelist COMMA VAR_PARAMS";
-		auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
+		auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>($1);
 		if (namelist == nullptr) {
 			LOG(ERROR) << "[bison]: parlist: " << "namelist is not a namelist";
 			throw std::runtime_error("namelist is not a namelist");

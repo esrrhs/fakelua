@@ -250,4 +250,14 @@ std::string syntax_tree_local_function::dump(int tab) const {
     return str;
 }
 
+std::string syntax_tree_local_var::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(local_var)[" + loc_str() + "]\n";
+    str += namelist_->dump(tab + 1);
+    if (explist_) {
+        str += explist_->dump(tab + 1);
+    }
+    return str;
+}
+
 }
