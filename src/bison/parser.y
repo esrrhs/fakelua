@@ -595,11 +595,21 @@ explist:
 	exp
 	{
 		LOG(INFO) << "[bison]: explist: " << "exp";
+		auto explist = std::make_shared<fakelua::syntax_tree_explist>(@1);
+		explist->add_exp($1);
+		$$ = explist;
 	}
 	|
 	explist COMMA exp
 	{
 		LOG(INFO) << "[bison]: explist: " << "explist COMMA exp";
+		auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>($1);
+		if (explist == nullptr) {
+			LOG(ERROR) << "[bison]: explist: " << "explist is not a explist";
+			throw std::runtime_error("explist is not a explist");
+		}
+		explist->add_exp($3);
+		$$ = explist;
 	}
 	;
 
