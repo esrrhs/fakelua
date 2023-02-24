@@ -260,4 +260,21 @@ std::string syntax_tree_local_var::dump(int tab) const {
     return str;
 }
 
+std::string syntax_tree_exp::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(exp)[" + loc_str() + "]\n";
+    str += gen_tab(tab + 1) + "type: " + type_ + "\n";
+    str += gen_tab(tab + 1) + "value: " + value_ + "\n";
+    if (left_) {
+        str += left_->dump(tab + 1);
+    }
+    if (op_) {
+        str += op_->dump(tab + 1);
+    }
+    if (right_) {
+        str += right_->dump(tab + 1);
+    }
+    return str;
+}
+
 }

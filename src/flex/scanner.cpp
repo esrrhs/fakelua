@@ -1213,7 +1213,7 @@ return yy::parser::make_DOUBLE_SLASH(loc);
 case 59:
 YY_RULE_SETUP
 #line 113 "scanner.l"
-return yy::parser::make_NUMBER(0, loc);
+return yy::parser::make_NUMBER(yytext, loc);
 	YY_BREAK
 case 60:
 YY_RULE_SETUP

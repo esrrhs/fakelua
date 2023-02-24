@@ -417,9 +417,6 @@ namespace yy {
     /// An auxiliary type to compute the largest semantic type.
     union union_type
     {
-      // "number"
-      char dummy1[sizeof (double)];
-
       // chunk
       // block
       // stmt
@@ -436,16 +433,20 @@ namespace yy {
       // prefixexp
       // functioncall
       // args
+      // functiondef
       // funcbody
       // parlist
       // tableconstructor
       // fieldlist
       // field
-      char dummy2[sizeof (fakelua::syntax_tree_interface_ptr)];
+      // binop
+      // unop
+      char dummy1[sizeof (fakelua::syntax_tree_interface_ptr)];
 
       // "identifier"
       // "string"
-      char dummy3[sizeof (std::string)];
+      // "number"
+      char dummy2[sizeof (std::string)];
     };
 
     /// The size of the largest semantic type.
@@ -696,10 +697,6 @@ namespace yy {
       {
         switch (this->kind ())
     {
-      case symbol_kind::S_NUMBER: // "number"
-        value.move< double > (std::move (that.value));
-        break;
-
       case symbol_kind::S_chunk: // chunk
       case symbol_kind::S_block: // block
       case symbol_kind::S_stmt: // stmt
@@ -716,16 +713,20 @@ namespace yy {
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
       case symbol_kind::S_args: // args
+      case symbol_kind::S_functiondef: // functiondef
       case symbol_kind::S_funcbody: // funcbody
       case symbol_kind::S_parlist: // parlist
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
+      case symbol_kind::S_binop: // binop
+      case symbol_kind::S_unop: // unop
         value.move< fakelua::syntax_tree_interface_ptr > (std::move (that.value));
         break;
 
       case symbol_kind::S_IDENTIFIER: // "identifier"
       case symbol_kind::S_STRING: // "string"
+      case symbol_kind::S_NUMBER: // "number"
         value.move< std::string > (std::move (that.value));
         break;
 
@@ -748,20 +749,6 @@ namespace yy {
 #else
       basic_symbol (typename Base::kind_type t, const location_type& l)
         : Base (t)
-        , location (l)
-      {}
-#endif
-
-#if 201103L <= YY_CPLUSPLUS
-      basic_symbol (typename Base::kind_type t, double&& v, location_type&& l)
-        : Base (t)
-        , value (std::move (v))
-        , location (std::move (l))
-      {}
-#else
-      basic_symbol (typename Base::kind_type t, const double& v, const location_type& l)
-        : Base (t)
-        , value (v)
         , location (l)
       {}
 #endif
@@ -816,10 +803,6 @@ namespace yy {
         // Value type destructor.
 switch (yykind)
     {
-      case symbol_kind::S_NUMBER: // "number"
-        value.template destroy< double > ();
-        break;
-
       case symbol_kind::S_chunk: // chunk
       case symbol_kind::S_block: // block
       case symbol_kind::S_stmt: // stmt
@@ -836,16 +819,20 @@ switch (yykind)
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
       case symbol_kind::S_args: // args
+      case symbol_kind::S_functiondef: // functiondef
       case symbol_kind::S_funcbody: // funcbody
       case symbol_kind::S_parlist: // parlist
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
+      case symbol_kind::S_binop: // binop
+      case symbol_kind::S_unop: // unop
         value.template destroy< fakelua::syntax_tree_interface_ptr > ();
         break;
 
       case symbol_kind::S_IDENTIFIER: // "identifier"
       case symbol_kind::S_STRING: // "string"
+      case symbol_kind::S_NUMBER: // "number"
         value.template destroy< std::string > ();
         break;
 
@@ -949,18 +936,6 @@ switch (yykind)
 #endif
       }
 #if 201103L <= YY_CPLUSPLUS
-      symbol_type (int tok, double v, location_type l)
-        : super_type (token_type (tok), std::move (v), std::move (l))
-#else
-      symbol_type (int tok, const double& v, const location_type& l)
-        : super_type (token_type (tok), v, l)
-#endif
-      {
-#if !defined _MSC_VER || defined __clang__
-        YY_ASSERT (tok == token::TOK_NUMBER);
-#endif
-      }
-#if 201103L <= YY_CPLUSPLUS
       symbol_type (int tok, std::string v, location_type l)
         : super_type (token_type (tok), std::move (v), std::move (l))
 #else
@@ -969,7 +944,7 @@ switch (yykind)
 #endif
       {
 #if !defined _MSC_VER || defined __clang__
-        YY_ASSERT ((token::TOK_IDENTIFIER <= tok && tok <= token::TOK_STRING));
+        YY_ASSERT ((token::TOK_IDENTIFIER <= tok && tok <= token::TOK_NUMBER));
 #endif
       }
     };
@@ -1923,14 +1898,14 @@ switch (yykind)
 #if 201103L <= YY_CPLUSPLUS
       static
       symbol_type
-      make_NUMBER (double v, location_type l)
+      make_NUMBER (std::string v, location_type l)
       {
         return symbol_type (token::TOK_NUMBER, std::move (v), std::move (l));
       }
 #else
       static
       symbol_type
-      make_NUMBER (const double& v, const location_type& l)
+      make_NUMBER (const std::string& v, const location_type& l)
       {
         return symbol_type (token::TOK_NUMBER, v, l);
       }
@@ -2306,10 +2281,6 @@ switch (yykind)
   {
     switch (this->kind ())
     {
-      case symbol_kind::S_NUMBER: // "number"
-        value.copy< double > (YY_MOVE (that.value));
-        break;
-
       case symbol_kind::S_chunk: // chunk
       case symbol_kind::S_block: // block
       case symbol_kind::S_stmt: // stmt
@@ -2326,16 +2297,20 @@ switch (yykind)
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
       case symbol_kind::S_args: // args
+      case symbol_kind::S_functiondef: // functiondef
       case symbol_kind::S_funcbody: // funcbody
       case symbol_kind::S_parlist: // parlist
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
+      case symbol_kind::S_binop: // binop
+      case symbol_kind::S_unop: // unop
         value.copy< fakelua::syntax_tree_interface_ptr > (YY_MOVE (that.value));
         break;
 
       case symbol_kind::S_IDENTIFIER: // "identifier"
       case symbol_kind::S_STRING: // "string"
+      case symbol_kind::S_NUMBER: // "number"
         value.copy< std::string > (YY_MOVE (that.value));
         break;
 
@@ -2368,10 +2343,6 @@ switch (yykind)
     super_type::move (s);
     switch (this->kind ())
     {
-      case symbol_kind::S_NUMBER: // "number"
-        value.move< double > (YY_MOVE (s.value));
-        break;
-
       case symbol_kind::S_chunk: // chunk
       case symbol_kind::S_block: // block
       case symbol_kind::S_stmt: // stmt
@@ -2388,16 +2359,20 @@ switch (yykind)
       case symbol_kind::S_prefixexp: // prefixexp
       case symbol_kind::S_functioncall: // functioncall
       case symbol_kind::S_args: // args
+      case symbol_kind::S_functiondef: // functiondef
       case symbol_kind::S_funcbody: // funcbody
       case symbol_kind::S_parlist: // parlist
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
+      case symbol_kind::S_binop: // binop
+      case symbol_kind::S_unop: // unop
         value.move< fakelua::syntax_tree_interface_ptr > (YY_MOVE (s.value));
         break;
 
       case symbol_kind::S_IDENTIFIER: // "identifier"
       case symbol_kind::S_STRING: // "string"
+      case symbol_kind::S_NUMBER: // "number"
         value.move< std::string > (YY_MOVE (s.value));
         break;
 
@@ -2463,7 +2438,7 @@ switch (yykind)
   }
 
 } // yy
-#line 2467 "parser.h"
+#line 2442 "parser.h"
 
 
 

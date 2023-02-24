@@ -268,7 +268,7 @@
   <li><b>"#"</b> (312) <a href="#rule_100">100</a></li>
   <li><b>"identifier"</b> &lt;std::string&gt; (313) <a href="#rule_10">10</a> <a href="#rule_16">16</a> <a href="#rule_17">17</a> <a href="#rule_20">20</a> <a href="#rule_28">28</a> <a href="#rule_29">29</a> <a href="#rule_30">30</a> <a href="#rule_32">32</a> <a href="#rule_35">35</a> <a href="#rule_37">37</a> <a href="#rule_38">38</a> <a href="#rule_39">39</a> <a href="#rule_57">57</a> <a href="#rule_73">73</a></li>
   <li><b>"string"</b> &lt;std::string&gt; (314) <a href="#rule_46">46</a> <a href="#rule_61">61</a></li>
-  <li><b>"number"</b> &lt;double&gt; (315) <a href="#rule_45">45</a></li>
+  <li><b>"number"</b> &lt;std::string&gt; (315) <a href="#rule_45">45</a></li>
 </ul>
 
 <h3><a name="nonterminals" id="nonterminals"></a> Nonterminals, with rules where they appear</h3>
@@ -375,7 +375,7 @@
       <li>on right: <a href="#rule_56">56</a> <a href="#rule_57">57</a></li>
     </ul>
   </li>
-  <li><b>functiondef</b> (78)
+  <li><b>functiondef</b> &lt;fakelua::syntax_tree_interface_ptr&gt; (78)
     <ul>
       <li>on left: <a href="#rule_62">62</a></li>
       <li>on right: <a href="#rule_48">48</a></li>
@@ -417,13 +417,13 @@
       <li>on right: <a href="#rule_71">71</a></li>
     </ul>
   </li>
-  <li><b>binop</b> (85)
+  <li><b>binop</b> &lt;fakelua::syntax_tree_interface_ptr&gt; (85)
     <ul>
       <li>on left: <a href="#rule_77">77</a> <a href="#rule_78">78</a> <a href="#rule_79">79</a> <a href="#rule_80">80</a> <a href="#rule_81">81</a> <a href="#rule_82">82</a> <a href="#rule_83">83</a> <a href="#rule_84">84</a> <a href="#rule_85">85</a> <a href="#rule_86">86</a> <a href="#rule_87">87</a> <a href="#rule_88">88</a> <a href="#rule_89">89</a> <a href="#rule_90">90</a> <a href="#rule_91">91</a> <a href="#rule_92">92</a> <a href="#rule_93">93</a> <a href="#rule_94">94</a> <a href="#rule_95">95</a> <a href="#rule_96">96</a> <a href="#rule_97">97</a></li>
       <li>on right: <a href="#rule_51">51</a></li>
     </ul>
   </li>
-  <li><b>unop</b> (86)
+  <li><b>unop</b> &lt;fakelua::syntax_tree_interface_ptr&gt; (86)
     <ul>
       <li>on left: <a href="#rule_98">98</a> <a href="#rule_99">99</a> <a href="#rule_100">100</a> <a href="#rule_101">101</a></li>
       <li>on right: <a href="#rule_52">52</a></li>

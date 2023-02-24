@@ -104,7 +104,7 @@ int yyFlexLexer::yylex() { return -1; }
 
 %token <std::string> IDENTIFIER "identifier"
 %token <std::string> STRING "string"
-%token <double> NUMBER "number"
+%token <std::string> NUMBER "number"
 
 %type <fakelua::syntax_tree_interface_ptr> label
 %type <fakelua::syntax_tree_interface_ptr> stmt
@@ -127,6 +127,9 @@ int yyFlexLexer::yylex() { return -1; }
 %type <fakelua::syntax_tree_interface_ptr> funcbody
 %type <fakelua::syntax_tree_interface_ptr> funcname
 %type <fakelua::syntax_tree_interface_ptr> funcnamelist
+%type <fakelua::syntax_tree_interface_ptr> functiondef
+%type <fakelua::syntax_tree_interface_ptr> binop
+%type <fakelua::syntax_tree_interface_ptr> unop
 
 %printer { yyo << $$; } <*>;
 
@@ -617,56 +620,99 @@ exp:
 	NIL
 	{
 		LOG(INFO) << "[bison]: exp: " << "NIL";
+		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+		exp->set_type("nil");
+		$$ = exp;
 	}
 	|
 	TRUE
 	{
 		LOG(INFO) << "[bison]: exp: " << "TRUE";
+		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+		exp->set_type("true");
+		$$ = exp;
 	}
 	|
 	FALSE
 	{
 		LOG(INFO) << "[bison]: exp: " << "FALSE";
+		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+		exp->set_type("false");
+		$$ = exp;
 	}
 	|
 	NUMBER
 	{
 		LOG(INFO) << "[bison]: exp: " << "NUMBER";
+		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+		exp->set_type("number");
+		exp->set_value($1);
+		$$ = exp;
 	}
 	|
 	STRING
 	{
 		LOG(INFO) << "[bison]: exp: " << "STRING";
+		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+		exp->set_type("string");
+		exp->set_value($1);
+		$$ = exp;
 	}
 	|
 	VAR_PARAMS
 	{
 		LOG(INFO) << "[bison]: exp: " << "VAR_PARAMS";
+		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+		exp->set_type("var_params");
+		$$ = exp;
 	}
 	|
 	functiondef
 	{
 		LOG(INFO) << "[bison]: exp: " << "functiondef";
+		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+		exp->set_type("functiondef");
+		exp->set_left($1);
+		$$ = exp;
 	}
 	|
 	prefixexp
 	{
 		LOG(INFO) << "[bison]: exp: " << "prefixexp";
+		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+		exp->set_type("prefixexp");
+		exp->set_left($1);
+		$$ = exp;
 	}
 	|
 	tableconstructor
 	{
 		LOG(INFO) << "[bison]: exp: " << "tableconstructor";
+		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+		exp->set_type("tableconstructor");
+		exp->set_left($1);
+		$$ = exp;
 	}
 	|
 	exp binop exp
 	{
 		LOG(INFO) << "[bison]: exp: " << "exp binop exp";
+		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+		exp->set_type("binop");
+		exp->set_left($1);
+		exp->set_right($3);
+		exp->set_op($2);
+		$$ = exp;
 	}
 	|
 	unop exp
 	{
 		LOG(INFO) << "[bison]: exp: " << "unop exp";
+		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+		exp->set_type("unop");
+		exp->set_left($2);
+		exp->set_op($1);
+		$$ = exp;
 	}
 	;
 

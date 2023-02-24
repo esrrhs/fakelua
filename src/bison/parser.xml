@@ -796,7 +796,7 @@
       <terminal symbol-number="57" token-number="312" name="&quot;#&quot;" type="" usefulness="useful"/>
       <terminal symbol-number="58" token-number="313" name="&quot;identifier&quot;" type="std::string" usefulness="useful"/>
       <terminal symbol-number="59" token-number="314" name="&quot;string&quot;" type="std::string" usefulness="useful"/>
-      <terminal symbol-number="60" token-number="315" name="&quot;number&quot;" type="double" usefulness="useful"/>
+      <terminal symbol-number="60" token-number="315" name="&quot;number&quot;" type="std::string" usefulness="useful"/>
     </terminals>
     <nonterminals>
       <nonterminal symbol-number="61" name="$accept" type="" usefulness="useful"/>
@@ -816,15 +816,15 @@
       <nonterminal symbol-number="75" name="prefixexp" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="76" name="functioncall" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="77" name="args" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
-      <nonterminal symbol-number="78" name="functiondef" type="" usefulness="useful"/>
+      <nonterminal symbol-number="78" name="functiondef" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="79" name="funcbody" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="80" name="parlist" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="81" name="tableconstructor" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="82" name="fieldlist" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="83" name="field" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
       <nonterminal symbol-number="84" name="fieldsep" type="" usefulness="useful"/>
-      <nonterminal symbol-number="85" name="binop" type="" usefulness="useful"/>
-      <nonterminal symbol-number="86" name="unop" type="" usefulness="useful"/>
+      <nonterminal symbol-number="85" name="binop" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
+      <nonterminal symbol-number="86" name="unop" type="fakelua::syntax_tree_interface_ptr" usefulness="useful"/>
     </nonterminals>
   </grammar>
 

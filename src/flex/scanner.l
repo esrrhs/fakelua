@@ -109,7 +109,7 @@ ws              loc.step ();
 "while"         return yy::parser::make_WHILE(loc);
 "//"            return yy::parser::make_DOUBLE_SLASH(loc);
 
-{number}        return yy::parser::make_NUMBER(0, loc);
+{number}        return yy::parser::make_NUMBER(yytext, loc);
 
 {name}          return yy::parser::make_IDENTIFIER(yytext, loc);
 
