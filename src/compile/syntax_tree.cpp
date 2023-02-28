@@ -101,15 +101,22 @@ std::string syntax_tree_fieldlist::dump(int tab) const {
     return str;
 }
 
-std::string syntax_tree_fieldassignment::dump(int tab) const {
+std::string syntax_tree_field::dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(fieldassignment)[" + loc_str() + "]\n";
-    if (name_.empty()) {
-        str += field_->dump(tab + 1);
-    } else {
+    str += gen_tab(tab) + "(field)[" + loc_str() + "]\n";
+    if (type_ == "array") {
+        str += gen_tab(tab + 1) + "type: array\n";
+        if (key_) {
+            str += key_->dump(tab + 1);
+        }
+        str += value_->dump(tab + 1);
+    } else if (type_ == "object") {
+        str += gen_tab(tab + 1) + "type: object\n";
         str += gen_tab(tab + 1) + "name: " + name_ + "\n";
+        str += value_->dump(tab + 1);
+    } else {
+        str += gen_tab(tab + 1) + "type: unknown\n";
     }
-    str += exp_->dump(tab + 1);
     return str;
 }
 
@@ -230,6 +237,13 @@ std::string syntax_tree_funcbody::dump(int tab) const {
     return str;
 }
 
+std::string syntax_tree_functiondef::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(functiondef)[" + loc_str() + "]\n";
+    str += funcbody_->dump(tab + 1);
+    return str;
+}
+
 std::string syntax_tree_parlist::dump(int tab) const {
     std::string str;
     str += gen_tab(tab) + "(parlist)[" + loc_str() + "]\n";
@@ -274,6 +288,45 @@ std::string syntax_tree_exp::dump(int tab) const {
     if (right_) {
         str += right_->dump(tab + 1);
     }
+    return str;
+}
+
+std::string syntax_tree_binop::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(binop)[" + loc_str() + "]\n";
+    str += gen_tab(tab + 1) + "op: " + op_ + "\n";
+    return str;
+}
+
+std::string syntax_tree_unop::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(unop)[" + loc_str() + "]\n";
+    str += gen_tab(tab + 1) + "op: " + op_ + "\n";
+    return str;
+}
+
+std::string syntax_tree_args::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(args)[" + loc_str() + "]\n";
+    if (type_ == "explist") {
+        str += explist_->dump(tab + 1);
+    } else if (type_ == "tableconstructor") {
+        str += tableconstructor_->dump(tab + 1);
+    } else if (type_ == "string") {
+        str += gen_tab(tab + 1) + "string: " + string_ + "\n";
+    } else if (type_ == "empty") {
+        str += gen_tab(tab + 1) + "empty" + "\n";
+    } else {
+        str += gen_tab(tab + 1) + "unknown" + "\n";
+    }
+    return str;
+}
+
+std::string syntax_tree_prefixexp::dump(int tab) const {
+    std::string str;
+    str += gen_tab(tab) + "(prefixexp)[" + loc_str() + "]\n";
+    str += gen_tab(tab + 1) + "type: " + type_ + "\n";
+    str += value_->dump(tab + 1);
     return str;
 }
 

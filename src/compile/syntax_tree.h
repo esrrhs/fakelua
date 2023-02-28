@@ -19,7 +19,7 @@ enum syntax_tree_type {
     syntax_tree_type_functioncall,
     syntax_tree_type_tableconstructor,
     syntax_tree_type_fieldlist,
-    syntax_tree_type_fieldassignment,
+    syntax_tree_type_field,
     syntax_tree_type_break,
     syntax_tree_type_goto,
     syntax_tree_type_while,
@@ -33,10 +33,15 @@ enum syntax_tree_type {
     syntax_tree_type_funcnamelist,
     syntax_tree_type_funcname,
     syntax_tree_type_funcbody,
+    syntax_tree_type_functiondef,
     syntax_tree_type_parlist,
     syntax_tree_type_local_function,
     syntax_tree_type_local_var,
     syntax_tree_type_exp,
+    syntax_tree_type_binop,
+    syntax_tree_type_unop,
+    syntax_tree_type_args,
+    syntax_tree_type_prefixexp,
 };
 
 // syntax tree location type
@@ -315,32 +320,37 @@ private:
 };
 
 // field assignment
-class syntax_tree_fieldassignment : public syntax_tree_interface {
+class syntax_tree_field : public syntax_tree_interface {
 public:
-    syntax_tree_fieldassignment(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+    syntax_tree_field(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
 
-    virtual ~syntax_tree_fieldassignment() {}
+    virtual ~syntax_tree_field() {}
 
-    virtual syntax_tree_type type() const override { return syntax_tree_type_fieldassignment; }
+    virtual syntax_tree_type type() const override { return syntax_tree_type_field; }
 
     virtual std::string dump(int tab = 0) const override;
 
-    void set_field(const syntax_tree_interface_ptr &field) {
-        field_ = field;
+    void set_key(const syntax_tree_interface_ptr &key) {
+        key_ = key;
     }
 
-    void set_exp(const syntax_tree_interface_ptr &exp) {
-        exp_ = exp;
+    void set_value(const syntax_tree_interface_ptr &value) {
+        value_ = value;
     }
 
     void set_name(const std::string &name) {
         name_ = name;
     }
 
+    void set_type(const std::string &type) {
+        type_ = type;
+    }
+
 private:
-    syntax_tree_interface_ptr field_;
-    syntax_tree_interface_ptr exp_;
+    syntax_tree_interface_ptr key_;
+    syntax_tree_interface_ptr value_;
     std::string name_;
+    std::string type_;
 };
 
 // break
@@ -467,8 +477,11 @@ public:
 
     virtual std::string dump(int tab = 0) const override;
 
-    void add_elseif(const syntax_tree_interface_ptr &exp, const syntax_tree_interface_ptr &block) {
+    void add_elseif_expr(const syntax_tree_interface_ptr &exp) {
         exps_.push_back(exp);
+    }
+
+    void add_elseif_block(const syntax_tree_interface_ptr &block) {
         blocks_.push_back(block);
     }
 
@@ -655,6 +668,25 @@ private:
     syntax_tree_interface_ptr block_;
 };
 
+// functiondef
+class syntax_tree_functiondef : public syntax_tree_interface {
+public:
+    syntax_tree_functiondef(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_functiondef() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_functiondef; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_funcbody(const syntax_tree_interface_ptr &funcbody) {
+        funcbody_ = funcbody;
+    }
+
+private:
+    syntax_tree_interface_ptr funcbody_;
+};
+
 // parlist
 class syntax_tree_parlist : public syntax_tree_interface {
 public:
@@ -764,6 +796,102 @@ private:
     syntax_tree_interface_ptr left_;
     syntax_tree_interface_ptr op_;
     syntax_tree_interface_ptr right_;
+};
+
+// binop
+class syntax_tree_binop : public syntax_tree_interface {
+public:
+    syntax_tree_binop(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_binop() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_binop; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_op(const std::string &op) {
+        op_ = op;
+    }
+
+private:
+    std::string op_;
+};
+
+// unop
+class syntax_tree_unop : public syntax_tree_interface {
+public:
+    syntax_tree_unop(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_unop() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_unop; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_op(const std::string &op) {
+        op_ = op;
+    }
+
+private:
+    std::string op_;
+};
+
+// args
+class syntax_tree_args : public syntax_tree_interface {
+public:
+    syntax_tree_args(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_args() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_args; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_explist(const syntax_tree_interface_ptr &explist) {
+        explist_ = explist;
+    }
+
+    void set_tableconstructor(const syntax_tree_interface_ptr &tableconstructor) {
+        tableconstructor_ = tableconstructor;
+    }
+
+    void set_string(const std::string &string) {
+        string_ = string;
+    }
+
+    void set_type(const std::string &type) {
+        type_ = type;
+    }
+
+private:
+    syntax_tree_interface_ptr explist_;
+    syntax_tree_interface_ptr tableconstructor_;
+    std::string string_;
+    std::string type_;
+};
+
+// prefixexp
+class syntax_tree_prefixexp : public syntax_tree_interface {
+public:
+    syntax_tree_prefixexp(const syntax_tree_location &loc) : syntax_tree_interface(loc) {}
+
+    virtual ~syntax_tree_prefixexp() {}
+
+    virtual syntax_tree_type type() const override { return syntax_tree_type_prefixexp; }
+
+    virtual std::string dump(int tab = 0) const override;
+
+    void set_value(const syntax_tree_interface_ptr &value) {
+        value_ = value;
+    }
+
+    void set_type(const std::string &type) {
+        type_ = type;
+    }
+
+private:
+    syntax_tree_interface_ptr value_;
+    std::string type_;
 };
 
 }

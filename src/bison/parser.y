@@ -243,8 +243,18 @@ stmt:
   	{
   		LOG(INFO) << "[bison]: stmt: " << "while exp do block end";
   		auto while_stmt = std::make_shared<fakelua::syntax_tree_while>(@1);
-  		while_stmt->set_exp($2);
-  		while_stmt->set_block($4);
+  		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($2);
+  		if (exp == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "exp is not a exp";
+  			throw std::runtime_error("exp is not a exp");
+  		}
+  		while_stmt->set_exp(exp);
+  		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>($4);
+  		if (block == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "block is not a block";
+  			throw std::runtime_error("block is not a block");
+  		}
+  		while_stmt->set_block(block);
   		$$ = while_stmt;
   	}
   	|
@@ -252,8 +262,18 @@ stmt:
   	{
   		LOG(INFO) << "[bison]: stmt: " << "repeat block until exp";
   		auto repeat = std::make_shared<fakelua::syntax_tree_repeat>(@1);
-  		repeat->set_block($2);
-  		repeat->set_exp($4);
+  		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>($2);
+  		if (block == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "block is not a block";
+  			throw std::runtime_error("block is not a block");
+  		}
+  		repeat->set_block(block);
+  		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($4);
+  		if (exp == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "exp is not a exp";
+  			throw std::runtime_error("exp is not a exp");
+  		}
+  		repeat->set_exp(exp);
   		$$ = repeat;
   	}
   	|
@@ -261,15 +281,30 @@ stmt:
   	{
   		LOG(INFO) << "[bison]: stmt: " << "if exp then block elseifs else block end";
   		auto if_stmt = std::make_shared<fakelua::syntax_tree_if>(@1);
-  		if_stmt->set_exp($2);
-  		if_stmt->set_block($4);
+  		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($2);
+  		if (exp == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "exp is not a exp";
+  			throw std::runtime_error("exp is not a exp");
+  		}
+  		if_stmt->set_exp(exp);
+  		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>($4);
+  		if (block == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "block is not a block";
+  			throw std::runtime_error("block is not a block");
+  		}
+  		if_stmt->set_block(block);
   		auto elseifs = std::dynamic_pointer_cast<fakelua::syntax_tree_elseiflist>($5);
   		if (elseifs == nullptr) {
   			LOG(ERROR) << "[bison]: stmt: " << "elseiflist is not a elseiflist";
   			throw std::runtime_error("elseiflist is not a elseiflist");
   		}
   		if_stmt->set_elseiflist(elseifs);
-  		if_stmt->set_else_block($7);
+  		auto else_block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>($7);
+  		if (else_block == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "else_block is not a block";
+  			throw std::runtime_error("else_block is not a block");
+  		}
+  		if_stmt->set_else_block(else_block);
   		$$ = if_stmt;
   	}
   	|
@@ -277,8 +312,18 @@ stmt:
   	{
   		LOG(INFO) << "[bison]: stmt: " << "if exp then block elseifs end";
   		auto if_stmt = std::make_shared<fakelua::syntax_tree_if>(@1);
-  		if_stmt->set_exp($2);
-  		if_stmt->set_block($4);
+  		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($2);
+  		if (exp == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "exp is not a exp";
+  			throw std::runtime_error("exp is not a exp");
+  		}
+  		if_stmt->set_exp(exp);
+  		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>($4);
+  		if (block == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "block is not a block";
+  			throw std::runtime_error("block is not a block");
+  		}
+  		if_stmt->set_block(block);
   		auto elseifs = std::dynamic_pointer_cast<fakelua::syntax_tree_elseiflist>($5);
   		if (elseifs == nullptr) {
   			LOG(ERROR) << "[bison]: stmt: " << "elseiflist is not a elseiflist";
@@ -293,9 +338,24 @@ stmt:
   		LOG(INFO) << "[bison]: stmt: " << "for IDENTIFIER assign exp COMMA exp do block end";
   		auto for_loop_stmt = std::make_shared<fakelua::syntax_tree_for_loop>(@1);
   		for_loop_stmt->set_name($2);
-  		for_loop_stmt->set_exp_begin($4);
-  		for_loop_stmt->set_exp_end($6);
-  		for_loop_stmt->set_block($8);
+  		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($4);
+  		if (exp == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "exp is not a exp";
+  			throw std::runtime_error("exp is not a exp");
+  		}
+  		for_loop_stmt->set_exp_begin(exp);
+  		auto end_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($6);
+  		if (end_exp == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "end_exp is not a exp";
+  			throw std::runtime_error("end_exp is not a exp");
+  		}
+  		for_loop_stmt->set_exp_end(end_exp);
+  		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>($8);
+  		if (block == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "block is not a block";
+  			throw std::runtime_error("block is not a block");
+  		}
+  		for_loop_stmt->set_block(block);
   		$$ = for_loop_stmt;
   	}
   	|
@@ -304,10 +364,30 @@ stmt:
   		LOG(INFO) << "[bison]: stmt: " << "for IDENTIFIER assign exp COMMA exp COMMA exp do block end";
   		auto for_loop_stmt = std::make_shared<fakelua::syntax_tree_for_loop>(@1);
   		for_loop_stmt->set_name($2);
-  		for_loop_stmt->set_exp_begin($4);
-  		for_loop_stmt->set_exp_end($6);
-  		for_loop_stmt->set_exp_step($8);
-  		for_loop_stmt->set_block($10);
+  		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($4);
+  		if (exp == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "exp is not a exp";
+  			throw std::runtime_error("exp is not a exp");
+  		}
+  		for_loop_stmt->set_exp_begin(exp);
+  		auto end_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($6);
+  		if (end_exp == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "end_exp is not a exp";
+  			throw std::runtime_error("end_exp is not a exp");
+  		}
+  		for_loop_stmt->set_exp_end(end_exp);
+  		auto step_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($8);
+  		if (step_exp == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "step_exp is not a exp";
+  			throw std::runtime_error("step_exp is not a exp");
+  		}
+  		for_loop_stmt->set_exp_step(step_exp);
+  		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>($10);
+  		if (block == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "block is not a block";
+  			throw std::runtime_error("block is not a block");
+  		}
+  		for_loop_stmt->set_block(block);
   		$$ = for_loop_stmt;
   	}
   	|
@@ -320,14 +400,19 @@ stmt:
   			LOG(ERROR) << "[bison]: stmt: " << "namelist is not a namelist";
   			throw std::runtime_error("namelist is not a namelist");
   		}
+  		for_in_stmt->set_namelist(namelist);
   		auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>($4);
   		if (explist == nullptr) {
   			LOG(ERROR) << "[bison]: stmt: " << "explist is not a explist";
   			throw std::runtime_error("explist is not a explist");
   		}
-  		for_in_stmt->set_namelist(namelist);
   		for_in_stmt->set_explist(explist);
-  		for_in_stmt->set_block($6);
+  		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>($6);
+  		if (block == nullptr) {
+  			LOG(ERROR) << "[bison]: stmt: " << "block is not a block";
+  			throw std::runtime_error("block is not a block");
+  		}
+  		for_in_stmt->set_block(block);
   		$$ = for_in_stmt;
   	}
   	|
@@ -340,12 +425,12 @@ stmt:
   			LOG(ERROR) << "[bison]: stmt: " << "funcname is not a funcname";
   			throw std::runtime_error("funcname is not a funcname");
   		}
+  		func_stmt->set_funcname(funcname);
   		auto funcbody = std::dynamic_pointer_cast<fakelua::syntax_tree_funcbody>($3);
   		if (funcbody == nullptr) {
   			LOG(ERROR) << "[bison]: stmt: " << "funcbody is not a funcbody";
   			throw std::runtime_error("funcbody is not a funcbody");
   		}
-  		func_stmt->set_funcname(funcname);
   		func_stmt->set_funcbody(funcbody);
   		$$ = func_stmt;
   	}
@@ -386,12 +471,12 @@ stmt:
   			LOG(ERROR) << "[bison]: stmt: " << "namelist is not a namelist";
   			throw std::runtime_error("namelist is not a namelist");
   		}
+  		local_stmt->set_namelist(namelist);
   		auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>($4);
   		if (explist == nullptr) {
   			LOG(ERROR) << "[bison]: stmt: " << "explist is not a explist";
   			throw std::runtime_error("explist is not a explist");
   		}
-  		local_stmt->set_namelist(namelist);
   		local_stmt->set_explist(explist);
   		$$ = local_stmt;
   	}
@@ -408,7 +493,18 @@ elseifs:
 	{
 		LOG(INFO) << "[bison]: elseifs: " << "elseif exp then block";
 		auto elseifs = std::make_shared<fakelua::syntax_tree_elseiflist>(@1);
-		elseifs->add_elseif($2, $4);
+		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($2);
+		if (exp == nullptr) {
+			LOG(ERROR) << "[bison]: elseifs: " << "exp is not a exp";
+			throw std::runtime_error("exp is not a exp");
+		}
+		elseifs->add_elseif_expr(exp);
+		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>($4);
+		if (block == nullptr) {
+			LOG(ERROR) << "[bison]: elseifs: " << "block is not a block";
+			throw std::runtime_error("block is not a block");
+		}
+		elseifs->add_elseif_block(block);
 		$$ = elseifs;
 	}
 	|
@@ -420,7 +516,18 @@ elseifs:
 			LOG(ERROR) << "[bison]: elseifs: " << "elseifs is not a elseifs";
 			throw std::runtime_error("elseifs is not a elseifs");
 		}
-		elseifs->add_elseif($3, $5);
+		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+		if (exp == nullptr) {
+			LOG(ERROR) << "[bison]: elseifs: " << "exp is not a exp";
+			throw std::runtime_error("exp is not a exp");
+		}
+		elseifs->add_elseif_expr(exp);
+		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>($5);
+		if (block == nullptr) {
+			LOG(ERROR) << "[bison]: elseifs: " << "block is not a block";
+			throw std::runtime_error("block is not a block");
+		}
+		elseifs->add_elseif_block(block);
 		$$ = elseifs;
 	}
 	;
@@ -438,7 +545,12 @@ retstat:
 	{
 		LOG(INFO) << "[bison]: retstat: " << "RETURN explist";
 		auto ret = std::make_shared<fakelua::syntax_tree_return>(@1);
-		ret->set_explist($2);
+		auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>($2);
+		if (explist == nullptr) {
+			LOG(ERROR) << "[bison]: retstat: " << "explist is not a explist";
+			throw std::runtime_error("explist is not a explist");
+		}
+		ret->set_explist(explist);
 		$$ = ret;
 	}
 	;
@@ -509,7 +621,12 @@ varlist:
 	{
 		LOG(INFO) << "[bison]: varlist: " << "var";
 		auto varlist = std::make_shared<fakelua::syntax_tree_varlist>(@1);
-		varlist->add_var($1);
+		auto var = std::dynamic_pointer_cast<fakelua::syntax_tree_var>($1);
+		if (var == nullptr) {
+			LOG(ERROR) << "[bison]: varlist: " << "var is not a var";
+			throw std::runtime_error("var is not a var");
+		}
+		varlist->add_var(var);
 		$$ = varlist;
 	}
 	|
@@ -521,7 +638,12 @@ varlist:
 			LOG(ERROR) << "[bison]: varlist: " << "varlist is not a varlist";
 			throw std::runtime_error("varlist is not a varlist");
 		}
-		varlist->add_var($3);
+		auto var = std::dynamic_pointer_cast<fakelua::syntax_tree_var>($3);
+		if (var == nullptr) {
+			LOG(ERROR) << "[bison]: varlist: " << "var is not a var";
+			throw std::runtime_error("var is not a var");
+		}
+		varlist->add_var(var);
 		$$ = varlist;
 	}
 	;
@@ -539,35 +661,35 @@ var:
 	prefixexp LSQUARE exp RSQUARE
 	{
 		LOG(INFO) << "[bison]: var: " << "prefixexp LSQUARE exp RSQUARE";
-		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
-		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($3);
+		auto var = std::make_shared<fakelua::syntax_tree_var>(@2);
+		var->set_type("square");
+		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_prefixexp>($1);
 		if (prefixexp == nullptr) {
 			LOG(ERROR) << "[bison]: var: " << "prefixexp is not a prefixexp";
 			throw std::runtime_error("prefixexp is not a prefixexp");
 		}
+		var->set_prefixexp(prefixexp);
+		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
 		if (exp == nullptr) {
 			LOG(ERROR) << "[bison]: var: " << "exp is not a exp";
 			throw std::runtime_error("exp is not a exp");
 		}
-		auto var = std::make_shared<fakelua::syntax_tree_var>(@2);
-		var->set_prefixexp(prefixexp);
 		var->set_exp(exp);
-		var->set_type("square");
 		$$ = var;
 	}
 	|
 	prefixexp DOT IDENTIFIER
 	{
 		LOG(INFO) << "[bison]: var: " << "prefixexp DOT IDENTIFIER";
-		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
+		auto var = std::make_shared<fakelua::syntax_tree_var>(@2);
+		var->set_type("dot");
+		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_prefixexp>($1);
 		if (prefixexp == nullptr) {
 			LOG(ERROR) << "[bison]: var: " << "prefixexp is not a prefixexp";
 			throw std::runtime_error("prefixexp is not a prefixexp");
 		}
-		auto var = std::make_shared<fakelua::syntax_tree_var>(@2);
 		var->set_prefixexp(prefixexp);
 		var->set_name($3);
-		var->set_type("dot");
 		$$ = var;
 	}
 	;
@@ -599,7 +721,12 @@ explist:
 	{
 		LOG(INFO) << "[bison]: explist: " << "exp";
 		auto explist = std::make_shared<fakelua::syntax_tree_explist>(@1);
-		explist->add_exp($1);
+		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+		if (exp == nullptr) {
+			LOG(ERROR) << "[bison]: explist: " << "exp is not a exp";
+			throw std::runtime_error("exp is not a exp");
+		}
+		explist->add_exp(exp);
 		$$ = explist;
 	}
 	|
@@ -611,7 +738,12 @@ explist:
 			LOG(ERROR) << "[bison]: explist: " << "explist is not a explist";
 			throw std::runtime_error("explist is not a explist");
 		}
-		explist->add_exp($3);
+		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+		if (exp == nullptr) {
+			LOG(ERROR) << "[bison]: explist: " << "exp is not a exp";
+			throw std::runtime_error("exp is not a exp");
+		}
+		explist->add_exp(exp);
 		$$ = explist;
 	}
 	;
@@ -672,7 +804,12 @@ exp:
 		LOG(INFO) << "[bison]: exp: " << "functiondef";
 		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
 		exp->set_type("functiondef");
-		exp->set_left($1);
+		auto functiondef = std::dynamic_pointer_cast<fakelua::syntax_tree_functiondef>($1);
+		if (functiondef == nullptr) {
+			LOG(ERROR) << "[bison]: exp: " << "functiondef is not a functiondef";
+			throw std::runtime_error("functiondef is not a functiondef");
+		}
+		exp->set_right(functiondef);
 		$$ = exp;
 	}
 	|
@@ -681,7 +818,12 @@ exp:
 		LOG(INFO) << "[bison]: exp: " << "prefixexp";
 		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
 		exp->set_type("prefixexp");
-		exp->set_left($1);
+		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_prefixexp>($1);
+		if (prefixexp == nullptr) {
+			LOG(ERROR) << "[bison]: exp: " << "prefixexp is not a prefixexp";
+			throw std::runtime_error("prefixexp is not a prefixexp");
+		}
+		exp->set_right(prefixexp);
 		$$ = exp;
 	}
 	|
@@ -690,7 +832,12 @@ exp:
 		LOG(INFO) << "[bison]: exp: " << "tableconstructor";
 		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
 		exp->set_type("tableconstructor");
-		exp->set_left($1);
+		auto tableconstructor = std::dynamic_pointer_cast<fakelua::syntax_tree_tableconstructor>($1);
+		if (tableconstructor == nullptr) {
+			LOG(ERROR) << "[bison]: exp: " << "tableconstructor is not a tableconstructor";
+			throw std::runtime_error("tableconstructor is not a tableconstructor");
+		}
+		exp->set_right(tableconstructor);
 		$$ = exp;
 	}
 	|
@@ -699,9 +846,24 @@ exp:
 		LOG(INFO) << "[bison]: exp: " << "exp binop exp";
 		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
 		exp->set_type("binop");
-		exp->set_left($1);
-		exp->set_right($3);
-		exp->set_op($2);
+		auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+		if (left_exp == nullptr) {
+			LOG(ERROR) << "[bison]: exp: " << "left_exp is not a exp";
+			throw std::runtime_error("left_exp is not a exp");
+		}
+		exp->set_left(left_exp);
+		auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+		if (right_exp == nullptr) {
+			LOG(ERROR) << "[bison]: exp: " << "right_exp is not a exp";
+			throw std::runtime_error("right_exp is not a exp");
+		}
+		exp->set_right(right_exp);
+		auto binop = std::dynamic_pointer_cast<fakelua::syntax_tree_binop>($2);
+		if (binop == nullptr) {
+			LOG(ERROR) << "[bison]: exp: " << "binop is not a binop";
+			throw std::runtime_error("binop is not a binop");
+		}
+		exp->set_op(binop);
 		$$ = exp;
 	}
 	|
@@ -710,8 +872,18 @@ exp:
 		LOG(INFO) << "[bison]: exp: " << "unop exp";
 		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
 		exp->set_type("unop");
-		exp->set_left($2);
-		exp->set_op($1);
+		auto unop = std::dynamic_pointer_cast<fakelua::syntax_tree_unop>($1);
+		if (unop == nullptr) {
+			LOG(ERROR) << "[bison]: exp: " << "unop is not a unop";
+			throw std::runtime_error("unop is not a unop");
+		}
+		exp->set_op(unop);
+		auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($2);
+		if (right_exp == nullptr) {
+			LOG(ERROR) << "[bison]: exp: " << "right_exp is not a exp";
+			throw std::runtime_error("right_exp is not a exp");
+		}
+		exp->set_right(right_exp);
 		$$ = exp;
 	}
 	;
@@ -720,37 +892,61 @@ prefixexp:
 	var
 	{
 		LOG(INFO) << "[bison]: prefixexp: " << "var";
-		$$ = $1;
+		auto prefixexp = std::make_shared<fakelua::syntax_tree_prefixexp>(@1);
+		prefixexp->set_type("var");
+		auto var = std::dynamic_pointer_cast<fakelua::syntax_tree_var>($1);
+		if (var == nullptr) {
+			LOG(ERROR) << "[bison]: prefixexp: " << "var is not a var";
+			throw std::runtime_error("var is not a var");
+		}
+		prefixexp->set_value(var);
+		$$ = prefixexp;
 	}
 	|
 	functioncall
 	{
 		LOG(INFO) << "[bison]: prefixexp: " << "functioncall";
-		$$ = $1;
+		auto prefixexp = std::make_shared<fakelua::syntax_tree_prefixexp>(@1);
+		prefixexp->set_type("functioncall");
+		auto functioncall = std::dynamic_pointer_cast<fakelua::syntax_tree_functioncall>($1);
+		if (functioncall == nullptr) {
+			LOG(ERROR) << "[bison]: prefixexp: " << "functioncall is not a functioncall";
+			throw std::runtime_error("functioncall is not a functioncall");
+		}
+		prefixexp->set_value(functioncall);
+		$$ = prefixexp;
 	}
 	|
 	LPAREN exp RPAREN
 	{
 		LOG(INFO) << "[bison]: prefixexp: " << "LPAREN exp RPAREN";
-		$$ = $2;
+		auto prefixexp = std::make_shared<fakelua::syntax_tree_prefixexp>(@1);
+		prefixexp->set_type("exp");
+		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($2);
+		if (exp == nullptr) {
+			LOG(ERROR) << "[bison]: prefixexp: " << "exp is not a exp";
+			throw std::runtime_error("exp is not a exp");
+		}
+		prefixexp->set_value(exp);
+		$$ = prefixexp;
 	}
 
 functioncall:
 	prefixexp args
 	{
 		LOG(INFO) << "[bison]: functioncall: " << "prefixexp args";
-		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
-		auto args = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($2);
+		auto functioncall = std::make_shared<fakelua::syntax_tree_functioncall>(@1);
+		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_prefixexp>($1);
 		if (prefixexp == nullptr) {
 			LOG(ERROR) << "[bison]: functioncall: " << "prefixexp is not a prefixexp";
 			throw std::runtime_error("prefixexp is not a prefixexp");
 		}
+		functioncall->set_prefixexp(prefixexp);
+		auto args = std::dynamic_pointer_cast<fakelua::syntax_tree_args>($2);
 		if (args == nullptr) {
 			LOG(ERROR) << "[bison]: functioncall: " << "args is not a args";
 			throw std::runtime_error("args is not a args");
 		}
-		auto functioncall = std::make_shared<fakelua::syntax_tree_functioncall>(@1);
-		functioncall->set_prefixexp(prefixexp);
 		functioncall->set_args(args);
 		$$ = functioncall;
 	}
@@ -758,15 +954,15 @@ functioncall:
 	prefixexp COLON IDENTIFIER args
 	{
 		LOG(INFO) << "[bison]: functioncall: " << "prefixexp COLON IDENTIFIER args";
-		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
+		auto functioncall = std::make_shared<fakelua::syntax_tree_functioncall>(@1);
+		auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_prefixexp>($1);
 		if (prefixexp == nullptr) {
 			LOG(ERROR) << "[bison]: functioncall: " << "prefixexp is not a prefixexp";
 			throw std::runtime_error("prefixexp is not a prefixexp");
 		}
-		auto functioncall = std::make_shared<fakelua::syntax_tree_functioncall>(@1);
 		functioncall->set_prefixexp(prefixexp);
 		functioncall->set_name($3);
-		auto args = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($4);
+		auto args = std::dynamic_pointer_cast<fakelua::syntax_tree_args>($4);
 		if (args == nullptr) {
 			LOG(ERROR) << "[bison]: functioncall: " << "args is not a args";
 			throw std::runtime_error("args is not a args");
@@ -780,24 +976,46 @@ args:
 	LPAREN explist RPAREN
 	{
 		LOG(INFO) << "[bison]: args: " << "LPAREN explist RPAREN";
-		$$ = $2;
+		auto args = std::make_shared<fakelua::syntax_tree_args>(@1);
+		auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>($2);
+		if (explist == nullptr) {
+			LOG(ERROR) << "[bison]: args: " << "explist is not a explist";
+			throw std::runtime_error("explist is not a explist");
+		}
+		args->set_explist(explist);
+		args->set_type("explist");
+		$$ = args;
 	}
 	|
 	LPAREN RPAREN
 	{
 		LOG(INFO) << "[bison]: args: " << "LPAREN RPAREN";
-		$$ = std::make_shared<fakelua::syntax_tree_empty>(@1);
+		auto args = std::make_shared<fakelua::syntax_tree_args>(@1);
+		args->set_type("empty");
+		$$ = args;
 	}
 	|
 	tableconstructor
 	{
 		LOG(INFO) << "[bison]: args: " << "tableconstructor";
-		$$ = $1;
+		auto args = std::make_shared<fakelua::syntax_tree_args>(@1);
+		auto tableconstructor = std::dynamic_pointer_cast<fakelua::syntax_tree_tableconstructor>($1);
+		if (tableconstructor == nullptr) {
+			LOG(ERROR) << "[bison]: args: " << "tableconstructor is not a tableconstructor";
+			throw std::runtime_error("tableconstructor is not a tableconstructor");
+		}
+		args->set_tableconstructor(tableconstructor);
+		args->set_type("tableconstructor");
+		$$ = args;
 	}
 	|
 	STRING
 	{
 		LOG(INFO) << "[bison]: args: " << "STRING";
+		auto args = std::make_shared<fakelua::syntax_tree_args>(@1);
+		args->set_string($1);
+		args->set_type("string");
+		$$ = args;
 	}
 	;
 
@@ -805,6 +1023,14 @@ functiondef:
 	FUNCTION funcbody
 	{
 		LOG(INFO) << "[bison]: functiondef: " << "FUNCTION funcbody";
+		auto functiondef = std::make_shared<fakelua::syntax_tree_functiondef>(@1);
+		auto funcbody = std::dynamic_pointer_cast<fakelua::syntax_tree_funcbody>($2);
+		if (funcbody == nullptr) {
+			LOG(ERROR) << "[bison]: functiondef: " << "funcbody is not a funcbody";
+			throw std::runtime_error("funcbody is not a funcbody");
+		}
+		functiondef->set_funcbody(funcbody);
+		$$ = functiondef;
 	}
 	;
 
@@ -812,18 +1038,18 @@ funcbody:
 	LPAREN parlist RPAREN block END
 	{
 		LOG(INFO) << "[bison]: funcbody: " << "LPAREN parlist RPAREN block END";
-		auto parlist = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($2);
+		auto funcbody = std::make_shared<fakelua::syntax_tree_funcbody>(@1);
+		auto parlist = std::dynamic_pointer_cast<fakelua::syntax_tree_parlist>($2);
 		if (parlist == nullptr) {
 			LOG(ERROR) << "[bison]: funcbody: " << "parlist is not a parlist";
 			throw std::runtime_error("parlist is not a parlist");
 		}
-		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($4);
+		funcbody->set_parlist(parlist);
+		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>($4);
 		if (block == nullptr) {
 			LOG(ERROR) << "[bison]: funcbody: " << "block is not a block";
 			throw std::runtime_error("block is not a block");
 		}
-		auto funcbody = std::make_shared<fakelua::syntax_tree_funcbody>(@1);
-		funcbody->set_parlist(parlist);
 		funcbody->set_block(block);
 		$$ = funcbody;
 	}
@@ -831,12 +1057,12 @@ funcbody:
 	LPAREN RPAREN block END
 	{
 		LOG(INFO) << "[bison]: funcbody: " << "LPAREN RPAREN block END";
-		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($3);
+		auto funcbody = std::make_shared<fakelua::syntax_tree_funcbody>(@1);
+		auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>($3);
 		if (block == nullptr) {
 			LOG(ERROR) << "[bison]: funcbody: " << "block is not a block";
 			throw std::runtime_error("block is not a block");
 		}
-		auto funcbody = std::make_shared<fakelua::syntax_tree_funcbody>(@1);
 		funcbody->set_block(block);
 		$$ = funcbody;
 	}
@@ -846,12 +1072,12 @@ parlist:
 	namelist
 	{
 		LOG(INFO) << "[bison]: parlist: " << "namelist";
+		auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(@1);
 		auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>($1);
 		if (namelist == nullptr) {
 			LOG(ERROR) << "[bison]: parlist: " << "namelist is not a namelist";
 			throw std::runtime_error("namelist is not a namelist");
 		}
-		auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(@1);
 		parlist->set_namelist(namelist);
 		$$ = parlist;
 	}
@@ -859,12 +1085,12 @@ parlist:
 	namelist COMMA VAR_PARAMS
 	{
 		LOG(INFO) << "[bison]: parlist: " << "namelist COMMA VAR_PARAMS";
+		auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(@1);
 		auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>($1);
 		if (namelist == nullptr) {
 			LOG(ERROR) << "[bison]: parlist: " << "namelist is not a namelist";
 			throw std::runtime_error("namelist is not a namelist");
 		}
-		auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(@1);
 		parlist->set_namelist(namelist);
 		parlist->set_var_params(true);
 		$$ = parlist;
@@ -884,7 +1110,12 @@ tableconstructor:
 	{
 		LOG(INFO) << "[bison]: tableconstructor: " << "LCURLY fieldlist RCURLY";
 		auto tableconstructor = std::make_shared<fakelua::syntax_tree_tableconstructor>(@1);
-		tableconstructor->set_fieldlist($2);
+		auto fieldlist = std::dynamic_pointer_cast<fakelua::syntax_tree_fieldlist>($2);
+		if (fieldlist == nullptr) {
+			LOG(ERROR) << "[bison]: tableconstructor: " << "fieldlist is not a fieldlist";
+			throw std::runtime_error("fieldlist is not a fieldlist");
+		}
+		tableconstructor->set_fieldlist(fieldlist);
 		$$ = tableconstructor;
 	}
 	|
@@ -902,7 +1133,7 @@ fieldlist:
 	{
 		LOG(INFO) << "[bison]: fieldlist: " << "field";
 		auto fieldlist = std::make_shared<fakelua::syntax_tree_fieldlist>(@1);
-		auto field = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($1);
+		auto field = std::dynamic_pointer_cast<fakelua::syntax_tree_field>($1);
 		if (field == nullptr) {
 			LOG(ERROR) << "[bison]: fieldlist: " << "field is not a field";
 			throw std::runtime_error("field is not a field");
@@ -919,7 +1150,7 @@ fieldlist:
 			LOG(ERROR) << "[bison]: fieldlist: " << "fieldlist is not a fieldlist";
 			throw std::runtime_error("fieldlist is not a fieldlist");
 		}
-		auto field = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($3);
+		auto field = std::dynamic_pointer_cast<fakelua::syntax_tree_field>($3);
 		if (field == nullptr) {
 			LOG(ERROR) << "[bison]: fieldlist: " << "field is not a field";
 			throw std::runtime_error("field is not a field");
@@ -933,53 +1164,64 @@ field:
 	LSQUARE exp RSQUARE ASSIGN exp
 	{
 		LOG(INFO) << "[bison]: field: " << "LSQUARE exp RSQUARE ASSIGN exp";
-		auto assignment = std::make_shared<fakelua::syntax_tree_fieldassignment>(@1);
-		auto field = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($2);
-		if (field == nullptr) {
-			LOG(ERROR) << "[bison]: field: " << "field is not a field";
-			throw std::runtime_error("field is not a field");
+		auto field = std::make_shared<fakelua::syntax_tree_field>(@1);
+		auto key = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($2);
+		if (key == nullptr) {
+			LOG(ERROR) << "[bison]: key: " << "key is not a exp";
+			throw std::runtime_error("key is not a exp");
 		}
-		assignment->set_field(field);
-		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($5);
-		if (exp == nullptr) {
-			LOG(ERROR) << "[bison]: field: " << "exp is not a exp";
-			throw std::runtime_error("exp is not a exp");
+		field->set_key(key);
+		auto value = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($5);
+		if (value == nullptr) {
+			LOG(ERROR) << "[bison]: field: " << "value is not a exp";
+			throw std::runtime_error("value is not a exp");
 		}
-		assignment->set_exp(exp);
-		$$ = assignment;
+		field->set_value(value);
+		field->set_type("array");
+		$$ = field;
 	}
 	|
 	IDENTIFIER ASSIGN exp
 	{
 		LOG(INFO) << "[bison]: field: " << "IDENTIFIER ASSIGN exp";
-		auto assignment = std::make_shared<fakelua::syntax_tree_fieldassignment>(@1);
-		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>($3);
+		auto field = std::make_shared<fakelua::syntax_tree_field>(@1);
+		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
 		if (exp == nullptr) {
 			LOG(ERROR) << "[bison]: field: " << "exp is not a exp";
 			throw std::runtime_error("exp is not a exp");
 		}
-		assignment->set_name($1);
-		assignment->set_exp(exp);
-		$$ = assignment;
+		field->set_name($1);
+		field->set_value(exp);
+		field->set_type("object");
+		$$ = field;
 	}
 	|
 	exp
 	{
 		LOG(INFO) << "[bison]: field: " << "exp";
-		$$ = $1;
+		auto field = std::make_shared<fakelua::syntax_tree_field>(@1);
+		auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+		if (exp == nullptr) {
+			LOG(ERROR) << "[bison]: field: " << "exp is not a exp";
+			throw std::runtime_error("exp is not a exp");
+		}
+		field->set_value(exp);
+		field->set_type("array");
+		$$ = field;
 	}
 	;
-
 
 fieldsep:
 	COMMA
 	{
 		LOG(INFO) << "[bison]: fieldsep: " << "COMMA";
+		// nothing to do
 	}
 	|
 	SEMICOLON
 	{
 		LOG(INFO) << "[bison]: fieldsep: " << "SEMICOLON";
+		// nothing to do
 	}
 	;
 
@@ -987,106 +1229,169 @@ binop:
 	PLUS
 	{
 		LOG(INFO) << "[bison]: binop: " << "PLUS";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("PLUS");
+		$$ = binop;
 	}
 	|
 	MINUS
 	{
 		LOG(INFO) << "[bison]: binop: " << "MINUS";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("MINUS");
+		$$ = binop;
 	}
 	|
 	STAR
 	{
 		LOG(INFO) << "[bison]: binop: " << "STAR";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("STAR");
+		$$ = binop;
 	}
 	|
 	SLASH
 	{
 		LOG(INFO) << "[bison]: binop: " << "SLASH";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("SLASH");
+		$$ = binop;
 	}
 	|
 	DOUBLE_SLASH
 	{
 		LOG(INFO) << "[bison]: binop: " << "DOUBLE_SLASH";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("DOUBLE_SLASH");
+		$$ = binop;
 	}
 	|
 	XOR
 	{
 		LOG(INFO) << "[bison]: binop: " << "XOR";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("XOR");
+		$$ = binop;
 	}
 	|
 	MOD
 	{
 		LOG(INFO) << "[bison]: binop: " << "MOD";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("MOD");
+		$$ = binop;
 	}
 	|
 	BITAND
 	{
 		LOG(INFO) << "[bison]: binop: " << "BITAND";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("BITAND");
+		$$ = binop;
 	}
 	|
 	BITNOT
 	{
 		LOG(INFO) << "[bison]: binop: " << "BITNOT";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("BITNOT");
+		$$ = binop;
 	}
 	|
 	BITOR
 	{
 		LOG(INFO) << "[bison]: binop: " << "BITOR";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("BITOR");
+		$$ = binop;
 	}
 	|
 	RIGHT_SHIFT
 	{
 		LOG(INFO) << "[bison]: binop: " << "RIGHT_SHIFT";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("RIGHT_SHIFT");
+		$$ = binop;
 	}
 	|
 	LEFT_SHIFT
 	{
 		LOG(INFO) << "[bison]: binop: " << "LEFT_SHIFT";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("LEFT_SHIFT");
+		$$ = binop;
 	}
 	|
 	CONCAT
 	{
 		LOG(INFO) << "[bison]: binop: " << "CONCAT";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("CONCAT");
+		$$ = binop;
 	}
 	|
 	LESS
 	{
 		LOG(INFO) << "[bison]: binop: " << "LESS";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("LESS");
+		$$ = binop;
 	}
 	|
 	LESS_EQUAL
 	{
 		LOG(INFO) << "[bison]: binop: " << "LESS_EQUAL";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("LESS_EQUAL");
+		$$ = binop;
 	}
 	|
 	MORE
 	{
 		LOG(INFO) << "[bison]: binop: " << "MORE";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("MORE");
+		$$ = binop;
 	}
 	|
 	MORE_EQUAL
 	{
 		LOG(INFO) << "[bison]: binop: " << "MORE_EQUAL";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("MORE_EQUAL");
+		$$ = binop;
 	}
 	|
 	EQUAL
 	{
 		LOG(INFO) << "[bison]: binop: " << "EQUAL";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("EQUAL");
+		$$ = binop;
 	}
 	|
 	NOT_EQUAL
 	{
 		LOG(INFO) << "[bison]: binop: " << "NOT_EQUAL";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("NOT_EQUAL");
+		$$ = binop;
 	}
 	|
 	AND
 	{
 		LOG(INFO) << "[bison]: binop: " << "AND";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("AND");
+		$$ = binop;
 	}
 	|
 	OR
 	{
 		LOG(INFO) << "[bison]: binop: " << "OR";
+		auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
+		binop->set_op("OR");
+		$$ = binop;
 	}
 	;
 
@@ -1094,21 +1399,33 @@ unop:
 	MINUS
 	{
 		LOG(INFO) << "[bison]: unop: " << "MINUS";
+		auto unop = std::make_shared<fakelua::syntax_tree_unop>(@1);
+		unop->set_op("MINUS");
+		$$ = unop;
 	}
 	|
 	NOT
 	{
 		LOG(INFO) << "[bison]: unop: " << "NOT";
+		auto unop = std::make_shared<fakelua::syntax_tree_unop>(@1);
+		unop->set_op("NOT");
+		$$ = unop;
 	}
 	|
 	NUMBER_SIGN
 	{
 		LOG(INFO) << "[bison]: unop: " << "NUMBER_SIGN";
+		auto unop = std::make_shared<fakelua::syntax_tree_unop>(@1);
+		unop->set_op("NUMBER_SIGN");
+		$$ = unop;
 	}
 	|
 	BITNOT
 	{
 		LOG(INFO) << "[bison]: unop: " << "BITNOT";
+		auto unop = std::make_shared<fakelua::syntax_tree_unop>(@1);
+		unop->set_op("BITNOT");
+		$$ = unop;
 	}
 	;
 %%
