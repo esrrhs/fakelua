@@ -14,8 +14,16 @@ target_link_libraries(unit_tests PRIVATE fakelua gtest_main)
 add_test(NAME unit COMMAND ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/unit_tests
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
 
-add_custom_command(
-        TARGET unit_tests
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/lua/*.lua ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/
-)
+IF (WIN32)
+    add_custom_command(
+            TARGET unit_tests
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/lua/ ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/
+    )
+ELSE ()
+    add_custom_command(
+            TARGET unit_tests
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/lua/*.lua ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/
+    )
+ENDIF ()
