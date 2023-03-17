@@ -27,7 +27,7 @@ if (CCACHE_PROGRAM)
 endif ()
 
 include(cmake/gflags.cmake)
-include(cmake/gperftools.cmake)
+#include(cmake/gperftools.cmake)
 include(cmake/benchmark.cmake)
 include(cmake/googletest.cmake)
 include(cmake/glog.cmake)
