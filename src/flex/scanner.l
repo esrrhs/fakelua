@@ -91,7 +91,7 @@ ws              loc.step ();
 "else"          return yy::parser::make_ELSE(loc);
 "elseif"        return yy::parser::make_ELSEIF(loc);
 "end"           return yy::parser::make_END(loc);
-"false"         return yy::parser::make_FALSE(loc);
+"false"         return yy::parser::make_FALSES(loc);
 "for"           return yy::parser::make_FOR(loc);
 "function"      return yy::parser::make_FUNCTION(loc);
 "goto"          return yy::parser::make_GOTO(loc);

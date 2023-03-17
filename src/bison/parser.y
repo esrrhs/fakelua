@@ -62,7 +62,7 @@ int yyFlexLexer::yylex() { return -1; }
   ELSE          "else"
   ELSEIF        "elseif"
   END           "end"
-  FALSE         "false"
+  FALSES        "false"
   FOR           "for"
   FUNCTION      "function"
   IF            "if"
@@ -765,9 +765,9 @@ exp:
 		$$ = exp;
 	}
 	|
-	FALSE
+	FALSES
 	{
-		LOG(INFO) << "[bison]: exp: " << "FALSE";
+		LOG(INFO) << "[bison]: exp: " << "FALSES";
 		auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
 		exp->set_type("false");
 		$$ = exp;
