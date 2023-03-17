@@ -515,7 +515,7 @@ namespace yy {
     TOK_ELSE = 17,                 // "else"
     TOK_ELSEIF = 18,               // "elseif"
     TOK_END = 19,                  // "end"
-    TOK_FALSE = 20,                // "false"
+    TOK_FALSES = 20,               // "false"
     TOK_FOR = 21,                  // "for"
     TOK_FUNCTION = 22,             // "function"
     TOK_IF = 23,                   // "if"
@@ -594,7 +594,7 @@ namespace yy {
         S_ELSE = 17,                             // "else"
         S_ELSEIF = 18,                           // "elseif"
         S_END = 19,                              // "end"
-        S_FALSE = 20,                            // "false"
+        S_FALSES = 20,                           // "false"
         S_FOR = 21,                              // "for"
         S_FUNCTION = 22,                         // "function"
         S_IF = 23,                               // "if"
@@ -1298,16 +1298,16 @@ switch (yykind)
 #if 201103L <= YY_CPLUSPLUS
       static
       symbol_type
-      make_FALSE (location_type l)
+      make_FALSES (location_type l)
       {
-        return symbol_type (token::TOK_FALSE, std::move (l));
+        return symbol_type (token::TOK_FALSES, std::move (l));
       }
 #else
       static
       symbol_type
-      make_FALSE (const location_type& l)
+      make_FALSES (const location_type& l)
       {
-        return symbol_type (token::TOK_FALSE, l);
+        return symbol_type (token::TOK_FALSES, l);
       }
 #endif
 #if 201103L <= YY_CPLUSPLUS

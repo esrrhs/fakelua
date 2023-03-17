@@ -1616,7 +1616,7 @@ namespace yy {
   case 45: // exp: "false"
 #line 769 "parser.y"
         {
-		LOG(INFO) << "[bison]: exp: " << "FALSE";
+		LOG(INFO) << "[bison]: exp: " << "FALSES";
 		auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
 		exp->set_type("false");
 		yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
