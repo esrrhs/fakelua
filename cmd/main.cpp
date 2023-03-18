@@ -8,13 +8,13 @@ using namespace fakelua;
 int main(int argc, char **argv) {
     google::InitGoogleLogging(argv[0]);
 
-    gflags::SetUsageMessage("usage: [script [args]]\n"
+    gflags::SetUsageMessage("usage: ./lua --help\n"
                             "\n");
     gflags::SetVersionString("0.0.1");
     gflags::ParseCommandLineFlags(&argc, (char ***) &argv, true);
 
     if (argc < 2) {
-        std::cout << "usage: [script [args]]" << std::endl;
+        std::cout << gflags::ProgramUsage() << std::endl;
         return 0;
     }
 
