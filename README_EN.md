@@ -3,8 +3,6 @@
 [<img src="https://img.shields.io/github/license/esrrhs/fake">](https://github.com/esrrhs/fake)
 [<img src="https://img.shields.io/github/languages/top/esrrhs/fake">](https://github.com/esrrhs/fake)
 [<img src="https://img.shields.io/github/v/release/esrrhs/fake">](https://github.com/esrrhs/fake)
-[<img src="https://img.shields.io/travis/esrrhs/fake">](https://travis-ci.org/esrrhs/fake)
-[![Language grade: C/C++](https://img.shields.io/lgtm/grade/cpp/g/esrrhs/fake.svg?logo=lgtm&logoWidth=18)](https://lgtm.com/projects/g/esrrhs/fake/context:cpp)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/450723e1bc374ccd8aac7154227c69d7)](https://www.codacy.com/manual/esrrhs/fake?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=esrrhs/fake&amp;utm_campaign=Badge_Grade)
 
 Lightweight embedded scripting language
