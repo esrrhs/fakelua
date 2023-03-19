@@ -15,7 +15,8 @@ TEST(syntax_tree, label) {
     auto dumpstr = result.chunk->dump();
     LOG(INFO) << "\n" << dumpstr;
 
-    auto wantstr = "(block)[2:1]\n"
+    auto wantstr = ""
+                   "(block)[2:1]\n"
                    "  aa(label)[2:3]\n"
                    "  bb(label)[4:3]\n";
 
@@ -33,9 +34,17 @@ TEST(syntax_tree, assign_simple) {
     auto dumpstr = result.chunk->dump();
     LOG(INFO) << "\n" << dumpstr;
 
-    auto wantstr = "(block)[2:1]\n"
-                   "  aa(label)[2:3]\n"
-                   "  bb(label)[4:3]\n";
+    auto wantstr = ""
+                   "(block)[2:1]\n"
+                   "  (assign)[2:3]\n"
+                   "    (varlist)[2:1]\n"
+                   "      (var)[2:1]\n"
+                   "        type: simple\n"
+                   "        name: a\n"
+                   "    (explist)[2:5]\n"
+                   "      (exp)[2:5]\n"
+                   "        type: number\n"
+                   "        value: 1\n";
 
     ASSERT_EQ(dumpstr, wantstr);
 }
