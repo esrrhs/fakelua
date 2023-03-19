@@ -4,6 +4,7 @@
 [<img src="https://img.shields.io/github/languages/top/esrrhs/fake">](https://github.com/esrrhs/fake)
 [<img src="https://img.shields.io/github/v/release/esrrhs/fake">](https://github.com/esrrhs/fake)
 [![Codacy Badge](https://api.codacy.com/project/badge/Grade/450723e1bc374ccd8aac7154227c69d7)](https://www.codacy.com/manual/esrrhs/fake?utm_source=github.com&amp;utm_medium=referral&amp;utm_content=esrrhs/fake&amp;utm_campaign=Badge_Grade)
+[<img src="https://img.shields.io/github/actions/workflow/status/esrrhs/fake/ccpp.yml?branch=master">](https://github.com/esrrhs/fake/actions)
 
 轻量级嵌入式脚本语言
 
