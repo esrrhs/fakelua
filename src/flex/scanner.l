@@ -49,7 +49,7 @@ number  {num1}|{num2}
   loc.step ();
 %}
 
-ws              loc.step ();
+[ \t]+          loc.step ();
 \n+             loc.lines(yyleng); loc.step();
 \r+             {}
 
