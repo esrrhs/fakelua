@@ -29,9 +29,8 @@
 
 string  \"[^\n"]+\"
 ws      [ \t]+
-alpha   [A-Za-z]
 dig     [0-9]
-name    ({alpha}|{dig}|\$)({alpha}|{dig}|[_.\-/$])*
+name    [_a-zA-Z][_a-zA-Z0-9]{0,30}
 num1    [-+]?{dig}+\.?([eE][-+]?{dig}+)?
 num2    [-+]?{dig}*\.{dig}+([eE][-+]?{dig}+)?
 number  {num1}|{num2}
