@@ -118,3 +118,75 @@ TEST(syntax_tree, assign) {
 
     ASSERT_EQ(dumpstr, wantstr);
 }
+
+TEST(syntax_tree, function_call) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file("./test_function_call.lua");
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG(INFO) << "\n" << dumpstr;
+
+    auto wantstr = ""
+                   "(block)[2:1]\n"
+                   "  (functioncall)[2:1]\n"
+                   "    (prefixexp)[2:1]\n"
+                   "      type: functioncall\n"
+                   "      (functioncall)[2:1]\n"
+                   "        (prefixexp)[2:1]\n"
+                   "          type: var\n"
+                   "          (var)[2:7]\n"
+                   "            type: dot\n"
+                   "            (prefixexp)[2:1]\n"
+                   "              type: var\n"
+                   "              (var)[2:4]\n"
+                   "                type: square\n"
+                   "                (prefixexp)[2:1]\n"
+                   "                  type: var\n"
+                   "                  (var)[2:2]\n"
+                   "                    type: dot\n"
+                   "                    (prefixexp)[2:1]\n"
+                   "                      type: var\n"
+                   "                      (var)[2:1]\n"
+                   "                        type: simple\n"
+                   "                        name: a\n"
+                   "                    name: b\n"
+                   "                (exp)[2:5]\n"
+                   "                  type: number\n"
+                   "                  value: 1\n"
+                   "            name: func_a\n"
+                   "        (args)[2:14]\n"
+                   "          (explist)[2:15]\n"
+                   "            (exp)[2:15]\n"
+                   "              type: prefixexp\n"
+                   "              value: \n"
+                   "              (prefixexp)[2:15]\n"
+                   "                type: var\n"
+                   "                (var)[2:15]\n"
+                   "                  type: simple\n"
+                   "                  name: a\n"
+                   "            (exp)[2:17]\n"
+                   "              type: prefixexp\n"
+                   "              value: \n"
+                   "              (prefixexp)[2:17]\n"
+                   "                type: var\n"
+                   "                (var)[2:17]\n"
+                   "                  type: simple\n"
+                   "                  name: b\n"
+                   "            (exp)[2:19]\n"
+                   "              type: prefixexp\n"
+                   "              value: \n"
+                   "              (prefixexp)[2:19]\n"
+                   "                type: var\n"
+                   "                (var)[2:19]\n"
+                   "                  type: simple\n"
+                   "                  name: c\n"
+                   "    name: func_c\n"
+                   "    (args)[2:28]\n"
+                   "      empty\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
