@@ -299,3 +299,40 @@ TEST(syntax_tree, do_end) {
 
     ASSERT_EQ(dumpstr, wantstr);
 }
+
+TEST(syntax_tree, while) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file("./test_while.lua");
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG(INFO) << "\n" << dumpstr;
+
+    auto wantstr = ""
+                   "(block)[2:1]\n"
+                   "  (while)[2:1]\n"
+                   "    (exp)[2:7]\n"
+                   "      type: unop\n"
+                   "      value: \n"
+                   "      (unop)[2:7]\n"
+                   "        op: NOT\n"
+                   "      (exp)[2:11]\n"
+                   "        type: prefixexp\n"
+                   "        value: \n"
+                   "        (prefixexp)[2:11]\n"
+                   "          type: functioncall\n"
+                   "          (functioncall)[2:11]\n"
+                   "            (prefixexp)[2:11]\n"
+                   "              type: var\n"
+                   "              (var)[2:11]\n"
+                   "                type: simple\n"
+                   "                name: loop\n"
+                   "            (args)[2:15]\n"
+                   "              empty\n"
+                   "    (block)[2:18]\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
