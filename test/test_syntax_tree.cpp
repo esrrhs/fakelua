@@ -336,3 +336,60 @@ TEST(syntax_tree, while) {
 
     ASSERT_EQ(dumpstr, wantstr);
 }
+
+TEST(syntax_tree, repeat) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file("./test_repeat.lua");
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG(INFO) << "\n" << dumpstr;
+
+    auto wantstr = ""
+                   "(block)[1:1]\n"
+                   "  (repeat)[1:1]\n"
+                   "    (block)[2:5]\n"
+                   "      (assign)[2:7]\n"
+                   "        (varlist)[2:5]\n"
+                   "          (var)[2:5]\n"
+                   "            type: simple\n"
+                   "            name: n\n"
+                   "        (explist)[2:9]\n"
+                   "          (exp)[2:9]\n"
+                   "            type: binop\n"
+                   "            value: \n"
+                   "            (exp)[2:9]\n"
+                   "              type: prefixexp\n"
+                   "              value: \n"
+                   "              (prefixexp)[2:9]\n"
+                   "                type: var\n"
+                   "                (var)[2:9]\n"
+                   "                  type: simple\n"
+                   "                  name: n\n"
+                   "            (binop)[2:11]\n"
+                   "              op: PLUS\n"
+                   "            (exp)[2:13]\n"
+                   "              type: number\n"
+                   "              value: 1\n"
+                   "    (exp)[3:7]\n"
+                   "      type: binop\n"
+                   "      value: \n"
+                   "      (exp)[3:7]\n"
+                   "        type: prefixexp\n"
+                   "        value: \n"
+                   "        (prefixexp)[3:7]\n"
+                   "          type: var\n"
+                   "          (var)[3:7]\n"
+                   "            type: simple\n"
+                   "            name: n\n"
+                   "      (binop)[3:9]\n"
+                   "        op: EQUAL\n"
+                   "      (exp)[3:12]\n"
+                   "        type: number\n"
+                   "        value: 0\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
