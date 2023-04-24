@@ -190,3 +190,26 @@ TEST(syntax_tree, function_call) {
 
     ASSERT_EQ(dumpstr, wantstr);
 }
+
+TEST(syntax_tree, break) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file("./test_break.lua");
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG(INFO) << "\n" << dumpstr;
+
+    auto wantstr = ""
+                   "(block)[2:1]\n"
+                   "  (while)[2:1]\n"
+                   "    (exp)[2:7]\n"
+                   "      type: true\n"
+                   "      value: \n"
+                   "    (block)[3:5]\n"
+                   "      (break)[3:5]\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
