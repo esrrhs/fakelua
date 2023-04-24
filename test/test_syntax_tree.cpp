@@ -213,3 +213,44 @@ TEST(syntax_tree, break) {
 
     ASSERT_EQ(dumpstr, wantstr);
 }
+
+TEST(syntax_tree, continue1) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file("./test_continue.lua");
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG(INFO) << "\n" << dumpstr;
+
+    auto wantstr = ""
+                   "(block)[1:1]\n"
+                   "  (local_var)[1:1]\n"
+                   "    (namelist)[1:7]\n"
+                   "      name: a\n"
+                   "    (explist)[1:11]\n"
+                   "      (exp)[1:11]\n"
+                   "        type: tableconstructor\n"
+                   "        value: \n"
+                   "        (tableconstructor)[1:11]\n"
+                   "          (fieldlist)[1:13]\n"
+                   "            (field)[1:13]\n"
+                   "              type: object\n"
+                   "              name: b\n"
+                   "              (exp)[1:17]\n"
+                   "                type: number\n"
+                   "                value: 1\n"
+                   "            (field)[1:20]\n"
+                   "              type: object\n"
+                   "              name: c\n"
+                   "              (exp)[1:24]\n"
+                   "                type: string\n"
+                   "                value: \"2\"\n"
+                   "  (goto)[2:6]\n"
+                   "    label: continue\n"
+                   "  continue(label)[3:4]\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
