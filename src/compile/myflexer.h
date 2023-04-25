@@ -42,6 +42,10 @@ public:
     std::string remove_quotes(const std::string &str);
 
 private:
+    // replace escape chars
+    std::string replace_escape_chars(const std::string &str);
+
+private:
     // The token's location used by the scanner.
     yy::location location_;
     // The name of the file being parsed.

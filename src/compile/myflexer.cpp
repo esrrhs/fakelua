@@ -45,20 +45,69 @@ std::string myflexer::remove_quotes(const std::string &str) {
     if (str.size() < 2) {
         throw std::runtime_error("remove quotes but input string is empty");
     }
+
     if (str[0] == '\'' && str[str.size() - 1] == '\'') {
-        return str.substr(1, str.size() - 2);
+        // we need to replace escape chars in string
+        return replace_escape_chars(str.substr(1, str.size() - 2));
     } else if (str[0] == '"' && str[str.size() - 1] == '"') {
-        return str.substr(1, str.size() - 2);
+        // we need to replace escape chars in string
+        return replace_escape_chars(str.substr(1, str.size() - 2));
     } else {
         if (str.size() < 4) {
             throw std::runtime_error("remove quotes but input string is empty");
         }
         if (str[0] == '[' && str[1] == '[' && str[str.size() - 1] == ']' && str[str.size() - 2] == ']') {
+            // raw string not need to replace escape chars
             return str.substr(2, str.size() - 4);
         } else {
             throw std::runtime_error("remove quotes but input string is not valid");
         }
     }
+}
+
+std::string myflexer::replace_escape_chars(const std::string &str) {
+    std::string result;
+    for (std::string::const_iterator it = str.begin(); it != str.end(); ++it) {
+        if (*it == '\\') {
+            ++it;
+            if (it == str.end()) {
+                break;
+            }
+            switch (*it) {
+                case 'n':
+                    result += '\n';
+                    break;
+                case 't':
+                    result += '\t';
+                    break;
+                case 'r':
+                    result += '\r';
+                    break;
+                case 'f':
+                    result += '\f';
+                    break;
+                case 'b':
+                    result += '\b';
+                    break;
+                case '\\':
+                    result += '\\';
+                    break;
+                case '\"':
+                    result += '\"';
+                    break;
+                case '\'':
+                    result += '\'';
+                    break;
+                default:
+                    result += '\\';
+                    result += *it;
+                    break;
+            }
+        } else {
+            result += *it;
+        }
+    }
+    return result;
 }
 
 }
