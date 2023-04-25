@@ -30,13 +30,11 @@
 string1  \"((?:\\\"|[^\"\n])*)\"
 string2  \'((\\'|[^'\n])*)\'
 string3  \[\[([^\]]|(\][^\]]))*\]\]
-string  {string1}|{string2}|{string3}
-ws      [ \t]+
-dig     [0-9]
-name    [_a-zA-Z][_a-zA-Z0-9]{0,30}
-num1    [-+]?{dig}+\.?([eE][-+]?{dig}+)?
-num2    [-+]?{dig}*\.{dig}+([eE][-+]?{dig}+)?
-number  {num1}|{num2}
+string   {string1}|{string2}|{string3}
+name     [_a-zA-Z][_a-zA-Z0-9]{0,30}
+num1     -?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?
+num2     -?0[xX][0-9a-fA-F]+(\.[0-9a-fA-F]+)?([pP][+-]?[0-9]+)?
+number   {num1}|{num2}
 
 %{
   // Code run each time a pattern is matched.
