@@ -672,7 +672,7 @@ TEST(syntax_tree, string) {
                    "    (explist)[7:5]\n"
                    "      (exp)[7:5]\n"
                    "        type: string\n"
-                   "        value: g\r\n"
+                   "        value: g\n"
                    "g\n";
 
     ASSERT_EQ(dumpstr, wantstr);
