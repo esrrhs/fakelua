@@ -27,7 +27,10 @@
 
 %}
 
-string  \"[^\n"]+\"
+string1  \"((?:\\\"|[^\"\n])*)\"
+string2  \'((\\'|[^'\n])*)\'
+string3  \[\[([^\]]|(\][^\]]))*\]\]
+string  {string1}|{string2}|{string3}
 ws      [ \t]+
 dig     [0-9]
 name    [_a-zA-Z][_a-zA-Z0-9]{0,30}

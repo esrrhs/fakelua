@@ -12,7 +12,7 @@ myflexer::~myflexer() {
 }
 
 void myflexer::input_file(const std::string &file) {
-    file_.open(file.c_str());
+    file_.open(file.c_str(), std::ios::binary);
     if (file_.fail()) {
         throw std::runtime_error("open file failed");
     }
@@ -29,7 +29,7 @@ void myflexer::input_string(const std::string &str) {
     filename_ = "<string>";
     location_.initialize(&filename_);
     set_debug(0);
-    string_ = std::istringstream(str);
+    string_ = std::istringstream(str, std::ios::binary);
     switch_streams(&string_, nullptr);
 }
 

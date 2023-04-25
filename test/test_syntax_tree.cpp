@@ -596,3 +596,84 @@ TEST(syntax_tree, if) {
 
     ASSERT_EQ(dumpstr, wantstr);
 }
+
+TEST(syntax_tree, string) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file("./test_string.lua");
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG(INFO) << "\n" << dumpstr;
+
+    auto wantstr = ""
+                   "(block)[1:1]\n"
+                   "  (assign)[1:3]\n"
+                   "    (varlist)[1:1]\n"
+                   "      (var)[1:1]\n"
+                   "        type: simple\n"
+                   "        name: a\n"
+                   "    (explist)[1:5]\n"
+                   "      (exp)[1:5]\n"
+                   "        type: string\n"
+                   "        value: \"a\"\n"
+                   "  (assign)[2:3]\n"
+                   "    (varlist)[2:1]\n"
+                   "      (var)[2:1]\n"
+                   "        type: simple\n"
+                   "        name: b\n"
+                   "    (explist)[2:5]\n"
+                   "      (exp)[2:5]\n"
+                   "        type: string\n"
+                   "        value: 'b'\n"
+                   "  (assign)[3:3]\n"
+                   "    (varlist)[3:1]\n"
+                   "      (var)[3:1]\n"
+                   "        type: simple\n"
+                   "        name: c\n"
+                   "    (explist)[3:5]\n"
+                   "      (exp)[3:5]\n"
+                   "        type: string\n"
+                   "        value: \"'c'\"\n"
+                   "  (assign)[4:3]\n"
+                   "    (varlist)[4:1]\n"
+                   "      (var)[4:1]\n"
+                   "        type: simple\n"
+                   "        name: d\n"
+                   "    (explist)[4:5]\n"
+                   "      (exp)[4:5]\n"
+                   "        type: string\n"
+                   "        value: '\"d\"'\n"
+                   "  (assign)[5:3]\n"
+                   "    (varlist)[5:1]\n"
+                   "      (var)[5:1]\n"
+                   "        type: simple\n"
+                   "        name: e\n"
+                   "    (explist)[5:5]\n"
+                   "      (exp)[5:5]\n"
+                   "        type: string\n"
+                   "        value: \"\\\"e\\\"\"\n"
+                   "  (assign)[6:3]\n"
+                   "    (varlist)[6:1]\n"
+                   "      (var)[6:1]\n"
+                   "        type: simple\n"
+                   "        name: f\n"
+                   "    (explist)[6:5]\n"
+                   "      (exp)[6:5]\n"
+                   "        type: string\n"
+                   "        value: '\\'f\\''\n"
+                   "  (assign)[7:3]\n"
+                   "    (varlist)[7:1]\n"
+                   "      (var)[7:1]\n"
+                   "        type: simple\n"
+                   "        name: g\n"
+                   "    (explist)[7:5]\n"
+                   "      (exp)[7:5]\n"
+                   "        type: string\n"
+                   "        value: [[g\r\n"
+                   "g]]\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
