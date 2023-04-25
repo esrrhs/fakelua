@@ -1651,7 +1651,7 @@ namespace yy {
         LOG(INFO) << "[bison]: exp: " << "STRING";
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
         exp->set_type("string");
-        exp->set_value(yystack_[0].value.as < std::string > ());
+        exp->set_value(l->remove_quotes(yystack_[0].value.as < std::string > ()));
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
     }
 #line 1658 "parser.cpp"
@@ -1917,7 +1917,7 @@ namespace yy {
     {
         LOG(INFO) << "[bison]: args: " << "STRING";
         auto args = std::make_shared<fakelua::syntax_tree_args>(yystack_[0].location);
-        args->set_string(yystack_[0].value.as < std::string > ());
+        args->set_string(l->remove_quotes(yystack_[0].value.as < std::string > ()));
         args->set_type("string");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = args;
     }

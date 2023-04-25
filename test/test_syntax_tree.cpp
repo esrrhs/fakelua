@@ -214,7 +214,7 @@ TEST(syntax_tree, break) {
     ASSERT_EQ(dumpstr, wantstr);
 }
 
-TEST(syntax_tree, continue1) {
+TEST(syntax_tree, continue) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
@@ -247,7 +247,7 @@ TEST(syntax_tree, continue1) {
                    "              name: c\n"
                    "              (exp)[1:24]\n"
                    "                type: string\n"
-                   "                value: \"2\"\n"
+                   "                value: 2\n"
                    "  (goto)[2:6]\n"
                    "    label: continue\n"
                    "  continue(label)[3:4]\n";
@@ -473,7 +473,7 @@ TEST(syntax_tree, if) {
                    "                op: NOT_EQUAL\n"
                    "              (exp)[2:29]\n"
                    "                type: string\n"
-                   "                value: \"___CREATE_ONLY___\"\n"
+                   "                value: ___CREATE_ONLY___\n"
                    "        (block)[3:9]\n"
                    "          (functioncall)[3:9]\n"
                    "            (prefixexp)[3:9]\n"
@@ -562,7 +562,7 @@ TEST(syntax_tree, if) {
                    "              op: NOT_EQUAL\n"
                    "            (exp)[7:29]\n"
                    "              type: string\n"
-                   "              value: \"___CREATE_ONLY___\"\n"
+                   "              value: ___CREATE_ONLY___\n"
                    "      (block)[8:5]\n"
                    "        (functioncall)[8:5]\n"
                    "          (prefixexp)[8:5]\n"
@@ -577,7 +577,7 @@ TEST(syntax_tree, if) {
                    "                value: \n"
                    "                (exp)[8:11]\n"
                    "                  type: string\n"
-                   "                  value: \"No init method found for class \"\n"
+                   "                  value: No init method found for class \n"
                    "                (binop)[8:45]\n"
                    "                  op: CONCAT\n"
                    "                (exp)[8:48]\n"
@@ -618,7 +618,7 @@ TEST(syntax_tree, string) {
                    "    (explist)[1:5]\n"
                    "      (exp)[1:5]\n"
                    "        type: string\n"
-                   "        value: \"a\"\n"
+                   "        value: a\n"
                    "  (assign)[2:3]\n"
                    "    (varlist)[2:1]\n"
                    "      (var)[2:1]\n"
@@ -627,7 +627,7 @@ TEST(syntax_tree, string) {
                    "    (explist)[2:5]\n"
                    "      (exp)[2:5]\n"
                    "        type: string\n"
-                   "        value: 'b'\n"
+                   "        value: b\n"
                    "  (assign)[3:3]\n"
                    "    (varlist)[3:1]\n"
                    "      (var)[3:1]\n"
@@ -636,7 +636,7 @@ TEST(syntax_tree, string) {
                    "    (explist)[3:5]\n"
                    "      (exp)[3:5]\n"
                    "        type: string\n"
-                   "        value: \"'c'\"\n"
+                   "        value: 'c'\n"
                    "  (assign)[4:3]\n"
                    "    (varlist)[4:1]\n"
                    "      (var)[4:1]\n"
@@ -645,7 +645,7 @@ TEST(syntax_tree, string) {
                    "    (explist)[4:5]\n"
                    "      (exp)[4:5]\n"
                    "        type: string\n"
-                   "        value: '\"d\"'\n"
+                   "        value: \"d\"\n"
                    "  (assign)[5:3]\n"
                    "    (varlist)[5:1]\n"
                    "      (var)[5:1]\n"
@@ -654,7 +654,7 @@ TEST(syntax_tree, string) {
                    "    (explist)[5:5]\n"
                    "      (exp)[5:5]\n"
                    "        type: string\n"
-                   "        value: \"\\\"e\\\"\"\n"
+                   "        value: \\\"e\\\"\n"
                    "  (assign)[6:3]\n"
                    "    (varlist)[6:1]\n"
                    "      (var)[6:1]\n"
@@ -663,7 +663,7 @@ TEST(syntax_tree, string) {
                    "    (explist)[6:5]\n"
                    "      (exp)[6:5]\n"
                    "        type: string\n"
-                   "        value: '\\'f\\''\n"
+                   "        value: \\'f\\'\n"
                    "  (assign)[7:3]\n"
                    "    (varlist)[7:1]\n"
                    "      (var)[7:1]\n"
@@ -672,8 +672,8 @@ TEST(syntax_tree, string) {
                    "    (explist)[7:5]\n"
                    "      (exp)[7:5]\n"
                    "        type: string\n"
-                   "        value: [[g\r\n"
-                   "g]]\n";
+                   "        value: g\r\n"
+                   "g\n";
 
     ASSERT_EQ(dumpstr, wantstr);
 }

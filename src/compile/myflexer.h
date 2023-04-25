@@ -38,6 +38,9 @@ public:
     // get the main syntax tree
     syntax_tree_interface_ptr get_chunk() const;
 
+    // remove string quotes
+    std::string remove_quotes(const std::string &str);
+
 private:
     // The token's location used by the scanner.
     yy::location location_;
