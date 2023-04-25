@@ -3,12 +3,11 @@
 [<img src="https://img.shields.io/github/languages/top/esrrhs/fakelua">](https://github.com/esrrhs/fakelua)
 [<img src="https://img.shields.io/github/actions/workflow/status/esrrhs/fakelua/cmake.yml?branch=master">](https://github.com/esrrhs/fakelua/actions)
 
-FakeLua是一个可以优化Lua执行的工具。通过运行时将Lua编译成机器码，牺牲部分Lua特性，以提高Lua执行速度。
+FakeLua is a tool that can optimize Lua execution, it compile Lua to native code at runtime and can execute concurrently.
 
-# 特性
-* C++20编译
-* Flex、Bison做词法语法分析
-* 并发API，不支持_G等全局状态
-* 统一内存管理，无GC
-* 使用GCC JIT生成机器码执行
-
+# Feature
+* compile with C++20
+* lexing and parsing by Flex && Bison
+* concurrent API, no global state, eg: _G
+* use memory pool, no GC
+* compile to native code by GCC JIT
