@@ -793,3 +793,88 @@ TEST(syntax_tree, number) {
 
     ASSERT_EQ(dumpstr, wantstr);
 }
+
+TEST(syntax_tree, for_num) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file("./test_for_num.lua");
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG(INFO) << "\n" << dumpstr;
+
+    auto wantstr = ""
+                   "(block)[1:1]\n"
+                   "  (for_loop)[1:1]\n"
+                   "    name: n\n"
+                   "    (exp)[1:9]\n"
+                   "      type: number\n"
+                   "      value: 1\n"
+                   "    (exp)[1:12]\n"
+                   "      type: number\n"
+                   "      value: 10\n"
+                   "    (block)[2:5]\n"
+                   "      (functioncall)[2:5]\n"
+                   "        (prefixexp)[2:5]\n"
+                   "          type: var\n"
+                   "          (var)[2:5]\n"
+                   "            type: simple\n"
+                   "            name: print\n"
+                   "        (args)[2:10]\n"
+                   "          (explist)[2:11]\n"
+                   "            (exp)[2:11]\n"
+                   "              type: prefixexp\n"
+                   "              value: \n"
+                   "              (prefixexp)[2:11]\n"
+                   "                type: var\n"
+                   "                (var)[2:11]\n"
+                   "                  type: simple\n"
+                   "                  name: n\n"
+                   "  (for_loop)[5:1]\n"
+                   "    name: m\n"
+                   "    (exp)[5:9]\n"
+                   "      type: prefixexp\n"
+                   "      value: \n"
+                   "      (prefixexp)[5:9]\n"
+                   "        type: functioncall\n"
+                   "        (functioncall)[5:9]\n"
+                   "          (prefixexp)[5:9]\n"
+                   "            type: var\n"
+                   "            (var)[5:9]\n"
+                   "              type: simple\n"
+                   "              name: ini\n"
+                   "          (args)[5:12]\n"
+                   "            empty\n"
+                   "    (exp)[5:16]\n"
+                   "      type: prefixexp\n"
+                   "      value: \n"
+                   "      (prefixexp)[5:16]\n"
+                   "        type: var\n"
+                   "        (var)[5:16]\n"
+                   "          type: simple\n"
+                   "          name: max\n"
+                   "    (exp)[5:21]\n"
+                   "      type: number\n"
+                   "      value: 2\n"
+                   "    (block)[6:5]\n"
+                   "      (functioncall)[6:5]\n"
+                   "        (prefixexp)[6:5]\n"
+                   "          type: var\n"
+                   "          (var)[6:5]\n"
+                   "            type: simple\n"
+                   "            name: print\n"
+                   "        (args)[6:10]\n"
+                   "          (explist)[6:11]\n"
+                   "            (exp)[6:11]\n"
+                   "              type: prefixexp\n"
+                   "              value: \n"
+                   "              (prefixexp)[6:11]\n"
+                   "                type: var\n"
+                   "                (var)[6:11]\n"
+                   "                  type: simple\n"
+                   "                  name: n\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
