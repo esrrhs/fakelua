@@ -995,7 +995,6 @@ TEST(syntax_tree, for_in) {
 }
 
 TEST(syntax_tree, function) {
-
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
@@ -1133,6 +1132,51 @@ TEST(syntax_tree, function) {
                    "                            (var)[11:26]\n"
                    "                              type: simple\n"
                    "                              name: i\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
+
+TEST(syntax_tree, var) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file("./test_var.lua");
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG(INFO) << "\n" << dumpstr;
+
+    auto wantstr = ""
+                   "(block)[1:1]\n"
+                   "  (local_var)[1:1]\n"
+                   "    (namelist)[1:7]\n"
+                   "      name: any\n"
+                   "  (local_var)[2:1]\n"
+                   "    (namelist)[2:7]\n"
+                   "      name: a\n"
+                   "      name: b\n"
+                   "      name: c\n"
+                   "    (explist)[2:17]\n"
+                   "      (exp)[2:17]\n"
+                   "        type: number\n"
+                   "        value: 1\n"
+                   "      (exp)[2:20]\n"
+                   "        type: string\n"
+                   "        value: 2\n"
+                   "      (exp)[2:25]\n"
+                   "        type: prefixexp\n"
+                   "        value: \n"
+                   "        (prefixexp)[2:25]\n"
+                   "          type: functioncall\n"
+                   "          (functioncall)[2:25]\n"
+                   "            (prefixexp)[2:25]\n"
+                   "              type: var\n"
+                   "              (var)[2:25]\n"
+                   "                type: simple\n"
+                   "                name: func\n"
+                   "            (args)[2:29]\n"
+                   "              empty\n";
 
     ASSERT_EQ(dumpstr, wantstr);
 }
