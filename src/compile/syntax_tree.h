@@ -1,7 +1,7 @@
 #pragma once
 
-#include "util/common.h"
 #include "bison/location.hh"
+#include "util/common.h"
 
 namespace fakelua {
 
@@ -573,8 +573,13 @@ public:
         names_.push_back(name);
     }
 
+    void add_attrib(const std::string &attrib) {
+        attrib_.push_back(attrib);
+    }
+
 private:
     std::vector<std::string> names_;
+    std::vector<std::string> attrib_;
 };
 
 // function
@@ -894,4 +899,4 @@ private:
     std::string type_;
 };
 
-}
+}// namespace fakelua

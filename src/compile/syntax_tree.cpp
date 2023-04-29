@@ -196,8 +196,13 @@ std::string syntax_tree_for_in::dump(int tab) const {
 std::string syntax_tree_namelist::dump(int tab) const {
     std::string str;
     str += gen_tab(tab) + "(namelist)[" + loc_str() + "]\n";
+    size_t index = 0;
     for (auto &name: names_) {
         str += gen_tab(tab + 1) + "name: " + name + "\n";
+        if (index < attrib_.size() && attrib_[index] != "") {
+            str += gen_tab(tab + 1) + "attrib: " + attrib_[index] + "\n";
+        }
+        ++index;
     }
     return str;
 }
@@ -330,4 +335,4 @@ std::string syntax_tree_prefixexp::dump(int tab) const {
     return str;
 }
 
-}
+}// namespace fakelua

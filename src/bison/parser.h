@@ -420,6 +420,7 @@ namespace yy {
       // chunk
       // block
       // stmt
+      // attnamelist
       // elseifs
       // retstat
       // label
@@ -639,28 +640,29 @@ namespace yy {
         S_chunk = 62,                            // chunk
         S_block = 63,                            // block
         S_stmt = 64,                             // stmt
-        S_elseifs = 65,                          // elseifs
-        S_retstat = 66,                          // retstat
-        S_label = 67,                            // label
-        S_funcnamelist = 68,                     // funcnamelist
-        S_funcname = 69,                         // funcname
-        S_varlist = 70,                          // varlist
-        S_var = 71,                              // var
-        S_namelist = 72,                         // namelist
-        S_explist = 73,                          // explist
-        S_exp = 74,                              // exp
-        S_prefixexp = 75,                        // prefixexp
-        S_functioncall = 76,                     // functioncall
-        S_args = 77,                             // args
-        S_functiondef = 78,                      // functiondef
-        S_funcbody = 79,                         // funcbody
-        S_parlist = 80,                          // parlist
-        S_tableconstructor = 81,                 // tableconstructor
-        S_fieldlist = 82,                        // fieldlist
-        S_field = 83,                            // field
-        S_fieldsep = 84,                         // fieldsep
-        S_binop = 85,                            // binop
-        S_unop = 86                              // unop
+        S_attnamelist = 65,                      // attnamelist
+        S_elseifs = 66,                          // elseifs
+        S_retstat = 67,                          // retstat
+        S_label = 68,                            // label
+        S_funcnamelist = 69,                     // funcnamelist
+        S_funcname = 70,                         // funcname
+        S_varlist = 71,                          // varlist
+        S_var = 72,                              // var
+        S_namelist = 73,                         // namelist
+        S_explist = 74,                          // explist
+        S_exp = 75,                              // exp
+        S_prefixexp = 76,                        // prefixexp
+        S_functioncall = 77,                     // functioncall
+        S_args = 78,                             // args
+        S_functiondef = 79,                      // functiondef
+        S_funcbody = 80,                         // funcbody
+        S_parlist = 81,                          // parlist
+        S_tableconstructor = 82,                 // tableconstructor
+        S_fieldlist = 83,                        // fieldlist
+        S_field = 84,                            // field
+        S_fieldsep = 85,                         // fieldsep
+        S_binop = 86,                            // binop
+        S_unop = 87                              // unop
       };
     };
 
@@ -700,6 +702,7 @@ namespace yy {
       case symbol_kind::S_chunk: // chunk
       case symbol_kind::S_block: // block
       case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_attnamelist: // attnamelist
       case symbol_kind::S_elseifs: // elseifs
       case symbol_kind::S_retstat: // retstat
       case symbol_kind::S_label: // label
@@ -806,6 +809,7 @@ switch (yykind)
       case symbol_kind::S_chunk: // chunk
       case symbol_kind::S_block: // block
       case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_attnamelist: // attnamelist
       case symbol_kind::S_elseifs: // elseifs
       case symbol_kind::S_retstat: // retstat
       case symbol_kind::S_label: // label
@@ -2254,8 +2258,8 @@ switch (yykind)
     /// Constants.
     enum
     {
-      yylast_ = 1345,     ///< Last index in yytable_.
-      yynnts_ = 26,  ///< Number of nonterminal symbols.
+      yylast_ = 1401,     ///< Last index in yytable_.
+      yynnts_ = 27,  ///< Number of nonterminal symbols.
       yyfinal_ = 59 ///< Termination state number.
     };
 
@@ -2284,6 +2288,7 @@ switch (yykind)
       case symbol_kind::S_chunk: // chunk
       case symbol_kind::S_block: // block
       case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_attnamelist: // attnamelist
       case symbol_kind::S_elseifs: // elseifs
       case symbol_kind::S_retstat: // retstat
       case symbol_kind::S_label: // label
@@ -2346,6 +2351,7 @@ switch (yykind)
       case symbol_kind::S_chunk: // chunk
       case symbol_kind::S_block: // block
       case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_attnamelist: // attnamelist
       case symbol_kind::S_elseifs: // elseifs
       case symbol_kind::S_retstat: // retstat
       case symbol_kind::S_label: // label
@@ -2438,7 +2444,7 @@ switch (yykind)
   }
 
 } // yy
-#line 2442 "parser.h"
+#line 2448 "parser.h"
 
 
 

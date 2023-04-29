@@ -1180,3 +1180,50 @@ TEST(syntax_tree, var) {
 
     ASSERT_EQ(dumpstr, wantstr);
 }
+
+TEST(syntax_tree, var_attr) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file("./test_var_attr.lua");
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG(INFO) << "\n" << dumpstr;
+
+    auto wantstr = ""
+                   "(block)[1:1]\n"
+                   "  (local_var)[1:1]\n"
+                   "    (namelist)[1:7]\n"
+                   "      name: any\n"
+                   "      attrib: const\n"
+                   "  (local_var)[2:1]\n"
+                   "    (namelist)[2:7]\n"
+                   "      name: a\n"
+                   "      name: b\n"
+                   "      attrib: const\n"
+                   "      name: c\n"
+                   "    (explist)[2:25]\n"
+                   "      (exp)[2:25]\n"
+                   "        type: number\n"
+                   "        value: 1\n"
+                   "      (exp)[2:28]\n"
+                   "        type: string\n"
+                   "        value: 2\n"
+                   "      (exp)[2:33]\n"
+                   "        type: prefixexp\n"
+                   "        value: \n"
+                   "        (prefixexp)[2:33]\n"
+                   "          type: functioncall\n"
+                   "          (functioncall)[2:33]\n"
+                   "            (prefixexp)[2:33]\n"
+                   "              type: var\n"
+                   "              (var)[2:33]\n"
+                   "                type: simple\n"
+                   "                name: func\n"
+                   "            (args)[2:37]\n"
+                   "              empty\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
