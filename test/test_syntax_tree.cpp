@@ -4,6 +4,32 @@
 
 using namespace fakelua;
 
+TEST(syntax_tree, compile_string) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_string("a = 1");
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG(INFO) << "\n" << dumpstr;
+
+    auto wantstr = ""
+                   "(block)[1:1]\n"
+                   "  (assign)[1:3]\n"
+                   "    (varlist)[1:1]\n"
+                   "      (var)[1:1]\n"
+                   "        type: simple\n"
+                   "        name: a\n"
+                   "    (explist)[1:5]\n"
+                   "      (exp)[1:5]\n"
+                   "        type: number\n"
+                   "        value: 1\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
+
 TEST(syntax_tree, label) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);

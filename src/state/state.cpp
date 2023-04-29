@@ -15,7 +15,7 @@ fakelua_state_impl::~fakelua_state_impl() {
 void fakelua_state_impl::compile_file(const std::string &filename) {
     LOG(INFO) << "start compile_file " << filename;
     compiler c;
-    c.compile_file(filename);
+    auto result = c.compile_file(filename);
     LOG(INFO) << "compile_file " << filename << " ok ";
 }
 
