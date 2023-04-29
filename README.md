@@ -11,4 +11,5 @@ FakeLua is a tool that can optimize Lua execution, it compile Lua to native code
 * concurrent API, no global state, eg: _G
 * use memory pool, no GC
 * compile to native code by GCC JIT
+* has a toy interpreter
 * build on Linux && Mingw
