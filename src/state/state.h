@@ -1,6 +1,6 @@
 #pragma once
 
-#include "../../include/fakelua.h"
+#include "fakelua.h"
 
 namespace fakelua {
 

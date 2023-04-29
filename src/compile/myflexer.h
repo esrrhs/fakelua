@@ -7,9 +7,9 @@
 #endif
 
 #include "bison/parser.h"
-#include <sstream>
-#include <fstream>
 #include "syntax_tree.h"
+#include <fstream>
+#include <sstream>
 
 namespace fakelua {
 
@@ -41,6 +41,11 @@ public:
     // remove string quotes
     std::string remove_quotes(const std::string &str);
 
+    // get the filename
+    std::string get_filename() const {
+        return filename_;
+    }
+
 private:
     // replace escape chars
     std::string replace_escape_chars(const std::string &str);
@@ -58,6 +63,4 @@ private:
     syntax_tree_interface_ptr chunk_;
 };
 
-}
-
-
+}// namespace fakelua
