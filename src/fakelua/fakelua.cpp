@@ -1,4 +1,4 @@
-#include "fakelua/fakelua.h"
+#include "fakelua.h"
 #ifdef __linux__
 #include "gperftools/profiler.h"
 #endif

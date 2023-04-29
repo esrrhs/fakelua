@@ -4,6 +4,7 @@ project(benchmark)
 
 aux_source_directory(./ BENCHMARK_SRC_LIST)
 include_directories(./)
+include_directories(../include)
 include_directories(../src)
 include_directories(../src/platform)
 

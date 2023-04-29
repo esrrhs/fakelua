@@ -4,6 +4,7 @@ project(test)
 
 aux_source_directory(./ TEST_SRC_LIST)
 include_directories(./)
+include_directories(../include)
 include_directories(../src)
 include_directories(../src/platform)
 

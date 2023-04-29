@@ -5,7 +5,7 @@
 
 namespace fakelua {
 
-// fake lua state interface
+// fake_lua state interface, can run concurrently
 class fakelua_state {
 public:
     fakelua_state() {}
@@ -19,7 +19,7 @@ public:
 
 using fakelua_state_ptr = std::shared_ptr<fakelua_state>;
 
-// create fake lua state
+// create fake_lua state
 fakelua_state_ptr fakelua_newstate();
 
 // open global profiler by gperftools

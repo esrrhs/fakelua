@@ -1,5 +1,5 @@
+#include "fakelua.h"
 #include "benchmark/benchmark.h"
-#include "fakelua/fakelua.h"
 #include "glog/logging.h"
 
 using namespace fakelua;

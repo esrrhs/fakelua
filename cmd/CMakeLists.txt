@@ -4,7 +4,7 @@ PROJECT(lua)
 
 aux_source_directory(./ LUA_SRC_LIST)
 include_directories(./)
-include_directories(../src/)
+include_directories(../include)
 
 add_executable(lua ${LUA_SRC_LIST})
 

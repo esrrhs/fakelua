@@ -1,15 +1,13 @@
 #include "state.h"
-#include "glog/logging.h"
 #include "compile/compiler.h"
+#include "glog/logging.h"
 
 namespace fakelua {
 
 fakelua_state_impl::fakelua_state_impl() {
-
 }
 
 fakelua_state_impl::~fakelua_state_impl() {
-
 }
 
 void fakelua_state_impl::compile_file(const std::string &filename) {
@@ -22,8 +20,8 @@ void fakelua_state_impl::compile_file(const std::string &filename) {
 void fakelua_state_impl::compile_string(const std::string &str) {
     LOG(INFO) << "start compile_string";
     compiler c;
-    c.compile_string(str);
+    auto result = c.compile_string(str);
     LOG(INFO) << "compile_string ok ";
 }
 
-}
+}// namespace fakelua

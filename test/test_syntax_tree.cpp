@@ -1,6 +1,6 @@
-#include "gtest/gtest.h"
-#include "fakelua/fakelua.h"
+#include "fakelua.h"
 #include "compile/compiler.h"
+#include "gtest/gtest.h"
 
 using namespace fakelua;
 

@@ -1,7 +1,7 @@
-#include "fakelua/fakelua.h"
-#include <iostream>
+#include "fakelua.h"
 #include "gflags/gflags.h"
 #include "glog/logging.h"
+#include <iostream>
 
 using namespace fakelua;
 
