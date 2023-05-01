@@ -36,7 +36,7 @@ TEST(syntax_tree, label) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_label.lua", {true});
+    auto result = c.compile_file("./syntax/test_label.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -56,7 +56,7 @@ TEST(syntax_tree, assign_simple) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_assign_simple.lua", {true});
+    auto result = c.compile_file("./syntax/test_assign_simple.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -83,7 +83,7 @@ TEST(syntax_tree, assign) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_assign.lua", {true});
+    auto result = c.compile_file("./syntax/test_assign.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -154,7 +154,7 @@ TEST(syntax_tree, function_call) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_function_call.lua", {true});
+    auto result = c.compile_file("./syntax/test_function_call.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -227,7 +227,7 @@ TEST(syntax_tree, break) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_break.lua", {true});
+    auto result = c.compile_file("./syntax/test_break.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -251,7 +251,7 @@ TEST(syntax_tree, continue) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_continue.lua", {true});
+    auto result = c.compile_file("./syntax/test_continue.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -293,7 +293,7 @@ TEST(syntax_tree, do_end) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_do_end.lua", {true});
+    auto result = c.compile_file("./syntax/test_do_end.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -339,7 +339,7 @@ TEST(syntax_tree, while) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_while.lua", {true});
+    auto result = c.compile_file("./syntax/test_while.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -377,7 +377,7 @@ TEST(syntax_tree, repeat) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_repeat.lua", {true});
+    auto result = c.compile_file("./syntax/test_repeat.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -435,7 +435,7 @@ TEST(syntax_tree, if) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_if.lua", {true});
+    auto result = c.compile_file("./syntax/test_if.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -639,7 +639,7 @@ TEST(syntax_tree, string) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_string.lua", {true});
+    auto result = c.compile_file("./syntax/test_string.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -721,7 +721,7 @@ TEST(syntax_tree, number) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_number.lua", {true});
+    auto result = c.compile_file("./syntax/test_number.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -838,7 +838,7 @@ TEST(syntax_tree, for_num) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_for_num.lua", {true});
+    auto result = c.compile_file("./syntax/test_for_num.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -924,7 +924,7 @@ TEST(syntax_tree, for_in) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_for_in.lua", {true});
+    auto result = c.compile_file("./syntax/test_for_in.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -1040,7 +1040,7 @@ TEST(syntax_tree, function) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_function.lua", {true});
+    auto result = c.compile_file("./syntax/test_function.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -1183,7 +1183,7 @@ TEST(syntax_tree, var) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_var.lua", {true});
+    auto result = c.compile_file("./syntax/test_var.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
@@ -1229,7 +1229,7 @@ TEST(syntax_tree, var_attr) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./test_var_attr.lua", {true});
+    auto result = c.compile_file("./syntax/test_var_attr.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
