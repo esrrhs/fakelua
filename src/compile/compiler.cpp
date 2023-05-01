@@ -9,21 +9,21 @@ compiler::compiler() {
 compiler::~compiler() {
 }
 
-compile_result compiler::compile_file(const std::string &file) {
+compile_result compiler::compile_file(const std::string &file, compile_config cfg) {
     LOG(INFO) << "start compile_file " << file;
     myflexer f;
     f.input_file(file);
-    return compile(f);
+    return compile(f, cfg);
 }
 
-compile_result compiler::compile_string(const std::string &str) {
+compile_result compiler::compile_string(const std::string &str, compile_config cfg) {
     LOG(INFO) << "start compile_string";
     myflexer f;
     f.input_string(str);
-    return compile(f);
+    return compile(f, cfg);
 }
 
-compile_result compiler::compile(myflexer &f) {
+compile_result compiler::compile(myflexer &f, compile_config cfg) {
     compile_result ret;
 
     ret.chunk_name = f.get_filename();
@@ -38,8 +38,10 @@ compile_result compiler::compile(myflexer &f) {
     ret.chunk = f.get_chunk();
 
     // compile interpreter
-    ret.interpreter = std::make_shared<interpreter>();
-    ret.interpreter->compile(ret.chunk);
+    if (!cfg.skip_interpreter) {
+        ret.interpreter = std::make_shared<interpreter>();
+        ret.interpreter->compile(ret.chunk);
+    }
 
     return ret;
 }

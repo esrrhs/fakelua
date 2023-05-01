@@ -8,6 +8,10 @@
 
 namespace fakelua {
 
+struct compile_config {
+    bool skip_interpreter = false;
+};
+
 struct compile_result {
     // the chunk name
     std::string chunk_name;
@@ -26,14 +30,14 @@ public:
 
 public:
     // compile the lua file
-    compile_result compile_file(const std::string &file);
+    compile_result compile_file(const std::string &file, compile_config cfg);
 
     // compile the lua string
-    compile_result compile_string(const std::string &str);
+    compile_result compile_string(const std::string &str, compile_config cfg);
 
 private:
     // compile the myflexer which already input the file or string
-    compile_result compile(myflexer &f);
+    compile_result compile(myflexer &f, compile_config cfg);
 };
 
 }// namespace fakelua

@@ -109,9 +109,12 @@ public:
 
     virtual std::string dump(int tab = 0) const override;
 
-public:
     void add_stmt(const syntax_tree_interface_ptr &stmt) {
         stmts_.push_back(stmt);
+    }
+
+    const std::vector<syntax_tree_interface_ptr> &get_stmts() const {
+        return stmts_;
     }
 
 private:
