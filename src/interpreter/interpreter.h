@@ -7,9 +7,9 @@ namespace fakelua {
 
 class interpreter {
 public:
-    interpreter();
+    interpreter() = default;
 
-    virtual ~interpreter();
+    ~interpreter() = default;
 
     void compile(const syntax_tree_interface_ptr &chunk);
 

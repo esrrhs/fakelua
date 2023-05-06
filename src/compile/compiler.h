@@ -24,9 +24,9 @@ struct compile_result {
 // lua compiler class, parse lua code to syntax tree, and then compile to toy-interpreter runtime, and JIT binary code
 class compiler {
 public:
-    compiler();
+    compiler() = default;
 
-    virtual ~compiler();
+    ~compiler() = default;
 
 public:
     // compile the lua file

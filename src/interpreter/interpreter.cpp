@@ -4,12 +4,6 @@
 
 namespace fakelua {
 
-interpreter::interpreter() {
-}
-
-interpreter::~interpreter() {
-}
-
 void interpreter::compile(const syntax_tree_interface_ptr &chunk) {
     // just walk through the chunk, and save the function declaration and then we can call the function by name
     // first, save the global const define if exists, the const define must be an assignment expression at the top level

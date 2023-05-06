@@ -3,12 +3,6 @@
 
 namespace fakelua {
 
-compiler::compiler() {
-}
-
-compiler::~compiler() {
-}
-
 compile_result compiler::compile_file(const std::string &file, compile_config cfg) {
     LOG(INFO) << "start compile_file " << file;
     myflexer f;

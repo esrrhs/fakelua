@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 
 project(fakelua CXX)
 
+set(CMAKE_CXX_STANDARD 20)
+
 # place binaries and libraries according to GNU standards
 include(GNUInstallDirs)
 set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_LIBDIR})
