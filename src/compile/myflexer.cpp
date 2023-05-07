@@ -1,14 +1,12 @@
 #include "compile/myflexer.h"
-#include "glog/logging.h"
+#include "util/common.h"
 
 namespace fakelua {
 
 myflexer::myflexer() {
-
 }
 
 myflexer::~myflexer() {
-
 }
 
 void myflexer::input_file(const std::string &file) {
@@ -110,4 +108,4 @@ std::string myflexer::replace_escape_chars(const std::string &str) {
     return result;
 }
 
-}
+}// namespace fakelua

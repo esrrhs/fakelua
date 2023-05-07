@@ -2,8 +2,8 @@
 #ifdef __linux__
 #include "gperftools/profiler.h"
 #endif
-#include "glog/logging.h"
 #include "state/state.h"
+#include "util/common.h"
 
 namespace fakelua {
 

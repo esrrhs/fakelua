@@ -1,6 +1,6 @@
 #include "interpreter.h"
-#include "compile/compiler.h"
-#include "glog/logging.h"
+#include "fakelua.h"
+#include "util/common.h"
 
 namespace fakelua {
 

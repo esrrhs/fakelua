@@ -9,7 +9,7 @@
 %define parse.assert
 
 %code requires {
-#include "glog/logging.h"
+#include "fakelua.h"
 #include "util/common.h"
 #include "compile/syntax_tree.h"
 

@@ -46,3 +46,7 @@
 #include <stdio.h>
 #include <signal.h>
 #include <variant>
+
+// include glog here, so that we can use glog in all files
+// and maybe someday we can replace glog with our own log
+#include "glog/logging.h"
