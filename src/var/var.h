@@ -2,9 +2,12 @@
 
 #include "fakelua.h"
 #include "util/common.h"
+#include "var_string.h"
 #include "var_type.h"
 
 namespace fakelua {
+
+class state;
 
 // Var is the class that holds the multiple types of data.
 // the reason why wrap the std::variant is that we can add more features and maybe someday we can replace the std::variant.
@@ -20,11 +23,13 @@ public:
 
     var(double val) : data_(val) {}
 
-    var(const std::string &val) : data_(val) {}
+    var(state *s, const std::string &val);
 
-    var(std::string &&val) : data_(std::move(val)) {}
+    var(state *s, std::string &&val);
 
-    var(const char *val) : data_(std::string(val)) {}
+    var(state *s, const char *val);
+
+    var(state *s, std::string_view val);
 
     var(const var &val) : data_(val.data_) {}
 
@@ -62,10 +67,8 @@ public:
         return std::get<double>(data_);
     }
 
-    // get string value
-    const std::string &get_string() const {
-        return std::get<std::string>(data_);
-    }
+    // get string_view value
+    std::string_view get_string_view(state *s) const;
 
     // set nullptr
     var &set(std::nullptr_t) {
@@ -92,22 +95,16 @@ public:
     }
 
     // set string value
-    var &set(const std::string &val) {
-        data_ = val;
-        return *this;
-    }
+    var &set(state *s, const std::string &val);
 
     // set string value
-    var &set(std::string &&val) {
-        data_ = std::move(val);
-        return *this;
-    }
+    var &set(state *s, std::string &&val);
 
     // set string value
-    var &set(const char *val) {
-        data_ = std::string(val);
-        return *this;
-    }
+    var &set(state *s, const char *val);
+
+    // set string value
+    var &set(state *s, std::string_view val);
 
     // set var value
     var &set(const var &val) {
@@ -126,7 +123,7 @@ private:
     // we just put the std::string in data, no string heap like lua. because most of the string is short.
     // and the std::string is already use the small string optimization. so the performance is good.
     // and the string heap will cause every new string has a hash compare, but mostly the string will not compare each other.
-    std::variant<std::nullptr_t, bool, int64_t, double, std::string> data_;
+    std::variant<std::nullptr_t, bool, int64_t, double, var_string> data_;
 };
 
 }// namespace fakelua

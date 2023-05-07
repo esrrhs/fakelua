@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "state/state.h"
 #include "state/var_string_heap.h"
 #include "var/var.h"
 #include "gtest/gtest.h"
@@ -6,6 +7,8 @@
 using namespace fakelua;
 
 TEST(var, construct) {
+    state s;
+
     var v;
     ASSERT_EQ(v.type(), var_type::NIL);
 
@@ -21,13 +24,13 @@ TEST(var, construct) {
     var v4(1.0);
     ASSERT_EQ(v4.type(), var_type::FLOAT);
 
-    var v5("hello");
+    var v5(&s, "hello");
     ASSERT_EQ(v5.type(), var_type::STRING);
 
-    var v6(std::string("hello"));
+    var v6(&s, std::string("hello"));
     ASSERT_EQ(v6.type(), var_type::STRING);
 
-    var v7(std::move(std::string("hello")));
+    var v7(&s, std::move(std::string("hello")));
     ASSERT_EQ(v7.type(), var_type::STRING);
 
     var v8(v7);
@@ -46,6 +49,8 @@ TEST(var, construct) {
 }
 
 TEST(var, set_get) {
+    state s;
+
     var v;
     v.set(nullptr);
     ASSERT_EQ(v.type(), var_type::NIL);
@@ -62,22 +67,22 @@ TEST(var, set_get) {
     ASSERT_EQ(v.type(), var_type::FLOAT);
     ASSERT_EQ(v.get_float(), 1.0);
 
-    v.set("hello");
+    v.set(&s, "hello");
     ASSERT_EQ(v.type(), var_type::STRING);
-    ASSERT_EQ(v.get_string(), "hello");
+    ASSERT_EQ(v.get_string_view(&s), "hello");
 
-    v.set(std::string("hello"));
+    v.set(&s, std::string("hello"));
     ASSERT_EQ(v.type(), var_type::STRING);
-    ASSERT_EQ(v.get_string(), "hello");
+    ASSERT_EQ(v.get_string_view(&s), "hello");
 
-    v.set(std::move(std::string("hello")));
+    v.set(&s, std::move(std::string("hello")));
     ASSERT_EQ(v.type(), var_type::STRING);
-    ASSERT_EQ(v.get_string(), "hello");
+    ASSERT_EQ(v.get_string_view(&s), "hello");
 
     var v1;
     v1.set(v);
     ASSERT_EQ(v1.type(), var_type::STRING);
-    ASSERT_EQ(v1.get_string(), "hello");
+    ASSERT_EQ(v1.get_string_view(&s), "hello");
 }
 
 TEST(var, var_string_heap) {

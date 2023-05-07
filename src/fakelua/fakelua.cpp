@@ -9,7 +9,7 @@ namespace fakelua {
 
 fakelua_state_ptr fakelua_newstate() {
     LOG(INFO) << "fakelua_newstate";
-    return std::make_shared<fakelua_state_impl>();
+    return std::make_shared<state>();
 }
 
 void open_profiler(const std::string &fname) {

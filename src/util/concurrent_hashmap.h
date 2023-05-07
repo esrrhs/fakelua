@@ -3,7 +3,61 @@
 #include "fakelua.h"
 #include "util/common.h"
 
+typedef std::shared_ptr<std::string> str_container_ptr;
+
+namespace std {
+template<>
+struct hash<str_container_ptr> {
+    size_t operator()(const str_container_ptr &k) const {
+        return std::hash<std::string>()(*k);
+    }
+};
+
+template<>
+struct equal_to<str_container_ptr> {
+    bool operator()(const str_container_ptr &k1, const str_container_ptr &k2) const {
+        return *k1 == *k2;
+    }
+};
+
+}// namespace std
+
 namespace fakelua {
+
+template<typename K1, typename K2>
+struct my_equal_to {
+    bool operator()(const K1 &__x, const K2 &__y) const {
+        return __x == __y;
+    }
+};
+
+template<>
+struct my_equal_to<std::string, str_container_ptr> {
+    bool operator()(const std::string &k1, const str_container_ptr &k2) const {
+        return k1 == *k2;
+    }
+};
+
+template<>
+struct my_equal_to<str_container_ptr, std::string> {
+    bool operator()(const str_container_ptr &k1, const std::string &k2) const {
+        return *k1 == k2;
+    }
+};
+
+template<>
+struct my_equal_to<std::string_view, str_container_ptr> {
+    bool operator()(const std::string_view &k1, const str_container_ptr &k2) const {
+        return k1 == *k2;
+    }
+};
+
+template<>
+struct my_equal_to<str_container_ptr, std::string_view> {
+    bool operator()(const str_container_ptr &k1, const std::string_view &k2) const {
+        return *k1 == k2;
+    }
+};
 
 // a simple concurrent hashmap.
 // just put every bucket a read write lock.
@@ -18,7 +72,9 @@ public:
         buckets_mutex_ = new std::shared_mutex[init_bucket_size];
     }
 
-    ~concurrent_hashmap() = default;
+    ~concurrent_hashmap() {
+        delete[] buckets_mutex_;
+    }
 
     // set. thread safe.
     void set(const K &key, const V &value) {
@@ -39,7 +95,7 @@ public:
     }
 
     // get. thread safe.
-    bool get(const K &key, V &value) {
+    bool get(const K &key, V &value) const {
         auto hash = std::hash<K>()(key);
         auto bucket_index = hash % buckets_.size();
         auto &bucket = buckets_[bucket_index];
@@ -48,6 +104,23 @@ public:
         std::shared_lock<std::shared_mutex> read_lock(mutex);
         for (auto &entry: entries) {
             if (std::equal_to<K>()(entry.key, key)) {
+                value = entry.value;
+                return true;
+            }
+        }
+        return false;
+    }
+
+    template<class Key>
+    bool get_by_other_type(const Key &key, V &value) const {
+        auto hash = std::hash<Key>()(key);
+        auto bucket_index = hash % buckets_.size();
+        auto &bucket = buckets_[bucket_index];
+        auto &entries = bucket.entries;
+        auto &mutex = buckets_mutex_[bucket_index];
+        std::shared_lock<std::shared_mutex> read_lock(mutex);
+        for (auto &entry: entries) {
+            if (my_equal_to<K, Key>()(entry.key, key)) {
                 value = entry.value;
                 return true;
             }
