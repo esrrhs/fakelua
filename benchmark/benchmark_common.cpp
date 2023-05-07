@@ -5,17 +5,6 @@
 
 using namespace fakelua;
 
-static void BM_ini(benchmark::State &state) {
-    FLAGS_minloglevel = 3;
-    for (auto _: state) {
-        for (int i = 0; i < state.range(0); ++i) {
-            auto L = fakelua_newstate();
-        }
-    }
-}
-
-BENCHMARK(BM_ini)->Range(8, 8 << 10);
-
 static void BM_concurrent_hashmap(benchmark::State &state) {
     FLAGS_minloglevel = 3;
     concurrent_hashmap<std::string, std::string> map(STRING_HEAP_INIT_BUCKET_SIZE);
