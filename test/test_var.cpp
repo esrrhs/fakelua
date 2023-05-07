@@ -1,6 +1,6 @@
 #include "fakelua.h"
+#include "var/var.h"
 #include "gtest/gtest.h"
-#include "state/var.h"
 
 using namespace fakelua;
 

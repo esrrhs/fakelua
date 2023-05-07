@@ -14,3 +14,11 @@ FakeLua is a tool that can optimize Lua execution, it compile Lua to native code
 * use memory pool, no GC
 * has a toy interpreter
 * compile to native code by GCC JIT
+
+# Directory structure
+* [include](./include) header file
+* [src](./src) source code
+* [test](./test) test code
+* [benchmark](./benchmark) benchmark code
+* [cmd](./cmd) command line tool
+* [cmake](./cmake) cmake toolchain

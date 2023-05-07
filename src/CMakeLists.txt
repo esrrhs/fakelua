@@ -2,8 +2,8 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 
 project(libfakelua)
 
-aux_source_directory(./bison FAKELUA_SRC_LIST)
-aux_source_directory(./flex FAKELUA_SRC_LIST)
+aux_source_directory(compile/bison FAKELUA_SRC_LIST)
+aux_source_directory(compile/flex FAKELUA_SRC_LIST)
 aux_source_directory(./compile FAKELUA_SRC_LIST)
 aux_source_directory(./state FAKELUA_SRC_LIST)
 aux_source_directory(./util FAKELUA_SRC_LIST)

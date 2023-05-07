@@ -4,7 +4,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include "bison/parser.h"
+#include "compile/bison/parser.h"
 #include "compile/myflexer.h"
 
 // https://westes.github.io/flex/manual/Cxx.html

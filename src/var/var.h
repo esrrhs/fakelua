@@ -2,22 +2,9 @@
 
 #include "fakelua.h"
 #include "util/common.h"
+#include "var/var_type.h"
 
 namespace fakelua {
-
-enum class var_type {
-    INVALID = -1,
-    NIL,
-    BOOL,
-    INT,
-    FLOAT,
-    STRING,
-    TABLE,
-    FUNCTION,
-    USERDATA,
-    THREAD,
-    MAX,
-};
 
 // Var is the class that holds the multiple types of data.
 // the reason why wrap the std::variant is that we can add more features and maybe someday we can replace the std::variant.
@@ -142,4 +129,4 @@ private:
     std::variant<std::nullptr_t, bool, int64_t, double, std::string> data_;
 };
 
-}
+}// namespace fakelua

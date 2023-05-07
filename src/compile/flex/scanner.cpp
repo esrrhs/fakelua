@@ -651,7 +651,7 @@ static const flex_int16_t yy_rule_linenum[63] =
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include "bison/parser.h"
+#include "compile/bison/parser.h"
 #include "compile/myflexer.h"
 
 // https://westes.github.io/flex/manual/Cxx.html
