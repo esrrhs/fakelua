@@ -1,4 +1,99 @@
 #include "fakelua.h"
+#include "util/concurrent_hashmap.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
+
+TEST(common, concurrent_hashmap_int) {
+    concurrent_hashmap<int, int> map1(2);
+    int v;
+    auto ret = map1.get(1, v);
+    ASSERT_EQ(ret, false);
+
+    map1.set(1, 2);
+    auto size = map1.size();
+    ASSERT_EQ(size, 1);
+
+    ret = map1.check_rehash();
+    ASSERT_EQ(ret, false);
+
+    ret = map1.get(1, v);
+    ASSERT_EQ(ret, true);
+    ASSERT_EQ(v, 2);
+
+    map1.set(1, 3);
+    ret = map1.get(1, v);
+    ASSERT_EQ(ret, true);
+    ASSERT_EQ(v, 3);
+    size = map1.size();
+    ASSERT_EQ(size, 1);
+
+    map1.set(2, 4);
+    size = map1.size();
+    ASSERT_EQ(size, 2);
+    ret = map1.get(2, v);
+    ASSERT_EQ(ret, true);
+    ASSERT_EQ(v, 4);
+
+    map1.set(3, 5);
+    size = map1.size();
+    ASSERT_EQ(size, 3);
+    ret = map1.get(3, v);
+    ASSERT_EQ(ret, true);
+    ASSERT_EQ(v, 5);
+
+    map1.remove(1);
+    size = map1.size();
+    ASSERT_EQ(size, 2);
+
+    ret = map1.check_rehash();
+    ASSERT_EQ(ret, true);
+
+    map1.set(4, 6);
+    size = map1.size();
+    ASSERT_EQ(size, 3);
+    ret = map1.get(4, v);
+    ASSERT_EQ(ret, true);
+    ASSERT_EQ(v, 6);
+}
+
+TEST(common, concurrent_hashmap_string) {
+    concurrent_hashmap<std::string, std::string> map1(2);
+    std::string v;
+    auto ret = map1.get("1", v);
+    ASSERT_EQ(ret, false);
+
+    map1.set("1", "2");
+    auto size = map1.size();
+    ASSERT_EQ(size, 1);
+
+    ret = map1.check_rehash();
+    ASSERT_EQ(ret, false);
+
+    ret = map1.get("1", v);
+    ASSERT_EQ(ret, true);
+    ASSERT_EQ(v, "2");
+
+    map1.set("1", "3");
+    ret = map1.get("1", v);
+    ASSERT_EQ(ret, true);
+    ASSERT_EQ(v, "3");
+
+    map1.set("2", "4");
+    size = map1.size();
+    ASSERT_EQ(size, 2);
+
+    ret = map1.check_rehash();
+    ASSERT_EQ(ret, true);
+
+    map1.set("3", "5");
+    size = map1.size();
+    ASSERT_EQ(size, 3);
+    ret = map1.get("3", v);
+    ASSERT_EQ(ret, true);
+    ASSERT_EQ(v, "5");
+
+    map1.remove("1");
+    size = map1.size();
+    ASSERT_EQ(size, 2);
+}

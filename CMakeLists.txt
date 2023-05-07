@@ -14,13 +14,19 @@ set(ENV{FAKELUA_HOME} "${CMAKE_CURRENT_SOURCE_DIR}/")
 
 option(USE_ASAN "use asan" OFF)
 
-set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-local-typedefs -Wno-unused-function -std=c++2a -DNDEBUG -O2 -g3 -ggdb -fPIC")
+set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -Wall -Wno-unused-local-typedefs -Wno-unused-function -std=c++2a -DNDEBUG -g3 -ggdb -fPIC")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -Wall -DNDEBUG -O2 -g3 -ggdb -fPIC")
 if (USE_ASAN)
     message("build with asan")
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -fsanitize=address -fno-omit-frame-pointer")
 endif ()
+
+IF (WIN32)
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
+ELSE ()
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O2")
+ENDIF ()
 
 find_program(CCACHE_PROGRAM ccache)
 if (CCACHE_PROGRAM)

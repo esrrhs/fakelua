@@ -2,6 +2,7 @@
 
 #include "fakelua.h"
 #include "util/common.h"
+#include "util/concurrent_hashmap.h"
 #include "var/var_string.h"
 #include "var/var_type.h"
 
@@ -18,7 +19,6 @@ public:
     ~var_string_heap() = default;
 
     var_string alloc(const std::string &str) {
-
     }
 
 private:
