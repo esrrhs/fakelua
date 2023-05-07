@@ -8,21 +8,32 @@
 
 namespace fakelua {
 
-typedef std::shared_ptr<std::string> str_container_ptr;
-
 // every state has a string heap
 // the string heap contains all the strings in the state
 class var_string_heap {
 public:
-    var_string_heap() = default;
+    var_string_heap() : short_str_map_(STRING_HEAP_INIT_BUCKET_SIZE) {
+    }
 
     ~var_string_heap() = default;
 
-    var_string alloc(const std::string &str) {
+    // alloc a string, if the string is short, then generate a index. otherwise, copy the string.
+    var_string alloc(const std::string &str);
+
+    // clear the string heap
+    void clear() {
+        short_str_map_.clear();
+        long_str_vec_.clear();
     }
 
 private:
-    std::unordered_map<std::string, var_string> str_set_;
+    // since the string heap is shared by all the states, we need a concurrent hashmap to store the strings.
+    concurrent_hashmap<std::string, var_string> short_str_map_;
+    // the index of the next short string.
+    std::atomic_uint32_t short_str_index_;
+    // the vector stores the long strings.
+    typedef std::shared_ptr<std::string> str_container_ptr;
+    std::vector<str_container_ptr> long_str_vec_;
 };
 
 }// namespace fakelua

@@ -93,7 +93,7 @@ public:
             }
         }
         buckets_ = std::move(new_buckets);
-        delete buckets_mutex_;
+        delete[] buckets_mutex_;
         buckets_mutex_ = new std::shared_mutex[buckets_.size()];
         return true;
     }

@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "state/var_string_heap.h"
 #include "var/var.h"
 #include "gtest/gtest.h"
 
@@ -77,4 +78,30 @@ TEST(var, set_get) {
     v1.set(v);
     ASSERT_EQ(v1.type(), var_type::STRING);
     ASSERT_EQ(v1.get_string(), "hello");
+}
+
+TEST(var, var_string_heap) {
+    var_string_heap heap;
+    auto ret = heap.alloc("hello");
+    ASSERT_EQ(ret.short_string_index(), 1);
+
+    ret = heap.alloc("hello");
+    ASSERT_EQ(ret.short_string_index(), 1);
+
+    ret = heap.alloc("hello1");
+    ASSERT_EQ(ret.short_string_index(), 2);
+
+    std::string str;
+    for (int i = 0; i < MAX_SHORT_STR_LEN; ++i) {
+        str += "a";
+    }
+
+    ret = heap.alloc(str);
+    ASSERT_EQ(ret.short_string_index(), 3);
+
+    str += "a";
+
+    ret = heap.alloc(str);
+    ASSERT_EQ(ret.short_string_index(), 0);
+    ASSERT_EQ(ret.long_string_view(), str);
 }
