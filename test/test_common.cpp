@@ -1,5 +1,6 @@
 #include "fakelua.h"
 #include "util/concurrent_hashmap.h"
+#include "util/concurrent_vector.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -95,5 +96,41 @@ TEST(common, concurrent_hashmap_string) {
 
     map1.remove("1");
     size = map1.size();
+    ASSERT_EQ(size, 2);
+}
+
+TEST(common, concurrent_vector_int) {
+    concurrent_vector<int> v(2);
+    int v1;
+    auto ret = v.get(1, v1);
+    ASSERT_EQ(ret, false);
+    auto size = v.size();
+    ASSERT_EQ(size, 0);
+
+    v.set(1, 2);
+    ret = v.get(1, v1);
+    ASSERT_EQ(ret, true);
+    ASSERT_EQ(v1, 2);
+    size = v.size();
+    ASSERT_EQ(size, 1);
+
+    v.set(2, 3);
+    ret = v.get(2, v1);
+    ASSERT_EQ(ret, true);
+    ASSERT_EQ(v1, 3);
+    size = v.size();
+    ASSERT_EQ(size, 2);
+
+    v.set(3, 4);
+    ret = v.get(3, v1);
+    ASSERT_EQ(ret, true);
+    ASSERT_EQ(v1, 4);
+    size = v.size();
+    ASSERT_EQ(size, 3);
+
+    v.remove(1);
+    ret = v.get(1, v1);
+    ASSERT_EQ(ret, false);
+    size = v.size();
     ASSERT_EQ(size, 2);
 }

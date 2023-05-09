@@ -94,6 +94,27 @@ public:
         size_++;
     }
 
+    // get or set. thread safe.
+    // if the key exists, return true and return the value.
+    // otherwise, return false and set the value.
+    bool get_or_set(const K &key, V &value) {
+        auto hash = std::hash<K>()(key);
+        auto bucket_index = hash % buckets_.size();
+        auto &bucket = buckets_[bucket_index];
+        auto &entries = bucket.entries;
+        auto &mutex = buckets_mutex_[bucket_index];
+        std::unique_lock<std::shared_mutex> write_lock(mutex);
+        for (auto &entry: entries) {
+            if (std::equal_to<K>()(entry.key, key)) {
+                value = entry.value;
+                return true;
+            }
+        }
+        entries.emplace_back(key, value);
+        size_++;
+        return false;
+    }
+
     // get. thread safe.
     bool get(const K &key, V &value) const {
         auto hash = std::hash<K>()(key);
@@ -111,6 +132,7 @@ public:
         return false;
     }
 
+    // get by other type. thread safe.
     template<class Key>
     bool get_by_other_type(const Key &key, V &value) const {
         auto hash = std::hash<Key>()(key);
