@@ -13,7 +13,7 @@ var_string var_string_heap::alloc(const std::string_view &str) {
         auto ok = short_str_to_index_map_.get_by_other_type(str, index);
         if (ok) {
             // found. return the index
-            return var_string(index);
+            return var_string(true, index);
         }
 
         // not found. try to insert the string into the short string map
@@ -30,25 +30,34 @@ var_string var_string_heap::alloc(const std::string_view &str) {
         short_str_to_index_map_.get_or_set(str_container, index);
         // set the string to the vector at index
         short_str_vec_.set(index, str_container);
-        assert(index > 0 && index < 0x7FFFFFFF);
-        return var_string(index);
+        return var_string(true, index);
     } else {
         // long string
         auto ptr = std::make_shared<std::string>(str);
         uint32_t index = long_str_vec_.push_back(ptr);
-        assert(index >= 0 && index < 0x7FFFFFFF);
-        return var_string(index | 0x80000000);
+        return var_string(false, index);
     }
 }
 
 std::string_view var_string_heap::get(const var_string &str) const {
     auto string_index = str.string_index();
     if (string_index) {
-        auto index = string_index & 0x7FFFFFFF;
-        str_container_ptr str_container;
-        auto ok = string_index & 0x80000000 ? long_str_vec_.get(index, str_container) : short_str_vec_.get(index, str_container);
-        if (ok) {
-            return *str_container;
+        if (is_short_string_index(string_index)) {
+            // short string
+            auto index = get_short_string_index(string_index);
+            str_container_ptr str_container;
+            auto ok = short_str_vec_.get(index, str_container);
+            if (ok) {
+                return *str_container;
+            }
+        } else {
+            // long string
+            auto index = get_long_string_index(string_index);
+            str_container_ptr str_container;
+            auto ok = long_str_vec_.get(index, str_container);
+            if (ok) {
+                return *str_container;
+            }
         }
     }
     return {};

@@ -111,6 +111,6 @@ TEST(var, var_string_heap) {
     str += "a";
 
     ret = heap.alloc(str);
-    ASSERT_EQ(ret.string_index(), 0x80000000);
+    ASSERT_EQ(ret.string_index(), make_long_string_index(0));
     ASSERT_EQ(heap.get(ret), str);
 }

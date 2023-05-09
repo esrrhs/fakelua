@@ -9,8 +9,10 @@
 
 namespace fakelua {
 
-// every state has a string heap
-// the string heap contains all the strings in the state
+// every state has a string heap.
+// the string heap contains all the strings in the state.
+// it converts string to an uint32 index, to speed up the string compare, and the table key compare.
+// the index top 1 bit is the type, 0 for short string, 1 for long string. low 31 bits is the index in the vector.
 class var_string_heap {
 public:
     var_string_heap() : short_str_to_index_map_(STRING_HEAP_INIT_BUCKET_SIZE),
@@ -20,13 +22,13 @@ public:
 
     ~var_string_heap() = default;
 
-    // alloc a string, if the string is short, then generate a index. otherwise, copy the string.
+    // alloc a string, if the string is short, then generate a index. otherwise, copy the string. thread safe.
     var_string alloc(const std::string_view &str);
 
-    // get the string view of a string by var_string which alloced by this heap.
+    // get the string view of a string by var_string which alloced by this heap. thread safe.
     std::string_view get(const var_string &str) const;
 
-    // clear the string heap
+    // clear the string heap, not thread safe. should be called only in one thread.
     void clear() {
         short_str_to_index_map_.clear();
         short_str_vec_.clear();
