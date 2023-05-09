@@ -35,7 +35,7 @@ public:
     }
 
 private:
-    // since the string heap is shared by all the states, we need a concurrent hashmap to store the strings.
+    // since the string heap is shared by all running thread in states, we need a concurrent hashmap to store the strings.
     // the key is the string, the value is the index.
     concurrent_hashmap<str_container_ptr, uint32_t> short_str_to_index_map_;
     // the key is the index, the value is the string.
