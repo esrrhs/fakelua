@@ -22,7 +22,9 @@ public:
 
     ~var_string_heap() = default;
 
-    // alloc a string, if the string is short, then generate a index. otherwise, copy the string. thread safe.
+    // alloc a string, and return the var_string which contains the index. thread safe.
+    // for short string, same string has same index.
+    // for long string, every call alloc will return a new index.
     var_string alloc(const std::string_view &str);
 
     // get the string view of a string by var_string which alloced by this heap. thread safe.
