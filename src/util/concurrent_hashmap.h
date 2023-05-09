@@ -95,9 +95,9 @@ public:
     }
 
     // get or set. thread safe.
-    // if the key exists, return true and return the value.
+    // if the key exists, return true and return the key value.
     // otherwise, return false and set the value.
-    bool get_or_set(const K &key, V &value) {
+    bool get_or_set(K &key, V &value) {
         auto hash = std::hash<K>()(key);
         auto bucket_index = hash % buckets_.size();
         auto &bucket = buckets_[bucket_index];
@@ -106,6 +106,7 @@ public:
         std::unique_lock<std::shared_mutex> write_lock(mutex);
         for (auto &entry: entries) {
             if (std::equal_to<K>()(entry.key, key)) {
+                key = entry.key;
                 value = entry.value;
                 return true;
             }

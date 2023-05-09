@@ -88,13 +88,16 @@ TEST(var, set_get) {
 TEST(var, var_string_heap) {
     var_string_heap heap;
     auto ret = heap.alloc("hello");
-    ASSERT_EQ(ret.short_string_index(), 1);
+    ASSERT_EQ(ret.string_index(), 1);
+    ASSERT_EQ(heap.get(ret), "hello");
 
     ret = heap.alloc("hello");
-    ASSERT_EQ(ret.short_string_index(), 1);
+    ASSERT_EQ(ret.string_index(), 1);
+    ASSERT_EQ(heap.get(ret), "hello");
 
     ret = heap.alloc("hello1");
-    ASSERT_EQ(ret.short_string_index(), 2);
+    ASSERT_EQ(ret.string_index(), 2);
+    ASSERT_EQ(heap.get(ret), "hello1");
 
     std::string str;
     for (int i = 0; i < MAX_SHORT_STR_LEN; ++i) {
@@ -102,11 +105,12 @@ TEST(var, var_string_heap) {
     }
 
     ret = heap.alloc(str);
-    ASSERT_EQ(ret.short_string_index(), 3);
+    ASSERT_EQ(ret.string_index(), 3);
+    ASSERT_EQ(heap.get(ret), str);
 
     str += "a";
 
     ret = heap.alloc(str);
-    ASSERT_EQ(ret.short_string_index(), 0);
-    ASSERT_EQ(ret.long_string_view(), str);
+    ASSERT_EQ(ret.string_index(), 0x80000000);
+    ASSERT_EQ(heap.get(ret), str);
 }

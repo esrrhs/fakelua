@@ -15,7 +15,7 @@ class var_string_heap {
 public:
     var_string_heap() : short_str_to_index_map_(STRING_HEAP_INIT_BUCKET_SIZE),
                         short_str_vec_(STRING_HEAP_INIT_BUCKET_SIZE),
-                        long_str_vec_(STRING_HEAP_INIT_BUCKET_SIZE) {
+                        long_str_vec_(0) {
     }
 
     ~var_string_heap() = default;

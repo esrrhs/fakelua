@@ -18,11 +18,13 @@ public:
     }
 
     // push_back. thread safe.
-    void push_back(const K &key) {
+    int push_back(const K &key) {
         std::unique_lock<std::shared_mutex> write_lock(mutex_);
         vec_.push_back(key);
         used_.push_back(true);
+        int index = vec_.size() - 1;
         size_++;
+        return index;
     }
 
     // set. thread safe.

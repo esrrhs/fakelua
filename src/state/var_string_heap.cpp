@@ -26,31 +26,32 @@ var_string var_string_heap::alloc(const std::string_view &str) {
         // alloc the string
         auto str_container = std::make_shared<std::string>(str);
         // try to insert the string with the index. maybe other thread has inserted the string.
-        // if the string is already inserted, index will be set to the new value.
+        // if the string is already inserted, str_container and index will be set to the existing value.
         short_str_to_index_map_.get_or_set(str_container, index);
         // set the string to the vector at index
         short_str_vec_.set(index, str_container);
+        assert(index > 0 && index < 0x7FFFFFFF);
         return var_string(index);
     } else {
         // long string
         auto ptr = std::make_shared<std::string>(str);
-        long_str_vec_.push_back(ptr);
-        return var_string(*ptr);
+        uint32_t index = long_str_vec_.push_back(ptr);
+        assert(index >= 0 && index < 0x7FFFFFFF);
+        return var_string(index | 0x80000000);
     }
 }
 
 std::string_view var_string_heap::get(const var_string &str) const {
-    if (str.short_string_index()) {
-        auto index = str.short_string_index();
+    auto string_index = str.string_index();
+    if (string_index) {
+        auto index = string_index & 0x7FFFFFFF;
         str_container_ptr str_container;
-        auto ok = short_str_vec_.get(index, str_container);
+        auto ok = string_index & 0x80000000 ? long_str_vec_.get(index, str_container) : short_str_vec_.get(index, str_container);
         if (ok) {
             return *str_container;
         }
-        return {};
-    } else {
-        return str.long_string_view();
     }
+    return {};
 }
 
 }// namespace fakelua
