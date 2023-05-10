@@ -50,3 +50,6 @@
 #include "glog/logging.h"
 
 #include "const_define.h"
+
+// define the str_container_ptr
+typedef std::shared_ptr<std::string> str_container_ptr;

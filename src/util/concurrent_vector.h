@@ -14,8 +14,7 @@ public:
         used_.resize(init_size);
     }
 
-    ~concurrent_vector() {
-    }
+    ~concurrent_vector() = default;
 
     // push_back. thread safe.
     int push_back(const K &key) {
