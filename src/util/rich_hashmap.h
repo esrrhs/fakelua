@@ -79,12 +79,17 @@ public:
         }
     }
 
-    // get size. thread safe.
+    // get size
     size_t size() const {
         return size_;
     }
 
-    // clear the hashmap. not thread safe, just like check_rehash.
+    // get bucket size
+    size_t bucket_size() const {
+        return buckets_.size();
+    }
+
+    // clear the hashmap
     void clear() {
         for (auto &bucket: buckets_) {
             bucket.size = 0;
