@@ -134,3 +134,47 @@ TEST(common, concurrent_vector_int) {
     size = v.size();
     ASSERT_EQ(size, 2);
 }
+
+TEST(common, concurrent_hashmap_multi_thread) {
+    concurrent_hashmap<int, int> map1(100);
+    auto t1 = std::thread([&map1]() {
+        for (int i = 0; i < 100000; ++i) {
+            map1.set(i, i);
+        }
+    });
+    auto t2 = std::thread([&map1]() {
+        for (int i = 0; i < 100000; ++i) {
+            map1.set(i, i);
+        }
+    });
+    t1.join();
+    t2.join();
+    for (int i = 0; i < 100000; ++i) {
+        int v;
+        auto ret = map1.get(i, v);
+        ASSERT_EQ(ret, true);
+        ASSERT_EQ(v, i);
+    }
+
+    t1 = std::thread([&map1]() {
+        for (int i = 0; i < 50000; ++i) {
+            map1.set(i, i);
+        }
+    });
+
+    t2 = std::thread([&map1]() {
+        for (int i = 50000; i < 100000; ++i) {
+            map1.remove(i);
+        }
+    });
+
+    t1.join();
+    t2.join();
+
+    for (int i = 0; i < 50000; ++i) {
+        int v;
+        auto ret = map1.get(i, v);
+        ASSERT_EQ(ret, true);
+        ASSERT_EQ(v, i);
+    }
+}
