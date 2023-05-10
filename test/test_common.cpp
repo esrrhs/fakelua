@@ -177,4 +177,118 @@ TEST(common, concurrent_hashmap_multi_thread) {
         ASSERT_EQ(ret, true);
         ASSERT_EQ(v, i);
     }
+
+    t1 = std::thread([&map1]() {
+        for (int i = 0; i < 50000; ++i) {
+            int v;
+            auto ret = map1.get(i, v);
+            ASSERT_EQ(ret, true);
+            ASSERT_EQ(v, i);
+        }
+    });
+
+    t2 = std::thread([&map1]() {
+        for (int i = 0; i < 50000; ++i) {
+            int v;
+            auto ret = map1.get(i, v);
+            ASSERT_EQ(ret, true);
+            ASSERT_EQ(v, i);
+        }
+    });
+
+    auto t3 = std::thread([&map1]() {
+        for (int i = 50000; i < 100000; ++i) {
+            map1.set(i, i);
+        }
+    });
+
+    t1.join();
+    t2.join();
+    t3.join();
+
+    for (int i = 0; i < 100000; ++i) {
+        int v;
+        auto ret = map1.get(i, v);
+        ASSERT_EQ(ret, true);
+        ASSERT_EQ(v, i);
+    }
+}
+
+TEST(common, concurrent_vector_multi_thread) {
+    concurrent_vector<int> v(0);
+
+    auto t1 = std::thread([&v]() {
+        for (int i = 0; i < 100000; ++i) {
+            v.push_back(1);
+        }
+    });
+
+    auto t2 = std::thread([&v]() {
+        for (int i = 0; i < 100000; ++i) {
+            v.push_back(1);
+        }
+    });
+
+    t1.join();
+    t2.join();
+
+    auto size = v.size();
+    ASSERT_EQ(size, 200000);
+
+    t1 = std::thread([&v]() {
+        for (int i = 0; i < 100000; ++i) {
+            v.set(i, i);
+        }
+    });
+
+    t2 = std::thread([&v]() {
+        for (int i = 0; i < 100000; ++i) {
+            v.set(i, i);
+        }
+    });
+
+    t1.join();
+    t2.join();
+
+    for (int i = 0; i < 100000; ++i) {
+        int v1;
+        auto ret = v.get(i, v1);
+        ASSERT_EQ(ret, true);
+        ASSERT_EQ(v1, i);
+    }
+
+    t1 = std::thread([&v]() {
+        for (int i = 0; i < 100000; ++i) {
+            int v1;
+            auto ret = v.get(i, v1);
+            ASSERT_EQ(ret, true);
+            ASSERT_EQ(v1, i);
+        }
+    });
+
+    t2 = std::thread([&v]() {
+        for (int i = 0; i < 100000; ++i) {
+            int v1;
+            auto ret = v.get(i, v1);
+            ASSERT_EQ(ret, true);
+            ASSERT_EQ(v1, i);
+        }
+    });
+
+    auto t3 = std::thread([&v]() {
+        for (int i = 0; i < 100000; ++i) {
+            v.set(i, i);
+        }
+    });
+
+    t1.join();
+    t2.join();
+    t3.join();
+
+    for (int i = 0; i < 100000; ++i) {
+        int v1;
+        auto ret = v.get(i, v1);
+        ASSERT_EQ(ret, true);
+        ASSERT_EQ(v1, i);
+    }
 }
