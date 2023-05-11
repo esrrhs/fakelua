@@ -12,6 +12,8 @@ namespace fakelua {
 template<typename K, typename V, size_t BucketHeight>
 class rich_hashmap {
 public:
+    static_assert(std::is_integral<K>::value, "K must be integral type.");
+
     rich_hashmap(size_t init_bucket_size) : size_(0) {
         buckets_.resize(init_bucket_size);
         for (auto &bucket: buckets_) {

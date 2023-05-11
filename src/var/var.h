@@ -4,6 +4,7 @@
 #include "util/common.h"
 #include "var_string.h"
 #include "var_type.h"
+#include "var_table.h"
 
 namespace fakelua {
 
@@ -34,6 +35,10 @@ public:
     var(const var &val) : data_(val.data_) {}
 
     var(var &&val) : data_(std::move(val.data_)) {}
+
+    var(const var_table &val) : data_(val) {}
+
+    var(var_table &&val) : data_(std::move(val)) {}
 
     ~var() = default;
 
@@ -67,8 +72,23 @@ public:
         return std::get<double>(data_);
     }
 
+    // get var_string value
+    const var_string& get_string() const {
+        return std::get<var_string>(data_);
+    }
+
     // get string_view value
     std::string_view get_string_view(state *s) const;
+
+    // get table value
+    const var_table &get_table() const {
+        return std::get<var_table>(data_);
+    }
+
+    // get table value
+    var_table &get_table() {
+        return std::get<var_table>(data_);
+    }
 
     // set nullptr
     var &set(std::nullptr_t) {
@@ -106,6 +126,12 @@ public:
     // set string value
     var &set(state *s, std::string_view val);
 
+    // set table value
+    var &set(const var_table &val);
+
+    // set table value
+    var &set(var_table &&val);
+
     // set var value
     var &set(const var &val) {
         data_ = val.data_;
@@ -123,7 +149,9 @@ private:
     // we just put the std::string in data, no string heap like lua. because most of the string is short.
     // and the std::string is already use the small string optimization. so the performance is good.
     // and the string heap will cause every new string has a hash compare, but mostly the string will not compare each other.
-    std::variant<std::nullptr_t, bool, int64_t, double, var_string> data_;
+    std::variant<std::nullptr_t, bool, int64_t, double, var_string, var_table> data_;
 };
+
+extern var const_null_var;
 
 }// namespace fakelua

@@ -17,6 +17,9 @@ public:
 
     ~var_table() = default;
 
+    // get value by key. if the key is not exist, return const var(nullptr).
+    var *get(const var &key);
+
 private:
     rich_hashmap<uint32_t, var *, MAX_VAR_TABLE_HASHMAP_BUCKET_HEIGHT> str_table_;
     rich_hashmap<int64_t, var *, MAX_VAR_TABLE_HASHMAP_BUCKET_HEIGHT> int_table_;
