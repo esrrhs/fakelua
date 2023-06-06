@@ -6,6 +6,7 @@
 #include "util/concurrent_vector.h"
 #include "var/var_string.h"
 #include "var/var_type.h"
+#include "util/no_copy.h"
 
 namespace fakelua {
 
@@ -13,7 +14,7 @@ namespace fakelua {
 // the string heap contains all the strings in the state.
 // it converts string to an uint32 index, to speed up the string compare, and the table key compare.
 // the index top 1 bit is the type, 0 for short string, 1 for long string. low 31 bits is the index in the vector.
-class var_string_heap {
+class var_string_heap : public no_copy<var_string_heap> {
 public:
     var_string_heap() : short_str_to_index_map_(STRING_HEAP_INIT_BUCKET_SIZE),
                         short_str_vec_(STRING_HEAP_INIT_BUCKET_SIZE),

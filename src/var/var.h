@@ -5,6 +5,7 @@
 #include "var_string.h"
 #include "var_type.h"
 #include "var_table.h"
+#include "util/no_copy.h"
 
 namespace fakelua {
 
@@ -12,7 +13,7 @@ class state;
 
 // Var is the class that holds the multiple types of data.
 // the reason why wrap the std::variant is that we can add more features and maybe someday we can replace the std::variant.
-class var {
+class var : public no_copy<var> {
 public:
     var() : data_(nullptr) {}
 
@@ -24,21 +25,19 @@ public:
 
     var(double val) : data_(val) {}
 
-    var(state *s, const std::string &val);
+    var(fakelua_state_ptr s, const std::string &val);
 
-    var(state *s, std::string &&val);
+    var(fakelua_state_ptr s, std::string &&val);
 
-    var(state *s, const char *val);
+    var(fakelua_state_ptr s, const char *val);
 
-    var(state *s, std::string_view val);
+    var(fakelua_state_ptr s, std::string_view val);
 
     var(const var &val) : data_(val.data_) {}
 
     var(var &&val) : data_(std::move(val.data_)) {}
 
-    var(const var_table &val) : data_(val) {}
-
-    var(var_table &&val) : data_(std::move(val)) {}
+    var(var_table_ptr val) : data_(val) {}
 
     ~var() = default;
 
@@ -73,21 +72,21 @@ public:
     }
 
     // get var_string value
-    const var_string& get_string() const {
+    const var_string &get_string() const {
         return std::get<var_string>(data_);
     }
 
     // get string_view value
-    std::string_view get_string_view(state *s) const;
+    std::string_view get_string_view(fakelua_state_ptr s) const;
 
     // get table value
-    const var_table &get_table() const {
-        return std::get<var_table>(data_);
+    const var_table_ptr &get_table() const {
+        return std::get<var_table_ptr>(data_);
     }
 
     // get table value
-    var_table &get_table() {
-        return std::get<var_table>(data_);
+    var_table_ptr &get_table() {
+        return std::get<var_table_ptr>(data_);
     }
 
     // set nullptr
@@ -115,22 +114,19 @@ public:
     }
 
     // set string value
-    var &set(state *s, const std::string &val);
+    var &set(fakelua_state_ptr s, const std::string &val);
 
     // set string value
-    var &set(state *s, std::string &&val);
+    var &set(fakelua_state_ptr s, std::string &&val);
 
     // set string value
-    var &set(state *s, const char *val);
+    var &set(fakelua_state_ptr s, const char *val);
 
     // set string value
-    var &set(state *s, std::string_view val);
+    var &set(fakelua_state_ptr s, std::string_view val);
 
     // set table value
-    var &set(const var_table &val);
-
-    // set table value
-    var &set(var_table &&val);
+    var &set(var_table_ptr val);
 
     // set var value
     var &set(const var &val) {
@@ -146,7 +142,7 @@ public:
 
 private:
     // use std::variant instead of union, use more memory but more safe.
-    std::variant<std::nullptr_t, bool, int64_t, double, var_string, var_table> data_;
+    std::variant<std::nullptr_t, bool, int64_t, double, var_string, var_table_ptr> data_;
 };
 
 extern var const_null_var;
