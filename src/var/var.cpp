@@ -58,8 +58,13 @@ var &var::set(fakelua_state_ptr s, std::string_view val) {
     return *this;
 }
 
-var &var::set(var_table_ptr val) {
+var &var::set(const var_table &val) {
     data_ = val;
+    return *this;
+}
+
+var &var::set(var_table &&val) {
+    data_ = std::move(val);
     return *this;
 }
 

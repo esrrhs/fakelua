@@ -19,13 +19,13 @@ static void BM_var_set_int(benchmark::State &state) {
 
 BENCHMARK(BM_var_set_int)->Range(8, 8 << 10);
 
-static void BM_var_set_string(benchmark::State &state) {
+static void BM_var_set_string(benchmark::State &bstate) {
     FLAGS_minloglevel = 3;
-    class state s;
+    auto s = std::make_shared<state>();
     var v;
-    for (auto _: state) {
-        for (int i = 0; i < state.range(0); ++i) {
-            v.set(&s, "test");
+    for (auto _: bstate) {
+        for (int i = 0; i < bstate.range(0); ++i) {
+            v.set(s, "test");
         }
     }
 }
@@ -45,14 +45,14 @@ static void BM_var_get_int(benchmark::State &state) {
 
 BENCHMARK(BM_var_get_int)->Range(8, 8 << 10);
 
-static void BM_var_get_string(benchmark::State &state) {
+static void BM_var_get_string(benchmark::State &bstate) {
     FLAGS_minloglevel = 3;
-    class state s;
+    auto s = std::make_shared<state>();
     var v;
-    v.set(&s, "test");
-    for (auto _: state) {
-        for (int i = 0; i < state.range(0); ++i) {
-            v.get_string_view(&s);
+    v.set(s, "test");
+    for (auto _: bstate) {
+        for (int i = 0; i < bstate.range(0); ++i) {
+            v.get_string_view(s);
         }
     }
 }

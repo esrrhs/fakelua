@@ -39,6 +39,11 @@ public:
         long_str_vec_.clear();
     }
 
+    // check the hashmap rehash. not thread safe. should be called only in one thread.
+    void check() {
+        short_str_to_index_map_.check_rehash();
+    }
+
 private:
     // since the string heap is shared by all running thread in states, we need a concurrent hashmap to store the strings.
     // the key is the string, the value is the index.

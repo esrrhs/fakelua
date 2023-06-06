@@ -3,6 +3,7 @@
 #include "state/var_string_heap.h"
 #include "var/var.h"
 #include "gtest/gtest.h"
+#include "state/var_pool.h"
 
 using namespace fakelua;
 
@@ -113,4 +114,32 @@ TEST(var, var_string_heap) {
     ret = heap.alloc(str);
     ASSERT_EQ(ret.string_index(), make_long_string_index(0));
     ASSERT_EQ(heap.get(ret), str);
+}
+
+TEST(var, var_pool) {
+    var_pool pool;
+    auto v = pool.alloc();
+    ASSERT_EQ(v->type(), var_type::NIL);
+
+    auto v1 = pool.alloc();
+    ASSERT_EQ(v1->type(), var_type::NIL);
+    ASSERT_NE(v, v1);
+
+    pool.reset();
+
+    auto v2 = pool.alloc();
+    ASSERT_EQ(v2->type(), var_type::NIL);
+
+    auto v3 = pool.alloc();
+    ASSERT_EQ(v3->type(), var_type::NIL);
+
+    pool.reset();
+
+    auto v4 = pool.alloc();
+    ASSERT_EQ(v2->type(), var_type::NIL);
+    ASSERT_EQ(v2, v4);
+
+    auto v5 = pool.alloc();
+    ASSERT_EQ(v3->type(), var_type::NIL);
+    ASSERT_EQ(v3, v5);
 }

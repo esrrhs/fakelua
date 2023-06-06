@@ -2,6 +2,7 @@
 
 #include "fakelua.h"
 #include "var_string_heap.h"
+#include "var_pool.h"
 
 namespace fakelua {
 
@@ -20,8 +21,13 @@ public:
         return var_string_heap_;
     }
 
+    var_pool &get_var_pool() {
+        return var_pool_;
+    }
+
 private:
     var_string_heap var_string_heap_;
+    var_pool var_pool_;
 };
 
 }// namespace fakelua
