@@ -146,9 +146,6 @@ public:
 
 private:
     // use std::variant instead of union, use more memory but more safe.
-    // we just put the std::string in data, no string heap like lua. because most of the string is short.
-    // and the std::string is already use the small string optimization. so the performance is good.
-    // and the string heap will cause every new string has a hash compare, but mostly the string will not compare each other.
     std::variant<std::nullptr_t, bool, int64_t, double, var_string, var_table> data_;
 };
 

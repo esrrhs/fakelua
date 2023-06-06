@@ -5,7 +5,8 @@
 
 namespace fakelua {
 
-// fake_lua state interface, can run concurrently
+// fake_lua state interface, can run concurrently. every state has its own running environment.
+// there could be many states in one process.
 class fakelua_state {
 public:
     fakelua_state() {}

@@ -5,6 +5,7 @@
 
 namespace fakelua {
 
+// the state contains the running environment we need.
 class state : public fakelua_state {
 public:
     state();
