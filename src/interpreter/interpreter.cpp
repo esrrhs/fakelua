@@ -12,7 +12,9 @@ void interpreter::compile(const syntax_tree_interface_ptr &chunk) {
 
 void interpreter::compile_const_define(const syntax_tree_interface_ptr &chunk) {
     // the chunk must be a block
-    if (chunk->type() != syntax_tree_type::syntax_tree_type_block) { throw std::runtime_error("the chunk must be a block"); }
+    if (chunk->type() != syntax_tree_type::syntax_tree_type_block) {
+        throw std::runtime_error("the chunk must be a block");
+    }
 
     // walk through the block
     auto block = std::dynamic_pointer_cast<syntax_tree_block>(chunk);

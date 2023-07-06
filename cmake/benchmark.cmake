@@ -13,4 +13,4 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(com_github_benchmark)
 
-include_directories({CMAKE_BINARY_DIR}/cmake_third_party/benchmark/include)
+include_directories(${CMAKE_BINARY_DIR}/cmake_third_party/benchmark/include)

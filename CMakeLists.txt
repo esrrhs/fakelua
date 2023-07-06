@@ -42,6 +42,7 @@ ENDIF ()
 include(cmake/benchmark.cmake)
 include(cmake/googletest.cmake)
 include(cmake/glog.cmake)
+include(cmake/magic_enum.cmake)
 
 add_subdirectory(src)
 add_subdirectory(cmd)

@@ -51,5 +51,7 @@
 
 #include "const_define.h"
 
+#include "magic_enum.hpp"
+
 // define the str_container_ptr
 typedef std::shared_ptr<std::string> str_container_ptr;
