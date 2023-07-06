@@ -3,7 +3,7 @@
 [<img src="https://img.shields.io/github/languages/top/esrrhs/fakelua">](https://github.com/esrrhs/fakelua)
 [<img src="https://img.shields.io/github/actions/workflow/status/esrrhs/fakelua/cmake.yml?branch=master">](https://github.com/esrrhs/fakelua/actions)
 
-FakeLua is a tool that can optimize Lua execution, it compile Lua to native code at runtime and can execute concurrently.
+FakeLua is a library for fast implementation of custom Lua, it compile Lua to native code at runtime and can execute concurrently.
 
 # Feature
 * compile with C++20
