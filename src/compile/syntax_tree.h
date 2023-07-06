@@ -122,7 +122,7 @@ public:
         stmts_.push_back(stmt);
     }
 
-    const std::vector<syntax_tree_interface_ptr> &get_stmts() const {
+    const std::vector<syntax_tree_interface_ptr> &stmts() const {
         return stmts_;
     }
 
@@ -244,6 +244,10 @@ public:
 
     void add_exp(const syntax_tree_interface_ptr &exp) {
         exps_.push_back(exp);
+    }
+
+    std::vector<syntax_tree_interface_ptr> &exps() {
+        return exps_;
     }
 
 private:
@@ -665,6 +669,10 @@ public:
         attrib_.push_back(attrib);
     }
 
+    const std::vector<std::string> &names() const {
+        return names_;
+    }
+
 private:
     std::vector<std::string> names_;
     std::vector<std::string> attrib_;
@@ -877,6 +885,14 @@ public:
 
     void set_explist(const syntax_tree_interface_ptr &explist) {
         explist_ = explist;
+    }
+
+    syntax_tree_interface_ptr namelist() const {
+        return namelist_;
+    }
+
+    syntax_tree_interface_ptr explist() const {
+        return explist_;
     }
 
 private:
