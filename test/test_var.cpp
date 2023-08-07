@@ -1,9 +1,9 @@
 #include "fakelua.h"
 #include "state/state.h"
+#include "state/var_pool.h"
 #include "state/var_string_heap.h"
 #include "var/var.h"
 #include "gtest/gtest.h"
-#include "state/var_pool.h"
 
 using namespace fakelua;
 
@@ -142,4 +142,28 @@ TEST(var, var_pool) {
     auto v5 = pool.alloc();
     ASSERT_EQ(v3->type(), var_type::NIL);
     ASSERT_EQ(v3, v5);
+}
+
+TEST(var, to_string) {
+    auto s = std::make_shared<state>();
+
+    var_pool pool;
+    auto v = pool.alloc();
+    v->set(nullptr);
+    ASSERT_EQ(v->to_string(s), "nil");
+
+    v->set(true);
+    ASSERT_EQ(v->to_string(s), "true");
+
+    v->set((int64_t) 12345);
+    ASSERT_EQ(v->to_string(s), "12345");
+
+    v->set(12345.0);
+    ASSERT_EQ(v->to_string(s), "12345.000000");
+
+    v->set(s, "hello");
+    ASSERT_EQ(v->to_string(s), "\"hello\"");
+
+    v->set(var_table());
+    ASSERT_EQ(v->to_string(s), std::format("table({})", (void *) v));
 }

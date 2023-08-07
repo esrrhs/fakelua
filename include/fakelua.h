@@ -1,17 +1,19 @@
 #pragma once
 
-#include <string>
 #include <memory>
+#include <string>
 
 namespace fakelua {
 
 // fake_lua state interface, can run concurrently. every state has its own running environment.
 // there could be many states in one process.
-class fakelua_state {
+class fakelua_state : public std::enable_shared_from_this<fakelua_state> {
 public:
-    fakelua_state() {}
+    fakelua_state() {
+    }
 
-    virtual ~fakelua_state() {}
+    virtual ~fakelua_state() {
+    }
 
     virtual void compile_file(const std::string &filename) = 0;
 
@@ -29,4 +31,4 @@ void open_profiler(const std::string &fname);
 // stop global profiler by gperftools
 void stop_profiler();
 
-}
+}// namespace fakelua

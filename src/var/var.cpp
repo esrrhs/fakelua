@@ -68,4 +68,23 @@ var &var::set(var_table &&val) {
     return *this;
 }
 
+std::string var::to_string(fakelua_state_ptr s) const {
+    switch (type()) {
+        case var_type::NIL:
+            return "nil";
+        case var_type::BOOL:
+            return get_bool() ? "true" : "false";
+        case var_type::INT:
+            return std::to_string(get_int());
+        case var_type::FLOAT:
+            return std::to_string(get_float());
+        case var_type::STRING:
+            return "\"" + std::string(get_string_view(s)) + "\"";
+        case var_type::TABLE:
+            return std::format("table({})", (void *) this);
+        default:
+            return "unknown";
+    }
+}
+
 }// namespace fakelua

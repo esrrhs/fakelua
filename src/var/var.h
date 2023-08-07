@@ -2,10 +2,10 @@
 
 #include "fakelua.h"
 #include "util/common.h"
-#include "var_string.h"
-#include "var_type.h"
-#include "var_table.h"
 #include "util/no_copy.h"
+#include "var_string.h"
+#include "var_table.h"
+#include "var_type.h"
 
 namespace fakelua {
 
@@ -14,17 +14,23 @@ class state;
 // Var is the class that holds the multiple types of data.
 // the reason why wrap the std::variant is that we can add more features and maybe someday we can replace the std::variant.
 // all the data is stored in the state's var_pool. and used by simple pointer.
+// except the const var, which is stored in the interpreter and only use in the interpreter.
 class var : public no_copy<var> {
 public:
-    var() : data_(nullptr) {}
+    var() : data_(nullptr) {
+    }
 
-    var(std::nullptr_t) : data_(nullptr) {}
+    var(std::nullptr_t) : data_(nullptr) {
+    }
 
-    var(bool val) : data_(val) {}
+    var(bool val) : data_(val) {
+    }
 
-    var(int64_t val) : data_(val) {}
+    var(int64_t val) : data_(val) {
+    }
 
-    var(double val) : data_(val) {}
+    var(double val) : data_(val) {
+    }
 
     var(fakelua_state_ptr s, const std::string &val);
 
@@ -34,16 +40,21 @@ public:
 
     var(fakelua_state_ptr s, std::string_view val);
 
-    var(const var &val) : data_(val.data_) {}
+    var(const var &val) : data_(val.data_) {
+    }
 
-    var(var &&val) : data_(std::move(val.data_)) {}
+    var(var &&val) : data_(std::move(val.data_)) {
+    }
 
-    var(const var_table &val) : data_(val) {}
+    var(const var_table &val) : data_(val) {
+    }
 
-    var(var_table &&val) : data_(std::move(val)) {}
+    var(var_table &&val) : data_(std::move(val)) {
+    }
 
     ~var() = default;
 
+public:
     var &operator=(const var &val) {
         data_ = val.data_;
         return *this;
@@ -54,6 +65,7 @@ public:
         return *this;
     }
 
+public:
     // get the var type
     var_type type() const {
         return static_cast<var_type>(data_.index());
@@ -92,6 +104,7 @@ public:
         return std::get<var_table>(data_);
     }
 
+public:
     // set nullptr
     var &set(std::nullptr_t) {
         data_ = nullptr;
@@ -146,11 +159,16 @@ public:
         return *this;
     }
 
+public:
+    std::string to_string(fakelua_state_ptr s) const;
+
 private:
     // use std::variant instead of union, use more memory but more safe.
     std::variant<std::nullptr_t, bool, int64_t, double, var_string, var_table> data_;
 };
 
 extern var const_null_var;
+
+typedef std::shared_ptr<var> var_ptr;
 
 }// namespace fakelua

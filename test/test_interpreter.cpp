@@ -9,5 +9,5 @@ TEST(interpreter, const_define) {
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
-    auto result = c.compile_file("./interpreter/test_const_define.lua", {});
+    auto result = c.compile_file(L, "./interpreter/test_const_define.lua", {});
 }

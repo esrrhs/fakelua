@@ -1,4 +1,3 @@
-local a
 local b = 1
 local c <const> = {
     d = true,

@@ -30,14 +30,14 @@ public:
 
 public:
     // compile the lua file
-    compile_result compile_file(const std::string &file, compile_config cfg);
+    compile_result compile_file(fakelua_state_ptr sp, const std::string &file, compile_config cfg);
 
     // compile the lua string
-    compile_result compile_string(const std::string &str, compile_config cfg);
+    compile_result compile_string(fakelua_state_ptr sp, const std::string &str, compile_config cfg);
 
 private:
     // compile the myflexer which already input the file or string
-    compile_result compile(myflexer &f, compile_config cfg);
+    compile_result compile(fakelua_state_ptr sp, myflexer &f, compile_config cfg);
 };
 
 }// namespace fakelua
