@@ -24,7 +24,7 @@ jobs:
           cd ..
           mkdir objdir
           cd objdir
-          $PWD/../gcc-13.2.0/configure --enable-languages=c,c++
+          $PWD/../gcc-13.2.0/configure --disable-multilib --enable-languages=c,c++
           make -j8
           make install
           gcc -v
