@@ -30,6 +30,10 @@ jobs:
           gcc -v
           g++ -v
           cmake --version
+          export PATH=/usr/local/bin:$PATH
+          ls -l /usr/local/bin
+          export LD_LIBRARY_PATH=/usr/local/lib64:$LD_LIBRARY_PATH
+          ls -l /usr/local/lib64
           set -x
           
       - name: Build
