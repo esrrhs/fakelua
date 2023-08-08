@@ -17,10 +17,18 @@ jobs:
       - name: Prepare
         run: |
           sudo apt-get update
-          sudo apt-get install gdb
+          wget http://ftp.tsukuba.wide.ad.jp/software/gcc/releases/gcc-13.2.0/gcc-13.2.0.tar.gz
+          tar -xf gcc-13.2.0.tar.gz
+          cd gcc-13.2.0
+          ./contrib/download_prerequisites
+          cd ..
+          mkdir objdir
+          cd objdir
+          $PWD/../gcc-13.2.0/configure --enable-languages=c,c++
+          make -j8
+          make install
           gcc -v
           g++ -v
-          gdb -v
           cmake --version
           set -x
           
