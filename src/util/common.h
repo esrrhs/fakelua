@@ -22,6 +22,7 @@
 #include <mutex>
 #include <pthread.h>
 #include <queue>
+#include <regex>
 #include <set>
 #include <shared_mutex>
 #include <signal.h>
@@ -55,3 +56,7 @@
 
 // define the str_container_ptr
 typedef std::shared_ptr<std::string> str_container_ptr;
+
+inline bool is_integer(const std::string &s) {
+    return std::regex_match(s, std::regex("[(-|+)|][0-9]+"));
+}

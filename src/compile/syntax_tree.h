@@ -935,6 +935,14 @@ public:
         right_ = right;
     }
 
+    std::string exp_type() const {
+        return type_;
+    }
+
+    std::string exp_value() const {
+        return value_;
+    }
+
 private:
     std::string type_;
     std::string value_;

@@ -59,7 +59,39 @@ void interpreter::compile_const_define(fakelua_state_ptr sp, const syntax_tree_i
 }
 
 void interpreter::compile_exp(fakelua_state_ptr sp, const syntax_tree_interface_ptr &exp, var *dst) {
-    // TODO: compile the expression
+    // the chunk must be a exp
+    check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
+    // start compile the expression
+    auto e = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
+    const auto &exp_type = e->exp_type();
+    const auto &value = e->exp_value();
+    if (exp_type == "nil") {
+        dst->set(nullptr);
+    } else if (exp_type == "false") {
+        dst->set(false);
+    } else if (exp_type == "true") {
+        dst->set(true);
+    } else if (exp_type == "number") {
+        if (is_integer(value)) {
+            dst->set((int64_t) std::stoll(value));
+        } else {
+            dst->set(std::stod(value));
+        }
+    } else if (exp_type == "string") {
+        dst->set(sp, value);
+    } else if (exp_type == "var_params") {
+        // TODO
+    } else if (exp_type == "functiondef") {
+        // TODO
+    } else if (exp_type == "prefixexp") {
+        // TODO
+    } else if (exp_type == "tableconstructor") {
+        // TODO
+    } else if (exp_type == "binop") {
+        // TODO
+    } else if (exp_type == "unop") {
+        // TODO
+    }
 }
 
 }// namespace fakelua
