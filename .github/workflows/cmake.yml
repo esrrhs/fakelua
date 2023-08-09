@@ -16,6 +16,7 @@ jobs:
 
       - name: Prepare
         run: |
+          set -x
           sudo apt-get update
           cur_home=$PWD
           wget http://ftp.tsukuba.wide.ad.jp/software/gcc/releases/gcc-13.2.0/gcc-13.2.0.tar.gz
@@ -29,15 +30,18 @@ jobs:
           $PWD/../gcc-13.2.0/configure --prefix=$cur_home/GCC-13.2.0 --disable-multilib --enable-languages=c,c++
           make -j8
           sudo make install
-          gcc -v
-          g++ -v
           cmake --version
           export PATH=$cur_home/GCC-13.2.0/bin:/home/ubuntu/project/depot_tools:$PATH
           export LD_LIBRARY_PATH=$cur_home/GCC-13.2.0/lib64:$LD_LIBRARY_PATH
-          set -x
+          gcc -v
+          g++ -v
           
       - name: Build
         run: |
+          export PATH=$cur_home/GCC-13.2.0/bin:/home/ubuntu/project/depot_tools:$PATH
+          export LD_LIBRARY_PATH=$cur_home/GCC-13.2.0/lib64:$LD_LIBRARY_PATH
+          gcc -v
+          g++ -v
           rm build -rf
           mkdir build
           cd build
