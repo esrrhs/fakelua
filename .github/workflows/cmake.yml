@@ -31,15 +31,13 @@ jobs:
           make -j8
           sudo make install
           cmake --version
-          export PATH=$cur_home/GCC-13.2.0/bin:/home/ubuntu/project/depot_tools:$PATH
-          export LD_LIBRARY_PATH=$cur_home/GCC-13.2.0/lib64:$LD_LIBRARY_PATH
+          export PATH=$PATH:$cur_home/GCC-13.2.0/bin
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$cur_home/GCC-13.2.0/lib64
           gcc -v
           g++ -v
           
       - name: Build
         run: |
-          export PATH=$cur_home/GCC-13.2.0/bin:/home/ubuntu/project/depot_tools:$PATH
-          export LD_LIBRARY_PATH=$cur_home/GCC-13.2.0/lib64:$LD_LIBRARY_PATH
           gcc -v
           g++ -v
           rm build -rf
