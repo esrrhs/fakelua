@@ -108,19 +108,25 @@ vm_runner_interface_ptr interpreter::compile_exp(fakelua_state_ptr sp, const syn
         });
     } else if (exp_type == "var_params") {
         // TODO
+        return nullptr;
     } else if (exp_type == "functiondef") {
         // TODO
+        return nullptr;
     } else if (exp_type == "prefixexp") {
         // TODO
+        return nullptr;
     } else if (exp_type == "tableconstructor") {
         // TODO
+        return nullptr;
     } else if (exp_type == "binop") {
         // TODO
+        return nullptr;
     } else if (exp_type == "unop") {
         // TODO
+        return nullptr;
+    } else {
+        throw std::runtime_error("not support exp type: " + exp_type);
     }
-
-    throw std::runtime_error("not support exp type: " + exp_type);
 }
 
 }// namespace fakelua
