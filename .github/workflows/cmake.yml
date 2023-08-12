@@ -33,13 +33,15 @@ jobs:
           cmake --version
           export PATH=$PATH:$cur_home/GCC-13.2.0/bin
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$cur_home/GCC-13.2.0/lib64
+          sudo rm /usr/bin/gcc
+          sudo ln -s $cur_home/GCC-13.2.0/bin/gcc /usr/bin/gcc
+          sudo rm /usr/bin/g++
+          sudo ln -s $cur_home/GCC-13.2.0/bin/g++ /usr/bin/g++
           gcc -v
           g++ -v
           
       - name: Build
         run: |
-          gcc -v
-          g++ -v
           rm build -rf
           mkdir build
           cd build
