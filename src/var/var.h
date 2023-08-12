@@ -14,7 +14,6 @@ class state;
 // Var is the class that holds the multiple types of data.
 // the reason why wrap the std::variant is that we can add more features and maybe someday we can replace the std::variant.
 // all the data is stored in the state's var_pool. and used by simple pointer.
-// except the const var, which is stored in the interpreter and only use in the interpreter.
 class var : public no_copy<var> {
 public:
     var() : data_(nullptr) {
@@ -168,7 +167,5 @@ private:
 };
 
 extern var const_null_var;
-
-typedef std::shared_ptr<var> var_ptr;
 
 }// namespace fakelua

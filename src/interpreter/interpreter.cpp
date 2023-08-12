@@ -1,6 +1,8 @@
 #include "interpreter.h"
 #include "fakelua.h"
+#include "state/state.h"
 #include "util/common.h"
+#include "vm.h"
 
 namespace fakelua {
 
@@ -49,36 +51,61 @@ void interpreter::compile_const_define(fakelua_state_ptr sp, const syntax_tree_i
 
         auto exp = std::dynamic_pointer_cast<syntax_tree_exp>(value);
 
-        auto const_value = std::make_shared<var>();
-        compile_exp(sp, exp, const_value.get());
+        auto const_value = compile_exp(sp, exp);
         // set the value to the name
         const_defines_[name] = const_value;
 
-        LOG(INFO) << "compile const define: " << name << " = " << const_value->to_string(sp);
+        LOG(INFO) << "compile const define: " << name;
     }
 }
 
-void interpreter::compile_exp(fakelua_state_ptr sp, const syntax_tree_interface_ptr &exp, var *dst) {
+vm_runner_interface_ptr interpreter::compile_exp(fakelua_state_ptr sp, const syntax_tree_interface_ptr &exp) {
     // the chunk must be a exp
     check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
     // start compile the expression
     auto e = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
     const auto &exp_type = e->exp_type();
     const auto &value = e->exp_value();
+
     if (exp_type == "nil") {
-        dst->set(nullptr);
+        return make_vm_runner([=](std::vector<var *> input) -> std::vector<var *> {
+            auto &vp = std::dynamic_pointer_cast<state>(sp)->get_var_pool();
+            auto dst = vp.alloc();
+            dst->set(nullptr);
+            return {dst};
+        });
     } else if (exp_type == "false") {
-        dst->set(false);
+        return make_vm_runner([=](std::vector<var *> input) -> std::vector<var *> {
+            auto &vp = std::dynamic_pointer_cast<state>(sp)->get_var_pool();
+            auto dst = vp.alloc();
+            dst->set(false);
+            return {dst};
+        });
     } else if (exp_type == "true") {
-        dst->set(true);
+        return make_vm_runner([=](std::vector<var *> input) -> std::vector<var *> {
+            auto &vp = std::dynamic_pointer_cast<state>(sp)->get_var_pool();
+            auto dst = vp.alloc();
+            dst->set(true);
+            return {dst};
+        });
     } else if (exp_type == "number") {
-        if (is_integer(value)) {
-            dst->set((int64_t) std::stoll(value));
-        } else {
-            dst->set(std::stod(value));
-        }
+        return make_vm_runner([=](std::vector<var *> input) -> std::vector<var *> {
+            auto &vp = std::dynamic_pointer_cast<state>(sp)->get_var_pool();
+            auto dst = vp.alloc();
+            if (is_integer(value)) {
+                dst->set((int64_t) std::stoll(value));
+            } else {
+                dst->set(std::stod(value));
+            }
+            return {dst};
+        });
     } else if (exp_type == "string") {
-        dst->set(sp, value);
+        return make_vm_runner([=](std::vector<var *> input) -> std::vector<var *> {
+            auto &vp = std::dynamic_pointer_cast<state>(sp)->get_var_pool();
+            auto dst = vp.alloc();
+            dst->set(sp, value);
+            return {dst};
+        });
     } else if (exp_type == "var_params") {
         // TODO
     } else if (exp_type == "functiondef") {
@@ -92,6 +119,8 @@ void interpreter::compile_exp(fakelua_state_ptr sp, const syntax_tree_interface_
     } else if (exp_type == "unop") {
         // TODO
     }
+
+    throw std::runtime_error("not support exp type: " + exp_type);
 }
 
 }// namespace fakelua
