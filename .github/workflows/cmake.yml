@@ -43,6 +43,8 @@ jobs:
           
       - name: Build
         run: |
+          export PATH=$PATH:$cur_home/GCC-13.2.0/bin
+          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$cur_home/GCC-13.2.0/lib64
           rm build -rf
           mkdir build
           cd build
