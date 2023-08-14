@@ -39,6 +39,7 @@ jobs:
           sudo ln -s $cur_home/GCC-13.2.0/bin/g++ /usr/bin/g++
           gcc -v
           g++ -v
+          ls -l $cur_home/GCC-13.2.0/lib64
           
       - name: Build
         run: |
