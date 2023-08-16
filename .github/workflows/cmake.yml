@@ -18,7 +18,7 @@ jobs:
         run: |
           set -x
           sudo apt-get update
-          cur_home=$PWD
+          export cur_home=$PWD
           wget http://ftp.tsukuba.wide.ad.jp/software/gcc/releases/gcc-13.2.0/gcc-13.2.0.tar.gz
           tar -xf gcc-13.2.0.tar.gz
           cd gcc-13.2.0
