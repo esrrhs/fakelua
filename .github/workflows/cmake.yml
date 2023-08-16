@@ -37,9 +37,9 @@ jobs:
           sudo ln -s $cur_home/GCC-13.2.0/bin/gcc /usr/bin/gcc
           sudo rm /usr/bin/g++
           sudo ln -s $cur_home/GCC-13.2.0/bin/g++ /usr/bin/g++
-          sudo rm /lib/x86_64-linux-gnu/libstdc++.so
+          sudo rm /lib/x86_64-linux-gnu/libstdc++.so -rf
           sudo ln -s $cur_home/GCC-13.2.0/lib64/libstdc++.so.6.0.32 /lib/x86_64-linux-gnu/libstdc++.so
-          sudo rm /lib/x86_64-linux-gnu/libstdc++.so.6
+          sudo rm /lib/x86_64-linux-gnu/libstdc++.so.6 -rf
           sudo ln -s $cur_home/GCC-13.2.0/lib64/libstdc++.so.6.0.32 /lib/x86_64-linux-gnu/libstdc++.so.6
           gcc -v
           g++ -v
