@@ -13,10 +13,14 @@ jobs:
 
     steps:
       - uses: actions/checkout@v1
+      - name: Set Env
+        run: |
+          echo "cur_home=$PWD" >> "$GITHUB_ENV"
 
       - name: Prepare
         run: |
           set -x
+          printf '%s\n' "$cur_home"
           sudo apt-get update
           wget http://ftp.tsukuba.wide.ad.jp/software/gcc/releases/gcc-13.2.0/gcc-13.2.0.tar.gz
           tar -xf gcc-13.2.0.tar.gz
@@ -25,7 +29,6 @@ jobs:
           cd ..
           mkdir objdir
           cd objdir
-          echo "cur_home=$PWD" >> "$GITHUB_ENV"
           ls $cur_home/GCC-13.2.0
           mkdir -p $cur_home/GCC-13.2.0
           $PWD/../gcc-13.2.0/configure --prefix=$cur_home/GCC-13.2.0 --disable-multilib --enable-languages=c,c++
