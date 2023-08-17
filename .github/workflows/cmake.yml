@@ -22,6 +22,7 @@ jobs:
           set -x
           printf '%s\n' "$cur_home"
           sudo apt-get update
+          cd $cur_home
           wget http://ftp.tsukuba.wide.ad.jp/software/gcc/releases/gcc-13.2.0/gcc-13.2.0.tar.gz
           tar -xf gcc-13.2.0.tar.gz
           cd gcc-13.2.0
@@ -52,6 +53,7 @@ jobs:
       - name: Build
         run: |
           set -x
+          cd $cur_home
           echo $cur_home
           ls $cur_home/GCC-13.2.0
           export PATH=$PATH:$cur_home/GCC-13.2.0/bin
