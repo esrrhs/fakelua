@@ -18,7 +18,6 @@ jobs:
         run: |
           set -x
           sudo apt-get update
-          export cur_home=$PWD
           wget http://ftp.tsukuba.wide.ad.jp/software/gcc/releases/gcc-13.2.0/gcc-13.2.0.tar.gz
           tar -xf gcc-13.2.0.tar.gz
           cd gcc-13.2.0
@@ -26,6 +25,8 @@ jobs:
           cd ..
           mkdir objdir
           cd objdir
+          echo "cur_home=$PWD" >> $GITHUB_ENV
+          ls $cur_home/GCC-13.2.0
           mkdir -p $cur_home/GCC-13.2.0
           $PWD/../gcc-13.2.0/configure --prefix=$cur_home/GCC-13.2.0 --disable-multilib --enable-languages=c,c++
           make -j8
@@ -48,6 +49,8 @@ jobs:
       - name: Build
         run: |
           set -x
+          echo $cur_home
+          ls $cur_home/GCC-13.2.0
           export PATH=$PATH:$cur_home/GCC-13.2.0/bin
           export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$cur_home/GCC-13.2.0/lib64
           ls -l $cur_home/GCC-13.2.0/lib64
