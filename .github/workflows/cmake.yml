@@ -35,16 +35,8 @@ jobs:
           make -j8
           sudo make install
           cmake --version
-          export PATH=$PATH:$cur_home/GCC-13.2.0/bin
-          export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$cur_home/GCC-13.2.0/lib64
-          sudo rm /usr/bin/gcc
-          sudo ln -s $cur_home/GCC-13.2.0/bin/gcc /usr/bin/gcc
-          sudo rm /usr/bin/g++
-          sudo ln -s $cur_home/GCC-13.2.0/bin/g++ /usr/bin/g++
-          sudo rm /lib/x86_64-linux-gnu/libstdc++.so -rf
-          sudo ln -s $cur_home/GCC-13.2.0/lib64/libstdc++.so.6.0.32 /lib/x86_64-linux-gnu/libstdc++.so
-          sudo rm /lib/x86_64-linux-gnu/libstdc++.so.6 -rf
-          sudo ln -s $cur_home/GCC-13.2.0/lib64/libstdc++.so.6.0.32 /lib/x86_64-linux-gnu/libstdc++.so.6
+          export PATH=$cur_home/GCC-13.2.0/bin:$PATH
+          export LD_LIBRARY_PATH=$cur_home/GCC-13.2.0/lib64:$LD_LIBRARY_PATH
           gcc -v
           g++ -v
           
@@ -53,6 +45,8 @@ jobs:
           set -x
           printf '%s\n' "$cur_home"
           cd $cur_home
+          export PATH=$cur_home/GCC-13.2.0/bin:$PATH
+          export LD_LIBRARY_PATH=$cur_home/GCC-13.2.0/lib64:$LD_LIBRARY_PATH
           ls -l $cur_home/GCC-13.2.0/lib64
           rm build -rf
           mkdir build
@@ -68,6 +62,8 @@ jobs:
           set -x
           printf '%s\n' "$cur_home"
           cd $cur_home
+          export PATH=$cur_home/GCC-13.2.0/bin:$PATH
+          export LD_LIBRARY_PATH=$cur_home/GCC-13.2.0/lib64:$LD_LIBRARY_PATH
           rm build -rf
           mkdir build
           cd build
