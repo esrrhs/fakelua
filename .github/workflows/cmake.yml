@@ -39,7 +39,12 @@ jobs:
           export LD_LIBRARY_PATH=$cur_home/GCC-13.2.0/lib64:$LD_LIBRARY_PATH
           gcc -v
           g++ -v
-          
+
+      - name: Upload coverage reports to Codecov
+        uses: codecov/codecov-action@v3
+        env:
+          CODECOV_TOKEN: ${{ secrets.CODECOV }}
+
       - name: Build
         run: |
           set -x
