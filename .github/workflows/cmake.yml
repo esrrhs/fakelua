@@ -13,9 +13,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v1
-      - name: Set Env
-        run: |
-          echo "cur_home=$PWD" >> "$GITHUB_ENV"
 
       - name: Setup GCC
         uses: pkgxdev/setup@v1
@@ -30,11 +27,6 @@ jobs:
       - name: Build
         run: |
           set -x
-          printf '%s\n' "$cur_home"
-          cd $cur_home
-          export PATH=$cur_home/GCC-13.2.0/bin:$PATH
-          export LD_LIBRARY_PATH=$cur_home/GCC-13.2.0/lib64:$LD_LIBRARY_PATH
-          ls -l $cur_home/GCC-13.2.0/lib64
           rm build -rf
           mkdir build
           cd build
@@ -47,10 +39,6 @@ jobs:
       - name: Build with asan
         run: |
           set -x
-          printf '%s\n' "$cur_home"
-          cd $cur_home
-          export PATH=$cur_home/GCC-13.2.0/bin:$PATH
-          export LD_LIBRARY_PATH=$cur_home/GCC-13.2.0/lib64:$LD_LIBRARY_PATH
           rm build -rf
           mkdir build
           cd build
