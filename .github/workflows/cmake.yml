@@ -47,3 +47,15 @@ jobs:
           ctest -V
           ./bin/bench_mark
           cd ..
+
+      - name: Build with cov
+        run: |
+          set -x
+          rm build -rf
+          mkdir build
+          cd build
+          cmake -DUSE_COV=ON ..
+          make -j8
+          ctest -V
+          ./bin/bench_mark
+          cd ..
