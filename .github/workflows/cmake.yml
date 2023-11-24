@@ -13,46 +13,30 @@ jobs:
 
     steps:
       - uses: actions/checkout@v1
-      - name: Set Env
-        run: |
-          echo "cur_home=$PWD" >> "$GITHUB_ENV"
-
-      - name: Prepare
-        run: |
-          set -x
-          printf '%s\n' "$cur_home"
-          cd $cur_home
-          sudo apt-get update
-          wget http://ftp.tsukuba.wide.ad.jp/software/gcc/releases/gcc-13.2.0/gcc-13.2.0.tar.gz
-          tar -xf gcc-13.2.0.tar.gz
-          cd gcc-13.2.0
-          ./contrib/download_prerequisites
-          cd ..
-          mkdir objdir
-          cd objdir
-          mkdir -p $cur_home/GCC-13.2.0
-          $PWD/../gcc-13.2.0/configure --prefix=$cur_home/GCC-13.2.0 --disable-multilib --enable-languages=c,c++
-          make -j8
-          sudo make install
-          cmake --version
-          export PATH=$cur_home/GCC-13.2.0/bin:$PATH
-          export LD_LIBRARY_PATH=$cur_home/GCC-13.2.0/lib64:$LD_LIBRARY_PATH
-          gcc -v
-          g++ -v
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
         env:
           CODECOV_TOKEN: ${{ secrets.CODECOV }}
 
+      - name: Set up GCC
+        uses: egor-tensin/setup-gcc@v1
+        with:
+          version: latest
+          platform: x64
+
+      - name: Prepare
+        run: |
+          sudo apt-get update
+          sudo apt-get install gdb
+          gcc -v
+          g++ -v
+          gdb -v
+          cmake --version
+          set -x
+
       - name: Build
         run: |
-          set -x
-          printf '%s\n' "$cur_home"
-          cd $cur_home
-          export PATH=$cur_home/GCC-13.2.0/bin:$PATH
-          export LD_LIBRARY_PATH=$cur_home/GCC-13.2.0/lib64:$LD_LIBRARY_PATH
-          ls -l $cur_home/GCC-13.2.0/lib64
           rm build -rf
           mkdir build
           cd build
@@ -64,11 +48,6 @@ jobs:
 
       - name: Build with asan
         run: |
-          set -x
-          printf '%s\n' "$cur_home"
-          cd $cur_home
-          export PATH=$cur_home/GCC-13.2.0/bin:$PATH
-          export LD_LIBRARY_PATH=$cur_home/GCC-13.2.0/lib64:$LD_LIBRARY_PATH
           rm build -rf
           mkdir build
           cd build
