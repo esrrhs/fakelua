@@ -32,9 +32,9 @@ compile_result compiler::compile(fakelua_state_ptr sp, myflexer &f, compile_conf
     ret.chunk = f.get_chunk();
 
     // compile interpreter
-    if (!cfg.skip_interpreter) {
-        ret.interpreter = std::make_shared<interpreter>();
-        ret.interpreter->compile(sp, ret.chunk);
+    if (!cfg.skip_jit) {
+        ret.jitter = std::make_shared<gcc_jitter>();
+        ret.jitter->compile(sp, ret.chunk);
     }
 
     return ret;

@@ -45,18 +45,13 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include <numeric>
 
 // include glog here, so that we can use glog in all files
 // and maybe someday we can replace glog with our own log
 #include "glog/logging.h"
 
 #include "const_define.h"
+#include "string_util.h"
 
 #include "magic_enum.hpp"
-
-// define the str_container_ptr
-typedef std::shared_ptr<std::string> str_container_ptr;
-
-inline bool is_integer(const std::string &s) {
-    return std::regex_match(s, std::regex("[(-|+)|][0-9]+"));
-}

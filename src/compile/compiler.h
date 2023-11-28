@@ -2,14 +2,14 @@
 
 #include "bison/parser.h"
 #include "compile/myflexer.h"
-#include "interpreter/interpreter.h"
+#include "jit/gcc_jit.h"
 #include <map>
 #include <string>
 
 namespace fakelua {
 
 struct compile_config {
-    bool skip_interpreter = false;
+    bool skip_jit = false;
 };
 
 struct compile_result {
@@ -17,8 +17,8 @@ struct compile_result {
     std::string chunk_name;
     // the main syntax tree
     syntax_tree_interface_ptr chunk;
-    // the interpreter
-    interpreter_ptr interpreter;
+    // the jitter
+    gcc_jitter_ptr jitter;
 };
 
 // lua compiler class, parse lua code to syntax tree, and then compile to toy-interpreter runtime, and JIT binary code

@@ -701,6 +701,14 @@ public:
         funcbody_ = funcbody;
     }
 
+    syntax_tree_interface_ptr funcname() const {
+        return funcname_;
+    }
+
+    syntax_tree_interface_ptr funcbody() const {
+        return funcbody_;
+    }
+
 private:
     syntax_tree_interface_ptr funcname_;
     syntax_tree_interface_ptr funcbody_;
@@ -723,6 +731,10 @@ public:
 
     void add_name(const std::string &funcname) {
         funcnames_.push_back(funcname);
+    }
+
+    const std::vector<std::string> &funcnames() const {
+        return funcnames_;
     }
 
 private:
@@ -750,6 +762,14 @@ public:
 
     void set_colon_name(const std::string &name) {
         colon_name_ = name;
+    }
+
+    syntax_tree_interface_ptr funcnamelist() const {
+        return funcnamelist_;
+    }
+
+    std::string colon_name() const {
+        return colon_name_;
     }
 
 private:
@@ -857,6 +877,14 @@ public:
 
     void set_funcbody(const syntax_tree_interface_ptr &funcbody) {
         funcbody_ = funcbody;
+    }
+
+    std::string name() const {
+        return name_;
+    }
+
+    syntax_tree_interface_ptr funcbody() const {
+        return funcbody_;
     }
 
 private:
