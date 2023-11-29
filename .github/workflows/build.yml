@@ -18,7 +18,11 @@ jobs:
         uses: pkgxdev/setup@v1
         with:
           +: gcc@13
-
+          
+      - name: Prepare
+        run: |
+          sudo apt-get remove libgccjit-12-dev
+          
       - name: Build
         run: |
           set -x
