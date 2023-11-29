@@ -21,7 +21,7 @@ jobs:
           
       - name: Prepare
         run: |
-          sudo apt-get remove libgccjit-12-dev
+          sudo apt-get -y install libgccjit-13-dev
           
       - name: Build
         run: |
