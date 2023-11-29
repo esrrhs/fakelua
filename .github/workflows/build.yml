@@ -22,6 +22,7 @@ jobs:
       - name: Prepare
         run: |
           sudo apt-get -y install libgccjit-13-dev
+          dpkg -L libgccjit-13-dev
           
       - name: Build
         run: |
