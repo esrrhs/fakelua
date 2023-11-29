@@ -14,7 +14,7 @@ class gcc_jitter {
 public:
     gcc_jitter() = default;
 
-    ~gcc_jitter() = default;
+    ~gcc_jitter();
 
     void compile(fakelua_state_ptr sp, const syntax_tree_interface_ptr &chunk);
 

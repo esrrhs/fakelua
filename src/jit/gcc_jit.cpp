@@ -6,6 +6,13 @@
 
 namespace fakelua {
 
+gcc_jitter::~gcc_jitter() {
+    if (gccjit_context_) {
+        gccjit_context_->release();
+        gccjit_context_ = nullptr;
+    }
+}
+
 void gcc_jitter::compile(fakelua_state_ptr sp, const syntax_tree_interface_ptr &chunk) {
     sp_ = sp;
     // init gccjit
