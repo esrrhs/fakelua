@@ -47,7 +47,7 @@ jobs:
           ctest -V
           ./bin/bench_mark
           ./bin/lua
-          lcov --no-external --directory ./ --capture --output-file coverage.info --ignore-errors source 
+          lcov --directory ./ --capture --output-file coverage.info --ignore-errors source 
           ls -l coverage.info
           lcov --list coverage.info
           bash <(curl -s https://codecov.io/bash) -t ${{ secrets.CODECOV }} -f coverage.info || echo "Codecov did not collect coverage reports"
