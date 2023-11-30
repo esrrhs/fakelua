@@ -15,8 +15,15 @@ include_directories(./)
 include_directories(../include)
 include_directories(./platform)
 add_library(fakelua STATIC ${FAKELUA_SRC_LIST})
+
 IF (WIN32)
-    target_link_libraries(fakelua PRIVATE glog::glog gflags_nothreads_static gccjit)
+    set(TARGET_LIB profiler_static glog::glog gflags_nothreads_static gccjit)
 ELSE ()
-    target_link_libraries(fakelua PRIVATE profiler_static glog::glog gflags_nothreads_static gccjit)
+    set(TARGET_LIB profiler_static glog::glog gflags_nothreads_static gccjit)
 ENDIF ()
+
+if (USE_COV)
+    set(TARGET_LIB ${TARGET_LIB} gcov)
+endif ()
+
+target_link_libraries(fakelua ${TARGET_LIB})

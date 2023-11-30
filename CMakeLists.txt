@@ -26,7 +26,7 @@ endif ()
 option(USE_COV "use cov" OFF)
 if (USE_COV)
     message("build with cov")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fprofile-arcs -ftest-coverage -fprofile-update=atomic")
 endif ()
 
 IF (WIN32)
