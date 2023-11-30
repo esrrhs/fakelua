@@ -54,4 +54,4 @@ jobs:
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV }}
-          files: ${GITHUB_WORKSPACE}/build/app.info
+          files: ${{ github.workspace }}/build/app.info
