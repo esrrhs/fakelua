@@ -36,7 +36,7 @@ jobs:
           make -j8
           ctest -V
           ./bin/bench_mark
-          cd ..
+          ./bin/lua
           
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
