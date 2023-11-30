@@ -52,9 +52,3 @@ jobs:
           lcov --list coverage.info
           bash <(curl -s https://codecov.io/bash) -t ${{ secrets.CODECOV }} -f coverage.info || echo "Codecov did not collect coverage reports"
           
-      # - name: Upload coverage reports to Codecov
-      #   uses: codecov/codecov-action@v3
-      #   with:
-      #     token: ${{ secrets.CODECOV }}
-      #     files: ${{ github.workspace }}/build/app.info
-      #     verbose: true
