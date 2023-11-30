@@ -31,7 +31,9 @@ jobs:
           sudo make install
           yes|sudo perl -MCPAN -e 'install Capture::Tiny' 
           sudo apt-get install libdatetime-perl -y
-          /usr/local/bin/lcov --version
+          sudo rm /usr/bin/lcov
+          sudo ln -s /usr/local/bin/lcov /usr/bin/lcov 
+          lcov --version
           cd ..
           
       - name: Build with cov
@@ -45,6 +47,8 @@ jobs:
           ctest -V
           ./bin/bench_mark
           ./bin/lua
+          lcov --no-external --directory ./ --capture --output-file app.info --ignore-errors source 
+          cat app.info
           
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
