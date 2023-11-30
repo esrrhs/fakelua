@@ -48,10 +48,10 @@ jobs:
           ./bin/bench_mark
           ./bin/lua
           lcov --no-external --directory ./ --capture --output-file app.info --ignore-errors source 
-          cat app.info
+          ls -l app.info
           
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v3
         with:
           token: ${{ secrets.CODECOV }}
-          files: ./app.info
+          files: ${GITHUB_WORKSPACE}/build/app.info
