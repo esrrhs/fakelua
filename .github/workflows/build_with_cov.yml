@@ -32,6 +32,7 @@ jobs:
           yes|sudo perl -MCPAN -e 'install Capture::Tiny' 
           sudo apt-get install libdatetime-perl -y
           /usr/local/bin/lcov --version
+          cd ..
           
       - name: Build with cov
         run: |
