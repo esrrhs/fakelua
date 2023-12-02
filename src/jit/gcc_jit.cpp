@@ -70,6 +70,12 @@ std::string gcc_jitter::compile_funcname(const syntax_tree_interface_ptr &ptr) {
 }
 
 void gcc_jitter::compile_function(const std::string &name, const syntax_tree_interface_ptr &funcbody) {
+    check_syntax_tree_type(funcbody, {syntax_tree_type::syntax_tree_type_funcbody});
+    auto funcbody_ptr = std::dynamic_pointer_cast<syntax_tree_funcbody>(funcbody);
+
+    auto parlist = funcbody_ptr->parlist();
+    auto func_params = compile_parlist(parlist);
+
     // TODO
 }
 
@@ -182,6 +188,30 @@ vm_runner_interface_ptr gcc_jitter::compile_exp(const syntax_tree_interface_ptr 
     } else {
         throw std::runtime_error("not support exp type: " + exp_type);
     }
+}
+
+std::vector<gccjit::param> gcc_jitter::compile_parlist(syntax_tree_interface_ptr parlist) {
+    check_syntax_tree_type(parlist, {syntax_tree_type::syntax_tree_type_parlist});
+    auto parlist_ptr = std::dynamic_pointer_cast<syntax_tree_parlist>(parlist);
+
+    std::vector<gccjit::param> ret;
+
+    if (!parlist_ptr->var_params()) {
+        auto namelist = parlist_ptr->namelist();
+        check_syntax_tree_type(namelist, {syntax_tree_type::syntax_tree_type_namelist});
+        auto namelist_ptr = std::dynamic_pointer_cast<syntax_tree_namelist>(namelist);
+        auto &param_names = namelist_ptr->names();
+
+        gccjit::type the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+        for (auto &name: param_names) {
+            auto param = gccjit_context_->new_param(the_var_type, name);
+            ret.push_back(param);
+        }
+    } else {
+        throw std::runtime_error("not support ... params");
+    }
+
+    return ret;
 }
 
 }// namespace fakelua

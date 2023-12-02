@@ -800,6 +800,14 @@ public:
         block_ = block;
     }
 
+    syntax_tree_interface_ptr parlist() const {
+        return parlist_;
+    }
+
+    syntax_tree_interface_ptr block() const {
+        return block_;
+    }
+
 private:
     syntax_tree_interface_ptr parlist_;
     syntax_tree_interface_ptr block_;
@@ -849,6 +857,14 @@ public:
 
     void set_var_params(bool var_params) {
         var_params_ = var_params;
+    }
+
+    syntax_tree_interface_ptr namelist() const {
+        return namelist_;
+    }
+
+    bool var_params() const {
+        return var_params_;
     }
 
 private:
