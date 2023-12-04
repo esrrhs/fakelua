@@ -74,9 +74,15 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     auto funcbody_ptr = std::dynamic_pointer_cast<syntax_tree_funcbody>(funcbody);
 
     auto parlist = funcbody_ptr->parlist();
-    auto func_params = compile_parlist(parlist);
+    int is_variadic = 0;
+    auto func_params = compile_parlist(parlist, is_variadic);
 
-    // TODO
+    auto the_return_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+
+    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, the_return_type, name.c_str(), func_params, is_variadic);
+    auto block = func.new_block();
+
+    //TODO
 }
 
 void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
@@ -190,7 +196,7 @@ vm_runner_interface_ptr gcc_jitter::compile_exp(const syntax_tree_interface_ptr 
     }
 }
 
-std::vector<gccjit::param> gcc_jitter::compile_parlist(syntax_tree_interface_ptr parlist) {
+std::vector<gccjit::param> gcc_jitter::compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic) {
     check_syntax_tree_type(parlist, {syntax_tree_type::syntax_tree_type_parlist});
     auto parlist_ptr = std::dynamic_pointer_cast<syntax_tree_parlist>(parlist);
 
@@ -202,13 +208,13 @@ std::vector<gccjit::param> gcc_jitter::compile_parlist(syntax_tree_interface_ptr
         auto namelist_ptr = std::dynamic_pointer_cast<syntax_tree_namelist>(namelist);
         auto &param_names = namelist_ptr->names();
 
-        gccjit::type the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+        auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
         for (auto &name: param_names) {
             auto param = gccjit_context_->new_param(the_var_type, name);
             ret.push_back(param);
         }
     } else {
-        throw std::runtime_error("not support ... params");
+        is_variadic = 1;
     }
 
     return ret;

@@ -31,7 +31,7 @@ private:
 
     vm_runner_interface_ptr compile_exp(const syntax_tree_interface_ptr &exp);
 
-    std::vector<gccjit::param> compile_parlist(syntax_tree_interface_ptr parlist);
+    std::vector<gccjit::param> compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic);
 
 private:
     fakelua_state_ptr sp_;
