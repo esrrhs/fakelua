@@ -14,11 +14,8 @@ class rich_hashmap {
 public:
     static_assert(std::is_integral<K>::value, "K must be integral type.");
 
-    rich_hashmap(size_t init_bucket_size) : size_(0) {
+    rich_hashmap(size_t init_bucket_size) : size_(0), init_bucket_size_(init_bucket_size) {
         buckets_.resize(init_bucket_size);
-        for (auto &bucket: buckets_) {
-            bucket.size = 0;
-        }
     }
 
     ~rich_hashmap() = default;
@@ -93,9 +90,8 @@ public:
 
     // clear the hashmap
     void clear() {
-        for (auto &bucket: buckets_) {
-            bucket.size = 0;
-        }
+        buckets_.clear();
+        buckets_.resize(init_bucket_size_);
         size_ = 0;
     }
 
@@ -155,12 +151,13 @@ private:
 
 private:
     struct bucket {
-        size_t size;
+        size_t size = 0;
         K key[BucketHeight];
         V value[BucketHeight];
     };
     std::vector<bucket> buckets_;
     size_t size_;
+    size_t init_bucket_size_;
 };
 
 }// namespace fakelua

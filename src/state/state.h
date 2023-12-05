@@ -1,8 +1,8 @@
 #pragma once
 
 #include "fakelua.h"
-#include "var_string_heap.h"
 #include "var_pool.h"
+#include "var_string_heap.h"
 
 namespace fakelua {
 
@@ -16,6 +16,12 @@ public:
     virtual void compile_file(const std::string &filename) override;
 
     virtual void compile_string(const std::string &str) override;
+
+    // call before running. this will reset the state. just for speed.
+    void reset() {
+        var_string_heap_.reset();
+        var_pool_.reset();
+    }
 
     var_string_heap &get_var_string_heap() {
         return var_string_heap_;

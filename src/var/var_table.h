@@ -26,7 +26,7 @@ public:
     void set(const var &key, var *val);
 
 private:
-    rich_hashmap<uint32_t, var *, MAX_VAR_TABLE_HASHMAP_BUCKET_HEIGHT> str_table_;
+    rich_hashmap<int64_t, var *, MAX_VAR_TABLE_HASHMAP_BUCKET_HEIGHT> str_table_;
     rich_hashmap<int64_t, var *, MAX_VAR_TABLE_HASHMAP_BUCKET_HEIGHT> int_table_;
 };
 

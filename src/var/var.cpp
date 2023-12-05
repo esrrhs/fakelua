@@ -8,79 +8,67 @@ namespace fakelua {
 
 var const_null_var;
 
-var::var(fakelua_state_ptr s, const std::string &val) {
+var::var(const fakelua_state_ptr &s, const std::string &val) : type_(var_type::VAR_STRING) {
     auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    data_ = string_heap.alloc(val);
+    string_ = string_heap.alloc(val);
 }
 
-var::var(fakelua_state_ptr s, std::string &&val) {
+var::var(const fakelua_state_ptr &s, std::string &&val) : type_(var_type::VAR_STRING) {
     auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    data_ = string_heap.alloc(std::move(val));
+    string_ = string_heap.alloc(std::move(val));
 }
 
-var::var(fakelua_state_ptr s, const char *val) {
+var::var(const fakelua_state_ptr &s, const char *val) : type_(var_type::VAR_STRING) {
     auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    data_ = string_heap.alloc(val);
+    string_ = string_heap.alloc(val);
 }
 
-var::var(fakelua_state_ptr s, std::string_view val) {
+var::var(const fakelua_state_ptr &s, std::string_view val) : type_(var_type::VAR_STRING) {
     auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    data_ = string_heap.alloc(std::string(val));
+    string_ = string_heap.alloc(std::string(val));
 }
 
-std::string_view var::get_string_view(fakelua_state_ptr s) const {
+void var::set_string(const fakelua_state_ptr &s, const std::string &val) {
+    type_ = var_type::VAR_STRING;
     auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    auto str = std::get<var_string>(data_);
-    return string_heap.get(str);
+    string_ = string_heap.alloc(val);
 }
 
-var &var::set(fakelua_state_ptr s, const std::string &val) {
+void var::set_string(const fakelua_state_ptr &s, std::string &&val) {
+    type_ = var_type::VAR_STRING;
     auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    data_ = string_heap.alloc(val);
-    return *this;
+    string_ = string_heap.alloc(std::move(val));
 }
 
-var &var::set(fakelua_state_ptr s, std::string &&val) {
+void var::set_string(const fakelua_state_ptr &s, const char *val) {
+    type_ = var_type::VAR_STRING;
     auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    data_ = string_heap.alloc(std::move(val));
-    return *this;
+    string_ = string_heap.alloc(val);
 }
 
-var &var::set(fakelua_state_ptr s, const char *val) {
+void var::set_string(const fakelua_state_ptr &s, std::string_view val) {
+    type_ = var_type::VAR_STRING;
     auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    data_ = string_heap.alloc(val);
-    return *this;
+    string_ = string_heap.alloc(std::string(val));
 }
 
-var &var::set(fakelua_state_ptr s, std::string_view val) {
-    auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    data_ = string_heap.alloc(std::string(val));
-    return *this;
-}
-
-var &var::set(const var_table &val) {
-    data_ = val;
-    return *this;
-}
-
-var &var::set(var_table &&val) {
-    data_ = std::move(val);
-    return *this;
+void var::set_table() {
+    type_ = var_type::VAR_TABLE;
 }
 
 std::string var::to_string(fakelua_state_ptr s) const {
     switch (type()) {
-        case var_type::NIL:
+        case var_type::VAR_NIL:
             return "nil";
-        case var_type::BOOL:
+        case var_type::VAR_BOOL:
             return get_bool() ? "true" : "false";
-        case var_type::INT:
+        case var_type::VAR_INT:
             return std::to_string(get_int());
-        case var_type::FLOAT:
+        case var_type::VAR_FLOAT:
             return std::to_string(get_float());
-        case var_type::STRING:
-            return "\"" + std::string(get_string_view(s)) + "\"";
-        case var_type::TABLE:
+        case var_type::VAR_STRING:
+            return std::format("\"{}\"", std::get<1>(string_));
+        case var_type::VAR_TABLE:
             return std::format("table({})", (void *) this);
         default:
             return "unknown";

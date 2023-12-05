@@ -1,7 +1,5 @@
 #pragma once
 
-// the init bucket size of the string heap
-const int STRING_HEAP_INIT_BUCKET_SIZE = 1021;
 // the max length of the short string
 const int MAX_SHORT_STR_LEN = 128;
 // the var_table hashmap bucket height

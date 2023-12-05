@@ -5,9 +5,10 @@
 namespace fakelua {
 
 var *var_pool::alloc() {
-    auto index = next_var_index_.fetch_add(1);
-    if (index < vars_.size()) {
-        return &vars_[index];
+    if (next_var_index_ < vars_.size()) {
+        auto ret = &vars_[next_var_index_];
+        next_var_index_++;
+        return ret;
     }
 
     auto v = std::make_shared<var>();

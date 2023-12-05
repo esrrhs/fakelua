@@ -5,8 +5,8 @@
 
 namespace fakelua {
 
-// fake_lua state interface, can run concurrently. every state has its own running environment.
-// there could be many states in one process.
+// fake_lua state interface, every state can only run in one thread, just like Lua.
+// every state has its own running environment. there could be many states in one process.
 class fakelua_state : public std::enable_shared_from_this<fakelua_state> {
 public:
     fakelua_state() {

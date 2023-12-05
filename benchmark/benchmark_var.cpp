@@ -2,7 +2,6 @@
 #include "fakelua.h"
 #include "state/state.h"
 #include "util/common.h"
-#include "util/concurrent_hashmap.h"
 #include "var/var.h"
 
 using namespace fakelua;
@@ -12,7 +11,7 @@ static void BM_var_set_int(benchmark::State &state) {
     var v;
     for (auto _: state) {
         for (int i = 0; i < state.range(0); ++i) {
-            v.set((int64_t) 1234567890);
+            v.set_int((int64_t) 1234567890);
         }
     }
 }
@@ -25,7 +24,7 @@ static void BM_var_set_string(benchmark::State &bstate) {
     var v;
     for (auto _: bstate) {
         for (int i = 0; i < bstate.range(0); ++i) {
-            v.set(s, "test");
+            v.set_string(s, "test");
         }
     }
 }
@@ -35,7 +34,7 @@ BENCHMARK(BM_var_set_string)->Range(8, 8 << 10);
 static void BM_var_get_int(benchmark::State &state) {
     FLAGS_minloglevel = 3;
     var v;
-    v.set((int64_t) 1234567890);
+    v.set_int((int64_t) 1234567890);
     for (auto _: state) {
         for (int i = 0; i < state.range(0); ++i) {
             v.get_int();
@@ -49,10 +48,10 @@ static void BM_var_get_string(benchmark::State &bstate) {
     FLAGS_minloglevel = 3;
     auto s = std::make_shared<state>();
     var v;
-    v.set(s, "test");
+    v.set_string(s, "test");
     for (auto _: bstate) {
         for (int i = 0; i < bstate.range(0); ++i) {
-            v.get_string_view(s);
+            v.get_string();
         }
     }
 }

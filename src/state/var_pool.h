@@ -3,11 +3,11 @@
 #include "fakelua.h"
 #include "util/common.h"
 #include "var/var.h"
-#include "util/concurrent_vector.h"
 
 namespace fakelua {
 
-// every state has a string heap.
+// every state has a var pool.
+// var_pool store all the vars used in the state. and not free the vars until the state is destroyed.
 class var_pool : public no_copy<var_pool> {
 public:
     var_pool() : tmp_vars_(0) {
@@ -15,10 +15,10 @@ public:
 
     ~var_pool() = default;
 
-    // allocate a var with the type of nil. thread safe.
+    // allocate a var with the type of nil.
     var *alloc();
 
-    // reset the var pool used index and check size. not thread safe. should be called only in one thread.
+    // reset the var pool used index and check size. usually called before running.
     void reset();
 
 private:
@@ -29,10 +29,10 @@ private:
     std::vector<var> vars_;
 
     // the index of the next var to be allocated.
-    std::atomic_uint32_t next_var_index_ = 0;
+    uint32_t next_var_index_ = 0;
 
     // the vector stores the pointers to the vars which are allocated temporarily.
-    concurrent_vector<std::shared_ptr<var>> tmp_vars_;
+    std::vector<std::shared_ptr<var>> tmp_vars_;
 };
 
 }// namespace fakelua

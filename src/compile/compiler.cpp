@@ -18,6 +18,8 @@ compile_result compiler::compile_string(fakelua_state_ptr sp, const std::string 
 }
 
 compile_result compiler::compile(fakelua_state_ptr sp, myflexer &f, compile_config cfg) {
+    LOG(INFO) << "start compile " << f.get_filename();
+
     compile_result ret;
 
     ret.file_name = f.get_filename();

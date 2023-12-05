@@ -14,6 +14,8 @@ gcc_jitter::~gcc_jitter() {
 }
 
 void gcc_jitter::compile(fakelua_state_ptr sp, const std::string &file_name, const syntax_tree_interface_ptr &chunk) {
+    LOG(INFO) << "start gcc_jitter::compile " << file_name;
+
     sp_ = sp;
     file_name_ = file_name;
     // init gccjit
@@ -71,6 +73,8 @@ std::string gcc_jitter::compile_funcname(const syntax_tree_interface_ptr &ptr) {
 }
 
 void gcc_jitter::compile_function(const std::string &name, const syntax_tree_interface_ptr &funcbody) {
+    LOG(INFO) << "compile function: " << name;
+
     check_syntax_tree_type(funcbody, {syntax_tree_type::syntax_tree_type_funcbody});
     auto funcbody_ptr = std::dynamic_pointer_cast<syntax_tree_funcbody>(funcbody);
 

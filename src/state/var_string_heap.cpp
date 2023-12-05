@@ -4,63 +4,48 @@
 
 namespace fakelua {
 
-var_string var_string_heap::alloc(const std::string_view &str) {
+std::tuple<bool, std::string_view> var_string_heap::alloc(const std::string_view &str) {
     if (str.size() <= MAX_SHORT_STR_LEN) {
-        // short string
-        uint32_t index;
-
         // first, try to find the string in the short string map
-        auto ok = short_str_to_index_map_.get_by_other_type(str, index);
-        if (ok) {
-            // found. return the index
-            return var_string(true, index);
+        auto it = short_str_to_index_map_.find(str);
+        if (it != short_str_to_index_map_.end()) {
+            // found. return
+            return std::make_tuple(true, it->second);
         }
 
-        // not found. try to insert the string into the short string map
-        index = short_str_index_.fetch_add(1);
-        if (!index) {
-            // index is 0. we need to reserve the index 0
-            index = short_str_index_.fetch_add(1);
+        // not found. try to alloc size from the str_mem_
+        if (str_mem_index_ + str.size() + 1 <= str_mem_.size()) {
+            // alloc success
+            memcpy(&str_mem_[str_mem_index_], str.data(), str.size());
+            str_mem_[str_mem_index_ + str.size()] = '\0';
+            auto ret = std::string_view(&str_mem_[str_mem_index_], str.size());
+            short_str_to_index_map_.emplace(str, ret);
+            str_mem_index_ += str.size() + 1;
+            return std::make_tuple(true, ret);
+        } else {
+            // alloc failed. use the short_str_tmp_ to store the new short strings.
+            auto ret = std::make_shared<std::string>(str);
+            short_str_tmp_.push_back(ret);
+            short_str_to_index_map_.emplace(str, *ret);
+            return std::make_tuple(true, *ret);
         }
-
-        // alloc the string
-        auto str_container = std::make_shared<std::string>(str);
-        // try to insert the string with the index. maybe other thread has inserted the string.
-        // if the string is already inserted, str_container and index will be set to the existing value.
-        short_str_to_index_map_.get_or_set(str_container, index);
-        // set the string to the vector at index
-        short_str_vec_.set(index, str_container);
-        return var_string(true, index);
     } else {
         // long string
-        auto ptr = std::make_shared<std::string>(str);
-        uint32_t index = long_str_vec_.push_back(ptr);
-        return var_string(false, index);
+        auto ret = std::make_shared<std::string>(str);
+        long_str_vec_.push_back(ret);
+        return std::make_tuple(false, *ret);
     }
 }
 
-std::string_view var_string_heap::get(const var_string &str) const {
-    auto string_index = str.string_index();
-    if (string_index) {
-        if (is_short_string_index(string_index)) {
-            // short string
-            auto index = get_short_string_index(string_index);
-            str_container_ptr str_container;
-            auto ok = short_str_vec_.get(index, str_container);
-            if (ok) {
-                return *str_container;
-            }
-        } else {
-            // long string
-            auto index = get_long_string_index(string_index);
-            str_container_ptr str_container;
-            auto ok = long_str_vec_.get(index, str_container);
-            if (ok) {
-                return *str_container;
-            }
-        }
+void var_string_heap::reset() {
+    str_mem_index_ = 0;
+    auto tmp_size = short_str_tmp_.size();
+    short_str_tmp_.clear();
+    long_str_vec_.clear();
+    short_str_to_index_map_.clear();
+    if (tmp_size > 0) {
+        str_mem_.resize(str_mem_.size() + tmp_size * 2);
     }
-    return {};
 }
 
 }// namespace fakelua
