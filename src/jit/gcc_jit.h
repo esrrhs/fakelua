@@ -16,7 +16,7 @@ public:
 
     ~gcc_jitter();
 
-    void compile(fakelua_state_ptr sp, const syntax_tree_interface_ptr &chunk);
+    void compile(fakelua_state_ptr sp, const std::string &file_name, const syntax_tree_interface_ptr &chunk);
 
 private:
     void compile_const_defines(const syntax_tree_interface_ptr &chunk);
@@ -29,12 +29,24 @@ private:
 
     std::string compile_funcname(const syntax_tree_interface_ptr &ptr);
 
-    vm_runner_interface_ptr compile_exp(const syntax_tree_interface_ptr &exp);
+    gccjit::rvalue compile_exp(const syntax_tree_interface_ptr &exp);
 
     std::vector<gccjit::param> compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic);
 
+    void compile_block(gccjit::function &func, const syntax_tree_interface_ptr &block);
+
+    void compile_stmt(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &stmt);
+
+    void compile_stmt_return(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &stmt);
+
+    void compile_explist(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr & explist);
+
+private:
+    gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
+
 private:
     fakelua_state_ptr sp_;
+    std::string file_name_;
     gccjit_context_ptr gccjit_context_;
 };
 

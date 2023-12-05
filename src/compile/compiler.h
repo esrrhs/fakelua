@@ -13,8 +13,8 @@ struct compile_config {
 };
 
 struct compile_result {
-    // the chunk name
-    std::string chunk_name;
+    // the file name
+    std::string file_name;
     // the main syntax tree
     syntax_tree_interface_ptr chunk;
     // the jitter

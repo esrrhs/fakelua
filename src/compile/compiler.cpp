@@ -20,7 +20,7 @@ compile_result compiler::compile_string(fakelua_state_ptr sp, const std::string 
 compile_result compiler::compile(fakelua_state_ptr sp, myflexer &f, compile_config cfg) {
     compile_result ret;
 
-    ret.chunk_name = f.get_filename();
+    ret.file_name = f.get_filename();
 
     // compile chunk
     yy::parser parse(&f);
@@ -34,7 +34,7 @@ compile_result compiler::compile(fakelua_state_ptr sp, myflexer &f, compile_conf
     // compile interpreter
     if (!cfg.skip_jit) {
         ret.jitter = std::make_shared<gcc_jitter>();
-        ret.jitter->compile(sp, ret.chunk);
+        ret.jitter->compile(sp, ret.file_name, ret.chunk);
     }
 
     return ret;

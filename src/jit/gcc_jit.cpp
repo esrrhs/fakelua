@@ -13,8 +13,9 @@ gcc_jitter::~gcc_jitter() {
     }
 }
 
-void gcc_jitter::compile(fakelua_state_ptr sp, const syntax_tree_interface_ptr &chunk) {
+void gcc_jitter::compile(fakelua_state_ptr sp, const std::string &file_name, const syntax_tree_interface_ptr &chunk) {
     sp_ = sp;
+    file_name_ = file_name;
     // init gccjit
     gccjit_context_ = std::make_shared<gccjit::context>(gccjit::context::acquire());
     /* Set some options on the context.
@@ -75,14 +76,18 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
 
     auto parlist = funcbody_ptr->parlist();
     int is_variadic = 0;
-    auto func_params = compile_parlist(parlist, is_variadic);
+    std::vector<gccjit::param> func_params;
+    if (parlist) {
+        func_params = compile_parlist(parlist, is_variadic);
+    }
 
     auto the_return_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
 
-    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, the_return_type, name.c_str(), func_params, is_variadic);
-    auto block = func.new_block();
+    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, the_return_type, name.c_str(), func_params, is_variadic,
+                                              new_location(funcbody_ptr));
 
-    //TODO
+    auto block = funcbody_ptr->block();
+    compile_block(func, block);
 }
 
 void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
@@ -124,10 +129,8 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
     }
 }
 
-vm_runner_interface_ptr gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp) {
-    auto sp = sp_;
-
-    // the chunk must be a exp
+gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp) {
+    // the chunk must be an exp
     check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
     // start compile the expression
     auto e = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
@@ -135,44 +138,19 @@ vm_runner_interface_ptr gcc_jitter::compile_exp(const syntax_tree_interface_ptr 
     const auto &value = e->exp_value();
 
     if (exp_type == "nil") {
-        return make_vm_runner([=](std::vector<var *> input) -> std::vector<var *> {
-            auto &vp = std::dynamic_pointer_cast<state>(sp)->get_var_pool();
-            auto dst = vp.alloc();
-            dst->set(nullptr);
-            return {dst};
-        });
+        return nullptr;
     } else if (exp_type == "false") {
-        return make_vm_runner([=](std::vector<var *> input) -> std::vector<var *> {
-            auto &vp = std::dynamic_pointer_cast<state>(sp)->get_var_pool();
-            auto dst = vp.alloc();
-            dst->set(false);
-            return {dst};
-        });
+        // TODO
+        return nullptr;
     } else if (exp_type == "true") {
-        return make_vm_runner([=](std::vector<var *> input) -> std::vector<var *> {
-            auto &vp = std::dynamic_pointer_cast<state>(sp)->get_var_pool();
-            auto dst = vp.alloc();
-            dst->set(true);
-            return {dst};
-        });
+        // TODO
+        return nullptr;
     } else if (exp_type == "number") {
-        return make_vm_runner([=](std::vector<var *> input) -> std::vector<var *> {
-            auto &vp = std::dynamic_pointer_cast<state>(sp)->get_var_pool();
-            auto dst = vp.alloc();
-            if (is_integer(value)) {
-                dst->set((int64_t) std::stoll(value));
-            } else {
-                dst->set(std::stod(value));
-            }
-            return {dst};
-        });
+        // TODO
+        return nullptr;
     } else if (exp_type == "string") {
-        return make_vm_runner([=](std::vector<var *> input) -> std::vector<var *> {
-            auto &vp = std::dynamic_pointer_cast<state>(sp)->get_var_pool();
-            auto dst = vp.alloc();
-            dst->set(sp, value);
-            return {dst};
-        });
+        // TODO
+        return nullptr;
     } else if (exp_type == "var_params") {
         // TODO
         return nullptr;
@@ -210,7 +188,7 @@ std::vector<gccjit::param> gcc_jitter::compile_parlist(syntax_tree_interface_ptr
 
         auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
         for (auto &name: param_names) {
-            auto param = gccjit_context_->new_param(the_var_type, name);
+            auto param = gccjit_context_->new_param(the_var_type, name, new_location(namelist_ptr));
             ret.push_back(param);
         }
     } else {
@@ -218,6 +196,58 @@ std::vector<gccjit::param> gcc_jitter::compile_parlist(syntax_tree_interface_ptr
     }
 
     return ret;
+}
+
+gccjit::location gcc_jitter::new_location(const syntax_tree_interface_ptr &ptr) {
+    return gccjit_context_->new_location(file_name_, ptr->loc().begin.line, ptr->loc().begin.column);
+}
+
+void gcc_jitter::compile_block(gccjit::function &func, const syntax_tree_interface_ptr &block) {
+    check_syntax_tree_type(block, {syntax_tree_type::syntax_tree_type_block});
+    auto block_ptr = std::dynamic_pointer_cast<syntax_tree_block>(block);
+
+    auto the_block = func.new_block();
+
+    auto &stmts = block_ptr->stmts();
+    for (auto &stmt: stmts) {
+        compile_stmt(func, the_block, stmt);
+    }
+}
+
+void gcc_jitter::compile_stmt(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &stmt) {
+    switch (stmt->type()) {
+        case syntax_tree_type::syntax_tree_type_return: {
+            compile_stmt_return(func, the_block, stmt);
+            break;
+        }
+        default: {
+            throw std::runtime_error(std::format("not support stmt type: {}", magic_enum::enum_name(stmt->type())));
+        }
+    }
+}
+
+void gcc_jitter::compile_stmt_return(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &stmt) {
+    check_syntax_tree_type(stmt, {syntax_tree_type::syntax_tree_type_return});
+    auto return_stmt = std::dynamic_pointer_cast<syntax_tree_return>(stmt);
+
+    auto explist = return_stmt->explist();
+    if (!explist) {
+        // return nothing
+        the_block.end_with_return(new_location(return_stmt));
+        return;
+    }
+
+    compile_explist(func, the_block, explist);
+}
+
+void gcc_jitter::compile_explist(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &explist) {
+    check_syntax_tree_type(explist, {syntax_tree_type::syntax_tree_type_explist});
+    auto explist_ptr = std::dynamic_pointer_cast<syntax_tree_explist>(explist);
+
+    auto &exps = explist_ptr->exps();
+    for (auto &exp: exps) {
+        compile_exp(exp);
+    }
 }
 
 }// namespace fakelua

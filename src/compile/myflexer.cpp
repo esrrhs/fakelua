@@ -24,7 +24,7 @@ void myflexer::input_string(const std::string &str) {
     if (str.empty()) {
         throw std::runtime_error("input string is empty");
     }
-    filename_ = "<string>";
+    filename_ = generate_tmp_file(str);
     location_.initialize(&filename_);
     set_debug(0);
     string_ = std::istringstream(str, std::ios::binary);
@@ -60,6 +60,23 @@ std::string myflexer::remove_quotes(const std::string &str) {
         } else {
             throw std::runtime_error("remove quotes but input string is not valid");
         }
+    }
+}
+
+std::string myflexer::generate_tmp_file(const std::string &str) {
+    // create tmp file in system temp dir
+    std::string fileName;
+    std::srand(static_cast<unsigned int>(std::time(nullptr)));
+    do {
+        fileName = "/tmp/fakelua_temp_" + std::to_string(std::rand()) + ".lua";
+    } while (std::ifstream(fileName));
+    std::ofstream file(fileName);
+    if (file.is_open()) {
+        file << str;
+        file.close();
+        return fileName;
+    } else {
+        throw std::runtime_error(std::format("create tmp file failed, file name is {}", fileName));
     }
 }
 

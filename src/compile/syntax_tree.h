@@ -62,6 +62,11 @@ public:
     // dump syntax tree to string
     virtual std::string dump(int tab = 0) const = 0;
 
+    // get syntax tree location
+    const syntax_tree_location &loc() const {
+        return loc_;
+    }
+
 protected:
     // generate tab string
     std::string gen_tab(int tab) const {
@@ -170,6 +175,10 @@ public:
 
     void set_explist(const syntax_tree_interface_ptr &explist) {
         explist_ = explist;
+    }
+
+    syntax_tree_interface_ptr explist() const {
+        return explist_;
     }
 
 private:

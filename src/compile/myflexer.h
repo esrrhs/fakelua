@@ -24,7 +24,9 @@ public:
     // implement in scanner.cpp
     yy::parser::symbol_type my_yylex();
 
-    int yylex() { return 0; }
+    int yylex() {
+        return 0;
+    }
 
     // set the input lua file
     void input_file(const std::string &file);
@@ -49,6 +51,8 @@ public:
 private:
     // replace escape chars
     std::string replace_escape_chars(const std::string &str);
+
+    std::string generate_tmp_file(const std::string &str);
 
 private:
     // The token's location used by the scanner.
