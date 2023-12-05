@@ -38,4 +38,8 @@ vm_runner_interface_ptr make_vm_runner(F f) {
     return std::make_shared<vm_runner<F>>(f);
 }
 
+extern "C" var *new_var_nil(fakelua_state *s);
+
+extern "C" var *wrap_return_var(fakelua_state *s, var *v...);
+
 }// namespace fakelua

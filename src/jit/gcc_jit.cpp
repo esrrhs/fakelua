@@ -81,9 +81,9 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
         func_params = compile_parlist(parlist, is_variadic);
     }
 
-    auto the_return_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
 
-    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, the_return_type, name.c_str(), func_params, is_variadic,
+    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, the_var_type, name.c_str(), func_params, is_variadic,
                                               new_location(funcbody_ptr));
 
     auto block = funcbody_ptr->block();
@@ -129,7 +129,7 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
     }
 }
 
-gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp) {
+gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &exp) {
     // the chunk must be an exp
     check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
     // start compile the expression
@@ -137,8 +137,18 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp) {
     const auto &exp_type = e->exp_type();
     const auto &value = e->exp_value();
 
+    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+
+    std::vector<gccjit::param> params;
+    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+
+    std::string func_name;
+
+    std::vector<gccjit::rvalue> args;
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
+
     if (exp_type == "nil") {
-        return nullptr;
+        func_name = "new_var_nil";
     } else if (exp_type == "false") {
         // TODO
         return nullptr;
@@ -172,6 +182,11 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp) {
     } else {
         throw std::runtime_error("not support exp type: " + exp_type);
     }
+
+    gccjit::function new_var_func =
+            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 0, new_location(e));
+    auto ret = gccjit_context_->new_call(new_var_func, args, new_location(e));
+    return ret;
 }
 
 std::vector<gccjit::param> gcc_jitter::compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic) {
@@ -237,17 +252,36 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, gccjit::block &the_
         return;
     }
 
-    compile_explist(func, the_block, explist);
+    auto explist_ret = compile_explist(func, the_block, explist);
+
+    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+
+    std::vector<gccjit::param> params;
+    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+
+    std::vector<gccjit::rvalue> args;
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
+
+    gccjit::function wrap_return_func =
+            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "wrap_return_var", params, 1, new_location(explist));
+    auto ret = gccjit_context_->new_call(wrap_return_func, args, new_location(explist));
+
+    the_block.end_with_return(ret, new_location(return_stmt));
 }
 
-void gcc_jitter::compile_explist(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &explist) {
+std::vector<gccjit::rvalue> gcc_jitter::compile_explist(gccjit::function &func, gccjit::block &the_block,
+                                                        const syntax_tree_interface_ptr &explist) {
     check_syntax_tree_type(explist, {syntax_tree_type::syntax_tree_type_explist});
     auto explist_ptr = std::dynamic_pointer_cast<syntax_tree_explist>(explist);
 
+    std::vector<gccjit::rvalue> ret;
     auto &exps = explist_ptr->exps();
     for (auto &exp: exps) {
-        compile_exp(exp);
+        auto exp_ret = compile_exp(func, the_block, exp);
+        ret.push_back(exp_ret);
     }
+
+    return ret;
 }
 
 }// namespace fakelua

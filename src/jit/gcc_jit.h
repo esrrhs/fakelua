@@ -29,7 +29,7 @@ private:
 
     std::string compile_funcname(const syntax_tree_interface_ptr &ptr);
 
-    gccjit::rvalue compile_exp(const syntax_tree_interface_ptr &exp);
+    gccjit::rvalue compile_exp(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &exp);
 
     std::vector<gccjit::param> compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic);
 
@@ -39,7 +39,7 @@ private:
 
     void compile_stmt_return(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &stmt);
 
-    void compile_explist(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr & explist);
+    std::vector<gccjit::rvalue> compile_explist(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &explist);
 
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
