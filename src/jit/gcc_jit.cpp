@@ -172,6 +172,8 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
         }
 
         LOG(INFO) << "compile const define: " << name;
+
+        // TODO gcc_jit_context_new_global
     }
 }
 
