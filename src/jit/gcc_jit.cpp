@@ -2,6 +2,7 @@
 #include "fakelua.h"
 #include "state/state.h"
 #include "util/common.h"
+#include "util/file_util.h"
 #include "vm.h"
 
 namespace fakelua {
@@ -10,6 +11,10 @@ gcc_jitter::~gcc_jitter() {
     if (gccjit_context_) {
         gccjit_context_->release();
         gccjit_context_ = nullptr;
+    }
+    if (gccjit_result_) {
+        gcc_jit_result_release(gccjit_result_);
+        gccjit_result_ = nullptr;
     }
 }
 
@@ -30,6 +35,23 @@ void gcc_jitter::compile(fakelua_state_ptr sp, const std::string &file_name, con
 
     // second, walk through the chunk, and save the function declaration
     compile_functions(chunk);
+
+    // at last, compile the chunk
+    auto result = gccjit_context_->compile();
+    if (!result) {
+        // should not happen, but just in case
+        throw std::runtime_error("gcc_jitter compile failed");
+    }
+    gccjit_result_ = result;
+
+    // dump to file
+    std::string dumpfile = generate_tmp_filename("fakelua_gccjit_", ".c");
+    gccjit_context_->dump_to_file(dumpfile, true);
+
+    gccjit_context_->release();
+    gccjit_context_ = nullptr;
+
+    LOG(INFO) << "end gcc_jitter::compile " << file_name << ", dump to file: " << dumpfile;
 }
 
 void gcc_jitter::compile_functions(const syntax_tree_interface_ptr &chunk) {
@@ -91,7 +113,7 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
                                               new_location(funcbody_ptr));
 
     auto block = funcbody_ptr->block();
-    compile_block(func, block);
+    auto the_block = compile_block(func, block);
 }
 
 void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
@@ -221,7 +243,7 @@ gccjit::location gcc_jitter::new_location(const syntax_tree_interface_ptr &ptr) 
     return gccjit_context_->new_location(file_name_, ptr->loc().begin.line, ptr->loc().begin.column);
 }
 
-void gcc_jitter::compile_block(gccjit::function &func, const syntax_tree_interface_ptr &block) {
+gccjit::block gcc_jitter::compile_block(gccjit::function &func, const syntax_tree_interface_ptr &block) {
     check_syntax_tree_type(block, {syntax_tree_type::syntax_tree_type_block});
     auto block_ptr = std::dynamic_pointer_cast<syntax_tree_block>(block);
 
@@ -231,6 +253,8 @@ void gcc_jitter::compile_block(gccjit::function &func, const syntax_tree_interfa
     for (auto &stmt: stmts) {
         compile_stmt(func, the_block, stmt);
     }
+
+    return the_block;
 }
 
 void gcc_jitter::compile_stmt(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &stmt) {

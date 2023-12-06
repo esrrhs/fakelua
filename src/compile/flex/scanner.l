@@ -22,6 +22,8 @@
 %}
 
 %option c++ noyywrap nounput noinput batch debug yylineno
+%x SINGLE_LINE_COMMENT_STATE
+%x MULTI_LINE_COMMENT_STATE
 
 %{
 
@@ -48,6 +50,15 @@ number   {num1}|{num2}
   // Code run each time yylex is called.
   loc.step ();
 %}
+
+"--[["            { yy_push_state(MULTI_LINE_COMMENT_STATE); }
+<MULTI_LINE_COMMENT_STATE>"--]]"   { yy_pop_state(); }
+<MULTI_LINE_COMMENT_STATE>\n   { loc.lines(yyleng); loc.step(); }
+<MULTI_LINE_COMMENT_STATE>.    { }
+
+"--"            { yy_push_state(SINGLE_LINE_COMMENT_STATE); }
+<SINGLE_LINE_COMMENT_STATE>\n   { loc.lines(yyleng); loc.step(); yy_pop_state(); }
+<SINGLE_LINE_COMMENT_STATE>.    { }
 
 [ \t]+          loc.step ();
 \n+             loc.lines(yyleng); loc.step();

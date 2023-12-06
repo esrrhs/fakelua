@@ -61,14 +61,14 @@ TEST(syntax_tree, assign_simple) {
     LOG(INFO) << "\n" << dumpstr;
 
     auto wantstr = ""
-                   "(block)[2:1]\n"
-                   "  (assign)[2:3]\n"
-                   "    (varlist)[2:1]\n"
-                   "      (var)[2:1]\n"
+                   "(block)[6:1]\n"
+                   "  (assign)[6:3]\n"
+                   "    (varlist)[6:1]\n"
+                   "      (var)[6:1]\n"
                    "        type: simple\n"
                    "        name: a\n"
-                   "    (explist)[2:5]\n"
-                   "      (exp)[2:5]\n"
+                   "    (explist)[6:5]\n"
+                   "      (exp)[6:5]\n"
                    "        type: number\n"
                    "        value: 1\n";
 

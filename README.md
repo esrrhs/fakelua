@@ -35,5 +35,5 @@ make
 ```
 
 ### Mingw
-* Dependent: download [mingw-w64-x86_64-libgccjit](https://packages.msys2.org/package/mingw-w64-x86_64-libgccjit). install CLion.
-* open project with CLion, and build.
+* Dependent: install [MSYS2](https://www.msys2.org). install [mingw-w64-x86_64-libgccjit](https://packages.msys2.org/package/mingw-w64-x86_64-libgccjit). install CLion.
+* open project with CLion, set mingw toolchains. and build.

@@ -12,6 +12,8 @@
 #include <dirent.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <filesystem>
+#include <fstream>
 #include <functional>
 #include <future>
 #include <iostream>
@@ -20,6 +22,7 @@
 #include <math.h>
 #include <memory>
 #include <mutex>
+#include <numeric>
 #include <pthread.h>
 #include <queue>
 #include <regex>
@@ -45,7 +48,6 @@
 #include <utility>
 #include <variant>
 #include <vector>
-#include <numeric>
 
 // include glog here, so that we can use glog in all files
 // and maybe someday we can replace glog with our own log

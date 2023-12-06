@@ -40,6 +40,6 @@ vm_runner_interface_ptr make_vm_runner(F f) {
 
 extern "C" var *new_var_nil(fakelua_state *s);
 
-extern "C" var *wrap_return_var(fakelua_state *s, var *v...);
-
 }// namespace fakelua
+
+extern "C" void *wrap_return_var(void *s, ...);

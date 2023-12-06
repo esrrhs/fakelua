@@ -33,7 +33,7 @@ private:
 
     std::vector<gccjit::param> compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic);
 
-    void compile_block(gccjit::function &func, const syntax_tree_interface_ptr &block);
+    gccjit::block compile_block(gccjit::function &func, const syntax_tree_interface_ptr &block);
 
     void compile_stmt(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &stmt);
 
@@ -48,6 +48,7 @@ private:
     fakelua_state_ptr sp_;
     std::string file_name_;
     gccjit_context_ptr gccjit_context_;
+    gcc_jit_result *gccjit_result_ = nullptr;
 };
 
 typedef std::shared_ptr<gcc_jitter> gcc_jitter_ptr;

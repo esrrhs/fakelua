@@ -1,5 +1,6 @@
 #include "compile/myflexer.h"
 #include "util/common.h"
+#include "util/file_util.h"
 
 namespace fakelua {
 
@@ -65,11 +66,7 @@ std::string myflexer::remove_quotes(const std::string &str) {
 
 std::string myflexer::generate_tmp_file(const std::string &str) {
     // create tmp file in system temp dir
-    std::string fileName;
-    std::srand(static_cast<unsigned int>(std::time(nullptr)));
-    do {
-        fileName = "/tmp/fakelua_temp_" + std::to_string(std::rand()) + ".lua";
-    } while (std::ifstream(fileName));
+    std::string fileName = generate_tmp_filename("fakelua_myflexer_", ".lua");
     std::ofstream file(fileName);
     if (file.is_open()) {
         file << str;
