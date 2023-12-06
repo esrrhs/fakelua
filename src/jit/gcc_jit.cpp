@@ -16,6 +16,10 @@ gcc_jitter::~gcc_jitter() {
         gcc_jit_result_release(gccjit_result_);
         gccjit_result_ = nullptr;
     }
+    if (gccjit_log_fp_) {
+        fclose(gccjit_log_fp_);
+        gccjit_log_fp_ = nullptr;
+    }
 }
 
 void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::string &file_name, const syntax_tree_interface_ptr &chunk) {
@@ -27,8 +31,17 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
     gccjit_context_ = std::make_shared<gccjit::context>(gccjit::context::acquire());
     // Set some options on the context.
     if (cfg.debug_mode) {
+        gccjit_context_->set_bool_option(GCC_JIT_BOOL_OPTION_DUMP_EVERYTHING, 1);
+        gccjit_context_->set_bool_option(GCC_JIT_BOOL_OPTION_KEEP_INTERMEDIATES, 1);
         gccjit_context_->set_bool_option(GCC_JIT_BOOL_OPTION_DEBUGINFO, 1);
         gccjit_context_->set_int_option(GCC_JIT_INT_OPTION_OPTIMIZATION_LEVEL, 0);
+        auto logfilename = generate_tmp_filename("fakelua_gccjit_", ".log");
+        FILE *fp = fopen(logfilename.c_str(), "wb");
+        if (fp) {
+            gccjit_context_->set_logfile(fp, 0, 0);
+            gccjit_log_fp_ = fp;
+            LOG(INFO) << file_name << " gccjit log file: " << logfilename;
+        }
     } else {
         gccjit_context_->set_int_option(GCC_JIT_INT_OPTION_OPTIMIZATION_LEVEL, 3);
     }
@@ -49,16 +62,16 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
     gccjit_result_ = result;
 
     // dump to file
-    std::string dumpfile;
     if (cfg.debug_mode) {
-        dumpfile = generate_tmp_filename("fakelua_gccjit_", ".c");
+        auto dumpfile = generate_tmp_filename("fakelua_gccjit_", ".c");
         gccjit_context_->dump_to_file(dumpfile, true);
+        LOG(INFO) << file_name << " dump to file: " << dumpfile;
     }
 
     gccjit_context_->release();
     gccjit_context_ = nullptr;
 
-    LOG(INFO) << "end gcc_jitter::compile " << file_name << ", dump to file: " << dumpfile;
+    LOG(INFO) << "end gcc_jitter::compile " << file_name;
 }
 
 void gcc_jitter::compile_functions(const syntax_tree_interface_ptr &chunk) {
@@ -298,7 +311,7 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, gccjit::block &the_
     args.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
 
     gccjit::function wrap_return_func =
-            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "printf", params, 1, new_location(explist));
+            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "wrap_return_var", params, 1, new_location(explist));
     auto ret = gccjit_context_->new_call(wrap_return_func, args, new_location(explist));
 
     the_block.end_with_return(ret, new_location(return_stmt));

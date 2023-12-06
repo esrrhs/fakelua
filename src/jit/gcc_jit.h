@@ -50,6 +50,7 @@ private:
     std::string file_name_;
     gccjit_context_ptr gccjit_context_;
     gcc_jit_result *gccjit_result_ = nullptr;
+    FILE *gccjit_log_fp_ = nullptr;
 };
 
 typedef std::shared_ptr<gcc_jitter> gcc_jitter_ptr;
