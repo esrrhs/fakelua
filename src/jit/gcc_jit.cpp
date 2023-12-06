@@ -18,16 +18,20 @@ gcc_jitter::~gcc_jitter() {
     }
 }
 
-void gcc_jitter::compile(fakelua_state_ptr sp, const std::string &file_name, const syntax_tree_interface_ptr &chunk) {
+void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::string &file_name, const syntax_tree_interface_ptr &chunk) {
     LOG(INFO) << "start gcc_jitter::compile " << file_name;
 
     sp_ = sp;
     file_name_ = file_name;
     // init gccjit
     gccjit_context_ = std::make_shared<gccjit::context>(gccjit::context::acquire());
-    /* Set some options on the context.
-     Turn this on to see the code being generated, in assembler form.  */
-    gccjit_context_->set_bool_option(GCC_JIT_BOOL_OPTION_DUMP_GENERATED_CODE, 0);
+    // Set some options on the context.
+    if (cfg.debug_mode) {
+        gccjit_context_->set_bool_option(GCC_JIT_BOOL_OPTION_DEBUGINFO, 1);
+        gccjit_context_->set_int_option(GCC_JIT_INT_OPTION_OPTIMIZATION_LEVEL, 0);
+    } else {
+        gccjit_context_->set_int_option(GCC_JIT_INT_OPTION_OPTIMIZATION_LEVEL, 3);
+    }
 
     // just walk through the chunk, and save the function declaration and then we can call the function by name
     // first, check the global const define, the const define must be an assignment expression at the top level
@@ -45,8 +49,11 @@ void gcc_jitter::compile(fakelua_state_ptr sp, const std::string &file_name, con
     gccjit_result_ = result;
 
     // dump to file
-    std::string dumpfile = generate_tmp_filename("fakelua_gccjit_", ".c");
-    gccjit_context_->dump_to_file(dumpfile, true);
+    std::string dumpfile;
+    if (cfg.debug_mode) {
+        dumpfile = generate_tmp_filename("fakelua_gccjit_", ".c");
+        gccjit_context_->dump_to_file(dumpfile, true);
+    }
 
     gccjit_context_->release();
     gccjit_context_ = nullptr;
@@ -291,7 +298,7 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, gccjit::block &the_
     args.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
 
     gccjit::function wrap_return_func =
-            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "wrap_return_var", params, 1, new_location(explist));
+            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "printf", params, 1, new_location(explist));
     auto ret = gccjit_context_->new_call(wrap_return_func, args, new_location(explist));
 
     the_block.end_with_return(ret, new_location(return_stmt));

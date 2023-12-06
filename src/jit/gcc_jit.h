@@ -1,5 +1,6 @@
 #pragma once
 
+#include "compile/compile_common.h"
 #include "compile/syntax_tree.h"
 #include "fakelua.h"
 #include "var/var.h"
@@ -16,7 +17,7 @@ public:
 
     ~gcc_jitter();
 
-    void compile(fakelua_state_ptr sp, const std::string &file_name, const syntax_tree_interface_ptr &chunk);
+    void compile(fakelua_state_ptr sp, compile_config cfg, const std::string &file_name, const syntax_tree_interface_ptr &chunk);
 
 private:
     void compile_const_defines(const syntax_tree_interface_ptr &chunk);

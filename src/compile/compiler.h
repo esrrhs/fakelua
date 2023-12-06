@@ -2,15 +2,12 @@
 
 #include "bison/parser.h"
 #include "compile/myflexer.h"
+#include "compile_common.h"
 #include "jit/gcc_jit.h"
 #include <map>
 #include <string>
 
 namespace fakelua {
-
-struct compile_config {
-    bool skip_jit = false;
-};
 
 struct compile_result {
     // the file name
