@@ -76,7 +76,7 @@ TEST(var, var_string_heap) {
     auto ret1 = heap.alloc("hello");
     ASSERT_EQ(std::get<0>(ret1), true);
     ASSERT_EQ(std::get<1>(ret1), "hello");
-    ASSERT_NE(std::get<1>(ret).data(), std::get<1>(ret1).data());
+    ASSERT_EQ(std::get<1>(ret).data(), std::get<1>(ret1).data());
 
     heap.reset();
 

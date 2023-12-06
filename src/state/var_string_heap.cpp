@@ -24,16 +24,18 @@ std::tuple<bool, std::string_view> var_string_heap::alloc(const std::string_view
             return std::make_tuple(true, ret);
         } else {
             // alloc failed. use the short_str_tmp_ to store the new short strings.
-            auto ret = std::make_shared<std::string>(str.data(), str.size());
-            short_str_tmp_.push_back(ret);
-            short_str_to_index_map_.emplace(str, *ret);
-            return std::make_tuple(true, *ret);
+            auto s = std::make_shared<std::string>(str.data(), str.size());
+            auto ret = std::string_view(s->data(), s->size());
+            short_str_tmp_.push_back(s);
+            short_str_to_index_map_.emplace(str, ret);
+            return std::make_tuple(true, ret);
         }
     } else {
         // long string
-        auto ret = std::make_shared<std::string>(str.data(), str.size());
-        long_str_vec_.push_back(ret);
-        return std::make_tuple(false, *ret);
+        auto s = std::make_shared<std::string>(str.data(), str.size());
+        long_str_vec_.push_back(s);
+        auto ret = std::string_view(s->data(), s->size());
+        return std::make_tuple(false, ret);
     }
 }
 

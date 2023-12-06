@@ -17,7 +17,7 @@ include_directories(./platform)
 add_library(fakelua STATIC ${FAKELUA_SRC_LIST})
 
 IF (WIN32)
-    set(TARGET_LIB profiler_static glog::glog gflags_nothreads_static gccjit)
+    set(TARGET_LIB glog::glog gflags_nothreads_static gccjit)
 ELSE ()
     set(TARGET_LIB profiler_static glog::glog gflags_nothreads_static gccjit)
 ENDIF ()
