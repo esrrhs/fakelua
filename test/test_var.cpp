@@ -143,20 +143,58 @@ TEST(var, to_string) {
     var_pool pool;
     auto v = pool.alloc();
     v->set_nil();
-    ASSERT_EQ(v->to_string(s), "nil");
+    ASSERT_EQ(v->to_string(), "nil");
 
     v->set_bool(true);
-    ASSERT_EQ(v->to_string(s), "true");
+    ASSERT_EQ(v->to_string(), "true");
 
     v->set_int((int64_t) 12345);
-    ASSERT_EQ(v->to_string(s), "12345");
+    ASSERT_EQ(v->to_string(), "12345");
 
     v->set_float(12345.0);
-    ASSERT_EQ(v->to_string(s), "12345.000000");
+    ASSERT_EQ(v->to_string(), "12345.000000");
 
     v->set_string(s, "hello");
-    ASSERT_EQ(v->to_string(s), "\"hello\"");
+    ASSERT_EQ(v->to_string(), "\"hello\"");
 
     v->set_table();
-    ASSERT_EQ(v->to_string(s), std::format("table({})", (void *) v));
+    ASSERT_EQ(v->to_string(), std::format("table({})", (void *) v));
+}
+
+TEST(var, var_table) {
+    auto s = std::make_shared<state>();
+
+    var_table vt;
+
+    var k1((int64_t) 1);
+    var v1((int64_t) 2);
+    vt.set(k1, &v1);
+    ASSERT_EQ(vt.get(k1), &v1);
+
+    var k2((int64_t) 1);
+    var v2((int64_t) 3);
+    vt.set(k2, &v2);
+    ASSERT_EQ(vt.get(k2), &v2);
+
+    var k3((int64_t) 2);
+    var v3((int64_t) 4);
+    vt.set(k3, &v3);
+    ASSERT_EQ(vt.get(k3), &v3);
+
+    var k4(s, "hello");
+    var v4((int64_t) 5);
+    vt.set(k4, &v4);
+    ASSERT_EQ(vt.get(k4), &v4);
+
+    vt.set(k4, nullptr);
+    ASSERT_EQ(vt.get(k4), &const_null_var);
+
+    var k5(s, "hello");
+    var v5((int64_t) 6);
+    vt.set(k5, &v5);
+    ASSERT_EQ(vt.get(k5), &v5);
+
+    var nil;
+    vt.set(k5, &nil);
+    ASSERT_EQ(vt.get(k5), &const_null_var);
 }

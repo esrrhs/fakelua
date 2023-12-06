@@ -129,7 +129,7 @@ public:
     void set_table();
 
 public:
-    std::string to_string(fakelua_state_ptr s) const;
+    std::string to_string() const;
 
 private:
     // use class members instead of union, use more memory but more safe and fast.

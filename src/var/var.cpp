@@ -56,7 +56,7 @@ void var::set_table() {
     type_ = var_type::VAR_TABLE;
 }
 
-std::string var::to_string(fakelua_state_ptr s) const {
+std::string var::to_string() const {
     switch (type()) {
         case var_type::VAR_NIL:
             return "nil";

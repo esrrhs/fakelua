@@ -9,7 +9,7 @@ var *var_table::get(const var &key) {
     auto type = key.type();
     switch (type) {
         case var_type::VAR_STRING: {
-            if (key.is_short_string()) {
+            if (!key.is_short_string()) {
                 throw std::runtime_error("table get: long string index not supported");
             }
             auto str = key.get_string();
@@ -40,7 +40,7 @@ void var_table::set(const var &key, var *val) {
     if (!val || val->type() == var_type::VAR_NIL) {
         switch (type) {
             case var_type::VAR_STRING: {
-                if (key.is_short_string()) {
+                if (!key.is_short_string()) {
                     throw std::runtime_error("table set nil: long string index not supported");
                 }
                 auto str = key.get_string();
@@ -61,7 +61,7 @@ void var_table::set(const var &key, var *val) {
 
     switch (type) {
         case var_type::VAR_STRING: {
-            if (key.is_short_string()) {
+            if (!key.is_short_string()) {
                 throw std::runtime_error("table set: long string index not supported");
             }
             auto str = key.get_string();
