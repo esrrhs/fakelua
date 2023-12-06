@@ -33,6 +33,22 @@ TEST(var, construct) {
 
     var v7(s, std::move(std::string("hello")));
     ASSERT_EQ(v7.type(), var_type::VAR_STRING);
+
+    std::string str("hello");
+    var v8(s, str);
+    ASSERT_EQ(v8.type(), var_type::VAR_STRING);
+
+    var v9;
+    v9.set_string(s, str);
+    ASSERT_EQ(v9.type(), var_type::VAR_STRING);
+
+    std::string_view str_view("hello");
+    var v10(s, str_view);
+    ASSERT_EQ(v10.type(), var_type::VAR_STRING);
+
+    var v11;
+    v11.set_string(s, str_view);
+    ASSERT_EQ(v11.type(), var_type::VAR_STRING);
 }
 
 TEST(var, set_get) {
@@ -197,4 +213,10 @@ TEST(var, var_table) {
     var nil;
     vt.set(k5, &nil);
     ASSERT_EQ(vt.get(k5), &const_null_var);
+
+    vt.set(k1, &v1);
+    ASSERT_EQ(vt.get(k1), &v1);
+
+    vt.set(k1, nullptr);
+    ASSERT_EQ(vt.get(k1), &const_null_var);
 }
