@@ -1253,3 +1253,43 @@ TEST(syntax_tree, var_attr) {
 
     ASSERT_EQ(dumpstr, wantstr);
 }
+
+TEST(syntax_tree, function_call_args) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file(L, "./syntax/test_function_call_args.lua", {true});
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG(INFO) << "\n" << dumpstr;
+
+    auto wantstr = ""
+                   "(block)[2:1]\n"
+                   "  (functioncall)[2:1]\n"
+                   "    (prefixexp)[2:1]\n"
+                   "      type: var\n"
+                   "      (var)[2:1]\n"
+                   "        type: simple\n"
+                   "        name: a\n"
+                   "    (args)[2:3]\n"
+                   "      (tableconstructor)[2:3]\n"
+                   "        (fieldlist)[2:4]\n"
+                   "          (field)[2:4]\n"
+                   "            type: object\n"
+                   "            name: b\n"
+                   "            (exp)[2:6]\n"
+                   "              type: number\n"
+                   "              value: 1\n"
+                   "  (functioncall)[3:1]\n"
+                   "    (prefixexp)[3:1]\n"
+                   "      type: var\n"
+                   "      (var)[3:1]\n"
+                   "        type: simple\n"
+                   "        name: c\n"
+                   "    (args)[3:3]\n"
+                   "      string: d\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
