@@ -8,6 +8,12 @@ include_directories(../include)
 include_directories(../src)
 include_directories(../src/platform)
 
+IF (WIN32)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--export-all-symbols")
+ELSE ()
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-E")
+ENDIF ()
+
 add_executable(unit_tests ${TEST_SRC_LIST})
 
 target_link_libraries(unit_tests PRIVATE fakelua gtest_main)
