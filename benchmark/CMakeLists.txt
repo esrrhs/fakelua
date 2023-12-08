@@ -16,7 +16,7 @@ ENDIF ()
 
 add_executable(bench_mark ${BENCHMARK_SRC_LIST})
 
-target_link_libraries(bench_mark PRIVATE fakelua benchmark)
+target_link_libraries(bench_mark PRIVATE fakelua benchmark glog::glog gflags::gflags gccjit)
 
 add_custom_command(
         TARGET bench_mark

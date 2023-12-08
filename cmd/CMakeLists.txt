@@ -14,4 +14,4 @@ ENDIF ()
 
 add_executable(lua ${LUA_SRC_LIST})
 
-target_link_libraries(lua PRIVATE fakelua)
+target_link_libraries(lua PRIVATE fakelua gtest_main glog::glog gflags::gflags gccjit)
