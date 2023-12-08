@@ -7,10 +7,6 @@
 
 namespace fakelua {
 
-extern "C" void *wrap_return_var(void *s) {
-    return 0;
-}
-
 gcc_jitter::~gcc_jitter() {
     if (gccjit_context_) {
         gccjit_context_->release();
