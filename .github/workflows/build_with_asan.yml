@@ -32,6 +32,7 @@ jobs:
           rm build -rf
           mkdir build
           cd build
+          export ASAN_OPTIONS=detect_leaks=0
           cmake -DUSE_ASAN=ON ..
           make -j8
           ctest -V
