@@ -318,8 +318,12 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, gccjit::block &the_
     std::vector<gccjit::rvalue> args;
     args.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
 
+    for (auto &exp_ret: explist_ret) {
+        args.push_back(exp_ret);
+    }
+
     gccjit::function wrap_return_func =
-            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "wrap_return_var", params, 0, new_location(explist));
+            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "wrap_return_var", params, 1, new_location(explist));
     auto ret = gccjit_context_->new_call(wrap_return_func, args, new_location(explist));
 
     the_block.end_with_return(ret, new_location(return_stmt));

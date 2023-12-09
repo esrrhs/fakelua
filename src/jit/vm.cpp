@@ -5,13 +5,13 @@
 
 namespace fakelua {
 
-extern "C" var *new_var_nil(fakelua_state *s) {
+extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s) {
     auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
     return ret;
 }
 
-}// namespace fakelua
-
-extern "C" __attribute__((used)) void *wrap_return_var(void *s) {
+extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, ...) {
     return 0;
 }
+
+}// namespace fakelua
