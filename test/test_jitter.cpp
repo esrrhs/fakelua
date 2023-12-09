@@ -4,6 +4,8 @@
 
 using namespace fakelua;
 
+#ifndef WIN32
+
 static int jitter_gccjit_called_with[3];
 
 extern "C" __attribute__((used)) void jitter_gccjit_called_function(int i, int j, int k) {
@@ -74,12 +76,15 @@ TEST(jitter, gccjit) {
     gcc_jit_result_release(result);
 }
 
+#endif
+
 TEST(jitter, empty_file) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
     compiler c;
     auto result = c.compile_file(L, "./jit/test_empty_file.lua", {});
+    result = c.compile_file(L, "./jit/test_empty_file.lua", {debug_mode: false});
 }
 
 TEST(jitter, empty_func) {
@@ -88,6 +93,7 @@ TEST(jitter, empty_func) {
 
     compiler c;
     auto result = c.compile_file(L, "./jit/test_empty_func.lua", {});
+    result = c.compile_file(L, "./jit/test_empty_func.lua", {debug_mode: false});
 }
 
 TEST(jitter, const_define) {
@@ -96,4 +102,5 @@ TEST(jitter, const_define) {
 
     compiler c;
     auto result = c.compile_file(L, "./jit/test_const_define.lua", {});
+    result = c.compile_file(L, "./jit/test_const_define.lua", {debug_mode: false});
 }

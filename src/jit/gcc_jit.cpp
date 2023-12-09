@@ -46,6 +46,12 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
         gccjit_context_->set_int_option(GCC_JIT_INT_OPTION_OPTIMIZATION_LEVEL, 3);
     }
 
+#ifdef WIN32
+    // for mingw, need add libfakelua.so to find the symbol
+    gccjit_context_->add_driver_option("-L.");
+    gccjit_context_->add_driver_option("-lfakelua");
+#endif
+
     // just walk through the chunk, and save the function declaration and then we can call the function by name
     // first, check the global const define, the const define must be an assignment expression at the top level
     compile_const_defines(chunk);
