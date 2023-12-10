@@ -184,39 +184,39 @@ TEST(var, var_table) {
 
     var k1((int64_t) 1);
     var v1((int64_t) 2);
-    vt.set(k1, &v1);
-    ASSERT_EQ(vt.get(k1), &v1);
+    vt.set(&k1, &v1);
+    ASSERT_EQ(vt.get(&k1), &v1);
 
     var k2((int64_t) 1);
     var v2((int64_t) 3);
-    vt.set(k2, &v2);
-    ASSERT_EQ(vt.get(k2), &v2);
+    vt.set(&k2, &v2);
+    ASSERT_EQ(vt.get(&k2), &v2);
 
     var k3((int64_t) 2);
     var v3((int64_t) 4);
-    vt.set(k3, &v3);
-    ASSERT_EQ(vt.get(k3), &v3);
+    vt.set(&k3, &v3);
+    ASSERT_EQ(vt.get(&k3), &v3);
 
     var k4(s, "hello");
     var v4((int64_t) 5);
-    vt.set(k4, &v4);
-    ASSERT_EQ(vt.get(k4), &v4);
+    vt.set(&k4, &v4);
+    ASSERT_EQ(vt.get(&k4), &v4);
 
-    vt.set(k4, nullptr);
-    ASSERT_EQ(vt.get(k4), &const_null_var);
+    vt.set(&k4, nullptr);
+    ASSERT_EQ(vt.get(&k4), &const_null_var);
 
     var k5(s, "hello");
     var v5((int64_t) 6);
-    vt.set(k5, &v5);
-    ASSERT_EQ(vt.get(k5), &v5);
+    vt.set(&k5, &v5);
+    ASSERT_EQ(vt.get(&k5), &v5);
 
     var nil;
-    vt.set(k5, &nil);
-    ASSERT_EQ(vt.get(k5), &const_null_var);
+    vt.set(&k5, &nil);
+    ASSERT_EQ(vt.get(&k5), &const_null_var);
 
-    vt.set(k1, &v1);
-    ASSERT_EQ(vt.get(k1), &v1);
+    vt.set(&k1, &v1);
+    ASSERT_EQ(vt.get(&k1), &v1);
 
-    vt.set(k1, nullptr);
-    ASSERT_EQ(vt.get(k1), &const_null_var);
+    vt.set(&k1, nullptr);
+    ASSERT_EQ(vt.get(&k1), &const_null_var);
 }

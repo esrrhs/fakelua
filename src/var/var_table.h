@@ -20,14 +20,20 @@ public:
     ~var_table() = default;
 
     // get value by key. if the key is not exist, return const var(nullptr).
-    var *get(const var &key);
+    var *get(var *key);
+    var *get_by_int(int64_t key);
+    var *get_by_str(const std::string_view &key);
 
     // set value by key. if the key is not exist, insert a new key-value pair.
-    void set(const var &key, var *val);
+    void set(var *key, var *val, bool can_be_nil = false);
+
+    // range for
+    void range(std::function<void(var *, var *)> iter);
 
 private:
-    rich_hashmap<int64_t, var *, MAX_VAR_TABLE_HASHMAP_BUCKET_HEIGHT> str_table_;
-    rich_hashmap<int64_t, var *, MAX_VAR_TABLE_HASHMAP_BUCKET_HEIGHT> int_table_;
+    typedef std::pair<var *, var *> pair_type;
+    rich_hashmap<int64_t, pair_type, MAX_VAR_TABLE_HASHMAP_BUCKET_HEIGHT> str_table_;
+    rich_hashmap<int64_t, pair_type, MAX_VAR_TABLE_HASHMAP_BUCKET_HEIGHT> int_table_;
 };
 
 }// namespace fakelua

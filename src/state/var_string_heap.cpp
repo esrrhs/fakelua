@@ -28,7 +28,7 @@ std::string_view var_string_heap::alloc(const std::string_view &str) {
             auto ret = std::string_view(s->data(), s->size());
             short_str_tmp_.push_back(s);
             short_str_to_index_map_.emplace(str, ret);
-            return true, ret;
+            return ret;
         }
     } else {
         // long string

@@ -78,6 +78,17 @@ public:
         }
     }
 
+    // range
+    void range(std::function<bool(const K &, const V &)> iter) {
+        for (auto &bucket: buckets_) {
+            for (size_t i = 0; i < bucket.size; i++) {
+                if (!iter(bucket.key[i], bucket.value[i])) {
+                    return;
+                }
+            }
+        }
+    }
+
     // get size
     size_t size() const {
         return size_;

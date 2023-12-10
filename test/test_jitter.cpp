@@ -82,25 +82,30 @@ TEST(jitter, empty_file) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    auto result = c.compile_file(L, "./jit/test_empty_file.lua", {});
-    result = c.compile_file(L, "./jit/test_empty_file.lua", {debug_mode: false});
+    L->compile_file("./jit/test_empty_file.lua", {});
+    L->compile_file("./jit/test_empty_file.lua", {debug_mode: false});
 }
 
 TEST(jitter, empty_func) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    auto result = c.compile_file(L, "./jit/test_empty_func.lua", {});
-    result = c.compile_file(L, "./jit/test_empty_func.lua", {debug_mode: false});
+    L->compile_file("./jit/test_empty_func.lua", {});
+    var *ret = 0;
+    L->call("test", std::tie(ret));
+    ASSERT_NE(ret, nullptr);
+    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
+
+    L->compile_file("./jit/test_empty_func.lua", {debug_mode: false});
+    L->call("test", std::tie(ret));
+    ASSERT_NE(ret, nullptr);
+    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
 }
 
 TEST(jitter, const_define) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    auto result = c.compile_file(L, "./jit/test_const_define.lua", {});
-    result = c.compile_file(L, "./jit/test_const_define.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_define.lua", {});
+    L->compile_file("./jit/test_const_define.lua", {debug_mode: false});
 }

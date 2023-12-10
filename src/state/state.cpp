@@ -11,17 +11,17 @@ state::state() {
 state::~state() {
 }
 
-void state::compile_file(const std::string &filename) {
+void state::compile_file(const std::string &filename, compile_config cfg) {
     LOG(INFO) << "start compile_file " << filename;
     compiler c;
-    auto result = c.compile_file(shared_from_this(), filename, {});
+    auto result = c.compile_file(shared_from_this(), filename, cfg);
     LOG(INFO) << "compile_file " << filename << " ok ";
 }
 
-void state::compile_string(const std::string &str) {
+void state::compile_string(const std::string &str, compile_config cfg) {
     LOG(INFO) << "start compile_string";
     compiler c;
-    auto result = c.compile_string(shared_from_this(), str, {});
+    auto result = c.compile_string(shared_from_this(), str, cfg);
     LOG(INFO) << "compile_string ok " << result.file_name;
 }
 
@@ -32,5 +32,10 @@ void *state::get_func_addr(const std::string &name) {
     }
     return nullptr;
 }
+
+void state::set_var_interface_new_func(std::function<var_interface *()> func) {
+    var_interface_new_func_ = func;
+}
+
 
 }// namespace fakelua
