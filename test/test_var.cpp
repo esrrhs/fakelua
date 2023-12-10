@@ -86,28 +86,28 @@ TEST(var, set_get) {
 TEST(var, var_string_heap) {
     var_string_heap heap;
     auto ret = heap.alloc("hello");
-    ASSERT_EQ(std::get<0>(ret), true);
-    ASSERT_EQ(std::get<1>(ret), "hello");
+    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, true);
+    ASSERT_EQ(ret, "hello");
 
     auto ret1 = heap.alloc("hello");
-    ASSERT_EQ(std::get<0>(ret1), true);
-    ASSERT_EQ(std::get<1>(ret1), "hello");
-    ASSERT_EQ(std::get<1>(ret).data(), std::get<1>(ret1).data());
+    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, true);
+    ASSERT_EQ(ret1, "hello");
+    ASSERT_EQ(ret.data(), ret1.data());
 
     heap.reset();
 
     ret = heap.alloc("hello");
-    ASSERT_EQ(std::get<0>(ret), true);
-    ASSERT_EQ(std::get<1>(ret), "hello");
+    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, true);
+    ASSERT_EQ(ret, "hello");
 
     ret1 = heap.alloc("hello");
-    ASSERT_EQ(std::get<0>(ret1), true);
-    ASSERT_EQ(std::get<1>(ret1), "hello");
-    ASSERT_EQ(std::get<1>(ret).data(), std::get<1>(ret1).data());
+    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, true);
+    ASSERT_EQ(ret1, "hello");
+    ASSERT_EQ(ret.data(), ret1.data());
 
     ret = heap.alloc("hello1");
-    ASSERT_EQ(std::get<0>(ret), true);
-    ASSERT_EQ(std::get<1>(ret), "hello1");
+    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, true);
+    ASSERT_EQ(ret, "hello1");
 
     std::string str;
     for (int i = 0; i < MAX_SHORT_STR_LEN; ++i) {
@@ -115,14 +115,14 @@ TEST(var, var_string_heap) {
     }
 
     ret = heap.alloc(str);
-    ASSERT_EQ(std::get<0>(ret), true);
-    ASSERT_EQ(std::get<1>(ret), str);
+    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, true);
+    ASSERT_EQ(ret, str);
 
     str += "a";
 
     ret = heap.alloc(str);
-    ASSERT_EQ(std::get<0>(ret), false);
-    ASSERT_EQ(std::get<1>(ret), str);
+    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, false);
+    ASSERT_EQ(ret, str);
 }
 
 TEST(var, var_pool) {

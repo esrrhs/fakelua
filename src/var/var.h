@@ -71,12 +71,12 @@ public:
 
     // get string_view value
     const std::string_view &get_string() const {
-        return get<1>(string_);
+        return string_;
     }
 
     // get string_view value
     bool is_short_string() const {
-        return get<0>(string_);
+        return string_.length() <= MAX_SHORT_STR_LEN;
     }
 
     // get table value
@@ -137,7 +137,7 @@ private:
     bool bool_;
     int64_t int_;
     double float_;
-    std::tuple<bool, std::string_view> string_;// bool: is_short_string, string_view: string
+    std::string_view string_;
     var_table table_;
 };
 

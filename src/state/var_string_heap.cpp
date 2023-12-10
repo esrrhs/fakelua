@@ -4,13 +4,13 @@
 
 namespace fakelua {
 
-std::tuple<bool, std::string_view> var_string_heap::alloc(const std::string_view &str) {
+std::string_view var_string_heap::alloc(const std::string_view &str) {
     if (str.size() <= MAX_SHORT_STR_LEN) {
         // first, try to find the string in the short string map
         auto it = short_str_to_index_map_.find(str);
         if (it != short_str_to_index_map_.end()) {
             // found. return
-            return std::make_tuple(true, it->second);
+            return it->second;
         }
 
         // not found. try to alloc size from the str_mem_
@@ -21,21 +21,21 @@ std::tuple<bool, std::string_view> var_string_heap::alloc(const std::string_view
             auto ret = std::string_view(&str_mem_[str_mem_index_], str.size());
             short_str_to_index_map_.emplace(str, ret);
             str_mem_index_ += str.size() + 1;
-            return std::make_tuple(true, ret);
+            return ret;
         } else {
             // alloc failed. use the short_str_tmp_ to store the new short strings.
             auto s = std::make_shared<std::string>(str.data(), str.size());
             auto ret = std::string_view(s->data(), s->size());
             short_str_tmp_.push_back(s);
             short_str_to_index_map_.emplace(str, ret);
-            return std::make_tuple(true, ret);
+            return true, ret;
         }
     } else {
         // long string
         auto s = std::make_shared<std::string>(str.data(), str.size());
         long_str_vec_.push_back(s);
         auto ret = std::string_view(s->data(), s->size());
-        return std::make_tuple(false, ret);
+        return ret;
     }
 }
 

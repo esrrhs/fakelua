@@ -18,7 +18,7 @@ public:
     ~var_string_heap() = default;
 
     // alloc a string, and return the stored string_view.
-    std::tuple<bool, std::string_view> alloc(const std::string_view &str);
+    std::string_view alloc(const std::string_view &str);
 
     // clear the string heap. usually called before running.
     void reset();

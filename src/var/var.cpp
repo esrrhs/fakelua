@@ -67,7 +67,7 @@ std::string var::to_string() const {
         case var_type::VAR_FLOAT:
             return std::to_string(get_float());
         case var_type::VAR_STRING:
-            return std::format("\"{}\"", std::get<1>(string_));
+            return std::format("\"{}\"", string_);
         case var_type::VAR_TABLE:
             return std::format("table({})", (void *) this);
         default:
