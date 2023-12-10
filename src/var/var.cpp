@@ -52,6 +52,30 @@ void var::set_string(const fakelua_state_ptr &s, std::string_view val) {
     string_ = string_heap.alloc(std::string(val));
 }
 
+void var::set_string(fakelua_state *s, const std::string &val) {
+    type_ = var_type::VAR_STRING;
+    auto &string_heap = dynamic_cast<state *>(s)->get_var_string_heap();
+    string_ = string_heap.alloc(val);
+}
+
+void var::set_string(fakelua_state *s, std::string &&val) {
+    type_ = var_type::VAR_STRING;
+    auto &string_heap = dynamic_cast<state *>(s)->get_var_string_heap();
+    string_ = string_heap.alloc(std::move(val));
+}
+
+void var::set_string(fakelua_state *s, const char *val) {
+    type_ = var_type::VAR_STRING;
+    auto &string_heap = dynamic_cast<state *>(s)->get_var_string_heap();
+    string_ = string_heap.alloc(val);
+}
+
+void var::set_string(fakelua_state *s, std::string_view val) {
+    type_ = var_type::VAR_STRING;
+    auto &string_heap = dynamic_cast<state *>(s)->get_var_string_heap();
+    string_ = string_heap.alloc(std::string(val));
+}
+
 void var::set_table() {
     type_ = var_type::VAR_TABLE;
 }

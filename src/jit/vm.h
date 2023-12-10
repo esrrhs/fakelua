@@ -54,6 +54,16 @@ private:
 
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s);
 
-extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, ...);
+extern "C" __attribute__((used)) var *new_var_false(fakelua_state *s);
+
+extern "C" __attribute__((used)) var *new_var_true(fakelua_state *s);
+
+extern "C" __attribute__((used)) var *new_var_int(fakelua_state *s, int64_t val);
+
+extern "C" __attribute__((used)) var *new_var_float(fakelua_state *s, double val);
+
+extern "C" __attribute__((used)) var *new_var_string(fakelua_state *s, const char *val);
+
+extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, ...);
 
 }// namespace fakelua

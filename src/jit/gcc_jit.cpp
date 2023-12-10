@@ -208,15 +208,52 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, gccjit::block &th
     if (exp_type == "nil") {
         func_name = "new_var_nil";
     } else if (exp_type == "false") {
-        // TODO
-        return nullptr;
+        func_name = "new_var_false";
     } else if (exp_type == "true") {
-        // TODO
-        return nullptr;
+        func_name = "new_var_true";
     } else if (exp_type == "number") {
+        std::regex e("^[-+]?[0-9]+$");
+        if (std::regex_match(value, e)) {
+            func_name = "new_var_int";
+            auto the_int_type = gccjit_context_->get_type(GCC_JIT_TYPE_INT64_T);
+            params.push_back(gccjit_context_->new_param(the_int_type, "val"));
+
+            int64_t val = std::stoll(value);
+            args.push_back(gccjit_context_->new_rvalue(the_int_type, (long) val));
+        } else {
+            func_name = "new_var_float";
+            auto the_float_type = gccjit_context_->get_type(GCC_JIT_TYPE_DOUBLE);
+            params.push_back(gccjit_context_->new_param(the_float_type, "val"));
+
+            double val = std::stod(value);
+            args.push_back(gccjit_context_->new_rvalue(the_float_type, val));
+        }
+    } else if (exp_type == "string") {
+        func_name = "new_var_string";
+        auto the_string_type = gccjit_context_->get_type(GCC_JIT_TYPE_CONST_CHAR_PTR);
+        params.push_back(gccjit_context_->new_param(the_string_type, "val"));
+
+        auto container_str = gcc_jit_handle_->alloc_str(value);
+        args.push_back(gccjit_context_->new_rvalue(the_string_type, (void *) container_str->c_str()));
+    } else if (exp_type == "var") {
         // TODO
         return nullptr;
-    } else if (exp_type == "string") {
+    } else if (exp_type == "function") {
+        // TODO
+        return nullptr;
+    } else if (exp_type == "paren") {
+        // TODO
+        return nullptr;
+    } else if (exp_type == "call") {
+        // TODO
+        return nullptr;
+    } else if (exp_type == "index") {
+        // TODO
+        return nullptr;
+    } else if (exp_type == "method") {
+        // TODO
+        return nullptr;
+    } else if (exp_type == "vararg") {
         // TODO
         return nullptr;
     } else if (exp_type == "var_params") {
@@ -238,6 +275,10 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, gccjit::block &th
         // TODO
         return nullptr;
     } else {
+        throw std::runtime_error("not support exp type: " + exp_type);
+    }
+
+    if (func_name.empty()) {
         throw std::runtime_error("not support exp type: " + exp_type);
     }
 
@@ -318,9 +359,11 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, gccjit::block &the_
 
     std::vector<gccjit::param> params;
     params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "n"));
 
     std::vector<gccjit::rvalue> args;
     args.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_INT), (int) explist_ret.size()));
 
     for (auto &exp_ret: explist_ret) {
         args.push_back(exp_ret);

@@ -268,7 +268,7 @@ template<size_t I = 0, typename... Rets>
         inline typename std::enable_if <
         I<sizeof...(Rets), void>::type fakelua_func_ret_helper(fakelua_state_ptr s, var *ret, std::tuple<Rets &...> &rets) {
     typedef typename std::remove_reference<std::tuple_element_t<I, std::tuple<Rets &...>>>::type t;
-    auto v = fakelua_get_var_by_index(s, ret, I);
+    auto v = fakelua_get_var_by_index(s, ret, I + 1);
     std::get<I>(rets) = fakelua_to_native<t>(s, v);
     fakelua_func_ret_helper<I + 1, Rets...>(s, ret, rets);
 }

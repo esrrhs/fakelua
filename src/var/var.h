@@ -125,6 +125,18 @@ public:
     // set string value
     void set_string(const fakelua_state_ptr &s, std::string_view val);
 
+    // set string value
+    void set_string(fakelua_state *s, const std::string &val);
+
+    // set string value
+    void set_string(fakelua_state *s, std::string &&val);
+
+    // set string value
+    void set_string(fakelua_state *s, const char *val);
+
+    // set string value
+    void set_string(fakelua_state *s, std::string_view val);
+
     // set table value
     void set_table();
 

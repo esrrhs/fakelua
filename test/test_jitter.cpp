@@ -102,6 +102,26 @@ TEST(jitter, empty_func) {
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
 }
 
+TEST(jitter, multi_return) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    L->compile_file("./jit/test_multi_return.lua", {});
+    int i = 0;
+    float f = 0;
+    bool b1 = false;
+    bool b2 = false;
+    std::string s;
+    L->call("test", std::tie(i, f, b1, b2, s));
+    ASSERT_EQ(i, 1);
+    ASSERT_EQ(std::abs(f - 2.3) < 0.001, true);
+    ASSERT_EQ(b1, false);
+    ASSERT_EQ(b2, true);
+    ASSERT_EQ(s, "test");
+
+    L->compile_file("./jit/test_multi_return.lua", {debug_mode: false});
+}
+
 TEST(jitter, const_define) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
