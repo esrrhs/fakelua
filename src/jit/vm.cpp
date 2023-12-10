@@ -45,7 +45,7 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, .
     ret->set_table();
     // push ... to ret
     va_list args;
-    va_start(args, s);
+    va_start(args, n);
     for (int i = 0; i < n; i++) {
         auto arg = va_arg(args, var *);
 
