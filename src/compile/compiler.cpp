@@ -37,6 +37,8 @@ compile_result compiler::compile(fakelua_state_ptr sp, myflexer &f, compile_conf
     if (!cfg.skip_jit) {
         ret.jitter = std::make_shared<gcc_jitter>();
         ret.jitter->compile(sp, cfg, ret.file_name, ret.chunk);
+
+
     }
 
     return ret;

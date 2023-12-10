@@ -12,19 +12,11 @@ gcc_jitter::~gcc_jitter() {
         gccjit_context_->release();
         gccjit_context_ = nullptr;
     }
-    if (gccjit_result_) {
-        gcc_jit_result_release(gccjit_result_);
-        gccjit_result_ = nullptr;
-    }
-    if (gccjit_log_fp_) {
-        fclose(gccjit_log_fp_);
-        gccjit_log_fp_ = nullptr;
-    }
 }
 
 void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::string &file_name, const syntax_tree_interface_ptr &chunk) {
     LOG(INFO) << "start gcc_jitter::compile " << file_name;
-
+    gcc_jit_handle_ = std::make_shared<gcc_jit_handle>();
     sp_ = sp;
     file_name_ = file_name;
     // init gccjit
@@ -39,7 +31,7 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
         FILE *fp = fopen(logfilename.c_str(), "wb");
         if (fp) {
             gccjit_context_->set_logfile(fp, 0, 0);
-            gccjit_log_fp_ = fp;
+            gcc_jit_handle_->set_log_fp(fp);
             LOG(INFO) << file_name << " gccjit log file: " << logfilename;
         }
     } else {
@@ -65,7 +57,7 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
         // should not happen, but just in case
         throw std::runtime_error("gcc_jitter compile failed");
     }
-    gccjit_result_ = result;
+    gcc_jit_handle_->set_result(result);
 
     // dump to file
     if (cfg.debug_mode) {
@@ -76,6 +68,16 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
 
     gccjit_context_->release();
     gccjit_context_ = nullptr;
+
+    // register the function
+    for (auto &name: function_names_) {
+        auto func = gcc_jit_result_get_code(result, name.c_str());
+        if (!func) {
+            throw std::runtime_error("gcc_jit_result_get_code failed " + name);
+        }
+        std::dynamic_pointer_cast<state>(sp_)->get_vm().register_vm_function(name, std::make_shared<vm_function>(gcc_jit_handle_, func));
+        LOG(INFO) << "register function: " << name;
+    }
 
     LOG(INFO) << "end gcc_jitter::compile " << file_name;
 }
@@ -90,9 +92,11 @@ void gcc_jitter::compile_functions(const syntax_tree_interface_ptr &chunk) {
             auto func = std::dynamic_pointer_cast<syntax_tree_function>(stmt);
             auto name = compile_funcname(func->funcname());
             compile_function(name, func->funcbody());
+            function_names_.insert(name);
         } else if (stmt->type() == syntax_tree_type::syntax_tree_type_local_function) {
             auto func = std::dynamic_pointer_cast<syntax_tree_local_function>(stmt);
             compile_function(func->name(), func->funcbody());
+            function_names_.insert(func->name());
         }
     }
 }

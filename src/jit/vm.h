@@ -2,41 +2,42 @@
 
 #include "compile/syntax_tree.h"
 #include "fakelua.h"
+#include "gcc_jit_handle.h"
 #include "var/var.h"
 
 namespace fakelua {
 
-class vm_runner_interface {
+// wrapper of gcc_jit_function call
+class vm_function {
 public:
-    vm_runner_interface() = default;
-    virtual ~vm_runner_interface() = default;
-    virtual std::vector<var *> run(std::vector<var *> input) {
-        return {};
+    vm_function(gcc_jit_handle_ptr gcc_jit_handle, void *gcc_jit_func) : gcc_jit_handle_(gcc_jit_handle), gcc_jit_func_(gcc_jit_func) {
     }
+    
+    ~vm_function() = default;
+
+private:
+    gcc_jit_handle_ptr gcc_jit_handle_;
+    void *gcc_jit_func_ = nullptr;
 };
 
-typedef std::shared_ptr<vm_runner_interface> vm_runner_interface_ptr;
+typedef std::shared_ptr<vm_function> vm_function_ptr;
 
-template<typename F>
-class vm_runner : public vm_runner_interface {
+// store all compiled jit functions and some other running used data.
+// every state has one vm.
+class vm {
 public:
-    vm_runner(F f) : f_(f) {
-    }
+    vm() = default;
 
-    virtual ~vm_runner() = default;
+    ~vm() = default;
 
-    virtual std::vector<var *> run(std::vector<var *> input) override {
-        return f_(input);
+    // register function
+    void register_vm_function(const std::string &name, vm_function_ptr func) {
+        vm_functions_[name] = func;
     }
 
 private:
-    F f_;
+    std::unordered_map<std::string, vm_function_ptr> vm_functions_;
 };
-
-template<typename F>
-vm_runner_interface_ptr make_vm_runner(F f) {
-    return std::make_shared<vm_runner<F>>(f);
-}
 
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s);
 

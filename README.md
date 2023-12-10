@@ -25,7 +25,7 @@ FakeLua is a library for fast implementation of custom Lua, it compiles Lua to n
 
 # Build
 ### Linux
-* Dependent: install gcc-13 with jit, cmake, flex, bison.
+* Dependent: install gcc-13 with jit, cmake, flex, bison. install Lua for test.
 * Build: 
 ```shell
 mkdir build
@@ -35,5 +35,5 @@ make
 ```
 
 ### Mingw
-* Dependent: install [MSYS2](https://www.msys2.org). install [mingw-w64-x86_64-libgccjit](https://packages.msys2.org/package/mingw-w64-x86_64-libgccjit). install CLion.
+* Dependent: install [MSYS2](https://www.msys2.org). install [mingw-w64-x86_64-libgccjit](https://packages.msys2.org/package/mingw-w64-x86_64-libgccjit), [mingw-w64-x86_64-lua](https://packages.msys2.org/package/mingw-w64-x86_64-lua). install CLion.
 * open project with CLion, set mingw toolchains. and build.

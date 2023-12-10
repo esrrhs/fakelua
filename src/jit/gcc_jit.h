@@ -3,6 +3,7 @@
 #include "compile/compile_common.h"
 #include "compile/syntax_tree.h"
 #include "fakelua.h"
+#include "gcc_jit_handle.h"
 #include "var/var.h"
 #include "vm.h"
 #include <libgccjit++.h>
@@ -49,8 +50,8 @@ private:
     fakelua_state_ptr sp_;
     std::string file_name_;
     gccjit_context_ptr gccjit_context_;
-    gcc_jit_result *gccjit_result_ = nullptr;
-    FILE *gccjit_log_fp_ = nullptr;
+    gcc_jit_handle_ptr gcc_jit_handle_;
+    std::unordered_set<std::string> function_names_;
 };
 
 typedef std::shared_ptr<gcc_jitter> gcc_jitter_ptr;
