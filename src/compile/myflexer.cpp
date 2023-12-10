@@ -10,8 +10,8 @@ myflexer::myflexer() {
 myflexer::~myflexer() {
 }
 
-void myflexer::input_file(const std::string &file) {
-    file_.open(file.c_str(), std::ios::binary);
+void myflexer::input_file(const std::string_view &file) {
+    file_.open(file.data(), std::ios::binary);
     if (file_.fail()) {
         throw std::runtime_error("open file failed");
     }
@@ -21,14 +21,14 @@ void myflexer::input_file(const std::string &file) {
     switch_streams(&file_, nullptr);
 }
 
-void myflexer::input_string(const std::string &str) {
+void myflexer::input_string(const std::string_view &str) {
     if (str.empty()) {
         throw std::runtime_error("input string is empty");
     }
     filename_ = generate_tmp_file(str);
     location_.initialize(&filename_);
     set_debug(0);
-    string_ = std::istringstream(str, std::ios::binary);
+    string_ = std::istringstream(str.data(), std::ios::binary);
     switch_streams(&string_, nullptr);
 }
 
@@ -64,7 +64,7 @@ std::string myflexer::remove_quotes(const std::string &str) {
     }
 }
 
-std::string myflexer::generate_tmp_file(const std::string &str) {
+std::string myflexer::generate_tmp_file(const std::string_view &str) {
     // create tmp file in system temp dir
     std::string fileName = generate_tmp_filename("fakelua_myflexer_", ".lua");
     std::ofstream file(fileName);

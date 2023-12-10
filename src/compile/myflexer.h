@@ -29,10 +29,10 @@ public:
     }
 
     // set the input lua file
-    void input_file(const std::string &file);
+    void input_file(const std::string_view &file);
 
     // set the input lua string
-    void input_string(const std::string &str);
+    void input_string(const std::string_view &str);
 
     // set the main syntax tree from parser
     void set_chunk(const syntax_tree_interface_ptr &chunk);
@@ -52,7 +52,7 @@ private:
     // replace escape chars
     std::string replace_escape_chars(const std::string &str);
 
-    std::string generate_tmp_file(const std::string &str);
+    std::string generate_tmp_file(const std::string_view &str);
 
 private:
     // The token's location used by the scanner.
