@@ -12,10 +12,10 @@ fakelua_state_ptr fakelua_newstate() {
     return std::make_shared<state>();
 }
 
-void open_profiler(const std::string_view &fname) {
+void open_profiler(const std::string &fname) {
 #ifdef __linux__
     LOG(INFO) << "open_profiler";
-    ProfilerStart(fname.data());
+    ProfilerStart(fname.c_str());
 #endif
 }
 

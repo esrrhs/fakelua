@@ -12,8 +12,12 @@ class vm_function {
 public:
     vm_function(gcc_jit_handle_ptr gcc_jit_handle, void *gcc_jit_func) : gcc_jit_handle_(gcc_jit_handle), gcc_jit_func_(gcc_jit_func) {
     }
-    
+
     ~vm_function() = default;
+
+    void *get_addr() {
+        return gcc_jit_func_;
+    }
 
 private:
     gcc_jit_handle_ptr gcc_jit_handle_;
@@ -31,8 +35,17 @@ public:
     ~vm() = default;
 
     // register function
-    void register_vm_function(const std::string &name, vm_function_ptr func) {
+    void register_function(const std::string &name, vm_function_ptr func) {
         vm_functions_[name] = func;
+    }
+
+    // get function
+    vm_function_ptr get_function(const std::string &name) {
+        auto iter = vm_functions_.find(name);
+        if (iter == vm_functions_.end()) {
+            return nullptr;
+        }
+        return iter->second;
     }
 
 private:

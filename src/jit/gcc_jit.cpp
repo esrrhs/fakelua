@@ -75,7 +75,7 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
         if (!func) {
             throw std::runtime_error("gcc_jit_result_get_code failed " + name);
         }
-        std::dynamic_pointer_cast<state>(sp_)->get_vm().register_vm_function(name, std::make_shared<vm_function>(gcc_jit_handle_, func));
+        std::dynamic_pointer_cast<state>(sp_)->get_vm().register_function(name, std::make_shared<vm_function>(gcc_jit_handle_, func));
         LOG(INFO) << "register function: " << name;
     }
 

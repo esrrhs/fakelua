@@ -16,13 +16,13 @@ public:
     }
 
     // compile file, the file is a lua file.
-    virtual void compile_file(const std::string_view &filename) = 0;
+    virtual void compile_file(const std::string &filename) = 0;
 
     // compile string, the string is the content of a file.
-    virtual void compile_string(const std::string_view &str) = 0;
+    virtual void compile_string(const std::string &str) = 0;
 
 protected:
-    virtual void *get_func_addr(const std::string_view &name) = 0;
+    virtual void *get_func_addr(const std::string &name) = 0;
 };
 
 using fakelua_state_ptr = std::shared_ptr<fakelua_state>;

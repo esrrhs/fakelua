@@ -14,9 +14,9 @@ public:
 
     virtual ~state();
 
-    virtual void compile_file(const std::string_view &filename) override;
+    virtual void compile_file(const std::string &filename) override;
 
-    virtual void compile_string(const std::string_view &str) override;
+    virtual void compile_string(const std::string &str) override;
 
     // call before running. this will reset the state. just for speed.
     void reset() {
@@ -37,7 +37,7 @@ public:
     }
 
 protected:
-    virtual void *get_func_addr(const std::string_view &name) override;
+    virtual void *get_func_addr(const std::string &name) override;
 
 private:
     var_string_heap var_string_heap_;

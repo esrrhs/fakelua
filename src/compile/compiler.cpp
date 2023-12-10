@@ -3,14 +3,14 @@
 
 namespace fakelua {
 
-compile_result compiler::compile_file(fakelua_state_ptr sp, const std::string_view &file, compile_config cfg) {
+compile_result compiler::compile_file(fakelua_state_ptr sp, const std::string &file, compile_config cfg) {
     LOG(INFO) << "start compile_file " << file;
     myflexer f;
     f.input_file(file);
     return compile(sp, f, cfg);
 }
 
-compile_result compiler::compile_string(fakelua_state_ptr sp, const std::string_view &str, compile_config cfg) {
+compile_result compiler::compile_string(fakelua_state_ptr sp, const std::string &str, compile_config cfg) {
     LOG(INFO) << "start compile_string";
     myflexer f;
     f.input_string(str);

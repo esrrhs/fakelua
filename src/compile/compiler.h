@@ -25,10 +25,10 @@ public:
 
 public:
     // compile the lua file
-    compile_result compile_file(fakelua_state_ptr sp, const std::string_view &file, compile_config cfg);
+    compile_result compile_file(fakelua_state_ptr sp, const std::string &file, compile_config cfg);
 
     // compile the lua string
-    compile_result compile_string(fakelua_state_ptr sp, const std::string_view &str, compile_config cfg);
+    compile_result compile_string(fakelua_state_ptr sp, const std::string &str, compile_config cfg);
 
 private:
     // compile the myflexer which already input the file or string
