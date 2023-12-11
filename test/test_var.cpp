@@ -84,7 +84,9 @@ TEST(var, set_get) {
 }
 
 TEST(var, var_string_heap) {
-    var_string_heap heap;
+    auto s = std::make_shared<state>();
+
+    var_string_heap &heap = s->get_var_string_heap();
     auto ret = heap.alloc("hello");
     ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, true);
     ASSERT_EQ(ret, "hello");

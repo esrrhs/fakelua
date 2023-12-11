@@ -5,6 +5,47 @@
 
 namespace fakelua {
 
+extern "C" __attribute__((used)) var *new_const_var_nil(gcc_jit_handle *h) {
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *new_const_var_false(gcc_jit_handle *h) {
+    auto ret = h->alloc_var();
+    ret->set_bool(false);
+    ret->set_const(true);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *new_const_var_true(gcc_jit_handle *h) {
+    auto ret = h->alloc_var();
+    ret->set_bool(true);
+    ret->set_const(true);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *new_const_var_int(gcc_jit_handle *h, int64_t val) {
+    auto ret = h->alloc_var();
+    ret->set_int(val);
+    ret->set_const(true);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *new_const_var_float(gcc_jit_handle *h, double val) {
+    auto ret = h->alloc_var();
+    ret->set_float(val);
+    ret->set_const(true);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *new_const_var_string(gcc_jit_handle *h, const char *val, int len) {
+    auto ret = h->alloc_var();
+    ret->set_string(h->get_state(), std::string_view(val, len));
+    ret->set_const(true);
+    return ret;
+}
+
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s) {
     auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
     return ret;
@@ -34,9 +75,9 @@ extern "C" __attribute__((used)) var *new_var_float(fakelua_state *s, double val
     return ret;
 }
 
-extern "C" __attribute__((used)) var *new_var_string(fakelua_state *s, const char *val) {
+extern "C" __attribute__((used)) var *new_var_string(fakelua_state *s, const char *val, int len) {
     auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
-    ret->set_string(s, val);
+    ret->set_string(s, std::string_view(val, len));
     return ret;
 }
 

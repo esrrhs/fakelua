@@ -12,6 +12,7 @@ class state;
 
 // Var is the class that holds the multiple types of data.
 // all the data is stored in the state's var_pool. and can only be used by simple pointer.
+// except the global const var, which is stored in the gcc_jit_handle.
 class var : public no_copy<var> {
 public:
     var() : type_(var_type::VAR_NIL) {
@@ -143,16 +144,27 @@ public:
 public:
     std::string to_string() const;
 
+    void set_const(bool val) {
+        is_const_ = val;
+    }
+
+    bool is_const() const {
+        return is_const_;
+    }
+
 private:
     // use class members instead of union, use more memory but more safe and fast.
-    var_type type_;
-    bool bool_;
-    int64_t int_;
-    double float_;
+    var_type type_ = var_type::VAR_NIL;
+    bool is_const_ = false;
+    bool bool_ = false;
+    int64_t int_ = 0;
+    double float_ = 0;
     std::string_view string_;
     var_table table_;
 };
 
 extern var const_null_var;
+
+typedef std::shared_ptr<var> var_ptr;
 
 }// namespace fakelua

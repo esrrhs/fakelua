@@ -1,5 +1,6 @@
 #include "var_string_heap.h"
 #include "fakelua.h"
+#include "state.h"
 #include "util/common.h"
 
 namespace fakelua {
@@ -10,46 +11,45 @@ std::string_view var_string_heap::alloc(const std::string_view &str) {
         auto it = short_str_to_index_map_.find(str);
         if (it != short_str_to_index_map_.end()) {
             // found. return
-            return it->second;
+            return *it->second;
         }
 
-        // not found. try to alloc size from the str_mem_
-        if (str_mem_index_ + str.size() + 1 <= str_mem_.size()) {
-            // alloc success
-            memcpy(&str_mem_[str_mem_index_], str.data(), str.size());
-            str_mem_[str_mem_index_ + str.size()] = '\0';
-            auto ret = std::string_view(&str_mem_[str_mem_index_], str.size());
-            short_str_to_index_map_.emplace(str, ret);
-            str_mem_index_ += str.size() + 1;
-            return ret;
-        } else {
-            // alloc failed. use the short_str_tmp_ to store the new short strings.
-            auto s = std::make_shared<std::string>(str.data(), str.size());
-            auto ret = std::string_view(s->data(), s->size());
-            short_str_tmp_.push_back(s);
-            short_str_to_index_map_.emplace(str, ret);
-            return ret;
-        }
+        // not found.
+        auto s = std::make_shared<std::string>(str.data(), str.size());
+        short_str_to_index_map_.emplace(str, s);
+        return *s;
     } else {
         // long string
         auto s = std::make_shared<std::string>(str.data(), str.size());
         long_str_vec_.push_back(s);
-        auto ret = std::string_view(s->data(), s->size());
-        return ret;
+        return *s;
     }
 }
 
 void var_string_heap::reset() {
-    str_mem_index_ = 0;
-    auto tmp_size = 0;
-    for (auto &s: short_str_tmp_) {
-        tmp_size += s->size() + 1;
+    std::unordered_set<std::string_view> used;
+    auto vm = dynamic_cast<state *>(state_)->get_vm();
+    for (auto &pair: vm.get_functions()) {
+        auto func = pair.second;
+        auto handle = func->get_gcc_jit_handle();
+        auto &str_container_map = handle->get_str_container_map();
+        used.insert(str_container_map.begin(), str_container_map.end());
     }
-    short_str_tmp_.clear();
-    long_str_vec_.clear();
-    short_str_to_index_map_.clear();
-    if (tmp_size > 0) {
-        str_mem_.resize(str_mem_.size() + tmp_size * 2);
+
+    for (auto it = short_str_to_index_map_.begin(); it != short_str_to_index_map_.end();) {
+        if (used.find(*it->second) == used.end()) {
+            it = short_str_to_index_map_.erase(it);
+        } else {
+            ++it;
+        }
+    }
+
+    for (auto it = long_str_vec_.begin(); it != long_str_vec_.end();) {
+        if (used.find(**it) == used.end()) {
+            it = long_str_vec_.erase(it);
+        } else {
+            ++it;
+        }
     }
 }
 

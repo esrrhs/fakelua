@@ -31,7 +31,7 @@ private:
 
     std::string compile_funcname(const syntax_tree_interface_ptr &ptr);
 
-    gccjit::rvalue compile_exp(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &exp);
+    gccjit::rvalue compile_exp(const syntax_tree_interface_ptr &exp, bool is_const);
 
     std::vector<gccjit::param> compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic);
 
@@ -43,8 +43,12 @@ private:
 
     std::vector<gccjit::rvalue> compile_explist(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &explist);
 
+    void compile_const_defines_init_func();
+
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
+
+    void call_const_defines_init_func();
 
 private:
     fakelua_state_ptr sp_;
@@ -52,6 +56,7 @@ private:
     gccjit_context_ptr gccjit_context_;
     gcc_jit_handle_ptr gcc_jit_handle_;
     std::unordered_set<std::string> function_names_;
+    std::unordered_map<std::string, std::pair<gccjit::lvalue, syntax_tree_interface_ptr>> global_const_vars_;
 };
 
 typedef std::shared_ptr<gcc_jitter> gcc_jitter_ptr;

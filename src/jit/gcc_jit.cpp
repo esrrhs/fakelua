@@ -16,7 +16,7 @@ gcc_jitter::~gcc_jitter() {
 
 void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::string &file_name, const syntax_tree_interface_ptr &chunk) {
     LOG(INFO) << "start gcc_jitter::compile " << file_name;
-    gcc_jit_handle_ = std::make_shared<gcc_jit_handle>();
+    gcc_jit_handle_ = std::make_shared<gcc_jit_handle>(sp.get());
     sp_ = sp;
     file_name_ = file_name;
     // init gccjit
@@ -51,6 +51,9 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
     // second, walk through the chunk, and save the function declaration
     compile_functions(chunk);
 
+    // compile the global const define init func
+    compile_const_defines_init_func();
+
     // at last, compile the chunk
     auto result = gccjit_context_->compile();
     if (!result) {
@@ -68,6 +71,9 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
 
     gccjit_context_->release();
     gccjit_context_ = nullptr;
+
+    // call the global const define init func
+    call_const_defines_init_func();
 
     // register the function
     for (auto &name: function_names_) {
@@ -175,6 +181,8 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
     auto values = std::dynamic_pointer_cast<syntax_tree_explist>(local_var->explist());
     auto &values_exps = values->exps();
 
+    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+
     for (size_t i = 0; i < names.size(); ++i) {
         auto name = names[i];
         if (i >= values_exps.size()) {
@@ -183,11 +191,19 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
 
         LOG(INFO) << "compile const define: " << name;
 
-        // TODO gcc_jit_context_new_global
+        auto dst = gccjit_context_->new_global(GCC_JIT_GLOBAL_INTERNAL, the_var_type, name.c_str(), new_location(keys));
+
+        dst.set_initializer_rvalue(gccjit_context_->new_rvalue(the_var_type, nullptr));
+
+        if (global_const_vars_.find(name) != global_const_vars_.end()) {
+            throw std::runtime_error("the const define name is duplicated: " + name);
+        }
+
+        global_const_vars_[name] = std::make_pair(dst, values_exps[i]);
     }
 }
 
-gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &exp) {
+gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp, bool is_const) {
     // the chunk must be an exp
     check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
     // start compile the expression
@@ -198,30 +214,30 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, gccjit::block &th
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
 
     std::vector<gccjit::param> params;
-    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, is_const ? "h" : "s"));
 
     std::string func_name;
 
     std::vector<gccjit::rvalue> args;
-    args.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, is_const ? (void *) gcc_jit_handle_.get() : (void *) sp_.get()));
 
     if (exp_type == "nil") {
-        func_name = "new_var_nil";
+        func_name = is_const ? "new_const_var_nil" : "new_var_nil";
     } else if (exp_type == "false") {
-        func_name = "new_var_false";
+        func_name = is_const ? "new_const_var_false" : "new_var_false";
     } else if (exp_type == "true") {
-        func_name = "new_var_true";
+        func_name = is_const ? "new_const_var_true" : "new_var_true";
     } else if (exp_type == "number") {
         std::regex e("^[-+]?[0-9]+$");
         if (std::regex_match(value, e)) {
-            func_name = "new_var_int";
+            func_name = is_const ? "new_const_var_int" : "new_var_int";
             auto the_int_type = gccjit_context_->get_type(GCC_JIT_TYPE_INT64_T);
             params.push_back(gccjit_context_->new_param(the_int_type, "val"));
 
             int64_t val = std::stoll(value);
             args.push_back(gccjit_context_->new_rvalue(the_int_type, (long) val));
         } else {
-            func_name = "new_var_float";
+            func_name = is_const ? "new_var_float" : "new_var_float";
             auto the_float_type = gccjit_context_->get_type(GCC_JIT_TYPE_DOUBLE);
             params.push_back(gccjit_context_->new_param(the_float_type, "val"));
 
@@ -229,12 +245,15 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, gccjit::block &th
             args.push_back(gccjit_context_->new_rvalue(the_float_type, val));
         }
     } else if (exp_type == "string") {
-        func_name = "new_var_string";
+        func_name = is_const ? "new_const_var_string" : "new_var_string";
         auto the_string_type = gccjit_context_->get_type(GCC_JIT_TYPE_CONST_CHAR_PTR);
         params.push_back(gccjit_context_->new_param(the_string_type, "val"));
+        auto the_int_type = gccjit_context_->get_type(GCC_JIT_TYPE_INT);
+        params.push_back(gccjit_context_->new_param(the_int_type, "len"));
 
         auto container_str = gcc_jit_handle_->alloc_str(value);
-        args.push_back(gccjit_context_->new_rvalue(the_string_type, (void *) container_str->c_str()));
+        args.push_back(gccjit_context_->new_rvalue(the_string_type, (void *) container_str.data()));
+        args.push_back(gccjit_context_->new_rvalue(the_int_type, (int) container_str.size()));
     } else if (exp_type == "var") {
         // TODO
         return nullptr;
@@ -384,11 +403,44 @@ std::vector<gccjit::rvalue> gcc_jitter::compile_explist(gccjit::function &func, 
     std::vector<gccjit::rvalue> ret;
     auto &exps = explist_ptr->exps();
     for (auto &exp: exps) {
-        auto exp_ret = compile_exp(func, the_block, exp);
+        auto exp_ret = compile_exp(exp, false);
         ret.push_back(exp_ret);
     }
 
     return ret;
+}
+
+void gcc_jitter::compile_const_defines_init_func() {
+    auto the_void_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID);
+
+    std::vector<gccjit::param> params;
+    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, the_void_type, "__fakelua_global_const_defines_init__", params, 0,
+                                              gccjit::location());
+
+    auto the_block = func.new_block();
+
+    for (auto &kv: global_const_vars_) {
+        auto name = kv.first;
+        auto dst = kv.second.first;
+        auto exp = kv.second.second;
+
+        auto exp_ret = compile_exp(exp, true);
+
+        the_block.add_assignment(dst, exp_ret, new_location(exp));
+    }
+
+    the_block.end_with_return(gccjit::location());
+}
+
+void gcc_jitter::call_const_defines_init_func() {
+    if (global_const_vars_.empty()) {
+        return;
+    }
+    auto init_func = (void (*)()) gcc_jit_result_get_code(gcc_jit_handle_->get_result(), "__fakelua_global_const_defines_init__");
+    if (!init_func) {
+        throw std::runtime_error("gcc_jit_result_get_code failed __fakelua_global_const_defines_init__");
+    }
+    init_func();
 }
 
 }// namespace fakelua

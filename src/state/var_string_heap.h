@@ -13,7 +13,8 @@ namespace fakelua {
 // short string can compare by pointer, and long string must compare by value.
 class var_string_heap : public no_copy<var_string_heap> {
 public:
-    var_string_heap() = default;
+    var_string_heap(fakelua_state *state) : state_(state) {
+    }
 
     ~var_string_heap() = default;
 
@@ -24,14 +25,10 @@ public:
     void reset();
 
 private:
-    // the all string mem buffer, a flat memory.
-    std::vector<char> str_mem_;
-    // the index of the next string in the str_mem_
-    uint32_t str_mem_index_ = 0;
-    // the key is the input string_view, the value is the stored string_view
-    std::unordered_map<std::string_view, std::string_view> short_str_to_index_map_;
-    // when str_mem_ is full, we use short_str_tmp_ to store the new short strings.
-    std::vector<str_container_ptr> short_str_tmp_;
+    fakelua_state *state_ = nullptr;
+
+    // the key is the input string_view, the value is the stored string
+    std::unordered_map<std::string_view, str_container_ptr> short_str_to_index_map_;
 
     // the vector stores the long strings.
     std::vector<str_container_ptr> long_str_vec_;

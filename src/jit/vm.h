@@ -19,6 +19,10 @@ public:
         return gcc_jit_func_;
     }
 
+    gcc_jit_handle_ptr get_gcc_jit_handle() {
+        return gcc_jit_handle_;
+    }
+
 private:
     gcc_jit_handle_ptr gcc_jit_handle_;
     void *gcc_jit_func_ = nullptr;
@@ -48,9 +52,27 @@ public:
         return iter->second;
     }
 
+    // get all function
+    const std::unordered_map<std::string, vm_function_ptr> &get_functions() {
+        return vm_functions_;
+    }
+
 private:
     std::unordered_map<std::string, vm_function_ptr> vm_functions_;
 };
+
+
+extern "C" __attribute__((used)) var *new_const_var_nil(gcc_jit_handle *h);
+
+extern "C" __attribute__((used)) var *new_const_var_false(gcc_jit_handle *h);
+
+extern "C" __attribute__((used)) var *new_const_var_true(gcc_jit_handle *h);
+
+extern "C" __attribute__((used)) var *new_const_var_int(gcc_jit_handle *h, int64_t val);
+
+extern "C" __attribute__((used)) var *new_const_var_float(gcc_jit_handle *h, double val);
+
+extern "C" __attribute__((used)) var *new_const_var_string(gcc_jit_handle *h, const char *val, int len);
 
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s);
 
@@ -62,7 +84,7 @@ extern "C" __attribute__((used)) var *new_var_int(fakelua_state *s, int64_t val)
 
 extern "C" __attribute__((used)) var *new_var_float(fakelua_state *s, double val);
 
-extern "C" __attribute__((used)) var *new_var_string(fakelua_state *s, const char *val);
+extern "C" __attribute__((used)) var *new_var_string(fakelua_state *s, const char *val, int len);
 
 extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, ...);
 
