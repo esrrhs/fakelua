@@ -120,6 +120,35 @@ TEST(jitter, multi_return) {
     ASSERT_EQ(s, "test");
 
     L->compile_file("./jit/test_multi_return.lua", {debug_mode: false});
+    i = 0;
+    f = 0;
+    b1 = false;
+    b2 = false;
+    s.clear();
+    L->call("test", std::tie(i, f, b1, b2, s));
+    ASSERT_EQ(i, 1);
+    ASSERT_EQ(std::abs(f - 2.3) < 0.001, true);
+    ASSERT_EQ(b1, false);
+    ASSERT_EQ(b2, true);
+    ASSERT_EQ(s, "test");
+}
+
+TEST(jitter, multi_name) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    L->compile_file("./jit/test_multi_name_func.lua", {});
+    var *ret = 0;
+    L->call("_G_my_test", std::tie(ret));
+    ASSERT_NE(ret, nullptr);
+    ASSERT_EQ(ret->type(), var_type::VAR_INT);
+    ASSERT_EQ(ret->get_int(), 1);
+
+    L->compile_file("./jit/test_multi_name_func.lua", {debug_mode: false});
+    L->call("_G_my_test", std::tie(ret));
+    ASSERT_NE(ret, nullptr);
+    ASSERT_EQ(ret->type(), var_type::VAR_INT);
+    ASSERT_EQ(ret->get_int(), 1);
 }
 
 TEST(jitter, const_define) {

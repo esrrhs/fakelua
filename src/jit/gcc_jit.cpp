@@ -114,11 +114,11 @@ std::string gcc_jitter::compile_funcname(const syntax_tree_interface_ptr &ptr) {
         auto funcnamelist = std::dynamic_pointer_cast<syntax_tree_funcnamelist>(funcnamelistptr);
         auto &names = funcnamelist->funcnames();
         // join the names with .
-        ret = join_string(names, ".");
+        ret = join_string(names, "_");
     }
 
     if (!name->colon_name().empty()) {
-        ret += ":" + name->colon_name();
+        ret += "_" + name->colon_name();
     }
 
     return ret;
