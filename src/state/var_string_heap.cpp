@@ -16,7 +16,8 @@ std::string_view var_string_heap::alloc(const std::string_view &str) {
 
         // not found.
         auto s = std::make_shared<std::string>(str.data(), str.size());
-        short_str_to_index_map_.emplace(str, s);
+        auto key = std::string_view(*s);
+        short_str_to_index_map_.emplace(key, s);
         return *s;
     } else {
         // long string
