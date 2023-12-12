@@ -12,22 +12,11 @@ var *var_table::get(var *key) {
             if (!key->is_short_string()) {
                 throw std::runtime_error("table get: long string index not supported");
             }
-            auto str = key->get_string();
-            pair_type ret;
-            bool ok = str_table_.get(reinterpret_cast<int64_t>(str.data()), ret);
-            if (!ok) {
-                return &const_null_var;
-            }
-            return ret.second;
+            return get_by_str(key->get_string());
         }
         case var_type::VAR_INT: {
             auto k = key->get_int();
-            pair_type ret;
-            bool ok = int_table_.get(k, ret);
-            if (!ok) {
-                return &const_null_var;
-            }
-            return ret.second;
+            return get_by_int(k);
         }
         default: {
             throw std::runtime_error("table get: invalid key type");

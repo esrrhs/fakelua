@@ -222,3 +222,82 @@ TEST(var, var_table) {
     vt.set(&k1, nullptr);
     ASSERT_EQ(vt.get(&k1), &const_null_var);
 }
+
+TEST(var, var_string_heap_reset) {
+    auto s = std::make_shared<state>();
+
+    var_string_heap &heap = s->get_var_string_heap();
+    auto str = heap.alloc("hello");
+    ASSERT_EQ(str, "hello");
+
+    auto &vm = s->get_vm();
+    auto handle = std::make_shared<gcc_jit_handle>(s.get());
+    auto test_func = std::make_shared<vm_function>(handle, nullptr);
+    auto str1 = handle->alloc_str("hello");
+    vm.register_function("test", test_func);
+
+    auto str2 = heap.alloc("world");
+
+    ASSERT_EQ(str1, "hello");
+    ASSERT_EQ(str2, "world");
+
+    ASSERT_EQ(str.data(), str1.data());
+
+    std::string lstr;
+    for (int i = 0; i <= MAX_SHORT_STR_LEN; ++i) {
+        lstr += "a";
+    }
+
+    auto lstr1 = heap.alloc(lstr);
+    ASSERT_EQ(lstr1, lstr);
+
+    std::string lstr2 = lstr + "a";
+    auto lstr3 = handle->alloc_str(lstr2);
+    ASSERT_EQ(lstr3, lstr2);
+
+    ASSERT_EQ(heap.size(), 4);
+
+    heap.reset();
+
+    ASSERT_EQ(heap.size(), 2);
+
+    auto str3 = heap.alloc("hello");
+    ASSERT_EQ(str3, "hello");
+    ASSERT_EQ(str.data(), str3.data());
+
+    ASSERT_EQ(heap.size(), 2);
+
+    for (int i = 0; i < 1024; ++i) {// avoid compiler optimization
+        heap.alloc("world" + std::to_string(i));
+    }
+
+    ASSERT_EQ(heap.size(), 2 + 1024);
+
+    auto str4 = heap.alloc("world");
+    ASSERT_EQ(str4, "world");
+    ASSERT_NE(str2.data(), str4.data());
+
+    ASSERT_EQ(heap.size(), 2 + 1024 + 1);
+
+    for (int i = 0; i < 1024; ++i) {// avoid compiler optimization
+        heap.alloc(lstr + std::to_string(i));
+    }
+
+    ASSERT_EQ(heap.size(), 2 + 1024 + 1 + 1024);
+
+    auto lstr5 = heap.alloc(lstr2);
+    ASSERT_EQ(lstr5, lstr2);
+    ASSERT_NE(lstr3.data(), lstr5.data());
+
+    ASSERT_EQ(heap.size(), 2 + 1024 + 1 + 1024 + 1);
+
+    auto lstr4 = heap.alloc(lstr);
+    ASSERT_EQ(lstr4, lstr);
+    ASSERT_NE(lstr1.data(), lstr4.data());
+
+    ASSERT_EQ(heap.size(), 2 + 1024 + 1 + 1024 + 1 + 1);
+
+    heap.reset();
+
+    ASSERT_EQ(heap.size(), 2);
+}

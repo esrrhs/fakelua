@@ -24,6 +24,11 @@ public:
     // clear the string heap. usually called before running.
     void reset();
 
+    // get size
+    size_t size() const {
+        return short_str_to_index_map_.size() + long_str_vec_.size();
+    }
+
 private:
     fakelua_state *state_ = nullptr;
 

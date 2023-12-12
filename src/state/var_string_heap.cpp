@@ -28,30 +28,20 @@ std::string_view var_string_heap::alloc(const std::string_view &str) {
 }
 
 void var_string_heap::reset() {
-    std::unordered_set<std::string_view> used;
-    auto vm = dynamic_cast<state *>(state_)->get_vm();
+    // remove all string except the used ones in the vm
+    std::unordered_set<const char *> used;
+    auto &vm = dynamic_cast<state *>(state_)->get_vm();
     for (auto &pair: vm.get_functions()) {
         auto func = pair.second;
         auto handle = func->get_gcc_jit_handle();
         auto &str_container_map = handle->get_str_container_map();
-        used.insert(str_container_map.begin(), str_container_map.end());
+        std::transform(str_container_map.begin(), str_container_map.end(), std::inserter(used, used.end()),
+                       [](const auto &s) { return s.data(); });
     }
 
-    for (auto it = short_str_to_index_map_.begin(); it != short_str_to_index_map_.end();) {
-        if (used.find(*it->second) == used.end()) {
-            it = short_str_to_index_map_.erase(it);
-        } else {
-            ++it;
-        }
-    }
+    std::erase_if(short_str_to_index_map_, [&used](const auto &pair) { return used.find(pair.second->c_str()) == used.end(); });
 
-    for (auto it = long_str_vec_.begin(); it != long_str_vec_.end();) {
-        if (used.find(**it) == used.end()) {
-            it = long_str_vec_.erase(it);
-        } else {
-            ++it;
-        }
-    }
+    std::erase_if(long_str_vec_, [&used](const auto &str) { return used.find(str->c_str()) == used.end(); });
 }
 
 }// namespace fakelua
