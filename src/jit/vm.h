@@ -86,6 +86,8 @@ extern "C" __attribute__((used)) var *new_var_float(fakelua_state *s, double val
 
 extern "C" __attribute__((used)) var *new_var_string(fakelua_state *s, const char *val, int len);
 
+extern "C" __attribute__((used)) var *new_var_wrap(fakelua_state *s, var *val);
+
 extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, ...);
 
 }// namespace fakelua

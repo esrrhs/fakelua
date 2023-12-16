@@ -81,6 +81,10 @@ extern "C" __attribute__((used)) var *new_var_string(fakelua_state *s, const cha
     return ret;
 }
 
+extern "C" __attribute__((used)) var *new_var_wrap(fakelua_state *s, var *val) {
+    return val;
+}
+
 extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, ...) {
     auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
     ret->set_table();
