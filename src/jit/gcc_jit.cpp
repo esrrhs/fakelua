@@ -144,6 +144,12 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     if (parlist) {
         func_params = compile_parlist(parlist, is_variadic);
     }
+    if (is_variadic) {
+        // insert variadic in the front of params
+        func_params.insert(func_params.begin(), std::make_pair("__fakelua_variadic__",
+                                                               gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR),
+                                                                                          "__fakelua_variadic__")));
+    }
 
     // add params to new stack frame
     stack_frame sf;
@@ -276,6 +282,10 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp, boo
         params.push_back(gccjit_context_->new_param(the_var_type, "val"));
         auto pe = e->right();
         args.push_back(compile_prefixexp(pe, is_const));
+    } else if (exp_type == "var_params") {
+        func_name = "new_var_wrap";
+        params.push_back(gccjit_context_->new_param(the_var_type, "val"));
+        args.push_back(find_rvalue_by_name("__fakelua_variadic__", e));
     } else if (exp_type == "tableconstructor") {
         // TODO
         return nullptr;

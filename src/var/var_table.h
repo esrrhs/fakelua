@@ -30,6 +30,11 @@ public:
     // range for
     void range(std::function<void(var *, var *)> iter);
 
+    // get size
+    size_t size() const {
+        return str_table_.size() + int_table_.size();
+    }
+
 private:
     typedef std::pair<var *, var *> pair_type;
     rich_hashmap<int64_t, pair_type, MAX_VAR_TABLE_HASHMAP_BUCKET_HEIGHT> str_table_;

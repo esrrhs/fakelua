@@ -91,6 +91,7 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, .
     // push ... to ret
     va_list args;
     va_start(args, n);
+    int index = 0;
     for (int i = 0; i < n; i++) {
         auto arg = va_arg(args, var *);
 
@@ -98,9 +99,24 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, .
             throw std::runtime_error(std::format("wrap_return_var: invalid arg type {}", (int) arg->type()));
         }
 
-        auto k = dynamic_cast<state *>(s)->get_var_pool().alloc();
-        k->set_int(i + 1);
-        ret->get_table().set(k, arg, true);
+        if (!arg->is_variadic()) {
+            auto k = dynamic_cast<state *>(s)->get_var_pool().alloc();
+            k->set_int(index + 1);
+            ret->get_table().set(k, arg, true);
+            index++;
+        } else {
+            if (arg->type() != var_type::VAR_TABLE) {
+                throw std::runtime_error(std::format("wrap_return_var: invalid variadic arg type {}", (int) arg->type()));
+            }
+
+            auto &table = arg->get_table();
+            for (int j = 1; j <= (int) table.size(); j++) {
+                auto k = dynamic_cast<state *>(s)->get_var_pool().alloc();
+                k->set_int(index + 1);
+                ret->get_table().set(k, table.get_by_int(j), true);
+                index++;
+            }
+        }
     }
     va_end(args);
     return ret;

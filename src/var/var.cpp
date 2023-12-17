@@ -109,6 +109,10 @@ std::string var::to_string() const {
         ret += "(const)";
     }
 
+    if (is_variadic()) {
+        ret += "(variadic)";
+    }
+
     return ret;
 }
 
