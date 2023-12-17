@@ -42,11 +42,6 @@ public:
         return var_interface_new_func_;
     }
 
-protected:
-    virtual void *get_func_addr(const std::string &name, int &arg_count, bool &is_variadic) override;
-
-    virtual var *make_variadic_table(int start, int n, var **args) override;
-
 private:
     var_string_heap var_string_heap_;
     var_pool var_pool_;

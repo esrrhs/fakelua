@@ -81,11 +81,6 @@ public:
 
     // set var_interface new instance function
     virtual void set_var_interface_new_func(std::function<var_interface *()> func) = 0;
-
-protected:
-    virtual void *get_func_addr(const std::string &name, int &arg_count, bool &is_variadic) = 0;
-
-    virtual var *make_variadic_table(int start, int n, var **args) = 0;
 };
 
 using fakelua_state_ptr = std::shared_ptr<fakelua_state>;
@@ -285,6 +280,10 @@ var *call_variadic_helper(Func func, const T (&array)[N]) {
     return call_variadic_helper(func, array, std::make_index_sequence<N>{});
 }
 
+void *get_func_addr(fakelua_state_ptr s, const std::string &name, int &arg_count, bool &is_variadic);
+
+var *make_variadic_table(fakelua_state_ptr s, int start, int n, var **args);
+
 }// namespace inter
 
 // call funtion by name
@@ -292,7 +291,7 @@ template<typename... Rets, typename... Args>
 void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, Args &&...args) {
     int arg_count = 0;
     bool is_variadic = false;
-    auto addr = get_func_addr(name, arg_count, is_variadic);
+    auto addr = inter::get_func_addr(shared_from_this(), name, arg_count, is_variadic);
     if (!addr) {
         throw std::runtime_error(std::format("function {} not found", name));
     }
@@ -313,7 +312,7 @@ void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, 
         }
         // save the variadic args to a table
         var *args_array[sizeof...(Args) + 1] = {nullptr, inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...};
-        args_array[0] = make_variadic_table(arg_count + 1, sizeof...(Args) + 1, args_array);
+        args_array[0] = inter::make_variadic_table(shared_from_this(), arg_count + 1, sizeof...(Args) + 1, args_array);
         // call function by args array
         ret_var = inter::call_variadic_helper(reinterpret_cast<var *(*) (...)>(addr), args_array);
     }

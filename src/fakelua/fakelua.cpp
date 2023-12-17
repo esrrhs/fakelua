@@ -316,6 +316,27 @@ var *fakelua_get_var_by_index(fakelua_state_ptr s, var *ret, size_t i) {
     throw std::runtime_error(std::format("fakelua_get_var_by_index failed, type is {}", magic_enum::enum_name(ret->type())));
 }
 
+void *get_func_addr(fakelua_state_ptr s, const std::string &name, int &arg_count, bool &is_variadic) {
+    auto func = std::dynamic_pointer_cast<state>(s)->get_vm().get_function(name);
+    if (func) {
+        arg_count = func->get_arg_count();
+        is_variadic = func->is_variadic();
+        return func->get_addr();
+    }
+    return nullptr;
+}
+
+var *make_variadic_table(fakelua_state_ptr s, int start, int n, var **args) {
+    auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
+    ret->set_table();
+    for (int i = 0; i < n; i++) {
+        auto key = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
+        key->set_int(i + 1);
+        ret->get_table().set(key, args[start + i], true);
+    }
+    return ret;
+}
+
 }// namespace inter
 
 fakelua_state_ptr fakelua_newstate() {
