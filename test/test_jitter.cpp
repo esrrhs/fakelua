@@ -237,3 +237,25 @@ TEST(jitter, empty_func_with_params) {
     ASSERT_EQ(ret3, "test");
     ASSERT_EQ(std::abs(ret4 - 2.3) < 0.001, true);
 }
+
+TEST(jitter, variadic_func) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    bool ret2 = false;
+    std::string ret3;
+    double ret4;
+    L->compile_file("./jit/test_variadic_func.lua", {});
+    L->call("test", std::tie(ret1, ret2, ret3, ret4), 1, true, "test", 2.3);
+    ASSERT_EQ(ret1, 1);
+    ASSERT_EQ(ret2, true);
+    ASSERT_EQ(ret3, "test");
+    ASSERT_EQ(std::abs(ret4 - 2.3) < 0.001, true);
+    L->compile_file("./jit/test_variadic_func.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2, ret3, ret4), 1, true, "test", 2.3);
+    ASSERT_EQ(ret1, 1);
+    ASSERT_EQ(ret2, true);
+    ASSERT_EQ(ret3, "test");
+    ASSERT_EQ(std::abs(ret4 - 2.3) < 0.001, true);
+}

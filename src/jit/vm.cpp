@@ -113,7 +113,8 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, .
             for (int j = 1; j <= (int) table.size(); j++) {
                 auto k = dynamic_cast<state *>(s)->get_var_pool().alloc();
                 k->set_int(index + 1);
-                ret->get_table().set(k, table.get_by_int(j), true);
+                auto v = table.get_by_int(j);
+                ret->get_table().set(k, v, true);
                 index++;
             }
         }

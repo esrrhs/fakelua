@@ -144,6 +144,7 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     if (parlist) {
         func_params = compile_parlist(parlist, is_variadic);
     }
+    auto actual_params_count = func_params.size();
     if (is_variadic) {
         // insert variadic in the front of params
         func_params.insert(func_params.begin(), std::make_pair("__fakelua_variadic__",
@@ -172,7 +173,7 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     compile_block(func, block);
 
     // save the function info
-    function_infos_[name] = {static_cast<int>(func_params.size()), is_variadic > 0};
+    function_infos_[name] = {static_cast<int>(actual_params_count), is_variadic > 0};
 }
 
 void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {

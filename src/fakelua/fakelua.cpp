@@ -332,7 +332,8 @@ var *make_variadic_table(fakelua_state_ptr s, int start, int n, var **args) {
     for (int i = 0; i < n - start; i++) {
         auto key = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
         key->set_int(i + 1);
-        ret->get_table().set(key, args[start + i], true);
+        auto v = args[start + i];
+        ret->get_table().set(key, v, true);
     }
     ret->set_variadic(true);
     return ret;
