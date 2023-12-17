@@ -84,6 +84,8 @@ public:
 
 protected:
     virtual void *get_func_addr(const std::string &name, int &arg_count, bool &is_variadic) = 0;
+
+    virtual var *make_variadic_table(int start, int n, var **args) = 0;
 };
 
 using fakelua_state_ptr = std::shared_ptr<fakelua_state>;
@@ -273,6 +275,16 @@ template<size_t I = 0, typename... Rets>
     fakelua_func_ret_helper<I + 1, Rets...>(s, ret, rets);
 }
 
+template<typename Func, typename T, std::size_t N, std::size_t... Is>
+var *call_variadic_helper(Func func, const T (&array)[N], std::index_sequence<Is...>) {
+    return func(array[Is]...);
+}
+
+template<typename Func, typename T, std::size_t N>
+var *call_variadic_helper(Func func, const T (&array)[N]) {
+    return call_variadic_helper(func, array, std::make_index_sequence<N>{});
+}
+
 }// namespace inter
 
 // call funtion by name
@@ -289,15 +301,21 @@ void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, 
     // and change every output args to native type by var_to_native() function
     // the var * is the internal type of fakelua
     // the native type is the type of c++
-    var *ret_var = 0;
+    var *ret_var = nullptr;
     if (!is_variadic) {
-        if (sizeof...(Args) != arg_count) {
-            throw std::runtime_error(std::format("function {} arg count not match", name));
+        if (sizeof...(Args) != (size_t) arg_count) {
+            throw std::runtime_error(std::format("function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
         }
         ret_var = reinterpret_cast<var *(*) (...)>(addr)(inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...);
     } else {
-        // only transform arg_count args to var *
-        // TODO
+        if (sizeof...(Args) < (size_t) arg_count) {
+            throw std::runtime_error(std::format("function {} arg count not match, need >= {} get {}", name, arg_count, sizeof...(Args)));
+        }
+        // save the variadic args to a table
+        var *args_array[sizeof...(Args) + 1] = {nullptr, inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...};
+        args_array[0] = make_variadic_table(arg_count + 1, sizeof...(Args) + 1, args_array);
+        // call function by args array
+        ret_var = inter::call_variadic_helper(reinterpret_cast<var *(*) (...)>(addr), args_array);
     }
 
     if (!ret_var) {
