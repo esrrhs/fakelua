@@ -25,9 +25,11 @@ void state::compile_string(const std::string &str, compile_config cfg) {
     LOG(INFO) << "compile_string ok " << result.file_name;
 }
 
-void *state::get_func_addr(const std::string &name) {
+void *state::get_func_addr(const std::string &name, int &arg_count, bool &is_variadic) {
     auto func = vm_.get_function(name);
     if (func) {
+        arg_count = func->get_arg_count();
+        is_variadic = func->is_variadic();
         return func->get_addr();
     }
     return nullptr;

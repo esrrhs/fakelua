@@ -43,7 +43,7 @@ public:
     }
 
 protected:
-    virtual void *get_func_addr(const std::string &name) override;
+    virtual void *get_func_addr(const std::string &name, int &arg_count, bool &is_variadic) override;
 
 private:
     var_string_heap var_string_heap_;

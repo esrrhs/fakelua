@@ -28,6 +28,10 @@ public:
         return arg_count_;
     }
 
+    bool is_variadic() {
+        return is_variadic_;
+    }
+
 private:
     gcc_jit_handle_ptr gcc_jit_handle_;
     void *gcc_jit_func_ = nullptr;

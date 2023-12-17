@@ -83,7 +83,7 @@ public:
     virtual void set_var_interface_new_func(std::function<var_interface *()> func) = 0;
 
 protected:
-    virtual void *get_func_addr(const std::string &name) = 0;
+    virtual void *get_func_addr(const std::string &name, int &arg_count, bool &is_variadic) = 0;
 };
 
 using fakelua_state_ptr = std::shared_ptr<fakelua_state>;
@@ -278,16 +278,28 @@ template<size_t I = 0, typename... Rets>
 // call funtion by name
 template<typename... Rets, typename... Args>
 void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, Args &&...args) {
-    auto addr = get_func_addr(name);
+    int arg_count = 0;
+    bool is_variadic = false;
+    auto addr = get_func_addr(name, arg_count, is_variadic);
     if (!addr) {
         throw std::runtime_error(std::format("function {} not found", name));
     }
+
     // change every input args to var * by native_to_var() function
     // and change every output args to native type by var_to_native() function
     // the var * is the internal type of fakelua
     // the native type is the type of c++
-    auto ret_var = reinterpret_cast<var *(*) (int, ...)>(addr)(sizeof...(Rets),
-                                                               inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...);
+    var *ret_var = 0;
+    if (!is_variadic) {
+        if (sizeof...(Args) != arg_count) {
+            throw std::runtime_error(std::format("function {} arg count not match", name));
+        }
+        ret_var = reinterpret_cast<var *(*) (...)>(addr)(inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...);
+    } else {
+        // only transform arg_count args to var *
+        // TODO
+    }
+
     if (!ret_var) {
         throw std::runtime_error(std::format("function {} return null", name));
     }

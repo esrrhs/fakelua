@@ -144,10 +144,6 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     if (parlist) {
         func_params = compile_parlist(parlist, is_variadic);
     }
-    // add int type to the front
-    func_params.insert(func_params.begin(),
-                       std::make_pair("__fakelua_param_count__",
-                                      gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "__fakelua_param_count__")));
 
     // add params to new stack frame
     stack_frame sf;
@@ -170,7 +166,7 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     compile_block(func, block);
 
     // save the function info
-    function_infos_[name] = {static_cast<int>(func_params.size() - 1), is_variadic > 0};
+    function_infos_[name] = {static_cast<int>(func_params.size()), is_variadic > 0};
 }
 
 void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
@@ -309,8 +305,8 @@ std::vector<std::pair<std::string, gccjit::param>> gcc_jitter::compile_parlist(s
 
     std::vector<std::pair<std::string, gccjit::param>> ret;
 
-    if (!parlist_ptr->var_params()) {
-        auto namelist = parlist_ptr->namelist();
+    auto namelist = parlist_ptr->namelist();
+    if (namelist) {
         check_syntax_tree_type(namelist, {syntax_tree_type::syntax_tree_type_namelist});
         auto namelist_ptr = std::dynamic_pointer_cast<syntax_tree_namelist>(namelist);
         auto &param_names = namelist_ptr->names();
@@ -320,7 +316,9 @@ std::vector<std::pair<std::string, gccjit::param>> gcc_jitter::compile_parlist(s
             auto param = gccjit_context_->new_param(the_var_type, name, new_location(namelist_ptr));
             ret.push_back(std::make_pair(name, param));
         }
-    } else {
+    }
+
+    if (parlist_ptr->var_params()) {
         is_variadic = 1;
     }
 
