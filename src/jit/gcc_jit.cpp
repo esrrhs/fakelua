@@ -76,12 +76,15 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
     call_const_defines_init_func();
 
     // register the function
-    for (auto &name: function_names_) {
+    for (auto &ele: function_infos_) {
+        auto &name = ele.first;
+        auto &info = ele.second;
         auto func = gcc_jit_result_get_code(result, name.c_str());
         if (!func) {
             throw std::runtime_error("gcc_jit_result_get_code failed " + name);
         }
-        std::dynamic_pointer_cast<state>(sp_)->get_vm().register_function(name, std::make_shared<vm_function>(gcc_jit_handle_, func));
+        std::dynamic_pointer_cast<state>(sp_)->get_vm().register_function(
+                name, std::make_shared<vm_function>(gcc_jit_handle_, func, info.params_count, info.is_variadic));
         LOG(INFO) << "register function: " << name;
     }
 
@@ -98,11 +101,9 @@ void gcc_jitter::compile_functions(const syntax_tree_interface_ptr &chunk) {
             auto func = std::dynamic_pointer_cast<syntax_tree_function>(stmt);
             auto name = compile_funcname(func->funcname());
             compile_function(name, func->funcbody());
-            function_names_.insert(name);
         } else if (stmt->type() == syntax_tree_type::syntax_tree_type_local_function) {
             auto func = std::dynamic_pointer_cast<syntax_tree_local_function>(stmt);
             compile_function(func->name(), func->funcbody());
-            function_names_.insert(func->name());
         }
     }
 }
@@ -143,7 +144,10 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     if (parlist) {
         func_params = compile_parlist(parlist, is_variadic);
     }
-
+    // add int type to the front
+    func_params.insert(func_params.begin(),
+                       std::make_pair("__fakelua_param_count__",
+                                      gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "__fakelua_param_count__")));
 
     // add params to new stack frame
     stack_frame sf;
@@ -163,7 +167,10 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
                                               new_location(funcbody_ptr));
 
     auto block = funcbody_ptr->block();
-    auto the_block = compile_block(func, block);
+    compile_block(func, block);
+
+    // save the function info
+    function_infos_[name] = {static_cast<int>(func_params.size() - 1), is_variadic > 0};
 }
 
 void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
@@ -456,6 +463,8 @@ gccjit::rvalue gcc_jitter::compile_prefixexp(const syntax_tree_interface_ptr &pe
         return NULL;
     } else if (pe_type == "exp") {
         return compile_exp(value, is_const);
+    } else {
+        throw std::runtime_error("not support prefixexp type: " + pe_type + " at " + location_str(pe));
     }
 }
 

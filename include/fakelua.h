@@ -286,7 +286,8 @@ void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, 
     // and change every output args to native type by var_to_native() function
     // the var * is the internal type of fakelua
     // the native type is the type of c++
-    auto ret_var = reinterpret_cast<var *(*) (...)>(addr)(inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...);
+    auto ret_var = reinterpret_cast<var *(*) (int, ...)>(addr)(sizeof...(Rets),
+                                                               inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...);
     if (!ret_var) {
         throw std::runtime_error(std::format("function {} return null", name));
     }

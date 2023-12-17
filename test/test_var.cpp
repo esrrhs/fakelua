@@ -232,7 +232,7 @@ TEST(var, var_string_heap_reset) {
 
     auto &vm = s->get_vm();
     auto handle = std::make_shared<gcc_jit_handle>(s.get());
-    auto test_func = std::make_shared<vm_function>(handle, nullptr);
+    auto test_func = std::make_shared<vm_function>(handle, nullptr, 0, false);
     auto str1 = handle->alloc_str("hello");
     vm.register_function("test", test_func);
 

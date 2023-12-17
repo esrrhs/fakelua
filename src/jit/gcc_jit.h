@@ -63,7 +63,11 @@ private:
     std::string file_name_;
     gccjit_context_ptr gccjit_context_;
     gcc_jit_handle_ptr gcc_jit_handle_;
-    std::unordered_set<std::string> function_names_;
+    struct function_info {
+        int params_count = 0;
+        bool is_variadic = false;
+    };
+    std::unordered_map<std::string, function_info> function_infos_;
     std::unordered_map<std::string, std::pair<gccjit::lvalue, syntax_tree_interface_ptr>> global_const_vars_;
     struct stack_frame {
         std::unordered_map<std::string, gccjit::lvalue> local_vars;
