@@ -181,3 +181,37 @@ TEST(jitter, const_define) {
     L->call("test", std::tie(i));
     ASSERT_EQ(i, 1);
 }
+
+TEST(jitter, multi_const_define) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    var *ret0 = (var *) 0xFF;
+    int ret1 = 0;
+    bool ret2 = false;
+    bool ret3 = false;
+    std::string ret4;
+    double ret5;
+    L->compile_file("./jit/test_multi_const_define.lua", {});
+    L->call("test", std::tie(ret0, ret1, ret2, ret3, ret4, ret5));
+    ASSERT_EQ(ret0->type(), var_type::VAR_NIL);
+    ASSERT_EQ(ret1, 1);
+    ASSERT_EQ(ret2, false);
+    ASSERT_EQ(ret3, true);
+    ASSERT_EQ(ret4, "test");
+    ASSERT_EQ(std::abs(ret5 - 2.3) < 0.001, true);
+    L->compile_file("./jit/test_multi_const_define.lua", {debug_mode: false});
+    ret0 = (var *) 0xFF;
+    ret1 = 0;
+    ret2 = false;
+    ret3 = false;
+    ret4.clear();
+    ret5 = 0;
+    L->call("test", std::tie(ret0, ret1, ret2, ret3, ret4, ret5));
+    ASSERT_EQ(ret0->type(), var_type::VAR_NIL);
+    ASSERT_EQ(ret1, 1);
+    ASSERT_EQ(ret2, false);
+    ASSERT_EQ(ret3, true);
+    ASSERT_EQ(ret4, "test");
+    ASSERT_EQ(std::abs(ret5 - 2.3) < 0.001, true);
+}

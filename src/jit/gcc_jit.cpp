@@ -251,7 +251,7 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp, boo
             int64_t val = std::stoll(value);
             args.push_back(gccjit_context_->new_rvalue(the_int_type, (long) val));
         } else {
-            func_name = is_const ? "new_var_float" : "new_var_float";
+            func_name = is_const ? "new_const_var_float" : "new_var_float";
             auto the_float_type = gccjit_context_->get_type(GCC_JIT_TYPE_DOUBLE);
             params.push_back(gccjit_context_->new_param(the_float_type, "val"));
 
