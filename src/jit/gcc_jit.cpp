@@ -136,16 +136,30 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     check_syntax_tree_type(funcbody, {syntax_tree_type::syntax_tree_type_funcbody});
     auto funcbody_ptr = std::dynamic_pointer_cast<syntax_tree_funcbody>(funcbody);
 
+    // compile the input params
     auto parlist = funcbody_ptr->parlist();
     int is_variadic = 0;
-    std::vector<gccjit::param> func_params;
+    std::vector<std::pair<std::string, gccjit::param>> func_params;
     if (parlist) {
         func_params = compile_parlist(parlist, is_variadic);
     }
 
+
+    // add params to new stack frame
+    stack_frame sf;
+    for (auto &param: func_params) {
+        sf.local_vars[param.first] = param.second;
+    }
+    stack_frames_.clear();
+    stack_frames_.push_back(sf);
+
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
 
-    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, the_var_type, name.c_str(), func_params, is_variadic,
+    // get every second in func_params
+    std::vector<gccjit::param> call_func_params;
+    std::transform(func_params.begin(), func_params.end(), std::back_inserter(call_func_params),
+                   [](const auto &pair) { return pair.second; });
+    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, the_var_type, name.c_str(), call_func_params, is_variadic,
                                               new_location(funcbody_ptr));
 
     auto block = funcbody_ptr->block();
@@ -164,7 +178,7 @@ void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
                    stmt->type() == syntax_tree_type::syntax_tree_type_local_function) {
             // skip
         } else {
-            throw std::runtime_error("the chunk top level only support const define and function define");
+            throw std::runtime_error("the chunk top level only support const define and function define at " + location_str(stmt));
         }
     }
 }
@@ -175,7 +189,7 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
     auto keys = std::dynamic_pointer_cast<syntax_tree_namelist>(local_var->namelist());
     auto &names = keys->names();
     if (!local_var->explist()) {
-        throw std::runtime_error("the const define must have a value, but the value is null, it's useless");
+        throw std::runtime_error("the const define must have a value, but the value is null, it's useless at " + location_str(local_var));
     }
     check_syntax_tree_type(local_var->explist(), {syntax_tree_type::syntax_tree_type_explist});
     auto values = std::dynamic_pointer_cast<syntax_tree_explist>(local_var->explist());
@@ -186,7 +200,7 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
     for (size_t i = 0; i < names.size(); ++i) {
         auto name = names[i];
         if (i >= values_exps.size()) {
-            throw std::runtime_error("the const define not match, the value is not enough");
+            throw std::runtime_error("the const define not match, the value is not enough at " + location_str(values));
         }
 
         LOG(INFO) << "compile const define: " << name;
@@ -196,7 +210,7 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
         dst.set_initializer_rvalue(gccjit_context_->new_rvalue(the_var_type, nullptr));
 
         if (global_const_vars_.find(name) != global_const_vars_.end()) {
-            throw std::runtime_error("the const define name is duplicated: " + name);
+            throw std::runtime_error("the const define name is duplicated: " + name + " at " + location_str(values));
         }
 
         global_const_vars_[name] = std::make_pair(dst, values_exps[i]);
@@ -254,36 +268,11 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp, boo
         auto container_str = gcc_jit_handle_->alloc_str(value);
         args.push_back(gccjit_context_->new_rvalue(the_string_type, (void *) container_str.data()));
         args.push_back(gccjit_context_->new_rvalue(the_int_type, (int) container_str.size()));
-    } else if (exp_type == "var") {
-        // TODO
-        return nullptr;
-    } else if (exp_type == "function") {
-        // TODO
-        return nullptr;
-    } else if (exp_type == "paren") {
-        // TODO
-        return nullptr;
-    } else if (exp_type == "call") {
-        // TODO
-        return nullptr;
-    } else if (exp_type == "index") {
-        // TODO
-        return nullptr;
-    } else if (exp_type == "method") {
-        // TODO
-        return nullptr;
-    } else if (exp_type == "vararg") {
-        // TODO
-        return nullptr;
-    } else if (exp_type == "var_params") {
-        // TODO
-        return nullptr;
-    } else if (exp_type == "functiondef") {
-        // TODO
-        return nullptr;
     } else if (exp_type == "prefixexp") {
-        // TODO
-        return nullptr;
+        func_name = "new_var_wrap";
+        params.push_back(gccjit_context_->new_param(the_var_type, "val"));
+        auto pe = e->right();
+        args.push_back(compile_prefixexp(pe, is_const));
     } else if (exp_type == "tableconstructor") {
         // TODO
         return nullptr;
@@ -294,11 +283,11 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp, boo
         // TODO
         return nullptr;
     } else {
-        throw std::runtime_error("not support exp type: " + exp_type);
+        throw std::runtime_error("not support exp type: " + exp_type + " at " + location_str(e));
     }
 
     if (func_name.empty()) {
-        throw std::runtime_error("not support exp type: " + exp_type);
+        throw std::runtime_error("empty exp func_name: " + exp_type + " at " + location_str(e));
     }
 
     gccjit::function new_var_func =
@@ -307,11 +296,11 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp, boo
     return ret;
 }
 
-std::vector<gccjit::param> gcc_jitter::compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic) {
+std::vector<std::pair<std::string, gccjit::param>> gcc_jitter::compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic) {
     check_syntax_tree_type(parlist, {syntax_tree_type::syntax_tree_type_parlist});
     auto parlist_ptr = std::dynamic_pointer_cast<syntax_tree_parlist>(parlist);
 
-    std::vector<gccjit::param> ret;
+    std::vector<std::pair<std::string, gccjit::param>> ret;
 
     if (!parlist_ptr->var_params()) {
         auto namelist = parlist_ptr->namelist();
@@ -322,7 +311,7 @@ std::vector<gccjit::param> gcc_jitter::compile_parlist(syntax_tree_interface_ptr
         auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
         for (auto &name: param_names) {
             auto param = gccjit_context_->new_param(the_var_type, name, new_location(namelist_ptr));
-            ret.push_back(param);
+            ret.push_back(std::make_pair(name, param));
         }
     } else {
         is_variadic = 1;
@@ -341,10 +330,16 @@ gccjit::block gcc_jitter::compile_block(gccjit::function &func, const syntax_tre
 
     auto the_block = func.new_block();
 
+    // alloc new stack frame
+    stack_frames_.push_back(stack_frame());
+
     auto &stmts = block_ptr->stmts();
     for (auto &stmt: stmts) {
         compile_stmt(func, the_block, stmt);
     }
+
+    // free stack frame
+    stack_frames_.pop_back();
 
     return the_block;
 }
@@ -356,7 +351,8 @@ void gcc_jitter::compile_stmt(gccjit::function &func, gccjit::block &the_block, 
             break;
         }
         default: {
-            throw std::runtime_error(std::format("not support stmt type: {}", magic_enum::enum_name(stmt->type())));
+            throw std::runtime_error(
+                    std::format("not support stmt type: {} at {}", magic_enum::enum_name(stmt->type()), location_str(stmt)));
         }
     }
 }
@@ -441,6 +437,68 @@ void gcc_jitter::call_const_defines_init_func() {
         throw std::runtime_error("gcc_jit_result_get_code failed __fakelua_global_const_defines_init__");
     }
     init_func();
+}
+
+gccjit::rvalue gcc_jitter::compile_prefixexp(const syntax_tree_interface_ptr &pe, bool is_const) {
+    check_syntax_tree_type(pe, {syntax_tree_type::syntax_tree_type_prefixexp});
+    auto pe_ptr = std::dynamic_pointer_cast<syntax_tree_prefixexp>(pe);
+
+    const auto &pe_type = pe_ptr->get_type();
+    auto value = pe_ptr->get_value();
+
+    if (pe_type == "var") {
+        return compile_var(value, is_const);
+    } else if (pe_type == "functioncall") {
+        if (is_const) {
+            throw std::runtime_error("functioncall can not be const at " + location_str(pe));
+        }
+        // TODO
+        return NULL;
+    } else if (pe_type == "exp") {
+        return compile_exp(value, is_const);
+    }
+}
+
+std::string gcc_jitter::location_str(const syntax_tree_interface_ptr &ptr) {
+    return std::format("{}:{}:{}", file_name_, ptr->loc().begin.line, ptr->loc().begin.column);
+}
+
+gccjit::rvalue gcc_jitter::compile_var(const syntax_tree_interface_ptr &v, bool is_const) {
+    check_syntax_tree_type(v, {syntax_tree_type::syntax_tree_type_var});
+    auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(v);
+
+    const auto &type = v_ptr->get_type();
+    if (type == "simple") {
+        const auto &name = v_ptr->get_name();
+        return find_rvalue_by_name(name, v_ptr);
+    } else if (type == "square") {
+        // TODO
+        return NULL;
+    } else if (type == "DOT") {
+        // TODO
+        return NULL;
+    } else {
+        throw std::runtime_error("not support var type: " + type + " at " + location_str(v));
+    }
+}
+
+gccjit::rvalue gcc_jitter::find_rvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr) {
+    // find in local vars in stack_frames_ by reverse
+    for (auto iter = stack_frames_.rbegin(); iter != stack_frames_.rend(); ++iter) {
+        auto &local_vars = iter->local_vars;
+        auto iter2 = local_vars.find(name);
+        if (iter2 != local_vars.end()) {
+            return iter2->second;
+        }
+    }
+
+    // find in global const vars
+    auto iter = global_const_vars_.find(name);
+    if (iter != global_const_vars_.end()) {
+        return iter->second.first;
+    }
+
+    throw std::runtime_error("can not find var: " + name + " at " + location_str(ptr));
 }
 
 }// namespace fakelua

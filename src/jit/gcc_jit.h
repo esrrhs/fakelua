@@ -33,7 +33,7 @@ private:
 
     gccjit::rvalue compile_exp(const syntax_tree_interface_ptr &exp, bool is_const);
 
-    std::vector<gccjit::param> compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic);
+    std::vector<std::pair<std::string, gccjit::param>> compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic);
 
     gccjit::block compile_block(gccjit::function &func, const syntax_tree_interface_ptr &block);
 
@@ -45,10 +45,18 @@ private:
 
     void compile_const_defines_init_func();
 
+    gccjit::rvalue compile_prefixexp(const syntax_tree_interface_ptr &pe, bool is_const);
+
+    gccjit::rvalue compile_var(const syntax_tree_interface_ptr &v, bool is_const);
+
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
 
     void call_const_defines_init_func();
+
+    std::string location_str(const syntax_tree_interface_ptr &ptr);
+
+    gccjit::rvalue find_rvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr);
 
 private:
     fakelua_state_ptr sp_;
@@ -57,6 +65,10 @@ private:
     gcc_jit_handle_ptr gcc_jit_handle_;
     std::unordered_set<std::string> function_names_;
     std::unordered_map<std::string, std::pair<gccjit::lvalue, syntax_tree_interface_ptr>> global_const_vars_;
+    struct stack_frame {
+        std::unordered_map<std::string, gccjit::lvalue> local_vars;
+    };
+    std::vector<stack_frame> stack_frames_;
 };
 
 typedef std::shared_ptr<gcc_jitter> gcc_jitter_ptr;

@@ -173,6 +173,11 @@ TEST(jitter, const_define) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
+    int i = 0;
     L->compile_file("./jit/test_const_define.lua", {});
+    L->call("test", std::tie(i));
+    ASSERT_EQ(i, 1);
     L->compile_file("./jit/test_const_define.lua", {debug_mode: false});
+    L->call("test", std::tie(i));
+    ASSERT_EQ(i, 1);
 }

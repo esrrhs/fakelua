@@ -294,6 +294,22 @@ public:
         type_ = type;
     }
 
+    std::string get_name() const {
+        return name_;
+    }
+
+    syntax_tree_interface_ptr get_prefixexp() const {
+        return prefixexp_;
+    }
+
+    syntax_tree_interface_ptr get_exp() const {
+        return exp_;
+    }
+
+    std::string get_type() const {
+        return type_;
+    }
+
 private:
     std::string name_;
     syntax_tree_interface_ptr exp_;
@@ -996,6 +1012,18 @@ public:
         return value_;
     }
 
+    syntax_tree_interface_ptr left() const {
+        return left_;
+    }
+
+    syntax_tree_interface_ptr op() const {
+        return op_;
+    }
+
+    syntax_tree_interface_ptr right() const {
+        return right_;
+    }
+
 private:
     std::string type_;
     std::string value_;
@@ -1109,6 +1137,14 @@ public:
 
     void set_type(const std::string &type) {
         type_ = type;
+    }
+
+    syntax_tree_interface_ptr get_value() const {
+        return value_;
+    }
+
+    std::string get_type() const {
+        return type_;
     }
 
 private:
