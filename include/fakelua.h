@@ -9,6 +9,7 @@ namespace fakelua {
 
 // use to describe the complex type of lua.
 // communication between fakelua and native.
+// so it can transfer complex type like table.
 struct var_interface {
     enum class type {
         NIL,
@@ -20,8 +21,6 @@ struct var_interface {
     };
     virtual ~var_interface() = default;
 
-    virtual var_interface *vi_new_instance() = 0;
-
     virtual type vi_get_type() const = 0;
 
     virtual void vi_set_nil() = 0;
@@ -30,7 +29,7 @@ struct var_interface {
 
     virtual void vi_set_int(int v) = 0;
 
-    virtual void vi_set_float(float v) = 0;
+    virtual void vi_set_float(double v) = 0;
 
     virtual void vi_set_string(const std::string_view &v) = 0;
 
@@ -40,13 +39,118 @@ struct var_interface {
 
     virtual int vi_get_int() const = 0;
 
-    virtual float vi_get_float() const = 0;
+    virtual double vi_get_float() const = 0;
 
     virtual std::string_view vi_get_string() const = 0;
 
     virtual int vi_get_table_size() const = 0;
 
     virtual std::pair<var_interface *, var_interface *> vi_get_table_kv(int index) const = 0;
+
+    virtual std::string to_string(int tab = 0) const = 0;
+};
+
+// simple var implement, just for simple use.
+struct simple_var_impl : public var_interface {
+    simple_var_impl() = default;
+
+    virtual ~simple_var_impl() = default;
+
+    type vi_get_type() const override {
+        return type_;
+    }
+
+    void vi_set_nil() override {
+        type_ = type::NIL;
+    }
+
+    void vi_set_bool(bool v) override {
+        type_ = type::BOOL;
+        bool_ = v;
+    }
+
+    void vi_set_int(int v) override {
+        type_ = type::INT;
+        int_ = v;
+    }
+
+    void vi_set_float(double v) override {
+        type_ = type::FLOAT;
+        float_ = v;
+    }
+
+    void vi_set_string(const std::string_view &v) override {
+        type_ = type::STRING;
+        string_ = v;
+    }
+
+    void vi_set_table(const std::vector<std::pair<var_interface *, var_interface *>> &kv) override {
+        type_ = type::TABLE;
+        table_ = kv;
+    }
+
+    bool vi_get_bool() const override {
+        return bool_;
+    }
+
+    int vi_get_int() const override {
+        return int_;
+    }
+
+    double vi_get_float() const override {
+        return float_;
+    }
+
+    std::string_view vi_get_string() const override {
+        return string_;
+    }
+
+    int vi_get_table_size() const override {
+        return table_.size();
+    }
+
+    std::pair<var_interface *, var_interface *> vi_get_table_kv(int index) const override {
+        return table_[index];
+    }
+
+    std::string to_string(int tab = 0) const override {
+        std::string ret;
+        switch (type_) {
+            case type::NIL:
+                ret = "nil";
+                break;
+            case type::BOOL:
+                ret = bool_ ? "true" : "false";
+                break;
+            case type::INT:
+                ret = std::to_string(int_);
+                break;
+            case type::FLOAT:
+                ret = std::to_string(float_);
+                break;
+            case type::STRING:
+                ret = std::format("\"{}\"", string_);
+                break;
+            case type::TABLE:
+                ret = "table:";
+                for (auto &kv: table_) {
+                    ret += std::format("\n{}[{}] = {}", std::string(tab + 1, '\t'), kv.first->to_string(tab + 1),
+                                       kv.second->to_string(tab + 1));
+                }
+                break;
+            default:
+                return "unknown";
+        }
+
+        return ret;
+    }
+
+    type type_ = type::NIL;
+    bool bool_ = false;
+    int int_ = 0;
+    double float_ = 0;
+    std::string_view string_;
+    std::vector<std::pair<var_interface *, var_interface *>> table_;
 };
 
 class var;
