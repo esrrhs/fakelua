@@ -239,7 +239,7 @@ T fakelua_to_native(fakelua_state_ptr s, var *v) {
     } else if constexpr (std::is_same<T, const char *>::value) {
         return fakelua_to_native_cstr(s, v);
     } else if constexpr (std::is_same<T, char *>::value) {
-        return fakelua_to_native_str(s, v);
+        return (char *) fakelua_to_native_str(s, v);
     } else if constexpr (std::is_same<T, std::string>::value) {
         return fakelua_to_native_string(s, v);
     } else if constexpr (std::is_same<T, std::string_view>::value) {

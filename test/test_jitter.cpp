@@ -281,3 +281,38 @@ TEST(jitter, variadic_func_with_params) {
     ASSERT_EQ(ret3, "test");
     ASSERT_EQ(std::abs(ret4 - 2.3) < 0.001, true);
 }
+
+TEST(jitter, variadic_func_multi_type) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    char in1 = 1, out1 = 0;
+    unsigned char in2 = 2, out2 = 0;
+    short in3 = 3, out3 = 0;
+    unsigned short in4 = 4, out4 = 0;
+    unsigned int in5 = 5, out5 = 0;
+    long in6 = 6, out6 = 0;
+    unsigned long in7 = 7, out7 = 0;
+    long long in8 = 8, out8 = 0;
+    unsigned long long in9 = 9, out9 = 0;
+    float in10 = 10, out10 = 0;
+    char *in11 = (char *) "11", *out11 = nullptr;
+    std::string in12 = "12", out12;
+    std::string_view in13 = "13", out13;
+    L->compile_file("./jit/test_variadic_func.lua", {});
+    L->call("test", std::tie(out1, out2, out3, out4, out5, out6, out7, out8, out9, out10, out11, out12, out13), in1, in2, in3, in4, in5,
+            in6, in7, in8, in9, in10, in11, in12, in13);
+    ASSERT_EQ(out1, in1);
+    ASSERT_EQ(out2, in2);
+    ASSERT_EQ(out3, in3);
+    ASSERT_EQ(out4, in4);
+    ASSERT_EQ(out5, in5);
+    ASSERT_EQ(out6, in6);
+    ASSERT_EQ(out7, in7);
+    ASSERT_EQ(out8, in8);
+    ASSERT_EQ(out9, in9);
+    ASSERT_EQ(out10, in10);
+    ASSERT_STREQ(out11, in11);
+    ASSERT_EQ(out12, in12);
+    ASSERT_EQ(out13, in13);
+}
