@@ -77,49 +77,4 @@ std::string myflexer::generate_tmp_file(const std::string &str) {
     }
 }
 
-std::string myflexer::replace_escape_chars(const std::string &str) {
-    std::string result;
-    for (std::string::const_iterator it = str.begin(); it != str.end(); ++it) {
-        if (*it == '\\') {
-            ++it;
-            if (it == str.end()) {
-                break;
-            }
-            switch (*it) {
-                case 'n':
-                    result += '\n';
-                    break;
-                case 't':
-                    result += '\t';
-                    break;
-                case 'r':
-                    result += '\r';
-                    break;
-                case 'f':
-                    result += '\f';
-                    break;
-                case 'b':
-                    result += '\b';
-                    break;
-                case '\\':
-                    result += '\\';
-                    break;
-                case '\"':
-                    result += '\"';
-                    break;
-                case '\'':
-                    result += '\'';
-                    break;
-                default:
-                    result += '\\';
-                    result += *it;
-                    break;
-            }
-        } else {
-            result += *it;
-        }
-    }
-    return result;
-}
-
 }// namespace fakelua

@@ -12,11 +12,10 @@ inline bool is_integer(const std::string &s) {
 }
 
 inline std::string join_string(const std::vector<std::string> &strs, const std::string &sep) {
-    return std::accumulate(std::next(strs.begin()), strs.end(),
-                           strs[0],
-                           [&](std::string a, std::string b) {
-                               return std::move(a) + sep + b;
-                           });
+    return std::accumulate(std::next(strs.begin()), strs.end(), strs[0],
+                           [&](std::string a, std::string b) { return std::move(a) + sep + b; });
 }
 
-}
+std::string replace_escape_chars(const std::string &str);
+
+}// namespace fakelua

@@ -49,9 +49,6 @@ public:
     }
 
 private:
-    // replace escape chars
-    std::string replace_escape_chars(const std::string &str);
-
     std::string generate_tmp_file(const std::string &str);
 
 private:
