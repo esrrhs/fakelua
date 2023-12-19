@@ -59,9 +59,9 @@ TEST(common, rich_hashmap) {
 }
 
 TEST(common, escapse_string) {
-    std::string src = "a\\ab\\bc\\fd\\ne\\rf\\tg\\vh\\\"i\\'j";
+    std::string src = "a\\ab\\bc\\fd\\ne\\rf\\tg\\vh\\\"i\\'j\\\\k";
     std::string dst = replace_escape_chars(src);
-    ASSERT_EQ(dst, "a\ab\bc\fd\ne\rf\tg\vh\"i\'j");
+    ASSERT_EQ(dst, "a\ab\bc\fd\ne\rf\tg\vh\"i\'j\\k");
 
     src = "\\a\\b\\f\\n\\r\\t\\v\\\"\\'";
     dst = replace_escape_chars(src);
