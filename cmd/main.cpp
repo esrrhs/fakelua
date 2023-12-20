@@ -23,11 +23,6 @@ int main(int argc, char **argv) {
     }
 
     auto L = fakelua_newstate();
-    if (L.get() == nullptr) {
-        std::cout << "failed to create lua state" << std::endl;
-        return 1;
-    }
-
     L->compile_file(argv[1], {debug_mode: FLAGS_debug});
 
     int code = 0;

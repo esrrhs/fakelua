@@ -569,3 +569,17 @@ TEST(jitter, variadic_func_vi_nil) {
         delete i;
     }
 }
+
+TEST(jitter, string) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret = 0;
+    L->compile_string("function test() return 1 end", {});
+    L->call("test", std::tie(ret));
+    ASSERT_EQ(ret, 1);
+
+    L->compile_string("function test() return 1 end", {debug_mode: false});
+    L->call("test", std::tie(ret));
+    ASSERT_EQ(ret, 1);
+}

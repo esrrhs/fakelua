@@ -346,7 +346,7 @@ fakelua_state_ptr fakelua_newstate() {
     return std::make_shared<state>();
 }
 
-void open_profiler(const std::string &fname) {
+void start_profiler(const std::string &fname) {
 #ifdef __linux__
     LOG(INFO) << "open_profiler";
     ProfilerStart(fname.c_str());

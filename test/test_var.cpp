@@ -301,3 +301,31 @@ TEST(var, var_string_heap_reset) {
 
     ASSERT_EQ(heap.size(), 2);
 }
+
+TEST(var, set_string) {
+    auto s = std::make_shared<state>();
+
+    var v;
+    const std::string str("hello");
+    v.set_string(s.get(), str);
+    ASSERT_EQ(v.type(), var_type::VAR_STRING);
+    ASSERT_EQ(v.get_string(), str);
+
+    v.set_string(s.get(), std::move(std::string("hello")));
+    ASSERT_EQ(v.type(), var_type::VAR_STRING);
+    ASSERT_EQ(v.get_string(), str);
+
+    v.set_string(s.get(), "hello");
+    ASSERT_EQ(v.type(), var_type::VAR_STRING);
+    ASSERT_EQ(v.get_string(), str);
+
+    v.set_string(s.get(), std::string_view("hello"));
+    ASSERT_EQ(v.type(), var_type::VAR_STRING);
+    ASSERT_EQ(v.get_string(), str);
+
+    v.set_const(true);
+    ASSERT_EQ(v.to_string(), "\"hello\"(const)");
+
+    v.set_variadic(true);
+    ASSERT_EQ(v.to_string(), "\"hello\"(const)(variadic)");
+}
