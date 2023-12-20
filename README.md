@@ -4,16 +4,22 @@
 [<img src="https://img.shields.io/github/actions/workflow/status/esrrhs/fakelua/build.yml?branch=master">](https://github.com/esrrhs/fakelua/actions)
 [![codecov](https://codecov.io/gh/esrrhs/fakelua/graph/badge.svg?token=9ZCUH1Q632)](https://codecov.io/gh/esrrhs/fakelua)
 
-FakeLua is a library for fast implementation of custom Lua, it compiles Lua to native code at runtime.
+FakeLua is a library for fast implementation of subset Lua, it compiles Lua to native code at runtime.
 
 # Feature
 * compile with C++20
 * build on Linux && Mingw
 * support Lua 5.4 grammar
 * lexing and parsing by Flex && Bison
-* no global state, eg: _G
-* use memory pool, no GC
 * compile to native code by GCC JIT
+* can GDB with source code
+
+# Difference with Lua
+* no global variable, only global constant
+* no GC, use memory pool
+* no coroutine/thread/userdata
+* table key only support integer and short string
+* table are always hash table, no array table
 
 # Directory structure
 * [include](./include) header file

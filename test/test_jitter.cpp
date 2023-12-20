@@ -299,9 +299,10 @@ TEST(jitter, variadic_func_multi_type) {
     char *in11 = (char *) "11", *out11 = nullptr;
     std::string in12 = "12", out12;
     std::string_view in13 = "13", out13;
+    const char *in14 = "14", *out14 = nullptr;
     L->compile_file("./jit/test_variadic_func.lua", {});
-    L->call("test", std::tie(out1, out2, out3, out4, out5, out6, out7, out8, out9, out10, out11, out12, out13), in1, in2, in3, in4, in5,
-            in6, in7, in8, in9, in10, in11, in12, in13);
+    L->call("test", std::tie(out1, out2, out3, out4, out5, out6, out7, out8, out9, out10, out11, out12, out13, out14), in1, in2, in3, in4,
+            in5, in6, in7, in8, in9, in10, in11, in12, in13, in14);
     ASSERT_EQ(out1, in1);
     ASSERT_EQ(out2, in2);
     ASSERT_EQ(out3, in3);
@@ -315,6 +316,7 @@ TEST(jitter, variadic_func_multi_type) {
     ASSERT_STREQ(out11, in11);
     ASSERT_EQ(out12, in12);
     ASSERT_EQ(out13, in13);
+    ASSERT_STREQ(out14, in14);
 
     out1 = 0;
     out2 = 0;
@@ -330,8 +332,8 @@ TEST(jitter, variadic_func_multi_type) {
     out12.clear();
     out13 = "";
     L->compile_file("./jit/test_variadic_func.lua", {debug_mode: false});
-    L->call("test", std::tie(out1, out2, out3, out4, out5, out6, out7, out8, out9, out10, out11, out12, out13), in1, in2, in3, in4, in5,
-            in6, in7, in8, in9, in10, in11, in12, in13);
+    L->call("test", std::tie(out1, out2, out3, out4, out5, out6, out7, out8, out9, out10, out11, out12, out13, out14), in1, in2, in3, in4,
+            in5, in6, in7, in8, in9, in10, in11, in12, in13, in14);
     ASSERT_EQ(out1, in1);
     ASSERT_EQ(out2, in2);
     ASSERT_EQ(out3, in3);
@@ -345,6 +347,7 @@ TEST(jitter, variadic_func_multi_type) {
     ASSERT_STREQ(out11, in11);
     ASSERT_EQ(out12, in12);
     ASSERT_EQ(out13, in13);
+    ASSERT_STREQ(out14, in14);
 }
 
 TEST(jitter, variadic_func_vi) {
@@ -454,4 +457,115 @@ TEST(jitter, variadic_func_with_empty) {
     L->call("test", std::tie());
     L->compile_file("./jit/test_variadic_func.lua", {debug_mode: false});
     L->call("test", std::tie());
+}
+
+TEST(jitter, variadic_func_vi_array) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    std::vector<var_interface *> tmp;
+    auto newfunc = [&]() {
+        auto ret = new simple_var_impl();
+        tmp.push_back(ret);
+        return ret;
+    };
+    L->set_var_interface_new_func(newfunc);
+
+    // construct a table below by use simple_var_impl:
+    //    {
+    //        1, nil, 2
+    //    }
+    simple_var_impl *var = newfunc();
+    std::vector<std::pair<var_interface *, var_interface *>> kv;
+    auto k = newfunc();
+    k->vi_set_int(1);
+    auto v = newfunc();
+    v->vi_set_int(1);
+    kv.emplace_back(k, v);
+    k = newfunc();
+    k->vi_set_int(2);
+    v = newfunc();
+    v->vi_set_int(2);
+    kv.emplace_back(k, v);
+    k = newfunc();
+    k->vi_set_int(3);
+    v = newfunc();
+    v->vi_set_int(3);
+    kv.emplace_back(k, v);
+    var->vi_set_table(kv);
+
+    auto dumpstr = var->to_string();
+    ASSERT_EQ(dumpstr, "table:\n"
+                       "\t[1] = 1\n"
+                       "\t[2] = 2\n"
+                       "\t[3] = 3");
+
+
+    var_interface *ret = nullptr;
+    L->compile_file("./jit/test_variadic_func.lua", {});
+    L->call("test", std::tie(ret), var);
+    ASSERT_NE(ret, nullptr);
+    ASSERT_EQ(ret->vi_get_type(), var_interface::type::TABLE);
+
+    // need sort kv
+    std::sort(dynamic_cast<simple_var_impl *>(ret)->table_.begin(), dynamic_cast<simple_var_impl *>(ret)->table_.end(),
+              [](const std::pair<var_interface *, var_interface *> &a, const std::pair<var_interface *, var_interface *> &b) {
+                  return a.first->vi_get_string() < b.first->vi_get_string();
+              });
+
+    ASSERT_EQ(ret->to_string(), dumpstr);
+
+    ret = nullptr;
+    L->compile_file("./jit/test_variadic_func.lua", {debug_mode: false});
+    L->call("test", std::tie(ret), var);
+    ASSERT_NE(ret, nullptr);
+    ASSERT_EQ(ret->vi_get_type(), var_interface::type::TABLE);
+
+    // need sort kv
+    std::sort(dynamic_cast<simple_var_impl *>(ret)->table_.begin(), dynamic_cast<simple_var_impl *>(ret)->table_.end(),
+              [](const std::pair<var_interface *, var_interface *> &a, const std::pair<var_interface *, var_interface *> &b) {
+                  return a.first->vi_get_string() < b.first->vi_get_string();
+              });
+
+    ASSERT_EQ(ret->to_string(), dumpstr);
+
+    for (auto &i: tmp) {
+        delete i;
+    }
+}
+
+TEST(jitter, variadic_func_vi_nil) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    std::vector<var_interface *> tmp;
+    auto newfunc = [&]() {
+        auto ret = new simple_var_impl();
+        tmp.push_back(ret);
+        return ret;
+    };
+    L->set_var_interface_new_func(newfunc);
+
+
+    simple_var_impl *var = newfunc();
+    var->vi_set_nil();
+
+    auto dumpstr = var->to_string();
+    ASSERT_EQ(dumpstr, "nil");
+
+    var_interface *ret = nullptr;
+    L->compile_file("./jit/test_variadic_func.lua", {});
+    L->call("test", std::tie(ret), var);
+    ASSERT_NE(ret, nullptr);
+    ASSERT_EQ(ret->vi_get_type(), var_interface::type::NIL);
+
+    ret = nullptr;
+    L->compile_file("./jit/test_variadic_func.lua", {debug_mode: false});
+    L->call("test", std::tie(ret), var);
+    ASSERT_NE(ret, nullptr);
+    ASSERT_EQ(ret->vi_get_type(), var_interface::type::NIL);
+
+    for (auto &i: tmp) {
+        delete i;
+    }
 }
