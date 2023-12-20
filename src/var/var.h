@@ -21,13 +21,16 @@ public:
     var(std::nullptr_t) : type_(var_type::VAR_NIL) {
     }
 
-    var(bool val) : type_(var_type::VAR_BOOL), bool_(val) {
+    var(bool val) {
+        set_bool(val);
     }
 
-    var(int64_t val) : type_(var_type::VAR_INT), int_(val) {
+    var(int64_t val) {
+        set_int(val);
     }
 
-    var(double val) : type_(var_type::VAR_FLOAT), float_(val) {
+    var(double val) {
+        set_float(val);
     }
 
     var(const fakelua_state_ptr &s, const std::string &val);
@@ -110,8 +113,14 @@ public:
 
     // set float value
     void set_float(double val) {
-        type_ = var_type::VAR_FLOAT;
-        float_ = val;
+        double intpart;
+        if (std::modf(val, &intpart) != 0.0) {
+            type_ = var_type::VAR_FLOAT;
+            float_ = val;
+        } else {
+            type_ = var_type::VAR_INT;
+            int_ = (int64_t) val;
+        }
     }
 
     // set string value

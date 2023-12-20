@@ -22,8 +22,11 @@ TEST(var, construct) {
     var v3((int64_t) 1);
     ASSERT_EQ(v3.type(), var_type::VAR_INT);
 
-    var v4(1.0);
+    var v4(1.1);
     ASSERT_EQ(v4.type(), var_type::VAR_FLOAT);
+
+    var v4_1(1.00);
+    ASSERT_EQ(v4_1.type(), var_type::VAR_INT);
 
     var v5(s, "hello");
     ASSERT_EQ(v5.type(), var_type::VAR_STRING);
@@ -66,9 +69,13 @@ TEST(var, set_get) {
     ASSERT_EQ(v.type(), var_type::VAR_INT);
     ASSERT_EQ(v.get_int(), 1);
 
-    v.set_float(1.0);
+    v.set_float(1.1);
     ASSERT_EQ(v.type(), var_type::VAR_FLOAT);
-    ASSERT_EQ(v.get_float(), 1.0);
+    ASSERT_EQ(v.get_float(), 1.1);
+
+    v.set_float(1.0);
+    ASSERT_EQ(v.type(), var_type::VAR_INT);
+    ASSERT_EQ(v.get_int(), 1);
 
     v.set_string(s, "hello");
     ASSERT_EQ(v.type(), var_type::VAR_STRING);
@@ -170,7 +177,10 @@ TEST(var, to_string) {
     ASSERT_EQ(v->to_string(), "12345");
 
     v->set_float(12345.0);
-    ASSERT_EQ(v->to_string(), "12345.000000");
+    ASSERT_EQ(v->to_string(), "12345");
+
+    v->set_float(12345.1);
+    ASSERT_EQ(v->to_string(), "12345.100000");
 
     v->set_string(s, "hello");
     ASSERT_EQ(v->to_string(), "\"hello\"");
@@ -328,4 +338,148 @@ TEST(var, set_string) {
 
     v.set_variadic(true);
     ASSERT_EQ(v.to_string(), "\"hello\"(const)(variadic)");
+}
+
+TEST(var, var_table_keys) {
+    auto s = std::make_shared<state>();
+
+    var_table vt;
+
+    var k1;
+    k1.set_bool(true);
+    var k2;
+    k2.set_bool(false);
+
+    var v1;
+    v1.set_int((int64_t) 1);
+    var v2;
+    v2.set_int((int64_t) 2);
+
+    vt.set(&k1, &v1);
+    vt.set(&k2, &v2);
+
+    auto v = vt.get(&k1);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 1);
+
+    v = vt.get(&k2);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 2);
+
+    var k3;
+    k3.set_float(1.2);
+    var k4;
+    k4.set_float(2.3);
+
+    vt.set(&k3, &v1);
+    vt.set(&k4, &v2);
+
+    v = vt.get(&k3);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 1);
+
+    v = vt.get(&k4);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 2);
+
+    var k5;
+    k5.set_string(s, std::string("h", MAX_SHORT_STR_LEN + 1));
+    var k6;
+    k6.set_string(s, std::string("h", MAX_SHORT_STR_LEN + 1));
+
+    vt.set(&k5, &v1);
+    vt.set(&k6, &v2);
+
+    v = vt.get(&k5);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 2);
+    v = vt.get(&k6);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 2);
+
+    var k7;
+    k7.set_table();
+    var k8;
+    k8.set_table();
+
+    vt.set(&k7, &v1);
+    vt.set(&k8, &v2);
+
+    v = vt.get(&k7);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 1);
+
+    v = vt.get(&k8);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 2);
+}
+
+TEST(var, var_table_int_float_keys) {
+    auto s = std::make_shared<state>();
+
+    var_table vt;
+
+    var v1;
+    v1.set_int((int64_t) 1);
+    var v2;
+    v2.set_int((int64_t) 2);
+
+    var k9;
+    k9.set_int(1);
+    var k10;
+    k10.set_float(1.0);
+
+    vt.set(&k9, &v1);
+    vt.set(&k10, &v2);
+
+    auto v = vt.get(&k9);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 2);
+
+    v = vt.get(&k10);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 2);
+
+    var k11;
+    k11.set_float(2.0);
+    var k12;
+    k12.set_int(2);
+
+    vt.set(&k11, &v1);
+    vt.set(&k12, &v2);
+
+    v = vt.get(&k11);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 2);
+
+    v = vt.get(&k12);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 2);
+}
+
+TEST(var, var_table_nan_keys) {
+    auto s = std::make_shared<state>();
+
+    var_table vt;
+
+    var k1;
+    k1.set_float(0.0 / 0.0);
+    var k2;
+    k2.set_float(0.0 / 0.0);
+
+    var v1;
+    v1.set_int(1);
+    var v2;
+    v2.set_int(2);
+
+    vt.set(&k1, &v1);
+    vt.set(&k2, &v2);
+
+    auto v = vt.get(&k1);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 2);
+
+    v = vt.get(&k2);
+    ASSERT_EQ(v->type(), var_type::VAR_INT);
+    ASSERT_EQ(v->get_int(), 2);
 }

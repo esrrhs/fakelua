@@ -141,11 +141,6 @@ size_t var::hash() const {
 
 bool var::equal(const var &rhs) const {
     if (type() != rhs.type()) {
-        if (type() == var_type::VAR_INT && rhs.type() == var_type::VAR_FLOAT) {
-            return get_int() == rhs.get_float();
-        } else if (type() == var_type::VAR_FLOAT && rhs.type() == var_type::VAR_INT) {
-            return get_float() == rhs.get_int();
-        }
         return false;
     }
 

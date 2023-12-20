@@ -22,7 +22,6 @@ var *var_table::get(var *key) {
 }
 
 void var_table::set(var *key, var *val, bool can_be_nil) {
-    auto type = key->type();
     if (!can_be_nil && (!val || val->type() == var_type::VAR_NIL)) {
         table_.erase(key);
         return;

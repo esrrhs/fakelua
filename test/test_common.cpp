@@ -55,12 +55,3 @@ TEST(common, profiler) {
     start_profiler("test.prof");
     stop_profiler();
 }
-
-uint64_t next_random(uint64_t &rnd) {
-    const uint64_t prng_mult = 0x5DEECE66DULL;
-    const uint64_t prng_add = 0xB;
-    const uint64_t prng_mod_power = 48;
-    const uint64_t prng_mod_mask = ~((~static_cast<uint64_t>(0)) << prng_mod_power);
-    rnd = (prng_mult * rnd + prng_add) & prng_mod_mask;
-    return rnd;
-}

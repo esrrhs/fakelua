@@ -300,9 +300,12 @@ TEST(jitter, variadic_func_multi_type) {
     std::string in12 = "12", out12;
     std::string_view in13 = "13", out13;
     const char *in14 = "14", *out14 = nullptr;
+    float in15 = 15.1, out15 = 0;
+    double in16 = 16.2, out16 = 0;
+    double in17 = 17, out17 = 0;
     L->compile_file("./jit/test_variadic_func.lua", {});
-    L->call("test", std::tie(out1, out2, out3, out4, out5, out6, out7, out8, out9, out10, out11, out12, out13, out14), in1, in2, in3, in4,
-            in5, in6, in7, in8, in9, in10, in11, in12, in13, in14);
+    L->call("test", std::tie(out1, out2, out3, out4, out5, out6, out7, out8, out9, out10, out11, out12, out13, out14, out15, out16, out17),
+            in1, in2, in3, in4, in5, in6, in7, in8, in9, in10, in11, in12, in13, in14, in15, in16, in17);
     ASSERT_EQ(out1, in1);
     ASSERT_EQ(out2, in2);
     ASSERT_EQ(out3, in3);
@@ -317,6 +320,9 @@ TEST(jitter, variadic_func_multi_type) {
     ASSERT_EQ(out12, in12);
     ASSERT_EQ(out13, in13);
     ASSERT_STREQ(out14, in14);
+    ASSERT_EQ(std::abs(out15 - in15) < 0.001, true);
+    ASSERT_EQ(std::abs(out16 - in16) < 0.001, true);
+    ASSERT_EQ(std::abs(out17 - in17) < 0.001, true);
 
     out1 = 0;
     out2 = 0;
@@ -332,8 +338,8 @@ TEST(jitter, variadic_func_multi_type) {
     out12.clear();
     out13 = "";
     L->compile_file("./jit/test_variadic_func.lua", {debug_mode: false});
-    L->call("test", std::tie(out1, out2, out3, out4, out5, out6, out7, out8, out9, out10, out11, out12, out13, out14), in1, in2, in3, in4,
-            in5, in6, in7, in8, in9, in10, in11, in12, in13, in14);
+    L->call("test", std::tie(out1, out2, out3, out4, out5, out6, out7, out8, out9, out10, out11, out12, out13, out14, out15, out16, out17),
+            in1, in2, in3, in4, in5, in6, in7, in8, in9, in10, in11, in12, in13, in14, in15, in16, in17);
     ASSERT_EQ(out1, in1);
     ASSERT_EQ(out2, in2);
     ASSERT_EQ(out3, in3);
@@ -348,6 +354,9 @@ TEST(jitter, variadic_func_multi_type) {
     ASSERT_EQ(out12, in12);
     ASSERT_EQ(out13, in13);
     ASSERT_STREQ(out14, in14);
+    ASSERT_EQ(std::abs(out15 - in15) < 0.001, true);
+    ASSERT_EQ(std::abs(out16 - in16) < 0.001, true);
+    ASSERT_EQ(std::abs(out17 - in17) < 0.001, true);
 }
 
 TEST(jitter, variadic_func_vi) {

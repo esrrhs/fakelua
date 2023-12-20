@@ -231,12 +231,18 @@ float fakelua_to_native_float(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_FLOAT) {
         return v->get_float();
     }
+    if (v->type() == var_type::VAR_INT) {
+        return v->get_int();
+    }
     throw std::runtime_error(std::format("fakelua_to_native_float failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 double fakelua_to_native_double(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_FLOAT) {
         return v->get_float();
+    }
+    if (v->type() == var_type::VAR_INT) {
+        return v->get_int();
     }
     throw std::runtime_error(std::format("fakelua_to_native_double failed, type is {}", magic_enum::enum_name(v->type())));
 }
