@@ -160,6 +160,12 @@ public:
         return is_variadic_;
     }
 
+    // get hash value
+    size_t hash() const;
+
+    // equal
+    bool equal(const var &rhs) const;
+
 private:
     // use class members instead of union, use more memory but more safe and fast.
     var_type type_ = var_type::VAR_NIL;

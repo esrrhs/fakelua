@@ -510,7 +510,7 @@ TEST(jitter, variadic_func_vi_array) {
     // need sort kv
     std::sort(dynamic_cast<simple_var_impl *>(ret)->table_.begin(), dynamic_cast<simple_var_impl *>(ret)->table_.end(),
               [](const std::pair<var_interface *, var_interface *> &a, const std::pair<var_interface *, var_interface *> &b) {
-                  return a.first->vi_get_string() < b.first->vi_get_string();
+                  return a.first->vi_get_int() < b.first->vi_get_int();
               });
 
     ASSERT_EQ(ret->to_string(), dumpstr);
@@ -524,7 +524,7 @@ TEST(jitter, variadic_func_vi_array) {
     // need sort kv
     std::sort(dynamic_cast<simple_var_impl *>(ret)->table_.begin(), dynamic_cast<simple_var_impl *>(ret)->table_.end(),
               [](const std::pair<var_interface *, var_interface *> &a, const std::pair<var_interface *, var_interface *> &b) {
-                  return a.first->vi_get_string() < b.first->vi_get_string();
+                  return a.first->vi_get_int() < b.first->vi_get_int();
               });
 
     ASSERT_EQ(ret->to_string(), dumpstr);

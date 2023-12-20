@@ -116,4 +116,61 @@ std::string var::to_string() const {
     return ret;
 }
 
+size_t var::hash() const {
+    switch (type()) {
+        case var_type::VAR_NIL:
+            return 0;
+        case var_type::VAR_BOOL:
+            return get_bool() ? 1 : 0;
+        case var_type::VAR_INT:
+            return std::hash<int64_t>()(get_int());
+        case var_type::VAR_FLOAT:
+            return std::hash<double>()(get_float());
+        case var_type::VAR_STRING:
+            if (is_short_string()) {
+                return std::hash<int64_t>()(reinterpret_cast<int64_t>(string_.data()));
+            } else {
+                return std::hash<std::string_view>()(string_);
+            }
+        case var_type::VAR_TABLE:
+            return std::hash<size_t>()(reinterpret_cast<size_t>(this));
+        default:
+            return 0;
+    }
+}
+
+bool var::equal(const var &rhs) const {
+    if (type() != rhs.type()) {
+        if (type() == var_type::VAR_INT && rhs.type() == var_type::VAR_FLOAT) {
+            return get_int() == rhs.get_float();
+        } else if (type() == var_type::VAR_FLOAT && rhs.type() == var_type::VAR_INT) {
+            return get_float() == rhs.get_int();
+        }
+        return false;
+    }
+
+    switch (type()) {
+        case var_type::VAR_NIL:
+            return true;
+        case var_type::VAR_BOOL:
+            return get_bool() == rhs.get_bool();
+        case var_type::VAR_INT:
+            return get_int() == rhs.get_int();
+        case var_type::VAR_FLOAT:
+            if (std::isnan(get_float()) && std::isnan(rhs.get_float())) {
+                return true;
+            }
+            return get_float() == rhs.get_float();
+        case var_type::VAR_STRING:
+            if (is_short_string() && rhs.is_short_string()) {
+                return string_.data() == rhs.string_.data();
+            }
+            return string_ == rhs.string_;
+        case var_type::VAR_TABLE:
+            return this == &rhs;
+        default:
+            return false;
+    }
+}
+
 }// namespace fakelua

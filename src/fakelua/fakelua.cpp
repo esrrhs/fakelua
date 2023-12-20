@@ -311,7 +311,9 @@ var_interface *fakelua_to_native_obj(fakelua_state_ptr s, var *v) {
 
 var *fakelua_get_var_by_index(fakelua_state_ptr s, var *ret, size_t i) {
     if (ret->type() == var_type::VAR_TABLE) {
-        return ret->get_table().get_by_int(i);
+        var tmp;
+        tmp.set_int(i);
+        return ret->get_table().get(&tmp);
     }
     throw std::runtime_error(std::format("fakelua_get_var_by_index failed, type is {}", magic_enum::enum_name(ret->type())));
 }
