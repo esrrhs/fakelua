@@ -382,7 +382,7 @@ TEST(var, var_table_keys) {
     ASSERT_EQ(v->type(), var_type::VAR_INT);
     ASSERT_EQ(v->get_int(), 2);
 
-    std::string ls("h", MAX_SHORT_STR_LEN + 1);
+    std::string ls("123456789012345678901234567890123456789012345678901234567890");
     var k5;
     k5.set_string(s, ls);
     var k6;
