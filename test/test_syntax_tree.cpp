@@ -1293,3 +1293,75 @@ TEST(syntax_tree, function_call_args) {
 
     ASSERT_EQ(dumpstr, wantstr);
 }
+
+TEST(syntax_tree, constructor) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file(L, "./syntax/test_constructor.lua", {true});
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG(INFO) << "\n" << dumpstr;
+
+    auto wantstr = "(block)[2:1]\n"
+                   "  (assign)[2:3]\n"
+                   "    (varlist)[2:1]\n"
+                   "      (var)[2:1]\n"
+                   "        type: simple\n"
+                   "        name: a\n"
+                   "    (explist)[2:5]\n"
+                   "      (exp)[2:5]\n"
+                   "        type: tableconstructor\n"
+                   "        value: \n"
+                   "        (tableconstructor)[2:5]\n"
+                   "          (fieldlist)[3:5]\n"
+                   "            (field)[3:5]\n"
+                   "              type: array\n"
+                   "              (exp)[3:6]\n"
+                   "                type: number\n"
+                   "                value: 2\n"
+                   "              (exp)[3:11]\n"
+                   "                type: number\n"
+                   "                value: 1\n"
+                   "            (field)[4:5]\n"
+                   "              type: object\n"
+                   "              name: a\n"
+                   "              (exp)[4:9]\n"
+                   "                type: number\n"
+                   "                value: 2\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
+
+TEST(syntax_tree, function_exp) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file(L, "./syntax/test_function_exp.lua", {true});
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG(INFO) << "\n" << dumpstr;
+
+    auto wantstr = "(block)[2:1]\n"
+                   "  (assign)[2:3]\n"
+                   "    (varlist)[2:1]\n"
+                   "      (var)[2:1]\n"
+                   "        type: simple\n"
+                   "        name: a\n"
+                   "    (explist)[2:5]\n"
+                   "      (exp)[2:5]\n"
+                   "        type: functiondef\n"
+                   "        value: \n"
+                   "        (functiondef)[2:5]\n"
+                   "          (funcbody)[2:13]\n"
+                   "            (parlist)[2:14]\n"
+                   "              (namelist)[2:14]\n"
+                   "                name: b\n"
+                   "            (block)[2:15]\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}

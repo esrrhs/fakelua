@@ -5,6 +5,10 @@
 
 using namespace fakelua;
 
+// register some global flags
+DEFINE_bool(debug, false, "enable debug mode");
+DEFINE_string(entry, "main", "entry function name, entry must return code(int) and has no parameter");
+
 int main(int argc, char **argv) {
     google::InitGoogleLogging(argv[0]);
 
@@ -24,5 +28,11 @@ int main(int argc, char **argv) {
         return 1;
     }
 
-    return 0;
+    L->compile_file(argv[1], {debug_mode: FLAGS_debug});
+
+    int code = 0;
+    L->call(FLAGS_entry, std::tie(code));
+    std::cout << "code: " << code << std::endl;
+
+    return code;
 }
