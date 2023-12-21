@@ -1,5 +1,6 @@
 #include "compile/myflexer.h"
 #include "util/common.h"
+#include "util/exception.h"
 #include "util/file_util.h"
 
 namespace fakelua {
@@ -13,7 +14,7 @@ myflexer::~myflexer() {
 void myflexer::input_file(const std::string &file) {
     file_.open(file.data(), std::ios::binary);
     if (file_.fail()) {
-        throw std::runtime_error("open file failed");
+        throw_fakelua_exception("open file failed");
     }
     filename_ = file;
     location_.initialize(&filename_);
@@ -23,7 +24,7 @@ void myflexer::input_file(const std::string &file) {
 
 void myflexer::input_string(const std::string &str) {
     if (str.empty()) {
-        throw std::runtime_error("input string is empty");
+        throw_fakelua_exception("input string is empty");
     }
     filename_ = generate_tmp_file(str);
     location_.initialize(&filename_);
@@ -42,7 +43,7 @@ syntax_tree_interface_ptr myflexer::get_chunk() const {
 
 std::string myflexer::remove_quotes(const std::string &str) {
     if (str.size() < 2) {
-        throw std::runtime_error("remove quotes but input string is empty");
+        throw_fakelua_exception("remove quotes but input string is empty");
     }
 
     if (str[0] == '\'' && str[str.size() - 1] == '\'') {
@@ -53,13 +54,13 @@ std::string myflexer::remove_quotes(const std::string &str) {
         return replace_escape_chars(str.substr(1, str.size() - 2));
     } else {
         if (str.size() < 4) {
-            throw std::runtime_error("remove quotes but input string is empty");
+            throw_fakelua_exception("remove quotes but input string is empty");
         }
         if (str[0] == '[' && str[1] == '[' && str[str.size() - 1] == ']' && str[str.size() - 2] == ']') {
             // raw string not need to replace escape chars
             return str.substr(2, str.size() - 4);
         } else {
-            throw std::runtime_error("remove quotes but input string is not valid");
+            throw_fakelua_exception("remove quotes but input string is not valid");
         }
     }
 }
@@ -73,7 +74,7 @@ std::string myflexer::generate_tmp_file(const std::string &str) {
         file.close();
         return fileName;
     } else {
-        throw std::runtime_error(std::format("create tmp file failed, file name is {}", fileName));
+        throw_fakelua_exception(std::format("create tmp file failed, file name is {}", fileName));
     }
 }
 

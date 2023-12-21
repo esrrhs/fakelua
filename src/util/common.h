@@ -4,6 +4,7 @@
 #include <assert.h>
 #include <cassert>
 #include <chrono>
+#include <concepts>
 #include <condition_variable>
 #include <cstdint>
 #include <cstdlib>
@@ -48,7 +49,9 @@
 #include <utility>
 #include <variant>
 #include <vector>
-#include <concepts>
+#ifndef _WIN32
+#include <execinfo.h>
+#endif
 
 // include glog here, so that we can use glog in all files
 // and maybe someday we can replace glog with our own log

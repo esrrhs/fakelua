@@ -1,5 +1,6 @@
 #include "compile/compiler.h"
 #include "bison/parser.h"
+#include "util/exception.h"
 
 namespace fakelua {
 
@@ -29,7 +30,7 @@ compile_result compiler::compile(fakelua_state_ptr sp, myflexer &f, compile_conf
     auto code = parse.parse();
     LOG(INFO) << "compile ret " << code;
     if (code) {
-        throw std::runtime_error("compile failed");
+        throw_fakelua_exception("compile failed");
     }
     ret.chunk = f.get_chunk();
 

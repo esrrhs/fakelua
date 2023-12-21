@@ -388,6 +388,8 @@ void *get_func_addr(fakelua_state_ptr s, const std::string &name, int &arg_count
 
 var *make_variadic_table(fakelua_state_ptr s, int start, int n, var **args);
 
+void throw_inter_fakelua_exception(const std::string &msg);
+
 }// namespace inter
 
 // call funtion by name
@@ -397,7 +399,7 @@ void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, 
     bool is_variadic = false;
     auto addr = inter::get_func_addr(shared_from_this(), name, arg_count, is_variadic);
     if (!addr) {
-        throw std::runtime_error(std::format("function {} not found", name));
+        inter::throw_inter_fakelua_exception(std::format("function {} not found", name));
     }
 
     // change every input args to var * by native_to_var() function
@@ -407,12 +409,12 @@ void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, 
     var *ret_var = nullptr;
     if (!is_variadic) {
         if (sizeof...(Args) != (size_t) arg_count) {
-            throw std::runtime_error(std::format("function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
+            inter::throw_inter_fakelua_exception(std::format("function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
         }
         ret_var = reinterpret_cast<var *(*) (...)>(addr)(inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...);
     } else {
         if (sizeof...(Args) < (size_t) arg_count) {
-            throw std::runtime_error(std::format("function {} arg count not match, need >= {} get {}", name, arg_count, sizeof...(Args)));
+            inter::throw_inter_fakelua_exception(std::format("function {} arg count not match, need >= {} get {}", name, arg_count, sizeof...(Args)));
         }
         // save the variadic args to a table
         var *args_array[sizeof...(Args) + 1] = {nullptr, inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...};
@@ -422,7 +424,7 @@ void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, 
     }
 
     if (!ret_var) {
-        throw std::runtime_error(std::format("function {} return null", name));
+        inter::throw_inter_fakelua_exception(std::format("function {} return null", name));
     }
     inter::fakelua_func_ret_helper(shared_from_this(), ret_var, rets);
 }

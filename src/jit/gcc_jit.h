@@ -49,6 +49,8 @@ private:
 
     gccjit::rvalue compile_var(const syntax_tree_interface_ptr &v, bool is_const);
 
+    void compile_stmt_local_var(gccjit::function &function, gccjit::block &the_block, const syntax_tree_interface_ptr &stmt);
+
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
 
@@ -57,6 +59,8 @@ private:
     std::string location_str(const syntax_tree_interface_ptr &ptr);
 
     gccjit::rvalue find_rvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr);
+
+    void throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr);
 
 private:
     fakelua_state_ptr sp_;

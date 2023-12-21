@@ -140,7 +140,7 @@ void vi_to_var(fakelua_state_ptr s, var_interface *src, var *dst) {
             }
             break;
         default:
-            throw std::runtime_error(std::format("vi_to_var failed, type is {}", (int) src->vi_get_type()));
+            throw_fakelua_exception(std::format("vi_to_var failed, type is {}", (int) src->vi_get_type()));
     }
 }
 
@@ -154,77 +154,77 @@ bool fakelua_to_native_bool(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_BOOL) {
         return v->get_bool();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_bool failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_bool failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 char fakelua_to_native_char(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_INT) {
         return v->get_int();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_char failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_char failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 unsigned char fakelua_to_native_uchar(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_INT) {
         return v->get_int();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_uchar failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_uchar failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 short fakelua_to_native_short(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_INT) {
         return v->get_int();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_short failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_short failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 unsigned short fakelua_to_native_ushort(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_INT) {
         return v->get_int();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_ushort failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_ushort failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 int fakelua_to_native_int(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_INT) {
         return v->get_int();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_int failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_int failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 unsigned int fakelua_to_native_uint(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_INT) {
         return v->get_int();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_uint failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_uint failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 long fakelua_to_native_long(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_INT) {
         return v->get_int();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_long failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_long failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 unsigned long fakelua_to_native_ulong(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_INT) {
         return v->get_int();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_ulong failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_ulong failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 long long fakelua_to_native_longlong(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_INT) {
         return v->get_int();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_longlong failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_longlong failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 unsigned long long fakelua_to_native_ulonglong(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_INT) {
         return v->get_int();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_ulonglong failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_ulonglong failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 float fakelua_to_native_float(fakelua_state_ptr s, var *v) {
@@ -234,7 +234,7 @@ float fakelua_to_native_float(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_INT) {
         return v->get_int();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_float failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_float failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 double fakelua_to_native_double(fakelua_state_ptr s, var *v) {
@@ -244,35 +244,35 @@ double fakelua_to_native_double(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_INT) {
         return v->get_int();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_double failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_double failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 const char *fakelua_to_native_cstr(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_STRING) {
         return v->get_string().data();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_cstr failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_cstr failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 const char *fakelua_to_native_str(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_STRING) {
         return v->get_string().data();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_str failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_str failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 std::string fakelua_to_native_string(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_STRING) {
         return std::string(v->get_string());
     }
-    throw std::runtime_error(std::format("fakelua_to_native_string failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_string failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 std::string_view fakelua_to_native_stringview(fakelua_state_ptr s, var *v) {
     if (v->type() == var_type::VAR_STRING) {
         return v->get_string();
     }
-    throw std::runtime_error(std::format("fakelua_to_native_stringview failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_stringview failed, type is {}", magic_enum::enum_name(v->type())));
 }
 
 void var_to_vi(fakelua_state_ptr s, var *src, var_interface *dst) {
@@ -305,7 +305,7 @@ void var_to_vi(fakelua_state_ptr s, var *src, var_interface *dst) {
             break;
         }
         default:
-            throw std::runtime_error(std::format("var_to_vi failed, type is {}", (int) src->type()));
+            throw_fakelua_exception(std::format("var_to_vi failed, type is {}", (int) src->type()));
     }
 }
 
@@ -321,7 +321,7 @@ var *fakelua_get_var_by_index(fakelua_state_ptr s, var *ret, size_t i) {
         tmp.set_int(i);
         return ret->get_table().get(&tmp);
     }
-    throw std::runtime_error(std::format("fakelua_get_var_by_index failed, type is {}", magic_enum::enum_name(ret->type())));
+    throw_fakelua_exception(std::format("fakelua_get_var_by_index failed, type is {}", magic_enum::enum_name(ret->type())));
 }
 
 void *get_func_addr(fakelua_state_ptr s, const std::string &name, int &arg_count, bool &is_variadic) {
@@ -345,6 +345,10 @@ var *make_variadic_table(fakelua_state_ptr s, int start, int n, var **args) {
     }
     ret->set_variadic(true);
     return ret;
+}
+
+void throw_inter_fakelua_exception(const std::string &msg) {
+    throw_fakelua_exception(msg);
 }
 
 }// namespace inter

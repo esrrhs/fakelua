@@ -592,3 +592,26 @@ TEST(jitter, string) {
     L->call("test", std::tie(ret));
     ASSERT_EQ(ret, 1);
 }
+
+TEST(jitter, local_define) {
+//    auto L = fakelua_newstate();
+//    ASSERT_NE(L.get(), nullptr);
+//
+//    var *a = 0;
+//    var *b = 0;
+//    L->compile_file("./jit/test_local_define.lua", {});
+//    L->call("test", std::tie(a, b));
+//    ASSERT_NE(a, nullptr);
+//    ASSERT_EQ(a->type(), var_type::VAR_INT);
+//
+//    ASSERT_NE(b, nullptr);
+//    ASSERT_EQ(b->type(), var_type::VAR_INT);
+//
+//    L->compile_file("./jit/test_local_define.lua", {debug_mode: false});
+//    L->call("test", std::tie(a, b));
+//    ASSERT_NE(a, nullptr);
+//    ASSERT_EQ(a->type(), var_type::VAR_INT);
+//
+//    ASSERT_NE(b, nullptr);
+//    ASSERT_EQ(b->type(), var_type::VAR_INT);
+}

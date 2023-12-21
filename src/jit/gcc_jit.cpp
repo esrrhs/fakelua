@@ -2,6 +2,7 @@
 #include "fakelua.h"
 #include "state/state.h"
 #include "util/common.h"
+#include "util/exception.h"
 #include "util/file_util.h"
 #include "vm.h"
 
@@ -58,7 +59,7 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
     auto result = gccjit_context_->compile();
     if (!result) {
         // should not happen, but just in case
-        throw std::runtime_error("gcc_jitter compile failed");
+        throw_fakelua_exception("gcc_jitter compile failed");
     }
     gcc_jit_handle_->set_result(result);
 
@@ -81,7 +82,7 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
         auto &info = ele.second;
         auto func = gcc_jit_result_get_code(result, name.c_str());
         if (!func) {
-            throw std::runtime_error("gcc_jit_result_get_code failed " + name);
+            throw_fakelua_exception("gcc_jit_result_get_code failed " + name);
         }
         std::dynamic_pointer_cast<state>(sp_)->get_vm().register_function(
                 name, std::make_shared<vm_function>(gcc_jit_handle_, func, info.params_count, info.is_variadic));
@@ -188,7 +189,7 @@ void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
                    stmt->type() == syntax_tree_type::syntax_tree_type_local_function) {
             // skip
         } else {
-            throw std::runtime_error("the chunk top level only support const define and function define at " + location_str(stmt));
+            throw_error("the chunk top level only support const define and function define", stmt);
         }
     }
 }
@@ -199,7 +200,7 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
     auto keys = std::dynamic_pointer_cast<syntax_tree_namelist>(local_var->namelist());
     auto &names = keys->names();
     if (!local_var->explist()) {
-        throw std::runtime_error("the const define must have a value, but the value is null, it's useless at " + location_str(local_var));
+        throw_error("the const define must have a value, but the value is null, it's useless", local_var);
     }
     check_syntax_tree_type(local_var->explist(), {syntax_tree_type::syntax_tree_type_explist});
     auto values = std::dynamic_pointer_cast<syntax_tree_explist>(local_var->explist());
@@ -210,7 +211,7 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
     for (size_t i = 0; i < names.size(); ++i) {
         auto name = names[i];
         if (i >= values_exps.size()) {
-            throw std::runtime_error("the const define not match, the value is not enough at " + location_str(values));
+            throw_error("the const define not match, the value is not enough", values);
         }
 
         LOG(INFO) << "compile const define: " << name;
@@ -220,7 +221,7 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
         dst.set_initializer_rvalue(gccjit_context_->new_rvalue(the_var_type, nullptr));
 
         if (global_const_vars_.find(name) != global_const_vars_.end()) {
-            throw std::runtime_error("the const define name is duplicated: " + name + " at " + location_str(values));
+            throw_error("the const define name is duplicated: " + name, values);
         }
 
         global_const_vars_[name] = std::make_pair(dst, values_exps[i]);
@@ -297,11 +298,11 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp, boo
         // TODO
         return nullptr;
     } else {
-        throw std::runtime_error("not support exp type: " + exp_type + " at " + location_str(e));
+        throw_error("not support exp type: " + exp_type, exp);
     }
 
     if (func_name.empty()) {
-        throw std::runtime_error("empty exp func_name: " + exp_type + " at " + location_str(e));
+        throw_error("empty exp func_name: " + exp_type, exp);
     }
 
     gccjit::function new_var_func =
@@ -366,9 +367,12 @@ void gcc_jitter::compile_stmt(gccjit::function &func, gccjit::block &the_block, 
             compile_stmt_return(func, the_block, stmt);
             break;
         }
+        case syntax_tree_type::syntax_tree_type_local_var: {
+            compile_stmt_local_var(func, the_block, stmt);
+            break;
+        }
         default: {
-            throw std::runtime_error(
-                    std::format("not support stmt type: {} at {}", magic_enum::enum_name(stmt->type()), location_str(stmt)));
+            throw_error(std::format("not support stmt type: {}", magic_enum::enum_name(stmt->type())), stmt);
         }
     }
 }
@@ -450,7 +454,7 @@ void gcc_jitter::call_const_defines_init_func() {
     }
     auto init_func = (void (*)()) gcc_jit_result_get_code(gcc_jit_handle_->get_result(), "__fakelua_global_const_defines_init__");
     if (!init_func) {
-        throw std::runtime_error("gcc_jit_result_get_code failed __fakelua_global_const_defines_init__");
+        throw_fakelua_exception("gcc_jit_result_get_code failed __fakelua_global_const_defines_init__");
     }
     init_func();
 }
@@ -466,14 +470,14 @@ gccjit::rvalue gcc_jitter::compile_prefixexp(const syntax_tree_interface_ptr &pe
         return compile_var(value, is_const);
     } else if (pe_type == "functioncall") {
         if (is_const) {
-            throw std::runtime_error("functioncall can not be const at " + location_str(pe));
+            throw_fakelua_exception("functioncall can not be const at " + location_str(pe));
         }
         // TODO
         return NULL;
     } else if (pe_type == "exp") {
         return compile_exp(value, is_const);
     } else {
-        throw std::runtime_error("not support prefixexp type: " + pe_type + " at " + location_str(pe));
+        throw_fakelua_exception("not support prefixexp type: " + pe_type + " at " + location_str(pe));
     }
 }
 
@@ -496,7 +500,7 @@ gccjit::rvalue gcc_jitter::compile_var(const syntax_tree_interface_ptr &v, bool 
         // TODO
         return NULL;
     } else {
-        throw std::runtime_error("not support var type: " + type + " at " + location_str(v));
+        throw_fakelua_exception("not support var type: " + type + " at " + location_str(v));
     }
 }
 
@@ -516,7 +520,22 @@ gccjit::rvalue gcc_jitter::find_rvalue_by_name(const std::string &name, const sy
         return iter->second.first;
     }
 
-    throw std::runtime_error("can not find var: " + name + " at " + location_str(ptr));
+    throw_fakelua_exception("can not find var: " + name + " at " + location_str(ptr));
 }
+
+void gcc_jitter::throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr) {
+    throw_fakelua_exception(std::format("{} at {}", msg, location_str(ptr)));
+}
+
+void gcc_jitter::compile_stmt_local_var(gccjit::function &function, gccjit::block &the_block, const syntax_tree_interface_ptr &stmt) {
+    check_syntax_tree_type(stmt, {syntax_tree_type::syntax_tree_type_local_var});
+    auto local_var = std::dynamic_pointer_cast<syntax_tree_local_var>(stmt);
+
+    auto keys = std::dynamic_pointer_cast<syntax_tree_namelist>(local_var->namelist());
+    auto &names = keys->names();
+
+    // TODO
+}
+
 
 }// namespace fakelua

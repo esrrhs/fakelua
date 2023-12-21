@@ -2,6 +2,7 @@
 
 #include "bison/location.hh"
 #include "util/common.h"
+#include "util/exception.h"
 
 namespace fakelua {
 
@@ -1164,7 +1165,7 @@ static inline void check_syntax_tree_type(const syntax_tree_interface_ptr &node,
         ss << magic_enum::enum_name(t) << ", ";
     }
     ss << "got " << magic_enum::enum_name(node->type());
-    throw std::runtime_error(ss.str());
+    throw_fakelua_exception(ss.str());
 }
 
 }// namespace fakelua

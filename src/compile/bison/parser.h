@@ -49,6 +49,7 @@
 
 #include "fakelua.h"
 #include "util/common.h"
+#include "util/exception.h"
 #include "compile/syntax_tree.h"
 
 namespace fakelua {
@@ -58,7 +59,7 @@ namespace fakelua {
 // https://www.gnu.org/software/bison/manual/html_node/A-Simple-C_002b_002b-Example.html
 
 
-#line 62 "parser.h"
+#line 63 "parser.h"
 
 # include <cassert>
 # include <cstdlib> // std::abort
@@ -198,7 +199,7 @@ namespace fakelua {
 #endif
 
 namespace yy {
-#line 202 "parser.h"
+#line 203 "parser.h"
 
 
 
@@ -2444,7 +2445,7 @@ switch (yykind)
   }
 
 } // yy
-#line 2448 "parser.h"
+#line 2449 "parser.h"
 
 
 

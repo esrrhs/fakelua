@@ -1,4 +1,5 @@
 #include "string_util.h"
+#include "exception.h"
 
 namespace fakelua {
 
@@ -74,7 +75,7 @@ std::string replace_escape_chars(const std::string &str) {
                     break;
                 default:
                     if (!isdigit(*it)) {
-                        throw std::runtime_error("invalid escape sequence \\" + *it);
+                        throw_fakelua_exception("invalid escape sequence \\" + *it);
                     }
                     // read up to 3 digits
                     int r = 0; /* result accumulator */
@@ -86,7 +87,7 @@ std::string replace_escape_chars(const std::string &str) {
                         ++it;
                     }
                     if (r > 0xFF) {
-                        throw std::runtime_error("decimal escape too large \\" + std::to_string(r));
+                        throw_fakelua_exception("decimal escape too large \\" + std::to_string(r));
                     }
                     result += static_cast<char>(r);
                     break;

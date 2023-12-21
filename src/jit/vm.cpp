@@ -97,7 +97,7 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, .
 
         if (arg->type() <= var_type::VAR_INVALID || arg->type() >= var_type::VAR_MAX) {
             va_end(args);
-            throw std::runtime_error(std::format("wrap_return_var: invalid arg type {}", (int) arg->type()));
+            throw_fakelua_exception(std::format("wrap_return_var: invalid arg type {}", (int) arg->type()));
         }
 
         if (!arg->is_variadic()) {
@@ -108,7 +108,7 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, .
         } else {
             if (arg->type() != var_type::VAR_TABLE) {
                 va_end(args);
-                throw std::runtime_error(std::format("wrap_return_var: invalid variadic arg type {}", (int) arg->type()));
+                throw_fakelua_exception(std::format("wrap_return_var: invalid variadic arg type {}", (int) arg->type()));
             }
 
             auto &table = arg->get_table();
