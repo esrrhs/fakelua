@@ -2,7 +2,6 @@
 
 #include "fakelua.h"
 #include "util/common.h"
-#include "util/no_copy.h"
 #include "var_table.h"
 #include "var_type.h"
 
@@ -13,7 +12,7 @@ class state;
 // Var is the class that holds the multiple types of data.
 // all the data is stored in the state's var_pool. and can only be used by simple pointer.
 // except the global const var, which is stored in the gcc_jit_handle.
-class var : public no_copy<var> {
+class var {
 public:
     var() : type_(var_type::VAR_NIL) {
     }

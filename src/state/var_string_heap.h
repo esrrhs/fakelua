@@ -2,7 +2,6 @@
 
 #include "fakelua.h"
 #include "util/common.h"
-#include "util/no_copy.h"
 #include "var/var_type.h"
 
 namespace fakelua {
@@ -11,7 +10,7 @@ namespace fakelua {
 // the string heap contains all the strings in the state.
 // just like Lua, it has two kinds of strings, short string and long string.
 // short string can compare by pointer, and long string must compare by value.
-class var_string_heap : public no_copy<var_string_heap> {
+class var_string_heap {
 public:
     var_string_heap(fakelua_state *state) : state_(state) {
     }

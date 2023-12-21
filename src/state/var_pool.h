@@ -8,7 +8,7 @@ namespace fakelua {
 
 // every state has a var pool.
 // var_pool store all the vars used in the state. and not free the vars until the state is destroyed.
-class var_pool : public no_copy<var_pool> {
+class var_pool {
 public:
     var_pool() : tmp_vars_(0) {
     }

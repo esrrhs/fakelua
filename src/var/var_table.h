@@ -2,7 +2,6 @@
 
 #include "fakelua.h"
 #include "util/common.h"
-#include "util/copyable.h"
 #include "var_type.h"
 
 namespace fakelua {
@@ -14,7 +13,7 @@ bool table_var_equal_func(const var *lhs, const var *rhs);
 
 // table type, like the lua table. but we implement it in a simple way.
 // only support integer key and short-string key.
-class var_table : public copyable<var_table> {
+class var_table {
 public:
     var_table() = default;
 

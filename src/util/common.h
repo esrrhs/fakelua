@@ -48,6 +48,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include <concepts>
 
 // include glog here, so that we can use glog in all files
 // and maybe someday we can replace glog with our own log
