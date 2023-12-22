@@ -13,7 +13,7 @@ TEST(syntax_tree, compile_string) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[1:1]\n"
@@ -39,7 +39,7 @@ TEST(syntax_tree, label) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[2:1]\n"
@@ -58,7 +58,7 @@ TEST(syntax_tree, assign_simple) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[6:1]\n"
@@ -84,7 +84,7 @@ TEST(syntax_tree, assign) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[2:1]\n"
@@ -154,7 +154,7 @@ TEST(syntax_tree, function_call) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[2:1]\n"
@@ -226,7 +226,7 @@ TEST(syntax_tree, break) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[2:1]\n"
@@ -249,7 +249,7 @@ TEST(syntax_tree, continue) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[1:1]\n"
@@ -290,7 +290,7 @@ TEST(syntax_tree, do_end) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[1:1]\n"
@@ -335,7 +335,7 @@ TEST(syntax_tree, while) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[2:1]\n"
@@ -372,7 +372,7 @@ TEST(syntax_tree, repeat) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[1:1]\n"
@@ -429,7 +429,7 @@ TEST(syntax_tree, if) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[1:1]\n"
@@ -632,7 +632,7 @@ TEST(syntax_tree, string) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[1:1]\n"
@@ -713,7 +713,7 @@ TEST(syntax_tree, number) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[1:1]\n"
@@ -829,7 +829,7 @@ TEST(syntax_tree, for_num) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[1:1]\n"
@@ -914,7 +914,7 @@ TEST(syntax_tree, for_in) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[1:1]\n"
@@ -1029,7 +1029,7 @@ TEST(syntax_tree, function) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[1:1]\n"
@@ -1171,7 +1171,7 @@ TEST(syntax_tree, var) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[1:1]\n"
@@ -1216,7 +1216,7 @@ TEST(syntax_tree, var_attr) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[1:1]\n"
@@ -1263,7 +1263,7 @@ TEST(syntax_tree, function_call_args) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
                    "(block)[2:1]\n"
@@ -1303,7 +1303,7 @@ TEST(syntax_tree, constructor) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = "(block)[2:1]\n"
                    "  (assign)[2:3]\n"
@@ -1344,7 +1344,7 @@ TEST(syntax_tree, function_exp) {
     ASSERT_NE(result.chunk, nullptr);
 
     auto dumpstr = result.chunk->dump();
-    LOG(INFO) << "\n" << dumpstr;
+    LOG_INFO("{}", dumpstr);
 
     auto wantstr = "(block)[2:1]\n"
                    "  (assign)[2:3]\n"

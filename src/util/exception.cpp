@@ -22,6 +22,7 @@ std::string stacktrace_current() {
 }
 
 [[noreturn]] void throw_fakelua_exception(const std::string &msg) {
+    LOG_ERROR("fakelua error: {}\n{}", msg, stacktrace_current());
     throw fakelua_exception(std::format("fakelua error: {}\n{}", msg, stacktrace_current()));
 }
 

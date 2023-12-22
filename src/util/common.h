@@ -55,7 +55,7 @@
 
 // include glog here, so that we can use glog in all files
 // and maybe someday we can replace glog with our own log
-#include "glog/logging.h"
+#include "logging.h"
 
 #include "const_define.h"
 #include "string_util.h"

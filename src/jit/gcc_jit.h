@@ -62,7 +62,7 @@ private:
 
     void save_stack_lvalue_by_name(const std::string &name, const gccjit::lvalue &value, const syntax_tree_interface_ptr &ptr);
 
-    void throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr);
+    [[noreturn]] void throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr);
 
 private:
     fakelua_state_ptr sp_;

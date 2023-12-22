@@ -354,22 +354,8 @@ void throw_inter_fakelua_exception(const std::string &msg) {
 }// namespace inter
 
 fakelua_state_ptr fakelua_newstate() {
-    LOG(INFO) << "fakelua_newstate";
+    LOG_INFO("fakelua_newstate");
     return std::make_shared<state>();
-}
-
-void start_profiler(const std::string &fname) {
-#ifdef __linux__
-    LOG(INFO) << "open_profiler";
-    ProfilerStart(fname.c_str());
-#endif
-}
-
-void stop_profiler() {
-#ifdef __linux__
-    LOG(INFO) << "stop_profiler";
-    ProfilerStop();
-#endif
 }
 
 }// namespace fakelua

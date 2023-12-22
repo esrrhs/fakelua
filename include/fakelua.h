@@ -432,10 +432,4 @@ void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, 
 // create fake_lua state
 fakelua_state_ptr fakelua_newstate();
 
-// open global profiler by gperftools
-void start_profiler(const std::string &fname);
-
-// stop global profiler by gperftools
-void stop_profiler();
-
 }// namespace fakelua

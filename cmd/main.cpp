@@ -1,6 +1,5 @@
 #include "fakelua.h"
 #include "gflags/gflags.h"
-#include "glog/logging.h"
 #include <iostream>
 
 using namespace fakelua;
@@ -10,8 +9,6 @@ DEFINE_bool(debug, false, "enable debug mode");
 DEFINE_string(entry, "main", "entry function name, entry must return code(int) and has no parameter");
 
 int main(int argc, char **argv) {
-    google::InitGoogleLogging(argv[0]);
-
     gflags::SetUsageMessage("usage: ./lua --help\n"
                             "\n");
     gflags::SetVersionString("0.0.1");

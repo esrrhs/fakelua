@@ -2,6 +2,19 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 
 project(test)
 
+#add gtest
+CPMAddPackage(
+        NAME googletest
+        GITHUB_REPOSITORY google/googletest
+        GIT_TAG v1.14.0
+        VERSION 1.14.0
+        OPTIONS
+        "INSTALL_GTEST OFF"
+        "gtest_force_shared_crt ON"
+)
+
+include_directories(${magic_enum_SOURCE_DIR}/include/magic_enum)
+
 aux_source_directory(./ TEST_SRC_LIST)
 include_directories(./)
 include_directories(../include)
@@ -16,7 +29,7 @@ ENDIF ()
 
 add_executable(unit_tests ${TEST_SRC_LIST})
 
-target_link_libraries(unit_tests PRIVATE fakelua gtest_main glog::glog gflags::gflags gccjit)
+target_link_libraries(unit_tests PRIVATE fakelua gtest_main gccjit)
 
 add_test(NAME unit COMMAND ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/unit_tests
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})

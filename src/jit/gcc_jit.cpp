@@ -16,7 +16,7 @@ gcc_jitter::~gcc_jitter() {
 }
 
 void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::string &file_name, const syntax_tree_interface_ptr &chunk) {
-    LOG(INFO) << "start gcc_jitter::compile " << file_name;
+    LOG_INFO("start gcc_jitter::compile {}", file_name);
     gcc_jit_handle_ = std::make_shared<gcc_jit_handle>(sp.get());
     sp_ = sp;
     file_name_ = file_name;
@@ -33,7 +33,7 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
         if (fp) {
             gccjit_context_->set_logfile(fp, 0, 0);
             gcc_jit_handle_->set_log_fp(fp);
-            LOG(INFO) << file_name << " gccjit log file: " << logfilename;
+            LOG_INFO("{} gccjit log file: {}", file_name, logfilename);
         }
     } else {
         gccjit_context_->set_int_option(GCC_JIT_INT_OPTION_OPTIMIZATION_LEVEL, 3);
@@ -67,7 +67,7 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
     if (cfg.debug_mode) {
         auto dumpfile = generate_tmp_filename("fakelua_gccjit_", ".c");
         gccjit_context_->dump_to_file(dumpfile, true);
-        LOG(INFO) << file_name << " dump to file: " << dumpfile;
+        LOG_INFO("{} gccjit dump file: {}", file_name, dumpfile);
     }
 
     gccjit_context_->release();
@@ -86,10 +86,10 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
         }
         std::dynamic_pointer_cast<state>(sp_)->get_vm().register_function(
                 name, std::make_shared<vm_function>(gcc_jit_handle_, func, info.params_count, info.is_variadic));
-        LOG(INFO) << "register function: " << name;
+        LOG_INFO("register function: {}", name);
     }
 
-    LOG(INFO) << "end gcc_jitter::compile " << file_name;
+    LOG_INFO("end gcc_jitter::compile {}", file_name);
 }
 
 void gcc_jitter::compile_functions(const syntax_tree_interface_ptr &chunk) {
@@ -133,7 +133,7 @@ std::string gcc_jitter::compile_funcname(const syntax_tree_interface_ptr &ptr) {
 }
 
 void gcc_jitter::compile_function(const std::string &name, const syntax_tree_interface_ptr &funcbody) {
-    LOG(INFO) << "compile function: " << name;
+    LOG_INFO("start compile function: {}", name);
 
     check_syntax_tree_type(funcbody, {syntax_tree_type::syntax_tree_type_funcbody});
     auto funcbody_ptr = std::dynamic_pointer_cast<syntax_tree_funcbody>(funcbody);
@@ -214,7 +214,7 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
             throw_error("the const define not match, the value is not enough", values);
         }
 
-        LOG(INFO) << "compile const define: " << name;
+        LOG_INFO("compile const define: {}", name);
 
         auto dst = gccjit_context_->new_global(GCC_JIT_GLOBAL_INTERNAL, the_var_type, name.c_str(), new_location(keys));
 
@@ -552,7 +552,7 @@ void gcc_jitter::save_stack_lvalue_by_name(const std::string &name, const gccjit
     stack_frames_.back().local_vars[name] = value;
 }
 
-void gcc_jitter::throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr) {
+[[noreturn]] void gcc_jitter::throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr) {
     throw_fakelua_exception(std::format("{} at {}", msg, location_str(ptr)));
 }
 
@@ -567,7 +567,7 @@ void gcc_jitter::compile_stmt_local_var(gccjit::function &function, gccjit::bloc
 
     for (size_t i = 0; i < names.size(); ++i) {
         auto name = names[i];
-        LOG(INFO) << "compile const define: " << name;
+        LOG_INFO("compile local var: {}", name);
 
         auto dst = function.new_local(the_var_type, name, new_location(keys));
         bool done = false;

@@ -50,8 +50,3 @@ TEST(common, escapse_string) {
     dst = replace_escape_chars(src);
     ASSERT_EQ(dst, "aa");
 }
-
-TEST(common, profiler) {
-    start_profiler("test.prof");
-    stop_profiler();
-}

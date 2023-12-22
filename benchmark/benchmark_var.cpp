@@ -7,7 +7,6 @@
 using namespace fakelua;
 
 static void BM_var_set_int(benchmark::State &state) {
-    FLAGS_minloglevel = 3;
     var v;
     for (auto _: state) {
         for (int i = 0; i < state.range(0); ++i) {
@@ -19,7 +18,6 @@ static void BM_var_set_int(benchmark::State &state) {
 BENCHMARK(BM_var_set_int)->Range(8, 8 << 10);
 
 static void BM_var_set_string(benchmark::State &bstate) {
-    FLAGS_minloglevel = 3;
     auto s = std::make_shared<state>();
     var v;
     for (auto _: bstate) {
@@ -32,7 +30,6 @@ static void BM_var_set_string(benchmark::State &bstate) {
 BENCHMARK(BM_var_set_string)->Range(8, 8 << 10);
 
 static void BM_var_get_int(benchmark::State &state) {
-    FLAGS_minloglevel = 3;
     var v;
     v.set_int((int64_t) 1234567890);
     for (auto _: state) {
@@ -45,7 +42,6 @@ static void BM_var_get_int(benchmark::State &state) {
 BENCHMARK(BM_var_get_int)->Range(8, 8 << 10);
 
 static void BM_var_get_string(benchmark::State &bstate) {
-    FLAGS_minloglevel = 3;
     auto s = std::make_shared<state>();
     var v;
     v.set_string(s, "test");

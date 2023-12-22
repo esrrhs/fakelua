@@ -5,7 +5,6 @@
 using namespace fakelua;
 
 static void BM_normal_hashmap(benchmark::State &state) {
-    FLAGS_minloglevel = 3;
     std::unordered_map<int, int> map;
     map.reserve(8 << 10);
     for (auto _: state) {
