@@ -594,24 +594,73 @@ TEST(jitter, string) {
 }
 
 TEST(jitter, local_define) {
-//    auto L = fakelua_newstate();
-//    ASSERT_NE(L.get(), nullptr);
-//
-//    var *a = 0;
-//    var *b = 0;
-//    L->compile_file("./jit/test_local_define.lua", {});
-//    L->call("test", std::tie(a, b));
-//    ASSERT_NE(a, nullptr);
-//    ASSERT_EQ(a->type(), var_type::VAR_INT);
-//
-//    ASSERT_NE(b, nullptr);
-//    ASSERT_EQ(b->type(), var_type::VAR_INT);
-//
-//    L->compile_file("./jit/test_local_define.lua", {debug_mode: false});
-//    L->call("test", std::tie(a, b));
-//    ASSERT_NE(a, nullptr);
-//    ASSERT_EQ(a->type(), var_type::VAR_INT);
-//
-//    ASSERT_NE(b, nullptr);
-//    ASSERT_EQ(b->type(), var_type::VAR_INT);
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    var *a = 0;
+    var *b = 0;
+    L->compile_file("./jit/test_local_define.lua", {});
+    L->call("test", std::tie(a, b));
+    ASSERT_NE(a, nullptr);
+    ASSERT_EQ(a->type(), var_type::VAR_NIL);
+
+    ASSERT_NE(b, nullptr);
+    ASSERT_EQ(b->type(), var_type::VAR_NIL);
+
+    L->compile_file("./jit/test_local_define.lua", {debug_mode: false});
+    L->call("test", std::tie(a, b));
+    ASSERT_NE(a, nullptr);
+    ASSERT_EQ(a->type(), var_type::VAR_NIL);
+
+    ASSERT_NE(b, nullptr);
+    ASSERT_EQ(b->type(), var_type::VAR_NIL);
+}
+
+TEST(jitter, local_define_with_values) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    var *a = 0;
+    var *b = 0;
+    var *c = 0;
+    var *d = 0;
+    var *e = 0;
+    L->compile_file("./jit/test_local_define_with_value.lua", {});
+    L->call("test", std::tie(a, b, c, d, e), true, 2);
+    ASSERT_NE(a, nullptr);
+    ASSERT_EQ(a->type(), var_type::VAR_BOOL);
+    ASSERT_EQ(a->get_bool(), true);
+    ASSERT_NE(b, nullptr);
+    ASSERT_EQ(b->type(), var_type::VAR_INT);
+    ASSERT_EQ(b->get_int(), 2);
+    ASSERT_NE(c, nullptr);
+    ASSERT_EQ(c->type(), var_type::VAR_INT);
+    ASSERT_EQ(c->get_int(), 1);
+    ASSERT_NE(d, nullptr);
+    ASSERT_EQ(d->type(), var_type::VAR_STRING);
+    ASSERT_EQ(d->get_string(), "test");
+    ASSERT_NE(e, nullptr);
+    ASSERT_EQ(e->type(), var_type::VAR_NIL);
+
+    a = 0;
+    b = 0;
+    c = 0;
+    d = 0;
+    e = 0;
+    L->compile_file("./jit/test_local_define_with_value.lua", {debug_mode: false});
+    L->call("test", std::tie(a, b, c, d, e), true, 2);
+    ASSERT_NE(a, nullptr);
+    ASSERT_EQ(a->type(), var_type::VAR_BOOL);
+    ASSERT_EQ(a->get_bool(), true);
+    ASSERT_NE(b, nullptr);
+    ASSERT_EQ(b->type(), var_type::VAR_INT);
+    ASSERT_EQ(b->get_int(), 2);
+    ASSERT_NE(c, nullptr);
+    ASSERT_EQ(c->type(), var_type::VAR_INT);
+    ASSERT_EQ(c->get_int(), 1);
+    ASSERT_NE(d, nullptr);
+    ASSERT_EQ(d->type(), var_type::VAR_STRING);
+    ASSERT_EQ(d->get_string(), "test");
+    ASSERT_NE(e, nullptr);
+    ASSERT_EQ(e->type(), var_type::VAR_NIL);
 }

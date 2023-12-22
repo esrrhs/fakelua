@@ -323,6 +323,19 @@ std::vector<std::pair<std::string, gccjit::param>> gcc_jitter::compile_parlist(s
         auto namelist_ptr = std::dynamic_pointer_cast<syntax_tree_namelist>(namelist);
         auto &param_names = namelist_ptr->names();
 
+        // check dumplicated
+        std::set<std::string> param_names_set;
+        // insert global names
+        for (auto &ele: global_const_vars_) {
+            param_names_set.insert(ele.first);
+        }
+        for (auto &name: param_names) {
+            if (param_names_set.find(name) != param_names_set.end()) {
+                throw_error("the param name is duplicated: " + name, namelist_ptr);
+            }
+            param_names_set.insert(name);
+        }
+
         auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
         for (auto &name: param_names) {
             auto param = gccjit_context_->new_param(the_var_type, name, new_location(namelist_ptr));
@@ -470,14 +483,14 @@ gccjit::rvalue gcc_jitter::compile_prefixexp(const syntax_tree_interface_ptr &pe
         return compile_var(value, is_const);
     } else if (pe_type == "functioncall") {
         if (is_const) {
-            throw_fakelua_exception("functioncall can not be const at " + location_str(pe));
+            throw_error("functioncall can not be const", pe);
         }
         // TODO
         return NULL;
     } else if (pe_type == "exp") {
         return compile_exp(value, is_const);
     } else {
-        throw_fakelua_exception("not support prefixexp type: " + pe_type + " at " + location_str(pe));
+        throw_error("not support prefixexp type: " + pe_type, pe);
     }
 }
 
@@ -500,7 +513,7 @@ gccjit::rvalue gcc_jitter::compile_var(const syntax_tree_interface_ptr &v, bool 
         // TODO
         return NULL;
     } else {
-        throw_fakelua_exception("not support var type: " + type + " at " + location_str(v));
+        throw_error("not support var type: " + type, v);
     }
 }
 
@@ -520,7 +533,23 @@ gccjit::rvalue gcc_jitter::find_rvalue_by_name(const std::string &name, const sy
         return iter->second.first;
     }
 
-    throw_fakelua_exception("can not find var: " + name + " at " + location_str(ptr));
+    throw_error("can not find var: " + name, ptr);
+}
+
+void gcc_jitter::save_stack_lvalue_by_name(const std::string &name, const gccjit::lvalue &value, const syntax_tree_interface_ptr &ptr) {
+    // check global dumplicated
+    if (global_const_vars_.find(name) != global_const_vars_.end()) {
+        throw_error("the const define name is duplicated: " + name, ptr);
+    }
+    // check local dumplicated
+    for (auto iter = stack_frames_.rbegin(); iter != stack_frames_.rend(); ++iter) {
+        auto &local_vars = iter->local_vars;
+        auto iter2 = local_vars.find(name);
+        if (iter2 != local_vars.end()) {
+            throw_error("the local var name is duplicated: " + name, ptr);
+        }
+    }
+    stack_frames_.back().local_vars[name] = value;
 }
 
 void gcc_jitter::throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr) {
@@ -534,7 +563,36 @@ void gcc_jitter::compile_stmt_local_var(gccjit::function &function, gccjit::bloc
     auto keys = std::dynamic_pointer_cast<syntax_tree_namelist>(local_var->namelist());
     auto &names = keys->names();
 
-    // TODO
+    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+
+    for (size_t i = 0; i < names.size(); ++i) {
+        auto name = names[i];
+        LOG(INFO) << "compile const define: " << name;
+
+        auto dst = function.new_local(the_var_type, name, new_location(keys));
+        bool done = false;
+        if (local_var->explist()) {
+            check_syntax_tree_type(local_var->explist(), {syntax_tree_type::syntax_tree_type_explist});
+            auto values = std::dynamic_pointer_cast<syntax_tree_explist>(local_var->explist());
+            auto &values_exps = values->exps();
+            if (i < values_exps.size()) {
+                auto exp_ret = compile_exp(values_exps[i], false);
+                the_block.add_assignment(dst, exp_ret, new_location(values_exps[i]));
+                done = true;
+            }
+        }
+
+        if (!done) {
+            // make it nil
+            auto nil_exp = std::make_shared<syntax_tree_exp>(keys->loc());
+            nil_exp->set_type("nil");
+            auto exp_ret = compile_exp(nil_exp, false);
+            the_block.add_assignment(dst, exp_ret, new_location(nil_exp));
+        }
+
+        // add to local vars
+        save_stack_lvalue_by_name(name, dst, keys);
+    }
 }
 
 
