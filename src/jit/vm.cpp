@@ -107,8 +107,9 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, .
             index++;
         } else {
             if (arg->type() != var_type::VAR_TABLE) {
+                auto type = arg->type();
                 va_end(args);
-                throw_fakelua_exception(std::format("wrap_return_var: invalid variadic arg type {}", (int) arg->type()));
+                throw_fakelua_exception(std::format("wrap_return_var: invalid variadic arg type {}", (int) type));
             }
 
             auto &table = arg->get_table();
