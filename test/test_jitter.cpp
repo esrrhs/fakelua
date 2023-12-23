@@ -664,3 +664,47 @@ TEST(jitter, local_define_with_values) {
     ASSERT_NE(e, nullptr);
     ASSERT_EQ(e->type(), var_type::VAR_NIL);
 }
+
+TEST(jitter, test_assign) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    std::string b;
+    L->compile_file("./jit/test_assign.lua", {});
+    L->call("test", std::tie(a, b), true, 1.1);
+    ASSERT_EQ(a, 1);
+    ASSERT_EQ(b, "2");
+
+    a = 0;
+    b.clear();
+    L->compile_file("./jit/test_assign.lua", {debug_mode: false});
+    L->call("test", std::tie(a, b), true, 1.1);
+    ASSERT_EQ(a, 1);
+    ASSERT_EQ(b, "2");
+}
+
+TEST(jitter, test_assign_not_match) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    std::string b;
+    int c = 0;
+    int d = 0;
+    L->compile_file("./jit/test_assign_not_match.lua", {});
+    L->call("test", std::tie(a, b, c, d), true, "2", 1.1, 1);
+    ASSERT_EQ(a, 1);
+    ASSERT_EQ(b, "2");
+    ASSERT_EQ(c, 3);
+    ASSERT_EQ(d, 4);
+
+    a = 0;
+    b.clear();
+    L->compile_file("./jit/test_assign_not_match.lua", {debug_mode: false});
+    L->call("test", std::tie(a, b, c, d), true, "2", 1.1, 1);
+    ASSERT_EQ(a, 1);
+    ASSERT_EQ(b, "2");
+    ASSERT_EQ(c, 3);
+    ASSERT_EQ(d, 4);
+}

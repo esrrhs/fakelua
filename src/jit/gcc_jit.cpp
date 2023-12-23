@@ -287,7 +287,7 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp, boo
     } else if (exp_type == "var_params") {
         func_name = "new_var_wrap";
         params.push_back(gccjit_context_->new_param(the_var_type, "val"));
-        args.push_back(find_rvalue_by_name("__fakelua_variadic__", e));
+        args.push_back(find_lvalue_by_name("__fakelua_variadic__", e));
     } else if (exp_type == "tableconstructor") {
         // TODO
         return nullptr;
@@ -382,6 +382,10 @@ void gcc_jitter::compile_stmt(gccjit::function &func, gccjit::block &the_block, 
         }
         case syntax_tree_type::syntax_tree_type_local_var: {
             compile_stmt_local_var(func, the_block, stmt);
+            break;
+        }
+        case syntax_tree_type::syntax_tree_type_assign: {
+            compile_stmt_assign(func, the_block, stmt);
             break;
         }
         default: {
@@ -498,14 +502,14 @@ std::string gcc_jitter::location_str(const syntax_tree_interface_ptr &ptr) {
     return std::format("{}:{}:{}", file_name_, ptr->loc().begin.line, ptr->loc().begin.column);
 }
 
-gccjit::rvalue gcc_jitter::compile_var(const syntax_tree_interface_ptr &v, bool is_const) {
+gccjit::lvalue gcc_jitter::compile_var(const syntax_tree_interface_ptr &v, bool is_const) {
     check_syntax_tree_type(v, {syntax_tree_type::syntax_tree_type_var});
     auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(v);
 
     const auto &type = v_ptr->get_type();
     if (type == "simple") {
         const auto &name = v_ptr->get_name();
-        return find_rvalue_by_name(name, v_ptr);
+        return find_lvalue_by_name(name, v_ptr);
     } else if (type == "square") {
         // TODO
         return NULL;
@@ -517,7 +521,7 @@ gccjit::rvalue gcc_jitter::compile_var(const syntax_tree_interface_ptr &v, bool 
     }
 }
 
-gccjit::rvalue gcc_jitter::find_rvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr) {
+gccjit::lvalue gcc_jitter::find_lvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr) {
     // find in local vars in stack_frames_ by reverse
     for (auto iter = stack_frames_.rbegin(); iter != stack_frames_.rend(); ++iter) {
         auto &local_vars = iter->local_vars;
@@ -595,5 +599,38 @@ void gcc_jitter::compile_stmt_local_var(gccjit::function &function, gccjit::bloc
     }
 }
 
+std::vector<gccjit::lvalue> gcc_jitter::compile_varlist(gccjit::function &func, gccjit::block &the_block,
+                                                        const syntax_tree_interface_ptr &varlist) {
+    check_syntax_tree_type(varlist, {syntax_tree_type::syntax_tree_type_varlist});
+    auto varlist_ptr = std::dynamic_pointer_cast<syntax_tree_varlist>(varlist);
+
+    std::vector<gccjit::lvalue> ret;
+    auto &vars = varlist_ptr->vars();
+    for (auto &var: vars) {
+        auto lvalue = compile_var(var, false);
+        ret.push_back(lvalue);
+    }
+
+    return ret;
+}
+
+void gcc_jitter::compile_stmt_assign(gccjit::function &function, gccjit::block &the_block, const syntax_tree_interface_ptr &stmt) {
+    check_syntax_tree_type(stmt, {syntax_tree_type::syntax_tree_type_assign});
+    auto assign = std::dynamic_pointer_cast<syntax_tree_assign>(stmt);
+
+    auto vars = assign->varlist();
+    check_syntax_tree_type(vars, {syntax_tree_type::syntax_tree_type_varlist});
+    auto varlist_ptr = std::dynamic_pointer_cast<syntax_tree_varlist>(vars);
+    auto &vars_vec = varlist_ptr->vars();
+
+    auto varlist = compile_varlist(function, the_block, vars);
+
+    auto exps = assign->explist();
+    auto explist = compile_explist(function, the_block, exps);
+
+    for (size_t i = 0; i < varlist.size() && i < explist.size(); ++i) {
+        the_block.add_assignment(varlist[i], explist[i], new_location(vars_vec[i]));
+    }
+}
 
 }// namespace fakelua

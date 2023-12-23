@@ -47,9 +47,13 @@ private:
 
     gccjit::rvalue compile_prefixexp(const syntax_tree_interface_ptr &pe, bool is_const);
 
-    gccjit::rvalue compile_var(const syntax_tree_interface_ptr &v, bool is_const);
+    gccjit::lvalue compile_var(const syntax_tree_interface_ptr &v, bool is_const);
 
     void compile_stmt_local_var(gccjit::function &function, gccjit::block &the_block, const syntax_tree_interface_ptr &stmt);
+
+    void compile_stmt_assign(gccjit::function &function, gccjit::block &the_block, const syntax_tree_interface_ptr &stmt);
+
+    std::vector<gccjit::lvalue> compile_varlist(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &explist);
 
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
@@ -58,7 +62,7 @@ private:
 
     std::string location_str(const syntax_tree_interface_ptr &ptr);
 
-    gccjit::rvalue find_rvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr);
+    gccjit::lvalue find_lvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr);
 
     void save_stack_lvalue_by_name(const std::string &name, const gccjit::lvalue &value, const syntax_tree_interface_ptr &ptr);
 

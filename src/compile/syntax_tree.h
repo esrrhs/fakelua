@@ -209,6 +209,14 @@ public:
         explist_ = explist;
     }
 
+    syntax_tree_interface_ptr varlist() const {
+        return varlist_;
+    }
+
+    syntax_tree_interface_ptr explist() const {
+        return explist_;
+    }
+
 private:
     syntax_tree_interface_ptr varlist_;
     syntax_tree_interface_ptr explist_;
@@ -231,6 +239,10 @@ public:
 
     void add_var(const syntax_tree_interface_ptr &var) {
         vars_.push_back(var);
+    }
+
+    std::vector<syntax_tree_interface_ptr> &vars() {
+        return vars_;
     }
 
 private:
