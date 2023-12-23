@@ -187,6 +187,8 @@ private:
 };
 
 extern var const_null_var;
+extern var const_false_var;
+extern var const_true_var;
 
 typedef std::shared_ptr<var> var_ptr;
 

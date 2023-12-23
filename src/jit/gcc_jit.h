@@ -55,6 +55,12 @@ private:
 
     std::vector<gccjit::lvalue> compile_varlist(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &explist);
 
+    gccjit::rvalue compile_tableconstructor(const syntax_tree_interface_ptr &tc, bool is_const);
+
+    std::vector<gccjit::rvalue> compile_fieldlist(const syntax_tree_interface_ptr &fieldlist, bool is_const);
+
+    std::pair<gccjit::rvalue, gccjit::rvalue> compile_field(const syntax_tree_interface_ptr &field, bool is_const, int &index);
+
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
 

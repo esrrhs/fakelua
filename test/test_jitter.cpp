@@ -708,3 +708,62 @@ TEST(jitter, test_assign_not_match) {
     ASSERT_EQ(c, 3);
     ASSERT_EQ(d, 4);
 }
+
+TEST(jitter, test_assign_variadic_match) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    std::string a;
+    int b = 0;
+    L->compile_file("./jit/test_assign_variadic.lua", {});
+    L->call("test", std::tie(a, b), 1, "2");
+    ASSERT_EQ(a, "2");
+    ASSERT_EQ(b, 1);
+
+    a.clear();
+    b = 0;
+    L->compile_file("./jit/test_assign_variadic.lua", {debug_mode: false});
+    L->call("test", std::tie(a, b), 1, "2");
+    ASSERT_EQ(a, "2");
+    ASSERT_EQ(b, 1);
+}
+
+TEST(jitter, test_assign_variadic_no_match) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    int b = 0;
+    L->compile_file("./jit/test_assign_variadic_no_match.lua", {});
+    L->call("test", std::tie(a, b), 2, "2");
+    ASSERT_EQ(a, 1);
+    ASSERT_EQ(b, 2);
+
+    a = 0;
+    b = 0;
+    L->compile_file("./jit/test_assign_variadic_no_match.lua", {debug_mode: false});
+    L->call("test", std::tie(a, b), 2, "2");
+    ASSERT_EQ(a, 1);
+    ASSERT_EQ(b, 2);
+}
+
+TEST(jitter, test_assign_variadic_empty) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    var *b = nullptr;
+    L->compile_file("./jit/test_assign_variadic_no_match.lua", {});
+    L->call("test", std::tie(a, b));
+    ASSERT_EQ(a, 1);
+    ASSERT_NE(b, nullptr);
+    ASSERT_EQ(b->type(), var_type::VAR_NIL);
+
+    a = 0;
+    b = 0;
+    L->compile_file("./jit/test_assign_variadic_no_match.lua", {debug_mode: false});
+    L->call("test", std::tie(a, b));
+    ASSERT_EQ(a, 1);
+    ASSERT_NE(b, nullptr);
+    ASSERT_EQ(b->type(), var_type::VAR_NIL);
+}

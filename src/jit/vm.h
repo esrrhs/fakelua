@@ -85,6 +85,8 @@ extern "C" __attribute__((used)) var *new_const_var_float(gcc_jit_handle *h, dou
 
 extern "C" __attribute__((used)) var *new_const_var_string(gcc_jit_handle *h, const char *val, int len);
 
+extern "C" __attribute__((used)) var *new_const_var_table(gcc_jit_handle *h, int n, ...);
+
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s);
 
 extern "C" __attribute__((used)) var *new_var_false(fakelua_state *s);
@@ -97,8 +99,12 @@ extern "C" __attribute__((used)) var *new_var_float(fakelua_state *s, double val
 
 extern "C" __attribute__((used)) var *new_var_string(fakelua_state *s, const char *val, int len);
 
+extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, int n, ...);
+
 extern "C" __attribute__((used)) var *new_var_wrap(fakelua_state *s, var *val);
 
 extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, ...);
+
+extern "C" __attribute__((used)) void assign_var(fakelua_state *s, int left_n, int right_n, ...);
 
 }// namespace fakelua

@@ -6,23 +6,15 @@
 namespace fakelua {
 
 extern "C" __attribute__((used)) var *new_const_var_nil(gcc_jit_handle *h) {
-    auto ret = h->alloc_var();
-    ret->set_const(true);
-    return ret;
+    return &const_null_var;
 }
 
 extern "C" __attribute__((used)) var *new_const_var_false(gcc_jit_handle *h) {
-    auto ret = h->alloc_var();
-    ret->set_bool(false);
-    ret->set_const(true);
-    return ret;
+    return &const_false_var;
 }
 
 extern "C" __attribute__((used)) var *new_const_var_true(gcc_jit_handle *h) {
-    auto ret = h->alloc_var();
-    ret->set_bool(true);
-    ret->set_const(true);
-    return ret;
+    return &const_true_var;
 }
 
 extern "C" __attribute__((used)) var *new_const_var_int(gcc_jit_handle *h, int64_t val) {
@@ -46,21 +38,31 @@ extern "C" __attribute__((used)) var *new_const_var_string(gcc_jit_handle *h, co
     return ret;
 }
 
-extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s) {
-    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+extern "C" __attribute__((used)) var *new_const_var_table(gcc_jit_handle *h, int n, ...) {
+    auto ret = h->alloc_var();
+    ret->set_table();
+    // push ... to ret
+    va_list args;
+    va_start(args, n);
+    for (int i = 0; i < n; i += 2) {
+        auto k = va_arg(args, var *);
+        auto v = va_arg(args, var *);
+        ret->get_table().set(k, v);
+    }
+    va_end(args);
     return ret;
+}
+
+extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s) {
+    return &const_null_var;
 }
 
 extern "C" __attribute__((used)) var *new_var_false(fakelua_state *s) {
-    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
-    ret->set_bool(false);
-    return ret;
+    return &const_false_var;
 }
 
 extern "C" __attribute__((used)) var *new_var_true(fakelua_state *s) {
-    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
-    ret->set_bool(true);
-    return ret;
+    return &const_true_var;
 }
 
 extern "C" __attribute__((used)) var *new_var_int(fakelua_state *s, int64_t val) {
@@ -81,26 +83,62 @@ extern "C" __attribute__((used)) var *new_var_string(fakelua_state *s, const cha
     return ret;
 }
 
-extern "C" __attribute__((used)) var *new_var_wrap(fakelua_state *s, var *val) {
-    return val;
-}
-
-extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, ...) {
+extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, int n, ...) {
     auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
     ret->set_table();
     // push ... to ret
     va_list args;
     va_start(args, n);
-    int index = 0;
+    for (int i = 0; i < n; i += 2) {
+        auto k = va_arg(args, var *);
+        auto v = va_arg(args, var *);
+
+        if (!v->is_variadic()) {
+            ret->get_table().set(k, v);
+        } else {
+            if (v->type() != var_type::VAR_TABLE) {
+                auto type = v->type();
+                va_end(args);
+                throw_fakelua_exception(std::format("new_var_table: invalid variadic arg type {}", (int) type));
+                return nullptr;// cheat the cppcheck
+            }
+
+            auto &table = v->get_table();
+            table.range([ret](var *key, var *value) { ret->get_table().set(key, value); });
+        }
+    }
+    va_end(args);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *new_var_wrap(fakelua_state *s, var *val) {
+    return val;
+}
+
+extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, ...) {
+    std::vector<var *> params;
+    va_list args;
+    va_start(args, n);
     for (int i = 0; i < n; i++) {
         auto arg = va_arg(args, var *);
-
         if (arg->type() <= var_type::VAR_INVALID || arg->type() >= var_type::VAR_MAX) {
             auto type = arg->type();
             va_end(args);
             throw_fakelua_exception(std::format("wrap_return_var: invalid arg type {}", (int) type));
             return nullptr;// cheat the cppcheck
         }
+        params.push_back(arg);
+    }
+    va_end(args);
+
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    ret->set_table();
+    ret->set_variadic(true);
+
+    // push ... to ret
+    int index = 0;
+    for (size_t i = 0; i < params.size(); i++) {
+        auto arg = params[i];
 
         if (!arg->is_variadic()) {
             auto k = dynamic_cast<state *>(s)->get_var_pool().alloc();
@@ -109,9 +147,7 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, .
             index++;
         } else {
             if (arg->type() != var_type::VAR_TABLE) {
-                auto type = arg->type();
-                va_end(args);
-                throw_fakelua_exception(std::format("wrap_return_var: invalid variadic arg type {}", (int) type));
+                throw_fakelua_exception(std::format("wrap_return_var: invalid variadic arg type {}", (int) arg->type()));
                 return nullptr;// cheat the cppcheck
             }
 
@@ -127,8 +163,81 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, .
             }
         }
     }
-    va_end(args);
     return ret;
+}
+
+extern "C" __attribute__((used)) void assign_var(fakelua_state *s, int left_n, int right_n, ...) {
+    std::vector<var **> left;
+    std::vector<var *> right;
+    va_list args;
+    va_start(args, right_n);
+    for (int i = 0; i < left_n; i++) {
+        auto dst = va_arg(args, var **);
+        if ((*dst)->type() <= var_type::VAR_INVALID || (*dst)->type() >= var_type::VAR_MAX) {
+            auto type = (*dst)->type();
+            va_end(args);
+            throw_fakelua_exception(std::format("assign_var: invalid dst type {}", (int) type));
+            return;// cheat the cppcheck
+        }
+        left.push_back(dst);
+    }
+    for (int i = 0; i < right_n; i++) {
+        auto arg = va_arg(args, var *);
+        if (arg->type() <= var_type::VAR_INVALID || arg->type() >= var_type::VAR_MAX) {
+            auto type = arg->type();
+            va_end(args);
+            throw_fakelua_exception(std::format("assign_var: invalid arg type {}", (int) type));
+            return;// cheat the cppcheck
+        }
+        right.push_back(arg);
+    }
+    va_end(args);
+
+    // local a, b, c = ...
+    if (right_n == 1 && right[0]->is_variadic()) {
+        auto v = right[0];
+        if (v->type() != var_type::VAR_TABLE) {
+            throw_fakelua_exception(std::format("assign_var: invalid variadic arg type {}", (int) v->type()));
+            return;// cheat the cppcheck
+        }
+
+        for (size_t i = 0; i < left.size(); i++) {
+            auto dst = left[i];
+            auto &table = v->get_table();
+            if (i < table.size()) {
+                var tmp;
+                tmp.set_int(i + 1);
+                *dst = table.get(&tmp);
+            } else {
+                break;
+            }
+        }
+
+        return;
+    }
+
+    // local a, b, c = x, y, z
+    for (size_t i = 0; i < left.size(); i++) {
+        auto dst = left[i];
+        if (i < right.size()) {
+            auto v = right[i];
+            if (!v->is_variadic()) {
+                *dst = v;
+            } else {
+                if (v->type() != var_type::VAR_TABLE) {
+                    throw_fakelua_exception(std::format("assign_var: invalid variadic arg type {}", (int) v->type()));
+                    return;// cheat the cppcheck
+                }
+
+                auto &table = v->get_table();
+                var tmp;
+                tmp.set_int(1);
+                *dst = table.get(&tmp);
+            }
+        } else {
+            break;
+        }
+    }
 }
 
 }// namespace fakelua

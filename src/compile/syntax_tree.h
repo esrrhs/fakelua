@@ -382,6 +382,10 @@ public:
         fieldlist_ = fieldlist;
     }
 
+    syntax_tree_interface_ptr fieldlist() const {
+        return fieldlist_;
+    }
+
 private:
     syntax_tree_interface_ptr fieldlist_;
 };
@@ -403,6 +407,10 @@ public:
 
     void add_field(const syntax_tree_interface_ptr &field) {
         fields_.push_back(field);
+    }
+
+    std::vector<syntax_tree_interface_ptr> &fields() {
+        return fields_;
     }
 
 private:
@@ -438,6 +446,22 @@ public:
 
     void set_type(const std::string &type) {
         type_ = type;
+    }
+
+    syntax_tree_interface_ptr key() const {
+        return key_;
+    }
+
+    syntax_tree_interface_ptr value() const {
+        return value_;
+    }
+
+    std::string name() const {
+        return name_;
+    }
+
+    std::string get_type() const {
+        return type_;
     }
 
 private:

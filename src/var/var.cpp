@@ -7,6 +7,8 @@
 namespace fakelua {
 
 var const_null_var;
+var const_false_var(false);
+var const_true_var(true);
 
 var::var(const fakelua_state_ptr &s, const std::string &val) : type_(var_type::VAR_STRING) {
     auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();

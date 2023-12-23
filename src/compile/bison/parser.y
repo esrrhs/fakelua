@@ -1179,7 +1179,6 @@ tableconstructor:
     {
         LOG_INFO("[bison]: tableconstructor: LCURLY RCURLY");
         auto tableconstructor = std::make_shared<fakelua::syntax_tree_tableconstructor>(@1);
-        tableconstructor->set_fieldlist(std::make_shared<fakelua::syntax_tree_empty>(@1));
         $$ = tableconstructor;
     }
     ;
