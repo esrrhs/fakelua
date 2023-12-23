@@ -59,7 +59,7 @@ private:
 
     std::vector<gccjit::rvalue> compile_fieldlist(const syntax_tree_interface_ptr &fieldlist, bool is_const);
 
-    std::pair<gccjit::rvalue, gccjit::rvalue> compile_field(const syntax_tree_interface_ptr &field, bool is_const, int &index);
+    std::pair<gccjit::rvalue, gccjit::rvalue> compile_field(const syntax_tree_interface_ptr &field, bool is_const);
 
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);

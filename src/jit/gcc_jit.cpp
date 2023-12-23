@@ -690,9 +690,8 @@ std::vector<gccjit::rvalue> gcc_jitter::compile_fieldlist(const syntax_tree_inte
 
     std::vector<gccjit::rvalue> ret;
     auto &fields = fieldlist_ptr->fields();
-    int index = 1;
     for (auto &field: fields) {
-        auto field_ret = compile_field(field, is_const, index);
+        auto field_ret = compile_field(field, is_const);
         ret.push_back(field_ret.first);
         ret.push_back(field_ret.second);
     }
@@ -700,7 +699,7 @@ std::vector<gccjit::rvalue> gcc_jitter::compile_fieldlist(const syntax_tree_inte
     return ret;
 }
 
-std::pair<gccjit::rvalue, gccjit::rvalue> gcc_jitter::compile_field(const syntax_tree_interface_ptr &field, bool is_const, int &index) {
+std::pair<gccjit::rvalue, gccjit::rvalue> gcc_jitter::compile_field(const syntax_tree_interface_ptr &field, bool is_const) {
     check_syntax_tree_type(field, {syntax_tree_type::syntax_tree_type_field});
     auto field_ptr = std::dynamic_pointer_cast<syntax_tree_field>(field);
 
@@ -725,12 +724,9 @@ std::pair<gccjit::rvalue, gccjit::rvalue> gcc_jitter::compile_field(const syntax
             auto k_ret = compile_exp(key, is_const);
             ret.first = k_ret;
         } else {
-            auto k = std::make_shared<syntax_tree_exp>(field->loc());
-            k->set_type("number");
-            k->set_value(std::to_string(index));
-            auto k_ret = compile_exp(k, is_const);
+            // use nullptr key, means use the auto increment key
+            auto k_ret = gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR), nullptr);
             ret.first = k_ret;
-            ++index;
         }
 
         auto exp = field_ptr->value();

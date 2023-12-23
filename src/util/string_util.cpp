@@ -1,5 +1,4 @@
 #include "string_util.h"
-#include "exception.h"
 
 namespace fakelua {
 

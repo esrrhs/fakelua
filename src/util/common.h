@@ -30,6 +30,7 @@
 #include <set>
 #include <shared_mutex>
 #include <signal.h>
+#include <source_location>
 #include <sstream>
 #include <stack>
 #include <stdarg.h>
@@ -53,11 +54,9 @@
 #include <execinfo.h>
 #endif
 
-// include glog here, so that we can use glog in all files
-// and maybe someday we can replace glog with our own log
-#include "logging.h"
-
 #include "const_define.h"
-#include "string_util.h"
-
+#include "debug.h"
+#include "exception.h"
+#include "logging.h"
 #include "magic_enum.hpp"
+#include "string_util.h"
