@@ -1,7 +1,4 @@
 #include "fakelua.h"
-#ifdef __linux__
-#include "gperftools/profiler.h"
-#endif
 #include "state/state.h"
 #include "util/common.h"
 
