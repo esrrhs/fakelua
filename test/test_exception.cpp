@@ -155,3 +155,11 @@ TEST(exception, compile_no_file) {
         ASSERT_TRUE(std::string(e.what()).find("open file failed") != std::string::npos);
     }
 }
+
+TEST(exception, compile_empty_string) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    L->compile_string("", {});
+}

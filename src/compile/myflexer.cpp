@@ -23,9 +23,6 @@ void myflexer::input_file(const std::string &file) {
 }
 
 void myflexer::input_string(const std::string &str) {
-    if (str.empty()) {
-        throw_fakelua_exception("input string is empty");
-    }
     filename_ = generate_tmp_file(str);
     location_.initialize(&filename_);
     set_debug(0);
