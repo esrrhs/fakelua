@@ -127,3 +127,17 @@ TEST(exception, variadic_function_call_exception) {
         ASSERT_TRUE(std::string(e.what()).find("not match") != std::string::npos);
     }
 }
+
+TEST(exception, compile_fail) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_compile_fail.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("syntax error") != std::string::npos);
+    }
+}
