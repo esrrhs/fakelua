@@ -111,3 +111,19 @@ TEST(exception, function_call_exception) {
         ASSERT_TRUE(std::string(e.what()).find("not found") != std::string::npos);
     }
 }
+
+TEST(exception, variadic_function_call_exception) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    L->compile_file("./exception/test_variadic_function_call_exception.lua", {});
+
+    try {
+        L->call("test", std::tie(), 1);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("not match") != std::string::npos);
+    }
+}
