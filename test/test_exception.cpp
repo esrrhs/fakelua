@@ -7,6 +7,7 @@ using namespace fakelua;
 TEST(exception, function_param_duplicate) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
 
     try {
         L->compile_file("./exception/test_function_param_duplicate.lua", {});
@@ -20,6 +21,7 @@ TEST(exception, function_param_duplicate) {
 TEST(exception, function_param_local_duplicate) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
 
     try {
         L->compile_file("./exception/test_function_param_local_duplicate.lua", {});
@@ -33,6 +35,7 @@ TEST(exception, function_param_local_duplicate) {
 TEST(exception, local_define_duplicate) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
 
     try {
         L->compile_file("./exception/test_local_define_duplicate.lua", {});
@@ -46,6 +49,7 @@ TEST(exception, local_define_duplicate) {
 TEST(exception, const_define_duplicate) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
 
     try {
         L->compile_file("./exception/test_const_define_duplicate.lua", {});
@@ -59,6 +63,7 @@ TEST(exception, const_define_duplicate) {
 TEST(exception, const_define_no_match) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
 
     try {
         L->compile_file("./exception/test_const_define_no_match.lua", {});
@@ -72,6 +77,7 @@ TEST(exception, const_define_no_match) {
 TEST(exception, const_define_no_value) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
 
     try {
         L->compile_file("./exception/test_const_define_no_value.lua", {});

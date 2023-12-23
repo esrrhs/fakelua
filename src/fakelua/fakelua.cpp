@@ -355,4 +355,8 @@ fakelua_state_ptr fakelua_newstate() {
     return std::make_shared<state>();
 }
 
+void fakelua_state::set_debug_log_level(int level) {
+    set_log_level((log_level) level);
+}
+
 }// namespace fakelua

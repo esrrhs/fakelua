@@ -18,8 +18,6 @@ public:
 
     virtual void compile_string(const std::string &str, compile_config cfg) override;
 
-    virtual void set_var_interface_new_func(std::function<var_interface *()> func) override;
-
     // call before running. this will reset the state. just for speed.
     void reset() {
         var_string_heap_.reset();
@@ -38,15 +36,10 @@ public:
         return vm_;
     }
 
-    std::function<var_interface *()> &get_var_interface_new_func() {
-        return var_interface_new_func_;
-    }
-
 private:
     var_string_heap var_string_heap_;
     var_pool var_pool_;
     vm vm_;
-    std::function<var_interface *()> var_interface_new_func_;
 };
 
 }// namespace fakelua

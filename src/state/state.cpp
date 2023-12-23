@@ -25,8 +25,4 @@ void state::compile_string(const std::string &str, compile_config cfg) {
     LOG_INFO("compile_string ok {}", result.file_name);
 }
 
-void state::set_var_interface_new_func(std::function<var_interface *()> func) {
-    var_interface_new_func_ = func;
-}
-
 }// namespace fakelua

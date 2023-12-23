@@ -184,7 +184,21 @@ public:
     void call(const std::string &name, std::tuple<Rets &...> &&rets, Args &&...args);
 
     // set var_interface new instance function
-    virtual void set_var_interface_new_func(std::function<var_interface *()> func) = 0;
+    void set_var_interface_new_func(std::function<var_interface *()> func) {
+        var_interface_new_func_ = func;
+    }
+
+    // get var_interface new instance function
+    std::function<var_interface *()> &get_var_interface_new_func() {
+        return var_interface_new_func_;
+    }
+
+    // set global debug log level, note all state will be set.
+    // 0: off, 1: error, 2: info, default is error.
+    void set_debug_log_level(int level);
+
+private:
+    std::function<var_interface *()> var_interface_new_func_;
 };
 
 using fakelua_state_ptr = std::shared_ptr<fakelua_state>;
@@ -409,12 +423,14 @@ void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, 
     var *ret_var = nullptr;
     if (!is_variadic) {
         if (sizeof...(Args) != (size_t) arg_count) {
-            inter::throw_inter_fakelua_exception(std::format("function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
+            inter::throw_inter_fakelua_exception(
+                    std::format("function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
         }
         ret_var = reinterpret_cast<var *(*) (...)>(addr)(inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...);
     } else {
         if (sizeof...(Args) < (size_t) arg_count) {
-            inter::throw_inter_fakelua_exception(std::format("function {} arg count not match, need >= {} get {}", name, arg_count, sizeof...(Args)));
+            inter::throw_inter_fakelua_exception(
+                    std::format("function {} arg count not match, need >= {} get {}", name, arg_count, sizeof...(Args)));
         }
         // save the variadic args to a table
         var *args_array[sizeof...(Args) + 1] = {nullptr, inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...};
