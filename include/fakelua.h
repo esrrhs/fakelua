@@ -402,7 +402,7 @@ void *get_func_addr(fakelua_state_ptr s, const std::string &name, int &arg_count
 
 var *make_variadic_table(fakelua_state_ptr s, int start, int n, var **args);
 
-void throw_inter_fakelua_exception(const std::string &msg);
+[[noreturn]] void throw_inter_fakelua_exception(const std::string &msg);
 
 }// namespace inter
 

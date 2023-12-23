@@ -87,3 +87,27 @@ TEST(exception, const_define_no_value) {
         ASSERT_TRUE(std::string(e.what()).find("useless") != std::string::npos);
     }
 }
+
+TEST(exception, function_call_exception) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    L->compile_file("./exception/test_function_call_exception.lua", {});
+
+    try {
+        L->call("test", std::tie(), 1, 2, 3);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("not match") != std::string::npos);
+    }
+
+    try {
+        L->call("test1", std::tie(), 1, 2, 3);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("not found") != std::string::npos);
+    }
+}
