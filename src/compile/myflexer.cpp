@@ -14,7 +14,7 @@ myflexer::~myflexer() {
 void myflexer::input_file(const std::string &file) {
     file_.open(file.data(), std::ios::binary);
     if (file_.fail()) {
-        throw_fakelua_exception("open file failed");
+        throw_fakelua_exception("open file failed " + file);
     }
     filename_ = file;
     location_.initialize(&filename_);
