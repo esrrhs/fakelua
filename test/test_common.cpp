@@ -50,3 +50,8 @@ TEST(common, escapse_string) {
     dst = replace_escape_chars(src);
     ASSERT_EQ(dst, "aa");
 }
+
+TEST(common, logging) {
+    set_log_level(log_level::Info);
+    LOG_INFO("Hello, World!");
+}
