@@ -943,3 +943,39 @@ TEST(jitter, test_local_nested_table) {
         delete i;
     }
 }
+
+TEST(jitter, test_local_table_with_variadic) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    std::vector<var_interface *> tmp;
+    auto newfunc = [&]() {
+        auto ret = new simple_var_impl();
+        tmp.push_back(ret);
+        return ret;
+    };
+    L->set_var_interface_new_func(newfunc);
+
+    var_interface *t = nullptr;
+    L->compile_file("./jit/test_local_table_with_variadic.lua", {});
+    L->call("test", std::tie(t), "a", "b", "c");
+    ASSERT_NE(t, nullptr);
+    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+
+    // need sort kv
+    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
+    ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"a\"\n\t[2] = \"b\"\n\t[3] = \"c\"");
+
+    t = nullptr;
+    L->compile_file("./jit/test_local_table_with_variadic.lua", {debug_mode: false});
+    L->call("test", std::tie(t), "a", "b", "c");
+    ASSERT_NE(t, nullptr);
+    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+
+    // need sort kv
+    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
+    ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"a\"\n\t[2] = \"b\"\n\t[3] = \"c\"");
+
+    for (auto &i: tmp) {
+        delete i;
+    }
+}
