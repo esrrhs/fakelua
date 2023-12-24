@@ -847,3 +847,99 @@ TEST(jitter, test_const_nested_table) {
         delete i;
     }
 }
+
+TEST(jitter, test_local_table) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    std::vector<var_interface *> tmp;
+    auto newfunc = [&]() {
+        auto ret = new simple_var_impl();
+        tmp.push_back(ret);
+        return ret;
+    };
+    L->set_var_interface_new_func(newfunc);
+
+    var_interface *t1 = nullptr;
+    var_interface *t2 = nullptr;
+    var_interface *t3 = nullptr;
+    L->compile_file("./jit/test_local_table.lua", {});
+    L->call("test", std::tie(t1, t2, t3));
+    ASSERT_NE(t1, nullptr);
+    ASSERT_EQ(t1->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_NE(t2, nullptr);
+    ASSERT_EQ(t2->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_NE(t3, nullptr);
+    ASSERT_EQ(t3->vi_get_type(), var_interface::type::TABLE);
+
+    // need sort kv
+    dynamic_cast<simple_var_impl *>(t1)->vi_sort_table();
+    dynamic_cast<simple_var_impl *>(t2)->vi_sort_table();
+    dynamic_cast<simple_var_impl *>(t3)->vi_sort_table();
+    ASSERT_EQ(t1->vi_to_string(),
+              "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
+    ASSERT_EQ(t2->vi_to_string(), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
+    ASSERT_EQ(t3->vi_to_string(), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
+
+    t1 = nullptr;
+    t2 = nullptr;
+    t3 = nullptr;
+    L->compile_file("./jit/test_local_table.lua", {debug_mode: false});
+    L->call("test", std::tie(t1, t2, t3));
+    ASSERT_NE(t1, nullptr);
+    ASSERT_EQ(t1->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_NE(t2, nullptr);
+    ASSERT_EQ(t2->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_NE(t3, nullptr);
+    ASSERT_EQ(t3->vi_get_type(), var_interface::type::TABLE);
+
+    // need sort kv
+    dynamic_cast<simple_var_impl *>(t1)->vi_sort_table();
+    dynamic_cast<simple_var_impl *>(t2)->vi_sort_table();
+    dynamic_cast<simple_var_impl *>(t3)->vi_sort_table();
+    ASSERT_EQ(t1->vi_to_string(),
+              "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
+    ASSERT_EQ(t2->vi_to_string(), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
+    ASSERT_EQ(t3->vi_to_string(), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
+
+    for (auto &i: tmp) {
+        delete i;
+    }
+}
+
+TEST(jitter, test_local_nested_table) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    std::vector<var_interface *> tmp;
+    auto newfunc = [&]() {
+        auto ret = new simple_var_impl();
+        tmp.push_back(ret);
+        return ret;
+    };
+    L->set_var_interface_new_func(newfunc);
+
+    var_interface *t = nullptr;
+    L->compile_file("./jit/test_local_nested_table.lua", {});
+    L->call("test", std::tie(t));
+    ASSERT_NE(t, nullptr);
+    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+
+    // need sort kv
+    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
+    ASSERT_EQ(t->vi_to_string(), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
+                                 "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+
+    t = nullptr;
+    L->compile_file("./jit/test_local_nested_table.lua", {debug_mode: false});
+    L->call("test", std::tie(t));
+    ASSERT_NE(t, nullptr);
+    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+
+    // need sort kv
+    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
+    ASSERT_EQ(t->vi_to_string(), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
+                                 "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+
+    for (auto &i: tmp) {
+        delete i;
+    }
+}
