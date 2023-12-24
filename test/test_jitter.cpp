@@ -979,3 +979,75 @@ TEST(jitter, test_local_table_with_variadic) {
         delete i;
     }
 }
+
+TEST(jitter, test_local_table_with_variadic_no_end) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    std::vector<var_interface *> tmp;
+    auto newfunc = [&]() {
+        auto ret = new simple_var_impl();
+        tmp.push_back(ret);
+        return ret;
+    };
+    L->set_var_interface_new_func(newfunc);
+
+    var_interface *t = nullptr;
+    L->compile_file("./jit/test_local_table_with_variadic_no_end.lua", {});
+    L->call("test", std::tie(t), "a", "b", "c", "d", "e");
+    ASSERT_NE(t, nullptr);
+    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+
+    // need sort kv
+    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
+    ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"c\"\n\t[2] = \"a\"\n\t[3] = \"b\"");
+
+    t = nullptr;
+    L->compile_file("./jit/test_local_table_with_variadic_no_end.lua", {debug_mode: false});
+    L->call("test", std::tie(t), "a", "b", "c", "d", "e");
+    ASSERT_NE(t, nullptr);
+    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+
+    // need sort kv
+    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
+    ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"c\"\n\t[2] = \"a\"\n\t[3] = \"b\"");
+
+    for (auto &i: tmp) {
+        delete i;
+    }
+}
+
+TEST(jitter, test_local_table_with_variadic_no_end_replace) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    std::vector<var_interface *> tmp;
+    auto newfunc = [&]() {
+        auto ret = new simple_var_impl();
+        tmp.push_back(ret);
+        return ret;
+    };
+    L->set_var_interface_new_func(newfunc);
+
+    var_interface *t = nullptr;
+    L->compile_file("./jit/test_local_table_with_variadic_no_end_replace.lua", {});
+    L->call("test", std::tie(t), "a", "b", "c", "d", "e");
+    ASSERT_NE(t, nullptr);
+    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+
+    // need sort kv
+    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
+    ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"c\"\n\t[2] = \"b\"");
+
+    t = nullptr;
+    L->compile_file("./jit/test_local_table_with_variadic_no_end_replace.lua", {debug_mode: false});
+    L->call("test", std::tie(t), "a", "b", "c", "d", "e");
+    ASSERT_NE(t, nullptr);
+    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+
+    // need sort kv
+    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
+    ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"c\"\n\t[2] = \"b\"");
+
+    for (auto &i: tmp) {
+        delete i;
+    }
+}
