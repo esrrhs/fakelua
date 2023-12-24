@@ -49,17 +49,34 @@ extern "C" __attribute__((used)) var *new_const_var_string(gcc_jit_handle *h, co
 extern "C" __attribute__((used)) var *new_const_var_table(gcc_jit_handle *h, int n, ...) {
     DEBUG_ASSERT(h);
     DEBUG_ASSERT(n % 2 == 0);
+    std::vector<var *> keys;
+    std::vector<var *> values;
+    va_list args;
+    va_start(args, n);
+    for (int i = 0; i < n; i++) {
+        auto arg = va_arg(args, var *);
+        DEBUG_ASSERT(!arg || (arg->type() > var_type::VAR_INVALID && arg->type() < var_type::VAR_MAX));
+        keys.push_back(arg);
+        arg = va_arg(args, var *);
+        DEBUG_ASSERT(arg->type() > var_type::VAR_INVALID && arg->type() < var_type::VAR_MAX);
+        values.push_back(arg);
+    }
+    va_end(args);
+
     auto ret = h->alloc_var();
     ret->set_table();
     // push ... to ret
-    va_list args;
-    va_start(args, n);
-    for (int i = 0; i < n; i += 2) {
-        auto k = va_arg(args, var *);
-        auto v = va_arg(args, var *);
+    int index = 1;
+    for (size_t i = 0; i < keys.size(); i++) {
+        auto k = keys[i];
+        if (!k) {
+            k = h->alloc_var();
+            k->set_int(index);
+            index++;
+        }
+        auto v = values[i];
         ret->get_table().set(k, v);
     }
-    va_end(args);
     return ret;
 }
 
@@ -104,34 +121,64 @@ extern "C" __attribute__((used)) var *new_var_string(fakelua_state *s, const cha
 extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, int n, ...) {
     DEBUG_ASSERT(s);
     DEBUG_ASSERT(n % 2 == 0);
-    DEBUG_ASSERT(n >= 0);
-    std::vector<var *> params;
+    std::vector<var *> keys;
+    std::vector<var *> values;
     va_list args;
     va_start(args, n);
     for (int i = 0; i < n; i++) {
         auto arg = va_arg(args, var *);
         DEBUG_ASSERT(!arg || (arg->type() > var_type::VAR_INVALID && arg->type() < var_type::VAR_MAX));
-        params.push_back(arg);
+        keys.push_back(arg);
+        arg = va_arg(args, var *);
+        DEBUG_ASSERT(arg->type() > var_type::VAR_INVALID && arg->type() < var_type::VAR_MAX);
+        values.push_back(arg);
     }
     va_end(args);
 
     auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
     ret->set_table();
     // push ... to ret
-    for (size_t i = 0; i < params.size(); i += 2) {
-        auto k = va_arg(args, var *);
-        auto v = va_arg(args, var *);
+    int index = 1;
+    for (size_t i = 0; i < keys.size(); i++) {
+        auto k = keys[i];
+        auto v = values[i];
 
-        if (!v->is_variadic()) {
-            ret->get_table().set(k, v);
-        } else {
+        // a = { ... }
+        if (!k && i == keys.size() - 1 && v->is_variadic()) {
             DEBUG_ASSERT(v->type() == var_type::VAR_TABLE);
 
             auto &table = v->get_table();
-            table.range([ret](var *key, var *value) { ret->get_table().set(key, value); });
+            for (int j = 1; j <= (int) table.size(); j++) {
+                auto key = dynamic_cast<state *>(s)->get_var_pool().alloc();
+                key->set_int(index);
+                var tmp;
+                tmp.set_int(j);
+                auto value = table.get(&tmp);
+                ret->get_table().set(key, value);
+                index++;
+            }
+        } else {
+            if (!k) {
+                // local a = {x, y, z}  ->  local a = {[1]=x, [2]=y, [3]=z}
+                k = dynamic_cast<state *>(s)->get_var_pool().alloc();
+                k->set_int(index);
+                index++;
+            }
+            if (!v->is_variadic()) {
+                ret->get_table().set(k, v);
+            } else {
+                // local a = {x, ..., z}
+                DEBUG_ASSERT(v->type() == var_type::VAR_TABLE);
+
+                auto &table = v->get_table();
+                // get 1st element
+                var tmp;
+                tmp.set_int(1);
+                auto first = table.get(&tmp);
+                ret->get_table().set(k, first);
+            }
         }
     }
-    va_end(args);
     return ret;
 }
 
