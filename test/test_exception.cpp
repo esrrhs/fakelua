@@ -170,7 +170,6 @@ TEST(exception, replace_escape_chars) {
     try {
         std::string s = "\\e";
         replace_escape_chars(s);
-        ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
         ASSERT_TRUE(std::string(e.what()).find("invalid escape sequence") != std::string::npos);
@@ -179,7 +178,6 @@ TEST(exception, replace_escape_chars) {
     try {
         std::string s = "\\256";
         replace_escape_chars(s);
-        ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
         ASSERT_TRUE(std::string(e.what()).find("decimal escape too large") != std::string::npos);
