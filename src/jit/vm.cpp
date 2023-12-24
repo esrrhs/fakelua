@@ -53,7 +53,7 @@ extern "C" __attribute__((used)) var *new_const_var_table(gcc_jit_handle *h, int
     std::vector<var *> values;
     va_list args;
     va_start(args, n);
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i += 2) {
         auto arg = va_arg(args, var *);
         DEBUG_ASSERT(!arg || (arg->type() > var_type::VAR_INVALID && arg->type() < var_type::VAR_MAX));
         keys.push_back(arg);
@@ -125,7 +125,7 @@ extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, int n, ...
     std::vector<var *> values;
     va_list args;
     va_start(args, n);
-    for (int i = 0; i < n; i++) {
+    for (int i = 0; i < n; i += 2) {
         auto arg = va_arg(args, var *);
         DEBUG_ASSERT(!arg || (arg->type() > var_type::VAR_INVALID && arg->type() < var_type::VAR_MAX));
         keys.push_back(arg);

@@ -677,6 +677,9 @@ gccjit::rvalue gcc_jitter::compile_tableconstructor(const syntax_tree_interface_
     std::vector<gccjit::rvalue> args;
     args.push_back(gccjit_context_->new_rvalue(the_var_type, is_const ? (void *) gcc_jit_handle_.get() : (void *) sp_.get()));
     args.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_INT), (int) kvs.size()));
+    for (auto &kv: kvs) {
+        args.push_back(kv);
+    }
 
     gccjit::function new_table_func =
             gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 1, new_location(tc));

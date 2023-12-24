@@ -47,7 +47,7 @@ struct var_interface {
 
     virtual std::pair<var_interface *, var_interface *> vi_get_table_kv(int index) const = 0;
 
-    virtual std::string to_string(int tab = 0) const = 0;
+    virtual std::string vi_to_string(int tab = 0) const = 0;
 };
 
 // simple var implement, just for simple use.
@@ -113,7 +113,7 @@ struct simple_var_impl : public var_interface {
         return table_[index];
     }
 
-    std::string to_string(int tab = 0) const override {
+    std::string vi_to_string(int tab = 0) const override {
         std::string ret;
         switch (type_) {
             case type::NIL:
@@ -134,8 +134,8 @@ struct simple_var_impl : public var_interface {
             case type::TABLE:
                 ret = "table:";
                 for (auto &kv: table_) {
-                    ret += std::format("\n{}[{}] = {}", std::string(tab + 1, '\t'), kv.first->to_string(tab + 1),
-                                       kv.second->to_string(tab + 1));
+                    ret += std::format("\n{}[{}] = {}", std::string(tab + 1, '\t'), kv.first->vi_to_string(tab + 1),
+                                       kv.second->vi_to_string(tab + 1));
                 }
                 break;
             default:
@@ -143,6 +143,36 @@ struct simple_var_impl : public var_interface {
         }
 
         return ret;
+    }
+
+    // sort table by key, just for debug
+    void vi_sort_table() {
+        std::sort(table_.begin(), table_.end(), [](const auto &a, const auto &b) {
+            if (a.first->vi_get_type() != b.first->vi_get_type()) {
+                return a.first->vi_get_type() < b.first->vi_get_type();
+            }
+            switch (a.first->vi_get_type()) {
+                case type::NIL:
+                    return false;
+                case type::BOOL:
+                    return a.first->vi_get_bool() < b.first->vi_get_bool();
+                case type::INT:
+                    return a.first->vi_get_int() < b.first->vi_get_int();
+                case type::FLOAT:
+                    return a.first->vi_get_float() < b.first->vi_get_float();
+                case type::STRING:
+                    return a.first->vi_get_string() < b.first->vi_get_string();
+                case type::TABLE:
+                    return a.first->vi_get_table_size() < b.first->vi_get_table_size();
+                default:
+                    return false;
+            }
+        });
+        for (auto &kv: table_) {
+            if (kv.second->vi_get_type() == type::TABLE) {
+                dynamic_cast<simple_var_impl *>(kv.second)->vi_sort_table();
+            }
+        }
     }
 
     type type_ = type::NIL;
