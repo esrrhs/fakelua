@@ -74,7 +74,7 @@ std::string replace_escape_chars(const std::string &str) {
                     break;
                 default:
                     if (!isdigit(*it)) {
-                        throw_fakelua_exception("invalid escape sequence \\" + *it);
+                        throw_fakelua_exception(std::format("invalid escape sequence \\{}", *it));
                     }
                     // read up to 3 digits
                     int r = 0; /* result accumulator */

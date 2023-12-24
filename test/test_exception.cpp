@@ -156,10 +156,32 @@ TEST(exception, compile_no_file) {
     }
 }
 
-TEST(exception, compile_empty_string) {
-    auto L = fakelua_newstate();
-    ASSERT_NE(L.get(), nullptr);
-    L->set_debug_log_level(0);
+TEST(exception, debug_assert) {
+    try {
+        DEBUG_ASSERT(false);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("assert fail") != std::string::npos);
+    }
+}
 
-    L->compile_string("", {});
+TEST(exception, replace_escape_chars) {
+    try {
+        std::string s = "\\e";
+        replace_escape_chars(s);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("invalid escape sequence") != std::string::npos);
+    }
+
+    try {
+        std::string s = "\\256";
+        replace_escape_chars(s);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("decimal escape too large") != std::string::npos);
+    }
 }

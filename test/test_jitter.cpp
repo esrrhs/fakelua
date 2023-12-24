@@ -1051,3 +1051,10 @@ TEST(jitter, test_local_table_with_variadic_no_end_replace) {
         delete i;
     }
 }
+
+TEST(jitter, compile_empty_string) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    L->compile_string("", {});
+}
