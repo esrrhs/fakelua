@@ -60,6 +60,20 @@ TEST(exception, const_define_duplicate) {
     }
 }
 
+TEST(exception, const_define_func_param_duplicate) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_const_define_func_param_duplicate.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("duplicate") != std::string::npos);
+    }
+}
+
 TEST(exception, const_define_no_match) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
