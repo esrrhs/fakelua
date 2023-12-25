@@ -165,6 +165,16 @@ TEST(exception, debug_assert) {
     }
 }
 
+TEST(exception, debug_assert_fail) {
+    try {
+        debug_assert_fail("false");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("assert fail") != std::string::npos);
+    }
+}
+
 TEST(exception, replace_escape_chars) {
     try {
         std::string s = "\\e";
