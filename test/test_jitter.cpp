@@ -106,13 +106,13 @@ TEST(jitter, empty_local_func) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
-    L->compile_file("./jit/test_local_empty_func.lua", {});
+    L->compile_file("./jit/test_empty_local_func.lua", {});
     var *ret = 0;
     L->call("test", std::tie(ret));
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
 
-    L->compile_file("./jit/test_local_empty_func.lua", {debug_mode: false});
+    L->compile_file("./jit/test_empty_local_func.lua", {debug_mode: false});
     L->call("test", std::tie(ret));
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
