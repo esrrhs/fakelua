@@ -57,10 +57,7 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
 
     // at last, compile the chunk
     auto result = gccjit_context_->compile();
-    if (!result) {
-        // should not happen, but just in case
-        throw_fakelua_exception("gcc_jitter compile failed");
-    }
+    DEBUG_ASSERT(result);
     gcc_jit_handle_->set_result(result);
 
     // dump to file
@@ -81,9 +78,7 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
         auto &name = ele.first;
         auto &info = ele.second;
         auto func = gcc_jit_result_get_code(result, name.c_str());
-        if (!func) {
-            throw_fakelua_exception("gcc_jit_result_get_code failed " + name);
-        }
+        DEBUG_ASSERT(func);
         std::dynamic_pointer_cast<state>(sp_)->get_vm().register_function(
                 name, std::make_shared<vm_function>(gcc_jit_handle_, func, info.params_count, info.is_variadic));
         LOG_INFO("register function: {}", name);
