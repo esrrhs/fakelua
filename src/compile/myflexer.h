@@ -24,10 +24,6 @@ public:
     // implement in scanner.cpp
     yy::parser::symbol_type my_yylex();
 
-    int yylex() {
-        return 0;
-    }
-
     // set the input lua file
     void input_file(const std::string &file);
 
