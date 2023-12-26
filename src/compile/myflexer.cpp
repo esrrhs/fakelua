@@ -39,10 +39,7 @@ syntax_tree_interface_ptr myflexer::get_chunk() const {
 }
 
 std::string myflexer::remove_quotes(const std::string &str) {
-    if (str.size() < 2) {
-        throw_fakelua_exception("remove quotes but input string is empty");
-    }
-
+    DEBUG_ASSERT(str.size() >= 2);
     if (str[0] == '\'' && str[str.size() - 1] == '\'') {
         // we need to replace escape chars in string
         return replace_escape_chars(str.substr(1, str.size() - 2));
@@ -50,15 +47,10 @@ std::string myflexer::remove_quotes(const std::string &str) {
         // we need to replace escape chars in string
         return replace_escape_chars(str.substr(1, str.size() - 2));
     } else {
-        if (str.size() < 4) {
-            throw_fakelua_exception("remove quotes but input string is empty");
-        }
-        if (str[0] == '[' && str[1] == '[' && str[str.size() - 1] == ']' && str[str.size() - 2] == ']') {
-            // raw string not need to replace escape chars
-            return str.substr(2, str.size() - 4);
-        } else {
-            throw_fakelua_exception("remove quotes but input string is not valid");
-        }
+        DEBUG_ASSERT(str.size() >= 4);
+        DEBUG_ASSERT(str[0] == '[' && str[1] == '[' && str[str.size() - 1] == ']' && str[str.size() - 2] == ']');
+        // raw string not need to replace escape chars
+        return str.substr(2, str.size() - 4);
     }
 }
 
@@ -66,13 +58,10 @@ std::string myflexer::generate_tmp_file(const std::string &str) {
     // create tmp file in system temp dir
     std::string fileName = generate_tmp_filename("fakelua_myflexer_", ".lua");
     std::ofstream file(fileName);
-    if (file.is_open()) {
-        file << str;
-        file.close();
-        return fileName;
-    } else {
-        throw_fakelua_exception(std::format("create tmp file failed, file name is {}", fileName));
-    }
+    DEBUG_ASSERT(file.is_open());
+    file << str;
+    file.close();
+    return fileName;
 }
 
 }// namespace fakelua
