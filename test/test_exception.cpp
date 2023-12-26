@@ -216,12 +216,12 @@ TEST(exception, return_type_error_bool) {
     L->compile_file("./exception/test_return_type_error.lua", {});
 
     try {
-        int ret = 0;
-        L->call("test", std::tie(ret), true);
+        bool ret = 0;
+        L->call("test", std::tie(ret), 1);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_int failed") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_bool failed") != std::string::npos);
     }
 }
 
@@ -478,5 +478,22 @@ TEST(exception, return_type_error_stringview) {
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
         ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_stringview failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_index_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        int a = 0;
+        int b = 0;
+        L->call("test", std::tie(a, b), 123);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("type is VAR_NIL") != std::string::npos);
     }
 }

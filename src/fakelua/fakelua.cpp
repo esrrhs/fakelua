@@ -311,12 +311,11 @@ var_interface *fakelua_to_native_obj(fakelua_state_ptr s, var *v) {
 }
 
 var *fakelua_get_var_by_index(fakelua_state_ptr s, var *ret, size_t i) {
-    if (ret->type() == var_type::VAR_TABLE) {
-        var tmp;
-        tmp.set_int(i);
-        return ret->get_table().get(&tmp);
-    }
-    throw_fakelua_exception(std::format("fakelua_get_var_by_index failed, type is {}", magic_enum::enum_name(ret->type())));
+    DEBUG_ASSERT(ret);
+    DEBUG_ASSERT(ret->type() == var_type::VAR_TABLE);
+    var tmp;
+    tmp.set_int(i);
+    return ret->get_table().get(&tmp);
 }
 
 void *get_func_addr(fakelua_state_ptr s, const std::string &name, int &arg_count, bool &is_variadic) {
