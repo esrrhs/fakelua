@@ -40,8 +40,6 @@ public:
 
     var(const fakelua_state_ptr &s, std::string_view val);
 
-    var(const var &val) = default;
-
     var(var &&val) = default;
 
     ~var() = default;

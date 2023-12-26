@@ -84,6 +84,7 @@ void var::set_table() {
 
 std::string var::to_string() const {
     std::string ret;
+    DEBUG_ASSERT(type() >= var_type::VAR_MIN && type() <= var_type::VAR_MAX);
     switch (type()) {
         case var_type::VAR_NIL:
             ret = "nil";
@@ -103,8 +104,6 @@ std::string var::to_string() const {
         case var_type::VAR_TABLE:
             ret = std::format("table({})", (void *) this);
             break;
-        default:
-            return "unknown";
     }
 
     if (is_const()) {
