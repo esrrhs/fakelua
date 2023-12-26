@@ -1074,3 +1074,44 @@ TEST(jitter, compile_empty_string) {
 
     L->compile_string("", {});
 }
+
+TEST(jitter, test_assign_simple_var) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    int b = 0;
+    L->compile_file("./jit/test_assign_simple_var.lua", {});
+    L->call("test", std::tie(a, b), "test", 1);
+    ASSERT_EQ(a, 1);
+    ASSERT_EQ(b, 1);
+
+    a = 0;
+    b = 0;
+    L->compile_file("./jit/test_assign_simple_var.lua", {debug_mode: false});
+    L->call("test", std::tie(a, b), "test", 1);
+    ASSERT_EQ(a, 1);
+    ASSERT_EQ(b, 1);
+}
+
+TEST(jitter, test_const_define_simple_var) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    int b = 0;
+    int c = 0;
+    L->compile_file("./jit/test_const_define_simple_var.lua", {});
+    L->call("test", std::tie(a, b, c));
+    ASSERT_EQ(a, 1);
+    ASSERT_EQ(b, 1);
+    ASSERT_EQ(c, 1);
+
+    a = 0;
+    b = 0;
+    L->compile_file("./jit/test_const_define_simple_var.lua", {debug_mode: false});
+    L->call("test", std::tie(a, b, c));
+    ASSERT_EQ(a, 1);
+    ASSERT_EQ(b, 1);
+    ASSERT_EQ(c, 1);
+}

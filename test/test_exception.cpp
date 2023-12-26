@@ -497,3 +497,17 @@ TEST(exception, return_index_error) {
         ASSERT_TRUE(std::string(e.what()).find("type is VAR_NIL") != std::string::npos);
     }
 }
+
+TEST(exception, const_define_variadic) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_const_define_variadic.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("... can not be const") != std::string::npos);
+    }
+}

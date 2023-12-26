@@ -85,6 +85,7 @@ private:
     };
     std::unordered_map<std::string, function_info> function_infos_;
     std::unordered_map<std::string, std::pair<gccjit::lvalue, syntax_tree_interface_ptr>> global_const_vars_;
+    std::vector<std::string> global_const_vars_vec_;
     struct stack_frame {
         std::unordered_map<std::string, gccjit::lvalue> local_vars;
     };

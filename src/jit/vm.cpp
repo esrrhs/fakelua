@@ -182,8 +182,8 @@ extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, int n, ...
     return ret;
 }
 
-extern "C" __attribute__((used)) var *new_var_wrap(fakelua_state *s, var *val) {
-    DEBUG_ASSERT(s);
+extern "C" __attribute__((used)) var *new_var_wrap(void *p, var *val) {
+    DEBUG_ASSERT(p);
     return val;
 }
 
@@ -195,6 +195,7 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, .
     va_start(args, n);
     for (int i = 0; i < n; i++) {
         auto arg = va_arg(args, var *);
+        DEBUG_ASSERT(arg);
         DEBUG_ASSERT(arg->type() >= var_type::VAR_MIN && arg->type() <= var_type::VAR_MAX);
         params.push_back(arg);
     }

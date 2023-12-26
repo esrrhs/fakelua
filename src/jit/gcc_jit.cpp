@@ -220,6 +220,7 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
         }
 
         global_const_vars_[name] = std::make_pair(dst, values_exps[i]);
+        global_const_vars_vec_.push_back(name);// we record the order of the const define
     }
 }
 
@@ -280,6 +281,9 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp, boo
         auto pe = e->right();
         args.push_back(compile_prefixexp(pe, is_const));
     } else if (exp_type == "var_params") {
+        if (is_const) {
+            throw_error("... can not be const", exp);
+        }
         func_name = "new_var_wrap";
         params.push_back(gccjit_context_->new_param(the_var_type, "val"));
         args.push_back(find_lvalue_by_name("__fakelua_variadic__", e));
@@ -449,10 +453,10 @@ void gcc_jitter::compile_const_defines_init_func() {
 
     auto the_block = func.new_block();
 
-    for (auto &kv: global_const_vars_) {
-        auto name = kv.first;
-        auto dst = kv.second.first;
-        auto exp = kv.second.second;
+    for (auto &name: global_const_vars_vec_) {
+        auto kv = global_const_vars_[name];
+        auto dst = kv.first;
+        auto exp = kv.second;
 
         auto exp_ret = compile_exp(exp, true);
 
