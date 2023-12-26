@@ -29,9 +29,7 @@ compile_result compiler::compile(fakelua_state_ptr sp, myflexer &f, compile_conf
     yy::parser parse(&f);
     auto code = parse.parse();
     LOG_INFO("compile ret {}", code);
-    if (code) {
-        throw_fakelua_exception("compile failed");
-    }
+    DEBUG_ASSERT(code == 0);
     ret.chunk = f.get_chunk();
 
     // compile interpreter
