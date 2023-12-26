@@ -138,8 +138,6 @@ struct simple_var_impl : public var_interface {
                                        kv.second->vi_to_string(tab + 1));
                 }
                 break;
-            default:
-                return "unknown";
         }
 
         return ret;
@@ -469,9 +467,6 @@ void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, 
         ret_var = inter::call_variadic_helper(reinterpret_cast<var *(*) (...)>(addr), args_array);
     }
 
-    if (!ret_var) {
-        inter::throw_inter_fakelua_exception(std::format("function {} return null", name));
-    }
     inter::fakelua_func_ret_helper(shared_from_this(), ret_var, rets);
 }
 
