@@ -69,7 +69,7 @@ std::string syntax_tree_var::dump(int tab) const {
         str += prefixexp_->dump(tab + 1);
         str += gen_tab(tab + 1) + "name: " + name_ + "\n";
     } else {
-        str += gen_tab(tab + 1) + "type: unknown\n";
+        DEBUG_ASSERT(false && "unknown var type");
     }
     return str;
 }
@@ -115,7 +115,7 @@ std::string syntax_tree_field::dump(int tab) const {
         str += gen_tab(tab + 1) + "name: " + name_ + "\n";
         str += value_->dump(tab + 1);
     } else {
-        str += gen_tab(tab + 1) + "type: unknown\n";
+        DEBUG_ASSERT(false && "unknown field type");
     }
     return str;
 }
@@ -322,7 +322,7 @@ std::string syntax_tree_args::dump(int tab) const {
     } else if (type_ == "empty") {
         str += gen_tab(tab + 1) + "empty" + "\n";
     } else {
-        str += gen_tab(tab + 1) + "unknown" + "\n";
+        DEBUG_ASSERT(false && "unknown args type");
     }
     return str;
 }
