@@ -55,10 +55,10 @@ extern "C" __attribute__((used)) var *new_const_var_table(gcc_jit_handle *h, int
     va_start(args, n);
     for (int i = 0; i < n; i += 2) {
         auto arg = va_arg(args, var *);
-        DEBUG_ASSERT(!arg || (arg->type() > var_type::VAR_INVALID && arg->type() < var_type::VAR_MAX));
+        DEBUG_ASSERT(!arg || (arg->type() >= var_type::VAR_MIN && arg->type() <= var_type::VAR_MAX));
         keys.push_back(arg);
         arg = va_arg(args, var *);
-        DEBUG_ASSERT(arg->type() > var_type::VAR_INVALID && arg->type() < var_type::VAR_MAX);
+        DEBUG_ASSERT(arg->type() >= var_type::VAR_MIN && arg->type() <= var_type::VAR_MAX);
         values.push_back(arg);
     }
     va_end(args);
@@ -127,10 +127,10 @@ extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, int n, ...
     va_start(args, n);
     for (int i = 0; i < n; i += 2) {
         auto arg = va_arg(args, var *);
-        DEBUG_ASSERT(!arg || (arg->type() > var_type::VAR_INVALID && arg->type() < var_type::VAR_MAX));
+        DEBUG_ASSERT(!arg || (arg->type() >= var_type::VAR_MIN && arg->type() <= var_type::VAR_MAX));
         keys.push_back(arg);
         arg = va_arg(args, var *);
-        DEBUG_ASSERT(arg->type() > var_type::VAR_INVALID && arg->type() < var_type::VAR_MAX);
+        DEBUG_ASSERT(arg->type() >= var_type::VAR_MIN && arg->type() <= var_type::VAR_MAX);
         values.push_back(arg);
     }
     va_end(args);
@@ -195,7 +195,7 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, .
     va_start(args, n);
     for (int i = 0; i < n; i++) {
         auto arg = va_arg(args, var *);
-        DEBUG_ASSERT(arg->type() > var_type::VAR_INVALID && arg->type() < var_type::VAR_MAX);
+        DEBUG_ASSERT(arg->type() >= var_type::VAR_MIN && arg->type() <= var_type::VAR_MAX);
         params.push_back(arg);
     }
     va_end(args);
@@ -242,12 +242,12 @@ extern "C" __attribute__((used)) void assign_var(fakelua_state *s, int left_n, i
     va_start(args, right_n);
     for (int i = 0; i < left_n; i++) {
         auto dst = va_arg(args, var **);
-        DEBUG_ASSERT((*dst)->type() > var_type::VAR_INVALID && (*dst)->type() < var_type::VAR_MAX);
+        DEBUG_ASSERT((*dst)->type() >= var_type::VAR_MIN && (*dst)->type() <= var_type::VAR_MAX);
         left.push_back(dst);
     }
     for (int i = 0; i < right_n; i++) {
         auto arg = va_arg(args, var *);
-        DEBUG_ASSERT(arg->type() > var_type::VAR_INVALID && arg->type() < var_type::VAR_MAX);
+        DEBUG_ASSERT(arg->type() >= var_type::VAR_MIN && arg->type() <= var_type::VAR_MAX);
         right.push_back(arg);
     }
     va_end(args);

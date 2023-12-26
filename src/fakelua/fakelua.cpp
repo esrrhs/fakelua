@@ -109,6 +109,7 @@ var *native_to_fakelua_stringview(fakelua_state_ptr s, const std::string_view &v
 }
 
 void vi_to_var(fakelua_state_ptr s, var_interface *src, var *dst) {
+    DEBUG_ASSERT(src->vi_get_type() >= var_interface::type::MIN && src->vi_get_type() <= var_interface::type::MAX);
     switch (src->vi_get_type()) {
         case var_interface::type::NIL:
             dst->set_nil();
@@ -136,8 +137,6 @@ void vi_to_var(fakelua_state_ptr s, var_interface *src, var *dst) {
                 dst->get_table().set(k, v);
             }
             break;
-        default:
-            throw_fakelua_exception(std::format("vi_to_var failed, type is {}", (int) src->vi_get_type()));
     }
 }
 
@@ -273,6 +272,7 @@ std::string_view fakelua_to_native_stringview(fakelua_state_ptr s, var *v) {
 }
 
 void var_to_vi(fakelua_state_ptr s, var *src, var_interface *dst) {
+    DEBUG_ASSERT(src->type() >= var_type::VAR_MIN && src->type() <= var_type::VAR_MAX);
     switch (src->type()) {
         case var_type::VAR_NIL:
             dst->vi_set_nil();
@@ -301,8 +301,6 @@ void var_to_vi(fakelua_state_ptr s, var *src, var_interface *dst) {
             dst->vi_set_table(kvs);
             break;
         }
-        default:
-            throw_fakelua_exception(std::format("var_to_vi failed, type is {}", (int) src->type()));
     }
 }
 

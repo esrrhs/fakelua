@@ -12,12 +12,14 @@ namespace fakelua {
 // so it can transfer complex type like table.
 struct var_interface {
     enum class type {
-        NIL,
+        MIN,
+        NIL = MIN,
         BOOL,
         INT,
         FLOAT,
         STRING,
         TABLE,
+        MAX = TABLE,
     };
     virtual ~var_interface() = default;
 

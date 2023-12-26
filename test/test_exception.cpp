@@ -208,3 +208,275 @@ TEST(exception, replace_escape_chars) {
         ASSERT_TRUE(std::string(e.what()).find("decimal escape too large") != std::string::npos);
     }
 }
+
+TEST(exception, return_type_error_bool) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        int ret = 0;
+        L->call("test", std::tie(ret), true);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_int failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_char) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        char ret = 0;
+        L->call("test", std::tie(ret), "1");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_char failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_uchar) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        unsigned char ret = 0;
+        L->call("test", std::tie(ret), "1");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_uchar failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_short) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        short ret = 0;
+        L->call("test", std::tie(ret), "1");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_short failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_ushort) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        unsigned short ret = 0;
+        L->call("test", std::tie(ret), "1");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_ushort failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_int) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        int ret = 0;
+        L->call("test", std::tie(ret), "1");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_int failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_uint) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        unsigned int ret = 0;
+        L->call("test", std::tie(ret), "1");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_uint failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_long) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        long ret = 0;
+        L->call("test", std::tie(ret), "1");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_long failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_ulong) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        unsigned long ret = 0;
+        L->call("test", std::tie(ret), "1");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_ulong failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_long_long) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        long long ret = 0;
+        L->call("test", std::tie(ret), "1");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_longlong failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_ulong_long) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        unsigned long long ret = 0;
+        L->call("test", std::tie(ret), "1");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_ulonglong failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_float) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        float ret = 0;
+        L->call("test", std::tie(ret), "1");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_float failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_double) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        double ret = 0;
+        L->call("test", std::tie(ret), "1");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_double failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_cstr) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        const char *ret = 0;
+        L->call("test", std::tie(ret), 123);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_cstr failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_str) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        char *ret = 0;
+        L->call("test", std::tie(ret), 123);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_str failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_string) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        std::string ret;
+        L->call("test", std::tie(ret), 123);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_string failed") != std::string::npos);
+    }
+}
+
+TEST(exception, return_type_error_stringview) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+    L->compile_file("./exception/test_return_type_error.lua", {});
+
+    try {
+        std::string_view ret;
+        L->call("test", std::tie(ret), 123);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("fakelua_to_native_stringview failed") != std::string::npos);
+    }
+}
