@@ -744,6 +744,17 @@ gccjit::rvalue gcc_jitter::compile_binop(const syntax_tree_interface_ptr &left, 
     auto op_ptr = std::dynamic_pointer_cast<syntax_tree_binop>(op);
     auto opstr = op_ptr->get_op();
 
+    DEBUG_ASSERT(opstr == "PLUS" || opstr == "MINUS" || opstr == "STAR" || opstr == "SLASH" || opstr == "DOUBLE_SLASH" || opstr == "XOR" ||
+                 opstr == "MOD" || opstr == "BITAND" || opstr == "BITNOT" || opstr == "BITOR" || opstr == "RIGHT_SHIFT" ||
+                 opstr == "LEFT_SHIFT" || opstr == "CONCAT" || opstr == "LESS" || opstr == "LESS_EQUAL" || opstr == "MORE" ||
+                 opstr == "MORE_EQUAL" || opstr == "EQUAL" || opstr == "NOT_EQUAL" || opstr == "AND" || opstr == "OR");
+
+    if (opstr == "AND") {
+        // TODO
+    } else if (opstr == "OR") {
+        // TODO
+    }
+
     auto left_ret = compile_exp(left, is_const);
     auto right_ret = compile_exp(right, is_const);
 
@@ -799,12 +810,6 @@ gccjit::rvalue gcc_jitter::compile_binop(const syntax_tree_interface_ptr &left, 
         func_name = is_const ? "binop_const_equal" : "binop_equal";
     } else if (opstr == "NOT_EQUAL") {
         func_name = is_const ? "binop_const_not_equal" : "binop_not_equal";
-    } else if (opstr == "AND") {
-        func_name = is_const ? "binop_const_and" : "binop_and";
-    } else if (opstr == "OR") {
-        func_name = is_const ? "binop_const_or" : "binop_or";
-    } else {
-        throw_error("not support binop: " + opstr, op);
     }
 
     gccjit::function binop_func =

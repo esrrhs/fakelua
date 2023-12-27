@@ -70,6 +70,15 @@ public:
         return float_;
     }
 
+    // get number value
+    double get_number() const {
+        if (type_ == var_type::VAR_INT) {
+            return (double) int_;
+        } else {
+            return float_;
+        }
+    }
+
     // get string_view value
     const std::string_view &get_string() const {
         return string_;
@@ -148,6 +157,7 @@ public:
     void set_table();
 
 public:
+    // to string
     std::string to_string() const;
 
     void set_const(bool val) {
@@ -171,6 +181,48 @@ public:
 
     // equal
     bool equal(const var &rhs) const;
+
+    // is calculable
+    bool is_calculable() const;
+
+public:
+    void plus(const var &rhs, var &result) const;
+
+    void minus(const var &rhs, var &result) const;
+
+    void star(const var &rhs, var &result) const;
+
+    void slash(const var &rhs, var &result) const;
+
+    void double_slash(const var &rhs, var &result) const;
+
+    void xor_(const var &rhs, var &result) const;
+
+    void mod(const var &rhs, var &result) const;
+
+    void bitand_(const var &rhs, var &result) const;
+
+    void bitnot(const var &rhs, var &result) const;
+
+    void bitor_(const var &rhs, var &result) const;
+
+    void right_shift(const var &rhs, var &result) const;
+
+    void left_shift(const var &rhs, var &result) const;
+
+    void concat(const var &rhs, var &result) const;
+
+    void less(const var &rhs, var &result) const;
+
+    void less_equal(const var &rhs, var &result) const;
+
+    void more(const var &rhs, var &result) const;
+
+    void more_equal(const var &rhs, var &result) const;
+
+    void equal(const var &rhs, var &result) const;
+
+    void not_equal(const var &rhs, var &result) const;
 
 private:
     // use class members instead of union, use more memory but more safe and fast.

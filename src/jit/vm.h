@@ -88,6 +88,42 @@ extern "C" __attribute__((used)) var *new_const_var_table(gcc_jit_handle *h, int
 
 extern "C" __attribute__((used)) var *binop_const_plus(gcc_jit_handle *h, var *l, var *r);
 
+extern "C" __attribute__((used)) var *binop_const_minus(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_star(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_slash(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_double_slash(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_xor(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_mod(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_bitand(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_bitnot(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_bitor(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_right_shift(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_left_shift(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_concat(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_less(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_less_equal(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_more(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_more_equal(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_equal(gcc_jit_handle *h, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_const_not_equal(gcc_jit_handle *h, var *l, var *r);
+
 ///////////////////////////////////////////////////////////////////////////////////
 
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s);
@@ -109,5 +145,43 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, .
 extern "C" __attribute__((used)) void assign_var(fakelua_state *s, int left_n, int right_n, ...);
 
 extern "C" __attribute__((used)) var *binop_plus(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_plus(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_minus(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_star(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_slash(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_double_slash(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_xor(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_mod(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_bitand(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_bitnot(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_bitor(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_right_shift(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_left_shift(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_concat(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_less(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_less_equal(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_more(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_more_equal(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_equal(fakelua_state *s, var *l, var *r);
+
+extern "C" __attribute__((used)) var *binop_not_equal(fakelua_state *s, var *l, var *r);
 
 }// namespace fakelua

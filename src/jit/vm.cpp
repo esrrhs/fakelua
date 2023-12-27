@@ -88,29 +88,261 @@ extern "C" __attribute__((used)) var *binop_const_plus(gcc_jit_handle *h, var *l
     DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(l->is_const());
     DEBUG_ASSERT(r->is_const());
-
-    if (l->type() != var_type::VAR_INT && l->type() != var_type::VAR_FLOAT) {
-        throw_fakelua_exception(
-                std::format("left operand of '+' must be number, got {} {}", magic_enum::enum_name(l->type()), l->to_string()));
-    }
-    if (r->type() != var_type::VAR_INT && r->type() != var_type::VAR_FLOAT) {
-        throw_fakelua_exception(
-                std::format("right operand of '+' must be number, got {} {}", magic_enum::enum_name(r->type()), r->to_string()));
-    }
-
     auto ret = h->alloc_var();
     ret->set_const(true);
+    l->plus(*r, *ret);
+    return ret;
+}
 
-    if (l->type() == var_type::VAR_INT && r->type() == var_type::VAR_INT) {
-        ret->set_int(l->get_int() + r->get_int());
-    } else if (l->type() == var_type::VAR_FLOAT && r->type() == var_type::VAR_FLOAT) {
-        ret->set_float(l->get_float() + r->get_float());
-    } else if (l->type() == var_type::VAR_INT && r->type() == var_type::VAR_FLOAT) {
-        ret->set_float(l->get_int() + r->get_float());
-    } else {// l->type() == var_type::VAR_FLOAT && r->type() == var_type::VAR_INT
-        ret->set_float(l->get_float() + r->get_int());
-    }
+extern "C" __attribute__((used)) var *binop_const_minus(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->minus(*r, *ret);
+    return ret;
+}
 
+extern "C" __attribute__((used)) var *binop_const_star(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->star(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_slash(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->slash(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_double_slash(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->double_slash(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_xor(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->xor_(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_mod(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->mod(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_bitand(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->bitand_(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_bitnot(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->bitnot(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_bitor(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->bitor_(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_right_shift(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->right_shift(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_left_shift(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->left_shift(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_concat(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->concat(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_less(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->less(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_less_equal(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->less_equal(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_more(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->more(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_more_equal(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->more_equal(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_equal(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->equal(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_const_not_equal(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    l->not_equal(*r, *ret);
     return ret;
 }
 
@@ -331,28 +563,206 @@ extern "C" __attribute__((used)) var *binop_plus(fakelua_state *s, var *l, var *
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
-
-    if (l->type() != var_type::VAR_INT && l->type() != var_type::VAR_FLOAT) {
-        throw_fakelua_exception(
-                std::format("left operand of '+' must be number, got {} {}", magic_enum::enum_name(l->type()), l->to_string()));
-    }
-    if (r->type() != var_type::VAR_INT && r->type() != var_type::VAR_FLOAT) {
-        throw_fakelua_exception(
-                std::format("right operand of '+' must be number, got {} {}", magic_enum::enum_name(r->type()), r->to_string()));
-    }
-
     auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->plus(*r, *ret);
+    return ret;
+}
 
-    if (l->type() == var_type::VAR_INT && r->type() == var_type::VAR_INT) {
-        ret->set_int(l->get_int() + r->get_int());
-    } else if (l->type() == var_type::VAR_FLOAT && r->type() == var_type::VAR_FLOAT) {
-        ret->set_float(l->get_float() + r->get_float());
-    } else if (l->type() == var_type::VAR_INT && r->type() == var_type::VAR_FLOAT) {
-        ret->set_float(l->get_int() + r->get_float());
-    } else {// l->type() == var_type::VAR_FLOAT && r->type() == var_type::VAR_INT
-        ret->set_float(l->get_float() + r->get_int());
-    }
+extern "C" __attribute__((used)) var *binop_minus(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->minus(*r, *ret);
+    return ret;
+}
 
+extern "C" __attribute__((used)) var *binop_star(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->star(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_slash(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->slash(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_double_slash(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->double_slash(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_xor(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->xor_(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_mod(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->mod(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_bitand(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->bitand_(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_bitnot(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    r->bitnot(*ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_bitor(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->bitor_(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_right_shift(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->right_shift(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_left_shift(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->left_shift(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_concat(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->concat(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_less(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->less(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_less_equal(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->less_equal(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_more(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->more(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_more_equal(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->more_equal(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_equal(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->equal(*r, *ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *binop_not_equal(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    l->not_equal(*r, *ret);
     return ret;
 }
 
