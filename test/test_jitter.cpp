@@ -1115,3 +1115,33 @@ TEST(jitter, test_const_define_simple_var) {
     ASSERT_EQ(b, 1);
     ASSERT_EQ(c, 1);
 }
+
+TEST(jitter, test_binop_plus) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret = 0;
+    L->compile_file("./jit/test_binop_plus.lua", {});
+    L->call("test", std::tie(ret), 1, 2);
+    ASSERT_EQ(ret, 3);
+
+    ret = 0;
+    L->compile_file("./jit/test_binop_plus.lua", {debug_mode: false});
+    L->call("test", std::tie(ret), 1, 2);
+    ASSERT_EQ(ret, 3);
+}
+
+TEST(jitter, test_const_binop_plus) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret = 0;
+    L->compile_file("./jit/test_const_binop_plus.lua", {});
+    L->call("test", std::tie(ret));
+    ASSERT_EQ(ret, 3);
+
+    ret = 0;
+    L->compile_file("./jit/test_const_binop_plus.lua", {debug_mode: false});
+    L->call("test", std::tie(ret));
+    ASSERT_EQ(ret, 3);
+}

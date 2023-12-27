@@ -61,6 +61,9 @@ private:
 
     std::pair<gccjit::rvalue, gccjit::rvalue> compile_field(const syntax_tree_interface_ptr &field, bool is_const);
 
+    gccjit::rvalue compile_binop(const syntax_tree_interface_ptr &left, const syntax_tree_interface_ptr &right,
+                                 const syntax_tree_interface_ptr &op, bool is_const);
+
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
 

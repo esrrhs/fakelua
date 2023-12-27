@@ -72,7 +72,6 @@ private:
     std::unordered_map<std::string, vm_function_ptr> vm_functions_;
 };
 
-
 extern "C" __attribute__((used)) var *new_const_var_nil(gcc_jit_handle *h);
 
 extern "C" __attribute__((used)) var *new_const_var_false(gcc_jit_handle *h);
@@ -86,6 +85,10 @@ extern "C" __attribute__((used)) var *new_const_var_float(gcc_jit_handle *h, dou
 extern "C" __attribute__((used)) var *new_const_var_string(gcc_jit_handle *h, const char *val, int len);
 
 extern "C" __attribute__((used)) var *new_const_var_table(gcc_jit_handle *h, int n, ...);
+
+extern "C" __attribute__((used)) var *binop_const_plus(gcc_jit_handle *h, var *l, var *r);
+
+///////////////////////////////////////////////////////////////////////////////////
 
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s);
 
@@ -104,5 +107,7 @@ extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, int n, ...
 extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, ...);
 
 extern "C" __attribute__((used)) void assign_var(fakelua_state *s, int left_n, int right_n, ...);
+
+extern "C" __attribute__((used)) var *binop_plus(fakelua_state *s, var *l, var *r);
 
 }// namespace fakelua

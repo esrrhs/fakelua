@@ -1088,6 +1088,10 @@ public:
         op_ = op;
     }
 
+    std::string get_op() const {
+        return op_;
+    }
+
 private:
     std::string op_;
 };

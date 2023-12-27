@@ -287,8 +287,10 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp, boo
         auto tc = e->right();
         return compile_tableconstructor(tc, is_const);
     } else if (exp_type == "binop") {
-        // TODO
-        return nullptr;
+        auto left = e->left();
+        auto right = e->right();
+        auto op = e->op();
+        return compile_binop(left, right, op, is_const);
     } else if (exp_type == "unop") {
         // TODO
         return nullptr;
@@ -732,6 +734,82 @@ std::pair<gccjit::rvalue, gccjit::rvalue> gcc_jitter::compile_field(const syntax
     } else {
         throw_error("not support field type: " + field_type, field);
     }
+
+    return ret;
+}
+
+gccjit::rvalue gcc_jitter::compile_binop(const syntax_tree_interface_ptr &left, const syntax_tree_interface_ptr &right,
+                                         const syntax_tree_interface_ptr &op, bool is_const) {
+    check_syntax_tree_type(op, {syntax_tree_type::syntax_tree_type_binop});
+    auto op_ptr = std::dynamic_pointer_cast<syntax_tree_binop>(op);
+    auto opstr = op_ptr->get_op();
+
+    auto left_ret = compile_exp(left, is_const);
+    auto right_ret = compile_exp(right, is_const);
+
+    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+
+    std::vector<gccjit::param> params;
+    params.push_back(gccjit_context_->new_param(the_var_type, is_const ? "h" : "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "left"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "right"));
+
+    std::string func_name;
+
+    std::vector<gccjit::rvalue> args;
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, is_const ? (void *) gcc_jit_handle_.get() : (void *) sp_.get()));
+    args.push_back(left_ret);
+    args.push_back(right_ret);
+
+    if (opstr == "PLUS") {
+        func_name = is_const ? "binop_const_plus" : "binop_plus";
+    } else if (opstr == "MINUS") {
+        func_name = is_const ? "binop_const_minus" : "binop_minus";
+    } else if (opstr == "STAR") {
+        func_name = is_const ? "binop_const_star" : "binop_star";
+    } else if (opstr == "SLASH") {
+        func_name = is_const ? "binop_const_slash" : "binop_slash";
+    } else if (opstr == "DOUBLE_SLASH") {
+        func_name = is_const ? "binop_const_double_slash" : "binop_double_slash";
+    } else if (opstr == "XOR") {
+        func_name = is_const ? "binop_const_xor" : "binop_xor";
+    } else if (opstr == "MOD") {
+        func_name = is_const ? "binop_const_mod" : "binop_mod";
+    } else if (opstr == "BITAND") {
+        func_name = is_const ? "binop_const_bitand" : "binop_bitand";
+    } else if (opstr == "BITNOT") {
+        func_name = is_const ? "binop_const_bitnot" : "binop_bitnot";
+    } else if (opstr == "BITOR") {
+        func_name = is_const ? "binop_const_bitor" : "binop_bitor";
+    } else if (opstr == "RIGHT_SHIFT") {
+        func_name = is_const ? "binop_const_right_shift" : "binop_right_shift";
+    } else if (opstr == "LEFT_SHIFT") {
+        func_name = is_const ? "binop_const_left_shift" : "binop_left_shift";
+    } else if (opstr == "CONCAT") {
+        func_name = is_const ? "binop_const_concat" : "binop_concat";
+    } else if (opstr == "LESS") {
+        func_name = is_const ? "binop_const_less" : "binop_less";
+    } else if (opstr == "LESS_EQUAL") {
+        func_name = is_const ? "binop_const_less_equal" : "binop_less_equal";
+    } else if (opstr == "MORE") {
+        func_name = is_const ? "binop_const_more" : "binop_more";
+    } else if (opstr == "MORE_EQUAL") {
+        func_name = is_const ? "binop_const_more_equal" : "binop_more_equal";
+    } else if (opstr == "EQUAL") {
+        func_name = is_const ? "binop_const_equal" : "binop_equal";
+    } else if (opstr == "NOT_EQUAL") {
+        func_name = is_const ? "binop_const_not_equal" : "binop_not_equal";
+    } else if (opstr == "AND") {
+        func_name = is_const ? "binop_const_and" : "binop_and";
+    } else if (opstr == "OR") {
+        func_name = is_const ? "binop_const_or" : "binop_or";
+    } else {
+        throw_error("not support binop: " + opstr, op);
+    }
+
+    gccjit::function binop_func =
+            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 0, new_location(op));
+    auto ret = gccjit_context_->new_call(binop_func, args, new_location(op));
 
     return ret;
 }

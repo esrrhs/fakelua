@@ -80,6 +80,42 @@ extern "C" __attribute__((used)) var *new_const_var_table(gcc_jit_handle *h, int
     return ret;
 }
 
+extern "C" __attribute__((used)) var *binop_const_plus(gcc_jit_handle *h, var *l, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(l->is_const());
+    DEBUG_ASSERT(r->is_const());
+
+    if (l->type() != var_type::VAR_INT && l->type() != var_type::VAR_FLOAT) {
+        throw_fakelua_exception(
+                std::format("left operand of '+' must be number, got {} {}", magic_enum::enum_name(l->type()), l->to_string()));
+    }
+    if (r->type() != var_type::VAR_INT && r->type() != var_type::VAR_FLOAT) {
+        throw_fakelua_exception(
+                std::format("right operand of '+' must be number, got {} {}", magic_enum::enum_name(r->type()), r->to_string()));
+    }
+
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+
+    if (l->type() == var_type::VAR_INT && r->type() == var_type::VAR_INT) {
+        ret->set_int(l->get_int() + r->get_int());
+    } else if (l->type() == var_type::VAR_FLOAT && r->type() == var_type::VAR_FLOAT) {
+        ret->set_float(l->get_float() + r->get_float());
+    } else if (l->type() == var_type::VAR_INT && r->type() == var_type::VAR_FLOAT) {
+        ret->set_float(l->get_int() + r->get_float());
+    } else {// l->type() == var_type::VAR_FLOAT && r->type() == var_type::VAR_INT
+        ret->set_float(l->get_float() + r->get_int());
+    }
+
+    return ret;
+}
+
+///////////////////////////////////////////////////////////////////////////////////
+
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s) {
     DEBUG_ASSERT(s);
     return &const_null_var;
@@ -287,6 +323,37 @@ extern "C" __attribute__((used)) void assign_var(fakelua_state *s, int left_n, i
             break;
         }
     }
+}
+
+extern "C" __attribute__((used)) var *binop_plus(fakelua_state *s, var *l, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(l);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+
+    if (l->type() != var_type::VAR_INT && l->type() != var_type::VAR_FLOAT) {
+        throw_fakelua_exception(
+                std::format("left operand of '+' must be number, got {} {}", magic_enum::enum_name(l->type()), l->to_string()));
+    }
+    if (r->type() != var_type::VAR_INT && r->type() != var_type::VAR_FLOAT) {
+        throw_fakelua_exception(
+                std::format("right operand of '+' must be number, got {} {}", magic_enum::enum_name(r->type()), r->to_string()));
+    }
+
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+
+    if (l->type() == var_type::VAR_INT && r->type() == var_type::VAR_INT) {
+        ret->set_int(l->get_int() + r->get_int());
+    } else if (l->type() == var_type::VAR_FLOAT && r->type() == var_type::VAR_FLOAT) {
+        ret->set_float(l->get_float() + r->get_float());
+    } else if (l->type() == var_type::VAR_INT && r->type() == var_type::VAR_FLOAT) {
+        ret->set_float(l->get_int() + r->get_float());
+    } else {// l->type() == var_type::VAR_FLOAT && r->type() == var_type::VAR_INT
+        ret->set_float(l->get_float() + r->get_int());
+    }
+
+    return ret;
 }
 
 }// namespace fakelua
