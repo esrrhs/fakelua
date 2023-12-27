@@ -101,8 +101,6 @@ extern "C" __attribute__((used)) var *new_var_string(fakelua_state *s, const cha
 
 extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, int n, ...);
 
-extern "C" __attribute__((used)) var *new_var_wrap(void *p, var *val);
-
 extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, ...);
 
 extern "C" __attribute__((used)) void assign_var(fakelua_state *s, int left_n, int right_n, ...);

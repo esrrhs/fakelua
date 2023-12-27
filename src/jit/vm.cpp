@@ -182,11 +182,6 @@ extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, int n, ...
     return ret;
 }
 
-extern "C" __attribute__((used)) var *new_var_wrap(void *p, var *val) {
-    DEBUG_ASSERT(p);
-    return val;
-}
-
 extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, int n, ...) {
     DEBUG_ASSERT(s);
     DEBUG_ASSERT(n >= 0);

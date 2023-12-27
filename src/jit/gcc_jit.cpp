@@ -276,22 +276,16 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp, boo
         args.push_back(gccjit_context_->new_rvalue(the_string_type, (void *) container_str.data()));
         args.push_back(gccjit_context_->new_rvalue(the_int_type, (int) container_str.size()));
     } else if (exp_type == "prefixexp") {
-        func_name = "new_var_wrap";
-        params.push_back(gccjit_context_->new_param(the_var_type, "val"));
         auto pe = e->right();
-        args.push_back(compile_prefixexp(pe, is_const));
+        return compile_prefixexp(pe, is_const);
     } else if (exp_type == "var_params") {
         if (is_const) {
             throw_error("... can not be const", exp);
         }
-        func_name = "new_var_wrap";
-        params.push_back(gccjit_context_->new_param(the_var_type, "val"));
-        args.push_back(find_lvalue_by_name("__fakelua_variadic__", e));
+        return find_lvalue_by_name("__fakelua_variadic__", e);
     } else if (exp_type == "tableconstructor") {
-        func_name = "new_var_wrap";
-        params.push_back(gccjit_context_->new_param(the_var_type, "val"));
         auto tc = e->right();
-        args.push_back(compile_tableconstructor(tc, is_const));
+        return compile_tableconstructor(tc, is_const);
     } else if (exp_type == "binop") {
         // TODO
         return nullptr;
