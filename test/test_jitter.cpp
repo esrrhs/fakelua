@@ -1153,3 +1153,41 @@ TEST(jitter, test_const_binop_plus) {
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(std::abs(ret2 - 3.2) < 0.001, true);
 }
+
+TEST(jitter, test_binop_minus) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    double ret2 = 0;
+    L->compile_file("./jit/test_binop_minus.lua", {});
+    L->call("test", std::tie(ret1, ret2), 1, 2, 2, 1.2);
+    ASSERT_EQ(ret1, -1);
+    ASSERT_EQ(std::abs(ret2 - 0.8) < 0.001, true);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_binop_minus.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), 1, 2, 2, 1.2);
+    ASSERT_EQ(ret1, -1);
+    ASSERT_EQ(std::abs(ret2 - 0.8) < 0.001, true);
+}
+
+TEST(jitter, test_const_binop_minus) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    double ret2 = 0;
+    L->compile_file("./jit/test_const_binop_minus.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, -1);
+    ASSERT_EQ(std::abs(ret2 - 1.1) < 0.001, true);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_const_binop_minus.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, -1);
+    ASSERT_EQ(std::abs(ret2 - 1.1) < 0.001, true);
+}
