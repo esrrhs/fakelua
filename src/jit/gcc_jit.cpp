@@ -254,14 +254,14 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp, boo
             auto the_int_type = gccjit_context_->get_type(GCC_JIT_TYPE_INT64_T);
             params.push_back(gccjit_context_->new_param(the_int_type, "val"));
 
-            int64_t val = std::stoll(value);
+            int64_t val = to_integer(value);
             args.push_back(gccjit_context_->new_rvalue(the_int_type, (long) val));
         } else {
             func_name = is_const ? "new_const_var_float" : "new_var_float";
             auto the_float_type = gccjit_context_->get_type(GCC_JIT_TYPE_DOUBLE);
             params.push_back(gccjit_context_->new_param(the_float_type, "val"));
 
-            double val = std::stod(value);
+            double val = to_float(value);
             args.push_back(gccjit_context_->new_rvalue(the_float_type, val));
         }
     } else if (exp_type == "string") {

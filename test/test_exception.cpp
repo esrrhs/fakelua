@@ -540,3 +540,22 @@ TEST(exception, test_const_binop_plus_error) {
         ASSERT_TRUE(std::string(e.what()).find("must be number") != std::string::npos);
     }
 }
+
+TEST(exception, to_integer) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    ASSERT_ANY_THROW(to_integer("9223372036854775808"));
+    ASSERT_ANY_THROW(to_integer("-9223372036854775809"));
+    ASSERT_ANY_THROW(to_integer("abc"));
+}
+
+TEST(exception, to_float) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    ASSERT_ANY_THROW(to_float("f"));
+    ASSERT_ANY_THROW(to_float("1.7976931348623157e+309"));
+}

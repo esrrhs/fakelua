@@ -161,3 +161,67 @@ TEST(common, is_integer) {
     ASSERT_FALSE(is_integer("123abc"));
     ASSERT_FALSE(is_integer("123.456.789"));
 }
+
+TEST(common, to_integer) {
+    ASSERT_EQ(to_integer("123"), 123);
+    ASSERT_EQ(to_integer("-123"), -123);
+    ASSERT_EQ(to_integer("+123"), 123);
+    ASSERT_EQ(to_integer("0x123"), 0x123);
+    ASSERT_EQ(to_integer("0X123"), 0x123);
+    ASSERT_EQ(to_integer("+0X123"), 0x123);
+    ASSERT_EQ(to_integer("-0X123"), -0x123);
+
+    ASSERT_EQ(to_integer("0"), 0);
+    ASSERT_EQ(to_integer("-0"), 0);
+    ASSERT_EQ(to_integer("0x0"), 0);
+    ASSERT_EQ(to_integer("0X0"), 0);
+
+    ASSERT_EQ(to_integer("9223372036854775807"), INT64_MAX);
+    ASSERT_EQ(to_integer("-9223372036854775808"), INT64_MIN);
+}
+
+TEST(common, to_float) {
+    ASSERT_TRUE(std::isnan(to_float("nan")));
+    ASSERT_TRUE(std::isnan(to_float("NaN")));
+    ASSERT_TRUE(std::isnan(to_float("NAN")));
+    ASSERT_TRUE(std::isinf(to_float("inf")));
+    ASSERT_TRUE(std::isinf(to_float("Inf")));
+    ASSERT_TRUE(std::isinf(to_float("INF")));
+    ASSERT_TRUE(std::isinf(to_float("-inf")));
+    ASSERT_TRUE(std::isinf(to_float("-Inf")));
+    ASSERT_TRUE(std::isinf(to_float("-INF")));
+
+    ASSERT_EQ(to_float("0"), 0);
+
+    ASSERT_EQ(to_float("12.3"), 12.3);
+    ASSERT_EQ(to_float("-12.3"), -12.3);
+    ASSERT_EQ(to_float("+12.3"), 12.3);
+
+    ASSERT_EQ(to_float("12.3e45"), 12.3e45);
+    ASSERT_EQ(to_float("12.3e+45"), 12.3e+45);
+    ASSERT_EQ(to_float("-12.3e-45"), -12.3e-45);
+
+    ASSERT_EQ(to_float("0x123"), 0x123);
+    ASSERT_EQ(to_float("0X12.3"), 18.1875);
+    ASSERT_EQ(to_float("0X12.3P45"), 18.1875 * std::pow(2, 45));
+    ASSERT_EQ(to_float("0X12.3P+45"), 18.1875 * std::pow(2, 45));
+    ASSERT_EQ(to_float("0X12.3P-45"), 18.1875 * std::pow(2, -45));
+    ASSERT_EQ(to_float("0X12.3P+0"), 18.1875);
+
+    ASSERT_EQ(to_float("+0x123"), 0x123);
+    ASSERT_EQ(to_float("+0X12.3"), 18.1875);
+    ASSERT_EQ(to_float("+0X12.3P45"), 18.1875 * std::pow(2, 45));
+    ASSERT_EQ(to_float("+0X12.3P+45"), 18.1875 * std::pow(2, 45));
+    ASSERT_EQ(to_float("+0X12.3P-45"), 18.1875 * std::pow(2, -45));
+    ASSERT_EQ(to_float("+0X12.3P+0"), 18.1875);
+
+    ASSERT_EQ(to_float("-0x123"), -0x123);
+    ASSERT_EQ(to_float("-0X12.3"), -18.1875);
+    ASSERT_EQ(to_float("-0X12.3P45"), -18.1875 * std::pow(2, 45));
+    ASSERT_EQ(to_float("-0X12.3P+45"), -18.1875 * std::pow(2, 45));
+    ASSERT_EQ(to_float("-0X12.3P-45"), -18.1875 * std::pow(2, -45));
+    ASSERT_EQ(to_float("-0X12.3P+0"), -18.1875);
+
+    ASSERT_EQ(to_float("1.7976931348623157e+308"), std::numeric_limits<double>::max());
+    ASSERT_EQ(to_float("2.2250738585072014e-308"), std::numeric_limits<double>::min());
+}
