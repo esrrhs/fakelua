@@ -519,7 +519,7 @@ TEST(exception, test_binop_plus_error) {
 
     L->compile_file("./exception/test_binop_plus_error.lua", {});
     try {
-        L->call("test", std::tie(), 1, "2");
+        L->call("test", std::tie(), 1, "a");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;

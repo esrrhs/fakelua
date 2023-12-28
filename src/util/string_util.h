@@ -12,13 +12,17 @@ static const auto g_number_regex =
 
 static const auto g_integer_regex = std::regex("^[+-]?[0-9]+$|^[+-]?0[xX][0-9a-fA-F]+$");
 
-inline bool is_number(const std::string &s) {
-    return std::regex_match(s, g_number_regex);
+inline bool is_number(const std::string_view &s) {
+    return std::regex_match(s.begin(), s.end(), g_number_regex);
 }
 
-inline bool is_integer(const std::string &s) {
-    return std::regex_match(s, g_integer_regex);
+inline bool is_integer(const std::string_view &s) {
+    return std::regex_match(s.begin(), s.end(), g_integer_regex);
 }
+
+int64_t to_integer(const std::string_view &s);
+
+double to_float(const std::string_view &s);
 
 inline std::string join_string(const std::vector<std::string> &strs, const std::string &sep) {
     return std::accumulate(std::next(strs.begin()), strs.end(), strs[0],

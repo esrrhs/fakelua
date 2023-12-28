@@ -70,15 +70,6 @@ public:
         return float_;
     }
 
-    // get number value
-    double get_number() const {
-        if (type_ == var_type::VAR_INT) {
-            return (double) int_;
-        } else {
-            return float_;
-        }
-    }
-
     // get string_view value
     const std::string_view &get_string() const {
         return string_;
@@ -158,7 +149,7 @@ public:
 
 public:
     // to string
-    std::string to_string() const;
+    std::string to_string(bool has_quote = true, bool has_postfix = true) const;
 
     void set_const(bool val) {
         is_const_ = val;
@@ -184,6 +175,15 @@ public:
 
     // is calculable
     bool is_calculable() const;
+
+    // is calculable integer
+    bool is_calculable_integer() const;
+
+    // get calculable integer, only call this when is_calculable_integer() is true
+    int64_t get_calculable_int() const;
+
+    // get calculable number value, maybe integer or float or string
+    double get_calculable_number() const;
 
 public:
     void plus(const var &rhs, var &result) const;

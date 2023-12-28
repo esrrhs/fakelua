@@ -1130,7 +1130,7 @@ TEST(jitter, test_binop_plus) {
     ret1 = 0;
     ret2 = 0;
     L->compile_file("./jit/test_binop_plus.lua", {debug_mode: false});
-    L->call("test", std::tie(ret1, ret2), 1, 2, 1.1, 2.2);
+    L->call("test", std::tie(ret1, ret2), "1", 2, "1.1", 2.2);
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(std::abs(ret2 - 3.3) < 0.001, true);
 }
@@ -1168,7 +1168,7 @@ TEST(jitter, test_binop_minus) {
     ret1 = 0;
     ret2 = 0;
     L->compile_file("./jit/test_binop_minus.lua", {debug_mode: false});
-    L->call("test", std::tie(ret1, ret2), 1, 2, 2, 1.2);
+    L->call("test", std::tie(ret1, ret2), "1", "2", 2, 1.2);
     ASSERT_EQ(ret1, -1);
     ASSERT_EQ(std::abs(ret2 - 0.8) < 0.001, true);
 }

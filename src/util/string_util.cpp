@@ -18,7 +18,7 @@ namespace fakelua {
 
 std::string replace_escape_chars(const std::string &str) {
     std::string result;
-    for (std::string::const_iterator it = str.begin(); it != str.end(); ) {
+    for (std::string::const_iterator it = str.begin(); it != str.end();) {
         if (*it == '\\') {
             ++it;
             if (it == str.end()) {
@@ -97,6 +97,36 @@ std::string replace_escape_chars(const std::string &str) {
         }
     }
     return result;
+}
+
+int64_t to_integer(const std::string_view &s) {
+    int64_t result = 0;
+    auto begin = s.begin();
+    auto base = 10;
+    if (s.length() > 2 && s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+        begin += 2;
+        base = 16;
+    }
+    auto [ptr, ec] = std::from_chars(begin, s.data() + s.size(), result, base);
+    if (ec == std::errc()) {
+        return result;
+    } else if (ec == std::errc::invalid_argument) {
+        throw_fakelua_exception(std::format("invalid argument: {}", s));
+    } else if (ec == std::errc::result_out_of_range) {
+        throw_fakelua_exception(std::format("result out of range: {}", s));
+    }
+}
+
+double to_float(const std::string_view &s) {
+    double result = 0;
+    auto [ptr, ec] = std::from_chars(s.data(), s.data() + s.size(), result);
+    if (ec == std::errc()) {
+        return result;
+    } else if (ec == std::errc::invalid_argument) {
+        throw_fakelua_exception(std::format("invalid argument: {}", s));
+    } else if (ec == std::errc::result_out_of_range) {
+        throw_fakelua_exception(std::format("result out of range: {}", s));
+    }
 }
 
 }// namespace fakelua
