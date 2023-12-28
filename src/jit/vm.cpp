@@ -150,7 +150,7 @@ extern "C" __attribute__((used)) var *binop_const_double_slash(gcc_jit_handle *h
     return ret;
 }
 
-extern "C" __attribute__((used)) var *binop_const_xor(gcc_jit_handle *h, var *l, var *r) {
+extern "C" __attribute__((used)) var *binop_const_pow(gcc_jit_handle *h, var *l, var *r) {
     DEBUG_ASSERT(h);
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
@@ -160,7 +160,7 @@ extern "C" __attribute__((used)) var *binop_const_xor(gcc_jit_handle *h, var *l,
     DEBUG_ASSERT(r->is_const());
     auto ret = h->alloc_var();
     ret->set_const(true);
-    l->xor_(*r, *ret);
+    l->pow(*r, *ret);
     return ret;
 }
 
@@ -192,7 +192,7 @@ extern "C" __attribute__((used)) var *binop_const_bitand(gcc_jit_handle *h, var 
     return ret;
 }
 
-extern "C" __attribute__((used)) var *binop_const_bitnot(gcc_jit_handle *h, var *l, var *r) {
+extern "C" __attribute__((used)) var *binop_const_xor(gcc_jit_handle *h, var *l, var *r) {
     DEBUG_ASSERT(h);
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
@@ -202,7 +202,7 @@ extern "C" __attribute__((used)) var *binop_const_bitnot(gcc_jit_handle *h, var 
     DEBUG_ASSERT(r->is_const());
     auto ret = h->alloc_var();
     ret->set_const(true);
-    l->bitnot(*r, *ret);
+    l->xor_(*r, *ret);
     return ret;
 }
 
@@ -258,7 +258,8 @@ extern "C" __attribute__((used)) var *binop_const_concat(gcc_jit_handle *h, var 
     DEBUG_ASSERT(r->is_const());
     auto ret = h->alloc_var();
     ret->set_const(true);
-    l->concat(*r, *ret);
+    l->concat(h->get_state(), *r, *ret);
+    h->alloc_str(ret->get_string());// make the string const
     return ret;
 }
 
@@ -612,14 +613,14 @@ extern "C" __attribute__((used)) var *binop_double_slash(fakelua_state *s, var *
     return ret;
 }
 
-extern "C" __attribute__((used)) var *binop_xor(fakelua_state *s, var *l, var *r) {
+extern "C" __attribute__((used)) var *binop_pow(fakelua_state *s, var *l, var *r) {
     DEBUG_ASSERT(s);
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
     auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
-    l->xor_(*r, *ret);
+    l->pow(*r, *ret);
     return ret;
 }
 
@@ -645,14 +646,14 @@ extern "C" __attribute__((used)) var *binop_bitand(fakelua_state *s, var *l, var
     return ret;
 }
 
-extern "C" __attribute__((used)) var *binop_bitnot(fakelua_state *s, var *l, var *r) {
+extern "C" __attribute__((used)) var *binop_xor(fakelua_state *s, var *l, var *r) {
     DEBUG_ASSERT(s);
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
     auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
-    r->bitnot(*ret);
+    r->xor_(*r, *ret);
     return ret;
 }
 
@@ -696,7 +697,7 @@ extern "C" __attribute__((used)) var *binop_concat(fakelua_state *s, var *l, var
     DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
     auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
-    l->concat(*r, *ret);
+    l->concat(s, *r, *ret);
     return ret;
 }
 

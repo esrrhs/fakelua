@@ -249,8 +249,7 @@ gccjit::rvalue gcc_jitter::compile_exp(const syntax_tree_interface_ptr &exp, boo
     } else if (exp_type == "true") {
         func_name = is_const ? "new_const_var_true" : "new_var_true";
     } else if (exp_type == "number") {
-        std::regex e("^[-+]?[0-9]+$");
-        if (std::regex_match(value, e)) {
+        if (is_integer(value)) {
             func_name = is_const ? "new_const_var_int" : "new_var_int";
             auto the_int_type = gccjit_context_->get_type(GCC_JIT_TYPE_INT64_T);
             params.push_back(gccjit_context_->new_param(the_int_type, "val"));

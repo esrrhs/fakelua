@@ -547,7 +547,7 @@ namespace yy {
     TOK_COLON = 47,                // ":"
     TOK_COMMA = 48,                // ","
     TOK_DOT = 49,                  // "."
-    TOK_XOR = 50,                  // "^"
+    TOK_POW = 50,                  // "^"
     TOK_MOD = 51,                  // "%"
     TOK_BITAND = 52,               // "&"
     TOK_BITOR = 53,                // "|"
@@ -626,7 +626,7 @@ namespace yy {
         S_COLON = 47,                            // ":"
         S_COMMA = 48,                            // ","
         S_DOT = 49,                              // "."
-        S_XOR = 50,                              // "^"
+        S_POW = 50,                              // "^"
         S_MOD = 51,                              // "%"
         S_BITAND = 52,                           // "&"
         S_BITOR = 53,                            // "|"
@@ -1753,16 +1753,16 @@ switch (yykind)
 #if 201103L <= YY_CPLUSPLUS
       static
       symbol_type
-      make_XOR (location_type l)
+      make_POW (location_type l)
       {
-        return symbol_type (token::TOK_XOR, std::move (l));
+        return symbol_type (token::TOK_POW, std::move (l));
       }
 #else
       static
       symbol_type
-      make_XOR (const location_type& l)
+      make_POW (const location_type& l)
       {
-        return symbol_type (token::TOK_XOR, l);
+        return symbol_type (token::TOK_POW, l);
       }
 #endif
 #if 201103L <= YY_CPLUSPLUS

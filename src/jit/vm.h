@@ -96,13 +96,13 @@ extern "C" __attribute__((used)) var *binop_const_slash(gcc_jit_handle *h, var *
 
 extern "C" __attribute__((used)) var *binop_const_double_slash(gcc_jit_handle *h, var *l, var *r);
 
-extern "C" __attribute__((used)) var *binop_const_xor(gcc_jit_handle *h, var *l, var *r);
+extern "C" __attribute__((used)) var *binop_const_pow(gcc_jit_handle *h, var *l, var *r);
 
 extern "C" __attribute__((used)) var *binop_const_mod(gcc_jit_handle *h, var *l, var *r);
 
 extern "C" __attribute__((used)) var *binop_const_bitand(gcc_jit_handle *h, var *l, var *r);
 
-extern "C" __attribute__((used)) var *binop_const_bitnot(gcc_jit_handle *h, var *l, var *r);
+extern "C" __attribute__((used)) var *binop_const_xor(gcc_jit_handle *h, var *l, var *r);
 
 extern "C" __attribute__((used)) var *binop_const_bitor(gcc_jit_handle *h, var *l, var *r);
 
@@ -156,13 +156,13 @@ extern "C" __attribute__((used)) var *binop_slash(fakelua_state *s, var *l, var 
 
 extern "C" __attribute__((used)) var *binop_double_slash(fakelua_state *s, var *l, var *r);
 
-extern "C" __attribute__((used)) var *binop_xor(fakelua_state *s, var *l, var *r);
+extern "C" __attribute__((used)) var *binop_pow(fakelua_state *s, var *l, var *r);
 
 extern "C" __attribute__((used)) var *binop_mod(fakelua_state *s, var *l, var *r);
 
 extern "C" __attribute__((used)) var *binop_bitand(fakelua_state *s, var *l, var *r);
 
-extern "C" __attribute__((used)) var *binop_bitnot(fakelua_state *s, var *l, var *r);
+extern "C" __attribute__((used)) var *binop_xor(fakelua_state *s, var *l, var *r);
 
 extern "C" __attribute__((used)) var *binop_bitor(fakelua_state *s, var *l, var *r);
 

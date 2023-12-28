@@ -229,55 +229,132 @@ void var::double_slash(const var &rhs, var &result) const {
     }
 }
 
-void var::xor_(const var &rhs, var &result) const {
+void var::pow(const var &rhs, var &result) const {
     if (!is_calculable() || !rhs.is_calculable()) {
         throw_fakelua_exception(std::format("operand of '^' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
                                             magic_enum::enum_name(rhs.type()), rhs.to_string()));
     }
-    if (type() == var_type::VAR_INT && rhs.type() == var_type::VAR_INT) {
-        result.set_int(get_int() ^ rhs.get_int());
-    } else {
-        throw_fakelua_exception(std::format("operand of '^' must be integer, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
-    }
+    result.set_float(std::pow(get_number(), rhs.get_number()));
 }
 
 void var::mod(const var &rhs, var &result) const {
+    if (!is_calculable() || !rhs.is_calculable()) {
+        throw_fakelua_exception(std::format("operand of '%' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
+                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+    }
+    if (type() == var_type::VAR_INT && rhs.type() == var_type::VAR_INT) {
+        result.set_int(get_int() % rhs.get_int());
+    } else {
+        result.set_float(std::fmod(get_number(), rhs.get_number()));
+    }
 }
 
 void var::bitand_(const var &rhs, var &result) const {
+    if (type() != var_type::VAR_INT || rhs.type() != var_type::VAR_INT) {
+        throw_fakelua_exception(std::format("operand of '&' must be integer, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
+                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+    }
+    result.set_int(get_int() & rhs.get_int());
 }
 
-void var::bitnot(const var &rhs, var &result) const {
+void var::xor_(const var &rhs, var &result) const {
+    if (type() != var_type::VAR_INT || rhs.type() != var_type::VAR_INT) {
+        throw_fakelua_exception(std::format("operand of '~' must be integer, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
+                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+    }
+    result.set_int(get_int() ^ rhs.get_int());
 }
 
 void var::bitor_(const var &rhs, var &result) const {
+    if (type() != var_type::VAR_INT || rhs.type() != var_type::VAR_INT) {
+        throw_fakelua_exception(std::format("operand of '|' must be integer, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
+                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+    }
+    result.set_int(get_int() | rhs.get_int());
 }
 
 void var::right_shift(const var &rhs, var &result) const {
+    if (type() != var_type::VAR_INT || rhs.type() != var_type::VAR_INT) {
+        throw_fakelua_exception(std::format("operand of '>>' must be integer, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
+                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+    }
+    result.set_int(get_int() >> rhs.get_int());
 }
 
 void var::left_shift(const var &rhs, var &result) const {
+    if (type() != var_type::VAR_INT || rhs.type() != var_type::VAR_INT) {
+        throw_fakelua_exception(std::format("operand of '<<' must be integer, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
+                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+    }
+    result.set_int(get_int() << rhs.get_int());
 }
 
-void var::concat(const var &rhs, var &result) const {
+void var::concat(fakelua_state *s, const var &rhs, var &result) const {
+    if (type() != var_type::VAR_STRING || rhs.type() != var_type::VAR_STRING) {
+        throw_fakelua_exception(std::format("operand of '..' must be string, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
+                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+    }
+    result.set_string(s, std::format("{}{}", string_, rhs.string_));
 }
+
 void var::less(const var &rhs, var &result) const {
+    if (!is_calculable() || !rhs.is_calculable()) {
+        throw_fakelua_exception(std::format("operand of '<' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
+                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+    }
+
+    if (type() == var_type::VAR_INT && rhs.type() == var_type::VAR_INT) {
+        result.set_bool(get_int() < rhs.get_int());
+    } else {
+        result.set_bool(get_number() < rhs.get_number());
+    }
 }
 
 void var::less_equal(const var &rhs, var &result) const {
+    if (!is_calculable() || !rhs.is_calculable()) {
+        throw_fakelua_exception(std::format("operand of '<=' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
+                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+    }
+
+    if (type() == var_type::VAR_INT && rhs.type() == var_type::VAR_INT) {
+        result.set_bool(get_int() <= rhs.get_int());
+    } else {
+        result.set_bool(get_number() <= rhs.get_number());
+    }
 }
 
 void var::more(const var &rhs, var &result) const {
+    if (!is_calculable() || !rhs.is_calculable()) {
+        throw_fakelua_exception(std::format("operand of '>' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
+                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+    }
+
+    if (type() == var_type::VAR_INT && rhs.type() == var_type::VAR_INT) {
+        result.set_bool(get_int() > rhs.get_int());
+    } else {
+        result.set_bool(get_number() > rhs.get_number());
+    }
 }
 
 void var::more_equal(const var &rhs, var &result) const {
+    if (!is_calculable() || !rhs.is_calculable()) {
+        throw_fakelua_exception(std::format("operand of '>=' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
+                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+    }
+
+    if (type() == var_type::VAR_INT && rhs.type() == var_type::VAR_INT) {
+        result.set_bool(get_int() >= rhs.get_int());
+    } else {
+        result.set_bool(get_number() >= rhs.get_number());
+    }
 }
 
 void var::equal(const var &rhs, var &result) const {
+    result.set_bool(equal(rhs));
 }
 
 void var::not_equal(const var &rhs, var &result) const {
+    result.set_bool(!equal(rhs));
 }
 
 }// namespace fakelua

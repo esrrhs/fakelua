@@ -95,7 +95,7 @@ int yyFlexLexer::yylex() { return -1; }
   COLON         ":"
   COMMA         ","
   DOT           "."
-  XOR           "^"
+  POW           "^"
   MOD           "%"
   BITAND        "&"
   BITOR         "|"
@@ -1321,11 +1321,11 @@ binop:
         $$ = binop;
     }
     |
-    XOR
+    POW
     {
-        LOG_INFO("[bison]: binop: XOR");
+        LOG_INFO("[bison]: binop: POW");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("XOR");
+        binop->set_op("POW");
         $$ = binop;
     }
     |
@@ -1349,7 +1349,7 @@ binop:
     {
         LOG_INFO("[bison]: binop: BITNOT");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("BITNOT");
+        binop->set_op("XOR");
         $$ = binop;
     }
     |

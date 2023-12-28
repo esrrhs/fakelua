@@ -6,7 +6,7 @@
 
 namespace fakelua {
 
-class gcc_jit_handle {
+class   gcc_jit_handle {
 public:
     gcc_jit_handle(fakelua_state *state);
 

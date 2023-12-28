@@ -196,13 +196,13 @@ public:
 
     void double_slash(const var &rhs, var &result) const;
 
-    void xor_(const var &rhs, var &result) const;
+    void pow(const var &rhs, var &result) const;
 
     void mod(const var &rhs, var &result) const;
 
     void bitand_(const var &rhs, var &result) const;
 
-    void bitnot(const var &rhs, var &result) const;
+    void xor_(const var &rhs, var &result) const;
 
     void bitor_(const var &rhs, var &result) const;
 
@@ -210,7 +210,7 @@ public:
 
     void left_shift(const var &rhs, var &result) const;
 
-    void concat(const var &rhs, var &result) const;
+    void concat(fakelua_state *s, const var &rhs, var &result) const;
 
     void less(const var &rhs, var &result) const;
 

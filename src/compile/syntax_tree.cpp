@@ -88,7 +88,9 @@ std::string syntax_tree_functioncall::dump(int tab) const {
 std::string syntax_tree_tableconstructor::dump(int tab) const {
     std::string str;
     str += gen_tab(tab) + "(tableconstructor)[" + loc_str() + "]\n";
-    str += fieldlist_->dump(tab + 1);
+    if (fieldlist_) {
+        str += fieldlist_->dump(tab + 1);
+    }
     return str;
 }
 

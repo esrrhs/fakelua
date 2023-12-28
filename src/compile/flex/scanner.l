@@ -34,8 +34,8 @@ string2  \'((\\'|[^'\n])*)\'
 string3  \[\[([^\]]|(\][^\]]))*\]\]
 string   {string1}|{string2}|{string3}
 name     [_a-zA-Z][_a-zA-Z0-9]{0,30}
-num1     -?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?
-num2     -?0[xX][0-9a-fA-F]+(\.[0-9a-fA-F]+)?([pP][+-]?[0-9]+)?
+num1     [+-]?[0-9]+(\.[0-9]+)?([eE][+-]?[0-9]+)?
+num2     [+-]?0[xX][0-9a-fA-F]+(\.[0-9a-fA-F]+)?([pP][+-]?[0-9]+)?
 number   {num1}|{num2}
 
 %{
@@ -71,7 +71,7 @@ number   {num1}|{num2}
 ">"             return yy::parser::make_MORE(loc);
 "<"             return yy::parser::make_LESS(loc);
 "#"             return yy::parser::make_NUMBER_SIGN(loc);
-"^"             return yy::parser::make_XOR(loc);
+"^"             return yy::parser::make_POW(loc);
 ";"             return yy::parser::make_SEMICOLON(loc);
 ":"             return yy::parser::make_COLON(loc);
 ","             return yy::parser::make_COMMA(loc);

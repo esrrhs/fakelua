@@ -2112,14 +2112,13 @@ namespace yy {
     {
         LOG_INFO("[bison]: tableconstructor: LCURLY RCURLY");
         auto tableconstructor = std::make_shared<fakelua::syntax_tree_tableconstructor>(yystack_[1].location);
-        tableconstructor->set_fieldlist(std::make_shared<fakelua::syntax_tree_empty>(yystack_[1].location));
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = tableconstructor;
     }
-#line 2119 "parser.cpp"
+#line 2118 "parser.cpp"
     break;
 
   case 76: // fieldlist: field
-#line 1189 "parser.y"
+#line 1188 "parser.y"
     {
         LOG_INFO("[bison]: fieldlist: field");
         auto fieldlist = std::make_shared<fakelua::syntax_tree_fieldlist>(yystack_[0].location);
@@ -2131,11 +2130,11 @@ namespace yy {
         fieldlist->add_field(field);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = fieldlist;
     }
-#line 2135 "parser.cpp"
+#line 2134 "parser.cpp"
     break;
 
   case 77: // fieldlist: fieldlist fieldsep field
-#line 1202 "parser.y"
+#line 1201 "parser.y"
     {
         LOG_INFO("[bison]: fieldlist: fieldlist fieldsep field");
         auto fieldlist = std::dynamic_pointer_cast<fakelua::syntax_tree_fieldlist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -2151,11 +2150,11 @@ namespace yy {
         fieldlist->add_field(field);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = fieldlist;
     }
-#line 2155 "parser.cpp"
+#line 2154 "parser.cpp"
     break;
 
   case 78: // field: "[" exp "]" "=" exp
-#line 1221 "parser.y"
+#line 1220 "parser.y"
     {
         LOG_INFO("[bison]: field: LSQUARE exp RSQUARE ASSIGN exp");
         auto field = std::make_shared<fakelua::syntax_tree_field>(yystack_[4].location);
@@ -2174,11 +2173,11 @@ namespace yy {
         field->set_type("array");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = field;
     }
-#line 2178 "parser.cpp"
+#line 2177 "parser.cpp"
     break;
 
   case 79: // field: "identifier" "=" exp
-#line 1241 "parser.y"
+#line 1240 "parser.y"
     {
         LOG_INFO("[bison]: field: IDENTIFIER ASSIGN exp");
         auto field = std::make_shared<fakelua::syntax_tree_field>(yystack_[2].location);
@@ -2192,11 +2191,11 @@ namespace yy {
         field->set_type("object");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = field;
     }
-#line 2196 "parser.cpp"
+#line 2195 "parser.cpp"
     break;
 
   case 80: // field: exp
-#line 1256 "parser.y"
+#line 1255 "parser.y"
     {
         LOG_INFO("[bison]: field: exp");
         auto field = std::make_shared<fakelua::syntax_tree_field>(yystack_[0].location);
@@ -2209,304 +2208,304 @@ namespace yy {
         field->set_type("array");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = field;
     }
-#line 2213 "parser.cpp"
+#line 2212 "parser.cpp"
     break;
 
   case 81: // fieldsep: ","
-#line 1272 "parser.y"
+#line 1271 "parser.y"
     {
         LOG_INFO("[bison]: fieldsep: COMMA");
         // nothing to do
     }
-#line 2222 "parser.cpp"
+#line 2221 "parser.cpp"
     break;
 
   case 82: // fieldsep: ";"
-#line 1278 "parser.y"
+#line 1277 "parser.y"
     {
         LOG_INFO("[bison]: fieldsep: SEMICOLON");
         // nothing to do
     }
-#line 2231 "parser.cpp"
+#line 2230 "parser.cpp"
     break;
 
   case 83: // binop: "+"
-#line 1286 "parser.y"
+#line 1285 "parser.y"
     {
         LOG_INFO("[bison]: binop: PLUS");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("PLUS");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2242 "parser.cpp"
+#line 2241 "parser.cpp"
     break;
 
   case 84: // binop: "-"
-#line 1294 "parser.y"
+#line 1293 "parser.y"
     {
         LOG_INFO("[bison]: binop: MINUS");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("MINUS");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2253 "parser.cpp"
+#line 2252 "parser.cpp"
     break;
 
   case 85: // binop: "*"
-#line 1302 "parser.y"
+#line 1301 "parser.y"
     {
         LOG_INFO("[bison]: binop: STAR");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("STAR");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2264 "parser.cpp"
+#line 2263 "parser.cpp"
     break;
 
   case 86: // binop: "/"
-#line 1310 "parser.y"
+#line 1309 "parser.y"
     {
         LOG_INFO("[bison]: binop: SLASH");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("SLASH");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2275 "parser.cpp"
+#line 2274 "parser.cpp"
     break;
 
   case 87: // binop: "//"
-#line 1318 "parser.y"
+#line 1317 "parser.y"
     {
         LOG_INFO("[bison]: binop: DOUBLE_SLASH");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("DOUBLE_SLASH");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2286 "parser.cpp"
+#line 2285 "parser.cpp"
     break;
 
   case 88: // binop: "^"
-#line 1326 "parser.y"
+#line 1325 "parser.y"
     {
-        LOG_INFO("[bison]: binop: XOR");
+        LOG_INFO("[bison]: binop: POW");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("XOR");
+        binop->set_op("POW");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2297 "parser.cpp"
+#line 2296 "parser.cpp"
     break;
 
   case 89: // binop: "%"
-#line 1334 "parser.y"
+#line 1333 "parser.y"
     {
         LOG_INFO("[bison]: binop: MOD");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("MOD");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2308 "parser.cpp"
+#line 2307 "parser.cpp"
     break;
 
   case 90: // binop: "&"
-#line 1342 "parser.y"
+#line 1341 "parser.y"
     {
         LOG_INFO("[bison]: binop: BITAND");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("BITAND");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2319 "parser.cpp"
+#line 2318 "parser.cpp"
     break;
 
   case 91: // binop: "~"
-#line 1350 "parser.y"
+#line 1349 "parser.y"
     {
         LOG_INFO("[bison]: binop: BITNOT");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("BITNOT");
+        binop->set_op("XOR");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2330 "parser.cpp"
+#line 2329 "parser.cpp"
     break;
 
   case 92: // binop: "|"
-#line 1358 "parser.y"
+#line 1357 "parser.y"
     {
         LOG_INFO("[bison]: binop: BITOR");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("BITOR");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2341 "parser.cpp"
+#line 2340 "parser.cpp"
     break;
 
   case 93: // binop: ">>"
-#line 1366 "parser.y"
+#line 1365 "parser.y"
     {
         LOG_INFO("[bison]: binop: RIGHT_SHIFT");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("RIGHT_SHIFT");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2352 "parser.cpp"
+#line 2351 "parser.cpp"
     break;
 
   case 94: // binop: "<<"
-#line 1374 "parser.y"
+#line 1373 "parser.y"
     {
         LOG_INFO("[bison]: binop: LEFT_SHIFT");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("LEFT_SHIFT");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2363 "parser.cpp"
+#line 2362 "parser.cpp"
     break;
 
   case 95: // binop: ".."
-#line 1382 "parser.y"
+#line 1381 "parser.y"
     {
         LOG_INFO("[bison]: binop: CONCAT");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("CONCAT");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2374 "parser.cpp"
+#line 2373 "parser.cpp"
     break;
 
   case 96: // binop: "<"
-#line 1390 "parser.y"
+#line 1389 "parser.y"
     {
         LOG_INFO("[bison]: binop: LESS");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("LESS");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2385 "parser.cpp"
+#line 2384 "parser.cpp"
     break;
 
   case 97: // binop: "<="
-#line 1398 "parser.y"
+#line 1397 "parser.y"
     {
         LOG_INFO("[bison]: binop: LESS_EQUAL");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("LESS_EQUAL");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2396 "parser.cpp"
+#line 2395 "parser.cpp"
     break;
 
   case 98: // binop: ">"
-#line 1406 "parser.y"
+#line 1405 "parser.y"
     {
         LOG_INFO("[bison]: binop: MORE");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("MORE");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2407 "parser.cpp"
+#line 2406 "parser.cpp"
     break;
 
   case 99: // binop: ">="
-#line 1414 "parser.y"
+#line 1413 "parser.y"
     {
         LOG_INFO("[bison]: binop: MORE_EQUAL");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("MORE_EQUAL");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2418 "parser.cpp"
+#line 2417 "parser.cpp"
     break;
 
   case 100: // binop: "=="
-#line 1422 "parser.y"
+#line 1421 "parser.y"
     {
         LOG_INFO("[bison]: binop: EQUAL");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("EQUAL");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2429 "parser.cpp"
+#line 2428 "parser.cpp"
     break;
 
   case 101: // binop: "~="
-#line 1430 "parser.y"
+#line 1429 "parser.y"
     {
         LOG_INFO("[bison]: binop: NOT_EQUAL");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("NOT_EQUAL");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2440 "parser.cpp"
+#line 2439 "parser.cpp"
     break;
 
   case 102: // binop: "and"
-#line 1438 "parser.y"
+#line 1437 "parser.y"
     {
         LOG_INFO("[bison]: binop: AND");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("AND");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2451 "parser.cpp"
+#line 2450 "parser.cpp"
     break;
 
   case 103: // binop: "or"
-#line 1446 "parser.y"
+#line 1445 "parser.y"
     {
         LOG_INFO("[bison]: binop: OR");
         auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
         binop->set_op("OR");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
     }
-#line 2462 "parser.cpp"
+#line 2461 "parser.cpp"
     break;
 
   case 104: // unop: "-"
-#line 1456 "parser.y"
+#line 1455 "parser.y"
     {
         LOG_INFO("[bison]: unop: MINUS");
         auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[0].location);
         unop->set_op("MINUS");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = unop;
     }
-#line 2473 "parser.cpp"
+#line 2472 "parser.cpp"
     break;
 
   case 105: // unop: "not"
-#line 1464 "parser.y"
+#line 1463 "parser.y"
     {
         LOG_INFO("[bison]: unop: NOT");
         auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[0].location);
         unop->set_op("NOT");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = unop;
     }
-#line 2484 "parser.cpp"
+#line 2483 "parser.cpp"
     break;
 
   case 106: // unop: "#"
-#line 1472 "parser.y"
+#line 1471 "parser.y"
     {
         LOG_INFO("[bison]: unop: NUMBER_SIGN");
         auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[0].location);
         unop->set_op("NUMBER_SIGN");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = unop;
     }
-#line 2495 "parser.cpp"
+#line 2494 "parser.cpp"
     break;
 
   case 107: // unop: "~"
-#line 1480 "parser.y"
+#line 1479 "parser.y"
     {
         LOG_INFO("[bison]: unop: BITNOT");
         auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[0].location);
         unop->set_op("BITNOT");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = unop;
     }
-#line 2506 "parser.cpp"
+#line 2505 "parser.cpp"
     break;
 
 
-#line 2510 "parser.cpp"
+#line 2509 "parser.cpp"
 
             default:
               break;
@@ -3402,10 +3401,10 @@ namespace yy {
      689,   708,   717,   737,   754,   762,   776,   789,   808,   816,
      824,   832,   841,   850,   858,   872,   886,   900,   926,   948,
      962,   976,   991,  1010,  1032,  1046,  1054,  1068,  1079,  1094,
-    1113,  1128,  1141,  1155,  1165,  1178,  1188,  1201,  1220,  1240,
-    1255,  1271,  1277,  1285,  1293,  1301,  1309,  1317,  1325,  1333,
-    1341,  1349,  1357,  1365,  1373,  1381,  1389,  1397,  1405,  1413,
-    1421,  1429,  1437,  1445,  1455,  1463,  1471,  1479
+    1113,  1128,  1141,  1155,  1165,  1178,  1187,  1200,  1219,  1239,
+    1254,  1270,  1276,  1284,  1292,  1300,  1308,  1316,  1324,  1332,
+    1340,  1348,  1356,  1364,  1372,  1380,  1388,  1396,  1404,  1412,
+    1420,  1428,  1436,  1444,  1454,  1462,  1470,  1478
   };
 
   void
@@ -3437,9 +3436,9 @@ namespace yy {
 
 
 } // yy
-#line 3441 "parser.cpp"
+#line 3440 "parser.cpp"
 
-#line 1487 "parser.y"
+#line 1486 "parser.y"
 
 
 void

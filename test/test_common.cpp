@@ -117,3 +117,47 @@ TEST(common, vi_sort) {
     ASSERT_EQ(t.vi_to_string(), "table:\n\t[nil] = 1\n\t[nil] = 1\n\t[false] = 4\n\t[true] = 3\n\t[1.000000] = 5\n\t[2.000000] = "
                                 "6\n\t[table:] = 7\n\t[table:] = 7");
 }
+
+TEST(common, is_number) {
+    ASSERT_TRUE(is_number("123"));
+    ASSERT_TRUE(is_number("-123"));
+    ASSERT_TRUE(is_number("+123"));
+
+    ASSERT_TRUE(is_number("123.456"));
+    ASSERT_TRUE(is_number("-123.456"));
+    ASSERT_TRUE(is_number("+123.456"));
+
+    ASSERT_TRUE(is_number("123e456"));
+    ASSERT_TRUE(is_number("-123e-456"));
+    ASSERT_TRUE(is_number("+123E+456"));
+
+    ASSERT_TRUE(is_number("0x123"));
+    ASSERT_TRUE(is_number("-0X123"));
+    ASSERT_TRUE(is_number("+0x123.456"));
+    ASSERT_TRUE(is_number("-0X123.456P+789"));
+
+    ASSERT_FALSE(is_number("abc"));
+    ASSERT_FALSE(is_number("123abc"));
+    ASSERT_FALSE(is_number("123.456.789"));
+}
+
+TEST(common, is_integer) {
+    ASSERT_TRUE(is_integer("123"));
+    ASSERT_TRUE(is_integer("-123"));
+    ASSERT_TRUE(is_integer("+123"));
+
+    ASSERT_TRUE(is_integer("0x123"));
+    ASSERT_TRUE(is_integer("-0X123"));
+
+    ASSERT_FALSE(is_integer("123.456"));
+    ASSERT_FALSE(is_integer("-123.456"));
+    ASSERT_FALSE(is_integer("+123.456"));
+    ASSERT_FALSE(is_integer("123e456"));
+    ASSERT_FALSE(is_integer("-123e-456"));
+    ASSERT_FALSE(is_integer("+123E+456"));
+    ASSERT_FALSE(is_integer("+0x123.456"));
+    ASSERT_FALSE(is_integer("-0X123.456P+789"));
+    ASSERT_FALSE(is_integer("abc"));
+    ASSERT_FALSE(is_integer("123abc"));
+    ASSERT_FALSE(is_integer("123.456.789"));
+}

@@ -17,8 +17,9 @@ FakeLua is a library for fast implementation of subset Lua, it compiles Lua to n
 # Difference with Lua
 * no global variable, only global constant
 * no GC, use memory pool
-* no coroutine/thread/userdata
+* no coroutine/thread/userdata/metatable
 * table are always hash table, no array table
+* math operation only support number, no string
 
 # Directory structure
 * [include](./include) header file
