@@ -105,6 +105,19 @@ int yyFlexLexer::yylex() { return -1; }
   NUMBER_SIGN   "#"
 ;
 
+%left "or"
+%left "and"
+%left "<"     ">"     "<="    ">="    "~="    "=="
+%left "|"
+%left "~"
+%left "&"
+%left "<<"    ">>"
+%right ".."
+%left "+"     "-"
+%left "*"     "/"     "//"    "%"
+%precedence UNARY
+%right "^"
+
 %token <std::string> IDENTIFIER "identifier"
 %token <std::string> STRING "string"
 %token <std::string> NUMBER "number"
@@ -131,8 +144,6 @@ int yyFlexLexer::yylex() { return -1; }
 %type <fakelua::syntax_tree_interface_ptr> funcname
 %type <fakelua::syntax_tree_interface_ptr> funcnamelist
 %type <fakelua::syntax_tree_interface_ptr> functiondef
-%type <fakelua::syntax_tree_interface_ptr> binop
-%type <fakelua::syntax_tree_interface_ptr> unop
 %type <fakelua::syntax_tree_interface_ptr> attnamelist
 
 %printer { yyo << $$; } <*>;
@@ -614,7 +625,7 @@ retstat:
 label:
     GOTO_TAG IDENTIFIER GOTO_TAG
     {
-    	LOG_INFO("[bison]: label: GOTO_TAG IDENTIFIER GOTO_TAG");
+            LOG_INFO("[bison]: label: GOTO_TAG IDENTIFIER GOTO_TAG");
         auto ret = std::make_shared<fakelua::syntax_tree_label>(@2);
         ret->set_name($2);
         $$ = ret;
@@ -897,9 +908,9 @@ exp:
         $$ = exp;
     }
     |
-    exp binop exp
+    exp PLUS exp
     {
-        LOG_INFO("[bison]: exp: exp binop exp");
+        LOG_INFO("[bison]: exp: exp PLUS exp");
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
         exp->set_type("binop");
         auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
@@ -914,25 +925,530 @@ exp:
             fakelua::throw_fakelua_exception("right_exp is not a exp");
         }
         exp->set_right(right_exp);
-        auto binop = std::dynamic_pointer_cast<fakelua::syntax_tree_binop>($2);
-        if (binop == nullptr) {
-            LOG_ERROR("[bison]: exp: binop is not a binop");
-            fakelua::throw_fakelua_exception("binop is not a binop");
-        }
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("PLUS");
         exp->set_op(binop);
         $$ = exp;
     }
     |
-    unop exp
+    exp MINUS exp
     {
-        LOG_INFO("[bison]: exp: unop exp");
+        LOG_INFO("[bison]: exp: exp MINUS exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("MINUS");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp STAR exp
+    {
+        LOG_INFO("[bison]: exp: exp STAR exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("STAR");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp SLASH exp
+    {
+        LOG_INFO("[bison]: exp: exp SLASH exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("SLASH");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp DOUBLE_SLASH exp
+    {
+        LOG_INFO("[bison]: exp: exp DOUBLE_SLASH exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("DOUBLE_SLASH");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp POW exp
+    {
+        LOG_INFO("[bison]: exp: exp POW exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("POW");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp MOD exp
+    {
+        LOG_INFO("[bison]: exp: exp MOD exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("MOD");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp BITAND exp
+    {
+        LOG_INFO("[bison]: exp: exp BITAND exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("BITAND");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp BITNOT exp
+    {
+        LOG_INFO("[bison]: exp: exp XOR exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("XOR");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp BITOR exp
+    {
+        LOG_INFO("[bison]: exp: exp BITOR exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("BITOR");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp RIGHT_SHIFT exp
+    {
+        LOG_INFO("[bison]: exp: exp RIGHT_SHIFT exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("RIGHT_SHIFT");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp LEFT_SHIFT exp
+    {
+        LOG_INFO("[bison]: exp: exp LEFT_SHIFT exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("LEFT_SHIFT");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp CONCAT exp
+    {
+        LOG_INFO("[bison]: exp: exp CONCAT exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("CONCAT");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp LESS exp
+    {
+        LOG_INFO("[bison]: exp: exp LESS exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("LESS");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp LESS_EQUAL exp
+    {
+        LOG_INFO("[bison]: exp: exp LESS_EQUAL exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("LESS_EQUAL");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp MORE exp
+    {
+        LOG_INFO("[bison]: exp: exp MORE exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("MORE");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp MORE_EQUAL exp
+    {
+        LOG_INFO("[bison]: exp: exp MORE_EQUAL exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("MORE_EQUAL");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp EQUAL exp
+    {
+        LOG_INFO("[bison]: exp: exp EQUAL exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("EQUAL");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp NOT_EQUAL exp
+    {
+        LOG_INFO("[bison]: exp: exp NOT_EQUAL exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("NOT_EQUAL");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp AND exp
+    {
+        LOG_INFO("[bison]: exp: exp AND exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("AND");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    exp OR exp
+    {
+        LOG_INFO("[bison]: exp: exp OR exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($1);
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($3);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@2);
+        binop->set_op("OR");
+        exp->set_op(binop);
+        $$ = exp;
+    }
+    |
+    MINUS exp %prec UNARY
+    {
+        LOG_INFO("[bison]: exp: MINUS exp");
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
         exp->set_type("unop");
-        auto unop = std::dynamic_pointer_cast<fakelua::syntax_tree_unop>($1);
-        if (unop == nullptr) {
-            LOG_ERROR("[bison]: exp: unop is not a unop");
-            fakelua::throw_fakelua_exception("unop is not a unop");
+        auto unop = std::make_shared<fakelua::syntax_tree_unop>(@1);
+        unop->set_op("MINUS");
+        exp->set_op(unop);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($2);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
         }
+        exp->set_right(right_exp);
+        $$ = exp;
+    }
+    |
+    NOT exp %prec UNARY
+    {
+        LOG_INFO("[bison]: exp: NOT exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("unop");
+        auto unop = std::make_shared<fakelua::syntax_tree_unop>(@1);
+        unop->set_op("NOT");
+        exp->set_op(unop);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($2);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        $$ = exp;
+    }
+    |
+    NUMBER_SIGN exp %prec UNARY
+    {
+        LOG_INFO("[bison]: exp: NUMBER_SIGN exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("unop");
+        auto unop = std::make_shared<fakelua::syntax_tree_unop>(@1);
+        unop->set_op("NUMBER_SIGN");
+        exp->set_op(unop);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($2);
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        $$ = exp;
+    }
+    |
+    BITNOT exp %prec UNARY
+    {
+        LOG_INFO("[bison]: exp: BITNOT exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("unop");
+        auto unop = std::make_shared<fakelua::syntax_tree_unop>(@1);
+        unop->set_op("BITNOT");
         exp->set_op(unop);
         auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>($2);
         if (right_exp == nullptr) {
@@ -1280,209 +1796,6 @@ fieldsep:
     }
     ;
 
-binop:
-    PLUS
-    {
-        LOG_INFO("[bison]: binop: PLUS");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("PLUS");
-        $$ = binop;
-    }
-    |
-    MINUS
-    {
-        LOG_INFO("[bison]: binop: MINUS");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("MINUS");
-        $$ = binop;
-    }
-    |
-    STAR
-    {
-        LOG_INFO("[bison]: binop: STAR");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("STAR");
-        $$ = binop;
-    }
-    |
-    SLASH
-    {
-        LOG_INFO("[bison]: binop: SLASH");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("SLASH");
-        $$ = binop;
-    }
-    |
-    DOUBLE_SLASH
-    {
-        LOG_INFO("[bison]: binop: DOUBLE_SLASH");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("DOUBLE_SLASH");
-        $$ = binop;
-    }
-    |
-    POW
-    {
-        LOG_INFO("[bison]: binop: POW");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("POW");
-        $$ = binop;
-    }
-    |
-    MOD
-    {
-        LOG_INFO("[bison]: binop: MOD");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("MOD");
-        $$ = binop;
-    }
-    |
-    BITAND
-    {
-        LOG_INFO("[bison]: binop: BITAND");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("BITAND");
-        $$ = binop;
-    }
-    |
-    BITNOT
-    {
-        LOG_INFO("[bison]: binop: BITNOT");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("XOR");
-        $$ = binop;
-    }
-    |
-    BITOR
-    {
-        LOG_INFO("[bison]: binop: BITOR");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("BITOR");
-        $$ = binop;
-    }
-    |
-    RIGHT_SHIFT
-    {
-        LOG_INFO("[bison]: binop: RIGHT_SHIFT");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("RIGHT_SHIFT");
-        $$ = binop;
-    }
-    |
-    LEFT_SHIFT
-    {
-        LOG_INFO("[bison]: binop: LEFT_SHIFT");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("LEFT_SHIFT");
-        $$ = binop;
-    }
-    |
-    CONCAT
-    {
-        LOG_INFO("[bison]: binop: CONCAT");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("CONCAT");
-        $$ = binop;
-    }
-    |
-    LESS
-    {
-        LOG_INFO("[bison]: binop: LESS");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("LESS");
-        $$ = binop;
-    }
-    |
-    LESS_EQUAL
-    {
-        LOG_INFO("[bison]: binop: LESS_EQUAL");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("LESS_EQUAL");
-        $$ = binop;
-    }
-    |
-    MORE
-    {
-        LOG_INFO("[bison]: binop: MORE");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("MORE");
-        $$ = binop;
-    }
-    |
-    MORE_EQUAL
-    {
-        LOG_INFO("[bison]: binop: MORE_EQUAL");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("MORE_EQUAL");
-        $$ = binop;
-    }
-    |
-    EQUAL
-    {
-        LOG_INFO("[bison]: binop: EQUAL");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("EQUAL");
-        $$ = binop;
-    }
-    |
-    NOT_EQUAL
-    {
-        LOG_INFO("[bison]: binop: NOT_EQUAL");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("NOT_EQUAL");
-        $$ = binop;
-    }
-    |
-    AND
-    {
-        LOG_INFO("[bison]: binop: AND");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("AND");
-        $$ = binop;
-    }
-    |
-    OR
-    {
-        LOG_INFO("[bison]: binop: OR");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(@1);
-        binop->set_op("OR");
-        $$ = binop;
-    }
-    ;
-
-unop:
-    MINUS
-    {
-        LOG_INFO("[bison]: unop: MINUS");
-        auto unop = std::make_shared<fakelua::syntax_tree_unop>(@1);
-        unop->set_op("MINUS");
-        $$ = unop;
-    }
-    |
-    NOT
-    {
-        LOG_INFO("[bison]: unop: NOT");
-        auto unop = std::make_shared<fakelua::syntax_tree_unop>(@1);
-        unop->set_op("NOT");
-        $$ = unop;
-    }
-    |
-    NUMBER_SIGN
-    {
-        LOG_INFO("[bison]: unop: NUMBER_SIGN");
-        auto unop = std::make_shared<fakelua::syntax_tree_unop>(@1);
-        unop->set_op("NUMBER_SIGN");
-        $$ = unop;
-    }
-    |
-    BITNOT
-    {
-        LOG_INFO("[bison]: unop: BITNOT");
-        auto unop = std::make_shared<fakelua::syntax_tree_unop>(@1);
-        unop->set_op("BITNOT");
-        $$ = unop;
-    }
-    ;
 %%
 
 void

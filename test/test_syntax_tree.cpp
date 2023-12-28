@@ -1029,8 +1029,7 @@ TEST(syntax_tree, function) {
     auto dumpstr = result.chunk->dump();
     LOG_INFO("{}", dumpstr);
 
-    auto wantstr = ""
-                   "(block)[1:1]\n"
+    auto wantstr = "(block)[1:1]\n"
                    "  (function)[1:1]\n"
                    "    (funcname)[1:10]\n"
                    "      (funcnamelist)[1:10]\n"
@@ -1059,18 +1058,18 @@ TEST(syntax_tree, function) {
                    "              type: binop\n"
                    "              value: \n"
                    "              (exp)[5:12]\n"
-                   "                type: prefixexp\n"
-                   "                value: \n"
-                   "                (prefixexp)[5:12]\n"
-                   "                  type: var\n"
-                   "                  (var)[5:12]\n"
-                   "                    type: simple\n"
-                   "                    name: a\n"
-                   "              (binop)[5:14]\n"
-                   "                op: PLUS\n"
-                   "              (exp)[5:16]\n"
                    "                type: binop\n"
                    "                value: \n"
+                   "                (exp)[5:12]\n"
+                   "                  type: prefixexp\n"
+                   "                  value: \n"
+                   "                  (prefixexp)[5:12]\n"
+                   "                    type: var\n"
+                   "                    (var)[5:12]\n"
+                   "                      type: simple\n"
+                   "                      name: a\n"
+                   "                (binop)[5:14]\n"
+                   "                  op: PLUS\n"
                    "                (exp)[5:16]\n"
                    "                  type: prefixexp\n"
                    "                  value: \n"
@@ -1079,16 +1078,16 @@ TEST(syntax_tree, function) {
                    "                    (var)[5:16]\n"
                    "                      type: simple\n"
                    "                      name: b\n"
-                   "                (binop)[5:18]\n"
-                   "                  op: PLUS\n"
-                   "                (exp)[5:20]\n"
-                   "                  type: prefixexp\n"
-                   "                  value: \n"
-                   "                  (prefixexp)[5:20]\n"
-                   "                    type: var\n"
-                   "                    (var)[5:20]\n"
-                   "                      type: simple\n"
-                   "                      name: c\n"
+                   "              (binop)[5:18]\n"
+                   "                op: PLUS\n"
+                   "              (exp)[5:20]\n"
+                   "                type: prefixexp\n"
+                   "                value: \n"
+                   "                (prefixexp)[5:20]\n"
+                   "                  type: var\n"
+                   "                  (var)[5:20]\n"
+                   "                    type: simple\n"
+                   "                    name: c\n"
                    "  (local_function)[8:1]\n"
                    "    name: func_c\n"
                    "    (funcbody)[8:22]\n"
@@ -1421,6 +1420,346 @@ TEST(syntax_tree, binop) {
                    "            (var)[2:15]\n"
                    "              type: simple\n"
                    "              name: d\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
+
+TEST(syntax_tree, test_binop_order1) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file(L, "./syntax/test_binop_order1.lua", {true});
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG_INFO("{}", dumpstr);
+
+    auto wantstr = "(block)[2:1]\n"
+                   "  (assign)[2:3]\n"
+                   "    (varlist)[2:1]\n"
+                   "      (var)[2:1]\n"
+                   "        type: simple\n"
+                   "        name: a\n"
+                   "    (explist)[2:5]\n"
+                   "      (exp)[2:5]\n"
+                   "        type: binop\n"
+                   "        value: \n"
+                   "        (exp)[2:5]\n"
+                   "          type: binop\n"
+                   "          value: \n"
+                   "          (exp)[2:5]\n"
+                   "            type: prefixexp\n"
+                   "            value: \n"
+                   "            (prefixexp)[2:5]\n"
+                   "              type: var\n"
+                   "              (var)[2:5]\n"
+                   "                type: simple\n"
+                   "                name: b\n"
+                   "          (binop)[2:7]\n"
+                   "            op: SLASH\n"
+                   "          (exp)[2:9]\n"
+                   "            type: number\n"
+                   "            value: 2\n"
+                   "        (binop)[2:11]\n"
+                   "          op: PLUS\n"
+                   "        (exp)[2:13]\n"
+                   "          type: number\n"
+                   "          value: 1\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
+
+TEST(syntax_tree, test_binop_order2) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file(L, "./syntax/test_binop_order2.lua", {true});
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG_INFO("{}", dumpstr);
+
+    auto wantstr = "(block)[2:1]\n"
+                   "  (assign)[2:3]\n"
+                   "    (varlist)[2:1]\n"
+                   "      (var)[2:1]\n"
+                   "        type: simple\n"
+                   "        name: a\n"
+                   "    (explist)[2:5]\n"
+                   "      (exp)[2:5]\n"
+                   "        type: binop\n"
+                   "        value: \n"
+                   "        (exp)[2:5]\n"
+                   "          type: binop\n"
+                   "          value: \n"
+                   "          (exp)[2:5]\n"
+                   "            type: prefixexp\n"
+                   "            value: \n"
+                   "            (prefixexp)[2:5]\n"
+                   "              type: var\n"
+                   "              (var)[2:5]\n"
+                   "                type: simple\n"
+                   "                name: a\n"
+                   "          (binop)[2:7]\n"
+                   "            op: PLUS\n"
+                   "          (exp)[2:9]\n"
+                   "            type: prefixexp\n"
+                   "            value: \n"
+                   "            (prefixexp)[2:9]\n"
+                   "              type: var\n"
+                   "              (var)[2:9]\n"
+                   "                type: simple\n"
+                   "                name: i\n"
+                   "        (binop)[2:11]\n"
+                   "          op: LESS\n"
+                   "        (exp)[2:13]\n"
+                   "          type: binop\n"
+                   "          value: \n"
+                   "          (exp)[2:13]\n"
+                   "            type: binop\n"
+                   "            value: \n"
+                   "            (exp)[2:13]\n"
+                   "              type: prefixexp\n"
+                   "              value: \n"
+                   "              (prefixexp)[2:13]\n"
+                   "                type: var\n"
+                   "                (var)[2:13]\n"
+                   "                  type: simple\n"
+                   "                  name: b\n"
+                   "            (binop)[2:15]\n"
+                   "              op: SLASH\n"
+                   "            (exp)[2:17]\n"
+                   "              type: number\n"
+                   "              value: 2\n"
+                   "          (binop)[2:19]\n"
+                   "            op: PLUS\n"
+                   "          (exp)[2:21]\n"
+                   "            type: number\n"
+                   "            value: 1\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
+
+TEST(syntax_tree, test_binop_order3) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file(L, "./syntax/test_binop_order3.lua", {true});
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG_INFO("{}", dumpstr);
+
+    auto wantstr = "(block)[2:1]\n"
+                   "  (assign)[2:3]\n"
+                   "    (varlist)[2:1]\n"
+                   "      (var)[2:1]\n"
+                   "        type: simple\n"
+                   "        name: a\n"
+                   "    (explist)[2:5]\n"
+                   "      (exp)[2:5]\n"
+                   "        type: binop\n"
+                   "        value: \n"
+                   "        (exp)[2:5]\n"
+                   "          type: number\n"
+                   "          value: 5\n"
+                   "        (binop)[2:7]\n"
+                   "          op: PLUS\n"
+                   "        (exp)[2:9]\n"
+                   "          type: binop\n"
+                   "          value: \n"
+                   "          (exp)[2:9]\n"
+                   "            type: binop\n"
+                   "            value: \n"
+                   "            (exp)[2:9]\n"
+                   "              type: prefixexp\n"
+                   "              value: \n"
+                   "              (prefixexp)[2:9]\n"
+                   "                type: var\n"
+                   "                (var)[2:9]\n"
+                   "                  type: simple\n"
+                   "                  name: x\n"
+                   "            (binop)[2:11]\n"
+                   "              op: POW\n"
+                   "            (exp)[2:13]\n"
+                   "              type: number\n"
+                   "              value: 2\n"
+                   "          (binop)[2:15]\n"
+                   "            op: STAR\n"
+                   "          (exp)[2:17]\n"
+                   "            type: number\n"
+                   "            value: 8\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
+
+TEST(syntax_tree, test_binop_order4) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file(L, "./syntax/test_binop_order4.lua", {true});
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG_INFO("{}", dumpstr);
+
+    auto wantstr = "(block)[2:1]\n"
+                   "  (assign)[2:3]\n"
+                   "    (varlist)[2:1]\n"
+                   "      (var)[2:1]\n"
+                   "        type: simple\n"
+                   "        name: a\n"
+                   "    (explist)[2:5]\n"
+                   "      (exp)[2:5]\n"
+                   "        type: binop\n"
+                   "        value: \n"
+                   "        (exp)[2:5]\n"
+                   "          type: binop\n"
+                   "          value: \n"
+                   "          (exp)[2:5]\n"
+                   "            type: prefixexp\n"
+                   "            value: \n"
+                   "            (prefixexp)[2:5]\n"
+                   "              type: var\n"
+                   "              (var)[2:5]\n"
+                   "                type: simple\n"
+                   "                name: a\n"
+                   "          (binop)[2:7]\n"
+                   "            op: LESS\n"
+                   "          (exp)[2:9]\n"
+                   "            type: prefixexp\n"
+                   "            value: \n"
+                   "            (prefixexp)[2:9]\n"
+                   "              type: var\n"
+                   "              (var)[2:9]\n"
+                   "                type: simple\n"
+                   "                name: y\n"
+                   "        (binop)[2:11]\n"
+                   "          op: AND\n"
+                   "        (exp)[2:15]\n"
+                   "          type: binop\n"
+                   "          value: \n"
+                   "          (exp)[2:15]\n"
+                   "            type: prefixexp\n"
+                   "            value: \n"
+                   "            (prefixexp)[2:15]\n"
+                   "              type: var\n"
+                   "              (var)[2:15]\n"
+                   "                type: simple\n"
+                   "                name: y\n"
+                   "          (binop)[2:17]\n"
+                   "            op: LESS_EQUAL\n"
+                   "          (exp)[2:20]\n"
+                   "            type: prefixexp\n"
+                   "            value: \n"
+                   "            (prefixexp)[2:20]\n"
+                   "              type: var\n"
+                   "              (var)[2:20]\n"
+                   "                type: simple\n"
+                   "                name: z\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
+
+TEST(syntax_tree, test_binop_order5) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file(L, "./syntax/test_binop_order5.lua", {true});
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG_INFO("{}", dumpstr);
+
+    auto wantstr = "(block)[1:1]\n"
+                   "  (assign)[1:2]\n"
+                   "    (varlist)[1:1]\n"
+                   "      (var)[1:1]\n"
+                   "        type: simple\n"
+                   "        name: a\n"
+                   "    (explist)[1:3]\n"
+                   "      (exp)[1:3]\n"
+                   "        type: unop\n"
+                   "        value: \n"
+                   "        (unop)[1:3]\n"
+                   "          op: MINUS\n"
+                   "        (exp)[1:4]\n"
+                   "          type: binop\n"
+                   "          value: \n"
+                   "          (exp)[1:4]\n"
+                   "            type: prefixexp\n"
+                   "            value: \n"
+                   "            (prefixexp)[1:4]\n"
+                   "              type: var\n"
+                   "              (var)[1:4]\n"
+                   "                type: simple\n"
+                   "                name: x\n"
+                   "          (binop)[1:5]\n"
+                   "            op: POW\n"
+                   "          (exp)[1:6]\n"
+                   "            type: number\n"
+                   "            value: 2\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
+
+TEST(syntax_tree, test_binop_order6) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file(L, "./syntax/test_binop_order6.lua", {true});
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG_INFO("{}", dumpstr);
+
+    auto wantstr = "(block)[1:1]\n"
+                   "  (assign)[1:2]\n"
+                   "    (varlist)[1:1]\n"
+                   "      (var)[1:1]\n"
+                   "        type: simple\n"
+                   "        name: a\n"
+                   "    (explist)[1:3]\n"
+                   "      (exp)[1:3]\n"
+                   "        type: binop\n"
+                   "        value: \n"
+                   "        (exp)[1:3]\n"
+                   "          type: prefixexp\n"
+                   "          value: \n"
+                   "          (prefixexp)[1:3]\n"
+                   "            type: var\n"
+                   "            (var)[1:3]\n"
+                   "              type: simple\n"
+                   "              name: x\n"
+                   "        (binop)[1:4]\n"
+                   "          op: POW\n"
+                   "        (exp)[1:5]\n"
+                   "          type: binop\n"
+                   "          value: \n"
+                   "          (exp)[1:5]\n"
+                   "            type: prefixexp\n"
+                   "            value: \n"
+                   "            (prefixexp)[1:5]\n"
+                   "              type: var\n"
+                   "              (var)[1:5]\n"
+                   "                type: simple\n"
+                   "                name: y\n"
+                   "          (binop)[1:6]\n"
+                   "            op: POW\n"
+                   "          (exp)[1:7]\n"
+                   "            type: prefixexp\n"
+                   "            value: \n"
+                   "            (prefixexp)[1:7]\n"
+                   "              type: var\n"
+                   "              (var)[1:7]\n"
+                   "                type: simple\n"
+                   "                name: z\n";
 
     ASSERT_EQ(dumpstr, wantstr);
 }

@@ -241,8 +241,6 @@ namespace yy {
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
-      case symbol_kind::S_binop: // binop
-      case symbol_kind::S_unop: // unop
         value.YY_MOVE_OR_COPY< fakelua::syntax_tree_interface_ptr > (YY_MOVE (that.value));
         break;
 
@@ -290,8 +288,6 @@ namespace yy {
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
-      case symbol_kind::S_binop: // binop
-      case symbol_kind::S_unop: // unop
         value.move< fakelua::syntax_tree_interface_ptr > (YY_MOVE (that.value));
         break;
 
@@ -339,8 +335,6 @@ namespace yy {
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
-      case symbol_kind::S_binop: // binop
-      case symbol_kind::S_unop: // unop
         value.copy< fakelua::syntax_tree_interface_ptr > (that.value);
         break;
 
@@ -387,8 +381,6 @@ namespace yy {
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
-      case symbol_kind::S_binop: // binop
-      case symbol_kind::S_unop: // unop
         value.move< fakelua::syntax_tree_interface_ptr > (that.value);
         break;
 
@@ -435,171 +427,159 @@ namespace yy {
         switch (yykind)
     {
       case symbol_kind::S_IDENTIFIER: // "identifier"
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < std::string > (); }
-#line 441 "parser.cpp"
+#line 433 "parser.cpp"
         break;
 
       case symbol_kind::S_STRING: // "string"
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < std::string > (); }
-#line 447 "parser.cpp"
+#line 439 "parser.cpp"
         break;
 
       case symbol_kind::S_NUMBER: // "number"
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < std::string > (); }
-#line 453 "parser.cpp"
+#line 445 "parser.cpp"
         break;
 
       case symbol_kind::S_chunk: // chunk
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 459 "parser.cpp"
+#line 451 "parser.cpp"
         break;
 
       case symbol_kind::S_block: // block
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 465 "parser.cpp"
+#line 457 "parser.cpp"
         break;
 
       case symbol_kind::S_stmt: // stmt
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 471 "parser.cpp"
+#line 463 "parser.cpp"
         break;
 
       case symbol_kind::S_attnamelist: // attnamelist
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 477 "parser.cpp"
+#line 469 "parser.cpp"
         break;
 
       case symbol_kind::S_elseifs: // elseifs
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 483 "parser.cpp"
+#line 475 "parser.cpp"
         break;
 
       case symbol_kind::S_retstat: // retstat
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 489 "parser.cpp"
+#line 481 "parser.cpp"
         break;
 
       case symbol_kind::S_label: // label
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 495 "parser.cpp"
+#line 487 "parser.cpp"
         break;
 
       case symbol_kind::S_funcnamelist: // funcnamelist
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 501 "parser.cpp"
+#line 493 "parser.cpp"
         break;
 
       case symbol_kind::S_funcname: // funcname
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 507 "parser.cpp"
+#line 499 "parser.cpp"
         break;
 
       case symbol_kind::S_varlist: // varlist
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 513 "parser.cpp"
+#line 505 "parser.cpp"
         break;
 
       case symbol_kind::S_var: // var
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 519 "parser.cpp"
+#line 511 "parser.cpp"
         break;
 
       case symbol_kind::S_namelist: // namelist
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 525 "parser.cpp"
+#line 517 "parser.cpp"
         break;
 
       case symbol_kind::S_explist: // explist
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 531 "parser.cpp"
+#line 523 "parser.cpp"
         break;
 
       case symbol_kind::S_exp: // exp
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 537 "parser.cpp"
+#line 529 "parser.cpp"
         break;
 
       case symbol_kind::S_prefixexp: // prefixexp
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 543 "parser.cpp"
+#line 535 "parser.cpp"
         break;
 
       case symbol_kind::S_functioncall: // functioncall
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 549 "parser.cpp"
+#line 541 "parser.cpp"
         break;
 
       case symbol_kind::S_args: // args
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 555 "parser.cpp"
+#line 547 "parser.cpp"
         break;
 
       case symbol_kind::S_functiondef: // functiondef
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 561 "parser.cpp"
+#line 553 "parser.cpp"
         break;
 
       case symbol_kind::S_funcbody: // funcbody
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 567 "parser.cpp"
+#line 559 "parser.cpp"
         break;
 
       case symbol_kind::S_parlist: // parlist
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 573 "parser.cpp"
+#line 565 "parser.cpp"
         break;
 
       case symbol_kind::S_tableconstructor: // tableconstructor
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 579 "parser.cpp"
+#line 571 "parser.cpp"
         break;
 
       case symbol_kind::S_fieldlist: // fieldlist
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 585 "parser.cpp"
+#line 577 "parser.cpp"
         break;
 
       case symbol_kind::S_field: // field
-#line 138 "parser.y"
+#line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 591 "parser.cpp"
-        break;
-
-      case symbol_kind::S_binop: // binop
-#line 138 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 597 "parser.cpp"
-        break;
-
-      case symbol_kind::S_unop: // unop
-#line 138 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
-#line 603 "parser.cpp"
+#line 583 "parser.cpp"
         break;
 
       default:
@@ -862,8 +842,6 @@ namespace yy {
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
-      case symbol_kind::S_binop: // binop
-      case symbol_kind::S_unop: // unop
         yylhs.value.emplace< fakelua::syntax_tree_interface_ptr > ();
         break;
 
@@ -894,25 +872,25 @@ namespace yy {
           switch (yyn)
             {
   case 2: // chunk: block
-#line 145 "parser.y"
+#line 156 "parser.y"
     {
     LOG_INFO("[bison]: chunk: block");
     l->set_chunk(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
     }
-#line 903 "parser.cpp"
+#line 881 "parser.cpp"
     break;
 
   case 3: // block: %empty
-#line 153 "parser.y"
+#line 164 "parser.y"
     {
         LOG_INFO("[bison]: block: empty");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = std::make_shared<fakelua::syntax_tree_block>(yystack_[0].location);
     }
-#line 912 "parser.cpp"
+#line 890 "parser.cpp"
     break;
 
   case 4: // block: stmt
-#line 159 "parser.y"
+#line 170 "parser.y"
     {
         LOG_INFO("[bison]: block: stmt");
         auto block = std::make_shared<fakelua::syntax_tree_block>(yystack_[0].location);
@@ -923,11 +901,11 @@ namespace yy {
         block->add_stmt(stmt);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = block;
     }
-#line 927 "parser.cpp"
+#line 905 "parser.cpp"
     break;
 
   case 5: // block: block stmt
-#line 171 "parser.y"
+#line 182 "parser.y"
     {
         LOG_INFO("[bison]: block: block stmt");
         auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -943,29 +921,29 @@ namespace yy {
         block->add_stmt(stmt);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = block;
     }
-#line 947 "parser.cpp"
+#line 925 "parser.cpp"
     break;
 
   case 6: // stmt: retstat
-#line 190 "parser.y"
+#line 201 "parser.y"
     {
         LOG_INFO("[bison]: stmt: retstat");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ();
     }
-#line 956 "parser.cpp"
+#line 934 "parser.cpp"
     break;
 
   case 7: // stmt: ";"
-#line 196 "parser.y"
+#line 207 "parser.y"
     {
         LOG_INFO("[bison]: stmt: SEMICOLON");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = std::make_shared<fakelua::syntax_tree_empty>(yystack_[0].location);
     }
-#line 965 "parser.cpp"
+#line 943 "parser.cpp"
     break;
 
   case 8: // stmt: varlist "=" explist
-#line 202 "parser.y"
+#line 213 "parser.y"
     {
         LOG_INFO("[bison]: stmt: varlist ASSIGN explist");
         auto varlist = std::dynamic_pointer_cast<fakelua::syntax_tree_varlist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -983,58 +961,58 @@ namespace yy {
         assign->set_explist(explist);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = assign;
     }
-#line 987 "parser.cpp"
+#line 965 "parser.cpp"
     break;
 
   case 9: // stmt: functioncall
-#line 221 "parser.y"
+#line 232 "parser.y"
     {
         LOG_INFO("[bison]: stmt: functioncall");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ();
     }
-#line 996 "parser.cpp"
+#line 974 "parser.cpp"
     break;
 
   case 10: // stmt: label
-#line 227 "parser.y"
+#line 238 "parser.y"
     {
         LOG_INFO("[bison]: stmt: label");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ();
     }
-#line 1005 "parser.cpp"
+#line 983 "parser.cpp"
     break;
 
   case 11: // stmt: "break"
-#line 233 "parser.y"
+#line 244 "parser.y"
     {
         LOG_INFO("[bison]: stmt: BREAK");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = std::make_shared<fakelua::syntax_tree_break>(yystack_[0].location);
     }
-#line 1014 "parser.cpp"
+#line 992 "parser.cpp"
     break;
 
   case 12: // stmt: "goto" "identifier"
-#line 239 "parser.y"
+#line 250 "parser.y"
     {
         LOG_INFO("[bison]: stmt: GOTO IDENTIFIER");
         auto go = std::make_shared<fakelua::syntax_tree_goto>(yystack_[0].location);
         go->set_label(yystack_[0].value.as < std::string > ());
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = go;
     }
-#line 1025 "parser.cpp"
+#line 1003 "parser.cpp"
     break;
 
   case 13: // stmt: "do" block "end"
-#line 247 "parser.y"
+#line 258 "parser.y"
     {
         LOG_INFO("[bison]: stmt: DO block END");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ();
     }
-#line 1034 "parser.cpp"
+#line 1012 "parser.cpp"
     break;
 
   case 14: // stmt: "while" exp "do" block "end"
-#line 253 "parser.y"
+#line 264 "parser.y"
     {
         LOG_INFO("[bison]: stmt: WHILE exp DO block END");
         auto while_stmt = std::make_shared<fakelua::syntax_tree_while>(yystack_[4].location);
@@ -1052,11 +1030,11 @@ namespace yy {
         while_stmt->set_block(block);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = while_stmt;
     }
-#line 1056 "parser.cpp"
+#line 1034 "parser.cpp"
     break;
 
   case 15: // stmt: "repeat" block "until" exp
-#line 272 "parser.y"
+#line 283 "parser.y"
     {
         LOG_INFO("[bison]: stmt: REPEAT block UNTIL exp");
         auto repeat = std::make_shared<fakelua::syntax_tree_repeat>(yystack_[3].location);
@@ -1074,11 +1052,11 @@ namespace yy {
         repeat->set_exp(exp);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = repeat;
     }
-#line 1078 "parser.cpp"
+#line 1056 "parser.cpp"
     break;
 
   case 16: // stmt: "if" exp "then" block elseifs "else" block "end"
-#line 291 "parser.y"
+#line 302 "parser.y"
     {
         LOG_INFO("[bison]: stmt: IF exp THEN block elseifs ELSE block END");
         auto if_stmt = std::make_shared<fakelua::syntax_tree_if>(yystack_[7].location);
@@ -1108,11 +1086,11 @@ namespace yy {
         if_stmt->set_else_block(else_block);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = if_stmt;
     }
-#line 1112 "parser.cpp"
+#line 1090 "parser.cpp"
     break;
 
   case 17: // stmt: "if" exp "then" block elseifs "end"
-#line 322 "parser.y"
+#line 333 "parser.y"
     {
         LOG_INFO("[bison]: stmt: IF exp THEN block elseifs END");
         auto if_stmt = std::make_shared<fakelua::syntax_tree_if>(yystack_[5].location);
@@ -1136,11 +1114,11 @@ namespace yy {
         if_stmt->set_elseiflist(elseifs);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = if_stmt;
     }
-#line 1140 "parser.cpp"
+#line 1118 "parser.cpp"
     break;
 
   case 18: // stmt: "for" "identifier" "=" exp "," exp "do" block "end"
-#line 347 "parser.y"
+#line 358 "parser.y"
     {
         LOG_INFO("[bison]: stmt: for IDENTIFIER assign exp COMMA exp do block end");
         auto for_loop_stmt = std::make_shared<fakelua::syntax_tree_for_loop>(yystack_[8].location);
@@ -1165,11 +1143,11 @@ namespace yy {
         for_loop_stmt->set_block(block);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = for_loop_stmt;
     }
-#line 1169 "parser.cpp"
+#line 1147 "parser.cpp"
     break;
 
   case 19: // stmt: "for" "identifier" "=" exp "," exp "," exp "do" block "end"
-#line 373 "parser.y"
+#line 384 "parser.y"
     {
         LOG_INFO("[bison]: stmt: for IDENTIFIER assign exp COMMA exp COMMA exp do block end");
         auto for_loop_stmt = std::make_shared<fakelua::syntax_tree_for_loop>(yystack_[10].location);
@@ -1200,11 +1178,11 @@ namespace yy {
         for_loop_stmt->set_block(block);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = for_loop_stmt;
     }
-#line 1204 "parser.cpp"
+#line 1182 "parser.cpp"
     break;
 
   case 20: // stmt: "for" namelist "in" explist "do" block "end"
-#line 405 "parser.y"
+#line 416 "parser.y"
     {
         LOG_INFO("[bison]: stmt: for namelist in explist do block end");
         auto for_in_stmt = std::make_shared<fakelua::syntax_tree_for_in>(yystack_[6].location);
@@ -1228,11 +1206,11 @@ namespace yy {
         for_in_stmt->set_block(block);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = for_in_stmt;
     }
-#line 1232 "parser.cpp"
+#line 1210 "parser.cpp"
     break;
 
   case 21: // stmt: "function" funcname funcbody
-#line 430 "parser.y"
+#line 441 "parser.y"
     {
         LOG_INFO("[bison]: stmt: function funcname funcbody");
         auto func_stmt = std::make_shared<fakelua::syntax_tree_function>(yystack_[2].location);
@@ -1250,11 +1228,11 @@ namespace yy {
         func_stmt->set_funcbody(funcbody);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = func_stmt;
     }
-#line 1254 "parser.cpp"
+#line 1232 "parser.cpp"
     break;
 
   case 22: // stmt: "local" "function" "identifier" funcbody
-#line 449 "parser.y"
+#line 460 "parser.y"
     {
         LOG_INFO("[bison]: stmt: local function IDENTIFIER funcbody");
         auto local_func_stmt = std::make_shared<fakelua::syntax_tree_local_function>(yystack_[3].location);
@@ -1267,11 +1245,11 @@ namespace yy {
         local_func_stmt->set_funcbody(funcbody);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = local_func_stmt;
     }
-#line 1271 "parser.cpp"
+#line 1249 "parser.cpp"
     break;
 
   case 23: // stmt: "local" attnamelist
-#line 463 "parser.y"
+#line 474 "parser.y"
     {
         LOG_INFO("[bison]: stmt: local attnamelist");
         auto local_stmt = std::make_shared<fakelua::syntax_tree_local_var>(yystack_[1].location);
@@ -1283,11 +1261,11 @@ namespace yy {
         local_stmt->set_namelist(namelist);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = local_stmt;
     }
-#line 1287 "parser.cpp"
+#line 1265 "parser.cpp"
     break;
 
   case 24: // stmt: "local" attnamelist "=" explist
-#line 476 "parser.y"
+#line 487 "parser.y"
     {
         LOG_INFO("[bison]: stmt: local attnamelist assign explist");
         auto local_stmt = std::make_shared<fakelua::syntax_tree_local_var>(yystack_[3].location);
@@ -1305,11 +1283,11 @@ namespace yy {
         local_stmt->set_explist(explist);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = local_stmt;
     }
-#line 1309 "parser.cpp"
+#line 1287 "parser.cpp"
     break;
 
   case 25: // attnamelist: "identifier"
-#line 497 "parser.y"
+#line 508 "parser.y"
     {
         LOG_INFO("[bison]: attnamelist: IDENTIFIER");
         auto namelist = std::make_shared<fakelua::syntax_tree_namelist>(yystack_[0].location);
@@ -1317,11 +1295,11 @@ namespace yy {
         namelist->add_attrib("");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = namelist;
     }
-#line 1321 "parser.cpp"
+#line 1299 "parser.cpp"
     break;
 
   case 26: // attnamelist: "identifier" "<" "identifier" ">"
-#line 506 "parser.y"
+#line 517 "parser.y"
     {
         LOG_INFO("[bison]: attnamelist: IDENTIFIER LESS IDENTIFIER MORE");
         auto namelist = std::make_shared<fakelua::syntax_tree_namelist>(yystack_[3].location);
@@ -1329,11 +1307,11 @@ namespace yy {
         namelist->add_attrib(yystack_[1].value.as < std::string > ());
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = namelist;
     }
-#line 1333 "parser.cpp"
+#line 1311 "parser.cpp"
     break;
 
   case 27: // attnamelist: attnamelist "," "identifier"
-#line 515 "parser.y"
+#line 526 "parser.y"
     {
         LOG_INFO("[bison]: attnamelist: attnamelist COMMA IDENTIFIER");
         auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -1345,11 +1323,11 @@ namespace yy {
         namelist->add_attrib("");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = namelist;
     }
-#line 1349 "parser.cpp"
+#line 1327 "parser.cpp"
     break;
 
   case 28: // attnamelist: attnamelist "," "identifier" "<" "identifier" ">"
-#line 528 "parser.y"
+#line 539 "parser.y"
     {
         LOG_INFO("[bison]: attnamelist: attnamelist COMMA IDENTIFIER LESS IDENTIFIER MORE");
         auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>(yystack_[5].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -1361,20 +1339,20 @@ namespace yy {
         namelist->add_attrib(yystack_[1].value.as < std::string > ());
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = namelist;
     }
-#line 1365 "parser.cpp"
+#line 1343 "parser.cpp"
     break;
 
   case 29: // elseifs: %empty
-#line 543 "parser.y"
+#line 554 "parser.y"
     {
         LOG_INFO("[bison]: elseifs: empty");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = std::make_shared<fakelua::syntax_tree_elseiflist>(yystack_[0].location);
     }
-#line 1374 "parser.cpp"
+#line 1352 "parser.cpp"
     break;
 
   case 30: // elseifs: "elseif" exp "then" block
-#line 549 "parser.y"
+#line 560 "parser.y"
     {
         LOG_INFO("[bison]: elseifs: elseif exp then block");
         auto elseifs = std::make_shared<fakelua::syntax_tree_elseiflist>(yystack_[3].location);
@@ -1392,11 +1370,11 @@ namespace yy {
         elseifs->add_elseif_block(block);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = elseifs;
     }
-#line 1396 "parser.cpp"
+#line 1374 "parser.cpp"
     break;
 
   case 31: // elseifs: elseifs "elseif" exp "then" block
-#line 568 "parser.y"
+#line 579 "parser.y"
     {
         LOG_INFO("[bison]: elseifs: elseifs elseif exp then block");
         auto elseifs = std::dynamic_pointer_cast<fakelua::syntax_tree_elseiflist>(yystack_[4].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -1418,22 +1396,22 @@ namespace yy {
         elseifs->add_elseif_block(block);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = elseifs;
     }
-#line 1422 "parser.cpp"
+#line 1400 "parser.cpp"
     break;
 
   case 32: // retstat: "return"
-#line 593 "parser.y"
+#line 604 "parser.y"
     {
         LOG_INFO("[bison]: retstat: RETURN");
         auto ret = std::make_shared<fakelua::syntax_tree_return>(yystack_[0].location);
         ret->set_explist(nullptr);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = ret;
     }
-#line 1433 "parser.cpp"
+#line 1411 "parser.cpp"
     break;
 
   case 33: // retstat: "return" explist
-#line 601 "parser.y"
+#line 612 "parser.y"
     {
         LOG_INFO("[bison]: retstat: RETURN explist");
         auto ret = std::make_shared<fakelua::syntax_tree_return>(yystack_[1].location);
@@ -1445,33 +1423,33 @@ namespace yy {
         ret->set_explist(explist);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = ret;
     }
-#line 1449 "parser.cpp"
+#line 1427 "parser.cpp"
     break;
 
   case 34: // label: "::" "identifier" "::"
-#line 616 "parser.y"
+#line 627 "parser.y"
     {
-    	LOG_INFO("[bison]: label: GOTO_TAG IDENTIFIER GOTO_TAG");
+            LOG_INFO("[bison]: label: GOTO_TAG IDENTIFIER GOTO_TAG");
         auto ret = std::make_shared<fakelua::syntax_tree_label>(yystack_[1].location);
         ret->set_name(yystack_[1].value.as < std::string > ());
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = ret;
     }
-#line 1460 "parser.cpp"
+#line 1438 "parser.cpp"
     break;
 
   case 35: // funcnamelist: "identifier"
-#line 626 "parser.y"
+#line 637 "parser.y"
     {
         LOG_INFO("[bison]: funcnamelist: IDENTIFIER");
         auto funcnamelist = std::make_shared<fakelua::syntax_tree_funcnamelist>(yystack_[0].location);
         funcnamelist->add_name(yystack_[0].value.as < std::string > ());
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcnamelist;
     }
-#line 1471 "parser.cpp"
+#line 1449 "parser.cpp"
     break;
 
   case 36: // funcnamelist: funcnamelist "." "identifier"
-#line 634 "parser.y"
+#line 645 "parser.y"
     {
         LOG_INFO("[bison]: funcnamelist: funcnamelist DOT IDENTIFIER");
         auto funcnamelist = std::dynamic_pointer_cast<fakelua::syntax_tree_funcnamelist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -1482,11 +1460,11 @@ namespace yy {
         funcnamelist->add_name(yystack_[0].value.as < std::string > ());
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcnamelist;
     }
-#line 1486 "parser.cpp"
+#line 1464 "parser.cpp"
     break;
 
   case 37: // funcname: funcnamelist
-#line 648 "parser.y"
+#line 659 "parser.y"
     {
         LOG_INFO("[bison]: funcname: funcnamelist");
         auto funcname = std::make_shared<fakelua::syntax_tree_funcname>(yystack_[0].location);
@@ -1498,11 +1476,11 @@ namespace yy {
         funcname->set_funcnamelist(funcnamelist);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcname;
     }
-#line 1502 "parser.cpp"
+#line 1480 "parser.cpp"
     break;
 
   case 38: // funcname: funcnamelist ":" "identifier"
-#line 661 "parser.y"
+#line 672 "parser.y"
     {
         LOG_INFO("[bison]: funcname: funcnamelist COLON IDENTIFIER");
         auto funcname = std::make_shared<fakelua::syntax_tree_funcname>(yystack_[2].location);
@@ -1515,11 +1493,11 @@ namespace yy {
         funcname->set_colon_name(yystack_[0].value.as < std::string > ());
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcname;
     }
-#line 1519 "parser.cpp"
+#line 1497 "parser.cpp"
     break;
 
   case 39: // varlist: var
-#line 677 "parser.y"
+#line 688 "parser.y"
     {
         LOG_INFO("[bison]: varlist: var");
         auto varlist = std::make_shared<fakelua::syntax_tree_varlist>(yystack_[0].location);
@@ -1531,11 +1509,11 @@ namespace yy {
         varlist->add_var(var);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = varlist;
     }
-#line 1535 "parser.cpp"
+#line 1513 "parser.cpp"
     break;
 
   case 40: // varlist: varlist "," var
-#line 690 "parser.y"
+#line 701 "parser.y"
     {
         LOG_INFO("[bison]: varlist: varlist COMMA var");
         auto varlist = std::dynamic_pointer_cast<fakelua::syntax_tree_varlist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -1551,11 +1529,11 @@ namespace yy {
         varlist->add_var(var);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = varlist;
     }
-#line 1555 "parser.cpp"
+#line 1533 "parser.cpp"
     break;
 
   case 41: // var: "identifier"
-#line 709 "parser.y"
+#line 720 "parser.y"
     {
         LOG_INFO("[bison]: var: IDENTIFIER");
         auto var = std::make_shared<fakelua::syntax_tree_var>(yystack_[0].location);
@@ -1563,11 +1541,11 @@ namespace yy {
         var->set_type("simple");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = var;
     }
-#line 1567 "parser.cpp"
+#line 1545 "parser.cpp"
     break;
 
   case 42: // var: prefixexp "[" exp "]"
-#line 718 "parser.y"
+#line 729 "parser.y"
     {
         LOG_INFO("[bison]: var: prefixexp LSQUARE exp RSQUARE");
         auto var = std::make_shared<fakelua::syntax_tree_var>(yystack_[2].location);
@@ -1586,11 +1564,11 @@ namespace yy {
         var->set_exp(exp);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = var;
     }
-#line 1590 "parser.cpp"
+#line 1568 "parser.cpp"
     break;
 
   case 43: // var: prefixexp "." "identifier"
-#line 738 "parser.y"
+#line 749 "parser.y"
     {
         LOG_INFO("[bison]: var: prefixexp DOT IDENTIFIER");
         auto var = std::make_shared<fakelua::syntax_tree_var>(yystack_[1].location);
@@ -1604,22 +1582,22 @@ namespace yy {
         var->set_name(yystack_[0].value.as < std::string > ());
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = var;
     }
-#line 1608 "parser.cpp"
+#line 1586 "parser.cpp"
     break;
 
   case 44: // namelist: "identifier"
-#line 755 "parser.y"
+#line 766 "parser.y"
     {
         LOG_INFO("[bison]: namelist: IDENTIFIER");
         auto namelist = std::make_shared<fakelua::syntax_tree_namelist>(yystack_[0].location);
         namelist->add_name(yystack_[0].value.as < std::string > ());
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = namelist;
     }
-#line 1619 "parser.cpp"
+#line 1597 "parser.cpp"
     break;
 
   case 45: // namelist: namelist "," "identifier"
-#line 763 "parser.y"
+#line 774 "parser.y"
     {
         LOG_INFO("[bison]: namelist: namelist COMMA IDENTIFIER");
         auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -1630,11 +1608,11 @@ namespace yy {
         namelist->add_name(yystack_[0].value.as < std::string > ());
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = namelist;
     }
-#line 1634 "parser.cpp"
+#line 1612 "parser.cpp"
     break;
 
   case 46: // explist: exp
-#line 777 "parser.y"
+#line 788 "parser.y"
     {
         LOG_INFO("[bison]: explist: exp");
         auto explist = std::make_shared<fakelua::syntax_tree_explist>(yystack_[0].location);
@@ -1646,11 +1624,11 @@ namespace yy {
         explist->add_exp(exp);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = explist;
     }
-#line 1650 "parser.cpp"
+#line 1628 "parser.cpp"
     break;
 
   case 47: // explist: explist "," exp
-#line 790 "parser.y"
+#line 801 "parser.y"
     {
         LOG_INFO("[bison]: explist: explist COMMA exp");
         auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -1666,44 +1644,44 @@ namespace yy {
         explist->add_exp(exp);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = explist;
     }
-#line 1670 "parser.cpp"
+#line 1648 "parser.cpp"
     break;
 
   case 48: // exp: "nil"
-#line 809 "parser.y"
+#line 820 "parser.y"
     {
         LOG_INFO("[bison]: exp: NIL");
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
         exp->set_type("nil");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
     }
-#line 1681 "parser.cpp"
+#line 1659 "parser.cpp"
     break;
 
   case 49: // exp: "true"
-#line 817 "parser.y"
+#line 828 "parser.y"
     {
         LOG_INFO("[bison]: exp: TRUE");
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
         exp->set_type("true");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
     }
-#line 1692 "parser.cpp"
+#line 1670 "parser.cpp"
     break;
 
   case 50: // exp: "false"
-#line 825 "parser.y"
+#line 836 "parser.y"
     {
         LOG_INFO("[bison]: exp: FALSES");
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
         exp->set_type("false");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
     }
-#line 1703 "parser.cpp"
+#line 1681 "parser.cpp"
     break;
 
   case 51: // exp: "number"
-#line 833 "parser.y"
+#line 844 "parser.y"
     {
         LOG_INFO("[bison]: exp: NUMBER");
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
@@ -1711,11 +1689,11 @@ namespace yy {
         exp->set_value(yystack_[0].value.as < std::string > ());
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
     }
-#line 1715 "parser.cpp"
+#line 1693 "parser.cpp"
     break;
 
   case 52: // exp: "string"
-#line 842 "parser.y"
+#line 853 "parser.y"
     {
         LOG_INFO("[bison]: exp: STRING");
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
@@ -1723,22 +1701,22 @@ namespace yy {
         exp->set_value(l->remove_quotes(yystack_[0].value.as < std::string > ()));
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
     }
-#line 1727 "parser.cpp"
+#line 1705 "parser.cpp"
     break;
 
   case 53: // exp: "..."
-#line 851 "parser.y"
+#line 862 "parser.y"
     {
         LOG_INFO("[bison]: exp: VAR_PARAMS");
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
         exp->set_type("var_params");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
     }
-#line 1738 "parser.cpp"
+#line 1716 "parser.cpp"
     break;
 
   case 54: // exp: functiondef
-#line 859 "parser.y"
+#line 870 "parser.y"
     {
         LOG_INFO("[bison]: exp: functiondef");
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
@@ -1751,11 +1729,11 @@ namespace yy {
         exp->set_right(functiondef);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
     }
-#line 1755 "parser.cpp"
+#line 1733 "parser.cpp"
     break;
 
   case 55: // exp: prefixexp
-#line 873 "parser.y"
+#line 884 "parser.y"
     {
         LOG_INFO("[bison]: exp: prefixexp");
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
@@ -1768,11 +1746,11 @@ namespace yy {
         exp->set_right(prefixexp);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
     }
-#line 1772 "parser.cpp"
+#line 1750 "parser.cpp"
     break;
 
   case 56: // exp: tableconstructor
-#line 887 "parser.y"
+#line 898 "parser.y"
     {
         LOG_INFO("[bison]: exp: tableconstructor");
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
@@ -1785,13 +1763,13 @@ namespace yy {
         exp->set_right(tableconstructor);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
     }
-#line 1789 "parser.cpp"
+#line 1767 "parser.cpp"
     break;
 
-  case 57: // exp: exp binop exp
-#line 901 "parser.y"
+  case 57: // exp: exp "+" exp
+#line 912 "parser.y"
     {
-        LOG_INFO("[bison]: exp: exp binop exp");
+        LOG_INFO("[bison]: exp: exp PLUS exp");
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
         exp->set_type("binop");
         auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -1806,28 +1784,542 @@ namespace yy {
             fakelua::throw_fakelua_exception("right_exp is not a exp");
         }
         exp->set_right(right_exp);
-        auto binop = std::dynamic_pointer_cast<fakelua::syntax_tree_binop>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
-        if (binop == nullptr) {
-            LOG_ERROR("[bison]: exp: binop is not a binop");
-            fakelua::throw_fakelua_exception("binop is not a binop");
-        }
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("PLUS");
         exp->set_op(binop);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
     }
-#line 1818 "parser.cpp"
+#line 1793 "parser.cpp"
     break;
 
-  case 58: // exp: unop exp
-#line 927 "parser.y"
+  case 58: // exp: exp "-" exp
+#line 935 "parser.y"
     {
-        LOG_INFO("[bison]: exp: unop exp");
+        LOG_INFO("[bison]: exp: exp MINUS exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("MINUS");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 1819 "parser.cpp"
+    break;
+
+  case 59: // exp: exp "*" exp
+#line 958 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp STAR exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("STAR");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 1845 "parser.cpp"
+    break;
+
+  case 60: // exp: exp "/" exp
+#line 981 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp SLASH exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("SLASH");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 1871 "parser.cpp"
+    break;
+
+  case 61: // exp: exp "//" exp
+#line 1004 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp DOUBLE_SLASH exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("DOUBLE_SLASH");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 1897 "parser.cpp"
+    break;
+
+  case 62: // exp: exp "^" exp
+#line 1027 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp POW exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("POW");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 1923 "parser.cpp"
+    break;
+
+  case 63: // exp: exp "%" exp
+#line 1050 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp MOD exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("MOD");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 1949 "parser.cpp"
+    break;
+
+  case 64: // exp: exp "&" exp
+#line 1073 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp BITAND exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("BITAND");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 1975 "parser.cpp"
+    break;
+
+  case 65: // exp: exp "~" exp
+#line 1096 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp XOR exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("XOR");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2001 "parser.cpp"
+    break;
+
+  case 66: // exp: exp "|" exp
+#line 1119 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp BITOR exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("BITOR");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2027 "parser.cpp"
+    break;
+
+  case 67: // exp: exp ">>" exp
+#line 1142 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp RIGHT_SHIFT exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("RIGHT_SHIFT");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2053 "parser.cpp"
+    break;
+
+  case 68: // exp: exp "<<" exp
+#line 1165 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp LEFT_SHIFT exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("LEFT_SHIFT");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2079 "parser.cpp"
+    break;
+
+  case 69: // exp: exp ".." exp
+#line 1188 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp CONCAT exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("CONCAT");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2105 "parser.cpp"
+    break;
+
+  case 70: // exp: exp "<" exp
+#line 1211 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp LESS exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("LESS");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2131 "parser.cpp"
+    break;
+
+  case 71: // exp: exp "<=" exp
+#line 1234 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp LESS_EQUAL exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("LESS_EQUAL");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2157 "parser.cpp"
+    break;
+
+  case 72: // exp: exp ">" exp
+#line 1257 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp MORE exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("MORE");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2183 "parser.cpp"
+    break;
+
+  case 73: // exp: exp ">=" exp
+#line 1280 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp MORE_EQUAL exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("MORE_EQUAL");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2209 "parser.cpp"
+    break;
+
+  case 74: // exp: exp "==" exp
+#line 1303 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp EQUAL exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("EQUAL");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2235 "parser.cpp"
+    break;
+
+  case 75: // exp: exp "~=" exp
+#line 1326 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp NOT_EQUAL exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("NOT_EQUAL");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2261 "parser.cpp"
+    break;
+
+  case 76: // exp: exp "and" exp
+#line 1349 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp AND exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("AND");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2287 "parser.cpp"
+    break;
+
+  case 77: // exp: exp "or" exp
+#line 1372 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: exp OR exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
+        exp->set_type("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (left_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: left_exp is not a exp");
+            fakelua::throw_fakelua_exception("left_exp is not a exp");
+        }
+        exp->set_left(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
+        binop->set_op("OR");
+        exp->set_op(binop);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2313 "parser.cpp"
+    break;
+
+  case 78: // exp: "-" exp
+#line 1395 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: MINUS exp");
         auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[1].location);
         exp->set_type("unop");
-        auto unop = std::dynamic_pointer_cast<fakelua::syntax_tree_unop>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
-        if (unop == nullptr) {
-            LOG_ERROR("[bison]: exp: unop is not a unop");
-            fakelua::throw_fakelua_exception("unop is not a unop");
-        }
+        auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[1].location);
+        unop->set_op("MINUS");
         exp->set_op(unop);
         auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
         if (right_exp == nullptr) {
@@ -1837,11 +2329,71 @@ namespace yy {
         exp->set_right(right_exp);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
     }
-#line 1841 "parser.cpp"
+#line 2333 "parser.cpp"
     break;
 
-  case 59: // prefixexp: var
-#line 949 "parser.y"
+  case 79: // exp: "not" exp
+#line 1412 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: NOT exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[1].location);
+        exp->set_type("unop");
+        auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[1].location);
+        unop->set_op("NOT");
+        exp->set_op(unop);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2353 "parser.cpp"
+    break;
+
+  case 80: // exp: "#" exp
+#line 1429 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: NUMBER_SIGN exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[1].location);
+        exp->set_type("unop");
+        auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[1].location);
+        unop->set_op("NUMBER_SIGN");
+        exp->set_op(unop);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2373 "parser.cpp"
+    break;
+
+  case 81: // exp: "~" exp
+#line 1446 "parser.y"
+    {
+        LOG_INFO("[bison]: exp: BITNOT exp");
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[1].location);
+        exp->set_type("unop");
+        auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[1].location);
+        unop->set_op("BITNOT");
+        exp->set_op(unop);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if (right_exp == nullptr) {
+            LOG_ERROR("[bison]: exp: right_exp is not a exp");
+            fakelua::throw_fakelua_exception("right_exp is not a exp");
+        }
+        exp->set_right(right_exp);
+        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+    }
+#line 2393 "parser.cpp"
+    break;
+
+  case 82: // prefixexp: var
+#line 1465 "parser.y"
     {
         LOG_INFO("[bison]: prefixexp: var");
         auto prefixexp = std::make_shared<fakelua::syntax_tree_prefixexp>(yystack_[0].location);
@@ -1854,11 +2406,11 @@ namespace yy {
         prefixexp->set_value(var);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = prefixexp;
     }
-#line 1858 "parser.cpp"
+#line 2410 "parser.cpp"
     break;
 
-  case 60: // prefixexp: functioncall
-#line 963 "parser.y"
+  case 83: // prefixexp: functioncall
+#line 1479 "parser.y"
     {
         LOG_INFO("[bison]: prefixexp: functioncall");
         auto prefixexp = std::make_shared<fakelua::syntax_tree_prefixexp>(yystack_[0].location);
@@ -1871,11 +2423,11 @@ namespace yy {
         prefixexp->set_value(functioncall);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = prefixexp;
     }
-#line 1875 "parser.cpp"
+#line 2427 "parser.cpp"
     break;
 
-  case 61: // prefixexp: "(" exp ")"
-#line 977 "parser.y"
+  case 84: // prefixexp: "(" exp ")"
+#line 1493 "parser.y"
     {
         LOG_INFO("[bison]: prefixexp: LPAREN exp RPAREN");
         auto prefixexp = std::make_shared<fakelua::syntax_tree_prefixexp>(yystack_[2].location);
@@ -1888,11 +2440,11 @@ namespace yy {
         prefixexp->set_value(exp);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = prefixexp;
     }
-#line 1892 "parser.cpp"
+#line 2444 "parser.cpp"
     break;
 
-  case 62: // functioncall: prefixexp args
-#line 992 "parser.y"
+  case 85: // functioncall: prefixexp args
+#line 1508 "parser.y"
     {
         LOG_INFO("[bison]: functioncall: prefixexp args");
         auto functioncall = std::make_shared<fakelua::syntax_tree_functioncall>(yystack_[1].location);
@@ -1910,11 +2462,11 @@ namespace yy {
         functioncall->set_args(args);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = functioncall;
     }
-#line 1914 "parser.cpp"
+#line 2466 "parser.cpp"
     break;
 
-  case 63: // functioncall: prefixexp ":" "identifier" args
-#line 1011 "parser.y"
+  case 86: // functioncall: prefixexp ":" "identifier" args
+#line 1527 "parser.y"
     {
         LOG_INFO("[bison]: functioncall: prefixexp COLON IDENTIFIER args");
         auto functioncall = std::make_shared<fakelua::syntax_tree_functioncall>(yystack_[3].location);
@@ -1933,11 +2485,11 @@ namespace yy {
         functioncall->set_args(args);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = functioncall;
     }
-#line 1937 "parser.cpp"
+#line 2489 "parser.cpp"
     break;
 
-  case 64: // args: "(" explist ")"
-#line 1033 "parser.y"
+  case 87: // args: "(" explist ")"
+#line 1549 "parser.y"
     {
         LOG_INFO("[bison]: args: LPAREN explist RPAREN");
         auto args = std::make_shared<fakelua::syntax_tree_args>(yystack_[2].location);
@@ -1950,22 +2502,22 @@ namespace yy {
         args->set_type("explist");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = args;
     }
-#line 1954 "parser.cpp"
+#line 2506 "parser.cpp"
     break;
 
-  case 65: // args: "(" ")"
-#line 1047 "parser.y"
+  case 88: // args: "(" ")"
+#line 1563 "parser.y"
     {
         LOG_INFO("[bison]: args: LPAREN RPAREN");
         auto args = std::make_shared<fakelua::syntax_tree_args>(yystack_[1].location);
         args->set_type("empty");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = args;
     }
-#line 1965 "parser.cpp"
+#line 2517 "parser.cpp"
     break;
 
-  case 66: // args: tableconstructor
-#line 1055 "parser.y"
+  case 89: // args: tableconstructor
+#line 1571 "parser.y"
     {
         LOG_INFO("[bison]: args: tableconstructor");
         auto args = std::make_shared<fakelua::syntax_tree_args>(yystack_[0].location);
@@ -1978,11 +2530,11 @@ namespace yy {
         args->set_type("tableconstructor");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = args;
     }
-#line 1982 "parser.cpp"
+#line 2534 "parser.cpp"
     break;
 
-  case 67: // args: "string"
-#line 1069 "parser.y"
+  case 90: // args: "string"
+#line 1585 "parser.y"
     {
         LOG_INFO("[bison]: args: STRING");
         auto args = std::make_shared<fakelua::syntax_tree_args>(yystack_[0].location);
@@ -1990,11 +2542,11 @@ namespace yy {
         args->set_type("string");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = args;
     }
-#line 1994 "parser.cpp"
+#line 2546 "parser.cpp"
     break;
 
-  case 68: // functiondef: "function" funcbody
-#line 1080 "parser.y"
+  case 91: // functiondef: "function" funcbody
+#line 1596 "parser.y"
     {
         LOG_INFO("[bison]: functiondef: FUNCTION funcbody");
         auto functiondef = std::make_shared<fakelua::syntax_tree_functiondef>(yystack_[1].location);
@@ -2006,11 +2558,11 @@ namespace yy {
         functiondef->set_funcbody(funcbody);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = functiondef;
     }
-#line 2010 "parser.cpp"
+#line 2562 "parser.cpp"
     break;
 
-  case 69: // funcbody: "(" parlist ")" block "end"
-#line 1095 "parser.y"
+  case 92: // funcbody: "(" parlist ")" block "end"
+#line 1611 "parser.y"
     {
         LOG_INFO("[bison]: funcbody: LPAREN parlist RPAREN block END");
         auto funcbody = std::make_shared<fakelua::syntax_tree_funcbody>(yystack_[4].location);
@@ -2028,11 +2580,11 @@ namespace yy {
         funcbody->set_block(block);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcbody;
     }
-#line 2032 "parser.cpp"
+#line 2584 "parser.cpp"
     break;
 
-  case 70: // funcbody: "(" ")" block "end"
-#line 1114 "parser.y"
+  case 93: // funcbody: "(" ")" block "end"
+#line 1630 "parser.y"
     {
         LOG_INFO("[bison]: funcbody: LPAREN RPAREN block END");
         auto funcbody = std::make_shared<fakelua::syntax_tree_funcbody>(yystack_[3].location);
@@ -2044,11 +2596,11 @@ namespace yy {
         funcbody->set_block(block);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcbody;
     }
-#line 2048 "parser.cpp"
+#line 2600 "parser.cpp"
     break;
 
-  case 71: // parlist: namelist
-#line 1129 "parser.y"
+  case 94: // parlist: namelist
+#line 1645 "parser.y"
     {
         LOG_INFO("[bison]: parlist: namelist");
         auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(yystack_[0].location);
@@ -2060,11 +2612,11 @@ namespace yy {
         parlist->set_namelist(namelist);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = parlist;
     }
-#line 2064 "parser.cpp"
+#line 2616 "parser.cpp"
     break;
 
-  case 72: // parlist: namelist "," "..."
-#line 1142 "parser.y"
+  case 95: // parlist: namelist "," "..."
+#line 1658 "parser.y"
     {
         LOG_INFO("[bison]: parlist: namelist COMMA VAR_PARAMS");
         auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(yystack_[2].location);
@@ -2077,22 +2629,22 @@ namespace yy {
         parlist->set_var_params(true);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = parlist;
     }
-#line 2081 "parser.cpp"
+#line 2633 "parser.cpp"
     break;
 
-  case 73: // parlist: "..."
-#line 1156 "parser.y"
+  case 96: // parlist: "..."
+#line 1672 "parser.y"
     {
         LOG_INFO("[bison]: parlist: VAR_PARAMS");
         auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(yystack_[0].location);
         parlist->set_var_params(true);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = parlist;
     }
-#line 2092 "parser.cpp"
+#line 2644 "parser.cpp"
     break;
 
-  case 74: // tableconstructor: "{" fieldlist "}"
-#line 1166 "parser.y"
+  case 97: // tableconstructor: "{" fieldlist "}"
+#line 1682 "parser.y"
     {
         LOG_INFO("[bison]: tableconstructor: LCURLY fieldlist RCURLY");
         auto tableconstructor = std::make_shared<fakelua::syntax_tree_tableconstructor>(yystack_[2].location);
@@ -2104,21 +2656,21 @@ namespace yy {
         tableconstructor->set_fieldlist(fieldlist);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = tableconstructor;
     }
-#line 2108 "parser.cpp"
+#line 2660 "parser.cpp"
     break;
 
-  case 75: // tableconstructor: "{" "}"
-#line 1179 "parser.y"
+  case 98: // tableconstructor: "{" "}"
+#line 1695 "parser.y"
     {
         LOG_INFO("[bison]: tableconstructor: LCURLY RCURLY");
         auto tableconstructor = std::make_shared<fakelua::syntax_tree_tableconstructor>(yystack_[1].location);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = tableconstructor;
     }
-#line 2118 "parser.cpp"
+#line 2670 "parser.cpp"
     break;
 
-  case 76: // fieldlist: field
-#line 1188 "parser.y"
+  case 99: // fieldlist: field
+#line 1704 "parser.y"
     {
         LOG_INFO("[bison]: fieldlist: field");
         auto fieldlist = std::make_shared<fakelua::syntax_tree_fieldlist>(yystack_[0].location);
@@ -2130,11 +2682,11 @@ namespace yy {
         fieldlist->add_field(field);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = fieldlist;
     }
-#line 2134 "parser.cpp"
+#line 2686 "parser.cpp"
     break;
 
-  case 77: // fieldlist: fieldlist fieldsep field
-#line 1201 "parser.y"
+  case 100: // fieldlist: fieldlist fieldsep field
+#line 1717 "parser.y"
     {
         LOG_INFO("[bison]: fieldlist: fieldlist fieldsep field");
         auto fieldlist = std::dynamic_pointer_cast<fakelua::syntax_tree_fieldlist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -2150,11 +2702,11 @@ namespace yy {
         fieldlist->add_field(field);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = fieldlist;
     }
-#line 2154 "parser.cpp"
+#line 2706 "parser.cpp"
     break;
 
-  case 78: // field: "[" exp "]" "=" exp
-#line 1220 "parser.y"
+  case 101: // field: "[" exp "]" "=" exp
+#line 1736 "parser.y"
     {
         LOG_INFO("[bison]: field: LSQUARE exp RSQUARE ASSIGN exp");
         auto field = std::make_shared<fakelua::syntax_tree_field>(yystack_[4].location);
@@ -2173,11 +2725,11 @@ namespace yy {
         field->set_type("array");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = field;
     }
-#line 2177 "parser.cpp"
+#line 2729 "parser.cpp"
     break;
 
-  case 79: // field: "identifier" "=" exp
-#line 1240 "parser.y"
+  case 102: // field: "identifier" "=" exp
+#line 1756 "parser.y"
     {
         LOG_INFO("[bison]: field: IDENTIFIER ASSIGN exp");
         auto field = std::make_shared<fakelua::syntax_tree_field>(yystack_[2].location);
@@ -2191,11 +2743,11 @@ namespace yy {
         field->set_type("object");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = field;
     }
-#line 2195 "parser.cpp"
+#line 2747 "parser.cpp"
     break;
 
-  case 80: // field: exp
-#line 1255 "parser.y"
+  case 103: // field: exp
+#line 1771 "parser.y"
     {
         LOG_INFO("[bison]: field: exp");
         auto field = std::make_shared<fakelua::syntax_tree_field>(yystack_[0].location);
@@ -2208,304 +2760,29 @@ namespace yy {
         field->set_type("array");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = field;
     }
-#line 2212 "parser.cpp"
+#line 2764 "parser.cpp"
     break;
 
-  case 81: // fieldsep: ","
-#line 1271 "parser.y"
+  case 104: // fieldsep: ","
+#line 1787 "parser.y"
     {
         LOG_INFO("[bison]: fieldsep: COMMA");
         // nothing to do
     }
-#line 2221 "parser.cpp"
+#line 2773 "parser.cpp"
     break;
 
-  case 82: // fieldsep: ";"
-#line 1277 "parser.y"
+  case 105: // fieldsep: ";"
+#line 1793 "parser.y"
     {
         LOG_INFO("[bison]: fieldsep: SEMICOLON");
         // nothing to do
     }
-#line 2230 "parser.cpp"
-    break;
-
-  case 83: // binop: "+"
-#line 1285 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: PLUS");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("PLUS");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2241 "parser.cpp"
-    break;
-
-  case 84: // binop: "-"
-#line 1293 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: MINUS");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("MINUS");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2252 "parser.cpp"
-    break;
-
-  case 85: // binop: "*"
-#line 1301 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: STAR");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("STAR");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2263 "parser.cpp"
-    break;
-
-  case 86: // binop: "/"
-#line 1309 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: SLASH");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("SLASH");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2274 "parser.cpp"
-    break;
-
-  case 87: // binop: "//"
-#line 1317 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: DOUBLE_SLASH");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("DOUBLE_SLASH");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2285 "parser.cpp"
-    break;
-
-  case 88: // binop: "^"
-#line 1325 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: POW");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("POW");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2296 "parser.cpp"
-    break;
-
-  case 89: // binop: "%"
-#line 1333 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: MOD");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("MOD");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2307 "parser.cpp"
-    break;
-
-  case 90: // binop: "&"
-#line 1341 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: BITAND");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("BITAND");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2318 "parser.cpp"
-    break;
-
-  case 91: // binop: "~"
-#line 1349 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: BITNOT");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("XOR");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2329 "parser.cpp"
-    break;
-
-  case 92: // binop: "|"
-#line 1357 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: BITOR");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("BITOR");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2340 "parser.cpp"
-    break;
-
-  case 93: // binop: ">>"
-#line 1365 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: RIGHT_SHIFT");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("RIGHT_SHIFT");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2351 "parser.cpp"
-    break;
-
-  case 94: // binop: "<<"
-#line 1373 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: LEFT_SHIFT");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("LEFT_SHIFT");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2362 "parser.cpp"
-    break;
-
-  case 95: // binop: ".."
-#line 1381 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: CONCAT");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("CONCAT");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2373 "parser.cpp"
-    break;
-
-  case 96: // binop: "<"
-#line 1389 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: LESS");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("LESS");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2384 "parser.cpp"
-    break;
-
-  case 97: // binop: "<="
-#line 1397 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: LESS_EQUAL");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("LESS_EQUAL");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2395 "parser.cpp"
-    break;
-
-  case 98: // binop: ">"
-#line 1405 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: MORE");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("MORE");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2406 "parser.cpp"
-    break;
-
-  case 99: // binop: ">="
-#line 1413 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: MORE_EQUAL");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("MORE_EQUAL");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2417 "parser.cpp"
-    break;
-
-  case 100: // binop: "=="
-#line 1421 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: EQUAL");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("EQUAL");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2428 "parser.cpp"
-    break;
-
-  case 101: // binop: "~="
-#line 1429 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: NOT_EQUAL");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("NOT_EQUAL");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2439 "parser.cpp"
-    break;
-
-  case 102: // binop: "and"
-#line 1437 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: AND");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("AND");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2450 "parser.cpp"
-    break;
-
-  case 103: // binop: "or"
-#line 1445 "parser.y"
-    {
-        LOG_INFO("[bison]: binop: OR");
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[0].location);
-        binop->set_op("OR");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = binop;
-    }
-#line 2461 "parser.cpp"
-    break;
-
-  case 104: // unop: "-"
-#line 1455 "parser.y"
-    {
-        LOG_INFO("[bison]: unop: MINUS");
-        auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[0].location);
-        unop->set_op("MINUS");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = unop;
-    }
-#line 2472 "parser.cpp"
-    break;
-
-  case 105: // unop: "not"
-#line 1463 "parser.y"
-    {
-        LOG_INFO("[bison]: unop: NOT");
-        auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[0].location);
-        unop->set_op("NOT");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = unop;
-    }
-#line 2483 "parser.cpp"
-    break;
-
-  case 106: // unop: "#"
-#line 1471 "parser.y"
-    {
-        LOG_INFO("[bison]: unop: NUMBER_SIGN");
-        auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[0].location);
-        unop->set_op("NUMBER_SIGN");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = unop;
-    }
-#line 2494 "parser.cpp"
-    break;
-
-  case 107: // unop: "~"
-#line 1479 "parser.y"
-    {
-        LOG_INFO("[bison]: unop: BITNOT");
-        auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[0].location);
-        unop->set_op("BITNOT");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = unop;
-    }
-#line 2505 "parser.cpp"
+#line 2782 "parser.cpp"
     break;
 
 
-#line 2509 "parser.cpp"
+#line 2786 "parser.cpp"
 
             default:
               break;
@@ -2694,12 +2971,12 @@ namespace yy {
   "false", "for", "function", "if", "in", "local", "nil", "not", "or",
   "repeat", "return", "then", "true", "until", "while", "goto", "//", "..",
   "...", "==", ">=", "<=", "~=", "<<", ">>", "::", ";", ":", ",", ".", "^",
-  "%", "&", "|", "~", ">", "<", "#", "identifier", "string", "number",
-  "$accept", "chunk", "block", "stmt", "attnamelist", "elseifs", "retstat",
-  "label", "funcnamelist", "funcname", "varlist", "var", "namelist",
-  "explist", "exp", "prefixexp", "functioncall", "args", "functiondef",
-  "funcbody", "parlist", "tableconstructor", "fieldlist", "field",
-  "fieldsep", "binop", "unop", YY_NULLPTR
+  "%", "&", "|", "~", ">", "<", "#", "UNARY", "identifier", "string",
+  "number", "$accept", "chunk", "block", "stmt", "attnamelist", "elseifs",
+  "retstat", "label", "funcnamelist", "funcname", "varlist", "var",
+  "namelist", "explist", "exp", "prefixexp", "functioncall", "args",
+  "functiondef", "funcbody", "parlist", "tableconstructor", "fieldlist",
+  "field", "fieldsep", YY_NULLPTR
     };
     return yy_sname[yysymbol];
   }
@@ -2968,33 +3245,35 @@ namespace yy {
   }
 
 
-  const signed char parser::yypact_ninf_ = -60;
+  const signed char parser::yypact_ninf_ = -56;
 
-  const signed char parser::yytable_ninf_ = -61;
+  const signed char parser::yytable_ninf_ = -84;
 
   const short
   parser::yypact_[] =
   {
-    1343,   387,   -60,  1343,   -46,   -36,   387,    58,  1343,   387,
-     387,   -32,   -12,   -60,   -60,    13,  1343,   -60,   -60,   -60,
-      21,    27,     9,    62,   -60,   321,   -60,    44,   -60,   -60,
-     -60,   -60,   -60,   -60,   -60,   -60,   -60,   497,     9,   -60,
-     -60,   -60,   387,  1023,    78,    -9,   -60,   -20,    44,   550,
-      26,    36,    30,  1055,    35,   974,   603,   -60,    48,   -60,
-     -60,   387,    12,    28,   387,    41,    43,   -60,   -60,   -60,
-     -60,   387,    91,   974,     3,   -60,    19,   -60,   -60,   -60,
-     -60,   -60,   -60,   -60,   -60,   -60,   -60,   -60,   -60,   -60,
-     -60,   -60,   -60,   -60,   -60,   -60,   -60,   -60,   -60,   -60,
-     387,   974,   -60,   387,   387,    49,    52,    60,   -60,  1343,
-      44,    61,   387,    64,   387,   387,  1343,   -60,    35,    31,
-     -60,    -1,   656,     8,   -60,   709,   387,   -60,   -60,   -60,
-     378,  1343,   -60,   -60,    54,   111,   974,   762,    25,   -60,
-     -60,   -60,  1087,   -60,    68,    35,    69,   974,   974,  1119,
-     -60,   -60,   -60,   121,   974,   -60,  1151,   -27,  1343,   387,
-    1343,   387,    72,   -60,    71,   -60,   387,   -60,   -60,  1183,
-     444,  1215,   815,  1343,   387,   -60,    76,   974,   -60,  1343,
-     387,   -60,  1343,  1247,   868,   -60,  1279,   921,  1343,   -60,
-    1343,   -60,  1343,  1343,  1311,   -60
+    1407,   459,   -56,  1407,   -49,   -37,   459,   -11,  1407,   459,
+     459,   -36,   -33,   -56,   -56,    33,  1407,   -56,   -56,   -56,
+      11,    37,    26,    20,   459,    17,   -56,    27,   -56,   459,
+     -56,   -56,   459,   459,   -56,   -56,   -56,   551,    26,   -56,
+     -56,   -56,   319,    50,    40,   -56,   -34,    27,   604,     6,
+      23,    42,  1151,    36,  1028,   657,   -56,    44,   -56,   -56,
+     459,     1,   414,   459,    28,    34,   -56,   -56,   -56,    45,
+     -56,   459,    89,  1028,    61,   -56,     9,   -56,    45,    45,
+      45,   459,   459,   459,   459,   -56,   459,   459,   459,   459,
+     459,   459,   459,   459,   459,   459,   459,   459,   459,   459,
+     459,   459,   459,   -56,   459,   459,    35,    46,    53,   -56,
+    1407,    27,    55,   459,    59,   459,   459,  1407,   -56,    36,
+      43,   -56,     3,   710,    -4,   -56,   763,   459,   -56,   -56,
+     -56,   115,  1407,   -56,   -56,    56,   104,    95,    95,    45,
+      45,  1102,  1081,    45,    93,   576,   576,   576,   576,    93,
+      93,    45,    45,   525,   632,   369,   576,   576,   816,    15,
+     -56,   -56,   -56,  1183,   -56,    65,    36,    66,  1028,  1028,
+    1211,   -56,   -56,   -56,   118,  1028,   -56,  1239,   -18,  1407,
+     459,  1407,   459,    64,   -56,    69,   -56,   459,   -56,   -56,
+    1267,   498,  1295,   869,  1407,   459,   -56,    79,  1028,   -56,
+    1407,   459,   -56,  1407,  1323,   922,   -56,  1351,   975,  1407,
+     -56,  1407,   -56,  1407,  1407,  1379,   -56
   };
 
   const signed char
@@ -3002,373 +3281,389 @@ namespace yy {
   {
        3,     0,    11,     3,     0,     0,     0,     0,     3,    32,
        0,     0,     0,     7,    41,     0,     2,     4,     6,    10,
-       0,    59,     0,     9,   104,     0,    50,     0,    48,   105,
-      49,    53,   107,   106,    52,    51,    59,     0,    55,    60,
-      54,    56,     0,     0,    44,     0,    35,    37,     0,     0,
-       0,    25,    23,     0,    33,    46,     0,    12,     0,     1,
-       5,     0,     0,     0,     0,     0,     0,    67,    62,    66,
-      75,     0,    41,    80,     0,    76,     0,    68,    84,    83,
-      85,    86,    61,   102,   103,    87,    95,   100,    99,    97,
-     101,    94,    93,    88,    89,    90,    92,    91,    98,    96,
-       0,    58,    13,     0,     0,     0,     0,     0,    21,     3,
-       0,     0,     0,     0,     0,     0,     3,    34,     8,    59,
-      65,     0,     0,     0,    43,     0,     0,    74,    82,    81,
-       0,     3,    73,    44,    71,     0,    57,     0,     0,    45,
-      38,    36,    29,    22,     0,    24,    27,    15,    47,     0,
-      64,    42,    63,     0,    79,    77,     0,     0,     3,     0,
-       3,     0,     0,    26,     0,    14,     0,    70,    72,     0,
-       0,     0,     0,     3,     0,    17,     0,    78,    69,     3,
-       0,    20,     3,     0,     0,    28,     0,     0,    30,    16,
-       3,    18,     3,    31,     0,    19
+       0,    82,     0,     9,     0,     0,    50,     0,    48,     0,
+      49,    53,     0,     0,    52,    51,    82,     0,    55,    83,
+      54,    56,     0,    44,     0,    35,    37,     0,     0,     0,
+      25,    23,     0,    33,    46,     0,    12,     0,     1,     5,
+       0,     0,     0,     0,     0,     0,    90,    85,    89,    78,
+      98,     0,    41,   103,     0,    99,     0,    91,    79,    81,
+      80,     0,     0,     0,     0,    84,     0,     0,     0,     0,
+       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,    13,     0,     0,     0,     0,     0,    21,
+       3,     0,     0,     0,     0,     0,     0,     3,    34,     8,
+      82,    88,     0,     0,     0,    43,     0,     0,    97,   105,
+     104,     0,     3,    96,    44,    94,     0,    58,    57,    59,
+      60,    76,    77,    61,    69,    74,    73,    71,    75,    68,
+      67,    62,    63,    64,    66,    65,    72,    70,     0,     0,
+      45,    38,    36,    29,    22,     0,    24,    27,    15,    47,
+       0,    87,    42,    86,     0,   102,   100,     0,     0,     3,
+       0,     3,     0,     0,    26,     0,    14,     0,    93,    95,
+       0,     0,     0,     0,     3,     0,    17,     0,   101,    92,
+       3,     0,    20,     3,     0,     0,    28,     0,     0,    30,
+      16,     3,    18,     3,    31,     0,    19
   };
 
   const short
   parser::yypgoto_[] =
   {
-     -60,   -60,    -3,   101,   -60,   -60,   -60,   -60,   -60,   -60,
-     -60,     0,    51,   -59,   196,   176,    34,    10,   -60,   -45,
-     -60,   -15,   -60,     2,   -60,   -60,   -60
+     -56,   -56,    16,   240,   -56,   -56,   -56,   -56,   -56,   -56,
+     -56,     0,    60,   -55,   300,    54,   108,    14,   -56,   -45,
+     -56,   -21,   -56,     8,   -56
   };
 
   const unsigned char
   parser::yydefgoto_[] =
   {
-       0,    15,    16,    17,    52,   162,    18,    19,    47,    48,
-      20,    21,    45,    54,    55,    22,    23,    68,    40,    77,
-     135,    41,    74,    75,   130,   100,    42
+       0,    15,    16,    17,    51,   183,    18,    19,    46,    47,
+      20,    36,    44,    53,    54,    38,    39,    67,    40,    77,
+     136,    41,    74,    75,   131
   };
 
   const short
   parser::yytable_[] =
   {
-      43,    36,   118,   108,   121,    53,    36,    69,   150,    36,
-      36,   168,    44,    59,   127,   104,    63,    63,    25,    25,
-       1,    64,    46,    69,    61,    36,    57,   106,   131,   107,
-     -39,   139,    24,   112,   -40,    39,     1,   120,    25,   105,
-      39,   160,    36,    39,    39,   138,    58,   115,    26,   128,
-      27,   129,    76,   145,    28,    29,    65,   132,    66,    39,
-      30,    36,   119,    36,    36,   143,    31,    67,    67,    62,
-      14,    36,   -60,   115,   -60,   -39,    39,   133,   113,   -40,
-      50,   103,    32,   115,   110,    33,    14,    34,    35,   173,
-     174,   175,   111,   117,   126,    39,    39,    39,    39,   123,
-      36,   124,   157,    36,    36,    39,   142,   139,    69,   -60,
-     140,   -60,    36,   149,    36,    36,    51,    60,   141,   144,
-     158,   -60,   146,   163,   166,   164,    36,   134,   156,   176,
-      36,   185,   155,   152,    39,     0,     0,    39,    39,     0,
-       0,     0,     0,     0,    60,     0,    39,     0,    39,    39,
-       0,     0,     0,     0,    60,   169,     0,   171,     0,    36,
-      39,    36,     0,     0,    39,     0,    36,     0,     0,     0,
-     183,     0,     0,     0,    36,     0,   186,    38,     0,   188,
-      36,     0,    38,     0,     0,    38,    38,   193,     0,   194,
-       0,     0,     0,    39,     0,    39,     0,    37,     0,     0,
-      39,    38,    49,     0,     0,     0,    56,     0,    39,     0,
-       0,     0,     0,     0,    39,     0,     0,     0,    38,     0,
-       0,    73,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,     0,     0,     0,     0,     0,    38,   101,    38,
-      38,     0,     0,    60,     0,     0,     0,    38,     0,     0,
-      60,     0,     0,     0,     0,     0,     0,    60,     0,     0,
-     122,     0,     0,     0,     0,     0,     0,   125,     0,     0,
-      60,     0,    60,     0,     0,     0,    38,     0,     0,    38,
-      38,     0,     0,     0,    60,     0,     0,    60,    38,    60,
-      38,    38,     0,     0,    60,    60,   136,     0,     0,   137,
-       0,     0,    38,     0,     0,     0,    38,     0,     0,     0,
-     147,   148,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,   154,     0,     0,    24,    73,     0,     0,     1,
-       0,    25,    70,    71,     0,    38,     0,    38,     0,     0,
-       0,    26,    38,    27,     0,     0,     0,    28,    29,     0,
-      38,     0,     0,    30,     0,   170,    38,   172,     0,    31,
-       0,     0,   177,     0,     0,     0,     0,     0,     0,     0,
-     184,     0,     0,     0,     0,    32,   187,     0,    33,    72,
-      34,    35,    24,     0,     0,     0,     1,     0,    25,     0,
-      71,    24,     0,     0,     0,     1,     0,    25,    26,     0,
-      27,     0,     0,     0,    28,    29,     0,    26,     0,    27,
-      30,     0,     0,    28,    29,     0,    31,     0,     0,    30,
-       0,     0,     0,     0,     0,    31,     0,     0,     0,     0,
-       0,     0,    32,     0,     0,    33,    72,    34,    35,     0,
-       0,    32,     0,     0,    33,    14,    34,    35,    78,    79,
-      80,    81,     0,     0,     0,     0,     0,     0,    83,     0,
-     179,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,    84,     0,     0,     0,     0,     0,     0,     0,
-      85,    86,     0,    87,    88,    89,    90,    91,    92,     0,
-       0,     0,   180,     0,    93,    94,    95,    96,    97,    98,
-      99,    78,    79,    80,    81,     0,    82,     0,     0,     0,
-       0,    83,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,     0,     0,     0,    84,     0,     0,     0,     0,
-       0,     0,     0,    85,    86,     0,    87,    88,    89,    90,
-      91,    92,     0,     0,     0,     0,     0,    93,    94,    95,
-      96,    97,    98,    99,    78,    79,    80,    81,     0,     0,
-       0,     0,     0,     0,    83,     0,     0,     0,     0,     0,
-       0,     0,     0,     0,     0,     0,     0,     0,    84,     0,
-       0,   109,     0,     0,     0,     0,    85,    86,     0,    87,
-      88,    89,    90,    91,    92,     0,     0,     0,     0,     0,
-      93,    94,    95,    96,    97,    98,    99,    78,    79,    80,
-      81,     0,     0,     0,     0,     0,     0,    83,     0,   116,
+      21,    68,   109,    21,    62,   119,    25,   122,    21,     1,
+      43,    49,   171,   107,    60,   108,    21,    68,   132,    42,
+     189,    24,    45,    56,    52,     1,    57,    25,    70,    71,
+     -83,   181,   -83,    58,    62,    76,    25,    26,    63,    27,
+     -39,   160,    21,    28,    29,   113,   -40,   133,    50,    30,
+     159,   116,    21,   104,    22,    31,    66,    22,   166,    61,
+      14,   120,    22,   116,   105,   111,   164,   -83,   134,   -83,
+      22,    32,   128,    64,    33,    65,    72,    34,    35,   112,
+     -83,   194,   195,   196,   116,   -39,    66,   124,   106,   118,
+     114,   -40,   127,   125,   160,    96,    22,    81,    82,    83,
+      84,    83,    84,    68,   178,   161,    22,   129,    23,   130,
+      21,    23,   162,   179,   165,    22,    23,    21,   167,    24,
+     184,   187,   185,     1,    23,    25,   163,    71,   197,    88,
+      89,    88,    21,   170,   206,    26,   135,    27,   173,   176,
+       0,    28,    29,    96,    97,    96,    97,    30,   177,     0,
+      23,     0,     0,    31,     0,     0,     0,     0,     0,     0,
+      23,     0,     0,    21,    22,     0,     0,     0,     0,    32,
+      21,    22,    33,     0,    72,    34,    35,    21,     0,    21,
+       0,    21,     0,     0,     0,     0,    22,     0,     0,     0,
+      21,     0,    21,     0,    21,   190,     0,   192,     0,     0,
+      21,     0,     0,    21,    21,     0,     0,    21,     0,    21,
+     204,    21,     0,    21,    21,    21,   207,    22,    23,   209,
+       0,     0,     0,     0,    22,    23,     0,   214,     0,   215,
+       0,    22,     0,    22,     0,    22,     0,     0,     0,     0,
+      23,     0,     0,     0,    22,     0,    22,     0,    22,     0,
+       0,     0,     0,     0,    22,     0,    59,    22,    22,     0,
+       0,    22,     0,    22,     0,    22,     0,    22,    22,    22,
+       0,    23,     0,     0,     0,     0,     0,     0,    23,     0,
+       0,     0,    59,     0,     0,    23,     0,    23,     0,    23,
+       0,     0,    59,     0,     0,     0,     0,     0,    23,     0,
+      23,    37,    23,     0,     0,     0,    48,     0,    23,     0,
+      55,    23,    23,     0,     0,    23,     0,    23,     0,    23,
+       0,    23,    23,    23,    69,    73,     0,     1,     0,    78,
+       0,     0,    79,    80,     2,     3,     0,     0,   103,     0,
+       4,     5,     6,     0,     7,     0,     0,     0,     8,     9,
+       0,     0,     0,    10,    11,     0,     0,     0,     0,     0,
+       0,     0,     0,   123,    12,    13,     0,     0,     0,     0,
+       0,   126,     0,    81,    82,    83,    84,     0,    14,     0,
+       0,   137,   138,   139,   140,     0,   141,   142,   143,   144,
+     145,   146,   147,   148,   149,   150,   151,   152,   153,   154,
+     155,   156,   157,    59,   158,    88,    89,     0,     0,     0,
+      59,     0,    94,    95,     0,   168,   169,    59,    24,    96,
+      97,    98,     1,   121,    25,     0,     0,   175,     0,     0,
+      59,    73,    59,     0,    26,     0,    27,     0,     0,     0,
+      28,    29,     0,     0,    59,     0,    30,    59,     0,    59,
+       0,     0,    31,     0,    59,    59,     0,     0,     0,     0,
+       0,     0,     0,    24,     0,     0,     0,     1,    32,    25,
+       0,    33,     0,    14,    34,    35,     0,     0,     0,    26,
+     191,    27,   193,     0,     0,    28,    29,   198,     0,     0,
+       0,    30,     0,     0,     0,   205,     0,    31,     0,     0,
+       0,   208,    81,    82,    83,    84,     0,     0,     0,     0,
+       0,     0,    86,    32,   200,     0,    33,     0,    14,    34,
+      35,     0,     0,     0,     0,     0,    87,     0,     0,    81,
+      82,    83,    84,     0,    88,    89,     0,    90,    91,    92,
+      93,    94,    95,     0,     0,     0,   201,     0,    96,    97,
+      98,    99,   100,   101,   102,    81,    82,    83,    84,     0,
+      85,    88,    89,     0,     0,    86,     0,     0,    94,    95,
+       0,     0,     0,     0,     0,    96,    97,     0,     0,    87,
+      81,    82,    83,    84,     0,     0,     0,    88,    89,     0,
+      90,    91,    92,    93,    94,    95,     0,     0,     0,     0,
+       0,    96,    97,    98,    99,   100,   101,   102,    81,    82,
+      83,    84,    88,    89,     0,     0,     0,     0,    86,    94,
+      95,     0,     0,     0,     0,     0,    96,    97,    98,    99,
+     100,     0,    87,     0,     0,   110,    81,    82,    83,    84,
+      88,    89,     0,    90,    91,    92,    93,    94,    95,     0,
+       0,     0,     0,     0,    96,    97,    98,    99,   100,   101,
+     102,    81,    82,    83,    84,     0,     0,     0,    88,    89,
+       0,    86,     0,   117,     0,    94,    95,     0,     0,     0,
+       0,     0,    96,    97,    98,    87,   100,     0,     0,     0,
+       0,     0,     0,    88,    89,     0,    90,    91,    92,    93,
+      94,    95,     0,     0,     0,     0,     0,    96,    97,    98,
+      99,   100,   101,   102,    81,    82,    83,    84,     0,     0,
+       0,     0,     0,   172,    86,     0,     0,     0,     0,     0,
+       0,     0,     0,     0,     0,     0,     0,     0,    87,     0,
+       0,     0,     0,     0,     0,     0,    88,    89,     0,    90,
+      91,    92,    93,    94,    95,     0,     0,     0,     0,     0,
+      96,    97,    98,    99,   100,   101,   102,    81,    82,    83,
+      84,     0,     0,     0,     0,     0,   174,    86,     0,     0,
        0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,    84,     0,     0,     0,     0,     0,     0,     0,    85,
-      86,     0,    87,    88,    89,    90,    91,    92,     0,     0,
-       0,     0,     0,    93,    94,    95,    96,    97,    98,    99,
-      78,    79,    80,    81,     0,     0,     0,     0,     0,   151,
-      83,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,     0,     0,    84,     0,     0,     0,     0,     0,
-       0,     0,    85,    86,     0,    87,    88,    89,    90,    91,
-      92,     0,     0,     0,     0,     0,    93,    94,    95,    96,
-      97,    98,    99,    78,    79,    80,    81,     0,     0,     0,
-       0,     0,   153,    83,     0,     0,     0,     0,     0,     0,
-       0,     0,     0,     0,     0,     0,     0,    84,     0,     0,
-       0,     0,     0,     0,     0,    85,    86,     0,    87,    88,
-      89,    90,    91,    92,     0,     0,     0,     0,     0,    93,
-      94,    95,    96,    97,    98,    99,    78,    79,    80,    81,
-       0,     0,     0,     0,     0,     0,    83,     0,     0,     0,
+       0,    87,     0,     0,     0,     0,     0,     0,     0,    88,
+      89,     0,    90,    91,    92,    93,    94,    95,     0,     0,
+       0,     0,     0,    96,    97,    98,    99,   100,   101,   102,
+      81,    82,    83,    84,     0,     0,     0,     0,     0,     0,
+      86,     0,     0,     0,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,     0,    87,     0,     0,     0,     0,     0,
+       0,     0,    88,    89,     0,    90,    91,    92,    93,    94,
+      95,     0,     0,     0,   180,     0,    96,    97,    98,    99,
+     100,   101,   102,    81,    82,    83,    84,     0,     0,     0,
+       0,     0,     0,    86,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,     0,     0,     0,     0,    87,     0,     0,
+     203,     0,     0,     0,     0,    88,    89,     0,    90,    91,
+      92,    93,    94,    95,     0,     0,     0,     0,     0,    96,
+      97,    98,    99,   100,   101,   102,    81,    82,    83,    84,
+       0,     0,     0,     0,     0,     0,    86,     0,     0,     0,
        0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-      84,     0,     0,     0,     0,     0,     0,     0,    85,    86,
-       0,    87,    88,    89,    90,    91,    92,     0,     0,     0,
-     159,     0,    93,    94,    95,    96,    97,    98,    99,    78,
-      79,    80,    81,     0,     0,     0,     0,     0,     0,    83,
-       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,     0,    84,     0,     0,   182,     0,     0,     0,
-       0,    85,    86,     0,    87,    88,    89,    90,    91,    92,
-       0,     0,     0,     0,     0,    93,    94,    95,    96,    97,
-      98,    99,    78,    79,    80,    81,     0,     0,     0,     0,
-       0,     0,    83,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,     0,     0,     0,     0,    84,     0,     0,   190,
-       0,     0,     0,     0,    85,    86,     0,    87,    88,    89,
-      90,    91,    92,     0,     0,     0,     0,     0,    93,    94,
-      95,    96,    97,    98,    99,    78,    79,    80,    81,     0,
-       0,     0,     0,     0,     0,    83,     0,   192,     0,     0,
-       0,     0,     0,     0,     0,     0,     0,     0,     0,    84,
-       0,     0,     0,     0,     0,     0,     0,    85,    86,     0,
-      87,    88,    89,    90,    91,    92,     0,     0,     0,     0,
-       0,    93,    94,    95,    96,    97,    98,    99,    78,    79,
-      80,    81,     0,     0,     0,     0,     0,     0,    83,     0,
-       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,     0,    84,     0,     0,     0,     0,     0,     0,     0,
-      85,    86,     0,    87,    88,    89,    90,    91,    92,     0,
-       0,     0,     0,     0,    93,    94,    95,    96,    97,    98,
-      99,     1,     0,     0,     0,     0,     0,     0,     2,     3,
-       0,     0,   102,     0,     4,     5,     6,     0,     7,     0,
-       0,     0,     8,     9,     0,     0,     0,    10,    11,     0,
-       0,     0,     0,     1,     0,     0,     0,     0,    12,    13,
-       2,     3,     0,     0,     0,     0,     4,     5,     6,     0,
-       7,    14,     0,     0,     8,     9,     0,     0,   114,    10,
-      11,     0,     0,     0,     0,     1,     0,     0,     0,     0,
-      12,    13,     2,     3,     0,   161,     0,     0,     4,     5,
-       6,     0,     7,    14,     0,     0,     8,     9,     0,     0,
-       0,    10,    11,     0,     0,     0,     0,     1,     0,     0,
-       0,     0,    12,    13,     2,     3,     0,     0,   165,     0,
-       4,     5,     6,     0,     7,    14,     0,     0,     8,     9,
-       0,     0,     0,    10,    11,     0,     0,     0,     0,     1,
-       0,     0,     0,     0,    12,    13,     2,     3,     0,     0,
-     167,     0,     4,     5,     6,     0,     7,    14,     0,     0,
-       8,     9,     0,     0,     0,    10,    11,     0,     0,     0,
+      87,     0,     0,   211,     0,     0,     0,     0,    88,    89,
+       0,    90,    91,    92,    93,    94,    95,     0,     0,     0,
+       0,     0,    96,    97,    98,    99,   100,   101,   102,    81,
+      82,    83,    84,     0,     0,     0,     0,     0,     0,    86,
+       0,   213,     0,     0,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,    87,     0,     0,     0,     0,     0,     0,
+       0,    88,    89,     0,    90,    91,    92,    93,    94,    95,
+       0,     0,     0,     0,     0,    96,    97,    98,    99,   100,
+     101,   102,    81,    82,    83,    84,     0,     0,     0,     0,
+       0,     0,    86,     0,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,     0,     0,     0,    87,     0,     0,     0,
+       0,     0,     0,     0,    88,    89,     0,    90,    91,    92,
+      93,    94,    95,     0,     0,     0,     0,     0,    96,    97,
+      98,    99,   100,   101,   102,    81,    82,    83,    84,     0,
+       0,     0,     0,     0,     0,    86,     0,     0,     0,     0,
+       0,     0,     0,     0,     0,     0,    81,    82,    83,    84,
+       0,     0,     0,     0,     0,     0,     0,    88,    89,     0,
+      90,    91,    92,    93,    94,    95,     0,     0,     0,     0,
+       0,    96,    97,    98,    99,   100,   101,   102,    88,    89,
+       0,    90,    91,    92,    93,    94,    95,     0,     0,     0,
+       0,     0,    96,    97,    98,    99,   100,   101,   102,     1,
+       0,     0,     0,     0,     0,     0,     2,     3,     0,     0,
+       0,     0,     4,     5,     6,     0,     7,     0,     0,     0,
+       8,     9,     0,     0,   115,    10,    11,     0,     0,     0,
        0,     1,     0,     0,     0,     0,    12,    13,     2,     3,
-       0,     0,   178,     0,     4,     5,     6,     0,     7,    14,
-       0,     0,     8,     9,     0,     0,     0,    10,    11,     0,
-       0,     0,     0,     1,     0,     0,     0,     0,    12,    13,
-       2,     3,     0,     0,   181,     0,     4,     5,     6,     0,
-       7,    14,     0,     0,     8,     9,     0,     0,     0,    10,
-      11,     0,     0,     0,     0,     1,     0,     0,     0,     0,
-      12,    13,     2,     3,     0,     0,   189,     0,     4,     5,
-       6,     0,     7,    14,     0,     0,     8,     9,     0,     0,
-       0,    10,    11,     0,     0,     0,     0,     1,     0,     0,
-       0,     0,    12,    13,     2,     3,     0,     0,   191,     0,
-       4,     5,     6,     0,     7,    14,     0,     0,     8,     9,
-       0,     0,     0,    10,    11,     0,     0,     0,     0,     1,
-       0,     0,     0,     0,    12,    13,     2,     3,     0,     0,
-     195,     0,     4,     5,     6,     0,     7,    14,     0,     0,
-       8,     9,     0,     0,     0,    10,    11,     0,     0,     0,
-       0,     1,     0,     0,     0,     0,    12,    13,     2,     3,
-       0,     0,     0,     0,     4,     5,     6,     0,     7,    14,
-       0,     0,     8,     9,     0,     0,     0,    10,    11,     0,
-       0,     0,     0,     0,     0,     0,     0,     0,    12,    13,
-       0,     0,     0,     0,     0,     0,     0,     0,     0,     0,
-       0,    14
+       0,   182,     0,     0,     4,     5,     6,     0,     7,     0,
+      14,     0,     8,     9,     0,     0,     0,    10,    11,     1,
+       0,     0,     0,     0,     0,     0,     2,     3,    12,    13,
+     186,     0,     4,     5,     6,     0,     7,     0,     0,     0,
+       8,     9,    14,     0,     0,    10,    11,     1,     0,     0,
+       0,     0,     0,     0,     2,     3,    12,    13,   188,     0,
+       4,     5,     6,     0,     7,     0,     0,     0,     8,     9,
+      14,     0,     0,    10,    11,     1,     0,     0,     0,     0,
+       0,     0,     2,     3,    12,    13,   199,     0,     4,     5,
+       6,     0,     7,     0,     0,     0,     8,     9,    14,     0,
+       0,    10,    11,     1,     0,     0,     0,     0,     0,     0,
+       2,     3,    12,    13,   202,     0,     4,     5,     6,     0,
+       7,     0,     0,     0,     8,     9,    14,     0,     0,    10,
+      11,     1,     0,     0,     0,     0,     0,     0,     2,     3,
+      12,    13,   210,     0,     4,     5,     6,     0,     7,     0,
+       0,     0,     8,     9,    14,     0,     0,    10,    11,     1,
+       0,     0,     0,     0,     0,     0,     2,     3,    12,    13,
+     212,     0,     4,     5,     6,     0,     7,     0,     0,     0,
+       8,     9,    14,     0,     0,    10,    11,     1,     0,     0,
+       0,     0,     0,     0,     2,     3,    12,    13,   216,     0,
+       4,     5,     6,     0,     7,     0,     0,     0,     8,     9,
+      14,     0,     0,    10,    11,     1,     0,     0,     0,     0,
+       0,     0,     2,     3,    12,    13,     0,     0,     4,     5,
+       6,     0,     7,     0,     0,     0,     8,     9,    14,     0,
+       0,    10,    11,     0,     0,     0,     0,     0,     0,     0,
+       0,     0,    12,    13,     0,     0,     0,     0,     0,     0,
+       0,     0,     0,     0,     0,     0,    14
   };
 
   const short
   parser::yycheck_[] =
   {
-       3,     1,    61,    48,    63,     8,     6,    22,     9,     9,
-      10,    38,    58,     0,    11,    24,     8,     8,    10,    10,
-       8,    12,    58,    38,     3,    25,    58,    47,     9,    49,
-       3,    58,     4,     3,     3,     1,     8,     9,    10,    48,
-       6,    16,    42,     9,    10,   104,    58,    48,    20,    46,
-      22,    48,     8,   112,    26,    27,    47,    38,    49,    25,
-      32,    61,    62,    63,    64,   110,    38,    59,    59,    48,
-      58,    71,    10,    48,    12,    48,    42,    58,    48,    48,
-      22,     3,    54,    48,    58,    57,    58,    59,    60,    17,
-      18,    19,    56,    45,     3,    61,    62,    63,    64,    58,
-     100,    58,    48,   103,   104,    71,   109,    58,   123,    47,
-      58,    49,   112,   116,   114,   115,    58,    16,    58,    58,
-       9,    59,    58,    55,     3,    56,   126,    76,   131,    58,
-     130,    55,   130,   123,   100,    -1,    -1,   103,   104,    -1,
-      -1,    -1,    -1,    -1,    43,    -1,   112,    -1,   114,   115,
-      -1,    -1,    -1,    -1,    53,   158,    -1,   160,    -1,   159,
-     126,   161,    -1,    -1,   130,    -1,   166,    -1,    -1,    -1,
-     173,    -1,    -1,    -1,   174,    -1,   179,     1,    -1,   182,
-     180,    -1,     6,    -1,    -1,     9,    10,   190,    -1,   192,
-      -1,    -1,    -1,   159,    -1,   161,    -1,     1,    -1,    -1,
-     166,    25,     6,    -1,    -1,    -1,    10,    -1,   174,    -1,
-      -1,    -1,    -1,    -1,   180,    -1,    -1,    -1,    42,    -1,
-      -1,    25,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    -1,    -1,    -1,    -1,    -1,    -1,    61,    42,    63,
-      64,    -1,    -1,   142,    -1,    -1,    -1,    71,    -1,    -1,
-     149,    -1,    -1,    -1,    -1,    -1,    -1,   156,    -1,    -1,
-      64,    -1,    -1,    -1,    -1,    -1,    -1,    71,    -1,    -1,
-     169,    -1,   171,    -1,    -1,    -1,   100,    -1,    -1,   103,
-     104,    -1,    -1,    -1,   183,    -1,    -1,   186,   112,   188,
-     114,   115,    -1,    -1,   193,   194,   100,    -1,    -1,   103,
-      -1,    -1,   126,    -1,    -1,    -1,   130,    -1,    -1,    -1,
-     114,   115,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    -1,   126,    -1,    -1,     4,   130,    -1,    -1,     8,
-      -1,    10,    11,    12,    -1,   159,    -1,   161,    -1,    -1,
-      -1,    20,   166,    22,    -1,    -1,    -1,    26,    27,    -1,
-     174,    -1,    -1,    32,    -1,   159,   180,   161,    -1,    38,
-      -1,    -1,   166,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-     174,    -1,    -1,    -1,    -1,    54,   180,    -1,    57,    58,
-      59,    60,     4,    -1,    -1,    -1,     8,    -1,    10,    -1,
-      12,     4,    -1,    -1,    -1,     8,    -1,    10,    20,    -1,
-      22,    -1,    -1,    -1,    26,    27,    -1,    20,    -1,    22,
-      32,    -1,    -1,    26,    27,    -1,    38,    -1,    -1,    32,
-      -1,    -1,    -1,    -1,    -1,    38,    -1,    -1,    -1,    -1,
-      -1,    -1,    54,    -1,    -1,    57,    58,    59,    60,    -1,
-      -1,    54,    -1,    -1,    57,    58,    59,    60,     4,     5,
-       6,     7,    -1,    -1,    -1,    -1,    -1,    -1,    14,    -1,
-      16,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    -1,    28,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
+       0,    22,    47,     3,     8,    60,    10,    62,     8,     8,
+      59,    22,     9,    47,     3,    49,    16,    38,     9,     3,
+      38,     4,    59,    59,     8,     8,    59,    10,    11,    12,
+      10,    16,    12,     0,     8,     8,    10,    20,    12,    22,
+       3,    59,    42,    26,    27,     3,     3,    38,    59,    32,
+     105,    48,    52,     3,     0,    38,    60,     3,   113,    48,
+      59,    61,     8,    48,    24,    59,   111,    47,    59,    49,
+      16,    54,    11,    47,    57,    49,    59,    60,    61,    56,
+      60,    17,    18,    19,    48,    48,    60,    59,    48,    45,
+      48,    48,     3,    59,    59,    50,    42,     4,     5,     6,
+       7,     6,     7,   124,    48,    59,    52,    46,     0,    48,
+     110,     3,    59,     9,    59,    61,     8,   117,    59,     4,
+      55,     3,    56,     8,    16,    10,   110,    12,    59,    36,
+      37,    36,   132,   117,    55,    20,    76,    22,   124,   131,
+      -1,    26,    27,    50,    51,    50,    51,    32,   132,    -1,
+      42,    -1,    -1,    38,    -1,    -1,    -1,    -1,    -1,    -1,
+      52,    -1,    -1,   163,   110,    -1,    -1,    -1,    -1,    54,
+     170,   117,    57,    -1,    59,    60,    61,   177,    -1,   179,
+      -1,   181,    -1,    -1,    -1,    -1,   132,    -1,    -1,    -1,
+     190,    -1,   192,    -1,   194,   179,    -1,   181,    -1,    -1,
+     200,    -1,    -1,   203,   204,    -1,    -1,   207,    -1,   209,
+     194,   211,    -1,   213,   214,   215,   200,   163,   110,   203,
+      -1,    -1,    -1,    -1,   170,   117,    -1,   211,    -1,   213,
+      -1,   177,    -1,   179,    -1,   181,    -1,    -1,    -1,    -1,
+     132,    -1,    -1,    -1,   190,    -1,   192,    -1,   194,    -1,
+      -1,    -1,    -1,    -1,   200,    -1,    16,   203,   204,    -1,
+      -1,   207,    -1,   209,    -1,   211,    -1,   213,   214,   215,
+      -1,   163,    -1,    -1,    -1,    -1,    -1,    -1,   170,    -1,
+      -1,    -1,    42,    -1,    -1,   177,    -1,   179,    -1,   181,
+      -1,    -1,    52,    -1,    -1,    -1,    -1,    -1,   190,    -1,
+     192,     1,   194,    -1,    -1,    -1,     6,    -1,   200,    -1,
+      10,   203,   204,    -1,    -1,   207,    -1,   209,    -1,   211,
+      -1,   213,   214,   215,    24,    25,    -1,     8,    -1,    29,
+      -1,    -1,    32,    33,    15,    16,    -1,    -1,    19,    -1,
+      21,    22,    23,    -1,    25,    -1,    -1,    -1,    29,    30,
+      -1,    -1,    -1,    34,    35,    -1,    -1,    -1,    -1,    -1,
+      -1,    -1,    -1,    63,    45,    46,    -1,    -1,    -1,    -1,
+      -1,    71,    -1,     4,     5,     6,     7,    -1,    59,    -1,
+      -1,    81,    82,    83,    84,    -1,    86,    87,    88,    89,
+      90,    91,    92,    93,    94,    95,    96,    97,    98,    99,
+     100,   101,   102,   163,   104,    36,    37,    -1,    -1,    -1,
+     170,    -1,    43,    44,    -1,   115,   116,   177,     4,    50,
+      51,    52,     8,     9,    10,    -1,    -1,   127,    -1,    -1,
+     190,   131,   192,    -1,    20,    -1,    22,    -1,    -1,    -1,
+      26,    27,    -1,    -1,   204,    -1,    32,   207,    -1,   209,
+      -1,    -1,    38,    -1,   214,   215,    -1,    -1,    -1,    -1,
+      -1,    -1,    -1,     4,    -1,    -1,    -1,     8,    54,    10,
+      -1,    57,    -1,    59,    60,    61,    -1,    -1,    -1,    20,
+     180,    22,   182,    -1,    -1,    26,    27,   187,    -1,    -1,
+      -1,    32,    -1,    -1,    -1,   195,    -1,    38,    -1,    -1,
+      -1,   201,     4,     5,     6,     7,    -1,    -1,    -1,    -1,
+      -1,    -1,    14,    54,    16,    -1,    57,    -1,    59,    60,
+      61,    -1,    -1,    -1,    -1,    -1,    28,    -1,    -1,     4,
+       5,     6,     7,    -1,    36,    37,    -1,    39,    40,    41,
+      42,    43,    44,    -1,    -1,    -1,    48,    -1,    50,    51,
+      52,    53,    54,    55,    56,     4,     5,     6,     7,    -1,
+       9,    36,    37,    -1,    -1,    14,    -1,    -1,    43,    44,
+      -1,    -1,    -1,    -1,    -1,    50,    51,    -1,    -1,    28,
+       4,     5,     6,     7,    -1,    -1,    -1,    36,    37,    -1,
+      39,    40,    41,    42,    43,    44,    -1,    -1,    -1,    -1,
+      -1,    50,    51,    52,    53,    54,    55,    56,     4,     5,
+       6,     7,    36,    37,    -1,    -1,    -1,    -1,    14,    43,
+      44,    -1,    -1,    -1,    -1,    -1,    50,    51,    52,    53,
+      54,    -1,    28,    -1,    -1,    31,     4,     5,     6,     7,
       36,    37,    -1,    39,    40,    41,    42,    43,    44,    -1,
-      -1,    -1,    48,    -1,    50,    51,    52,    53,    54,    55,
-      56,     4,     5,     6,     7,    -1,     9,    -1,    -1,    -1,
-      -1,    14,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    -1,    -1,    -1,    -1,    28,    -1,    -1,    -1,    -1,
+      -1,    -1,    -1,    -1,    50,    51,    52,    53,    54,    55,
+      56,     4,     5,     6,     7,    -1,    -1,    -1,    36,    37,
+      -1,    14,    -1,    16,    -1,    43,    44,    -1,    -1,    -1,
+      -1,    -1,    50,    51,    52,    28,    54,    -1,    -1,    -1,
       -1,    -1,    -1,    36,    37,    -1,    39,    40,    41,    42,
       43,    44,    -1,    -1,    -1,    -1,    -1,    50,    51,    52,
       53,    54,    55,    56,     4,     5,     6,     7,    -1,    -1,
-      -1,    -1,    -1,    -1,    14,    -1,    -1,    -1,    -1,    -1,
+      -1,    -1,    -1,    13,    14,    -1,    -1,    -1,    -1,    -1,
       -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    28,    -1,
-      -1,    31,    -1,    -1,    -1,    -1,    36,    37,    -1,    39,
+      -1,    -1,    -1,    -1,    -1,    -1,    36,    37,    -1,    39,
       40,    41,    42,    43,    44,    -1,    -1,    -1,    -1,    -1,
       50,    51,    52,    53,    54,    55,    56,     4,     5,     6,
-       7,    -1,    -1,    -1,    -1,    -1,    -1,    14,    -1,    16,
+       7,    -1,    -1,    -1,    -1,    -1,    13,    14,    -1,    -1,
       -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
       -1,    28,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    36,
       37,    -1,    39,    40,    41,    42,    43,    44,    -1,    -1,
       -1,    -1,    -1,    50,    51,    52,    53,    54,    55,    56,
-       4,     5,     6,     7,    -1,    -1,    -1,    -1,    -1,    13,
+       4,     5,     6,     7,    -1,    -1,    -1,    -1,    -1,    -1,
       14,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
       -1,    -1,    -1,    -1,    28,    -1,    -1,    -1,    -1,    -1,
       -1,    -1,    36,    37,    -1,    39,    40,    41,    42,    43,
-      44,    -1,    -1,    -1,    -1,    -1,    50,    51,    52,    53,
+      44,    -1,    -1,    -1,    48,    -1,    50,    51,    52,    53,
       54,    55,    56,     4,     5,     6,     7,    -1,    -1,    -1,
-      -1,    -1,    13,    14,    -1,    -1,    -1,    -1,    -1,    -1,
+      -1,    -1,    -1,    14,    -1,    -1,    -1,    -1,    -1,    -1,
       -1,    -1,    -1,    -1,    -1,    -1,    -1,    28,    -1,    -1,
-      -1,    -1,    -1,    -1,    -1,    36,    37,    -1,    39,    40,
+      31,    -1,    -1,    -1,    -1,    36,    37,    -1,    39,    40,
       41,    42,    43,    44,    -1,    -1,    -1,    -1,    -1,    50,
       51,    52,    53,    54,    55,    56,     4,     5,     6,     7,
       -1,    -1,    -1,    -1,    -1,    -1,    14,    -1,    -1,    -1,
       -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      28,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    36,    37,
+      28,    -1,    -1,    31,    -1,    -1,    -1,    -1,    36,    37,
       -1,    39,    40,    41,    42,    43,    44,    -1,    -1,    -1,
-      48,    -1,    50,    51,    52,    53,    54,    55,    56,     4,
+      -1,    -1,    50,    51,    52,    53,    54,    55,    56,     4,
        5,     6,     7,    -1,    -1,    -1,    -1,    -1,    -1,    14,
-      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    -1,    -1,    28,    -1,    -1,    31,    -1,    -1,    -1,
+      -1,    16,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
+      -1,    -1,    -1,    28,    -1,    -1,    -1,    -1,    -1,    -1,
       -1,    36,    37,    -1,    39,    40,    41,    42,    43,    44,
       -1,    -1,    -1,    -1,    -1,    50,    51,    52,    53,    54,
       55,    56,     4,     5,     6,     7,    -1,    -1,    -1,    -1,
       -1,    -1,    14,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    -1,    -1,    -1,    -1,    -1,    28,    -1,    -1,    31,
+      -1,    -1,    -1,    -1,    -1,    -1,    28,    -1,    -1,    -1,
       -1,    -1,    -1,    -1,    36,    37,    -1,    39,    40,    41,
       42,    43,    44,    -1,    -1,    -1,    -1,    -1,    50,    51,
       52,    53,    54,    55,    56,     4,     5,     6,     7,    -1,
-      -1,    -1,    -1,    -1,    -1,    14,    -1,    16,    -1,    -1,
-      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    28,
+      -1,    -1,    -1,    -1,    -1,    14,    -1,    -1,    -1,    -1,
+      -1,    -1,    -1,    -1,    -1,    -1,     4,     5,     6,     7,
       -1,    -1,    -1,    -1,    -1,    -1,    -1,    36,    37,    -1,
       39,    40,    41,    42,    43,    44,    -1,    -1,    -1,    -1,
-      -1,    50,    51,    52,    53,    54,    55,    56,     4,     5,
-       6,     7,    -1,    -1,    -1,    -1,    -1,    -1,    14,    -1,
-      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    -1,    28,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      36,    37,    -1,    39,    40,    41,    42,    43,    44,    -1,
-      -1,    -1,    -1,    -1,    50,    51,    52,    53,    54,    55,
-      56,     8,    -1,    -1,    -1,    -1,    -1,    -1,    15,    16,
-      -1,    -1,    19,    -1,    21,    22,    23,    -1,    25,    -1,
-      -1,    -1,    29,    30,    -1,    -1,    -1,    34,    35,    -1,
-      -1,    -1,    -1,     8,    -1,    -1,    -1,    -1,    45,    46,
-      15,    16,    -1,    -1,    -1,    -1,    21,    22,    23,    -1,
-      25,    58,    -1,    -1,    29,    30,    -1,    -1,    33,    34,
-      35,    -1,    -1,    -1,    -1,     8,    -1,    -1,    -1,    -1,
-      45,    46,    15,    16,    -1,    18,    -1,    -1,    21,    22,
-      23,    -1,    25,    58,    -1,    -1,    29,    30,    -1,    -1,
-      -1,    34,    35,    -1,    -1,    -1,    -1,     8,    -1,    -1,
-      -1,    -1,    45,    46,    15,    16,    -1,    -1,    19,    -1,
-      21,    22,    23,    -1,    25,    58,    -1,    -1,    29,    30,
-      -1,    -1,    -1,    34,    35,    -1,    -1,    -1,    -1,     8,
-      -1,    -1,    -1,    -1,    45,    46,    15,    16,    -1,    -1,
-      19,    -1,    21,    22,    23,    -1,    25,    58,    -1,    -1,
-      29,    30,    -1,    -1,    -1,    34,    35,    -1,    -1,    -1,
+      -1,    50,    51,    52,    53,    54,    55,    56,    36,    37,
+      -1,    39,    40,    41,    42,    43,    44,    -1,    -1,    -1,
+      -1,    -1,    50,    51,    52,    53,    54,    55,    56,     8,
+      -1,    -1,    -1,    -1,    -1,    -1,    15,    16,    -1,    -1,
+      -1,    -1,    21,    22,    23,    -1,    25,    -1,    -1,    -1,
+      29,    30,    -1,    -1,    33,    34,    35,    -1,    -1,    -1,
       -1,     8,    -1,    -1,    -1,    -1,    45,    46,    15,    16,
-      -1,    -1,    19,    -1,    21,    22,    23,    -1,    25,    58,
-      -1,    -1,    29,    30,    -1,    -1,    -1,    34,    35,    -1,
-      -1,    -1,    -1,     8,    -1,    -1,    -1,    -1,    45,    46,
-      15,    16,    -1,    -1,    19,    -1,    21,    22,    23,    -1,
-      25,    58,    -1,    -1,    29,    30,    -1,    -1,    -1,    34,
-      35,    -1,    -1,    -1,    -1,     8,    -1,    -1,    -1,    -1,
-      45,    46,    15,    16,    -1,    -1,    19,    -1,    21,    22,
-      23,    -1,    25,    58,    -1,    -1,    29,    30,    -1,    -1,
-      -1,    34,    35,    -1,    -1,    -1,    -1,     8,    -1,    -1,
-      -1,    -1,    45,    46,    15,    16,    -1,    -1,    19,    -1,
-      21,    22,    23,    -1,    25,    58,    -1,    -1,    29,    30,
-      -1,    -1,    -1,    34,    35,    -1,    -1,    -1,    -1,     8,
-      -1,    -1,    -1,    -1,    45,    46,    15,    16,    -1,    -1,
-      19,    -1,    21,    22,    23,    -1,    25,    58,    -1,    -1,
-      29,    30,    -1,    -1,    -1,    34,    35,    -1,    -1,    -1,
-      -1,     8,    -1,    -1,    -1,    -1,    45,    46,    15,    16,
-      -1,    -1,    -1,    -1,    21,    22,    23,    -1,    25,    58,
-      -1,    -1,    29,    30,    -1,    -1,    -1,    34,    35,    -1,
-      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    45,    46,
-      -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
-      -1,    58
+      -1,    18,    -1,    -1,    21,    22,    23,    -1,    25,    -1,
+      59,    -1,    29,    30,    -1,    -1,    -1,    34,    35,     8,
+      -1,    -1,    -1,    -1,    -1,    -1,    15,    16,    45,    46,
+      19,    -1,    21,    22,    23,    -1,    25,    -1,    -1,    -1,
+      29,    30,    59,    -1,    -1,    34,    35,     8,    -1,    -1,
+      -1,    -1,    -1,    -1,    15,    16,    45,    46,    19,    -1,
+      21,    22,    23,    -1,    25,    -1,    -1,    -1,    29,    30,
+      59,    -1,    -1,    34,    35,     8,    -1,    -1,    -1,    -1,
+      -1,    -1,    15,    16,    45,    46,    19,    -1,    21,    22,
+      23,    -1,    25,    -1,    -1,    -1,    29,    30,    59,    -1,
+      -1,    34,    35,     8,    -1,    -1,    -1,    -1,    -1,    -1,
+      15,    16,    45,    46,    19,    -1,    21,    22,    23,    -1,
+      25,    -1,    -1,    -1,    29,    30,    59,    -1,    -1,    34,
+      35,     8,    -1,    -1,    -1,    -1,    -1,    -1,    15,    16,
+      45,    46,    19,    -1,    21,    22,    23,    -1,    25,    -1,
+      -1,    -1,    29,    30,    59,    -1,    -1,    34,    35,     8,
+      -1,    -1,    -1,    -1,    -1,    -1,    15,    16,    45,    46,
+      19,    -1,    21,    22,    23,    -1,    25,    -1,    -1,    -1,
+      29,    30,    59,    -1,    -1,    34,    35,     8,    -1,    -1,
+      -1,    -1,    -1,    -1,    15,    16,    45,    46,    19,    -1,
+      21,    22,    23,    -1,    25,    -1,    -1,    -1,    29,    30,
+      59,    -1,    -1,    34,    35,     8,    -1,    -1,    -1,    -1,
+      -1,    -1,    15,    16,    45,    46,    -1,    -1,    21,    22,
+      23,    -1,    25,    -1,    -1,    -1,    29,    30,    59,    -1,
+      -1,    34,    35,    -1,    -1,    -1,    -1,    -1,    -1,    -1,
+      -1,    -1,    45,    46,    -1,    -1,    -1,    -1,    -1,    -1,
+      -1,    -1,    -1,    -1,    -1,    -1,    59
   };
 
   const signed char
   parser::yystos_[] =
   {
        0,     8,    15,    16,    21,    22,    23,    25,    29,    30,
-      34,    35,    45,    46,    58,    62,    63,    64,    67,    68,
-      71,    72,    76,    77,     4,    10,    20,    22,    26,    27,
-      32,    38,    54,    57,    59,    60,    72,    75,    76,    77,
-      79,    82,    87,    63,    58,    73,    58,    69,    70,    75,
-      22,    58,    65,    63,    74,    75,    75,    58,    58,     0,
-      64,     3,    48,     8,    12,    47,    49,    59,    78,    82,
-      11,    12,    58,    75,    83,    84,     8,    80,     4,     5,
-       6,     7,     9,    14,    28,    36,    37,    39,    40,    41,
-      42,    43,    44,    50,    51,    52,    53,    54,    55,    56,
-      86,    75,    19,     3,    24,    48,    47,    49,    80,    31,
-      58,    56,     3,    48,    33,    48,    16,    45,    74,    72,
-       9,    74,    75,    58,    58,    75,     3,    11,    46,    48,
-      85,     9,    38,    58,    73,    81,    75,    75,    74,    58,
-      58,    58,    63,    80,    58,    74,    58,    75,    75,    63,
-       9,    13,    78,    13,    75,    84,    63,    48,     9,    48,
-      16,    18,    66,    55,    56,    19,     3,    19,    38,    63,
-      75,    63,    75,    17,    18,    19,    58,    75,    19,    16,
-      48,    19,    31,    63,    75,    55,    63,    75,    63,    19,
-      31,    19,    16,    63,    63,    19
+      34,    35,    45,    46,    59,    63,    64,    65,    68,    69,
+      72,    73,    77,    78,     4,    10,    20,    22,    26,    27,
+      32,    38,    54,    57,    60,    61,    73,    76,    77,    78,
+      80,    83,    64,    59,    74,    59,    70,    71,    76,    22,
+      59,    66,    64,    75,    76,    76,    59,    59,     0,    65,
+       3,    48,     8,    12,    47,    49,    60,    79,    83,    76,
+      11,    12,    59,    76,    84,    85,     8,    81,    76,    76,
+      76,     4,     5,     6,     7,     9,    14,    28,    36,    37,
+      39,    40,    41,    42,    43,    44,    50,    51,    52,    53,
+      54,    55,    56,    19,     3,    24,    48,    47,    49,    81,
+      31,    59,    56,     3,    48,    33,    48,    16,    45,    75,
+      73,     9,    75,    76,    59,    59,    76,     3,    11,    46,
+      48,    86,     9,    38,    59,    74,    82,    76,    76,    76,
+      76,    76,    76,    76,    76,    76,    76,    76,    76,    76,
+      76,    76,    76,    76,    76,    76,    76,    76,    76,    75,
+      59,    59,    59,    64,    81,    59,    75,    59,    76,    76,
+      64,     9,    13,    79,    13,    76,    85,    64,    48,     9,
+      48,    16,    18,    67,    55,    56,    19,     3,    19,    38,
+      64,    76,    64,    76,    17,    18,    19,    59,    76,    19,
+      16,    48,    19,    31,    64,    76,    55,    64,    76,    64,
+      19,    31,    19,    16,    64,    64,    19
   };
 
   const signed char
   parser::yyr1_[] =
   {
-       0,    61,    62,    63,    63,    63,    64,    64,    64,    64,
-      64,    64,    64,    64,    64,    64,    64,    64,    64,    64,
-      64,    64,    64,    64,    64,    65,    65,    65,    65,    66,
-      66,    66,    67,    67,    68,    69,    69,    70,    70,    71,
-      71,    72,    72,    72,    73,    73,    74,    74,    75,    75,
-      75,    75,    75,    75,    75,    75,    75,    75,    75,    76,
-      76,    76,    77,    77,    78,    78,    78,    78,    79,    80,
-      80,    81,    81,    81,    82,    82,    83,    83,    84,    84,
-      84,    85,    85,    86,    86,    86,    86,    86,    86,    86,
-      86,    86,    86,    86,    86,    86,    86,    86,    86,    86,
-      86,    86,    86,    86,    87,    87,    87,    87
+       0,    62,    63,    64,    64,    64,    65,    65,    65,    65,
+      65,    65,    65,    65,    65,    65,    65,    65,    65,    65,
+      65,    65,    65,    65,    65,    66,    66,    66,    66,    67,
+      67,    67,    68,    68,    69,    70,    70,    71,    71,    72,
+      72,    73,    73,    73,    74,    74,    75,    75,    76,    76,
+      76,    76,    76,    76,    76,    76,    76,    76,    76,    76,
+      76,    76,    76,    76,    76,    76,    76,    76,    76,    76,
+      76,    76,    76,    76,    76,    76,    76,    76,    76,    76,
+      76,    76,    77,    77,    77,    78,    78,    79,    79,    79,
+      79,    80,    81,    81,    82,    82,    82,    83,    83,    84,
+      84,    85,    85,    85,    86,    86
   };
 
   const signed char
@@ -3379,12 +3674,12 @@ namespace yy {
        7,     3,     4,     2,     4,     1,     4,     3,     6,     0,
        4,     5,     1,     2,     3,     1,     3,     1,     3,     1,
        3,     1,     4,     3,     1,     3,     1,     3,     1,     1,
-       1,     1,     1,     1,     1,     1,     1,     3,     2,     1,
-       1,     3,     2,     4,     3,     2,     1,     1,     2,     5,
-       4,     1,     3,     1,     3,     2,     1,     3,     5,     3,
-       1,     1,     1,     1,     1,     1,     1,     1,     1,     1,
-       1,     1,     1,     1,     1,     1,     1,     1,     1,     1,
-       1,     1,     1,     1,     1,     1,     1,     1
+       1,     1,     1,     1,     1,     1,     1,     3,     3,     3,
+       3,     3,     3,     3,     3,     3,     3,     3,     3,     3,
+       3,     3,     3,     3,     3,     3,     3,     3,     2,     2,
+       2,     2,     1,     1,     3,     2,     4,     3,     2,     1,
+       1,     2,     5,     4,     1,     3,     1,     3,     2,     1,
+       3,     5,     3,     1,     1,     1
   };
 
 
@@ -3394,17 +3689,17 @@ namespace yy {
   const short
   parser::yyrline_[] =
   {
-       0,   144,   144,   152,   158,   170,   189,   195,   201,   220,
-     226,   232,   238,   246,   252,   271,   290,   321,   346,   372,
-     404,   429,   448,   462,   475,   496,   505,   514,   527,   542,
-     548,   567,   592,   600,   615,   625,   633,   647,   660,   676,
-     689,   708,   717,   737,   754,   762,   776,   789,   808,   816,
-     824,   832,   841,   850,   858,   872,   886,   900,   926,   948,
-     962,   976,   991,  1010,  1032,  1046,  1054,  1068,  1079,  1094,
-    1113,  1128,  1141,  1155,  1165,  1178,  1187,  1200,  1219,  1239,
-    1254,  1270,  1276,  1284,  1292,  1300,  1308,  1316,  1324,  1332,
-    1340,  1348,  1356,  1364,  1372,  1380,  1388,  1396,  1404,  1412,
-    1420,  1428,  1436,  1444,  1454,  1462,  1470,  1478
+       0,   155,   155,   163,   169,   181,   200,   206,   212,   231,
+     237,   243,   249,   257,   263,   282,   301,   332,   357,   383,
+     415,   440,   459,   473,   486,   507,   516,   525,   538,   553,
+     559,   578,   603,   611,   626,   636,   644,   658,   671,   687,
+     700,   719,   728,   748,   765,   773,   787,   800,   819,   827,
+     835,   843,   852,   861,   869,   883,   897,   911,   934,   957,
+     980,  1003,  1026,  1049,  1072,  1095,  1118,  1141,  1164,  1187,
+    1210,  1233,  1256,  1279,  1302,  1325,  1348,  1371,  1394,  1411,
+    1428,  1445,  1464,  1478,  1492,  1507,  1526,  1548,  1562,  1570,
+    1584,  1595,  1610,  1629,  1644,  1657,  1671,  1681,  1694,  1703,
+    1716,  1735,  1755,  1770,  1786,  1792
   };
 
   void
@@ -3436,9 +3731,9 @@ namespace yy {
 
 
 } // yy
-#line 3440 "parser.cpp"
+#line 3735 "parser.cpp"
 
-#line 1486 "parser.y"
+#line 1799 "parser.y"
 
 
 void

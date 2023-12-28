@@ -130,7 +130,7 @@ TEST(jitter, multi_return) {
     std::string s;
     L->call("test", std::tie(i, f, b1, b2, s));
     ASSERT_EQ(i, 1);
-    ASSERT_EQ(std::abs(f - 2.3) < 0.001, true);
+    ASSERT_NEAR(f, 2.3, 0.001);
     ASSERT_EQ(b1, false);
     ASSERT_EQ(b2, true);
     ASSERT_EQ(s, "test");
@@ -143,7 +143,7 @@ TEST(jitter, multi_return) {
     s.clear();
     L->call("test", std::tie(i, f, b1, b2, s));
     ASSERT_EQ(i, 1);
-    ASSERT_EQ(std::abs(f - 2.3) < 0.001, true);
+    ASSERT_NEAR(f, 2.3, 0.001);
     ASSERT_EQ(b1, false);
     ASSERT_EQ(b2, true);
     ASSERT_EQ(s, "test");
@@ -215,7 +215,7 @@ TEST(jitter, multi_const_define) {
     ASSERT_EQ(ret2, false);
     ASSERT_EQ(ret3, true);
     ASSERT_EQ(ret4, "test");
-    ASSERT_EQ(std::abs(ret5 - 2.3) < 0.001, true);
+    ASSERT_NEAR(ret5, 2.3, 0.001);
     L->compile_file("./jit/test_multi_const_define.lua", {debug_mode: false});
     ret0 = (var *) 0xFF;
     ret1 = 0;
@@ -229,7 +229,7 @@ TEST(jitter, multi_const_define) {
     ASSERT_EQ(ret2, false);
     ASSERT_EQ(ret3, true);
     ASSERT_EQ(ret4, "test");
-    ASSERT_EQ(std::abs(ret5 - 2.3) < 0.001, true);
+    ASSERT_NEAR(ret5, 2.3, 0.001);
 }
 
 TEST(jitter, empty_func_with_params) {
@@ -245,13 +245,13 @@ TEST(jitter, empty_func_with_params) {
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
     ASSERT_EQ(ret3, "test");
-    ASSERT_EQ(std::abs(ret4 - 2.3) < 0.001, true);
+    ASSERT_NEAR(ret4, 2.3, 0.001);
     L->compile_file("./jit/test_empty_func_with_params.lua", {debug_mode: false});
     L->call("test", std::tie(ret1, ret2, ret3, ret4), 2.3, "test", true, 1);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
     ASSERT_EQ(ret3, "test");
-    ASSERT_EQ(std::abs(ret4 - 2.3) < 0.001, true);
+    ASSERT_NEAR(ret4, 2.3, 0.001);
 }
 
 TEST(jitter, variadic_func) {
@@ -267,13 +267,13 @@ TEST(jitter, variadic_func) {
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
     ASSERT_EQ(ret3, "test");
-    ASSERT_EQ(std::abs(ret4 - 2.3) < 0.001, true);
+    ASSERT_NEAR(ret4, 2.3, 0.001);
     L->compile_file("./jit/test_variadic_func.lua", {debug_mode: false});
     L->call("test", std::tie(ret1, ret2, ret3, ret4), 1, true, "test", 2.3);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
     ASSERT_EQ(ret3, "test");
-    ASSERT_EQ(std::abs(ret4 - 2.3) < 0.001, true);
+    ASSERT_NEAR(ret4, 2.3, 0.001);
 }
 
 TEST(jitter, variadic_func_with_params) {
@@ -289,13 +289,13 @@ TEST(jitter, variadic_func_with_params) {
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
     ASSERT_EQ(ret3, "test");
-    ASSERT_EQ(std::abs(ret4 - 2.3) < 0.001, true);
+    ASSERT_NEAR(ret4, 2.3, 0.001);
     L->compile_file("./jit/test_variadic_func_with_params.lua", {debug_mode: false});
     L->call("test", std::tie(ret3, ret4, ret2, ret1), 1, true, "test", 2.3);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
     ASSERT_EQ(ret3, "test");
-    ASSERT_EQ(std::abs(ret4 - 2.3) < 0.001, true);
+    ASSERT_NEAR(ret4, 2.3, 0.001);
 }
 
 TEST(jitter, variadic_func_multi_type) {
@@ -336,9 +336,9 @@ TEST(jitter, variadic_func_multi_type) {
     ASSERT_EQ(out12, in12);
     ASSERT_EQ(out13, in13);
     ASSERT_STREQ(out14, in14);
-    ASSERT_EQ(std::abs(out15 - in15) < 0.001, true);
-    ASSERT_EQ(std::abs(out16 - in16) < 0.001, true);
-    ASSERT_EQ(std::abs(out17 - in17) < 0.001, true);
+    ASSERT_NEAR(out15, in15, 0.001);
+    ASSERT_NEAR(out16, in16, 0.001);
+    ASSERT_NEAR(out17, in17, 0.001);
 
     out1 = 0;
     out2 = 0;
@@ -370,9 +370,9 @@ TEST(jitter, variadic_func_multi_type) {
     ASSERT_EQ(out12, in12);
     ASSERT_EQ(out13, in13);
     ASSERT_STREQ(out14, in14);
-    ASSERT_EQ(std::abs(out15 - in15) < 0.001, true);
-    ASSERT_EQ(std::abs(out16 - in16) < 0.001, true);
-    ASSERT_EQ(std::abs(out17 - in17) < 0.001, true);
+    ASSERT_NEAR(out15, in15, 0.001);
+    ASSERT_NEAR(out16, in16, 0.001);
+    ASSERT_NEAR(out17, in17, 0.001);
 }
 
 TEST(jitter, variadic_func_vi) {
@@ -1125,14 +1125,14 @@ TEST(jitter, test_binop_plus) {
     L->compile_file("./jit/test_binop_plus.lua", {});
     L->call("test", std::tie(ret1, ret2), 1, 2, 1.1, 2.2);
     ASSERT_EQ(ret1, 3);
-    ASSERT_EQ(std::abs(ret2 - 3.3) < 0.001, true);
+    ASSERT_NEAR(ret2, 3.3, 0.001);
 
     ret1 = 0;
     ret2 = 0;
     L->compile_file("./jit/test_binop_plus.lua", {debug_mode: false});
     L->call("test", std::tie(ret1, ret2), "1", 2, "1.1", 2.2);
     ASSERT_EQ(ret1, 3);
-    ASSERT_EQ(std::abs(ret2 - 3.3) < 0.001, true);
+    ASSERT_NEAR(ret2, 3.3, 0.001);
 }
 
 TEST(jitter, test_const_binop_plus) {
@@ -1144,14 +1144,14 @@ TEST(jitter, test_const_binop_plus) {
     L->compile_file("./jit/test_const_binop_plus.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
-    ASSERT_EQ(std::abs(ret2 - 3.2) < 0.001, true);
+    ASSERT_NEAR(ret2, 3.2, 0.001);
 
     ret1 = 0;
     ret2 = 0;
     L->compile_file("./jit/test_const_binop_plus.lua", {debug_mode: false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
-    ASSERT_EQ(std::abs(ret2 - 3.2) < 0.001, true);
+    ASSERT_NEAR(ret2, 3.2, 0.001);
 }
 
 TEST(jitter, test_binop_minus) {
@@ -1163,14 +1163,14 @@ TEST(jitter, test_binop_minus) {
     L->compile_file("./jit/test_binop_minus.lua", {});
     L->call("test", std::tie(ret1, ret2), 1, 2, 2, 1.2);
     ASSERT_EQ(ret1, -1);
-    ASSERT_EQ(std::abs(ret2 - 0.8) < 0.001, true);
+    ASSERT_NEAR(ret2, 0.8, 0.001);
 
     ret1 = 0;
     ret2 = 0;
     L->compile_file("./jit/test_binop_minus.lua", {debug_mode: false});
     L->call("test", std::tie(ret1, ret2), "1", "2", 2, 1.2);
     ASSERT_EQ(ret1, -1);
-    ASSERT_EQ(std::abs(ret2 - 0.8) < 0.001, true);
+    ASSERT_NEAR(ret2, 0.8, 0.001);
 }
 
 TEST(jitter, test_const_binop_minus) {
@@ -1182,12 +1182,50 @@ TEST(jitter, test_const_binop_minus) {
     L->compile_file("./jit/test_const_binop_minus.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, -1);
-    ASSERT_EQ(std::abs(ret2 - 1.1) < 0.001, true);
+    ASSERT_NEAR(ret2, 1.1, 0.001);
 
     ret1 = 0;
     ret2 = 0;
     L->compile_file("./jit/test_const_binop_minus.lua", {debug_mode: false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, -1);
-    ASSERT_EQ(std::abs(ret2 - 1.1) < 0.001, true);
+    ASSERT_NEAR(ret2, 1.1, 0.001);
+}
+
+TEST(jitter, test_binop_star) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    double ret2 = 0;
+    L->compile_file("./jit/test_binop_star.lua", {});
+    L->call("test", std::tie(ret1, ret2), 1, 2, 2, 1.2);
+    ASSERT_EQ(ret1, 4);
+    ASSERT_NEAR(ret2, 1.4, 0.001);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_binop_star.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), "1", "2", 2, 1.2);
+    ASSERT_EQ(ret1, 4);
+    ASSERT_NEAR(ret2, 1.4, 0.001);
+}
+
+TEST(jitter, test_const_binop_star) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    double ret1 = 0;
+    double ret2 = 0;
+    L->compile_file("./jit/test_const_binop_star.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_NEAR(ret1, 3.2, 0.001);
+    ASSERT_NEAR(ret2, 0.1, 0.001);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_const_binop_star.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_NEAR(ret1, 3.2, 0.001);
+    ASSERT_NEAR(ret2, 0.1, 0.001);
 }

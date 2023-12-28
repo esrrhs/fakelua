@@ -178,6 +178,9 @@ TEST(common, to_integer) {
 
     ASSERT_EQ(to_integer("9223372036854775807"), INT64_MAX);
     ASSERT_EQ(to_integer("-9223372036854775808"), INT64_MIN);
+
+    ASSERT_EQ(to_integer("0xff"), 255);
+    ASSERT_EQ(to_integer("0xBEBADA"), 0xBEBADA);
 }
 
 TEST(common, to_float) {
@@ -224,4 +227,12 @@ TEST(common, to_float) {
 
     ASSERT_EQ(to_float("1.7976931348623157e+308"), std::numeric_limits<double>::max());
     ASSERT_EQ(to_float("2.2250738585072014e-308"), std::numeric_limits<double>::min());
+
+    ASSERT_EQ(to_float("3.1416"), 3.1416);
+    ASSERT_EQ(to_float("314.16e-2"), 314.16e-2);
+    ASSERT_EQ(to_float("0.31416E1"), 0.31416E1);
+    ASSERT_EQ(to_float("34e1"), 34e1);
+    ASSERT_EQ(to_float("0x0.1E"), 0.1171875);
+    ASSERT_EQ(to_float("0xA23p-4"), 0xA23p-4);
+    ASSERT_EQ(to_float("0X1.921FB54442D18P+1"), 0X1.921FB54442D18P+1);
 }

@@ -441,8 +441,6 @@ namespace yy {
       // tableconstructor
       // fieldlist
       // field
-      // binop
-      // unop
       char dummy1[sizeof (fakelua::syntax_tree_interface_ptr)];
 
       // "identifier"
@@ -555,9 +553,10 @@ namespace yy {
     TOK_MORE = 55,                 // ">"
     TOK_LESS = 56,                 // "<"
     TOK_NUMBER_SIGN = 57,          // "#"
-    TOK_IDENTIFIER = 58,           // "identifier"
-    TOK_STRING = 59,               // "string"
-    TOK_NUMBER = 60                // "number"
+    TOK_UNARY = 58,                // UNARY
+    TOK_IDENTIFIER = 59,           // "identifier"
+    TOK_STRING = 60,               // "string"
+    TOK_NUMBER = 61                // "number"
       };
       /// Backward compatibility alias (Bison 3.6).
       typedef token_kind_type yytokentype;
@@ -574,7 +573,7 @@ namespace yy {
     {
       enum symbol_kind_type
       {
-        YYNTOKENS = 61, ///< Number of tokens.
+        YYNTOKENS = 62, ///< Number of tokens.
         S_YYEMPTY = -2,
         S_YYEOF = 0,                             // "end of file"
         S_YYerror = 1,                           // error
@@ -634,36 +633,35 @@ namespace yy {
         S_MORE = 55,                             // ">"
         S_LESS = 56,                             // "<"
         S_NUMBER_SIGN = 57,                      // "#"
-        S_IDENTIFIER = 58,                       // "identifier"
-        S_STRING = 59,                           // "string"
-        S_NUMBER = 60,                           // "number"
-        S_YYACCEPT = 61,                         // $accept
-        S_chunk = 62,                            // chunk
-        S_block = 63,                            // block
-        S_stmt = 64,                             // stmt
-        S_attnamelist = 65,                      // attnamelist
-        S_elseifs = 66,                          // elseifs
-        S_retstat = 67,                          // retstat
-        S_label = 68,                            // label
-        S_funcnamelist = 69,                     // funcnamelist
-        S_funcname = 70,                         // funcname
-        S_varlist = 71,                          // varlist
-        S_var = 72,                              // var
-        S_namelist = 73,                         // namelist
-        S_explist = 74,                          // explist
-        S_exp = 75,                              // exp
-        S_prefixexp = 76,                        // prefixexp
-        S_functioncall = 77,                     // functioncall
-        S_args = 78,                             // args
-        S_functiondef = 79,                      // functiondef
-        S_funcbody = 80,                         // funcbody
-        S_parlist = 81,                          // parlist
-        S_tableconstructor = 82,                 // tableconstructor
-        S_fieldlist = 83,                        // fieldlist
-        S_field = 84,                            // field
-        S_fieldsep = 85,                         // fieldsep
-        S_binop = 86,                            // binop
-        S_unop = 87                              // unop
+        S_UNARY = 58,                            // UNARY
+        S_IDENTIFIER = 59,                       // "identifier"
+        S_STRING = 60,                           // "string"
+        S_NUMBER = 61,                           // "number"
+        S_YYACCEPT = 62,                         // $accept
+        S_chunk = 63,                            // chunk
+        S_block = 64,                            // block
+        S_stmt = 65,                             // stmt
+        S_attnamelist = 66,                      // attnamelist
+        S_elseifs = 67,                          // elseifs
+        S_retstat = 68,                          // retstat
+        S_label = 69,                            // label
+        S_funcnamelist = 70,                     // funcnamelist
+        S_funcname = 71,                         // funcname
+        S_varlist = 72,                          // varlist
+        S_var = 73,                              // var
+        S_namelist = 74,                         // namelist
+        S_explist = 75,                          // explist
+        S_exp = 76,                              // exp
+        S_prefixexp = 77,                        // prefixexp
+        S_functioncall = 78,                     // functioncall
+        S_args = 79,                             // args
+        S_functiondef = 80,                      // functiondef
+        S_funcbody = 81,                         // funcbody
+        S_parlist = 82,                          // parlist
+        S_tableconstructor = 83,                 // tableconstructor
+        S_fieldlist = 84,                        // fieldlist
+        S_field = 85,                            // field
+        S_fieldsep = 86                          // fieldsep
       };
     };
 
@@ -723,8 +721,6 @@ namespace yy {
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
-      case symbol_kind::S_binop: // binop
-      case symbol_kind::S_unop: // unop
         value.move< fakelua::syntax_tree_interface_ptr > (std::move (that.value));
         break;
 
@@ -830,8 +826,6 @@ switch (yykind)
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
-      case symbol_kind::S_binop: // binop
-      case symbol_kind::S_unop: // unop
         value.template destroy< fakelua::syntax_tree_interface_ptr > ();
         break;
 
@@ -937,7 +931,7 @@ switch (yykind)
       {
 #if !defined _MSC_VER || defined __clang__
         YY_ASSERT (tok == token::TOK_YYEOF
-                   || (token::TOK_YYerror <= tok && tok <= token::TOK_NUMBER_SIGN));
+                   || (token::TOK_YYerror <= tok && tok <= token::TOK_UNARY));
 #endif
       }
 #if 201103L <= YY_CPLUSPLUS
@@ -1873,6 +1867,21 @@ switch (yykind)
 #if 201103L <= YY_CPLUSPLUS
       static
       symbol_type
+      make_UNARY (location_type l)
+      {
+        return symbol_type (token::TOK_UNARY, std::move (l));
+      }
+#else
+      static
+      symbol_type
+      make_UNARY (const location_type& l)
+      {
+        return symbol_type (token::TOK_UNARY, l);
+      }
+#endif
+#if 201103L <= YY_CPLUSPLUS
+      static
+      symbol_type
       make_IDENTIFIER (std::string v, location_type l)
       {
         return symbol_type (token::TOK_IDENTIFIER, std::move (v), std::move (l));
@@ -2259,9 +2268,9 @@ switch (yykind)
     /// Constants.
     enum
     {
-      yylast_ = 1401,     ///< Last index in yytable_.
-      yynnts_ = 27,  ///< Number of nonterminal symbols.
-      yyfinal_ = 59 ///< Termination state number.
+      yylast_ = 1466,     ///< Last index in yytable_.
+      yynnts_ = 25,  ///< Number of nonterminal symbols.
+      yyfinal_ = 58 ///< Termination state number.
     };
 
 
@@ -2309,8 +2318,6 @@ switch (yykind)
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
-      case symbol_kind::S_binop: // binop
-      case symbol_kind::S_unop: // unop
         value.copy< fakelua::syntax_tree_interface_ptr > (YY_MOVE (that.value));
         break;
 
@@ -2372,8 +2379,6 @@ switch (yykind)
       case symbol_kind::S_tableconstructor: // tableconstructor
       case symbol_kind::S_fieldlist: // fieldlist
       case symbol_kind::S_field: // field
-      case symbol_kind::S_binop: // binop
-      case symbol_kind::S_unop: // unop
         value.move< fakelua::syntax_tree_interface_ptr > (YY_MOVE (s.value));
         break;
 
@@ -2445,7 +2450,7 @@ switch (yykind)
   }
 
 } // yy
-#line 2449 "parser.h"
+#line 2454 "parser.h"
 
 
 
