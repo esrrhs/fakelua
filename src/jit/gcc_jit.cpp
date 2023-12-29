@@ -133,6 +133,9 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     check_syntax_tree_type(funcbody, {syntax_tree_type::syntax_tree_type_funcbody});
     auto funcbody_ptr = std::dynamic_pointer_cast<syntax_tree_funcbody>(funcbody);
 
+    // reset data
+    cur_function_data_ = function_data();
+
     // compile the input params
     auto parlist = funcbody_ptr->parlist();
     int is_variadic = 0;
@@ -149,12 +152,12 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     }
 
     // add params to new stack frame
-    stack_frame sf;
+    function_data::stack_frame sf;
     for (auto &param: func_params) {
         sf.local_vars[param.first] = param.second;
     }
-    stack_frames_.clear();
-    stack_frames_.push_back(sf);
+    cur_function_data_.stack_frames.clear();
+    cur_function_data_.stack_frames.push_back(sf);
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
 
@@ -165,11 +168,23 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, the_var_type, name.c_str(), call_func_params, is_variadic,
                                               new_location(funcbody_ptr));
 
+    // compile the function body
     auto block = funcbody_ptr->block();
-    compile_block(func, block);
+    auto ret_block = compile_block(func, block);
+
+    // check the return block, if the return block is not ended with return, we add a return nil
+    check_return_block(func, ret_block, funcbody_ptr);
 
     // save the function info
     function_infos_[name] = {static_cast<int>(actual_params_count), is_variadic > 0};
+}
+
+void gcc_jitter::check_return_block(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &ptr) {
+    if (cur_function_data_.ended_blocks.find(the_block.get_inner_block()) == cur_function_data_.ended_blocks.end()) {
+        // return nil
+        auto stmt = std::make_shared<syntax_tree_return>(ptr->loc());
+        compile_stmt_return(func, the_block, stmt);
+    }
 }
 
 void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
@@ -357,7 +372,7 @@ gccjit::block gcc_jitter::compile_block(gccjit::function &func, const syntax_tre
     auto the_block = func.new_block();
 
     // alloc new stack frame
-    stack_frames_.push_back(stack_frame());
+    cur_function_data_.stack_frames.push_back(function_data::stack_frame());
 
     auto &stmts = block_ptr->stmts();
     for (auto &stmt: stmts) {
@@ -365,7 +380,7 @@ gccjit::block gcc_jitter::compile_block(gccjit::function &func, const syntax_tre
     }
 
     // free stack frame
-    stack_frames_.pop_back();
+    cur_function_data_.stack_frames.pop_back();
 
     return the_block;
 }
@@ -396,9 +411,11 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, gccjit::block &the_
 
     auto explist = return_stmt->explist();
     if (!explist) {
-        // return nothing
-        the_block.end_with_return(new_location(return_stmt));
-        return;
+        // return nil
+        explist = std::make_shared<syntax_tree_explist>(return_stmt->loc());
+        auto exp = std::make_shared<syntax_tree_exp>(return_stmt->loc());
+        exp->set_type("nil");
+        std::dynamic_pointer_cast<syntax_tree_explist>(explist)->add_exp(exp);
     }
 
     auto explist_ret = compile_explist(func, the_block, explist);
@@ -422,6 +439,8 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, gccjit::block &the_
     auto ret = gccjit_context_->new_call(wrap_return_func, args, new_location(explist));
 
     the_block.end_with_return(ret, new_location(return_stmt));
+
+    cur_function_data_.ended_blocks.insert(the_block.get_inner_block());
 }
 
 std::vector<gccjit::rvalue> gcc_jitter::compile_explist(gccjit::function &func, gccjit::block &the_block,
@@ -519,7 +538,7 @@ gccjit::lvalue gcc_jitter::compile_var(const syntax_tree_interface_ptr &v, bool 
 
 gccjit::lvalue gcc_jitter::find_lvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr) {
     // find in local vars in stack_frames_ by reverse
-    for (auto iter = stack_frames_.rbegin(); iter != stack_frames_.rend(); ++iter) {
+    for (auto iter = cur_function_data_.stack_frames.rbegin(); iter != cur_function_data_.stack_frames.rend(); ++iter) {
         auto &local_vars = iter->local_vars;
         auto iter2 = local_vars.find(name);
         if (iter2 != local_vars.end()) {
@@ -542,14 +561,14 @@ void gcc_jitter::save_stack_lvalue_by_name(const std::string &name, const gccjit
         throw_error("the const define name is duplicated: " + name, ptr);
     }
     // check local dumplicated
-    for (auto iter = stack_frames_.rbegin(); iter != stack_frames_.rend(); ++iter) {
+    for (auto iter = cur_function_data_.stack_frames.rbegin(); iter != cur_function_data_.stack_frames.rend(); ++iter) {
         auto &local_vars = iter->local_vars;
         auto iter2 = local_vars.find(name);
         if (iter2 != local_vars.end()) {
             throw_error("the local var name is duplicated: " + name, ptr);
         }
     }
-    stack_frames_.back().local_vars[name] = value;
+    cur_function_data_.stack_frames.back().local_vars[name] = value;
 }
 
 [[noreturn]] void gcc_jitter::throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr) {

@@ -1229,3 +1229,37 @@ TEST(jitter, test_const_binop_star) {
     ASSERT_NEAR(ret1, 3.2, 0.001);
     ASSERT_NEAR(ret2, 0.1, 0.001);
 }
+
+TEST(jitter, test_empty_return) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    var *ret = 0;
+    L->compile_file("./jit/test_empty_return.lua", {});
+    L->call("test", std::tie(ret));
+    ASSERT_NE(ret, nullptr);
+    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
+
+    ret = 0;
+    L->compile_file("./jit/test_empty_return.lua", {debug_mode: false});
+    L->call("test", std::tie(ret));
+    ASSERT_NE(ret, nullptr);
+    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
+}
+
+TEST(jitter, test_empty_func_no_return) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    var *ret = 0;
+    L->compile_file("./jit/test_empty_func_no_return.lua", {});
+    L->call("test", std::tie(ret));
+    ASSERT_NE(ret, nullptr);
+    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
+
+    ret = 0;
+    L->compile_file("./jit/test_empty_func_no_return.lua", {debug_mode: false});
+    L->call("test", std::tie(ret));
+    ASSERT_NE(ret, nullptr);
+    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
+}

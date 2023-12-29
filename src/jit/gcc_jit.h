@@ -77,6 +77,8 @@ private:
 
     [[noreturn]] void throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr);
 
+    void check_return_block(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &ptr);
+
 private:
     fakelua_state_ptr sp_;
     std::string file_name_;
@@ -89,10 +91,14 @@ private:
     std::unordered_map<std::string, function_info> function_infos_;
     std::unordered_map<std::string, std::pair<gccjit::lvalue, syntax_tree_interface_ptr>> global_const_vars_;
     std::vector<std::string> global_const_vars_vec_;
-    struct stack_frame {
-        std::unordered_map<std::string, gccjit::lvalue> local_vars;
+    struct function_data {
+        struct stack_frame {
+            std::unordered_map<std::string, gccjit::lvalue> local_vars;
+        };
+        std::vector<stack_frame> stack_frames;
+        std::unordered_set<gcc_jit_block *> ended_blocks;
     };
-    std::vector<stack_frame> stack_frames_;
+    function_data cur_function_data_;
 };
 
 typedef std::shared_ptr<gcc_jitter> gcc_jitter_ptr;

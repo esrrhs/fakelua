@@ -1,3 +1,3 @@
 function test()
-    return nil
+    return
 end
