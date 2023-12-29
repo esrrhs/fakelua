@@ -1763,3 +1763,22 @@ TEST(syntax_tree, test_binop_order6) {
 
     ASSERT_EQ(dumpstr, wantstr);
 }
+
+TEST(syntax_tree, test_empty) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    compiler c;
+    auto result = c.compile_file(L, "./syntax/test_empty.lua", {true});
+    ASSERT_NE(result.chunk, nullptr);
+
+    auto dumpstr = result.chunk->dump();
+    LOG_INFO("{}", dumpstr);
+
+    auto wantstr = "(block)[1:1]\n"
+                   "  (empty)[1:1]\n"
+                   "  (empty)[2:1]\n"
+                   "  (empty)[3:1]\n";
+
+    ASSERT_EQ(dumpstr, wantstr);
+}
