@@ -7,7 +7,7 @@
 FakeLua is a library for fast implementation of subset Lua, it compiles Lua to native code at runtime.
 
 # Feature
-* compile with C++20
+* compile with C++23
 * build on Linux && Mingw
 * support Lua 5.4 grammar
 * lexing and parsing by Flex && Bison
