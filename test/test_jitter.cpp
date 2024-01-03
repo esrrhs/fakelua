@@ -1415,3 +1415,41 @@ TEST(jitter, test_const_binop_mod) {
     ASSERT_EQ(ret1, 2);
     ASSERT_EQ(ret2, 0);
 }
+
+TEST(jitter, test_binop_bitand) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    int ret2 = 0;
+    L->compile_file("./jit/test_binop_bitand.lua", {});
+    L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
+    ASSERT_EQ(ret1, 0);
+    ASSERT_EQ(ret2, 0);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_binop_bitand.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
+    ASSERT_EQ(ret1, 0);
+    ASSERT_EQ(ret2, 0);
+}
+
+TEST(jitter, test_const_binop_bitand) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    int ret2 = 0;
+    L->compile_file("./jit/test_const_binop_bitand.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, 2);
+    ASSERT_EQ(ret2, 4);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_const_binop_bitand.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, 2);
+    ASSERT_EQ(ret2, 4);
+}
