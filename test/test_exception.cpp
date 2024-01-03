@@ -657,3 +657,17 @@ TEST(exception, test_const_binop_bitand_error) {
         ASSERT_TRUE(std::string(e.what()).find("must be integer") != std::string::npos);
     }
 }
+
+TEST(exception, test_const_binop_xor_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_const_binop_xor_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("must be integer") != std::string::npos);
+    }
+}

@@ -653,7 +653,7 @@ extern "C" __attribute__((used)) var *binop_xor(fakelua_state *s, var *l, var *r
     DEBUG_ASSERT(l->type() >= var_type::VAR_MIN && l->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
     auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
-    r->xor_(*r, *ret);
+    l->xor_(*r, *ret);
     return ret;
 }
 
