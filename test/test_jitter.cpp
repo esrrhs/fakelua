@@ -1263,3 +1263,41 @@ TEST(jitter, test_empty_func_no_return) {
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
 }
+
+TEST(jitter, test_binop_slash) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    double ret1 = 0;
+    double ret2 = 0;
+    L->compile_file("./jit/test_binop_slash.lua", {});
+    L->call("test", std::tie(ret1, ret2), 1, 2, 2.4, 1.2);
+    ASSERT_NEAR(ret1, 2.5, 0.001);
+    ASSERT_NEAR(ret2, 1, 0.001);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_binop_slash.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), "1", "2", 2.4, 1.2);
+    ASSERT_NEAR(ret1, 2.5, 0.001);
+    ASSERT_NEAR(ret2, 1, 0.001);
+}
+
+TEST(jitter, test_const_binop_slash) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    double ret1 = 0;
+    double ret2 = 0;
+    L->compile_file("./jit/test_const_binop_slash.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_NEAR(ret1, 1.7, 0.001);
+    ASSERT_NEAR(ret2, 0.1, 0.001);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_const_binop_slash.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_NEAR(ret1, 1.7, 0.001);
+    ASSERT_NEAR(ret2, 0.1, 0.001);
+}
