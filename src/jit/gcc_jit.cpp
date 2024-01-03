@@ -762,8 +762,8 @@ gccjit::rvalue gcc_jitter::compile_binop(const syntax_tree_interface_ptr &left, 
     auto op_ptr = std::dynamic_pointer_cast<syntax_tree_binop>(op);
     auto opstr = op_ptr->get_op();
 
-    DEBUG_ASSERT(opstr == "PLUS" || opstr == "MINUS" || opstr == "STAR" || opstr == "SLASH" || opstr == "DOUBLE_SLASH" || opstr == "XOR" ||
-                 opstr == "MOD" || opstr == "BITAND" || opstr == "BITNOT" || opstr == "BITOR" || opstr == "RIGHT_SHIFT" ||
+    DEBUG_ASSERT(opstr == "PLUS" || opstr == "MINUS" || opstr == "STAR" || opstr == "SLASH" || opstr == "DOUBLE_SLASH" || opstr == "POW" ||
+                 opstr == "XOR" || opstr == "MOD" || opstr == "BITAND" || opstr == "BITNOT" || opstr == "BITOR" || opstr == "RIGHT_SHIFT" ||
                  opstr == "LEFT_SHIFT" || opstr == "CONCAT" || opstr == "LESS" || opstr == "LESS_EQUAL" || opstr == "MORE" ||
                  opstr == "MORE_EQUAL" || opstr == "EQUAL" || opstr == "NOT_EQUAL" || opstr == "AND" || opstr == "OR");
 
@@ -800,6 +800,8 @@ gccjit::rvalue gcc_jitter::compile_binop(const syntax_tree_interface_ptr &left, 
         func_name = is_const ? "binop_const_slash" : "binop_slash";
     } else if (opstr == "DOUBLE_SLASH") {
         func_name = is_const ? "binop_const_double_slash" : "binop_double_slash";
+    } else if (opstr == "POW") {
+        func_name = is_const ? "binop_const_pow" : "binop_pow";
     } else if (opstr == "XOR") {
         func_name = is_const ? "binop_const_xor" : "binop_xor";
     } else if (opstr == "MOD") {
