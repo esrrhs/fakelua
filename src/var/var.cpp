@@ -6,9 +6,9 @@
 
 namespace fakelua {
 
-var const_null_var;
-var const_false_var(false);
-var const_true_var(true);
+var const_null_var(nullptr, true);
+var const_false_var(false, true);
+var const_true_var(true, true);
 
 var::var(const fakelua_state_ptr &s, const std::string &val) : type_(var_type::VAR_STRING) {
     auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
@@ -95,9 +95,12 @@ std::string var::to_string(bool has_quote, bool has_postfix) const {
         case var_type::VAR_INT:
             ret = std::to_string(get_int());
             break;
-        case var_type::VAR_FLOAT:
-            ret = std::to_string(get_float());
+        case var_type::VAR_FLOAT: {
+            char buffer[64];
+            char *end = std::to_chars(std::begin(buffer), std::end(buffer), get_float(), std::chars_format::general).ptr;
+            ret = std::string(buffer, end);
             break;
+        }
         case var_type::VAR_STRING:
             ret = has_quote ? std::format("\"{}\"", string_) : std::format("{}", string_);
             break;

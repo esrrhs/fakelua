@@ -180,7 +180,10 @@ TEST(var, to_string) {
     ASSERT_EQ(v->to_string(), "12345");
 
     v->set_float(12345.1);
-    ASSERT_EQ(v->to_string(), "12345.100000");
+    ASSERT_EQ(v->to_string(), "12345.1");
+
+    v->set_float(2.1245e-10);
+    ASSERT_EQ(v->to_string(), "2.1245e-10");
 
     v->set_string(s, "hello");
     ASSERT_EQ(v->to_string(), "\"hello\"");

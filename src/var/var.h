@@ -17,10 +17,10 @@ public:
     var() : type_(var_type::VAR_NIL) {
     }
 
-    var(std::nullptr_t) : type_(var_type::VAR_NIL) {
+    var(std::nullptr_t, bool is_const = false) : type_(var_type::VAR_NIL), is_const_(is_const) {
     }
 
-    var(bool val) {
+    var(bool val, bool is_const = false) : is_const_(is_const) {
         set_bool(val);
     }
 

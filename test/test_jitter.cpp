@@ -1605,3 +1605,33 @@ TEST(jitter, test_const_binop_left_shift) {
     ASSERT_EQ(ret1, 27);
     ASSERT_EQ(ret2, -496);
 }
+
+TEST(jitter, test_binop_concat) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    std::string ret;
+    L->compile_file("./jit/test_binop_concat.lua", {});
+    L->call("test", std::tie(ret), 3, 1.2, true, "test");
+    ASSERT_EQ(ret, "31.2truetest");
+
+    ret.clear();
+    L->compile_file("./jit/test_binop_concat.lua", {debug_mode: false});
+    L->call("test", std::tie(ret), 3, 1.2, true, "test");
+    ASSERT_EQ(ret, "31.2truetest");
+}
+
+TEST(jitter, test_const_binop_concat) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    std::string ret;
+    L->compile_file("./jit/test_const_binop_concat.lua", {});
+    L->call("test", std::tie(ret));
+    ASSERT_EQ(ret, "23.2trueabcnil");
+
+    ret.clear();
+    L->compile_file("./jit/test_const_binop_concat.lua", {debug_mode: false});
+    L->call("test", std::tie(ret));
+    ASSERT_EQ(ret, "23.2trueabcnil");
+}
