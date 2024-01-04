@@ -685,3 +685,31 @@ TEST(exception, test_const_binop_bitor_error) {
         ASSERT_TRUE(std::string(e.what()).find("must be integer") != std::string::npos);
     }
 }
+
+TEST(exception, test_const_binop_right_shift_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_const_binop_right_shift_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("must be integer") != std::string::npos);
+    }
+}
+
+TEST(exception, test_const_binop_left_shift_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_const_binop_left_shift_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("must be integer") != std::string::npos);
+    }
+}

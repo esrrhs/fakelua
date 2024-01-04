@@ -1444,14 +1444,14 @@ TEST(jitter, test_const_binop_bitand) {
     L->compile_file("./jit/test_const_binop_bitand.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 2);
-    ASSERT_EQ(ret2, 4);
+    ASSERT_EQ(ret2, -124);
 
     ret1 = 0;
     ret2 = 0;
     L->compile_file("./jit/test_const_binop_bitand.lua", {debug_mode: false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 2);
-    ASSERT_EQ(ret2, 4);
+    ASSERT_EQ(ret2, -124);
 }
 
 TEST(jitter, test_binop_xor) {
@@ -1520,12 +1520,88 @@ TEST(jitter, test_const_binop_bitor) {
     L->compile_file("./jit/test_const_binop_bitor.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
-    ASSERT_EQ(ret2, 22);
+    ASSERT_EQ(ret2, -123);
 
     ret1 = 0;
     ret2 = 0;
     L->compile_file("./jit/test_const_binop_bitor.lua", {debug_mode: false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
-    ASSERT_EQ(ret2, 22);
+    ASSERT_EQ(ret2, -123);
+}
+
+TEST(jitter, test_binop_right_shift) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    int ret2 = 0;
+    L->compile_file("./jit/test_binop_right_shift.lua", {});
+    L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
+    ASSERT_EQ(ret1, 1);
+    ASSERT_EQ(ret2, 0);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_binop_right_shift.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
+    ASSERT_EQ(ret1, 1);
+    ASSERT_EQ(ret2, 0);
+}
+
+TEST(jitter, test_const_binop_right_shift) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    int64_t ret2 = 0;
+    L->compile_file("./jit/test_const_binop_right_shift.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, 1776);
+    ASSERT_EQ(ret2, 4611686018427387873);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_const_binop_right_shift.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, 1776);
+    ASSERT_EQ(ret2, 4611686018427387873);
+}
+
+TEST(jitter, test_binop_left_shift) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    int ret2 = 0;
+    L->compile_file("./jit/test_binop_left_shift.lua", {});
+    L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
+    ASSERT_EQ(ret1, 20);
+    ASSERT_EQ(ret2, 8192);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_binop_left_shift.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
+    ASSERT_EQ(ret1, 20);
+    ASSERT_EQ(ret2, 8192);
+}
+
+TEST(jitter, test_const_binop_left_shift) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    int ret2 = 0;
+    L->compile_file("./jit/test_const_binop_left_shift.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, 27);
+    ASSERT_EQ(ret2, -496);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_const_binop_left_shift.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, 27);
+    ASSERT_EQ(ret2, -496);
 }

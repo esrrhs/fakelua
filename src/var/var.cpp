@@ -304,7 +304,12 @@ void var::right_shift(const var &rhs, var &result) const {
         throw_fakelua_exception(std::format("operand of '>>' must be integer, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
                                             magic_enum::enum_name(rhs.type()), rhs.to_string()));
     }
-    result.set_int(get_calculable_int() >> rhs.get_calculable_int());
+    auto shift = rhs.get_calculable_int();
+    if (shift >= 0) {
+        result.set_int(((uint64_t) get_calculable_int()) >> shift);
+    } else {
+        result.set_int(((uint64_t) get_calculable_int()) << (-shift));
+    }
 }
 
 void var::left_shift(const var &rhs, var &result) const {
@@ -312,7 +317,12 @@ void var::left_shift(const var &rhs, var &result) const {
         throw_fakelua_exception(std::format("operand of '<<' must be integer, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
                                             magic_enum::enum_name(rhs.type()), rhs.to_string()));
     }
-    result.set_int(get_calculable_int() << rhs.get_calculable_int());
+    auto shift = rhs.get_calculable_int();
+    if (shift >= 0) {
+        result.set_int(((uint64_t) get_calculable_int()) << shift);
+    } else {
+        result.set_int(((uint64_t) get_calculable_int()) >> (-shift));
+    }
 }
 
 void var::concat(fakelua_state *s, const var &rhs, var &result) const {
