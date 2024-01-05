@@ -1673,3 +1673,117 @@ TEST(jitter, test_const_binop_less) {
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 }
+
+TEST(jitter, test_binop_less_equal) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    bool ret1 = false;
+    bool ret2 = false;
+    L->compile_file("./jit/test_binop_less_equal.lua", {});
+    L->call("test", std::tie(ret1, ret2), 3, 1.2, 10, "10");
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+
+    ret1 = false;
+    ret2 = false;
+    L->compile_file("./jit/test_binop_less_equal.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), 3, 1.2, 10, "10");
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+}
+
+TEST(jitter, test_const_binop_less_equal) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    bool ret1 = false;
+    bool ret2 = false;
+    L->compile_file("./jit/test_const_binop_less_equal.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+
+    ret1 = false;
+    ret2 = false;
+    L->compile_file("./jit/test_const_binop_less_equal.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+}
+
+TEST(jitter, test_binop_more) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    bool ret1 = false;
+    bool ret2 = false;
+    L->compile_file("./jit/test_binop_more.lua", {});
+    L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
+    ASSERT_TRUE(ret1);
+    ASSERT_FALSE(ret2);
+
+    ret1 = false;
+    ret2 = false;
+    L->compile_file("./jit/test_binop_more.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
+    ASSERT_TRUE(ret1);
+    ASSERT_FALSE(ret2);
+}
+
+TEST(jitter, test_const_binop_more) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    bool ret1 = false;
+    bool ret2 = false;
+    L->compile_file("./jit/test_const_binop_more.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_TRUE(ret1);
+    ASSERT_FALSE(ret2);
+
+    ret1 = false;
+    ret2 = false;
+    L->compile_file("./jit/test_const_binop_more.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_TRUE(ret1);
+    ASSERT_FALSE(ret2);
+}
+
+TEST(jitter, test_binop_more_equal) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    bool ret1 = false;
+    bool ret2 = false;
+    L->compile_file("./jit/test_binop_more_equal.lua", {});
+    L->call("test", std::tie(ret1, ret2), 1, 1.2, 10, "10");
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+
+    ret1 = false;
+    ret2 = false;
+    L->compile_file("./jit/test_binop_more_equal.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), 1, 1.2, 10, "10");
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+}
+
+TEST(jitter, test_const_binop_more_equal) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    bool ret1 = false;
+    bool ret2 = false;
+    L->compile_file("./jit/test_const_binop_more_equal.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_TRUE(ret1);
+    ASSERT_TRUE(ret2);
+
+    ret1 = false;
+    ret2 = false;
+    L->compile_file("./jit/test_const_binop_more_equal.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_TRUE(ret1);
+    ASSERT_TRUE(ret2);
+}

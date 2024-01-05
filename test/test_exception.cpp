@@ -727,3 +727,45 @@ TEST(exception, test_const_binop_less_error) {
         ASSERT_TRUE(std::string(e.what()).find("must be number") != std::string::npos);
     }
 }
+
+TEST(exception, test_const_binop_less_equal_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_const_binop_less_equal_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("must be number") != std::string::npos);
+    }
+}
+
+TEST(exception, test_const_binop_more_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_const_binop_more_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("must be number") != std::string::npos);
+    }
+}
+
+TEST(exception, test_const_binop_more_equal_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_const_binop_more_equal_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("must be number") != std::string::npos);
+    }
+}
