@@ -1635,3 +1635,41 @@ TEST(jitter, test_const_binop_concat) {
     L->call("test", std::tie(ret));
     ASSERT_EQ(ret, "23.2trueabcnil");
 }
+
+TEST(jitter, test_binop_less) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    bool ret1 = false;
+    bool ret2 = false;
+    L->compile_file("./jit/test_binop_less.lua", {});
+    L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+
+    ret1 = false;
+    ret2 = false;
+    L->compile_file("./jit/test_binop_less.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+}
+
+TEST(jitter, test_const_binop_less) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    bool ret1 = false;
+    bool ret2 = false;
+    L->compile_file("./jit/test_const_binop_less.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+
+    ret1 = false;
+    ret2 = false;
+    L->compile_file("./jit/test_const_binop_less.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+}
