@@ -485,9 +485,7 @@ void gcc_jitter::call_const_defines_init_func() {
         return;
     }
     auto init_func = (void (*)()) gcc_jit_result_get_code(gcc_jit_handle_->get_result(), "__fakelua_global_const_defines_init__");
-    if (!init_func) {
-        throw_fakelua_exception("gcc_jit_result_get_code failed __fakelua_global_const_defines_init__");
-    }
+    DEBUG_ASSERT(init_func);
     init_func();
 }
 
