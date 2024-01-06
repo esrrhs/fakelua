@@ -392,4 +392,15 @@ void var::not_equal(const var &rhs, var &result) const {
     result.set_bool(!equal(rhs));
 }
 
+bool var::test_true() const {
+    switch (type()) {
+        case var_type::VAR_NIL:
+            return false;
+        case var_type::VAR_BOOL:
+            return get_bool();
+        default:
+            return true;
+    }
+}
+
 }// namespace fakelua

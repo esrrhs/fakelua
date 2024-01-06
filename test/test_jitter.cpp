@@ -1863,3 +1863,81 @@ TEST(jitter, test_const_binop_not_equal) {
     ASSERT_TRUE(ret1);
     ASSERT_FALSE(ret2);
 }
+
+TEST(jitter, test_binop_and) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    float ret1 = 0;
+    var *ret2 = 0;
+    L->compile_file("./jit/test_binop_and.lua", {});
+    L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
+    ASSERT_NEAR(ret1, 1.2, 0.001);
+    ASSERT_EQ(ret2->type(), var_type::VAR_NIL);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_binop_and.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
+    ASSERT_NEAR(ret1, 1.2, 0.001);
+    ASSERT_EQ(ret2->type(), var_type::VAR_NIL);
+}
+
+TEST(jitter, test_const_binop_and) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    var *ret2 = 0;
+    L->compile_file("./jit/test_const_binop_and.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, 3);
+    ASSERT_EQ(ret2->type(), var_type::VAR_BOOL);
+    ASSERT_EQ(ret2->get_bool(), false);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_const_binop_and.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, 3);
+    ASSERT_EQ(ret2->type(), var_type::VAR_BOOL);
+    ASSERT_EQ(ret2->get_bool(), false);
+}
+
+TEST(jitter, test_binop_or) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    int ret2 = 0;
+    L->compile_file("./jit/test_binop_or.lua", {});
+    L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
+    ASSERT_EQ(ret1, 3);
+    ASSERT_EQ(ret2, 9);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_binop_or.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
+    ASSERT_EQ(ret1, 3);
+    ASSERT_EQ(ret2, 9);
+}
+
+TEST(jitter, test_const_binop_or) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    float ret2 = 0;
+    L->compile_file("./jit/test_const_binop_or.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, 21);
+    ASSERT_NEAR(ret2, 2.2, 0.001);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_const_binop_or.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, 21);
+    ASSERT_NEAR(ret2, 2.2, 0.001);
+}

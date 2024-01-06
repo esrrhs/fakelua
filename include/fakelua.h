@@ -236,6 +236,7 @@ using fakelua_state_ptr = std::shared_ptr<fakelua_state>;
 namespace inter {
 
 // native to fakelua
+var *native_to_fakelua_nil(fakelua_state_ptr s);
 var *native_to_fakelua_bool(fakelua_state_ptr s, bool v);
 var *native_to_fakelua_char(fakelua_state_ptr s, char v);
 var *native_to_fakelua_uchar(fakelua_state_ptr s, unsigned char v);
@@ -257,8 +258,12 @@ var *native_to_fakelua_obj(fakelua_state_ptr s, var_interface *v);
 
 template<typename T>
 var *native_to_fakelua(fakelua_state_ptr s, T v) {
+    // check if T is nil
+    if constexpr (std::is_same<T, std::nullptr_t>::value) {
+        return native_to_fakelua_nil(s);
+    }
     // check if T is bool
-    if constexpr (std::is_same<T, bool>::value) {
+    else if constexpr (std::is_same<T, bool>::value) {
         return native_to_fakelua_bool(s, v);
     }
     // check if T is char

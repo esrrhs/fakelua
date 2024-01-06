@@ -6,10 +6,16 @@ namespace fakelua {
 
 namespace inter {
 
+var *native_to_fakelua_nil(fakelua_state_ptr s) {
+    return &const_null_var;
+}
+
 var *native_to_fakelua_bool(fakelua_state_ptr s, bool v) {
-    auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_bool(v);
-    return ret;
+    if (v) {
+        return &const_true_var;
+    } else {
+        return &const_false_var;
+    }
 }
 
 var *native_to_fakelua_char(fakelua_state_ptr s, char v) {

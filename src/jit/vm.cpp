@@ -347,6 +347,22 @@ extern "C" __attribute__((used)) var *binop_const_not_equal(gcc_jit_handle *h, v
     return ret;
 }
 
+extern "C" __attribute__((used)) bool test_const_var(gcc_jit_handle *h, var *v) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(v);
+    DEBUG_ASSERT(v->type() >= var_type::VAR_MIN && v->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(v->is_const());
+    return v->test_true();
+}
+
+extern "C" __attribute__((used)) bool test_const_not_var(gcc_jit_handle *h, var *v) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(v);
+    DEBUG_ASSERT(v->type() >= var_type::VAR_MIN && v->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(v->is_const());
+    return !v->test_true();
+}
+
 ///////////////////////////////////////////////////////////////////////////////////
 
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s) {
@@ -765,6 +781,20 @@ extern "C" __attribute__((used)) var *binop_not_equal(fakelua_state *s, var *l, 
     auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
     l->not_equal(*r, *ret);
     return ret;
+}
+
+extern "C" __attribute__((used)) bool test_var(fakelua_state *s, var *v) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(v);
+    DEBUG_ASSERT(v->type() >= var_type::VAR_MIN && v->type() <= var_type::VAR_MAX);
+    return v->test_true();
+}
+
+extern "C" __attribute__((used)) bool test_not_var(fakelua_state *s, var *v) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(v);
+    DEBUG_ASSERT(v->type() >= var_type::VAR_MIN && v->type() <= var_type::VAR_MAX);
+    return !v->test_true();
 }
 
 }// namespace fakelua

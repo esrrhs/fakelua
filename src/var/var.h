@@ -224,6 +224,8 @@ public:
 
     void not_equal(const var &rhs, var &result) const;
 
+    bool test_true() const;
+
 private:
     // use class members instead of union, use more memory but more safe and fast.
     var_type type_ = var_type::VAR_NIL;
