@@ -31,7 +31,7 @@ private:
 
     std::string compile_funcname(const syntax_tree_interface_ptr &ptr);
 
-    gccjit::rvalue compile_exp(const syntax_tree_interface_ptr &exp, bool is_const);
+    gccjit::rvalue compile_exp(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &exp, bool is_const);
 
     std::vector<std::pair<std::string, gccjit::param>> compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic);
 
@@ -45,7 +45,7 @@ private:
 
     void compile_const_defines_init_func();
 
-    gccjit::rvalue compile_prefixexp(const syntax_tree_interface_ptr &pe, bool is_const);
+    gccjit::rvalue compile_prefixexp(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &pe, bool is_const);
 
     gccjit::lvalue compile_var(const syntax_tree_interface_ptr &v, bool is_const);
 
@@ -55,14 +55,17 @@ private:
 
     std::vector<gccjit::lvalue> compile_varlist(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &explist);
 
-    gccjit::rvalue compile_tableconstructor(const syntax_tree_interface_ptr &tc, bool is_const);
+    gccjit::rvalue compile_tableconstructor(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &tc,
+                                            bool is_const);
 
-    std::vector<gccjit::rvalue> compile_fieldlist(const syntax_tree_interface_ptr &fieldlist, bool is_const);
+    std::vector<gccjit::rvalue> compile_fieldlist(gccjit::function &func, gccjit::block &the_block,
+                                                  const syntax_tree_interface_ptr &fieldlist, bool is_const);
 
-    std::pair<gccjit::rvalue, gccjit::rvalue> compile_field(const syntax_tree_interface_ptr &field, bool is_const);
+    std::pair<gccjit::rvalue, gccjit::rvalue> compile_field(gccjit::function &func, gccjit::block &the_block,
+                                                            const syntax_tree_interface_ptr &field, bool is_const);
 
-    gccjit::rvalue compile_binop(const syntax_tree_interface_ptr &left, const syntax_tree_interface_ptr &right,
-                                 const syntax_tree_interface_ptr &op, bool is_const);
+    gccjit::rvalue compile_binop(gccjit::function &func, gccjit::block &the_block, const syntax_tree_interface_ptr &left,
+                                 const syntax_tree_interface_ptr &right, const syntax_tree_interface_ptr &op, bool is_const);
 
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
