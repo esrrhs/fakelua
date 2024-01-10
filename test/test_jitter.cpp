@@ -1941,3 +1941,71 @@ TEST(jitter, test_const_binop_or) {
     ASSERT_EQ(ret1, 21);
     ASSERT_NEAR(ret2, 2.2, 0.001);
 }
+
+TEST(jitter, test_unop_minus) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    float ret = 0;
+    L->compile_file("./jit/test_unop_minus.lua", {});
+    L->call("test", std::tie(ret), 2, "2.2");
+    ASSERT_NEAR(ret, -3.4, 0.001);
+
+    ret = 0;
+    L->compile_file("./jit/test_unop_minus.lua", {debug_mode: false});
+    L->call("test", std::tie(ret), 2, "2.2");
+    ASSERT_NEAR(ret, -3.4, 0.001);
+}
+
+TEST(jitter, test_const_unop_minus) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret = 0;
+    L->compile_file("./jit/test_const_unop_minus.lua", {});
+    L->call("test", std::tie(ret));
+    ASSERT_EQ(ret, 24);
+
+    ret = 0;
+    L->compile_file("./jit/test_const_unop_minus.lua", {debug_mode: false});
+    L->call("test", std::tie(ret));
+    ASSERT_EQ(ret, 24);
+}
+
+TEST(jitter, test_unop_not) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    bool ret1 = false;
+    bool ret2 = false;
+    L->compile_file("./jit/test_unop_not.lua", {});
+    L->call("test", std::tie(ret1, ret2), 2, nullptr);
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+
+    ret1 = false;
+    ret2 = false;
+    L->compile_file("./jit/test_unop_not.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), 2, nullptr);
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+}
+
+TEST(jitter, test_const_unop_not) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    bool ret1 = false;
+    bool ret2 = false;
+    L->compile_file("./jit/test_const_unop_not.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+
+    ret1 = false;
+    ret2 = false;
+    L->compile_file("./jit/test_const_unop_not.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+}
