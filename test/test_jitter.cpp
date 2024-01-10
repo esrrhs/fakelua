@@ -2009,3 +2009,79 @@ TEST(jitter, test_const_unop_not) {
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 }
+
+TEST(jitter, test_unop_len) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    int ret2 = 0;
+    L->compile_file("./jit/test_unop_len.lua", {});
+    L->call("test", std::tie(ret1, ret2), "abc", "123");
+    ASSERT_EQ(ret1, 3);
+    ASSERT_EQ(ret2, 3);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_unop_len.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), "abc", "123");
+    ASSERT_EQ(ret1, 3);
+    ASSERT_EQ(ret2, 3);
+}
+
+TEST(jitter, test_const_unop_len) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    int ret2 = 0;
+    L->compile_file("./jit/test_const_unop_len.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, 2);
+    ASSERT_EQ(ret2, 3);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_const_unop_len.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, 2);
+    ASSERT_EQ(ret2, 3);
+}
+
+TEST(jitter, test_unop_bitnot) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    int ret2 = 0;
+    L->compile_file("./jit/test_unop_bitnot.lua", {});
+    L->call("test", std::tie(ret1, ret2), 123, -123);
+    ASSERT_EQ(ret1, -124);
+    ASSERT_EQ(ret2, 122);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_unop_bitnot.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2), 123, -123);
+    ASSERT_EQ(ret1, -124);
+    ASSERT_EQ(ret2, 122);
+}
+
+TEST(jitter, test_const_unop_bitnot) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    int ret2 = 0;
+    L->compile_file("./jit/test_const_unop_bitnot.lua", {});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, -124);
+    ASSERT_EQ(ret2, 122);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_const_unop_bitnot.lua", {debug_mode: false});
+    L->call("test", std::tie(ret1, ret2));
+    ASSERT_EQ(ret1, -124);
+    ASSERT_EQ(ret2, 122);
+}

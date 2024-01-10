@@ -65,6 +65,7 @@ extern "C" __attribute__((used)) var *new_const_var_table(gcc_jit_handle *h, int
 
     auto ret = h->alloc_var();
     ret->set_table();
+    ret->set_const(true);
     // push ... to ret
     int index = 1;
     for (size_t i = 0; i < keys.size(); i++) {
