@@ -226,6 +226,14 @@ public:
 
     bool test_true() const;
 
+    void unop_minus(var &result) const;
+
+    void unop_not(var &result) const;
+
+    void unop_number_sign(var &result) const;
+
+    void unop_bitnot(var &result) const;
+
 private:
     // use class members instead of union, use more memory but more safe and fast.
     var_type type_ = var_type::VAR_NIL;

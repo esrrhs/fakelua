@@ -363,6 +363,50 @@ extern "C" __attribute__((used)) bool test_const_not_var(gcc_jit_handle *h, var 
     return !v->test_true();
 }
 
+extern "C" __attribute__((used)) var *unop_const_minus(gcc_jit_handle *h, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    r->unop_minus(*ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *unop_const_not(gcc_jit_handle *h, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    r->unop_not(*ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *unop_const_number_sign(gcc_jit_handle *h, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    r->unop_number_sign(*ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *unop_const_bitnot(gcc_jit_handle *h, var *r) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(r->is_const());
+    auto ret = h->alloc_var();
+    ret->set_const(true);
+    r->unop_bitnot(*ret);
+    return ret;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////
 
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s) {
@@ -795,6 +839,42 @@ extern "C" __attribute__((used)) bool test_not_var(fakelua_state *s, var *v) {
     DEBUG_ASSERT(v);
     DEBUG_ASSERT(v->type() >= var_type::VAR_MIN && v->type() <= var_type::VAR_MAX);
     return !v->test_true();
+}
+
+extern "C" __attribute__((used)) var *unop_minus(fakelua_state *s, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    r->unop_minus(*ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *unop_not(fakelua_state *s, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    r->unop_not(*ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *unop_number_sign(fakelua_state *s, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    r->unop_number_sign(*ret);
+    return ret;
+}
+
+extern "C" __attribute__((used)) var *unop_bitnot(fakelua_state *s, var *r) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(r);
+    DEBUG_ASSERT(r->type() >= var_type::VAR_MIN && r->type() <= var_type::VAR_MAX);
+    auto ret = dynamic_cast<state *>(s)->get_var_pool().alloc();
+    r->unop_bitnot(*ret);
+    return ret;
 }
 
 }// namespace fakelua

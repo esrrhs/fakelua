@@ -306,8 +306,9 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
         auto op = e->op();
         return compile_binop(func, left, right, op, is_const);
     } else if (exp_type == "unop") {
-        // TODO
-        return nullptr;
+        auto right = e->right();
+        auto op = e->op();
+        return compile_unop(func, right, op, is_const);
     } else {
         throw_error("not support exp type: " + exp_type, exp);
     }
@@ -895,6 +896,45 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
     gccjit::function binop_func =
             gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 0, new_location(op));
     auto ret = gccjit_context_->new_call(binop_func, args, new_location(op));
+
+    return ret;
+}
+
+gccjit::rvalue gcc_jitter::compile_unop(gccjit::function &func, const syntax_tree_interface_ptr &right, const syntax_tree_interface_ptr &op,
+                                        bool is_const) {
+    check_syntax_tree_type(op, {syntax_tree_type::syntax_tree_type_unop});
+    auto op_ptr = std::dynamic_pointer_cast<syntax_tree_unop>(op);
+    auto opstr = op_ptr->get_op();
+
+    DEBUG_ASSERT(opstr == "MINUS" || opstr == "NOT" || opstr == "NUMBER_SIGN" || opstr == "BITNOT");
+
+    auto right_ret = compile_exp(func, right, is_const);
+
+    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+
+    std::vector<gccjit::param> params;
+    params.push_back(gccjit_context_->new_param(the_var_type, is_const ? "h" : "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "right"));
+
+    std::string func_name;
+
+    std::vector<gccjit::rvalue> args;
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, is_const ? (void *) gcc_jit_handle_.get() : (void *) sp_.get()));
+    args.push_back(right_ret);
+
+    if (opstr == "MINUS") {
+        func_name = is_const ? "unop_const_minus" : "unop_minus";
+    } else if (opstr == "NOT") {
+        func_name = is_const ? "unop_const_not" : "unop_not";
+    } else if (opstr == "NUMBER_SIGN") {
+        func_name = is_const ? "unop_const_number_sign" : "unop_number_sign";
+    } else if (opstr == "BITNOT") {
+        func_name = is_const ? "unop_const_bitnot" : "unop_bitnot";
+    }
+
+    gccjit::function unop_func =
+            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 0, new_location(op));
+    auto ret = gccjit_context_->new_call(unop_func, args, new_location(op));
 
     return ret;
 }

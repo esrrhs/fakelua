@@ -403,4 +403,40 @@ bool var::test_true() const {
     }
 }
 
+void var::unop_minus(var &result) const {
+    if (!is_calculable()) {
+        throw_fakelua_exception(std::format("operand of '-' must be number, got {} {}", magic_enum::enum_name(type()), to_string()));
+    }
+    if (is_calculable_integer()) {
+        result.set_int(-get_calculable_int());
+    } else {
+        result.set_float(-get_calculable_number());
+    }
+}
+
+void var::unop_not(var &result) const {
+    result.set_bool(!test_true());
+}
+
+void var::unop_number_sign(var &result) const {
+    if (type() != var_type::VAR_STRING && type() != var_type::VAR_TABLE) {
+        throw_fakelua_exception(
+                std::format("operand of '#' must be string or table, got {} {}", magic_enum::enum_name(type()), to_string()));
+    }
+
+    if (type() == var_type::VAR_STRING) {
+        result.set_int(get_string().size());
+    } else {
+        result.set_int(get_table().size());
+    }
+}
+
+void var::unop_bitnot(var &result) const {
+    if (type() != var_type::VAR_INT) {
+        throw_fakelua_exception(std::format("operand of '~' must be integer, got {} {}", magic_enum::enum_name(type()), to_string()));
+    }
+
+    result.set_int(~get_int());
+}
+
 }// namespace fakelua

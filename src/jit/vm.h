@@ -128,6 +128,14 @@ extern "C" __attribute__((used)) bool test_const_var(gcc_jit_handle *h, var *v);
 
 extern "C" __attribute__((used)) bool test_const_not_var(gcc_jit_handle *h, var *v);
 
+extern "C" __attribute__((used)) var *unop_const_minus(gcc_jit_handle *h, var *r);
+
+extern "C" __attribute__((used)) var *unop_const_not(gcc_jit_handle *h, var *r);
+
+extern "C" __attribute__((used)) var *unop_const_number_sign(gcc_jit_handle *h, var *r);
+
+extern "C" __attribute__((used)) var *unop_const_bitnot(gcc_jit_handle *h, var *r);
+
 ///////////////////////////////////////////////////////////////////////////////////
 
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s);
@@ -191,5 +199,13 @@ extern "C" __attribute__((used)) var *binop_not_equal(fakelua_state *s, var *l, 
 extern "C" __attribute__((used)) bool test_var(fakelua_state *s, var *v);
 
 extern "C" __attribute__((used)) bool test_not_var(fakelua_state *s, var *v);
+
+extern "C" __attribute__((used)) var *unop_minus(fakelua_state *s, var *r);
+
+extern "C" __attribute__((used)) var *unop_not(fakelua_state *s, var *r);
+
+extern "C" __attribute__((used)) var *unop_number_sign(fakelua_state *s, var *r);
+
+extern "C" __attribute__((used)) var *unop_bitnot(fakelua_state *s, var *r);
 
 }// namespace fakelua
