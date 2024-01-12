@@ -257,6 +257,10 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
     std::vector<gccjit::rvalue> args;
     args.push_back(gccjit_context_->new_rvalue(the_var_type, is_const ? (void *) gcc_jit_handle_.get() : (void *) sp_.get()));
 
+    DEBUG_ASSERT(exp_type == "nil" || exp_type == "false" || exp_type == "true" || exp_type == "number" || exp_type == "string" ||
+                 exp_type == "prefixexp" || exp_type == "var_params" || exp_type == "tableconstructor" || exp_type == "binop" ||
+                 exp_type == "unop")
+
     if (exp_type == "nil") {
         func_name = is_const ? "new_const_var_nil" : "new_var_nil";
     } else if (exp_type == "false") {
@@ -309,13 +313,9 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
         auto right = e->right();
         auto op = e->op();
         return compile_unop(func, right, op, is_const);
-    } else {
-        throw_error("not support exp type: " + exp_type, exp);
     }
 
-    if (func_name.empty()) {
-        throw_error("empty exp func_name: " + exp_type, exp);
-    }
+    DEBUG_ASSERT(!func_name.empty());
 
     gccjit::function new_var_func =
             gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 0, new_location(e));
