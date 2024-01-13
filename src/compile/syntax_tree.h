@@ -357,6 +357,18 @@ public:
         name_ = name;
     }
 
+    syntax_tree_interface_ptr prefixexp() const {
+        return prefixexp_;
+    }
+
+    syntax_tree_interface_ptr args() const {
+        return args_;
+    }
+
+    std::string name() const {
+        return name_;
+    }
+
 private:
     syntax_tree_interface_ptr prefixexp_;
     syntax_tree_interface_ptr args_;
@@ -1152,6 +1164,22 @@ public:
 
     void set_type(const std::string &type) {
         type_ = type;
+    }
+
+    std::string get_type() const {
+        return type_;
+    }
+
+    syntax_tree_interface_ptr explist() const {
+        return explist_;
+    }
+
+    syntax_tree_interface_ptr tableconstructor() const {
+        return tableconstructor_;
+    }
+
+    std::string string() const {
+        return string_;
     }
 
 private:

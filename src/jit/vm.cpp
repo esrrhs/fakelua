@@ -880,4 +880,15 @@ extern "C" __attribute__((used)) var *unop_bitnot(fakelua_state *s, var *r) {
     return ret;
 }
 
+extern "C" __attribute__((used)) var *call_var(fakelua_state *s, var *func, int n, ...) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(func);
+    DEBUG_ASSERT(func->type() >= var_type::VAR_MIN && func->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(n >= 0);
+
+    // TODO
+
+    return nullptr;
+}
+
 }// namespace fakelua

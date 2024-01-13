@@ -512,8 +512,7 @@ gccjit::rvalue gcc_jitter::compile_prefixexp(gccjit::function &func, const synta
         if (is_const) {
             throw_error("functioncall can not be const", pe);
         }
-        // TODO
-        return NULL;
+        return compile_functioncall(func, value);
     } else if (pe_type == "exp") {
         return compile_exp(func, value, is_const);
     } else {
@@ -937,6 +936,71 @@ gccjit::rvalue gcc_jitter::compile_unop(gccjit::function &func, const syntax_tre
     auto ret = gccjit_context_->new_call(unop_func, args, new_location(op));
 
     return ret;
+}
+
+gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const syntax_tree_interface_ptr &functioncall) {
+    check_syntax_tree_type(functioncall, {syntax_tree_type::syntax_tree_type_functioncall});
+    auto functioncall_ptr = std::dynamic_pointer_cast<syntax_tree_functioncall>(functioncall);
+
+    auto prefixexp = functioncall_ptr->prefixexp();
+    auto prefixexp_ret = compile_prefixexp(func, prefixexp, false);
+
+    auto args = functioncall_ptr->args();
+    auto args_ret = compile_args(func, args);
+
+    auto entry = prefixexp_ret;
+
+    if (!functioncall_ptr->name().empty()) {
+        // need to find the function by name, and pass the table as the first param
+        // TODO
+    }
+
+    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+
+    std::vector<gccjit::param> params;
+    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "f"));
+    params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "n"));
+
+    std::vector<gccjit::rvalue> args2;
+    args2.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
+    args2.push_back(prefixexp_ret);
+    args2.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_INT), (int) args_ret.size()));
+    for (auto &arg_ret: args_ret) {
+        args2.push_back(arg_ret);
+    }
+
+    gccjit::function call_func =
+            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "call_var", params, 1, new_location(functioncall));
+    auto ret = gccjit_context_->new_call(call_func, args2, new_location(functioncall));
+    return ret;
+}
+
+std::vector<gccjit::rvalue> gcc_jitter::compile_args(gccjit::function &func, const syntax_tree_interface_ptr &args) {
+    check_syntax_tree_type(args, {syntax_tree_type::syntax_tree_type_args});
+    auto args_ptr = std::dynamic_pointer_cast<syntax_tree_args>(args);
+
+    auto type = args_ptr->get_type();
+
+    DEBUG_ASSERT(type == "explist" || type == "tableconstructor" || type == "string" || type == "empty");
+
+    if (type == "explist") {
+        auto explist = args_ptr->explist();
+        return compile_explist(func, explist);
+    } else if (type == "tableconstructor") {
+        auto tc = args_ptr->tableconstructor();
+        auto tc_ret = compile_tableconstructor(func, tc, false);
+        return {tc_ret};
+    } else if (type == "string") {
+        auto str = args_ptr->string();
+        auto str_exp = std::make_shared<syntax_tree_exp>(args->loc());
+        str_exp->set_type("string");
+        str_exp->set_value(str);
+        auto str_ret = compile_exp(func, str_exp, false);
+        return {str_ret};
+    }
+
+    return {};
 }
 
 }// namespace fakelua

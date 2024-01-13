@@ -67,6 +67,10 @@ private:
     gccjit::rvalue compile_unop(gccjit::function &func, const syntax_tree_interface_ptr &right, const syntax_tree_interface_ptr &op,
                                 bool is_const);
 
+    gccjit::rvalue compile_functioncall(gccjit::function &func, const syntax_tree_interface_ptr &functioncall);
+
+    std::vector<gccjit::rvalue> compile_args(gccjit::function &func, const syntax_tree_interface_ptr &args);
+
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
 

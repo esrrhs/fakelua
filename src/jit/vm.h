@@ -208,4 +208,6 @@ extern "C" __attribute__((used)) var *unop_number_sign(fakelua_state *s, var *r)
 
 extern "C" __attribute__((used)) var *unop_bitnot(fakelua_state *s, var *r);
 
+extern "C" __attribute__((used)) var *call_var(fakelua_state *s, var *func, int n, ...);
+
 }// namespace fakelua
