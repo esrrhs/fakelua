@@ -943,6 +943,8 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
     auto functioncall_ptr = std::dynamic_pointer_cast<syntax_tree_functioncall>(functioncall);
 
     auto prefixexp = functioncall_ptr->prefixexp();
+
+    // TODO calc the function name, use const string or calculate the exp value to string
     auto prefixexp_ret = compile_prefixexp(func, prefixexp, false);
 
     auto args = functioncall_ptr->args();
@@ -951,8 +953,7 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
     auto entry = prefixexp_ret;
 
     if (!functioncall_ptr->name().empty()) {
-        // need to find the function by name, and pass the table as the first param
-        // TODO
+
     }
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
