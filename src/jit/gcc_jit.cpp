@@ -45,6 +45,9 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
     gccjit_context_->add_driver_option("-lfakelua");
 #endif
 
+    // change the syntactic sugar to normal syntax
+    preprocess(chunk);
+
     // just walk through the chunk, and save the function declaration and then we can call the function by name
     // first, check the global const define, the const define must be an assignment expression at the top level
     compile_const_defines(chunk);
@@ -95,16 +98,18 @@ void gcc_jitter::compile_functions(const syntax_tree_interface_ptr &chunk) {
     for (auto &stmt: block->stmts()) {
         if (stmt->type() == syntax_tree_type::syntax_tree_type_function) {
             auto func = std::dynamic_pointer_cast<syntax_tree_function>(stmt);
-            auto name = compile_funcname(func->funcname());
-            compile_function(name, func->funcbody());
+            std::vector<std::string> special_namelist;
+            bool has_self = false;
+            auto name = compile_funcname(func->funcname(), special_namelist, has_self);
+            compile_function(name, func->funcbody(), has_self);
         } else if (stmt->type() == syntax_tree_type::syntax_tree_type_local_function) {
             auto func = std::dynamic_pointer_cast<syntax_tree_local_function>(stmt);
-            compile_function(func->name(), func->funcbody());
+            compile_function(func->name(), func->funcbody(), false);
         }
     }
 }
 
-std::string gcc_jitter::compile_funcname(const syntax_tree_interface_ptr &ptr) {
+std::string gcc_jitter::compile_funcname(const syntax_tree_interface_ptr &ptr, std::vector<std::string> &special_namelist, bool &has_self) {
     check_syntax_tree_type(ptr, {syntax_tree_type::syntax_tree_type_funcname});
 
     std::string ret;
@@ -112,22 +117,42 @@ std::string gcc_jitter::compile_funcname(const syntax_tree_interface_ptr &ptr) {
     auto name = std::dynamic_pointer_cast<syntax_tree_funcname>(ptr);
     auto funcnamelistptr = name->funcnamelist();
 
-    if (funcnamelistptr) {
-        check_syntax_tree_type(funcnamelistptr, {syntax_tree_type::syntax_tree_type_funcnamelist});
-        auto funcnamelist = std::dynamic_pointer_cast<syntax_tree_funcnamelist>(funcnamelistptr);
-        auto &names = funcnamelist->funcnames();
-        // join the names with .
-        ret = join_string(names, "_");
-    }
+    std::vector<std::string> namelist;
+    special_namelist.clear();
+    has_self = false;
+
+    check_syntax_tree_type(funcnamelistptr, {syntax_tree_type::syntax_tree_type_funcnamelist});
+    auto funcnamelist = std::dynamic_pointer_cast<syntax_tree_funcnamelist>(funcnamelistptr);
+    auto &names = funcnamelist->funcnames();
+    namelist.insert(namelist.end(), names.begin(), names.end());
 
     if (!name->colon_name().empty()) {
-        ret += "_" + name->colon_name();
+        namelist.push_back(name->colon_name());
+        has_self = true;
+    }
+
+    DEBUG_ASSERT(!namelist.empty());
+
+    if (namelist[0] == "_G") {
+        // _G.xxx equals to xxx
+        namelist.erase(namelist.begin());
+    }
+
+    DEBUG_ASSERT(!namelist.empty());
+
+    if (namelist.size() == 1) {
+        // xxx() just return xxx
+        ret = namelist[0];
+    } else {
+        // xxx.yyy(), we need alloc special function name, and set the name to xxx.yyy
+        ret = std::dynamic_pointer_cast<state>(sp_)->get_vm().alloc_special_function_name();
+        special_namelist = namelist;
     }
 
     return ret;
 }
 
-void gcc_jitter::compile_function(const std::string &name, const syntax_tree_interface_ptr &funcbody) {
+void gcc_jitter::compile_function(const std::string &name, const syntax_tree_interface_ptr &funcbody, bool has_self) {
     LOG_INFO("start compile function: {}", name);
 
     check_syntax_tree_type(funcbody, {syntax_tree_type::syntax_tree_type_funcbody});
@@ -138,6 +163,21 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
 
     // compile the input params
     auto parlist = funcbody_ptr->parlist();
+    if (has_self) {
+        // insert self in the front of params
+        auto new_parlist = std::make_shared<syntax_tree_parlist>(funcbody_ptr->loc());
+        auto namelist = std::make_shared<syntax_tree_namelist>(funcbody_ptr->loc());
+        namelist->add_name("self");
+        if (parlist) {
+            auto old_namelist = std::dynamic_pointer_cast<syntax_tree_parlist>(parlist)->namelist();
+            for (auto &name: std::dynamic_pointer_cast<syntax_tree_namelist>(old_namelist)->names()) {
+                namelist->add_name(name);
+            }
+        }
+        std::dynamic_pointer_cast<syntax_tree_parlist>(new_parlist)->set_namelist(namelist);
+        parlist = new_parlist;
+        funcbody_ptr->set_parlist(parlist);
+    }
     int is_variadic = 0;
     std::vector<std::pair<std::string, gccjit::param>> func_params;
     if (parlist) {
@@ -535,7 +575,7 @@ gccjit::lvalue gcc_jitter::compile_var(const syntax_tree_interface_ptr &v, bool 
     } else if (type == "square") {
         // TODO
         return NULL;
-    } else if (type == "DOT") {
+    } else if (type == "dot") {
         // TODO
         return NULL;
     } else {
@@ -952,7 +992,6 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
     auto entry = prefixexp_ret;
 
     if (!functioncall_ptr->name().empty()) {
-
     }
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
@@ -1001,6 +1040,96 @@ std::vector<gccjit::rvalue> gcc_jitter::compile_args(gccjit::function &func, con
     }
 
     return {};
+}
+
+void gcc_jitter::preprocess(const syntax_tree_interface_ptr &chunk) {
+    preprocess_function(chunk);
+}
+
+void gcc_jitter::preprocess_function(const syntax_tree_interface_ptr &chunk) {
+    // the chunk must be a block
+    check_syntax_tree_type(chunk, {syntax_tree_type::syntax_tree_type_block});
+    // walk through the block
+    auto block = std::dynamic_pointer_cast<syntax_tree_block>(chunk);
+    for (auto &stmt: block->stmts()) {
+        if (stmt->type() == syntax_tree_type::syntax_tree_type_function) {
+            auto func = std::dynamic_pointer_cast<syntax_tree_function>(stmt);
+            preprocess_function_name(func);
+        }
+    }
+}
+
+void gcc_jitter::preprocess_function_name(const syntax_tree_interface_ptr &func) {
+    check_syntax_tree_type(func, {syntax_tree_type::syntax_tree_type_function});
+    auto func_ptr = std::dynamic_pointer_cast<syntax_tree_function>(func);
+
+    auto funcname = std::dynamic_pointer_cast<syntax_tree_funcname>(func_ptr->funcname());
+    auto funcnamelistptr = funcname->funcnamelist();
+
+    auto newfuncnamelistptr = std::make_shared<syntax_tree_funcnamelist>(funcnamelistptr->loc());
+    std::vector<std::string> newnamelist;
+
+    check_syntax_tree_type(funcnamelistptr, {syntax_tree_type::syntax_tree_type_funcnamelist});
+    auto funcnamelist = std::dynamic_pointer_cast<syntax_tree_funcnamelist>(funcnamelistptr);
+    auto &names = funcnamelist->funcnames();
+    newnamelist.insert(newnamelist.end(), names.begin(), names.end());
+
+    if (!funcname->colon_name().empty()) {
+        newnamelist.push_back(funcname->colon_name());
+        // insert self in the front of params
+        auto funcbody = func_ptr->funcbody();
+        check_syntax_tree_type(funcbody, {syntax_tree_type::syntax_tree_type_funcbody});
+        auto funcbody_ptr = std::dynamic_pointer_cast<syntax_tree_funcbody>(funcbody);
+        auto parlist = funcbody_ptr->parlist();
+        auto new_parlist = std::make_shared<syntax_tree_parlist>(funcbody_ptr->loc());
+        auto namelist = std::make_shared<syntax_tree_namelist>(funcbody_ptr->loc());
+        namelist->add_name("self");
+        if (parlist) {
+            auto old_namelist = std::dynamic_pointer_cast<syntax_tree_parlist>(parlist)->namelist();
+            for (auto &name: std::dynamic_pointer_cast<syntax_tree_namelist>(old_namelist)->names()) {
+                namelist->add_name(name);
+            }
+        }
+        std::dynamic_pointer_cast<syntax_tree_parlist>(new_parlist)->set_namelist(namelist);
+        parlist = new_parlist;
+        funcbody_ptr->set_parlist(parlist);
+    }
+
+    DEBUG_ASSERT(!newnamelist.empty());
+
+    if (newnamelist[0] == "_G") {
+        // _G.xxx equals to xxx
+        newnamelist.erase(newnamelist.begin());
+    }
+
+    DEBUG_ASSERT(!newnamelist.empty());
+
+    if (newnamelist.size() == 1) {
+        // global function
+        newfuncnamelistptr->add_name(newnamelist[0]);
+        funcname->set_funcnamelist(newfuncnamelistptr);
+    } else {
+        // member function
+        // xxx.yyy(), we need alloc special function name, and set the name to xxx.yyy
+        auto name = std::dynamic_pointer_cast<state>(sp_)->get_vm().alloc_special_function_name();
+        newfuncnamelistptr->add_name(name);
+        funcname->set_funcnamelist(newfuncnamelistptr);
+
+        // set the name to xxx.yyy = name in preprocess_trunk_new_stmt_
+        auto assign_stmt = std::make_shared<syntax_tree_assign>(funcname->loc());
+        auto varlist = std::make_shared<syntax_tree_varlist>(funcname->loc());
+        for (size_t i = 0; i < newnamelist.size() - 1; ++i) {
+            auto var = std::make_shared<syntax_tree_var>(funcname->loc());
+            var->set_type("simple");
+            var->set_name(newnamelist[i]);
+            varlist->add_var(var);
+        }
+        auto var = std::make_shared<syntax_tree_var>(funcname->loc());
+        var->set_type("dot");
+        var->set_name(name);
+        varlist->add_var(var);
+        assign_stmt->set_varlist(varlist);
+    }
 }
 
 }// namespace fakelua
