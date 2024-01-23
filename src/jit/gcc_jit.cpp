@@ -944,7 +944,6 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
 
     auto prefixexp = functioncall_ptr->prefixexp();
 
-    // TODO calc the function name, use const string or calculate the exp value to string
     auto prefixexp_ret = compile_prefixexp(func, prefixexp, false);
 
     auto args = functioncall_ptr->args();
