@@ -182,4 +182,6 @@ extern "C" __attribute__((used)) var *unop_bitnot(fakelua_state *s, var *r);
 
 extern "C" __attribute__((used)) var *call_var(fakelua_state *s, var *func, int n, ...);
 
+extern "C" __attribute__((used)) var *table_index_var(fakelua_state *s, var *table, var *key);
+
 }// namespace fakelua

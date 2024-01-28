@@ -45,7 +45,7 @@ private:
 
     gccjit::rvalue compile_prefixexp(gccjit::function &func, const syntax_tree_interface_ptr &pe);
 
-    gccjit::lvalue compile_var(const syntax_tree_interface_ptr &v);
+    gccjit::lvalue compile_var(gccjit::function &func, const syntax_tree_interface_ptr &v);
 
     void compile_stmt_local_var(gccjit::function &function, const syntax_tree_interface_ptr &stmt);
 

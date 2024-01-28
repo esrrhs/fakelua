@@ -478,7 +478,7 @@ gccjit::rvalue gcc_jitter::compile_prefixexp(gccjit::function &func, const synta
     auto is_const = cur_function_data_.is_const;
 
     if (pe_type == "var") {
-        return compile_var(value);
+        return compile_var(func, value);
     } else if (pe_type == "functioncall") {
         if (is_const) {
             throw_error("functioncall can not be const", pe);
@@ -495,17 +495,39 @@ std::string gcc_jitter::location_str(const syntax_tree_interface_ptr &ptr) {
     return std::format("{}:{}:{}", file_name_, ptr->loc().begin.line, ptr->loc().begin.column);
 }
 
-gccjit::lvalue gcc_jitter::compile_var(const syntax_tree_interface_ptr &v) {
+gccjit::lvalue gcc_jitter::compile_var(gccjit::function &func, const syntax_tree_interface_ptr &v) {
     check_syntax_tree_type(v, {syntax_tree_type::syntax_tree_type_var});
     auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(v);
+
+    DEBUG_ASSERT(v_ptr->get_type() == "simple" || v_ptr->get_type() == "square" || v_ptr->get_type() == "dot");
 
     const auto &type = v_ptr->get_type();
     if (type == "simple") {
         const auto &name = v_ptr->get_name();
         return find_lvalue_by_name(name, v_ptr);
     } else if (type == "square") {
-        // TODO
-        return NULL;
+        auto pe = v_ptr->get_prefixexp();
+        auto exp = v_ptr->get_exp();
+        auto pe_ret = compile_prefixexp(func, pe);
+        auto exp_ret = compile_exp(func, exp);
+
+        auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+
+        std::vector<gccjit::param> params;
+        params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+        params.push_back(gccjit_context_->new_param(the_var_type, "t"));
+        params.push_back(gccjit_context_->new_param(the_var_type, "k"));
+
+        std::vector<gccjit::rvalue> args;
+        args.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
+        args.push_back(pe_ret);
+        args.push_back(exp_ret);
+
+        gccjit::function table_index_func =
+                gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "table_index_var", params, 0, new_location(v_ptr));
+        auto ret = gccjit_context_->new_call(table_index_func, args, new_location(v_ptr));
+
+        return ret;
     } else if (type == "dot") {
         // TODO
         return NULL;
@@ -607,7 +629,7 @@ std::vector<gccjit::lvalue> gcc_jitter::compile_varlist(gccjit::function &func, 
     std::vector<gccjit::lvalue> ret;
     auto &vars = varlist_ptr->vars();
     for (auto &var: vars) {
-        auto lvalue = compile_var(var);
+        auto lvalue = compile_var(func, var);
         ret.push_back(lvalue);
     }
 
