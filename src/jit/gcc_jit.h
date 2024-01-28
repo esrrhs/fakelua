@@ -21,22 +21,15 @@ public:
     void compile(fakelua_state_ptr sp, compile_config cfg, const std::string &file_name, const syntax_tree_interface_ptr &chunk);
 
 private:
-    void preprocess(const syntax_tree_interface_ptr &chunk);
-
-    void preprocess_function(const syntax_tree_interface_ptr &chunk);
-
-    void preprocess_function_name(const syntax_tree_interface_ptr &func);
-
-private:
     void compile_const_defines(const syntax_tree_interface_ptr &chunk);
 
     void compile_const_define(const syntax_tree_interface_ptr &stmt);
 
     void compile_functions(const syntax_tree_interface_ptr &chunk);
 
-    void compile_function(const std::string &name, const syntax_tree_interface_ptr &funcbody, bool has_self);
+    void compile_function(const std::string &name, const syntax_tree_interface_ptr &funcbody);
 
-    std::string compile_funcname(const syntax_tree_interface_ptr &ptr, std::vector<std::string> &special_namelist, bool &has_self);
+    std::string compile_funcname(const syntax_tree_interface_ptr &ptr);
 
     gccjit::rvalue compile_exp(gccjit::function &func, const syntax_tree_interface_ptr &exp, bool is_const);
 
@@ -49,8 +42,6 @@ private:
     void compile_stmt_return(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
 
     std::vector<gccjit::rvalue> compile_explist(gccjit::function &func, const syntax_tree_interface_ptr &explist);
-
-    void compile_const_defines_init_func();
 
     gccjit::rvalue compile_prefixexp(gccjit::function &func, const syntax_tree_interface_ptr &pe, bool is_const);
 
@@ -83,7 +74,7 @@ private:
 
     std::string new_block_name(const std::string &name, const syntax_tree_interface_ptr &ptr);
 
-    void call_const_defines_init_func();
+    void call_global_init_func();
 
     std::string location_str(const syntax_tree_interface_ptr &ptr);
 
@@ -112,8 +103,6 @@ private:
     std::unordered_map<std::string, function_info> function_infos_;
     // global const var name -> gcc_jit_lvalue
     std::unordered_map<std::string, std::pair<gccjit::lvalue, syntax_tree_interface_ptr>> global_const_vars_;
-    // record the global const var name order
-    std::vector<std::string> global_const_vars_vec_;
     // compiling function tmp data
     struct function_data {
         struct stack_frame {

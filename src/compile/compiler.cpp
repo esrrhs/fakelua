@@ -1,5 +1,6 @@
 #include "compile/compiler.h"
 #include "bison/parser.h"
+#include "jit/preprocessor.h"
 #include "util/exception.h"
 
 namespace fakelua {
@@ -34,6 +35,11 @@ compile_result compiler::compile(fakelua_state_ptr sp, myflexer &f, compile_conf
 
     // compile interpreter
     if (!cfg.skip_jit) {
+        // preprocess
+        pre_processor pp;
+        pp.process(sp, cfg, ret.file_name, ret.chunk);
+
+        // compile
         gcc_jitter jitter;
         jitter.compile(sp, cfg, ret.file_name, ret.chunk);
     }

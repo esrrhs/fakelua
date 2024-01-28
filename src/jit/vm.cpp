@@ -570,11 +570,13 @@ extern "C" __attribute__((used)) void assign_var(fakelua_state *s, int left_n, i
     va_start(args, right_n);
     for (int i = 0; i < left_n; i++) {
         auto dst = va_arg(args, var **);
-        DEBUG_ASSERT((*dst)->type() >= var_type::VAR_MIN && (*dst)->type() <= var_type::VAR_MAX);
+        DEBUG_ASSERT(dst);
+        DEBUG_ASSERT(!*dst || (*dst && (*dst)->type() >= var_type::VAR_MIN && (*dst)->type() <= var_type::VAR_MAX));
         left.push_back(dst);
     }
     for (int i = 0; i < right_n; i++) {
         auto arg = va_arg(args, var *);
+        DEBUG_ASSERT(arg);
         DEBUG_ASSERT(arg->type() >= var_type::VAR_MIN && arg->type() <= var_type::VAR_MAX);
         right.push_back(arg);
     }
