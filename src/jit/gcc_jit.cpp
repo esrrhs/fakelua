@@ -130,6 +130,7 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
 
     // reset data
     cur_function_data_ = function_data();
+    cur_function_data_.is_const = name == "__fakelua_global_init__";
 
     // compile the input params
     auto parlist = funcbody_ptr->parlist();
@@ -233,7 +234,7 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
     }
 }
 
-gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree_interface_ptr &exp, bool is_const) {
+gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree_interface_ptr &exp) {
     // the chunk must be an exp
     check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
     // start compile the expression
@@ -242,6 +243,8 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
     const auto &value = e->exp_value();
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+
+    auto is_const = cur_function_data_.is_const;
 
     std::vector<gccjit::param> params;
     params.push_back(gccjit_context_->new_param(the_var_type, is_const ? "h" : "s"));
@@ -289,7 +292,7 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
         args.push_back(gccjit_context_->new_rvalue(the_int_type, (int) container_str.size()));
     } else if (exp_type == "prefixexp") {
         auto pe = e->right();
-        return compile_prefixexp(func, pe, is_const);
+        return compile_prefixexp(func, pe);
     } else if (exp_type == "var_params") {
         if (is_const) {
             throw_error("... can not be const", exp);
@@ -297,16 +300,16 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
         return find_lvalue_by_name("__fakelua_variadic__", e);
     } else if (exp_type == "tableconstructor") {
         auto tc = e->right();
-        return compile_tableconstructor(func, tc, is_const);
+        return compile_tableconstructor(func, tc);
     } else if (exp_type == "binop") {
         auto left = e->left();
         auto right = e->right();
         auto op = e->op();
-        return compile_binop(func, left, right, op, is_const);
+        return compile_binop(func, left, right, op);
     } else if (exp_type == "unop") {
         auto right = e->right();
         auto op = e->op();
-        return compile_unop(func, right, op, is_const);
+        return compile_unop(func, right, op);
     }
 
     DEBUG_ASSERT(!func_name.empty());
@@ -449,7 +452,7 @@ std::vector<gccjit::rvalue> gcc_jitter::compile_explist(gccjit::function &func, 
     std::vector<gccjit::rvalue> ret;
     auto &exps = explist_ptr->exps();
     for (auto &exp: exps) {
-        auto exp_ret = compile_exp(func, exp, false);
+        auto exp_ret = compile_exp(func, exp);
         ret.push_back(exp_ret);
     }
 
@@ -465,22 +468,24 @@ void gcc_jitter::call_global_init_func() {
     init_func();
 }
 
-gccjit::rvalue gcc_jitter::compile_prefixexp(gccjit::function &func, const syntax_tree_interface_ptr &pe, bool is_const) {
+gccjit::rvalue gcc_jitter::compile_prefixexp(gccjit::function &func, const syntax_tree_interface_ptr &pe) {
     check_syntax_tree_type(pe, {syntax_tree_type::syntax_tree_type_prefixexp});
     auto pe_ptr = std::dynamic_pointer_cast<syntax_tree_prefixexp>(pe);
 
     const auto &pe_type = pe_ptr->get_type();
     auto value = pe_ptr->get_value();
 
+    auto is_const = cur_function_data_.is_const;
+
     if (pe_type == "var") {
-        return compile_var(value, is_const);
+        return compile_var(value);
     } else if (pe_type == "functioncall") {
         if (is_const) {
             throw_error("functioncall can not be const", pe);
         }
         return compile_functioncall(func, value);
     } else if (pe_type == "exp") {
-        return compile_exp(func, value, is_const);
+        return compile_exp(func, value);
     } else {
         throw_error("not support prefixexp type: " + pe_type, pe);
     }
@@ -490,7 +495,7 @@ std::string gcc_jitter::location_str(const syntax_tree_interface_ptr &ptr) {
     return std::format("{}:{}:{}", file_name_, ptr->loc().begin.line, ptr->loc().begin.column);
 }
 
-gccjit::lvalue gcc_jitter::compile_var(const syntax_tree_interface_ptr &v, bool is_const) {
+gccjit::lvalue gcc_jitter::compile_var(const syntax_tree_interface_ptr &v) {
     check_syntax_tree_type(v, {syntax_tree_type::syntax_tree_type_var});
     auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(v);
 
@@ -567,7 +572,7 @@ void gcc_jitter::compile_stmt_local_var(gccjit::function &function, const syntax
         // make it nil
         auto nil_exp = std::make_shared<syntax_tree_exp>(keys->loc());
         nil_exp->set_type("nil");
-        auto exp_ret = compile_exp(function, nil_exp, false);
+        auto exp_ret = compile_exp(function, nil_exp);
 
         auto the_block = cur_function_data_.cur_block;
         the_block.add_assignment(dst, exp_ret, new_location(nil_exp));
@@ -602,11 +607,127 @@ std::vector<gccjit::lvalue> gcc_jitter::compile_varlist(gccjit::function &func, 
     std::vector<gccjit::lvalue> ret;
     auto &vars = varlist_ptr->vars();
     for (auto &var: vars) {
-        auto lvalue = compile_var(var, false);
+        auto lvalue = compile_var(var);
         ret.push_back(lvalue);
     }
 
     return ret;
+}
+
+bool gcc_jitter::is_simple_assign(const syntax_tree_interface_ptr &vars, const syntax_tree_interface_ptr &exps) {
+    check_syntax_tree_type(vars, {syntax_tree_type::syntax_tree_type_varlist});
+    check_syntax_tree_type(exps, {syntax_tree_type::syntax_tree_type_explist});
+    auto vars_ptr = std::dynamic_pointer_cast<syntax_tree_varlist>(vars);
+    auto exps_ptr = std::dynamic_pointer_cast<syntax_tree_explist>(exps);
+
+    auto &vars_vec = vars_ptr->vars();
+    auto &exps_vec = exps_ptr->exps();
+
+    for (size_t i = 0; i < vars_vec.size(); ++i) {
+        auto &var = vars_vec[i];
+        check_syntax_tree_type(var, {syntax_tree_type::syntax_tree_type_var});
+        auto var_ptr = std::dynamic_pointer_cast<syntax_tree_var>(var);
+        if (var_ptr->get_type() != "simple") {
+            return false;
+        }
+    }
+
+    for (size_t i = 0; i < exps_vec.size(); ++i) {
+        auto &exp = exps_vec[i];
+        check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
+        auto exp_ptr = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
+        if (!is_simple_assign_exp(exp_ptr)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool gcc_jitter::is_simple_assign_exp(const syntax_tree_interface_ptr &exp) {
+    check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
+    auto exp_ptr = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
+
+    const auto &exp_type = exp_ptr->exp_type();
+    const auto &value = exp_ptr->exp_value();
+
+    if (exp_type == "nil" || exp_type == "false" || exp_type == "true" || exp_type == "number" || exp_type == "string") {
+        return true;
+    } else if (exp_type == "prefixexp") {
+        auto pe = exp_ptr->right();
+        return is_simple_assign_prefixexp(pe);
+    } else if (exp_type == "tableconstructor") {
+        auto tc = exp_ptr->right();
+        return is_simple_assign_tableconstructor(tc);
+    } else if (exp_type == "binop") {
+        auto left = exp_ptr->left();
+        auto right = exp_ptr->right();
+        auto op = exp_ptr->op();
+        return is_simple_assign_exp(left) && is_simple_assign_exp(right);
+    } else if (exp_type == "unop") {
+        auto right = exp_ptr->right();
+        auto op = exp_ptr->op();
+        return is_simple_assign_exp(right);
+    } else {
+        return false;
+    }
+}
+
+bool gcc_jitter::is_simple_assign_prefixexp(const syntax_tree_interface_ptr &pe) {
+    check_syntax_tree_type(pe, {syntax_tree_type::syntax_tree_type_prefixexp});
+    auto pe_ptr = std::dynamic_pointer_cast<syntax_tree_prefixexp>(pe);
+
+    const auto &pe_type = pe_ptr->get_type();
+    auto value = pe_ptr->get_value();
+
+    if (pe_type == "var") {
+        return true;
+    } else if (pe_type == "functioncall") {
+        return false;
+    } else if (pe_type == "exp") {
+        return is_simple_assign_exp(value);
+    } else {
+        return false;
+    }
+}
+
+bool gcc_jitter::is_simple_assign_tableconstructor(const syntax_tree_interface_ptr &tc) {
+    check_syntax_tree_type(tc, {syntax_tree_type::syntax_tree_type_tableconstructor});
+    auto tc_ptr = std::dynamic_pointer_cast<syntax_tree_tableconstructor>(tc);
+
+    auto fieldlist = tc_ptr->fieldlist();
+    if (!fieldlist) {
+        return true;
+    }
+    check_syntax_tree_type(fieldlist, {syntax_tree_type::syntax_tree_type_fieldlist});
+    auto fieldlist_ptr = std::dynamic_pointer_cast<syntax_tree_fieldlist>(fieldlist);
+
+    auto &fields = fieldlist_ptr->fields();
+    for (auto &field: fields) {
+        if (!is_simple_assign_field(field)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool gcc_jitter::is_simple_assign_field(const syntax_tree_interface_ptr &field) {
+    check_syntax_tree_type(field, {syntax_tree_type::syntax_tree_type_field});
+    auto field_ptr = std::dynamic_pointer_cast<syntax_tree_field>(field);
+
+    auto field_type = field_ptr->get_type();
+    if (field_type == "object") {
+        return is_simple_assign_exp(field_ptr->value());
+    } else if (field_type == "array") {
+        if (field_ptr->key()) {
+            return is_simple_assign_exp(field_ptr->key()) && is_simple_assign_exp(field_ptr->value());
+        } else {
+            return is_simple_assign_exp(field_ptr->value());
+        }
+    } else {
+        return false;
+    }
 }
 
 void gcc_jitter::compile_stmt_assign(gccjit::function &function, const syntax_tree_interface_ptr &stmt) {
@@ -618,6 +739,17 @@ void gcc_jitter::compile_stmt_assign(gccjit::function &function, const syntax_tr
 
     auto exps = assign->explist();
     auto explist = compile_explist(function, exps);
+
+    if (is_simple_assign(vars, exps)) {
+        // eg: a = 1
+        auto the_block = cur_function_data_.cur_block;
+        for (size_t i = 0; i < varlist.size() && i < explist.size(); ++i) {
+            auto &var = varlist[i];
+            auto &exp = explist[i];
+            the_block.add_assignment(var, exp, new_location(stmt));
+        }
+        return;
+    }
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
 
@@ -645,9 +777,11 @@ void gcc_jitter::compile_stmt_assign(gccjit::function &function, const syntax_tr
     the_block.add_eval(ret, new_location(stmt));
 }
 
-gccjit::rvalue gcc_jitter::compile_tableconstructor(gccjit::function &func, const syntax_tree_interface_ptr &tc, bool is_const) {
+gccjit::rvalue gcc_jitter::compile_tableconstructor(gccjit::function &func, const syntax_tree_interface_ptr &tc) {
     check_syntax_tree_type(tc, {syntax_tree_type::syntax_tree_type_tableconstructor});
     auto tc_ptr = std::dynamic_pointer_cast<syntax_tree_tableconstructor>(tc);
+
+    auto is_const = cur_function_data_.is_const;
 
     std::string func_name = is_const ? "new_const_var_table" : "new_var_table";
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
@@ -655,7 +789,7 @@ gccjit::rvalue gcc_jitter::compile_tableconstructor(gccjit::function &func, cons
     std::vector<gccjit::rvalue> kvs;
     auto fieldlist = tc_ptr->fieldlist();
     if (fieldlist) {
-        kvs = compile_fieldlist(func, fieldlist, is_const);
+        kvs = compile_fieldlist(func, fieldlist);
     }
 
     std::vector<gccjit::param> params;
@@ -675,15 +809,14 @@ gccjit::rvalue gcc_jitter::compile_tableconstructor(gccjit::function &func, cons
     return ret;
 }
 
-std::vector<gccjit::rvalue> gcc_jitter::compile_fieldlist(gccjit::function &func, const syntax_tree_interface_ptr &fieldlist,
-                                                          bool is_const) {
+std::vector<gccjit::rvalue> gcc_jitter::compile_fieldlist(gccjit::function &func, const syntax_tree_interface_ptr &fieldlist) {
     check_syntax_tree_type(fieldlist, {syntax_tree_type::syntax_tree_type_fieldlist});
     auto fieldlist_ptr = std::dynamic_pointer_cast<syntax_tree_fieldlist>(fieldlist);
 
     std::vector<gccjit::rvalue> ret;
     auto &fields = fieldlist_ptr->fields();
     for (auto &field: fields) {
-        auto field_ret = compile_field(func, field, is_const);
+        auto field_ret = compile_field(func, field);
         ret.push_back(field_ret.first);
         ret.push_back(field_ret.second);
     }
@@ -691,8 +824,7 @@ std::vector<gccjit::rvalue> gcc_jitter::compile_fieldlist(gccjit::function &func
     return ret;
 }
 
-std::pair<gccjit::rvalue, gccjit::rvalue> gcc_jitter::compile_field(gccjit::function &func, const syntax_tree_interface_ptr &field,
-                                                                    bool is_const) {
+std::pair<gccjit::rvalue, gccjit::rvalue> gcc_jitter::compile_field(gccjit::function &func, const syntax_tree_interface_ptr &field) {
     check_syntax_tree_type(field, {syntax_tree_type::syntax_tree_type_field});
     auto field_ptr = std::dynamic_pointer_cast<syntax_tree_field>(field);
 
@@ -704,17 +836,17 @@ std::pair<gccjit::rvalue, gccjit::rvalue> gcc_jitter::compile_field(gccjit::func
         auto name_exp = std::make_shared<syntax_tree_exp>(field->loc());
         name_exp->set_type("string");
         name_exp->set_value(name);
-        auto k = compile_exp(func, name_exp, is_const);
+        auto k = compile_exp(func, name_exp);
 
         auto exp = field_ptr->value();
-        auto exp_ret = compile_exp(func, exp, is_const);
+        auto exp_ret = compile_exp(func, exp);
 
         ret.first = k;
         ret.second = exp_ret;
     } else if (field_type == "array") {
         auto key = field_ptr->key();
         if (key) {
-            auto k_ret = compile_exp(func, key, is_const);
+            auto k_ret = compile_exp(func, key);
             ret.first = k_ret;
         } else {
             // use nullptr key, means use the auto increment key
@@ -723,7 +855,7 @@ std::pair<gccjit::rvalue, gccjit::rvalue> gcc_jitter::compile_field(gccjit::func
         }
 
         auto exp = field_ptr->value();
-        auto exp_ret = compile_exp(func, exp, is_const);
+        auto exp_ret = compile_exp(func, exp);
 
         ret.second = exp_ret;
     } else {
@@ -734,10 +866,12 @@ std::pair<gccjit::rvalue, gccjit::rvalue> gcc_jitter::compile_field(gccjit::func
 }
 
 gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tree_interface_ptr &left,
-                                         const syntax_tree_interface_ptr &right, const syntax_tree_interface_ptr &op, bool is_const) {
+                                         const syntax_tree_interface_ptr &right, const syntax_tree_interface_ptr &op) {
     check_syntax_tree_type(op, {syntax_tree_type::syntax_tree_type_binop});
     auto op_ptr = std::dynamic_pointer_cast<syntax_tree_binop>(op);
     auto opstr = op_ptr->get_op();
+
+    auto is_const = cur_function_data_.is_const;
 
     DEBUG_ASSERT(opstr == "PLUS" || opstr == "MINUS" || opstr == "STAR" || opstr == "SLASH" || opstr == "DOUBLE_SLASH" || opstr == "POW" ||
                  opstr == "XOR" || opstr == "MOD" || opstr == "BITAND" || opstr == "BITNOT" || opstr == "BITOR" || opstr == "RIGHT_SHIFT" ||
@@ -755,7 +889,7 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
         auto cur_block = cur_function_data_.cur_block;
 
         // var* pre=left
-        auto left_ret = compile_exp(func, left, is_const);
+        auto left_ret = compile_exp(func, left);
         cur_block.add_assignment(pre, left_ret, new_location(op));
 
         // if (pre)
@@ -786,7 +920,7 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
 
         // {pre=right;}
         cur_function_data_.cur_block = then_block;
-        auto right_ret = compile_exp(func, right, is_const);
+        auto right_ret = compile_exp(func, right);
         then_block.add_assignment(pre, right_ret, new_location(op));
         then_block.end_with_jump(new_block, new_location(op));
 
@@ -799,8 +933,8 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
         return pre;
     }
 
-    auto left_ret = compile_exp(func, left, is_const);
-    auto right_ret = compile_exp(func, right, is_const);
+    auto left_ret = compile_exp(func, left);
+    auto right_ret = compile_exp(func, right);
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
 
@@ -865,15 +999,17 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
     return ret;
 }
 
-gccjit::rvalue gcc_jitter::compile_unop(gccjit::function &func, const syntax_tree_interface_ptr &right, const syntax_tree_interface_ptr &op,
-                                        bool is_const) {
+gccjit::rvalue gcc_jitter::compile_unop(gccjit::function &func, const syntax_tree_interface_ptr &right,
+                                        const syntax_tree_interface_ptr &op) {
     check_syntax_tree_type(op, {syntax_tree_type::syntax_tree_type_unop});
     auto op_ptr = std::dynamic_pointer_cast<syntax_tree_unop>(op);
     auto opstr = op_ptr->get_op();
 
     DEBUG_ASSERT(opstr == "MINUS" || opstr == "NOT" || opstr == "NUMBER_SIGN" || opstr == "BITNOT");
 
-    auto right_ret = compile_exp(func, right, is_const);
+    auto is_const = cur_function_data_.is_const;
+
+    auto right_ret = compile_exp(func, right);
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
 
@@ -910,7 +1046,7 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
 
     auto prefixexp = functioncall_ptr->prefixexp();
 
-    auto prefixexp_ret = compile_prefixexp(func, prefixexp, false);
+    auto prefixexp_ret = compile_prefixexp(func, prefixexp);
 
     auto args = functioncall_ptr->args();
     auto args_ret = compile_args(func, args);
@@ -954,14 +1090,14 @@ std::vector<gccjit::rvalue> gcc_jitter::compile_args(gccjit::function &func, con
         return compile_explist(func, explist);
     } else if (type == "tableconstructor") {
         auto tc = args_ptr->tableconstructor();
-        auto tc_ret = compile_tableconstructor(func, tc, false);
+        auto tc_ret = compile_tableconstructor(func, tc);
         return {tc_ret};
     } else if (type == "string") {
         auto str = args_ptr->string();
         auto str_exp = std::make_shared<syntax_tree_exp>(args->loc());
         str_exp->set_type("string");
         str_exp->set_value(str);
-        auto str_ret = compile_exp(func, str_exp, false);
+        auto str_ret = compile_exp(func, str_exp);
         return {str_ret};
     }
 

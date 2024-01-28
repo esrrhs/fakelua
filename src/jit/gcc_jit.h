@@ -31,7 +31,7 @@ private:
 
     std::string compile_funcname(const syntax_tree_interface_ptr &ptr);
 
-    gccjit::rvalue compile_exp(gccjit::function &func, const syntax_tree_interface_ptr &exp, bool is_const);
+    gccjit::rvalue compile_exp(gccjit::function &func, const syntax_tree_interface_ptr &exp);
 
     std::vector<std::pair<std::string, gccjit::param>> compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic);
 
@@ -43,9 +43,9 @@ private:
 
     std::vector<gccjit::rvalue> compile_explist(gccjit::function &func, const syntax_tree_interface_ptr &explist);
 
-    gccjit::rvalue compile_prefixexp(gccjit::function &func, const syntax_tree_interface_ptr &pe, bool is_const);
+    gccjit::rvalue compile_prefixexp(gccjit::function &func, const syntax_tree_interface_ptr &pe);
 
-    gccjit::lvalue compile_var(const syntax_tree_interface_ptr &v, bool is_const);
+    gccjit::lvalue compile_var(const syntax_tree_interface_ptr &v);
 
     void compile_stmt_local_var(gccjit::function &function, const syntax_tree_interface_ptr &stmt);
 
@@ -53,17 +53,16 @@ private:
 
     std::vector<gccjit::lvalue> compile_varlist(gccjit::function &func, const syntax_tree_interface_ptr &explist);
 
-    gccjit::rvalue compile_tableconstructor(gccjit::function &func, const syntax_tree_interface_ptr &tc, bool is_const);
+    gccjit::rvalue compile_tableconstructor(gccjit::function &func, const syntax_tree_interface_ptr &tc);
 
-    std::vector<gccjit::rvalue> compile_fieldlist(gccjit::function &func, const syntax_tree_interface_ptr &fieldlist, bool is_const);
+    std::vector<gccjit::rvalue> compile_fieldlist(gccjit::function &func, const syntax_tree_interface_ptr &fieldlist);
 
-    std::pair<gccjit::rvalue, gccjit::rvalue> compile_field(gccjit::function &func, const syntax_tree_interface_ptr &field, bool is_const);
+    std::pair<gccjit::rvalue, gccjit::rvalue> compile_field(gccjit::function &func, const syntax_tree_interface_ptr &field);
 
     gccjit::rvalue compile_binop(gccjit::function &func, const syntax_tree_interface_ptr &left, const syntax_tree_interface_ptr &right,
-                                 const syntax_tree_interface_ptr &op, bool is_const);
+                                 const syntax_tree_interface_ptr &op);
 
-    gccjit::rvalue compile_unop(gccjit::function &func, const syntax_tree_interface_ptr &right, const syntax_tree_interface_ptr &op,
-                                bool is_const);
+    gccjit::rvalue compile_unop(gccjit::function &func, const syntax_tree_interface_ptr &right, const syntax_tree_interface_ptr &op);
 
     gccjit::rvalue compile_functioncall(gccjit::function &func, const syntax_tree_interface_ptr &functioncall);
 
@@ -85,6 +84,17 @@ private:
     [[noreturn]] void throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr);
 
     void check_return_block(gccjit::function &func, const syntax_tree_interface_ptr &ptr);
+
+private:
+    bool is_simple_assign(const syntax_tree_interface_ptr &vars, const syntax_tree_interface_ptr &exps);
+
+    bool is_simple_assign_exp(const syntax_tree_interface_ptr &exp);
+
+    bool is_simple_assign_prefixexp(const syntax_tree_interface_ptr &pe);
+
+    bool is_simple_assign_tableconstructor(const syntax_tree_interface_ptr &tc);
+
+    bool is_simple_assign_field(const syntax_tree_interface_ptr &fieldlist);
 
 private:
     // the state contains the running environment we need.
@@ -112,6 +122,7 @@ private:
         std::unordered_set<gcc_jit_block *> ended_blocks;
         gccjit::block cur_block;
         int pre_index = 0;
+        bool is_const = false;
     };
     // current compiling function data
     function_data cur_function_data_;
