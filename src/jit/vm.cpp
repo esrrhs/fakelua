@@ -889,7 +889,6 @@ extern "C" __attribute__((used)) var *call_var(fakelua_state *s, var *func, int 
     DEBUG_ASSERT(n >= 0);
 
     // TODO
-
     return nullptr;
 }
 
@@ -901,7 +900,6 @@ extern "C" __attribute__((used)) var *table_index_var(fakelua_state *s, var *tab
     DEBUG_ASSERT(key->type() >= var_type::VAR_MIN && key->type() <= var_type::VAR_MAX);
 
     // TODO
-
     return nullptr;
 }
 
