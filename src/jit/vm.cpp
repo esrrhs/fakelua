@@ -893,4 +893,16 @@ extern "C" __attribute__((used)) var *call_var(fakelua_state *s, var *func, int 
     return nullptr;
 }
 
+extern "C" __attribute__((used)) var *table_index_var(fakelua_state *s, var *table, var *key) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(table);
+    DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(key);
+    DEBUG_ASSERT(key->type() >= var_type::VAR_MIN && key->type() <= var_type::VAR_MAX);
+
+    // TODO
+
+    return nullptr;
+}
+
 }// namespace fakelua
