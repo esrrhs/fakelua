@@ -495,7 +495,7 @@ std::string gcc_jitter::location_str(const syntax_tree_interface_ptr &ptr) {
     return std::format("{}:{}:{}", file_name_, ptr->loc().begin.line, ptr->loc().begin.column);
 }
 
-gccjit::lvalue gcc_jitter::compile_var(gccjit::function &func, const syntax_tree_interface_ptr &v) {
+gccjit::rvalue gcc_jitter::compile_var(gccjit::function &func, const syntax_tree_interface_ptr &v) {
     check_syntax_tree_type(v, {syntax_tree_type::syntax_tree_type_var});
     auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(v);
 
@@ -531,6 +531,21 @@ gccjit::lvalue gcc_jitter::compile_var(gccjit::function &func, const syntax_tree
     } else if (type == "dot") {
         // TODO
         return NULL;
+    } else {
+        throw_error("not support var type: " + type, v);
+    }
+}
+
+gccjit::lvalue gcc_jitter::compile_var_lvalue(gccjit::function &func, const syntax_tree_interface_ptr &v) {
+    check_syntax_tree_type(v, {syntax_tree_type::syntax_tree_type_var});
+    auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(v);
+
+    DEBUG_ASSERT(v_ptr->get_type() == "simple" || v_ptr->get_type() == "square" || v_ptr->get_type() == "dot");
+
+    const auto &type = v_ptr->get_type();
+    if (type == "simple") {
+        const auto &name = v_ptr->get_name();
+        return find_lvalue_by_name(name, v_ptr);
     } else {
         throw_error("not support var type: " + type, v);
     }
@@ -622,14 +637,28 @@ void gcc_jitter::compile_stmt_local_var(gccjit::function &function, const syntax
     compile_stmt_assign(function, assign_stmt);
 }
 
-std::vector<gccjit::lvalue> gcc_jitter::compile_varlist(gccjit::function &func, const syntax_tree_interface_ptr &varlist) {
+std::vector<gccjit::rvalue> gcc_jitter::compile_varlist(gccjit::function &func, const syntax_tree_interface_ptr &varlist) {
+    check_syntax_tree_type(varlist, {syntax_tree_type::syntax_tree_type_varlist});
+    auto varlist_ptr = std::dynamic_pointer_cast<syntax_tree_varlist>(varlist);
+
+    std::vector<gccjit::rvalue> ret;
+    auto &vars = varlist_ptr->vars();
+    for (auto &var: vars) {
+        auto lvalue = compile_var(func, var);
+        ret.push_back(lvalue);
+    }
+
+    return ret;
+}
+
+std::vector<gccjit::lvalue> gcc_jitter::compile_varlist_lvalue(gccjit::function &func, const syntax_tree_interface_ptr &varlist) {
     check_syntax_tree_type(varlist, {syntax_tree_type::syntax_tree_type_varlist});
     auto varlist_ptr = std::dynamic_pointer_cast<syntax_tree_varlist>(varlist);
 
     std::vector<gccjit::lvalue> ret;
     auto &vars = varlist_ptr->vars();
     for (auto &var: vars) {
-        auto lvalue = compile_var(func, var);
+        auto lvalue = compile_var_lvalue(func, var);
         ret.push_back(lvalue);
     }
 
@@ -757,7 +786,7 @@ void gcc_jitter::compile_stmt_assign(gccjit::function &function, const syntax_tr
     auto assign = std::dynamic_pointer_cast<syntax_tree_assign>(stmt);
 
     auto vars = assign->varlist();
-    auto varlist = compile_varlist(function, vars);
+    auto varlist = compile_varlist_lvalue(function, vars);
 
     auto exps = assign->explist();
     auto explist = compile_explist(function, exps);

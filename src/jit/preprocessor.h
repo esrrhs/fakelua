@@ -20,11 +20,15 @@ private:
 
     void preprocess_const_define(const syntax_tree_interface_ptr &stmt);
 
-    void preprocess_function(const syntax_tree_interface_ptr &chunk);
+    void preprocess_functions_name(const syntax_tree_interface_ptr &chunk);
 
     void preprocess_function_name(const syntax_tree_interface_ptr &func);
 
     void save_preprocess_trunk_new_stmt(const syntax_tree_interface_ptr &chunk);
+
+    void preprocess_table_assigns(const syntax_tree_interface_ptr &chunk);
+
+    void preprocess_table_assign(const syntax_tree_interface_ptr &funcbody);
 
 private:
     [[noreturn]] void throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr);

@@ -35,13 +35,13 @@ public:
         return vm_functions_;
     }
 
-    std::string alloc_special_function_name() {
-        return std::format("__fakelua_special_function_{}__", special_function_name_++);
+    std::string alloc_temp_name() {
+        return std::format("__fakelua_temp_{}__", temp_name_++);
     }
 
 private:
     std::unordered_map<std::string, vm_function_ptr> vm_functions_;
-    uint64_t special_function_name_ = 0;
+    uint64_t temp_name_ = 0;
 };
 
 extern "C" __attribute__((used)) var *new_const_var_nil(gcc_jit_handle *h);

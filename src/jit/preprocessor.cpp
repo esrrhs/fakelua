@@ -17,12 +17,22 @@ void pre_processor::process(fakelua_state_ptr sp, compile_config cfg, const std:
     sp_ = sp;
     file_name_ = file_name;
 
-    // do preprocess
+    // make the const define 'a = 1' to 'a = nil', and add a new stmt 'a = 1' in function __fakelua_global_init__
+    // because the const value is not supported function, so we need to make it to nil. and then assign.
     preprocess_const(chunk);
-    preprocess_function(chunk);
 
-    // save the preprocess trunk new stmt
+    // make the function name like 'function a.b.c()' to a temp name 'function __fakelua_temp_1__()',
+    // and add a new stmt 'xxx.yyy.zzz = "__fakelua_temp_1__"' in function __fakelua_global_init__
+    // also, we need to add 'self' in the front of the params if the function is a member function.
+    preprocess_functions_name(chunk);
+
+    // now we have funtion __fakelua_global_init__, we need to add it to the chunk. maybe later we will insert more stmts to it.
     save_preprocess_trunk_new_stmt(chunk);
+
+    // change the table assign stmt like 'a.b.c = some_value' lvalue to temp name.
+    // like 'local __fakelua_temp_2__; __fakelua_temp_2__ = some_value; __fakelua_set_table__(a.b, "c", __fakelua_temp_2__)'
+    // so we can easily always get the value of a.b.c as rvalue.
+    preprocess_table_assigns(chunk);
 
     LOG_INFO("end gcc_jitter::compile {}", file_name);
 }
@@ -44,6 +54,7 @@ void pre_processor::save_preprocess_trunk_new_stmt(const syntax_tree_interface_p
     func->set_funcbody(funcbody);
     auto chunk_ptr = std::dynamic_pointer_cast<syntax_tree_block>(chunk);
     chunk_ptr->add_stmt(func);
+    preprocess_trunk_new_stmt_.clear();
 }
 
 void pre_processor::preprocess_const(const syntax_tree_interface_ptr &chunk) {
@@ -95,7 +106,7 @@ void pre_processor::preprocess_const_define(const syntax_tree_interface_ptr &stm
     }
 }
 
-void pre_processor::preprocess_function(const syntax_tree_interface_ptr &chunk) {
+void pre_processor::preprocess_functions_name(const syntax_tree_interface_ptr &chunk) {
     // the chunk must be a block
     check_syntax_tree_type(chunk, {syntax_tree_type::syntax_tree_type_block});
     // walk through the block
@@ -155,7 +166,7 @@ void pre_processor::preprocess_function_name(const syntax_tree_interface_ptr &fu
     } else {
         // member function
         // xxx.yyy(), we need alloc special function name, and set the name to xxx.yyy
-        auto name = std::dynamic_pointer_cast<state>(sp_)->get_vm().alloc_special_function_name();
+        auto name = std::dynamic_pointer_cast<state>(sp_)->get_vm().alloc_temp_name();
         newfuncnamelistptr->add_name(name);
         funcname->set_funcnamelist(newfuncnamelistptr);
 
@@ -207,6 +218,33 @@ void pre_processor::preprocess_function_name(const syntax_tree_interface_ptr &fu
 
 std::string pre_processor::location_str(const syntax_tree_interface_ptr &ptr) {
     return std::format("{}:{}:{}", file_name_, ptr->loc().begin.line, ptr->loc().begin.column);
+}
+
+void pre_processor::preprocess_table_assigns(const syntax_tree_interface_ptr &chunk) {
+    // the chunk must be a block
+    check_syntax_tree_type(chunk, {syntax_tree_type::syntax_tree_type_block});
+    // walk through the block
+    auto block = std::dynamic_pointer_cast<syntax_tree_block>(chunk);
+    for (auto &stmt: block->stmts()) {
+        if (stmt->type() == syntax_tree_type::syntax_tree_type_function) {
+            auto func = std::dynamic_pointer_cast<syntax_tree_function>(stmt);
+            preprocess_table_assign(func->funcbody());
+        } else if (stmt->type() == syntax_tree_type::syntax_tree_type_local_function) {
+            auto func = std::dynamic_pointer_cast<syntax_tree_local_function>(stmt);
+            preprocess_table_assign(func->funcbody());
+        }
+    }
+}
+
+void pre_processor::preprocess_table_assign(const syntax_tree_interface_ptr &funcbody) {
+    check_syntax_tree_type(funcbody, {syntax_tree_type::syntax_tree_type_funcbody});
+    auto funcbody_ptr = std::dynamic_pointer_cast<syntax_tree_funcbody>(funcbody);
+
+    auto block = funcbody_ptr->block();
+    check_syntax_tree_type(block, {syntax_tree_type::syntax_tree_type_block});
+    auto block_ptr = std::dynamic_pointer_cast<syntax_tree_block>(block);
+
+
 }
 
 }// namespace fakelua
