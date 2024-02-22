@@ -299,8 +299,16 @@ public:
         prefixexp_ = prefixexp;
     }
 
+    syntax_tree_interface_ptr get_prefixexp() {
+        return prefixexp_;
+    }
+
     void set_exp(const syntax_tree_interface_ptr &exp) {
         exp_ = exp;
+    }
+
+    syntax_tree_interface_ptr get_exp() {
+        return exp_;
     }
 
     void set_type(const std::string &type) {

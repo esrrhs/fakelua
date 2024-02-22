@@ -244,7 +244,119 @@ void pre_processor::preprocess_table_assign(const syntax_tree_interface_ptr &fun
     check_syntax_tree_type(block, {syntax_tree_type::syntax_tree_type_block});
     auto block_ptr = std::dynamic_pointer_cast<syntax_tree_block>(block);
 
+    std::vector<syntax_tree_interface_ptr> new_stmts;
+    auto stmts = block_ptr->stmts();
+    for (auto &stmt: stmts) {
+        if (stmt->type() == syntax_tree_type::syntax_tree_type_assign) {
+            auto assign = std::dynamic_pointer_cast<syntax_tree_assign>(stmt);
+            auto varlist = assign->varlist();
+            auto explist = assign->explist();
+            check_syntax_tree_type(varlist, {syntax_tree_type::syntax_tree_type_varlist});
+            check_syntax_tree_type(explist, {syntax_tree_type::syntax_tree_type_explist});
+            auto varlist_ptr = std::dynamic_pointer_cast<syntax_tree_varlist>(varlist);
+            auto explist_ptr = std::dynamic_pointer_cast<syntax_tree_explist>(explist);
+            auto &vars = varlist_ptr->vars();
 
+            std::vector<syntax_tree_interface_ptr> pre;
+            std::vector<syntax_tree_interface_ptr> post;
+
+            for (size_t i = 0; i < vars.size(); ++i) {
+                auto var = vars[i];
+                check_syntax_tree_type(var, {syntax_tree_type::syntax_tree_type_var});
+                auto var_ptr = std::dynamic_pointer_cast<syntax_tree_var>(var);
+                if (var_ptr->get_type() == "square" || var_ptr->get_type() == "dot") {
+                    auto name = std::dynamic_pointer_cast<state>(sp_)->get_vm().alloc_temp_name();
+
+                    // add new stmt 'local __fakelua_temp_2__;
+                    {
+                        auto local_var = std::make_shared<syntax_tree_local_var>(stmt->loc());
+                        auto namelist = std::make_shared<syntax_tree_namelist>(stmt->loc());
+                        namelist->add_name(name);
+                        local_var->set_namelist(namelist);
+                        pre.push_back(local_var);
+                        LOG_INFO("preprocess_table_assigns add new pre stmt {}", local_var->dump());
+                    }
+
+                    // set stmt '__fakelua_temp_2__ = some_value;'
+                    {
+                        auto new_var = std::make_shared<syntax_tree_var>(var_ptr->loc());
+                        new_var->set_type("simple");
+                        new_var->set_name(name);
+                        vars[i] = new_var;
+                        LOG_INFO("preprocess_table_assigns change new var {}", new_var->dump());
+                    }
+
+                    // add new stmt '__fakelua_set_table__(a.b, "c", __fakelua_temp_2__)'
+                    {
+                        auto func_call = std::make_shared<syntax_tree_functioncall>(stmt->loc());
+                        auto prefixexp = std::make_shared<syntax_tree_prefixexp>(stmt->loc());
+                        auto call_var = std::make_shared<syntax_tree_var>(stmt->loc());
+                        call_var->set_type("simple");
+                        call_var->set_name("__fakelua_set_table__");
+                        prefixexp->set_type("var");
+                        prefixexp->set_value(call_var);
+                        func_call->set_prefixexp(prefixexp);
+
+                        auto args = std::make_shared<syntax_tree_args>(stmt->loc());
+                        auto args_explist = std::make_shared<syntax_tree_explist>(stmt->loc());
+
+                        // a.b
+                        {
+                            auto args_exp = std::make_shared<syntax_tree_exp>(stmt->loc());
+                            auto args_exp_prefixexp = var_ptr->get_prefixexp();
+                            args_exp->set_type("prefixexp");
+                            args_exp->set_right(args_exp_prefixexp);
+                            args_explist->add_exp(args_exp);
+                        }
+
+                        // "c"
+                        {
+                            if (var_ptr->get_type() == "square") {
+                                auto args_exp = var_ptr->get_exp();
+                                args_explist->add_exp(args_exp);
+                            } else {
+                                auto args_exp = std::make_shared<syntax_tree_exp>(stmt->loc());
+                                args_exp->set_type("string");
+                                args_exp->set_value(var_ptr->get_name());
+                                args_explist->add_exp(args_exp);
+                            }
+                        }
+
+                        // __fakelua_temp_2__
+                        {
+                            auto args_exp = std::make_shared<syntax_tree_exp>(stmt->loc());
+                            auto args_exp_prefixexp = std::make_shared<syntax_tree_prefixexp>(stmt->loc());
+                            auto args_exp_var = std::make_shared<syntax_tree_var>(stmt->loc());
+                            args_exp_var->set_type("simple");
+                            args_exp_var->set_name(name);
+                            args_exp_prefixexp->set_type("var");
+                            args_exp_prefixexp->set_value(args_exp_var);
+                            args_exp->set_type("prefixexp");
+                            args_exp->set_right(args_exp_prefixexp);
+                            args_explist->add_exp(args_exp);
+                        }
+
+                        args->set_explist(args_explist);
+                        args->set_type("explist");
+                        func_call->set_args(args);
+
+                        post.push_back(func_call);
+                        LOG_INFO("preprocess_table_assigns add new post stmt {}", func_call->dump());
+                    }
+                }
+            }
+
+            if (!pre.empty()) {
+                new_stmts.insert(new_stmts.end(), pre.begin(), pre.end());
+            }
+            new_stmts.push_back(stmt);
+            if (!post.empty()) {
+                new_stmts.insert(new_stmts.end(), post.begin(), post.end());
+            }
+        } else {
+            new_stmts.push_back(stmt);
+        }
+    }
 }
 
 }// namespace fakelua
