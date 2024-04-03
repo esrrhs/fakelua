@@ -35,6 +35,8 @@ private:
 
     std::string location_str(const syntax_tree_interface_ptr &ptr);
 
+    void dump_debug_file(const syntax_tree_interface_ptr &chunk, int step);
+
 private:
     // the state contains the running environment we need.
     fakelua_state_ptr sp_;

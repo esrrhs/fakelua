@@ -16,25 +16,46 @@ void pre_processor::process(fakelua_state_ptr sp, compile_config cfg, const std:
 
     sp_ = sp;
     file_name_ = file_name;
+    int debug_step = 0;
 
     // make the const define 'a = 1' to 'a = nil', and add a new stmt 'a = 1' in function __fakelua_global_init__
     // because the const value is not supported function, so we need to make it to nil. and then assign.
     preprocess_const(chunk);
+    if (cfg.debug_mode) {
+        dump_debug_file(chunk, debug_step++);
+    }
 
     // make the function name like 'function a.b.c()' to a temp name 'function __fakelua_temp_1__()',
     // and add a new stmt 'xxx.yyy.zzz = "__fakelua_temp_1__"' in function __fakelua_global_init__
     // also, we need to add 'self' in the front of the params if the function is a member function.
     preprocess_functions_name(chunk);
+    if (cfg.debug_mode) {
+        dump_debug_file(chunk, debug_step++);
+    }
 
     // now we have funtion __fakelua_global_init__, we need to add it to the chunk. maybe later we will insert more stmts to it.
     save_preprocess_trunk_new_stmt(chunk);
+    if (cfg.debug_mode) {
+        dump_debug_file(chunk, debug_step++);
+    }
 
     // change the table assign stmt like 'a.b.c = some_value' lvalue to temp name.
     // like 'local __fakelua_temp_2__; __fakelua_temp_2__ = some_value; __fakelua_set_table__(a.b, "c", __fakelua_temp_2__)'
     // so we can easily always get the value of a.b.c as rvalue.
     preprocess_table_assigns(chunk);
+    if (cfg.debug_mode) {
+        dump_debug_file(chunk, debug_step++);
+    }
 
-    LOG_INFO("end gcc_jitter::compile {}", file_name);
+    LOG_INFO("end pre_processor::compile {}", file_name);
+}
+
+void pre_processor::dump_debug_file(const syntax_tree_interface_ptr &chunk, int step) {
+    auto dumpfile = generate_tmp_filename("fakelua_gccjit_", std::format(".pre{}", step));
+    std::ofstream file(dumpfile);
+    DEBUG_ASSERT(file.is_open());
+    file << chunk->dump();
+    file.close();
 }
 
 void pre_processor::save_preprocess_trunk_new_stmt(const syntax_tree_interface_ptr &chunk) {
@@ -357,6 +378,7 @@ void pre_processor::preprocess_table_assign(const syntax_tree_interface_ptr &fun
             new_stmts.push_back(stmt);
         }
     }
+    block_ptr->set_stmts(new_stmts);
 }
 
 }// namespace fakelua

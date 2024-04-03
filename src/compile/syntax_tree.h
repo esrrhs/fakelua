@@ -132,6 +132,10 @@ public:
         return stmts_;
     }
 
+    void set_stmts(const std::vector<syntax_tree_interface_ptr> &stmts) {
+        stmts_ = stmts;
+    }
+
 private:
     std::vector<syntax_tree_interface_ptr> stmts_;
 };
