@@ -24,7 +24,9 @@ std::string syntax_tree_label::dump(int tab) const {
 std::string syntax_tree_return::dump(int tab) const {
     std::string str;
     str += gen_tab(tab) + "(return)[" + loc_str() + "]\n";
-    str += explist_->dump(tab + 1);
+    if (explist_) {
+        str += explist_->dump(tab + 1);
+    }
     return str;
 }
 
