@@ -54,7 +54,7 @@ private:
     void compile_stmt_assign(gccjit::function &function, const syntax_tree_interface_ptr &stmt);
 
     std::vector<gccjit::rvalue> compile_varlist(gccjit::function &func, const syntax_tree_interface_ptr &explist);
-    
+
     std::vector<gccjit::lvalue> compile_varlist_lvalue(gccjit::function &func, const syntax_tree_interface_ptr &explist);
 
     gccjit::rvalue compile_tableconstructor(gccjit::function &func, const syntax_tree_interface_ptr &tc);
@@ -71,6 +71,8 @@ private:
     gccjit::rvalue compile_functioncall(gccjit::function &func, const syntax_tree_interface_ptr &functioncall);
 
     std::vector<gccjit::rvalue> compile_args(gccjit::function &func, const syntax_tree_interface_ptr &args);
+
+    void compile_stmt_functioncall(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
 
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
@@ -99,6 +101,10 @@ private:
     bool is_simple_assign_tableconstructor(const syntax_tree_interface_ptr &tc);
 
     bool is_simple_assign_field(const syntax_tree_interface_ptr &fieldlist);
+
+    std::string get_simple_prefixexp_name(const syntax_tree_interface_ptr &pe);
+
+    std::string get_simple_var_name(const syntax_tree_interface_ptr &v);
 
 private:
     // the state contains the running environment we need.

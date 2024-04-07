@@ -400,6 +400,10 @@ void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interfac
             compile_stmt_assign(func, stmt);
             break;
         }
+        case syntax_tree_type::syntax_tree_type_functioncall: {
+            compile_stmt_functioncall(func, stmt);
+            break;
+        }
         default: {
             throw_error(std::format("not support stmt type: {}", magic_enum::enum_name(stmt->type())), stmt);
         }
@@ -1097,21 +1101,24 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
 
     auto prefixexp = functioncall_ptr->prefixexp();
 
+    auto simple_name = get_simple_prefixexp_name(prefixexp);
+    if (!simple_name.empty()) {
+        // simple way, just call the function directly
+        // TODO
+        // return;
+    }
+
+    // complex way, call the function by call_var
     auto prefixexp_ret = compile_prefixexp(func, prefixexp);
 
     auto args = functioncall_ptr->args();
     auto args_ret = compile_args(func, args);
 
-    auto entry = prefixexp_ret;
-
-    if (!functioncall_ptr->name().empty()) {
-    }
-
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
 
     std::vector<gccjit::param> params;
     params.push_back(gccjit_context_->new_param(the_var_type, "s"));
-    params.push_back(gccjit_context_->new_param(the_var_type, "f"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "func"));
     params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "n"));
 
     std::vector<gccjit::rvalue> args2;
@@ -1153,6 +1160,42 @@ std::vector<gccjit::rvalue> gcc_jitter::compile_args(gccjit::function &func, con
     }
 
     return {};
+}
+
+void gcc_jitter::compile_stmt_functioncall(gccjit::function &function, const syntax_tree_interface_ptr &stmt) {
+    check_syntax_tree_type(stmt, {syntax_tree_type::syntax_tree_type_functioncall});
+    auto functioncall = std::dynamic_pointer_cast<syntax_tree_functioncall>(stmt);
+    auto ret = compile_functioncall(function, functioncall);
+    auto the_block = cur_function_data_.cur_block;
+    the_block.add_eval(ret, new_location(stmt));
+}
+
+std::string gcc_jitter::get_simple_prefixexp_name(const syntax_tree_interface_ptr &pe) {
+    check_syntax_tree_type(pe, {syntax_tree_type::syntax_tree_type_prefixexp});
+    auto pe_ptr = std::dynamic_pointer_cast<syntax_tree_prefixexp>(pe);
+
+    auto pe_type = pe_ptr->get_type();
+    auto value = pe_ptr->get_value();
+
+    if (pe_type == "var") {
+        return get_simple_var_name(value);
+    } else {
+        return "";
+    }
+}
+
+std::string gcc_jitter::get_simple_var_name(const syntax_tree_interface_ptr &v) {
+    check_syntax_tree_type(v, {syntax_tree_type::syntax_tree_type_var});
+    auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(v);
+
+    auto v_type = v_ptr->get_type();
+    auto name = v_ptr->get_name();
+
+    if (v_type == "simple") {
+        return name;
+    } else {
+        return "";
+    }
 }
 
 }// namespace fakelua
