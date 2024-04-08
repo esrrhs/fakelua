@@ -106,6 +106,8 @@ private:
 
     std::string get_simple_var_name(const syntax_tree_interface_ptr &v);
 
+    bool is_jit_builtin_function(const std::string &name);
+
 private:
     // the state contains the running environment we need.
     fakelua_state_ptr sp_;

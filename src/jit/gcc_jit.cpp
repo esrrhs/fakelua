@@ -1104,8 +1104,33 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
     auto simple_name = get_simple_prefixexp_name(prefixexp);
     if (!simple_name.empty()) {
         // simple way, just call the function directly
-        // TODO
-        // return;
+        if (is_jit_builtin_function(simple_name)) {
+            // note: here maybe const function call
+            auto is_const = cur_function_data_.is_const;
+
+            auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+
+            auto args = functioncall_ptr->args();
+            auto args_ret = compile_args(func, args);
+
+            std::vector<gccjit::param> params;
+            params.push_back(gccjit_context_->new_param(the_var_type, is_const ? "h" : "s"));
+            for (size_t i = 0; i < args_ret.size(); ++i) {
+                params.push_back(gccjit_context_->new_param(the_var_type, std::format("arg{}", i)));
+            }
+
+            std::vector<gccjit::rvalue> args2;
+            args2.push_back(gccjit_context_->new_rvalue(the_var_type, is_const ? (void *) gcc_jit_handle_.get() : (void *) sp_.get()));
+            for (auto &arg_ret: args_ret) {
+                args2.push_back(arg_ret);
+            }
+
+            std::string& func_name = simple_name;
+            gccjit::function call_func =
+                    gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 0, new_location(functioncall));
+            auto ret = gccjit_context_->new_call(call_func, args2, new_location(functioncall));
+            return ret;
+        }
     }
 
     // complex way, call the function by call_var
@@ -1165,6 +1190,10 @@ std::vector<gccjit::rvalue> gcc_jitter::compile_args(gccjit::function &func, con
 void gcc_jitter::compile_stmt_functioncall(gccjit::function &function, const syntax_tree_interface_ptr &stmt) {
     check_syntax_tree_type(stmt, {syntax_tree_type::syntax_tree_type_functioncall});
     auto functioncall = std::dynamic_pointer_cast<syntax_tree_functioncall>(stmt);
+    if (cur_function_data_.is_const) {
+        // only can call __fakelua_set_table__ in const init function
+        DEBUG_ASSERT(get_simple_prefixexp_name(functioncall->prefixexp()) == "__fakelua_set_table__");
+    }
     auto ret = compile_functioncall(function, functioncall);
     auto the_block = cur_function_data_.cur_block;
     the_block.add_eval(ret, new_location(stmt));
@@ -1196,6 +1225,10 @@ std::string gcc_jitter::get_simple_var_name(const syntax_tree_interface_ptr &v) 
     } else {
         return "";
     }
+}
+
+bool gcc_jitter::is_jit_builtin_function(const std::string &name) {
+    return name == "__fakelua_set_table__";
 }
 
 }// namespace fakelua
