@@ -527,14 +527,37 @@ gccjit::rvalue gcc_jitter::compile_var(gccjit::function &func, const syntax_tree
         args.push_back(pe_ret);
         args.push_back(exp_ret);
 
-        gccjit::function table_index_func =
-                gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "table_index_var", params, 0, new_location(v_ptr));
+        gccjit::function table_index_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "table_index_by_var",
+                                                                          params, 0, new_location(v_ptr));
         auto ret = gccjit_context_->new_call(table_index_func, args, new_location(v_ptr));
 
         return ret;
     } else if (type == "dot") {
-        // TODO
-        return NULL;
+        auto pe = v_ptr->get_prefixexp();
+        auto name = v_ptr->get_name();
+        auto pe_ret = compile_prefixexp(func, pe);
+
+        auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+
+        std::vector<gccjit::param> params;
+        params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+        params.push_back(gccjit_context_->new_param(the_var_type, "t"));
+        params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_CONST_CHAR_PTR), "k"));
+        params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "len"));
+
+        auto container_str = gcc_jit_handle_->alloc_str(name);
+
+        std::vector<gccjit::rvalue> args;
+        args.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
+        args.push_back(pe_ret);
+        args.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_CONST_CHAR_PTR), (void *) container_str.data()));
+        args.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_INT), (int) container_str.size()));
+
+        gccjit::function table_index_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "table_index_by_name",
+                                                                          params, 0, new_location(v_ptr));
+        auto ret = gccjit_context_->new_call(table_index_func, args, new_location(v_ptr));
+
+        return ret;
     } else {
         throw_error("not support var type: " + type, v);
     }
@@ -1125,9 +1148,9 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
                 args2.push_back(arg_ret);
             }
 
-            std::string& func_name = simple_name;
-            gccjit::function call_func =
-                    gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 0, new_location(functioncall));
+            std::string func_name = get_jit_builtin_function_vm_name(simple_name, is_const);
+            gccjit::function call_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 0,
+                                                                       new_location(functioncall));
             auto ret = gccjit_context_->new_call(call_func, args2, new_location(functioncall));
             return ret;
         }
@@ -1229,6 +1252,13 @@ std::string gcc_jitter::get_simple_var_name(const syntax_tree_interface_ptr &v) 
 
 bool gcc_jitter::is_jit_builtin_function(const std::string &name) {
     return name == "__fakelua_set_table__";
+}
+
+std::string gcc_jitter::get_jit_builtin_function_vm_name(const std::string &name, bool is_const) {
+    if (name == "__fakelua_set_table__") {
+        return is_const ? "table_const_set" : "table_set";
+    }
+    throw std::runtime_error("not support jit builtin function: " + name);
 }
 
 }// namespace fakelua

@@ -410,6 +410,21 @@ extern "C" __attribute__((used)) var *unop_const_bitnot(gcc_jit_handle *h, var *
     return ret;
 }
 
+extern "C" __attribute__((used)) var *table_const_set(gcc_jit_handle *h, var *table, var *key, var *val) {
+    DEBUG_ASSERT(h);
+    DEBUG_ASSERT(table);
+    DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && key->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(key);
+    DEBUG_ASSERT(key->type() >= var_type::VAR_MIN && key->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(val);
+    DEBUG_ASSERT(val->type() >= var_type::VAR_MIN && val->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(table->is_const());
+    DEBUG_ASSERT(key->is_const());
+    DEBUG_ASSERT(val->is_const());
+    table->table_set(key, val);
+    return table;
+}
+
 ///////////////////////////////////////////////////////////////////////////////////
 
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s) {
@@ -893,7 +908,7 @@ extern "C" __attribute__((used)) var *call_var(fakelua_state *s, var *func, int 
     return nullptr;
 }
 
-extern "C" __attribute__((used)) var *table_index_var(fakelua_state *s, var *table, var *key) {
+extern "C" __attribute__((used)) var *table_index_by_var(fakelua_state *s, var *table, var *key) {
     DEBUG_ASSERT(s);
     DEBUG_ASSERT(table);
     DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
@@ -903,6 +918,30 @@ extern "C" __attribute__((used)) var *table_index_var(fakelua_state *s, var *tab
     // TODO
 
     return nullptr;
+}
+
+extern "C" __attribute__((used)) var *table_index_by_name(fakelua_state *s, var *table, const char *key, int len) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(table);
+    DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(key);
+    DEBUG_ASSERT(len >= 0);
+
+    // TODO
+
+    return nullptr;
+}
+
+extern "C" __attribute__((used)) var *table_set(fakelua_state *s, var *table, var *key, var *val) {
+    DEBUG_ASSERT(s);
+    DEBUG_ASSERT(table);
+    DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(key);
+    DEBUG_ASSERT(key->type() >= var_type::VAR_MIN && key->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(val);
+    DEBUG_ASSERT(val->type() >= var_type::VAR_MIN && val->type() <= var_type::VAR_MAX);
+    table->table_set(key, val);
+    return table;
 }
 
 }// namespace fakelua

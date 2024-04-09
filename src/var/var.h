@@ -234,6 +234,8 @@ public:
 
     void unop_bitnot(var &result) const;
 
+    void table_set(var *key, var *val);
+
 private:
     // use class members instead of union, use more memory but more safe and fast.
     var_type type_ = var_type::VAR_NIL;

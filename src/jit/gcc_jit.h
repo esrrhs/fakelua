@@ -108,6 +108,8 @@ private:
 
     bool is_jit_builtin_function(const std::string &name);
 
+    std::string get_jit_builtin_function_vm_name(const std::string &name, bool is_const);
+
 private:
     // the state contains the running environment we need.
     fakelua_state_ptr sp_;

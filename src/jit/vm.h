@@ -108,6 +108,8 @@ extern "C" __attribute__((used)) var *unop_const_number_sign(gcc_jit_handle *h, 
 
 extern "C" __attribute__((used)) var *unop_const_bitnot(gcc_jit_handle *h, var *r);
 
+extern "C" __attribute__((used)) var *table_const_set(gcc_jit_handle *h, var *table, var *key, var *val);
+
 ///////////////////////////////////////////////////////////////////////////////////
 
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s);
@@ -182,6 +184,10 @@ extern "C" __attribute__((used)) var *unop_bitnot(fakelua_state *s, var *r);
 
 extern "C" __attribute__((used)) var *call_var(fakelua_state *s, var *func, int n, ...);
 
-extern "C" __attribute__((used)) var *table_index_var(fakelua_state *s, var *table, var *key);
+extern "C" __attribute__((used)) var *table_index_by_var(fakelua_state *s, var *table, var *key);
+
+extern "C" __attribute__((used)) var *table_index_by_name(fakelua_state *s, var *table, const char *key, int len);
+
+extern "C" __attribute__((used)) var *table_set(fakelua_state *s, var *table, var *key, var *val);
 
 }// namespace fakelua
