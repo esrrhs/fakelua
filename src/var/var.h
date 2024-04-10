@@ -236,6 +236,8 @@ public:
 
     void table_set(var *key, var *val);
 
+    var *table_get(var *key);
+
 private:
     // use class members instead of union, use more memory but more safe and fast.
     var_type type_ = var_type::VAR_NIL;

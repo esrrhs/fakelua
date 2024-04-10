@@ -904,7 +904,6 @@ extern "C" __attribute__((used)) var *call_var(fakelua_state *s, var *func, int 
     DEBUG_ASSERT(n >= 0);
 
     // TODO
-
     return nullptr;
 }
 
@@ -914,10 +913,7 @@ extern "C" __attribute__((used)) var *table_index_by_var(fakelua_state *s, var *
     DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(key);
     DEBUG_ASSERT(key->type() >= var_type::VAR_MIN && key->type() <= var_type::VAR_MAX);
-
-    // TODO
-
-    return nullptr;
+    return table->table_get(key);
 }
 
 extern "C" __attribute__((used)) var *table_index_by_name(fakelua_state *s, var *table, const char *key, int len) {
@@ -926,10 +922,9 @@ extern "C" __attribute__((used)) var *table_index_by_name(fakelua_state *s, var 
     DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(key);
     DEBUG_ASSERT(len >= 0);
-
-    // TODO
-
-    return nullptr;
+    var tmp;
+    tmp.set_string(s, std::string_view(key, len));
+    return table->table_get(&tmp);
 }
 
 extern "C" __attribute__((used)) var *table_set(fakelua_state *s, var *table, var *key, var *val) {

@@ -447,4 +447,12 @@ void var::table_set(var *key, var *val) {
     get_table().set(key, val);
 }
 
+var *var::table_get(var *key) {
+    if (type() != var_type::VAR_TABLE) {
+        throw_fakelua_exception(std::format("operand of 'table_get' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
+    }
+
+    return get_table().get(key);
+}
+
 }// namespace fakelua

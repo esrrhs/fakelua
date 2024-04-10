@@ -155,13 +155,13 @@ TEST(jitter, multi_name) {
 
     L->compile_file("./jit/test_multi_name_func.lua", {});
     var *ret = 0;
-    L->call("__fakelua_special_function_0__", std::tie(ret));
+    L->call("__fakelua_temp_0__", std::tie(ret));// just hack for test
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_INT);
     ASSERT_EQ(ret->get_int(), 1);
 
     L->compile_file("./jit/test_multi_name_func.lua", {debug_mode: false});
-    L->call("__fakelua_special_function_0__", std::tie(ret));
+    L->call("__fakelua_temp_0__", std::tie(ret));
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_INT);
     ASSERT_EQ(ret->get_int(), 1);
@@ -173,13 +173,13 @@ TEST(jitter, multi_col_name) {
 
     L->compile_file("./jit/test_multi_col_name_func.lua", {});
     var *ret = 0;
-    L->call("_G_my_test", std::tie(ret));
+    L->call("__fakelua_temp_0__", std::tie(ret), nullptr);// just hack for test
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_INT);
     ASSERT_EQ(ret->get_int(), 1);
 
     L->compile_file("./jit/test_multi_col_name_func.lua", {debug_mode: false});
-    L->call("_G_my_test", std::tie(ret));
+    L->call("__fakelua_temp_0__", std::tie(ret), nullptr);
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_INT);
     ASSERT_EQ(ret->get_int(), 1);
