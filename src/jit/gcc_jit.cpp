@@ -409,6 +409,10 @@ void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interfac
             compile_stmt_functioncall(func, stmt);
             break;
         }
+        case syntax_tree_type::syntax_tree_type_label: {
+            compile_stmt_label(func, stmt);
+            break;
+        }
         default: {
             throw_error(std::format("not support stmt type: {}", magic_enum::enum_name(stmt->type())), stmt);
         }
@@ -1341,6 +1345,11 @@ std::string gcc_jitter::get_jit_builtin_function_vm_name(const std::string &name
         return "table_set";
     }
     throw std::runtime_error("not support jit builtin function: " + name);
+}
+
+void gcc_jitter::compile_stmt_label(gccjit::function &func, const fakelua::syntax_tree_interface_ptr &stmt) {
+    check_syntax_tree_type(stmt, {syntax_tree_type::syntax_tree_type_label});
+    throw_error("not support label", stmt);
 }
 
 }// namespace fakelua
