@@ -417,6 +417,10 @@ void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interfac
             compile_stmt_block(func, stmt);
             break;
         }
+        case syntax_tree_type::syntax_tree_type_while: {
+            compile_stmt_while(func, stmt);
+            break;
+        }
         default: {
             throw_error(std::format("not support stmt type: {}", magic_enum::enum_name(stmt->type())), stmt);
         }
@@ -1370,6 +1374,13 @@ void gcc_jitter::compile_stmt_block(gccjit::function &func, const fakelua::synta
 
     // free stack frame
     cur_function_data_.stack_frames.pop_back();
+}
+
+void gcc_jitter::compile_stmt_while(gccjit::function &func, const fakelua::syntax_tree_interface_ptr &wh) {
+    check_syntax_tree_type(wh, {syntax_tree_type::syntax_tree_type_while});
+    auto while_ptr = std::dynamic_pointer_cast<syntax_tree_while>(wh);
+
+    // TODO
 }
 
 }// namespace fakelua
