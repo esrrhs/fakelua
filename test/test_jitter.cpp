@@ -83,7 +83,7 @@ TEST(jitter, empty_file) {
     ASSERT_NE(L.get(), nullptr);
 
     L->compile_file("./jit/test_empty_file.lua", {});
-    L->compile_file("./jit/test_empty_file.lua", {debug_mode: false});
+    L->compile_file("./jit/test_empty_file.lua", {.debug_mode = false});
 }
 
 TEST(jitter, empty_func) {
@@ -96,7 +96,7 @@ TEST(jitter, empty_func) {
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
 
-    L->compile_file("./jit/test_empty_func.lua", {debug_mode: false});
+    L->compile_file("./jit/test_empty_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
@@ -112,7 +112,7 @@ TEST(jitter, empty_local_func) {
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
 
-    L->compile_file("./jit/test_empty_local_func.lua", {debug_mode: false});
+    L->compile_file("./jit/test_empty_local_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
@@ -135,7 +135,7 @@ TEST(jitter, multi_return) {
     ASSERT_EQ(b2, true);
     ASSERT_EQ(s, "test");
 
-    L->compile_file("./jit/test_multi_return.lua", {debug_mode: false});
+    L->compile_file("./jit/test_multi_return.lua", {.debug_mode = false});
     i = 0;
     f = 0;
     b1 = false;
@@ -160,7 +160,7 @@ TEST(jitter, multi_name) {
     ASSERT_EQ(ret->type(), var_type::VAR_INT);
     ASSERT_EQ(ret->get_int(), 1);
 
-    L->compile_file("./jit/test_multi_name_func.lua", {debug_mode: false});
+    L->compile_file("./jit/test_multi_name_func.lua", {.debug_mode = false});
     L->call("__fakelua_temp_0__", std::tie(ret));
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_INT);
@@ -178,7 +178,7 @@ TEST(jitter, multi_col_name) {
     ASSERT_EQ(ret->type(), var_type::VAR_INT);
     ASSERT_EQ(ret->get_int(), 1);
 
-    L->compile_file("./jit/test_multi_col_name_func.lua", {debug_mode: false});
+    L->compile_file("./jit/test_multi_col_name_func.lua", {.debug_mode = false});
     L->call("__fakelua_temp_0__", std::tie(ret), nullptr);
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_INT);
@@ -193,7 +193,7 @@ TEST(jitter, const_define) {
     L->compile_file("./jit/test_const_define.lua", {});
     L->call("test", std::tie(i));
     ASSERT_EQ(i, 1);
-    L->compile_file("./jit/test_const_define.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_define.lua", {.debug_mode = false});
     L->call("test", std::tie(i));
     ASSERT_EQ(i, 1);
 }
@@ -216,7 +216,7 @@ TEST(jitter, multi_const_define) {
     ASSERT_EQ(ret3, true);
     ASSERT_EQ(ret4, "test");
     ASSERT_NEAR(ret5, 2.3, 0.001);
-    L->compile_file("./jit/test_multi_const_define.lua", {debug_mode: false});
+    L->compile_file("./jit/test_multi_const_define.lua", {.debug_mode = false});
     ret0 = (var *) 0xFF;
     ret1 = 0;
     ret2 = false;
@@ -246,7 +246,7 @@ TEST(jitter, empty_func_with_params) {
     ASSERT_EQ(ret2, true);
     ASSERT_EQ(ret3, "test");
     ASSERT_NEAR(ret4, 2.3, 0.001);
-    L->compile_file("./jit/test_empty_func_with_params.lua", {debug_mode: false});
+    L->compile_file("./jit/test_empty_func_with_params.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2, ret3, ret4), 2.3, "test", true, 1);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
@@ -268,7 +268,7 @@ TEST(jitter, variadic_func) {
     ASSERT_EQ(ret2, true);
     ASSERT_EQ(ret3, "test");
     ASSERT_NEAR(ret4, 2.3, 0.001);
-    L->compile_file("./jit/test_variadic_func.lua", {debug_mode: false});
+    L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2, ret3, ret4), 1, true, "test", 2.3);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
@@ -290,7 +290,7 @@ TEST(jitter, variadic_func_with_params) {
     ASSERT_EQ(ret2, true);
     ASSERT_EQ(ret3, "test");
     ASSERT_NEAR(ret4, 2.3, 0.001);
-    L->compile_file("./jit/test_variadic_func_with_params.lua", {debug_mode: false});
+    L->compile_file("./jit/test_variadic_func_with_params.lua", {.debug_mode = false});
     L->call("test", std::tie(ret3, ret4, ret2, ret1), 1, true, "test", 2.3);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
@@ -353,7 +353,7 @@ TEST(jitter, variadic_func_multi_type) {
     out11 = nullptr;
     out12.clear();
     out13 = "";
-    L->compile_file("./jit/test_variadic_func.lua", {debug_mode: false});
+    L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie(out1, out2, out3, out4, out5, out6, out7, out8, out9, out10, out11, out12, out13, out14, out15, out16, out17),
             in1, in2, in3, in4, in5, in6, in7, in8, in9, in10, in11, in12, in13, in14, in15, in16, in17);
     ASSERT_EQ(out1, in1);
@@ -452,7 +452,7 @@ TEST(jitter, variadic_func_vi) {
     ASSERT_EQ(ret->vi_to_string(), dumpstr);
 
     ret = nullptr;
-    L->compile_file("./jit/test_variadic_func.lua", {debug_mode: false});
+    L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), var);
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->vi_get_type(), var_interface::type::TABLE);
@@ -472,7 +472,7 @@ TEST(jitter, variadic_func_with_empty) {
 
     L->compile_file("./jit/test_variadic_func.lua", {});
     L->call("test", std::tie());
-    L->compile_file("./jit/test_variadic_func.lua", {debug_mode: false});
+    L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie());
 }
 
@@ -529,7 +529,7 @@ TEST(jitter, variadic_func_vi_array) {
     ASSERT_EQ(ret->vi_to_string(), dumpstr);
 
     ret = nullptr;
-    L->compile_file("./jit/test_variadic_func.lua", {debug_mode: false});
+    L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), var);
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->vi_get_type(), var_interface::type::TABLE);
@@ -569,7 +569,7 @@ TEST(jitter, variadic_func_vi_nil) {
     ASSERT_EQ(ret->vi_get_type(), var_interface::type::NIL);
 
     ret = nullptr;
-    L->compile_file("./jit/test_variadic_func.lua", {debug_mode: false});
+    L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), var);
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->vi_get_type(), var_interface::type::NIL);
@@ -588,7 +588,7 @@ TEST(jitter, string) {
     L->call("test", std::tie(ret));
     ASSERT_EQ(ret, 1);
 
-    L->compile_string("function test() return 1 end", {debug_mode: false});
+    L->compile_string("function test() return 1 end", {.debug_mode = false});
     L->call("test", std::tie(ret));
     ASSERT_EQ(ret, 1);
 }
@@ -607,7 +607,7 @@ TEST(jitter, local_define) {
     ASSERT_NE(b, nullptr);
     ASSERT_EQ(b->type(), var_type::VAR_NIL);
 
-    L->compile_file("./jit/test_local_define.lua", {debug_mode: false});
+    L->compile_file("./jit/test_local_define.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b));
     ASSERT_NE(a, nullptr);
     ASSERT_EQ(a->type(), var_type::VAR_NIL);
@@ -647,7 +647,7 @@ TEST(jitter, local_define_with_values) {
     c = 0;
     d = 0;
     e = 0;
-    L->compile_file("./jit/test_local_define_with_value.lua", {debug_mode: false});
+    L->compile_file("./jit/test_local_define_with_value.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b, c, d, e), true, 2);
     ASSERT_NE(a, nullptr);
     ASSERT_EQ(a->type(), var_type::VAR_BOOL);
@@ -678,7 +678,7 @@ TEST(jitter, test_assign) {
 
     a = 0;
     b.clear();
-    L->compile_file("./jit/test_assign.lua", {debug_mode: false});
+    L->compile_file("./jit/test_assign.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b), true, 1.1);
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, "2");
@@ -701,7 +701,7 @@ TEST(jitter, test_assign_not_match) {
 
     a = 0;
     b.clear();
-    L->compile_file("./jit/test_assign_not_match.lua", {debug_mode: false});
+    L->compile_file("./jit/test_assign_not_match.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b, c, d), true, "2", 1.1, 1);
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, "2");
@@ -722,7 +722,7 @@ TEST(jitter, test_assign_variadic_match) {
 
     a.clear();
     b = 0;
-    L->compile_file("./jit/test_assign_variadic.lua", {debug_mode: false});
+    L->compile_file("./jit/test_assign_variadic.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b), 1, "2");
     ASSERT_EQ(a, "2");
     ASSERT_EQ(b, 1);
@@ -741,7 +741,7 @@ TEST(jitter, test_assign_variadic_no_match) {
 
     a = 0;
     b = 0;
-    L->compile_file("./jit/test_assign_variadic_no_match.lua", {debug_mode: false});
+    L->compile_file("./jit/test_assign_variadic_no_match.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b), 2, "2");
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, 2);
@@ -761,7 +761,7 @@ TEST(jitter, test_assign_variadic_empty) {
 
     a = 0;
     b = 0;
-    L->compile_file("./jit/test_assign_variadic_no_match.lua", {debug_mode: false});
+    L->compile_file("./jit/test_assign_variadic_no_match.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b));
     ASSERT_EQ(a, 1);
     ASSERT_NE(b, nullptr);
@@ -803,7 +803,7 @@ TEST(jitter, test_const_table) {
     t1 = nullptr;
     t2 = nullptr;
     t3 = nullptr;
-    L->compile_file("./jit/test_const_table.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_table.lua", {.debug_mode = false});
     L->call("test", std::tie(t1, t2, t3));
     ASSERT_NE(t1, nullptr);
     ASSERT_EQ(t1->vi_get_type(), var_interface::type::TABLE);
@@ -849,7 +849,7 @@ TEST(jitter, test_const_nested_table) {
                                  "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
 
     t = nullptr;
-    L->compile_file("./jit/test_const_nested_table.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_nested_table.lua", {.debug_mode = false});
     L->call("test", std::tie(t));
     ASSERT_NE(t, nullptr);
     ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
@@ -899,7 +899,7 @@ TEST(jitter, test_local_table) {
     t1 = nullptr;
     t2 = nullptr;
     t3 = nullptr;
-    L->compile_file("./jit/test_local_table.lua", {debug_mode: false});
+    L->compile_file("./jit/test_local_table.lua", {.debug_mode = false});
     L->call("test", std::tie(t1, t2, t3));
     ASSERT_NE(t1, nullptr);
     ASSERT_EQ(t1->vi_get_type(), var_interface::type::TABLE);
@@ -945,7 +945,7 @@ TEST(jitter, test_local_nested_table) {
                                  "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
 
     t = nullptr;
-    L->compile_file("./jit/test_local_nested_table.lua", {debug_mode: false});
+    L->compile_file("./jit/test_local_nested_table.lua", {.debug_mode = false});
     L->call("test", std::tie(t));
     ASSERT_NE(t, nullptr);
     ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
@@ -982,7 +982,7 @@ TEST(jitter, test_local_table_with_variadic) {
     ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"a\"\n\t[2] = \"b\"\n\t[3] = \"c\"");
 
     t = nullptr;
-    L->compile_file("./jit/test_local_table_with_variadic.lua", {debug_mode: false});
+    L->compile_file("./jit/test_local_table_with_variadic.lua", {.debug_mode = false});
     L->call("test", std::tie(t), "a", "b", "c");
     ASSERT_NE(t, nullptr);
     ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
@@ -1018,7 +1018,7 @@ TEST(jitter, test_local_table_with_variadic_no_end) {
     ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"c\"\n\t[2] = \"a\"\n\t[3] = \"b\"");
 
     t = nullptr;
-    L->compile_file("./jit/test_local_table_with_variadic_no_end.lua", {debug_mode: false});
+    L->compile_file("./jit/test_local_table_with_variadic_no_end.lua", {.debug_mode = false});
     L->call("test", std::tie(t), "a", "b", "c", "d", "e");
     ASSERT_NE(t, nullptr);
     ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
@@ -1054,7 +1054,7 @@ TEST(jitter, test_local_table_with_variadic_no_end_replace) {
     ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"c\"\n\t[2] = \"b\"");
 
     t = nullptr;
-    L->compile_file("./jit/test_local_table_with_variadic_no_end_replace.lua", {debug_mode: false});
+    L->compile_file("./jit/test_local_table_with_variadic_no_end_replace.lua", {.debug_mode = false});
     L->call("test", std::tie(t), "a", "b", "c", "d", "e");
     ASSERT_NE(t, nullptr);
     ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
@@ -1088,7 +1088,7 @@ TEST(jitter, test_assign_simple_var) {
 
     a = 0;
     b = 0;
-    L->compile_file("./jit/test_assign_simple_var.lua", {debug_mode: false});
+    L->compile_file("./jit/test_assign_simple_var.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b), "test", 1);
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, 1);
@@ -1109,7 +1109,7 @@ TEST(jitter, test_const_define_simple_var) {
 
     a = 0;
     b = 0;
-    L->compile_file("./jit/test_const_define_simple_var.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_define_simple_var.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b, c));
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, 1);
@@ -1129,7 +1129,7 @@ TEST(jitter, test_binop_plus) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_plus.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_plus.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), "1", 2, "1.1", 2.2);
     ASSERT_EQ(ret1, 3);
     ASSERT_NEAR(ret2, 3.3, 0.001);
@@ -1148,7 +1148,7 @@ TEST(jitter, test_const_binop_plus) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_plus.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_plus.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
     ASSERT_NEAR(ret2, 3.2, 0.001);
@@ -1167,7 +1167,7 @@ TEST(jitter, test_binop_minus) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_minus.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_minus.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), "1", "2", 2, 1.2);
     ASSERT_EQ(ret1, -1);
     ASSERT_NEAR(ret2, 0.8, 0.001);
@@ -1186,7 +1186,7 @@ TEST(jitter, test_const_binop_minus) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_minus.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_minus.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, -1);
     ASSERT_NEAR(ret2, 1.1, 0.001);
@@ -1205,7 +1205,7 @@ TEST(jitter, test_binop_star) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_star.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_star.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), "1", "2", 2, 1.2);
     ASSERT_EQ(ret1, 4);
     ASSERT_NEAR(ret2, 1.4, 0.001);
@@ -1224,7 +1224,7 @@ TEST(jitter, test_const_binop_star) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_star.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_star.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_NEAR(ret1, 3.2, 0.001);
     ASSERT_NEAR(ret2, 0.1, 0.001);
@@ -1241,7 +1241,7 @@ TEST(jitter, test_empty_return) {
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
 
     ret = 0;
-    L->compile_file("./jit/test_empty_return.lua", {debug_mode: false});
+    L->compile_file("./jit/test_empty_return.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
@@ -1258,7 +1258,7 @@ TEST(jitter, test_empty_func_no_return) {
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
 
     ret = 0;
-    L->compile_file("./jit/test_empty_func_no_return.lua", {debug_mode: false});
+    L->compile_file("./jit/test_empty_func_no_return.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
@@ -1277,7 +1277,7 @@ TEST(jitter, test_binop_slash) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_slash.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_slash.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), "1", "2", 2.4, 1.2);
     ASSERT_NEAR(ret1, 2.5, 0.001);
     ASSERT_NEAR(ret2, 1, 0.001);
@@ -1296,7 +1296,7 @@ TEST(jitter, test_const_binop_slash) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_slash.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_slash.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_NEAR(ret1, 1.7, 0.001);
     ASSERT_NEAR(ret2, 0.1, 0.001);
@@ -1315,7 +1315,7 @@ TEST(jitter, test_binop_double_slash) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_double_slash.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_double_slash.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, 2.4, 1.2);
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, 1);
@@ -1334,7 +1334,7 @@ TEST(jitter, test_const_binop_double_slash) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_double_slash.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_double_slash.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_NEAR(ret1, 2.2, 0.001);
     ASSERT_NEAR(ret2, -0.1, 0.001);
@@ -1353,7 +1353,7 @@ TEST(jitter, test_binop_pow) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_pow.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_pow.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, 2.4, 1.2);
     ASSERT_EQ(ret1, 11);
     ASSERT_NEAR(ret2, 1.859258955601, 0.001);
@@ -1372,7 +1372,7 @@ TEST(jitter, test_const_binop_pow) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_pow.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_pow.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 8);
     ASSERT_NEAR(ret2, 1.2332863005547, 0.001);
@@ -1391,7 +1391,7 @@ TEST(jitter, test_binop_mod) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_mod.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_mod.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, 2.4, 1.2);
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, -1);
@@ -1410,7 +1410,7 @@ TEST(jitter, test_const_binop_mod) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_mod.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_mod.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 2);
     ASSERT_EQ(ret2, 0);
@@ -1429,7 +1429,7 @@ TEST(jitter, test_binop_bitand) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_bitand.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_bitand.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 0);
     ASSERT_EQ(ret2, 0);
@@ -1448,7 +1448,7 @@ TEST(jitter, test_const_binop_bitand) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_bitand.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_bitand.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 2);
     ASSERT_EQ(ret2, -124);
@@ -1467,7 +1467,7 @@ TEST(jitter, test_binop_xor) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_xor.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_xor.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 7);
     ASSERT_EQ(ret2, 15);
@@ -1486,7 +1486,7 @@ TEST(jitter, test_const_binop_xor) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_xor.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_xor.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, 18);
@@ -1505,7 +1505,7 @@ TEST(jitter, test_binop_bitor) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_bitor.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_bitor.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 7);
     ASSERT_EQ(ret2, 15);
@@ -1524,7 +1524,7 @@ TEST(jitter, test_const_binop_bitor) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_bitor.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_bitor.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, -123);
@@ -1543,7 +1543,7 @@ TEST(jitter, test_binop_right_shift) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_right_shift.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_right_shift.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, 0);
@@ -1562,7 +1562,7 @@ TEST(jitter, test_const_binop_right_shift) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_right_shift.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_right_shift.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 1776);
     ASSERT_EQ(ret2, 4611686018427387873);
@@ -1581,7 +1581,7 @@ TEST(jitter, test_binop_left_shift) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_left_shift.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_left_shift.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 20);
     ASSERT_EQ(ret2, 8192);
@@ -1600,7 +1600,7 @@ TEST(jitter, test_const_binop_left_shift) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_left_shift.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_left_shift.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 27);
     ASSERT_EQ(ret2, -496);
@@ -1616,7 +1616,7 @@ TEST(jitter, test_binop_concat) {
     ASSERT_EQ(ret, "31.2truetest");
 
     ret.clear();
-    L->compile_file("./jit/test_binop_concat.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_concat.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 3, 1.2, true, "test");
     ASSERT_EQ(ret, "31.2truetest");
 }
@@ -1631,7 +1631,7 @@ TEST(jitter, test_const_binop_concat) {
     ASSERT_EQ(ret, "23.2trueabcnil");
 
     ret.clear();
-    L->compile_file("./jit/test_const_binop_concat.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_concat.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
     ASSERT_EQ(ret, "23.2trueabcnil");
 }
@@ -1649,7 +1649,7 @@ TEST(jitter, test_binop_less) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_binop_less.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_less.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
@@ -1668,7 +1668,7 @@ TEST(jitter, test_const_binop_less) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_binop_less.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_less.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
@@ -1687,7 +1687,7 @@ TEST(jitter, test_binop_less_equal) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_binop_less_equal.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_less_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 1.2, 10, "10");
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
@@ -1706,7 +1706,7 @@ TEST(jitter, test_const_binop_less_equal) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_binop_less_equal.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_less_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
@@ -1725,7 +1725,7 @@ TEST(jitter, test_binop_more) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_binop_more.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_more.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
     ASSERT_TRUE(ret1);
     ASSERT_FALSE(ret2);
@@ -1744,7 +1744,7 @@ TEST(jitter, test_const_binop_more) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_binop_more.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_more.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_TRUE(ret1);
     ASSERT_FALSE(ret2);
@@ -1763,7 +1763,7 @@ TEST(jitter, test_binop_more_equal) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_binop_more_equal.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_more_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, 10, "10");
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
@@ -1782,7 +1782,7 @@ TEST(jitter, test_const_binop_more_equal) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_binop_more_equal.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_more_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_TRUE(ret1);
     ASSERT_TRUE(ret2);
@@ -1801,7 +1801,7 @@ TEST(jitter, test_binop_equal) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_binop_equal.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, "10", "10");
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
@@ -1820,7 +1820,7 @@ TEST(jitter, test_const_binop_equal) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_binop_equal.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
@@ -1839,7 +1839,7 @@ TEST(jitter, test_binop_not_equal) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_binop_not_equal.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_not_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, "10", "10");
     ASSERT_TRUE(ret1);
     ASSERT_FALSE(ret2);
@@ -1858,7 +1858,7 @@ TEST(jitter, test_const_binop_not_equal) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_binop_not_equal.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_not_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_TRUE(ret1);
     ASSERT_FALSE(ret2);
@@ -1877,7 +1877,7 @@ TEST(jitter, test_binop_and) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_and.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_and.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
     ASSERT_NEAR(ret1, 1.2, 0.001);
     ASSERT_EQ(ret2->type(), var_type::VAR_NIL);
@@ -1897,7 +1897,7 @@ TEST(jitter, test_const_binop_and) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_and.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_and.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2->type(), var_type::VAR_BOOL);
@@ -1917,7 +1917,7 @@ TEST(jitter, test_binop_or) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_or.lua", {debug_mode: false});
+    L->compile_file("./jit/test_binop_or.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, 9);
@@ -1936,7 +1936,7 @@ TEST(jitter, test_const_binop_or) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_or.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_binop_or.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 21);
     ASSERT_NEAR(ret2, 2.2, 0.001);
@@ -1952,7 +1952,7 @@ TEST(jitter, test_unop_minus) {
     ASSERT_NEAR(ret, -3.4, 0.001);
 
     ret = 0;
-    L->compile_file("./jit/test_unop_minus.lua", {debug_mode: false});
+    L->compile_file("./jit/test_unop_minus.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 2, "2.2");
     ASSERT_NEAR(ret, -3.4, 0.001);
 }
@@ -1967,7 +1967,7 @@ TEST(jitter, test_const_unop_minus) {
     ASSERT_EQ(ret, 24);
 
     ret = 0;
-    L->compile_file("./jit/test_const_unop_minus.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_unop_minus.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
     ASSERT_EQ(ret, 24);
 }
@@ -1985,7 +1985,7 @@ TEST(jitter, test_unop_not) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_unop_not.lua", {debug_mode: false});
+    L->compile_file("./jit/test_unop_not.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 2, nullptr);
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
@@ -2004,7 +2004,7 @@ TEST(jitter, test_const_unop_not) {
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_unop_not.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_unop_not.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
@@ -2023,7 +2023,7 @@ TEST(jitter, test_unop_len) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_unop_len.lua", {debug_mode: false});
+    L->compile_file("./jit/test_unop_len.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), "abc", "123");
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, 3);
@@ -2042,7 +2042,7 @@ TEST(jitter, test_const_unop_len) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_unop_len.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_unop_len.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 2);
     ASSERT_EQ(ret2, 3);
@@ -2061,7 +2061,7 @@ TEST(jitter, test_unop_bitnot) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_unop_bitnot.lua", {debug_mode: false});
+    L->compile_file("./jit/test_unop_bitnot.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 123, -123);
     ASSERT_EQ(ret1, -124);
     ASSERT_EQ(ret2, 122);
@@ -2080,7 +2080,7 @@ TEST(jitter, test_const_unop_bitnot) {
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_unop_bitnot.lua", {debug_mode: false});
+    L->compile_file("./jit/test_const_unop_bitnot.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, -124);
     ASSERT_EQ(ret2, 122);
@@ -2094,4 +2094,24 @@ TEST(jitter, test_local_func_call) {
     L->compile_file("./jit/test_local_func_call.lua", {});
     L->call("test", std::tie(ret), 2, 1);
     ASSERT_TRUE(ret);
+
+    ret = false;
+    L->compile_file("./jit/test_local_func_call.lua", {.debug_mode = false});
+    L->call("test", std::tie(ret), 2, 1);
+    ASSERT_TRUE(ret);
+}
+
+TEST(jitter, test_assign_table_var) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    L->compile_file("./jit/test_assign_table_var.lua", {});
+    L->call("test", std::tie(a), "test", 1);
+    ASSERT_EQ(a, 1);
+
+    a = 0;
+    L->compile_file("./jit/test_assign_simple_var.lua", {.debug_mode = false});
+    L->call("test", std::tie(a), "test", 1);
+    ASSERT_EQ(a, 1);
 }
