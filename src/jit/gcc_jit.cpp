@@ -703,20 +703,6 @@ void gcc_jitter::compile_stmt_local_var(gccjit::function &function, const syntax
     compile_stmt_assign(function, assign_stmt);
 }
 
-std::vector<gccjit::rvalue> gcc_jitter::compile_varlist(gccjit::function &func, const syntax_tree_interface_ptr &varlist) {
-    check_syntax_tree_type(varlist, {syntax_tree_type::syntax_tree_type_varlist});
-    auto varlist_ptr = std::dynamic_pointer_cast<syntax_tree_varlist>(varlist);
-
-    std::vector<gccjit::rvalue> ret;
-    auto &vars = varlist_ptr->vars();
-    for (auto &var: vars) {
-        auto lvalue = compile_var(func, var);
-        ret.push_back(lvalue);
-    }
-
-    return ret;
-}
-
 std::vector<gccjit::lvalue> gcc_jitter::compile_varlist_lvalue(gccjit::function &func, const syntax_tree_interface_ptr &varlist) {
     check_syntax_tree_type(varlist, {syntax_tree_type::syntax_tree_type_varlist});
     auto varlist_ptr = std::dynamic_pointer_cast<syntax_tree_varlist>(varlist);

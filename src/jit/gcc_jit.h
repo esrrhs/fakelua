@@ -53,8 +53,6 @@ private:
 
     void compile_stmt_assign(gccjit::function &function, const syntax_tree_interface_ptr &stmt);
 
-    std::vector<gccjit::rvalue> compile_varlist(gccjit::function &func, const syntax_tree_interface_ptr &explist);
-
     std::vector<gccjit::lvalue> compile_varlist_lvalue(gccjit::function &func, const syntax_tree_interface_ptr &explist);
 
     gccjit::rvalue compile_tableconstructor(gccjit::function &func, const syntax_tree_interface_ptr &tc);
