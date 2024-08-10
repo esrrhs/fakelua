@@ -2115,3 +2115,22 @@ TEST(jitter, test_assign_table_var) {
     L->call("test", std::tie(a), "test", 1);
     ASSERT_EQ(a, 1);
 }
+
+TEST(jitter, test_do_block) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    std::string b;
+    L->compile_file("./jit/test_do_block.lua", {});
+    L->call("test", std::tie(a, b), true, 1.1);
+    ASSERT_EQ(a, 1);
+    ASSERT_EQ(b, "2");
+
+    a = 0;
+    b.clear();
+    L->compile_file("./jit/test_do_block.lua", {.debug_mode = false});
+    L->call("test", std::tie(a, b), true, 1.1);
+    ASSERT_EQ(a, 1);
+    ASSERT_EQ(b, "2");
+}
