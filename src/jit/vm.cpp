@@ -456,6 +456,7 @@ extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle 
     DEBUG_ASSERT(n >= 0);
 
     // TODO
+
     return nullptr;
 }
 
