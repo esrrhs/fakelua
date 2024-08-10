@@ -2090,8 +2090,8 @@ TEST(jitter, test_local_func_call) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
-//    bool ret = 0;
-//    L->compile_file("./jit/test_local_func_call.lua", {});
-//    L->call("test", std::tie(ret), 1, 2);
-//    ASSERT_TRUE(ret);
+    bool ret = false;
+    L->compile_file("./jit/test_local_func_call.lua", {});
+    L->call("test", std::tie(ret), 2, 1);
+    ASSERT_TRUE(ret);
 }

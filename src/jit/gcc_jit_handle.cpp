@@ -23,13 +23,14 @@ std::string_view gcc_jit_handle::alloc_str(const std::string_view &name) {
         return *it;
     }
 
-    auto ret = dynamic_cast<state *>(state_)->get_var_string_heap().alloc(name);
+    const auto &ret = dynamic_cast<state *>(state_)->get_var_string_heap().alloc(name);
     str_container_map_.insert(ret);
     return ret;
 }
 
 var *gcc_jit_handle::alloc_var() {
     auto ret = std::make_shared<var>();
+    ret->set_const(true);
     const_vars_.push_back(ret);
     return ret.get();
 }

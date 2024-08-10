@@ -172,7 +172,7 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     check_return_block(func, funcbody_ptr);
 
     // save the function info
-    function_infos_[name] = {static_cast<int>(actual_params_count), is_variadic > 0};
+    function_infos_[name] = {static_cast<int>(actual_params_count), is_variadic > 0, func};
 }
 
 void gcc_jitter::check_return_block(gccjit::function &func, const syntax_tree_interface_ptr &ptr) {
@@ -243,37 +243,42 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
     const auto &value = e->exp_value();
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
 
     auto is_const = cur_function_data_.is_const;
 
     std::vector<gccjit::param> params;
-    params.push_back(gccjit_context_->new_param(the_var_type, is_const ? "h" : "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
 
     std::string func_name;
 
     std::vector<gccjit::rvalue> args;
-    args.push_back(gccjit_context_->new_rvalue(the_var_type, is_const ? (void *) gcc_jit_handle_.get() : (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
 
     DEBUG_ASSERT(exp_type == "nil" || exp_type == "false" || exp_type == "true" || exp_type == "number" || exp_type == "string" ||
                  exp_type == "prefixexp" || exp_type == "var_params" || exp_type == "tableconstructor" || exp_type == "binop" ||
                  exp_type == "unop")
 
     if (exp_type == "nil") {
-        func_name = is_const ? "new_const_var_nil" : "new_var_nil";
+        func_name = "new_var_nil";
     } else if (exp_type == "false") {
-        func_name = is_const ? "new_const_var_false" : "new_var_false";
+        func_name = "new_var_false";
     } else if (exp_type == "true") {
-        func_name = is_const ? "new_const_var_true" : "new_var_true";
+        func_name = "new_var_true";
     } else if (exp_type == "number") {
         if (is_integer(value)) {
-            func_name = is_const ? "new_const_var_int" : "new_var_int";
+            func_name = "new_var_int";
             auto the_int_type = gccjit_context_->get_type(GCC_JIT_TYPE_INT64_T);
             params.push_back(gccjit_context_->new_param(the_int_type, "val"));
 
             int64_t val = to_integer(value);
             args.push_back(gccjit_context_->new_rvalue(the_int_type, (long) val));
         } else {
-            func_name = is_const ? "new_const_var_float" : "new_var_float";
+            func_name = "new_var_float";
             auto the_float_type = gccjit_context_->get_type(GCC_JIT_TYPE_DOUBLE);
             params.push_back(gccjit_context_->new_param(the_float_type, "val"));
 
@@ -281,7 +286,7 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
             args.push_back(gccjit_context_->new_rvalue(the_float_type, val));
         }
     } else if (exp_type == "string") {
-        func_name = is_const ? "new_const_var_string" : "new_var_string";
+        func_name = "new_var_string";
         auto the_string_type = gccjit_context_->get_type(GCC_JIT_TYPE_CONST_CHAR_PTR);
         params.push_back(gccjit_context_->new_param(the_string_type, "val"));
         auto the_int_type = gccjit_context_->get_type(GCC_JIT_TYPE_INT);
@@ -426,13 +431,20 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, const syntax_tree_i
     auto explist_ret = compile_explist(func, explist);
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
+
+    auto is_const = cur_function_data_.is_const;
 
     std::vector<gccjit::param> params;
     params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
     params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "n"));
 
     std::vector<gccjit::rvalue> args;
-    args.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
     args.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_INT), (int) explist_ret.size()));
 
     for (auto &exp_ret: explist_ret) {
@@ -516,14 +528,21 @@ gccjit::rvalue gcc_jitter::compile_var(gccjit::function &func, const syntax_tree
         auto exp_ret = compile_exp(func, exp);
 
         auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+        auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
+
+        auto is_const = cur_function_data_.is_const;
 
         std::vector<gccjit::param> params;
         params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+        params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+        params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
         params.push_back(gccjit_context_->new_param(the_var_type, "t"));
         params.push_back(gccjit_context_->new_param(the_var_type, "k"));
 
         std::vector<gccjit::rvalue> args;
         args.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
+        args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+        args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
         args.push_back(pe_ret);
         args.push_back(exp_ret);
 
@@ -537,23 +556,31 @@ gccjit::rvalue gcc_jitter::compile_var(gccjit::function &func, const syntax_tree
         auto name = v_ptr->get_name();
         auto pe_ret = compile_prefixexp(func, pe);
 
+        auto name_exp = std::make_shared<syntax_tree_exp>(v_ptr->loc());
+        name_exp->set_type("string");
+        name_exp->set_value(name);
+        auto exp_ret = compile_exp(func, name_exp);
+
         auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+        auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
+
+        auto is_const = cur_function_data_.is_const;
 
         std::vector<gccjit::param> params;
         params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+        params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+        params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
         params.push_back(gccjit_context_->new_param(the_var_type, "t"));
-        params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_CONST_CHAR_PTR), "k"));
-        params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "len"));
-
-        auto container_str = gcc_jit_handle_->alloc_str(name);
+        params.push_back(gccjit_context_->new_param(the_var_type, "k"));
 
         std::vector<gccjit::rvalue> args;
-        args.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
+        args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+        args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+        args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
         args.push_back(pe_ret);
-        args.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_CONST_CHAR_PTR), (void *) container_str.data()));
-        args.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_INT), (int) container_str.size()));
+        args.push_back(exp_ret);
 
-        gccjit::function table_index_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "table_index_by_name",
+        gccjit::function table_index_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "table_index_by_var",
                                                                           params, 0, new_location(v_ptr));
         auto ret = gccjit_context_->new_call(table_index_func, args, new_location(v_ptr));
 
@@ -830,14 +857,21 @@ void gcc_jitter::compile_stmt_assign(gccjit::function &function, const syntax_tr
     }
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
+
+    auto is_const = cur_function_data_.is_const;
 
     std::vector<gccjit::param> params;
     params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
     params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "src_n"));
     params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "dst_n"));
 
     std::vector<gccjit::rvalue> args;
     args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
     args.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_INT), (int) varlist.size()));
     args.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_INT), (int) explist.size()));
     for (auto &var: varlist) {
@@ -861,8 +895,8 @@ gccjit::rvalue gcc_jitter::compile_tableconstructor(gccjit::function &func, cons
 
     auto is_const = cur_function_data_.is_const;
 
-    std::string func_name = is_const ? "new_const_var_table" : "new_var_table";
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
 
     std::vector<gccjit::rvalue> kvs;
     auto fieldlist = tc_ptr->fieldlist();
@@ -871,18 +905,22 @@ gccjit::rvalue gcc_jitter::compile_tableconstructor(gccjit::function &func, cons
     }
 
     std::vector<gccjit::param> params;
-    params.push_back(gccjit_context_->new_param(the_var_type, is_const ? "h" : "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
     params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "n"));
 
     std::vector<gccjit::rvalue> args;
-    args.push_back(gccjit_context_->new_rvalue(the_var_type, is_const ? (void *) gcc_jit_handle_.get() : (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
     args.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_INT), (int) kvs.size()));
     for (auto &kv: kvs) {
         args.push_back(kv);
     }
 
     gccjit::function new_table_func =
-            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 1, new_location(tc));
+            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "new_var_table", params, 1, new_location(tc));
     auto ret = gccjit_context_->new_call(new_table_func, args, new_location(tc));
     return ret;
 }
@@ -960,6 +998,7 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
         // left and right ==> var* pre=left; if (pre) pre=right;
         // left or right ==> var* pre=left; if (!pre) pre=right;
         auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+        auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
 
         auto pre_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
         auto pre = func.new_local(the_var_type, pre_name, new_location(op));
@@ -972,18 +1011,22 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
 
         // if (pre)
         std::vector<gccjit::param> params;
-        params.push_back(gccjit_context_->new_param(the_var_type, is_const ? "h" : "s"));
+        params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+        params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+        params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
         params.push_back(gccjit_context_->new_param(the_var_type, "v"));
 
         std::vector<gccjit::rvalue> args;
-        args.push_back(gccjit_context_->new_rvalue(the_var_type, is_const ? (void *) gcc_jit_handle_.get() : (void *) sp_.get()));
+        args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+        args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+        args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
         args.push_back(pre);
 
         std::string func_name;
         if (opstr == "AND") {
-            func_name = is_const ? "test_const_var" : "test_var";
+            func_name = "test_var";
         } else if (opstr == "OR") {
-            func_name = is_const ? "test_const_not_var" : "test_not_var";
+            func_name = "test_not_var";
         }
 
         gccjit::function test_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, gccjit_context_->get_type(GCC_JIT_TYPE_BOOL),
@@ -1015,59 +1058,64 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
     auto right_ret = compile_exp(func, right);
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
 
     std::vector<gccjit::param> params;
-    params.push_back(gccjit_context_->new_param(the_var_type, is_const ? "h" : "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
     params.push_back(gccjit_context_->new_param(the_var_type, "left"));
     params.push_back(gccjit_context_->new_param(the_var_type, "right"));
 
     std::string func_name;
 
     std::vector<gccjit::rvalue> args;
-    args.push_back(gccjit_context_->new_rvalue(the_var_type, is_const ? (void *) gcc_jit_handle_.get() : (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
     args.push_back(left_ret);
     args.push_back(right_ret);
 
     if (opstr == "PLUS") {
-        func_name = is_const ? "binop_const_plus" : "binop_plus";
+        func_name = "binop_plus";
     } else if (opstr == "MINUS") {
-        func_name = is_const ? "binop_const_minus" : "binop_minus";
+        func_name = "binop_minus";
     } else if (opstr == "STAR") {
-        func_name = is_const ? "binop_const_star" : "binop_star";
+        func_name = "binop_star";
     } else if (opstr == "SLASH") {
-        func_name = is_const ? "binop_const_slash" : "binop_slash";
+        func_name = "binop_slash";
     } else if (opstr == "DOUBLE_SLASH") {
-        func_name = is_const ? "binop_const_double_slash" : "binop_double_slash";
+        func_name = "binop_double_slash";
     } else if (opstr == "POW") {
-        func_name = is_const ? "binop_const_pow" : "binop_pow";
+        func_name = "binop_pow";
     } else if (opstr == "XOR") {
-        func_name = is_const ? "binop_const_xor" : "binop_xor";
+        func_name = "binop_xor";
     } else if (opstr == "MOD") {
-        func_name = is_const ? "binop_const_mod" : "binop_mod";
+        func_name = "binop_mod";
     } else if (opstr == "BITAND") {
-        func_name = is_const ? "binop_const_bitand" : "binop_bitand";
+        func_name = "binop_bitand";
     } else if (opstr == "BITNOT") {
-        func_name = is_const ? "binop_const_bitnot" : "binop_bitnot";
+        func_name = "binop_bitnot";
     } else if (opstr == "BITOR") {
-        func_name = is_const ? "binop_const_bitor" : "binop_bitor";
+        func_name = "binop_bitor";
     } else if (opstr == "RIGHT_SHIFT") {
-        func_name = is_const ? "binop_const_right_shift" : "binop_right_shift";
+        func_name = "binop_right_shift";
     } else if (opstr == "LEFT_SHIFT") {
-        func_name = is_const ? "binop_const_left_shift" : "binop_left_shift";
+        func_name = "binop_left_shift";
     } else if (opstr == "CONCAT") {
-        func_name = is_const ? "binop_const_concat" : "binop_concat";
+        func_name = "binop_concat";
     } else if (opstr == "LESS") {
-        func_name = is_const ? "binop_const_less" : "binop_less";
+        func_name = "binop_less";
     } else if (opstr == "LESS_EQUAL") {
-        func_name = is_const ? "binop_const_less_equal" : "binop_less_equal";
+        func_name = "binop_less_equal";
     } else if (opstr == "MORE") {
-        func_name = is_const ? "binop_const_more" : "binop_more";
+        func_name = "binop_more";
     } else if (opstr == "MORE_EQUAL") {
-        func_name = is_const ? "binop_const_more_equal" : "binop_more_equal";
+        func_name = "binop_more_equal";
     } else if (opstr == "EQUAL") {
-        func_name = is_const ? "binop_const_equal" : "binop_equal";
+        func_name = "binop_equal";
     } else if (opstr == "NOT_EQUAL") {
-        func_name = is_const ? "binop_const_not_equal" : "binop_not_equal";
+        func_name = "binop_not_equal";
     }
 
     gccjit::function binop_func =
@@ -1090,25 +1138,30 @@ gccjit::rvalue gcc_jitter::compile_unop(gccjit::function &func, const syntax_tre
     auto right_ret = compile_exp(func, right);
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
 
     std::vector<gccjit::param> params;
-    params.push_back(gccjit_context_->new_param(the_var_type, is_const ? "h" : "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
     params.push_back(gccjit_context_->new_param(the_var_type, "right"));
 
     std::string func_name;
 
     std::vector<gccjit::rvalue> args;
-    args.push_back(gccjit_context_->new_rvalue(the_var_type, is_const ? (void *) gcc_jit_handle_.get() : (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
     args.push_back(right_ret);
 
     if (opstr == "MINUS") {
-        func_name = is_const ? "unop_const_minus" : "unop_minus";
+        func_name = "unop_minus";
     } else if (opstr == "NOT") {
-        func_name = is_const ? "unop_const_not" : "unop_not";
+        func_name = "unop_not";
     } else if (opstr == "NUMBER_SIGN") {
-        func_name = is_const ? "unop_const_number_sign" : "unop_number_sign";
+        func_name = "unop_number_sign";
     } else if (opstr == "BITNOT") {
-        func_name = is_const ? "unop_const_bitnot" : "unop_bitnot";
+        func_name = "unop_bitnot";
     }
 
     gccjit::function unop_func =
@@ -1124,33 +1177,55 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
 
     auto prefixexp = functioncall_ptr->prefixexp();
 
+    // simple way, just call the function directly
     auto simple_name = get_simple_prefixexp_name(prefixexp);
     if (!simple_name.empty()) {
-        // simple way, just call the function directly
+        // check if is jit builtin function
         if (is_jit_builtin_function(simple_name)) {
             // note: here maybe const function call
             auto is_const = cur_function_data_.is_const;
 
             auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+            auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
 
             auto args = functioncall_ptr->args();
             auto args_ret = compile_args(func, args);
 
             std::vector<gccjit::param> params;
-            params.push_back(gccjit_context_->new_param(the_var_type, is_const ? "h" : "s"));
+            params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+            params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+            params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
             for (size_t i = 0; i < args_ret.size(); ++i) {
                 params.push_back(gccjit_context_->new_param(the_var_type, std::format("arg{}", i)));
             }
 
             std::vector<gccjit::rvalue> args2;
-            args2.push_back(gccjit_context_->new_rvalue(the_var_type, is_const ? (void *) gcc_jit_handle_.get() : (void *) sp_.get()));
+            args2.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+            args2.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+            args2.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
             for (auto &arg_ret: args_ret) {
                 args2.push_back(arg_ret);
             }
 
-            std::string func_name = get_jit_builtin_function_vm_name(simple_name, is_const);
+            std::string func_name = get_jit_builtin_function_vm_name(simple_name);
             gccjit::function call_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 0,
                                                                        new_location(functioncall));
+            auto ret = gccjit_context_->new_call(call_func, args2, new_location(functioncall));
+            return ret;
+        }
+
+        // check if is local function call
+        auto it = function_infos_.find(simple_name);
+        if (it != function_infos_.end()) {
+            auto args = functioncall_ptr->args();
+            auto args_ret = compile_args(func, args);
+
+            std::vector<gccjit::rvalue> args2;
+            for (auto &arg_ret: args_ret) {
+                args2.push_back(arg_ret);
+            }
+
+            gccjit::function call_func = it->second.func;
             auto ret = gccjit_context_->new_call(call_func, args2, new_location(functioncall));
             return ret;
         }
@@ -1163,14 +1238,21 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
     auto args_ret = compile_args(func, args);
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
+
+    auto is_const = cur_function_data_.is_const;
 
     std::vector<gccjit::param> params;
     params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
     params.push_back(gccjit_context_->new_param(the_var_type, "func"));
     params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "n"));
 
     std::vector<gccjit::rvalue> args2;
     args2.push_back(gccjit_context_->new_rvalue(the_var_type, sp_.get()));
+    args2.push_back(gccjit_context_->new_rvalue(the_var_type, gcc_jit_handle_.get()));
+    args2.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
     args2.push_back(prefixexp_ret);
     args2.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_INT), (int) args_ret.size()));
     for (auto &arg_ret: args_ret) {
@@ -1254,9 +1336,9 @@ bool gcc_jitter::is_jit_builtin_function(const std::string &name) {
     return name == "__fakelua_set_table__";
 }
 
-std::string gcc_jitter::get_jit_builtin_function_vm_name(const std::string &name, bool is_const) {
+std::string gcc_jitter::get_jit_builtin_function_vm_name(const std::string &name) {
     if (name == "__fakelua_set_table__") {
-        return is_const ? "table_const_set" : "table_set";
+        return "table_set";
     }
     throw std::runtime_error("not support jit builtin function: " + name);
 }

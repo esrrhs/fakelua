@@ -108,7 +108,7 @@ private:
 
     bool is_jit_builtin_function(const std::string &name);
 
-    std::string get_jit_builtin_function_vm_name(const std::string &name, bool is_const);
+    std::string get_jit_builtin_function_vm_name(const std::string &name);
 
 private:
     // the state contains the running environment we need.
@@ -122,6 +122,7 @@ private:
     struct function_info {
         int params_count = 0;
         bool is_variadic = false;
+        gccjit::function func;
     };
     // function name -> function info
     std::unordered_map<std::string, function_info> function_infos_;
