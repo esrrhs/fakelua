@@ -988,7 +988,7 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
     auto is_const = cur_function_data_.is_const;
 
     DEBUG_ASSERT(opstr == "PLUS" || opstr == "MINUS" || opstr == "STAR" || opstr == "SLASH" || opstr == "DOUBLE_SLASH" || opstr == "POW" ||
-                 opstr == "XOR" || opstr == "MOD" || opstr == "BITAND" || opstr == "BITNOT" || opstr == "BITOR" || opstr == "RIGHT_SHIFT" ||
+                 opstr == "XOR" || opstr == "MOD" || opstr == "BITAND" || opstr == "BITOR" || opstr == "RIGHT_SHIFT" ||
                  opstr == "LEFT_SHIFT" || opstr == "CONCAT" || opstr == "LESS" || opstr == "LESS_EQUAL" || opstr == "MORE" ||
                  opstr == "MORE_EQUAL" || opstr == "EQUAL" || opstr == "NOT_EQUAL" || opstr == "AND" || opstr == "OR");
 
@@ -1092,8 +1092,6 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
         func_name = "binop_mod";
     } else if (opstr == "BITAND") {
         func_name = "binop_bitand";
-    } else if (opstr == "BITNOT") {
-        func_name = "binop_bitnot";
     } else if (opstr == "BITOR") {
         func_name = "binop_bitor";
     } else if (opstr == "RIGHT_SHIFT") {
