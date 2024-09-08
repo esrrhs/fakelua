@@ -1173,6 +1173,8 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
 
     auto prefixexp = functioncall_ptr->prefixexp();
 
+    gccjit::rvalue prefixexp_ret;
+
     // simple way, just call the function directly
     auto simple_name = get_simple_prefixexp_name(prefixexp);
     if (!simple_name.empty()) {
@@ -1225,11 +1227,18 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
             auto ret = gccjit_context_->new_call(call_func, args2, new_location(functioncall));
             return ret;
         }
+
+        // is global function call, make it as a var
+        auto name_exp = std::make_shared<syntax_tree_exp>(functioncall->loc());
+        name_exp->set_type("string");
+        name_exp->set_value(simple_name);
+        prefixexp_ret = compile_exp(func, name_exp);
+    } else {
+        // is var call, eg: a="test"; a();
+        prefixexp_ret = compile_prefixexp(func, prefixexp);
     }
 
     // complex way, call the function by call_var
-    auto prefixexp_ret = compile_prefixexp(func, prefixexp);
-
     auto args = functioncall_ptr->args();
     auto args_ret = compile_args(func, args);
 

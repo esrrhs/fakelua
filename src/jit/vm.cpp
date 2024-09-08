@@ -455,9 +455,42 @@ extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle 
     DEBUG_ASSERT(func->type() >= var_type::VAR_MIN && func->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(n >= 0);
 
-    // TODO
+    // prepare params
+    std::vector<var *> params;
+    va_list args;
+    va_start(args, n);
+    for (int i = 0; i < n; i++) {
+        auto arg = va_arg(args, var *);
+        DEBUG_ASSERT(arg);
+        DEBUG_ASSERT(arg->type() >= var_type::VAR_MIN && arg->type() <= var_type::VAR_MAX);
+        params.push_back(arg);
+    }
+    va_end(args);
 
-    return nullptr;
+    // func must be string type
+    if (func->type() != var_type::VAR_STRING) {
+        throw_fakelua_exception(std::format("call_var: func must be string type, but got {}", func->to_string()));
+    }
+
+    // get function address
+    auto name = func->get_string();
+    auto function = dynamic_cast<state *>(s)->get_vm().get_function(std::string(name));
+    if (!function) {
+        throw_fakelua_exception(std::format("call_var: function {} not found", name));
+    }
+
+    // check params count
+    if (!func->is_variadic() && n != function->get_arg_count()) {
+        throw_fakelua_exception(std::format("call_var: function {} expect {} params, but got {}", name, function->get_arg_count(), n));
+    }
+
+    // call function
+    DEBUG_ASSERT(function->get_addr());
+    auto func_addr = reinterpret_cast<var *(*) (...)>(function->get_addr());
+    auto ret = call_var_func(func_addr, params);
+    DEBUG_ASSERT(ret);
+
+    return ret;
 }
 
 extern "C" __attribute__((used)) var *table_index_by_var(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, var *key) {

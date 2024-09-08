@@ -1,7 +1,5 @@
 #pragma once
 
-#include "common.h"
-
 namespace fakelua {
 
 class fakelua_exception : public std::runtime_error {

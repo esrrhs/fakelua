@@ -2101,6 +2101,21 @@ TEST(jitter, test_local_func_call) {
     ASSERT_TRUE(ret);
 }
 
+TEST(jitter, test_global_func_call) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    bool ret = false;
+    L->compile_file("./jit/test_global_func_call.lua", {});
+    L->call("test", std::tie(ret), 2, 1);
+    ASSERT_TRUE(ret);
+
+    ret = false;
+    L->compile_file("./jit/test_global_func_call.lua", {.debug_mode = false});
+    L->call("test", std::tie(ret), 2, 1);
+    ASSERT_TRUE(ret);
+}
+
 TEST(jitter, test_assign_table_var) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
@@ -2146,10 +2161,10 @@ TEST(jitter, test_while) {
     //    ASSERT_EQ(a, 1);
     //    ASSERT_EQ(b, "2");
     //
-//    a = 0;
-//    b.clear();
-//    L->compile_file("./jit/test_while.lua", {.debug_mode = false});
-//    L->call("test", std::tie(a, b), true, 1.1);
-//    ASSERT_EQ(a, 1);
-//    ASSERT_EQ(b, "2");
+    //    a = 0;
+    //    b.clear();
+    //    L->compile_file("./jit/test_while.lua", {.debug_mode = false});
+    //    L->call("test", std::tie(a, b), true, 1.1);
+    //    ASSERT_EQ(a, 1);
+    //    ASSERT_EQ(b, "2");
 }
