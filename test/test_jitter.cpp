@@ -1883,6 +1883,25 @@ TEST(jitter, test_binop_and) {
     ASSERT_EQ(ret2->type(), var_type::VAR_NIL);
 }
 
+TEST(jitter, test_binop_and_or) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret1 = 0;
+    float ret2 = 0;
+    L->compile_file("./jit/test_binop_and_or.lua", {});
+    L->call("test", std::tie(ret1, ret2), 1, 2, 3, nullptr);
+    ASSERT_EQ(ret1, 3);
+    ASSERT_EQ(ret2, 4);
+
+    ret1 = 0;
+    ret2 = 0;
+    L->compile_file("./jit/test_binop_and_or.lua", {.debug_mode = false});
+    L->call("test", std::tie(ret1, ret2), 1, 2, 3, nullptr);
+    ASSERT_EQ(ret1, 3);
+    ASSERT_EQ(ret2, 4);
+}
+
 TEST(jitter, test_const_binop_and) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
@@ -2151,20 +2170,20 @@ TEST(jitter, test_do_block) {
 }
 
 TEST(jitter, test_while) {
-    auto L = fakelua_newstate();
-    ASSERT_NE(L.get(), nullptr);
-
+    //    auto L = fakelua_newstate();
+    //    ASSERT_NE(L.get(), nullptr);
+    //
     //    int a = 0;
     //    std::string b;
     //    L->compile_file("./jit/test_while.lua", {});
-    //    L->call("test", std::tie(a, b), true, 1.1);
-    //    ASSERT_EQ(a, 1);
-    //    ASSERT_EQ(b, "2");
+    //    L->call("test", std::tie(a, b), 1, "a");
+    //    ASSERT_EQ(a, 10);
+    //    ASSERT_EQ(b, "aaaaaaaaaa2");
     //
     //    a = 0;
     //    b.clear();
     //    L->compile_file("./jit/test_while.lua", {.debug_mode = false});
-    //    L->call("test", std::tie(a, b), true, 1.1);
-    //    ASSERT_EQ(a, 1);
-    //    ASSERT_EQ(b, "2");
+    //    L->call("test", std::tie(a, b), 1, "a");
+    //    ASSERT_EQ(a, 10);
+    //    ASSERT_EQ(b, "aaaaaaaaaa2");
 }

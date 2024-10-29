@@ -377,6 +377,9 @@ void gcc_jitter::compile_block(gccjit::function &func, const syntax_tree_interfa
     auto block_ptr = std::dynamic_pointer_cast<syntax_tree_block>(block);
 
     auto the_block = func.new_block(new_block_name("block", block_ptr));
+    if (cur_function_data_.cur_block.get_inner_block()) {
+        cur_function_data_.cur_block.end_with_jump(the_block, new_location(block_ptr));
+    }
     cur_function_data_.cur_block = the_block;
 
     // alloc new stack frame
@@ -467,10 +470,8 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, const syntax_tree_i
             gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "wrap_return_var", params, 1, new_location(explist));
     auto ret = gccjit_context_->new_call(wrap_return_func, args, new_location(explist));
 
-    auto the_block = cur_function_data_.cur_block;
-    the_block.end_with_return(ret, new_location(return_stmt));
-
-    cur_function_data_.ended_blocks.insert(the_block.get_inner_block());
+    cur_function_data_.cur_block.end_with_return(ret, new_location(return_stmt));
+    cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
 }
 
 std::vector<gccjit::rvalue> gcc_jitter::compile_explist(gccjit::function &func, const syntax_tree_interface_ptr &explist) {
@@ -677,8 +678,7 @@ void gcc_jitter::compile_stmt_local_var(gccjit::function &function, const syntax
         nil_exp->set_type("nil");
         auto exp_ret = compile_exp(function, nil_exp);
 
-        auto the_block = cur_function_data_.cur_block;
-        the_block.add_assignment(dst, exp_ret, new_location(nil_exp));
+        cur_function_data_.cur_block.add_assignment(dst, exp_ret, new_location(nil_exp));
 
         // add to local vars
         save_stack_lvalue_by_name(name, dst, keys);
@@ -845,11 +845,10 @@ void gcc_jitter::compile_stmt_assign(gccjit::function &function, const syntax_tr
 
     if (is_simple_assign(vars, exps)) {
         // eg: a = 1
-        auto the_block = cur_function_data_.cur_block;
         for (size_t i = 0; i < varlist.size() && i < explist.size(); ++i) {
             auto &var = varlist[i];
             auto &exp = explist[i];
-            the_block.add_assignment(var, exp, new_location(stmt));
+            cur_function_data_.cur_block.add_assignment(var, exp, new_location(stmt));
         }
         return;
     }
@@ -883,8 +882,7 @@ void gcc_jitter::compile_stmt_assign(gccjit::function &function, const syntax_tr
     gccjit::function assign_func =
             gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "assign_var", params, 1, new_location(stmt));
     auto ret = gccjit_context_->new_call(assign_func, args, new_location(stmt));
-    auto the_block = cur_function_data_.cur_block;
-    the_block.add_eval(ret, new_location(stmt));
+    cur_function_data_.cur_block.add_eval(ret, new_location(stmt));
 }
 
 gccjit::rvalue gcc_jitter::compile_tableconstructor(gccjit::function &func, const syntax_tree_interface_ptr &tc) {
@@ -1001,11 +999,9 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
         auto pre_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
         auto pre = func.new_local(the_var_type, pre_name, new_location(op));
 
-        auto cur_block = cur_function_data_.cur_block;
-
         // var* pre=left
         auto left_ret = compile_exp(func, left);
-        cur_block.add_assignment(pre, left_ret, new_location(op));
+        cur_function_data_.cur_block.add_assignment(pre, left_ret, new_location(op));
 
         // if (pre)
         std::vector<gccjit::param> params;
@@ -1033,19 +1029,19 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
 
         auto then_block = func.new_block(new_block_name("then", op));
         auto else_block = func.new_block(new_block_name("else", op));
-        cur_block.end_with_conditional(test_ret, then_block, else_block, new_location(op));
+        cur_function_data_.cur_block.end_with_conditional(test_ret, then_block, else_block, new_location(op));
 
         auto new_block = func.new_block(new_block_name("and end", op));
 
         // {pre=right;}
         cur_function_data_.cur_block = then_block;
         auto right_ret = compile_exp(func, right);
-        then_block.add_assignment(pre, right_ret, new_location(op));
-        then_block.end_with_jump(new_block, new_location(op));
+        cur_function_data_.cur_block.add_assignment(pre, right_ret, new_location(op));
+        cur_function_data_.cur_block.end_with_jump(new_block, new_location(op));
 
         // {}
         cur_function_data_.cur_block = else_block;
-        else_block.end_with_jump(new_block, new_location(op));
+        cur_function_data_.cur_block.end_with_jump(new_block, new_location(op));
 
         cur_function_data_.cur_block = new_block;
 
@@ -1305,8 +1301,7 @@ void gcc_jitter::compile_stmt_functioncall(gccjit::function &function, const syn
         DEBUG_ASSERT(get_simple_prefixexp_name(functioncall->prefixexp()) == "__fakelua_set_table__");
     }
     auto ret = compile_functioncall(function, functioncall);
-    auto the_block = cur_function_data_.cur_block;
-    the_block.add_eval(ret, new_location(stmt));
+    cur_function_data_.cur_block.add_eval(ret, new_location(stmt));
 }
 
 std::string gcc_jitter::get_simple_prefixexp_name(const syntax_tree_interface_ptr &pe) {
