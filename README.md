@@ -12,7 +12,7 @@ FakeLua is a superset of Lua, it compiles Lua to native code at runtime.
 * support Lua 5.4 grammar
 * lexing and parsing by Flex && Bison
 * compile to native code by GCC JIT
-* can GDB with source code
+* support GDB Lua source code
 
 # Difference with Lua
 * no global variable, only global constant
