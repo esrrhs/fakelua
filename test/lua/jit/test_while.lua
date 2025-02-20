@@ -1,5 +1,5 @@
 function test(a, b)
-    while a < 10 do
+    while a < 3 do
         a = a + 1
         b = b .. "2"
     end

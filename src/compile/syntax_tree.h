@@ -557,6 +557,14 @@ public:
         block_ = block;
     }
 
+    syntax_tree_interface_ptr exp() const {
+        return exp_;
+    }
+
+    syntax_tree_interface_ptr block() const {
+        return block_;
+    }
+
 private:
     syntax_tree_interface_ptr exp_;
     syntax_tree_interface_ptr block_;

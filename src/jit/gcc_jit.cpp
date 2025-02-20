@@ -1368,7 +1368,48 @@ void gcc_jitter::compile_stmt_while(gccjit::function &func, const fakelua::synta
     check_syntax_tree_type(wh, {syntax_tree_type::syntax_tree_type_while});
     auto while_ptr = std::dynamic_pointer_cast<syntax_tree_while>(wh);
 
-    // TODO
+    gccjit::block cond_block = func.new_block(new_block_name("loop cond", wh));
+    gccjit::block body_block = func.new_block(new_block_name("loop body", wh));
+    gccjit::block after_block = func.new_block(new_block_name("after loop", wh));
+
+    cur_function_data_.cur_block.end_with_jump(cond_block, new_location(wh));
+    cur_function_data_.cur_block = cond_block;
+
+    // while exp do block end
+    auto exp = while_ptr->exp();
+    auto block = while_ptr->block();
+
+    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
+
+    // make the exp
+    auto cond_ret = compile_exp(func, exp);
+
+    auto is_const = cur_function_data_.is_const;
+
+    // check exp
+    std::vector<gccjit::param> params;
+    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "v"));
+
+    std::vector<gccjit::rvalue> args;
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
+    args.push_back(cond_ret);
+    gccjit::function test_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, gccjit_context_->get_type(GCC_JIT_TYPE_BOOL),
+                                                               "test_var", params, 0, new_location(exp));
+    auto test_ret = gccjit_context_->new_call(test_func, args, new_location(exp));
+
+    cond_block.end_with_conditional(test_ret, body_block, after_block, new_location(exp));
+
+    cur_function_data_.cur_block = body_block;
+    compile_stmt_block(func, block);
+    cur_function_data_.cur_block.end_with_jump(cond_block, new_location(wh));
+
+    cur_function_data_.cur_block = after_block;
 }
 
 }// namespace fakelua
