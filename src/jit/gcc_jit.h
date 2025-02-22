@@ -78,6 +78,8 @@ private:
 
     void compile_stmt_while(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
 
+    void compile_stmt_repeat(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
+
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
 

@@ -424,6 +424,10 @@ void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interfac
             compile_stmt_while(func, stmt);
             break;
         }
+        case syntax_tree_type::syntax_tree_type_repeat: {
+            compile_stmt_repeat(func, stmt);
+            break;
+        }
         default: {
             throw_error(std::format("not support stmt type: {}", magic_enum::enum_name(stmt->type())), stmt);
         }
@@ -1408,6 +1412,54 @@ void gcc_jitter::compile_stmt_while(gccjit::function &func, const fakelua::synta
     cur_function_data_.cur_block = body_block;
     compile_stmt_block(func, block);
     cur_function_data_.cur_block.end_with_jump(cond_block, new_location(wh));
+
+    cur_function_data_.cur_block = after_block;
+}
+
+void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_interface_ptr &re) {
+    check_syntax_tree_type(re, {syntax_tree_type::syntax_tree_type_repeat});
+    auto repeat_ptr = std::dynamic_pointer_cast<syntax_tree_repeat>(re);
+
+    gccjit::block cond_block = func.new_block(new_block_name("loop cond", re));
+    gccjit::block body_block = func.new_block(new_block_name("loop body", re));
+    gccjit::block after_block = func.new_block(new_block_name("after loop", re));
+
+    cur_function_data_.cur_block.end_with_jump(body_block, new_location(re));
+    cur_function_data_.cur_block = body_block;
+
+    // repeat block until cond
+    auto exp = repeat_ptr->exp();
+    auto block = repeat_ptr->block();
+
+    compile_stmt_block(func, block);
+    cur_function_data_.cur_block.end_with_jump(cond_block, new_location(re));
+    cur_function_data_.cur_block = cond_block;
+
+    // make the exp
+    auto cond_ret = compile_exp(func, exp);
+
+    auto is_const = cur_function_data_.is_const;
+
+    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
+
+    // check exp
+    std::vector<gccjit::param> params;
+    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "v"));
+
+    std::vector<gccjit::rvalue> args;
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
+    args.push_back(cond_ret);
+    gccjit::function test_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, gccjit_context_->get_type(GCC_JIT_TYPE_BOOL),
+                                                               "test_var", params, 0, new_location(exp));
+    auto test_ret = gccjit_context_->new_call(test_func, args, new_location(exp));
+
+    cond_block.end_with_conditional(test_ret, after_block, body_block, new_location(exp));
 
     cur_function_data_.cur_block = after_block;
 }
