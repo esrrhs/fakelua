@@ -637,6 +637,22 @@ public:
         elseblock_ = elseblock;
     }
 
+    syntax_tree_interface_ptr exp() const {
+        return exp_;
+    }
+
+    syntax_tree_interface_ptr block() const {
+        return block_;
+    }
+
+    syntax_tree_interface_ptr elseifs() const {
+        return elseifs_;
+    }
+
+    syntax_tree_interface_ptr elseblock() const {
+        return elseblock_;
+    }
+
 private:
     syntax_tree_interface_ptr exp_;
     syntax_tree_interface_ptr block_;
@@ -665,6 +681,18 @@ public:
 
     void add_elseif_block(const syntax_tree_interface_ptr &block) {
         blocks_.push_back(block);
+    }
+
+    size_t elseif_size() const {
+        return exps_.size();
+    }
+
+    syntax_tree_interface_ptr elseif_exp(size_t idx) const {
+        return exps_[idx];
+    }
+
+    syntax_tree_interface_ptr elseif_block(size_t idx) const {
+        return blocks_[idx];
     }
 
 private:

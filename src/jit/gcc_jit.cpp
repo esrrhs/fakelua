@@ -183,6 +183,13 @@ void gcc_jitter::check_return_block(gccjit::function &func, const syntax_tree_in
     }
 }
 
+bool gcc_jitter::is_block_returned() {
+    if (cur_function_data_.ended_blocks.find(cur_function_data_.cur_block.get_inner_block()) != cur_function_data_.ended_blocks.end()) {
+        return true;
+    }
+    return false;
+}
+
 void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
     // the chunk must be a block
     check_syntax_tree_type(chunk, {syntax_tree_type::syntax_tree_type_block});
@@ -426,6 +433,10 @@ void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interfac
         }
         case syntax_tree_type::syntax_tree_type_repeat: {
             compile_stmt_repeat(func, stmt);
+            break;
+        }
+        case syntax_tree_type::syntax_tree_type_if: {
+            compile_stmt_if(func, stmt);
             break;
         }
         default: {
@@ -1411,8 +1422,10 @@ void gcc_jitter::compile_stmt_while(gccjit::function &func, const fakelua::synta
 
     cur_function_data_.cur_block = body_block;
     compile_stmt_block(func, block);
-    cur_function_data_.cur_block.end_with_jump(cond_block, new_location(wh));
 
+    if (!is_block_returned()) {
+        cur_function_data_.cur_block.end_with_jump(cond_block, new_location(wh));
+    }
     cur_function_data_.cur_block = after_block;
 }
 
@@ -1432,7 +1445,11 @@ void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_i
     auto block = repeat_ptr->block();
 
     compile_stmt_block(func, block);
-    cur_function_data_.cur_block.end_with_jump(cond_block, new_location(re));
+
+    if (!is_block_returned()) {
+        cur_function_data_.cur_block.end_with_jump(cond_block, new_location(re));
+    }
+
     cur_function_data_.cur_block = cond_block;
 
     // make the exp
@@ -1462,6 +1479,126 @@ void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_i
     cond_block.end_with_conditional(test_ret, after_block, body_block, new_location(exp));
 
     cur_function_data_.cur_block = after_block;
+}
+
+void gcc_jitter::compile_stmt_if(gccjit::function &func, const syntax_tree_interface_ptr &is) {
+    check_syntax_tree_type(is, {syntax_tree_type::syntax_tree_type_if});
+    auto if_ptr = std::dynamic_pointer_cast<syntax_tree_if>(is);
+
+    auto exp = if_ptr->exp();
+    auto block = if_ptr->block();
+    auto elseifs = if_ptr->elseifs();
+    check_syntax_tree_type(elseifs, {syntax_tree_type::syntax_tree_type_elseiflist});
+    auto elseifs_ptr = std::dynamic_pointer_cast<syntax_tree_elseiflist>(elseifs);
+    auto else_ptr = if_ptr->elseblock();// maybe nullptr
+
+    gccjit::block cond_block = func.new_block(new_block_name("if cond", is));
+    gccjit::block body_block = func.new_block(new_block_name("if body", is));
+    gccjit::block else_block = func.new_block(new_block_name("if else", is));
+    gccjit::block end_block;// maybe if and else all returned, so no need end_block
+
+    cur_function_data_.cur_block.end_with_jump(cond_block, new_location(exp));
+    cur_function_data_.cur_block = cond_block;
+
+    // make the exp
+    auto cond_ret = compile_exp(func, exp);
+
+    auto is_const = cur_function_data_.is_const;
+
+    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
+
+    // check exp
+    std::vector<gccjit::param> params;
+    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "v"));
+
+    std::vector<gccjit::rvalue> args;
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
+    args.push_back(cond_ret);
+    gccjit::function test_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, gccjit_context_->get_type(GCC_JIT_TYPE_BOOL),
+                                                               "test_var", params, 0, new_location(exp));
+    auto test_ret = gccjit_context_->new_call(test_func, args, new_location(exp));
+
+    cur_function_data_.cur_block.end_with_conditional(test_ret, body_block, else_block, new_location(exp));
+    cur_function_data_.cur_block = body_block;
+
+    compile_stmt_block(func, block);
+
+    if (!is_block_returned()) {
+        if (!end_block.get_inner_block()) {
+            end_block = func.new_block(new_block_name("if end", is));
+        }
+        cur_function_data_.cur_block.end_with_jump(end_block, new_location(is));
+    }
+
+    cur_function_data_.cur_block = else_block;
+    for (size_t i = 0; i < elseifs_ptr->elseif_size(); i++) {
+        auto elseifs_exp = elseifs_ptr->elseif_exp(i);
+        auto elseifs_block = elseifs_ptr->elseif_block(i);
+
+        auto elseifs_body_block = func.new_block(new_block_name("elseif body", is));
+        auto next_else_block = func.new_block(new_block_name("elseif else", is));
+
+        // make the exp
+        auto elseifs_cond_ret = compile_exp(func, elseifs_exp);
+
+        // check exp
+        std::vector<gccjit::param> elseifs_params;
+        elseifs_params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+        elseifs_params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+        elseifs_params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
+        elseifs_params.push_back(gccjit_context_->new_param(the_var_type, "v"));
+
+        std::vector<gccjit::rvalue> elseifs_args;
+        elseifs_args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+        elseifs_args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+        elseifs_args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
+        elseifs_args.push_back(elseifs_cond_ret);
+
+        gccjit::function elseifs_test_func =
+                gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, gccjit_context_->get_type(GCC_JIT_TYPE_BOOL), "test_var",
+                                              elseifs_params, 0, new_location(elseifs_exp));
+        auto elseifs_test_ret = gccjit_context_->new_call(elseifs_test_func, elseifs_args, new_location(elseifs_exp));
+
+        cur_function_data_.cur_block.end_with_conditional(elseifs_test_ret, elseifs_body_block, next_else_block, new_location(elseifs_exp));
+
+        cur_function_data_.cur_block = elseifs_body_block;
+        compile_stmt_block(func, elseifs_block);
+
+        if (!is_block_returned()) {
+            if (!end_block.get_inner_block()) {
+                end_block = func.new_block(new_block_name("if end", is));
+            }
+            cur_function_data_.cur_block.end_with_jump(end_block, new_location(is));
+        }
+
+        cur_function_data_.cur_block = next_else_block;
+    }
+
+    if (else_ptr) {
+        auto else_body_block = func.new_block(new_block_name("else body", is));
+
+        cur_function_data_.cur_block.end_with_jump(else_body_block, new_location(is));
+        cur_function_data_.cur_block = else_body_block;
+
+        compile_stmt_block(func, else_ptr);
+    }
+
+    if (!is_block_returned()) {
+        if (!end_block.get_inner_block()) {
+            end_block = func.new_block(new_block_name("if end", is));
+        }
+        cur_function_data_.cur_block.end_with_jump(end_block, new_location(is));
+    }
+
+    if (end_block.get_inner_block()) {
+        cur_function_data_.cur_block = end_block;
+    }
 }
 
 }// namespace fakelua
