@@ -1,13 +1,13 @@
 function test(a, b)
     local i = 0
     local result = 0
-    while i < a do
+    repeat
         local j = 0
-        while j < b do
+        repeat
             result = result + (i * j)
             j = j + 1
-        end
+        until j >= b
         i = i + 1
-    end
+    until i >= a
     return result
 end

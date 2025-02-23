@@ -2222,6 +2222,21 @@ TEST(jitter, test_while_double) {
     ASSERT_EQ(a, 18);
 }
 
+TEST(jitter, test_repeat_double) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    L->compile_file("./jit/test_repeat_double.lua", {});
+    L->call("test", std::tie(a), 4, 3);
+    ASSERT_EQ(a, 18);
+
+    a = 0;
+    L->compile_file("./jit/test_repeat_double.lua", {.debug_mode = false});
+    L->call("test", std::tie(a), 4, 3);
+    ASSERT_EQ(a, 18);
+}
+
 TEST(jitter, test_if) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
