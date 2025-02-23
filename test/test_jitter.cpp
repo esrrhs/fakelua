@@ -2222,7 +2222,7 @@ TEST(jitter, test_while_double) {
     ASSERT_EQ(a, 18);
 }
 
-TEST(jitter, test_while_if) {
+TEST(jitter, test_if) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
@@ -2249,7 +2249,7 @@ TEST(jitter, test_while_if) {
     ASSERT_EQ(a, 0);
 }
 
-TEST(jitter, test_while_if_simple) {
+TEST(jitter, test_if_simple) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
@@ -2268,7 +2268,7 @@ TEST(jitter, test_while_if_simple) {
     ASSERT_EQ(a, 0);
 }
 
-TEST(jitter, test_while_if_elseif) {
+TEST(jitter, test_if_elseif) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
@@ -2299,7 +2299,7 @@ TEST(jitter, test_while_if_elseif) {
     ASSERT_EQ(a, 0);
 }
 
-TEST(jitter, test_while_if_else) {
+TEST(jitter, test_if_else) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
@@ -2316,6 +2316,25 @@ TEST(jitter, test_while_if_else) {
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 0, 2);
     ASSERT_EQ(a, 0);
+}
+
+TEST(jitter, test_while_return) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    L->compile_file("./jit/test_while_return.lua", {});
+    L->call("test", std::tie(a), 4, 4);
+    ASSERT_EQ(a, 4);
+    L->call("test", std::tie(a), 2, 4);
+    ASSERT_EQ(a, 2);
+
+    a = 0;
+    L->compile_file("./jit/test_while_return.lua", {.debug_mode = false});
+    L->call("test", std::tie(a), 4, 4);
+    ASSERT_EQ(a, 4);
+    L->call("test", std::tie(a), 2, 4);
+    ASSERT_EQ(a, 2);
 }
 
 TEST(jitter, test_while_break) {
