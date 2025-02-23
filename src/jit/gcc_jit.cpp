@@ -1460,9 +1460,9 @@ void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_i
     check_syntax_tree_type(re, {syntax_tree_type::syntax_tree_type_repeat});
     auto repeat_ptr = std::dynamic_pointer_cast<syntax_tree_repeat>(re);
 
-    gccjit::block cond_block = func.new_block(new_block_name("loop cond", re));
+    gccjit::block cond_block; // maybe body just return, so cond and after maybe not exist
     gccjit::block body_block = func.new_block(new_block_name("loop body", re));
-    gccjit::block after_block = func.new_block(new_block_name("after loop", re));
+    gccjit::block after_block;
 
     // use to break jump
     cur_function_data_.stack_end_blocks.emplace_back(after_block);
@@ -1480,8 +1480,12 @@ void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_i
     cur_function_data_.stack_end_blocks.pop_back();
 
     if (!is_block_returned()) {
+        cond_block = func.new_block(new_block_name("loop cond", re));
+        after_block = func.new_block(new_block_name("after loop", re));
         cur_function_data_.cur_block.end_with_jump(cond_block, new_location(re));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+    } else {
+        return;
     }
 
     cur_function_data_.cur_block = cond_block;
