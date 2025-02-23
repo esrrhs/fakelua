@@ -82,6 +82,8 @@ private:
 
     void compile_stmt_if(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
 
+    void compile_stmt_break(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
+
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
 
@@ -100,6 +102,8 @@ private:
     void check_return_block(gccjit::function &func, const syntax_tree_interface_ptr &ptr);
 
     bool is_block_returned();
+
+    void check_cur_block_jump_end(gccjit::function &func, const std::string &init_name, const syntax_tree_interface_ptr &init_ptr);
 
 private:
     bool is_simple_assign(const syntax_tree_interface_ptr &vars, const syntax_tree_interface_ptr &exps);
@@ -146,6 +150,7 @@ private:
         std::vector<stack_frame> stack_frames;
         std::unordered_set<gcc_jit_block *> ended_blocks;
         gccjit::block cur_block;
+        std::vector<gccjit::block> stack_end_blocks;
         int pre_index = 0;
         bool is_const = false;
     };
