@@ -1477,11 +1477,11 @@ void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_i
 
     compile_stmt_block(func, block);
 
+    after_block = cur_function_data_.stack_end_blocks.back();
     cur_function_data_.stack_end_blocks.pop_back();
 
     if (!is_block_returned()) {
         cond_block = func.new_block(new_block_name("loop cond", re));
-        after_block = func.new_block(new_block_name("after loop", re));
         cur_function_data_.cur_block.end_with_jump(cond_block, new_location(re));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     } else {
@@ -1514,6 +1514,9 @@ void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_i
                                                                "test_var", params, 0, new_location(exp));
     auto test_ret = gccjit_context_->new_call(test_func, args, new_location(exp));
 
+    if (!after_block.get_inner_block()) {
+        after_block = func.new_block(new_block_name("after loop", re));
+    }
     cond_block.end_with_conditional(test_ret, after_block, body_block, new_location(exp));
 
     cur_function_data_.cur_block = after_block;
@@ -1654,7 +1657,11 @@ void gcc_jitter::compile_stmt_break(gccjit::function &func, const syntax_tree_in
         throw_error("break must in loop", bs);
     }
 
-    cur_function_data_.cur_block.end_with_jump(cur_function_data_.stack_end_blocks.back(), new_location(bs));
+    auto & block = cur_function_data_.stack_end_blocks.back();
+    if (!block.get_inner_block()) {
+        block = func.new_block(new_block_name("break", bs));
+    }
+    cur_function_data_.cur_block.end_with_jump(block, new_location(bs));
     cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
 }
 
