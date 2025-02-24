@@ -84,6 +84,8 @@ private:
 
     void compile_stmt_break(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
 
+    void compile_stmt_for_loop(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
+
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
 

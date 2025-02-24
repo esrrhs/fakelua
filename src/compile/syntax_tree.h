@@ -735,6 +735,26 @@ public:
         exp_step_ = exp;
     }
 
+    std::string name() const {
+        return name_;
+    }
+
+    syntax_tree_interface_ptr block() const {
+        return block_;
+    }
+
+    syntax_tree_interface_ptr exp_begin() const {
+        return exp_begin_;
+    }
+
+    syntax_tree_interface_ptr exp_end() const {
+        return exp_end_;
+    }
+
+    syntax_tree_interface_ptr exp_step() const {
+        return exp_step_;
+    }
+
 private:
     std::string name_;
     syntax_tree_interface_ptr block_;

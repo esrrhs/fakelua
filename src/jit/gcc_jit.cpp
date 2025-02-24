@@ -444,6 +444,10 @@ void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interfac
             compile_stmt_break(func, stmt);
             break;
         }
+        case syntax_tree_type::syntax_tree_type_for_loop: {
+            compile_stmt_for_loop(func, stmt);
+            break;
+        }
         default: {
             throw_error(std::format("not support stmt type: {}", magic_enum::enum_name(stmt->type())), stmt);
         }
@@ -1448,7 +1452,7 @@ void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_i
     check_syntax_tree_type(re, {syntax_tree_type::syntax_tree_type_repeat});
     auto repeat_ptr = std::dynamic_pointer_cast<syntax_tree_repeat>(re);
 
-    gccjit::block cond_block; // maybe body just return, so cond and after maybe not exist
+    gccjit::block cond_block;// maybe body just return, so cond and after maybe not exist
     gccjit::block body_block = func.new_block(new_block_name("loop body", re));
     gccjit::block after_block;
 
@@ -1645,12 +1649,181 @@ void gcc_jitter::compile_stmt_break(gccjit::function &func, const syntax_tree_in
         throw_error("break must in loop", bs);
     }
 
-    auto & block = cur_function_data_.stack_end_blocks.back();
+    auto &block = cur_function_data_.stack_end_blocks.back();
     if (!block.get_inner_block()) {
         block = func.new_block(new_block_name("break", bs));
     }
     cur_function_data_.cur_block.end_with_jump(block, new_location(bs));
     cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+}
+
+void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree_interface_ptr &fs) {
+    check_syntax_tree_type(fs, {syntax_tree_type::syntax_tree_type_for_loop});
+    auto for_loop_ptr = std::dynamic_pointer_cast<syntax_tree_for_loop>(fs);
+
+    // for a = 1, 10, 1 do ... end
+    auto name = for_loop_ptr->name();
+    auto for_block_ptr = for_loop_ptr->block();
+    auto exp_begin = for_loop_ptr->exp_begin();
+    auto exp_end = for_loop_ptr->exp_end();
+    auto exp_step = for_loop_ptr->exp_step();// maybe nullptr
+    if (!exp_step) {
+        // default is 1
+        auto one_exp = std::make_shared<syntax_tree_exp>(exp_end->loc());
+        one_exp->set_type("number");
+        one_exp->set_value("1");
+        exp_step = one_exp;
+    }
+
+    gccjit::block init_block = func.new_block(new_block_name("for loop init", fs));
+    gccjit::block cond_block = func.new_block(new_block_name("for loop cond", fs));
+    gccjit::block for_block = func.new_block(new_block_name("for loop body", fs));
+    gccjit::block step_block; // maybe return in body block, so when use it, init it
+    gccjit::block after_block = func.new_block(new_block_name("for loop after", fs));
+
+    // use to break jump
+    cur_function_data_.stack_end_blocks.emplace_back(after_block);
+
+    cur_function_data_.cur_block.end_with_jump(init_block, new_location(fs));
+    cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+    cur_function_data_.cur_block = init_block;
+
+    auto init_ret = compile_exp(func, exp_begin);
+    auto end_ret = compile_exp(func, exp_end);
+    auto step_ret = compile_exp(func, exp_step);
+
+    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
+    auto is_const = cur_function_data_.is_const;
+
+    // init the iterator var, eg: a = 1
+    auto iter = func.new_local(the_var_type, name, new_location(exp_begin));
+    cur_function_data_.cur_block.add_assignment(iter, init_ret, new_location(exp_begin));
+    // add to local vars
+    save_stack_lvalue_by_name(name, iter, exp_begin);
+
+    // init the end var, eg: pre = 10
+    auto end_pre_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
+    auto end_pre = func.new_local(the_var_type, end_pre_name, new_location(exp_end));
+    cur_function_data_.cur_block.add_assignment(end_pre, end_ret, new_location(exp_end));
+    // add to local vars
+    save_stack_lvalue_by_name(end_pre_name, end_pre, exp_end);
+
+    // init the step var, eg: pre = 1
+    auto step_pre_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
+    auto step_pre = func.new_local(the_var_type, step_pre_name, new_location(exp_step));
+    cur_function_data_.cur_block.add_assignment(step_pre, step_ret, new_location(exp_step));
+    // add to local vars
+    save_stack_lvalue_by_name(step_pre_name, step_pre, exp_step);
+
+    cur_function_data_.cur_block.end_with_jump(cond_block, new_location(fs));
+    cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+    cur_function_data_.cur_block = cond_block;
+
+    // check the iterator var, eg: a <= 10
+    // make the cond exp
+    auto cond_exp = std::make_shared<syntax_tree_exp>(exp_end->loc());
+    cond_exp->set_type("binop");
+    auto cond_op = std::make_shared<syntax_tree_binop>(exp_end->loc());
+    cond_op->set_op("LESS_EQUAL");
+    cond_exp->set_op(cond_op);
+    auto cond_left_var = std::make_shared<syntax_tree_var>(exp_end->loc());
+    cond_left_var->set_type("simple");
+    cond_left_var->set_name(name);
+    auto cond_left_prefix = std::make_shared<syntax_tree_prefixexp>(exp_end->loc());
+    cond_left_prefix->set_type("var");
+    cond_left_prefix->set_value(cond_left_var);
+    auto cond_left_exp = std::make_shared<syntax_tree_exp>(exp_end->loc());
+    cond_left_exp->set_type("prefixexp");
+    cond_left_exp->set_right(cond_left_prefix);
+    cond_exp->set_left(cond_left_exp);
+    auto cond_right_var = std::make_shared<syntax_tree_var>(exp_end->loc());
+    cond_right_var->set_type("simple");
+    cond_right_var->set_name(end_pre_name);
+    auto cond_right_prefix = std::make_shared<syntax_tree_prefixexp>(exp_end->loc());
+    cond_right_prefix->set_type("var");
+    cond_right_prefix->set_value(cond_right_var);
+    auto cond_right_exp = std::make_shared<syntax_tree_exp>(exp_end->loc());
+    cond_right_exp->set_type("prefixexp");
+    cond_right_exp->set_right(cond_right_prefix);
+    cond_exp->set_right(cond_right_exp);
+
+    auto cond_ret = compile_exp(func, cond_exp);
+
+    std::vector<gccjit::param> params;
+    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "v"));
+
+    std::vector<gccjit::rvalue> args;
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
+    args.push_back(cond_ret);
+    gccjit::function test_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, gccjit_context_->get_type(GCC_JIT_TYPE_BOOL),
+                                                               "test_var", params, 0, new_location(cond_exp));
+    auto test_ret = gccjit_context_->new_call(test_func, args, new_location(cond_exp));
+
+    cur_function_data_.cur_block.end_with_conditional(test_ret, for_block, after_block, new_location(exp_end));
+    cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+    cur_function_data_.cur_block = for_block;
+
+    compile_stmt_block(func, for_block_ptr);
+
+    cur_function_data_.stack_end_blocks.pop_back();
+
+    if (!is_block_returned()) {
+        step_block = func.new_block(new_block_name("for loop step", fs));
+        cur_function_data_.cur_block.end_with_jump(step_block, new_location(fs));
+        cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+        cur_function_data_.cur_block = step_block;
+
+        // step the iterator var, eg: a = a + 1
+        // make an assign stmt
+        auto assign_stmt = std::make_shared<syntax_tree_assign>(exp_step->loc());
+        auto assign_stmt_varlist = std::make_shared<syntax_tree_varlist>(exp_step->loc());
+        auto assign_stmt_var = std::make_shared<syntax_tree_var>(exp_step->loc());
+        assign_stmt_var->set_type("simple");
+        assign_stmt_var->set_name(name);
+        assign_stmt_varlist->add_var(assign_stmt_var);
+        assign_stmt->set_varlist(assign_stmt_varlist);
+        auto assign_stmt_explist = std::make_shared<syntax_tree_explist>(exp_step->loc());
+        auto assign_stmt_exp = std::make_shared<syntax_tree_exp>(exp_step->loc());
+        assign_stmt_exp->set_type("binop");
+        auto assign_stmt_op = std::make_shared<syntax_tree_binop>(exp_step->loc());
+        assign_stmt_op->set_op("PLUS");
+        assign_stmt_exp->set_op(assign_stmt_op);
+        auto assign_stmt_left_var = std::make_shared<syntax_tree_var>(exp_step->loc());
+        assign_stmt_left_var->set_type("simple");
+        assign_stmt_left_var->set_name(name);
+        auto assign_stmt_left_prefix = std::make_shared<syntax_tree_prefixexp>(exp_step->loc());
+        assign_stmt_left_prefix->set_type("var");
+        assign_stmt_left_prefix->set_value(assign_stmt_left_var);
+        auto assign_stmt_left_exp = std::make_shared<syntax_tree_exp>(exp_step->loc());
+        assign_stmt_left_exp->set_type("prefixexp");
+        assign_stmt_left_exp->set_right(assign_stmt_left_prefix);
+        assign_stmt_exp->set_left(assign_stmt_left_exp);
+        auto assign_stmt_right_var = std::make_shared<syntax_tree_var>(exp_step->loc());
+        assign_stmt_right_var->set_type("simple");
+        assign_stmt_right_var->set_name(step_pre_name);
+        auto assign_stmt_right_prefix = std::make_shared<syntax_tree_prefixexp>(exp_step->loc());
+        assign_stmt_right_prefix->set_type("var");
+        assign_stmt_right_prefix->set_value(assign_stmt_right_var);
+        auto assign_stmt_right_exp = std::make_shared<syntax_tree_exp>(exp_step->loc());
+        assign_stmt_right_exp->set_type("prefixexp");
+        assign_stmt_right_exp->set_right(assign_stmt_right_prefix);
+        assign_stmt_exp->set_right(assign_stmt_right_exp);
+        assign_stmt_explist->add_exp(assign_stmt_exp);
+        assign_stmt->set_explist(assign_stmt_explist);
+
+        compile_stmt(func, assign_stmt);
+
+        cur_function_data_.cur_block.end_with_jump(cond_block, new_location(fs));
+        cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+    }
+
+    cur_function_data_.cur_block = after_block;
 }
 
 }// namespace fakelua
