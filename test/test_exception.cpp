@@ -827,3 +827,23 @@ TEST(exception, test_label_exception) {
         ASSERT_TRUE(std::string(e.what()).find("not support label") != std::string::npos);
     }
 }
+
+var *CALL_VAR_FUNC_TEST_EXCEPTION_FUNC(...) {
+    return nullptr;
+}
+
+TEST(exception, test_call_var_func) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        std::vector<var *> args;
+        args.resize(33);
+        call_var_func(CALL_VAR_FUNC_TEST_EXCEPTION_FUNC, args);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("too many arguments") != std::string::npos);
+    }
+}
