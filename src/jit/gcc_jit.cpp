@@ -190,18 +190,6 @@ bool gcc_jitter::is_block_returned() {
     return false;
 }
 
-void gcc_jitter::check_cur_block_jump_end(gccjit::function &func, const std::string &init_name, const syntax_tree_interface_ptr &init_ptr) {
-    if (!is_block_returned()) {
-        DEBUG_ASSERT(!cur_function_data_.stack_end_blocks.empty());
-        auto &end_block = cur_function_data_.stack_end_blocks[cur_function_data_.stack_end_blocks.size() - 1];
-        if (!end_block.get_inner_block()) {
-            end_block = func.new_block(new_block_name(init_name, init_ptr));
-        }
-        cur_function_data_.cur_block.end_with_jump(end_block, new_location(init_ptr));
-        cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
-    }
-}
-
 void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
     // the chunk must be a block
     check_syntax_tree_type(chunk, {syntax_tree_type::syntax_tree_type_block});

@@ -103,8 +103,6 @@ private:
 
     bool is_block_returned();
 
-    void check_cur_block_jump_end(gccjit::function &func, const std::string &init_name, const syntax_tree_interface_ptr &init_ptr);
-
 private:
     bool is_simple_assign(const syntax_tree_interface_ptr &vars, const syntax_tree_interface_ptr &exps);
 
