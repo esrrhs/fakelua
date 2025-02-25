@@ -103,7 +103,7 @@ private:
 
     void check_return_block(gccjit::function &func, const syntax_tree_interface_ptr &ptr);
 
-    bool is_block_returned();
+    bool is_block_ended();
 
 private:
     bool is_simple_assign(const syntax_tree_interface_ptr &vars, const syntax_tree_interface_ptr &exps);

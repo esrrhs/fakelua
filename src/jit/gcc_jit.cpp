@@ -183,7 +183,7 @@ void gcc_jitter::check_return_block(gccjit::function &func, const syntax_tree_in
     }
 }
 
-bool gcc_jitter::is_block_returned() {
+bool gcc_jitter::is_block_ended() {
     if (cur_function_data_.ended_blocks.find(cur_function_data_.cur_block.get_inner_block()) != cur_function_data_.ended_blocks.end()) {
         return true;
     }
@@ -403,6 +403,10 @@ void gcc_jitter::compile_block(gccjit::function &func, const syntax_tree_interfa
 }
 
 void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interface_ptr &stmt) {
+    if (is_block_ended()) {
+        throw_error("cur_block is already ended, can not compile stmt", stmt);
+    }
+
     switch (stmt->type()) {
         case syntax_tree_type::syntax_tree_type_return: {
             compile_stmt_return(func, stmt);
@@ -1441,7 +1445,7 @@ void gcc_jitter::compile_stmt_while(gccjit::function &func, const fakelua::synta
 
     cur_function_data_.stack_end_blocks.pop_back();
 
-    if (!is_block_returned()) {
+    if (!is_block_ended()) {
         cur_function_data_.cur_block.end_with_jump(cond_block, new_location(wh));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     }
@@ -1472,7 +1476,7 @@ void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_i
     after_block = cur_function_data_.stack_end_blocks.back();
     cur_function_data_.stack_end_blocks.pop_back();
 
-    if (!is_block_returned()) {
+    if (!is_block_ended()) {
         cond_block = func.new_block(new_block_name("loop cond", re));
         cur_function_data_.cur_block.end_with_jump(cond_block, new_location(re));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
@@ -1570,7 +1574,7 @@ void gcc_jitter::compile_stmt_if(gccjit::function &func, const syntax_tree_inter
 
     compile_stmt_block(func, block);
 
-    if (!is_block_returned()) {
+    if (!is_block_ended()) {
         if (!end_block.get_inner_block()) {
             end_block = func.new_block(new_block_name("if end", is));
         }
@@ -1613,7 +1617,7 @@ void gcc_jitter::compile_stmt_if(gccjit::function &func, const syntax_tree_inter
         cur_function_data_.cur_block = elseifs_body_block;
         compile_stmt_block(func, elseifs_block);
 
-        if (!is_block_returned()) {
+        if (!is_block_ended()) {
             if (!end_block.get_inner_block()) {
                 end_block = func.new_block(new_block_name("if end", is));
             }
@@ -1634,7 +1638,7 @@ void gcc_jitter::compile_stmt_if(gccjit::function &func, const syntax_tree_inter
         compile_stmt_block(func, else_ptr);
     }
 
-    if (!is_block_returned()) {
+    if (!is_block_ended()) {
         if (!end_block.get_inner_block()) {
             end_block = func.new_block(new_block_name("if end", is));
         }
@@ -1779,7 +1783,7 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
 
     cur_function_data_.stack_end_blocks.pop_back();
 
-    if (!is_block_returned()) {
+    if (!is_block_ended()) {
         step_block = func.new_block(new_block_name("for loop step", fs));
         cur_function_data_.cur_block.end_with_jump(step_block, new_location(fs));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
