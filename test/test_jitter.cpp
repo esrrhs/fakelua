@@ -2483,3 +2483,41 @@ TEST(jitter, test_for_loop_return) {
     L->call("test", std::tie(a), 4, 3);
     ASSERT_EQ(a, 0);
 }
+
+TEST(jitter, test_while_just_break) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    L->compile_file("./jit/test_while_just_break.lua", {});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 4);
+    L->call("test", std::tie(a), 5, 4);
+    ASSERT_EQ(a, 5);
+
+    a = 0;
+    L->compile_file("./jit/test_while_just_break.lua", {.debug_mode = false});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 4);
+    L->call("test", std::tie(a), 5, 4);
+    ASSERT_EQ(a, 5);
+}
+
+TEST(jitter, test_repeat_just_break) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    L->compile_file("./jit/test_repeat_just_break.lua", {});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 4);
+    L->call("test", std::tie(a), 5, 4);
+    ASSERT_EQ(a, 4);
+
+    a = 0;
+    L->compile_file("./jit/test_repeat_just_break.lua", {.debug_mode = false});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 4);
+    L->call("test", std::tie(a), 5, 4);
+    ASSERT_EQ(a, 4);
+}

@@ -1477,6 +1477,12 @@ void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_i
         cur_function_data_.cur_block.end_with_jump(cond_block, new_location(re));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     } else {
+        if (!after_block.get_inner_block()) {
+            // not init, mean all finish
+            return;
+        }
+        // we need continue to after block
+        cur_function_data_.cur_block = after_block;
         return;
     }
 
@@ -1678,7 +1684,7 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
     gccjit::block init_block = func.new_block(new_block_name("for loop init", fs));
     gccjit::block cond_block = func.new_block(new_block_name("for loop cond", fs));
     gccjit::block for_block = func.new_block(new_block_name("for loop body", fs));
-    gccjit::block step_block; // maybe return in body block, so when use it, init it
+    gccjit::block step_block;// maybe return in body block, so when use it, init it
     gccjit::block after_block = func.new_block(new_block_name("for loop after", fs));
 
     // use to break jump
