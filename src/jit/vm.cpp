@@ -512,4 +512,24 @@ extern "C" __attribute__((used)) var *table_set(fakelua_state *s, gcc_jit_handle
     return table;
 }
 
+extern "C" __attribute__((used)) size_t table_size(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table) {
+    DEBUG_ASSERT(table);
+    DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
+    return table->table_size();
+}
+
+extern "C" __attribute__((used)) var *table_key_by_pos(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, size_t pos) {
+    DEBUG_ASSERT(table);
+    DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(pos < table->table_size());
+    return table->table_key_at(pos);
+}
+
+extern "C" __attribute__((used)) var *table_value_by_pos(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, size_t pos) {
+    DEBUG_ASSERT(table);
+    DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
+    DEBUG_ASSERT(pos < table->table_size());
+    return table->table_value_at(pos);
+}
+
 }// namespace fakelua

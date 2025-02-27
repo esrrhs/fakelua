@@ -790,6 +790,18 @@ public:
         block_ = block;
     }
 
+    syntax_tree_interface_ptr namelist() const {
+        return namelist_;
+    }
+
+    syntax_tree_interface_ptr explist() const {
+        return explist_;
+    }
+
+    syntax_tree_interface_ptr block() const {
+        return block_;
+    }
+
 private:
     syntax_tree_interface_ptr namelist_;
     syntax_tree_interface_ptr explist_;

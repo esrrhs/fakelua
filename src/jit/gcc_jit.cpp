@@ -166,7 +166,9 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
 
     // compile the function body
     auto block = funcbody_ptr->block();
-    compile_block(func, block);
+    auto the_block = func.new_block(new_block_name("block", block));
+    cur_function_data_.cur_block = the_block;
+    compile_stmt_block(func, block);
 
     // check the return block, if the return block is not ended with return, we add a return nil
     check_return_block(func, funcbody_ptr);
@@ -379,29 +381,6 @@ std::string gcc_jitter::new_block_name(const std::string &name, const syntax_tre
     return std::format("{} {}:{}:{}", name, file_name_, ptr ? ptr->loc().begin.line : 0, ptr ? ptr->loc().begin.column : 0);
 }
 
-void gcc_jitter::compile_block(gccjit::function &func, const syntax_tree_interface_ptr &block) {
-    check_syntax_tree_type(block, {syntax_tree_type::syntax_tree_type_block});
-    auto block_ptr = std::dynamic_pointer_cast<syntax_tree_block>(block);
-
-    auto the_block = func.new_block(new_block_name("block", block_ptr));
-    if (cur_function_data_.cur_block.get_inner_block()) {
-        cur_function_data_.cur_block.end_with_jump(the_block, new_location(block_ptr));
-        cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
-    }
-    cur_function_data_.cur_block = the_block;
-
-    // alloc new stack frame
-    cur_function_data_.stack_frames.push_back(function_data::stack_frame());
-
-    auto &stmts = block_ptr->stmts();
-    for (auto &stmt: stmts) {
-        compile_stmt(func, stmt);
-    }
-
-    // free stack frame
-    cur_function_data_.stack_frames.pop_back();
-}
-
 void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interface_ptr &stmt) {
     if (is_block_ended()) {
         throw_error("cur_block is already ended, can not compile stmt", stmt);
@@ -452,6 +431,10 @@ void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interfac
             compile_stmt_for_loop(func, stmt);
             break;
         }
+        case syntax_tree_type::syntax_tree_type_for_in: {
+            compile_stmt_for_in(func, stmt);
+            break;
+        }
         default: {
             throw_error(std::format("not support stmt type: {}", magic_enum::enum_name(stmt->type())), stmt);
         }
@@ -498,6 +481,7 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, const syntax_tree_i
             gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "wrap_return_var", params, 1, new_location(explist));
     auto ret = gccjit_context_->new_call(wrap_return_func, args, new_location(explist));
 
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.end_with_return(ret, new_location(return_stmt));
     cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
 }
@@ -706,6 +690,7 @@ void gcc_jitter::compile_stmt_local_var(gccjit::function &function, const syntax
         nil_exp->set_type("nil");
         auto exp_ret = compile_exp(function, nil_exp);
 
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.add_assignment(dst, exp_ret, new_location(nil_exp));
 
         // add to local vars
@@ -876,6 +861,7 @@ void gcc_jitter::compile_stmt_assign(gccjit::function &function, const syntax_tr
         for (size_t i = 0; i < varlist.size() && i < explist.size(); ++i) {
             auto &var = varlist[i];
             auto &exp = explist[i];
+            DEBUG_ASSERT(!is_block_ended());
             cur_function_data_.cur_block.add_assignment(var, exp, new_location(stmt));
         }
         return;
@@ -910,6 +896,7 @@ void gcc_jitter::compile_stmt_assign(gccjit::function &function, const syntax_tr
     gccjit::function assign_func =
             gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "assign_var", params, 1, new_location(stmt));
     auto ret = gccjit_context_->new_call(assign_func, args, new_location(stmt));
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.add_eval(ret, new_location(stmt));
 }
 
@@ -1029,6 +1016,7 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
 
         // var* pre=left
         auto left_ret = compile_exp(func, left);
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.add_assignment(pre, left_ret, new_location(op));
 
         // if (pre)
@@ -1057,6 +1045,7 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
 
         auto then_block = func.new_block(new_block_name("then", op));
         auto else_block = func.new_block(new_block_name("else", op));
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.end_with_conditional(test_ret, then_block, else_block, new_location(op));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
 
@@ -1065,12 +1054,15 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
         // {pre=right;}
         cur_function_data_.cur_block = then_block;
         auto right_ret = compile_exp(func, right);
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.add_assignment(pre, right_ret, new_location(op));
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.end_with_jump(new_block, new_location(op));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
 
         // {}
         cur_function_data_.cur_block = else_block;
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.end_with_jump(new_block, new_location(op));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
 
@@ -1332,6 +1324,7 @@ void gcc_jitter::compile_stmt_functioncall(gccjit::function &function, const syn
         DEBUG_ASSERT(get_simple_prefixexp_name(functioncall->prefixexp()) == "__fakelua_set_table__");
     }
     auto ret = compile_functioncall(function, functioncall);
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.add_eval(ret, new_location(stmt));
 }
 
@@ -1406,6 +1399,7 @@ void gcc_jitter::compile_stmt_while(gccjit::function &func, const fakelua::synta
     // use to break jump
     cur_function_data_.stack_end_blocks.emplace_back(after_block);
 
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.end_with_jump(cond_block, new_location(wh));
     cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     cur_function_data_.cur_block = cond_block;
@@ -1438,6 +1432,7 @@ void gcc_jitter::compile_stmt_while(gccjit::function &func, const fakelua::synta
                                                                "test_var", params, 0, new_location(exp));
     auto test_ret = gccjit_context_->new_call(test_func, args, new_location(exp));
 
+    DEBUG_ASSERT(!is_block_ended());
     cond_block.end_with_conditional(test_ret, body_block, after_block, new_location(exp));
 
     cur_function_data_.cur_block = body_block;
@@ -1446,6 +1441,7 @@ void gcc_jitter::compile_stmt_while(gccjit::function &func, const fakelua::synta
     cur_function_data_.stack_end_blocks.pop_back();
 
     if (!is_block_ended()) {
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.end_with_jump(cond_block, new_location(wh));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     }
@@ -1463,6 +1459,7 @@ void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_i
     // use to break jump
     cur_function_data_.stack_end_blocks.emplace_back(after_block);
 
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.end_with_jump(body_block, new_location(re));
     cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     cur_function_data_.cur_block = body_block;
@@ -1478,6 +1475,7 @@ void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_i
 
     if (!is_block_ended()) {
         cond_block = func.new_block(new_block_name("loop cond", re));
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.end_with_jump(cond_block, new_location(re));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     } else {
@@ -1519,6 +1517,7 @@ void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_i
     if (!after_block.get_inner_block()) {
         after_block = func.new_block(new_block_name("after loop", re));
     }
+    DEBUG_ASSERT(!is_block_ended());
     cond_block.end_with_conditional(test_ret, after_block, body_block, new_location(exp));
 
     cur_function_data_.cur_block = after_block;
@@ -1540,6 +1539,7 @@ void gcc_jitter::compile_stmt_if(gccjit::function &func, const syntax_tree_inter
     gccjit::block else_block = func.new_block(new_block_name("if else", is));
     gccjit::block end_block;// maybe if and else all returned, so no need end_block. when use it, init it.
 
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.end_with_jump(cond_block, new_location(exp));
     cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     cur_function_data_.cur_block = cond_block;
@@ -1568,6 +1568,7 @@ void gcc_jitter::compile_stmt_if(gccjit::function &func, const syntax_tree_inter
                                                                "test_var", params, 0, new_location(exp));
     auto test_ret = gccjit_context_->new_call(test_func, args, new_location(exp));
 
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.end_with_conditional(test_ret, body_block, else_block, new_location(exp));
     cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     cur_function_data_.cur_block = body_block;
@@ -1578,6 +1579,7 @@ void gcc_jitter::compile_stmt_if(gccjit::function &func, const syntax_tree_inter
         if (!end_block.get_inner_block()) {
             end_block = func.new_block(new_block_name("if end", is));
         }
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.end_with_jump(end_block, new_location(is));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     }
@@ -1611,6 +1613,7 @@ void gcc_jitter::compile_stmt_if(gccjit::function &func, const syntax_tree_inter
                                               elseifs_params, 0, new_location(elseifs_exp));
         auto elseifs_test_ret = gccjit_context_->new_call(elseifs_test_func, elseifs_args, new_location(elseifs_exp));
 
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.end_with_conditional(elseifs_test_ret, elseifs_body_block, next_else_block, new_location(elseifs_exp));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
 
@@ -1621,6 +1624,7 @@ void gcc_jitter::compile_stmt_if(gccjit::function &func, const syntax_tree_inter
             if (!end_block.get_inner_block()) {
                 end_block = func.new_block(new_block_name("if end", is));
             }
+            DEBUG_ASSERT(!is_block_ended());
             cur_function_data_.cur_block.end_with_jump(end_block, new_location(is));
             cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
         }
@@ -1631,6 +1635,7 @@ void gcc_jitter::compile_stmt_if(gccjit::function &func, const syntax_tree_inter
     if (else_ptr) {
         auto else_body_block = func.new_block(new_block_name("else body", is));
 
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.end_with_jump(else_body_block, new_location(is));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
         cur_function_data_.cur_block = else_body_block;
@@ -1642,6 +1647,7 @@ void gcc_jitter::compile_stmt_if(gccjit::function &func, const syntax_tree_inter
         if (!end_block.get_inner_block()) {
             end_block = func.new_block(new_block_name("if end", is));
         }
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.end_with_jump(end_block, new_location(is));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     }
@@ -1663,6 +1669,7 @@ void gcc_jitter::compile_stmt_break(gccjit::function &func, const syntax_tree_in
     if (!block.get_inner_block()) {
         block = func.new_block(new_block_name("break", bs));
     }
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.end_with_jump(block, new_location(bs));
     cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
 }
@@ -1694,6 +1701,7 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
     // use to break jump
     cur_function_data_.stack_end_blocks.emplace_back(after_block);
 
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.end_with_jump(init_block, new_location(fs));
     cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     cur_function_data_.cur_block = init_block;
@@ -1708,6 +1716,7 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
 
     // init the iterator var, eg: a = 1
     auto iter = func.new_local(the_var_type, name, new_location(exp_begin));
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.add_assignment(iter, init_ret, new_location(exp_begin));
     // add to local vars
     save_stack_lvalue_by_name(name, iter, exp_begin);
@@ -1715,6 +1724,7 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
     // init the end var, eg: pre = 10
     auto end_pre_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
     auto end_pre = func.new_local(the_var_type, end_pre_name, new_location(exp_end));
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.add_assignment(end_pre, end_ret, new_location(exp_end));
     // add to local vars
     save_stack_lvalue_by_name(end_pre_name, end_pre, exp_end);
@@ -1722,10 +1732,12 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
     // init the step var, eg: pre = 1
     auto step_pre_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
     auto step_pre = func.new_local(the_var_type, step_pre_name, new_location(exp_step));
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.add_assignment(step_pre, step_ret, new_location(exp_step));
     // add to local vars
     save_stack_lvalue_by_name(step_pre_name, step_pre, exp_step);
 
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.end_with_jump(cond_block, new_location(fs));
     cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     cur_function_data_.cur_block = cond_block;
@@ -1775,6 +1787,7 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
                                                                "test_var", params, 0, new_location(cond_exp));
     auto test_ret = gccjit_context_->new_call(test_func, args, new_location(cond_exp));
 
+    DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.end_with_conditional(test_ret, for_block, after_block, new_location(exp_end));
     cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     cur_function_data_.cur_block = for_block;
@@ -1785,6 +1798,7 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
 
     if (!is_block_ended()) {
         step_block = func.new_block(new_block_name("for loop step", fs));
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.end_with_jump(step_block, new_location(fs));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
         cur_function_data_.cur_block = step_block;
@@ -1829,6 +1843,211 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
 
         compile_stmt(func, assign_stmt);
 
+        DEBUG_ASSERT(!is_block_ended());
+        cur_function_data_.cur_block.end_with_jump(cond_block, new_location(fs));
+        cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+    }
+
+    cur_function_data_.cur_block = after_block;
+}
+
+void gcc_jitter::compile_stmt_for_in(gccjit::function &func, const syntax_tree_interface_ptr &fs) {
+    check_syntax_tree_type(fs, {syntax_tree_type::syntax_tree_type_for_in});
+    auto for_in_ptr = std::dynamic_pointer_cast<syntax_tree_for_in>(fs);
+
+    // for k, v in pairs(t) do ... end
+    auto namelist = for_in_ptr->namelist();
+    auto explist = for_in_ptr->explist();
+    auto block_ptr = for_in_ptr->block();
+
+    std::string key_name;
+    std::string value_name;
+    syntax_tree_interface_ptr for_args_ptr;
+
+    // get k, v name from namelist
+    auto namelist_ptr = std::dynamic_pointer_cast<syntax_tree_namelist>(namelist);
+    auto names = namelist_ptr->names();
+    if (names.size() != 1 && names.size() != 2) {
+        throw_error(std::format("for in namelist size must be 1 or 2, but got {}", names.size()), namelist);
+    }
+    key_name = names[0];
+    if (names.size() == 2) {
+        value_name = names[1];
+    }
+
+    // check explist only have one exp
+    auto explist_ptr = std::dynamic_pointer_cast<syntax_tree_explist>(explist);
+    auto exps = explist_ptr->exps();
+    if (exps.size() != 1) {
+        throw_error(std::format("for in explist size must be 1, but got {}", exps.size()), explist);
+    }
+    auto exp = exps[0];
+    // check exp must be ipairs() or pairs()
+    check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
+    auto exp_ptr = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
+    if (exp_ptr->exp_type() != "prefixexp") {
+        throw_error("for in exp must be ipairs() or pairs()", exp);
+    }
+    auto prefixexp = exp_ptr->right();
+    check_syntax_tree_type(prefixexp, {syntax_tree_type::syntax_tree_type_prefixexp});
+    auto prefixexp_ptr = std::dynamic_pointer_cast<syntax_tree_prefixexp>(prefixexp);
+    if (prefixexp_ptr->get_type() != "functioncall") {
+        throw_error("for in exp must be ipairs() or pairs()", exp);
+    }
+    auto functioncall = prefixexp_ptr->get_value();
+    check_syntax_tree_type(functioncall, {syntax_tree_type::syntax_tree_type_functioncall});
+    auto functioncall_ptr = std::dynamic_pointer_cast<syntax_tree_functioncall>(functioncall);
+    auto call_name = get_simple_prefixexp_name(functioncall_ptr->prefixexp());
+    if (call_name != "ipairs" && call_name != "pairs") {
+        throw_error("for in exp must be ipairs() or pairs()", exp);
+    }
+    auto for_args = functioncall_ptr->args();
+    if (!for_args) {
+        throw_error("for in ipairs() or pairs() must have args", functioncall);
+    }
+    check_syntax_tree_type(for_args, {syntax_tree_type::syntax_tree_type_args});
+    for_args_ptr = std::dynamic_pointer_cast<syntax_tree_args>(for_args);
+
+    // for in block, just like for in
+    gccjit::block init_block = func.new_block(new_block_name("for in init", fs));
+    gccjit::block cond_block = func.new_block(new_block_name("for in cond", fs));
+    gccjit::block for_block = func.new_block(new_block_name("for in body", fs));
+    gccjit::block step_block;// maybe return in body block, so when use it, init it
+    gccjit::block after_block = func.new_block(new_block_name("for in after", fs));
+
+    // use to break jump
+    cur_function_data_.stack_end_blocks.emplace_back(after_block);
+
+    DEBUG_ASSERT(!is_block_ended());
+    cur_function_data_.cur_block.end_with_jump(init_block, new_location(fs));
+    cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+    cur_function_data_.cur_block = init_block;
+
+    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
+    auto the_size_t_type = gccjit_context_->get_type(GCC_JIT_TYPE_SIZE_T);
+    auto is_const = cur_function_data_.is_const;
+
+    // init the iterator var, eg: size_t pre0 = 0
+    auto iter_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
+    auto iter = func.new_local(the_size_t_type, iter_name, new_location(exp));
+    auto iter_init_value = gccjit_context_->zero(the_size_t_type);
+    DEBUG_ASSERT(!is_block_ended());
+    cur_function_data_.cur_block.add_assignment(iter, iter_init_value, new_location(exp));
+
+    // make the iterator dst
+    auto args_ret = compile_args(func, for_args_ptr);
+    if (args_ret.size() != 1) {
+        throw_error(std::format("for in ipairs() or pairs() args size must be 1, but got {}", args_ret.size()), for_args);
+    }
+    // store in local, eg: pre1 = table
+    auto iter_dst_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
+    auto iter_dst = func.new_local(gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR), iter_dst_name, new_location(for_args_ptr));
+    DEBUG_ASSERT(!is_block_ended());
+    cur_function_data_.cur_block.add_assignment(iter_dst, args_ret[0], new_location(for_args_ptr));
+
+    // init the iterator end var, eg: size_t pre2 = size(pre1)
+    auto iter_end_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
+    auto iter_end = func.new_local(the_size_t_type, iter_end_name, new_location(for_args_ptr));
+
+    std::vector<gccjit::param> params;
+    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "v"));
+
+    std::vector<gccjit::rvalue> args;
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
+    args.push_back(iter_dst);
+    gccjit::function size_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, gccjit_context_->get_type(GCC_JIT_TYPE_SIZE_T),
+                                                               "table_size", params, 0, new_location(for_args_ptr));
+    auto size_ret = gccjit_context_->new_call(size_func, args, new_location(for_args_ptr));
+
+    DEBUG_ASSERT(!is_block_ended());
+    cur_function_data_.cur_block.add_assignment(iter_end, size_ret, new_location(for_args_ptr));
+
+    DEBUG_ASSERT(!is_block_ended());
+    cur_function_data_.cur_block.end_with_jump(cond_block, new_location(fs));
+    cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+    cur_function_data_.cur_block = cond_block;
+
+    // check cond
+    DEBUG_ASSERT(!is_block_ended());
+    cur_function_data_.cur_block.end_with_conditional(iter < iter_end, for_block, after_block, new_location(exp));
+    cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+    cur_function_data_.cur_block = for_block;
+
+    // start init cur loop local var, eg: k, v = pre1[pre0]
+    auto key = func.new_local(the_var_type, key_name, new_location(namelist_ptr));
+
+    params.clear();
+    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "v"));
+    params.push_back(gccjit_context_->new_param(the_size_t_type, "pos"));
+
+    args.clear();
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
+    args.push_back(iter_dst);
+    args.push_back(iter);
+    gccjit::function key_at_func =
+            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR), "table_key_by_pos",
+                                          params, 0, new_location(namelist_ptr));
+    auto key_ret = gccjit_context_->new_call(key_at_func, args, new_location(namelist_ptr));
+
+    DEBUG_ASSERT(!is_block_ended());
+    cur_function_data_.cur_block.add_assignment(key, key_ret, new_location(namelist_ptr));
+    save_stack_lvalue_by_name(key_name, key, namelist_ptr);
+
+    if (!value_name.empty()) {
+        auto value = func.new_local(the_var_type, value_name, new_location(namelist_ptr));
+
+        params.clear();
+        params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+        params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+        params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
+        params.push_back(gccjit_context_->new_param(the_var_type, "v"));
+        params.push_back(gccjit_context_->new_param(the_size_t_type, "pos"));
+
+        args.clear();
+        args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+        args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+        args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
+        args.push_back(iter_dst);
+        args.push_back(iter);
+        gccjit::function value_at_func =
+                gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR),
+                                              "table_value_by_pos", params, 0, new_location(namelist_ptr));
+        auto value_ret = gccjit_context_->new_call(value_at_func, args, new_location(namelist_ptr));
+
+        DEBUG_ASSERT(!is_block_ended());
+        cur_function_data_.cur_block.add_assignment(value, value_ret, new_location(namelist_ptr));
+        save_stack_lvalue_by_name(value_name, value, namelist_ptr);
+    }
+
+    compile_stmt_block(func, block_ptr);
+
+    cur_function_data_.stack_end_blocks.pop_back();
+
+    if (!is_block_ended()) {
+        step_block = func.new_block(new_block_name("for in step", fs));
+
+        DEBUG_ASSERT(!is_block_ended());
+        cur_function_data_.cur_block.end_with_jump(step_block, new_location(fs));
+        cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+        cur_function_data_.cur_block = step_block;
+
+        // step the iterator var, eg: pre0 = pre0 + 1
+        DEBUG_ASSERT(!is_block_ended());
+        cur_function_data_.cur_block.add_assignment_op(iter, GCC_JIT_BINARY_OP_PLUS, gccjit_context_->one(the_size_t_type),
+                                                       new_location(fs));
+
+        DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.end_with_jump(cond_block, new_location(fs));
         cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
     }

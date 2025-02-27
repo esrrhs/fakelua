@@ -2589,3 +2589,18 @@ TEST(jitter, test_for_loop_just_break) {
     L->call("test", std::tie(a), 5, 3);
     ASSERT_EQ(a, 5);
 }
+
+TEST(jitter, test_for_in) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    L->compile_file("./jit/test_for_in.lua", {});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 32);
+
+    a = 0;
+    L->compile_file("./jit/test_for_in.lua", {.debug_mode = false});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 32);
+}

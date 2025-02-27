@@ -20,7 +20,7 @@ public:
     ~var_table() = default;
 
     // get value by key. if the key is not exist, return const var(nullptr).
-    var *get(var *key);
+    var *get(var *key) const;
 
     // set value by key. if the key is not exist, insert a new key-value pair.
     void set(var *key, var *val, bool can_be_nil = false);
@@ -32,6 +32,12 @@ public:
     size_t size() const {
         return table_.size();
     }
+
+    // get key at pos
+    var *key_at(size_t pos) const;
+
+    // get value at pos
+    var *value_at(size_t pos) const;
 
 private:
     struct table_var_hash {

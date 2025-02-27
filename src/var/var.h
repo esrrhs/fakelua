@@ -236,7 +236,13 @@ public:
 
     void table_set(var *key, var *val);
 
-    var *table_get(var *key);
+    var *table_get(var *key) const;
+
+    size_t table_size() const;
+
+    var *table_key_at(size_t pos) const;
+
+    var *table_value_at(size_t pos) const;
 
 private:
     // use class members instead of union, use more memory but more safe and fast.

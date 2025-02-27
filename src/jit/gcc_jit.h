@@ -35,8 +35,6 @@ private:
 
     std::vector<std::pair<std::string, gccjit::param>> compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic);
 
-    void compile_block(gccjit::function &func, const syntax_tree_interface_ptr &block);
-
     void compile_stmt(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
 
     void compile_stmt_return(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
@@ -85,6 +83,8 @@ private:
     void compile_stmt_break(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
 
     void compile_stmt_for_loop(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
+
+    void compile_stmt_for_in(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
 
 private:
     gccjit::location new_location(const syntax_tree_interface_ptr &ptr);

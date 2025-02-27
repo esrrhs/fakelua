@@ -447,12 +447,47 @@ void var::table_set(var *key, var *val) {
     get_table().set(key, val);
 }
 
-var *var::table_get(var *key) {
+var *var::table_get(var *key) const {
     if (type() != var_type::VAR_TABLE) {
         throw_fakelua_exception(std::format("operand of 'table_get' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
     }
 
     return get_table().get(key);
+}
+
+size_t var::table_size() const {
+    if (type() != var_type::VAR_TABLE) {
+        throw_fakelua_exception(
+                std::format("operand of 'table_size' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
+    }
+
+    return get_table().size();
+}
+
+var *var::table_key_at(size_t pos) const {
+    if (type() != var_type::VAR_TABLE) {
+        throw_fakelua_exception(
+                std::format("operand of 'table_key_at' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
+    }
+
+    if (pos >= get_table().size()) {
+        throw_fakelua_exception(std::format("table index out of range [0, {}), got {}", get_table().size(), pos));
+    }
+
+    return get_table().key_at(pos);
+}
+
+var *var::table_value_at(size_t pos) const {
+    if (type() != var_type::VAR_TABLE) {
+        throw_fakelua_exception(
+                std::format("operand of 'table_value_at' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
+    }
+
+    if (pos >= get_table().size()) {
+        throw_fakelua_exception(std::format("table index out of range [0, {}), got {}", get_table().size(), pos));
+    }
+
+    return get_table().value_at(pos);
 }
 
 }// namespace fakelua

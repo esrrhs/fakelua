@@ -122,4 +122,10 @@ extern "C" __attribute__((used)) var *table_index_by_name(fakelua_state *s, gcc_
 
 extern "C" __attribute__((used)) var *table_set(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, var *key, var *val);
 
+extern "C" __attribute__((used)) size_t table_size(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table);
+
+extern "C" __attribute__((used)) var *table_key_by_pos(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, size_t pos);
+
+extern "C" __attribute__((used)) var *table_value_by_pos(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, size_t pos);
+
 }// namespace fakelua

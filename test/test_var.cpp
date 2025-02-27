@@ -488,6 +488,33 @@ TEST(var, var_table_nan_keys) {
     ASSERT_EQ(v->get_int(), 2);
 }
 
+TEST(var, var_table_size) {
+    auto s = std::make_shared<state>();
+
+    var_table vt;
+
+    var v1;
+    v1.set_int((int64_t) 1);
+    var v2;
+    v2.set_int((int64_t) 2);
+
+    var k9;
+    k9.set_int(1);
+    var k10;
+    k10.set_float(1.0);
+
+    vt.set(&k9, &v1);
+    vt.set(&k10, &v2);
+
+    ASSERT_EQ(vt.size(), 1);
+
+    var k11;
+    k11.set_int(2);
+
+    vt.set(&k11, &v2);
+    ASSERT_EQ(vt.size(), 2);
+}
+
 std::vector<int> TEST_CALL_VAR_CALL_SEQ;
 int TEST_CALL_VAR_SEQ = 0;
 var *CALL_VAR_FUNC_TEST_FUNC(...) {

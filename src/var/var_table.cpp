@@ -13,7 +13,7 @@ bool table_var_equal_func(const var *lhs, const var *rhs) {
     return lhs->equal(*rhs);
 }
 
-var *var_table::get(var *key) {
+var *var_table::get(var *key) const {
     auto it = table_.find(key);
     if (it == table_.end()) {
         return &const_null_var;
@@ -33,6 +33,18 @@ void var_table::range(std::function<void(var *, var *)> iter) {
     for (auto &it: table_) {
         iter(it.first, it.second);
     }
+}
+
+var *var_table::key_at(size_t pos) const {
+    auto it = table_.begin();
+    std::advance(it, pos);
+    return it->first;
+}
+
+var *var_table::value_at(size_t pos) const {
+    auto it = table_.begin();
+    std::advance(it, pos);
+    return it->second;
 }
 
 }// namespace fakelua
