@@ -2604,3 +2604,97 @@ TEST(jitter, test_for_in) {
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 32);
 }
+
+TEST(jitter, test_for_in_double) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    L->compile_file("./jit/test_for_in_double.lua", {});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 320);
+
+    a = 0;
+    L->compile_file("./jit/test_for_in_double.lua", {.debug_mode = false});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 320);
+}
+
+TEST(jitter, test_for_in_break) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    L->compile_file("./jit/test_for_in_break.lua", {});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 30);
+
+    a = 0;
+    L->compile_file("./jit/test_for_in_break.lua", {.debug_mode = false});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 30);
+}
+
+TEST(jitter, test_for_in_if_return) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    L->compile_file("./jit/test_for_in_if_return.lua", {});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 3);
+    L->call("test", std::tie(a), 5, 4);
+    ASSERT_EQ(a, 4);
+
+    a = 0;
+    L->compile_file("./jit/test_for_in_if_return.lua", {.debug_mode = false});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 3);
+    L->call("test", std::tie(a), 5, 4);
+    ASSERT_EQ(a, 4);
+}
+
+TEST(jitter, test_for_in_just_break) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    L->compile_file("./jit/test_for_in_just_break.lua", {});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 3);
+
+    a = 0;
+    L->compile_file("./jit/test_for_in_just_break.lua", {.debug_mode = false});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 3);
+}
+
+TEST(jitter, test_for_in_return) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    L->compile_file("./jit/test_for_in_return.lua", {});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 3);
+
+    a = 0;
+    L->compile_file("./jit/test_for_in_return.lua", {.debug_mode = false});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 3);
+}
+
+TEST(jitter, test_for_in_return_fallback) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    L->compile_file("./jit/test_for_in_return_fallback.lua", {});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 0);
+
+    a = 0;
+    L->compile_file("./jit/test_for_in_return_fallback.lua", {.debug_mode = false});
+    L->call("test", std::tie(a), 3, 4);
+    ASSERT_EQ(a, 0);
+}
