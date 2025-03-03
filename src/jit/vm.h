@@ -35,12 +35,15 @@ public:
         return vm_functions_;
     }
 
+    // alloc temp name, life cycle is all through the process, so put it in vm
     std::string alloc_temp_name() {
         return std::format("__fakelua_temp_{}__", temp_name_++);
     }
 
 private:
+    // all registered functions
     std::unordered_map<std::string, vm_function_ptr> vm_functions_;
+    // temp name counter
     uint64_t temp_name_ = 0;
 };
 
