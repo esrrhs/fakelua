@@ -26,14 +26,19 @@ compile_result compiler::compile(fakelua_state_ptr sp, myflexer &f, compile_conf
 
     ret.file_name = f.get_filename();
 
-    // compile chunk
+    // generate the tree
     yy::parser parse(&f);
     auto code = parse.parse();
     LOG_INFO("compile ret {}", code);
     DEBUG_ASSERT(code == 0);
     ret.chunk = f.get_chunk();
 
-    // compile interpreter
+    if (cfg.debug_mode) {
+        // just walk the tree, do nothing
+        walk_syntax_tree(ret.chunk, [](const syntax_tree_interface_ptr &ptr) {});
+    }
+
+    // compile tree
     if (!cfg.skip_jit) {
         // preprocess
         pre_processor pp;

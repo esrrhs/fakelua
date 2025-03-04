@@ -687,6 +687,14 @@ public:
         return exps_.size();
     }
 
+    const std::vector<syntax_tree_interface_ptr> &elseif_exps() const {
+        return exps_;
+    }
+
+    const std::vector<syntax_tree_interface_ptr> &elseif_blocks() const {
+        return blocks_;
+    }
+
     syntax_tree_interface_ptr elseif_exp(size_t idx) const {
         return exps_[idx];
     }
@@ -992,6 +1000,10 @@ public:
 
     void set_funcbody(const syntax_tree_interface_ptr &funcbody) {
         funcbody_ = funcbody;
+    }
+
+    syntax_tree_interface_ptr funcbody() const {
+        return funcbody_;
     }
 
 private:
@@ -1327,5 +1339,8 @@ static inline void check_syntax_tree_type(const syntax_tree_interface_ptr &node,
     ss << "got " << magic_enum::enum_name(node->type());
     throw_fakelua_exception(ss.str());
 }
+
+typedef std::function<void(const syntax_tree_interface_ptr &)> walk_syntax_tree_func;
+void walk_syntax_tree(const syntax_tree_interface_ptr &node, walk_syntax_tree_func func);
 
 }// namespace fakelua
