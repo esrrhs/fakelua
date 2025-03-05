@@ -32,8 +32,8 @@ void pre_processor::process(fakelua_state_ptr sp, compile_config cfg, const std:
         dump_debug_file(chunk, debug_step++);
     }
 
-    // make the function name like 'function a.b.c()' to a temp name 'function __fakelua_temp_1__()',
-    // and add a new stmt 'xxx.yyy.zzz = "__fakelua_temp_1__"' in function __fakelua_global_init__
+    // make the function name like 'function a.b.c()' to a temp name 'function __fakelua_global_1__()',
+    // and add a new stmt 'xxx.yyy.zzz = "__fakelua_global_1__"' in function __fakelua_global_init__
     // also, we need to add 'self' in the front of the params if the function is a member function.
     preprocess_functions_name(chunk);
     if (cfg.debug_mode) {
@@ -47,7 +47,7 @@ void pre_processor::process(fakelua_state_ptr sp, compile_config cfg, const std:
     }
 
     // change the table assign stmt like 'a.b.c = some_value' lvalue to temp name.
-    // like 'local __fakelua_temp_2__; __fakelua_temp_2__ = some_value; __fakelua_set_table__(a.b, "c", __fakelua_temp_2__)'
+    // like 'local __fakelua_global_2__; __fakelua_global_2__ = some_value; __fakelua_set_table__(a.b, "c", __fakelua_global_2__)'
     // so we can easily always get the value of a.b.c as rvalue.
     preprocess_table_assigns(chunk);
     if (cfg.debug_mode) {
