@@ -1011,7 +1011,7 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
         auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
         auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
 
-        auto pre_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
+        auto pre_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.pre_index++);
         auto pre = func.new_local(the_var_type, pre_name, new_location(op));
 
         // var* pre=left
@@ -1722,7 +1722,7 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
     save_stack_lvalue_by_name(name, iter, exp_begin);
 
     // init the end var, eg: pre = 10
-    auto end_pre_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
+    auto end_pre_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.pre_index++);
     auto end_pre = func.new_local(the_var_type, end_pre_name, new_location(exp_end));
     DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.add_assignment(end_pre, end_ret, new_location(exp_end));
@@ -1730,7 +1730,7 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
     save_stack_lvalue_by_name(end_pre_name, end_pre, exp_end);
 
     // init the step var, eg: pre = 1
-    auto step_pre_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
+    auto step_pre_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.pre_index++);
     auto step_pre = func.new_local(the_var_type, step_pre_name, new_location(exp_step));
     DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.add_assignment(step_pre, step_ret, new_location(exp_step));
@@ -1929,7 +1929,7 @@ void gcc_jitter::compile_stmt_for_in(gccjit::function &func, const syntax_tree_i
     auto is_const = cur_function_data_.is_const;
 
     // init the iterator var, eg: size_t pre0 = 0
-    auto iter_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
+    auto iter_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.pre_index++);
     auto iter = func.new_local(the_size_t_type, iter_name, new_location(exp));
     auto iter_init_value = gccjit_context_->zero(the_size_t_type);
     DEBUG_ASSERT(!is_block_ended());
@@ -1941,13 +1941,13 @@ void gcc_jitter::compile_stmt_for_in(gccjit::function &func, const syntax_tree_i
         throw_error(std::format("for in ipairs() or pairs() args size must be 1, but got {}", args_ret.size()), for_args);
     }
     // store in local, eg: pre1 = table
-    auto iter_dst_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
+    auto iter_dst_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.pre_index++);
     auto iter_dst = func.new_local(gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR), iter_dst_name, new_location(for_args_ptr));
     DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.add_assignment(iter_dst, args_ret[0], new_location(for_args_ptr));
 
     // init the iterator end var, eg: size_t pre2 = size(pre1)
-    auto iter_end_name = std::format("__fakelua_pre_{}__", cur_function_data_.pre_index++);
+    auto iter_end_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.pre_index++);
     auto iter_end = func.new_local(the_size_t_type, iter_end_name, new_location(for_args_ptr));
 
     std::vector<gccjit::param> params;

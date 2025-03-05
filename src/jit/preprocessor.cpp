@@ -18,6 +18,13 @@ void pre_processor::process(fakelua_state_ptr sp, compile_config cfg, const std:
     file_name_ = file_name;
     int debug_step = 0;
 
+    // extracts all literal constants (e.g., integers, floats, strings),
+    // adds them to the const define, and replaces them with the corresponding const name.
+    preprocess_extracts_literal_constants(chunk);
+    if (cfg.debug_mode) {
+        dump_debug_file(chunk, debug_step++);
+    }
+
     // make the const define 'a = 1' to 'a = nil', and add a new stmt 'a = 1' in function __fakelua_global_init__
     // because the const value is not supported function, so we need to make it to nil. and then assign.
     preprocess_const(chunk);
@@ -34,7 +41,7 @@ void pre_processor::process(fakelua_state_ptr sp, compile_config cfg, const std:
     }
 
     // now we have funtion __fakelua_global_init__, we need to add it to the chunk. maybe later we will insert more stmts to it.
-    save_preprocess_trunk_new_stmt(chunk);
+    save_preprocess_global_init(chunk);
     if (cfg.debug_mode) {
         dump_debug_file(chunk, debug_step++);
     }
@@ -58,7 +65,7 @@ void pre_processor::dump_debug_file(const syntax_tree_interface_ptr &chunk, int 
     file.close();
 }
 
-void pre_processor::save_preprocess_trunk_new_stmt(const syntax_tree_interface_ptr &chunk) {
+void pre_processor::save_preprocess_global_init(const syntax_tree_interface_ptr &chunk) {
     // add new function __fakelua_global_init__
     auto funcname = std::make_shared<syntax_tree_funcname>(chunk->loc());
     auto funcnamelist = std::make_shared<syntax_tree_funcnamelist>(chunk->loc());
@@ -66,7 +73,7 @@ void pre_processor::save_preprocess_trunk_new_stmt(const syntax_tree_interface_p
     funcname->set_funcnamelist(funcnamelist);
     auto funcbody = std::make_shared<syntax_tree_funcbody>(chunk->loc());
     auto block = std::make_shared<syntax_tree_block>(chunk->loc());
-    for (auto &stmt: preprocess_trunk_new_stmt_) {
+    for (auto &stmt: global_init_new_stmt_) {
         block->add_stmt(stmt);
     }
     funcbody->set_block(block);
@@ -75,7 +82,7 @@ void pre_processor::save_preprocess_trunk_new_stmt(const syntax_tree_interface_p
     func->set_funcbody(funcbody);
     auto chunk_ptr = std::dynamic_pointer_cast<syntax_tree_block>(chunk);
     chunk_ptr->add_stmt(func);
-    preprocess_trunk_new_stmt_.clear();
+    global_init_new_stmt_.clear();
 }
 
 void pre_processor::preprocess_const(const syntax_tree_interface_ptr &chunk) {
@@ -119,11 +126,12 @@ void pre_processor::preprocess_const_define(const syntax_tree_interface_ptr &stm
         explist->add_exp(values_exps[i]);
         assign_stmt->set_explist(explist);
 
+        // now replace the value to nil
         auto nil_exp = std::make_shared<syntax_tree_exp>(stmt->loc());
         nil_exp->set_type("nil");
         values_exps[i] = nil_exp;
 
-        preprocess_trunk_new_stmt_.push_back(assign_stmt);
+        global_init_new_stmt_.push_back(assign_stmt);
     }
 }
 
@@ -187,7 +195,7 @@ void pre_processor::preprocess_function_name(const syntax_tree_interface_ptr &fu
     } else {
         // member function
         // xxx.yyy(), we need alloc special function name, and set the name to xxx.yyy
-        auto name = std::dynamic_pointer_cast<state>(sp_)->get_vm().alloc_temp_name();
+        auto name = std::dynamic_pointer_cast<state>(sp_)->get_vm().alloc_global_name();
         newfuncnamelistptr->add_name(name);
         funcname->set_funcnamelist(newfuncnamelistptr);
 
@@ -229,7 +237,7 @@ void pre_processor::preprocess_function_name(const syntax_tree_interface_ptr &fu
 
         assign_stmt->set_explist(explist);
 
-        preprocess_trunk_new_stmt_.push_back(assign_stmt);
+        global_init_new_stmt_.push_back(assign_stmt);
     }
 }
 
@@ -286,9 +294,9 @@ void pre_processor::preprocess_table_assign(const syntax_tree_interface_ptr &fun
                 check_syntax_tree_type(var, {syntax_tree_type::syntax_tree_type_var});
                 auto var_ptr = std::dynamic_pointer_cast<syntax_tree_var>(var);
                 if (var_ptr->get_type() == "square" || var_ptr->get_type() == "dot") {
-                    auto name = std::dynamic_pointer_cast<state>(sp_)->get_vm().alloc_temp_name();
+                    auto name = std::format("__fakelua_pp_pre_{}__", pre_index_++);
 
-                    // add new stmt 'local __fakelua_temp_2__;
+                    // add new stmt 'local _pre;'
                     {
                         auto local_var = std::make_shared<syntax_tree_local_var>(stmt->loc());
                         auto namelist = std::make_shared<syntax_tree_namelist>(stmt->loc());
@@ -298,7 +306,7 @@ void pre_processor::preprocess_table_assign(const syntax_tree_interface_ptr &fun
                         LOG_INFO("preprocess_table_assigns add new pre stmt {}", local_var->dump());
                     }
 
-                    // set stmt '__fakelua_temp_2__ = some_value;'
+                    // set stmt '_pre = some_value;'
                     {
                         auto new_var = std::make_shared<syntax_tree_var>(var_ptr->loc());
                         new_var->set_type("simple");
@@ -307,7 +315,7 @@ void pre_processor::preprocess_table_assign(const syntax_tree_interface_ptr &fun
                         LOG_INFO("preprocess_table_assigns change new var {}", new_var->dump());
                     }
 
-                    // add new stmt '__fakelua_set_table__(a.b, "c", __fakelua_temp_2__)'
+                    // add new stmt '__fakelua_set_table__(a.b, "c", _pre)'
                     {
                         auto func_call = std::make_shared<syntax_tree_functioncall>(stmt->loc());
                         auto prefixexp = std::make_shared<syntax_tree_prefixexp>(stmt->loc());
@@ -343,7 +351,7 @@ void pre_processor::preprocess_table_assign(const syntax_tree_interface_ptr &fun
                             }
                         }
 
-                        // __fakelua_temp_2__
+                        // _pre
                         {
                             auto args_exp = std::make_shared<syntax_tree_exp>(stmt->loc());
                             auto args_exp_prefixexp = std::make_shared<syntax_tree_prefixexp>(stmt->loc());
@@ -379,6 +387,150 @@ void pre_processor::preprocess_table_assign(const syntax_tree_interface_ptr &fun
         }
     }
     block_ptr->set_stmts(new_stmts);
+}
+
+void pre_processor::preprocess_extracts_literal_constants(const syntax_tree_interface_ptr &chunk) {
+    // the chunk must be a block
+    check_syntax_tree_type(chunk, {syntax_tree_type::syntax_tree_type_block});
+
+    // walk tree and find all literal exp
+    std::map<std::string, std::string> integer_map;
+    std::map<std::string, std::string> float_map;
+    std::map<std::string, std::string> string_map;
+
+    auto walk_func = [&](const syntax_tree_interface_ptr &ptr) {
+        if (ptr->type() == syntax_tree_type::syntax_tree_type_exp) {
+            auto exp = std::dynamic_pointer_cast<syntax_tree_exp>(ptr);
+            auto exp_type = exp->exp_type();
+            auto value = exp->exp_value();
+            if (exp_type == "number") {
+                if (is_integer(value)) {
+                    if (!integer_map.contains(value)) {
+                        integer_map[value] = std::format("__fakelua_pp_pre_{}__", pre_index_++);
+                    }
+                } else {
+                    if (!float_map.contains(value)) {
+                        float_map[value] = std::format("__fakelua_pp_pre_{}__", pre_index_++);
+                    }
+                }
+            } else if (exp_type == "string") {
+                if (!string_map.contains(value)) {
+                    string_map[value] = std::format("__fakelua_pp_pre_{}__", pre_index_++);
+                }
+            }
+        }
+    };
+
+    // walk through the block function
+    auto block = std::dynamic_pointer_cast<syntax_tree_block>(chunk);
+    for (auto &stmt: block->stmts()) {
+        if (stmt->type() == syntax_tree_type::syntax_tree_type_function) {
+            auto func = std::dynamic_pointer_cast<syntax_tree_function>(stmt);
+            walk_syntax_tree(func, walk_func);
+        }
+    }
+
+    auto cur_stmts = block->stmts();
+
+    // now we have all literal constants, we need to add them to chunk front
+    for (auto &iter: integer_map) {
+        auto value = iter.first;
+        auto name = iter.second;
+        auto local_var = std::make_shared<syntax_tree_local_var>(chunk->loc());
+        auto namelist = std::make_shared<syntax_tree_namelist>(chunk->loc());
+        namelist->add_name(name);
+        local_var->set_namelist(namelist);
+        auto explist = std::make_shared<syntax_tree_explist>(chunk->loc());
+        auto exp = std::make_shared<syntax_tree_exp>(chunk->loc());
+        exp->set_type("number");
+        exp->set_value(value);
+        explist->add_exp(exp);
+        local_var->set_explist(explist);
+        cur_stmts.insert(cur_stmts.begin(), local_var);
+    }
+    for (auto &iter: float_map) {
+        auto value = iter.first;
+        auto name = iter.second;
+        auto local_var = std::make_shared<syntax_tree_local_var>(chunk->loc());
+        auto namelist = std::make_shared<syntax_tree_namelist>(chunk->loc());
+        namelist->add_name(name);
+        local_var->set_namelist(namelist);
+        auto explist = std::make_shared<syntax_tree_explist>(chunk->loc());
+        auto exp = std::make_shared<syntax_tree_exp>(chunk->loc());
+        exp->set_type("number");
+        exp->set_value(value);
+        explist->add_exp(exp);
+        local_var->set_explist(explist);
+        cur_stmts.insert(cur_stmts.begin(), local_var);
+    }
+    for (auto &iter: string_map) {
+        auto value = iter.first;
+        auto name = iter.second;
+        auto local_var = std::make_shared<syntax_tree_local_var>(chunk->loc());
+        auto namelist = std::make_shared<syntax_tree_namelist>(chunk->loc());
+        namelist->add_name(name);
+        local_var->set_namelist(namelist);
+        auto explist = std::make_shared<syntax_tree_explist>(chunk->loc());
+        auto exp = std::make_shared<syntax_tree_exp>(chunk->loc());
+        exp->set_type("string");
+        exp->set_value(value);
+        explist->add_exp(exp);
+        local_var->set_explist(explist);
+        cur_stmts.insert(cur_stmts.begin(), local_var);
+    }
+
+    block->set_stmts(cur_stmts);
+
+    // now replace all the literal to const name
+    auto replace_func = [&](const syntax_tree_interface_ptr &ptr) {
+        if (ptr->type() == syntax_tree_type::syntax_tree_type_exp) {
+            auto exp = std::dynamic_pointer_cast<syntax_tree_exp>(ptr);
+            auto exp_type = exp->exp_type();
+            auto value = exp->exp_value();
+            if (exp_type == "number") {
+                if (is_integer(value)) {
+                    DEBUG_ASSERT(integer_map.contains(value));
+                    auto new_var_name = integer_map[value];
+                    auto prefix = std::make_shared<syntax_tree_prefixexp>(exp->loc());
+                    auto var = std::make_shared<syntax_tree_var>(exp->loc());
+                    var->set_type("simple");
+                    var->set_name(new_var_name);
+                    prefix->set_type("var");
+                    prefix->set_value(var);
+                    exp->set_type("prefixexp");
+                    exp->set_right(prefix);
+                } else {
+                    auto new_var_name = float_map[value];
+                    auto prefix = std::make_shared<syntax_tree_prefixexp>(exp->loc());
+                    auto var = std::make_shared<syntax_tree_var>(exp->loc());
+                    var->set_type("simple");
+                    var->set_name(new_var_name);
+                    prefix->set_type("var");
+                    prefix->set_value(var);
+                    exp->set_type("prefixexp");
+                    exp->set_right(prefix);
+                }
+            } else if (exp_type == "string") {
+                auto new_var_name = string_map[value];
+                auto prefix = std::make_shared<syntax_tree_prefixexp>(exp->loc());
+                auto var = std::make_shared<syntax_tree_var>(exp->loc());
+                var->set_type("simple");
+                var->set_name(new_var_name);
+                prefix->set_type("var");
+                prefix->set_value(var);
+                exp->set_type("prefixexp");
+                exp->set_right(prefix);
+            }
+        }
+    };
+
+    // walk through the block function
+    for (auto &stmt: block->stmts()) {
+        if (stmt->type() == syntax_tree_type::syntax_tree_type_function) {
+            auto func = std::dynamic_pointer_cast<syntax_tree_function>(stmt);
+            walk_syntax_tree(func, replace_func);
+        }
+    }
 }
 
 }// namespace fakelua

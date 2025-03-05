@@ -144,14 +144,21 @@ private:
     std::unordered_map<std::string, std::pair<gccjit::lvalue, syntax_tree_interface_ptr>> global_const_vars_;
     // compiling function tmp data
     struct function_data {
+        // save stack frame vars
         struct stack_frame {
             std::unordered_map<std::string, gccjit::lvalue> local_vars;
         };
+        // every block stack frame
         std::vector<stack_frame> stack_frames;
+        // record the block ended
         std::unordered_set<gcc_jit_block *> ended_blocks;
+        // use to save the current block
         gccjit::block cur_block;
+        // used for jmp to
         std::vector<gccjit::block> stack_end_blocks;
+        // temp var name counter
         int pre_index = 0;
+        // mark cur func if is const
         bool is_const = false;
     };
     // current compiling function data

@@ -35,16 +35,16 @@ public:
         return vm_functions_;
     }
 
-    // alloc temp name, life cycle is all through the process, so put it in vm
-    std::string alloc_temp_name() {
-        return std::format("__fakelua_temp_{}__", temp_name_++);
+    // alloc global name, life cycle is all through the process, so put it in vm
+    std::string alloc_global_name() {
+        return std::format("__fakelua_global_{}__", global_name_++);
     }
 
 private:
     // all registered functions
     std::unordered_map<std::string, vm_function_ptr> vm_functions_;
-    // temp name counter
-    uint64_t temp_name_ = 0;
+    // global name counter
+    uint64_t global_name_ = 0;
 };
 
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s, gcc_jit_handle *h, bool is_const);

@@ -24,11 +24,13 @@ private:
 
     void preprocess_function_name(const syntax_tree_interface_ptr &func);
 
-    void save_preprocess_trunk_new_stmt(const syntax_tree_interface_ptr &chunk);
+    void save_preprocess_global_init(const syntax_tree_interface_ptr &chunk);
 
     void preprocess_table_assigns(const syntax_tree_interface_ptr &chunk);
 
     void preprocess_table_assign(const syntax_tree_interface_ptr &funcbody);
+
+    void preprocess_extracts_literal_constants(const syntax_tree_interface_ptr &chunk);
 
 private:
     [[noreturn]] void throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr);
@@ -42,8 +44,10 @@ private:
     fakelua_state_ptr sp_;
     // the compile config
     std::string file_name_;
-    // save the preprocess trunk new stmt
-    std::vector<syntax_tree_interface_ptr> preprocess_trunk_new_stmt_;
+    // save the preprocess trunk new stmt in global_init func
+    std::vector<syntax_tree_interface_ptr> global_init_new_stmt_;
+    // temp var name counter
+    int pre_index_ = 0;
 };
 
 }// namespace fakelua
