@@ -14,21 +14,20 @@ class state;
 // except the global const var, which is stored in the gcc_jit_handle.
 class var {
 public:
-    var() : type_(var_type::VAR_NIL) {
+    var() = default;
+
+    explicit var(std::nullptr_t, bool is_const = false) : is_const_(is_const) {
     }
 
-    var(std::nullptr_t, bool is_const = false) : type_(var_type::VAR_NIL), is_const_(is_const) {
-    }
-
-    var(bool val, bool is_const = false) : is_const_(is_const) {
+    explicit var(bool val, bool is_const = false) : is_const_(is_const) {
         set_bool(val);
     }
 
-    var(int64_t val) {
+    explicit var(int64_t val) {
         set_int(val);
     }
 
-    var(double val) {
+    explicit var(double val) {
         set_float(val);
     }
 
