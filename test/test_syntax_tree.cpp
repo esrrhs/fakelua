@@ -1286,7 +1286,9 @@ TEST(syntax_tree, function_call_args) {
                    "        type: simple\n"
                    "        name: c\n"
                    "    (args)[3:3]\n"
-                   "      string: d\n";
+                   "      (exp)[3:3]\n"
+                   "        type: string\n"
+                   "        value: d\n";
 
     ASSERT_EQ(dumpstr, wantstr);
 }
