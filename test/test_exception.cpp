@@ -847,3 +847,51 @@ TEST(exception, test_call_var_func) {
         ASSERT_TRUE(std::string(e.what()).find("too many arguments") != std::string::npos);
     }
 }
+
+TEST(exception, table_set) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_table_set_error.lua", {});
+        int ret = 0;
+        L->call("test", std::tie(ret), "abc");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("must be table") != std::string::npos);
+    }
+}
+
+TEST(exception, table_get) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_table_get_error.lua", {});
+        int ret = 0;
+        L->call("test", std::tie(ret), "abc");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("must be table") != std::string::npos);
+    }
+}
+
+TEST(exception, table_loop) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_table_loop_error.lua", {});
+        int ret = 0;
+        L->call("test", std::tie(ret), "abc");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("must be table") != std::string::npos);
+    }
+}
