@@ -465,28 +465,14 @@ size_t var::table_size() const {
 }
 
 var *var::table_key_at(size_t pos) const {
-    if (type() != var_type::VAR_TABLE) {
-        throw_fakelua_exception(
-                std::format("operand of 'table_key_at' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
-    }
-
-    if (pos >= get_table().size()) {
-        throw_fakelua_exception(std::format("table index out of range [0, {}), got {}", get_table().size(), pos));
-    }
-
+    DEBUG_ASSERT(type() == var_type::VAR_TABLE);
+    DEBUG_ASSERT(pos < get_table().size());
     return get_table().key_at(pos);
 }
 
 var *var::table_value_at(size_t pos) const {
-    if (type() != var_type::VAR_TABLE) {
-        throw_fakelua_exception(
-                std::format("operand of 'table_value_at' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
-    }
-
-    if (pos >= get_table().size()) {
-        throw_fakelua_exception(std::format("table index out of range [0, {}), got {}", get_table().size(), pos));
-    }
-
+    DEBUG_ASSERT(type() == var_type::VAR_TABLE);
+    DEBUG_ASSERT(pos < get_table().size());
     return get_table().value_at(pos);
 }
 
