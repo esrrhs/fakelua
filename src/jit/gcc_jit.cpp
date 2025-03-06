@@ -1306,10 +1306,7 @@ std::vector<gccjit::rvalue> gcc_jitter::compile_args(gccjit::function &func, con
         return {tc_ret};
     } else if (type == "string") {
         auto str = args_ptr->string();
-        auto str_exp = std::make_shared<syntax_tree_exp>(args->loc());
-        str_exp->set_type("string");
-        str_exp->set_value(str);
-        auto str_ret = compile_exp(func, str_exp);
+        auto str_ret = compile_exp(func, str);
         return {str_ret};
     }
 

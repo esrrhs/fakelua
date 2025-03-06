@@ -322,7 +322,7 @@ std::string syntax_tree_args::dump(int tab) const {
     } else if (type_ == "tableconstructor") {
         str += tableconstructor_->dump(tab + 1);
     } else if (type_ == "string") {
-        str += gen_tab(tab + 1) + "string: " + string_ + "\n";
+        str += string_->dump(tab + 1);
     } else if (type_ == "empty") {
         str += gen_tab(tab + 1) + "empty" + "\n";
     } else {
@@ -565,6 +565,7 @@ void walk_syntax_tree(const syntax_tree_interface_ptr &node, walk_syntax_tree_fu
             func(args);
             walk_syntax_tree(args->explist(), func);
             walk_syntax_tree(args->tableconstructor(), func);
+            walk_syntax_tree(args->string(), func);
             break;
         }
         case syntax_tree_type::syntax_tree_type_prefixexp: {

@@ -2538,15 +2538,18 @@ namespace yy {
     {
         LOG_INFO("[bison]: args: STRING");
         auto args = std::make_shared<fakelua::syntax_tree_args>(yystack_[0].location);
-        args->set_string(l->remove_quotes(yystack_[0].value.as < std::string > ()));
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
+        exp->set_type("string");
+        exp->set_value(l->remove_quotes(yystack_[0].value.as < std::string > ()));
+        args->set_string(exp);
         args->set_type("string");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = args;
     }
-#line 2546 "parser.cpp"
+#line 2549 "parser.cpp"
     break;
 
   case 91: // functiondef: "function" funcbody
-#line 1596 "parser.y"
+#line 1599 "parser.y"
     {
         LOG_INFO("[bison]: functiondef: FUNCTION funcbody");
         auto functiondef = std::make_shared<fakelua::syntax_tree_functiondef>(yystack_[1].location);
@@ -2558,11 +2561,11 @@ namespace yy {
         functiondef->set_funcbody(funcbody);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = functiondef;
     }
-#line 2562 "parser.cpp"
+#line 2565 "parser.cpp"
     break;
 
   case 92: // funcbody: "(" parlist ")" block "end"
-#line 1611 "parser.y"
+#line 1614 "parser.y"
     {
         LOG_INFO("[bison]: funcbody: LPAREN parlist RPAREN block END");
         auto funcbody = std::make_shared<fakelua::syntax_tree_funcbody>(yystack_[4].location);
@@ -2580,11 +2583,11 @@ namespace yy {
         funcbody->set_block(block);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcbody;
     }
-#line 2584 "parser.cpp"
+#line 2587 "parser.cpp"
     break;
 
   case 93: // funcbody: "(" ")" block "end"
-#line 1630 "parser.y"
+#line 1633 "parser.y"
     {
         LOG_INFO("[bison]: funcbody: LPAREN RPAREN block END");
         auto funcbody = std::make_shared<fakelua::syntax_tree_funcbody>(yystack_[3].location);
@@ -2596,11 +2599,11 @@ namespace yy {
         funcbody->set_block(block);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcbody;
     }
-#line 2600 "parser.cpp"
+#line 2603 "parser.cpp"
     break;
 
   case 94: // parlist: namelist
-#line 1645 "parser.y"
+#line 1648 "parser.y"
     {
         LOG_INFO("[bison]: parlist: namelist");
         auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(yystack_[0].location);
@@ -2612,11 +2615,11 @@ namespace yy {
         parlist->set_namelist(namelist);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = parlist;
     }
-#line 2616 "parser.cpp"
+#line 2619 "parser.cpp"
     break;
 
   case 95: // parlist: namelist "," "..."
-#line 1658 "parser.y"
+#line 1661 "parser.y"
     {
         LOG_INFO("[bison]: parlist: namelist COMMA VAR_PARAMS");
         auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(yystack_[2].location);
@@ -2629,22 +2632,22 @@ namespace yy {
         parlist->set_var_params(true);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = parlist;
     }
-#line 2633 "parser.cpp"
+#line 2636 "parser.cpp"
     break;
 
   case 96: // parlist: "..."
-#line 1672 "parser.y"
+#line 1675 "parser.y"
     {
         LOG_INFO("[bison]: parlist: VAR_PARAMS");
         auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(yystack_[0].location);
         parlist->set_var_params(true);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = parlist;
     }
-#line 2644 "parser.cpp"
+#line 2647 "parser.cpp"
     break;
 
   case 97: // tableconstructor: "{" fieldlist "}"
-#line 1682 "parser.y"
+#line 1685 "parser.y"
     {
         LOG_INFO("[bison]: tableconstructor: LCURLY fieldlist RCURLY");
         auto tableconstructor = std::make_shared<fakelua::syntax_tree_tableconstructor>(yystack_[2].location);
@@ -2656,21 +2659,21 @@ namespace yy {
         tableconstructor->set_fieldlist(fieldlist);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = tableconstructor;
     }
-#line 2660 "parser.cpp"
+#line 2663 "parser.cpp"
     break;
 
   case 98: // tableconstructor: "{" "}"
-#line 1695 "parser.y"
+#line 1698 "parser.y"
     {
         LOG_INFO("[bison]: tableconstructor: LCURLY RCURLY");
         auto tableconstructor = std::make_shared<fakelua::syntax_tree_tableconstructor>(yystack_[1].location);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = tableconstructor;
     }
-#line 2670 "parser.cpp"
+#line 2673 "parser.cpp"
     break;
 
   case 99: // fieldlist: field
-#line 1704 "parser.y"
+#line 1707 "parser.y"
     {
         LOG_INFO("[bison]: fieldlist: field");
         auto fieldlist = std::make_shared<fakelua::syntax_tree_fieldlist>(yystack_[0].location);
@@ -2682,11 +2685,11 @@ namespace yy {
         fieldlist->add_field(field);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = fieldlist;
     }
-#line 2686 "parser.cpp"
+#line 2689 "parser.cpp"
     break;
 
   case 100: // fieldlist: fieldlist fieldsep field
-#line 1717 "parser.y"
+#line 1720 "parser.y"
     {
         LOG_INFO("[bison]: fieldlist: fieldlist fieldsep field");
         auto fieldlist = std::dynamic_pointer_cast<fakelua::syntax_tree_fieldlist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
@@ -2702,11 +2705,11 @@ namespace yy {
         fieldlist->add_field(field);
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = fieldlist;
     }
-#line 2706 "parser.cpp"
+#line 2709 "parser.cpp"
     break;
 
   case 101: // field: "[" exp "]" "=" exp
-#line 1736 "parser.y"
+#line 1739 "parser.y"
     {
         LOG_INFO("[bison]: field: LSQUARE exp RSQUARE ASSIGN exp");
         auto field = std::make_shared<fakelua::syntax_tree_field>(yystack_[4].location);
@@ -2725,11 +2728,11 @@ namespace yy {
         field->set_type("array");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = field;
     }
-#line 2729 "parser.cpp"
+#line 2732 "parser.cpp"
     break;
 
   case 102: // field: "identifier" "=" exp
-#line 1756 "parser.y"
+#line 1759 "parser.y"
     {
         LOG_INFO("[bison]: field: IDENTIFIER ASSIGN exp");
         auto field = std::make_shared<fakelua::syntax_tree_field>(yystack_[2].location);
@@ -2743,11 +2746,11 @@ namespace yy {
         field->set_type("object");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = field;
     }
-#line 2747 "parser.cpp"
+#line 2750 "parser.cpp"
     break;
 
   case 103: // field: exp
-#line 1771 "parser.y"
+#line 1774 "parser.y"
     {
         LOG_INFO("[bison]: field: exp");
         auto field = std::make_shared<fakelua::syntax_tree_field>(yystack_[0].location);
@@ -2760,29 +2763,29 @@ namespace yy {
         field->set_type("array");
         yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = field;
     }
-#line 2764 "parser.cpp"
+#line 2767 "parser.cpp"
     break;
 
   case 104: // fieldsep: ","
-#line 1787 "parser.y"
+#line 1790 "parser.y"
     {
         LOG_INFO("[bison]: fieldsep: COMMA");
         // nothing to do
     }
-#line 2773 "parser.cpp"
+#line 2776 "parser.cpp"
     break;
 
   case 105: // fieldsep: ";"
-#line 1793 "parser.y"
+#line 1796 "parser.y"
     {
         LOG_INFO("[bison]: fieldsep: SEMICOLON");
         // nothing to do
     }
-#line 2782 "parser.cpp"
+#line 2785 "parser.cpp"
     break;
 
 
-#line 2786 "parser.cpp"
+#line 2789 "parser.cpp"
 
             default:
               break;
@@ -3698,8 +3701,8 @@ namespace yy {
      980,  1003,  1026,  1049,  1072,  1095,  1118,  1141,  1164,  1187,
     1210,  1233,  1256,  1279,  1302,  1325,  1348,  1371,  1394,  1411,
     1428,  1445,  1464,  1478,  1492,  1507,  1526,  1548,  1562,  1570,
-    1584,  1595,  1610,  1629,  1644,  1657,  1671,  1681,  1694,  1703,
-    1716,  1735,  1755,  1770,  1786,  1792
+    1584,  1598,  1613,  1632,  1647,  1660,  1674,  1684,  1697,  1706,
+    1719,  1738,  1758,  1773,  1789,  1795
   };
 
   void
@@ -3731,9 +3734,9 @@ namespace yy {
 
 
 } // yy
-#line 3735 "parser.cpp"
+#line 3738 "parser.cpp"
 
-#line 1799 "parser.y"
+#line 1802 "parser.y"
 
 
 void

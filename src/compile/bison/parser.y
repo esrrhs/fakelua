@@ -1585,7 +1585,10 @@ args:
     {
         LOG_INFO("[bison]: args: STRING");
         auto args = std::make_shared<fakelua::syntax_tree_args>(@1);
-        args->set_string(l->remove_quotes($1));
+        auto exp = std::make_shared<fakelua::syntax_tree_exp>(@1);
+        exp->set_type("string");
+        exp->set_value(l->remove_quotes($1));
+        args->set_string(exp);
         args->set_type("string");
         $$ = args;
     }

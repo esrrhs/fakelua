@@ -2721,3 +2721,18 @@ TEST(jitter, test_local_func_call_table_construct) {
     L->call("test", std::tie(ret), 1, 2);
     ASSERT_FALSE(ret);
 }
+
+TEST(jitter, test_local_func_call_string) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    std::string ret;
+    L->compile_file("./jit/test_local_func_call_string.lua", {});
+    L->call("test", std::tie(ret), 2, 1);
+    ASSERT_EQ(ret, "test_test");
+
+    ret.clear();
+    L->compile_file("./jit/test_local_func_call_string.lua", {.debug_mode = false});
+    L->call("test", std::tie(ret), 2, 1);
+    ASSERT_EQ(ret, "test_test");
+}

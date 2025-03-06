@@ -1258,7 +1258,7 @@ public:
         tableconstructor_ = tableconstructor;
     }
 
-    void set_string(const std::string &string) {
+    void set_string(const syntax_tree_interface_ptr &string) {
         string_ = string;
     }
 
@@ -1278,14 +1278,14 @@ public:
         return tableconstructor_;
     }
 
-    std::string string() const {
+    syntax_tree_interface_ptr string() const {
         return string_;
     }
 
 private:
     syntax_tree_interface_ptr explist_;
     syntax_tree_interface_ptr tableconstructor_;
-    std::string string_;
+    syntax_tree_interface_ptr string_;
     std::string type_;
 };
 
