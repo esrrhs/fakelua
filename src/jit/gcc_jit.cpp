@@ -214,9 +214,7 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
     check_syntax_tree_type(local_var->namelist(), {syntax_tree_type::syntax_tree_type_namelist});
     auto keys = std::dynamic_pointer_cast<syntax_tree_namelist>(local_var->namelist());
     auto &names = keys->names();
-    if (!local_var->explist()) {
-        throw_error("the const define must have a value, but the value is null, it's useless", local_var);
-    }
+    DEBUG_ASSERT(local_var->explist());
     check_syntax_tree_type(local_var->explist(), {syntax_tree_type::syntax_tree_type_explist});
     auto values = std::dynamic_pointer_cast<syntax_tree_explist>(local_var->explist());
     auto &values_exps = values->exps();
@@ -225,9 +223,7 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
 
     for (size_t i = 0; i < names.size(); ++i) {
         auto name = names[i];
-        if (i >= values_exps.size()) {
-            throw_error("the const define not match, the value is not enough", values);
-        }
+        DEBUG_ASSERT(i < values_exps.size());
 
         LOG_INFO("compile const define: {}", name);
 
@@ -382,9 +378,7 @@ std::string gcc_jitter::new_block_name(const std::string &name, const syntax_tre
 }
 
 void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interface_ptr &stmt) {
-    if (is_block_ended()) {
-        throw_error("cur_block is already ended, can not compile stmt", stmt);
-    }
+    DEBUG_ASSERT(!is_block_ended());
 
     switch (stmt->type()) {
         case syntax_tree_type::syntax_tree_type_return: {
