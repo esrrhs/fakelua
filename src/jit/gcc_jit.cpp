@@ -512,6 +512,8 @@ gccjit::rvalue gcc_jitter::compile_prefixexp(gccjit::function &func, const synta
 
     auto is_const = cur_function_data_.is_const;
 
+    DEBUG_ASSERT(pe_type == "var" || pe_type == "functioncall" || pe_type == "exp");
+
     if (pe_type == "var") {
         return compile_var(func, value);
     } else if (pe_type == "functioncall") {
@@ -521,8 +523,6 @@ gccjit::rvalue gcc_jitter::compile_prefixexp(gccjit::function &func, const synta
         return compile_functioncall(func, value);
     } else if (pe_type == "exp") {
         return compile_exp(func, value);
-    } else {
-        throw_error("not support prefixexp type: " + pe_type, pe);
     }
 }
 
@@ -604,8 +604,6 @@ gccjit::rvalue gcc_jitter::compile_var(gccjit::function &func, const syntax_tree
         auto ret = gccjit_context_->new_call(table_index_func, args, new_location(v_ptr));
 
         return ret;
-    } else {
-        throw_error("not support var type: " + type, v);
     }
 }
 
