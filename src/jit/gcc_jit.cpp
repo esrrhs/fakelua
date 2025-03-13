@@ -611,14 +611,14 @@ gccjit::lvalue gcc_jitter::compile_var_lvalue(gccjit::function &func, const synt
     check_syntax_tree_type(v, {syntax_tree_type::syntax_tree_type_var});
     auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(v);
 
-    DEBUG_ASSERT(v_ptr->get_type() == "simple" || v_ptr->get_type() == "square" || v_ptr->get_type() == "dot");
+    // we already change the code a.b = 1 to _pre = 1; set_table(_pre, a, b)
+    // so here no "square" "dot", just "simple"
+    DEBUG_ASSERT(v_ptr->get_type() == "simple");
 
     const auto &type = v_ptr->get_type();
     if (type == "simple") {
         const auto &name = v_ptr->get_name();
         return find_lvalue_by_name(name, v_ptr);
-    } else {
-        throw_error("not support var type: " + type, v);
     }
 }
 
