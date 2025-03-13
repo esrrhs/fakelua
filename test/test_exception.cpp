@@ -923,3 +923,31 @@ TEST(exception, const_func_call_error) {
         ASSERT_TRUE(std::string(e.what()).find("functioncall can not be const") != std::string::npos);
     }
 }
+
+TEST(exception, no_define_lvalue_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_no_define_lvalue_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("can not find var") != std::string::npos);
+    }
+}
+
+TEST(exception, global_duplicate_lvalue_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_global_duplicate_lvalue_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("the const define name is duplicated") != std::string::npos);
+    }
+}

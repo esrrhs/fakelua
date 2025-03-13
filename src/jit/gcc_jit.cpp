@@ -524,6 +524,8 @@ gccjit::rvalue gcc_jitter::compile_prefixexp(gccjit::function &func, const synta
     } else if (pe_type == "exp") {
         return compile_exp(func, value);
     }
+
+    return {};
 }
 
 std::string gcc_jitter::location_str(const syntax_tree_interface_ptr &ptr) {
@@ -605,6 +607,8 @@ gccjit::rvalue gcc_jitter::compile_var(gccjit::function &func, const syntax_tree
 
         return ret;
     }
+
+    return {};
 }
 
 gccjit::lvalue gcc_jitter::compile_var_lvalue(gccjit::function &func, const syntax_tree_interface_ptr &v) {
@@ -620,6 +624,8 @@ gccjit::lvalue gcc_jitter::compile_var_lvalue(gccjit::function &func, const synt
         const auto &name = v_ptr->get_name();
         return find_lvalue_by_name(name, v_ptr);
     }
+
+    return {};
 }
 
 gccjit::lvalue gcc_jitter::find_lvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr) {
