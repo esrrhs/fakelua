@@ -521,11 +521,9 @@ gccjit::rvalue gcc_jitter::compile_prefixexp(gccjit::function &func, const synta
             throw_error("functioncall can not be const", pe);
         }
         return compile_functioncall(func, value);
-    } else if (pe_type == "exp") {
+    } else /*if (pe_type == "exp")*/ {
         return compile_exp(func, value);
     }
-
-    return {};
 }
 
 std::string gcc_jitter::location_str(const syntax_tree_interface_ptr &ptr) {
@@ -572,7 +570,7 @@ gccjit::rvalue gcc_jitter::compile_var(gccjit::function &func, const syntax_tree
         auto ret = gccjit_context_->new_call(table_index_func, args, new_location(v_ptr));
 
         return ret;
-    } else if (type == "dot") {
+    } else /*if (type == "dot")*/ {
         auto pe = v_ptr->get_prefixexp();
         auto name = v_ptr->get_name();
         auto pe_ret = compile_prefixexp(func, pe);
@@ -607,8 +605,6 @@ gccjit::rvalue gcc_jitter::compile_var(gccjit::function &func, const syntax_tree
 
         return ret;
     }
-
-    return {};
 }
 
 gccjit::lvalue gcc_jitter::compile_var_lvalue(gccjit::function &func, const syntax_tree_interface_ptr &v) {
@@ -620,12 +616,10 @@ gccjit::lvalue gcc_jitter::compile_var_lvalue(gccjit::function &func, const synt
     DEBUG_ASSERT(v_ptr->get_type() == "simple");
 
     const auto &type = v_ptr->get_type();
-    if (type == "simple") {
+    /*if (type == "simple")*/ {
         const auto &name = v_ptr->get_name();
         return find_lvalue_by_name(name, v_ptr);
     }
-
-    return {};
 }
 
 gccjit::lvalue gcc_jitter::find_lvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr) {
