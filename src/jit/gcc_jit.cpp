@@ -948,6 +948,8 @@ std::pair<gccjit::rvalue, gccjit::rvalue> gcc_jitter::compile_field(gccjit::func
     std::pair<gccjit::rvalue, gccjit::rvalue> ret;
 
     auto field_type = field_ptr->get_type();
+    DEBUG_ASSERT(field_type == "object" || field_type == "array");
+
     if (field_type == "object") {
         auto name = field_ptr->name();
         auto name_exp = std::make_shared<syntax_tree_exp>(field->loc());
@@ -975,8 +977,6 @@ std::pair<gccjit::rvalue, gccjit::rvalue> gcc_jitter::compile_field(gccjit::func
         auto exp_ret = compile_exp(func, exp);
 
         ret.second = exp_ret;
-    } else {
-        throw_error("not support field type: " + field_type, field);
     }
 
     return ret;
