@@ -735,9 +735,7 @@ bool gcc_jitter::is_simple_assign(const syntax_tree_interface_ptr &vars, const s
         auto &var = vars_vec[i];
         check_syntax_tree_type(var, {syntax_tree_type::syntax_tree_type_var});
         auto var_ptr = std::dynamic_pointer_cast<syntax_tree_var>(var);
-        if (var_ptr->get_type() != "simple") {
-            return false;
-        }
+        DEBUG_ASSERT(var_ptr->get_type() == "simple");
     }
 
     for (size_t i = 0; i < exps_vec.size(); ++i) {
