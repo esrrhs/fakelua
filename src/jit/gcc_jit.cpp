@@ -641,6 +641,14 @@ gccjit::lvalue gcc_jitter::find_lvalue_by_name(const std::string &name, const sy
     throw_error("can not find var: " + name, ptr);
 }
 
+std::optional<gccjit::lvalue> gcc_jitter::try_find_lvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr) {
+    try {
+        return find_lvalue_by_name(name, ptr);
+    } catch (...) {
+        return std::nullopt;
+    }
+}
+
 void gcc_jitter::save_stack_lvalue_by_name(const std::string &name, const gccjit::lvalue &value, const syntax_tree_interface_ptr &ptr) {
     // check global dumplicated
     if (global_const_vars_.find(name) != global_const_vars_.end()) {
@@ -1187,61 +1195,67 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
     // simple way, just call the function directly
     auto simple_name = get_simple_prefixexp_name(prefixexp);
     if (!simple_name.empty()) {
-        // check if is jit builtin function
-        if (is_jit_builtin_function(simple_name)) {
-            // note: here maybe const function call
-            auto is_const = cur_function_data_.is_const;
+        // check if is var call
+        auto find_ret = try_find_lvalue_by_name(simple_name, prefixexp);
+        if (find_ret) {
+            prefixexp_ret = find_ret.value();
+        } else {
+            // check if is jit builtin function
+            if (is_jit_builtin_function(simple_name)) {
+                // note: here maybe const function call
+                auto is_const = cur_function_data_.is_const;
 
-            auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
-            auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
+                auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+                auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
 
-            auto args = functioncall_ptr->args();
-            auto args_ret = compile_args(func, args);
+                auto args = functioncall_ptr->args();
+                auto args_ret = compile_args(func, args);
 
-            std::vector<gccjit::param> params;
-            params.push_back(gccjit_context_->new_param(the_var_type, "s"));
-            params.push_back(gccjit_context_->new_param(the_var_type, "h"));
-            params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
-            for (size_t i = 0; i < args_ret.size(); ++i) {
-                params.push_back(gccjit_context_->new_param(the_var_type, std::format("arg{}", i)));
+                std::vector<gccjit::param> params;
+                params.push_back(gccjit_context_->new_param(the_var_type, "s"));
+                params.push_back(gccjit_context_->new_param(the_var_type, "h"));
+                params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
+                for (size_t i = 0; i < args_ret.size(); ++i) {
+                    params.push_back(gccjit_context_->new_param(the_var_type, std::format("arg{}", i)));
+                }
+
+                std::vector<gccjit::rvalue> args2;
+                args2.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
+                args2.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
+                args2.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
+                for (auto &arg_ret: args_ret) {
+                    args2.push_back(arg_ret);
+                }
+
+                std::string func_name = get_jit_builtin_function_vm_name(simple_name);
+                gccjit::function call_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 0,
+                                                                           new_location(functioncall));
+                auto ret = gccjit_context_->new_call(call_func, args2, new_location(functioncall));
+                return ret;
             }
 
-            std::vector<gccjit::rvalue> args2;
-            args2.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
-            args2.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
-            args2.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
-            for (auto &arg_ret: args_ret) {
-                args2.push_back(arg_ret);
+            // check if is local function call
+            auto it = function_infos_.find(simple_name);
+            if (it != function_infos_.end()) {
+                auto args = functioncall_ptr->args();
+                auto args_ret = compile_args(func, args);
+
+                std::vector<gccjit::rvalue> args2;
+                for (auto &arg_ret: args_ret) {
+                    args2.push_back(arg_ret);
+                }
+
+                gccjit::function call_func = it->second.func;
+                auto ret = gccjit_context_->new_call(call_func, args2, new_location(functioncall));
+                return ret;
             }
 
-            std::string func_name = get_jit_builtin_function_vm_name(simple_name);
-            gccjit::function call_func = gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 0,
-                                                                       new_location(functioncall));
-            auto ret = gccjit_context_->new_call(call_func, args2, new_location(functioncall));
-            return ret;
+            // is global function call, make it as a var
+            auto name_exp = std::make_shared<syntax_tree_exp>(functioncall->loc());
+            name_exp->set_type("string");
+            name_exp->set_value(simple_name);
+            prefixexp_ret = compile_exp(func, name_exp);
         }
-
-        // check if is local function call
-        auto it = function_infos_.find(simple_name);
-        if (it != function_infos_.end()) {
-            auto args = functioncall_ptr->args();
-            auto args_ret = compile_args(func, args);
-
-            std::vector<gccjit::rvalue> args2;
-            for (auto &arg_ret: args_ret) {
-                args2.push_back(arg_ret);
-            }
-
-            gccjit::function call_func = it->second.func;
-            auto ret = gccjit_context_->new_call(call_func, args2, new_location(functioncall));
-            return ret;
-        }
-
-        // is global function call, make it as a var
-        auto name_exp = std::make_shared<syntax_tree_exp>(functioncall->loc());
-        name_exp->set_type("string");
-        name_exp->set_value(simple_name);
-        prefixexp_ret = compile_exp(func, name_exp);
     } else {
         // is var call, eg: a="test"; a();
         prefixexp_ret = compile_prefixexp(func, prefixexp);

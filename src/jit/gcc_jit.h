@@ -97,6 +97,8 @@ private:
 
     gccjit::lvalue find_lvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr);
 
+    std::optional<gccjit::lvalue> try_find_lvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr);
+
     void save_stack_lvalue_by_name(const std::string &name, const gccjit::lvalue &value, const syntax_tree_interface_ptr &ptr);
 
     [[noreturn]] void throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr);
