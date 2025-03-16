@@ -623,6 +623,14 @@ gccjit::lvalue gcc_jitter::compile_var_lvalue(gccjit::function &func, const synt
 }
 
 gccjit::lvalue gcc_jitter::find_lvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr) {
+    auto ret = try_find_lvalue_by_name(name, ptr);
+    if (!ret) {
+        throw_error("can not find var: " + name, ptr);
+    }
+    return ret.value();
+}
+
+std::optional<gccjit::lvalue> gcc_jitter::try_find_lvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr) {
     // find in local vars in stack_frames_ by reverse
     for (auto iter = cur_function_data_.stack_frames.rbegin(); iter != cur_function_data_.stack_frames.rend(); ++iter) {
         auto &local_vars = iter->local_vars;
@@ -638,15 +646,7 @@ gccjit::lvalue gcc_jitter::find_lvalue_by_name(const std::string &name, const sy
         return iter->second.first;
     }
 
-    throw_error("can not find var: " + name, ptr);
-}
-
-std::optional<gccjit::lvalue> gcc_jitter::try_find_lvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr) {
-    try {
-        return find_lvalue_by_name(name, ptr);
-    } catch (...) {
-        return std::nullopt;
-    }
+    return std::nullopt;
 }
 
 void gcc_jitter::save_stack_lvalue_by_name(const std::string &name, const gccjit::lvalue &value, const syntax_tree_interface_ptr &ptr) {
