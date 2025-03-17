@@ -1362,10 +1362,8 @@ bool gcc_jitter::is_jit_builtin_function(const std::string &name) {
 }
 
 std::string gcc_jitter::get_jit_builtin_function_vm_name(const std::string &name) {
-    if (name == "__fakelua_set_table__") {
-        return "table_set";
-    }
-    throw std::runtime_error("not support jit builtin function: " + name);
+    DEBUG_ASSERT(name == "__fakelua_set_table__");
+    /*if (name == "__fakelua_set_table__")*/ { return "table_set"; }
 }
 
 void gcc_jitter::compile_stmt_label(gccjit::function &func, const fakelua::syntax_tree_interface_ptr &stmt) {
@@ -1887,25 +1885,23 @@ void gcc_jitter::compile_stmt_for_in(gccjit::function &func, const syntax_tree_i
     check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
     auto exp_ptr = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
     if (exp_ptr->exp_type() != "prefixexp") {
-        throw_error("for in exp must be ipairs() or pairs()", exp);
+        throw_error("for in exp (expect prefixexp) must be ipairs() or pairs()", exp);
     }
     auto prefixexp = exp_ptr->right();
     check_syntax_tree_type(prefixexp, {syntax_tree_type::syntax_tree_type_prefixexp});
     auto prefixexp_ptr = std::dynamic_pointer_cast<syntax_tree_prefixexp>(prefixexp);
     if (prefixexp_ptr->get_type() != "functioncall") {
-        throw_error("for in exp must be ipairs() or pairs()", exp);
+        throw_error("for in exp (expect functioncall) must be ipairs() or pairs()", exp);
     }
     auto functioncall = prefixexp_ptr->get_value();
     check_syntax_tree_type(functioncall, {syntax_tree_type::syntax_tree_type_functioncall});
     auto functioncall_ptr = std::dynamic_pointer_cast<syntax_tree_functioncall>(functioncall);
     auto call_name = get_simple_prefixexp_name(functioncall_ptr->prefixexp());
     if (call_name != "ipairs" && call_name != "pairs") {
-        throw_error("for in exp must be ipairs() or pairs()", exp);
+        throw_error("for in exp (expect ipairs/pairs) must be ipairs() or pairs()", exp);
     }
     auto for_args = functioncall_ptr->args();
-    if (!for_args) {
-        throw_error("for in ipairs() or pairs() must have args", functioncall);
-    }
+    DEBUG_ASSERT(for_args);
     check_syntax_tree_type(for_args, {syntax_tree_type::syntax_tree_type_args});
     for_args_ptr = std::dynamic_pointer_cast<syntax_tree_args>(for_args);
 
