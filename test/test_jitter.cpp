@@ -2349,6 +2349,37 @@ TEST(jitter, test_if_elseif_normal) {
     ASSERT_EQ(a, 0);
 }
 
+TEST(jitter, test_if_elseif_return) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int a = 0;
+    L->compile_file("./jit/test_if_elseif_return.lua", {});
+    L->call("test", std::tie(a), 5, 5);
+    ASSERT_EQ(a, 4);
+    L->call("test", std::tie(a), 4, 3);
+    ASSERT_EQ(a, 3);
+    L->call("test", std::tie(a), 3, 2);
+    ASSERT_EQ(a, 2);
+    L->call("test", std::tie(a), 2, 1);
+    ASSERT_EQ(a, 1);
+    L->call("test", std::tie(a), 0, 0);
+    ASSERT_EQ(a, 0);
+
+    a = 0;
+    L->compile_file("./jit/test_if_elseif_return.lua", {.debug_mode = false});
+    L->call("test", std::tie(a), 5, 5);
+    ASSERT_EQ(a, 4);
+    L->call("test", std::tie(a), 4, 3);
+    ASSERT_EQ(a, 3);
+    L->call("test", std::tie(a), 3, 2);
+    ASSERT_EQ(a, 2);
+    L->call("test", std::tie(a), 2, 1);
+    ASSERT_EQ(a, 1);
+    L->call("test", std::tie(a), 0, 0);
+    ASSERT_EQ(a, 0);
+}
+
 TEST(jitter, test_if_else) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);

@@ -1063,3 +1063,17 @@ TEST(exception, test_for_in_func_args_error) {
         ASSERT_TRUE(std::string(e.what()).find("for in ipairs() or pairs() args size must be 1, but got") != std::string::npos);
     }
 }
+
+TEST(exception, test_for_in_prefix_func_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_for_in_prefix_func_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("for in exp (expect ipairs/pairs) must be ipairs() or pairs()") != std::string::npos);
+    }
+}
