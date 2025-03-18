@@ -450,7 +450,8 @@ extern "C" __attribute__((used)) var *unop_bitnot(fakelua_state *s, gcc_jit_hand
     return ret;
 }
 
-extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *func, int n, ...) {
+extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *func, void *col_name_addr, int n,
+                                               ...) {
     DEBUG_ASSERT(func);
     DEBUG_ASSERT(func->type() >= var_type::VAR_MIN && func->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(n >= 0);
@@ -467,6 +468,23 @@ extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle 
     }
     va_end(args);
 
+    // it is a colon call, we need to get function from table
+    if (col_name_addr) {
+        // now func must be table type
+        if (func->type() != var_type::VAR_TABLE) {
+            throw_fakelua_exception(std::format("call_var: colon func must be table type, but got {}", func->to_string()));
+        }
+        var key;
+        key.set_string(s, (const char *) col_name_addr);
+        auto real_func = func->table_get(&key);
+        if (!real_func) {
+            throw_fakelua_exception(std::format("call_var: colon function {} not found", (const char *) col_name_addr));
+        }
+        // add the 1st self param
+        params.insert(params.begin(), func);
+        func = real_func;
+    }
+
     // func must be string type
     if (func->type() != var_type::VAR_STRING) {
         throw_fakelua_exception(std::format("call_var: func must be string type, but got {}", func->to_string()));
@@ -480,8 +498,9 @@ extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle 
     }
 
     // check params count
-    if (!func->is_variadic() && n != function->get_arg_count()) {
-        throw_fakelua_exception(std::format("call_var: function {} expect {} params, but got {}", name, function->get_arg_count(), n));
+    if (!func->is_variadic() && (int) params.size() != function->get_arg_count()) {
+        throw_fakelua_exception(
+                std::format("call_var: function {} expect {} params, but got {}", name, function->get_arg_count(), params.size()));
     }
 
     // call function

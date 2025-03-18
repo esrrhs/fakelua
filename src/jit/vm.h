@@ -117,11 +117,13 @@ extern "C" __attribute__((used)) var *unop_number_sign(fakelua_state *s, gcc_jit
 
 extern "C" __attribute__((used)) var *unop_bitnot(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *r);
 
-extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *func, int n, ...);
+extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *func, void *col_name_addr, int n,
+                                               ...);
 
 extern "C" __attribute__((used)) var *table_index_by_var(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, var *key);
 
-extern "C" __attribute__((used)) var *table_index_by_name(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, const char *key, int len);
+extern "C" __attribute__((used)) var *table_index_by_name(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, const char *key,
+                                                          int len);
 
 extern "C" __attribute__((used)) var *table_set(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, var *key, var *val);
 

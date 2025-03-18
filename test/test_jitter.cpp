@@ -171,18 +171,15 @@ TEST(jitter, multi_col_name) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
+    int ret = 0;
     L->compile_file("./jit/test_multi_col_name_func.lua", {});
-    var *ret = 0;
-    L->call("__fakelua_global_0__", std::tie(ret), nullptr);// just hack for test
-    ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->type(), var_type::VAR_INT);
-    ASSERT_EQ(ret->get_int(), 1);
+    L->call("test", std::tie(ret), 1);
+    ASSERT_EQ(ret, 2);
 
+    ret = 0;
     L->compile_file("./jit/test_multi_col_name_func.lua", {.debug_mode = false});
-    L->call("__fakelua_global_0__", std::tie(ret), nullptr);
-    ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->type(), var_type::VAR_INT);
-    ASSERT_EQ(ret->get_int(), 1);
+    L->call("test", std::tie(ret), 1);
+    ASSERT_EQ(ret, 2);
 }
 
 TEST(jitter, const_define) {
