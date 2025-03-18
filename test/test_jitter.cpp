@@ -91,11 +91,12 @@ TEST(jitter, empty_func) {
     ASSERT_NE(L.get(), nullptr);
 
     L->compile_file("./jit/test_empty_func.lua", {});
-    var *ret = 0;
+    var *ret = nullptr;
     L->call("test", std::tie(ret));
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
 
+    ret = nullptr;
     L->compile_file("./jit/test_empty_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
     ASSERT_NE(ret, nullptr);
@@ -106,12 +107,13 @@ TEST(jitter, empty_local_func) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
+    var *ret = nullptr;
     L->compile_file("./jit/test_empty_local_func.lua", {});
-    var *ret = 0;
     L->call("test", std::tie(ret));
     ASSERT_NE(ret, nullptr);
     ASSERT_EQ(ret->type(), var_type::VAR_NIL);
 
+    ret = nullptr;
     L->compile_file("./jit/test_empty_local_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
     ASSERT_NE(ret, nullptr);
@@ -122,12 +124,12 @@ TEST(jitter, multi_return) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
-    L->compile_file("./jit/test_multi_return.lua", {});
     int i = 0;
     float f = 0;
     bool b1 = false;
     bool b2 = false;
     std::string s;
+    L->compile_file("./jit/test_multi_return.lua", {});
     L->call("test", std::tie(i, f, b1, b2, s));
     ASSERT_EQ(i, 1);
     ASSERT_NEAR(f, 2.3, 0.001);
@@ -135,12 +137,12 @@ TEST(jitter, multi_return) {
     ASSERT_EQ(b2, true);
     ASSERT_EQ(s, "test");
 
-    L->compile_file("./jit/test_multi_return.lua", {.debug_mode = false});
     i = 0;
     f = 0;
     b1 = false;
     b2 = false;
     s.clear();
+    L->compile_file("./jit/test_multi_return.lua", {.debug_mode = false});
     L->call("test", std::tie(i, f, b1, b2, s));
     ASSERT_EQ(i, 1);
     ASSERT_NEAR(f, 2.3, 0.001);
@@ -153,18 +155,15 @@ TEST(jitter, multi_name) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
+    int ret = 0;
     L->compile_file("./jit/test_multi_name_func.lua", {});
-    var *ret = 0;
-    L->call("__fakelua_global_0__", std::tie(ret));// just hack for test
-    ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->type(), var_type::VAR_INT);
-    ASSERT_EQ(ret->get_int(), 1);
+    L->call("test", std::tie(ret), 1);
+    ASSERT_EQ(ret, 2);
 
+    ret = 0;
     L->compile_file("./jit/test_multi_name_func.lua", {.debug_mode = false});
-    L->call("__fakelua_global_0__", std::tie(ret));
-    ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->type(), var_type::VAR_INT);
-    ASSERT_EQ(ret->get_int(), 1);
+    L->call("test", std::tie(ret), 1);
+    ASSERT_EQ(ret, 2);
 }
 
 TEST(jitter, multi_col_name) {
@@ -190,6 +189,8 @@ TEST(jitter, const_define) {
     L->compile_file("./jit/test_const_define.lua", {});
     L->call("test", std::tie(i));
     ASSERT_EQ(i, 1);
+
+    i = 0;
     L->compile_file("./jit/test_const_define.lua", {.debug_mode = false});
     L->call("test", std::tie(i));
     ASSERT_EQ(i, 1);
@@ -236,13 +237,18 @@ TEST(jitter, empty_func_with_params) {
     int ret1 = 0;
     bool ret2 = false;
     std::string ret3;
-    double ret4;
+    double ret4 = 0;
     L->compile_file("./jit/test_empty_func_with_params.lua", {});
     L->call("test", std::tie(ret1, ret2, ret3, ret4), 2.3, "test", true, 1);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
     ASSERT_EQ(ret3, "test");
     ASSERT_NEAR(ret4, 2.3, 0.001);
+
+    ret1 = 0;
+    ret2 = false;
+    ret3.clear();
+    ret4 = 0;
     L->compile_file("./jit/test_empty_func_with_params.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2, ret3, ret4), 2.3, "test", true, 1);
     ASSERT_EQ(ret1, 1);
@@ -258,13 +264,18 @@ TEST(jitter, variadic_func) {
     int ret1 = 0;
     bool ret2 = false;
     std::string ret3;
-    double ret4;
+    double ret4 = 0;
     L->compile_file("./jit/test_variadic_func.lua", {});
     L->call("test", std::tie(ret1, ret2, ret3, ret4), 1, true, "test", 2.3);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
     ASSERT_EQ(ret3, "test");
     ASSERT_NEAR(ret4, 2.3, 0.001);
+
+    ret1 = 0;
+    ret2 = false;
+    ret3.clear();
+    ret4 = 0;
     L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2, ret3, ret4), 1, true, "test", 2.3);
     ASSERT_EQ(ret1, 1);
@@ -280,13 +291,18 @@ TEST(jitter, variadic_func_with_params) {
     int ret1 = 0;
     bool ret2 = false;
     std::string ret3;
-    double ret4;
+    double ret4 = 0;
     L->compile_file("./jit/test_variadic_func_with_params.lua", {});
     L->call("test", std::tie(ret3, ret4, ret2, ret1), 1, true, "test", 2.3);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
     ASSERT_EQ(ret3, "test");
     ASSERT_NEAR(ret4, 2.3, 0.001);
+
+    ret1 = 0;
+    ret2 = false;
+    ret3.clear();
+    ret4 = 0;
     L->compile_file("./jit/test_variadic_func_with_params.lua", {.debug_mode = false});
     L->call("test", std::tie(ret3, ret4, ret2, ret1), 1, true, "test", 2.3);
     ASSERT_EQ(ret1, 1);
@@ -469,6 +485,7 @@ TEST(jitter, variadic_func_with_empty) {
 
     L->compile_file("./jit/test_variadic_func.lua", {});
     L->call("test", std::tie());
+
     L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie());
 }
@@ -552,7 +569,6 @@ TEST(jitter, variadic_func_vi_nil) {
     };
     L->set_var_interface_new_func(newfunc);
 
-
     simple_var_impl *var = newfunc();
     var->vi_set_nil();
 
@@ -594,8 +610,8 @@ TEST(jitter, local_define) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
-    var *a = 0;
-    var *b = 0;
+    var *a = nullptr;
+    var *b = nullptr;
     L->compile_file("./jit/test_local_define.lua", {});
     L->call("test", std::tie(a, b));
     ASSERT_NE(a, nullptr);
@@ -604,6 +620,8 @@ TEST(jitter, local_define) {
     ASSERT_NE(b, nullptr);
     ASSERT_EQ(b->type(), var_type::VAR_NIL);
 
+    a = nullptr;
+    b = nullptr;
     L->compile_file("./jit/test_local_define.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b));
     ASSERT_NE(a, nullptr);
