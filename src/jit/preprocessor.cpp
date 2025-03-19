@@ -418,6 +418,36 @@ void pre_processor::preprocess_extracts_literal_constants(const syntax_tree_inte
                     string_map[value] = std::format("__fakelua_pp_pre_{}__", pre_index_++);
                 }
             }
+        } else if (ptr->type() == syntax_tree_type::syntax_tree_type_var) {
+            // a.b.c = 1, the "b" and "c" is common string
+            // change to a[__global_string_1__][__global_string_2__] = 1
+            auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(ptr);
+            if (v_ptr->get_type() == "dot") {
+                auto name = v_ptr->get_name();
+                if (!string_map.contains(name)) {
+                    string_map[name] = std::format("__fakelua_pp_pre_{}__", pre_index_++);
+                }
+            }
+        } else if (ptr->type() == syntax_tree_type::syntax_tree_type_field) {
+            // { a = 1 }, the "a" is common string
+            // change to { [__global_string_1__] = 1 }
+            auto field_ptr = std::dynamic_pointer_cast<syntax_tree_field>(ptr);
+            if (field_ptr->get_type() == "object") {
+                auto name = field_ptr->name();
+                if (!string_map.contains(name)) {
+                    string_map[name] = std::format("__fakelua_pp_pre_{}__", pre_index_++);
+                }
+            }
+        } else if (ptr->type() == syntax_tree_type::syntax_tree_type_functioncall) {
+            // a:b(), the "b" is common string
+            // change to a:__global_string_1__(), and then replace it to var in compile
+            auto functioncall_ptr = std::dynamic_pointer_cast<syntax_tree_functioncall>(ptr);
+            if (!functioncall_ptr->name().empty()) {
+                auto name = functioncall_ptr->name();
+                if (!string_map.contains(name)) {
+                    string_map[name] = std::format("__fakelua_pp_pre_{}__", pre_index_++);
+                }
+            }
         }
     };
 
@@ -500,6 +530,7 @@ void pre_processor::preprocess_extracts_literal_constants(const syntax_tree_inte
                     exp->set_type("prefixexp");
                     exp->set_right(prefix);
                 } else {
+                    DEBUG_ASSERT(float_map.contains(value));
                     auto new_var_name = float_map[value];
                     auto prefix = std::make_shared<syntax_tree_prefixexp>(exp->loc());
                     auto var = std::make_shared<syntax_tree_var>(exp->loc());
@@ -511,6 +542,7 @@ void pre_processor::preprocess_extracts_literal_constants(const syntax_tree_inte
                     exp->set_right(prefix);
                 }
             } else if (exp_type == "string") {
+                DEBUG_ASSERT(string_map.contains(value));
                 auto new_var_name = string_map[value];
                 auto prefix = std::make_shared<syntax_tree_prefixexp>(exp->loc());
                 auto var = std::make_shared<syntax_tree_var>(exp->loc());
@@ -520,6 +552,50 @@ void pre_processor::preprocess_extracts_literal_constants(const syntax_tree_inte
                 prefix->set_value(var);
                 exp->set_type("prefixexp");
                 exp->set_right(prefix);
+            }
+        } else if (ptr->type() == syntax_tree_type::syntax_tree_type_var) {
+            auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(ptr);
+            if (v_ptr->get_type() == "dot") {
+                auto name = v_ptr->get_name();
+                DEBUG_ASSERT(string_map.contains(name));
+                auto new_var_name = string_map[name];
+                auto exp = std::make_shared<syntax_tree_exp>(ptr->loc());
+                auto prefix = std::make_shared<syntax_tree_prefixexp>(ptr->loc());
+                auto var = std::make_shared<syntax_tree_var>(ptr->loc());
+                var->set_type("simple");
+                var->set_name(new_var_name);
+                prefix->set_type("var");
+                prefix->set_value(var);
+                exp->set_type("prefixexp");
+                exp->set_right(prefix);
+                v_ptr->set_type("square");
+                v_ptr->set_exp(exp);
+            }
+        } else if (ptr->type() == syntax_tree_type::syntax_tree_type_field) {
+            auto field_ptr = std::dynamic_pointer_cast<syntax_tree_field>(ptr);
+            if (field_ptr->get_type() == "object") {
+                auto name = field_ptr->name();
+                DEBUG_ASSERT(string_map.contains(name));
+                auto new_var_name = string_map[name];
+                auto exp = std::make_shared<syntax_tree_exp>(ptr->loc());
+                auto prefix = std::make_shared<syntax_tree_prefixexp>(ptr->loc());
+                auto var = std::make_shared<syntax_tree_var>(ptr->loc());
+                var->set_type("simple");
+                var->set_name(new_var_name);
+                prefix->set_type("var");
+                prefix->set_value(var);
+                exp->set_type("prefixexp");
+                exp->set_right(prefix);
+                field_ptr->set_type("array");
+                field_ptr->set_key(exp);
+            }
+        } else if (ptr->type() == syntax_tree_type::syntax_tree_type_functioncall) {
+            auto functioncall_ptr = std::dynamic_pointer_cast<syntax_tree_functioncall>(ptr);
+            if (!functioncall_ptr->name().empty()) {
+                auto name = functioncall_ptr->name();
+                DEBUG_ASSERT(string_map.contains(name));
+                auto new_var_name = string_map[name];
+                functioncall_ptr->set_name(new_var_name);
             }
         }
     };

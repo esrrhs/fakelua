@@ -2866,3 +2866,18 @@ TEST(jitter, test_empty_func_call) {
     L->call("test", std::tie(ret), 2, 2);
     ASSERT_EQ(ret, 1);
 }
+
+TEST(jitter, test_table_get_set) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int ret = 0;
+    L->compile_file("./jit/test_table_get_set.lua", {});
+    L->call("test", std::tie(ret), 1, 2);
+    ASSERT_EQ(ret, 3);
+
+    ret = 0;
+    L->compile_file("./jit/test_table_get_set.lua", {.debug_mode = false});
+    L->call("test", std::tie(ret), 1, 2);
+    ASSERT_EQ(ret, 3);
+}

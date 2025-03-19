@@ -1262,10 +1262,10 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
     }
 
     // call with col, eg: a:b()
-    void *col_name_addr = nullptr;
+    gccjit::rvalue col_key;
     if (!functioncall_ptr->name().empty()) {
-        auto col_name = gcc_jit_handle_->alloc_str(functioncall_ptr->name());
-        col_name_addr = (void *) col_name.data();
+        DEBUG_ASSERT(functioncall_ptr->name().starts_with("__fakelua_pp_pre_"));
+        col_key = find_lvalue_by_name(functioncall_ptr->name(), functioncall_ptr);
     }
 
     // complex way, call the function by call_var
@@ -1282,7 +1282,7 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
     params.push_back(gccjit_context_->new_param(the_var_type, "h"));
     params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
     params.push_back(gccjit_context_->new_param(the_var_type, "func"));
-    params.push_back(gccjit_context_->new_param(the_var_type, "col_name_addr"));
+    params.push_back(gccjit_context_->new_param(the_var_type, "col_key"));
     params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "n"));
 
     std::vector<gccjit::rvalue> args2;
@@ -1290,7 +1290,7 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
     args2.push_back(gccjit_context_->new_rvalue(the_var_type, gcc_jit_handle_.get()));
     args2.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
     args2.push_back(prefixexp_ret);
-    args2.push_back(gccjit_context_->new_rvalue(the_var_type, col_name_addr));
+    args2.push_back(col_key);
     args2.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_INT), (int) args_ret.size()));
     for (auto &arg_ret: args_ret) {
         args2.push_back(arg_ret);

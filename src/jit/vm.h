@@ -117,8 +117,7 @@ extern "C" __attribute__((used)) var *unop_number_sign(fakelua_state *s, gcc_jit
 
 extern "C" __attribute__((used)) var *unop_bitnot(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *r);
 
-extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *func, void *col_name_addr, int n,
-                                               ...);
+extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *func, var *col_key, int n, ...);
 
 extern "C" __attribute__((used)) var *table_index_by_var(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, var *key);
 
