@@ -1266,6 +1266,8 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
     if (!functioncall_ptr->name().empty()) {
         DEBUG_ASSERT(functioncall_ptr->name().starts_with("__fakelua_pp_pre_"));
         col_key = find_lvalue_by_name(functioncall_ptr->name(), functioncall_ptr);
+    } else {
+        col_key = gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR), nullptr);
     }
 
     // complex way, call the function by call_var
