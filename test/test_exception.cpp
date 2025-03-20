@@ -1077,3 +1077,67 @@ TEST(exception, test_for_in_prefix_func_error) {
         ASSERT_TRUE(std::string(e.what()).find("for in exp (expect ipairs/pairs) must be ipairs() or pairs()") != std::string::npos);
     }
 }
+
+TEST(exception, test_col_func_not_find_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_col_func_not_find_error.lua", {});
+        int ret = 0;
+        L->call("test", std::tie(ret), "abc");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("call_var: func must be string type, but got") != std::string::npos);
+    }
+}
+
+TEST(exception, test_col_func_param_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_col_func_param_error.lua", {});
+        int ret = 0;
+        L->call("test", std::tie(ret), "abc");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("expect 2 params, but got") != std::string::npos);
+    }
+}
+
+TEST(exception, test_col_func_table_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_col_func_table_error.lua", {});
+        int ret = 0;
+        L->call("test", std::tie(ret), "abc");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("call_var: colon func must be table type, but got") != std::string::npos);
+    }
+}
+
+TEST(exception, test_col_func_type_error) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+    L->set_debug_log_level(0);
+
+    try {
+        L->compile_file("./exception/test_col_func_type_error.lua", {});
+        int ret = 0;
+        L->call("test", std::tie(ret), "abc");
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("call_var: func must be string type, but got") != std::string::npos);
+    }
+}

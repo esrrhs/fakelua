@@ -474,9 +474,7 @@ extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle 
             throw_fakelua_exception(std::format("call_var: colon func must be table type, but got {}", func->to_string()));
         }
         auto real_func = func->table_get(col_key);
-        if (!real_func) {
-            throw_fakelua_exception(std::format("call_var: colon function {} not found", col_key->to_string()));
-        }
+        DEBUG_ASSERT(real_func);
         // add the 1st self param
         params.insert(params.begin(), func);
         func = real_func;
