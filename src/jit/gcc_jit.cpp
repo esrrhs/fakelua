@@ -86,7 +86,7 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
 
 void gcc_jitter::compile_functions(const syntax_tree_interface_ptr &chunk) {
     // the chunk must be a block
-    check_syntax_tree_type(chunk, {syntax_tree_type::syntax_tree_type_block});
+    DEBUG_ASSERT(chunk->type() == syntax_tree_type::syntax_tree_type_block);
     // walk through the block
     auto block = std::dynamic_pointer_cast<syntax_tree_block>(chunk);
     for (auto &stmt: block->stmts()) {
@@ -102,7 +102,7 @@ void gcc_jitter::compile_functions(const syntax_tree_interface_ptr &chunk) {
 }
 
 std::string gcc_jitter::compile_funcname(const syntax_tree_interface_ptr &ptr) {
-    check_syntax_tree_type(ptr, {syntax_tree_type::syntax_tree_type_funcname});
+    DEBUG_ASSERT(ptr->type() == syntax_tree_type::syntax_tree_type_funcname);
 
     std::string ret;
 
@@ -111,7 +111,7 @@ std::string gcc_jitter::compile_funcname(const syntax_tree_interface_ptr &ptr) {
 
     std::vector<std::string> namelist;
 
-    check_syntax_tree_type(funcnamelistptr, {syntax_tree_type::syntax_tree_type_funcnamelist});
+    DEBUG_ASSERT(funcnamelistptr->type() == syntax_tree_type::syntax_tree_type_funcnamelist);
     auto funcnamelist = std::dynamic_pointer_cast<syntax_tree_funcnamelist>(funcnamelistptr);
     auto &names = funcnamelist->funcnames();
     namelist.insert(namelist.end(), names.begin(), names.end());
@@ -125,7 +125,7 @@ std::string gcc_jitter::compile_funcname(const syntax_tree_interface_ptr &ptr) {
 void gcc_jitter::compile_function(const std::string &name, const syntax_tree_interface_ptr &funcbody) {
     LOG_INFO("start compile function: {}", name);
 
-    check_syntax_tree_type(funcbody, {syntax_tree_type::syntax_tree_type_funcbody});
+    DEBUG_ASSERT(funcbody->type() == syntax_tree_type::syntax_tree_type_funcbody);
     auto funcbody_ptr = std::dynamic_pointer_cast<syntax_tree_funcbody>(funcbody);
 
     // reset data
@@ -194,7 +194,7 @@ bool gcc_jitter::is_block_ended() {
 
 void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
     // the chunk must be a block
-    check_syntax_tree_type(chunk, {syntax_tree_type::syntax_tree_type_block});
+    DEBUG_ASSERT(chunk->type() == syntax_tree_type::syntax_tree_type_block);
     // walk through the block
     auto block = std::dynamic_pointer_cast<syntax_tree_block>(chunk);
     for (auto &stmt: block->stmts()) {
@@ -211,11 +211,11 @@ void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
 
 void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
     auto local_var = std::dynamic_pointer_cast<syntax_tree_local_var>(stmt);
-    check_syntax_tree_type(local_var->namelist(), {syntax_tree_type::syntax_tree_type_namelist});
+    DEBUG_ASSERT(local_var->namelist()->type() == syntax_tree_type::syntax_tree_type_namelist);
     auto keys = std::dynamic_pointer_cast<syntax_tree_namelist>(local_var->namelist());
     auto &names = keys->names();
     DEBUG_ASSERT(local_var->explist());
-    check_syntax_tree_type(local_var->explist(), {syntax_tree_type::syntax_tree_type_explist});
+    DEBUG_ASSERT(local_var->explist()->type() == syntax_tree_type::syntax_tree_type_explist);
     auto values = std::dynamic_pointer_cast<syntax_tree_explist>(local_var->explist());
     auto &values_exps = values->exps();
 
@@ -241,7 +241,7 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
 
 gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree_interface_ptr &exp) {
     // the chunk must be an exp
-    check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
+    DEBUG_ASSERT(exp->type() == syntax_tree_type::syntax_tree_type_exp);
     // start compile the expression
     auto e = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
     const auto &exp_type = e->exp_type();
@@ -331,14 +331,14 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
 }
 
 std::vector<std::pair<std::string, gccjit::param>> gcc_jitter::compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic) {
-    check_syntax_tree_type(parlist, {syntax_tree_type::syntax_tree_type_parlist});
+    DEBUG_ASSERT(parlist->type() == syntax_tree_type::syntax_tree_type_parlist);
     auto parlist_ptr = std::dynamic_pointer_cast<syntax_tree_parlist>(parlist);
 
     std::vector<std::pair<std::string, gccjit::param>> ret;
 
     auto namelist = parlist_ptr->namelist();
     if (namelist) {
-        check_syntax_tree_type(namelist, {syntax_tree_type::syntax_tree_type_namelist});
+        DEBUG_ASSERT(namelist->type() == syntax_tree_type::syntax_tree_type_namelist);
         auto namelist_ptr = std::dynamic_pointer_cast<syntax_tree_namelist>(namelist);
         auto &param_names = namelist_ptr->names();
 
@@ -436,7 +436,7 @@ void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interfac
 }
 
 void gcc_jitter::compile_stmt_return(gccjit::function &func, const syntax_tree_interface_ptr &stmt) {
-    check_syntax_tree_type(stmt, {syntax_tree_type::syntax_tree_type_return});
+    DEBUG_ASSERT(stmt->type() == syntax_tree_type::syntax_tree_type_return);
     auto return_stmt = std::dynamic_pointer_cast<syntax_tree_return>(stmt);
 
     auto explist = return_stmt->explist();
@@ -481,7 +481,7 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, const syntax_tree_i
 }
 
 std::vector<gccjit::rvalue> gcc_jitter::compile_explist(gccjit::function &func, const syntax_tree_interface_ptr &explist) {
-    check_syntax_tree_type(explist, {syntax_tree_type::syntax_tree_type_explist});
+    DEBUG_ASSERT(explist->type() == syntax_tree_type::syntax_tree_type_explist);
     auto explist_ptr = std::dynamic_pointer_cast<syntax_tree_explist>(explist);
 
     std::vector<gccjit::rvalue> ret;
@@ -504,7 +504,7 @@ void gcc_jitter::call_global_init_func() {
 }
 
 gccjit::rvalue gcc_jitter::compile_prefixexp(gccjit::function &func, const syntax_tree_interface_ptr &pe) {
-    check_syntax_tree_type(pe, {syntax_tree_type::syntax_tree_type_prefixexp});
+    DEBUG_ASSERT(pe->type() == syntax_tree_type::syntax_tree_type_prefixexp);
     auto pe_ptr = std::dynamic_pointer_cast<syntax_tree_prefixexp>(pe);
 
     const auto &pe_type = pe_ptr->get_type();
@@ -531,7 +531,7 @@ std::string gcc_jitter::location_str(const syntax_tree_interface_ptr &ptr) {
 }
 
 gccjit::rvalue gcc_jitter::compile_var(gccjit::function &func, const syntax_tree_interface_ptr &v) {
-    check_syntax_tree_type(v, {syntax_tree_type::syntax_tree_type_var});
+    DEBUG_ASSERT(v->type() == syntax_tree_type::syntax_tree_type_var);
     auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(v);
 
     DEBUG_ASSERT(v_ptr->get_type() == "simple" || v_ptr->get_type() == "square" || v_ptr->get_type() == "dot");
@@ -608,7 +608,7 @@ gccjit::rvalue gcc_jitter::compile_var(gccjit::function &func, const syntax_tree
 }
 
 gccjit::lvalue gcc_jitter::compile_var_lvalue(gccjit::function &func, const syntax_tree_interface_ptr &v) {
-    check_syntax_tree_type(v, {syntax_tree_type::syntax_tree_type_var});
+    DEBUG_ASSERT(v->type() == syntax_tree_type::syntax_tree_type_var);
     auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(v);
 
     // we already change the code a.b = 1 to _pre = 1; set_table(_pre, a, b)
@@ -670,7 +670,7 @@ void gcc_jitter::save_stack_lvalue_by_name(const std::string &name, const gccjit
 }
 
 void gcc_jitter::compile_stmt_local_var(gccjit::function &function, const syntax_tree_interface_ptr &stmt) {
-    check_syntax_tree_type(stmt, {syntax_tree_type::syntax_tree_type_local_var});
+    DEBUG_ASSERT(stmt->type() == syntax_tree_type::syntax_tree_type_local_var);
     auto local_var = std::dynamic_pointer_cast<syntax_tree_local_var>(stmt);
 
     auto keys = std::dynamic_pointer_cast<syntax_tree_namelist>(local_var->namelist());
@@ -717,7 +717,7 @@ void gcc_jitter::compile_stmt_local_var(gccjit::function &function, const syntax
 }
 
 std::vector<gccjit::lvalue> gcc_jitter::compile_varlist_lvalue(gccjit::function &func, const syntax_tree_interface_ptr &varlist) {
-    check_syntax_tree_type(varlist, {syntax_tree_type::syntax_tree_type_varlist});
+    DEBUG_ASSERT(varlist->type() == syntax_tree_type::syntax_tree_type_varlist);
     auto varlist_ptr = std::dynamic_pointer_cast<syntax_tree_varlist>(varlist);
 
     std::vector<gccjit::lvalue> ret;
@@ -731,8 +731,8 @@ std::vector<gccjit::lvalue> gcc_jitter::compile_varlist_lvalue(gccjit::function 
 }
 
 bool gcc_jitter::is_simple_assign(const syntax_tree_interface_ptr &vars, const syntax_tree_interface_ptr &exps) {
-    check_syntax_tree_type(vars, {syntax_tree_type::syntax_tree_type_varlist});
-    check_syntax_tree_type(exps, {syntax_tree_type::syntax_tree_type_explist});
+    DEBUG_ASSERT(vars->type() == syntax_tree_type::syntax_tree_type_varlist);
+    DEBUG_ASSERT(exps->type() == syntax_tree_type::syntax_tree_type_explist);
     auto vars_ptr = std::dynamic_pointer_cast<syntax_tree_varlist>(vars);
     auto exps_ptr = std::dynamic_pointer_cast<syntax_tree_explist>(exps);
 
@@ -741,14 +741,14 @@ bool gcc_jitter::is_simple_assign(const syntax_tree_interface_ptr &vars, const s
 
     for (size_t i = 0; i < vars_vec.size(); ++i) {
         auto &var = vars_vec[i];
-        check_syntax_tree_type(var, {syntax_tree_type::syntax_tree_type_var});
+        DEBUG_ASSERT(var->type() == syntax_tree_type::syntax_tree_type_var);
         auto var_ptr = std::dynamic_pointer_cast<syntax_tree_var>(var);
         DEBUG_ASSERT(var_ptr->get_type() == "simple");
     }
 
     for (size_t i = 0; i < exps_vec.size(); ++i) {
         auto &exp = exps_vec[i];
-        check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
+        DEBUG_ASSERT(exp->type() == syntax_tree_type::syntax_tree_type_exp);
         auto exp_ptr = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
         if (!is_simple_assign_exp(exp_ptr)) {
             return false;
@@ -759,7 +759,7 @@ bool gcc_jitter::is_simple_assign(const syntax_tree_interface_ptr &vars, const s
 }
 
 bool gcc_jitter::is_simple_assign_exp(const syntax_tree_interface_ptr &exp) {
-    check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
+    DEBUG_ASSERT(exp->type() == syntax_tree_type::syntax_tree_type_exp);
     auto exp_ptr = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
 
     const auto &exp_type = exp_ptr->exp_type();
@@ -788,7 +788,7 @@ bool gcc_jitter::is_simple_assign_exp(const syntax_tree_interface_ptr &exp) {
 }
 
 bool gcc_jitter::is_simple_assign_prefixexp(const syntax_tree_interface_ptr &pe) {
-    check_syntax_tree_type(pe, {syntax_tree_type::syntax_tree_type_prefixexp});
+    DEBUG_ASSERT(pe->type() == syntax_tree_type::syntax_tree_type_prefixexp);
     auto pe_ptr = std::dynamic_pointer_cast<syntax_tree_prefixexp>(pe);
 
     const auto &pe_type = pe_ptr->get_type();
@@ -806,14 +806,14 @@ bool gcc_jitter::is_simple_assign_prefixexp(const syntax_tree_interface_ptr &pe)
 }
 
 bool gcc_jitter::is_simple_assign_tableconstructor(const syntax_tree_interface_ptr &tc) {
-    check_syntax_tree_type(tc, {syntax_tree_type::syntax_tree_type_tableconstructor});
+    DEBUG_ASSERT(tc->type() == syntax_tree_type::syntax_tree_type_tableconstructor);
     auto tc_ptr = std::dynamic_pointer_cast<syntax_tree_tableconstructor>(tc);
 
     auto fieldlist = tc_ptr->fieldlist();
     if (!fieldlist) {
         return true;
     }
-    check_syntax_tree_type(fieldlist, {syntax_tree_type::syntax_tree_type_fieldlist});
+    DEBUG_ASSERT(fieldlist->type() == syntax_tree_type::syntax_tree_type_fieldlist);
     auto fieldlist_ptr = std::dynamic_pointer_cast<syntax_tree_fieldlist>(fieldlist);
 
     auto &fields = fieldlist_ptr->fields();
@@ -827,7 +827,7 @@ bool gcc_jitter::is_simple_assign_tableconstructor(const syntax_tree_interface_p
 }
 
 bool gcc_jitter::is_simple_assign_field(const syntax_tree_interface_ptr &field) {
-    check_syntax_tree_type(field, {syntax_tree_type::syntax_tree_type_field});
+    DEBUG_ASSERT(field->type() == syntax_tree_type::syntax_tree_type_field);
     auto field_ptr = std::dynamic_pointer_cast<syntax_tree_field>(field);
 
     auto field_type = field_ptr->get_type();
@@ -845,7 +845,7 @@ bool gcc_jitter::is_simple_assign_field(const syntax_tree_interface_ptr &field) 
 }
 
 void gcc_jitter::compile_stmt_assign(gccjit::function &function, const syntax_tree_interface_ptr &stmt) {
-    check_syntax_tree_type(stmt, {syntax_tree_type::syntax_tree_type_assign});
+    DEBUG_ASSERT(stmt->type() == syntax_tree_type::syntax_tree_type_assign);
     auto assign = std::dynamic_pointer_cast<syntax_tree_assign>(stmt);
 
     auto vars = assign->varlist();
@@ -899,7 +899,7 @@ void gcc_jitter::compile_stmt_assign(gccjit::function &function, const syntax_tr
 }
 
 gccjit::rvalue gcc_jitter::compile_tableconstructor(gccjit::function &func, const syntax_tree_interface_ptr &tc) {
-    check_syntax_tree_type(tc, {syntax_tree_type::syntax_tree_type_tableconstructor});
+    DEBUG_ASSERT(tc->type() == syntax_tree_type::syntax_tree_type_tableconstructor);
     auto tc_ptr = std::dynamic_pointer_cast<syntax_tree_tableconstructor>(tc);
 
     auto is_const = cur_function_data_.is_const;
@@ -935,7 +935,7 @@ gccjit::rvalue gcc_jitter::compile_tableconstructor(gccjit::function &func, cons
 }
 
 std::vector<gccjit::rvalue> gcc_jitter::compile_fieldlist(gccjit::function &func, const syntax_tree_interface_ptr &fieldlist) {
-    check_syntax_tree_type(fieldlist, {syntax_tree_type::syntax_tree_type_fieldlist});
+    DEBUG_ASSERT(fieldlist->type() == syntax_tree_type::syntax_tree_type_fieldlist);
     auto fieldlist_ptr = std::dynamic_pointer_cast<syntax_tree_fieldlist>(fieldlist);
 
     std::vector<gccjit::rvalue> ret;
@@ -950,7 +950,7 @@ std::vector<gccjit::rvalue> gcc_jitter::compile_fieldlist(gccjit::function &func
 }
 
 std::pair<gccjit::rvalue, gccjit::rvalue> gcc_jitter::compile_field(gccjit::function &func, const syntax_tree_interface_ptr &field) {
-    check_syntax_tree_type(field, {syntax_tree_type::syntax_tree_type_field});
+    DEBUG_ASSERT(field->type() == syntax_tree_type::syntax_tree_type_field);
     auto field_ptr = std::dynamic_pointer_cast<syntax_tree_field>(field);
 
     std::pair<gccjit::rvalue, gccjit::rvalue> ret;
@@ -992,7 +992,7 @@ std::pair<gccjit::rvalue, gccjit::rvalue> gcc_jitter::compile_field(gccjit::func
 
 gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tree_interface_ptr &left,
                                          const syntax_tree_interface_ptr &right, const syntax_tree_interface_ptr &op) {
-    check_syntax_tree_type(op, {syntax_tree_type::syntax_tree_type_binop});
+    DEBUG_ASSERT(op->type() == syntax_tree_type::syntax_tree_type_binop);
     auto op_ptr = std::dynamic_pointer_cast<syntax_tree_binop>(op);
     auto opstr = op_ptr->get_op();
 
@@ -1140,7 +1140,7 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
 
 gccjit::rvalue gcc_jitter::compile_unop(gccjit::function &func, const syntax_tree_interface_ptr &right,
                                         const syntax_tree_interface_ptr &op) {
-    check_syntax_tree_type(op, {syntax_tree_type::syntax_tree_type_unop});
+    DEBUG_ASSERT(op->type() == syntax_tree_type::syntax_tree_type_unop);
     auto op_ptr = std::dynamic_pointer_cast<syntax_tree_unop>(op);
     auto opstr = op_ptr->get_op();
 
@@ -1185,7 +1185,7 @@ gccjit::rvalue gcc_jitter::compile_unop(gccjit::function &func, const syntax_tre
 }
 
 gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const syntax_tree_interface_ptr &functioncall) {
-    check_syntax_tree_type(functioncall, {syntax_tree_type::syntax_tree_type_functioncall});
+    DEBUG_ASSERT(functioncall->type() == syntax_tree_type::syntax_tree_type_functioncall);
     auto functioncall_ptr = std::dynamic_pointer_cast<syntax_tree_functioncall>(functioncall);
 
     auto prefixexp = functioncall_ptr->prefixexp();
@@ -1305,7 +1305,7 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
 }
 
 std::vector<gccjit::rvalue> gcc_jitter::compile_args(gccjit::function &func, const syntax_tree_interface_ptr &args) {
-    check_syntax_tree_type(args, {syntax_tree_type::syntax_tree_type_args});
+    DEBUG_ASSERT(args->type() == syntax_tree_type::syntax_tree_type_args);
     auto args_ptr = std::dynamic_pointer_cast<syntax_tree_args>(args);
 
     auto type = args_ptr->get_type();
@@ -1329,7 +1329,7 @@ std::vector<gccjit::rvalue> gcc_jitter::compile_args(gccjit::function &func, con
 }
 
 void gcc_jitter::compile_stmt_functioncall(gccjit::function &function, const syntax_tree_interface_ptr &stmt) {
-    check_syntax_tree_type(stmt, {syntax_tree_type::syntax_tree_type_functioncall});
+    DEBUG_ASSERT(stmt->type() == syntax_tree_type::syntax_tree_type_functioncall);
     auto functioncall = std::dynamic_pointer_cast<syntax_tree_functioncall>(stmt);
     if (cur_function_data_.is_const) {
         // only can call __fakelua_set_table__ in const init function
@@ -1341,7 +1341,7 @@ void gcc_jitter::compile_stmt_functioncall(gccjit::function &function, const syn
 }
 
 std::string gcc_jitter::get_simple_prefixexp_name(const syntax_tree_interface_ptr &pe) {
-    check_syntax_tree_type(pe, {syntax_tree_type::syntax_tree_type_prefixexp});
+    DEBUG_ASSERT(pe->type() == syntax_tree_type::syntax_tree_type_prefixexp);
     auto pe_ptr = std::dynamic_pointer_cast<syntax_tree_prefixexp>(pe);
 
     auto pe_type = pe_ptr->get_type();
@@ -1355,7 +1355,7 @@ std::string gcc_jitter::get_simple_prefixexp_name(const syntax_tree_interface_pt
 }
 
 std::string gcc_jitter::get_simple_var_name(const syntax_tree_interface_ptr &v) {
-    check_syntax_tree_type(v, {syntax_tree_type::syntax_tree_type_var});
+    DEBUG_ASSERT(v->type() == syntax_tree_type::syntax_tree_type_var);
     auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(v);
 
     auto v_type = v_ptr->get_type();
@@ -1378,12 +1378,12 @@ std::string gcc_jitter::get_jit_builtin_function_vm_name(const std::string &name
 }
 
 void gcc_jitter::compile_stmt_label(gccjit::function &func, const fakelua::syntax_tree_interface_ptr &stmt) {
-    check_syntax_tree_type(stmt, {syntax_tree_type::syntax_tree_type_label});
+    DEBUG_ASSERT(stmt->type() == syntax_tree_type::syntax_tree_type_label);
     throw_error("not support label", stmt);
 }
 
 void gcc_jitter::compile_stmt_block(gccjit::function &func, const fakelua::syntax_tree_interface_ptr &block) {
-    check_syntax_tree_type(block, {syntax_tree_type::syntax_tree_type_block});
+    DEBUG_ASSERT(block->type() == syntax_tree_type::syntax_tree_type_block);
     auto block_ptr = std::dynamic_pointer_cast<syntax_tree_block>(block);
 
     // alloc new stack frame
@@ -1399,7 +1399,7 @@ void gcc_jitter::compile_stmt_block(gccjit::function &func, const fakelua::synta
 }
 
 void gcc_jitter::compile_stmt_while(gccjit::function &func, const fakelua::syntax_tree_interface_ptr &wh) {
-    check_syntax_tree_type(wh, {syntax_tree_type::syntax_tree_type_while});
+    DEBUG_ASSERT(wh->type() == syntax_tree_type::syntax_tree_type_while);
     auto while_ptr = std::dynamic_pointer_cast<syntax_tree_while>(wh);
 
     gccjit::block cond_block = func.new_block(new_block_name("loop cond", wh));
@@ -1459,7 +1459,7 @@ void gcc_jitter::compile_stmt_while(gccjit::function &func, const fakelua::synta
 }
 
 void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_interface_ptr &re) {
-    check_syntax_tree_type(re, {syntax_tree_type::syntax_tree_type_repeat});
+    DEBUG_ASSERT(re->type() == syntax_tree_type::syntax_tree_type_repeat);
     auto repeat_ptr = std::dynamic_pointer_cast<syntax_tree_repeat>(re);
 
     gccjit::block cond_block;// maybe body just return, so cond and after maybe not exist
@@ -1534,13 +1534,13 @@ void gcc_jitter::compile_stmt_repeat(gccjit::function &func, const syntax_tree_i
 }
 
 void gcc_jitter::compile_stmt_if(gccjit::function &func, const syntax_tree_interface_ptr &is) {
-    check_syntax_tree_type(is, {syntax_tree_type::syntax_tree_type_if});
+    DEBUG_ASSERT(is->type() == syntax_tree_type::syntax_tree_type_if);
     auto if_ptr = std::dynamic_pointer_cast<syntax_tree_if>(is);
 
     auto exp = if_ptr->exp();
     auto block = if_ptr->block();
     auto elseifs = if_ptr->elseifs();
-    check_syntax_tree_type(elseifs, {syntax_tree_type::syntax_tree_type_elseiflist});
+    DEBUG_ASSERT(elseifs->type() == syntax_tree_type::syntax_tree_type_elseiflist);
     auto elseifs_ptr = std::dynamic_pointer_cast<syntax_tree_elseiflist>(elseifs);
     auto else_ptr = if_ptr->elseblock();// maybe nullptr
 
@@ -1668,7 +1668,7 @@ void gcc_jitter::compile_stmt_if(gccjit::function &func, const syntax_tree_inter
 }
 
 void gcc_jitter::compile_stmt_break(gccjit::function &func, const syntax_tree_interface_ptr &bs) {
-    check_syntax_tree_type(bs, {syntax_tree_type::syntax_tree_type_break});
+    DEBUG_ASSERT(bs->type() == syntax_tree_type::syntax_tree_type_break);
     auto break_ptr = std::dynamic_pointer_cast<syntax_tree_break>(bs);
 
     if (cur_function_data_.stack_end_blocks.empty()) {
@@ -1685,7 +1685,7 @@ void gcc_jitter::compile_stmt_break(gccjit::function &func, const syntax_tree_in
 }
 
 void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree_interface_ptr &fs) {
-    check_syntax_tree_type(fs, {syntax_tree_type::syntax_tree_type_for_loop});
+    DEBUG_ASSERT(fs->type() == syntax_tree_type::syntax_tree_type_for_loop);
     auto for_loop_ptr = std::dynamic_pointer_cast<syntax_tree_for_loop>(fs);
 
     // for a = 1, 10, 1 do ... end
@@ -1862,7 +1862,7 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
 }
 
 void gcc_jitter::compile_stmt_for_in(gccjit::function &func, const syntax_tree_interface_ptr &fs) {
-    check_syntax_tree_type(fs, {syntax_tree_type::syntax_tree_type_for_in});
+    DEBUG_ASSERT(fs->type() == syntax_tree_type::syntax_tree_type_for_in);
     auto for_in_ptr = std::dynamic_pointer_cast<syntax_tree_for_in>(fs);
 
     // for k, v in pairs(t) do ... end
@@ -1893,19 +1893,19 @@ void gcc_jitter::compile_stmt_for_in(gccjit::function &func, const syntax_tree_i
     }
     auto exp = exps[0];
     // check exp must be ipairs() or pairs()
-    check_syntax_tree_type(exp, {syntax_tree_type::syntax_tree_type_exp});
+    DEBUG_ASSERT(exp->type() == syntax_tree_type::syntax_tree_type_exp);
     auto exp_ptr = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
     if (exp_ptr->exp_type() != "prefixexp") {
         throw_error("for in exp (expect prefixexp) must be ipairs() or pairs()", exp);
     }
     auto prefixexp = exp_ptr->right();
-    check_syntax_tree_type(prefixexp, {syntax_tree_type::syntax_tree_type_prefixexp});
+    DEBUG_ASSERT(prefixexp->type() == syntax_tree_type::syntax_tree_type_prefixexp);
     auto prefixexp_ptr = std::dynamic_pointer_cast<syntax_tree_prefixexp>(prefixexp);
     if (prefixexp_ptr->get_type() != "functioncall") {
         throw_error("for in exp (expect functioncall) must be ipairs() or pairs()", exp);
     }
     auto functioncall = prefixexp_ptr->get_value();
-    check_syntax_tree_type(functioncall, {syntax_tree_type::syntax_tree_type_functioncall});
+    DEBUG_ASSERT(functioncall->type() == syntax_tree_type::syntax_tree_type_functioncall);
     auto functioncall_ptr = std::dynamic_pointer_cast<syntax_tree_functioncall>(functioncall);
     auto call_name = get_simple_prefixexp_name(functioncall_ptr->prefixexp());
     if (call_name != "ipairs" && call_name != "pairs") {
@@ -1913,7 +1913,7 @@ void gcc_jitter::compile_stmt_for_in(gccjit::function &func, const syntax_tree_i
     }
     auto for_args = functioncall_ptr->args();
     DEBUG_ASSERT(for_args);
-    check_syntax_tree_type(for_args, {syntax_tree_type::syntax_tree_type_args});
+    DEBUG_ASSERT(for_args->type() == syntax_tree_type::syntax_tree_type_args);
     for_args_ptr = std::dynamic_pointer_cast<syntax_tree_args>(for_args);
 
     // for in block, just like for in

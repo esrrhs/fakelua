@@ -87,7 +87,7 @@ void pre_processor::save_preprocess_global_init(const syntax_tree_interface_ptr 
 
 void pre_processor::preprocess_const(const syntax_tree_interface_ptr &chunk) {
     // the chunk must be a block
-    check_syntax_tree_type(chunk, {syntax_tree_type::syntax_tree_type_block});
+    DEBUG_ASSERT(chunk->type() == syntax_tree_type::syntax_tree_type_block);
     // walk through the block
     auto block = std::dynamic_pointer_cast<syntax_tree_block>(chunk);
     for (auto &stmt: block->stmts()) {
@@ -99,13 +99,13 @@ void pre_processor::preprocess_const(const syntax_tree_interface_ptr &chunk) {
 
 void pre_processor::preprocess_const_define(const syntax_tree_interface_ptr &stmt) {
     auto local_var = std::dynamic_pointer_cast<syntax_tree_local_var>(stmt);
-    check_syntax_tree_type(local_var->namelist(), {syntax_tree_type::syntax_tree_type_namelist});
+    DEBUG_ASSERT(local_var->namelist()->type() == syntax_tree_type::syntax_tree_type_namelist);
     auto keys = std::dynamic_pointer_cast<syntax_tree_namelist>(local_var->namelist());
     auto &names = keys->names();
     if (!local_var->explist()) {
         throw_error("the const define must have a value, but the value is null, it's useless", local_var);
     }
-    check_syntax_tree_type(local_var->explist(), {syntax_tree_type::syntax_tree_type_explist});
+    DEBUG_ASSERT(local_var->explist()->type() == syntax_tree_type::syntax_tree_type_explist);
     auto values = std::dynamic_pointer_cast<syntax_tree_explist>(local_var->explist());
     auto &values_exps = values->exps();
 
@@ -137,7 +137,7 @@ void pre_processor::preprocess_const_define(const syntax_tree_interface_ptr &stm
 
 void pre_processor::preprocess_functions_name(const syntax_tree_interface_ptr &chunk) {
     // the chunk must be a block
-    check_syntax_tree_type(chunk, {syntax_tree_type::syntax_tree_type_block});
+    DEBUG_ASSERT(chunk->type() == syntax_tree_type::syntax_tree_type_block);
     // walk through the block
     auto block = std::dynamic_pointer_cast<syntax_tree_block>(chunk);
     for (auto &stmt: block->stmts()) {
@@ -149,7 +149,7 @@ void pre_processor::preprocess_functions_name(const syntax_tree_interface_ptr &c
 }
 
 void pre_processor::preprocess_function_name(const syntax_tree_interface_ptr &func) {
-    check_syntax_tree_type(func, {syntax_tree_type::syntax_tree_type_function});
+    DEBUG_ASSERT(func->type() == syntax_tree_type::syntax_tree_type_function);
     auto func_ptr = std::dynamic_pointer_cast<syntax_tree_function>(func);
 
     auto funcname = std::dynamic_pointer_cast<syntax_tree_funcname>(func_ptr->funcname());
@@ -158,7 +158,7 @@ void pre_processor::preprocess_function_name(const syntax_tree_interface_ptr &fu
     auto newfuncnamelistptr = std::make_shared<syntax_tree_funcnamelist>(funcnamelistptr->loc());
     std::vector<std::string> newnamelist;
 
-    check_syntax_tree_type(funcnamelistptr, {syntax_tree_type::syntax_tree_type_funcnamelist});
+    DEBUG_ASSERT(funcnamelistptr->type() == syntax_tree_type::syntax_tree_type_funcnamelist);
     auto funcnamelist = std::dynamic_pointer_cast<syntax_tree_funcnamelist>(funcnamelistptr);
     auto &names = funcnamelist->funcnames();
     newnamelist.insert(newnamelist.end(), names.begin(), names.end());
@@ -167,7 +167,7 @@ void pre_processor::preprocess_function_name(const syntax_tree_interface_ptr &fu
         newnamelist.push_back(funcname->colon_name());
         // insert self in the front of params
         auto funcbody = func_ptr->funcbody();
-        check_syntax_tree_type(funcbody, {syntax_tree_type::syntax_tree_type_funcbody});
+        DEBUG_ASSERT(funcbody->type() == syntax_tree_type::syntax_tree_type_funcbody);
         auto funcbody_ptr = std::dynamic_pointer_cast<syntax_tree_funcbody>(funcbody);
         auto parlist = funcbody_ptr->parlist();
         auto new_parlist = std::make_shared<syntax_tree_parlist>(funcbody_ptr->loc());
@@ -251,7 +251,7 @@ std::string pre_processor::location_str(const syntax_tree_interface_ptr &ptr) {
 
 void pre_processor::preprocess_table_assigns(const syntax_tree_interface_ptr &chunk) {
     // the chunk must be a block
-    check_syntax_tree_type(chunk, {syntax_tree_type::syntax_tree_type_block});
+    DEBUG_ASSERT(chunk->type() == syntax_tree_type::syntax_tree_type_block);
     // walk through the block
     auto block = std::dynamic_pointer_cast<syntax_tree_block>(chunk);
     for (auto &stmt: block->stmts()) {
@@ -266,11 +266,11 @@ void pre_processor::preprocess_table_assigns(const syntax_tree_interface_ptr &ch
 }
 
 void pre_processor::preprocess_table_assign(const syntax_tree_interface_ptr &funcbody) {
-    check_syntax_tree_type(funcbody, {syntax_tree_type::syntax_tree_type_funcbody});
+    DEBUG_ASSERT(funcbody->type() == syntax_tree_type::syntax_tree_type_funcbody);
     auto funcbody_ptr = std::dynamic_pointer_cast<syntax_tree_funcbody>(funcbody);
 
     auto block = funcbody_ptr->block();
-    check_syntax_tree_type(block, {syntax_tree_type::syntax_tree_type_block});
+    DEBUG_ASSERT(block->type() == syntax_tree_type::syntax_tree_type_block);
     auto block_ptr = std::dynamic_pointer_cast<syntax_tree_block>(block);
 
     std::vector<syntax_tree_interface_ptr> new_stmts;
@@ -280,8 +280,8 @@ void pre_processor::preprocess_table_assign(const syntax_tree_interface_ptr &fun
             auto assign = std::dynamic_pointer_cast<syntax_tree_assign>(stmt);
             auto varlist = assign->varlist();
             auto explist = assign->explist();
-            check_syntax_tree_type(varlist, {syntax_tree_type::syntax_tree_type_varlist});
-            check_syntax_tree_type(explist, {syntax_tree_type::syntax_tree_type_explist});
+            DEBUG_ASSERT(varlist->type() == syntax_tree_type::syntax_tree_type_varlist);
+            DEBUG_ASSERT(explist->type() == syntax_tree_type::syntax_tree_type_explist);
             auto varlist_ptr = std::dynamic_pointer_cast<syntax_tree_varlist>(varlist);
             auto explist_ptr = std::dynamic_pointer_cast<syntax_tree_explist>(explist);
             auto &vars = varlist_ptr->vars();
@@ -291,7 +291,7 @@ void pre_processor::preprocess_table_assign(const syntax_tree_interface_ptr &fun
 
             for (size_t i = 0; i < vars.size(); ++i) {
                 auto var = vars[i];
-                check_syntax_tree_type(var, {syntax_tree_type::syntax_tree_type_var});
+                DEBUG_ASSERT(var->type() == syntax_tree_type::syntax_tree_type_var);
                 auto var_ptr = std::dynamic_pointer_cast<syntax_tree_var>(var);
                 if (var_ptr->get_type() == "square" || var_ptr->get_type() == "dot") {
                     auto name = std::format("__fakelua_pp_pre_{}__", pre_index_++);
@@ -391,7 +391,7 @@ void pre_processor::preprocess_table_assign(const syntax_tree_interface_ptr &fun
 
 void pre_processor::preprocess_extracts_literal_constants(const syntax_tree_interface_ptr &chunk) {
     // the chunk must be a block
-    check_syntax_tree_type(chunk, {syntax_tree_type::syntax_tree_type_block});
+    DEBUG_ASSERT(chunk->type() == syntax_tree_type::syntax_tree_type_block);
 
     // walk tree and find all literal exp
     std::map<std::string, std::string> integer_map;
