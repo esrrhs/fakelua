@@ -1090,7 +1090,7 @@ TEST(exception, test_col_func_not_find_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("call_var: func must be string type, but got") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("call_var: function xxx not found") != std::string::npos);
     }
 }
 
