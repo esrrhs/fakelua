@@ -1,4 +1,4 @@
-local _G = { my = {} }
+local _G = { my = { test1 = "xxx" } }
 function _G.my:test(a)
     return a + 1
 end
