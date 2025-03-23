@@ -1898,6 +1898,25 @@ TEST(jitter, test_binop_and) {
     ASSERT_EQ(ret2->type(), var_type::VAR_NIL);
 }
 
+TEST(jitter, test_binop_and_bool) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    bool ret1 = false;
+    bool ret2 = false;
+    L->compile_file("./jit/test_binop_and_bool.lua", {});
+    L->call("test", std::tie(ret1, ret2), true, false);
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+
+    ret1 = false;
+    ret2 = false;
+    L->compile_file("./jit/test_binop_and_bool.lua", {.debug_mode = false});
+    L->call("test", std::tie(ret1, ret2), true, false);
+    ASSERT_FALSE(ret1);
+    ASSERT_TRUE(ret2);
+}
+
 TEST(jitter, test_binop_and_or) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
