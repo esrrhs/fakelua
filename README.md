@@ -4,23 +4,24 @@
 [<img src="https://img.shields.io/github/actions/workflow/status/esrrhs/fakelua/build.yml?branch=master">](https://github.com/esrrhs/fakelua/actions)
 [![codecov](https://codecov.io/gh/esrrhs/fakelua/graph/badge.svg?token=9ZCUH1Q632)](https://codecov.io/gh/esrrhs/fakelua)
 
-FakeLua is a superset of Lua, it compiles Lua to native code at runtime.
+FakeLua is a dialect of Lua that compiles Lua into native code at runtime.
 
-# Feature
-* compile with C++23
-* build on Linux && Mingw
-* support Lua 5.4 grammar
-* lexing and parsing by Flex && Bison
-* compile to native code by GCC JIT
-* support GDB Lua source code
+# Features:
+* Compiles with C++23
+* Builds on Linux and MinGW
+* Supports Lua 5.4 syntax
+* Uses Flex and Bison for lexing and parsing
+* Compiles to native code using GCC JIT
+* Supports GDB for debugging Lua source code
 
-# Difference with Lua
-* no global variable, only global constant
-* no GC, use memory pool
-* no coroutine/thread/userdata/metatable
-* table are always hash table, no array table
-* string concat support all type
-* no closure, it's slow and complex to implement
+# Differences from Lua:
+* No global variables, only global constants
+* No garbage collection (GC); uses a memory pool instead
+* No coroutines, threads, userdata, or metatables
+* Tables are exclusively hash tables, not array tables
+* String concatenation supports all data types
+* No closures, as they are slow and complex to implement
+
 
 # Directory structure
 * [include](./include) header file
