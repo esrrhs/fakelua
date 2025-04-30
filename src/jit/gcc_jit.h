@@ -110,6 +110,10 @@ private:
 private:
     bool is_simple_assign(const syntax_tree_interface_ptr &vars, const syntax_tree_interface_ptr &exps);
 
+    bool is_simple_args(const syntax_tree_interface_ptr &args);
+
+    bool is_simple_explist(const syntax_tree_interface_ptr &explist);
+
     bool is_simple_assign_exp(const syntax_tree_interface_ptr &exp);
 
     bool is_simple_assign_prefixexp(const syntax_tree_interface_ptr &pe);

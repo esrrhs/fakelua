@@ -758,6 +758,40 @@ bool gcc_jitter::is_simple_assign(const syntax_tree_interface_ptr &vars, const s
     return true;
 }
 
+bool gcc_jitter::is_simple_args(const syntax_tree_interface_ptr &args) {
+    DEBUG_ASSERT(args->type() == syntax_tree_type::syntax_tree_type_args);
+    auto args_ptr = std::dynamic_pointer_cast<syntax_tree_args>(args);
+
+    auto type = args_ptr->get_type();
+
+    DEBUG_ASSERT(type == "explist" || type == "tableconstructor" || type == "string" || type == "empty");
+
+    if (type == "explist") {
+        auto explist = args_ptr->explist();
+        return is_simple_explist(explist);
+    } else if (type == "tableconstructor") {
+        auto tc = args_ptr->tableconstructor();
+        return is_simple_assign_tableconstructor(tc);
+    } else /*if (type == "string")*/ {
+        return true;
+    }
+}
+
+bool gcc_jitter::is_simple_explist(const syntax_tree_interface_ptr &explist) {
+    DEBUG_ASSERT(explist->type() == syntax_tree_type::syntax_tree_type_explist);
+    auto explist_ptr = std::dynamic_pointer_cast<syntax_tree_explist>(explist);
+
+    std::vector<gccjit::rvalue> ret;
+    auto &exps = explist_ptr->exps();
+    for (auto &exp: exps) {
+        if (!is_simple_assign_exp(exp)) {
+            return false;
+        }
+    }
+
+    return true;
+}
+
 bool gcc_jitter::is_simple_assign_exp(const syntax_tree_interface_ptr &exp) {
     DEBUG_ASSERT(exp->type() == syntax_tree_type::syntax_tree_type_exp);
     auto exp_ptr = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
@@ -1240,14 +1274,20 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
                 auto args = functioncall_ptr->args();
                 auto args_ret = compile_args(func, args);
 
-                std::vector<gccjit::rvalue> args2;
-                for (auto &arg_ret: args_ret) {
-                    args2.push_back(arg_ret);
-                }
+                // check all args is simple assign, just call it directly
+                // if args not match, it will compile failed
+                if (is_simple_args(args)) {
+                    std::vector<gccjit::rvalue> args2;
+                    for (auto &arg_ret: args_ret) {
+                        args2.push_back(arg_ret);
+                    }
 
-                gccjit::function call_func = it->second.func;
-                auto ret = gccjit_context_->new_call(call_func, args2, new_location(functioncall));
-                return ret;
+                    gccjit::function call_func = it->second.func;
+                    auto ret = gccjit_context_->new_call(call_func, args2, new_location(functioncall));
+                    return ret;
+                } else {
+                    // same as global function call
+                }
             }
 
             // is global function call, make it as a var
