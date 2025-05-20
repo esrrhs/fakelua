@@ -55,9 +55,9 @@ jobs:
           make -j8
           ctest -V
           ./bin/bench_mark
-          ./bin/lua
+          ./bin/flua
           echo "function main() return 0 end" > test.lua
-          ./bin/lua test.lua
+          ./bin/flua test.lua
           lcov --directory ./ --capture --output-file coverage.info --ignore-errors source --ignore-errors mismatch      
           ls -l coverage.info
           lcov --list coverage.info
