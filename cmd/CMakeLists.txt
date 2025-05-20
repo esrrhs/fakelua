@@ -1,6 +1,6 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 
-PROJECT(lua)
+PROJECT(flua)
 
 #add gflags
 CPMAddPackage(
@@ -26,6 +26,6 @@ ELSE ()
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-E")
 ENDIF ()
 
-add_executable(lua ${LUA_SRC_LIST})
+add_executable(flua ${LUA_SRC_LIST})
 
-target_link_libraries(lua PRIVATE fakelua gflags::gflags gccjit)
+target_link_libraries(flua PRIVATE fakelua gflags::gflags gccjit)

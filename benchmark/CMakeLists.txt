@@ -6,7 +6,7 @@ project(benchmark)
 CPMAddPackage(
         NAME benchmark
         GITHUB_REPOSITORY google/benchmark
-        GIT_TAG v1.8.3
+        GIT_TAG v1.9.4
         OPTIONS
         "BENCHMARK_ENABLE_TESTING Off"
         "BENCHMARK_ENABLE_GTEST_TESTS Off"
@@ -52,10 +52,10 @@ ENDIF ()
 
 add_executable(bench_mark ${BENCHMARK_SRC_LIST})
 
-target_link_libraries(bench_mark PRIVATE fakelua benchmark gccjit)
+target_link_libraries(bench_mark PRIVATE fakelua benchmark gccjit lua)
 
 add_custom_command(
         TARGET bench_mark
         POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy ${CMAKE_CURRENT_SOURCE_DIR}/benchmark.lua ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/benchmark.lua
+        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/lua/ ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/
 )
