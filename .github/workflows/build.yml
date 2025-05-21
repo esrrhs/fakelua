@@ -44,4 +44,4 @@ jobs:
           make -j8
           ctest -V
           ./bin/bench_mark
-          cd ..
+          ./bin/flua
