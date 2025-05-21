@@ -9,9 +9,11 @@ static lua_State *load_lua_file(const std::string &file) {
     lua_State *L = luaL_newstate();
     luaL_openlibs(L);
     if (luaL_dofile(L, file.c_str()) != LUA_OK) {
-        fprintf(stderr, "Error: %s\n", lua_tostring(L, -1));
-        lua_close(L);
-        return nullptr;
+        if (luaL_dofile(L, ("bin/" + file).c_str()) != LUA_OK) {
+            fprintf(stderr, "Error: %s\n", lua_tostring(L, -1));
+            lua_close(L);
+            return nullptr;
+        }
     }
     return L;
 }
@@ -83,7 +85,7 @@ bool call_lua_func(lua_State *L, const std::string &funcName, int &ret, Args... 
 }
 
 static void BM_fibonacci(benchmark::State &state) {
-    auto L = load_lua_file("./algo/fibonacci.lua");
+    auto L = load_lua_file("algo/fibonacci.lua");
     if (L == nullptr) {
         state.SkipWithError("Failed to load Lua file");
         return;
