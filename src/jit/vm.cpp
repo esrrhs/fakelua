@@ -15,6 +15,36 @@ static var *alloc_val_helper(fakelua_state *s, gcc_jit_handle *h, bool is_const)
     }
 }
 
+// Expand the list of expressions that may contain variable parameters.
+// eg: function test() return 1,2,3 end
+// 1,2,test() => 1,2,1,2,3
+// 1,2,test(),3 => 1,2,1,3
+static void expand_var_list(std::vector<var *> &params) {
+    for (size_t i = 0; i < params.size(); i++) {
+        auto param = params[i];
+        DEBUG_ASSERT(param);
+        DEBUG_ASSERT(param->type() >= var_type::VAR_MIN && param->type() <= var_type::VAR_MAX);
+        if (param->is_variadic()) {
+            DEBUG_ASSERT(param->type() == var_type::VAR_TABLE);
+            auto &table = param->get_table();
+            if (i == params.size() - 1) {
+                params.pop_back();
+                for (int j = 1; j <= (int) table.size(); j++) {
+                    var tmp;
+                    tmp.set_int(j);
+                    auto value = table.get(&tmp);
+                    params.push_back(value);
+                }
+            } else {
+                var tmp;
+                tmp.set_int(1);
+                auto value = table.get(&tmp);
+                params[i] = value;
+            }
+        }
+    }
+}
+
 extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s, gcc_jit_handle *h, bool is_const) {
     return &const_null_var;
 }
@@ -126,30 +156,14 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, gcc_jit_
     ret->set_table();
     ret->set_variadic(true);
 
-    // push ... to ret
-    int index = 0;
+    expand_var_list(params);
+
+    // push to ret
     for (size_t i = 0; i < params.size(); i++) {
         auto arg = params[i];
-
-        if (!arg->is_variadic()) {
-            auto k = alloc_val_helper(s, h, is_const);
-            k->set_int(index + 1);
-            ret->get_table().set(k, arg, true);
-            index++;
-        } else {
-            DEBUG_ASSERT(arg->type() == var_type::VAR_TABLE);
-
-            auto &table = arg->get_table();
-            for (int j = 1; j <= (int) table.size(); j++) {
-                auto k = alloc_val_helper(s, h, is_const);
-                k->set_int(index + 1);
-                var tmp;
-                tmp.set_int(j);
-                auto v = table.get(&tmp);
-                ret->get_table().set(k, v, true);
-                index++;
-            }
-        }
+        auto k = alloc_val_helper(s, h, is_const);
+        k->set_int(i + 1);
+        ret->get_table().set(k, arg, true);
     }
     return ret;
 }

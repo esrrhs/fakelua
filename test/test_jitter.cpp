@@ -220,6 +220,64 @@ TEST(jitter, multi_return_sub) {
     ASSERT_NEAR(f, 2.3, 0.001);
 }
 
+TEST(jitter, multi_return_multi) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int i1 = 0;
+    int i2 = 0;
+    int i3 = 0;
+    int i4 = 0;
+    int i5 = 0;
+    L->compile_file("./jit/test_multi_return_multi.lua", {});
+    L->call("test", std::tie(i1, i2, i3, i4, i5));
+    ASSERT_EQ(i1, 1);
+    ASSERT_EQ(i2, 2);
+    ASSERT_EQ(i3, 3);
+    ASSERT_EQ(i4, 4);
+    ASSERT_EQ(i5, 5);
+
+    i1 = 0;
+    i2 = 0;
+    i3 = 0;
+    i4 = 0;
+    i5 = 0;
+    L->compile_file("./jit/test_multi_return_multi.lua", {.debug_mode = false});
+    L->call("test", std::tie(i1, i2, i3, i4, i5));
+    ASSERT_EQ(i1, 1);
+    ASSERT_EQ(i2, 2);
+    ASSERT_EQ(i3, 3);
+    ASSERT_EQ(i4, 4);
+    ASSERT_EQ(i5, 5);
+}
+
+TEST(jitter, multi_return_multi_ex) {
+    auto L = fakelua_newstate();
+    ASSERT_NE(L.get(), nullptr);
+
+    int i1 = 0;
+    int i2 = 0;
+    int i3 = 0;
+    int i4 = 0;
+    L->compile_file("./jit/test_multi_return_multi_ex.lua", {});
+    L->call("test", std::tie(i1, i2, i3, i4));
+    ASSERT_EQ(i1, 1);
+    ASSERT_EQ(i2, 2);
+    ASSERT_EQ(i3, 3);
+    ASSERT_EQ(i4, 6);
+
+    i1 = 0;
+    i2 = 0;
+    i3 = 0;
+    i4 = 0;
+    L->compile_file("./jit/test_multi_return_multi_ex.lua", {.debug_mode = false});
+    L->call("test", std::tie(i1, i2, i3, i4));
+    ASSERT_EQ(i1, 1);
+    ASSERT_EQ(i2, 2);
+    ASSERT_EQ(i3, 3);
+    ASSERT_EQ(i4, 6);
+}
+
 TEST(jitter, multi_name) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);

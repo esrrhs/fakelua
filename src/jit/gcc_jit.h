@@ -114,13 +114,13 @@ private:
 
     bool is_simple_explist(const syntax_tree_interface_ptr &explist);
 
-    bool is_simple_assign_exp(const syntax_tree_interface_ptr &exp);
+    bool is_simple_exp(const syntax_tree_interface_ptr &exp);
 
-    bool is_simple_assign_prefixexp(const syntax_tree_interface_ptr &pe);
+    bool is_simple_prefixexp(const syntax_tree_interface_ptr &pe);
 
-    bool is_simple_assign_tableconstructor(const syntax_tree_interface_ptr &tc);
+    bool is_simple_tableconstructor(const syntax_tree_interface_ptr &tc);
 
-    bool is_simple_assign_field(const syntax_tree_interface_ptr &fieldlist);
+    bool is_simple_field(const syntax_tree_interface_ptr &fieldlist);
 
     std::string get_simple_prefixexp_name(const syntax_tree_interface_ptr &pe);
 

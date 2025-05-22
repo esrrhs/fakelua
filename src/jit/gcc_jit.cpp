@@ -750,7 +750,7 @@ bool gcc_jitter::is_simple_assign(const syntax_tree_interface_ptr &vars, const s
         auto &exp = exps_vec[i];
         DEBUG_ASSERT(exp->type() == syntax_tree_type::syntax_tree_type_exp);
         auto exp_ptr = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
-        if (!is_simple_assign_exp(exp_ptr)) {
+        if (!is_simple_exp(exp_ptr)) {
             return false;
         }
     }
@@ -771,7 +771,7 @@ bool gcc_jitter::is_simple_args(const syntax_tree_interface_ptr &args) {
         return is_simple_explist(explist);
     } else if (type == "tableconstructor") {
         auto tc = args_ptr->tableconstructor();
-        return is_simple_assign_tableconstructor(tc);
+        return is_simple_tableconstructor(tc);
     } else /*if (type == "string")*/ {
         return true;
     }
@@ -784,7 +784,7 @@ bool gcc_jitter::is_simple_explist(const syntax_tree_interface_ptr &explist) {
     std::vector<gccjit::rvalue> ret;
     auto &exps = explist_ptr->exps();
     for (auto &exp: exps) {
-        if (!is_simple_assign_exp(exp)) {
+        if (!is_simple_exp(exp)) {
             return false;
         }
     }
@@ -792,7 +792,7 @@ bool gcc_jitter::is_simple_explist(const syntax_tree_interface_ptr &explist) {
     return true;
 }
 
-bool gcc_jitter::is_simple_assign_exp(const syntax_tree_interface_ptr &exp) {
+bool gcc_jitter::is_simple_exp(const syntax_tree_interface_ptr &exp) {
     DEBUG_ASSERT(exp->type() == syntax_tree_type::syntax_tree_type_exp);
     auto exp_ptr = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
 
@@ -803,25 +803,25 @@ bool gcc_jitter::is_simple_assign_exp(const syntax_tree_interface_ptr &exp) {
         return true;
     } else if (exp_type == "prefixexp") {
         auto pe = exp_ptr->right();
-        return is_simple_assign_prefixexp(pe);
+        return is_simple_prefixexp(pe);
     } else if (exp_type == "tableconstructor") {
         auto tc = exp_ptr->right();
-        return is_simple_assign_tableconstructor(tc);
+        return is_simple_tableconstructor(tc);
     } else if (exp_type == "binop") {
         auto left = exp_ptr->left();
         auto right = exp_ptr->right();
         auto op = exp_ptr->op();
-        return is_simple_assign_exp(left) && is_simple_assign_exp(right);
+        return is_simple_exp(left) && is_simple_exp(right);
     } else if (exp_type == "unop") {
         auto right = exp_ptr->right();
         auto op = exp_ptr->op();
-        return is_simple_assign_exp(right);
+        return is_simple_exp(right);
     } else {
         return false;
     }
 }
 
-bool gcc_jitter::is_simple_assign_prefixexp(const syntax_tree_interface_ptr &pe) {
+bool gcc_jitter::is_simple_prefixexp(const syntax_tree_interface_ptr &pe) {
     DEBUG_ASSERT(pe->type() == syntax_tree_type::syntax_tree_type_prefixexp);
     auto pe_ptr = std::dynamic_pointer_cast<syntax_tree_prefixexp>(pe);
 
@@ -833,13 +833,13 @@ bool gcc_jitter::is_simple_assign_prefixexp(const syntax_tree_interface_ptr &pe)
     } else if (pe_type == "functioncall") {
         return false;
     } else if (pe_type == "exp") {
-        return is_simple_assign_exp(value);
+        return is_simple_exp(value);
     } else {
         return false;
     }
 }
 
-bool gcc_jitter::is_simple_assign_tableconstructor(const syntax_tree_interface_ptr &tc) {
+bool gcc_jitter::is_simple_tableconstructor(const syntax_tree_interface_ptr &tc) {
     DEBUG_ASSERT(tc->type() == syntax_tree_type::syntax_tree_type_tableconstructor);
     auto tc_ptr = std::dynamic_pointer_cast<syntax_tree_tableconstructor>(tc);
 
@@ -852,7 +852,7 @@ bool gcc_jitter::is_simple_assign_tableconstructor(const syntax_tree_interface_p
 
     auto &fields = fieldlist_ptr->fields();
     for (auto &field: fields) {
-        if (!is_simple_assign_field(field)) {
+        if (!is_simple_field(field)) {
             return false;
         }
     }
@@ -860,18 +860,18 @@ bool gcc_jitter::is_simple_assign_tableconstructor(const syntax_tree_interface_p
     return true;
 }
 
-bool gcc_jitter::is_simple_assign_field(const syntax_tree_interface_ptr &field) {
+bool gcc_jitter::is_simple_field(const syntax_tree_interface_ptr &field) {
     DEBUG_ASSERT(field->type() == syntax_tree_type::syntax_tree_type_field);
     auto field_ptr = std::dynamic_pointer_cast<syntax_tree_field>(field);
 
     auto field_type = field_ptr->get_type();
     if (field_type == "object") {
-        return is_simple_assign_exp(field_ptr->value());
+        return is_simple_exp(field_ptr->value());
     } else if (field_type == "array") {
         if (field_ptr->key()) {
-            return is_simple_assign_exp(field_ptr->key()) && is_simple_assign_exp(field_ptr->value());
+            return is_simple_exp(field_ptr->key()) && is_simple_exp(field_ptr->value());
         } else {
-            return is_simple_assign_exp(field_ptr->value());
+            return is_simple_exp(field_ptr->value());
         }
     } else {
         return false;
