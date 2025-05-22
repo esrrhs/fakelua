@@ -4,7 +4,7 @@
 [<img src="https://img.shields.io/github/actions/workflow/status/esrrhs/fakelua/build.yml?branch=master">](https://github.com/esrrhs/fakelua/actions)
 [![codecov](https://codecov.io/gh/esrrhs/fakelua/graph/badge.svg?token=9ZCUH1Q632)](https://codecov.io/gh/esrrhs/fakelua)
 
-FakeLua is a subset syntax of Lua that compiles code into native machine code at runtime using Just-In-Time (JIT) compilation, providing a streamlined language structure and improved performance.
+FakeLua is a subset of Lua that compiles code into native machine code at runtime using Just-In-Time (JIT) compilation, providing a streamlined language structure and improved performance.
 
 # Features:
 * Compiles with C++23
