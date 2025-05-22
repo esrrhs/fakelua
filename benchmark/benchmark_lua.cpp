@@ -53,7 +53,7 @@ bool call_lua_func(lua_State *L, const std::string &funcName, int &ret, Args... 
     return true;
 }
 
-static void BM_fibonacci(benchmark::State &state) {
+static void BM_lua_fibonacci(benchmark::State &state) {
     auto L = load_lua_file("algo/fibonacci.lua");
     int ret = 0;
     for (auto _: state) {
@@ -65,4 +65,4 @@ static void BM_fibonacci(benchmark::State &state) {
     std::cout << "Fibonacci result: " << ret << std::endl;
 }
 
-BENCHMARK(BM_fibonacci);
+BENCHMARK(BM_lua_fibonacci);
