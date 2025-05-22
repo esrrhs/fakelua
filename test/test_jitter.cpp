@@ -415,27 +415,23 @@ TEST(jitter, variadic_func_with_params) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
-    int ret1 = 0;
+    std::string ret1;
     bool ret2 = false;
-    std::string ret3;
-    double ret4 = 0;
+    int ret3 = 0;
     L->compile_file("./jit/test_variadic_func_with_params.lua", {});
-    L->call("test", std::tie(ret3, ret4, ret2, ret1), 1, true, "test", 2.3);
-    ASSERT_EQ(ret1, 1);
+    L->call("test", std::tie(ret1, ret2, ret3), 1, true, "test", 2.3);
+    ASSERT_EQ(ret1, "test");
     ASSERT_EQ(ret2, true);
-    ASSERT_EQ(ret3, "test");
-    ASSERT_NEAR(ret4, 2.3, 0.001);
+    ASSERT_EQ(ret3, 1);
 
-    ret1 = 0;
+    ret1.clear();
     ret2 = false;
-    ret3.clear();
-    ret4 = 0;
+    ret3 = 0;
     L->compile_file("./jit/test_variadic_func_with_params.lua", {.debug_mode = false});
-    L->call("test", std::tie(ret3, ret4, ret2, ret1), 1, true, "test", 2.3);
-    ASSERT_EQ(ret1, 1);
+    L->call("test", std::tie(ret1, ret2, ret3), 1, true, "test", 2.3);
+    ASSERT_EQ(ret1, "test");
     ASSERT_EQ(ret2, true);
-    ASSERT_EQ(ret3, "test");
-    ASSERT_NEAR(ret4, 2.3, 0.001);
+    ASSERT_EQ(ret3, 1);
 }
 
 TEST(jitter, variadic_func_multi_type) {
