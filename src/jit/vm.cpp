@@ -161,41 +161,13 @@ extern "C" __attribute__((used)) void assign_var(fakelua_state *s, gcc_jit_handl
     }
     va_end(args);
 
-    // local a, b, c = ...
-    if (right_n == 1 && right[0]->is_variadic()) {
-        auto v = right[0];
-        DEBUG_ASSERT(v->type() == var_type::VAR_TABLE);
-
-        for (size_t i = 0; i < left.size(); i++) {
-            auto dst = left[i];
-            auto &table = v->get_table();
-            if (i < table.size()) {
-                var tmp;
-                tmp.set_int(i + 1);
-                *dst = table.get(&tmp);
-            } else {
-                break;
-            }
-        }
-
-        return;
-    }
+    expand_var_list(right);
 
     // local a, b, c = x, y, z
     for (size_t i = 0; i < left.size(); i++) {
         auto dst = left[i];
         if (i < right.size()) {
-            auto v = right[i];
-            if (!v->is_variadic()) {
-                *dst = v;
-            } else {
-                DEBUG_ASSERT(v->type() == var_type::VAR_TABLE);
-
-                auto &table = v->get_table();
-                var tmp;
-                tmp.set_int(1);
-                *dst = table.get(&tmp);
-            }
+            *dst = right[i];
         } else {
             break;
         }
