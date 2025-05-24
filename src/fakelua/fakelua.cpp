@@ -318,10 +318,18 @@ var_interface *fakelua_to_native_obj(fakelua_state_ptr s, var *v) {
 
 var *fakelua_get_var_by_index(fakelua_state_ptr s, var *ret, size_t i) {
     DEBUG_ASSERT(ret);
-    DEBUG_ASSERT(ret->type() == var_type::VAR_TABLE);
-    var tmp;
-    tmp.set_int(i);
-    return ret->get_table().get(&tmp);
+    if (ret->type() == var_type::VAR_TABLE) {
+        DEBUG_ASSERT(ret->is_variadic());
+        var tmp;
+        tmp.set_int(i);
+        return ret->get_table().get(&tmp);
+    } else {
+        if (i == 1) {
+            return ret;
+        } else {
+            return &const_null_var;
+        }
+    }
 }
 
 void *get_func_addr(fakelua_state_ptr s, const std::string &name, int &arg_count, bool &is_variadic) {

@@ -448,6 +448,19 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, const syntax_tree_i
         std::dynamic_pointer_cast<syntax_tree_explist>(explist)->add_exp(exp);
     }
 
+    // check if is simple return. eg: return 1
+    auto explist_ptr = std::dynamic_pointer_cast<syntax_tree_explist>(explist);
+    DEBUG_ASSERT(!explist_ptr->exps().empty());
+    if (explist_ptr->exps().size()==1) {
+        auto exp = explist_ptr->exps()[0];
+        auto ret = compile_exp(func, exp);
+
+        DEBUG_ASSERT(!is_block_ended());
+        cur_function_data_.cur_block.end_with_return(ret, new_location(return_stmt));
+        cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+        return;
+    }
+
     auto explist_ret = compile_explist(func, explist);
 
     auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
