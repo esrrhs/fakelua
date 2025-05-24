@@ -94,47 +94,19 @@ extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, gcc_jit_ha
 
     auto ret = alloc_val_helper(s, h, is_const);
     ret->set_table();
-    // push ... to ret
+
+    expand_var_list(values);
+
     int index = 1;
-    for (size_t i = 0; i < keys.size(); i++) {
-        auto k = keys[i];
-        auto v = values[i];
-
-        // a = { ... }
-        if (!k && i == keys.size() - 1 && v->is_variadic()) {
-            DEBUG_ASSERT(v->type() == var_type::VAR_TABLE);
-
-            auto &table = v->get_table();
-            for (int j = 1; j <= (int) table.size(); j++) {
-                auto key = alloc_val_helper(s, h, is_const);
-                key->set_int(index);
-                var tmp;
-                tmp.set_int(j);
-                auto value = table.get(&tmp);
-                ret->get_table().set(key, value);
-                index++;
-            }
-        } else {
-            if (!k) {
-                // local a = {x, y, z}  ->  local a = {[1]=x, [2]=y, [3]=z}
-                k = alloc_val_helper(s, h, is_const);
-                k->set_int(index);
-                index++;
-            }
-            if (!v->is_variadic()) {
-                ret->get_table().set(k, v);
-            } else {
-                // local a = {x, ..., z}
-                DEBUG_ASSERT(v->type() == var_type::VAR_TABLE);
-
-                auto &table = v->get_table();
-                // get 1st element
-                var tmp;
-                tmp.set_int(1);
-                auto first = table.get(&tmp);
-                ret->get_table().set(k, first);
-            }
+    for (size_t i = 0; i < values.size(); i++) {
+        auto k = i < keys.size() ? keys[i] : nullptr;
+        if (!k) {
+            k = alloc_val_helper(s, h, is_const);
+            k->set_int(index);
+            index++;
         }
+        auto v = values[i];
+        ret->get_table().set(k, v);
     }
     return ret;
 }
