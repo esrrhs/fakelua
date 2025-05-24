@@ -54,7 +54,7 @@ struct LuaGlobalIni {
     LuaGlobalIni() {
         L = luaL_newstate();
         luaL_openlibs(L);
-        load_lua_file(L, "algo/fibonacci.lua");
+        load_lua_file(L, "bench_algo/fibonacci.lua");
     }
     ~LuaGlobalIni() {
         if (L) {

@@ -15,7 +15,7 @@ static void load_fakelua_file(fakelua_state_ptr L, const std::string &file) {
 struct FakeLuaGlobalIni {
     FakeLuaGlobalIni() {
         L = fakelua_newstate();
-        load_fakelua_file(L, "algo/fibonacci.lua");
+        load_fakelua_file(L, "bench_algo/fibonacci.lua");
     }
     fakelua_state_ptr L;
 };
