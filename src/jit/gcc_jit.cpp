@@ -131,6 +131,7 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     // reset data
     cur_function_data_ = function_data();
     cur_function_data_.is_const = name == "__fakelua_global_init__";
+    cur_function_data_.cur_function_name = name;
 
     // compile the input params
     auto parlist = funcbody_ptr->parlist();
@@ -163,6 +164,7 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
                    [](const auto &pair) { return pair.second; });
     auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, the_var_type, name.c_str(), call_func_params, is_variadic,
                                               new_location(funcbody_ptr));
+    cur_function_data_.cur_gccjit_func = func;
 
     // compile the function body
     auto block = funcbody_ptr->block();
@@ -451,7 +453,7 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, const syntax_tree_i
     // check if is simple return. eg: return 1
     auto explist_ptr = std::dynamic_pointer_cast<syntax_tree_explist>(explist);
     DEBUG_ASSERT(!explist_ptr->exps().empty());
-    if (explist_ptr->exps().size()==1) {
+    if (explist_ptr->exps().size() == 1) {
         auto exp = explist_ptr->exps()[0];
         auto ret = compile_exp(func, exp);
 
@@ -1281,9 +1283,15 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
                 return ret;
             }
 
-            // check if is local function call
+            // check if is local function call, special case: cur function call itself
+            gccjit::function local_call_func;
             auto it = function_infos_.find(simple_name);
             if (it != function_infos_.end()) {
+                local_call_func = it->second.func;
+            } else if (cur_function_data_.cur_function_name == simple_name) {
+                local_call_func = cur_function_data_.cur_gccjit_func;
+            }
+            if (local_call_func.get_inner_function()) {
                 auto args = functioncall_ptr->args();
                 auto args_ret = compile_args(func, args);
 
@@ -1295,7 +1303,7 @@ gccjit::rvalue gcc_jitter::compile_functioncall(gccjit::function &func, const sy
                         args2.push_back(arg_ret);
                     }
 
-                    gccjit::function call_func = it->second.func;
+                    gccjit::function call_func = local_call_func;
                     auto ret = gccjit_context_->new_call(call_func, args2, new_location(functioncall));
                     return ret;
                 } else {

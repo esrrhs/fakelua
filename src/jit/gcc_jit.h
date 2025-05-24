@@ -166,6 +166,10 @@ private:
         int pre_index = 0;
         // mark cur func if is const
         bool is_const = false;
+        // current compiling function name
+        std::string cur_function_name;
+        // current compiling function
+        gccjit::function cur_gccjit_func;
     };
     // current compiling function data
     function_data cur_function_data_;
