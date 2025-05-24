@@ -318,8 +318,7 @@ var_interface *fakelua_to_native_obj(fakelua_state_ptr s, var *v) {
 
 var *fakelua_get_var_by_index(fakelua_state_ptr s, var *ret, size_t i) {
     DEBUG_ASSERT(ret);
-    if (ret->type() == var_type::VAR_TABLE) {
-        DEBUG_ASSERT(ret->is_variadic());
+    if (ret->type() == var_type::VAR_TABLE && ret->is_variadic()) {
         var tmp;
         tmp.set_int(i);
         return ret->get_table().get(&tmp);
