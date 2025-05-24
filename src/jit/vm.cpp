@@ -425,39 +425,7 @@ extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle 
     }
     va_end(args);
 
-    // check if the last param is variadic, if so, we need to extract the variadic params
-    if (n > 0 && params[n - 1]->is_variadic()) {
-        auto v = params[n - 1];
-        DEBUG_ASSERT(v->type() == var_type::VAR_TABLE);
-
-        // get 1st element
-        var tmp;
-        tmp.set_int(1);
-        auto first = v->get_table().get(&tmp);
-        params[n - 1] = first;
-
-        // add ... to params
-        for (int j = 2; j <= (int) v->get_table().size(); j++) {
-            auto key = alloc_val_helper(s, h, is_const);
-            key->set_int(j);
-            auto value = v->get_table().get(key);
-            params.push_back(value);
-        }
-    }
-
-    // check if param has variadic, if so, we only get the 1st element
-    for (size_t i = 0; i < params.size(); i++) {
-        auto arg = params[i];
-        if (arg->is_variadic()) {
-            DEBUG_ASSERT(arg->type() == var_type::VAR_TABLE);
-
-            // get 1st element
-            var tmp;
-            tmp.set_int(1);
-            auto first = arg->get_table().get(&tmp);
-            params[i] = first;
-        }
-    }
+    expand_var_list(params);
 
     // it is a colon call, we need to get function from table
     if (col_key) {
