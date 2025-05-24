@@ -5,13 +5,10 @@
 
 using namespace fakelua;
 
-static lua_State *load_lua_file(const std::string &file) {
-    lua_State *L = luaL_newstate();
-    luaL_openlibs(L);
+static void load_lua_file(lua_State *L, const std::string &file) {
     if (luaL_dofile(L, file.c_str()) != LUA_OK) {
         luaL_dofile(L, ("bin/" + file).c_str());
     }
-    return L;
 }
 
 // 辅助：将C++类型推入Lua栈的模板函数
@@ -53,16 +50,27 @@ bool call_lua_func(lua_State *L, const std::string &funcName, int &ret, Args... 
     return true;
 }
 
+struct LuaGlobalIni {
+    LuaGlobalIni() {
+        L = luaL_newstate();
+        luaL_openlibs(L);
+        load_lua_file(L, "algo/fibonacci.lua");
+    }
+    ~LuaGlobalIni() {
+        if (L) {
+            lua_close(L);
+        }
+    }
+    lua_State *L = nullptr;
+};
+
+static LuaGlobalIni lua_global_ini;
+
 static void BM_lua_fibonacci(benchmark::State &state) {
-    auto L = load_lua_file("algo/fibonacci.lua");
     int ret = 0;
     for (auto _: state) {
-        call_lua_func(L, "fibonacci", ret, 30);
+        call_lua_func(lua_global_ini.L, "fibonacci", ret, 30);
     }
-    lua_close(L);
-    state.SetItemsProcessed(state.iterations());
-    state.SetLabel("fibonacci");
-    std::cout << "Fibonacci result: " << ret << std::endl;
 }
 
 BENCHMARK(BM_lua_fibonacci);

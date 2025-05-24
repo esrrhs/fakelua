@@ -4,25 +4,29 @@
 
 using namespace fakelua;
 
-static fakelua_state_ptr load_fakelua_file(const std::string &file) {
-    auto L = fakelua_newstate();
+static void load_fakelua_file(fakelua_state_ptr L, const std::string &file) {
     try {
         L->compile_file(file, {.debug_mode = false});
     } catch (...) {
         L->compile_file("bin/" + file, {.debug_mode = false});
     }
-    return L;
 }
 
-// static void BM_fakelua_fibonacci(benchmark::State &state) {
-//     auto L = load_fakelua_file("algo/fibonacci.lua");
-//     int ret = 0;
-//     for (auto _: state) {
-//         L->call("fibonacci", std::tie(ret), 30);
-//     }
-//     state.SetItemsProcessed(state.iterations());
-//     state.SetLabel("fibonacci");
-//     std::cout << "Fibonacci result: " << ret << std::endl;
-// }
-//
-// BENCHMARK(BM_fakelua_fibonacci);
+struct FakeLuaGlobalIni {
+    FakeLuaGlobalIni() {
+        L = fakelua_newstate();
+        load_fakelua_file(L, "algo/fibonacci.lua");
+    }
+    fakelua_state_ptr L;
+};
+
+static FakeLuaGlobalIni fakelua_global_ini;
+
+static void BM_fakelua_fibonacci(benchmark::State &state) {
+    int ret = 0;
+    for (auto _: state) {
+        fakelua_global_ini.L->call("fibonacci", std::tie(ret), 30);
+    }
+}
+
+BENCHMARK(BM_fakelua_fibonacci);
