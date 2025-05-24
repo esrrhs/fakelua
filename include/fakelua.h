@@ -453,7 +453,7 @@ void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, 
         inter::throw_inter_fakelua_exception(std::format("function {} not found", name));
     }
 
-    inter::reset(shared_from_this());
+    //inter::reset(shared_from_this());
 
     // change every input args to var * by native_to_var() function
     // and change every output args to native type by var_to_native() function
