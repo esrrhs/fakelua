@@ -354,6 +354,10 @@ var *make_variadic_table(fakelua_state_ptr s, int start, int n, var **args) {
     return ret;
 }
 
+void reset(fakelua_state_ptr s) {
+    std::dynamic_pointer_cast<state>(s)->reset();
+}
+
 [[noreturn]] void throw_inter_fakelua_exception(const std::string &msg) {
     throw_fakelua_exception(msg);
 }

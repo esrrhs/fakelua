@@ -437,6 +437,8 @@ void *get_func_addr(fakelua_state_ptr s, const std::string &name, int &arg_count
 
 var *make_variadic_table(fakelua_state_ptr s, int start, int n, var **args);
 
+void reset(fakelua_state_ptr s);
+
 [[noreturn]] void throw_inter_fakelua_exception(const std::string &msg);
 
 }// namespace inter
@@ -450,6 +452,8 @@ void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, 
     if (!addr) {
         inter::throw_inter_fakelua_exception(std::format("function {} not found", name));
     }
+
+    inter::reset(shared_from_this());
 
     // change every input args to var * by native_to_var() function
     // and change every output args to native type by var_to_native() function
