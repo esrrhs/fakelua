@@ -5,7 +5,7 @@
 
 namespace fakelua {
 
-enum class var_type {
+enum var_type {
     VAR_NIL,
     VAR_BOOL,
     VAR_INT,
