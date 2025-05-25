@@ -246,15 +246,16 @@ public:
 private:
     // use class members instead of union, use more memory but more safe and fast.
     int type_ = var_type::VAR_NIL;
-    bool is_const_ = false;
-    bool is_variadic_ = false;
     union data_ {
         bool b;
         int64_t i;
         double f;
         const char *s;
-        void* t;
+        void *t;
     };
+    data_ data_{};
+    bool is_const_ = false;
+    bool is_variadic_ = false;
     bool bool_ = false;
     int64_t int_ = 0;
     double float_ = 0;
