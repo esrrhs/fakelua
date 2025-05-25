@@ -11,41 +11,36 @@ static void load_lua_file(lua_State *L, const std::string &file) {
     }
 }
 
-// 辅助：将C++类型推入Lua栈的模板函数
 template<typename T>
 void push_to_lua(lua_State *L, T value);
 
-// 特化：int
 template<>
 void push_to_lua<int>(lua_State *L, int value) {
     lua_pushinteger(L, value);
 }
 
-// 递归展开参数包，将参数推入Lua栈
 template<typename T, typename... Args>
 void push_args(lua_State *L, T first, Args... args) {
     push_to_lua(L, first);
     push_args(L, args...);
 }
 
-// 终止条件
 void push_args(lua_State *L) {
 }
 
-// 通用调用Lua函数模板
 template<typename... Args>
 bool call_lua_func(lua_State *L, const std::string &funcName, int &ret, Args... args) {
     int top = lua_gettop(L);           // 获取栈顶位置
     lua_getglobal(L, funcName.c_str());// 获取函数
+    DEBUG_ASSERT(lua_isfunction(L, -1));
 
-    // 压入参数
     push_args(L, args...);
 
-    // 调用函数
     constexpr int nargs = sizeof...(Args);
-    lua_pcall(L, nargs, 1, 0);
+    int code = lua_pcall(L, nargs, 1, 0);
+    DEBUG_ASSERT(code == LUA_OK);
 
-    ret = lua_tointeger(L, -1);// 获取返回值
+    ret = lua_tointeger(L, -1);
     lua_settop(L, top);
     return true;
 }
@@ -67,9 +62,12 @@ struct LuaGlobalIni {
 static LuaGlobalIni lua_global_ini;
 
 static void BM_lua_fibonacci(benchmark::State &state) {
-    int ret = 0;
     for (auto _: state) {
-        call_lua_func(lua_global_ini.L, "fibonacci", ret, 30);
+        int ret = 0;
+        call_lua_func(lua_global_ini.L, "main", ret, 30);
+        if (ret != 832040) {
+            throw std::runtime_error("Lua Fibonacci result is incorrect: " + std::to_string(ret));
+        }
     }
 }
 

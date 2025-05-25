@@ -5,3 +5,7 @@ local function fibonacci(n)
         return fibonacci(n - 1) + fibonacci(n - 2)
     end
 end
+
+function main(arg)
+    return fibonacci(arg)
+end

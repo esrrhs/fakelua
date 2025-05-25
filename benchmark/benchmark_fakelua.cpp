@@ -23,9 +23,12 @@ struct FakeLuaGlobalIni {
 static FakeLuaGlobalIni fakelua_global_ini;
 
 static void BM_fakelua_fibonacci(benchmark::State &state) {
-    int ret = 0;
     for (auto _: state) {
-        fakelua_global_ini.L->call("fibonacci", std::tie(ret), 30);
+        int ret = 0;
+        fakelua_global_ini.L->call("main", std::tie(ret), 30);
+        if (ret != 832040) {
+            throw std::runtime_error("fakelua Fibonacci result is incorrect: " + std::to_string(ret));
+        }
     }
 }
 
