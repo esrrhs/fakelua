@@ -51,27 +51,27 @@ public:
 public:
     // get the var type
     var_type type() const {
-        return type_;
+        return (var_type) type_;
     }
 
     // get bool value
     bool get_bool() const {
-        return bool_;
+        return data_.b;
     }
 
     // get int value
     int64_t get_int() const {
-        return int_;
+        return data_.i;
     }
 
     // get float value
     double get_float() const {
-        return float_;
+        return data_.f;
     }
 
     // get string_view value
     const std::string_view &get_string() const {
-        return string_;
+        return data_.s;
     }
 
     // get string_view value
@@ -244,8 +244,8 @@ public:
     var *table_value_at(size_t pos) const;
 
 private:
-    // use class members instead of union, use more memory but more safe and fast.
     int type_ = var_type::VAR_NIL;
+    int flag_ = 0;
     union data_ {
         bool b;
         int64_t i;
@@ -254,14 +254,10 @@ private:
         void *t;
     };
     data_ data_{};
-    bool is_const_ = false;
-    bool is_variadic_ = false;
-    bool bool_ = false;
-    int64_t int_ = 0;
-    double float_ = 0;
-    std::string_view string_;
-    var_table table_;
 };
+
+// assert var size is 16 bytes, the same as we defined in gccjit
+static_assert(sizeof(var) == 16);
 
 extern var const_null_var;
 extern var const_false_var;
