@@ -5,43 +5,50 @@
 
 namespace fakelua {
 
-std::string_view var_string_heap::alloc(const std::string_view &str) {
-    if (str.size() <= MAX_SHORT_STR_LEN) {
-        // first, try to find the string in the short string map
-        auto it = short_str_to_index_map_.find(str);
-        if (it != short_str_to_index_map_.end()) {
-            // found. return
-            return *it->second;
+const std::string_view &var_string_heap::alloc(const std::string_view &str, bool is_const) {
+    // first, try to find the string in the const string map
+    auto it = const_str_map_.find(str);
+    if (it != const_str_map_.end()) {
+        // found. return
+        return it->second->str();
+    }
+
+    if (is_const) {
+        it = tmp_str_map_.find(str);
+        if (it != tmp_str_map_.end()) {
+            // need move it to const map
+            auto s = it->second;
+            tmp_str_map_.erase(it);
+            const auto &key = s->str();
+            const_str_map_.emplace(key, s);
+            return key;
         }
 
         // not found.
-        auto s = std::make_shared<std::string>(str.data(), str.size());
-        auto key = std::string_view(*s);
-        short_str_to_index_map_.emplace(key, s);
-        return *s;
+        auto s = var_string::make_var_string(str.data(), static_cast<int>(str.size()));
+        const auto &key = s->str();
+        const_str_map_.emplace(key, s);
+        return key;
     } else {
-        // long string
-        auto s = std::make_shared<std::string>(str.data(), str.size());
-        long_str_vec_.push_back(s);
-        return *s;
+        it = tmp_str_map_.find(str);
+        if (it != tmp_str_map_.end()) {
+            // found.
+            return it->second->str();
+        }
+
+        // not found.
+        auto s = var_string::make_var_string(str.data(), static_cast<int>(str.size()));
+        const auto &key = s->str();
+        tmp_str_map_.emplace(key, s);
+        return key;
     }
 }
 
 void var_string_heap::reset() {
-    // remove all string except the used ones in the vm
-    std::unordered_set<const char *> used;
-    auto &vm = dynamic_cast<state *>(state_)->get_vm();
-    for (auto &pair: vm.get_functions()) {
-        auto func = pair.second;
-        auto handle = func->get_gcc_jit_handle();
-        auto &str_container_map = handle->get_str_container_map();
-        std::transform(str_container_map.begin(), str_container_map.end(), std::inserter(used, used.end()),
-                       [](const auto &s) { return s.data(); });
+    for (auto &iter: const_str_map_) {
+        free(iter.second);
     }
-
-    std::erase_if(short_str_to_index_map_, [&used](const auto &pair) { return used.find(pair.second->c_str()) == used.end(); });
-
-    std::erase_if(long_str_vec_, [&used](const auto &str) { return used.find(str->c_str()) == used.end(); });
+    const_str_map_.clear();
 }
 
 }// namespace fakelua

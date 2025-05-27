@@ -2,40 +2,30 @@
 
 #include "fakelua.h"
 #include "util/common.h"
-#include "var/var_type.h"
+#include "var/var_string.h"
 
 namespace fakelua {
 
-// every state has a string heap.
-// the string heap contains all the strings in the state.
-// just like Lua, it has two kinds of strings, short string and long string.
-// short string can compare by pointer, and long string must compare by value.
+// string heap hold all the string, string has two type: const string and tmp string.
+// const string allocated when compile function and global var.
+// tmp string allocated when running function, will clean up after each run.
 class var_string_heap {
 public:
-    var_string_heap(fakelua_state *state) : state_(state) {
-    }
-
-    ~var_string_heap() = default;
-
     // alloc a string, and return the stored string_view.
-    std::string_view alloc(const std::string_view &str);
+    const std::string_view &alloc(const std::string_view &str, bool is_const);
 
     // clear the string heap. usually called before running.
     void reset();
 
     // get size
     size_t size() const {
-        return short_str_to_index_map_.size() + long_str_vec_.size();
+        return const_str_map_.size() + tmp_str_map_.size();
     }
 
 private:
-    fakelua_state *state_ = nullptr;
-
     // the key is the input string_view, the value is the stored string
-    std::unordered_map<std::string_view, str_container_ptr> short_str_to_index_map_;
-
-    // the vector stores the long strings.
-    std::vector<str_container_ptr> long_str_vec_;
+    std::unordered_map<std::string_view, var_string *> const_str_map_;
+    std::unordered_map<std::string_view, var_string *> tmp_str_map_;
 };
 
 }// namespace fakelua

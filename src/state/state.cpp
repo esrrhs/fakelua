@@ -5,7 +5,7 @@
 
 namespace fakelua {
 
-state::state() : var_string_heap_(this) {
+state::state() {
 }
 
 state::~state() {
