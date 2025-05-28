@@ -19,7 +19,7 @@ public:
     }
 
     // return string view
-    const std::string_view &str() const {
+    [[nodiscard]] const std::string_view &str() const {
         return {data_, static_cast<std::string_view::size_type>(size_)};
     }
 

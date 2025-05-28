@@ -14,9 +14,10 @@ const std::string_view &var_string_heap::alloc(const std::string_view &str, bool
     }
 
     if (is_const) {
+        // alloc const but found in tmp map, need to move it to const map
         it = tmp_str_map_.find(str);
         if (it != tmp_str_map_.end()) {
-            // need move it to const map
+            // move it to const map
             auto s = it->second;
             tmp_str_map_.erase(it);
             const auto &key = s->str();
