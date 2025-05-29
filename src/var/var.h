@@ -14,41 +14,6 @@ class state;
 // except the global const var, which is stored in the gcc_jit_handle.
 class var {
 public:
-    var() = default;
-
-    explicit var(std::nullptr_t, bool is_const = false) : is_const_(is_const) {
-    }
-
-    explicit var(bool val, bool is_const = false) : is_const_(is_const) {
-        set_bool(val);
-    }
-
-    explicit var(int64_t val) {
-        set_int(val);
-    }
-
-    explicit var(double val) {
-        set_float(val);
-    }
-
-    var(const fakelua_state_ptr &s, const std::string &val);
-
-    var(const fakelua_state_ptr &s, std::string &&val);
-
-    var(const fakelua_state_ptr &s, const char *val);
-
-    var(const fakelua_state_ptr &s, std::string_view val);
-
-    var(var &&val) = default;
-
-    ~var() = default;
-
-public:
-    var &operator=(const var &val) = default;
-
-    var &operator=(var &&val) = default;
-
-public:
     // get the var type
     var_type type() const {
         return (var_type) type_;
@@ -56,37 +21,32 @@ public:
 
     // get bool value
     bool get_bool() const {
+        DEBUG_ASSERT(type_ == var_type::VAR_BOOL);
         return data_.b;
     }
 
     // get int value
     int64_t get_int() const {
+        DEBUG_ASSERT(type_ == var_type::VAR_INT);
         return data_.i;
     }
 
     // get float value
     double get_float() const {
+        DEBUG_ASSERT(type_ == var_type::VAR_FLOAT);
         return data_.f;
     }
 
     // get string_view value
-    const std::string_view &get_string() const {
+    var_string *get_string() const {
+        DEBUG_ASSERT(type_ == var_type::VAR_STRING);
         return data_.s;
     }
 
-    // get string_view value
-    bool is_short_string() const {
-        return string_.length() <= MAX_SHORT_STR_LEN;
-    }
-
     // get table value
-    const var_table &get_table() const {
-        return table_;
-    }
-
-    // get table value
-    var_table &get_table() {
-        return table_;
+    var_table *get_table() const {
+        DEBUG_ASSERT(type_ == var_type::VAR_TABLE);
+        return data_.t;
     }
 
 public:
@@ -98,13 +58,13 @@ public:
     // set bool value
     void set_bool(bool val) {
         type_ = var_type::VAR_BOOL;
-        bool_ = val;
+        data_.b = val;
     }
 
     // set int value
     void set_int(int64_t val) {
         type_ = var_type::VAR_INT;
-        int_ = val;
+        data_.i = val;
     }
 
     // set float value
@@ -112,18 +72,15 @@ public:
         double intpart;
         if (std::modf(val, &intpart) != 0.0) {
             type_ = var_type::VAR_FLOAT;
-            float_ = val;
+            data_.f = val;
         } else {
             type_ = var_type::VAR_INT;
-            int_ = (int64_t) val;
+            data_.i = (int64_t) val;
         }
     }
 
     // set string value
     void set_string(const fakelua_state_ptr &s, const std::string &val);
-
-    // set string value
-    void set_string(const fakelua_state_ptr &s, std::string &&val);
 
     // set string value
     void set_string(const fakelua_state_ptr &s, const char *val);
@@ -133,9 +90,6 @@ public:
 
     // set string value
     void set_string(fakelua_state *s, const std::string &val);
-
-    // set string value
-    void set_string(fakelua_state *s, std::string &&val);
 
     // set string value
     void set_string(fakelua_state *s, const char *val);
@@ -151,19 +105,19 @@ public:
     std::string to_string(bool has_quote = true, bool has_postfix = true) const;
 
     void set_const(bool val) {
-        is_const_ = val;
+        SET_FLAG_BIT(flag_, VAR_FLAG_CONST_IDX, val);
     }
 
     bool is_const() const {
-        return is_const_;
+        return GET_FLAG_BIT(flag_, VAR_FLAG_CONST_IDX);
     }
 
     void set_variadic(bool val) {
-        is_variadic_ = val;
+        SET_FLAG_BIT(flag_, VAR_FLAG_VARIADIC_IDX, val);
     }
 
     bool is_variadic() const {
-        return is_variadic_;
+        return GET_FLAG_BIT(flag_, VAR_FLAG_VARIADIC_IDX);
     }
 
     // get hash value
@@ -250,8 +204,8 @@ private:
         bool b;
         int64_t i;
         double f;
-        const char *s;
-        void *t;
+        var_string *s;
+        var_table *t;
     };
     data_ data_{};
 };

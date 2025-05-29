@@ -5,12 +5,12 @@
 
 namespace fakelua {
 
-const std::string_view &var_string_heap::alloc(const std::string_view &str, bool is_const) {
+var_string *var_string_heap::alloc(const std::string_view &str, bool is_const) {
     // first, try to find the string in the const string map
     auto it = const_str_map_.find(str);
     if (it != const_str_map_.end()) {
         // found. return
-        return it->second->str();
+        return it->second;
     }
 
     if (is_const) {
@@ -22,26 +22,26 @@ const std::string_view &var_string_heap::alloc(const std::string_view &str, bool
             tmp_str_map_.erase(it);
             const auto &key = s->str();
             const_str_map_.emplace(key, s);
-            return key;
+            return s;
         }
 
         // not found.
         auto s = var_string::make_var_string(str.data(), static_cast<int>(str.size()));
         const auto &key = s->str();
         const_str_map_.emplace(key, s);
-        return key;
+        return s;
     } else {
         it = tmp_str_map_.find(str);
         if (it != tmp_str_map_.end()) {
             // found.
-            return it->second->str();
+            return it->second;
         }
 
         // not found.
         auto s = var_string::make_var_string(str.data(), static_cast<int>(str.size()));
         const auto &key = s->str();
         tmp_str_map_.emplace(key, s);
-        return key;
+        return s;
     }
 }
 
