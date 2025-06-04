@@ -6,80 +6,24 @@
 
 namespace fakelua {
 
-var const_null_var(nullptr, true);
-var const_false_var(false, true);
-var const_true_var(true, true);
+var const_null_var;
+var const_false_var(false);
+var const_true_var(true);
 
-var::var(const fakelua_state_ptr &s, const std::string &val) : type_(var_type::VAR_STRING) {
-    auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    string_ = string_heap.alloc(val);
+void var::set_string(const fakelua_state_ptr &s, const std::string_view &val) {
+    set_string(s.get(), val);
 }
 
-var::var(const fakelua_state_ptr &s, std::string &&val) : type_(var_type::VAR_STRING) {
-    auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    string_ = string_heap.alloc(std::move(val));
-}
-
-var::var(const fakelua_state_ptr &s, const char *val) : type_(var_type::VAR_STRING) {
-    auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    string_ = string_heap.alloc(val);
-}
-
-var::var(const fakelua_state_ptr &s, std::string_view val) : type_(var_type::VAR_STRING) {
-    auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    string_ = string_heap.alloc(std::string(val));
-}
-
-void var::set_string(const fakelua_state_ptr &s, const std::string &val) {
-    type_ = var_type::VAR_STRING;
-    auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    string_ = string_heap.alloc(val);
-}
-
-void var::set_string(const fakelua_state_ptr &s, std::string &&val) {
-    type_ = var_type::VAR_STRING;
-    auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    string_ = string_heap.alloc(std::move(val));
-}
-
-void var::set_string(const fakelua_state_ptr &s, const char *val) {
-    type_ = var_type::VAR_STRING;
-    auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    string_ = string_heap.alloc(val);
-}
-
-void var::set_string(const fakelua_state_ptr &s, std::string_view val) {
-    type_ = var_type::VAR_STRING;
-    auto &string_heap = std::dynamic_pointer_cast<state>(s)->get_var_string_heap();
-    string_ = string_heap.alloc(std::string(val));
-}
-
-void var::set_string(fakelua_state *s, const std::string &val) {
+void var::set_string(fakelua_state *s, const std::string_view &val) {
     type_ = var_type::VAR_STRING;
     auto &string_heap = dynamic_cast<state *>(s)->get_var_string_heap();
-    string_ = string_heap.alloc(val);
+    data_.s = string_heap.alloc(val, is_const());
 }
 
-void var::set_string(fakelua_state *s, std::string &&val) {
-    type_ = var_type::VAR_STRING;
-    auto &string_heap = dynamic_cast<state *>(s)->get_var_string_heap();
-    string_ = string_heap.alloc(std::move(val));
-}
-
-void var::set_string(fakelua_state *s, const char *val) {
-    type_ = var_type::VAR_STRING;
-    auto &string_heap = dynamic_cast<state *>(s)->get_var_string_heap();
-    string_ = string_heap.alloc(val);
-}
-
-void var::set_string(fakelua_state *s, std::string_view val) {
-    type_ = var_type::VAR_STRING;
-    auto &string_heap = dynamic_cast<state *>(s)->get_var_string_heap();
-    string_ = string_heap.alloc(std::string(val));
-}
-
-void var::set_table() {
+void var::set_table(fakelua_state *s) {
     type_ = var_type::VAR_TABLE;
+    auto &table_heap = dynamic_cast<state *>(s)->get_var_table_heap();
+    data_.t = table_heap.alloc(is_const());
 }
 
 std::string var::to_string(bool has_quote, bool has_postfix) const {
@@ -93,19 +37,19 @@ std::string var::to_string(bool has_quote, bool has_postfix) const {
             ret = get_bool() ? "true" : "false";
             break;
         case var_type::VAR_INT:
-            ret = std::to_string(get_int());
+            ret = std::to_string(data_.i);
             break;
         case var_type::VAR_FLOAT: {
-            char buffer[64];
-            char *end = std::to_chars(std::begin(buffer), std::end(buffer), get_float(), std::chars_format::general).ptr;
+            char buffer[128];
+            char *end = std::to_chars(std::begin(buffer), std::end(buffer), data_.f, std::chars_format::general).ptr;
             ret = std::string(buffer, end);
             break;
         }
         case var_type::VAR_STRING:
-            ret = has_quote ? std::format("\"{}\"", string_) : std::format("{}", string_);
+            ret = has_quote ? std::format("\"{}\"", data_.s->str()) : std::format("{}", data_.s->str());
             break;
         case var_type::VAR_TABLE:
-            ret = std::format("table({})", (void *) this);
+            ret = std::format("table({})", (void *) data_.t);
             break;
     }
 
@@ -127,17 +71,13 @@ size_t var::hash() const {
         case var_type::VAR_BOOL:
             return get_bool() ? 1 : 0;
         case var_type::VAR_INT:
-            return std::hash<int64_t>()(get_int());
+            return std::hash<int64_t>()(data_.i);
         case var_type::VAR_FLOAT:
-            return std::hash<double>()(get_float());
+            return std::hash<double>()(data_.f);
         case var_type::VAR_STRING:
-            if (is_short_string()) {
-                return std::hash<int64_t>()(reinterpret_cast<int64_t>(string_.data()));
-            } else {
-                return std::hash<std::string_view>()(string_);
-            }
+            return std::hash<std::string_view>()(data_.s->str());
         case var_type::VAR_TABLE:
-            return std::hash<size_t>()(reinterpret_cast<size_t>(this));
+            return std::hash<size_t>()(reinterpret_cast<size_t>(data_.t));
         default:
             return 0;
     }
@@ -152,32 +92,29 @@ bool var::equal(const var &rhs) const {
         case var_type::VAR_NIL:
             return true;
         case var_type::VAR_BOOL:
-            return get_bool() == rhs.get_bool();
+            return data_.b == rhs.data_.b;
         case var_type::VAR_INT:
-            return get_int() == rhs.get_int();
+            return data_.i == rhs.data_.i;
         case var_type::VAR_FLOAT:
-            if (std::isnan(get_float()) && std::isnan(rhs.get_float())) {
+            if (std::isnan(data_.f) && std::isnan(rhs.data_.f)) {
                 return true;
             }
-            return get_float() == rhs.get_float();
+            return data_.f == rhs.data_.f;
         case var_type::VAR_STRING:
-            if (is_short_string() && rhs.is_short_string()) {
-                return string_.data() == rhs.string_.data();
-            }
-            return string_ == rhs.string_;
+            return data_.s == rhs.data_.s;
         case var_type::VAR_TABLE:
-            return this == &rhs;
+            return data_.t == rhs.data_.t;
         default:
             return false;
     }
 }
 
 bool var::is_calculable() const {
-    return type() == var_type::VAR_INT || type() == var_type::VAR_FLOAT || (type() == var_type::VAR_STRING && is_number(get_string()));
+    return type() == var_type::VAR_INT || type() == var_type::VAR_FLOAT || (type() == var_type::VAR_STRING && is_number(data_.s->str()));
 }
 
 bool var::is_calculable_integer() const {
-    return type() == var_type::VAR_INT || (type() == var_type::VAR_STRING && is_integer(get_string()));
+    return type() == var_type::VAR_INT || (type() == var_type::VAR_STRING && is_integer(data_.s->str()));
 }
 
 int64_t var::get_calculable_int() const {
@@ -185,20 +122,20 @@ int64_t var::get_calculable_int() const {
         return get_int();
     } else {// if (type() == var_type::VAR_STRING)
         DEBUG_ASSERT(type() == var_type::VAR_STRING);
-        DEBUG_ASSERT(is_integer(get_string()));
-        return to_integer(get_string());
+        DEBUG_ASSERT(is_integer(data_.s->str()));
+        return to_integer(data_.s->str());
     }
 }
 
 double var::get_calculable_number() const {
     if (type_ == var_type::VAR_INT) {
-        return (double) int_;
+        return (double) data_.i;
     } else if (type_ == var_type::VAR_FLOAT) {
-        return float_;
+        return data_.f;
     } else {// if (type_ == var_type::VAR_STRING)
         DEBUG_ASSERT(type_ == var_type::VAR_STRING);
-        DEBUG_ASSERT(is_number(get_string()));
-        return to_float(get_string());
+        DEBUG_ASSERT(is_number(data_.s->str()));
+        return to_float(data_.s->str());
     }
 }
 
@@ -309,9 +246,9 @@ void var::right_shift(const var &rhs, var &result) const {
     }
     auto shift = rhs.get_calculable_int();
     if (shift >= 0) {
-        result.set_int(((uint64_t) get_calculable_int()) >> shift);
+        result.set_int(static_cast<int64_t>(static_cast<uint64_t>(get_calculable_int()) >> shift));
     } else {
-        result.set_int(((uint64_t) get_calculable_int()) << (-shift));
+        result.set_int(static_cast<int64_t>(static_cast<uint64_t>(get_calculable_int()) << (-shift)));
     }
 }
 
@@ -322,9 +259,9 @@ void var::left_shift(const var &rhs, var &result) const {
     }
     auto shift = rhs.get_calculable_int();
     if (shift >= 0) {
-        result.set_int(((uint64_t) get_calculable_int()) << shift);
+        result.set_int(static_cast<int64_t>(static_cast<uint64_t>(get_calculable_int()) << shift));
     } else {
-        result.set_int(((uint64_t) get_calculable_int()) >> (-shift));
+        result.set_int(static_cast<int64_t>(static_cast<uint64_t>(get_calculable_int()) >> (-shift)));
     }
 }
 
@@ -425,9 +362,9 @@ void var::unop_number_sign(var &result) const {
     }
 
     if (type() == var_type::VAR_STRING) {
-        result.set_int(get_string().size());
+        result.set_int(static_cast<int64_t>(data_.s->size()));
     } else {
-        result.set_int(get_table().size());
+        result.set_int(static_cast<int64_t>(data_.t->size()));
     }
 }
 
@@ -444,15 +381,15 @@ void var::table_set(var *key, var *val) {
         throw_fakelua_exception(std::format("operand of 'table_set' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
     }
 
-    get_table().set(key, val);
+    get_table()->set(key, val);
 }
 
-var *var::table_get(var *key) const {
+const var *var::table_get(var *key) const {
     if (type() != var_type::VAR_TABLE) {
         throw_fakelua_exception(std::format("operand of 'table_get' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
     }
 
-    return get_table().get(key);
+    return get_table()->get(key);
 }
 
 size_t var::table_size() const {
@@ -461,19 +398,19 @@ size_t var::table_size() const {
                 std::format("operand of 'table_size' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
     }
 
-    return get_table().size();
+    return get_table()->size();
 }
 
-var *var::table_key_at(size_t pos) const {
+const var *var::table_key_at(size_t pos) const {
     DEBUG_ASSERT(type() == var_type::VAR_TABLE);
-    DEBUG_ASSERT(pos < get_table().size());
-    return get_table().key_at(pos);
+    DEBUG_ASSERT(pos < get_table()->size());
+    return get_table()->key_at(pos);
 }
 
-var *var::table_value_at(size_t pos) const {
+const var *var::table_value_at(size_t pos) const {
     DEBUG_ASSERT(type() == var_type::VAR_TABLE);
-    DEBUG_ASSERT(pos < get_table().size());
-    return get_table().value_at(pos);
+    DEBUG_ASSERT(pos < get_table()->size());
+    return get_table()->value_at(pos);
 }
 
 }// namespace fakelua

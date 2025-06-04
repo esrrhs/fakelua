@@ -11,7 +11,7 @@ namespace fakelua {
 // tmp string allocated when running function, will clean up after each run.
 class var_string_heap {
 public:
-    // alloc a string, and return the stored string_view.
+    // alloc a string, and return the stored var_string.
     var_string *alloc(const std::string_view &str, bool is_const);
 
     // clear the string heap. usually called before running.

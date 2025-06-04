@@ -4,6 +4,7 @@
 #include "jit/vm.h"
 #include "var_pool.h"
 #include "var_string_heap.h"
+#include "var_table_heap.h"
 
 namespace fakelua {
 
@@ -21,11 +22,16 @@ public:
     // call before running. this will reset the state. just for speed.
     void reset() {
         var_string_heap_.reset();
+        var_table_heap_.reset();
         var_pool_.reset();
     }
 
     var_string_heap &get_var_string_heap() {
         return var_string_heap_;
+    }
+
+    var_table_heap &get_var_table_heap() {
+        return var_table_heap_;
     }
 
     var_pool &get_var_pool() {
@@ -38,6 +44,7 @@ public:
 
 private:
     var_string_heap var_string_heap_;
+    var_table_heap var_table_heap_;
     var_pool var_pool_;
     vm vm_;
 };
