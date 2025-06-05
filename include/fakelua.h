@@ -3,6 +3,7 @@
 #include <format>
 #include <functional>
 #include <memory>
+#include <ranges>
 #include <string>
 
 namespace fakelua {
@@ -21,15 +22,16 @@ struct var_interface {
         TABLE,
         MAX = TABLE,
     };
+
     virtual ~var_interface() = default;
 
-    virtual type vi_get_type() const = 0;
+    [[nodiscard]] virtual type vi_get_type() const = 0;
 
     virtual void vi_set_nil() = 0;
 
     virtual void vi_set_bool(bool v) = 0;
 
-    virtual void vi_set_int(int v) = 0;
+    virtual void vi_set_int(int64_t v) = 0;
 
     virtual void vi_set_float(double v) = 0;
 
@@ -37,28 +39,28 @@ struct var_interface {
 
     virtual void vi_set_table(const std::vector<std::pair<var_interface *, var_interface *>> &kv) = 0;
 
-    virtual bool vi_get_bool() const = 0;
+    [[nodiscard]] virtual bool vi_get_bool() const = 0;
 
-    virtual int vi_get_int() const = 0;
+    [[nodiscard]] virtual int64_t vi_get_int() const = 0;
 
-    virtual double vi_get_float() const = 0;
+    [[nodiscard]] virtual double vi_get_float() const = 0;
 
-    virtual std::string_view vi_get_string() const = 0;
+    [[nodiscard]] virtual std::string_view vi_get_string() const = 0;
 
-    virtual int vi_get_table_size() const = 0;
+    [[nodiscard]] virtual size_t vi_get_table_size() const = 0;
 
-    virtual std::pair<var_interface *, var_interface *> vi_get_table_kv(int index) const = 0;
+    [[nodiscard]] virtual std::pair<var_interface *, var_interface *> vi_get_table_kv(int index) const = 0;
 
-    virtual std::string vi_to_string(int tab = 0) const = 0;
+    [[nodiscard]] virtual std::string vi_to_string(int tab) const = 0;
 };
 
 // simple var implement, just for simple use.
-struct simple_var_impl : public var_interface {
+struct simple_var_impl final : public var_interface {
     simple_var_impl() = default;
 
-    virtual ~simple_var_impl() = default;
+    ~simple_var_impl() override = default;
 
-    type vi_get_type() const override {
+    [[nodiscard]] type vi_get_type() const override {
         return type_;
     }
 
@@ -71,7 +73,7 @@ struct simple_var_impl : public var_interface {
         bool_ = v;
     }
 
-    void vi_set_int(int v) override {
+    void vi_set_int(int64_t v) override {
         type_ = type::INT;
         int_ = v;
     }
@@ -91,31 +93,31 @@ struct simple_var_impl : public var_interface {
         table_ = kv;
     }
 
-    bool vi_get_bool() const override {
+    [[nodiscard]] bool vi_get_bool() const override {
         return bool_;
     }
 
-    int vi_get_int() const override {
+    [[nodiscard]] int64_t vi_get_int() const override {
         return int_;
     }
 
-    double vi_get_float() const override {
+    [[nodiscard]] double vi_get_float() const override {
         return float_;
     }
 
-    std::string_view vi_get_string() const override {
+    [[nodiscard]] std::string_view vi_get_string() const override {
         return string_;
     }
 
-    int vi_get_table_size() const override {
+    [[nodiscard]] size_t vi_get_table_size() const override {
         return table_.size();
     }
 
-    std::pair<var_interface *, var_interface *> vi_get_table_kv(int index) const override {
+    [[nodiscard]] std::pair<var_interface *, var_interface *> vi_get_table_kv(int index) const override {
         return table_[index];
     }
 
-    std::string vi_to_string(int tab = 0) const override {
+    [[nodiscard]] std::string vi_to_string(int tab) const override {
         std::string ret;
         switch (type_) {
             case type::NIL:
@@ -168,16 +170,16 @@ struct simple_var_impl : public var_interface {
                     return false;
             }
         });
-        for (auto &kv: table_) {
-            if (kv.second->vi_get_type() == type::TABLE) {
-                dynamic_cast<simple_var_impl *>(kv.second)->vi_sort_table();
+        for (const auto &val: table_ | std::views::values) {
+            if (val->vi_get_type() == type::TABLE) {
+                dynamic_cast<simple_var_impl *>(val)->vi_sort_table();
             }
         }
     }
 
     type type_ = type::NIL;
     bool bool_ = false;
-    int int_ = 0;
+    int64_t int_ = 0;
     double float_ = 0;
     std::string_view string_;
     std::vector<std::pair<var_interface *, var_interface *>> table_;
@@ -185,7 +187,7 @@ struct simple_var_impl : public var_interface {
 
 class var;
 
-// control the compile behavior
+// control the compiler behavior
 struct compile_config {
     // skip jit compile. just lex and parse.
     bool skip_jit = false;
@@ -197,11 +199,9 @@ struct compile_config {
 // every state has its own running environment. there could be many states in one process.
 class fakelua_state : public std::enable_shared_from_this<fakelua_state> {
 public:
-    fakelua_state() {
-    }
+    fakelua_state() = default;
 
-    virtual ~fakelua_state() {
-    }
+    virtual ~fakelua_state() = default;
 
     // compile file, the file is a lua file.
     virtual void compile_file(const std::string &filename, compile_config cfg) = 0;
@@ -214,7 +214,7 @@ public:
     void call(const std::string &name, std::tuple<Rets &...> &&rets, Args &&...args);
 
     // set var_interface new instance function
-    void set_var_interface_new_func(std::function<var_interface *()> func) {
+    void set_var_interface_new_func(const std::function<var_interface *()> &func) {
         var_interface_new_func_ = func;
     }
 
