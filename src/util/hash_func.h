@@ -8,7 +8,7 @@ typedef std::shared_ptr<std::string> str_container_ptr;
 namespace std {
 template<>
 struct hash<str_container_ptr> {
-    size_t operator()(const str_container_ptr &k) const {
+    size_t operator()(const str_container_ptr &k) const noexcept {
         return std::hash<std::string>()(*k);
     }
 };

@@ -12,11 +12,14 @@ std::string generate_tmp_filename(const std::string &head, const std::string &ta
         std::filesystem::create_directories(tmpdir);
     }
     tmpdir += head;
+
+    static std::mt19937 rng(static_cast<unsigned int>(std::chrono::steady_clock::now().time_since_epoch().count()));
+    std::uniform_int_distribution<int> dist(100000, 999999);
+
     // create tmp file in system temp dir
     std::string fileName;
-    std::srand(static_cast<unsigned int>(std::time(nullptr)));
     do {
-        fileName = tmpdir.string() + std::to_string(std::rand()) + tail;
+        fileName = tmpdir.string() + std::to_string(dist(rng)) + tail;
     } while (std::ifstream(fileName));
     return fileName;
 }

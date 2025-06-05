@@ -6,7 +6,7 @@
 
 namespace fakelua {
 
-// string heap hold all the string, string has two type: const string and tmp string.
+// string heap hold all the string, string has two types: const string and tmp string.
 // const string allocated when compile function and global var.
 // tmp string allocated when running function, will clean up after each run.
 class var_string_heap {

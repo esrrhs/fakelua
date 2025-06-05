@@ -2,13 +2,12 @@
 
 #include "fakelua.h"
 #include "util/common.h"
-#include "var/var_string.h"
 
 namespace fakelua {
 
 class var_table;
 
-// table heap hold all the table, like string, it has two type: const table and tmp string.
+// table heap holds all the table, like string, it has two type: const table and tmp string.
 class var_table_heap {
 public:
     // alloc a table
@@ -18,7 +17,7 @@ public:
     void reset();
 
     // get size
-    size_t size() const {
+    [[nodiscard]] size_t size() const {
         return const_table_vec_.size() + tmp_table_vec_.size();
     }
 

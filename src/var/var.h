@@ -190,7 +190,7 @@ public:
     [[nodiscard]] const var *table_value_at(size_t pos) const;
 
 private:
-    int type_ = var_type::VAR_NIL;
+    var_type type_ = var_type::VAR_NIL;
     int flag_ = 0;
     union data_ {
         bool b;

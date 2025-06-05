@@ -2,7 +2,6 @@
 
 #include "fakelua.h"
 #include "util/common.h"
-#include "var_type.h"
 
 namespace fakelua {
 

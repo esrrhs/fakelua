@@ -26,7 +26,7 @@ double to_float(const std::string_view &s);
 
 inline std::string join_string(const std::vector<std::string> &strs, const std::string &sep) {
     return std::accumulate(std::next(strs.begin()), strs.end(), strs[0],
-                           [&](std::string a, std::string b) { return std::move(a) + sep + b; });
+                           [&](std::string a, const std::string& b) { return std::move(a) + sep + b; });
 }
 
 std::string replace_escape_chars(const std::string &str);

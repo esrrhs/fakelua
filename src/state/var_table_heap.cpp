@@ -1,5 +1,4 @@
 #include "var_table_heap.h"
-#include "state.h"
 #include "util/common.h"
 #include "var/var_table.h"
 
@@ -12,10 +11,11 @@ var_table *var_table_heap::alloc(bool is_const) {
     } else {
         tmp_table_vec_.emplace_back(t);
     }
+    return t;
 }
 
 void var_table_heap::reset() {
-    for (auto &iter: tmp_table_vec_) {
+    for (const auto &iter: tmp_table_vec_) {
         delete iter;
     }
     tmp_table_vec_.clear();

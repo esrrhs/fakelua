@@ -40,16 +40,14 @@ std::string var::to_string(bool has_quote, bool has_postfix) const {
             ret = std::to_string(data_.i);
             break;
         case var_type::VAR_FLOAT: {
-            char buffer[128];
-            char *end = std::to_chars(std::begin(buffer), std::end(buffer), data_.f, std::chars_format::general).ptr;
-            ret = std::string(buffer, end);
+            ret = std::format("{}", data_.f);
             break;
         }
         case var_type::VAR_STRING:
             ret = has_quote ? std::format("\"{}\"", data_.s->str()) : std::format("{}", data_.s->str());
             break;
         case var_type::VAR_TABLE:
-            ret = std::format("table({})", (void *) data_.t);
+            ret = std::format("table({})", static_cast<void *>(data_.t));
             break;
     }
 

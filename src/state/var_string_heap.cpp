@@ -3,6 +3,8 @@
 #include "state.h"
 #include "util/common.h"
 
+#include <ranges>
+
 namespace fakelua {
 
 var_string *var_string_heap::alloc(const std::string_view &str, bool is_const) {
@@ -14,10 +16,10 @@ var_string *var_string_heap::alloc(const std::string_view &str, bool is_const) {
     }
 
     if (is_const) {
-        // alloc const but found in tmp map, need to move it to const map
+        // alloc const but found in tmp map, need to move it to a const map
         it = tmp_str_map_.find(str);
         if (it != tmp_str_map_.end()) {
-            // move it to const map
+            // move it to a const map
             auto s = it->second;
             tmp_str_map_.erase(it);
             const auto &key = s->str();
@@ -46,8 +48,8 @@ var_string *var_string_heap::alloc(const std::string_view &str, bool is_const) {
 }
 
 void var_string_heap::reset() {
-    for (auto &iter: const_str_map_) {
-        free(iter.second);
+    for (const auto &val: const_str_map_ | std::views::values) {
+        free(val);
     }
     const_str_map_.clear();
 }
