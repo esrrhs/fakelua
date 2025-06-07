@@ -229,6 +229,7 @@ public:
 
 private:
     std::function<var_interface *()> var_interface_new_func_;
+    int reentrant_count_ = 0; // used to reset
 };
 
 using fakelua_state_ptr = std::shared_ptr<fakelua_state>;
@@ -433,13 +434,27 @@ var *call_variadic_helper(Func func, const T (&array)[N]) {
     return call_variadic_helper(func, array, std::make_index_sequence<N>{});
 }
 
-void *get_func_addr(fakelua_state_ptr s, const std::string &name, int &arg_count, bool &is_variadic);
+void *get_func_addr(const fakelua_state_ptr& s, const std::string &name, int &arg_count, bool &is_variadic);
 
 var *make_variadic_table(fakelua_state_ptr s, int start, int n, var **args);
 
-void reset(fakelua_state_ptr s);
+void reset(const fakelua_state_ptr& s);
 
 [[noreturn]] void throw_inter_fakelua_exception(const std::string &msg);
+
+class reentry_counter {
+public:
+    explicit reentry_counter(int &counter) : counter_(counter) {
+        ++counter_;
+    }
+
+    ~reentry_counter() {
+        --counter_;
+    }
+
+private:
+    int &counter_;
+};
 
 }// namespace inter
 
@@ -448,12 +463,15 @@ template<typename... Rets, typename... Args>
 void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, Args &&...args) {
     int arg_count = 0;
     bool is_variadic = false;
-    auto addr = inter::get_func_addr(shared_from_this(), name, arg_count, is_variadic);
+    const auto addr = inter::get_func_addr(shared_from_this(), name, arg_count, is_variadic);
     if (!addr) {
         inter::throw_inter_fakelua_exception(std::format("function {} not found", name));
     }
 
-    //inter::reset(shared_from_this());
+    if (!reentrant_count_) {
+        inter::reset(shared_from_this());
+    }
+    inter::reentry_counter rc(reentrant_count_);
 
     // change every input args to var * by native_to_var() function
     // and change every output args to native type by var_to_native() function

@@ -331,9 +331,8 @@ var *fakelua_get_var_by_index(fakelua_state_ptr s, var *ret, size_t i) {
     }
 }
 
-void *get_func_addr(fakelua_state_ptr s, const std::string &name, int &arg_count, bool &is_variadic) {
-    auto func = std::dynamic_pointer_cast<state>(s)->get_vm().get_function(name);
-    if (func) {
+void *get_func_addr(const fakelua_state_ptr& s, const std::string &name, int &arg_count, bool &is_variadic) {
+    if (const auto func = std::dynamic_pointer_cast<state>(s)->get_vm().get_function(name)) {
         arg_count = func->get_arg_count();
         is_variadic = func->is_variadic();
         return func->get_addr();
@@ -354,7 +353,7 @@ var *make_variadic_table(fakelua_state_ptr s, int start, int n, var **args) {
     return ret;
 }
 
-void reset(fakelua_state_ptr s) {
+void reset(const fakelua_state_ptr& s) {
     std::dynamic_pointer_cast<state>(s)->reset();
 }
 
