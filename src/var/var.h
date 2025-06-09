@@ -14,10 +14,6 @@ class var {
 public:
     var() = default;
 
-    explicit var(const bool b) {
-        set_bool(b);
-    }
-
     // get the var type
     [[nodiscard]] var_type type() const {
         return static_cast<var_type>(type_);
@@ -88,6 +84,9 @@ public:
 
     // set string value
     void set_string(fakelua_state *s, const std::string_view &val);
+
+    // set table value
+    void set_table(const fakelua_state_ptr &s);
 
     // set table value
     void set_table(fakelua_state *s);
@@ -179,15 +178,15 @@ public:
 
     void unop_bitnot(var &result) const;
 
-    void table_set(var *key, var *val);
+    void table_set(const var &key, const var &val);
 
-    const var *table_get(var *key) const;
+    [[nodiscard]] var table_get(const var &key) const;
 
     [[nodiscard]] size_t table_size() const;
 
-    [[nodiscard]] const var *table_key_at(size_t pos) const;
+    [[nodiscard]] var table_key_at(size_t pos) const;
 
-    [[nodiscard]] const var *table_value_at(size_t pos) const;
+    [[nodiscard]] var table_value_at(size_t pos) const;
 
 private:
     var_type type_ = var_type::VAR_NIL;
@@ -204,9 +203,5 @@ private:
 
 // assert var size is 16 bytes, the same as we defined in gccjit
 static_assert(sizeof(var) == 16);
-
-extern var const_null_var;
-extern var const_false_var;
-extern var const_true_var;
 
 }// namespace fakelua

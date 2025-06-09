@@ -6,10 +6,6 @@
 
 namespace fakelua {
 
-var const_null_var;
-var const_false_var(false);
-var const_true_var(true);
-
 void var::set_string(const fakelua_state_ptr &s, const std::string_view &val) {
     set_string(s.get(), val);
 }
@@ -18,6 +14,10 @@ void var::set_string(fakelua_state *s, const std::string_view &val) {
     type_ = var_type::VAR_STRING;
     auto &string_heap = dynamic_cast<state *>(s)->get_var_string_heap();
     data_.s = string_heap.alloc(val, is_const());
+}
+
+void var::set_table(const fakelua_state_ptr &s) {
+    set_table(s.get());
 }
 
 void var::set_table(fakelua_state *s) {
@@ -374,7 +374,7 @@ void var::unop_bitnot(var &result) const {
     result.set_int(~get_int());
 }
 
-void var::table_set(var *key, var *val) {
+void var::table_set(const var &key, const var &val) {
     if (type() != var_type::VAR_TABLE) {
         throw_fakelua_exception(std::format("operand of 'table_set' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
     }
@@ -382,7 +382,7 @@ void var::table_set(var *key, var *val) {
     get_table()->set(key, val);
 }
 
-const var *var::table_get(var *key) const {
+var var::table_get(const var &key) const {
     if (type() != var_type::VAR_TABLE) {
         throw_fakelua_exception(std::format("operand of 'table_get' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
     }
@@ -399,13 +399,13 @@ size_t var::table_size() const {
     return get_table()->size();
 }
 
-const var *var::table_key_at(size_t pos) const {
+var var::table_key_at(size_t pos) const {
     DEBUG_ASSERT(type() == var_type::VAR_TABLE);
     DEBUG_ASSERT(pos < get_table()->size());
     return get_table()->key_at(pos);
 }
 
-const var *var::table_value_at(size_t pos) const {
+var var::table_value_at(size_t pos) const {
     DEBUG_ASSERT(type() == var_type::VAR_TABLE);
     DEBUG_ASSERT(pos < get_table()->size());
     return get_table()->value_at(pos);
