@@ -14,6 +14,10 @@ class var {
 public:
     var() = default;
 
+    explicit var(int64_t val) {
+        set_int(val);
+    }
+
     // get the var type
     [[nodiscard]] var_type type() const {
         return static_cast<var_type>(type_);
@@ -180,13 +184,13 @@ public:
 
     void table_set(const var &key, const var &val);
 
-    [[nodiscard]] var table_get(const var &key) const;
+    [[nodiscard]] const var *table_get(const var &key) const;
 
     [[nodiscard]] size_t table_size() const;
 
-    [[nodiscard]] var table_key_at(size_t pos) const;
+    [[nodiscard]] const var *table_key_at(size_t pos) const;
 
-    [[nodiscard]] var table_value_at(size_t pos) const;
+    [[nodiscard]] const var *table_value_at(size_t pos) const;
 
 private:
     var_type type_ = var_type::VAR_NIL;
@@ -203,5 +207,7 @@ private:
 
 // assert var size is 16 bytes, the same as we defined in gccjit
 static_assert(sizeof(var) == 16);
+
+extern var const_null_var;
 
 }// namespace fakelua

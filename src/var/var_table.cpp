@@ -5,22 +5,22 @@
 
 namespace fakelua {
 
-var var_table::get(const var &key) const {
+const var *var_table::get(const var &key) const {
     DEBUG_ASSERT(key.type() >= var_type::VAR_MIN && key.type() <= var_type::VAR_MAX);
     for (const auto &[fst, snd]: table_) {
         if (fst.equal(key)) {
-            return snd;
+            return &snd;
         }
     }
-    return {};
+    return &const_null_var;
 }
 
-void var_table::set(const var &key, const var &val) {
+void var_table::set(const var &key, const var &val, bool can_be_nil) {
     DEBUG_ASSERT(key.type() >= var_type::VAR_MIN && key.type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(val.type() >= var_type::VAR_MIN && val.type() <= var_type::VAR_MAX);
 
     // set nil means delete
-    if (val.type() == var_type::VAR_NIL) {
+    if (val.type() == var_type::VAR_NIL && !can_be_nil) {
         for (size_t index = 0; index < table_.size(); ++index) {
             if (const auto &[fst, snd] = table_[index]; fst.equal(key)) {
                 if (index < table_.size() - 1) {
@@ -47,18 +47,18 @@ void var_table::set(const var &key, const var &val) {
     table_.emplace_back(key, val);
 }
 
-var var_table::key_at(size_t pos) const {
+const var *var_table::key_at(size_t pos) const {
     if (pos >= table_.size()) {
-        return {};
+        return &const_null_var;
     }
-    return table_[pos].first;
+    return &table_[pos].first;
 }
 
-var var_table::value_at(size_t pos) const {
+const var *var_table::value_at(size_t pos) const {
     if (pos >= table_.size()) {
-        return {};
+        return &const_null_var;
     }
-    return table_[pos].second;
+    return &table_[pos].second;
 }
 
 }// namespace fakelua

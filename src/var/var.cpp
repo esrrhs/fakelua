@@ -6,6 +6,8 @@
 
 namespace fakelua {
 
+var const_null_var;
+
 void var::set_string(const fakelua_state_ptr &s, const std::string_view &val) {
     set_string(s.get(), val);
 }
@@ -382,7 +384,7 @@ void var::table_set(const var &key, const var &val) {
     get_table()->set(key, val);
 }
 
-var var::table_get(const var &key) const {
+const var *var::table_get(const var &key) const {
     if (type() != var_type::VAR_TABLE) {
         throw_fakelua_exception(std::format("operand of 'table_get' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
     }
@@ -399,13 +401,13 @@ size_t var::table_size() const {
     return get_table()->size();
 }
 
-var var::table_key_at(size_t pos) const {
+const var *var::table_key_at(size_t pos) const {
     DEBUG_ASSERT(type() == var_type::VAR_TABLE);
     DEBUG_ASSERT(pos < get_table()->size());
     return get_table()->key_at(pos);
 }
 
-var var::table_value_at(size_t pos) const {
+const var *var::table_value_at(size_t pos) const {
     DEBUG_ASSERT(type() == var_type::VAR_TABLE);
     DEBUG_ASSERT(pos < get_table()->size());
     return get_table()->value_at(pos);
