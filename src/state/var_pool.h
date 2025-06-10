@@ -6,8 +6,8 @@
 
 namespace fakelua {
 
-// every state has a var pool.
-// var_pool store all the vars used in the state. and not free the vars until the state is destroyed.
+// var_pool only used to transfer data from and to native.
+// it temply alloc var pointer to hold the data.
 class var_pool {
 public:
     var_pool() : tmp_vars_(0) {
