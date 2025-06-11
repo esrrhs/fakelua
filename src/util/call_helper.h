@@ -5,7 +5,7 @@ namespace fakelua {
 class var;
 typedef var *(*VAR_FUNC)(...);
 
-inline var *call_var_func(VAR_FUNC func, const std::vector<var *> &args) {
+inline var *call_var_func(const VAR_FUNC func, const std::vector<var *> &args) {
     switch (args.size()) {
         case 0:
             return func();

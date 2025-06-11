@@ -11,9 +11,10 @@ class pre_processor {
 public:
     pre_processor() = default;
 
-    ~pre_processor();
+    ~pre_processor() = default;
 
-    void process(fakelua_state_ptr sp, compile_config cfg, const std::string &file_name, const syntax_tree_interface_ptr &chunk);
+    void process(const fakelua_state_ptr &sp, const compile_config &cfg, const std::string &file_name,
+                 const syntax_tree_interface_ptr &chunk);
 
 private:
     void preprocess_const(const syntax_tree_interface_ptr &chunk);
@@ -42,7 +43,7 @@ private:
 private:
     // the state contains the running environment we need.
     fakelua_state_ptr sp_;
-    // the compile config
+    // the compiler config
     std::string file_name_;
     // save the preprocess trunk new stmt in global_init func
     std::vector<syntax_tree_interface_ptr> global_init_new_stmt_;

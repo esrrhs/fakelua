@@ -7,7 +7,7 @@ namespace fakelua {
 
 class var_table;
 
-// table heap holds all the table, like string, it has two type: const table and tmp string.
+// table heap holds all the table, like string, it has two types: const table and tmp string.
 class var_table_heap {
 public:
     // alloc a table

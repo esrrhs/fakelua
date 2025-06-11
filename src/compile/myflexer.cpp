@@ -5,12 +5,6 @@
 
 namespace fakelua {
 
-myflexer::myflexer() {
-}
-
-myflexer::~myflexer() {
-}
-
 void myflexer::input_file(const std::string &file) {
     file_.open(file.data(), std::ios::binary);
     if (file_.fail()) {
@@ -49,7 +43,7 @@ std::string myflexer::remove_quotes(const std::string &str) {
     } else {
         DEBUG_ASSERT(str.size() >= 4);
         DEBUG_ASSERT(str[0] == '[' && str[1] == '[' && str[str.size() - 1] == ']' && str[str.size() - 2] == ']');
-        // raw string not need to replace escape chars
+        // raw string doesn't need to replace escape chars
         return str.substr(2, str.size() - 4);
     }
 }

@@ -376,12 +376,12 @@ void var::unop_bitnot(var &result) const {
     result.set_int(~get_int());
 }
 
-void var::table_set(const var &key, const var &val) {
+void var::table_set(const var &key, const var &val, bool can_be_nil) {
     if (type() != var_type::VAR_TABLE) {
         throw_fakelua_exception(std::format("operand of 'table_set' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
     }
 
-    get_table()->set(key, val);
+    get_table()->set(key, val, can_be_nil);
 }
 
 const var *var::table_get(const var &key) const {

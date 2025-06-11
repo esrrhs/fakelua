@@ -10,8 +10,7 @@ namespace fakelua {
 // it temply alloc var pointer to hold the data.
 class var_pool {
 public:
-    var_pool() : tmp_vars_(0) {
-    }
+    var_pool() = default;
 
     ~var_pool() = default;
 

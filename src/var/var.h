@@ -73,8 +73,8 @@ public:
 
     // set float value
     void set_float(double val) {
-        double intpart;
-        if (std::modf(val, &intpart) != 0.0) {
+        double int_part;
+        if (std::modf(val, &int_part) != 0.0) {
             type_ = var_type::VAR_FLOAT;
             data_.f = val;
         } else {
@@ -182,7 +182,7 @@ public:
 
     void unop_bitnot(var &result) const;
 
-    void table_set(const var &key, const var &val);
+    void table_set(const var &key, const var &val, bool can_be_nil);
 
     [[nodiscard]] const var *table_get(const var &key) const;
 

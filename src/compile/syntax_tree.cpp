@@ -203,7 +203,7 @@ std::string syntax_tree_namelist::dump(int tab) const {
     size_t index = 0;
     for (auto &name: names_) {
         str += gen_tab(tab + 1) + "name: " + name + "\n";
-        if (index < attrib_.size() && attrib_[index] != "") {
+        if (index < attrib_.size() && !attrib_[index].empty()) {
             str += gen_tab(tab + 1) + "attrib: " + attrib_[index] + "\n";
         }
         ++index;
@@ -339,7 +339,7 @@ std::string syntax_tree_prefixexp::dump(int tab) const {
     return str;
 }
 
-void walk_syntax_tree(const syntax_tree_interface_ptr &node, walk_syntax_tree_func func) {
+void walk_syntax_tree(const syntax_tree_interface_ptr &node, const walk_syntax_tree_func& func) {
     if (!node) {
         return;
     }

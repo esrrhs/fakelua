@@ -16,9 +16,9 @@ namespace fakelua {
 // create our flexer to use new yylex function my_yylex(), and receive the syntax tree
 class myflexer : public yyFlexLexer {
 public:
-    myflexer();
+    myflexer() = default;
 
-    virtual ~myflexer();
+    ~myflexer() override = default;
 
 public:
     // implement in scanner.cpp

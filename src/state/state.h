@@ -9,15 +9,15 @@
 namespace fakelua {
 
 // the state contains the running environment we need.
-class state : public fakelua_state {
+class state final : public fakelua_state {
 public:
-    state();
+    state() = default;
 
-    virtual ~state();
+    ~state() override = default;
 
-    virtual void compile_file(const std::string &filename, compile_config cfg) override;
+    void compile_file(const std::string &filename, compile_config cfg) override;
 
-    virtual void compile_string(const std::string &str, compile_config cfg) override;
+    void compile_string(const std::string &str, compile_config cfg) override;
 
     // call before running. this will reset the state. just for speed.
     void reset() {

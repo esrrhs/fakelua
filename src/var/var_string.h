@@ -16,6 +16,13 @@ public:
         return s;
     }
 
+    // free the var_string
+    static void free_var_string(var_string *s) {
+        if (s) {
+            free(s);
+        }
+    }
+
     // return string view
     [[nodiscard]] const std::string_view &str() const {
         return {data_, static_cast<std::string_view::size_type>(size_)};

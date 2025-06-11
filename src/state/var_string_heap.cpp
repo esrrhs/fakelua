@@ -49,7 +49,7 @@ var_string *var_string_heap::alloc(const std::string_view &str, bool is_const) {
 
 void var_string_heap::reset() {
     for (const auto &val: const_str_map_ | std::views::values) {
-        free(val);
+        var_string::free_var_string(val);
     }
     const_str_map_.clear();
 }

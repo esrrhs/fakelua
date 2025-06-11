@@ -16,7 +16,7 @@ struct compile_result {
     syntax_tree_interface_ptr chunk;
 };
 
-// lua compiler class, parse lua code to syntax tree, and then compile to toy-interpreter runtime, and JIT binary code
+// lua compiler class, parse lua code to a syntax tree, and then compile to toy-interpreter runtime, and JIT binary code
 class compiler {
 public:
     compiler() = default;
@@ -25,14 +25,14 @@ public:
 
 public:
     // compile the lua file
-    compile_result compile_file(fakelua_state_ptr sp, const std::string &file, compile_config cfg);
+    compile_result compile_file(const fakelua_state_ptr &sp, const std::string &file, const compile_config &cfg);
 
     // compile the lua string
-    compile_result compile_string(fakelua_state_ptr sp, const std::string &str, compile_config cfg);
+    compile_result compile_string(const fakelua_state_ptr &sp, const std::string &str, const compile_config &cfg);
 
 private:
     // compile the myflexer which already input the file or string
-    compile_result compile(fakelua_state_ptr sp, myflexer &f, compile_config cfg);
+    compile_result compile(const fakelua_state_ptr &sp, myflexer &f, const compile_config &cfg);
 };
 
 }// namespace fakelua
