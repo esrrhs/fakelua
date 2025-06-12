@@ -1,6 +1,7 @@
 #include "fakelua.h"
 #include "state/state.h"
 #include "util/common.h"
+#include "var/var_table.h"
 
 namespace fakelua {
 
@@ -134,7 +135,7 @@ void vi_to_var(const fakelua_state_ptr &s, const var_interface *src, var *dst) {
             break;
         case var_interface::type::TABLE:
             dst->set_table(s);
-            for (int i = 0; i < src->vi_get_table_size(); ++i) {
+            for (int i = 0; i < (int) src->vi_get_table_size(); ++i) {
                 const auto [fst, snd] = src->vi_get_table_kv(i);
                 const auto k = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
                 const auto v = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
@@ -341,11 +342,11 @@ void *get_func_addr(const fakelua_state_ptr &s, const std::string &name, int &ar
     return nullptr;
 }
 
-const var *make_variadic_table(const fakelua_state_ptr &s, int start, int n, var **args) {
+const var *make_variadic_table(const fakelua_state_ptr &s, int start, int n, const var **args) {
     const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
     ret->set_table(s);
     for (int i = 0; i < n - start; i++) {
-        var key(i + 1);
+        var key(static_cast<int64_t>(i + 1));
         const auto v = args[start + i];
         ret->get_table()->set(key, *v, true);
     }

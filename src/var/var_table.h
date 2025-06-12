@@ -2,11 +2,9 @@
 
 #include "fakelua.h"
 #include "util/common.h"
+#include "var/var.h"
 
 namespace fakelua {
-
-class var;
-class var_string;
 
 // table type, like the lua table. but we implement it in a simple way.
 class var_table {

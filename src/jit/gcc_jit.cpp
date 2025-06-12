@@ -15,9 +15,8 @@ gcc_jitter::~gcc_jitter() {
     }
 }
 
-void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::string &file_name, const syntax_tree_interface_ptr &chunk) {
-    LOG_INFO("start gcc_jitter::compile {}", file_name);
-    gcc_jit_handle_ = std::make_shared<gcc_jit_handle>(sp.get());
+void gcc_jitter::prepare_compile(const fakelua_state_ptr &sp, const compile_config &cfg, const std::string &file_name) {
+    gcc_jit_handle_ = std::make_shared<gcc_jit_handle>();
     sp_ = sp;
     file_name_ = file_name;
     // init gccjit
@@ -29,8 +28,7 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
         gccjit_context_->set_bool_option(GCC_JIT_BOOL_OPTION_DEBUGINFO, 1);
         gccjit_context_->set_int_option(GCC_JIT_INT_OPTION_OPTIMIZATION_LEVEL, 0);
         auto logfilename = generate_tmp_filename("fakelua_gccjit_", ".log");
-        FILE *fp = fopen(logfilename.c_str(), "wb");
-        if (fp) {
+        if (FILE *fp = fopen(logfilename.c_str(), "wb")) {
             gccjit_context_->set_logfile(fp, 0, 0);
             gcc_jit_handle_->set_log_fp(fp);
             LOG_INFO("{} gccjit log file: {}", file_name, logfilename);
@@ -44,6 +42,53 @@ void gcc_jitter::compile(fakelua_state_ptr sp, compile_config cfg, const std::st
     gccjit_context_->add_driver_option("-L.");
     gccjit_context_->add_driver_option("-lfakelua");
 #endif
+
+    // get all the type we need
+    void_ptr_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    bool_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
+    int64_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_INT64_T);
+    double_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_DOUBLE);
+    const_char_ptr_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_CONST_CHAR_PTR);
+    int_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_INT);
+    size_t_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_SIZE_T);
+
+    /* define var in gccjit
+    struct var {
+        int type_; // the type of the var, 0: nil, 1: bool, 2: int, 3: double, 4: string, 5: table
+        int flag_;
+        union var_data {
+            bool b;
+            int64_t i;
+            double f;
+            var_string *s;
+            var_table *t;
+        };
+        var_data data_;
+    }
+    */
+    const auto type_field = gccjit_context_->new_field(int_type_, "type_");
+    const auto flag_field = gccjit_context_->new_field(int_type_, "flag_");
+
+    const auto data_b_field = gccjit_context_->new_field(bool_type_, "b");
+    const auto data_i_field = gccjit_context_->new_field(int64_type_, "i");
+    const auto data_f_field = gccjit_context_->new_field(double_type_, "f");
+    const auto data_s_field = gccjit_context_->new_field(void_ptr_type_, "s");
+    const auto data_t_field = gccjit_context_->new_field(void_ptr_type_, "t");
+    gcc_jit_field *data_fields[] = {data_b_field.get_inner_field(), data_i_field.get_inner_field(), data_f_field.get_inner_field(),
+                                    data_s_field.get_inner_field(), data_t_field.get_inner_field()};
+    var_data_type_ =
+            gccjit::type(gcc_jit_context_new_union_type(gccjit_context_->get_inner_context(), nullptr, "var_data", 5, data_fields));
+
+    const auto data_field = gccjit_context_->new_field(var_data_type_, "data_");
+    std::vector<gccjit::field> var_fields = {type_field, flag_field, data_field};
+    var_struct_ = gccjit_context_->new_struct_type("var", var_fields);
+}
+
+void gcc_jitter::compile(const fakelua_state_ptr &sp, const compile_config &cfg, const std::string &file_name,
+                         const syntax_tree_interface_ptr &chunk) {
+    LOG_INFO("start gcc_jitter::compile {}", file_name);
+
+    prepare_compile(sp, cfg, file_name);
 
     // just walk through the chunk, and save the function declaration and then we can call the function by name
     // first, check the global const define, the const define must be an assignment expression at the top level
@@ -299,9 +344,9 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
         auto the_int_type = gccjit_context_->get_type(GCC_JIT_TYPE_INT);
         params.push_back(gccjit_context_->new_param(the_int_type, "len"));
 
-        auto container_str = gcc_jit_handle_->alloc_str(value);
-        args.push_back(gccjit_context_->new_rvalue(the_string_type, (void *) container_str.data()));
-        args.push_back(gccjit_context_->new_rvalue(the_int_type, (int) container_str.size()));
+        auto container_str = std::dynamic_pointer_cast<state>(sp_)->get_var_string_heap().alloc(value, true);
+        args.push_back(gccjit_context_->new_rvalue(the_string_type, (void *) container_str->str().data()));
+        args.push_back(gccjit_context_->new_rvalue(the_int_type, (int) container_str->size()));
     } else if (exp_type == "prefixexp") {
         auto pe = e->right();
         return compile_prefixexp(func, pe);

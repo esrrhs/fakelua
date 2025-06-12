@@ -2,17 +2,14 @@
 #include "fakelua.h"
 #include "state/state.h"
 #include "util/common.h"
+#include "var/var_table.h"
 
 namespace fakelua {
 
 static var *alloc_val_helper(fakelua_state *s, gcc_jit_handle *h, bool is_const) {
     DEBUG_ASSERT(s);
     DEBUG_ASSERT(h);
-    if (is_const) {
-        return h->alloc_var();
-    } else {
-        return dynamic_cast<state *>(s)->get_var_pool().alloc();
-    }
+    return dynamic_cast<state *>(s)->get_var_pool().alloc();
 }
 
 // Expand the list of expressions that may contain variable parameters.
@@ -21,25 +18,25 @@ static var *alloc_val_helper(fakelua_state *s, gcc_jit_handle *h, bool is_const)
 // 1,2,test(),3 => 1,2,1,3
 static void expand_var_list(std::vector<var *> &params) {
     for (size_t i = 0; i < params.size(); i++) {
-        auto param = params[i];
+        const auto param = params[i];
         DEBUG_ASSERT(param);
         DEBUG_ASSERT(param->type() >= var_type::VAR_MIN && param->type() <= var_type::VAR_MAX);
         if (param->is_variadic()) {
             DEBUG_ASSERT(param->type() == var_type::VAR_TABLE);
-            auto &table = param->get_table();
+            const auto table = param->get_table();
             if (i == params.size() - 1) {
                 params.pop_back();
-                for (int j = 1; j <= (int) table.size(); j++) {
+                for (int j = 1; j <= (int) table->size(); j++) {
                     var tmp;
                     tmp.set_int(j);
-                    auto value = table.get(&tmp);
-                    params.push_back(value);
+                    const auto value = table->get(tmp);
+                    params.push_back(const_cast<var *>(value));
                 }
             } else {
                 var tmp;
                 tmp.set_int(1);
-                auto value = table.get(&tmp);
-                params[i] = value;
+                const auto value = table->get(tmp);
+                params[i] = const_cast<var *>(value);
             }
         }
     }
@@ -93,7 +90,7 @@ extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, gcc_jit_ha
     va_end(args);
 
     auto ret = alloc_val_helper(s, h, is_const);
-    ret->set_table();
+    ret->set_table(s);
 
     expand_var_list(values);
 
@@ -106,7 +103,7 @@ extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, gcc_jit_ha
             index++;
         }
         auto v = values[i];
-        ret->get_table().set(k, v);
+        ret->get_table()->set(*k, *v, false);
     }
     return ret;
 }
@@ -125,7 +122,7 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, gcc_jit_
     va_end(args);
 
     auto ret = alloc_val_helper(s, h, is_const);
-    ret->set_table();
+    ret->set_table(s);
     ret->set_variadic(true);
 
     expand_var_list(params);
@@ -135,7 +132,7 @@ extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, gcc_jit_
         auto arg = params[i];
         auto k = alloc_val_helper(s, h, is_const);
         k->set_int(i + 1);
-        ret->get_table().set(k, arg, true);
+        ret->get_table()->set(*k, *arg, true);
     }
     return ret;
 }
@@ -433,29 +430,29 @@ extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle 
         if (func->type() != var_type::VAR_TABLE) {
             throw_fakelua_exception(std::format("call_var: colon func must be table type, but got {}", func->to_string()));
         }
-        auto real_func = func->table_get(col_key);
+        auto real_func = func->table_get(*col_key);
         DEBUG_ASSERT(real_func);
         // add the 1st self param
         params.insert(params.begin(), func);
-        func = real_func;
+        func = const_cast<var *>(real_func);
     }
 
-    // func must be string type
+    // func must be a string type
     if (func->type() != var_type::VAR_STRING) {
         throw_fakelua_exception(std::format("call_var: func must be string type, but got {}", func->to_string()));
     }
 
     // get function address
     auto name = func->get_string();
-    auto function = dynamic_cast<state *>(s)->get_vm().get_function(std::string(name));
+    auto function = dynamic_cast<state *>(s)->get_vm().get_function(std::string(name->str()));
     if (!function) {
-        throw_fakelua_exception(std::format("call_var: function {} not found", name));
+        throw_fakelua_exception(std::format("call_var: function {} not found", name->str()));
     }
 
     // check params count
     if (!func->is_variadic() && (int) params.size() != function->get_arg_count()) {
         throw_fakelua_exception(
-                std::format("call_var: function {} expect {} params, but got {}", name, function->get_arg_count(), params.size()));
+                std::format("call_var: function {} expect {} params, but got {}", name->str(), function->get_arg_count(), params.size()));
     }
 
     // call function
@@ -472,7 +469,7 @@ extern "C" __attribute__((used)) var *table_index_by_var(fakelua_state *s, gcc_j
     DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(key);
     DEBUG_ASSERT(key->type() >= var_type::VAR_MIN && key->type() <= var_type::VAR_MAX);
-    return table->table_get(key);
+    return const_cast<var *>(table->table_get(*key));
 }
 
 extern "C" __attribute__((used)) var *table_set(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, var *key, var *val) {
@@ -482,7 +479,7 @@ extern "C" __attribute__((used)) var *table_set(fakelua_state *s, gcc_jit_handle
     DEBUG_ASSERT(key->type() >= var_type::VAR_MIN && key->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(val);
     DEBUG_ASSERT(val->type() >= var_type::VAR_MIN && val->type() <= var_type::VAR_MAX);
-    table->table_set(key, val);
+    table->table_set(*key, *val, false);
     return table;
 }
 
@@ -496,14 +493,14 @@ extern "C" __attribute__((used)) var *table_key_by_pos(fakelua_state *s, gcc_jit
     DEBUG_ASSERT(table);
     DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(pos < table->table_size());
-    return table->table_key_at(pos);
+    return const_cast<var *>(table->table_key_at(pos));
 }
 
 extern "C" __attribute__((used)) var *table_value_by_pos(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, size_t pos) {
     DEBUG_ASSERT(table);
     DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(pos < table->table_size());
-    return table->table_value_at(pos);
+    return const_cast<var *>(table->table_value_at(pos));
 }
 
 }// namespace fakelua

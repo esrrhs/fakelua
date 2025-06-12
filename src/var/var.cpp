@@ -3,10 +3,14 @@
 #include "state/state.h"
 #include "state/var_string_heap.h"
 #include "util/common.h"
+#include "var_string.h"
+#include "var_table.h"
 
 namespace fakelua {
 
 var const_null_var;
+var const_true_var(true);
+var const_false_var(false);
 
 void var::set_string(const fakelua_state_ptr &s, const std::string_view &val) {
     set_string(s.get(), val);
@@ -376,7 +380,7 @@ void var::unop_bitnot(var &result) const {
     result.set_int(~get_int());
 }
 
-void var::table_set(const var &key, const var &val, bool can_be_nil) {
+void var::table_set(const var &key, const var &val, bool can_be_nil) const {
     if (type() != var_type::VAR_TABLE) {
         throw_fakelua_exception(std::format("operand of 'table_set' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
     }

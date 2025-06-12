@@ -18,7 +18,8 @@ public:
 
     ~gcc_jitter();
 
-    void compile(fakelua_state_ptr sp, compile_config cfg, const std::string &file_name, const syntax_tree_interface_ptr &chunk);
+    void compile(const fakelua_state_ptr &sp, const compile_config &cfg, const std::string &file_name,
+                 const syntax_tree_interface_ptr &chunk);
 
 private:
     void compile_const_defines(const syntax_tree_interface_ptr &chunk);
@@ -108,6 +109,8 @@ private:
     bool is_block_ended();
 
 private:
+    void prepare_compile(const fakelua_state_ptr &sp, const compile_config &cfg, const std::string &file_name);
+
     bool is_simple_assign(const syntax_tree_interface_ptr &vars, const syntax_tree_interface_ptr &exps);
 
     bool is_simple_args(const syntax_tree_interface_ptr &args);
@@ -131,14 +134,26 @@ private:
     std::string get_jit_builtin_function_vm_name(const std::string &name);
 
 private:
+    // the helper type in gccjit
+    gccjit::type void_ptr_type_;
+    gccjit::type int_type_;
+    gccjit::type int64_type_;
+    gccjit::type double_type_;
+    gccjit::type bool_type_;
+    gccjit::type const_char_ptr_type_;
+    gccjit::type size_t_type_;
+    gccjit::type var_data_type_;
+    gccjit::type var_struct_;
+
+private:
     // the state contains the running environment we need.
     fakelua_state_ptr sp_;
-    // the compile config
+    // the compiler config
     std::string file_name_;
     // gccjit context
     gccjit_context_ptr gccjit_context_;
     gcc_jit_handle_ptr gcc_jit_handle_;
-    // function info save here
+    // function info saves here
     struct function_info {
         int params_count = 0;
         bool is_variadic = false;

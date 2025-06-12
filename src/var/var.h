@@ -2,12 +2,13 @@
 
 #include "fakelua.h"
 #include "util/common.h"
-#include "var_table.h"
 #include "var_type.h"
 
 namespace fakelua {
 
 class state;
+class var_string;
+class var_table;
 
 // Var is the class that holds the multiple types of data.
 class var {
@@ -16,6 +17,10 @@ public:
 
     explicit var(int64_t val) {
         set_int(val);
+    }
+
+    explicit var(bool val) {
+        set_bool(val);
     }
 
     // get the var type
@@ -182,7 +187,7 @@ public:
 
     void unop_bitnot(var &result) const;
 
-    void table_set(const var &key, const var &val, bool can_be_nil);
+    void table_set(const var &key, const var &val, bool can_be_nil) const;
 
     [[nodiscard]] const var *table_get(const var &key) const;
 
@@ -195,19 +200,21 @@ public:
 private:
     var_type type_ = var_type::VAR_NIL;
     int flag_ = 0;
-    union data_ {
+    union var_data {
         bool b;
         int64_t i;
         double f;
         var_string *s;
         var_table *t;
     };
-    data_ data_{};
+    var_data data_{};
 };
 
 // assert var size is 16 bytes, the same as we defined in gccjit
 static_assert(sizeof(var) == 16);
 
 extern var const_null_var;
+extern var const_true_var;
+extern var const_false_var;
 
 }// namespace fakelua

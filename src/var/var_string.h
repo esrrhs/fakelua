@@ -24,7 +24,7 @@ public:
     }
 
     // return string view
-    [[nodiscard]] const std::string_view &str() const {
+    [[nodiscard]] std::string_view str() const {
         return {data_, static_cast<std::string_view::size_type>(size_)};
     }
 
@@ -33,8 +33,8 @@ public:
     }
 
 private:
-    int size_ = 0;      // size of the string
-    const char data_[0];// data of the string
+    int size_ = 0;        // size of the string
+    const char data_[0]{};// data of the string
 };
 
 // assert var_string header size is 4 bytes, the same as we defined in gccjit

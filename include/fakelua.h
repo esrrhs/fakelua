@@ -204,10 +204,10 @@ public:
     virtual ~fakelua_state() = default;
 
     // compile file, the file is a lua file.
-    virtual void compile_file(const std::string &filename, compile_config cfg) = 0;
+    virtual void compile_file(const std::string &filename, const compile_config &cfg) = 0;
 
     // compile string, the string is the content of a file.
-    virtual void compile_string(const std::string &str, compile_config cfg) = 0;
+    virtual void compile_string(const std::string &str, const compile_config &cfg) = 0;
 
     // call function by name
     template<typename... Rets, typename... Args>
@@ -436,7 +436,7 @@ var *call_variadic_helper(Func func, const T (&array)[N]) {
 
 void *get_func_addr(const fakelua_state_ptr &s, const std::string &name, int &arg_count, bool &is_variadic);
 
-const var *make_variadic_table(const fakelua_state_ptr &s, int start, int n, var **args);
+const var *make_variadic_table(const fakelua_state_ptr &s, int start, int n, const var **args);
 
 void reset(const fakelua_state_ptr &s);
 
@@ -488,7 +488,7 @@ void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, 
                     std::format("function {} arg count not match, need >= {} get {}", name, arg_count, sizeof...(Args)));
         }
         // save the variadic args to a table
-        var *args_array[sizeof...(Args) + 1] = {nullptr, inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...};
+        const var *args_array[sizeof...(Args) + 1] = {nullptr, inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...};
         args_array[0] = inter::make_variadic_table(shared_from_this(), arg_count + 1, sizeof...(Args) + 1, args_array);
         // call function by args array
         ret_var = inter::call_variadic_helper(reinterpret_cast<var *(*) (...)>(addr), args_array);

@@ -15,9 +15,9 @@ public:
 
     ~state() override = default;
 
-    void compile_file(const std::string &filename, compile_config cfg) override;
+    void compile_file(const std::string &filename, const compile_config &cfg) override;
 
-    void compile_string(const std::string &str, compile_config cfg) override;
+    void compile_string(const std::string &str, const compile_config &cfg) override;
 
     // call before running. this will reset the state. just for speed.
     void reset() {
