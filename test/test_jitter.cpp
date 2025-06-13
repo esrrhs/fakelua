@@ -1,5 +1,7 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
+#include "var/var_string.h"
+#include "var/var_table.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -568,7 +570,7 @@ TEST(jitter, variadic_func_vi) {
     kv.emplace_back(k, v);
     var->vi_set_table(kv);
 
-    auto dumpstr = var->vi_to_string();
+    auto dumpstr = var->vi_to_string(0);
     ASSERT_EQ(dumpstr, "table:\n"
                        "\t[\"a\"] = 1\n"
                        "\t[\"b\"] = \"test\"\n"
@@ -585,7 +587,7 @@ TEST(jitter, variadic_func_vi) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(ret)->vi_sort_table();
-    ASSERT_EQ(ret->vi_to_string(), dumpstr);
+    ASSERT_EQ(ret->vi_to_string(0), dumpstr);
 
     ret = nullptr;
     L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
@@ -595,7 +597,7 @@ TEST(jitter, variadic_func_vi) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(ret)->vi_sort_table();
-    ASSERT_EQ(ret->vi_to_string(), dumpstr);
+    ASSERT_EQ(ret->vi_to_string(0), dumpstr);
 
     for (auto &i: tmp) {
         delete i;
@@ -648,7 +650,7 @@ TEST(jitter, variadic_func_vi_array) {
     kv.emplace_back(k, v);
     var->vi_set_table(kv);
 
-    auto dumpstr = var->vi_to_string();
+    auto dumpstr = var->vi_to_string(0);
     ASSERT_EQ(dumpstr, "table:\n"
                        "\t[1] = 1\n"
                        "\t[2] = 2\n"
@@ -663,7 +665,7 @@ TEST(jitter, variadic_func_vi_array) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(ret)->vi_sort_table();
-    ASSERT_EQ(ret->vi_to_string(), dumpstr);
+    ASSERT_EQ(ret->vi_to_string(0), dumpstr);
 
     ret = nullptr;
     L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
@@ -673,7 +675,7 @@ TEST(jitter, variadic_func_vi_array) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(ret)->vi_sort_table();
-    ASSERT_EQ(ret->vi_to_string(), dumpstr);
+    ASSERT_EQ(ret->vi_to_string(0), dumpstr);
 
     for (auto &i: tmp) {
         delete i;
@@ -695,7 +697,7 @@ TEST(jitter, variadic_func_vi_nil) {
     simple_var_impl *var = newfunc();
     var->vi_set_nil();
 
-    auto dumpstr = var->vi_to_string();
+    auto dumpstr = var->vi_to_string(0);
     ASSERT_EQ(dumpstr, "nil");
 
     var_interface *ret = nullptr;
@@ -776,7 +778,7 @@ TEST(jitter, local_define_with_values) {
     ASSERT_EQ(c->get_int(), 1);
     ASSERT_NE(d, nullptr);
     ASSERT_EQ(d->type(), var_type::VAR_STRING);
-    ASSERT_EQ(d->get_string(), "test");
+    ASSERT_EQ(d->get_string()->str(), "test");
     ASSERT_NE(e, nullptr);
     ASSERT_EQ(e->type(), var_type::VAR_NIL);
 
@@ -798,7 +800,7 @@ TEST(jitter, local_define_with_values) {
     ASSERT_EQ(c->get_int(), 1);
     ASSERT_NE(d, nullptr);
     ASSERT_EQ(d->type(), var_type::VAR_STRING);
-    ASSERT_EQ(d->get_string(), "test");
+    ASSERT_EQ(d->get_string()->str(), "test");
     ASSERT_NE(e, nullptr);
     ASSERT_EQ(e->type(), var_type::VAR_NIL);
 }
@@ -933,10 +935,10 @@ TEST(jitter, test_const_table) {
     dynamic_cast<simple_var_impl *>(t1)->vi_sort_table();
     dynamic_cast<simple_var_impl *>(t2)->vi_sort_table();
     dynamic_cast<simple_var_impl *>(t3)->vi_sort_table();
-    ASSERT_EQ(t1->vi_to_string(),
+    ASSERT_EQ(t1->vi_to_string(0),
               "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
-    ASSERT_EQ(t2->vi_to_string(), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
-    ASSERT_EQ(t3->vi_to_string(), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
+    ASSERT_EQ(t2->vi_to_string(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
+    ASSERT_EQ(t3->vi_to_string(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
 
     t1 = nullptr;
     t2 = nullptr;
@@ -954,10 +956,10 @@ TEST(jitter, test_const_table) {
     dynamic_cast<simple_var_impl *>(t1)->vi_sort_table();
     dynamic_cast<simple_var_impl *>(t2)->vi_sort_table();
     dynamic_cast<simple_var_impl *>(t3)->vi_sort_table();
-    ASSERT_EQ(t1->vi_to_string(),
+    ASSERT_EQ(t1->vi_to_string(0),
               "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
-    ASSERT_EQ(t2->vi_to_string(), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
-    ASSERT_EQ(t3->vi_to_string(), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
+    ASSERT_EQ(t2->vi_to_string(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
+    ASSERT_EQ(t3->vi_to_string(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
 
     for (auto &i: tmp) {
         delete i;
@@ -983,8 +985,9 @@ TEST(jitter, test_const_nested_table) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-                                 "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+    ASSERT_EQ(t->vi_to_string(0),
+              "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
+              "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
 
     t = nullptr;
     L->compile_file("./jit/test_const_nested_table.lua", {.debug_mode = false});
@@ -994,8 +997,9 @@ TEST(jitter, test_const_nested_table) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-                                 "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+    ASSERT_EQ(t->vi_to_string(0),
+              "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
+              "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
 
     for (auto &i: tmp) {
         delete i;
@@ -1029,10 +1033,10 @@ TEST(jitter, test_local_table) {
     dynamic_cast<simple_var_impl *>(t1)->vi_sort_table();
     dynamic_cast<simple_var_impl *>(t2)->vi_sort_table();
     dynamic_cast<simple_var_impl *>(t3)->vi_sort_table();
-    ASSERT_EQ(t1->vi_to_string(),
+    ASSERT_EQ(t1->vi_to_string(0),
               "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
-    ASSERT_EQ(t2->vi_to_string(), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
-    ASSERT_EQ(t3->vi_to_string(), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
+    ASSERT_EQ(t2->vi_to_string(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
+    ASSERT_EQ(t3->vi_to_string(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
 
     t1 = nullptr;
     t2 = nullptr;
@@ -1050,10 +1054,10 @@ TEST(jitter, test_local_table) {
     dynamic_cast<simple_var_impl *>(t1)->vi_sort_table();
     dynamic_cast<simple_var_impl *>(t2)->vi_sort_table();
     dynamic_cast<simple_var_impl *>(t3)->vi_sort_table();
-    ASSERT_EQ(t1->vi_to_string(),
+    ASSERT_EQ(t1->vi_to_string(0),
               "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
-    ASSERT_EQ(t2->vi_to_string(), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
-    ASSERT_EQ(t3->vi_to_string(), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
+    ASSERT_EQ(t2->vi_to_string(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
+    ASSERT_EQ(t3->vi_to_string(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
 
     for (auto &i: tmp) {
         delete i;
@@ -1079,8 +1083,9 @@ TEST(jitter, test_local_nested_table) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-                                 "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+    ASSERT_EQ(t->vi_to_string(0),
+              "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
+              "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
 
     t = nullptr;
     L->compile_file("./jit/test_local_nested_table.lua", {.debug_mode = false});
@@ -1090,8 +1095,9 @@ TEST(jitter, test_local_nested_table) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-                                 "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+    ASSERT_EQ(t->vi_to_string(0),
+              "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
+              "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
 
     for (auto &i: tmp) {
         delete i;
@@ -1117,7 +1123,7 @@ TEST(jitter, test_local_table_with_variadic) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"a\"\n\t[2] = \"b\"\n\t[3] = \"c\"");
+    ASSERT_EQ(t->vi_to_string(0), "table:\n\t[1] = \"a\"\n\t[2] = \"b\"\n\t[3] = \"c\"");
 
     t = nullptr;
     L->compile_file("./jit/test_local_table_with_variadic.lua", {.debug_mode = false});
@@ -1127,7 +1133,7 @@ TEST(jitter, test_local_table_with_variadic) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"a\"\n\t[2] = \"b\"\n\t[3] = \"c\"");
+    ASSERT_EQ(t->vi_to_string(0), "table:\n\t[1] = \"a\"\n\t[2] = \"b\"\n\t[3] = \"c\"");
 
     for (auto &i: tmp) {
         delete i;
@@ -1153,7 +1159,7 @@ TEST(jitter, test_local_table_with_variadic_no_end) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"c\"\n\t[2] = \"a\"\n\t[3] = \"b\"");
+    ASSERT_EQ(t->vi_to_string(0), "table:\n\t[1] = \"c\"\n\t[2] = \"a\"\n\t[3] = \"b\"");
 
     t = nullptr;
     L->compile_file("./jit/test_local_table_with_variadic_no_end.lua", {.debug_mode = false});
@@ -1163,7 +1169,7 @@ TEST(jitter, test_local_table_with_variadic_no_end) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"c\"\n\t[2] = \"a\"\n\t[3] = \"b\"");
+    ASSERT_EQ(t->vi_to_string(0), "table:\n\t[1] = \"c\"\n\t[2] = \"a\"\n\t[3] = \"b\"");
 
     for (auto &i: tmp) {
         delete i;
@@ -1189,7 +1195,7 @@ TEST(jitter, test_local_table_with_variadic_no_end_replace) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"c\"\n\t[2] = \"b\"");
+    ASSERT_EQ(t->vi_to_string(0), "table:\n\t[1] = \"c\"\n\t[2] = \"b\"");
 
     t = nullptr;
     L->compile_file("./jit/test_local_table_with_variadic_no_end_replace.lua", {.debug_mode = false});
@@ -1199,7 +1205,7 @@ TEST(jitter, test_local_table_with_variadic_no_end_replace) {
 
     // need sort kv
     dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(), "table:\n\t[1] = \"c\"\n\t[2] = \"b\"");
+    ASSERT_EQ(t->vi_to_string(0), "table:\n\t[1] = \"c\"\n\t[2] = \"b\"");
 
     for (auto &i: tmp) {
         delete i;

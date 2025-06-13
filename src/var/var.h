@@ -15,12 +15,24 @@ class var {
 public:
     var() = default;
 
+    explicit var(bool val) {
+        set_bool(val);
+    }
+
     explicit var(int64_t val) {
         set_int(val);
     }
 
-    explicit var(bool val) {
-        set_bool(val);
+    explicit var(double val) {
+        set_float(val);
+    }
+
+    explicit var(const fakelua_state_ptr &s, const std::string_view &val) {
+        set_string(s, val);
+    }
+
+    bool operator==(const var &r) const {
+        return equal(r);
     }
 
     // get the var type

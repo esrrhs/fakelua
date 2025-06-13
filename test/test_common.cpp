@@ -114,7 +114,7 @@ TEST(common, vi_sort) {
     t.vi_set_table(kv);
     t.vi_sort_table();
 
-    ASSERT_EQ(t.vi_to_string(), "table:\n\t[nil] = 1\n\t[nil] = 1\n\t[false] = 4\n\t[true] = 3\n\t[1.000000] = 5\n\t[2.000000] = "
+    ASSERT_EQ(t.vi_to_string(0), "table:\n\t[nil] = 1\n\t[nil] = 1\n\t[false] = 4\n\t[true] = 3\n\t[1.000000] = 5\n\t[2.000000] = "
                                 "6\n\t[table:] = 7\n\t[table:] = 7");
 }
 

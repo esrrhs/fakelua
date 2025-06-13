@@ -399,7 +399,7 @@ T fakelua_to_native(const fakelua_state_ptr &s, const var *v) {
     } else if constexpr (std::is_same_v<T, std::string_view>) {
         return fakelua_to_native_stringview(s, v);
     } else if constexpr (std::is_same_v<T, var *>) {
-        return v;
+        return const_cast<var *>(v);
     } else {
         // static_assert T should be var_interface* or implement var_interface
         static_assert(std::is_pointer_v<T>, "T should be pointer");

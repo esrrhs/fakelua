@@ -3,6 +3,8 @@
 #include "state/var_pool.h"
 #include "state/var_string_heap.h"
 #include "var/var.h"
+#include "var/var_string.h"
+#include "var/var_table.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -13,7 +15,7 @@ TEST(var, construct) {
     var v;
     ASSERT_EQ(v.type(), var_type::VAR_NIL);
 
-    var v1(nullptr);
+    var v1;
     ASSERT_EQ(v1.type(), var_type::VAR_NIL);
 
     var v2(true);
@@ -79,59 +81,37 @@ TEST(var, set_get) {
 
     v.set_string(s, "hello");
     ASSERT_EQ(v.type(), var_type::VAR_STRING);
-    ASSERT_EQ(v.get_string(), "hello");
+    ASSERT_EQ(v.get_string()->str(), "hello");
 
     v.set_string(s, std::string("hello"));
     ASSERT_EQ(v.type(), var_type::VAR_STRING);
-    ASSERT_EQ(v.get_string(), "hello");
+    ASSERT_EQ(v.get_string()->str(), "hello");
 
     v.set_string(s, std::move(std::string("hello")));
     ASSERT_EQ(v.type(), var_type::VAR_STRING);
-    ASSERT_EQ(v.get_string(), "hello");
+    ASSERT_EQ(v.get_string()->str(), "hello");
 }
 
 TEST(var, var_string_heap) {
     auto s = std::make_shared<state>();
 
     var_string_heap &heap = s->get_var_string_heap();
-    auto ret = heap.alloc("hello");
-    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, true);
-    ASSERT_EQ(ret, "hello");
+    auto ret = heap.alloc("hello", false);
+    ASSERT_EQ(ret->str(), "hello");
 
-    auto ret1 = heap.alloc("hello");
-    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, true);
-    ASSERT_EQ(ret1, "hello");
-    ASSERT_EQ(ret.data(), ret1.data());
+    auto ret1 = heap.alloc("hello", true);
+    ASSERT_EQ(ret1->str(), "hello");
+    ASSERT_EQ(ret, ret1);
 
     heap.reset();
 
-    ret = heap.alloc("hello");
-    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, true);
-    ASSERT_EQ(ret, "hello");
+    ret = heap.alloc("hello", true);
+    ASSERT_EQ(ret->str(), "hello");
+    ASSERT_EQ(ret, ret1);
 
-    ret1 = heap.alloc("hello");
-    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, true);
-    ASSERT_EQ(ret1, "hello");
-    ASSERT_EQ(ret.data(), ret1.data());
-
-    ret = heap.alloc("hello1");
-    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, true);
-    ASSERT_EQ(ret, "hello1");
-
-    std::string str;
-    for (int i = 0; i < MAX_SHORT_STR_LEN; ++i) {
-        str += "a";
-    }
-
-    ret = heap.alloc(str);
-    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, true);
-    ASSERT_EQ(ret, str);
-
-    str += "a";
-
-    ret = heap.alloc(str);
-    ASSERT_EQ(ret.length() <= MAX_SHORT_STR_LEN, false);
-    ASSERT_EQ(ret, str);
+    ret = heap.alloc("hello1", false);
+    ASSERT_EQ(ret->str(), "hello1");
+    ASSERT_NE(ret, ret1);
 }
 
 TEST(var, var_pool) {
@@ -188,8 +168,8 @@ TEST(var, to_string) {
     v->set_string(s, "hello");
     ASSERT_EQ(v->to_string(), "\"hello\"");
 
-    v->set_table();
-    ASSERT_EQ(v->to_string(), std::format("table({})", (void *) v));
+    v->set_table(s);
+    ASSERT_EQ(v->to_string(), std::format("table({})", (void *) v->get_table()));
 }
 
 TEST(var, var_table) {
@@ -199,120 +179,63 @@ TEST(var, var_table) {
 
     var k1((int64_t) 1);
     var v1((int64_t) 2);
-    vt.set(&k1, &v1);
-    ASSERT_EQ(vt.get(&k1), &v1);
+    vt.set(k1, v1, false);
+    ASSERT_EQ(*vt.get(k1), v1);
 
     var k2((int64_t) 1);
     var v2((int64_t) 3);
-    vt.set(&k2, &v2);
-    ASSERT_EQ(vt.get(&k2), &v2);
+    vt.set(k2, v2, false);
+    ASSERT_EQ(*vt.get(k2), v2);
 
     var k3((int64_t) 2);
     var v3((int64_t) 4);
-    vt.set(&k3, &v3);
-    ASSERT_EQ(vt.get(&k3), &v3);
+    vt.set(k3, v3, false);
+    ASSERT_EQ(*vt.get(k3), v3);
 
     var k4(s, "hello");
     var v4((int64_t) 5);
-    vt.set(&k4, &v4);
-    ASSERT_EQ(vt.get(&k4), &v4);
+    vt.set(k4, v4, false);
+    ASSERT_EQ(*vt.get(k4), v4);
 
-    vt.set(&k4, nullptr);
-    ASSERT_EQ(vt.get(&k4), &const_null_var);
+    vt.set(k4, var(), false);
+    ASSERT_EQ(*vt.get(k4), const_null_var);
 
     var k5(s, "hello");
     var v5((int64_t) 6);
-    vt.set(&k5, &v5);
-    ASSERT_EQ(vt.get(&k5), &v5);
+    vt.set(k5, v5, false);
+    ASSERT_EQ(*vt.get(k5), v5);
 
     var nil;
-    vt.set(&k5, &nil);
-    ASSERT_EQ(vt.get(&k5), &const_null_var);
+    vt.set(k5, nil, false);
+    ASSERT_EQ(*vt.get(k5), const_null_var);
 
-    vt.set(&k1, &v1);
-    ASSERT_EQ(vt.get(&k1), &v1);
+    vt.set(k1, v1, false);
+    ASSERT_EQ(*vt.get(k1), v1);
 
-    vt.set(&k1, nullptr);
-    ASSERT_EQ(vt.get(&k1), &const_null_var);
+    vt.set(k1, var(), false);
+    ASSERT_EQ(*vt.get(k1), const_null_var);
 }
 
 TEST(var, var_string_heap_reset) {
     auto s = std::make_shared<state>();
 
     var_string_heap &heap = s->get_var_string_heap();
-    auto str = heap.alloc("hello");
-    ASSERT_EQ(str, "hello");
+    auto str = heap.alloc("hello", false);
+    ASSERT_EQ(str->str(), "hello");
 
-    auto &vm = s->get_vm();
-    auto handle = std::make_shared<gcc_jit_handle>(s.get());
-    auto test_func = std::make_shared<vm_function>(handle, nullptr, 0, false);
-    auto str1 = handle->alloc_str("hello");
-    vm.register_function("test", test_func);
+    auto str1 = heap.alloc("world", false);
+    auto str2 = heap.alloc("world", true);
 
-    auto str2 = heap.alloc("world");
+    ASSERT_EQ(str1->str(), "world");
+    ASSERT_EQ(str2->str(), "world");
 
-    ASSERT_EQ(str1, "hello");
-    ASSERT_EQ(str2, "world");
+    ASSERT_EQ(str1->str().data(), str2->str().data());
 
-    ASSERT_EQ(str.data(), str1.data());
-
-    std::string lstr;
-    for (int i = 0; i <= MAX_SHORT_STR_LEN; ++i) {
-        lstr += "a";
-    }
-
-    auto lstr1 = heap.alloc(lstr);
-    ASSERT_EQ(lstr1, lstr);
-
-    std::string lstr2 = lstr + "a";
-    auto lstr3 = handle->alloc_str(lstr2);
-    ASSERT_EQ(lstr3, lstr2);
-
-    ASSERT_EQ(heap.size(), 4);
+    ASSERT_EQ(heap.size(), 2);
 
     heap.reset();
 
-    ASSERT_EQ(heap.size(), 2);
-
-    auto str3 = heap.alloc("hello");
-    ASSERT_EQ(str3, "hello");
-    ASSERT_EQ(str.data(), str3.data());
-
-    ASSERT_EQ(heap.size(), 2);
-
-    for (int i = 0; i < 1024; ++i) {// avoid compiler optimization
-        heap.alloc("world" + std::to_string(i));
-    }
-
-    ASSERT_EQ(heap.size(), 2 + 1024);
-
-    auto str4 = heap.alloc("world");
-    ASSERT_EQ(str4, "world");
-    ASSERT_NE(str2.data(), str4.data());
-
-    ASSERT_EQ(heap.size(), 2 + 1024 + 1);
-
-    for (int i = 0; i < 1024; ++i) {// avoid compiler optimization
-        heap.alloc(lstr + std::to_string(i));
-    }
-
-    ASSERT_EQ(heap.size(), 2 + 1024 + 1 + 1024);
-
-    auto lstr5 = heap.alloc(lstr2);
-    ASSERT_EQ(lstr5, lstr2);
-    ASSERT_NE(lstr3.data(), lstr5.data());
-
-    ASSERT_EQ(heap.size(), 2 + 1024 + 1 + 1024 + 1);
-
-    auto lstr4 = heap.alloc(lstr);
-    ASSERT_EQ(lstr4, lstr);
-    ASSERT_NE(lstr1.data(), lstr4.data());
-
-    ASSERT_EQ(heap.size(), 2 + 1024 + 1 + 1024 + 1 + 1);
-
-    heap.reset();
-
-    ASSERT_EQ(heap.size(), 2);
+    ASSERT_EQ(heap.size(), 1);
 }
 
 TEST(var, set_string) {
@@ -322,19 +245,19 @@ TEST(var, set_string) {
     const std::string str("hello");
     v.set_string(s.get(), str);
     ASSERT_EQ(v.type(), var_type::VAR_STRING);
-    ASSERT_EQ(v.get_string(), str);
+    ASSERT_EQ(v.get_string()->str(), str);
 
     v.set_string(s.get(), std::move(std::string("hello")));
     ASSERT_EQ(v.type(), var_type::VAR_STRING);
-    ASSERT_EQ(v.get_string(), str);
+    ASSERT_EQ(v.get_string()->str(), str);
 
     v.set_string(s.get(), "hello");
     ASSERT_EQ(v.type(), var_type::VAR_STRING);
-    ASSERT_EQ(v.get_string(), str);
+    ASSERT_EQ(v.get_string()->str(), str);
 
     v.set_string(s.get(), std::string_view("hello"));
     ASSERT_EQ(v.type(), var_type::VAR_STRING);
-    ASSERT_EQ(v.get_string(), str);
+    ASSERT_EQ(v.get_string()->str(), str);
 
     v.set_const(true);
     ASSERT_EQ(v.to_string(), "\"hello\"(const)");
@@ -358,14 +281,14 @@ TEST(var, var_table_keys) {
     var v2;
     v2.set_int((int64_t) 2);
 
-    vt.set(&k1, &v1);
-    vt.set(&k2, &v2);
+    vt.set(k1, v1, false);
+    vt.set(k2, v2, false);
 
-    auto v = vt.get(&k1);
+    auto v = vt.get(k1);
     ASSERT_EQ(v->type(), var_type::VAR_INT);
     ASSERT_EQ(v->get_int(), 1);
 
-    v = vt.get(&k2);
+    v = vt.get(k2);
     ASSERT_EQ(v->type(), var_type::VAR_INT);
     ASSERT_EQ(v->get_int(), 2);
 
@@ -374,46 +297,30 @@ TEST(var, var_table_keys) {
     var k4;
     k4.set_float(2.3);
 
-    vt.set(&k3, &v1);
-    vt.set(&k4, &v2);
+    vt.set(k3, v1, false);
+    vt.set(k4, v2, false);
 
-    v = vt.get(&k3);
+    v = vt.get(k3);
     ASSERT_EQ(v->type(), var_type::VAR_INT);
     ASSERT_EQ(v->get_int(), 1);
 
-    v = vt.get(&k4);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 2);
-
-    std::string ls(MAX_SHORT_STR_LEN + 1, 'a');
-    var k5;
-    k5.set_string(s, ls);
-    var k6;
-    k6.set_string(s, ls);
-
-    vt.set(&k5, &v1);
-    vt.set(&k6, &v2);
-
-    v = vt.get(&k5);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 2);
-    v = vt.get(&k6);
+    v = vt.get(k4);
     ASSERT_EQ(v->type(), var_type::VAR_INT);
     ASSERT_EQ(v->get_int(), 2);
 
     var k7;
-    k7.set_table();
+    k7.set_table(s);
     var k8;
-    k8.set_table();
+    k8.set_table(s);
 
-    vt.set(&k7, &v1);
-    vt.set(&k8, &v2);
+    vt.set(k7, v1, false);
+    vt.set(k8, v2, false);
 
-    v = vt.get(&k7);
+    v = vt.get(k7);
     ASSERT_EQ(v->type(), var_type::VAR_INT);
     ASSERT_EQ(v->get_int(), 1);
 
-    v = vt.get(&k8);
+    v = vt.get(k8);
     ASSERT_EQ(v->type(), var_type::VAR_INT);
     ASSERT_EQ(v->get_int(), 2);
 }
@@ -433,14 +340,14 @@ TEST(var, var_table_int_float_keys) {
     var k10;
     k10.set_float(1.0);
 
-    vt.set(&k9, &v1);
-    vt.set(&k10, &v2);
+    vt.set(k9, v1, false);
+    vt.set(k10, v2, false);
 
-    auto v = vt.get(&k9);
+    auto v = vt.get(k9);
     ASSERT_EQ(v->type(), var_type::VAR_INT);
     ASSERT_EQ(v->get_int(), 2);
 
-    v = vt.get(&k10);
+    v = vt.get(k10);
     ASSERT_EQ(v->type(), var_type::VAR_INT);
     ASSERT_EQ(v->get_int(), 2);
 
@@ -449,14 +356,14 @@ TEST(var, var_table_int_float_keys) {
     var k12;
     k12.set_int(2);
 
-    vt.set(&k11, &v1);
-    vt.set(&k12, &v2);
+    vt.set(k11, v1, false);
+    vt.set(k12, v2, false);
 
-    v = vt.get(&k11);
+    v = vt.get(k11);
     ASSERT_EQ(v->type(), var_type::VAR_INT);
     ASSERT_EQ(v->get_int(), 2);
 
-    v = vt.get(&k12);
+    v = vt.get(k12);
     ASSERT_EQ(v->type(), var_type::VAR_INT);
     ASSERT_EQ(v->get_int(), 2);
 }
@@ -476,14 +383,14 @@ TEST(var, var_table_nan_keys) {
     var v2;
     v2.set_int(2);
 
-    vt.set(&k1, &v1);
-    vt.set(&k2, &v2);
+    vt.set(k1, v1, false);
+    vt.set(k2, v2, false);
 
-    auto v = vt.get(&k1);
+    auto v = vt.get(k1);
     ASSERT_EQ(v->type(), var_type::VAR_INT);
     ASSERT_EQ(v->get_int(), 2);
 
-    v = vt.get(&k2);
+    v = vt.get(k2);
     ASSERT_EQ(v->type(), var_type::VAR_INT);
     ASSERT_EQ(v->get_int(), 2);
 }
@@ -503,15 +410,15 @@ TEST(var, var_table_size) {
     var k10;
     k10.set_float(1.0);
 
-    vt.set(&k9, &v1);
-    vt.set(&k10, &v2);
+    vt.set(k9, v1, false);
+    vt.set(k10, v2, false);
 
     ASSERT_EQ(vt.size(), 1);
 
     var k11;
     k11.set_int(2);
 
-    vt.set(&k11, &v2);
+    vt.set(k11, v2, false);
     ASSERT_EQ(vt.size(), 2);
 }
 

@@ -48,10 +48,10 @@ var_string *var_string_heap::alloc(const std::string_view &str, bool is_const) {
 }
 
 void var_string_heap::reset() {
-    for (const auto &val: const_str_map_ | std::views::values) {
+    for (const auto &val: tmp_str_map_ | std::views::values) {
         var_string::free_var_string(val);
     }
-    const_str_map_.clear();
+    tmp_str_map_.clear();
 }
 
 }// namespace fakelua

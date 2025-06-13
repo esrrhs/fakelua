@@ -12,7 +12,7 @@ TEST(syntax_tree, compile_string) {
     auto result = c.compile_string(L, "a = 1", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -38,7 +38,7 @@ TEST(syntax_tree, label) {
     auto result = c.compile_file(L, "./syntax/test_label.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -57,7 +57,7 @@ TEST(syntax_tree, assign_simple) {
     auto result = c.compile_file(L, "./syntax/test_assign_simple.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -83,7 +83,7 @@ TEST(syntax_tree, assign) {
     auto result = c.compile_file(L, "./syntax/test_assign.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -152,7 +152,7 @@ TEST(syntax_tree, function_call) {
     auto result = c.compile_file(L, "./syntax/test_function_call.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -224,7 +224,7 @@ TEST(syntax_tree, break) {
     auto result = c.compile_file(L, "./syntax/test_break.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -247,7 +247,7 @@ TEST(syntax_tree, continue) {
     auto result = c.compile_file(L, "./syntax/test_continue.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -288,7 +288,7 @@ TEST(syntax_tree, do_end) {
     auto result = c.compile_file(L, "./syntax/test_do_end.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -332,7 +332,7 @@ TEST(syntax_tree, while) {
     auto result = c.compile_file(L, "./syntax/test_while.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -369,7 +369,7 @@ TEST(syntax_tree, repeat) {
     auto result = c.compile_file(L, "./syntax/test_repeat.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -426,7 +426,7 @@ TEST(syntax_tree, if) {
     auto result = c.compile_file(L, "./syntax/test_if.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -629,7 +629,7 @@ TEST(syntax_tree, string) {
     auto result = c.compile_file(L, "./syntax/test_string.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -710,7 +710,7 @@ TEST(syntax_tree, number) {
     auto result = c.compile_file(L, "./syntax/test_number.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -826,7 +826,7 @@ TEST(syntax_tree, for_num) {
     auto result = c.compile_file(L, "./syntax/test_for_num.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -911,7 +911,7 @@ TEST(syntax_tree, for_in) {
     auto result = c.compile_file(L, "./syntax/test_for_in.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -1026,7 +1026,7 @@ TEST(syntax_tree, function) {
     auto result = c.compile_file(L, "./syntax/test_function.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = "(block)[1:1]\n"
@@ -1167,7 +1167,7 @@ TEST(syntax_tree, var) {
     auto result = c.compile_file(L, "./syntax/test_var.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -1212,7 +1212,7 @@ TEST(syntax_tree, var_attr) {
     auto result = c.compile_file(L, "./syntax/test_var_attr.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -1259,7 +1259,7 @@ TEST(syntax_tree, function_call_args) {
     auto result = c.compile_file(L, "./syntax/test_function_call_args.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = ""
@@ -1301,7 +1301,7 @@ TEST(syntax_tree, constructor) {
     auto result = c.compile_file(L, "./syntax/test_constructor.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = "(block)[2:1]\n"
@@ -1342,7 +1342,7 @@ TEST(syntax_tree, function_exp) {
     auto result = c.compile_file(L, "./syntax/test_function_exp.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = "(block)[2:1]\n"
@@ -1373,7 +1373,7 @@ TEST(syntax_tree, binop) {
     auto result = c.compile_file(L, "./syntax/test_binop.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = "(block)[2:1]\n"
@@ -1434,7 +1434,7 @@ TEST(syntax_tree, test_binop_order1) {
     auto result = c.compile_file(L, "./syntax/test_binop_order1.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = "(block)[2:1]\n"
@@ -1480,7 +1480,7 @@ TEST(syntax_tree, test_binop_order2) {
     auto result = c.compile_file(L, "./syntax/test_binop_order2.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = "(block)[2:1]\n"
@@ -1552,7 +1552,7 @@ TEST(syntax_tree, test_binop_order3) {
     auto result = c.compile_file(L, "./syntax/test_binop_order3.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = "(block)[2:1]\n"
@@ -1606,7 +1606,7 @@ TEST(syntax_tree, test_binop_order4) {
     auto result = c.compile_file(L, "./syntax/test_binop_order4.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = "(block)[2:1]\n"
@@ -1675,7 +1675,7 @@ TEST(syntax_tree, test_binop_order5) {
     auto result = c.compile_file(L, "./syntax/test_binop_order5.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = "(block)[1:1]\n"
@@ -1718,7 +1718,7 @@ TEST(syntax_tree, test_binop_order6) {
     auto result = c.compile_file(L, "./syntax/test_binop_order6.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = "(block)[1:1]\n"
@@ -1774,7 +1774,7 @@ TEST(syntax_tree, test_empty) {
     auto result = c.compile_file(L, "./syntax/test_empty.lua", {true});
     ASSERT_NE(result.chunk, nullptr);
 
-    auto dumpstr = result.chunk->dump();
+    auto dumpstr = result.chunk->dump(0);
     LOG_INFO("{}", dumpstr);
 
     auto wantstr = "(block)[1:1]\n"
