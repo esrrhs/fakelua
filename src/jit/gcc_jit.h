@@ -108,6 +108,8 @@ private:
 
     bool is_block_ended();
 
+    void init_global_const_var(gccjit::function &func);
+
 private:
     void prepare_compile(const fakelua_state_ptr &sp, const compile_config &cfg, const std::string &file_name);
 
@@ -142,8 +144,21 @@ private:
     gccjit::type bool_type_;
     gccjit::type const_char_ptr_type_;
     gccjit::type size_t_type_;
+
+    gccjit::field var_type_field_;
+    gccjit::field var_flag_field_;
+    gccjit::field var_data_b_field_;
+    gccjit::field var_data_i_field_;
+    gccjit::field var_data_f_field_;
+    gccjit::field var_data_s_field_;
+    gccjit::field var_data_t_field_;
+    gccjit::field var_data_field_;
     gccjit::type var_data_type_;
     gccjit::type var_struct_;
+
+    gccjit::lvalue global_const_null_var_;
+    gccjit::lvalue global_const_false_var_;
+    gccjit::lvalue global_const_true_var_;
 
 private:
     // the state contains the running environment we need.

@@ -398,16 +398,16 @@ void pre_processor::preprocess_extracts_literal_constants(const syntax_tree_inte
             if (exp_type == "number") {
                 if (is_integer(value)) {
                     if (!integer_map.contains(value)) {
-                        integer_map[value] = std::format("__fakelua_pp_pre_{}__", pre_index_++);
+                        integer_map[value] = std::format("__fakelua_jit_const_integer_var_{}__", integer_map.size());
                     }
                 } else {
                     if (!float_map.contains(value)) {
-                        float_map[value] = std::format("__fakelua_pp_pre_{}__", pre_index_++);
+                        float_map[value] = std::format("__fakelua_jit_const_float_var_{}__", float_map.size());
                     }
                 }
             } else if (exp_type == "string") {
                 if (!string_map.contains(value)) {
-                    string_map[value] = std::format("__fakelua_pp_pre_{}__", pre_index_++);
+                    string_map[value] = std::format("__fakelua_jit_const_string_var_{}__", string_map.size());
                 }
             }
         } else if (ptr->type() == syntax_tree_type::syntax_tree_type_var) {
@@ -415,7 +415,7 @@ void pre_processor::preprocess_extracts_literal_constants(const syntax_tree_inte
             // change to a[__global_string_1__][__global_string_2__] = 1
             if (const auto v_ptr = std::dynamic_pointer_cast<syntax_tree_var>(ptr); v_ptr->get_type() == "dot") {
                 if (const auto name = v_ptr->get_name(); !string_map.contains(name)) {
-                    string_map[name] = std::format("__fakelua_pp_pre_{}__", pre_index_++);
+                    string_map[name] = std::format("__fakelua_jit_const_string_var_{}__", string_map.size());
                 }
             }
         } else if (ptr->type() == syntax_tree_type::syntax_tree_type_field) {
@@ -423,7 +423,7 @@ void pre_processor::preprocess_extracts_literal_constants(const syntax_tree_inte
             // change to { [__global_string_1__] = 1 }
             if (const auto field_ptr = std::dynamic_pointer_cast<syntax_tree_field>(ptr); field_ptr->get_type() == "object") {
                 if (const auto name = field_ptr->name(); !string_map.contains(name)) {
-                    string_map[name] = std::format("__fakelua_pp_pre_{}__", pre_index_++);
+                    string_map[name] = std::format("__fakelua_jit_const_string_var_{}__", string_map.size());
                 }
             }
         } else if (ptr->type() == syntax_tree_type::syntax_tree_type_functioncall) {
@@ -431,7 +431,7 @@ void pre_processor::preprocess_extracts_literal_constants(const syntax_tree_inte
             // change to a:__global_string_1__(), and then replace it to var in the compiler
             if (const auto functioncall_ptr = std::dynamic_pointer_cast<syntax_tree_functioncall>(ptr); !functioncall_ptr->name().empty()) {
                 if (const auto name = functioncall_ptr->name(); !string_map.contains(name)) {
-                    string_map[name] = std::format("__fakelua_pp_pre_{}__", pre_index_++);
+                    string_map[name] = std::format("__fakelua_jit_const_string_var_{}__", string_map.size());
                 }
             }
         }

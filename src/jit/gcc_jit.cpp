@@ -55,7 +55,7 @@ void gcc_jitter::prepare_compile(const fakelua_state_ptr &sp, const compile_conf
     /* define var in gccjit
     struct var {
         int type_; // the type of the var, 0: nil, 1: bool, 2: int, 3: double, 4: string, 5: table
-        int flag_;
+        int flag_; // the flag of the var, bit index 0: const, bit index 1: variadic
         union var_data {
             bool b;
             int64_t i;
@@ -66,22 +66,28 @@ void gcc_jitter::prepare_compile(const fakelua_state_ptr &sp, const compile_conf
         var_data data_;
     }
     */
-    const auto type_field = gccjit_context_->new_field(int_type_, "type_");
-    const auto flag_field = gccjit_context_->new_field(int_type_, "flag_");
+    var_type_field_ = gccjit_context_->new_field(int_type_, "type_");
+    var_flag_field_ = gccjit_context_->new_field(int_type_, "flag_");
 
-    const auto data_b_field = gccjit_context_->new_field(bool_type_, "b");
-    const auto data_i_field = gccjit_context_->new_field(int64_type_, "i");
-    const auto data_f_field = gccjit_context_->new_field(double_type_, "f");
-    const auto data_s_field = gccjit_context_->new_field(void_ptr_type_, "s");
-    const auto data_t_field = gccjit_context_->new_field(void_ptr_type_, "t");
-    gcc_jit_field *data_fields[] = {data_b_field.get_inner_field(), data_i_field.get_inner_field(), data_f_field.get_inner_field(),
-                                    data_s_field.get_inner_field(), data_t_field.get_inner_field()};
+    var_data_b_field_ = gccjit_context_->new_field(bool_type_, "b");
+    var_data_i_field_ = gccjit_context_->new_field(int64_type_, "i");
+    var_data_f_field_ = gccjit_context_->new_field(double_type_, "f");
+    var_data_s_field_ = gccjit_context_->new_field(void_ptr_type_, "s");
+    var_data_t_field_ = gccjit_context_->new_field(void_ptr_type_, "t");
+    gcc_jit_field *data_fields[] = {var_data_b_field_.get_inner_field(), var_data_i_field_.get_inner_field(),
+                                    var_data_f_field_.get_inner_field(), var_data_s_field_.get_inner_field(),
+                                    var_data_t_field_.get_inner_field()};
     var_data_type_ =
             gccjit::type(gcc_jit_context_new_union_type(gccjit_context_->get_inner_context(), nullptr, "var_data", 5, data_fields));
 
-    const auto data_field = gccjit_context_->new_field(var_data_type_, "data_");
-    std::vector<gccjit::field> var_fields = {type_field, flag_field, data_field};
+    var_data_field_ = gccjit_context_->new_field(var_data_type_, "data_");
+    std::vector<gccjit::field> var_fields = {var_type_field_, var_flag_field_, var_data_field_};
     var_struct_ = gccjit_context_->new_struct_type("var", var_fields);
+
+    // define global nil var
+    global_const_null_var_ = gccjit_context_->new_global(GCC_JIT_GLOBAL_INTERNAL, var_struct_, "__fakelua_jit_const_null_var__");
+    global_const_false_var_ = gccjit_context_->new_global(GCC_JIT_GLOBAL_INTERNAL, var_struct_, "__fakelua_jit_const_false_var__");
+    global_const_true_var_ = gccjit_context_->new_global(GCC_JIT_GLOBAL_INTERNAL, var_struct_, "__fakelua_jit_const_true_var__");
 }
 
 void gcc_jitter::compile(const fakelua_state_ptr &sp, const compile_config &cfg, const std::string &file_name,
@@ -215,6 +221,12 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     auto block = funcbody_ptr->block();
     auto the_block = func.new_block(new_block_name("block", block));
     cur_function_data_.cur_block = the_block;
+
+    // init some const var if is const func
+    if (cur_function_data_.is_const) {
+        init_global_const_var(func);
+    }
+
     compile_stmt_block(func, block);
 
     // check the return block, if the return block is not ended with return, we add a return nil
@@ -239,6 +251,38 @@ bool gcc_jitter::is_block_ended() {
     return false;
 }
 
+void gcc_jitter::init_global_const_var(gccjit::function &func) {
+    // init global_const_null_var_
+    // set type
+    cur_function_data_.cur_block.add_assignment(global_const_null_var_.access_field(var_type_field_),
+                                                gccjit_context_->new_rvalue(int_type_, (int) 0));
+    // flag |= 1
+    cur_function_data_.cur_block.add_assignment_op(global_const_null_var_.access_field(var_flag_field_), GCC_JIT_BINARY_OP_BITWISE_OR,
+                                                   gccjit_context_->new_rvalue(int_type_, (int) 1));
+
+    // init global_const_false_var_
+    // set type
+    cur_function_data_.cur_block.add_assignment(global_const_false_var_.access_field(var_type_field_),
+                                                gccjit_context_->new_rvalue(int_type_, (int) 1));
+    // flag |= 1
+    cur_function_data_.cur_block.add_assignment_op(global_const_false_var_.access_field(var_flag_field_), GCC_JIT_BINARY_OP_BITWISE_OR,
+                                                   gccjit_context_->new_rvalue(int_type_, (int) 1));
+    // set data.b = false
+    cur_function_data_.cur_block.add_assignment(global_const_false_var_.access_field(var_data_field_).access_field(var_data_b_field_),
+                                                gccjit_context_->new_rvalue(bool_type_, false));
+
+    // init global_const_true_var_
+    // set type
+    cur_function_data_.cur_block.add_assignment(global_const_true_var_.access_field(var_type_field_),
+                                                gccjit_context_->new_rvalue(int_type_, (int) 1));
+    // flag |= 1
+    cur_function_data_.cur_block.add_assignment_op(global_const_true_var_.access_field(var_flag_field_), GCC_JIT_BINARY_OP_BITWISE_OR,
+                                                   gccjit_context_->new_rvalue(int_type_, (int) 1));
+    // set data.b = true
+    cur_function_data_.cur_block.add_assignment(global_const_true_var_.access_field(var_data_field_).access_field(var_data_b_field_),
+                                                gccjit_context_->new_rvalue(bool_type_, true));
+}
+
 void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
     // the chunk must be a block
     DEBUG_ASSERT(chunk->type() == syntax_tree_type::syntax_tree_type_block);
@@ -257,16 +301,14 @@ void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
 }
 
 void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
-    auto local_var = std::dynamic_pointer_cast<syntax_tree_local_var>(stmt);
+    const auto local_var = std::dynamic_pointer_cast<syntax_tree_local_var>(stmt);
     DEBUG_ASSERT(local_var->namelist()->type() == syntax_tree_type::syntax_tree_type_namelist);
-    auto keys = std::dynamic_pointer_cast<syntax_tree_namelist>(local_var->namelist());
-    auto &names = keys->names();
+    const auto keys = std::dynamic_pointer_cast<syntax_tree_namelist>(local_var->namelist());
+    const auto &names = keys->names();
     DEBUG_ASSERT(local_var->explist());
     DEBUG_ASSERT(local_var->explist()->type() == syntax_tree_type::syntax_tree_type_explist);
-    auto values = std::dynamic_pointer_cast<syntax_tree_explist>(local_var->explist());
-    auto &values_exps = values->exps();
-
-    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
+    const auto values = std::dynamic_pointer_cast<syntax_tree_explist>(local_var->explist());
+    const auto &values_exps = values->exps();
 
     for (size_t i = 0; i < names.size(); ++i) {
         auto name = names[i];
@@ -274,11 +316,14 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
 
         LOG_INFO("compile const define: {}", name);
 
-        auto dst = gccjit_context_->new_global(GCC_JIT_GLOBAL_INTERNAL, the_var_type, name.c_str(), new_location(keys));
+        auto holder_name = name + "_holder_";
+        auto dst_holder = gccjit_context_->new_global(GCC_JIT_GLOBAL_INTERNAL, var_struct_, holder_name.c_str(), new_location(keys));
 
-        dst.set_initializer_rvalue(gccjit_context_->new_rvalue(the_var_type, nullptr));
+        auto dst = gccjit_context_->new_global(GCC_JIT_GLOBAL_INTERNAL, var_struct_.get_pointer(), name.c_str(), new_location(keys));
 
-        if (global_const_vars_.find(name) != global_const_vars_.end()) {
+        dst.set_initializer_rvalue(dst_holder.get_address(new_location(keys)));
+
+        if (global_const_vars_.contains(name)) {
             throw_error("the const define name is duplicated: " + name, values);
         }
 
@@ -289,38 +334,35 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
 gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree_interface_ptr &exp) {
     // the chunk must be an exp
     DEBUG_ASSERT(exp->type() == syntax_tree_type::syntax_tree_type_exp);
-    // start compile the expression
-    auto e = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
+    // start to compile the expression
+    const auto e = std::dynamic_pointer_cast<syntax_tree_exp>(exp);
     const auto &exp_type = e->exp_type();
     const auto &value = e->exp_value();
 
-    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
-    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
-
-    auto is_const = cur_function_data_.is_const;
+    const auto is_const = cur_function_data_.is_const;
 
     std::vector<gccjit::param> params;
-    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
-    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
-    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
+    params.push_back(gccjit_context_->new_param(void_ptr_type_, "s"));
+    params.push_back(gccjit_context_->new_param(void_ptr_type_, "h"));
+    params.push_back(gccjit_context_->new_param(bool_type_, "is_const"));
 
     std::string func_name;
 
     std::vector<gccjit::rvalue> args;
-    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
-    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
-    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
+    args.push_back(gccjit_context_->new_rvalue(void_ptr_type_, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(void_ptr_type_, (void *) gcc_jit_handle_.get()));
+    args.push_back(gccjit_context_->new_rvalue(bool_type_, is_const));
 
     DEBUG_ASSERT(exp_type == "nil" || exp_type == "false" || exp_type == "true" || exp_type == "number" || exp_type == "string" ||
                  exp_type == "prefixexp" || exp_type == "var_params" || exp_type == "tableconstructor" || exp_type == "binop" ||
                  exp_type == "unop")
 
     if (exp_type == "nil") {
-        func_name = "new_var_nil";
+        return global_const_null_var_.get_address(new_location(e));
     } else if (exp_type == "false") {
-        func_name = "new_var_false";
+        return global_const_false_var_.get_address(new_location(e));
     } else if (exp_type == "true") {
-        func_name = "new_var_true";
+        return global_const_true_var_.get_address(new_location(e));
     } else if (exp_type == "number") {
         if (is_integer(value)) {
             func_name = "new_var_int";
@@ -372,7 +414,7 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
     DEBUG_ASSERT(!func_name.empty());
 
     gccjit::function new_var_func =
-            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, func_name, params, 0, new_location(e));
+            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, var_struct_.get_pointer(), func_name, params, 0, new_location(e));
     auto ret = gccjit_context_->new_call(new_var_func, args, new_location(e));
     return ret;
 }
@@ -426,6 +468,8 @@ std::string gcc_jitter::new_block_name(const std::string &name, const syntax_tre
 
 void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interface_ptr &stmt) {
     DEBUG_ASSERT(!is_block_ended());
+
+    cur_function_data_.cur_block.add_comment(stmt->dump(0), new_location(stmt));
 
     switch (stmt->type()) {
         case syntax_tree_type::syntax_tree_type_return: {
