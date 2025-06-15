@@ -135,6 +135,14 @@ private:
 
     std::string get_jit_builtin_function_vm_name(const std::string &name);
 
+    void set_var_int(gccjit::lvalue &var, int64_t v, bool is_const, const syntax_tree_interface_ptr &p);
+
+    void set_var_float(gccjit::lvalue &var, double v, bool is_const, const syntax_tree_interface_ptr &p);
+
+    void set_var_string(gccjit::lvalue &var, const std::string &v, bool is_const, const syntax_tree_interface_ptr &p);
+
+    void assign_var(gccjit::lvalue &dst, gccjit::rvalue &src, const syntax_tree_interface_ptr &p);
+
 private:
     // the helper type in gccjit
     gccjit::type void_ptr_type_;
@@ -193,7 +201,7 @@ private:
         // used for jmp to
         std::vector<gccjit::block> stack_end_blocks;
         // temp var name counter
-        int pre_index = 0;
+        int tmp_index = 0;
         // mark cur func if is const
         bool is_const = false;
         // current compiling function name

@@ -46,7 +46,7 @@ void gcc_jitter::prepare_compile(const fakelua_state_ptr &sp, const compile_conf
     // get all the type we need
     void_ptr_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
     bool_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
-    int64_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_INT64_T);
+    int64_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_LONG);
     double_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_DOUBLE);
     const_char_ptr_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_CONST_CHAR_PTR);
     int_type_ = gccjit_context_->get_type(GCC_JIT_TYPE_INT);
@@ -253,31 +253,34 @@ bool gcc_jitter::is_block_ended() {
 
 void gcc_jitter::init_global_const_var(gccjit::function &func) {
     // init global_const_null_var_
+    cur_function_data_.cur_block.add_comment("init const_null_var");
     // set type
     cur_function_data_.cur_block.add_assignment(global_const_null_var_.access_field(var_type_field_),
-                                                gccjit_context_->new_rvalue(int_type_, (int) 0));
+                                                gccjit_context_->new_rvalue(int_type_, static_cast<int>(var_type::VAR_NIL)));
     // flag |= 1
     cur_function_data_.cur_block.add_assignment_op(global_const_null_var_.access_field(var_flag_field_), GCC_JIT_BINARY_OP_BITWISE_OR,
-                                                   gccjit_context_->new_rvalue(int_type_, (int) 1));
+                                                   gccjit_context_->new_rvalue(int_type_, (int) 1 << VAR_FLAG_CONST_IDX));
 
     // init global_const_false_var_
+    cur_function_data_.cur_block.add_comment("init const_false_var");
     // set type
     cur_function_data_.cur_block.add_assignment(global_const_false_var_.access_field(var_type_field_),
-                                                gccjit_context_->new_rvalue(int_type_, (int) 1));
+                                                gccjit_context_->new_rvalue(int_type_, (int) static_cast<int>(var_type::VAR_BOOL)));
     // flag |= 1
     cur_function_data_.cur_block.add_assignment_op(global_const_false_var_.access_field(var_flag_field_), GCC_JIT_BINARY_OP_BITWISE_OR,
-                                                   gccjit_context_->new_rvalue(int_type_, (int) 1));
+                                                   gccjit_context_->new_rvalue(int_type_, (int) 1 << VAR_FLAG_CONST_IDX));
     // set data.b = false
     cur_function_data_.cur_block.add_assignment(global_const_false_var_.access_field(var_data_field_).access_field(var_data_b_field_),
                                                 gccjit_context_->new_rvalue(bool_type_, false));
 
     // init global_const_true_var_
+    cur_function_data_.cur_block.add_comment("init const_true_var");
     // set type
     cur_function_data_.cur_block.add_assignment(global_const_true_var_.access_field(var_type_field_),
-                                                gccjit_context_->new_rvalue(int_type_, (int) 1));
+                                                gccjit_context_->new_rvalue(int_type_, (int) static_cast<int>(var_type::VAR_BOOL)));
     // flag |= 1
     cur_function_data_.cur_block.add_assignment_op(global_const_true_var_.access_field(var_flag_field_), GCC_JIT_BINARY_OP_BITWISE_OR,
-                                                   gccjit_context_->new_rvalue(int_type_, (int) 1));
+                                                   gccjit_context_->new_rvalue(int_type_, (int) 1 << VAR_FLAG_CONST_IDX));
     // set data.b = true
     cur_function_data_.cur_block.add_assignment(global_const_true_var_.access_field(var_data_field_).access_field(var_data_b_field_),
                                                 gccjit_context_->new_rvalue(bool_type_, true));
@@ -365,30 +368,24 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
         return global_const_true_var_.get_address(new_location(e));
     } else if (exp_type == "number") {
         if (is_integer(value)) {
-            func_name = "new_var_int";
-            auto the_int_type = gccjit_context_->get_type(GCC_JIT_TYPE_INT64_T);
-            params.push_back(gccjit_context_->new_param(the_int_type, "val"));
-
-            int64_t val = to_integer(value);
-            args.push_back(gccjit_context_->new_rvalue(the_int_type, (long) val));
+            cur_function_data_.cur_block.add_comment(std::format("new int var {}", value), new_location(e));
+            auto tmp_int =
+                    func.new_local(var_struct_, std::format("__fakelua_jit_tmp_int_{}__", cur_function_data_.tmp_index++), new_location(e));
+            set_var_int(tmp_int, to_integer(value), is_const, e);
+            return tmp_int.get_address(new_location(e));
         } else {
-            func_name = "new_var_float";
-            auto the_float_type = gccjit_context_->get_type(GCC_JIT_TYPE_DOUBLE);
-            params.push_back(gccjit_context_->new_param(the_float_type, "val"));
-
-            double val = to_float(value);
-            args.push_back(gccjit_context_->new_rvalue(the_float_type, val));
+            cur_function_data_.cur_block.add_comment(std::format("new float var {}", value), new_location(e));
+            auto tmp_float = func.new_local(var_struct_, std::format("__fakelua_jit_tmp_float_{}__", cur_function_data_.tmp_index++),
+                                            new_location(e));
+            set_var_float(tmp_float, to_float(value), is_const, e);
+            return tmp_float.get_address(new_location(e));
         }
     } else if (exp_type == "string") {
-        func_name = "new_var_string";
-        auto the_string_type = gccjit_context_->get_type(GCC_JIT_TYPE_CONST_CHAR_PTR);
-        params.push_back(gccjit_context_->new_param(the_string_type, "val"));
-        auto the_int_type = gccjit_context_->get_type(GCC_JIT_TYPE_INT);
-        params.push_back(gccjit_context_->new_param(the_int_type, "len"));
-
-        auto container_str = std::dynamic_pointer_cast<state>(sp_)->get_var_string_heap().alloc(value, true);
-        args.push_back(gccjit_context_->new_rvalue(the_string_type, (void *) container_str->str().data()));
-        args.push_back(gccjit_context_->new_rvalue(the_int_type, (int) container_str->size()));
+        cur_function_data_.cur_block.add_comment(std::format("new string var {}", value), new_location(e));
+        auto tmp_string =
+                func.new_local(var_struct_, std::format("__fakelua_jit_tmp_string_{}__", cur_function_data_.tmp_index++), new_location(e));
+        set_var_string(tmp_string, value, is_const, e);
+        return tmp_string.get_address(new_location(e));
     } else if (exp_type == "prefixexp") {
         auto pe = e->right();
         return compile_prefixexp(func, pe);
@@ -998,7 +995,7 @@ void gcc_jitter::compile_stmt_assign(gccjit::function &function, const syntax_tr
             auto &var = varlist[i];
             auto &exp = explist[i];
             DEBUG_ASSERT(!is_block_ended());
-            cur_function_data_.cur_block.add_assignment(var, exp, new_location(stmt));
+            assign_var(var, exp, stmt);
         }
         return;
     }
@@ -1147,7 +1144,7 @@ gccjit::rvalue gcc_jitter::compile_binop(gccjit::function &func, const syntax_tr
         auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
         auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
 
-        auto pre_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.pre_index++);
+        auto pre_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.tmp_index++);
         auto pre = func.new_local(the_var_type, pre_name, new_location(op));
 
         // var* pre=left
@@ -1882,7 +1879,7 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
     save_stack_lvalue_by_name(name, iter, exp_begin);
 
     // init the end var, eg: pre = 10
-    auto end_pre_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.pre_index++);
+    auto end_pre_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.tmp_index++);
     auto end_pre = func.new_local(the_var_type, end_pre_name, new_location(exp_end));
     DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.add_assignment(end_pre, end_ret, new_location(exp_end));
@@ -1890,7 +1887,7 @@ void gcc_jitter::compile_stmt_for_loop(gccjit::function &func, const syntax_tree
     save_stack_lvalue_by_name(end_pre_name, end_pre, exp_end);
 
     // init the step var, eg: pre = 1
-    auto step_pre_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.pre_index++);
+    auto step_pre_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.tmp_index++);
     auto step_pre = func.new_local(the_var_type, step_pre_name, new_location(exp_step));
     DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.add_assignment(step_pre, step_ret, new_location(exp_step));
@@ -2087,7 +2084,7 @@ void gcc_jitter::compile_stmt_for_in(gccjit::function &func, const syntax_tree_i
     auto is_const = cur_function_data_.is_const;
 
     // init the iterator var, eg: size_t pre0 = 0
-    auto iter_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.pre_index++);
+    auto iter_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.tmp_index++);
     auto iter = func.new_local(the_size_t_type, iter_name, new_location(exp));
     auto iter_init_value = gccjit_context_->zero(the_size_t_type);
     DEBUG_ASSERT(!is_block_ended());
@@ -2099,13 +2096,13 @@ void gcc_jitter::compile_stmt_for_in(gccjit::function &func, const syntax_tree_i
         throw_error(std::format("for in ipairs() or pairs() args size must be 1, but got {}", args_ret.size()), for_args);
     }
     // store in local, eg: pre1 = table
-    auto iter_dst_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.pre_index++);
+    auto iter_dst_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.tmp_index++);
     auto iter_dst = func.new_local(gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR), iter_dst_name, new_location(for_args_ptr));
     DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.add_assignment(iter_dst, args_ret[0], new_location(for_args_ptr));
 
     // init the iterator end var, eg: size_t pre2 = size(pre1)
-    auto iter_end_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.pre_index++);
+    auto iter_end_name = std::format("__fakelua_jit_pre_{}__", cur_function_data_.tmp_index++);
     auto iter_end = func.new_local(the_size_t_type, iter_end_name, new_location(for_args_ptr));
 
     std::vector<gccjit::param> params;
@@ -2211,6 +2208,73 @@ void gcc_jitter::compile_stmt_for_in(gccjit::function &func, const syntax_tree_i
     }
 
     cur_function_data_.cur_block = after_block;
+}
+
+void gcc_jitter::set_var_int(gccjit::lvalue &var, int64_t v, bool is_const, const syntax_tree_interface_ptr &p) {
+    // set type
+    cur_function_data_.cur_block.add_assignment(var.access_field(var_type_field_),
+                                                gccjit_context_->new_rvalue(int_type_, (int) static_cast<int>(var_type::VAR_INT)),
+                                                new_location(p));
+    if (is_const) {
+        // flag |= 1 << 0
+        cur_function_data_.cur_block.add_assignment_op(var.access_field(var_flag_field_), GCC_JIT_BINARY_OP_BITWISE_OR,
+                                                       gccjit_context_->new_rvalue(int_type_, (int) 1 << VAR_FLAG_CONST_IDX),
+                                                       new_location(p));
+    } else {
+        // flag = 0
+        cur_function_data_.cur_block.add_assignment(var.access_field(var_flag_field_), gccjit_context_->new_rvalue(int_type_, 0),
+                                                    new_location(p));
+    }
+    // set data.i = v
+    cur_function_data_.cur_block.add_assignment(var.access_field(var_data_field_).access_field(var_data_i_field_),
+                                                gccjit_context_->new_rvalue(int_type_, static_cast<long>(v)), new_location(p));
+}
+
+void gcc_jitter::set_var_float(gccjit::lvalue &var, double v, bool is_const, const syntax_tree_interface_ptr &p) {
+    // set type
+    cur_function_data_.cur_block.add_assignment(var.access_field(var_type_field_),
+                                                gccjit_context_->new_rvalue(int_type_, (int) static_cast<int>(var_type::VAR_FLOAT)),
+                                                new_location(p));
+    if (is_const) {
+        // flag |= 1 << 0
+        cur_function_data_.cur_block.add_assignment_op(var.access_field(var_flag_field_), GCC_JIT_BINARY_OP_BITWISE_OR,
+                                                       gccjit_context_->new_rvalue(int_type_, (int) 1 << VAR_FLAG_CONST_IDX),
+                                                       new_location(p));
+    } else {
+        // flag = 0
+        cur_function_data_.cur_block.add_assignment(var.access_field(var_flag_field_), gccjit_context_->new_rvalue(int_type_, 0),
+                                                    new_location(p));
+    }
+    // set data.f = v
+    cur_function_data_.cur_block.add_assignment(var.access_field(var_data_field_).access_field(var_data_f_field_),
+                                                gccjit_context_->new_rvalue(double_type_, v), new_location(p));
+}
+
+void gcc_jitter::set_var_string(gccjit::lvalue &var, const std::string &v, bool is_const, const syntax_tree_interface_ptr &p) {
+    auto container_str = std::dynamic_pointer_cast<state>(sp_)->get_var_string_heap().alloc(v, is_const);
+    // set type
+    cur_function_data_.cur_block.add_assignment(var.access_field(var_type_field_),
+                                                gccjit_context_->new_rvalue(int_type_, (int) static_cast<int>(var_type::VAR_STRING)),
+                                                new_location(p));
+    if (is_const) {
+        // flag |= 1 << 0
+        cur_function_data_.cur_block.add_assignment_op(var.access_field(var_flag_field_), GCC_JIT_BINARY_OP_BITWISE_OR,
+                                                       gccjit_context_->new_rvalue(int_type_, (int) 1 << VAR_FLAG_CONST_IDX),
+                                                       new_location(p));
+    } else {
+        // flag = 0
+        cur_function_data_.cur_block.add_assignment(var.access_field(var_flag_field_), gccjit_context_->new_rvalue(int_type_, 0),
+                                                    new_location(p));
+    }
+    // set data.s = container_str
+    cur_function_data_.cur_block.add_assignment(var.access_field(var_data_field_).access_field(var_data_s_field_),
+                                                gccjit_context_->new_rvalue(void_ptr_type_, (void *) container_str), new_location(p));
+}
+
+void gcc_jitter::assign_var(gccjit::lvalue &dst, gccjit::rvalue &src, const syntax_tree_interface_ptr &p) {
+    DEBUG_ASSERT(dst.get_type().get_inner_type() == var_struct_.get_pointer().get_inner_type());
+    DEBUG_ASSERT(src.get_type().get_inner_type() == var_struct_.get_pointer().get_inner_type());
+    cur_function_data_.cur_block.add_assignment(dst.dereference(), src.dereference(), new_location(p));
 }
 
 }// namespace fakelua
