@@ -80,46 +80,44 @@ TEST(jitter, gccjit) {
 
 #endif
 
-TEST(jitter, empty_file) {
-    auto L = fakelua_newstate();
-    ASSERT_NE(L.get(), nullptr);
+static void jitter_run_helper(const std::function<void(bool)> &f) {
+    f(true);
+    f(false);
+}
 
-    L->compile_file("./jit/test_empty_file.lua", {});
-    L->compile_file("./jit/test_empty_file.lua", {.debug_mode = false});
+TEST(jitter, empty_file) {
+    jitter_run_helper([](bool debug_mode) {
+        const auto L = fakelua_newstate();
+        ASSERT_NE(L.get(), nullptr);
+
+        L->compile_file("./jit/test_empty_file.lua", {.debug_mode = debug_mode});
+    });
 }
 
 TEST(jitter, empty_func) {
-    auto L = fakelua_newstate();
-    ASSERT_NE(L.get(), nullptr);
+    jitter_run_helper([](bool debug_mode) {
+        const auto L = fakelua_newstate();
+        ASSERT_NE(L.get(), nullptr);
 
-    L->compile_file("./jit/test_empty_func.lua", {});
-    var *ret = nullptr;
-    L->call("test", std::tie(ret));
-    ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
-
-    ret = nullptr;
-    L->compile_file("./jit/test_empty_func.lua", {.debug_mode = false});
-    L->call("test", std::tie(ret));
-    ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
+        L->compile_file("./jit/test_empty_func.lua", {.debug_mode = debug_mode});
+        cvar ret;
+        const auto v = static_cast<var &>(ret);
+        L->call("test", std::tie(ret));
+        ASSERT_EQ(v.type(), var_type::VAR_NIL);
+    });
 }
 
 TEST(jitter, empty_local_func) {
-    auto L = fakelua_newstate();
-    ASSERT_NE(L.get(), nullptr);
+    jitter_run_helper([](bool debug_mode) {
+        const auto L = fakelua_newstate();
+        ASSERT_NE(L.get(), nullptr);
 
-    var *ret = nullptr;
-    L->compile_file("./jit/test_empty_local_func.lua", {});
-    L->call("test", std::tie(ret));
-    ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
-
-    ret = nullptr;
-    L->compile_file("./jit/test_empty_local_func.lua", {.debug_mode = false});
-    L->call("test", std::tie(ret));
-    ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
+        cvar ret;
+        const auto v = static_cast<var &>(ret);
+        L->compile_file("./jit/test_empty_local_func.lua", {});
+        L->call("test", std::tie(ret));
+        ASSERT_EQ(v.type(), var_type::VAR_NIL);
+    });
 }
 
 TEST(jitter, multi_return) {
@@ -329,7 +327,8 @@ TEST(jitter, multi_const_define) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
-    var *ret0 = (var *) 0xFF;
+    cvar ret0 = {};
+    auto v = (var &) ret0;
     int ret1 = 0;
     bool ret2 = false;
     bool ret3 = false;
@@ -337,21 +336,21 @@ TEST(jitter, multi_const_define) {
     double ret5;
     L->compile_file("./jit/test_multi_const_define.lua", {});
     L->call("test", std::tie(ret0, ret1, ret2, ret3, ret4, ret5));
-    ASSERT_EQ(ret0->type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.type(), var_type::VAR_NIL);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, false);
     ASSERT_EQ(ret3, true);
     ASSERT_EQ(ret4, "test");
     ASSERT_NEAR(ret5, 2.3, 0.001);
     L->compile_file("./jit/test_multi_const_define.lua", {.debug_mode = false});
-    ret0 = (var *) 0xFF;
+    ret0 = {};
     ret1 = 0;
     ret2 = false;
     ret3 = false;
     ret4.clear();
     ret5 = 0;
     L->call("test", std::tie(ret0, ret1, ret2, ret3, ret4, ret5));
-    ASSERT_EQ(ret0->type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.type(), var_type::VAR_NIL);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, false);
     ASSERT_EQ(ret3, true);
@@ -735,74 +734,67 @@ TEST(jitter, local_define) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
-    var *a = nullptr;
-    var *b = nullptr;
+    cvar a;
+    auto va = (var &) a;
+    cvar b;
+    auto vb = (var &) b;
     L->compile_file("./jit/test_local_define.lua", {});
     L->call("test", std::tie(a, b));
-    ASSERT_NE(a, nullptr);
-    ASSERT_EQ(a->type(), var_type::VAR_NIL);
+    ASSERT_EQ(va.type(), var_type::VAR_NIL);
 
-    ASSERT_NE(b, nullptr);
-    ASSERT_EQ(b->type(), var_type::VAR_NIL);
+    ASSERT_EQ(vb.type(), var_type::VAR_NIL);
 
-    a = nullptr;
-    b = nullptr;
+    a = {};
+    b = {};
     L->compile_file("./jit/test_local_define.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b));
-    ASSERT_NE(a, nullptr);
-    ASSERT_EQ(a->type(), var_type::VAR_NIL);
+    ASSERT_EQ(va.type(), var_type::VAR_NIL);
 
-    ASSERT_NE(b, nullptr);
-    ASSERT_EQ(b->type(), var_type::VAR_NIL);
+    ASSERT_EQ(vb.type(), var_type::VAR_NIL);
 }
 
 TEST(jitter, local_define_with_values) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
-    var *a = 0;
-    var *b = 0;
-    var *c = 0;
-    var *d = 0;
-    var *e = 0;
+    cvar a = {};
+    auto va = (var &) a;
+    cvar b = {};
+    auto vb = (var &) b;
+    cvar c = {};
+    auto vc = (var &) c;
+    cvar d = {};
+    auto vd = (var &) d;
+    cvar e = {};
+    auto ve = (var &) e;
     L->compile_file("./jit/test_local_define_with_value.lua", {});
     L->call("test", std::tie(a, b, c, d, e), true, 2);
-    ASSERT_NE(a, nullptr);
-    ASSERT_EQ(a->type(), var_type::VAR_BOOL);
-    ASSERT_EQ(a->get_bool(), true);
-    ASSERT_NE(b, nullptr);
-    ASSERT_EQ(b->type(), var_type::VAR_INT);
-    ASSERT_EQ(b->get_int(), 2);
-    ASSERT_NE(c, nullptr);
-    ASSERT_EQ(c->type(), var_type::VAR_INT);
-    ASSERT_EQ(c->get_int(), 1);
-    ASSERT_NE(d, nullptr);
-    ASSERT_EQ(d->type(), var_type::VAR_STRING);
-    ASSERT_EQ(d->get_string()->str(), "test");
-    ASSERT_NE(e, nullptr);
-    ASSERT_EQ(e->type(), var_type::VAR_NIL);
+    ASSERT_EQ(va.type(), var_type::VAR_BOOL);
+    ASSERT_EQ(va.get_bool(), true);
+    ASSERT_EQ(vb.type(), var_type::VAR_INT);
+    ASSERT_EQ(vb.get_int(), 2);
+    ASSERT_EQ(vc.type(), var_type::VAR_INT);
+    ASSERT_EQ(vc.get_int(), 1);
+    ASSERT_EQ(vd.type(), var_type::VAR_STRING);
+    ASSERT_EQ(vd.get_string()->str(), "test");
+    ASSERT_EQ(ve.type(), var_type::VAR_NIL);
 
-    a = 0;
-    b = 0;
-    c = 0;
-    d = 0;
-    e = 0;
+    a = {};
+    b = {};
+    c = {};
+    d = {};
+    e = {};
     L->compile_file("./jit/test_local_define_with_value.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b, c, d, e), true, 2);
-    ASSERT_NE(a, nullptr);
-    ASSERT_EQ(a->type(), var_type::VAR_BOOL);
-    ASSERT_EQ(a->get_bool(), true);
-    ASSERT_NE(b, nullptr);
-    ASSERT_EQ(b->type(), var_type::VAR_INT);
-    ASSERT_EQ(b->get_int(), 2);
-    ASSERT_NE(c, nullptr);
-    ASSERT_EQ(c->type(), var_type::VAR_INT);
-    ASSERT_EQ(c->get_int(), 1);
-    ASSERT_NE(d, nullptr);
-    ASSERT_EQ(d->type(), var_type::VAR_STRING);
-    ASSERT_EQ(d->get_string()->str(), "test");
-    ASSERT_NE(e, nullptr);
-    ASSERT_EQ(e->type(), var_type::VAR_NIL);
+    ASSERT_EQ(va.type(), var_type::VAR_BOOL);
+    ASSERT_EQ(va.get_bool(), true);
+    ASSERT_EQ(vb.type(), var_type::VAR_INT);
+    ASSERT_EQ(vb.get_int(), 2);
+    ASSERT_EQ(vc.type(), var_type::VAR_INT);
+    ASSERT_EQ(vc.get_int(), 1);
+    ASSERT_EQ(vd.type(), var_type::VAR_STRING);
+    ASSERT_EQ(vd.get_string()->str(), "test");
+    ASSERT_EQ(ve.type(), var_type::VAR_NIL);
 }
 
 TEST(jitter, test_assign) {
@@ -892,20 +884,19 @@ TEST(jitter, test_assign_variadic_empty) {
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    var *b = nullptr;
+    cvar b = {};
+    auto vb = (var &) b;
     L->compile_file("./jit/test_assign_variadic_no_match.lua", {});
     L->call("test", std::tie(a, b));
     ASSERT_EQ(a, 1);
-    ASSERT_NE(b, nullptr);
-    ASSERT_EQ(b->type(), var_type::VAR_NIL);
+    ASSERT_EQ(vb.type(), var_type::VAR_NIL);
 
     a = 0;
-    b = 0;
+    b = {};
     L->compile_file("./jit/test_assign_variadic_no_match.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b));
     ASSERT_EQ(a, 1);
-    ASSERT_NE(b, nullptr);
-    ASSERT_EQ(b->type(), var_type::VAR_NIL);
+    ASSERT_EQ(vb.type(), var_type::VAR_NIL);
 }
 
 TEST(jitter, test_const_table) {
@@ -1378,34 +1369,32 @@ TEST(jitter, test_empty_return) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
-    var *ret = 0;
+    cvar ret = {};
+    auto v = (var &) ret;
     L->compile_file("./jit/test_empty_return.lua", {});
     L->call("test", std::tie(ret));
-    ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.type(), var_type::VAR_NIL);
 
-    ret = 0;
+    ret = {};
     L->compile_file("./jit/test_empty_return.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
-    ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.type(), var_type::VAR_NIL);
 }
 
 TEST(jitter, test_empty_func_no_return) {
     auto L = fakelua_newstate();
     ASSERT_NE(L.get(), nullptr);
 
-    var *ret = 0;
+    cvar ret = {};
+    auto v = (var &) ret;
     L->compile_file("./jit/test_empty_func_no_return.lua", {});
     L->call("test", std::tie(ret));
-    ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.type(), var_type::VAR_NIL);
 
-    ret = 0;
+    ret = {};
     L->compile_file("./jit/test_empty_func_no_return.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
-    ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.type(), var_type::VAR_NIL);
 }
 
 TEST(jitter, test_binop_slash) {
@@ -2013,18 +2002,19 @@ TEST(jitter, test_binop_and) {
     ASSERT_NE(L.get(), nullptr);
 
     float ret1 = 0;
-    var *ret2 = 0;
+    cvar ret2 = {};
+    auto v = (var &) ret2;
     L->compile_file("./jit/test_binop_and.lua", {});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
     ASSERT_NEAR(ret1, 1.2, 0.001);
-    ASSERT_EQ(ret2->type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.type(), var_type::VAR_NIL);
 
     ret1 = 0;
-    ret2 = 0;
+    ret2 = {};
     L->compile_file("./jit/test_binop_and.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
     ASSERT_NEAR(ret1, 1.2, 0.001);
-    ASSERT_EQ(ret2->type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.type(), var_type::VAR_NIL);
 }
 
 TEST(jitter, test_binop_and_bool) {
@@ -2070,20 +2060,21 @@ TEST(jitter, test_const_binop_and) {
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
-    var *ret2 = 0;
+    cvar ret2 = {};
+    auto v = (var &) ret2;
     L->compile_file("./jit/test_const_binop_and.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
-    ASSERT_EQ(ret2->type(), var_type::VAR_BOOL);
-    ASSERT_EQ(ret2->get_bool(), false);
+    ASSERT_EQ(v.type(), var_type::VAR_BOOL);
+    ASSERT_EQ(v.get_bool(), false);
 
     ret1 = 0;
-    ret2 = 0;
+    ret2 = {};
     L->compile_file("./jit/test_const_binop_and.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
-    ASSERT_EQ(ret2->type(), var_type::VAR_BOOL);
-    ASSERT_EQ(ret2->get_bool(), false);
+    ASSERT_EQ(v.type(), var_type::VAR_BOOL);
+    ASSERT_EQ(v.get_bool(), false);
 }
 
 TEST(jitter, test_binop_or) {

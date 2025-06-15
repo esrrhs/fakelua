@@ -109,7 +109,7 @@ TEST(common, vi_sort) {
     v8.vi_set_int(7);
     kv.push_back(std::make_pair(&k8, &v8));
 
-    shuffle(kv.begin(), kv.end(), std::mt19937(std::random_device()()));
+    std::ranges::shuffle(kv, std::mt19937(std::random_device()()));
 
     t.vi_set_table(kv);
     t.vi_sort_table();

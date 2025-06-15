@@ -9,7 +9,7 @@ namespace fakelua {
 static var *alloc_val_helper(fakelua_state *s, gcc_jit_handle *h, bool is_const) {
     DEBUG_ASSERT(s);
     DEBUG_ASSERT(h);
-    return dynamic_cast<state *>(s)->get_var_pool().alloc();
+    return nullptr;// TODO
 }
 
 // Expand the list of expressions that may contain variable parameters.
@@ -29,48 +29,17 @@ static void expand_var_list(std::vector<var *> &params) {
                 for (int j = 1; j <= (int) table->size(); j++) {
                     var tmp;
                     tmp.set_int(j);
-                    const auto value = table->get(tmp);
-                    params.push_back(const_cast<var *>(value));
+                    auto value = table->get(tmp);
+                    params.push_back(&value);
                 }
             } else {
                 var tmp;
                 tmp.set_int(1);
                 const auto value = table->get(tmp);
-                params[i] = const_cast<var *>(value);
+                params[i] = (var *) &value;
             }
         }
     }
-}
-
-extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s, gcc_jit_handle *h, bool is_const) {
-    return &const_null_var;
-}
-
-extern "C" __attribute__((used)) var *new_var_false(fakelua_state *s, gcc_jit_handle *h, bool is_const) {
-    return &const_false_var;
-}
-
-extern "C" __attribute__((used)) var *new_var_true(fakelua_state *s, gcc_jit_handle *h, bool is_const) {
-    return &const_true_var;
-}
-
-extern "C" __attribute__((used)) var *new_var_int(fakelua_state *s, gcc_jit_handle *h, bool is_const, int64_t val) {
-    auto ret = alloc_val_helper(s, h, is_const);
-    ret->set_int(val);
-    return ret;
-}
-
-extern "C" __attribute__((used)) var *new_var_float(fakelua_state *s, gcc_jit_handle *h, bool is_const, double val) {
-    auto ret = alloc_val_helper(s, h, is_const);
-    ret->set_float(val);
-    return ret;
-}
-
-extern "C" __attribute__((used)) var *new_var_string(fakelua_state *s, gcc_jit_handle *h, bool is_const, const char *val, int len) {
-    DEBUG_ASSERT(len >= 0);
-    auto ret = alloc_val_helper(s, h, is_const);
-    ret->set_string(s, std::string_view(val, len));
-    return ret;
 }
 
 extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, gcc_jit_handle *h, bool is_const, int n, ...) {
@@ -431,10 +400,9 @@ extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle 
             throw_fakelua_exception(std::format("call_var: colon func must be table type, but got {}", func->to_string()));
         }
         auto real_func = func->table_get(*col_key);
-        DEBUG_ASSERT(real_func);
         // add the 1st self param
         params.insert(params.begin(), func);
-        func = const_cast<var *>(real_func);
+        func = &real_func;
     }
 
     // func must be a string type
@@ -469,7 +437,7 @@ extern "C" __attribute__((used)) var *table_index_by_var(fakelua_state *s, gcc_j
     DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(key);
     DEBUG_ASSERT(key->type() >= var_type::VAR_MIN && key->type() <= var_type::VAR_MAX);
-    return const_cast<var *>(table->table_get(*key));
+    return nullptr;//&table->table_get(*key);
 }
 
 extern "C" __attribute__((used)) var *table_set(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, var *key, var *val) {
@@ -493,14 +461,14 @@ extern "C" __attribute__((used)) var *table_key_by_pos(fakelua_state *s, gcc_jit
     DEBUG_ASSERT(table);
     DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(pos < table->table_size());
-    return const_cast<var *>(table->table_key_at(pos));
+    return nullptr;//&table->table_key_at(pos);
 }
 
 extern "C" __attribute__((used)) var *table_value_by_pos(fakelua_state *s, gcc_jit_handle *h, bool is_const, var *table, size_t pos) {
     DEBUG_ASSERT(table);
     DEBUG_ASSERT(table->type() >= var_type::VAR_MIN && table->type() <= var_type::VAR_MAX);
     DEBUG_ASSERT(pos < table->table_size());
-    return const_cast<var *>(table->table_value_at(pos));
+    return nullptr;//&table->table_value_at(pos);
 }
 
 }// namespace fakelua

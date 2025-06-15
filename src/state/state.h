@@ -2,7 +2,6 @@
 
 #include "fakelua.h"
 #include "jit/vm.h"
-#include "var_pool.h"
 #include "var_string_heap.h"
 #include "var_table_heap.h"
 
@@ -23,7 +22,6 @@ public:
     void reset() {
         var_string_heap_.reset();
         var_table_heap_.reset();
-        var_pool_.reset();
     }
 
     var_string_heap &get_var_string_heap() {
@@ -34,10 +32,6 @@ public:
         return var_table_heap_;
     }
 
-    var_pool &get_var_pool() {
-        return var_pool_;
-    }
-
     vm &get_vm() {
         return vm_;
     }
@@ -45,7 +39,6 @@ public:
 private:
     var_string_heap var_string_heap_;
     var_table_heap var_table_heap_;
-    var_pool var_pool_;
     vm vm_;
 };
 

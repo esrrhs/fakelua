@@ -5,14 +5,14 @@
 
 namespace fakelua {
 
-const var *var_table::get(const var &key) const {
+var var_table::get(const var &key) const {
     DEBUG_ASSERT(key.type() >= var_type::VAR_MIN && key.type() <= var_type::VAR_MAX);
     for (const auto &[fst, snd]: table_) {
         if (fst.equal(key)) {
-            return &snd;
+            return snd;
         }
     }
-    return &const_null_var;
+    return const_null_var;
 }
 
 void var_table::set(const var &key, const var &val, bool can_be_nil) {
@@ -47,18 +47,18 @@ void var_table::set(const var &key, const var &val, bool can_be_nil) {
     table_.emplace_back(key, val);
 }
 
-const var *var_table::key_at(size_t pos) const {
+var var_table::key_at(size_t pos) const {
     if (pos >= table_.size()) {
-        return &const_null_var;
+        return const_null_var;
     }
-    return &table_[pos].first;
+    return table_[pos].first;
 }
 
-const var *var_table::value_at(size_t pos) const {
+var var_table::value_at(size_t pos) const {
     if (pos >= table_.size()) {
-        return &const_null_var;
+        return const_null_var;
     }
-    return &table_[pos].second;
+    return table_[pos].second;
 }
 
 }// namespace fakelua

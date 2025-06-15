@@ -11,7 +11,7 @@ class var_string;
 class var_table;
 
 // Var is the class that holds the multiple types of data.
-class var {
+class var final : public cvar {
 public:
     var() = default;
 
@@ -42,49 +42,49 @@ public:
 
     // get bool value
     [[nodiscard]] bool get_bool() const {
-        DEBUG_ASSERT(type_ == var_type::VAR_BOOL);
+        DEBUG_ASSERT(type_ == static_cast<int>(var_type::VAR_BOOL));
         return data_.b;
     }
 
     // get int value
     [[nodiscard]] int64_t get_int() const {
-        DEBUG_ASSERT(type_ == var_type::VAR_INT);
+        DEBUG_ASSERT(type_ == static_cast<int>(var_type::VAR_INT));
         return data_.i;
     }
 
     // get float value
     [[nodiscard]] double get_float() const {
-        DEBUG_ASSERT(type_ == var_type::VAR_FLOAT);
+        DEBUG_ASSERT(type_ == static_cast<int>(var_type::VAR_FLOAT));
         return data_.f;
     }
 
     // get string_view value
     [[nodiscard]] var_string *get_string() const {
-        DEBUG_ASSERT(type_ == var_type::VAR_STRING);
+        DEBUG_ASSERT(type_ == static_cast<int>(var_type::VAR_STRING));
         return data_.s;
     }
 
     // get table value
     [[nodiscard]] var_table *get_table() const {
-        DEBUG_ASSERT(type_ == var_type::VAR_TABLE);
+        DEBUG_ASSERT(type_ == static_cast<int>(var_type::VAR_TABLE));
         return data_.t;
     }
 
 public:
     // set nullptr
     void set_nil() {
-        type_ = var_type::VAR_NIL;
+        type_ = static_cast<int>(var_type::VAR_NIL);
     }
 
     // set bool value
     void set_bool(bool val) {
-        type_ = var_type::VAR_BOOL;
+        type_ = static_cast<int>(var_type::VAR_BOOL);
         data_.b = val;
     }
 
     // set int value
     void set_int(int64_t val) {
-        type_ = var_type::VAR_INT;
+        type_ = static_cast<int>(var_type::VAR_INT);
         data_.i = val;
     }
 
@@ -92,10 +92,10 @@ public:
     void set_float(double val) {
         double int_part;
         if (std::modf(val, &int_part) != 0.0) {
-            type_ = var_type::VAR_FLOAT;
+            type_ = static_cast<int>(var_type::VAR_FLOAT);
             data_.f = val;
         } else {
-            type_ = var_type::VAR_INT;
+            type_ = static_cast<int>(var_type::VAR_INT);
             data_.i = static_cast<int64_t>(val);
         }
     }
@@ -201,32 +201,18 @@ public:
 
     void table_set(const var &key, const var &val, bool can_be_nil) const;
 
-    [[nodiscard]] const var *table_get(const var &key) const;
+    [[nodiscard]] var table_get(const var &key) const;
 
     [[nodiscard]] size_t table_size() const;
 
-    [[nodiscard]] const var *table_key_at(size_t pos) const;
+    [[nodiscard]] var table_key_at(size_t pos) const;
 
-    [[nodiscard]] const var *table_value_at(size_t pos) const;
-
-private:
-    var_type type_ = var_type::VAR_NIL;
-    int flag_ = 0;
-    union var_data {
-        bool b;
-        int64_t i;
-        double f;
-        var_string *s;
-        var_table *t;
-    };
-    var_data data_{};
+    [[nodiscard]] var table_value_at(size_t pos) const;
 };
 
 // assert var size is 16 bytes, the same as we defined in gccjit
 static_assert(sizeof(var) == 16);
 
 extern var const_null_var;
-extern var const_true_var;
-extern var const_false_var;
 
 }// namespace fakelua

@@ -17,20 +17,20 @@ public:
     ~vm() = default;
 
     // register function
-    void register_function(const std::string &name, vm_function_ptr func) {
+    void register_function(const std::string &name, const vm_function_ptr &func) {
         vm_functions_[name] = func;
     }
 
     // get function
-    vm_function_ptr get_function(const std::string &name) {
-        auto iter = vm_functions_.find(name);
+    vm_function_ptr get_function(const std::string &name) const {
+        const auto iter = vm_functions_.find(name);
         if (iter == vm_functions_.end()) {
             return nullptr;
         }
         return iter->second;
     }
 
-    // get all function
+    // get all functions
     const std::unordered_map<std::string, vm_function_ptr> &get_functions() {
         return vm_functions_;
     }
@@ -46,18 +46,6 @@ private:
     // global name counter
     uint64_t global_name_ = 0;
 };
-
-extern "C" __attribute__((used)) var *new_var_nil(fakelua_state *s, gcc_jit_handle *h, bool is_const);
-
-extern "C" __attribute__((used)) var *new_var_false(fakelua_state *s, gcc_jit_handle *h, bool is_const);
-
-extern "C" __attribute__((used)) var *new_var_true(fakelua_state *s, gcc_jit_handle *h, bool is_const);
-
-extern "C" __attribute__((used)) var *new_var_int(fakelua_state *s, gcc_jit_handle *h, bool is_const, int64_t val);
-
-extern "C" __attribute__((used)) var *new_var_float(fakelua_state *s, gcc_jit_handle *h, bool is_const, double val);
-
-extern "C" __attribute__((used)) var *new_var_string(fakelua_state *s, gcc_jit_handle *h, bool is_const, const char *val, int len);
 
 extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, gcc_jit_handle *h, bool is_const, int n, ...);
 

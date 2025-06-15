@@ -185,7 +185,23 @@ struct simple_var_impl final : public var_interface {
     std::vector<std::pair<var_interface *, var_interface *>> table_;
 };
 
+class var_table;
+class var_string;
 class var;
+
+struct cvar {
+protected:
+    int type_ = 0;
+    int flag_ = 0;
+    union cvar_data {
+        bool b;
+        int64_t i;
+        double f;
+        var_string *s;
+        var_table *t;
+    };
+    cvar_data data_{};
+};
 
 // control the compiler behavior
 struct compile_config {
@@ -237,28 +253,28 @@ using fakelua_state_ptr = std::shared_ptr<fakelua_state>;
 namespace inter {
 
 // native to fakelua
-const var *native_to_fakelua_nil(const fakelua_state_ptr &s);
-const var *native_to_fakelua_bool(const fakelua_state_ptr &s, bool v);
-const var *native_to_fakelua_char(const fakelua_state_ptr &s, char v);
-const var *native_to_fakelua_uchar(const fakelua_state_ptr &s, unsigned char v);
-const var *native_to_fakelua_short(const fakelua_state_ptr &s, short v);
-const var *native_to_fakelua_ushort(const fakelua_state_ptr &s, unsigned short v);
-const var *native_to_fakelua_int(const fakelua_state_ptr &s, int v);
-const var *native_to_fakelua_uint(const fakelua_state_ptr &s, unsigned int v);
-const var *native_to_fakelua_long(const fakelua_state_ptr &s, long v);
-const var *native_to_fakelua_ulong(const fakelua_state_ptr &s, unsigned long v);
-const var *native_to_fakelua_longlong(const fakelua_state_ptr &s, long long v);
-const var *native_to_fakelua_ulonglong(const fakelua_state_ptr &s, unsigned long long v);
-const var *native_to_fakelua_float(const fakelua_state_ptr &s, float v);
-const var *native_to_fakelua_double(const fakelua_state_ptr &s, double v);
-const var *native_to_fakelua_cstr(const fakelua_state_ptr &s, const char *v);
-const var *native_to_fakelua_str(const fakelua_state_ptr &s, char *v);
-const var *native_to_fakelua_string(const fakelua_state_ptr &s, const std::string &v);
-const var *native_to_fakelua_stringview(const fakelua_state_ptr &s, const std::string_view &v);
-const var *native_to_fakelua_obj(const fakelua_state_ptr &s, const var_interface *v);
+cvar native_to_fakelua_nil(const fakelua_state_ptr &s);
+cvar native_to_fakelua_bool(const fakelua_state_ptr &s, bool v);
+cvar native_to_fakelua_char(const fakelua_state_ptr &s, char v);
+cvar native_to_fakelua_uchar(const fakelua_state_ptr &s, unsigned char v);
+cvar native_to_fakelua_short(const fakelua_state_ptr &s, short v);
+cvar native_to_fakelua_ushort(const fakelua_state_ptr &s, unsigned short v);
+cvar native_to_fakelua_int(const fakelua_state_ptr &s, int v);
+cvar native_to_fakelua_uint(const fakelua_state_ptr &s, unsigned int v);
+cvar native_to_fakelua_long(const fakelua_state_ptr &s, long v);
+cvar native_to_fakelua_ulong(const fakelua_state_ptr &s, unsigned long v);
+cvar native_to_fakelua_longlong(const fakelua_state_ptr &s, long long v);
+cvar native_to_fakelua_ulonglong(const fakelua_state_ptr &s, unsigned long long v);
+cvar native_to_fakelua_float(const fakelua_state_ptr &s, float v);
+cvar native_to_fakelua_double(const fakelua_state_ptr &s, double v);
+cvar native_to_fakelua_cstr(const fakelua_state_ptr &s, const char *v);
+cvar native_to_fakelua_str(const fakelua_state_ptr &s, char *v);
+cvar native_to_fakelua_string(const fakelua_state_ptr &s, const std::string &v);
+cvar native_to_fakelua_stringview(const fakelua_state_ptr &s, const std::string_view &v);
+cvar native_to_fakelua_obj(const fakelua_state_ptr &s, const var_interface *v);
 
 template<typename T>
-const var *native_to_fakelua(const fakelua_state_ptr &s, T v) {
+cvar native_to_fakelua(const fakelua_state_ptr &s, T v) {
     // check if T is nil
     if constexpr (std::is_same_v<T, std::nullptr_t>) {
         return native_to_fakelua_nil(s);
@@ -331,8 +347,8 @@ const var *native_to_fakelua(const fakelua_state_ptr &s, T v) {
     else if constexpr (std::is_same_v<T, std::string_view>) {
         return native_to_fakelua_stringview(s, v);
     }
-    // check if T is var*
-    else if constexpr (std::is_same_v<T, var *>) {
+    // check if T is a cvar
+    else if constexpr (std::is_same_v<T, cvar>) {
         return v;
     } else {
         // static_assert T should be var_interface* or implement var_interface
@@ -343,27 +359,27 @@ const var *native_to_fakelua(const fakelua_state_ptr &s, T v) {
 }
 
 // fakelua to native
-bool fakelua_to_native_bool(const fakelua_state_ptr &s, const var *v);
-char fakelua_to_native_char(const fakelua_state_ptr &s, const var *v);
-unsigned char fakelua_to_native_uchar(const fakelua_state_ptr &s, const var *v);
-short fakelua_to_native_short(const fakelua_state_ptr &s, const var *v);
-unsigned short fakelua_to_native_ushort(const fakelua_state_ptr &s, const var *v);
-int fakelua_to_native_int(const fakelua_state_ptr &s, const var *v);
-unsigned int fakelua_to_native_uint(const fakelua_state_ptr &s, const var *v);
-long fakelua_to_native_long(const fakelua_state_ptr &s, const var *v);
-unsigned long fakelua_to_native_ulong(const fakelua_state_ptr &s, const var *v);
-long long fakelua_to_native_longlong(const fakelua_state_ptr &s, const var *v);
-unsigned long long fakelua_to_native_ulonglong(const fakelua_state_ptr &s, const var *v);
-float fakelua_to_native_float(const fakelua_state_ptr &s, const var *v);
-double fakelua_to_native_double(const fakelua_state_ptr &s, const var *v);
-const char *fakelua_to_native_cstr(const fakelua_state_ptr &s, const var *v);
-const char *fakelua_to_native_str(const fakelua_state_ptr &s, const var *v);
-std::string fakelua_to_native_string(const fakelua_state_ptr &s, const var *v);
-std::string_view fakelua_to_native_stringview(const fakelua_state_ptr &s, const var *v);
-var_interface *fakelua_to_native_obj(const fakelua_state_ptr &s, const var *v);
+bool fakelua_to_native_bool(const fakelua_state_ptr &s, cvar v);
+char fakelua_to_native_char(const fakelua_state_ptr &s, cvar v);
+unsigned char fakelua_to_native_uchar(const fakelua_state_ptr &s, cvar v);
+short fakelua_to_native_short(const fakelua_state_ptr &s, cvar v);
+unsigned short fakelua_to_native_ushort(const fakelua_state_ptr &s, cvar v);
+int fakelua_to_native_int(const fakelua_state_ptr &s, cvar v);
+unsigned int fakelua_to_native_uint(const fakelua_state_ptr &s, cvar v);
+long fakelua_to_native_long(const fakelua_state_ptr &s, cvar v);
+unsigned long fakelua_to_native_ulong(const fakelua_state_ptr &s, cvar v);
+long long fakelua_to_native_longlong(const fakelua_state_ptr &s, cvar v);
+unsigned long long fakelua_to_native_ulonglong(const fakelua_state_ptr &s, cvar v);
+float fakelua_to_native_float(const fakelua_state_ptr &s, cvar v);
+double fakelua_to_native_double(const fakelua_state_ptr &s, cvar v);
+const char *fakelua_to_native_cstr(const fakelua_state_ptr &s, cvar v);
+const char *fakelua_to_native_str(const fakelua_state_ptr &s, cvar v);
+std::string fakelua_to_native_string(const fakelua_state_ptr &s, cvar v);
+std::string_view fakelua_to_native_stringview(const fakelua_state_ptr &s, cvar v);
+var_interface *fakelua_to_native_obj(const fakelua_state_ptr &s, cvar v);
 
 template<typename T>
-T fakelua_to_native(const fakelua_state_ptr &s, const var *v) {
+T fakelua_to_native(const fakelua_state_ptr &s, const cvar v) {
     if constexpr (std::is_same_v<T, bool>) {
         return fakelua_to_native_bool(s, v);
     } else if constexpr (std::is_same_v<T, char>) {
@@ -398,8 +414,8 @@ T fakelua_to_native(const fakelua_state_ptr &s, const var *v) {
         return fakelua_to_native_string(s, v);
     } else if constexpr (std::is_same_v<T, std::string_view>) {
         return fakelua_to_native_stringview(s, v);
-    } else if constexpr (std::is_same_v<T, var *>) {
-        return const_cast<var *>(v);
+    } else if constexpr (std::is_same_v<T, cvar>) {
+        return v;
     } else {
         // static_assert T should be var_interface* or implement var_interface
         static_assert(std::is_pointer_v<T>, "T should be pointer");
@@ -408,16 +424,16 @@ T fakelua_to_native(const fakelua_state_ptr &s, const var *v) {
     }
 }
 
-const var *fakelua_get_var_by_index(const fakelua_state_ptr &s, const var *ret, size_t i);
+cvar fakelua_get_var_by_index(const fakelua_state_ptr &s, cvar ret, size_t i);
 
 template<size_t I = 0, typename... Rets>
-inline std::enable_if_t<I == sizeof...(Rets), void> fakelua_func_ret_helper(const fakelua_state_ptr &s, var *ret,
+inline std::enable_if_t<I == sizeof...(Rets), void> fakelua_func_ret_helper(const fakelua_state_ptr &s, cvar ret,
                                                                             std::tuple<Rets &...> &rets) {
 }
 
 template<size_t I = 0, typename... Rets>
         inline std::enable_if_t <
-        I<sizeof...(Rets), void> fakelua_func_ret_helper(const fakelua_state_ptr &s, var *ret, std::tuple<Rets &...> &rets) {
+        I<sizeof...(Rets), void> fakelua_func_ret_helper(const fakelua_state_ptr &s, cvar ret, std::tuple<Rets &...> &rets) {
     typedef std::remove_reference_t<std::tuple_element_t<I, std::tuple<Rets &...>>> t;
     const auto v = fakelua_get_var_by_index(s, ret, I + 1);
     std::get<I>(rets) = fakelua_to_native<t>(s, v);
@@ -425,18 +441,18 @@ template<size_t I = 0, typename... Rets>
 }
 
 template<typename Func, typename T, std::size_t N, std::size_t... Is>
-var *call_variadic_helper(Func func, const T (&array)[N], std::index_sequence<Is...>) {
+cvar call_variadic_helper(Func func, const T (&array)[N], std::index_sequence<Is...>) {
     return func(array[Is]...);
 }
 
 template<typename Func, typename T, std::size_t N>
-var *call_variadic_helper(Func func, const T (&array)[N]) {
+cvar call_variadic_helper(Func func, const T (&array)[N]) {
     return call_variadic_helper(func, array, std::make_index_sequence<N>{});
 }
 
 void *get_func_addr(const fakelua_state_ptr &s, const std::string &name, int &arg_count, bool &is_variadic);
 
-const var *make_variadic_table(const fakelua_state_ptr &s, int start, int n, const var **args);
+cvar make_variadic_table(const fakelua_state_ptr &s, int start, int n, const cvar *args);
 
 void reset(const fakelua_state_ptr &s);
 
@@ -473,25 +489,25 @@ void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, 
     }
     inter::reentry_counter rc(reentrant_count_);
 
-    // change every input args to var * by native_to_var() function
+    // change every input args to cvar  by native_to_var() function
     // and change every output args to native type by var_to_native() function
-    var *ret_var = nullptr;
+    cvar ret_var;
     if (!is_variadic) {
         if (sizeof...(Args) != static_cast<size_t>(arg_count)) {
             inter::throw_inter_fakelua_exception(
                     std::format("function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
         }
-        ret_var = reinterpret_cast<var *(*) (...)>(addr)(inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...);
+        ret_var = reinterpret_cast<cvar (*)(...)>(addr)(inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...);
     } else {
-        if (sizeof...(Args) < (size_t) arg_count) {
+        if (sizeof...(Args) < static_cast<size_t>(arg_count)) {
             inter::throw_inter_fakelua_exception(
                     std::format("function {} arg count not match, need >= {} get {}", name, arg_count, sizeof...(Args)));
         }
         // save the variadic args to a table
-        const var *args_array[sizeof...(Args) + 1] = {nullptr, inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...};
+        cvar args_array[sizeof...(Args) + 1] = {{}, inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...};
         args_array[0] = inter::make_variadic_table(shared_from_this(), arg_count + 1, sizeof...(Args) + 1, args_array);
         // call function by args array
-        ret_var = inter::call_variadic_helper(reinterpret_cast<var *(*) (...)>(addr), args_array);
+        ret_var = inter::call_variadic_helper(reinterpret_cast<cvar (*)(...)>(addr), args_array);
     }
 
     inter::fakelua_func_ret_helper(shared_from_this(), ret_var, rets);

@@ -141,8 +141,6 @@ private:
 
     void set_var_string(gccjit::lvalue &var, const std::string &v, bool is_const, const syntax_tree_interface_ptr &p);
 
-    void assign_var(gccjit::lvalue &dst, gccjit::rvalue &src, const syntax_tree_interface_ptr &p);
-
 private:
     // the helper type in gccjit
     gccjit::type void_ptr_type_;

@@ -96,15 +96,15 @@ void gcc_jitter::compile(const fakelua_state_ptr &sp, const compile_config &cfg,
 
     prepare_compile(sp, cfg, file_name);
 
-    // just walk through the chunk, and save the function declaration and then we can call the function by name
-    // first, check the global const define, the const define must be an assignment expression at the top level
+    // just walk through the chunk, and save the function declaration, and then we can call the function by name
+    // first, check the global const definition; the const definition must be an assignment expression at the top level
     compile_const_defines(chunk);
 
     // second, walk through the chunk, and save the function declaration
     compile_functions(chunk);
 
     // at last, compile the chunk
-    auto result = gccjit_context_->compile();
+    const auto result = gccjit_context_->compile();
     DEBUG_ASSERT(result);
     gcc_jit_handle_->set_result(result);
 
@@ -122,9 +122,7 @@ void gcc_jitter::compile(const fakelua_state_ptr &sp, const compile_config &cfg,
     call_global_init_func();
 
     // register the function
-    for (auto &ele: function_infos_) {
-        auto &name = ele.first;
-        auto &info = ele.second;
+    for (auto &[name, info]: function_infos_) {
         auto func = gcc_jit_result_get_code(result, name.c_str());
         DEBUG_ASSERT(func);
         std::dynamic_pointer_cast<state>(sp_)->get_vm().register_function(
@@ -139,14 +137,13 @@ void gcc_jitter::compile_functions(const syntax_tree_interface_ptr &chunk) {
     // the chunk must be a block
     DEBUG_ASSERT(chunk->type() == syntax_tree_type::syntax_tree_type_block);
     // walk through the block
-    auto block = std::dynamic_pointer_cast<syntax_tree_block>(chunk);
-    for (auto &stmt: block->stmts()) {
+    for (const auto block = std::dynamic_pointer_cast<syntax_tree_block>(chunk); auto &stmt: block->stmts()) {
         if (stmt->type() == syntax_tree_type::syntax_tree_type_function) {
-            auto func = std::dynamic_pointer_cast<syntax_tree_function>(stmt);
+            const auto func = std::dynamic_pointer_cast<syntax_tree_function>(stmt);
             auto name = compile_funcname(func->funcname());
             compile_function(name, func->funcbody());
         } else if (stmt->type() == syntax_tree_type::syntax_tree_type_local_function) {
-            auto func = std::dynamic_pointer_cast<syntax_tree_local_function>(stmt);
+            const auto func = std::dynamic_pointer_cast<syntax_tree_local_function>(stmt);
             compile_function(func->name(), func->funcbody());
         }
     }
@@ -157,14 +154,14 @@ std::string gcc_jitter::compile_funcname(const syntax_tree_interface_ptr &ptr) {
 
     std::string ret;
 
-    auto name = std::dynamic_pointer_cast<syntax_tree_funcname>(ptr);
-    auto funcnamelistptr = name->funcnamelist();
+    const auto name = std::dynamic_pointer_cast<syntax_tree_funcname>(ptr);
+    const auto funcnamelistptr = name->funcnamelist();
 
     std::vector<std::string> namelist;
 
     DEBUG_ASSERT(funcnamelistptr->type() == syntax_tree_type::syntax_tree_type_funcnamelist);
-    auto funcnamelist = std::dynamic_pointer_cast<syntax_tree_funcnamelist>(funcnamelistptr);
-    auto &names = funcnamelist->funcnames();
+    const auto funcnamelist = std::dynamic_pointer_cast<syntax_tree_funcnamelist>(funcnamelistptr);
+    const auto &names = funcnamelist->funcnames();
     namelist.insert(namelist.end(), names.begin(), names.end());
 
     DEBUG_ASSERT(namelist.size() == 1);
@@ -177,7 +174,7 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     LOG_INFO("start compile function: {}", name);
 
     DEBUG_ASSERT(funcbody->type() == syntax_tree_type::syntax_tree_type_funcbody);
-    auto funcbody_ptr = std::dynamic_pointer_cast<syntax_tree_funcbody>(funcbody);
+    const auto funcbody_ptr = std::dynamic_pointer_cast<syntax_tree_funcbody>(funcbody);
 
     // reset data
     cur_function_data_ = function_data();
@@ -185,13 +182,13 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     cur_function_data_.cur_function_name = name;
 
     // compile the input params
-    auto parlist = funcbody_ptr->parlist();
+    const auto parlist = funcbody_ptr->parlist();
     int is_variadic = 0;
     std::vector<std::pair<std::string, gccjit::param>> func_params;
     if (parlist) {
         func_params = compile_parlist(parlist, is_variadic);
     }
-    auto actual_params_count = func_params.size();
+    const auto actual_params_count = func_params.size();
     if (is_variadic) {
         // insert variadic in the front of params
         func_params.insert(func_params.begin(), std::make_pair("__fakelua_variadic__",
@@ -199,27 +196,24 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
                                                                                           "__fakelua_variadic__")));
     }
 
-    // add params to new stack frame
+    // add params to the new stack frame
     function_data::stack_frame sf;
-    for (auto &param: func_params) {
-        sf.local_vars[param.first] = param.second;
+    for (auto &[fst, snd]: func_params) {
+        sf.local_vars[fst] = snd;
     }
     cur_function_data_.stack_frames.clear();
     cur_function_data_.stack_frames.push_back(sf);
 
-    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
-
     // get every second in func_params
     std::vector<gccjit::param> call_func_params;
-    std::transform(func_params.begin(), func_params.end(), std::back_inserter(call_func_params),
-                   [](const auto &pair) { return pair.second; });
-    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, the_var_type, name.c_str(), call_func_params, is_variadic,
+    std::ranges::transform(func_params, std::back_inserter(call_func_params), [](const auto &pair) { return pair.second; });
+    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, var_struct_, name.c_str(), call_func_params, is_variadic,
                                               new_location(funcbody_ptr));
     cur_function_data_.cur_gccjit_func = func;
 
     // compile the function body
-    auto block = funcbody_ptr->block();
-    auto the_block = func.new_block(new_block_name("block", block));
+    const auto block = funcbody_ptr->block();
+    const auto the_block = func.new_block(new_block_name("block", block));
     cur_function_data_.cur_block = the_block;
 
     // init some const var if is const func
@@ -290,8 +284,7 @@ void gcc_jitter::compile_const_defines(const syntax_tree_interface_ptr &chunk) {
     // the chunk must be a block
     DEBUG_ASSERT(chunk->type() == syntax_tree_type::syntax_tree_type_block);
     // walk through the block
-    auto block = std::dynamic_pointer_cast<syntax_tree_block>(chunk);
-    for (auto &stmt: block->stmts()) {
+    for (const auto block = std::dynamic_pointer_cast<syntax_tree_block>(chunk); auto &stmt: block->stmts()) {
         if (stmt->type() == syntax_tree_type::syntax_tree_type_local_var) {
             compile_const_define(stmt);
         } else if (stmt->type() == syntax_tree_type::syntax_tree_type_function ||
@@ -316,20 +309,11 @@ void gcc_jitter::compile_const_define(const syntax_tree_interface_ptr &stmt) {
     for (size_t i = 0; i < names.size(); ++i) {
         auto name = names[i];
         DEBUG_ASSERT(i < values_exps.size());
-
         LOG_INFO("compile const define: {}", name);
-
-        auto holder_name = name + "_holder_";
-        auto dst_holder = gccjit_context_->new_global(GCC_JIT_GLOBAL_INTERNAL, var_struct_, holder_name.c_str(), new_location(keys));
-
-        auto dst = gccjit_context_->new_global(GCC_JIT_GLOBAL_INTERNAL, var_struct_.get_pointer(), name.c_str(), new_location(keys));
-
-        dst.set_initializer_rvalue(dst_holder.get_address(new_location(keys)));
-
+        auto dst = gccjit_context_->new_global(GCC_JIT_GLOBAL_INTERNAL, var_struct_, name.c_str(), new_location(keys));
         if (global_const_vars_.contains(name)) {
             throw_error("the const define name is duplicated: " + name, values);
         }
-
         global_const_vars_[name] = std::make_pair(dst, values_exps[i]);
     }
 }
@@ -349,7 +333,7 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
     params.push_back(gccjit_context_->new_param(void_ptr_type_, "h"));
     params.push_back(gccjit_context_->new_param(bool_type_, "is_const"));
 
-    std::string func_name;
+    const std::string func_name;
 
     std::vector<gccjit::rvalue> args;
     args.push_back(gccjit_context_->new_rvalue(void_ptr_type_, (void *) sp_.get()));
@@ -361,33 +345,33 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
                  exp_type == "unop")
 
     if (exp_type == "nil") {
-        return global_const_null_var_.get_address(new_location(e));
+        return global_const_null_var_;
     } else if (exp_type == "false") {
-        return global_const_false_var_.get_address(new_location(e));
+        return global_const_false_var_;
     } else if (exp_type == "true") {
-        return global_const_true_var_.get_address(new_location(e));
+        return global_const_true_var_;
     } else if (exp_type == "number") {
         if (is_integer(value)) {
             cur_function_data_.cur_block.add_comment(std::format("new int var {}", value), new_location(e));
             auto tmp_int =
                     func.new_local(var_struct_, std::format("__fakelua_jit_tmp_int_{}__", cur_function_data_.tmp_index++), new_location(e));
             set_var_int(tmp_int, to_integer(value), is_const, e);
-            return tmp_int.get_address(new_location(e));
+            return tmp_int;
         } else {
             cur_function_data_.cur_block.add_comment(std::format("new float var {}", value), new_location(e));
             auto tmp_float = func.new_local(var_struct_, std::format("__fakelua_jit_tmp_float_{}__", cur_function_data_.tmp_index++),
                                             new_location(e));
             set_var_float(tmp_float, to_float(value), is_const, e);
-            return tmp_float.get_address(new_location(e));
+            return tmp_float;
         }
     } else if (exp_type == "string") {
         cur_function_data_.cur_block.add_comment(std::format("new string var {}", value), new_location(e));
         auto tmp_string =
                 func.new_local(var_struct_, std::format("__fakelua_jit_tmp_string_{}__", cur_function_data_.tmp_index++), new_location(e));
         set_var_string(tmp_string, value, is_const, e);
-        return tmp_string.get_address(new_location(e));
+        return tmp_string;
     } else if (exp_type == "prefixexp") {
-        auto pe = e->right();
+        const auto pe = e->right();
         return compile_prefixexp(func, pe);
     } else if (exp_type == "var_params") {
         if (is_const) {
@@ -395,16 +379,16 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
         }
         return find_lvalue_by_name("__fakelua_variadic__", e);
     } else if (exp_type == "tableconstructor") {
-        auto tc = e->right();
+        const auto tc = e->right();
         return compile_tableconstructor(func, tc);
     } else if (exp_type == "binop") {
-        auto left = e->left();
-        auto right = e->right();
-        auto op = e->op();
+        const auto left = e->left();
+        const auto right = e->right();
+        const auto op = e->op();
         return compile_binop(func, left, right, op);
     } else if (exp_type == "unop") {
-        auto right = e->right();
-        auto op = e->op();
+        const auto right = e->right();
+        const auto op = e->op();
         return compile_unop(func, right, op);
     }
 
@@ -418,32 +402,30 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
 
 std::vector<std::pair<std::string, gccjit::param>> gcc_jitter::compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic) {
     DEBUG_ASSERT(parlist->type() == syntax_tree_type::syntax_tree_type_parlist);
-    auto parlist_ptr = std::dynamic_pointer_cast<syntax_tree_parlist>(parlist);
+    const auto parlist_ptr = std::dynamic_pointer_cast<syntax_tree_parlist>(parlist);
 
     std::vector<std::pair<std::string, gccjit::param>> ret;
 
-    auto namelist = parlist_ptr->namelist();
-    if (namelist) {
+    if (const auto namelist = parlist_ptr->namelist()) {
         DEBUG_ASSERT(namelist->type() == syntax_tree_type::syntax_tree_type_namelist);
-        auto namelist_ptr = std::dynamic_pointer_cast<syntax_tree_namelist>(namelist);
+        const auto namelist_ptr = std::dynamic_pointer_cast<syntax_tree_namelist>(namelist);
         auto &param_names = namelist_ptr->names();
 
-        // check dumplicated
+        // check duplicated
         std::set<std::string> param_names_set;
         // insert global names
-        for (auto &ele: global_const_vars_) {
-            param_names_set.insert(ele.first);
+        for (const auto &key: global_const_vars_ | std::views::keys) {
+            param_names_set.insert(key);
         }
         for (auto &name: param_names) {
-            if (param_names_set.find(name) != param_names_set.end()) {
+            if (param_names_set.contains(name)) {
                 throw_error("the param name is duplicated: " + name, namelist_ptr);
             }
             param_names_set.insert(name);
         }
 
-        auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
         for (auto &name: param_names) {
-            auto param = gccjit_context_->new_param(the_var_type, name, new_location(namelist_ptr));
+            auto param = gccjit_context_->new_param(var_struct_, name, new_location(namelist_ptr));
             ret.push_back(std::make_pair(name, param));
         }
     }
@@ -525,23 +507,23 @@ void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interfac
 
 void gcc_jitter::compile_stmt_return(gccjit::function &func, const syntax_tree_interface_ptr &stmt) {
     DEBUG_ASSERT(stmt->type() == syntax_tree_type::syntax_tree_type_return);
-    auto return_stmt = std::dynamic_pointer_cast<syntax_tree_return>(stmt);
+    const auto return_stmt = std::dynamic_pointer_cast<syntax_tree_return>(stmt);
 
     auto explist = return_stmt->explist();
     if (!explist) {
         // return nil
         explist = std::make_shared<syntax_tree_explist>(return_stmt->loc());
-        auto exp = std::make_shared<syntax_tree_exp>(return_stmt->loc());
+        const auto exp = std::make_shared<syntax_tree_exp>(return_stmt->loc());
         exp->set_type("nil");
         std::dynamic_pointer_cast<syntax_tree_explist>(explist)->add_exp(exp);
     }
 
-    // check if is simple return. eg: return 1
-    auto explist_ptr = std::dynamic_pointer_cast<syntax_tree_explist>(explist);
+    // check if is simple return. e.g.: return 1
+    const auto explist_ptr = std::dynamic_pointer_cast<syntax_tree_explist>(explist);
     DEBUG_ASSERT(!explist_ptr->exps().empty());
     if (explist_ptr->exps().size() == 1) {
-        auto exp = explist_ptr->exps()[0];
-        auto ret = compile_exp(func, exp);
+        const auto exp = explist_ptr->exps()[0];
+        const auto ret = compile_exp(func, exp);
 
         DEBUG_ASSERT(!is_block_ended());
         cur_function_data_.cur_block.end_with_return(ret, new_location(return_stmt));
@@ -995,7 +977,7 @@ void gcc_jitter::compile_stmt_assign(gccjit::function &function, const syntax_tr
             auto &var = varlist[i];
             auto &exp = explist[i];
             DEBUG_ASSERT(!is_block_ended());
-            assign_var(var, exp, stmt);
+            cur_function_data_.cur_block.add_assignment(var, exp, new_location(stmt));
         }
         return;
     }
@@ -1531,13 +1513,12 @@ void gcc_jitter::compile_stmt_label(gccjit::function &func, const fakelua::synta
 
 void gcc_jitter::compile_stmt_block(gccjit::function &func, const fakelua::syntax_tree_interface_ptr &block) {
     DEBUG_ASSERT(block->type() == syntax_tree_type::syntax_tree_type_block);
-    auto block_ptr = std::dynamic_pointer_cast<syntax_tree_block>(block);
+    const auto block_ptr = std::dynamic_pointer_cast<syntax_tree_block>(block);
 
     // alloc new stack frame
     cur_function_data_.stack_frames.push_back(function_data::stack_frame());
 
-    auto &stmts = block_ptr->stmts();
-    for (auto &stmt: stmts) {
+    for (const auto &stmts = block_ptr->stmts(); auto &stmt: stmts) {
         compile_stmt(func, stmt);
     }
 
@@ -2269,12 +2250,6 @@ void gcc_jitter::set_var_string(gccjit::lvalue &var, const std::string &v, bool 
     // set data.s = container_str
     cur_function_data_.cur_block.add_assignment(var.access_field(var_data_field_).access_field(var_data_s_field_),
                                                 gccjit_context_->new_rvalue(void_ptr_type_, (void *) container_str), new_location(p));
-}
-
-void gcc_jitter::assign_var(gccjit::lvalue &dst, gccjit::rvalue &src, const syntax_tree_interface_ptr &p) {
-    DEBUG_ASSERT(dst.get_type().get_inner_type() == var_struct_.get_pointer().get_inner_type());
-    DEBUG_ASSERT(src.get_type().get_inner_type() == var_struct_.get_pointer().get_inner_type());
-    cur_function_data_.cur_block.add_assignment(dst.dereference(), src.dereference(), new_location(p));
 }
 
 }// namespace fakelua

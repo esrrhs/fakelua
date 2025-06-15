@@ -1,6 +1,5 @@
 #include "fakelua.h"
 #include "state/state.h"
-#include "state/var_pool.h"
 #include "state/var_string_heap.h"
 #include "var/var.h"
 #include "var/var_string.h"
@@ -114,62 +113,33 @@ TEST(var, var_string_heap) {
     ASSERT_NE(ret, ret1);
 }
 
-TEST(var, var_pool) {
-    var_pool pool;
-    auto v = pool.alloc();
-    ASSERT_EQ(v->type(), var_type::VAR_NIL);
-
-    auto v1 = pool.alloc();
-    ASSERT_EQ(v1->type(), var_type::VAR_NIL);
-    ASSERT_NE(v, v1);
-
-    pool.reset();
-
-    auto v2 = pool.alloc();
-    ASSERT_EQ(v2->type(), var_type::VAR_NIL);
-
-    auto v3 = pool.alloc();
-    ASSERT_EQ(v3->type(), var_type::VAR_NIL);
-
-    pool.reset();
-
-    auto v4 = pool.alloc();
-    ASSERT_EQ(v2->type(), var_type::VAR_NIL);
-    ASSERT_EQ(v2, v4);
-
-    auto v5 = pool.alloc();
-    ASSERT_EQ(v3->type(), var_type::VAR_NIL);
-    ASSERT_EQ(v3, v5);
-}
-
 TEST(var, to_string) {
     auto s = std::make_shared<state>();
 
-    var_pool pool;
-    auto v = pool.alloc();
-    v->set_nil();
-    ASSERT_EQ(v->to_string(), "nil");
+    var v;
+    v.set_nil();
+    ASSERT_EQ(v.to_string(), "nil");
 
-    v->set_bool(true);
-    ASSERT_EQ(v->to_string(), "true");
+    v.set_bool(true);
+    ASSERT_EQ(v.to_string(), "true");
 
-    v->set_int((int64_t) 12345);
-    ASSERT_EQ(v->to_string(), "12345");
+    v.set_int((int64_t) 12345);
+    ASSERT_EQ(v.to_string(), "12345");
 
-    v->set_float(12345.0);
-    ASSERT_EQ(v->to_string(), "12345");
+    v.set_float(12345.0);
+    ASSERT_EQ(v.to_string(), "12345");
 
-    v->set_float(12345.1);
-    ASSERT_EQ(v->to_string(), "12345.1");
+    v.set_float(12345.1);
+    ASSERT_EQ(v.to_string(), "12345.1");
 
-    v->set_float(2.1245e-10);
-    ASSERT_EQ(v->to_string(), "2.1245e-10");
+    v.set_float(2.1245e-10);
+    ASSERT_EQ(v.to_string(), "2.1245e-10");
 
-    v->set_string(s, "hello");
-    ASSERT_EQ(v->to_string(), "\"hello\"");
+    v.set_string(s, "hello");
+    ASSERT_EQ(v.to_string(), "\"hello\"");
 
-    v->set_table(s);
-    ASSERT_EQ(v->to_string(), std::format("table({})", (void *) v->get_table()));
+    v.set_table(s);
+    ASSERT_EQ(v.to_string(), std::format("table({})", (void *) v.get_table()));
 }
 
 TEST(var, var_table) {
@@ -180,40 +150,40 @@ TEST(var, var_table) {
     var k1((int64_t) 1);
     var v1((int64_t) 2);
     vt.set(k1, v1, false);
-    ASSERT_EQ(*vt.get(k1), v1);
+    ASSERT_EQ(vt.get(k1), v1);
 
     var k2((int64_t) 1);
     var v2((int64_t) 3);
     vt.set(k2, v2, false);
-    ASSERT_EQ(*vt.get(k2), v2);
+    ASSERT_EQ(vt.get(k2), v2);
 
     var k3((int64_t) 2);
     var v3((int64_t) 4);
     vt.set(k3, v3, false);
-    ASSERT_EQ(*vt.get(k3), v3);
+    ASSERT_EQ(vt.get(k3), v3);
 
     var k4(s, "hello");
     var v4((int64_t) 5);
     vt.set(k4, v4, false);
-    ASSERT_EQ(*vt.get(k4), v4);
+    ASSERT_EQ(vt.get(k4), v4);
 
     vt.set(k4, var(), false);
-    ASSERT_EQ(*vt.get(k4), const_null_var);
+    ASSERT_EQ(vt.get(k4), const_null_var);
 
     var k5(s, "hello");
     var v5((int64_t) 6);
     vt.set(k5, v5, false);
-    ASSERT_EQ(*vt.get(k5), v5);
+    ASSERT_EQ(vt.get(k5), v5);
 
     var nil;
     vt.set(k5, nil, false);
-    ASSERT_EQ(*vt.get(k5), const_null_var);
+    ASSERT_EQ(vt.get(k5), const_null_var);
 
     vt.set(k1, v1, false);
-    ASSERT_EQ(*vt.get(k1), v1);
+    ASSERT_EQ(vt.get(k1), v1);
 
     vt.set(k1, var(), false);
-    ASSERT_EQ(*vt.get(k1), const_null_var);
+    ASSERT_EQ(vt.get(k1), const_null_var);
 }
 
 TEST(var, var_string_heap_reset) {
@@ -285,12 +255,12 @@ TEST(var, var_table_keys) {
     vt.set(k2, v2, false);
 
     auto v = vt.get(k1);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 1);
+    ASSERT_EQ(v.type(), var_type::VAR_INT);
+    ASSERT_EQ(v.get_int(), 1);
 
     v = vt.get(k2);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 2);
+    ASSERT_EQ(v.type(), var_type::VAR_INT);
+    ASSERT_EQ(v.get_int(), 2);
 
     var k3;
     k3.set_float(1.2);
@@ -301,12 +271,12 @@ TEST(var, var_table_keys) {
     vt.set(k4, v2, false);
 
     v = vt.get(k3);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 1);
+    ASSERT_EQ(v.type(), var_type::VAR_INT);
+    ASSERT_EQ(v.get_int(), 1);
 
     v = vt.get(k4);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 2);
+    ASSERT_EQ(v.type(), var_type::VAR_INT);
+    ASSERT_EQ(v.get_int(), 2);
 
     var k7;
     k7.set_table(s);
@@ -317,12 +287,12 @@ TEST(var, var_table_keys) {
     vt.set(k8, v2, false);
 
     v = vt.get(k7);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 1);
+    ASSERT_EQ(v.type(), var_type::VAR_INT);
+    ASSERT_EQ(v.get_int(), 1);
 
     v = vt.get(k8);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 2);
+    ASSERT_EQ(v.type(), var_type::VAR_INT);
+    ASSERT_EQ(v.get_int(), 2);
 }
 
 TEST(var, var_table_int_float_keys) {
@@ -344,12 +314,12 @@ TEST(var, var_table_int_float_keys) {
     vt.set(k10, v2, false);
 
     auto v = vt.get(k9);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 2);
+    ASSERT_EQ(v.type(), var_type::VAR_INT);
+    ASSERT_EQ(v.get_int(), 2);
 
     v = vt.get(k10);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 2);
+    ASSERT_EQ(v.type(), var_type::VAR_INT);
+    ASSERT_EQ(v.get_int(), 2);
 
     var k11;
     k11.set_float(2.0);
@@ -360,12 +330,12 @@ TEST(var, var_table_int_float_keys) {
     vt.set(k12, v2, false);
 
     v = vt.get(k11);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 2);
+    ASSERT_EQ(v.type(), var_type::VAR_INT);
+    ASSERT_EQ(v.get_int(), 2);
 
     v = vt.get(k12);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 2);
+    ASSERT_EQ(v.type(), var_type::VAR_INT);
+    ASSERT_EQ(v.get_int(), 2);
 }
 
 TEST(var, var_table_nan_keys) {
@@ -387,12 +357,12 @@ TEST(var, var_table_nan_keys) {
     vt.set(k2, v2, false);
 
     auto v = vt.get(k1);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 2);
+    ASSERT_EQ(v.type(), var_type::VAR_INT);
+    ASSERT_EQ(v.get_int(), 2);
 
     v = vt.get(k2);
-    ASSERT_EQ(v->type(), var_type::VAR_INT);
-    ASSERT_EQ(v->get_int(), 2);
+    ASSERT_EQ(v.type(), var_type::VAR_INT);
+    ASSERT_EQ(v.get_int(), 2);
 }
 
 TEST(var, var_table_size) {

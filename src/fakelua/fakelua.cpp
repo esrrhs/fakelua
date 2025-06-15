@@ -7,300 +7,314 @@ namespace fakelua {
 
 namespace inter {
 
-const var *native_to_fakelua_nil(const fakelua_state_ptr &s) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_nil();
+cvar native_to_fakelua_nil(const fakelua_state_ptr &s) {
+    return var{};
+}
+
+cvar native_to_fakelua_bool(const fakelua_state_ptr &s, bool v) {
+    var ret;
+    ret.set_bool(v);
     return ret;
 }
 
-const var *native_to_fakelua_bool(const fakelua_state_ptr &s, bool v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_bool(v);
+cvar native_to_fakelua_char(const fakelua_state_ptr &s, char v) {
+    var ret;
+    ret.set_int(v);
     return ret;
 }
 
-const var *native_to_fakelua_char(const fakelua_state_ptr &s, char v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_int(v);
+cvar native_to_fakelua_uchar(const fakelua_state_ptr &s, unsigned char v) {
+    var ret;
+    ret.set_int(v);
     return ret;
 }
 
-const var *native_to_fakelua_uchar(const fakelua_state_ptr &s, unsigned char v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_int(v);
+cvar native_to_fakelua_short(const fakelua_state_ptr &s, short v) {
+    var ret;
+    ret.set_int(v);
     return ret;
 }
 
-const var *native_to_fakelua_short(const fakelua_state_ptr &s, short v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_int(v);
+cvar native_to_fakelua_ushort(const fakelua_state_ptr &s, unsigned short v) {
+    var ret;
+    ret.set_int(v);
     return ret;
 }
 
-const var *native_to_fakelua_ushort(const fakelua_state_ptr &s, unsigned short v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_int(v);
+cvar native_to_fakelua_int(const fakelua_state_ptr &s, int v) {
+    var ret;
+    ret.set_int(v);
     return ret;
 }
 
-const var *native_to_fakelua_int(const fakelua_state_ptr &s, int v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_int(v);
+cvar native_to_fakelua_uint(const fakelua_state_ptr &s, unsigned int v) {
+    var ret;
+    ret.set_int(v);
     return ret;
 }
 
-const var *native_to_fakelua_uint(const fakelua_state_ptr &s, unsigned int v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_int(v);
+cvar native_to_fakelua_long(const fakelua_state_ptr &s, long v) {
+    var ret;
+    ret.set_int(v);
     return ret;
 }
 
-const var *native_to_fakelua_long(const fakelua_state_ptr &s, long v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_int(v);
+cvar native_to_fakelua_ulong(const fakelua_state_ptr &s, unsigned long v) {
+    var ret;
+    ret.set_int(v);
     return ret;
 }
 
-const var *native_to_fakelua_ulong(const fakelua_state_ptr &s, unsigned long v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_int(v);
+cvar native_to_fakelua_longlong(const fakelua_state_ptr &s, long long v) {
+    var ret;
+    ret.set_int(v);
     return ret;
 }
 
-const var *native_to_fakelua_longlong(const fakelua_state_ptr &s, long long v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_int(v);
+cvar native_to_fakelua_ulonglong(const fakelua_state_ptr &s, unsigned long long v) {
+    var ret;
+    ret.set_int(static_cast<int64_t>(v));
     return ret;
 }
 
-const var *native_to_fakelua_ulonglong(const fakelua_state_ptr &s, unsigned long long v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_int(static_cast<int64_t>(v));
+cvar native_to_fakelua_float(const fakelua_state_ptr &s, float v) {
+    var ret;
+    ret.set_float(v);
     return ret;
 }
 
-const var *native_to_fakelua_float(const fakelua_state_ptr &s, float v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_float(v);
+cvar native_to_fakelua_double(const fakelua_state_ptr &s, double v) {
+    var ret;
+    ret.set_float(v);
     return ret;
 }
 
-const var *native_to_fakelua_double(const fakelua_state_ptr &s, double v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_float(v);
+cvar native_to_fakelua_cstr(const fakelua_state_ptr &s, const char *v) {
+    var ret;
+    ret.set_string(s, v);
     return ret;
 }
 
-const var *native_to_fakelua_cstr(const fakelua_state_ptr &s, const char *v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_string(s, v);
+cvar native_to_fakelua_str(const fakelua_state_ptr &s, char *v) {
+    var ret;
+    ret.set_string(s, v);
     return ret;
 }
 
-const var *native_to_fakelua_str(const fakelua_state_ptr &s, char *v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_string(s, v);
+cvar native_to_fakelua_string(const fakelua_state_ptr &s, const std::string &v) {
+    var ret;
+    ret.set_string(s, v);
     return ret;
 }
 
-const var *native_to_fakelua_string(const fakelua_state_ptr &s, const std::string &v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_string(s, v);
+cvar native_to_fakelua_stringview(const fakelua_state_ptr &s, const std::string_view &v) {
+    var ret;
+    ret.set_string(s, v);
     return ret;
 }
 
-const var *native_to_fakelua_stringview(const fakelua_state_ptr &s, const std::string_view &v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_string(s, v);
-    return ret;
-}
-
-void vi_to_var(const fakelua_state_ptr &s, const var_interface *src, var *dst) {
+var vi_to_var(const fakelua_state_ptr &s, const var_interface *src) {
     DEBUG_ASSERT(src->vi_get_type() >= var_interface::type::MIN && src->vi_get_type() <= var_interface::type::MAX);
+    var ret;
     switch (src->vi_get_type()) {
         case var_interface::type::NIL:
-            dst->set_nil();
+            ret.set_nil();
             break;
         case var_interface::type::BOOL:
-            dst->set_bool(src->vi_get_bool());
+            ret.set_bool(src->vi_get_bool());
             break;
         case var_interface::type::INT:
-            dst->set_int(src->vi_get_int());
+            ret.set_int(src->vi_get_int());
             break;
         case var_interface::type::FLOAT:
-            dst->set_float(src->vi_get_float());
+            ret.set_float(src->vi_get_float());
             break;
         case var_interface::type::STRING:
-            dst->set_string(s, src->vi_get_string());
+            ret.set_string(s, src->vi_get_string());
             break;
         case var_interface::type::TABLE:
-            dst->set_table(s);
-            for (int i = 0; i < (int) src->vi_get_table_size(); ++i) {
+            ret.set_table(s);
+            for (int i = 0; i < static_cast<int>(src->vi_get_table_size()); ++i) {
                 const auto [fst, snd] = src->vi_get_table_kv(i);
-                const auto k = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-                const auto v = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-                vi_to_var(s, fst, k);
-                vi_to_var(s, snd, v);
-                dst->get_table()->set(*k, *v, true);
+                auto k = vi_to_var(s, fst);
+                auto v = vi_to_var(s, snd);
+                ret.get_table()->set(k, v, true);
             }
             break;
     }
-}
-
-const var *native_to_fakelua_obj(const fakelua_state_ptr &s, const var_interface *v) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    vi_to_var(s, v, ret);
     return ret;
 }
 
-bool fakelua_to_native_bool(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_BOOL) {
-        return v->get_bool();
-    }
-    throw_fakelua_exception(std::format("fakelua_to_native_bool failed, type is {}", magic_enum::enum_name(v->type())));
+cvar native_to_fakelua_obj(const fakelua_state_ptr &s, const var_interface *v) {
+    return vi_to_var(s, v);
 }
 
-char fakelua_to_native_char(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_INT) {
-        return static_cast<char>(v->get_int());
+bool fakelua_to_native_bool(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_BOOL) {
+        return vv.get_bool();
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_char failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_bool failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-unsigned char fakelua_to_native_uchar(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_INT) {
-        return static_cast<unsigned char>(v->get_int());
+char fakelua_to_native_char(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_INT) {
+        return static_cast<char>(vv.get_int());
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_uchar failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_char failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-short fakelua_to_native_short(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_INT) {
-        return static_cast<short>(v->get_int());
+unsigned char fakelua_to_native_uchar(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_INT) {
+        return static_cast<unsigned char>(vv.get_int());
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_short failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_uchar failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-unsigned short fakelua_to_native_ushort(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_INT) {
-        return static_cast<unsigned short>(v->get_int());
+short fakelua_to_native_short(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_INT) {
+        return static_cast<short>(vv.get_int());
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_ushort failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_short failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-int fakelua_to_native_int(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_INT) {
-        return static_cast<int>(v->get_int());
+unsigned short fakelua_to_native_ushort(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_INT) {
+        return static_cast<unsigned short>(vv.get_int());
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_int failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_ushort failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-unsigned int fakelua_to_native_uint(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_INT) {
-        return static_cast<unsigned int>(v->get_int());
+int fakelua_to_native_int(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_INT) {
+        return static_cast<int>(vv.get_int());
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_uint failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_int failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-long fakelua_to_native_long(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_INT) {
-        return v->get_int();
+unsigned int fakelua_to_native_uint(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_INT) {
+        return static_cast<unsigned int>(vv.get_int());
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_long failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_uint failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-unsigned long fakelua_to_native_ulong(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_INT) {
-        return v->get_int();
+long fakelua_to_native_long(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_INT) {
+        return vv.get_int();
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_ulong failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_long failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-long long fakelua_to_native_longlong(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_INT) {
-        return v->get_int();
+unsigned long fakelua_to_native_ulong(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_INT) {
+        return vv.get_int();
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_longlong failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_ulong failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-unsigned long long fakelua_to_native_ulonglong(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_INT) {
-        return static_cast<unsigned long long>(v->get_int());
+long long fakelua_to_native_longlong(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_INT) {
+        return vv.get_int();
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_ulonglong failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_longlong failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-float fakelua_to_native_float(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_FLOAT) {
-        return static_cast<float>(v->get_float());
+unsigned long long fakelua_to_native_ulonglong(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_INT) {
+        return static_cast<unsigned long long>(vv.get_int());
     }
-    if (v->type() == var_type::VAR_INT) {
-        return static_cast<float>(v->get_int());
-    }
-    throw_fakelua_exception(std::format("fakelua_to_native_float failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_ulonglong failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-double fakelua_to_native_double(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_FLOAT) {
-        return v->get_float();
+float fakelua_to_native_float(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_FLOAT) {
+        return static_cast<float>(vv.get_float());
     }
-    if (v->type() == var_type::VAR_INT) {
-        return static_cast<double>(v->get_int());
+    if (vv.type() == var_type::VAR_INT) {
+        return static_cast<float>(vv.get_int());
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_double failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_float failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-const char *fakelua_to_native_cstr(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_STRING) {
-        return v->get_string()->str().data();
+double fakelua_to_native_double(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_FLOAT) {
+        return vv.get_float();
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_cstr failed, type is {}", magic_enum::enum_name(v->type())));
+    if (vv.type() == var_type::VAR_INT) {
+        return static_cast<double>(vv.get_int());
+    }
+    throw_fakelua_exception(std::format("fakelua_to_native_double failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-const char *fakelua_to_native_str(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_STRING) {
-        return v->get_string()->str().data();
+const char *fakelua_to_native_cstr(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_STRING) {
+        return vv.get_string()->str().data();
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_str failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_cstr failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-std::string fakelua_to_native_string(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_STRING) {
-        return std::string(v->get_string()->str());
+const char *fakelua_to_native_str(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_STRING) {
+        return vv.get_string()->str().data();
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_string failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_str failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-std::string_view fakelua_to_native_stringview(const fakelua_state_ptr &s, const var *v) {
-    if (v->type() == var_type::VAR_STRING) {
-        return v->get_string()->str();
+std::string fakelua_to_native_string(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_STRING) {
+        return std::string(vv.get_string()->str());
     }
-    throw_fakelua_exception(std::format("fakelua_to_native_stringview failed, type is {}", magic_enum::enum_name(v->type())));
+    throw_fakelua_exception(std::format("fakelua_to_native_string failed, type is {}", magic_enum::enum_name(vv.type())));
 }
 
-void var_to_vi(const fakelua_state_ptr &s, const var *src, var_interface *dst) {
-    DEBUG_ASSERT(src->type() >= var_type::VAR_MIN && src->type() <= var_type::VAR_MAX);
-    switch (src->type()) {
+std::string_view fakelua_to_native_stringview(const fakelua_state_ptr &s, cvar v) {
+    const auto vv = static_cast<var &>(v);
+    if (vv.type() == var_type::VAR_STRING) {
+        return vv.get_string()->str();
+    }
+    throw_fakelua_exception(std::format("fakelua_to_native_stringview failed, type is {}", magic_enum::enum_name(vv.type())));
+}
+
+void var_to_vi(const fakelua_state_ptr &s, cvar src, var_interface *dst) {
+    const auto vv = static_cast<var &>(src);
+    DEBUG_ASSERT(vv.type() >= var_type::VAR_MIN && vv.type() <= var_type::VAR_MAX);
+    switch (vv.type()) {
         case var_type::VAR_NIL:
             dst->vi_set_nil();
             break;
         case var_type::VAR_BOOL:
-            dst->vi_set_bool(src->get_bool());
+            dst->vi_set_bool(vv.get_bool());
             break;
         case var_type::VAR_INT:
-            dst->vi_set_int(src->get_int());
+            dst->vi_set_int(vv.get_int());
             break;
         case var_type::VAR_FLOAT:
-            dst->vi_set_float(src->get_float());
+            dst->vi_set_float(vv.get_float());
             break;
         case var_type::VAR_STRING:
-            dst->vi_set_string(src->get_string()->str());
+            dst->vi_set_string(vv.get_string()->str());
             break;
         case var_type::VAR_TABLE: {
             std::vector<std::pair<var_interface *, var_interface *>> kvs;
-            for (size_t i = 0; i < src->get_table()->size(); ++i) {
-                const auto k = src->get_table()->key_at(i);
-                const auto v = src->get_table()->value_at(i);
+            for (size_t i = 0; i < vv.get_table()->size(); ++i) {
+                const auto k = vv.get_table()->key_at(i);
+                const auto v = vv.get_table()->value_at(i);
                 auto ki = std::dynamic_pointer_cast<state>(s)->get_var_interface_new_func()();
                 auto vi = std::dynamic_pointer_cast<state>(s)->get_var_interface_new_func()();
                 var_to_vi(s, k, ki);
@@ -313,22 +327,22 @@ void var_to_vi(const fakelua_state_ptr &s, const var *src, var_interface *dst) {
     }
 }
 
-var_interface *fakelua_to_native_obj(const fakelua_state_ptr &s, const var *v) {
+var_interface *fakelua_to_native_obj(const fakelua_state_ptr &s, cvar v) {
     const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_interface_new_func()();
     var_to_vi(s, v, ret);
     return ret;
 }
 
-const var *fakelua_get_var_by_index(const fakelua_state_ptr &s, const var *ret, size_t i) {
-    DEBUG_ASSERT(ret);
-    if (ret->type() == var_type::VAR_TABLE && ret->is_variadic()) {
+cvar fakelua_get_var_by_index(const fakelua_state_ptr &s, cvar ret, size_t i) {
+    const auto vv = static_cast<var &>(ret);
+    if (vv.type() == var_type::VAR_TABLE && vv.is_variadic()) {
         const var tmp(static_cast<int64_t>(i));
-        return ret->get_table()->get(tmp);
+        return vv.get_table()->get(tmp);
     } else {
         if (i == 1) {
             return ret;
         } else {
-            return &const_null_var;
+            return const_null_var;
         }
     }
 }
@@ -342,15 +356,15 @@ void *get_func_addr(const fakelua_state_ptr &s, const std::string &name, int &ar
     return nullptr;
 }
 
-const var *make_variadic_table(const fakelua_state_ptr &s, int start, int n, const var **args) {
-    const auto ret = std::dynamic_pointer_cast<state>(s)->get_var_pool().alloc();
-    ret->set_table(s);
+cvar make_variadic_table(const fakelua_state_ptr &s, int start, int n, const cvar *args) {
+    var ret;
+    ret.set_table(s);
     for (int i = 0; i < n - start; i++) {
         var key(static_cast<int64_t>(i + 1));
         const auto v = args[start + i];
-        ret->get_table()->set(key, *v, true);
+        ret.get_table()->set(key, static_cast<const var &>(v), true);
     }
-    ret->set_variadic(true);
+    ret.set_variadic(true);
     return ret;
 }
 
