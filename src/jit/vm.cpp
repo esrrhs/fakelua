@@ -42,6 +42,31 @@ static void expand_var_list(std::vector<var *> &params) {
     }
 }
 
+static void expand_var_list(std::vector<var> &params) {
+    for (size_t i = 0; i < params.size(); i++) {
+        const auto param = params[i];
+        DEBUG_ASSERT(param.type() >= var_type::VAR_MIN && param.type() <= var_type::VAR_MAX);
+        if (param.is_variadic()) {
+            DEBUG_ASSERT(param.type() == var_type::VAR_TABLE);
+            const auto table = param.get_table();
+            if (i == params.size() - 1) {
+                params.pop_back();
+                for (int j = 1; j <= static_cast<int>(table->size()); j++) {
+                    var tmp;
+                    tmp.set_int(j);
+                    auto value = table->get(tmp);
+                    params.push_back(value);
+                }
+            } else {
+                var tmp;
+                tmp.set_int(1);
+                const auto value = table->get(tmp);
+                params[i] = value;
+            }
+        }
+    }
+}
+
 extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, gcc_jit_handle *h, bool is_const, int n, ...) {
     DEBUG_ASSERT(n % 2 == 0);
     std::vector<var *> keys;
@@ -77,31 +102,31 @@ extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, gcc_jit_ha
     return ret;
 }
 
-extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, gcc_jit_handle *h, bool is_const, int n, ...) {
+extern "C" __attribute__((used)) var wrap_return_var(fakelua_state *s, bool is_const, int n, ...) {
     DEBUG_ASSERT(n >= 0);
-    std::vector<var *> params;
+    std::vector<var> params;
     va_list args;
     va_start(args, n);
     for (int i = 0; i < n; i++) {
-        auto arg = va_arg(args, var *);
-        DEBUG_ASSERT(arg);
-        DEBUG_ASSERT(arg->type() >= var_type::VAR_MIN && arg->type() <= var_type::VAR_MAX);
+        auto arg = va_arg(args, var);
+        DEBUG_ASSERT(arg.type() >= var_type::VAR_MIN && arg.type() <= var_type::VAR_MAX);
         params.push_back(arg);
     }
     va_end(args);
 
-    auto ret = alloc_val_helper(s, h, is_const);
-    ret->set_table(s);
-    ret->set_variadic(true);
+    var ret;
+    ret.set_const(is_const);
+    ret.set_variadic(true);
+    ret.set_table(s);
 
     expand_var_list(params);
 
     // push to ret
     for (size_t i = 0; i < params.size(); i++) {
         auto arg = params[i];
-        auto k = alloc_val_helper(s, h, is_const);
-        k->set_int(i + 1);
-        ret->get_table()->set(*k, *arg, true);
+        var k;
+        k.set_int(static_cast<int64_t>(i) + 1);
+        ret.get_table()->set(k, arg, true);
     }
     return ret;
 }

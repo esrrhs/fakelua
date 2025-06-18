@@ -49,7 +49,7 @@ private:
 
 extern "C" __attribute__((used)) var *new_var_table(fakelua_state *s, gcc_jit_handle *h, bool is_const, int n, ...);
 
-extern "C" __attribute__((used)) var *wrap_return_var(fakelua_state *s, gcc_jit_handle *h, bool is_const, int n, ...);
+extern "C" __attribute__((used)) var wrap_return_var(fakelua_state *s, bool is_const, int n, ...);
 
 extern "C" __attribute__((used)) void assign_var(fakelua_state *s, gcc_jit_handle *h, bool is_const, int left_n, int right_n, ...);
 

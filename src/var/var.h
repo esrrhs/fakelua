@@ -117,6 +117,8 @@ public:
     [[nodiscard]] std::string to_string(bool has_quote = true, bool has_postfix = true) const;
 
     void set_const(bool val) {
+        // should call set_const before setting type
+        DEBUG_ASSERT(type_ != static_cast<int>(var_type::VAR_STRING) && type_ != static_cast<int>(var_type::VAR_TABLE));
         SET_FLAG_BIT(flag_, VAR_FLAG_CONST_IDX, val);
     }
 
@@ -211,6 +213,7 @@ public:
 };
 
 // assert var size is 16 bytes, the same as we defined in gccjit
+static_assert(sizeof(var) == sizeof(cvar));
 static_assert(sizeof(var) == 16);
 
 extern var const_null_var;

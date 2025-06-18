@@ -115,12 +115,6 @@ void gcc_jitter::compile(const fakelua_state_ptr &sp, const compile_config &cfg,
         LOG_INFO("{} gccjit dump file: {}", file_name, dumpfile);
     }
 
-    gccjit_context_->release();
-    gccjit_context_ = nullptr;
-
-    // call the global const define init func
-    call_global_init_func();
-
     // register the function
     for (auto &[name, info]: function_infos_) {
         auto func = gcc_jit_result_get_code(result, name.c_str());
@@ -129,6 +123,12 @@ void gcc_jitter::compile(const fakelua_state_ptr &sp, const compile_config &cfg,
                 name, std::make_shared<vm_function>(gcc_jit_handle_, func, info.params_count, info.is_variadic));
         LOG_INFO("register function: {}", name);
     }
+
+    // call the global const define init func
+    call_global_init_func();
+
+    gccjit_context_->release();
+    gccjit_context_ = nullptr;
 
     LOG_INFO("end gcc_jitter::compile {}", file_name);
 }
@@ -251,16 +251,15 @@ void gcc_jitter::init_global_const_var(gccjit::function &func) {
     // set type
     cur_function_data_.cur_block.add_assignment(global_const_null_var_.access_field(var_type_field_),
                                                 gccjit_context_->new_rvalue(int_type_, static_cast<int>(var_type::VAR_NIL)));
-    // flag |= 1
+    // flag |= 1 << 0
     cur_function_data_.cur_block.add_assignment_op(global_const_null_var_.access_field(var_flag_field_), GCC_JIT_BINARY_OP_BITWISE_OR,
                                                    gccjit_context_->new_rvalue(int_type_, (int) 1 << VAR_FLAG_CONST_IDX));
-
     // init global_const_false_var_
     cur_function_data_.cur_block.add_comment("init const_false_var");
     // set type
     cur_function_data_.cur_block.add_assignment(global_const_false_var_.access_field(var_type_field_),
                                                 gccjit_context_->new_rvalue(int_type_, (int) static_cast<int>(var_type::VAR_BOOL)));
-    // flag |= 1
+    // flag |= 1 << 0
     cur_function_data_.cur_block.add_assignment_op(global_const_false_var_.access_field(var_flag_field_), GCC_JIT_BINARY_OP_BITWISE_OR,
                                                    gccjit_context_->new_rvalue(int_type_, (int) 1 << VAR_FLAG_CONST_IDX));
     // set data.b = false
@@ -272,7 +271,7 @@ void gcc_jitter::init_global_const_var(gccjit::function &func) {
     // set type
     cur_function_data_.cur_block.add_assignment(global_const_true_var_.access_field(var_type_field_),
                                                 gccjit_context_->new_rvalue(int_type_, (int) static_cast<int>(var_type::VAR_BOOL)));
-    // flag |= 1
+    // flag |= 1 << 0
     cur_function_data_.cur_block.add_assignment_op(global_const_true_var_.access_field(var_flag_field_), GCC_JIT_BINARY_OP_BITWISE_OR,
                                                    gccjit_context_->new_rvalue(int_type_, (int) 1 << VAR_FLAG_CONST_IDX));
     // set data.b = true
@@ -531,32 +530,27 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, const syntax_tree_i
         return;
     }
 
-    auto explist_ret = compile_explist(func, explist);
+    const auto explist_ret = compile_explist(func, explist);
 
-    auto the_var_type = gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR);
-    auto the_bool_type = gccjit_context_->get_type(GCC_JIT_TYPE_BOOL);
-
-    auto is_const = cur_function_data_.is_const;
+    const auto is_const = cur_function_data_.is_const;
 
     std::vector<gccjit::param> params;
-    params.push_back(gccjit_context_->new_param(the_var_type, "s"));
-    params.push_back(gccjit_context_->new_param(the_var_type, "h"));
-    params.push_back(gccjit_context_->new_param(the_bool_type, "is_const"));
-    params.push_back(gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_INT), "n"));
+    params.push_back(gccjit_context_->new_param(void_ptr_type_, "s"));
+    params.push_back(gccjit_context_->new_param(bool_type_, "is_const"));
+    params.push_back(gccjit_context_->new_param(int_type_, "n"));
 
     std::vector<gccjit::rvalue> args;
-    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) sp_.get()));
-    args.push_back(gccjit_context_->new_rvalue(the_var_type, (void *) gcc_jit_handle_.get()));
-    args.push_back(gccjit_context_->new_rvalue(the_bool_type, is_const));
-    args.push_back(gccjit_context_->new_rvalue(gccjit_context_->get_type(GCC_JIT_TYPE_INT), (int) explist_ret.size()));
+    args.push_back(gccjit_context_->new_rvalue(void_ptr_type_, (void *) sp_.get()));
+    args.push_back(gccjit_context_->new_rvalue(bool_type_, is_const));
+    args.push_back(gccjit_context_->new_rvalue(int_type_, static_cast<int>(explist_ret.size())));
 
     for (auto &exp_ret: explist_ret) {
         args.push_back(exp_ret);
     }
 
-    gccjit::function wrap_return_func =
-            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, the_var_type, "wrap_return_var", params, 1, new_location(explist));
-    auto ret = gccjit_context_->new_call(wrap_return_func, args, new_location(explist));
+    const gccjit::function wrap_return_func =
+            gccjit_context_->new_function(GCC_JIT_FUNCTION_IMPORTED, var_struct_, "wrap_return_var", params, 1, new_location(explist));
+    const auto ret = gccjit_context_->new_call(wrap_return_func, args, new_location(explist));
 
     DEBUG_ASSERT(!is_block_ended());
     cur_function_data_.cur_block.end_with_return(ret, new_location(return_stmt));
@@ -581,7 +575,7 @@ void gcc_jitter::call_global_init_func() {
     if (global_const_vars_.empty()) {
         return;
     }
-    auto init_func = (void (*)()) gcc_jit_result_get_code(gcc_jit_handle_->get_result(), "__fakelua_global_init__");
+    const auto init_func = reinterpret_cast<var (*)()>(gcc_jit_result_get_code(gcc_jit_handle_->get_result(), "__fakelua_global_init__"));
     DEBUG_ASSERT(init_func);
     init_func();
 }

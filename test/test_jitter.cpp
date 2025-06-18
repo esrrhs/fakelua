@@ -113,42 +113,31 @@ TEST(jitter, empty_local_func) {
         ASSERT_NE(L.get(), nullptr);
 
         cvar ret;
-        const auto v = static_cast<var &>(ret);
-        L->compile_file("./jit/test_empty_local_func.lua", {});
+        const auto &v = *reinterpret_cast<var *>(&ret);
+        L->compile_file("./jit/test_empty_local_func.lua", {.debug_mode = debug_mode});
         L->call("test", std::tie(ret));
         ASSERT_EQ(v.type(), var_type::VAR_NIL);
     });
 }
 
 TEST(jitter, multi_return) {
-    auto L = fakelua_newstate();
-    ASSERT_NE(L.get(), nullptr);
+    jitter_run_helper([](bool debug_mode) {
+        const auto L = fakelua_newstate();
+        ASSERT_NE(L.get(), nullptr);
 
-    int i = 0;
-    float f = 0;
-    bool b1 = false;
-    bool b2 = false;
-    std::string s;
-    L->compile_file("./jit/test_multi_return.lua", {});
-    L->call("test", std::tie(i, f, b1, b2, s));
-    ASSERT_EQ(i, 1);
-    ASSERT_NEAR(f, 2.3, 0.001);
-    ASSERT_EQ(b1, false);
-    ASSERT_EQ(b2, true);
-    ASSERT_EQ(s, "test");
-
-    i = 0;
-    f = 0;
-    b1 = false;
-    b2 = false;
-    s.clear();
-    L->compile_file("./jit/test_multi_return.lua", {.debug_mode = false});
-    L->call("test", std::tie(i, f, b1, b2, s));
-    ASSERT_EQ(i, 1);
-    ASSERT_NEAR(f, 2.3, 0.001);
-    ASSERT_EQ(b1, false);
-    ASSERT_EQ(b2, true);
-    ASSERT_EQ(s, "test");
+        int i = 0;
+        float f = 0;
+        bool b1 = false;
+        bool b2 = false;
+        std::string s;
+        L->compile_file("./jit/test_multi_return.lua", {.debug_mode = debug_mode});
+        L->call("test", std::tie(i, f, b1, b2, s));
+        ASSERT_EQ(i, 1);
+        ASSERT_NEAR(f, 2.3, 0.001);
+        ASSERT_EQ(b1, false);
+        ASSERT_EQ(b2, true);
+        ASSERT_EQ(s, "test");
+    });
 }
 
 TEST(jitter, multi_return_call) {
