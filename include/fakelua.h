@@ -477,6 +477,11 @@ private:
 // call funtion by name
 template<typename... Rets, typename... Args>
 void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, Args &&...args) {
+
+    // TODO transfer args to vars array
+    // TODO call function(var*ret,int ret_size, var*args, int arg_size)
+    // TODO transfer ret to rets
+
     int arg_count = 0;
     bool is_variadic = false;
     const auto addr = inter::get_func_addr(shared_from_this(), name, arg_count, is_variadic);
