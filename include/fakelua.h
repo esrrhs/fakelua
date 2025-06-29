@@ -245,7 +245,6 @@ public:
 
 private:
     std::function<var_interface *()> var_interface_new_func_;
-    int reentrant_count_ = 0;// used to reset
 };
 
 using fakelua_state_ptr = std::shared_ptr<fakelua_state>;
@@ -424,98 +423,37 @@ T fakelua_to_native(const fakelua_state_ptr &s, const cvar v) {
     }
 }
 
-cvar fakelua_get_var_by_index(const fakelua_state_ptr &s, cvar ret, size_t i);
-
 template<size_t I = 0, typename... Rets>
-inline std::enable_if_t<I == sizeof...(Rets), void> fakelua_func_ret_helper(const fakelua_state_ptr &s, cvar ret,
+inline std::enable_if_t<I == sizeof...(Rets), void> fakelua_func_ret_helper(const fakelua_state_ptr &s, cvar *ret,
                                                                             std::tuple<Rets &...> &rets) {
 }
 
 template<size_t I = 0, typename... Rets>
         inline std::enable_if_t <
-        I<sizeof...(Rets), void> fakelua_func_ret_helper(const fakelua_state_ptr &s, cvar ret, std::tuple<Rets &...> &rets) {
+        I<sizeof...(Rets), void> fakelua_func_ret_helper(const fakelua_state_ptr &s, cvar *ret, std::tuple<Rets &...> &rets) {
     typedef std::remove_reference_t<std::tuple_element_t<I, std::tuple<Rets &...>>> t;
-    const auto v = fakelua_get_var_by_index(s, ret, I + 1);
-    std::get<I>(rets) = fakelua_to_native<t>(s, v);
+    std::get<I>(rets) = fakelua_to_native<t>(s, ret[I]);
     fakelua_func_ret_helper<I + 1, Rets...>(s, ret, rets);
 }
 
-template<typename Func, typename T, std::size_t N, std::size_t... Is>
-cvar call_variadic_helper(Func func, const T (&array)[N], std::index_sequence<Is...>) {
-    return func(array[Is]...);
-}
-
-template<typename Func, typename T, std::size_t N>
-cvar call_variadic_helper(Func func, const T (&array)[N]) {
-    return call_variadic_helper(func, array, std::make_index_sequence<N>{});
-}
-
-void *get_func_addr(const fakelua_state_ptr &s, const std::string &name, int &arg_count, bool &is_variadic);
-
-cvar make_variadic_table(const fakelua_state_ptr &s, int start, int n, const cvar *args);
-
-void reset(const fakelua_state_ptr &s);
-
-[[noreturn]] void throw_inter_fakelua_exception(const std::string &msg);
-
-class reentry_counter {
-public:
-    explicit reentry_counter(int &counter) : counter_(counter) {
-        ++counter_;
-    }
-
-    ~reentry_counter() {
-        --counter_;
-    }
-
-private:
-    int &counter_;
-};
+void call(const fakelua_state_ptr &s, const std::string &name, cvar *args, int arg_size, cvar *rets, int ret_size);
 
 }// namespace inter
 
 // call funtion by name
 template<typename... Rets, typename... Args>
 void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, Args &&...args) {
+    // transfer args to vars array
+    cvar args_array[sizeof...(Args)] = {inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...};
 
-    // TODO transfer args to vars array
-    // TODO call function(var*ret,int ret_size, var*args, int arg_size)
-    // TODO transfer ret to rets
+    // alloc vars in stack
+    cvar rets_array[sizeof...(Rets)] = {};
 
-    int arg_count = 0;
-    bool is_variadic = false;
-    const auto addr = inter::get_func_addr(shared_from_this(), name, arg_count, is_variadic);
-    if (!addr) {
-        inter::throw_inter_fakelua_exception(std::format("function {} not found", name));
-    }
+    // call function
+    inter::call(shared_from_this(), name, args_array, sizeof...(Args), rets_array, sizeof...(Rets));
 
-    if (!reentrant_count_) {
-        inter::reset(shared_from_this());
-    }
-    inter::reentry_counter rc(reentrant_count_);
-
-    // change every input args to cvar  by native_to_var() function
-    // and change every output args to native type by var_to_native() function
-    cvar ret_var;
-    if (!is_variadic) {
-        if (sizeof...(Args) != static_cast<size_t>(arg_count)) {
-            inter::throw_inter_fakelua_exception(
-                    std::format("function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
-        }
-        ret_var = reinterpret_cast<cvar (*)(...)>(addr)(inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...);
-    } else {
-        if (sizeof...(Args) < static_cast<size_t>(arg_count)) {
-            inter::throw_inter_fakelua_exception(
-                    std::format("function {} arg count not match, need >= {} get {}", name, arg_count, sizeof...(Args)));
-        }
-        // save the variadic args to a table
-        cvar args_array[sizeof...(Args) + 1] = {{}, inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...};
-        args_array[0] = inter::make_variadic_table(shared_from_this(), arg_count + 1, sizeof...(Args) + 1, args_array);
-        // call function by args array
-        ret_var = inter::call_variadic_helper(reinterpret_cast<cvar (*)(...)>(addr), args_array);
-    }
-
-    inter::fakelua_func_ret_helper(shared_from_this(), ret_var, rets);
+    // transfer vars to rets
+    inter::fakelua_func_ret_helper(shared_from_this(), rets_array, rets);
 }
 
 // create fake_lua state

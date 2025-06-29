@@ -36,10 +36,15 @@ public:
         return vm_;
     }
 
+    int & get_reentrant_count() {
+        return reentrant_count_;
+    }
+
 private:
     var_string_heap var_string_heap_;
     var_table_heap var_table_heap_;
     vm vm_;
+    int reentrant_count_ = 0;// used to reset
 };
 
 }// namespace fakelua

@@ -333,47 +333,35 @@ var_interface *fakelua_to_native_obj(const fakelua_state_ptr &s, cvar v) {
     return ret;
 }
 
-cvar fakelua_get_var_by_index(const fakelua_state_ptr &s, cvar ret, size_t i) {
-    const auto vv = static_cast<var &>(ret);
-    if (vv.type() == var_type::VAR_TABLE && vv.is_variadic()) {
-        const var tmp(static_cast<int64_t>(i));
-        return vv.get_table()->get(tmp);
-    } else {
-        if (i == 1) {
-            return ret;
-        } else {
-            return const_null_var;
-        }
+class reentry_counter {
+public:
+    explicit reentry_counter(int &counter) : counter_(counter) {
+        ++counter_;
     }
-}
 
-void *get_func_addr(const fakelua_state_ptr &s, const std::string &name, int &arg_count, bool &is_variadic) {
-    if (const auto func = std::dynamic_pointer_cast<state>(s)->get_vm().get_function(name)) {
-        arg_count = func->get_arg_count();
-        is_variadic = func->is_variadic();
-        return func->get_addr();
+    ~reentry_counter() {
+        --counter_;
     }
-    return nullptr;
-}
 
-cvar make_variadic_table(const fakelua_state_ptr &s, int start, int n, const cvar *args) {
-    var ret;
-    ret.set_table(s);
-    for (int i = 0; i < n - start; i++) {
-        var key(static_cast<int64_t>(i + 1));
-        const auto v = args[start + i];
-        ret.get_table()->set(key, static_cast<const var &>(v), true);
+private:
+    int &counter_;
+};
+
+void call(const fakelua_state_ptr &s, const std::string &name, cvar *args, int arg_size, cvar *rets, int ret_size) {
+    const auto st = std::dynamic_pointer_cast<state>(s);
+    const auto func = st->get_vm().get_function(name);
+    if (!func) {
+        throw_fakelua_exception(std::format("function {} not found", name));
     }
-    ret.set_variadic(true);
-    return ret;
-}
+    const auto addr = func->get_addr();
 
-void reset(const fakelua_state_ptr &s) {
-    std::dynamic_pointer_cast<state>(s)->reset();
-}
+    auto &reentrant_count = st->get_reentrant_count();
+    if (!reentrant_count) {
+        st->reset();
+    }
+    reentry_counter rc(reentrant_count);
 
-[[noreturn]] void throw_inter_fakelua_exception(const std::string &msg) {
-    throw_fakelua_exception(msg);
+    reinterpret_cast<void (*)(cvar *, int, cvar *, int)>(addr)(args, arg_size, rets, ret_size);
 }
 
 }// namespace inter
