@@ -436,7 +436,7 @@ template<size_t I = 0, typename... Rets>
     fakelua_func_ret_helper<I + 1, Rets...>(s, ret, rets);
 }
 
-void call(const fakelua_state_ptr &s, const std::string &name, cvar *args, int arg_size, cvar *rets, int ret_size);
+void call(const fakelua_state_ptr &s, const std::string &name, cvar *args, size_t arg_size, cvar *rets, size_t ret_size);
 
 }// namespace inter
 

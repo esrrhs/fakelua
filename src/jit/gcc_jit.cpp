@@ -181,15 +181,31 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     cur_function_data_.is_const = name == "__fakelua_global_init__";
     cur_function_data_.cur_function_name = name;
 
+    // compile the func params, all func params is (var *args, size_t arg_size, var *rets, size_t ret_size)
+    std::vector<gccjit::param> call_func_params;
+    call_func_params.push_back(gccjit_context_->new_param(var_struct_.get_pointer(), "__fakelua_args__", new_location(funcbody_ptr)));
+    call_func_params.push_back(gccjit_context_->new_param(size_t_type_, "__fakelua_args_size__", new_location(funcbody_ptr)));
+    call_func_params.push_back(gccjit_context_->new_param(var_struct_.get_pointer(), "__fakelua_rets__", new_location(funcbody_ptr)));
+    call_func_params.push_back(gccjit_context_->new_param(size_t_type_, "__fakelua_rets_size__", new_location(funcbody_ptr)));
+    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, var_struct_, name.c_str(), call_func_params, 0,
+                                              new_location(funcbody_ptr));
+    cur_function_data_.cur_gccjit_func = func;
+
+    // define the function body
+    const auto block = funcbody_ptr->block();
+    const auto the_block = func.new_block(new_block_name("block", block));
+    cur_function_data_.cur_block = the_block;
+
     // compile the input params
     const auto parlist = funcbody_ptr->parlist();
     int is_variadic = 0;
-    std::vector<std::pair<std::string, gccjit::param>> func_params;
+    std::vector<std::pair<std::string, gccjit::lvalue>> func_params;
     if (parlist) {
-        func_params = compile_parlist(parlist, is_variadic);
+        func_params = compile_parlist(func, parlist, is_variadic);
     }
     const auto actual_params_count = func_params.size();
     if (is_variadic) {
+        // TODO
         // insert variadic in the front of params
         func_params.insert(func_params.begin(), std::make_pair("__fakelua_variadic__",
                                                                gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR),
@@ -204,23 +220,12 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     cur_function_data_.stack_frames.clear();
     cur_function_data_.stack_frames.push_back(sf);
 
-    // get every second in func_params
-    std::vector<gccjit::param> call_func_params;
-    std::ranges::transform(func_params, std::back_inserter(call_func_params), [](const auto &pair) { return pair.second; });
-    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, var_struct_, name.c_str(), call_func_params, is_variadic,
-                                              new_location(funcbody_ptr));
-    cur_function_data_.cur_gccjit_func = func;
-
-    // compile the function body
-    const auto block = funcbody_ptr->block();
-    const auto the_block = func.new_block(new_block_name("block", block));
-    cur_function_data_.cur_block = the_block;
-
     // init some const var if is const func
     if (cur_function_data_.is_const) {
         init_global_const_var(func);
     }
 
+    // compile the function body
     compile_stmt_block(func, block);
 
     // check the return block, if the return block is not ended with return, we add a return nil
@@ -399,11 +404,12 @@ gccjit::rvalue gcc_jitter::compile_exp(gccjit::function &func, const syntax_tree
     return ret;
 }
 
-std::vector<std::pair<std::string, gccjit::param>> gcc_jitter::compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic) {
+std::vector<std::pair<std::string, gccjit::lvalue>> gcc_jitter::compile_parlist(gccjit::function &func, syntax_tree_interface_ptr parlist,
+                                                                                int &is_variadic) {
     DEBUG_ASSERT(parlist->type() == syntax_tree_type::syntax_tree_type_parlist);
     const auto parlist_ptr = std::dynamic_pointer_cast<syntax_tree_parlist>(parlist);
 
-    std::vector<std::pair<std::string, gccjit::param>> ret;
+    std::vector<std::pair<std::string, gccjit::lvalue>> ret;
 
     if (const auto namelist = parlist_ptr->namelist()) {
         DEBUG_ASSERT(namelist->type() == syntax_tree_type::syntax_tree_type_namelist);
@@ -423,9 +429,52 @@ std::vector<std::pair<std::string, gccjit::param>> gcc_jitter::compile_parlist(s
             param_names_set.insert(name);
         }
 
-        for (auto &name: param_names) {
-            auto param = gccjit_context_->new_param(var_struct_, name, new_location(namelist_ptr));
-            ret.push_back(std::make_pair(name, param));
+        const auto args = func.get_param(0);
+        const auto args_size = func.get_param(1);
+
+        for (size_t i = 0; i < param_names.size(); ++i) {
+            auto name = param_names[i];
+            // just copy from args: var name; if (i < __fakelua_args_size__) { name = __fakelua_args__[i]; }
+            DEBUG_ASSERT(!name.empty());
+
+            // compile: var name
+            cur_function_data_.cur_block.add_comment(std::format("new param var {}", name), new_location(namelist_ptr));
+            auto param = func.new_local(var_struct_, name, new_location(namelist_ptr));
+
+            // compile: if (i < __fakelua_args_size__)
+            const gccjit::block cond_block = func.new_block(new_block_name("if cond", namelist_ptr));
+            const gccjit::block body_block = func.new_block(new_block_name("if body", namelist_ptr));
+            const gccjit::block else_block = func.new_block(new_block_name("if else", namelist_ptr));
+            const gccjit::block end_block = func.new_block(new_block_name("if end", namelist_ptr));
+
+            DEBUG_ASSERT(!is_block_ended());
+            cur_function_data_.cur_block.end_with_jump(cond_block, new_location(namelist_ptr));
+            cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+            cur_function_data_.cur_block = cond_block;
+
+            const auto i_var = gccjit_context_->new_rvalue(int_type_, static_cast<int>(i));
+            const auto test_ret = gccjit_context_->new_comparison(GCC_JIT_COMPARISON_LT, i_var, args_size, new_location(namelist_ptr));
+
+            DEBUG_ASSERT(!is_block_ended());
+            cur_function_data_.cur_block.end_with_conditional(test_ret, body_block, else_block, new_location(namelist_ptr));
+            cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+            cur_function_data_.cur_block = body_block;
+
+            // compile: name = __fakelua_args__[i];
+            const auto args_exp = gccjit_context_->new_array_access(args, i_var, new_location(namelist_ptr));
+            cur_function_data_.cur_block.add_assignment(param, args_exp, new_location(namelist_ptr));
+
+            DEBUG_ASSERT(!is_block_ended());
+            cur_function_data_.cur_block.end_with_jump(end_block, new_location(namelist_ptr));
+            cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+            cur_function_data_.cur_block = else_block;
+
+            DEBUG_ASSERT(!is_block_ended());
+            cur_function_data_.cur_block.end_with_jump(end_block, new_location(namelist_ptr));
+            cur_function_data_.ended_blocks.insert(cur_function_data_.cur_block.get_inner_block());
+            cur_function_data_.cur_block = end_block;
+
+            ret.emplace_back(name, param);
         }
     }
 

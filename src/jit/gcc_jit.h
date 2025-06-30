@@ -34,7 +34,8 @@ private:
 
     gccjit::rvalue compile_exp(gccjit::function &func, const syntax_tree_interface_ptr &exp);
 
-    std::vector<std::pair<std::string, gccjit::param>> compile_parlist(syntax_tree_interface_ptr parlist, int &is_variadic);
+    std::vector<std::pair<std::string, gccjit::lvalue>> compile_parlist(gccjit::function &func, syntax_tree_interface_ptr parlist,
+                                                                        int &is_variadic);
 
     void compile_stmt(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
 

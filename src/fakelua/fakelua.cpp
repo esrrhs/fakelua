@@ -347,7 +347,7 @@ private:
     int &counter_;
 };
 
-void call(const fakelua_state_ptr &s, const std::string &name, cvar *args, int arg_size, cvar *rets, int ret_size) {
+void call(const fakelua_state_ptr &s, const std::string &name, cvar *args, size_t arg_size, cvar *rets, size_t ret_size) {
     const auto st = std::dynamic_pointer_cast<state>(s);
     const auto func = st->get_vm().get_function(name);
     if (!func) {
@@ -361,7 +361,7 @@ void call(const fakelua_state_ptr &s, const std::string &name, cvar *args, int a
     }
     reentry_counter rc(reentrant_count);
 
-    reinterpret_cast<void (*)(cvar *, int, cvar *, int)>(addr)(args, arg_size, rets, ret_size);
+    reinterpret_cast<void (*)(cvar *, size_t, cvar *, size_t)>(addr)(args, arg_size, rets, ret_size);
 }
 
 }// namespace inter

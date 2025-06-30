@@ -37,7 +37,7 @@ void pre_processor::process(const fakelua_state_ptr &sp, const compile_config &c
         dump_debug_file(chunk, debug_step++);
     }
 
-    // now we have funtion __fakelua_global_init__, we need to add it to the chunk. maybe later we will insert more stmts to it.
+    // now we have funtion __fakelua_global_init__, we need to add it to the chunk. we will insert more stmts to it later.
     save_preprocess_global_init(chunk);
     if (cfg.debug_mode) {
         dump_debug_file(chunk, debug_step++);
