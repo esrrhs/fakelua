@@ -557,6 +557,33 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, const syntax_tree_i
     DEBUG_ASSERT(stmt->type() == syntax_tree_type::syntax_tree_type_return);
     const auto return_stmt = std::dynamic_pointer_cast<syntax_tree_return>(stmt);
 
+    /* 1. get the return expression list
+      'return a,b,c' equals:
+          var tmp_explist[3] = {a, b, c};
+          if (ret_size < 0) {
+              memcpy(ret, tmp_explist, sizeof(tmp_explist));
+              ret_size = 3; // set ret_size to 3
+          } else {
+              size_t copy_size = 3 < ret_size ? 3 : ret_size;
+              memcpy(ret, tmp_explist, copy_size * sizeof(var));
+              memset(ret + copy_size, 0, (ret_size - copy_size) * sizeof(var)); // set the rest to nil
+          }
+
+      'return a,b,sub_func(c)' equals:
+          size_t sub_ret_size = ret_size - 2;
+          var sub_ret[sub_ret_size < 0 ? 256 : sub_ret_size];
+          sub_func(sub_ret, sub_ret_size, &c, 1);
+          var tmp_explist[2+sub_ret_size] = {a, b};
+          memcpy(tmp_explist + 2, sub_ret, sub_ret_size * sizeof(var));
+          if (ret_size < 0) {
+              memcpy(ret, tmp_explist, sizeof(tmp_explist));
+              ret_size = 2+sub_ret_size;
+          } else {
+              size_t copy_size = 2+sub_ret_size < ret_size ? 2+sub_ret_size : ret_size;
+              memcpy(ret, tmp_explist, copy_size * sizeof(var));
+              memset(ret + copy_size, 0, (ret_size - copy_size) * sizeof(var)); // set the rest to nil
+          }
+    */
     auto explist = return_stmt->explist();
     if (!explist) {
         // return nil
