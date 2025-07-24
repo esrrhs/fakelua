@@ -187,7 +187,7 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     call_func_params.push_back(gccjit_context_->new_param(size_t_type_, "__fakelua_args_size__", new_location(funcbody_ptr)));
     call_func_params.push_back(gccjit_context_->new_param(var_struct_.get_pointer(), "__fakelua_rets__", new_location(funcbody_ptr)));
     call_func_params.push_back(gccjit_context_->new_param(size_t_type_, "__fakelua_rets_size__", new_location(funcbody_ptr)));
-    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, var_struct_, name.c_str(), call_func_params, 0,
+    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, var_struct_, name, call_func_params, 0,
                                               new_location(funcbody_ptr));
     cur_function_data_.cur_gccjit_func = func;
 
@@ -205,11 +205,7 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     }
     const auto actual_params_count = func_params.size();
     if (is_variadic) {
-        // TODO
-        // insert variadic in the front of params
-        func_params.insert(func_params.begin(), std::make_pair("__fakelua_variadic__",
-                                                               gccjit_context_->new_param(gccjit_context_->get_type(GCC_JIT_TYPE_VOID_PTR),
-                                                                                          "__fakelua_variadic__")));
+        cur_function_data_.cur_variadic_param_start_index = actual_params_count;
     }
 
     // add params to the new stack frame

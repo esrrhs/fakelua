@@ -207,6 +207,8 @@ private:
         std::string cur_function_name;
         // current compiling function
         gccjit::function cur_gccjit_func;
+        // current func variadic param start index, if is_variadic, it is the index of '...' param
+        int cur_variadic_param_start_index = -1;
     };
     // current compiling function data
     function_data cur_function_data_;
