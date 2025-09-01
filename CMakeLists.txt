@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
+set(CMAKE_POLICY_VERSION_MINIMUM 3.5)
 
 project(fakelua CXX)
 
