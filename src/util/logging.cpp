@@ -1,4 +1,3 @@
-#include "logging.h"
 #include "common.h"
 
 namespace fakelua {

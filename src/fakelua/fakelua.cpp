@@ -361,7 +361,37 @@ void call(const fakelua_state_ptr &s, const std::string &name, cvar *args, size_
     }
     reentry_counter rc(reentrant_count);
 
-    reinterpret_cast<void (*)(cvar *, size_t, cvar *, size_t)>(addr)(args, arg_size, rets, ret_size);
+    // every time before call function, we save the stack top position, after call we can pop to this position
+    auto &stack = st->get_stack();
+    auto stack_start = stack.top();
+    auto stack_max = stack.max();
+
+    // push args
+    for (size_t i = 0; i < arg_size; ++i) {
+        stack.push(args[i]);
+    }
+
+    auto stack_rets = stack.top();
+    auto stack_cur = stack.top();
+    // call
+    auto return_count = reinterpret_cast<size_t (*)(cvar *, size_t, cvar *, cvar *, cvar *)>(addr)(stack_start,// the args start here
+                                                                                                   arg_size,   // number of args
+                                                                                                   stack_rets, // rets start here
+                                                                                                   stack_cur,  // current stack position
+                                                                                                   stack_max   // max stack position
+    );
+
+    // get rets
+    for (size_t i = 0; i < ret_size && i < return_count; ++i) {
+        rets[i] = stack_rets[i];
+    }
+    // set nil for extra rets
+    for (size_t i = return_count; i < ret_size; ++i) {
+        rets[i] = cvar{};
+    }
+
+    // pop stack to the start position
+    stack.pop_to(stack_start);
 }
 
 }// namespace inter

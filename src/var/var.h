@@ -118,7 +118,7 @@ public:
 
     void set_const(bool val) {
         // should call set_const before setting type
-        DEBUG_ASSERT(type_ != static_cast<int>(var_type::VAR_STRING) && type_ != static_cast<int>(var_type::VAR_TABLE));
+        DEBUG_ASSERT(type_ == static_cast<int>(var_type::VAR_STRING) || type_ == static_cast<int>(var_type::VAR_TABLE));
         SET_FLAG_BIT(flag_, VAR_FLAG_CONST_IDX, val);
     }
 

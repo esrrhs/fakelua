@@ -211,11 +211,17 @@ struct compile_config {
     bool debug_mode = true;
 };
 
+struct state_config {
+    // max var stack count
+    size_t max_stack_size = 65536;
+};
+
 // fake_lua state interface, every state can only run in one thread, just like Lua.
 // every state has its own running environment. there could be many states in one process.
 class fakelua_state : public std::enable_shared_from_this<fakelua_state> {
 public:
-    fakelua_state() = default;
+    fakelua_state(state_config config = {}) : config_(config) {
+    }
 
     virtual ~fakelua_state() = default;
 
@@ -245,6 +251,7 @@ public:
 
 private:
     std::function<var_interface *()> var_interface_new_func_;
+    state_config config_;
 };
 
 using fakelua_state_ptr = std::shared_ptr<fakelua_state>;

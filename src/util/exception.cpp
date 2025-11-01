@@ -1,5 +1,4 @@
 #include "common.h"
-#include "exception.h"
 
 namespace fakelua {
 

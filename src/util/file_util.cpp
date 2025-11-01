@@ -1,5 +1,4 @@
-#include "file_util.h"
-#include "util/common.h"
+#include "common.h"
 
 namespace fakelua {
 

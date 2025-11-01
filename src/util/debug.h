@@ -1,8 +1,5 @@
 #pragma once
 
-#include <source_location>
-#include <string>
-
 namespace fakelua {
 
 // a simple assert system, just use to debug. only work in mingw

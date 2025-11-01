@@ -2,6 +2,7 @@
 
 #include "fakelua.h"
 #include "jit/vm.h"
+#include "stack.h"
 #include "var_string_heap.h"
 #include "var_table_heap.h"
 
@@ -10,7 +11,7 @@ namespace fakelua {
 // the state contains the running environment we need.
 class state final : public fakelua_state {
 public:
-    state() = default;
+    state(state_config config = {});
 
     ~state() override = default;
 
@@ -20,8 +21,10 @@ public:
 
     // call before running. this will reset the state. just for speed.
     void reset() {
+        DEBUG_ASSERT(reentrant_count_ == 0);
         var_string_heap_.reset();
         var_table_heap_.reset();
+        stack_.reset();
     }
 
     var_string_heap &get_var_string_heap() {
@@ -36,8 +39,12 @@ public:
         return vm_;
     }
 
-    int & get_reentrant_count() {
+    int &get_reentrant_count() {
         return reentrant_count_;
+    }
+
+    stack &get_stack() {
+        return stack_;
     }
 
 private:
@@ -45,6 +52,7 @@ private:
     var_table_heap var_table_heap_;
     vm vm_;
     int reentrant_count_ = 0;// used to reset
+    stack stack_;
 };
 
 }// namespace fakelua

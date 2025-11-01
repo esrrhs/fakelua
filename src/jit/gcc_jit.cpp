@@ -186,9 +186,10 @@ void gcc_jitter::compile_function(const std::string &name, const syntax_tree_int
     call_func_params.push_back(gccjit_context_->new_param(var_struct_.get_pointer(), "__fakelua_args__", new_location(funcbody_ptr)));
     call_func_params.push_back(gccjit_context_->new_param(size_t_type_, "__fakelua_args_size__", new_location(funcbody_ptr)));
     call_func_params.push_back(gccjit_context_->new_param(var_struct_.get_pointer(), "__fakelua_rets__", new_location(funcbody_ptr)));
-    call_func_params.push_back(gccjit_context_->new_param(size_t_type_, "__fakelua_rets_size__", new_location(funcbody_ptr)));
-    auto func = gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, var_struct_, name, call_func_params, 0,
-                                              new_location(funcbody_ptr));
+    call_func_params.push_back(gccjit_context_->new_param(var_struct_.get_pointer(), "__fakelua_cur__", new_location(funcbody_ptr)));
+    call_func_params.push_back(gccjit_context_->new_param(var_struct_.get_pointer(), "__fakelua_max__", new_location(funcbody_ptr)));
+    auto func =
+            gccjit_context_->new_function(GCC_JIT_FUNCTION_EXPORTED, var_struct_, name, call_func_params, 0, new_location(funcbody_ptr));
     cur_function_data_.cur_gccjit_func = func;
 
     // define the function body
@@ -553,28 +554,31 @@ void gcc_jitter::compile_stmt_return(gccjit::function &func, const syntax_tree_i
     DEBUG_ASSERT(stmt->type() == syntax_tree_type::syntax_tree_type_return);
     const auto return_stmt = std::dynamic_pointer_cast<syntax_tree_return>(stmt);
 
-    /* 1. get the return expression list
-    'return a,b,c' equals:
-          if (ret_size > 0) {
-              ret[0] = a;
-          }
-          if (ret_size > 1) {
-              ret[1] = b;
-          }
-          if (ret_size > 2) {
-              ret[2] = c;
-          }
-
-    'return a,b,sub_func(c)' equals:
-          if (ret_size > 0) {
-              ret[0] = a;
-          }
-          if (ret_size > 1) {
-              ret[1] = b;
-          }
-          if (ret_size > 2) {
-              // cal func sub_func(ret+2, ret_size-2, c);
-          }
+    /*
+     * eg: 'return var_a, func_b(b), func_c(c)'
+     * begin compile return, make tmp var:
+     *    size_t tmp_ret_count = 0;
+     *    cvar * tmp_ret_start = __fakelua_cur__;
+     * first, compile the var_a, it is simple return, just
+     *    *__fakelua_cur__ = var_a;
+     *    __fakelua_cur__++;
+     *    tmp_ret_count++;
+     * second, compile the func_b(), it is function call return, need call function first
+     *    call func_b, get the return var list and return count
+     *    *__fakelua_cur__ = ret_var_list[1] from func_b
+     *    __fakelua_cur__++;
+     *    tmp_ret_count++;
+     * then, compile the func_c(), same as func_b(), but because it is the last return, need check the max rets
+     *    call func_c, get the return var list and return count
+     *    for i = 1 to ret_count from func_c
+     *        *__fakelua_cur__ = ret_var_list[i] from func_c
+     *        __fakelua_cur__++;
+     *        tmp_ret_count++;
+     * finally, copy the tmp_ret_count to the __fakelua_rets__ list, the __fakelua_rets__ is the place we should return to the caller
+     * it may overlap with __fakelua_cur__, so we need copy one by one
+     *    for i = 1 to tmp_ret_count
+     *        __fakelua_rets__[i] = tmp_ret_start[i]
+     *    return tmp_ret_count;
     */
     auto explist = return_stmt->explist();
     if (!explist) {

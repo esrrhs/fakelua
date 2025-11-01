@@ -1,7 +1,5 @@
 #pragma once
 
-#include "common.h"
-
 namespace fakelua {
 
 // define the str_container_ptr
@@ -26,9 +24,17 @@ double to_float(const std::string_view &s);
 
 inline std::string join_string(const std::vector<std::string> &strs, const std::string &sep) {
     return std::accumulate(std::next(strs.begin()), strs.end(), strs[0],
-                           [&](std::string a, const std::string& b) { return std::move(a) + sep + b; });
+                           [&](std::string a, const std::string &b) { return std::move(a) + sep + b; });
 }
 
 std::string replace_escape_chars(const std::string &str);
+
+inline void trim_inplace(std::string &s) {
+    // Left trim
+    s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !std::isspace(ch); }));
+
+    // Right trim
+    s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), s.end());
+}
 
 }// namespace fakelua

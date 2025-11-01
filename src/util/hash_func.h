@@ -1,8 +1,5 @@
 #pragma once
 
-#include "fakelua.h"
-#include "util/common.h"
-
 typedef std::shared_ptr<std::string> str_container_ptr;
 
 namespace std {

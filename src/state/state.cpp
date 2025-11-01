@@ -5,6 +5,11 @@
 
 namespace fakelua {
 
+state::state(state_config config) : fakelua_state(config) {
+    LOG_INFO("create state var_stack_size {}", config.max_stack_size);
+    var_stack_.resize(config.max_stack_size);
+}
+
 void state::compile_file(const std::string &filename, const compile_config &cfg) {
     LOG_INFO("start compile_file {}", filename);
     compiler c;

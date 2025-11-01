@@ -51,6 +51,8 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include <ranges>
+#include <cctype>
 #ifndef _WIN32
 #include <execinfo.h>
 #endif
@@ -63,3 +65,6 @@
 #include "magic_enum.hpp"
 #include "string_util.h"
 #include "call_helper.h"
+#include "os.h"
+#include "file_util.h"
+#include "hash_func.h"
