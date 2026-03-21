@@ -192,7 +192,6 @@ class var;
 struct cvar {
 protected:
     int type_ = 0;
-    int flag_ = 0;
     union cvar_data {
         bool b;
         int64_t i;

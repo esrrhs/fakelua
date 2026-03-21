@@ -12,7 +12,7 @@ namespace fakelua {
 class var_string_heap {
 public:
     // alloc a string, and return the stored var_string.
-    var_string *alloc(const std::string_view &str, bool is_const);
+    var_string *alloc(const std::string_view &str);
 
     // clear the string heap. usually called before running.
     void reset();

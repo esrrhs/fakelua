@@ -17,7 +17,7 @@ void var::set_string(const fakelua_state_ptr &s, const std::string_view &val) {
 void var::set_string(fakelua_state *s, const std::string_view &val) {
     type_ = static_cast<int>(var_type::VAR_STRING);
     auto &string_heap = dynamic_cast<state *>(s)->get_var_string_heap();
-    data_.s = string_heap.alloc(val, is_const());
+    data_.s = string_heap.alloc(val);
 }
 
 void var::set_table(const fakelua_state_ptr &s) {
@@ -27,7 +27,7 @@ void var::set_table(const fakelua_state_ptr &s) {
 void var::set_table(fakelua_state *s) {
     type_ = static_cast<int>(var_type::VAR_TABLE);
     auto &table_heap = dynamic_cast<state *>(s)->get_var_table_heap();
-    data_.t = table_heap.alloc(is_const());
+    data_.t = table_heap.alloc();
 }
 
 std::string var::to_string(bool has_quote, bool has_postfix) const {
@@ -53,14 +53,6 @@ std::string var::to_string(bool has_quote, bool has_postfix) const {
         case var_type::VAR_TABLE:
             ret = std::format("table({})", static_cast<void *>(data_.t));
             break;
-    }
-
-    if (has_postfix && is_const()) {
-        ret += "(const)";
-    }
-
-    if (has_postfix && is_variadic()) {
-        ret += "(variadic)";
     }
 
     return ret;

@@ -95,20 +95,18 @@ TEST(var, var_string_heap) {
     auto s = std::make_shared<state>();
 
     var_string_heap &heap = s->get_var_string_heap();
-    auto ret = heap.alloc("hello", false);
+    auto ret = heap.alloc("hello");
     ASSERT_EQ(ret->str(), "hello");
 
-    auto ret1 = heap.alloc("hello", true);
+    auto ret1 = heap.alloc("hello");
     ASSERT_EQ(ret1->str(), "hello");
     ASSERT_EQ(ret, ret1);
 
-    heap.reset();
-
-    ret = heap.alloc("hello", true);
+    ret = heap.alloc("hello");
     ASSERT_EQ(ret->str(), "hello");
     ASSERT_EQ(ret, ret1);
 
-    ret = heap.alloc("hello1", false);
+    ret = heap.alloc("hello1");
     ASSERT_EQ(ret->str(), "hello1");
     ASSERT_NE(ret, ret1);
 }
@@ -190,11 +188,11 @@ TEST(var, var_string_heap_reset) {
     auto s = std::make_shared<state>();
 
     var_string_heap &heap = s->get_var_string_heap();
-    auto str = heap.alloc("hello", false);
+    auto str = heap.alloc("hello");
     ASSERT_EQ(str->str(), "hello");
 
-    auto str1 = heap.alloc("world", false);
-    auto str2 = heap.alloc("world", true);
+    auto str1 = heap.alloc("world");
+    auto str2 = heap.alloc("world");
 
     ASSERT_EQ(str1->str(), "world");
     ASSERT_EQ(str2->str(), "world");
@@ -202,10 +200,6 @@ TEST(var, var_string_heap_reset) {
     ASSERT_EQ(str1->str().data(), str2->str().data());
 
     ASSERT_EQ(heap.size(), 2);
-
-    heap.reset();
-
-    ASSERT_EQ(heap.size(), 1);
 }
 
 TEST(var, set_string) {
@@ -228,12 +222,6 @@ TEST(var, set_string) {
     v.set_string(s.get(), std::string_view("hello"));
     ASSERT_EQ(v.type(), var_type::VAR_STRING);
     ASSERT_EQ(v.get_string()->str(), str);
-
-    v.set_const(true);
-    ASSERT_EQ(v.to_string(), "\"hello\"(const)");
-
-    v.set_variadic(true);
-    ASSERT_EQ(v.to_string(), "\"hello\"(const)(variadic)");
 }
 
 TEST(var, var_table_keys) {

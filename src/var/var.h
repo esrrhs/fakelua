@@ -116,24 +116,6 @@ public:
     // to string
     [[nodiscard]] std::string to_string(bool has_quote = true, bool has_postfix = true) const;
 
-    void set_const(bool val) {
-        // should call set_const before setting type
-        DEBUG_ASSERT(type_ == static_cast<int>(var_type::VAR_STRING) || type_ == static_cast<int>(var_type::VAR_TABLE));
-        SET_FLAG_BIT(flag_, VAR_FLAG_CONST_IDX, val);
-    }
-
-    [[nodiscard]] bool is_const() const {
-        return GET_FLAG_BIT(flag_, VAR_FLAG_CONST_IDX);
-    }
-
-    void set_variadic(bool val) {
-        SET_FLAG_BIT(flag_, VAR_FLAG_VARIADIC_IDX, val);
-    }
-
-    [[nodiscard]] bool is_variadic() const {
-        return GET_FLAG_BIT(flag_, VAR_FLAG_VARIADIC_IDX);
-    }
-
     // get hash value
     [[nodiscard]] size_t hash() const;
 

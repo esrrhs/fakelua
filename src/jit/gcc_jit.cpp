@@ -2298,7 +2298,7 @@ void gcc_jitter::set_var_float(gccjit::lvalue &var, double v, bool is_const, con
 }
 
 void gcc_jitter::set_var_string(gccjit::lvalue &var, const std::string &v, bool is_const, const syntax_tree_interface_ptr &p) {
-    auto container_str = std::dynamic_pointer_cast<state>(sp_)->get_var_string_heap().alloc(v, is_const);
+    auto container_str = std::dynamic_pointer_cast<state>(sp_)->get_var_string_heap().alloc(v);
     // set type
     cur_function_data_.cur_block.add_assignment(var.access_field(var_type_field_),
                                                 gccjit_context_->new_rvalue(int_type_, (int) static_cast<int>(var_type::VAR_STRING)),

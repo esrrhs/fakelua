@@ -11,7 +11,7 @@ class var_table;
 class var_table_heap {
 public:
     // alloc a table
-    var_table *alloc(bool is_const);
+    var_table *alloc();
 
     // clear the table heap. usually called before running.
     void reset();

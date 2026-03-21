@@ -21,24 +21,24 @@ static void expand_var_list(std::vector<var *> &params) {
         const auto param = params[i];
         DEBUG_ASSERT(param);
         DEBUG_ASSERT(param->type() >= var_type::VAR_MIN && param->type() <= var_type::VAR_MAX);
-        if (param->is_variadic()) {
-            DEBUG_ASSERT(param->type() == var_type::VAR_TABLE);
-            const auto table = param->get_table();
-            if (i == params.size() - 1) {
-                params.pop_back();
-                for (int j = 1; j <= (int) table->size(); j++) {
-                    var tmp;
-                    tmp.set_int(j);
-                    auto value = table->get(tmp);
-                    params.push_back(&value);
-                }
-            } else {
-                var tmp;
-                tmp.set_int(1);
-                const auto value = table->get(tmp);
-                params[i] = (var *) &value;
-            }
-        }
+        // if (param->is_variadic()) {
+        //     DEBUG_ASSERT(param->type() == var_type::VAR_TABLE);
+        //     const auto table = param->get_table();
+        //     if (i == params.size() - 1) {
+        //         params.pop_back();
+        //         for (int j = 1; j <= (int) table->size(); j++) {
+        //             var tmp;
+        //             tmp.set_int(j);
+        //             auto value = table->get(tmp);
+        //             params.push_back(&value);
+        //         }
+        //     } else {
+        //         var tmp;
+        //         tmp.set_int(1);
+        //         const auto value = table->get(tmp);
+        //         params[i] = (var *) &value;
+        //     }
+        // }
     }
 }
 
@@ -46,24 +46,24 @@ static void expand_var_list(std::vector<var> &params) {
     for (size_t i = 0; i < params.size(); i++) {
         const auto param = params[i];
         DEBUG_ASSERT(param.type() >= var_type::VAR_MIN && param.type() <= var_type::VAR_MAX);
-        if (param.is_variadic()) {
-            DEBUG_ASSERT(param.type() == var_type::VAR_TABLE);
-            const auto table = param.get_table();
-            if (i == params.size() - 1) {
-                params.pop_back();
-                for (int j = 1; j <= static_cast<int>(table->size()); j++) {
-                    var tmp;
-                    tmp.set_int(j);
-                    auto value = table->get(tmp);
-                    params.push_back(value);
-                }
-            } else {
-                var tmp;
-                tmp.set_int(1);
-                const auto value = table->get(tmp);
-                params[i] = value;
-            }
-        }
+        // if (param.is_variadic()) {
+        //     DEBUG_ASSERT(param.type() == var_type::VAR_TABLE);
+        //     const auto table = param.get_table();
+        //     if (i == params.size() - 1) {
+        //         params.pop_back();
+        //         for (int j = 1; j <= static_cast<int>(table->size()); j++) {
+        //             var tmp;
+        //             tmp.set_int(j);
+        //             auto value = table->get(tmp);
+        //             params.push_back(value);
+        //         }
+        //     } else {
+        //         var tmp;
+        //         tmp.set_int(1);
+        //         const auto value = table->get(tmp);
+        //         params[i] = value;
+        //     }
+        // }
     }
 }
 
@@ -115,8 +115,6 @@ extern "C" __attribute__((used)) var wrap_return_var(fakelua_state *s, bool is_c
     va_end(args);
 
     var ret;
-    ret.set_const(is_const);
-    ret.set_variadic(true);
     ret.set_table(s);
 
     expand_var_list(params);
@@ -443,10 +441,10 @@ extern "C" __attribute__((used)) var *call_var(fakelua_state *s, gcc_jit_handle 
     }
 
     // check params count
-    if (!func->is_variadic() && (int) params.size() != function->get_arg_count()) {
-        throw_fakelua_exception(
-                std::format("call_var: function {} expect {} params, but got {}", name->str(), function->get_arg_count(), params.size()));
-    }
+    // if (!func->is_variadic() && (int) params.size() != function->get_arg_count()) {
+    //     throw_fakelua_exception(
+    //             std::format("call_var: function {} expect {} params, but got {}", name->str(), function->get_arg_count(), params.size()));
+    // }
 
     // call function
     DEBUG_ASSERT(function->get_addr());

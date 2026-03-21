@@ -4,13 +4,9 @@
 
 namespace fakelua {
 
-var_table *var_table_heap::alloc(bool is_const) {
+var_table *var_table_heap::alloc() {
     auto t = new var_table();
-    if (is_const) {
-        const_table_vec_.emplace_back(t);
-    } else {
-        tmp_table_vec_.emplace_back(t);
-    }
+    tmp_table_vec_.emplace_back(t);
     return t;
 }
 
