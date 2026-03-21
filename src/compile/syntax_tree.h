@@ -45,6 +45,83 @@ enum class syntax_tree_type {
     syntax_tree_type_prefixexp,
 };
 
+inline std::string syntax_tree_type_to_string(syntax_tree_type t) {
+    switch (t) {
+        case syntax_tree_type::syntax_tree_type_none:
+            return "syntax_tree_type_none";
+        case syntax_tree_type::syntax_tree_type_empty:
+            return "syntax_tree_type_empty";
+        case syntax_tree_type::syntax_tree_type_block:
+            return "syntax_tree_type_block";
+        case syntax_tree_type::syntax_tree_type_label:
+            return "syntax_tree_type_label";
+        case syntax_tree_type::syntax_tree_type_return:
+            return "syntax_tree_type_return";
+        case syntax_tree_type::syntax_tree_type_assign:
+            return "syntax_tree_type_assign";
+        case syntax_tree_type::syntax_tree_type_varlist:
+            return "syntax_tree_type_varlist";
+        case syntax_tree_type::syntax_tree_type_explist:
+            return "syntax_tree_type_explist";
+        case syntax_tree_type::syntax_tree_type_var:
+            return "syntax_tree_type_var";
+        case syntax_tree_type::syntax_tree_type_functioncall:
+            return "syntax_tree_type_functioncall";
+        case syntax_tree_type::syntax_tree_type_tableconstructor:
+            return "syntax_tree_type_tableconstructor";
+        case syntax_tree_type::syntax_tree_type_fieldlist:
+            return "syntax_tree_type_fieldlist";
+        case syntax_tree_type::syntax_tree_type_field:
+            return "syntax_tree_type_field";
+        case syntax_tree_type::syntax_tree_type_break:
+            return "syntax_tree_type_break";
+        case syntax_tree_type::syntax_tree_type_goto:
+            return "syntax_tree_type_goto";
+        case syntax_tree_type::syntax_tree_type_while:
+            return "syntax_tree_type_while";
+        case syntax_tree_type::syntax_tree_type_repeat:
+            return "syntax_tree_type_repeat";
+        case syntax_tree_type::syntax_tree_type_if:
+            return "syntax_tree_type_if";
+        case syntax_tree_type::syntax_tree_type_elseiflist:
+            return "syntax_tree_type_elseiflist";
+        case syntax_tree_type::syntax_tree_type_for_loop:
+            return "syntax_tree_type_for_loop";
+        case syntax_tree_type::syntax_tree_type_for_in:
+            return "syntax_tree_type_for_in";
+        case syntax_tree_type::syntax_tree_type_namelist:
+            return "syntax_tree_type_namelist";
+        case syntax_tree_type::syntax_tree_type_function:
+            return "syntax_tree_type_function";
+        case syntax_tree_type::syntax_tree_type_funcnamelist:
+            return "syntax_tree_type_funcnamelist";
+        case syntax_tree_type::syntax_tree_type_funcname:
+            return "syntax_tree_type_funcname";
+        case syntax_tree_type::syntax_tree_type_funcbody:
+            return "syntax_tree_type_funcbody";
+        case syntax_tree_type::syntax_tree_type_functiondef:
+            return "syntax_tree_type_functiondef";
+        case syntax_tree_type::syntax_tree_type_parlist:
+            return "syntax_tree_type_parlist";
+        case syntax_tree_type::syntax_tree_type_local_function:
+            return "syntax_tree_type_local_function";
+        case syntax_tree_type::syntax_tree_type_local_var:
+            return "syntax_tree_type_local_var";
+        case syntax_tree_type::syntax_tree_type_exp:
+            return "syntax_tree_type_exp";
+        case syntax_tree_type::syntax_tree_type_binop:
+            return "syntax_tree_type_binop";
+        case syntax_tree_type::syntax_tree_type_unop:
+            return "syntax_tree_type_unop";
+        case syntax_tree_type::syntax_tree_type_args:
+            return "syntax_tree_type_args";
+        case syntax_tree_type::syntax_tree_type_prefixexp:
+            return "syntax_tree_type_prefixexp";
+        default:
+            return "UNKNOWN";
+    }
+}
+
 // syntax tree location type
 typedef yy::location syntax_tree_location;
 

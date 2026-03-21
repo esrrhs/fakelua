@@ -36,8 +36,6 @@ CPMAddPackage(
         "BENCHMARK_DOWNLOAD_DEPENDENCIES Off"
 )
 
-include_directories(${magic_enum_SOURCE_DIR}/include/magic_enum)
-
 aux_source_directory(./ BENCHMARK_SRC_LIST)
 include_directories(./)
 include_directories(../include)

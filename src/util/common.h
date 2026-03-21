@@ -62,7 +62,6 @@
 #include "debug.h"
 #include "exception.h"
 #include "logging.h"
-#include "magic_enum.hpp"
 #include "string_util.h"
 #include "call_helper.h"
 #include "os.h"

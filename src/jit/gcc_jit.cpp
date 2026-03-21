@@ -545,7 +545,7 @@ void gcc_jitter::compile_stmt(gccjit::function &func, const syntax_tree_interfac
             break;
         }
         default: {
-            throw_error(std::format("not support stmt type: {}", magic_enum::enum_name(stmt->type())), stmt);
+            throw_error(std::format("not support stmt type: {}", syntax_tree_type_to_string(stmt->type())), stmt);
         }
     }
 }

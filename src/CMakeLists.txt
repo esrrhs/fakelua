@@ -2,14 +2,6 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 
 project(libfakelua)
 
-#add magic_enum
-CPMAddPackage(
-        NAME magic_enum
-        GITHUB_REPOSITORY Neargye/magic_enum
-        VERSION 0.9.5
-)
-include_directories(${magic_enum_SOURCE_DIR}/include/magic_enum)
-
 aux_source_directory(compile/bison FAKELUA_SRC_LIST)
 aux_source_directory(compile/flex FAKELUA_SRC_LIST)
 aux_source_directory(./compile FAKELUA_SRC_LIST)

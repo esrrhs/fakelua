@@ -143,8 +143,8 @@ double var::get_calculable_number() const {
 
 void var::plus(const var &rhs, var &result) const {
     if (!is_calculable() || !rhs.is_calculable()) {
-        throw_fakelua_exception(std::format("operand of '+' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '+' must be number, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
     if (is_calculable_integer() && rhs.is_calculable_integer()) {
         result.set_int(get_calculable_int() + rhs.get_calculable_int());
@@ -155,8 +155,8 @@ void var::plus(const var &rhs, var &result) const {
 
 void var::minus(const var &rhs, var &result) const {
     if (!is_calculable() || !rhs.is_calculable()) {
-        throw_fakelua_exception(std::format("operand of '-' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '-' must be number, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
     if (is_calculable_integer() && rhs.is_calculable_integer()) {
         result.set_int(get_calculable_int() - rhs.get_calculable_int());
@@ -167,8 +167,8 @@ void var::minus(const var &rhs, var &result) const {
 
 void var::star(const var &rhs, var &result) const {
     if (!is_calculable() || !rhs.is_calculable()) {
-        throw_fakelua_exception(std::format("operand of '*' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '*' must be number, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
     if (is_calculable_integer() && rhs.is_calculable_integer()) {
         result.set_int(get_calculable_int() * rhs.get_calculable_int());
@@ -179,16 +179,16 @@ void var::star(const var &rhs, var &result) const {
 
 void var::slash(const var &rhs, var &result) const {
     if (!is_calculable() || !rhs.is_calculable()) {
-        throw_fakelua_exception(std::format("operand of '/' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '/' must be number, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
     result.set_float(get_calculable_number() / rhs.get_calculable_number());
 }
 
 void var::double_slash(const var &rhs, var &result) const {
     if (!is_calculable() || !rhs.is_calculable()) {
-        throw_fakelua_exception(std::format("operand of '//' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '//' must be number, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
     if (is_calculable_integer() && rhs.is_calculable_integer()) {
         result.set_int(get_calculable_int() / rhs.get_calculable_int());
@@ -199,16 +199,16 @@ void var::double_slash(const var &rhs, var &result) const {
 
 void var::pow(const var &rhs, var &result) const {
     if (!is_calculable() || !rhs.is_calculable()) {
-        throw_fakelua_exception(std::format("operand of '^' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '^' must be number, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
     result.set_float(std::pow(get_calculable_number(), rhs.get_calculable_number()));
 }
 
 void var::mod(const var &rhs, var &result) const {
     if (!is_calculable() || !rhs.is_calculable()) {
-        throw_fakelua_exception(std::format("operand of '%' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '%' must be number, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
     if (is_calculable_integer() && rhs.is_calculable_integer()) {
         result.set_int(get_calculable_int() % rhs.get_calculable_int());
@@ -219,32 +219,32 @@ void var::mod(const var &rhs, var &result) const {
 
 void var::bitand_(const var &rhs, var &result) const {
     if (!is_calculable_integer() || !rhs.is_calculable_integer()) {
-        throw_fakelua_exception(std::format("operand of '&' must be integer, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '&' must be integer, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
     result.set_int(get_calculable_int() & rhs.get_calculable_int());
 }
 
 void var::xor_(const var &rhs, var &result) const {
     if (!is_calculable_integer() || !rhs.is_calculable_integer()) {
-        throw_fakelua_exception(std::format("operand of '~' must be integer, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '~' must be integer, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
     result.set_int(get_calculable_int() ^ rhs.get_calculable_int());
 }
 
 void var::bitor_(const var &rhs, var &result) const {
     if (!is_calculable_integer() || !rhs.is_calculable_integer()) {
-        throw_fakelua_exception(std::format("operand of '|' must be integer, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '|' must be integer, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
     result.set_int(get_calculable_int() | rhs.get_calculable_int());
 }
 
 void var::right_shift(const var &rhs, var &result) const {
     if (!is_calculable_integer() || !rhs.is_calculable_integer()) {
-        throw_fakelua_exception(std::format("operand of '>>' must be integer, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '>>' must be integer, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
     auto shift = rhs.get_calculable_int();
     if (shift >= 0) {
@@ -256,8 +256,8 @@ void var::right_shift(const var &rhs, var &result) const {
 
 void var::left_shift(const var &rhs, var &result) const {
     if (!is_calculable_integer() || !rhs.is_calculable_integer()) {
-        throw_fakelua_exception(std::format("operand of '<<' must be integer, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '<<' must be integer, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
     auto shift = rhs.get_calculable_int();
     if (shift >= 0) {
@@ -273,8 +273,8 @@ void var::concat(fakelua_state *s, const var &rhs, var &result) const {
 
 void var::less(const var &rhs, var &result) const {
     if (!is_calculable() || !rhs.is_calculable()) {
-        throw_fakelua_exception(std::format("operand of '<' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '<' must be number, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
 
     if (is_calculable_integer() && rhs.is_calculable_integer()) {
@@ -286,8 +286,8 @@ void var::less(const var &rhs, var &result) const {
 
 void var::less_equal(const var &rhs, var &result) const {
     if (!is_calculable() || !rhs.is_calculable()) {
-        throw_fakelua_exception(std::format("operand of '<=' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '<=' must be number, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
 
     if (is_calculable_integer() && rhs.is_calculable_integer()) {
@@ -299,8 +299,8 @@ void var::less_equal(const var &rhs, var &result) const {
 
 void var::more(const var &rhs, var &result) const {
     if (!is_calculable() || !rhs.is_calculable()) {
-        throw_fakelua_exception(std::format("operand of '>' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '>' must be number, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
 
     if (is_calculable_integer() && rhs.is_calculable_integer()) {
@@ -312,8 +312,8 @@ void var::more(const var &rhs, var &result) const {
 
 void var::more_equal(const var &rhs, var &result) const {
     if (!is_calculable() || !rhs.is_calculable()) {
-        throw_fakelua_exception(std::format("operand of '>=' must be number, got {} {}, {} {}", magic_enum::enum_name(type()), to_string(),
-                                            magic_enum::enum_name(rhs.type()), rhs.to_string()));
+        throw_fakelua_exception(std::format("operand of '>=' must be number, got {} {}, {} {}", var_type_to_string(type()), to_string(),
+                                            var_type_to_string(rhs.type()), rhs.to_string()));
     }
 
     if (is_calculable_integer() && rhs.is_calculable_integer()) {
@@ -344,7 +344,7 @@ bool var::test_true() const {
 
 void var::unop_minus(var &result) const {
     if (!is_calculable()) {
-        throw_fakelua_exception(std::format("operand of '-' must be number, got {} {}", magic_enum::enum_name(type()), to_string()));
+        throw_fakelua_exception(std::format("operand of '-' must be number, got {} {}", var_type_to_string(type()), to_string()));
     }
     if (is_calculable_integer()) {
         result.set_int(-get_calculable_int());
@@ -360,7 +360,7 @@ void var::unop_not(var &result) const {
 void var::unop_number_sign(var &result) const {
     if (type() != var_type::VAR_STRING && type() != var_type::VAR_TABLE) {
         throw_fakelua_exception(
-                std::format("operand of '#' must be string or table, got {} {}", magic_enum::enum_name(type()), to_string()));
+                std::format("operand of '#' must be string or table, got {} {}", var_type_to_string(type()), to_string()));
     }
 
     if (type() == var_type::VAR_STRING) {
@@ -372,7 +372,7 @@ void var::unop_number_sign(var &result) const {
 
 void var::unop_bitnot(var &result) const {
     if (type() != var_type::VAR_INT) {
-        throw_fakelua_exception(std::format("operand of '~' must be integer, got {} {}", magic_enum::enum_name(type()), to_string()));
+        throw_fakelua_exception(std::format("operand of '~' must be integer, got {} {}", var_type_to_string(type()), to_string()));
     }
 
     result.set_int(~get_int());
@@ -380,7 +380,7 @@ void var::unop_bitnot(var &result) const {
 
 void var::table_set(const var &key, const var &val, bool can_be_nil) const {
     if (type() != var_type::VAR_TABLE) {
-        throw_fakelua_exception(std::format("operand of 'table_set' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
+        throw_fakelua_exception(std::format("operand of 'table_set' must be table, got {} {}", var_type_to_string(type()), to_string()));
     }
 
     get_table()->set(key, val, can_be_nil);
@@ -388,7 +388,7 @@ void var::table_set(const var &key, const var &val, bool can_be_nil) const {
 
 var var::table_get(const var &key) const {
     if (type() != var_type::VAR_TABLE) {
-        throw_fakelua_exception(std::format("operand of 'table_get' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
+        throw_fakelua_exception(std::format("operand of 'table_get' must be table, got {} {}", var_type_to_string(type()), to_string()));
     }
 
     return get_table()->get(key);
@@ -397,7 +397,7 @@ var var::table_get(const var &key) const {
 size_t var::table_size() const {
     if (type() != var_type::VAR_TABLE) {
         throw_fakelua_exception(
-                std::format("operand of 'table_size' must be table, got {} {}", magic_enum::enum_name(type()), to_string()));
+                std::format("operand of 'table_size' must be table, got {} {}", var_type_to_string(type()), to_string()));
     }
 
     return get_table()->size();

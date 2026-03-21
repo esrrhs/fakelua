@@ -13,8 +13,6 @@ CPMAddPackage(
         "gtest_force_shared_crt ON"
 )
 
-include_directories(${magic_enum_SOURCE_DIR}/include/magic_enum)
-
 aux_source_directory(./ TEST_SRC_LIST)
 include_directories(./)
 include_directories(../include)
