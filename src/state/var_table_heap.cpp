@@ -4,13 +4,13 @@
 
 namespace fakelua {
 
-var_table *var_table_heap::alloc() {
-    auto t = new var_table();
+VarTable *VarTableHeap::alloc() {
+    auto t = new VarTable();
     tmp_table_vec_.emplace_back(t);
     return t;
 }
 
-void var_table_heap::reset() {
+void VarTableHeap::reset() {
     for (const auto &iter: tmp_table_vec_) {
         delete iter;
     }

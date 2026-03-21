@@ -13,39 +13,39 @@
 
 namespace fakelua {
 
-// create our flexer to use new yylex function my_yylex(), and receive the syntax tree
-class myflexer : public yyFlexLexer {
+// create our flexer to use new yylex function MyYylex(), and receive the syntax tree
+class MyFlexer : public yyFlexLexer {
 public:
-    myflexer() = default;
+    MyFlexer() = default;
 
-    ~myflexer() override = default;
+    ~MyFlexer() override = default;
 
 public:
     // implement in scanner.cpp
-    yy::parser::symbol_type my_yylex();
+    yy::parser::SymbolType MyYylex();
 
     // set the input lua file
-    void input_file(const std::string &file);
+    void InputFile(const std::string &file);
 
     // set the input lua string
-    void input_string(const std::string &str);
+    void InputString(const std::string &str);
 
     // set the main syntax tree from parser
-    void set_chunk(const syntax_tree_interface_ptr &chunk);
+    void SetChunk(const SyntaxTreeInterfacePtr &chunk);
 
     // get the main syntax tree
-    syntax_tree_interface_ptr get_chunk() const;
+    SyntaxTreeInterfacePtr GetChunk() const;
 
     // remove string quotes
-    std::string remove_quotes(const std::string &str);
+    std::string RemoveQuotes(const std::string &str);
 
     // get the filename
-    std::string get_filename() const {
+    std::string GetFilename() const {
         return filename_;
     }
 
 private:
-    std::string generate_tmp_file(const std::string &str);
+    std::string GenerateTmpFile(const std::string &str);
 
 private:
     // The token's location used by the scanner.
@@ -57,7 +57,7 @@ private:
     // The string being parsed.
     std::istringstream string_;
     // The syntax tree from parser.
-    syntax_tree_interface_ptr chunk_;
+    SyntaxTreeInterfacePtr chunk_;
 };
 
 }// namespace fakelua

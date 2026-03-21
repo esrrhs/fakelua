@@ -1,28 +1,28 @@
 #include "var_table.h"
+#include "var.h"
 #include "fakelua.h"
 #include "util/common.h"
-#include "var.h"
 
 namespace fakelua {
 
-var var_table::get(const var &key) const {
-    DEBUG_ASSERT(key.type() >= var_type::VAR_MIN && key.type() <= var_type::VAR_MAX);
+Var VarTable::Get(const Var &key) const {
+    DEBUG_ASSERT(key.Type() >= VarType::Min && key.Type() <= VarType::Max);
     for (const auto &[fst, snd]: table_) {
-        if (fst.equal(key)) {
+        if (fst.Equal(key)) {
             return snd;
         }
     }
     return const_null_var;
 }
 
-void var_table::set(const var &key, const var &val, bool can_be_nil) {
-    DEBUG_ASSERT(key.type() >= var_type::VAR_MIN && key.type() <= var_type::VAR_MAX);
-    DEBUG_ASSERT(val.type() >= var_type::VAR_MIN && val.type() <= var_type::VAR_MAX);
+void VarTable::Set(const Var &key, const Var &val, bool can_be_nil) {
+    DEBUG_ASSERT(key.Type() >= VarType::Min && key.Type() <= VarType::Max);
+    DEBUG_ASSERT(val.Type() >= VarType::Min && val.Type() <= VarType::Max);
 
     // set nil means delete
-    if (val.type() == var_type::VAR_NIL && !can_be_nil) {
+    if (val.Type() == VarType::Nil && !can_be_nil) {
         for (size_t index = 0; index < table_.size(); ++index) {
-            if (const auto &[fst, snd] = table_[index]; fst.equal(key)) {
+            if (const auto &[fst, snd] = table_[index]; fst.Equal(key)) {
                 if (index < table_.size() - 1) {
                     // swap with the last element
                     table_[index] = table_.back();
@@ -37,7 +37,7 @@ void var_table::set(const var &key, const var &val, bool can_be_nil) {
 
     // find and update the value
     for (auto &[fst, snd]: table_) {
-        if (fst.equal(key)) {
+        if (fst.Equal(key)) {
             snd = val;
             return;
         }
@@ -47,14 +47,14 @@ void var_table::set(const var &key, const var &val, bool can_be_nil) {
     table_.emplace_back(key, val);
 }
 
-var var_table::key_at(size_t pos) const {
+Var VarTable::KeyAt(size_t pos) const {
     if (pos >= table_.size()) {
         return const_null_var;
     }
     return table_[pos].first;
 }
 
-var var_table::value_at(size_t pos) const {
+Var VarTable::ValueAt(size_t pos) const {
     if (pos >= table_.size()) {
         return const_null_var;
     }

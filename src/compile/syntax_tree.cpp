@@ -2,576 +2,576 @@
 
 namespace fakelua {
 
-std::string syntax_tree_empty::dump(int tab) const {
-    return gen_tab(tab) + "(empty)[" + loc_str() + "]\n";
+std::string SyntaxTreeEmpty::Dump(int tab) const {
+    return GenTab(tab) + "(empty)[" + LocStr() + "]\n";
 }
 
-std::string syntax_tree_block::dump(int tab) const {
+std::string SyntaxTreeBlock::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(block)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(block)[" + LocStr() + "]\n";
     for (auto &stmt: stmts_) {
-        str += stmt->dump(tab + 1);
+        str += stmt->Dump(tab + 1);
     }
     return str;
 }
 
-std::string syntax_tree_label::dump(int tab) const {
+std::string SyntaxTreeLabel::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + name_ + "(label)[" + loc_str() + "]\n";
+    str += GenTab(tab) + name_ + "(label)[" + LocStr() + "]\n";
     return str;
 }
 
-std::string syntax_tree_return::dump(int tab) const {
+std::string SyntaxTreeReturn::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(return)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(return)[" + LocStr() + "]\n";
     if (explist_) {
-        str += explist_->dump(tab + 1);
+        str += explist_->Dump(tab + 1);
     }
     return str;
 }
 
-std::string syntax_tree_assign::dump(int tab) const {
+std::string SyntaxTreeAssign::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(assign)[" + loc_str() + "]\n";
-    str += varlist_->dump(tab + 1);
-    str += explist_->dump(tab + 1);
+    str += GenTab(tab) + "(assign)[" + LocStr() + "]\n";
+    str += varlist_->Dump(tab + 1);
+    str += explist_->Dump(tab + 1);
     return str;
 }
 
-std::string syntax_tree_varlist::dump(int tab) const {
+std::string SyntaxTreeVarlist::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(varlist)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(varlist)[" + LocStr() + "]\n";
     for (auto &var: vars_) {
-        str += var->dump(tab + 1);
+        str += var->Dump(tab + 1);
     }
     return str;
 }
 
-std::string syntax_tree_explist::dump(int tab) const {
+std::string SyntaxTreeExplist::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(explist)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(explist)[" + LocStr() + "]\n";
     for (auto &exp: exps_) {
-        str += exp->dump(tab + 1);
+        str += exp->Dump(tab + 1);
     }
     return str;
 }
 
-std::string syntax_tree_var::dump(int tab) const {
+std::string SyntaxTreeVar::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(var)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(var)[" + LocStr() + "]\n";
     if (type_ == "simple") {
-        str += gen_tab(tab + 1) + "type: simple\n";
-        str += gen_tab(tab + 1) + "name: " + name_ + "\n";
+        str += GenTab(tab + 1) + "type: simple\n";
+        str += GenTab(tab + 1) + "name: " + name_ + "\n";
     } else if (type_ == "square") {
-        str += gen_tab(tab + 1) + "type: square\n";
-        str += prefixexp_->dump(tab + 1);
-        str += exp_->dump(tab + 1);
+        str += GenTab(tab + 1) + "type: square\n";
+        str += prefixexp_->Dump(tab + 1);
+        str += exp_->Dump(tab + 1);
     } else if (type_ == "dot") {
-        str += gen_tab(tab + 1) + "type: dot\n";
-        str += prefixexp_->dump(tab + 1);
-        str += gen_tab(tab + 1) + "name: " + name_ + "\n";
+        str += GenTab(tab + 1) + "type: dot\n";
+        str += prefixexp_->Dump(tab + 1);
+        str += GenTab(tab + 1) + "name: " + name_ + "\n";
     } else {
         DEBUG_ASSERT(false && "unknown var type");
     }
     return str;
 }
 
-std::string syntax_tree_functioncall::dump(int tab) const {
+std::string SyntaxTreeFunctioncall::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(functioncall)[" + loc_str() + "]\n";
-    str += prefixexp_->dump(tab + 1);
+    str += GenTab(tab) + "(functioncall)[" + LocStr() + "]\n";
+    str += prefixexp_->Dump(tab + 1);
     if (!name_.empty()) {
-        str += gen_tab(tab + 1) + "name: " + name_ + "\n";
+        str += GenTab(tab + 1) + "name: " + name_ + "\n";
     }
-    str += args_->dump(tab + 1);
+    str += args_->Dump(tab + 1);
     return str;
 }
 
-std::string syntax_tree_tableconstructor::dump(int tab) const {
+std::string SyntaxTreeTableconstructor::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(tableconstructor)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(tableconstructor)[" + LocStr() + "]\n";
     if (fieldlist_) {
-        str += fieldlist_->dump(tab + 1);
+        str += fieldlist_->Dump(tab + 1);
     }
     return str;
 }
 
-std::string syntax_tree_fieldlist::dump(int tab) const {
+std::string SyntaxTreeFieldlist::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(fieldlist)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(fieldlist)[" + LocStr() + "]\n";
     for (auto &field: fields_) {
-        str += field->dump(tab + 1);
+        str += field->Dump(tab + 1);
     }
     return str;
 }
 
-std::string syntax_tree_field::dump(int tab) const {
+std::string SyntaxTreeField::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(field)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(field)[" + LocStr() + "]\n";
     if (type_ == "array") {
-        str += gen_tab(tab + 1) + "type: array\n";
+        str += GenTab(tab + 1) + "type: array\n";
         if (key_) {
-            str += key_->dump(tab + 1);
+            str += key_->Dump(tab + 1);
         }
-        str += value_->dump(tab + 1);
+        str += value_->Dump(tab + 1);
     } else if (type_ == "object") {
-        str += gen_tab(tab + 1) + "type: object\n";
-        str += gen_tab(tab + 1) + "name: " + name_ + "\n";
-        str += value_->dump(tab + 1);
+        str += GenTab(tab + 1) + "type: object\n";
+        str += GenTab(tab + 1) + "name: " + name_ + "\n";
+        str += value_->Dump(tab + 1);
     } else {
         DEBUG_ASSERT(false && "unknown field type");
     }
     return str;
 }
 
-std::string syntax_tree_break::dump(int tab) const {
+std::string SyntaxTreeBreak::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(break)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(break)[" + LocStr() + "]\n";
     return str;
 }
 
-std::string syntax_tree_goto::dump(int tab) const {
+std::string SyntaxTreeGoto::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(goto)[" + loc_str() + "]\n";
-    str += gen_tab(tab + 1) + "label: " + label_ + "\n";
+    str += GenTab(tab) + "(goto)[" + LocStr() + "]\n";
+    str += GenTab(tab + 1) + "label: " + label_ + "\n";
     return str;
 }
 
-std::string syntax_tree_while::dump(int tab) const {
+std::string SyntaxTreeWhile::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(while)[" + loc_str() + "]\n";
-    str += exp_->dump(tab + 1);
-    str += block_->dump(tab + 1);
+    str += GenTab(tab) + "(while)[" + LocStr() + "]\n";
+    str += exp_->Dump(tab + 1);
+    str += block_->Dump(tab + 1);
     return str;
 }
 
-std::string syntax_tree_repeat::dump(int tab) const {
+std::string SyntaxTreeRepeat::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(repeat)[" + loc_str() + "]\n";
-    str += block_->dump(tab + 1);
-    str += exp_->dump(tab + 1);
+    str += GenTab(tab) + "(repeat)[" + LocStr() + "]\n";
+    str += block_->Dump(tab + 1);
+    str += exp_->Dump(tab + 1);
     return str;
 }
 
-std::string syntax_tree_if::dump(int tab) const {
+std::string SyntaxTreeIf::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(if)[" + loc_str() + "]\n";
-    str += exp_->dump(tab + 1);
-    str += block_->dump(tab + 1);
-    str += elseifs_->dump(tab + 1);
+    str += GenTab(tab) + "(if)[" + LocStr() + "]\n";
+    str += exp_->Dump(tab + 1);
+    str += block_->Dump(tab + 1);
+    str += elseifs_->Dump(tab + 1);
     if (elseblock_) {
-        str += elseblock_->dump(tab + 1);
+        str += elseblock_->Dump(tab + 1);
     }
     return str;
 }
 
-std::string syntax_tree_elseiflist::dump(int tab) const {
+std::string SyntaxTreeElseiflist::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(elseif)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(elseif)[" + LocStr() + "]\n";
     for (int i = 0; i < (int) exps_.size(); ++i) {
-        str += exps_[i]->dump(tab + 1);
-        str += blocks_[i]->dump(tab + 1);
+        str += exps_[i]->Dump(tab + 1);
+        str += blocks_[i]->Dump(tab + 1);
     }
     return str;
 }
 
-std::string syntax_tree_for_loop::dump(int tab) const {
+std::string SyntaxTreeForLoop::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(for_loop)[" + loc_str() + "]\n";
-    str += gen_tab(tab + 1) + "name: " + name_ + "\n";
-    str += exp_begin_->dump(tab + 1);
-    str += exp_end_->dump(tab + 1);
+    str += GenTab(tab) + "(for_loop)[" + LocStr() + "]\n";
+    str += GenTab(tab + 1) + "name: " + name_ + "\n";
+    str += exp_begin_->Dump(tab + 1);
+    str += exp_end_->Dump(tab + 1);
     if (exp_step_) {
-        str += exp_step_->dump(tab + 1);
+        str += exp_step_->Dump(tab + 1);
     }
-    str += block_->dump(tab + 1);
+    str += block_->Dump(tab + 1);
     return str;
 }
 
-std::string syntax_tree_for_in::dump(int tab) const {
+std::string SyntaxTreeForIn::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(for_in)[" + loc_str() + "]\n";
-    str += namelist_->dump(tab + 1);
-    str += explist_->dump(tab + 1);
-    str += block_->dump(tab + 1);
+    str += GenTab(tab) + "(for_in)[" + LocStr() + "]\n";
+    str += namelist_->Dump(tab + 1);
+    str += explist_->Dump(tab + 1);
+    str += block_->Dump(tab + 1);
     return str;
 }
 
-std::string syntax_tree_namelist::dump(int tab) const {
+std::string SyntaxTreeNamelist::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(namelist)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(namelist)[" + LocStr() + "]\n";
     size_t index = 0;
     for (auto &name: names_) {
-        str += gen_tab(tab + 1) + "name: " + name + "\n";
+        str += GenTab(tab + 1) + "name: " + name + "\n";
         if (index < attrib_.size() && !attrib_[index].empty()) {
-            str += gen_tab(tab + 1) + "attrib: " + attrib_[index] + "\n";
+            str += GenTab(tab + 1) + "attrib: " + attrib_[index] + "\n";
         }
         ++index;
     }
     return str;
 }
 
-std::string syntax_tree_function::dump(int tab) const {
+std::string SyntaxTreeFunction::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(function)[" + loc_str() + "]\n";
-    str += funcname_->dump(tab + 1);
-    str += funcbody_->dump(tab + 1);
+    str += GenTab(tab) + "(function)[" + LocStr() + "]\n";
+    str += funcname_->Dump(tab + 1);
+    str += funcbody_->Dump(tab + 1);
     return str;
 }
 
-std::string syntax_tree_funcnamelist::dump(int tab) const {
+std::string SyntaxTreeFuncnamelist::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(funcnamelist)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(funcnamelist)[" + LocStr() + "]\n";
     for (auto &name: funcnames_) {
-        str += gen_tab(tab + 1) + "name: " + name + "\n";
+        str += GenTab(tab + 1) + "name: " + name + "\n";
     }
     return str;
 }
 
-std::string syntax_tree_funcname::dump(int tab) const {
+std::string SyntaxTreeFuncname::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(funcname)[" + loc_str() + "]\n";
-    str += funcnamelist_->dump(tab + 1);
-    str += gen_tab(tab + 1) + "colon_name: " + colon_name_ + "\n";
+    str += GenTab(tab) + "(funcname)[" + LocStr() + "]\n";
+    str += funcnamelist_->Dump(tab + 1);
+    str += GenTab(tab + 1) + "ColonName: " + colon_name_ + "\n";
     return str;
 }
 
-std::string syntax_tree_funcbody::dump(int tab) const {
+std::string SyntaxTreeFuncbody::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(funcbody)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(funcbody)[" + LocStr() + "]\n";
     if (parlist_) {
-        str += parlist_->dump(tab + 1);
+        str += parlist_->Dump(tab + 1);
     }
-    str += block_->dump(tab + 1);
+    str += block_->Dump(tab + 1);
     return str;
 }
 
-std::string syntax_tree_functiondef::dump(int tab) const {
+std::string SyntaxTreeFunctiondef::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(functiondef)[" + loc_str() + "]\n";
-    str += funcbody_->dump(tab + 1);
+    str += GenTab(tab) + "(functiondef)[" + LocStr() + "]\n";
+    str += funcbody_->Dump(tab + 1);
     return str;
 }
 
-std::string syntax_tree_parlist::dump(int tab) const {
+std::string SyntaxTreeParlist::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(parlist)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(parlist)[" + LocStr() + "]\n";
     if (namelist_) {
-        str += namelist_->dump(tab + 1);
+        str += namelist_->Dump(tab + 1);
     }
     if (var_params_) {
-        str += gen_tab(tab + 1) + "var_params: " + std::to_string(var_params_) + "\n";
+        str += GenTab(tab + 1) + "VarParams: " + std::to_string(var_params_) + "\n";
     }
     return str;
 }
 
-std::string syntax_tree_local_function::dump(int tab) const {
+std::string SyntaxTreeLocalFunction::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(local_function)[" + loc_str() + "]\n";
-    str += gen_tab(tab + 1) + "name: " + name_ + "\n";
-    str += funcbody_->dump(tab + 1);
+    str += GenTab(tab) + "(local_function)[" + LocStr() + "]\n";
+    str += GenTab(tab + 1) + "name: " + name_ + "\n";
+    str += funcbody_->Dump(tab + 1);
     return str;
 }
 
-std::string syntax_tree_local_var::dump(int tab) const {
+std::string SyntaxTreeLocalVar::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(local_var)[" + loc_str() + "]\n";
-    str += namelist_->dump(tab + 1);
+    str += GenTab(tab) + "(local_var)[" + LocStr() + "]\n";
+    str += namelist_->Dump(tab + 1);
     if (explist_) {
-        str += explist_->dump(tab + 1);
+        str += explist_->Dump(tab + 1);
     }
     return str;
 }
 
-std::string syntax_tree_exp::dump(int tab) const {
+std::string SyntaxTreeExp::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(exp)[" + loc_str() + "]\n";
-    str += gen_tab(tab + 1) + "type: " + type_ + "\n";
-    str += gen_tab(tab + 1) + "value: " + value_ + "\n";
+    str += GenTab(tab) + "(exp)[" + LocStr() + "]\n";
+    str += GenTab(tab + 1) + "type: " + type_ + "\n";
+    str += GenTab(tab + 1) + "value: " + value_ + "\n";
     if (left_) {
-        str += left_->dump(tab + 1);
+        str += left_->Dump(tab + 1);
     }
     if (op_) {
-        str += op_->dump(tab + 1);
+        str += op_->Dump(tab + 1);
     }
     if (right_) {
-        str += right_->dump(tab + 1);
+        str += right_->Dump(tab + 1);
     }
     return str;
 }
 
-std::string syntax_tree_binop::dump(int tab) const {
+std::string SyntaxTreeBinop::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(binop)[" + loc_str() + "]\n";
-    str += gen_tab(tab + 1) + "op: " + op_ + "\n";
+    str += GenTab(tab) + "(binop)[" + LocStr() + "]\n";
+    str += GenTab(tab + 1) + "op: " + op_ + "\n";
     return str;
 }
 
-std::string syntax_tree_unop::dump(int tab) const {
+std::string SyntaxTreeUnop::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(unop)[" + loc_str() + "]\n";
-    str += gen_tab(tab + 1) + "op: " + op_ + "\n";
+    str += GenTab(tab) + "(unop)[" + LocStr() + "]\n";
+    str += GenTab(tab + 1) + "op: " + op_ + "\n";
     return str;
 }
 
-std::string syntax_tree_args::dump(int tab) const {
+std::string SyntaxTreeArgs::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(args)[" + loc_str() + "]\n";
+    str += GenTab(tab) + "(args)[" + LocStr() + "]\n";
     if (type_ == "explist") {
-        str += explist_->dump(tab + 1);
+        str += explist_->Dump(tab + 1);
     } else if (type_ == "tableconstructor") {
-        str += tableconstructor_->dump(tab + 1);
+        str += tableconstructor_->Dump(tab + 1);
     } else if (type_ == "string") {
-        str += string_->dump(tab + 1);
+        str += string_->Dump(tab + 1);
     } else if (type_ == "empty") {
-        str += gen_tab(tab + 1) + "empty" + "\n";
+        str += GenTab(tab + 1) + "empty" + "\n";
     } else {
         DEBUG_ASSERT(false && "unknown args type");
     }
     return str;
 }
 
-std::string syntax_tree_prefixexp::dump(int tab) const {
+std::string SyntaxTreePrefixexp::Dump(int tab) const {
     std::string str;
-    str += gen_tab(tab) + "(prefixexp)[" + loc_str() + "]\n";
-    str += gen_tab(tab + 1) + "type: " + type_ + "\n";
-    str += value_->dump(tab + 1);
+    str += GenTab(tab) + "(prefixexp)[" + LocStr() + "]\n";
+    str += GenTab(tab + 1) + "type: " + type_ + "\n";
+    str += value_->Dump(tab + 1);
     return str;
 }
 
-void walk_syntax_tree(const syntax_tree_interface_ptr &node, const walk_syntax_tree_func& func) {
+void WalkSyntaxTree(const SyntaxTreeInterfacePtr &node, const WalkSyntaxTreeFunc &func) {
     if (!node) {
         return;
     }
-    switch (node->type()) {
-        case syntax_tree_type::syntax_tree_type_empty: {
-            auto empty = std::dynamic_pointer_cast<syntax_tree_empty>(node);
+    switch (node->Type()) {
+        case SyntaxTreeType::Empty: {
+            auto empty = std::dynamic_pointer_cast<SyntaxTreeEmpty>(node);
             func(empty);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_block: {
-            auto block = std::dynamic_pointer_cast<syntax_tree_block>(node);
+        case SyntaxTreeType::Block: {
+            auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
             func(block);
-            for (auto &stmt: block->stmts()) {
-                walk_syntax_tree(stmt, func);
+            for (auto &stmt: block->Stmts()) {
+                WalkSyntaxTree(stmt, func);
             }
             break;
         }
-        case syntax_tree_type::syntax_tree_type_label: {
-            auto label = std::dynamic_pointer_cast<syntax_tree_label>(node);
+        case SyntaxTreeType::Label: {
+            auto label = std::dynamic_pointer_cast<SyntaxTreeLabel>(node);
             func(label);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_return: {
-            auto ret = std::dynamic_pointer_cast<syntax_tree_return>(node);
+        case SyntaxTreeType::Return: {
+            auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
             func(ret);
-            walk_syntax_tree(ret->explist(), func);
+            WalkSyntaxTree(ret->Explist(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_assign: {
-            auto assign = std::dynamic_pointer_cast<syntax_tree_assign>(node);
+        case SyntaxTreeType::Assign: {
+            auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
             func(assign);
-            walk_syntax_tree(assign->varlist(), func);
-            walk_syntax_tree(assign->explist(), func);
+            WalkSyntaxTree(assign->Varlist(), func);
+            WalkSyntaxTree(assign->Explist(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_varlist: {
-            auto varlist = std::dynamic_pointer_cast<syntax_tree_varlist>(node);
+        case SyntaxTreeType::VarList: {
+            auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(node);
             func(varlist);
-            for (auto &var: varlist->vars()) {
-                walk_syntax_tree(var, func);
+            for (auto &var: varlist->Vars()) {
+                WalkSyntaxTree(var, func);
             }
             break;
         }
-        case syntax_tree_type::syntax_tree_type_explist: {
-            auto explist = std::dynamic_pointer_cast<syntax_tree_explist>(node);
+        case SyntaxTreeType::ExpList: {
+            auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
             func(explist);
-            for (auto &exp: explist->exps()) {
-                walk_syntax_tree(exp, func);
+            for (auto &exp: explist->Exps()) {
+                WalkSyntaxTree(exp, func);
             }
             break;
         }
-        case syntax_tree_type::syntax_tree_type_var: {
-            auto var = std::dynamic_pointer_cast<syntax_tree_var>(node);
+        case SyntaxTreeType::Var: {
+            auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
             func(var);
-            walk_syntax_tree(var->get_exp(), func);
-            walk_syntax_tree(var->get_prefixexp(), func);
+            WalkSyntaxTree(var->GetExp(), func);
+            WalkSyntaxTree(var->GetPrefixexp(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_functioncall: {
-            auto functioncall = std::dynamic_pointer_cast<syntax_tree_functioncall>(node);
+        case SyntaxTreeType::FunctionCall: {
+            auto functioncall = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
             func(functioncall);
-            walk_syntax_tree(functioncall->prefixexp(), func);
-            walk_syntax_tree(functioncall->args(), func);
+            WalkSyntaxTree(functioncall->prefixexp(), func);
+            WalkSyntaxTree(functioncall->Args(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_tableconstructor: {
-            auto tableconstructor = std::dynamic_pointer_cast<syntax_tree_tableconstructor>(node);
+        case SyntaxTreeType::TableConstructor: {
+            auto tableconstructor = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
             func(tableconstructor);
-            walk_syntax_tree(tableconstructor->fieldlist(), func);
+            WalkSyntaxTree(tableconstructor->Fieldlist(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_fieldlist: {
-            auto fieldlist = std::dynamic_pointer_cast<syntax_tree_fieldlist>(node);
+        case SyntaxTreeType::FieldList: {
+            auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
             func(fieldlist);
-            for (auto &field: fieldlist->fields()) {
-                walk_syntax_tree(field, func);
+            for (auto &field: fieldlist->Fields()) {
+                WalkSyntaxTree(field, func);
             }
             break;
         }
-        case syntax_tree_type::syntax_tree_type_field: {
-            auto field = std::dynamic_pointer_cast<syntax_tree_field>(node);
+        case SyntaxTreeType::Field: {
+            auto field = std::dynamic_pointer_cast<SyntaxTreeField>(node);
             func(field);
-            walk_syntax_tree(field->key(), func);
-            walk_syntax_tree(field->value(), func);
+            WalkSyntaxTree(field->Key(), func);
+            WalkSyntaxTree(field->Value(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_break: {
-            auto bre = std::dynamic_pointer_cast<syntax_tree_break>(node);
+        case SyntaxTreeType::Break: {
+            auto bre = std::dynamic_pointer_cast<SyntaxTreeBreak>(node);
             func(bre);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_goto: {
-            auto go = std::dynamic_pointer_cast<syntax_tree_goto>(node);
+        case SyntaxTreeType::Goto: {
+            auto go = std::dynamic_pointer_cast<SyntaxTreeGoto>(node);
             func(go);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_while: {
-            auto wh = std::dynamic_pointer_cast<syntax_tree_while>(node);
+        case SyntaxTreeType::While: {
+            auto wh = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
             func(wh);
-            walk_syntax_tree(wh->exp(), func);
-            walk_syntax_tree(wh->block(), func);
+            WalkSyntaxTree(wh->Exp(), func);
+            WalkSyntaxTree(wh->Block(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_repeat: {
-            auto rep = std::dynamic_pointer_cast<syntax_tree_repeat>(node);
+        case SyntaxTreeType::Repeat: {
+            auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
             func(rep);
-            walk_syntax_tree(rep->block(), func);
-            walk_syntax_tree(rep->exp(), func);
+            WalkSyntaxTree(rep->Block(), func);
+            WalkSyntaxTree(rep->Exp(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_if: {
-            auto i = std::dynamic_pointer_cast<syntax_tree_if>(node);
+        case SyntaxTreeType::If: {
+            auto i = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
             func(i);
-            walk_syntax_tree(i->exp(), func);
-            walk_syntax_tree(i->block(), func);
-            walk_syntax_tree(i->elseifs(), func);
-            walk_syntax_tree(i->elseblock(), func);
+            WalkSyntaxTree(i->Exp(), func);
+            WalkSyntaxTree(i->Block(), func);
+            WalkSyntaxTree(i->ElseIfs(), func);
+            WalkSyntaxTree(i->ElseBlock(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_elseiflist: {
-            auto elseifs = std::dynamic_pointer_cast<syntax_tree_elseiflist>(node);
+        case SyntaxTreeType::ElseIfList: {
+            auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(node);
             func(elseifs);
-            for (auto &exp: elseifs->elseif_exps()) {
-                walk_syntax_tree(exp, func);
+            for (auto &exp: elseifs->ElseifExps()) {
+                WalkSyntaxTree(exp, func);
             }
-            for (auto &block: elseifs->elseif_blocks()) {
-                walk_syntax_tree(block, func);
+            for (auto &block: elseifs->ElseifBlocks()) {
+                WalkSyntaxTree(block, func);
             }
             break;
         }
-        case syntax_tree_type::syntax_tree_type_for_loop: {
-            auto for_loop = std::dynamic_pointer_cast<syntax_tree_for_loop>(node);
+        case SyntaxTreeType::ForLoop: {
+            auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
             func(for_loop);
-            walk_syntax_tree(for_loop->exp_begin(), func);
-            walk_syntax_tree(for_loop->exp_end(), func);
-            walk_syntax_tree(for_loop->exp_step(), func);
-            walk_syntax_tree(for_loop->block(), func);
+            WalkSyntaxTree(for_loop->ExpBegin(), func);
+            WalkSyntaxTree(for_loop->ExpEnd(), func);
+            WalkSyntaxTree(for_loop->ExpStep(), func);
+            WalkSyntaxTree(for_loop->Block(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_for_in: {
-            auto for_in = std::dynamic_pointer_cast<syntax_tree_for_in>(node);
+        case SyntaxTreeType::ForIn: {
+            auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
             func(for_in);
-            walk_syntax_tree(for_in->namelist(), func);
-            walk_syntax_tree(for_in->explist(), func);
-            walk_syntax_tree(for_in->block(), func);
+            WalkSyntaxTree(for_in->Namelist(), func);
+            WalkSyntaxTree(for_in->Explist(), func);
+            WalkSyntaxTree(for_in->Block(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_namelist: {
-            auto namelist = std::dynamic_pointer_cast<syntax_tree_namelist>(node);
+        case SyntaxTreeType::NameList: {
+            auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(node);
             func(namelist);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_function: {
-            auto f = std::dynamic_pointer_cast<syntax_tree_function>(node);
+        case SyntaxTreeType::Function: {
+            auto f = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
             func(f);
-            walk_syntax_tree(f->funcname(), func);
-            walk_syntax_tree(f->funcbody(), func);
+            WalkSyntaxTree(f->Funcname(), func);
+            WalkSyntaxTree(f->Funcbody(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_funcnamelist: {
-            auto funcnamelist = std::dynamic_pointer_cast<syntax_tree_funcnamelist>(node);
+        case SyntaxTreeType::FuncNameList: {
+            auto funcnamelist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(node);
             func(funcnamelist);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_funcname: {
-            auto funcname = std::dynamic_pointer_cast<syntax_tree_funcname>(node);
+        case SyntaxTreeType::FuncName: {
+            auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(node);
             func(funcname);
-            walk_syntax_tree(funcname->funcnamelist(), func);
+            WalkSyntaxTree(funcname->FuncNameList(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_funcbody: {
-            auto funcbody = std::dynamic_pointer_cast<syntax_tree_funcbody>(node);
+        case SyntaxTreeType::FuncBody: {
+            auto funcbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
             func(funcbody);
-            walk_syntax_tree(funcbody->parlist(), func);
-            walk_syntax_tree(funcbody->block(), func);
+            WalkSyntaxTree(funcbody->Parlist(), func);
+            WalkSyntaxTree(funcbody->Block(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_functiondef: {
-            auto functiondef = std::dynamic_pointer_cast<syntax_tree_functiondef>(node);
+        case SyntaxTreeType::FunctionDef: {
+            auto functiondef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node);
             func(functiondef);
-            walk_syntax_tree(functiondef->funcbody(), func);
+            WalkSyntaxTree(functiondef->Funcbody(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_parlist: {
-            auto parlist = std::dynamic_pointer_cast<syntax_tree_parlist>(node);
+        case SyntaxTreeType::ParList: {
+            auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(node);
             func(parlist);
-            walk_syntax_tree(parlist->namelist(), func);
+            WalkSyntaxTree(parlist->Namelist(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_local_function: {
-            auto local_function = std::dynamic_pointer_cast<syntax_tree_local_function>(node);
+        case SyntaxTreeType::LocalFunction: {
+            auto local_function = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
             func(local_function);
-            walk_syntax_tree(local_function->funcbody(), func);
+            WalkSyntaxTree(local_function->Funcbody(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_local_var: {
-            auto local_var = std::dynamic_pointer_cast<syntax_tree_local_var>(node);
+        case SyntaxTreeType::LocalVar: {
+            auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
             func(local_var);
-            walk_syntax_tree(local_var->namelist(), func);
-            walk_syntax_tree(local_var->explist(), func);
+            WalkSyntaxTree(local_var->Namelist(), func);
+            WalkSyntaxTree(local_var->Explist(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_exp: {
-            auto exp = std::dynamic_pointer_cast<syntax_tree_exp>(node);
+        case SyntaxTreeType::Exp: {
+            auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
             func(exp);
-            walk_syntax_tree(exp->left(), func);
-            walk_syntax_tree(exp->op(), func);
-            walk_syntax_tree(exp->right(), func);
+            WalkSyntaxTree(exp->Left(), func);
+            WalkSyntaxTree(exp->Op(), func);
+            WalkSyntaxTree(exp->Right(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_binop: {
-            auto binop = std::dynamic_pointer_cast<syntax_tree_binop>(node);
+        case SyntaxTreeType::Binop: {
+            auto binop = std::dynamic_pointer_cast<SyntaxTreeBinop>(node);
             func(binop);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_unop: {
-            auto unop = std::dynamic_pointer_cast<syntax_tree_unop>(node);
+        case SyntaxTreeType::Unop: {
+            auto unop = std::dynamic_pointer_cast<SyntaxTreeUnop>(node);
             func(unop);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_args: {
-            auto args = std::dynamic_pointer_cast<syntax_tree_args>(node);
+        case SyntaxTreeType::Args: {
+            auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
             func(args);
-            walk_syntax_tree(args->explist(), func);
-            walk_syntax_tree(args->tableconstructor(), func);
-            walk_syntax_tree(args->string(), func);
+            WalkSyntaxTree(args->Explist(), func);
+            WalkSyntaxTree(args->Tableconstructor(), func);
+            WalkSyntaxTree(args->String(), func);
             break;
         }
-        case syntax_tree_type::syntax_tree_type_prefixexp: {
-            auto prefixexp = std::dynamic_pointer_cast<syntax_tree_prefixexp>(node);
+        case SyntaxTreeType::PrefixExp: {
+            auto prefixexp = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node);
             func(prefixexp);
-            walk_syntax_tree(prefixexp->get_value(), func);
+            WalkSyntaxTree(prefixexp->GetValue(), func);
             break;
         }
         default: {

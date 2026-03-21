@@ -3,7 +3,7 @@
 namespace fakelua {
 
 // std::stacktrace::current() is not implemented in libstdc++ yet, so we have to use a fake one.
-std::string stacktrace_current() {
+std::string StacktraceCurrent() {
     std::string ret;
 #ifndef _WIN32
     ret.reserve(1024);
@@ -20,9 +20,9 @@ std::string stacktrace_current() {
     return ret;
 }
 
-[[noreturn]] void throw_fakelua_exception(const std::string &msg) {
-    LOG_ERROR("fakelua error: {}\n{}", msg, stacktrace_current());
-    throw fakelua_exception(std::format("fakelua error: {}\n{}", msg, stacktrace_current()));
+[[noreturn]] void ThrowFakeluaException(const std::string &msg) {
+    LOG_ERROR("fakelua error: {}\n{}", msg, StacktraceCurrent());
+    throw FakeluaException(std::format("fakelua error: {}\n{}", msg, StacktraceCurrent()));
 }
 
 }// namespace fakelua

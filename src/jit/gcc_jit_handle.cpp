@@ -1,9 +1,9 @@
 #include "gcc_jit_handle.h"
-#include "state/state.h"
+#include "state/State.h"
 
 namespace fakelua {
 
-gcc_jit_handle::~gcc_jit_handle() {
+GccJitHandle::~GccJitHandle() {
     if (gccjit_result_) {
         gcc_jit_result_release(gccjit_result_);
         gccjit_result_ = nullptr;

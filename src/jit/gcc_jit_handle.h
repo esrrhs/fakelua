@@ -6,13 +6,13 @@
 
 namespace fakelua {
 
-class gcc_jit_handle {
+class GccJitHandle {
 public:
-    gcc_jit_handle() = default;
+    GccJitHandle() = default;
 
-    ~gcc_jit_handle();
+    ~GccJitHandle();
 
-    void set_result(gcc_jit_result *result) {
+    void SetResult(gcc_jit_result *result) {
         gccjit_result_ = result;
     }
 
@@ -20,16 +20,16 @@ public:
         return gccjit_result_;
     }
 
-    void set_log_fp(FILE *fp) {
+    void SetLogFp(FILE *fp) {
         gccjit_log_fp_ = fp;
     }
 
 private:
-    fakelua_state *state_;
+    FakeluaState *state_;
     gcc_jit_result *gccjit_result_ = nullptr;
     FILE *gccjit_log_fp_ = nullptr;
 };
 
-typedef std::shared_ptr<gcc_jit_handle> gcc_jit_handle_ptr;
+typedef std::shared_ptr<GccJitHandle> GccJitHandlePtr;
 
 }// namespace fakelua

@@ -11,8 +11,8 @@ namespace fakelua {
 // use to describe the complex type of lua.
 // communication between fakelua and native.
 // so it can transfer complex type like table.
-struct var_interface {
-    enum class type {
+struct VarInterface {
+    enum class Type {
         MIN,
         NIL = MIN,
         BOOL,
@@ -23,123 +23,123 @@ struct var_interface {
         MAX = TABLE,
     };
 
-    virtual ~var_interface() = default;
+    virtual ~VarInterface() = default;
 
-    [[nodiscard]] virtual type vi_get_type() const = 0;
+    [[nodiscard]] virtual Type ViGetType() const = 0;
 
-    virtual void vi_set_nil() = 0;
+    virtual void ViSetNil() = 0;
 
-    virtual void vi_set_bool(bool v) = 0;
+    virtual void ViSetBool(bool v) = 0;
 
-    virtual void vi_set_int(int64_t v) = 0;
+    virtual void ViSetInt(int64_t v) = 0;
 
-    virtual void vi_set_float(double v) = 0;
+    virtual void ViSetFloat(double v) = 0;
 
-    virtual void vi_set_string(const std::string_view &v) = 0;
+    virtual void ViSetString(const std::string_view &v) = 0;
 
-    virtual void vi_set_table(const std::vector<std::pair<var_interface *, var_interface *>> &kv) = 0;
+    virtual void ViSetTable(const std::vector<std::pair<VarInterface *, VarInterface *>> &kv) = 0;
 
-    [[nodiscard]] virtual bool vi_get_bool() const = 0;
+    [[nodiscard]] virtual bool ViGetBool() const = 0;
 
-    [[nodiscard]] virtual int64_t vi_get_int() const = 0;
+    [[nodiscard]] virtual int64_t ViGetInt() const = 0;
 
-    [[nodiscard]] virtual double vi_get_float() const = 0;
+    [[nodiscard]] virtual double ViGetFloat() const = 0;
 
-    [[nodiscard]] virtual std::string_view vi_get_string() const = 0;
+    [[nodiscard]] virtual std::string_view ViGetString() const = 0;
 
-    [[nodiscard]] virtual size_t vi_get_table_size() const = 0;
+    [[nodiscard]] virtual size_t ViGetTableSize() const = 0;
 
-    [[nodiscard]] virtual std::pair<var_interface *, var_interface *> vi_get_table_kv(int index) const = 0;
+    [[nodiscard]] virtual std::pair<VarInterface *, VarInterface *> ViGetTableKv(int index) const = 0;
 
-    [[nodiscard]] virtual std::string vi_to_string(int tab) const = 0;
+    [[nodiscard]] virtual std::string ViToString(int tab) const = 0;
 };
 
 // simple var implement, just for simple use.
-struct simple_var_impl final : public var_interface {
-    simple_var_impl() = default;
+struct SimpleVarImpl final : public VarInterface {
+    SimpleVarImpl() = default;
 
-    ~simple_var_impl() override = default;
+    ~SimpleVarImpl() override = default;
 
-    [[nodiscard]] type vi_get_type() const override {
+    [[nodiscard]] Type ViGetType() const override {
         return type_;
     }
 
-    void vi_set_nil() override {
-        type_ = type::NIL;
+    void ViSetNil() override {
+        type_ = Type::NIL;
     }
 
-    void vi_set_bool(bool v) override {
-        type_ = type::BOOL;
+    void ViSetBool(bool v) override {
+        type_ = Type::BOOL;
         bool_ = v;
     }
 
-    void vi_set_int(int64_t v) override {
-        type_ = type::INT;
+    void ViSetInt(int64_t v) override {
+        type_ = Type::INT;
         int_ = v;
     }
 
-    void vi_set_float(double v) override {
-        type_ = type::FLOAT;
+    void ViSetFloat(double v) override {
+        type_ = Type::FLOAT;
         float_ = v;
     }
 
-    void vi_set_string(const std::string_view &v) override {
-        type_ = type::STRING;
+    void ViSetString(const std::string_view &v) override {
+        type_ = Type::STRING;
         string_ = v;
     }
 
-    void vi_set_table(const std::vector<std::pair<var_interface *, var_interface *>> &kv) override {
-        type_ = type::TABLE;
+    void ViSetTable(const std::vector<std::pair<VarInterface *, VarInterface *>> &kv) override {
+        type_ = Type::TABLE;
         table_ = kv;
     }
 
-    [[nodiscard]] bool vi_get_bool() const override {
+    [[nodiscard]] bool ViGetBool() const override {
         return bool_;
     }
 
-    [[nodiscard]] int64_t vi_get_int() const override {
+    [[nodiscard]] int64_t ViGetInt() const override {
         return int_;
     }
 
-    [[nodiscard]] double vi_get_float() const override {
+    [[nodiscard]] double ViGetFloat() const override {
         return float_;
     }
 
-    [[nodiscard]] std::string_view vi_get_string() const override {
+    [[nodiscard]] std::string_view ViGetString() const override {
         return string_;
     }
 
-    [[nodiscard]] size_t vi_get_table_size() const override {
+    [[nodiscard]] size_t ViGetTableSize() const override {
         return table_.size();
     }
 
-    [[nodiscard]] std::pair<var_interface *, var_interface *> vi_get_table_kv(int index) const override {
+    [[nodiscard]] std::pair<VarInterface *, VarInterface *> ViGetTableKv(int index) const override {
         return table_[index];
     }
 
-    [[nodiscard]] std::string vi_to_string(int tab) const override {
+    [[nodiscard]] std::string ViToString(int tab) const override {
         std::string ret;
         switch (type_) {
-            case type::NIL:
+            case Type::NIL:
                 ret = "nil";
                 break;
-            case type::BOOL:
+            case Type::BOOL:
                 ret = bool_ ? "true" : "false";
                 break;
-            case type::INT:
+            case Type::INT:
                 ret = std::to_string(int_);
                 break;
-            case type::FLOAT:
+            case Type::FLOAT:
                 ret = std::to_string(float_);
                 break;
-            case type::STRING:
+            case Type::STRING:
                 ret = std::format("\"{}\"", string_);
                 break;
-            case type::TABLE:
+            case Type::TABLE:
                 ret = "table:";
                 for (auto &kv: table_) {
-                    ret += std::format("\n{}[{}] = {}", std::string(tab + 1, '\t'), kv.first->vi_to_string(tab + 1),
-                                       kv.second->vi_to_string(tab + 1));
+                    ret += std::format("\n{}[{}] = {}", std::string(tab + 1, '\t'), kv.first->ViToString(tab + 1),
+                                       kv.second->ViToString(tab + 1));
                 }
                 break;
         }
@@ -148,321 +148,320 @@ struct simple_var_impl final : public var_interface {
     }
 
     // sort table by key, just for debug
-    void vi_sort_table() {
+    void ViSortTable() {
         std::sort(table_.begin(), table_.end(), [](const auto &a, const auto &b) {
-            if (a.first->vi_get_type() != b.first->vi_get_type()) {
-                return a.first->vi_get_type() < b.first->vi_get_type();
+            if (a.first->ViGetType() != b.first->ViGetType()) {
+                return a.first->ViGetType() < b.first->ViGetType();
             }
-            switch (a.first->vi_get_type()) {
-                case type::NIL:
+            switch (a.first->ViGetType()) {
+                case Type::NIL:
                     return false;
-                case type::BOOL:
-                    return a.first->vi_get_bool() < b.first->vi_get_bool();
-                case type::INT:
-                    return a.first->vi_get_int() < b.first->vi_get_int();
-                case type::FLOAT:
-                    return a.first->vi_get_float() < b.first->vi_get_float();
-                case type::STRING:
-                    return a.first->vi_get_string() < b.first->vi_get_string();
-                case type::TABLE:
-                    return a.first->vi_get_table_size() < b.first->vi_get_table_size();
+                case Type::BOOL:
+                    return a.first->ViGetBool() < b.first->ViGetBool();
+                case Type::INT:
+                    return a.first->ViGetInt() < b.first->ViGetInt();
+                case Type::FLOAT:
+                    return a.first->ViGetFloat() < b.first->ViGetFloat();
+                case Type::STRING:
+                    return a.first->ViGetString() < b.first->ViGetString();
+                case Type::TABLE:
+                    return a.first->ViGetTableSize() < b.first->ViGetTableSize();
                 default:
                     return false;
             }
         });
         for (const auto &val: table_ | std::views::values) {
-            if (val->vi_get_type() == type::TABLE) {
-                dynamic_cast<simple_var_impl *>(val)->vi_sort_table();
+            if (val->ViGetType() == Type::TABLE) {
+                dynamic_cast<SimpleVarImpl *>(val)->ViSortTable();
             }
         }
     }
 
-    type type_ = type::NIL;
+    Type type_ = Type::NIL;
     bool bool_ = false;
     int64_t int_ = 0;
     double float_ = 0;
     std::string_view string_;
-    std::vector<std::pair<var_interface *, var_interface *>> table_;
+    std::vector<std::pair<VarInterface *, VarInterface *>> table_;
 };
 
-class var_table;
-class var_string;
-class var;
+class VarTable;
+class VarString;
+class Var;
 
-struct cvar {
+struct CVar {
 protected:
     int type_ = 0;
     union cvar_data {
         bool b;
         int64_t i;
         double f;
-        var_string *s;
-        var_table *t;
+        VarString *s;
+        VarTable *t;
     };
     cvar_data data_{};
 };
 
-// control the compiler behavior
-struct compile_config {
+// control the Compiler behavior
+struct CompileConfig {
     // skip jit compile. just lex and parse.
     bool skip_jit = false;
     // debug mode. if true, the jit code will be dumped to file.
     bool debug_mode = true;
 };
 
-struct state_config {
+struct StateConfig {
     // max var stack count
     size_t max_stack_size = 65536;
 };
 
 // fake_lua state interface, every state can only run in one thread, just like Lua.
 // every state has its own running environment. there could be many states in one process.
-class fakelua_state : public std::enable_shared_from_this<fakelua_state> {
+class FakeluaState : public std::enable_shared_from_this<FakeluaState> {
 public:
-    fakelua_state(state_config config = {}) : config_(config) {
+    FakeluaState(StateConfig config = {}) : config_(config) {
     }
 
-    virtual ~fakelua_state() = default;
+    virtual ~FakeluaState() = default;
 
     // compile file, the file is a lua file.
-    virtual void compile_file(const std::string &filename, const compile_config &cfg) = 0;
+    virtual void CompileFile(const std::string &filename, const CompileConfig &cfg) = 0;
 
     // compile string, the string is the content of a file.
-    virtual void compile_string(const std::string &str, const compile_config &cfg) = 0;
+    virtual void CompileString(const std::string &str, const CompileConfig &cfg) = 0;
 
     // call function by name
     template<typename... Rets, typename... Args>
     void call(const std::string &name, std::tuple<Rets &...> &&rets, Args &&...args);
 
-    // set var_interface new instance function
-    void set_var_interface_new_func(const std::function<var_interface *()> &func) {
+    // set VarInterface new instance function
+    void SetVarInterfaceNewFunc(const std::function<VarInterface *()> &func) {
         var_interface_new_func_ = func;
     }
 
-    // get var_interface new instance function
-    std::function<var_interface *()> &get_var_interface_new_func() {
+    // get VarInterface new instance function
+    std::function<VarInterface *()> &GetVarInterfaceNewFunc() {
         return var_interface_new_func_;
     }
 
     // set global debug log level, note all state will be set.
     // 0: off, 1: error, 2: info, default is error.
-    void set_debug_log_level(int level);
+    void SetDebugLogLevel(int level);
 
 private:
-    std::function<var_interface *()> var_interface_new_func_;
-    state_config config_;
+    std::function<VarInterface *()> var_interface_new_func_;
+    StateConfig config_;
 };
 
-using fakelua_state_ptr = std::shared_ptr<fakelua_state>;
+using FakeluaStatePtr = std::shared_ptr<FakeluaState>;
 
 namespace inter {
 
 // native to fakelua
-cvar native_to_fakelua_nil(const fakelua_state_ptr &s);
-cvar native_to_fakelua_bool(const fakelua_state_ptr &s, bool v);
-cvar native_to_fakelua_char(const fakelua_state_ptr &s, char v);
-cvar native_to_fakelua_uchar(const fakelua_state_ptr &s, unsigned char v);
-cvar native_to_fakelua_short(const fakelua_state_ptr &s, short v);
-cvar native_to_fakelua_ushort(const fakelua_state_ptr &s, unsigned short v);
-cvar native_to_fakelua_int(const fakelua_state_ptr &s, int v);
-cvar native_to_fakelua_uint(const fakelua_state_ptr &s, unsigned int v);
-cvar native_to_fakelua_long(const fakelua_state_ptr &s, long v);
-cvar native_to_fakelua_ulong(const fakelua_state_ptr &s, unsigned long v);
-cvar native_to_fakelua_longlong(const fakelua_state_ptr &s, long long v);
-cvar native_to_fakelua_ulonglong(const fakelua_state_ptr &s, unsigned long long v);
-cvar native_to_fakelua_float(const fakelua_state_ptr &s, float v);
-cvar native_to_fakelua_double(const fakelua_state_ptr &s, double v);
-cvar native_to_fakelua_cstr(const fakelua_state_ptr &s, const char *v);
-cvar native_to_fakelua_str(const fakelua_state_ptr &s, char *v);
-cvar native_to_fakelua_string(const fakelua_state_ptr &s, const std::string &v);
-cvar native_to_fakelua_stringview(const fakelua_state_ptr &s, const std::string_view &v);
-cvar native_to_fakelua_obj(const fakelua_state_ptr &s, const var_interface *v);
+CVar NativeToFakeluaNil(const FakeluaStatePtr &s);
+CVar NativeToFakeluaBool(const FakeluaStatePtr &s, bool v);
+CVar NativeToFakeluaChar(const FakeluaStatePtr &s, char v);
+CVar NativeToFakeluaUchar(const FakeluaStatePtr &s, unsigned char v);
+CVar NativeToFakeluaShort(const FakeluaStatePtr &s, short v);
+CVar NativeToFakeluaUshort(const FakeluaStatePtr &s, unsigned short v);
+CVar NativeToFakeluaInt(const FakeluaStatePtr &s, int v);
+CVar NativeToFakeluaUint(const FakeluaStatePtr &s, unsigned int v);
+CVar NativeToFakeluaLong(const FakeluaStatePtr &s, long v);
+CVar NativeToFakeluaUlong(const FakeluaStatePtr &s, unsigned long v);
+CVar NativeToFakeluaLonglong(const FakeluaStatePtr &s, long long v);
+CVar NativeToFakeluaUlonglong(const FakeluaStatePtr &s, unsigned long long v);
+CVar NativeToFakeluaFloat(const FakeluaStatePtr &s, float v);
+CVar NativeToFakeluaDouble(const FakeluaStatePtr &s, double v);
+CVar NativeToFakeluaCstr(const FakeluaStatePtr &s, const char *v);
+CVar NativeToFakeluaStr(const FakeluaStatePtr &s, char *v);
+CVar NativeToFakeluaString(const FakeluaStatePtr &s, const std::string &v);
+CVar NativeToFakeluaStringview(const FakeluaStatePtr &s, const std::string_view &v);
+CVar NativeToFakeluaObj(const FakeluaStatePtr &s, const VarInterface *v);
 
 template<typename T>
-cvar native_to_fakelua(const fakelua_state_ptr &s, T v) {
+CVar NativeToFakelua(const FakeluaStatePtr &s, T v) {
     // check if T is nil
     if constexpr (std::is_same_v<T, std::nullptr_t>) {
-        return native_to_fakelua_nil(s);
+        return NativeToFakeluaNil(s);
     }
     // check if T is bool
     else if constexpr (std::is_same_v<T, bool>) {
-        return native_to_fakelua_bool(s, v);
+        return NativeToFakeluaBool(s, v);
     }
     // check if T is char
     else if constexpr (std::is_same_v<T, char>) {
-        return native_to_fakelua_char(s, v);
+        return NativeToFakeluaChar(s, v);
     }
     // check if T is unsigned char
     else if constexpr (std::is_same_v<T, unsigned char>) {
-        return native_to_fakelua_uchar(s, v);
+        return NativeToFakeluaUchar(s, v);
     }
     // check if T is short
     else if constexpr (std::is_same_v<T, short>) {
-        return native_to_fakelua_short(s, v);
+        return NativeToFakeluaShort(s, v);
     }
     // check if T is unsigned short
     else if constexpr (std::is_same_v<T, unsigned short>) {
-        return native_to_fakelua_ushort(s, v);
+        return NativeToFakeluaUshort(s, v);
     }
     // check if T is int
     else if constexpr (std::is_same_v<T, int>) {
-        return native_to_fakelua_int(s, v);
+        return NativeToFakeluaInt(s, v);
     }
     // check if T is unsigned int
     else if constexpr (std::is_same_v<T, unsigned int>) {
-        return native_to_fakelua_uint(s, v);
+        return NativeToFakeluaUint(s, v);
     }
     // check if T is long
     else if constexpr (std::is_same_v<T, long>) {
-        return native_to_fakelua_long(s, v);
+        return NativeToFakeluaLong(s, v);
     }
     // check if T is unsigned long
     else if constexpr (std::is_same_v<T, unsigned long>) {
-        return native_to_fakelua_ulong(s, v);
+        return NativeToFakeluaUlong(s, v);
     }
     // check if T is long long
     else if constexpr (std::is_same_v<T, long long>) {
-        return native_to_fakelua_longlong(s, v);
+        return NativeToFakeluaLonglong(s, v);
     }
     // check if T is unsigned long long
     else if constexpr (std::is_same_v<T, unsigned long long>) {
-        return native_to_fakelua_ulonglong(s, v);
+        return NativeToFakeluaUlonglong(s, v);
     }
     // check if T is float
     else if constexpr (std::is_same_v<T, float>) {
-        return native_to_fakelua_float(s, v);
+        return NativeToFakeluaFloat(s, v);
     }
     // check if T is double
     else if constexpr (std::is_same_v<T, double>) {
-        return native_to_fakelua_double(s, v);
+        return NativeToFakeluaDouble(s, v);
     }
     // check if T is const char *
     else if constexpr (std::is_same_v<T, const char *>) {
-        return native_to_fakelua_cstr(s, v);
+        return NativeToFakeluaCstr(s, v);
     }
     // check if T is char *
     else if constexpr (std::is_same_v<T, char *>) {
-        return native_to_fakelua_str(s, v);
+        return NativeToFakeluaStr(s, v);
     }
     // check if T is std::string
     else if constexpr (std::is_same_v<T, std::string>) {
-        return native_to_fakelua_string(s, v);
+        return NativeToFakeluaString(s, v);
     }
     // check if T is std::string_view
     else if constexpr (std::is_same_v<T, std::string_view>) {
-        return native_to_fakelua_stringview(s, v);
+        return NativeToFakeluaStringview(s, v);
     }
     // check if T is a cvar
-    else if constexpr (std::is_same_v<T, cvar>) {
+    else if constexpr (std::is_same_v<T, CVar>) {
         return v;
     } else {
-        // static_assert T should be var_interface* or implement var_interface
+        // static_assert T should be VarInterface* or implement VarInterface
         static_assert(std::is_pointer_v<T>, "T should be pointer");
-        static_assert(std::is_base_of_v<var_interface, std::remove_pointer_t<T>>, "T should be var_interface");
-        return native_to_fakelua_obj(s, v);
+        static_assert(std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>, "T should be VarInterface");
+        return NativeToFakeluaObj(s, v);
     }
 }
 
 // fakelua to native
-bool fakelua_to_native_bool(const fakelua_state_ptr &s, cvar v);
-char fakelua_to_native_char(const fakelua_state_ptr &s, cvar v);
-unsigned char fakelua_to_native_uchar(const fakelua_state_ptr &s, cvar v);
-short fakelua_to_native_short(const fakelua_state_ptr &s, cvar v);
-unsigned short fakelua_to_native_ushort(const fakelua_state_ptr &s, cvar v);
-int fakelua_to_native_int(const fakelua_state_ptr &s, cvar v);
-unsigned int fakelua_to_native_uint(const fakelua_state_ptr &s, cvar v);
-long fakelua_to_native_long(const fakelua_state_ptr &s, cvar v);
-unsigned long fakelua_to_native_ulong(const fakelua_state_ptr &s, cvar v);
-long long fakelua_to_native_longlong(const fakelua_state_ptr &s, cvar v);
-unsigned long long fakelua_to_native_ulonglong(const fakelua_state_ptr &s, cvar v);
-float fakelua_to_native_float(const fakelua_state_ptr &s, cvar v);
-double fakelua_to_native_double(const fakelua_state_ptr &s, cvar v);
-const char *fakelua_to_native_cstr(const fakelua_state_ptr &s, cvar v);
-const char *fakelua_to_native_str(const fakelua_state_ptr &s, cvar v);
-std::string fakelua_to_native_string(const fakelua_state_ptr &s, cvar v);
-std::string_view fakelua_to_native_stringview(const fakelua_state_ptr &s, cvar v);
-var_interface *fakelua_to_native_obj(const fakelua_state_ptr &s, cvar v);
+bool FakeluaToNativeBool(const FakeluaStatePtr &s, CVar v);
+char FakeluaToNativeChar(const FakeluaStatePtr &s, CVar v);
+unsigned char FakeluaToNativeUchar(const FakeluaStatePtr &s, CVar v);
+short FakeluaToNativeShort(const FakeluaStatePtr &s, CVar v);
+unsigned short FakeluaToNativeUshort(const FakeluaStatePtr &s, CVar v);
+int FakeluaToNativeInt(const FakeluaStatePtr &s, CVar v);
+unsigned int FakeluaToNativeUint(const FakeluaStatePtr &s, CVar v);
+long FakeluaToNativeLong(const FakeluaStatePtr &s, CVar v);
+unsigned long FakeluaToNativeUlong(const FakeluaStatePtr &s, CVar v);
+long long FakeluaToNativeLonglong(const FakeluaStatePtr &s, CVar v);
+unsigned long long FakeluaToNativeUlonglong(const FakeluaStatePtr &s, CVar v);
+float FakeluaToNativeFloat(const FakeluaStatePtr &s, CVar v);
+double FakeluaToNativeDouble(const FakeluaStatePtr &s, CVar v);
+const char *FakeluaToNativeCstr(const FakeluaStatePtr &s, CVar v);
+const char *FakeluaToNativeStr(const FakeluaStatePtr &s, CVar v);
+std::string FakeluaToNativeString(const FakeluaStatePtr &s, CVar v);
+std::string_view FakeluaToNativeStringview(const FakeluaStatePtr &s, CVar v);
+VarInterface *FakeluaToNativeObj(const FakeluaStatePtr &s, CVar v);
 
 template<typename T>
-T fakelua_to_native(const fakelua_state_ptr &s, const cvar v) {
+T FakeluaToNative(const FakeluaStatePtr &s, const CVar v) {
     if constexpr (std::is_same_v<T, bool>) {
-        return fakelua_to_native_bool(s, v);
+        return FakeluaToNativeBool(s, v);
     } else if constexpr (std::is_same_v<T, char>) {
-        return fakelua_to_native_char(s, v);
+        return FakeluaToNativeChar(s, v);
     } else if constexpr (std::is_same_v<T, unsigned char>) {
-        return fakelua_to_native_uchar(s, v);
+        return FakeluaToNativeUchar(s, v);
     } else if constexpr (std::is_same_v<T, short>) {
-        return fakelua_to_native_short(s, v);
+        return FakeluaToNativeShort(s, v);
     } else if constexpr (std::is_same_v<T, unsigned short>) {
-        return fakelua_to_native_ushort(s, v);
+        return FakeluaToNativeUshort(s, v);
     } else if constexpr (std::is_same_v<T, int>) {
-        return fakelua_to_native_int(s, v);
+        return FakeluaToNativeInt(s, v);
     } else if constexpr (std::is_same_v<T, unsigned int>) {
-        return fakelua_to_native_uint(s, v);
+        return FakeluaToNativeUint(s, v);
     } else if constexpr (std::is_same_v<T, long>) {
-        return fakelua_to_native_long(s, v);
+        return FakeluaToNativeLong(s, v);
     } else if constexpr (std::is_same_v<T, unsigned long>) {
-        return fakelua_to_native_ulong(s, v);
+        return FakeluaToNativeUlong(s, v);
     } else if constexpr (std::is_same_v<T, long long>) {
-        return fakelua_to_native_longlong(s, v);
+        return FakeluaToNativeLonglong(s, v);
     } else if constexpr (std::is_same_v<T, unsigned long long>) {
-        return fakelua_to_native_ulonglong(s, v);
+        return FakeluaToNativeUlonglong(s, v);
     } else if constexpr (std::is_same_v<T, float>) {
-        return fakelua_to_native_float(s, v);
+        return FakeluaToNativeFloat(s, v);
     } else if constexpr (std::is_same_v<T, double>) {
-        return fakelua_to_native_double(s, v);
+        return FakeluaToNativeDouble(s, v);
     } else if constexpr (std::is_same_v<T, const char *>) {
-        return fakelua_to_native_cstr(s, v);
+        return FakeluaToNativeCstr(s, v);
     } else if constexpr (std::is_same_v<T, char *>) {
-        return (char *) fakelua_to_native_str(s, v);
+        return (char *) FakeluaToNativeStr(s, v);
     } else if constexpr (std::is_same_v<T, std::string>) {
-        return fakelua_to_native_string(s, v);
+        return FakeluaToNativeString(s, v);
     } else if constexpr (std::is_same_v<T, std::string_view>) {
-        return fakelua_to_native_stringview(s, v);
-    } else if constexpr (std::is_same_v<T, cvar>) {
+        return FakeluaToNativeStringview(s, v);
+    } else if constexpr (std::is_same_v<T, CVar>) {
         return v;
     } else {
-        // static_assert T should be var_interface* or implement var_interface
+        // static_assert T should be VarInterface* or implement VarInterface
         static_assert(std::is_pointer_v<T>, "T should be pointer");
-        static_assert(std::is_base_of_v<var_interface, std::remove_pointer_t<T>>, "T should be var_interface");
-        return fakelua_to_native_obj(s, v);
+        static_assert(std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>, "T should be VarInterface");
+        return FakeluaToNativeObj(s, v);
     }
 }
 
 template<size_t I = 0, typename... Rets>
-inline std::enable_if_t<I == sizeof...(Rets), void> fakelua_func_ret_helper(const fakelua_state_ptr &s, cvar *ret,
-                                                                            std::tuple<Rets &...> &rets) {
+inline std::enable_if_t<I == sizeof...(Rets), void> FakeluaFuncRetHelper(const FakeluaStatePtr &s, CVar *ret, std::tuple<Rets &...> &rets) {
 }
 
 template<size_t I = 0, typename... Rets>
         inline std::enable_if_t <
-        I<sizeof...(Rets), void> fakelua_func_ret_helper(const fakelua_state_ptr &s, cvar *ret, std::tuple<Rets &...> &rets) {
+        I<sizeof...(Rets), void> FakeluaFuncRetHelper(const FakeluaStatePtr &s, CVar *ret, std::tuple<Rets &...> &rets) {
     typedef std::remove_reference_t<std::tuple_element_t<I, std::tuple<Rets &...>>> t;
-    std::get<I>(rets) = fakelua_to_native<t>(s, ret[I]);
-    fakelua_func_ret_helper<I + 1, Rets...>(s, ret, rets);
+    std::get<I>(rets) = FakeluaToNative<t>(s, ret[I]);
+    FakeluaFuncRetHelper<I + 1, Rets...>(s, ret, rets);
 }
 
-void call(const fakelua_state_ptr &s, const std::string &name, cvar *args, size_t arg_size, cvar *rets, size_t ret_size);
+void call(const FakeluaStatePtr &s, const std::string &name, CVar *args, size_t arg_size, CVar *rets, size_t ret_size);
 
 }// namespace inter
 
 // call funtion by name
 template<typename... Rets, typename... Args>
-void fakelua_state::call(const std::string &name, std::tuple<Rets &...> &&rets, Args &&...args) {
+void FakeluaState::call(const std::string &name, std::tuple<Rets &...> &&rets, Args &&...args) {
     // transfer args to vars array
-    cvar args_array[sizeof...(Args)] = {inter::native_to_fakelua(shared_from_this(), std::forward<Args>(args))...};
+    CVar args_array[sizeof...(Args)] = {inter::NativeToFakelua(shared_from_this(), std::forward<Args>(args))...};
 
     // alloc vars in stack
-    cvar rets_array[sizeof...(Rets)] = {};
+    CVar rets_array[sizeof...(Rets)] = {};
 
     // call function
     inter::call(shared_from_this(), name, args_array, sizeof...(Args), rets_array, sizeof...(Rets));
 
     // transfer vars to rets
-    inter::fakelua_func_ret_helper(shared_from_this(), rets_array, rets);
+    inter::FakeluaFuncRetHelper(shared_from_this(), rets_array, rets);
 }
 
 // create fake_lua state
-fakelua_state_ptr fakelua_newstate();
+FakeluaStatePtr FakeluaNewstate();
 
 }// namespace fakelua

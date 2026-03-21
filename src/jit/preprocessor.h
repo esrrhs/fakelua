@@ -7,46 +7,46 @@
 
 namespace fakelua {
 
-class pre_processor {
+class PreProcessor {
 public:
-    pre_processor() = default;
+    PreProcessor() = default;
 
-    ~pre_processor() = default;
+    ~PreProcessor() = default;
 
-    void process(const fakelua_state_ptr &sp, const compile_config &cfg, const std::string &file_name,
-                 const syntax_tree_interface_ptr &chunk);
-
-private:
-    void preprocess_const(const syntax_tree_interface_ptr &chunk);
-
-    void preprocess_const_define(const syntax_tree_interface_ptr &stmt);
-
-    void preprocess_functions_name(const syntax_tree_interface_ptr &chunk);
-
-    void preprocess_function_name(const syntax_tree_interface_ptr &func);
-
-    void save_preprocess_global_init(const syntax_tree_interface_ptr &chunk);
-
-    void preprocess_table_assigns(const syntax_tree_interface_ptr &chunk);
-
-    void preprocess_table_assign(const syntax_tree_interface_ptr &funcbody);
-
-    void preprocess_extracts_literal_constants(const syntax_tree_interface_ptr &chunk);
+    void Process(const FakeluaStatePtr &sp, const CompileConfig &cfg, const std::string &file_name,
+                 const SyntaxTreeInterfacePtr &chunk);
 
 private:
-    [[noreturn]] void throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr);
+    void PreprocessConst(const SyntaxTreeInterfacePtr &chunk);
 
-    std::string location_str(const syntax_tree_interface_ptr &ptr);
+    void PreprocessConstDefine(const SyntaxTreeInterfacePtr &stmt);
 
-    void dump_debug_file(const syntax_tree_interface_ptr &chunk, int step);
+    void PreprocessFunctionsName(const SyntaxTreeInterfacePtr &chunk);
+
+    void PreprocessFunctionName(const SyntaxTreeInterfacePtr &func);
+
+    void SavePreprocessGlobalInit(const SyntaxTreeInterfacePtr &chunk);
+
+    void PreprocessTableAssigns(const SyntaxTreeInterfacePtr &chunk);
+
+    void PreprocessTableAssign(const SyntaxTreeInterfacePtr &funcbody);
+
+    void PreprocessExtractsLiteralConstants(const SyntaxTreeInterfacePtr &chunk);
+
+private:
+    [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
+
+    std::string LocationStr(const SyntaxTreeInterfacePtr &ptr);
+
+    void DumpDebugFile(const SyntaxTreeInterfacePtr &chunk, int step);
 
 private:
     // the state contains the running environment we need.
-    fakelua_state_ptr sp_;
-    // the compiler config
+    FakeluaStatePtr sp_;
+    // the Compiler config
     std::string file_name_;
     // save the preprocess trunk new stmt in global_init func
-    std::vector<syntax_tree_interface_ptr> global_init_new_stmt_;
+    std::vector<SyntaxTreeInterfacePtr> global_init_new_stmt_;
     // temp var name counter
     int pre_index_ = 0;
 };

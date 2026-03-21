@@ -1,7 +1,7 @@
 #pragma once
 
 #include "bison/parser.h"
-#include "compile/myflexer.h"
+#include "compile/my_flexer.h"
 #include "compile_common.h"
 #include "jit/gcc_jit.h"
 #include <map>
@@ -9,30 +9,30 @@
 
 namespace fakelua {
 
-struct compile_result {
+struct CompileResult {
     // the file name
-    std::string file_name;
+    std::string fileName;
     // the main syntax tree
-    syntax_tree_interface_ptr chunk;
+    SyntaxTreeInterfacePtr chunk;
 };
 
-// lua compiler class, parse lua code to a syntax tree, and then compile to toy-interpreter runtime, and JIT binary code
-class compiler {
+// lua Compiler class, parse lua code to a syntax tree, and then compile to toy-interpreter runtime, and JIT binary code
+class Compiler {
 public:
-    compiler() = default;
+    Compiler() = default;
 
-    ~compiler() = default;
+    ~Compiler() = default;
 
 public:
     // compile the lua file
-    compile_result compile_file(const fakelua_state_ptr &sp, const std::string &file, const compile_config &cfg);
+    CompileResult CompileFile(const FakeluaStatePtr &sp, const std::string &file, const CompileConfig &cfg);
 
     // compile the lua string
-    compile_result compile_string(const fakelua_state_ptr &sp, const std::string &str, const compile_config &cfg);
+    CompileResult CompileString(const FakeluaStatePtr &sp, const std::string &str, const CompileConfig &cfg);
 
 private:
     // compile the myflexer which already input the file or string
-    compile_result compile(const fakelua_state_ptr &sp, myflexer &f, const compile_config &cfg);
+    CompileResult Compile(const FakeluaStatePtr &sp, MyFlexer &f, const CompileConfig &cfg);
 };
 
 }// namespace fakelua

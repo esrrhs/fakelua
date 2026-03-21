@@ -37,7 +37,7 @@
 /* %if-c-only */
 /* %endif */
 
-/* First, we deal with  platform-specific or compiler-specific issues. */
+/* First, we deal with  platform-specific or Compiler-specific issues. */
 
 /* begin standard C headers. */
 /* %if-c-only */
@@ -656,19 +656,19 @@ static const flex_int16_t yy_rule_linenum[70] =
 #define YY_RESTORE_YY_MORE_OFFSET
 #line 1 "scanner.l"
 #line 2 "scanner.l"
+#include "compile/my_flexer.h"
+#include "compile/bison/parser.h"
 #include <cerrno>
 #include <climits>
 #include <cstdlib>
 #include <cstring>
 #include <string>
-#include "compile/bison/parser.h"
-#include "compile/myflexer.h"
 
 // https://westes.github.io/flex/manual/Cxx.html
 
 // Give Flex the prototype of yylex we want ...
 # define YY_DECL \
-    yy::parser::symbol_type fakelua::myflexer::my_yylex()
+    yy::parser::SymbolType fakelua::MyFlexer::MyYylex()
 
 #line 673 "scanner.cpp"
 #line 19 "scanner.l"
@@ -1321,7 +1321,7 @@ return yy::parser::make_STRING(yytext, loc);
 case 69:
 YY_RULE_SETUP
 #line 130 "scanner.l"
-{ throw yy::parser::syntax_error(loc, "invalid character: [" + std::string(yytext) + "]"); }
+{ throw yy::parser::SyntaxError(loc, "invalid character: [" + std::string(yytext) + "]"); }
 	YY_BREAK
 case YY_STATE_EOF(INITIAL):
 case YY_STATE_EOF(SINGLE_LINE_COMMENT_STATE):
@@ -1483,7 +1483,7 @@ yyFlexLexer::yyFlexLexer( std::istream* arg_yyin, std::ostream* arg_yyout ):
 	yyin(arg_yyin ? arg_yyin->rdbuf() : std::cin.rdbuf()),
 	yyout(arg_yyout ? arg_yyout->rdbuf() : std::cout.rdbuf())
 {
-	ctor_common();
+	CtorCommon();
 }
 
 /* The contents of this function are C++ specific, so the () macro is not used.
@@ -1492,12 +1492,12 @@ yyFlexLexer::yyFlexLexer( std::istream& arg_yyin, std::ostream& arg_yyout ):
 	yyin(arg_yyin.rdbuf()),
 	yyout(arg_yyout.rdbuf())
 {
-	ctor_common();
+	CtorCommon();
 }
 
 /* The contents of this function are C++ specific, so the () macro is not used.
  */
-void yyFlexLexer::ctor_common()
+void yyFlexLexer::CtorCommon()
 {
 	yy_c_buf_p = 0;
 	yy_init = 0;
@@ -1535,7 +1535,7 @@ yyFlexLexer::~yyFlexLexer()
 
 /* The contents of this function are C++ specific, so the () macro is not used.
  */
-void yyFlexLexer::switch_streams( std::istream& new_in, std::ostream& new_out )
+void yyFlexLexer::SwitchStreams( std::istream& new_in, std::ostream& new_out )
 {
 	// was if( new_in )
 	yy_delete_buffer( YY_CURRENT_BUFFER );
@@ -1547,7 +1547,7 @@ void yyFlexLexer::switch_streams( std::istream& new_in, std::ostream& new_out )
 
 /* The contents of this function are C++ specific, so the () macro is not used.
  */
-void yyFlexLexer::switch_streams( std::istream* new_in, std::ostream* new_out )
+void yyFlexLexer::SwitchStreams( std::istream* new_in, std::ostream* new_out )
 {
 	if( ! new_in ) {
 		new_in = &yyin;
@@ -1557,7 +1557,7 @@ void yyFlexLexer::switch_streams( std::istream* new_in, std::ostream* new_out )
 		new_out = &yyout;
 	}
 
-	switch_streams(*new_in, *new_out);
+	SwitchStreams(*new_in, *new_out);
 }
 
 #ifdef YY_INTERACTIVE
@@ -1945,14 +1945,14 @@ int yyFlexLexer::yy_get_next_buffer()
 /* %endif */
 
 /** Immediately switch to a different input stream.
- * @param input_file A readable stream.
+ * @param InputFile A readable stream.
  * 
  * @note This function does not reset the start condition to @c INITIAL .
  */
 /* %if-c-only */
 /* %endif */
 /* %if-c++-only */
-    void yyFlexLexer::yyrestart( std::istream& input_file )
+    void yyFlexLexer::yyrestart( std::istream& InputFile )
 /* %endif */
 {
     
@@ -1962,22 +1962,22 @@ int yyFlexLexer::yy_get_next_buffer()
             yy_create_buffer( yyin, YY_BUF_SIZE );
 	}
 
-	yy_init_buffer( YY_CURRENT_BUFFER, input_file );
+	yy_init_buffer( YY_CURRENT_BUFFER, InputFile );
 	yy_load_buffer_state(  );
 }
 
 /* %if-c++-only */
 /** Delegate to the new version that takes an istream reference.
- * @param input_file A readable stream.
+ * @param InputFile A readable stream.
  * 
  * @note This function does not reset the start condition to @c INITIAL .
  */
-void yyFlexLexer::yyrestart( std::istream* input_file )
+void yyFlexLexer::yyrestart( std::istream* InputFile )
 {
-	if( ! input_file ) {
-		input_file = &yyin;
+	if( ! InputFile ) {
+		InputFile = &yyin;
 	}
-	yyrestart( *input_file );
+	yyrestart( *InputFile );
 }
 /* %endif */
 

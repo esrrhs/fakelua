@@ -44,10 +44,10 @@
 // Unqualified %code blocks.
 #line 34 "parser.y"
 
-#include "compile/myflexer.h"
+#include "compile/my_flexer.h"
 
-yy::parser::symbol_type yylex(fakelua::myflexer* l) {
-    auto ret = l->my_yylex();
+yy::parser::SymbolType yylex(fakelua::MyFlexer* l) {
+    auto ret = l->MyYylex();
     std::stringstream ss;
     ss << ret.location;
     LOG_INFO("[bison]: bison get token: {} loc: {}", ret.name(), ss.str());
@@ -152,7 +152,7 @@ namespace yy {
 #line 153 "parser.cpp"
 
   /// Build a parser object.
-  parser::parser (fakelua::myflexer* l_yyarg)
+  parser::parser (fakelua::MyFlexer* l_yyarg)
 #if YYDEBUG
     : yydebug_ (false),
       yycdebug_ (&std::cerr),
@@ -166,7 +166,7 @@ namespace yy {
   parser::~parser ()
   {}
 
-  parser::syntax_error::~syntax_error () YY_NOEXCEPT YY_NOTHROW
+  parser::SyntaxError::~SyntaxError () YY_NOEXCEPT YY_NOTHROW
   {}
 
   /*---------------.
@@ -175,78 +175,78 @@ namespace yy {
 
 
 
-  // by_state.
-  parser::by_state::by_state () YY_NOEXCEPT
+  // ByState.
+  parser::ByState::ByState () YY_NOEXCEPT
     : state (empty_state)
   {}
 
-  parser::by_state::by_state (const by_state& that) YY_NOEXCEPT
+  parser::ByState::ByState (const ByState& that) YY_NOEXCEPT
     : state (that.state)
   {}
 
   void
-  parser::by_state::clear () YY_NOEXCEPT
+  parser::ByState::clear () YY_NOEXCEPT
   {
     state = empty_state;
   }
 
   void
-  parser::by_state::move (by_state& that)
+  parser::ByState::move (ByState& that)
   {
     state = that.state;
     that.clear ();
   }
 
-  parser::by_state::by_state (state_type s) YY_NOEXCEPT
+  parser::ByState::ByState (state_type s) YY_NOEXCEPT
     : state (s)
   {}
 
-  parser::symbol_kind_type
-  parser::by_state::kind () const YY_NOEXCEPT
+  parser::SymbolKindType
+  parser::ByState::kind () const YY_NOEXCEPT
   {
     if (state == empty_state)
-      return symbol_kind::S_YYEMPTY;
+      return SymbolKind::S_YYEMPTY;
     else
-      return YY_CAST (symbol_kind_type, yystos_[+state]);
+      return YY_CAST (SymbolKindType, yystos_[+state]);
   }
 
-  parser::stack_symbol_type::stack_symbol_type ()
+  parser::StackSymbolType::StackSymbolType ()
   {}
 
-  parser::stack_symbol_type::stack_symbol_type (YY_RVREF (stack_symbol_type) that)
+  parser::StackSymbolType::StackSymbolType (YY_RVREF (StackSymbolType) that)
     : super_type (YY_MOVE (that.state), YY_MOVE (that.location))
   {
     switch (that.kind ())
     {
-      case symbol_kind::S_chunk: // chunk
-      case symbol_kind::S_block: // block
-      case symbol_kind::S_stmt: // stmt
-      case symbol_kind::S_attnamelist: // attnamelist
-      case symbol_kind::S_elseifs: // elseifs
-      case symbol_kind::S_retstat: // retstat
-      case symbol_kind::S_label: // label
-      case symbol_kind::S_funcnamelist: // funcnamelist
-      case symbol_kind::S_funcname: // funcname
-      case symbol_kind::S_varlist: // varlist
-      case symbol_kind::S_var: // var
-      case symbol_kind::S_namelist: // namelist
-      case symbol_kind::S_explist: // explist
-      case symbol_kind::S_exp: // exp
-      case symbol_kind::S_prefixexp: // prefixexp
-      case symbol_kind::S_functioncall: // functioncall
-      case symbol_kind::S_args: // args
-      case symbol_kind::S_functiondef: // functiondef
-      case symbol_kind::S_funcbody: // funcbody
-      case symbol_kind::S_parlist: // parlist
-      case symbol_kind::S_tableconstructor: // tableconstructor
-      case symbol_kind::S_fieldlist: // fieldlist
-      case symbol_kind::S_field: // field
-        value.YY_MOVE_OR_COPY< fakelua::syntax_tree_interface_ptr > (YY_MOVE (that.value));
+      case SymbolKind::S_chunk: // chunk
+      case SymbolKind::S_block: // block
+      case SymbolKind::S_stmt: // stmt
+      case SymbolKind::S_attnamelist: // attnamelist
+      case SymbolKind::S_elseifs: // elseifs
+      case SymbolKind::S_retstat: // retstat
+      case SymbolKind::S_label: // label
+      case SymbolKind::S_funcnamelist: // funcnamelist
+      case SymbolKind::S_funcname: // funcname
+      case SymbolKind::S_varlist: // varlist
+      case SymbolKind::S_var: // var
+      case SymbolKind::S_namelist: // namelist
+      case SymbolKind::S_explist: // explist
+      case SymbolKind::S_exp: // exp
+      case SymbolKind::S_prefixexp: // prefixexp
+      case SymbolKind::S_functioncall: // functioncall
+      case SymbolKind::S_args: // args
+      case SymbolKind::S_functiondef: // functiondef
+      case SymbolKind::S_funcbody: // funcbody
+      case SymbolKind::S_parlist: // parlist
+      case SymbolKind::S_tableconstructor: // tableconstructor
+      case SymbolKind::S_fieldlist: // fieldlist
+      case SymbolKind::S_field: // field
+        value.YY_MOVE_OR_COPY< fakelua::SyntaxTreeInterfacePtr > (YY_MOVE (that.value));
         break;
 
-      case symbol_kind::S_IDENTIFIER: // "identifier"
-      case symbol_kind::S_STRING: // "string"
-      case symbol_kind::S_NUMBER: // "number"
+      case SymbolKind::S_IDENTIFIER: // "identifier"
+      case SymbolKind::S_STRING: // "string"
+      case SymbolKind::S_NUMBER: // "number"
         value.YY_MOVE_OR_COPY< std::string > (YY_MOVE (that.value));
         break;
 
@@ -260,40 +260,40 @@ namespace yy {
 #endif
   }
 
-  parser::stack_symbol_type::stack_symbol_type (state_type s, YY_MOVE_REF (symbol_type) that)
+  parser::StackSymbolType::StackSymbolType (state_type s, YY_MOVE_REF (SymbolType) that)
     : super_type (s, YY_MOVE (that.location))
   {
     switch (that.kind ())
     {
-      case symbol_kind::S_chunk: // chunk
-      case symbol_kind::S_block: // block
-      case symbol_kind::S_stmt: // stmt
-      case symbol_kind::S_attnamelist: // attnamelist
-      case symbol_kind::S_elseifs: // elseifs
-      case symbol_kind::S_retstat: // retstat
-      case symbol_kind::S_label: // label
-      case symbol_kind::S_funcnamelist: // funcnamelist
-      case symbol_kind::S_funcname: // funcname
-      case symbol_kind::S_varlist: // varlist
-      case symbol_kind::S_var: // var
-      case symbol_kind::S_namelist: // namelist
-      case symbol_kind::S_explist: // explist
-      case symbol_kind::S_exp: // exp
-      case symbol_kind::S_prefixexp: // prefixexp
-      case symbol_kind::S_functioncall: // functioncall
-      case symbol_kind::S_args: // args
-      case symbol_kind::S_functiondef: // functiondef
-      case symbol_kind::S_funcbody: // funcbody
-      case symbol_kind::S_parlist: // parlist
-      case symbol_kind::S_tableconstructor: // tableconstructor
-      case symbol_kind::S_fieldlist: // fieldlist
-      case symbol_kind::S_field: // field
-        value.move< fakelua::syntax_tree_interface_ptr > (YY_MOVE (that.value));
+      case SymbolKind::S_chunk: // chunk
+      case SymbolKind::S_block: // block
+      case SymbolKind::S_stmt: // stmt
+      case SymbolKind::S_attnamelist: // attnamelist
+      case SymbolKind::S_elseifs: // elseifs
+      case SymbolKind::S_retstat: // retstat
+      case SymbolKind::S_label: // label
+      case SymbolKind::S_funcnamelist: // funcnamelist
+      case SymbolKind::S_funcname: // funcname
+      case SymbolKind::S_varlist: // varlist
+      case SymbolKind::S_var: // var
+      case SymbolKind::S_namelist: // namelist
+      case SymbolKind::S_explist: // explist
+      case SymbolKind::S_exp: // exp
+      case SymbolKind::S_prefixexp: // prefixexp
+      case SymbolKind::S_functioncall: // functioncall
+      case SymbolKind::S_args: // args
+      case SymbolKind::S_functiondef: // functiondef
+      case SymbolKind::S_funcbody: // funcbody
+      case SymbolKind::S_parlist: // parlist
+      case SymbolKind::S_tableconstructor: // tableconstructor
+      case SymbolKind::S_fieldlist: // fieldlist
+      case SymbolKind::S_field: // field
+        value.move< fakelua::SyntaxTreeInterfacePtr > (YY_MOVE (that.value));
         break;
 
-      case symbol_kind::S_IDENTIFIER: // "identifier"
-      case symbol_kind::S_STRING: // "string"
-      case symbol_kind::S_NUMBER: // "number"
+      case SymbolKind::S_IDENTIFIER: // "identifier"
+      case SymbolKind::S_STRING: // "string"
+      case SymbolKind::S_NUMBER: // "number"
         value.move< std::string > (YY_MOVE (that.value));
         break;
 
@@ -302,45 +302,45 @@ namespace yy {
     }
 
     // that is emptied.
-    that.kind_ = symbol_kind::S_YYEMPTY;
+    that.kind_ = SymbolKind::S_YYEMPTY;
   }
 
 #if YY_CPLUSPLUS < 201103L
-  parser::stack_symbol_type&
-  parser::stack_symbol_type::operator= (const stack_symbol_type& that)
+  parser::StackSymbolType&
+  parser::StackSymbolType::operator= (const StackSymbolType& that)
   {
     state = that.state;
     switch (that.kind ())
     {
-      case symbol_kind::S_chunk: // chunk
-      case symbol_kind::S_block: // block
-      case symbol_kind::S_stmt: // stmt
-      case symbol_kind::S_attnamelist: // attnamelist
-      case symbol_kind::S_elseifs: // elseifs
-      case symbol_kind::S_retstat: // retstat
-      case symbol_kind::S_label: // label
-      case symbol_kind::S_funcnamelist: // funcnamelist
-      case symbol_kind::S_funcname: // funcname
-      case symbol_kind::S_varlist: // varlist
-      case symbol_kind::S_var: // var
-      case symbol_kind::S_namelist: // namelist
-      case symbol_kind::S_explist: // explist
-      case symbol_kind::S_exp: // exp
-      case symbol_kind::S_prefixexp: // prefixexp
-      case symbol_kind::S_functioncall: // functioncall
-      case symbol_kind::S_args: // args
-      case symbol_kind::S_functiondef: // functiondef
-      case symbol_kind::S_funcbody: // funcbody
-      case symbol_kind::S_parlist: // parlist
-      case symbol_kind::S_tableconstructor: // tableconstructor
-      case symbol_kind::S_fieldlist: // fieldlist
-      case symbol_kind::S_field: // field
-        value.copy< fakelua::syntax_tree_interface_ptr > (that.value);
+      case SymbolKind::S_chunk: // chunk
+      case SymbolKind::S_block: // block
+      case SymbolKind::S_stmt: // stmt
+      case SymbolKind::S_attnamelist: // attnamelist
+      case SymbolKind::S_elseifs: // elseifs
+      case SymbolKind::S_retstat: // retstat
+      case SymbolKind::S_label: // label
+      case SymbolKind::S_funcnamelist: // funcnamelist
+      case SymbolKind::S_funcname: // funcname
+      case SymbolKind::S_varlist: // varlist
+      case SymbolKind::S_var: // var
+      case SymbolKind::S_namelist: // namelist
+      case SymbolKind::S_explist: // explist
+      case SymbolKind::S_exp: // exp
+      case SymbolKind::S_prefixexp: // prefixexp
+      case SymbolKind::S_functioncall: // functioncall
+      case SymbolKind::S_args: // args
+      case SymbolKind::S_functiondef: // functiondef
+      case SymbolKind::S_funcbody: // funcbody
+      case SymbolKind::S_parlist: // parlist
+      case SymbolKind::S_tableconstructor: // tableconstructor
+      case SymbolKind::S_fieldlist: // fieldlist
+      case SymbolKind::S_field: // field
+        value.copy< fakelua::SyntaxTreeInterfacePtr > (that.value);
         break;
 
-      case symbol_kind::S_IDENTIFIER: // "identifier"
-      case symbol_kind::S_STRING: // "string"
-      case symbol_kind::S_NUMBER: // "number"
+      case SymbolKind::S_IDENTIFIER: // "identifier"
+      case SymbolKind::S_STRING: // "string"
+      case SymbolKind::S_NUMBER: // "number"
         value.copy< std::string > (that.value);
         break;
 
@@ -352,41 +352,41 @@ namespace yy {
     return *this;
   }
 
-  parser::stack_symbol_type&
-  parser::stack_symbol_type::operator= (stack_symbol_type& that)
+  parser::StackSymbolType&
+  parser::StackSymbolType::operator= (StackSymbolType& that)
   {
     state = that.state;
     switch (that.kind ())
     {
-      case symbol_kind::S_chunk: // chunk
-      case symbol_kind::S_block: // block
-      case symbol_kind::S_stmt: // stmt
-      case symbol_kind::S_attnamelist: // attnamelist
-      case symbol_kind::S_elseifs: // elseifs
-      case symbol_kind::S_retstat: // retstat
-      case symbol_kind::S_label: // label
-      case symbol_kind::S_funcnamelist: // funcnamelist
-      case symbol_kind::S_funcname: // funcname
-      case symbol_kind::S_varlist: // varlist
-      case symbol_kind::S_var: // var
-      case symbol_kind::S_namelist: // namelist
-      case symbol_kind::S_explist: // explist
-      case symbol_kind::S_exp: // exp
-      case symbol_kind::S_prefixexp: // prefixexp
-      case symbol_kind::S_functioncall: // functioncall
-      case symbol_kind::S_args: // args
-      case symbol_kind::S_functiondef: // functiondef
-      case symbol_kind::S_funcbody: // funcbody
-      case symbol_kind::S_parlist: // parlist
-      case symbol_kind::S_tableconstructor: // tableconstructor
-      case symbol_kind::S_fieldlist: // fieldlist
-      case symbol_kind::S_field: // field
-        value.move< fakelua::syntax_tree_interface_ptr > (that.value);
+      case SymbolKind::S_chunk: // chunk
+      case SymbolKind::S_block: // block
+      case SymbolKind::S_stmt: // stmt
+      case SymbolKind::S_attnamelist: // attnamelist
+      case SymbolKind::S_elseifs: // elseifs
+      case SymbolKind::S_retstat: // retstat
+      case SymbolKind::S_label: // label
+      case SymbolKind::S_funcnamelist: // funcnamelist
+      case SymbolKind::S_funcname: // funcname
+      case SymbolKind::S_varlist: // varlist
+      case SymbolKind::S_var: // var
+      case SymbolKind::S_namelist: // namelist
+      case SymbolKind::S_explist: // explist
+      case SymbolKind::S_exp: // exp
+      case SymbolKind::S_prefixexp: // prefixexp
+      case SymbolKind::S_functioncall: // functioncall
+      case SymbolKind::S_args: // args
+      case SymbolKind::S_functiondef: // functiondef
+      case SymbolKind::S_funcbody: // funcbody
+      case SymbolKind::S_parlist: // parlist
+      case SymbolKind::S_tableconstructor: // tableconstructor
+      case SymbolKind::S_fieldlist: // fieldlist
+      case SymbolKind::S_field: // field
+        value.move< fakelua::SyntaxTreeInterfacePtr > (that.value);
         break;
 
-      case symbol_kind::S_IDENTIFIER: // "identifier"
-      case symbol_kind::S_STRING: // "string"
-      case symbol_kind::S_NUMBER: // "number"
+      case SymbolKind::S_IDENTIFIER: // "identifier"
+      case SymbolKind::S_STRING: // "string"
+      case SymbolKind::S_NUMBER: // "number"
         value.move< std::string > (that.value);
         break;
 
@@ -403,7 +403,7 @@ namespace yy {
 
   template <typename Base>
   void
-  parser::yy_destroy_ (const char* yymsg, basic_symbol<Base>& yysym) const
+  parser::yy_destroy_ (const char* yymsg, BasicSymbol<Base>& yysym) const
   {
     if (yymsg)
       YY_SYMBOL_PRINT (yymsg, yysym);
@@ -412,7 +412,7 @@ namespace yy {
 #if YYDEBUG
   template <typename Base>
   void
-  parser::yy_print_ (std::ostream& yyo, const basic_symbol<Base>& yysym) const
+  parser::yy_print_ (std::ostream& yyo, const BasicSymbol<Base>& yysym) const
   {
     std::ostream& yyoutput = yyo;
     YY_USE (yyoutput);
@@ -420,165 +420,165 @@ namespace yy {
       yyo << "empty symbol";
     else
       {
-        symbol_kind_type yykind = yysym.kind ();
+        SymbolKindType yykind = yysym.kind ();
         yyo << (yykind < YYNTOKENS ? "token" : "nterm")
             << ' ' << yysym.name () << " ("
             << yysym.location << ": ";
         switch (yykind)
     {
-      case symbol_kind::S_IDENTIFIER: // "identifier"
+      case SymbolKind::S_IDENTIFIER: // "identifier"
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < std::string > (); }
 #line 433 "parser.cpp"
         break;
 
-      case symbol_kind::S_STRING: // "string"
+      case SymbolKind::S_STRING: // "string"
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < std::string > (); }
 #line 439 "parser.cpp"
         break;
 
-      case symbol_kind::S_NUMBER: // "number"
+      case SymbolKind::S_NUMBER: // "number"
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < std::string > (); }
 #line 445 "parser.cpp"
         break;
 
-      case symbol_kind::S_chunk: // chunk
+      case SymbolKind::S_chunk: // chunk
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 451 "parser.cpp"
         break;
 
-      case symbol_kind::S_block: // block
+      case SymbolKind::S_block: // block
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 457 "parser.cpp"
         break;
 
-      case symbol_kind::S_stmt: // stmt
+      case SymbolKind::S_stmt: // stmt
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 463 "parser.cpp"
         break;
 
-      case symbol_kind::S_attnamelist: // attnamelist
+      case SymbolKind::S_attnamelist: // attnamelist
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 469 "parser.cpp"
         break;
 
-      case symbol_kind::S_elseifs: // elseifs
+      case SymbolKind::S_elseifs: // elseifs
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 475 "parser.cpp"
         break;
 
-      case symbol_kind::S_retstat: // retstat
+      case SymbolKind::S_retstat: // retstat
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 481 "parser.cpp"
         break;
 
-      case symbol_kind::S_label: // label
+      case SymbolKind::S_label: // label
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 487 "parser.cpp"
         break;
 
-      case symbol_kind::S_funcnamelist: // funcnamelist
+      case SymbolKind::S_funcnamelist: // funcnamelist
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 493 "parser.cpp"
         break;
 
-      case symbol_kind::S_funcname: // funcname
+      case SymbolKind::S_funcname: // funcname
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 499 "parser.cpp"
         break;
 
-      case symbol_kind::S_varlist: // varlist
+      case SymbolKind::S_varlist: // varlist
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 505 "parser.cpp"
         break;
 
-      case symbol_kind::S_var: // var
+      case SymbolKind::S_var: // var
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 511 "parser.cpp"
         break;
 
-      case symbol_kind::S_namelist: // namelist
+      case SymbolKind::S_namelist: // namelist
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 517 "parser.cpp"
         break;
 
-      case symbol_kind::S_explist: // explist
+      case SymbolKind::S_explist: // explist
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 523 "parser.cpp"
         break;
 
-      case symbol_kind::S_exp: // exp
+      case SymbolKind::S_exp: // exp
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 529 "parser.cpp"
         break;
 
-      case symbol_kind::S_prefixexp: // prefixexp
+      case SymbolKind::S_prefixexp: // prefixexp
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 535 "parser.cpp"
         break;
 
-      case symbol_kind::S_functioncall: // functioncall
+      case SymbolKind::S_functioncall: // functioncall
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 541 "parser.cpp"
         break;
 
-      case symbol_kind::S_args: // args
+      case SymbolKind::S_args: // args
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 547 "parser.cpp"
         break;
 
-      case symbol_kind::S_functiondef: // functiondef
+      case SymbolKind::S_functiondef: // functiondef
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 553 "parser.cpp"
         break;
 
-      case symbol_kind::S_funcbody: // funcbody
+      case SymbolKind::S_funcbody: // funcbody
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 559 "parser.cpp"
         break;
 
-      case symbol_kind::S_parlist: // parlist
+      case SymbolKind::S_parlist: // parlist
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 565 "parser.cpp"
         break;
 
-      case symbol_kind::S_tableconstructor: // tableconstructor
+      case SymbolKind::S_tableconstructor: // tableconstructor
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 571 "parser.cpp"
         break;
 
-      case symbol_kind::S_fieldlist: // fieldlist
+      case SymbolKind::S_fieldlist: // fieldlist
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 577 "parser.cpp"
         break;
 
-      case symbol_kind::S_field: // field
+      case SymbolKind::S_field: // field
 #line 149 "parser.y"
-                 { yyo << yysym.value.template as < fakelua::syntax_tree_interface_ptr > (); }
+                 { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 583 "parser.cpp"
         break;
 
@@ -591,7 +591,7 @@ namespace yy {
 #endif
 
   void
-  parser::yypush_ (const char* m, YY_MOVE_REF (stack_symbol_type) sym)
+  parser::yypush_ (const char* m, YY_MOVE_REF (StackSymbolType) sym)
   {
     if (m)
       YY_SYMBOL_PRINT (m, sym);
@@ -599,12 +599,12 @@ namespace yy {
   }
 
   void
-  parser::yypush_ (const char* m, state_type s, YY_MOVE_REF (symbol_type) sym)
+  parser::yypush_ (const char* m, state_type s, YY_MOVE_REF (SymbolType) sym)
   {
 #if 201103L <= YY_CPLUSPLUS
-    yypush_ (m, stack_symbol_type (s, std::move (sym)));
+    yypush_ (m, StackSymbolType (s, std::move (sym)));
 #else
-    stack_symbol_type ss (s, sym);
+    StackSymbolType ss (s, sym);
     yypush_ (m, ss);
 #endif
   }
@@ -617,26 +617,26 @@ namespace yy {
 
 #if YYDEBUG
   std::ostream&
-  parser::debug_stream () const
+  parser::DebugStream () const
   {
     return *yycdebug_;
   }
 
   void
-  parser::set_debug_stream (std::ostream& o)
+  parser::SetDebugStream (std::ostream& o)
   {
     yycdebug_ = &o;
   }
 
 
   parser::debug_level_type
-  parser::debug_level () const
+  parser::DebugLevel () const
   {
     return yydebug_;
   }
 
   void
-  parser::set_debug_level (debug_level_type l)
+  parser::SetDebugLevel (debug_level_type l)
   {
     yydebug_ = l;
   }
@@ -682,10 +682,10 @@ namespace yy {
     int yyerrstatus_ = 0;
 
     /// The lookahead symbol.
-    symbol_type yyla;
+    SymbolType yyla;
 
     /// The locations where the error started and ended.
-    stack_symbol_type yyerror_range[3];
+    StackSymbolType yyerror_range[3];
 
     /// The return value of parse ().
     int yyresult;
@@ -739,11 +739,11 @@ namespace yy {
         try
 #endif // YY_EXCEPTIONS
           {
-            symbol_type yylookahead (yylex (l));
+            SymbolType yylookahead (yylex (l));
             yyla.move (yylookahead);
           }
 #if YY_EXCEPTIONS
-        catch (const syntax_error& yyexc)
+        catch (const SyntaxError& yyexc)
           {
             YYCDEBUG << "Caught exception: " << yyexc.what() << '\n';
             error (yyexc);
@@ -753,13 +753,13 @@ namespace yy {
       }
     YY_SYMBOL_PRINT ("Next token is", yyla);
 
-    if (yyla.kind () == symbol_kind::S_YYerror)
+    if (yyla.kind () == SymbolKind::S_YYerror)
     {
       // The scanner already issued an error message, process directly
       // to error recovery.  But do not keep the error token as
       // lookahead, it is too special and may lead us to an endless
       // loop in error recovery. */
-      yyla.kind_ = symbol_kind::S_YYUNDEF;
+      yyla.kind_ = SymbolKind::S_YYUNDEF;
       goto yyerrlab1;
     }
 
@@ -812,42 +812,42 @@ namespace yy {
   yyreduce:
     yylen = yyr2_[yyn];
     {
-      stack_symbol_type yylhs;
+      StackSymbolType yylhs;
       yylhs.state = yy_lr_goto_state_ (yystack_[yylen].state, yyr1_[yyn]);
       /* Variants are always initialized to an empty instance of the
          correct type. The default '$$ = $1' action is NOT applied
          when using variants.  */
       switch (yyr1_[yyn])
     {
-      case symbol_kind::S_chunk: // chunk
-      case symbol_kind::S_block: // block
-      case symbol_kind::S_stmt: // stmt
-      case symbol_kind::S_attnamelist: // attnamelist
-      case symbol_kind::S_elseifs: // elseifs
-      case symbol_kind::S_retstat: // retstat
-      case symbol_kind::S_label: // label
-      case symbol_kind::S_funcnamelist: // funcnamelist
-      case symbol_kind::S_funcname: // funcname
-      case symbol_kind::S_varlist: // varlist
-      case symbol_kind::S_var: // var
-      case symbol_kind::S_namelist: // namelist
-      case symbol_kind::S_explist: // explist
-      case symbol_kind::S_exp: // exp
-      case symbol_kind::S_prefixexp: // prefixexp
-      case symbol_kind::S_functioncall: // functioncall
-      case symbol_kind::S_args: // args
-      case symbol_kind::S_functiondef: // functiondef
-      case symbol_kind::S_funcbody: // funcbody
-      case symbol_kind::S_parlist: // parlist
-      case symbol_kind::S_tableconstructor: // tableconstructor
-      case symbol_kind::S_fieldlist: // fieldlist
-      case symbol_kind::S_field: // field
-        yylhs.value.emplace< fakelua::syntax_tree_interface_ptr > ();
+      case SymbolKind::S_chunk: // chunk
+      case SymbolKind::S_block: // block
+      case SymbolKind::S_stmt: // stmt
+      case SymbolKind::S_attnamelist: // attnamelist
+      case SymbolKind::S_elseifs: // elseifs
+      case SymbolKind::S_retstat: // retstat
+      case SymbolKind::S_label: // label
+      case SymbolKind::S_funcnamelist: // funcnamelist
+      case SymbolKind::S_funcname: // funcname
+      case SymbolKind::S_varlist: // varlist
+      case SymbolKind::S_var: // var
+      case SymbolKind::S_namelist: // namelist
+      case SymbolKind::S_explist: // explist
+      case SymbolKind::S_exp: // exp
+      case SymbolKind::S_prefixexp: // prefixexp
+      case SymbolKind::S_functioncall: // functioncall
+      case SymbolKind::S_args: // args
+      case SymbolKind::S_functiondef: // functiondef
+      case SymbolKind::S_funcbody: // funcbody
+      case SymbolKind::S_parlist: // parlist
+      case SymbolKind::S_tableconstructor: // tableconstructor
+      case SymbolKind::S_fieldlist: // fieldlist
+      case SymbolKind::S_field: // field
+        yylhs.value.emplace< fakelua::SyntaxTreeInterfacePtr > ();
         break;
 
-      case symbol_kind::S_IDENTIFIER: // "identifier"
-      case symbol_kind::S_STRING: // "string"
-      case symbol_kind::S_NUMBER: // "number"
+      case SymbolKind::S_IDENTIFIER: // "identifier"
+      case SymbolKind::S_STRING: // "string"
+      case SymbolKind::S_NUMBER: // "number"
         yylhs.value.emplace< std::string > ();
         break;
 
@@ -875,7 +875,7 @@ namespace yy {
 #line 156 "parser.y"
     {
     LOG_INFO("[bison]: chunk: block");
-    l->set_chunk(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+    l->SetChunk(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
     }
 #line 881 "parser.cpp"
     break;
@@ -884,7 +884,7 @@ namespace yy {
 #line 164 "parser.y"
     {
         LOG_INFO("[bison]: block: empty");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = std::make_shared<fakelua::syntax_tree_block>(yystack_[0].location);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = std::make_shared<fakelua::SyntaxTreeBlock>(yystack_[0].location);
     }
 #line 890 "parser.cpp"
     break;
@@ -893,13 +893,13 @@ namespace yy {
 #line 170 "parser.y"
     {
         LOG_INFO("[bison]: block: stmt");
-        auto block = std::make_shared<fakelua::syntax_tree_block>(yystack_[0].location);
-        auto stmt = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto block = std::make_shared<fakelua::SyntaxTreeBlock>(yystack_[0].location);
+        auto stmt = std::dynamic_pointer_cast<fakelua::SyntaxTreeInterface>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (stmt == nullptr) {
             LOG_ERROR("[bison]: block: stmt is nullptr");
         }
-        block->add_stmt(stmt);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = block;
+        block->AddStmt(stmt);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = block;
     }
 #line 905 "parser.cpp"
     break;
@@ -908,18 +908,18 @@ namespace yy {
 #line 182 "parser.y"
     {
         LOG_INFO("[bison]: block: block stmt");
-        auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (block == nullptr) {
             LOG_ERROR("[bison]: block: block is not a block");
-            fakelua::throw_fakelua_exception("block is not a block");
+            fakelua::ThrowFakeluaException("block is not a block");
         }
-        auto stmt = std::dynamic_pointer_cast<fakelua::syntax_tree_interface>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto stmt = std::dynamic_pointer_cast<fakelua::SyntaxTreeInterface>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (stmt == nullptr) {
             LOG_ERROR("[bison]: block: stmt is not a stmt");
-            fakelua::throw_fakelua_exception("stmt is not a stmt");
+            fakelua::ThrowFakeluaException("stmt is not a stmt");
         }
-        block->add_stmt(stmt);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = block;
+        block->AddStmt(stmt);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = block;
     }
 #line 925 "parser.cpp"
     break;
@@ -928,7 +928,7 @@ namespace yy {
 #line 201 "parser.y"
     {
         LOG_INFO("[bison]: stmt: retstat");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ();
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ();
     }
 #line 934 "parser.cpp"
     break;
@@ -937,7 +937,7 @@ namespace yy {
 #line 207 "parser.y"
     {
         LOG_INFO("[bison]: stmt: SEMICOLON");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = std::make_shared<fakelua::syntax_tree_empty>(yystack_[0].location);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = std::make_shared<fakelua::SyntaxTreeEmpty>(yystack_[0].location);
     }
 #line 943 "parser.cpp"
     break;
@@ -946,20 +946,20 @@ namespace yy {
 #line 213 "parser.y"
     {
         LOG_INFO("[bison]: stmt: varlist ASSIGN explist");
-        auto varlist = std::dynamic_pointer_cast<fakelua::syntax_tree_varlist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
-        auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto varlist = std::dynamic_pointer_cast<fakelua::SyntaxTreeVarlist>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
+        auto explist = std::dynamic_pointer_cast<fakelua::SyntaxTreeExplist>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (varlist == nullptr) {
             LOG_ERROR("[bison]: stmt: varlist is not a varlist");
-            fakelua::throw_fakelua_exception("varlist is not a varlist");
+            fakelua::ThrowFakeluaException("varlist is not a varlist");
         }
         if (explist == nullptr) {
             LOG_ERROR("[bison]: stmt: explist is not a explist");
-            fakelua::throw_fakelua_exception("explist is not a explist");
+            fakelua::ThrowFakeluaException("explist is not a explist");
         }
-        auto assign = std::make_shared<fakelua::syntax_tree_assign>(yystack_[1].location);
-        assign->set_varlist(varlist);
-        assign->set_explist(explist);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = assign;
+        auto assign = std::make_shared<fakelua::SyntaxTreeAssign>(yystack_[1].location);
+        assign->SetVarlist(varlist);
+        assign->SetExplist(explist);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = assign;
     }
 #line 965 "parser.cpp"
     break;
@@ -968,7 +968,7 @@ namespace yy {
 #line 232 "parser.y"
     {
         LOG_INFO("[bison]: stmt: functioncall");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ();
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ();
     }
 #line 974 "parser.cpp"
     break;
@@ -977,7 +977,7 @@ namespace yy {
 #line 238 "parser.y"
     {
         LOG_INFO("[bison]: stmt: label");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ();
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ();
     }
 #line 983 "parser.cpp"
     break;
@@ -986,7 +986,7 @@ namespace yy {
 #line 244 "parser.y"
     {
         LOG_INFO("[bison]: stmt: BREAK");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = std::make_shared<fakelua::syntax_tree_break>(yystack_[0].location);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = std::make_shared<fakelua::SyntaxTreeBreak>(yystack_[0].location);
     }
 #line 992 "parser.cpp"
     break;
@@ -995,9 +995,9 @@ namespace yy {
 #line 250 "parser.y"
     {
         LOG_INFO("[bison]: stmt: GOTO IDENTIFIER");
-        auto go = std::make_shared<fakelua::syntax_tree_goto>(yystack_[0].location);
-        go->set_label(yystack_[0].value.as < std::string > ());
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = go;
+        auto go = std::make_shared<fakelua::SyntaxTreeGoto>(yystack_[0].location);
+        go->SetLabel(yystack_[0].value.as < std::string > ());
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = go;
     }
 #line 1003 "parser.cpp"
     break;
@@ -1006,7 +1006,7 @@ namespace yy {
 #line 258 "parser.y"
     {
         LOG_INFO("[bison]: stmt: DO block END");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ();
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ();
     }
 #line 1012 "parser.cpp"
     break;
@@ -1015,20 +1015,20 @@ namespace yy {
 #line 264 "parser.y"
     {
         LOG_INFO("[bison]: stmt: WHILE exp DO block END");
-        auto while_stmt = std::make_shared<fakelua::syntax_tree_while>(yystack_[4].location);
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[3].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto while_stmt = std::make_shared<fakelua::SyntaxTreeWhile>(yystack_[4].location);
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[3].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: stmt: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        while_stmt->set_exp(exp);
-        auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        while_stmt->SetExp(exp);
+        auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (block == nullptr) {
             LOG_ERROR("[bison]: stmt: block is not a block");
-            fakelua::throw_fakelua_exception("block is not a block");
+            fakelua::ThrowFakeluaException("block is not a block");
         }
-        while_stmt->set_block(block);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = while_stmt;
+        while_stmt->SetBlock(block);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = while_stmt;
     }
 #line 1034 "parser.cpp"
     break;
@@ -1037,20 +1037,20 @@ namespace yy {
 #line 283 "parser.y"
     {
         LOG_INFO("[bison]: stmt: REPEAT block UNTIL exp");
-        auto repeat = std::make_shared<fakelua::syntax_tree_repeat>(yystack_[3].location);
-        auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto repeat = std::make_shared<fakelua::SyntaxTreeRepeat>(yystack_[3].location);
+        auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (block == nullptr) {
             LOG_ERROR("[bison]: stmt: block is not a block");
-            fakelua::throw_fakelua_exception("block is not a block");
+            fakelua::ThrowFakeluaException("block is not a block");
         }
-        repeat->set_block(block);
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        repeat->SetBlock(block);
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: stmt: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        repeat->set_exp(exp);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = repeat;
+        repeat->SetExp(exp);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = repeat;
     }
 #line 1056 "parser.cpp"
     break;
@@ -1059,32 +1059,32 @@ namespace yy {
 #line 302 "parser.y"
     {
         LOG_INFO("[bison]: stmt: IF exp THEN block elseifs ELSE block END");
-        auto if_stmt = std::make_shared<fakelua::syntax_tree_if>(yystack_[7].location);
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[6].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto if_stmt = std::make_shared<fakelua::SyntaxTreeIf>(yystack_[7].location);
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[6].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: stmt: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        if_stmt->set_exp(exp);
-        auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[4].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if_stmt->SetExp(exp);
+        auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(yystack_[4].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (block == nullptr) {
             LOG_ERROR("[bison]: stmt: block is not a block");
-            fakelua::throw_fakelua_exception("block is not a block");
+            fakelua::ThrowFakeluaException("block is not a block");
         }
-        if_stmt->set_block(block);
-        auto elseifs = std::dynamic_pointer_cast<fakelua::syntax_tree_elseiflist>(yystack_[3].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if_stmt->SetBlock(block);
+        auto elseifs = std::dynamic_pointer_cast<fakelua::SyntaxTreeElseiflist>(yystack_[3].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (elseifs == nullptr) {
             LOG_ERROR("[bison]: stmt: elseiflist is not a elseiflist");
-            fakelua::throw_fakelua_exception("elseiflist is not a elseiflist");
+            fakelua::ThrowFakeluaException("elseiflist is not a elseiflist");
         }
-        if_stmt->set_elseiflist(elseifs);
-        auto else_block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if_stmt->SetElseiflist(elseifs);
+        auto else_block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (else_block == nullptr) {
             LOG_ERROR("[bison]: stmt: else_block is not a block");
-            fakelua::throw_fakelua_exception("else_block is not a block");
+            fakelua::ThrowFakeluaException("else_block is not a block");
         }
-        if_stmt->set_else_block(else_block);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = if_stmt;
+        if_stmt->SetElseBlock(else_block);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = if_stmt;
     }
 #line 1090 "parser.cpp"
     break;
@@ -1093,26 +1093,26 @@ namespace yy {
 #line 333 "parser.y"
     {
         LOG_INFO("[bison]: stmt: IF exp THEN block elseifs END");
-        auto if_stmt = std::make_shared<fakelua::syntax_tree_if>(yystack_[5].location);
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[4].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto if_stmt = std::make_shared<fakelua::SyntaxTreeIf>(yystack_[5].location);
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[4].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: stmt: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        if_stmt->set_exp(exp);
-        auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if_stmt->SetExp(exp);
+        auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (block == nullptr) {
             LOG_ERROR("[bison]: stmt: block is not a block");
-            fakelua::throw_fakelua_exception("block is not a block");
+            fakelua::ThrowFakeluaException("block is not a block");
         }
-        if_stmt->set_block(block);
-        auto elseifs = std::dynamic_pointer_cast<fakelua::syntax_tree_elseiflist>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        if_stmt->SetBlock(block);
+        auto elseifs = std::dynamic_pointer_cast<fakelua::SyntaxTreeElseiflist>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (elseifs == nullptr) {
             LOG_ERROR("[bison]: stmt: elseiflist is not a elseiflist");
-            fakelua::throw_fakelua_exception("elseiflist is not a elseiflist");
+            fakelua::ThrowFakeluaException("elseiflist is not a elseiflist");
         }
-        if_stmt->set_elseiflist(elseifs);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = if_stmt;
+        if_stmt->SetElseiflist(elseifs);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = if_stmt;
     }
 #line 1118 "parser.cpp"
     break;
@@ -1121,27 +1121,27 @@ namespace yy {
 #line 358 "parser.y"
     {
         LOG_INFO("[bison]: stmt: for IDENTIFIER assign exp COMMA exp do block end");
-        auto for_loop_stmt = std::make_shared<fakelua::syntax_tree_for_loop>(yystack_[8].location);
-        for_loop_stmt->set_name(yystack_[7].value.as < std::string > ());
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[5].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto for_loop_stmt = std::make_shared<fakelua::SyntaxTreeForLoop>(yystack_[8].location);
+        for_loop_stmt->SetName(yystack_[7].value.as < std::string > ());
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[5].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: stmt: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        for_loop_stmt->set_exp_begin(exp);
-        auto end_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[3].value.as < fakelua::syntax_tree_interface_ptr > ());
+        for_loop_stmt->SetExpBegin(exp);
+        auto end_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[3].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (end_exp == nullptr) {
             LOG_ERROR("[bison]: stmt: end_exp is not a exp");
-            fakelua::throw_fakelua_exception("end_exp is not a exp");
+            fakelua::ThrowFakeluaException("end_exp is not a exp");
         }
-        for_loop_stmt->set_exp_end(end_exp);
-        auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        for_loop_stmt->SetExpEnd(end_exp);
+        auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (block == nullptr) {
             LOG_ERROR("[bison]: stmt: block is not a block");
-            fakelua::throw_fakelua_exception("block is not a block");
+            fakelua::ThrowFakeluaException("block is not a block");
         }
-        for_loop_stmt->set_block(block);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = for_loop_stmt;
+        for_loop_stmt->SetBlock(block);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = for_loop_stmt;
     }
 #line 1147 "parser.cpp"
     break;
@@ -1150,33 +1150,33 @@ namespace yy {
 #line 384 "parser.y"
     {
         LOG_INFO("[bison]: stmt: for IDENTIFIER assign exp COMMA exp COMMA exp do block end");
-        auto for_loop_stmt = std::make_shared<fakelua::syntax_tree_for_loop>(yystack_[10].location);
-        for_loop_stmt->set_name(yystack_[9].value.as < std::string > ());
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[7].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto for_loop_stmt = std::make_shared<fakelua::SyntaxTreeForLoop>(yystack_[10].location);
+        for_loop_stmt->SetName(yystack_[9].value.as < std::string > ());
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[7].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: stmt: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        for_loop_stmt->set_exp_begin(exp);
-        auto end_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[5].value.as < fakelua::syntax_tree_interface_ptr > ());
+        for_loop_stmt->SetExpBegin(exp);
+        auto end_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[5].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (end_exp == nullptr) {
             LOG_ERROR("[bison]: stmt: end_exp is not a exp");
-            fakelua::throw_fakelua_exception("end_exp is not a exp");
+            fakelua::ThrowFakeluaException("end_exp is not a exp");
         }
-        for_loop_stmt->set_exp_end(end_exp);
-        auto step_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[3].value.as < fakelua::syntax_tree_interface_ptr > ());
+        for_loop_stmt->SetExpEnd(end_exp);
+        auto step_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[3].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (step_exp == nullptr) {
             LOG_ERROR("[bison]: stmt: step_exp is not a exp");
-            fakelua::throw_fakelua_exception("step_exp is not a exp");
+            fakelua::ThrowFakeluaException("step_exp is not a exp");
         }
-        for_loop_stmt->set_exp_step(step_exp);
-        auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        for_loop_stmt->SetExpStep(step_exp);
+        auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (block == nullptr) {
             LOG_ERROR("[bison]: stmt: block is not a block");
-            fakelua::throw_fakelua_exception("block is not a block");
+            fakelua::ThrowFakeluaException("block is not a block");
         }
-        for_loop_stmt->set_block(block);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = for_loop_stmt;
+        for_loop_stmt->SetBlock(block);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = for_loop_stmt;
     }
 #line 1182 "parser.cpp"
     break;
@@ -1185,26 +1185,26 @@ namespace yy {
 #line 416 "parser.y"
     {
         LOG_INFO("[bison]: stmt: for namelist in explist do block end");
-        auto for_in_stmt = std::make_shared<fakelua::syntax_tree_for_in>(yystack_[6].location);
-        auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>(yystack_[5].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto for_in_stmt = std::make_shared<fakelua::SyntaxTreeForIn>(yystack_[6].location);
+        auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>(yystack_[5].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (namelist == nullptr) {
             LOG_ERROR("[bison]: stmt: namelist is not a namelist");
-            fakelua::throw_fakelua_exception("namelist is not a namelist");
+            fakelua::ThrowFakeluaException("namelist is not a namelist");
         }
-        for_in_stmt->set_namelist(namelist);
-        auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>(yystack_[3].value.as < fakelua::syntax_tree_interface_ptr > ());
+        for_in_stmt->SetNamelist(namelist);
+        auto explist = std::dynamic_pointer_cast<fakelua::SyntaxTreeExplist>(yystack_[3].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (explist == nullptr) {
             LOG_ERROR("[bison]: stmt: explist is not a explist");
-            fakelua::throw_fakelua_exception("explist is not a explist");
+            fakelua::ThrowFakeluaException("explist is not a explist");
         }
-        for_in_stmt->set_explist(explist);
-        auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        for_in_stmt->SetExplist(explist);
+        auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (block == nullptr) {
             LOG_ERROR("[bison]: stmt: block is not a block");
-            fakelua::throw_fakelua_exception("block is not a block");
+            fakelua::ThrowFakeluaException("block is not a block");
         }
-        for_in_stmt->set_block(block);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = for_in_stmt;
+        for_in_stmt->SetBlock(block);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = for_in_stmt;
     }
 #line 1210 "parser.cpp"
     break;
@@ -1213,20 +1213,20 @@ namespace yy {
 #line 441 "parser.y"
     {
         LOG_INFO("[bison]: stmt: function funcname funcbody");
-        auto func_stmt = std::make_shared<fakelua::syntax_tree_function>(yystack_[2].location);
-        auto funcname = std::dynamic_pointer_cast<fakelua::syntax_tree_funcname>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto func_stmt = std::make_shared<fakelua::SyntaxTreeFunction>(yystack_[2].location);
+        auto funcname = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncname>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (funcname == nullptr) {
             LOG_ERROR("[bison]: stmt: funcname is not a funcname");
-            fakelua::throw_fakelua_exception("funcname is not a funcname");
+            fakelua::ThrowFakeluaException("funcname is not a funcname");
         }
-        func_stmt->set_funcname(funcname);
-        auto funcbody = std::dynamic_pointer_cast<fakelua::syntax_tree_funcbody>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        func_stmt->SetFuncname(funcname);
+        auto funcbody = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncbody>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (funcbody == nullptr) {
             LOG_ERROR("[bison]: stmt: funcbody is not a funcbody");
-            fakelua::throw_fakelua_exception("funcbody is not a funcbody");
+            fakelua::ThrowFakeluaException("funcbody is not a funcbody");
         }
-        func_stmt->set_funcbody(funcbody);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = func_stmt;
+        func_stmt->SetFuncbody(funcbody);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = func_stmt;
     }
 #line 1232 "parser.cpp"
     break;
@@ -1235,15 +1235,15 @@ namespace yy {
 #line 460 "parser.y"
     {
         LOG_INFO("[bison]: stmt: local function IDENTIFIER funcbody");
-        auto local_func_stmt = std::make_shared<fakelua::syntax_tree_local_function>(yystack_[3].location);
-        local_func_stmt->set_name(yystack_[1].value.as < std::string > ());
-        auto funcbody = std::dynamic_pointer_cast<fakelua::syntax_tree_funcbody>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto local_func_stmt = std::make_shared<fakelua::SyntaxTreeLocalFunction>(yystack_[3].location);
+        local_func_stmt->SetName(yystack_[1].value.as < std::string > ());
+        auto funcbody = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncbody>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (funcbody == nullptr) {
             LOG_ERROR("[bison]: stmt: funcbody is not a funcbody");
-            fakelua::throw_fakelua_exception("funcbody is not a funcbody");
+            fakelua::ThrowFakeluaException("funcbody is not a funcbody");
         }
-        local_func_stmt->set_funcbody(funcbody);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = local_func_stmt;
+        local_func_stmt->SetFuncbody(funcbody);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = local_func_stmt;
     }
 #line 1249 "parser.cpp"
     break;
@@ -1252,14 +1252,14 @@ namespace yy {
 #line 474 "parser.y"
     {
         LOG_INFO("[bison]: stmt: local attnamelist");
-        auto local_stmt = std::make_shared<fakelua::syntax_tree_local_var>(yystack_[1].location);
-        auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto local_stmt = std::make_shared<fakelua::SyntaxTreeLocalVar>(yystack_[1].location);
+        auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (namelist == nullptr) {
             LOG_ERROR("[bison]: stmt: namelist is not a namelist");
-            fakelua::throw_fakelua_exception("namelist is not a namelist");
+            fakelua::ThrowFakeluaException("namelist is not a namelist");
         }
-        local_stmt->set_namelist(namelist);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = local_stmt;
+        local_stmt->SetNamelist(namelist);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = local_stmt;
     }
 #line 1265 "parser.cpp"
     break;
@@ -1268,20 +1268,20 @@ namespace yy {
 #line 487 "parser.y"
     {
         LOG_INFO("[bison]: stmt: local attnamelist assign explist");
-        auto local_stmt = std::make_shared<fakelua::syntax_tree_local_var>(yystack_[3].location);
-        auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto local_stmt = std::make_shared<fakelua::SyntaxTreeLocalVar>(yystack_[3].location);
+        auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (namelist == nullptr) {
             LOG_ERROR("[bison]: stmt: namelist is not a namelist");
-            fakelua::throw_fakelua_exception("namelist is not a namelist");
+            fakelua::ThrowFakeluaException("namelist is not a namelist");
         }
-        local_stmt->set_namelist(namelist);
-        auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        local_stmt->SetNamelist(namelist);
+        auto explist = std::dynamic_pointer_cast<fakelua::SyntaxTreeExplist>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (explist == nullptr) {
             LOG_ERROR("[bison]: stmt: explist is not a explist");
-            fakelua::throw_fakelua_exception("explist is not a explist");
+            fakelua::ThrowFakeluaException("explist is not a explist");
         }
-        local_stmt->set_explist(explist);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = local_stmt;
+        local_stmt->SetExplist(explist);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = local_stmt;
     }
 #line 1287 "parser.cpp"
     break;
@@ -1290,10 +1290,10 @@ namespace yy {
 #line 508 "parser.y"
     {
         LOG_INFO("[bison]: attnamelist: IDENTIFIER");
-        auto namelist = std::make_shared<fakelua::syntax_tree_namelist>(yystack_[0].location);
-        namelist->add_name(yystack_[0].value.as < std::string > ());
-        namelist->add_attrib("");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = namelist;
+        auto namelist = std::make_shared<fakelua::SyntaxTreeNamelist>(yystack_[0].location);
+        namelist->AddName(yystack_[0].value.as < std::string > ());
+        namelist->AddAttrib("");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = namelist;
     }
 #line 1299 "parser.cpp"
     break;
@@ -1302,10 +1302,10 @@ namespace yy {
 #line 517 "parser.y"
     {
         LOG_INFO("[bison]: attnamelist: IDENTIFIER LESS IDENTIFIER MORE");
-        auto namelist = std::make_shared<fakelua::syntax_tree_namelist>(yystack_[3].location);
-        namelist->add_name(yystack_[3].value.as < std::string > ());
-        namelist->add_attrib(yystack_[1].value.as < std::string > ());
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = namelist;
+        auto namelist = std::make_shared<fakelua::SyntaxTreeNamelist>(yystack_[3].location);
+        namelist->AddName(yystack_[3].value.as < std::string > ());
+        namelist->AddAttrib(yystack_[1].value.as < std::string > ());
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = namelist;
     }
 #line 1311 "parser.cpp"
     break;
@@ -1314,14 +1314,14 @@ namespace yy {
 #line 526 "parser.y"
     {
         LOG_INFO("[bison]: attnamelist: attnamelist COMMA IDENTIFIER");
-        auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (namelist == nullptr) {
             LOG_ERROR("[bison]: namelist: namelist is not a namelist");
-            fakelua::throw_fakelua_exception("namelist is not a namelist");
+            fakelua::ThrowFakeluaException("namelist is not a namelist");
         }
-        namelist->add_name(yystack_[0].value.as < std::string > ());
-        namelist->add_attrib("");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = namelist;
+        namelist->AddName(yystack_[0].value.as < std::string > ());
+        namelist->AddAttrib("");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = namelist;
     }
 #line 1327 "parser.cpp"
     break;
@@ -1330,14 +1330,14 @@ namespace yy {
 #line 539 "parser.y"
     {
         LOG_INFO("[bison]: attnamelist: attnamelist COMMA IDENTIFIER LESS IDENTIFIER MORE");
-        auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>(yystack_[5].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>(yystack_[5].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (namelist == nullptr) {
             LOG_ERROR("[bison]: namelist: namelist is not a namelist");
-            fakelua::throw_fakelua_exception("namelist is not a namelist");
+            fakelua::ThrowFakeluaException("namelist is not a namelist");
         }
-        namelist->add_name(yystack_[3].value.as < std::string > ());
-        namelist->add_attrib(yystack_[1].value.as < std::string > ());
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = namelist;
+        namelist->AddName(yystack_[3].value.as < std::string > ());
+        namelist->AddAttrib(yystack_[1].value.as < std::string > ());
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = namelist;
     }
 #line 1343 "parser.cpp"
     break;
@@ -1346,7 +1346,7 @@ namespace yy {
 #line 554 "parser.y"
     {
         LOG_INFO("[bison]: elseifs: empty");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = std::make_shared<fakelua::syntax_tree_elseiflist>(yystack_[0].location);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = std::make_shared<fakelua::SyntaxTreeElseiflist>(yystack_[0].location);
     }
 #line 1352 "parser.cpp"
     break;
@@ -1355,20 +1355,20 @@ namespace yy {
 #line 560 "parser.y"
     {
         LOG_INFO("[bison]: elseifs: elseif exp then block");
-        auto elseifs = std::make_shared<fakelua::syntax_tree_elseiflist>(yystack_[3].location);
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto elseifs = std::make_shared<fakelua::SyntaxTreeElseiflist>(yystack_[3].location);
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: elseifs: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        elseifs->add_elseif_expr(exp);
-        auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        elseifs->AddElseifExpr(exp);
+        auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (block == nullptr) {
             LOG_ERROR("[bison]: elseifs: block is not a block");
-            fakelua::throw_fakelua_exception("block is not a block");
+            fakelua::ThrowFakeluaException("block is not a block");
         }
-        elseifs->add_elseif_block(block);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = elseifs;
+        elseifs->AddElseifBlock(block);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = elseifs;
     }
 #line 1374 "parser.cpp"
     break;
@@ -1377,24 +1377,24 @@ namespace yy {
 #line 579 "parser.y"
     {
         LOG_INFO("[bison]: elseifs: elseifs elseif exp then block");
-        auto elseifs = std::dynamic_pointer_cast<fakelua::syntax_tree_elseiflist>(yystack_[4].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto elseifs = std::dynamic_pointer_cast<fakelua::SyntaxTreeElseiflist>(yystack_[4].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (elseifs == nullptr) {
             LOG_ERROR("[bison]: elseifs: elseifs is not a elseifs");
-            fakelua::throw_fakelua_exception("elseifs is not a elseifs");
+            fakelua::ThrowFakeluaException("elseifs is not a elseifs");
         }
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: elseifs: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        elseifs->add_elseif_expr(exp);
-        auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        elseifs->AddElseifExpr(exp);
+        auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (block == nullptr) {
             LOG_ERROR("[bison]: elseifs: block is not a block");
-            fakelua::throw_fakelua_exception("block is not a block");
+            fakelua::ThrowFakeluaException("block is not a block");
         }
-        elseifs->add_elseif_block(block);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = elseifs;
+        elseifs->AddElseifBlock(block);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = elseifs;
     }
 #line 1400 "parser.cpp"
     break;
@@ -1403,9 +1403,9 @@ namespace yy {
 #line 604 "parser.y"
     {
         LOG_INFO("[bison]: retstat: RETURN");
-        auto ret = std::make_shared<fakelua::syntax_tree_return>(yystack_[0].location);
-        ret->set_explist(nullptr);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = ret;
+        auto ret = std::make_shared<fakelua::SyntaxTreeReturn>(yystack_[0].location);
+        ret->SetExplist(nullptr);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = ret;
     }
 #line 1411 "parser.cpp"
     break;
@@ -1414,14 +1414,14 @@ namespace yy {
 #line 612 "parser.y"
     {
         LOG_INFO("[bison]: retstat: RETURN explist");
-        auto ret = std::make_shared<fakelua::syntax_tree_return>(yystack_[1].location);
-        auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto ret = std::make_shared<fakelua::SyntaxTreeReturn>(yystack_[1].location);
+        auto explist = std::dynamic_pointer_cast<fakelua::SyntaxTreeExplist>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (explist == nullptr) {
             LOG_ERROR("[bison]: retstat: explist is not a explist");
-            fakelua::throw_fakelua_exception("explist is not a explist");
+            fakelua::ThrowFakeluaException("explist is not a explist");
         }
-        ret->set_explist(explist);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = ret;
+        ret->SetExplist(explist);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = ret;
     }
 #line 1427 "parser.cpp"
     break;
@@ -1430,9 +1430,9 @@ namespace yy {
 #line 627 "parser.y"
     {
             LOG_INFO("[bison]: label: GOTO_TAG IDENTIFIER GOTO_TAG");
-        auto ret = std::make_shared<fakelua::syntax_tree_label>(yystack_[1].location);
-        ret->set_name(yystack_[1].value.as < std::string > ());
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = ret;
+        auto ret = std::make_shared<fakelua::SyntaxTreeLabel>(yystack_[1].location);
+        ret->SetName(yystack_[1].value.as < std::string > ());
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = ret;
     }
 #line 1438 "parser.cpp"
     break;
@@ -1441,9 +1441,9 @@ namespace yy {
 #line 637 "parser.y"
     {
         LOG_INFO("[bison]: funcnamelist: IDENTIFIER");
-        auto funcnamelist = std::make_shared<fakelua::syntax_tree_funcnamelist>(yystack_[0].location);
-        funcnamelist->add_name(yystack_[0].value.as < std::string > ());
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcnamelist;
+        auto funcnamelist = std::make_shared<fakelua::SyntaxTreeFuncnamelist>(yystack_[0].location);
+        funcnamelist->AddName(yystack_[0].value.as < std::string > ());
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = funcnamelist;
     }
 #line 1449 "parser.cpp"
     break;
@@ -1452,13 +1452,13 @@ namespace yy {
 #line 645 "parser.y"
     {
         LOG_INFO("[bison]: funcnamelist: funcnamelist DOT IDENTIFIER");
-        auto funcnamelist = std::dynamic_pointer_cast<fakelua::syntax_tree_funcnamelist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto funcnamelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncnamelist>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (funcnamelist == nullptr) {
             LOG_ERROR("[bison]: funcnamelist: funcnamelist is not a funcnamelist");
-            fakelua::throw_fakelua_exception("funcnamelist is not a funcnamelist");
+            fakelua::ThrowFakeluaException("funcnamelist is not a funcnamelist");
         }
-        funcnamelist->add_name(yystack_[0].value.as < std::string > ());
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcnamelist;
+        funcnamelist->AddName(yystack_[0].value.as < std::string > ());
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = funcnamelist;
     }
 #line 1464 "parser.cpp"
     break;
@@ -1467,14 +1467,14 @@ namespace yy {
 #line 659 "parser.y"
     {
         LOG_INFO("[bison]: funcname: funcnamelist");
-        auto funcname = std::make_shared<fakelua::syntax_tree_funcname>(yystack_[0].location);
-        auto funcnamelist = std::dynamic_pointer_cast<fakelua::syntax_tree_funcnamelist>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto funcname = std::make_shared<fakelua::SyntaxTreeFuncname>(yystack_[0].location);
+        auto funcnamelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncnamelist>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (funcnamelist == nullptr) {
             LOG_ERROR("[bison]: funcname: funcnamelist is not a funcnamelist");
-            fakelua::throw_fakelua_exception("funcnamelist is not a funcnamelist");
+            fakelua::ThrowFakeluaException("funcnamelist is not a funcnamelist");
         }
-        funcname->set_funcnamelist(funcnamelist);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcname;
+        funcname->SetFuncNameList(funcnamelist);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = funcname;
     }
 #line 1480 "parser.cpp"
     break;
@@ -1483,15 +1483,15 @@ namespace yy {
 #line 672 "parser.y"
     {
         LOG_INFO("[bison]: funcname: funcnamelist COLON IDENTIFIER");
-        auto funcname = std::make_shared<fakelua::syntax_tree_funcname>(yystack_[2].location);
-        auto funcnamelist = std::dynamic_pointer_cast<fakelua::syntax_tree_funcnamelist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto funcname = std::make_shared<fakelua::SyntaxTreeFuncname>(yystack_[2].location);
+        auto funcnamelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncnamelist>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (funcnamelist == nullptr) {
             LOG_ERROR("[bison]: funcname: funcnamelist is not a funcnamelist");
-            fakelua::throw_fakelua_exception("funcnamelist is not a funcnamelist");
+            fakelua::ThrowFakeluaException("funcnamelist is not a funcnamelist");
         }
-        funcname->set_funcnamelist(funcnamelist);
-        funcname->set_colon_name(yystack_[0].value.as < std::string > ());
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcname;
+        funcname->SetFuncNameList(funcnamelist);
+        funcname->SetColonName(yystack_[0].value.as < std::string > ());
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = funcname;
     }
 #line 1497 "parser.cpp"
     break;
@@ -1500,14 +1500,14 @@ namespace yy {
 #line 688 "parser.y"
     {
         LOG_INFO("[bison]: varlist: var");
-        auto varlist = std::make_shared<fakelua::syntax_tree_varlist>(yystack_[0].location);
-        auto var = std::dynamic_pointer_cast<fakelua::syntax_tree_var>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto varlist = std::make_shared<fakelua::SyntaxTreeVarlist>(yystack_[0].location);
+        auto var = std::dynamic_pointer_cast<fakelua::SyntaxTreeVar>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (var == nullptr) {
             LOG_ERROR("[bison]: varlist: var is not a var");
-            fakelua::throw_fakelua_exception("var is not a var");
+            fakelua::ThrowFakeluaException("var is not a var");
         }
-        varlist->add_var(var);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = varlist;
+        varlist->AddVar(var);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = varlist;
     }
 #line 1513 "parser.cpp"
     break;
@@ -1516,18 +1516,18 @@ namespace yy {
 #line 701 "parser.y"
     {
         LOG_INFO("[bison]: varlist: varlist COMMA var");
-        auto varlist = std::dynamic_pointer_cast<fakelua::syntax_tree_varlist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto varlist = std::dynamic_pointer_cast<fakelua::SyntaxTreeVarlist>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (varlist == nullptr) {
             LOG_ERROR("[bison]: varlist: varlist is not a varlist");
-            fakelua::throw_fakelua_exception("varlist is not a varlist");
+            fakelua::ThrowFakeluaException("varlist is not a varlist");
         }
-        auto var = std::dynamic_pointer_cast<fakelua::syntax_tree_var>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto var = std::dynamic_pointer_cast<fakelua::SyntaxTreeVar>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (var == nullptr) {
             LOG_ERROR("[bison]: varlist: var is not a var");
-            fakelua::throw_fakelua_exception("var is not a var");
+            fakelua::ThrowFakeluaException("var is not a var");
         }
-        varlist->add_var(var);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = varlist;
+        varlist->AddVar(var);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = varlist;
     }
 #line 1533 "parser.cpp"
     break;
@@ -1536,10 +1536,10 @@ namespace yy {
 #line 720 "parser.y"
     {
         LOG_INFO("[bison]: var: IDENTIFIER");
-        auto var = std::make_shared<fakelua::syntax_tree_var>(yystack_[0].location);
-        var->set_name(yystack_[0].value.as < std::string > ());
-        var->set_type("simple");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = var;
+        auto var = std::make_shared<fakelua::SyntaxTreeVar>(yystack_[0].location);
+        var->SetName(yystack_[0].value.as < std::string > ());
+        var->SetType("simple");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = var;
     }
 #line 1545 "parser.cpp"
     break;
@@ -1548,21 +1548,21 @@ namespace yy {
 #line 729 "parser.y"
     {
         LOG_INFO("[bison]: var: prefixexp LSQUARE exp RSQUARE");
-        auto var = std::make_shared<fakelua::syntax_tree_var>(yystack_[2].location);
-        var->set_type("square");
-        auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_prefixexp>(yystack_[3].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto var = std::make_shared<fakelua::SyntaxTreeVar>(yystack_[2].location);
+        var->SetType("square");
+        auto prefixexp = std::dynamic_pointer_cast<fakelua::SyntaxTreePrefixexp>(yystack_[3].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (prefixexp == nullptr) {
             LOG_ERROR("[bison]: var: prefixexp is not a prefixexp");
-            fakelua::throw_fakelua_exception("prefixexp is not a prefixexp");
+            fakelua::ThrowFakeluaException("prefixexp is not a prefixexp");
         }
-        var->set_prefixexp(prefixexp);
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        var->SetPrefixexp(prefixexp);
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: var: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        var->set_exp(exp);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = var;
+        var->SetExp(exp);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = var;
     }
 #line 1568 "parser.cpp"
     break;
@@ -1571,16 +1571,16 @@ namespace yy {
 #line 749 "parser.y"
     {
         LOG_INFO("[bison]: var: prefixexp DOT IDENTIFIER");
-        auto var = std::make_shared<fakelua::syntax_tree_var>(yystack_[1].location);
-        var->set_type("dot");
-        auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_prefixexp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto var = std::make_shared<fakelua::SyntaxTreeVar>(yystack_[1].location);
+        var->SetType("dot");
+        auto prefixexp = std::dynamic_pointer_cast<fakelua::SyntaxTreePrefixexp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (prefixexp == nullptr) {
             LOG_ERROR("[bison]: var: prefixexp is not a prefixexp");
-            fakelua::throw_fakelua_exception("prefixexp is not a prefixexp");
+            fakelua::ThrowFakeluaException("prefixexp is not a prefixexp");
         }
-        var->set_prefixexp(prefixexp);
-        var->set_name(yystack_[0].value.as < std::string > ());
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = var;
+        var->SetPrefixexp(prefixexp);
+        var->SetName(yystack_[0].value.as < std::string > ());
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = var;
     }
 #line 1586 "parser.cpp"
     break;
@@ -1589,9 +1589,9 @@ namespace yy {
 #line 766 "parser.y"
     {
         LOG_INFO("[bison]: namelist: IDENTIFIER");
-        auto namelist = std::make_shared<fakelua::syntax_tree_namelist>(yystack_[0].location);
-        namelist->add_name(yystack_[0].value.as < std::string > ());
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = namelist;
+        auto namelist = std::make_shared<fakelua::SyntaxTreeNamelist>(yystack_[0].location);
+        namelist->AddName(yystack_[0].value.as < std::string > ());
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = namelist;
     }
 #line 1597 "parser.cpp"
     break;
@@ -1600,13 +1600,13 @@ namespace yy {
 #line 774 "parser.y"
     {
         LOG_INFO("[bison]: namelist: namelist COMMA IDENTIFIER");
-        auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (namelist == nullptr) {
             LOG_ERROR("[bison]: namelist: namelist is not a namelist");
-            fakelua::throw_fakelua_exception("namelist is not a namelist");
+            fakelua::ThrowFakeluaException("namelist is not a namelist");
         }
-        namelist->add_name(yystack_[0].value.as < std::string > ());
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = namelist;
+        namelist->AddName(yystack_[0].value.as < std::string > ());
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = namelist;
     }
 #line 1612 "parser.cpp"
     break;
@@ -1615,14 +1615,14 @@ namespace yy {
 #line 788 "parser.y"
     {
         LOG_INFO("[bison]: explist: exp");
-        auto explist = std::make_shared<fakelua::syntax_tree_explist>(yystack_[0].location);
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto explist = std::make_shared<fakelua::SyntaxTreeExplist>(yystack_[0].location);
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: explist: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        explist->add_exp(exp);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = explist;
+        explist->AddExp(exp);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = explist;
     }
 #line 1628 "parser.cpp"
     break;
@@ -1631,18 +1631,18 @@ namespace yy {
 #line 801 "parser.y"
     {
         LOG_INFO("[bison]: explist: explist COMMA exp");
-        auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto explist = std::dynamic_pointer_cast<fakelua::SyntaxTreeExplist>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (explist == nullptr) {
             LOG_ERROR("[bison]: explist: explist is not a explist");
-            fakelua::throw_fakelua_exception("explist is not a explist");
+            fakelua::ThrowFakeluaException("explist is not a explist");
         }
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: explist: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        explist->add_exp(exp);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = explist;
+        explist->AddExp(exp);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = explist;
     }
 #line 1648 "parser.cpp"
     break;
@@ -1651,9 +1651,9 @@ namespace yy {
 #line 820 "parser.y"
     {
         LOG_INFO("[bison]: exp: NIL");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
-        exp->set_type("nil");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[0].location);
+        exp->SetType("nil");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1659 "parser.cpp"
     break;
@@ -1662,9 +1662,9 @@ namespace yy {
 #line 828 "parser.y"
     {
         LOG_INFO("[bison]: exp: TRUE");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
-        exp->set_type("true");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[0].location);
+        exp->SetType("true");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1670 "parser.cpp"
     break;
@@ -1673,9 +1673,9 @@ namespace yy {
 #line 836 "parser.y"
     {
         LOG_INFO("[bison]: exp: FALSES");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
-        exp->set_type("false");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[0].location);
+        exp->SetType("false");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1681 "parser.cpp"
     break;
@@ -1684,10 +1684,10 @@ namespace yy {
 #line 844 "parser.y"
     {
         LOG_INFO("[bison]: exp: NUMBER");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
-        exp->set_type("number");
-        exp->set_value(yystack_[0].value.as < std::string > ());
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[0].location);
+        exp->SetType("number");
+        exp->SetValue(yystack_[0].value.as < std::string > ());
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1693 "parser.cpp"
     break;
@@ -1696,10 +1696,10 @@ namespace yy {
 #line 853 "parser.y"
     {
         LOG_INFO("[bison]: exp: STRING");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
-        exp->set_type("string");
-        exp->set_value(l->remove_quotes(yystack_[0].value.as < std::string > ()));
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[0].location);
+        exp->SetType("string");
+        exp->SetValue(l->RemoveQuotes(yystack_[0].value.as < std::string > ()));
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1705 "parser.cpp"
     break;
@@ -1708,9 +1708,9 @@ namespace yy {
 #line 862 "parser.y"
     {
         LOG_INFO("[bison]: exp: VAR_PARAMS");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
-        exp->set_type("var_params");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[0].location);
+        exp->SetType("VarParams");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1716 "parser.cpp"
     break;
@@ -1719,15 +1719,15 @@ namespace yy {
 #line 870 "parser.y"
     {
         LOG_INFO("[bison]: exp: functiondef");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
-        exp->set_type("functiondef");
-        auto functiondef = std::dynamic_pointer_cast<fakelua::syntax_tree_functiondef>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[0].location);
+        exp->SetType("functiondef");
+        auto functiondef = std::dynamic_pointer_cast<fakelua::SyntaxTreeFunctiondef>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (functiondef == nullptr) {
             LOG_ERROR("[bison]: exp: functiondef is not a functiondef");
-            fakelua::throw_fakelua_exception("functiondef is not a functiondef");
+            fakelua::ThrowFakeluaException("functiondef is not a functiondef");
         }
-        exp->set_right(functiondef);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(functiondef);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1733 "parser.cpp"
     break;
@@ -1736,15 +1736,15 @@ namespace yy {
 #line 884 "parser.y"
     {
         LOG_INFO("[bison]: exp: prefixexp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
-        exp->set_type("prefixexp");
-        auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_prefixexp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[0].location);
+        exp->SetType("prefixexp");
+        auto prefixexp = std::dynamic_pointer_cast<fakelua::SyntaxTreePrefixexp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (prefixexp == nullptr) {
             LOG_ERROR("[bison]: exp: prefixexp is not a prefixexp");
-            fakelua::throw_fakelua_exception("prefixexp is not a prefixexp");
+            fakelua::ThrowFakeluaException("prefixexp is not a prefixexp");
         }
-        exp->set_right(prefixexp);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(prefixexp);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1750 "parser.cpp"
     break;
@@ -1753,15 +1753,15 @@ namespace yy {
 #line 898 "parser.y"
     {
         LOG_INFO("[bison]: exp: tableconstructor");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
-        exp->set_type("tableconstructor");
-        auto tableconstructor = std::dynamic_pointer_cast<fakelua::syntax_tree_tableconstructor>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[0].location);
+        exp->SetType("tableconstructor");
+        auto tableconstructor = std::dynamic_pointer_cast<fakelua::SyntaxTreeTableconstructor>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (tableconstructor == nullptr) {
             LOG_ERROR("[bison]: exp: tableconstructor is not a tableconstructor");
-            fakelua::throw_fakelua_exception("tableconstructor is not a tableconstructor");
+            fakelua::ThrowFakeluaException("tableconstructor is not a tableconstructor");
         }
-        exp->set_right(tableconstructor);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(tableconstructor);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1767 "parser.cpp"
     break;
@@ -1770,24 +1770,24 @@ namespace yy {
 #line 912 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp PLUS exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("PLUS");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("PLUS");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1793 "parser.cpp"
     break;
@@ -1796,24 +1796,24 @@ namespace yy {
 #line 935 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp MINUS exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("MINUS");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("MINUS");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1819 "parser.cpp"
     break;
@@ -1822,24 +1822,24 @@ namespace yy {
 #line 958 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp STAR exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("STAR");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("STAR");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1845 "parser.cpp"
     break;
@@ -1848,24 +1848,24 @@ namespace yy {
 #line 981 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp SLASH exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("SLASH");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("SLASH");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1871 "parser.cpp"
     break;
@@ -1874,24 +1874,24 @@ namespace yy {
 #line 1004 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp DOUBLE_SLASH exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("DOUBLE_SLASH");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("DOUBLE_SLASH");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1897 "parser.cpp"
     break;
@@ -1900,24 +1900,24 @@ namespace yy {
 #line 1027 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp POW exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("POW");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("POW");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1923 "parser.cpp"
     break;
@@ -1926,24 +1926,24 @@ namespace yy {
 #line 1050 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp MOD exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("MOD");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("MOD");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1949 "parser.cpp"
     break;
@@ -1952,24 +1952,24 @@ namespace yy {
 #line 1073 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp BITAND exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("BITAND");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("BITAND");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 1975 "parser.cpp"
     break;
@@ -1978,24 +1978,24 @@ namespace yy {
 #line 1096 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp XOR exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("XOR");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("XOR");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2001 "parser.cpp"
     break;
@@ -2004,24 +2004,24 @@ namespace yy {
 #line 1119 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp BITOR exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("BITOR");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("BITOR");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2027 "parser.cpp"
     break;
@@ -2030,24 +2030,24 @@ namespace yy {
 #line 1142 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp RIGHT_SHIFT exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("RIGHT_SHIFT");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("RIGHT_SHIFT");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2053 "parser.cpp"
     break;
@@ -2056,24 +2056,24 @@ namespace yy {
 #line 1165 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp LEFT_SHIFT exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("LEFT_SHIFT");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("LEFT_SHIFT");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2079 "parser.cpp"
     break;
@@ -2082,24 +2082,24 @@ namespace yy {
 #line 1188 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp CONCAT exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("CONCAT");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("CONCAT");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2105 "parser.cpp"
     break;
@@ -2108,24 +2108,24 @@ namespace yy {
 #line 1211 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp LESS exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("LESS");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("LESS");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2131 "parser.cpp"
     break;
@@ -2134,24 +2134,24 @@ namespace yy {
 #line 1234 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp LESS_EQUAL exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("LESS_EQUAL");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("LESS_EQUAL");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2157 "parser.cpp"
     break;
@@ -2160,24 +2160,24 @@ namespace yy {
 #line 1257 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp MORE exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("MORE");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("MORE");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2183 "parser.cpp"
     break;
@@ -2186,24 +2186,24 @@ namespace yy {
 #line 1280 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp MORE_EQUAL exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("MORE_EQUAL");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("MORE_EQUAL");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2209 "parser.cpp"
     break;
@@ -2212,24 +2212,24 @@ namespace yy {
 #line 1303 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp EQUAL exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("EQUAL");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("EQUAL");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2235 "parser.cpp"
     break;
@@ -2238,24 +2238,24 @@ namespace yy {
 #line 1326 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp NOT_EQUAL exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("NOT_EQUAL");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("NOT_EQUAL");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2261 "parser.cpp"
     break;
@@ -2264,24 +2264,24 @@ namespace yy {
 #line 1349 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp AND exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("AND");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("AND");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2287 "parser.cpp"
     break;
@@ -2290,24 +2290,24 @@ namespace yy {
 #line 1372 "parser.y"
     {
         LOG_INFO("[bison]: exp: exp OR exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[2].location);
-        exp->set_type("binop");
-        auto left_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[2].location);
+        exp->SetType("binop");
+        auto left_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (left_exp == nullptr) {
             LOG_ERROR("[bison]: exp: left_exp is not a exp");
-            fakelua::throw_fakelua_exception("left_exp is not a exp");
+            fakelua::ThrowFakeluaException("left_exp is not a exp");
         }
-        exp->set_left(left_exp);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        exp->SetLeft(left_exp);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        auto binop = std::make_shared<fakelua::syntax_tree_binop>(yystack_[1].location);
-        binop->set_op("OR");
-        exp->set_op(binop);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        auto binop = std::make_shared<fakelua::SyntaxTreeBinop>(yystack_[1].location);
+        binop->SetOp("OR");
+        exp->SetOp(binop);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2313 "parser.cpp"
     break;
@@ -2316,18 +2316,18 @@ namespace yy {
 #line 1395 "parser.y"
     {
         LOG_INFO("[bison]: exp: MINUS exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[1].location);
-        exp->set_type("unop");
-        auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[1].location);
-        unop->set_op("MINUS");
-        exp->set_op(unop);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[1].location);
+        exp->SetType("unop");
+        auto unop = std::make_shared<fakelua::SyntaxTreeUnop>(yystack_[1].location);
+        unop->SetOp("MINUS");
+        exp->SetOp(unop);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2333 "parser.cpp"
     break;
@@ -2336,18 +2336,18 @@ namespace yy {
 #line 1412 "parser.y"
     {
         LOG_INFO("[bison]: exp: NOT exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[1].location);
-        exp->set_type("unop");
-        auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[1].location);
-        unop->set_op("NOT");
-        exp->set_op(unop);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[1].location);
+        exp->SetType("unop");
+        auto unop = std::make_shared<fakelua::SyntaxTreeUnop>(yystack_[1].location);
+        unop->SetOp("NOT");
+        exp->SetOp(unop);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2353 "parser.cpp"
     break;
@@ -2356,18 +2356,18 @@ namespace yy {
 #line 1429 "parser.y"
     {
         LOG_INFO("[bison]: exp: NUMBER_SIGN exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[1].location);
-        exp->set_type("unop");
-        auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[1].location);
-        unop->set_op("NUMBER_SIGN");
-        exp->set_op(unop);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[1].location);
+        exp->SetType("unop");
+        auto unop = std::make_shared<fakelua::SyntaxTreeUnop>(yystack_[1].location);
+        unop->SetOp("NUMBER_SIGN");
+        exp->SetOp(unop);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2373 "parser.cpp"
     break;
@@ -2376,18 +2376,18 @@ namespace yy {
 #line 1446 "parser.y"
     {
         LOG_INFO("[bison]: exp: BITNOT exp");
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[1].location);
-        exp->set_type("unop");
-        auto unop = std::make_shared<fakelua::syntax_tree_unop>(yystack_[1].location);
-        unop->set_op("BITNOT");
-        exp->set_op(unop);
-        auto right_exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[1].location);
+        exp->SetType("unop");
+        auto unop = std::make_shared<fakelua::SyntaxTreeUnop>(yystack_[1].location);
+        unop->SetOp("BITNOT");
+        exp->SetOp(unop);
+        auto right_exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (right_exp == nullptr) {
             LOG_ERROR("[bison]: exp: right_exp is not a exp");
-            fakelua::throw_fakelua_exception("right_exp is not a exp");
+            fakelua::ThrowFakeluaException("right_exp is not a exp");
         }
-        exp->set_right(right_exp);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = exp;
+        exp->SetRight(right_exp);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = exp;
     }
 #line 2393 "parser.cpp"
     break;
@@ -2396,15 +2396,15 @@ namespace yy {
 #line 1465 "parser.y"
     {
         LOG_INFO("[bison]: prefixexp: var");
-        auto prefixexp = std::make_shared<fakelua::syntax_tree_prefixexp>(yystack_[0].location);
-        prefixexp->set_type("var");
-        auto var = std::dynamic_pointer_cast<fakelua::syntax_tree_var>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto prefixexp = std::make_shared<fakelua::SyntaxTreePrefixexp>(yystack_[0].location);
+        prefixexp->SetType("var");
+        auto var = std::dynamic_pointer_cast<fakelua::SyntaxTreeVar>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (var == nullptr) {
             LOG_ERROR("[bison]: prefixexp: var is not a var");
-            fakelua::throw_fakelua_exception("var is not a var");
+            fakelua::ThrowFakeluaException("var is not a var");
         }
-        prefixexp->set_value(var);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = prefixexp;
+        prefixexp->SetValue(var);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = prefixexp;
     }
 #line 2410 "parser.cpp"
     break;
@@ -2413,15 +2413,15 @@ namespace yy {
 #line 1479 "parser.y"
     {
         LOG_INFO("[bison]: prefixexp: functioncall");
-        auto prefixexp = std::make_shared<fakelua::syntax_tree_prefixexp>(yystack_[0].location);
-        prefixexp->set_type("functioncall");
-        auto functioncall = std::dynamic_pointer_cast<fakelua::syntax_tree_functioncall>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto prefixexp = std::make_shared<fakelua::SyntaxTreePrefixexp>(yystack_[0].location);
+        prefixexp->SetType("functioncall");
+        auto functioncall = std::dynamic_pointer_cast<fakelua::SyntaxTreeFunctioncall>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (functioncall == nullptr) {
             LOG_ERROR("[bison]: prefixexp: functioncall is not a functioncall");
-            fakelua::throw_fakelua_exception("functioncall is not a functioncall");
+            fakelua::ThrowFakeluaException("functioncall is not a functioncall");
         }
-        prefixexp->set_value(functioncall);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = prefixexp;
+        prefixexp->SetValue(functioncall);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = prefixexp;
     }
 #line 2427 "parser.cpp"
     break;
@@ -2430,15 +2430,15 @@ namespace yy {
 #line 1493 "parser.y"
     {
         LOG_INFO("[bison]: prefixexp: LPAREN exp RPAREN");
-        auto prefixexp = std::make_shared<fakelua::syntax_tree_prefixexp>(yystack_[2].location);
-        prefixexp->set_type("exp");
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto prefixexp = std::make_shared<fakelua::SyntaxTreePrefixexp>(yystack_[2].location);
+        prefixexp->SetType("exp");
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: prefixexp: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        prefixexp->set_value(exp);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = prefixexp;
+        prefixexp->SetValue(exp);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = prefixexp;
     }
 #line 2444 "parser.cpp"
     break;
@@ -2447,20 +2447,20 @@ namespace yy {
 #line 1508 "parser.y"
     {
         LOG_INFO("[bison]: functioncall: prefixexp args");
-        auto functioncall = std::make_shared<fakelua::syntax_tree_functioncall>(yystack_[1].location);
-        auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_prefixexp>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto functioncall = std::make_shared<fakelua::SyntaxTreeFunctioncall>(yystack_[1].location);
+        auto prefixexp = std::dynamic_pointer_cast<fakelua::SyntaxTreePrefixexp>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (prefixexp == nullptr) {
             LOG_ERROR("[bison]: functioncall: prefixexp is not a prefixexp");
-            fakelua::throw_fakelua_exception("prefixexp is not a prefixexp");
+            fakelua::ThrowFakeluaException("prefixexp is not a prefixexp");
         }
-        functioncall->set_prefixexp(prefixexp);
-        auto args = std::dynamic_pointer_cast<fakelua::syntax_tree_args>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        functioncall->SetPrefixexp(prefixexp);
+        auto args = std::dynamic_pointer_cast<fakelua::SyntaxTreeArgs>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (args == nullptr) {
             LOG_ERROR("[bison]: functioncall: args is not a args");
-            fakelua::throw_fakelua_exception("args is not a args");
+            fakelua::ThrowFakeluaException("args is not a args");
         }
-        functioncall->set_args(args);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = functioncall;
+        functioncall->SetArgs(args);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = functioncall;
     }
 #line 2466 "parser.cpp"
     break;
@@ -2469,21 +2469,21 @@ namespace yy {
 #line 1527 "parser.y"
     {
         LOG_INFO("[bison]: functioncall: prefixexp COLON IDENTIFIER args");
-        auto functioncall = std::make_shared<fakelua::syntax_tree_functioncall>(yystack_[3].location);
-        auto prefixexp = std::dynamic_pointer_cast<fakelua::syntax_tree_prefixexp>(yystack_[3].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto functioncall = std::make_shared<fakelua::SyntaxTreeFunctioncall>(yystack_[3].location);
+        auto prefixexp = std::dynamic_pointer_cast<fakelua::SyntaxTreePrefixexp>(yystack_[3].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (prefixexp == nullptr) {
             LOG_ERROR("[bison]: functioncall: prefixexp is not a prefixexp");
-            fakelua::throw_fakelua_exception("prefixexp is not a prefixexp");
+            fakelua::ThrowFakeluaException("prefixexp is not a prefixexp");
         }
-        functioncall->set_prefixexp(prefixexp);
-        functioncall->set_name(yystack_[1].value.as < std::string > ());
-        auto args = std::dynamic_pointer_cast<fakelua::syntax_tree_args>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        functioncall->SetPrefixexp(prefixexp);
+        functioncall->SetName(yystack_[1].value.as < std::string > ());
+        auto args = std::dynamic_pointer_cast<fakelua::SyntaxTreeArgs>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (args == nullptr) {
             LOG_ERROR("[bison]: functioncall: args is not a args");
-            fakelua::throw_fakelua_exception("args is not a args");
+            fakelua::ThrowFakeluaException("args is not a args");
         }
-        functioncall->set_args(args);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = functioncall;
+        functioncall->SetArgs(args);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = functioncall;
     }
 #line 2489 "parser.cpp"
     break;
@@ -2492,15 +2492,15 @@ namespace yy {
 #line 1549 "parser.y"
     {
         LOG_INFO("[bison]: args: LPAREN explist RPAREN");
-        auto args = std::make_shared<fakelua::syntax_tree_args>(yystack_[2].location);
-        auto explist = std::dynamic_pointer_cast<fakelua::syntax_tree_explist>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto args = std::make_shared<fakelua::SyntaxTreeArgs>(yystack_[2].location);
+        auto explist = std::dynamic_pointer_cast<fakelua::SyntaxTreeExplist>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (explist == nullptr) {
             LOG_ERROR("[bison]: args: explist is not a explist");
-            fakelua::throw_fakelua_exception("explist is not a explist");
+            fakelua::ThrowFakeluaException("explist is not a explist");
         }
-        args->set_explist(explist);
-        args->set_type("explist");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = args;
+        args->SetExplist(explist);
+        args->SetType("explist");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = args;
     }
 #line 2506 "parser.cpp"
     break;
@@ -2509,9 +2509,9 @@ namespace yy {
 #line 1563 "parser.y"
     {
         LOG_INFO("[bison]: args: LPAREN RPAREN");
-        auto args = std::make_shared<fakelua::syntax_tree_args>(yystack_[1].location);
-        args->set_type("empty");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = args;
+        auto args = std::make_shared<fakelua::SyntaxTreeArgs>(yystack_[1].location);
+        args->SetType("empty");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = args;
     }
 #line 2517 "parser.cpp"
     break;
@@ -2520,15 +2520,15 @@ namespace yy {
 #line 1571 "parser.y"
     {
         LOG_INFO("[bison]: args: tableconstructor");
-        auto args = std::make_shared<fakelua::syntax_tree_args>(yystack_[0].location);
-        auto tableconstructor = std::dynamic_pointer_cast<fakelua::syntax_tree_tableconstructor>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto args = std::make_shared<fakelua::SyntaxTreeArgs>(yystack_[0].location);
+        auto tableconstructor = std::dynamic_pointer_cast<fakelua::SyntaxTreeTableconstructor>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (tableconstructor == nullptr) {
             LOG_ERROR("[bison]: args: tableconstructor is not a tableconstructor");
-            fakelua::throw_fakelua_exception("tableconstructor is not a tableconstructor");
+            fakelua::ThrowFakeluaException("tableconstructor is not a tableconstructor");
         }
-        args->set_tableconstructor(tableconstructor);
-        args->set_type("tableconstructor");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = args;
+        args->SetTableconstructor(tableconstructor);
+        args->SetType("tableconstructor");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = args;
     }
 #line 2534 "parser.cpp"
     break;
@@ -2537,13 +2537,13 @@ namespace yy {
 #line 1585 "parser.y"
     {
         LOG_INFO("[bison]: args: STRING");
-        auto args = std::make_shared<fakelua::syntax_tree_args>(yystack_[0].location);
-        auto exp = std::make_shared<fakelua::syntax_tree_exp>(yystack_[0].location);
-        exp->set_type("string");
-        exp->set_value(l->remove_quotes(yystack_[0].value.as < std::string > ()));
-        args->set_string(exp);
-        args->set_type("string");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = args;
+        auto args = std::make_shared<fakelua::SyntaxTreeArgs>(yystack_[0].location);
+        auto exp = std::make_shared<fakelua::SyntaxTreeExp>(yystack_[0].location);
+        exp->SetType("string");
+        exp->SetValue(l->RemoveQuotes(yystack_[0].value.as < std::string > ()));
+        args->SetString(exp);
+        args->SetType("string");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = args;
     }
 #line 2549 "parser.cpp"
     break;
@@ -2552,14 +2552,14 @@ namespace yy {
 #line 1599 "parser.y"
     {
         LOG_INFO("[bison]: functiondef: FUNCTION funcbody");
-        auto functiondef = std::make_shared<fakelua::syntax_tree_functiondef>(yystack_[1].location);
-        auto funcbody = std::dynamic_pointer_cast<fakelua::syntax_tree_funcbody>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto functiondef = std::make_shared<fakelua::SyntaxTreeFunctiondef>(yystack_[1].location);
+        auto funcbody = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncbody>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (funcbody == nullptr) {
             LOG_ERROR("[bison]: functiondef: funcbody is not a funcbody");
-            fakelua::throw_fakelua_exception("funcbody is not a funcbody");
+            fakelua::ThrowFakeluaException("funcbody is not a funcbody");
         }
-        functiondef->set_funcbody(funcbody);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = functiondef;
+        functiondef->SetFuncbody(funcbody);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = functiondef;
     }
 #line 2565 "parser.cpp"
     break;
@@ -2568,20 +2568,20 @@ namespace yy {
 #line 1614 "parser.y"
     {
         LOG_INFO("[bison]: funcbody: LPAREN parlist RPAREN block END");
-        auto funcbody = std::make_shared<fakelua::syntax_tree_funcbody>(yystack_[4].location);
-        auto parlist = std::dynamic_pointer_cast<fakelua::syntax_tree_parlist>(yystack_[3].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto funcbody = std::make_shared<fakelua::SyntaxTreeFuncbody>(yystack_[4].location);
+        auto parlist = std::dynamic_pointer_cast<fakelua::SyntaxTreeParlist>(yystack_[3].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (parlist == nullptr) {
             LOG_ERROR("[bison]: funcbody: parlist is not a parlist");
-            fakelua::throw_fakelua_exception("parlist is not a parlist");
+            fakelua::ThrowFakeluaException("parlist is not a parlist");
         }
-        funcbody->set_parlist(parlist);
-        auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        funcbody->SetParlist(parlist);
+        auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (block == nullptr) {
             LOG_ERROR("[bison]: funcbody: block is not a block");
-            fakelua::throw_fakelua_exception("block is not a block");
+            fakelua::ThrowFakeluaException("block is not a block");
         }
-        funcbody->set_block(block);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcbody;
+        funcbody->SetBlock(block);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = funcbody;
     }
 #line 2587 "parser.cpp"
     break;
@@ -2590,14 +2590,14 @@ namespace yy {
 #line 1633 "parser.y"
     {
         LOG_INFO("[bison]: funcbody: LPAREN RPAREN block END");
-        auto funcbody = std::make_shared<fakelua::syntax_tree_funcbody>(yystack_[3].location);
-        auto block = std::dynamic_pointer_cast<fakelua::syntax_tree_block>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto funcbody = std::make_shared<fakelua::SyntaxTreeFuncbody>(yystack_[3].location);
+        auto block = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (block == nullptr) {
             LOG_ERROR("[bison]: funcbody: block is not a block");
-            fakelua::throw_fakelua_exception("block is not a block");
+            fakelua::ThrowFakeluaException("block is not a block");
         }
-        funcbody->set_block(block);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = funcbody;
+        funcbody->SetBlock(block);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = funcbody;
     }
 #line 2603 "parser.cpp"
     break;
@@ -2606,14 +2606,14 @@ namespace yy {
 #line 1648 "parser.y"
     {
         LOG_INFO("[bison]: parlist: namelist");
-        auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(yystack_[0].location);
-        auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto parlist = std::make_shared<fakelua::SyntaxTreeParlist>(yystack_[0].location);
+        auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (namelist == nullptr) {
             LOG_ERROR("[bison]: parlist: namelist is not a namelist");
-            fakelua::throw_fakelua_exception("namelist is not a namelist");
+            fakelua::ThrowFakeluaException("namelist is not a namelist");
         }
-        parlist->set_namelist(namelist);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = parlist;
+        parlist->SetNamelist(namelist);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = parlist;
     }
 #line 2619 "parser.cpp"
     break;
@@ -2622,15 +2622,15 @@ namespace yy {
 #line 1661 "parser.y"
     {
         LOG_INFO("[bison]: parlist: namelist COMMA VAR_PARAMS");
-        auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(yystack_[2].location);
-        auto namelist = std::dynamic_pointer_cast<fakelua::syntax_tree_namelist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto parlist = std::make_shared<fakelua::SyntaxTreeParlist>(yystack_[2].location);
+        auto namelist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (namelist == nullptr) {
             LOG_ERROR("[bison]: parlist: namelist is not a namelist");
-            fakelua::throw_fakelua_exception("namelist is not a namelist");
+            fakelua::ThrowFakeluaException("namelist is not a namelist");
         }
-        parlist->set_namelist(namelist);
-        parlist->set_var_params(true);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = parlist;
+        parlist->SetNamelist(namelist);
+        parlist->SetVarParams(true);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = parlist;
     }
 #line 2636 "parser.cpp"
     break;
@@ -2639,9 +2639,9 @@ namespace yy {
 #line 1675 "parser.y"
     {
         LOG_INFO("[bison]: parlist: VAR_PARAMS");
-        auto parlist = std::make_shared<fakelua::syntax_tree_parlist>(yystack_[0].location);
-        parlist->set_var_params(true);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = parlist;
+        auto parlist = std::make_shared<fakelua::SyntaxTreeParlist>(yystack_[0].location);
+        parlist->SetVarParams(true);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = parlist;
     }
 #line 2647 "parser.cpp"
     break;
@@ -2650,14 +2650,14 @@ namespace yy {
 #line 1685 "parser.y"
     {
         LOG_INFO("[bison]: tableconstructor: LCURLY fieldlist RCURLY");
-        auto tableconstructor = std::make_shared<fakelua::syntax_tree_tableconstructor>(yystack_[2].location);
-        auto fieldlist = std::dynamic_pointer_cast<fakelua::syntax_tree_fieldlist>(yystack_[1].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto tableconstructor = std::make_shared<fakelua::SyntaxTreeTableconstructor>(yystack_[2].location);
+        auto fieldlist = std::dynamic_pointer_cast<fakelua::SyntaxTreeFieldlist>(yystack_[1].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (fieldlist == nullptr) {
             LOG_ERROR("[bison]: tableconstructor: fieldlist is not a fieldlist");
-            fakelua::throw_fakelua_exception("fieldlist is not a fieldlist");
+            fakelua::ThrowFakeluaException("fieldlist is not a fieldlist");
         }
-        tableconstructor->set_fieldlist(fieldlist);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = tableconstructor;
+        tableconstructor->SetFieldlist(fieldlist);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = tableconstructor;
     }
 #line 2663 "parser.cpp"
     break;
@@ -2666,8 +2666,8 @@ namespace yy {
 #line 1698 "parser.y"
     {
         LOG_INFO("[bison]: tableconstructor: LCURLY RCURLY");
-        auto tableconstructor = std::make_shared<fakelua::syntax_tree_tableconstructor>(yystack_[1].location);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = tableconstructor;
+        auto tableconstructor = std::make_shared<fakelua::SyntaxTreeTableconstructor>(yystack_[1].location);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = tableconstructor;
     }
 #line 2673 "parser.cpp"
     break;
@@ -2676,14 +2676,14 @@ namespace yy {
 #line 1707 "parser.y"
     {
         LOG_INFO("[bison]: fieldlist: field");
-        auto fieldlist = std::make_shared<fakelua::syntax_tree_fieldlist>(yystack_[0].location);
-        auto field = std::dynamic_pointer_cast<fakelua::syntax_tree_field>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto fieldlist = std::make_shared<fakelua::SyntaxTreeFieldlist>(yystack_[0].location);
+        auto field = std::dynamic_pointer_cast<fakelua::SyntaxTreeField>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (field == nullptr) {
             LOG_ERROR("[bison]: fieldlist: field is not a field");
-            fakelua::throw_fakelua_exception("field is not a field");
+            fakelua::ThrowFakeluaException("field is not a field");
         }
-        fieldlist->add_field(field);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = fieldlist;
+        fieldlist->AddField(field);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = fieldlist;
     }
 #line 2689 "parser.cpp"
     break;
@@ -2692,18 +2692,18 @@ namespace yy {
 #line 1720 "parser.y"
     {
         LOG_INFO("[bison]: fieldlist: fieldlist fieldsep field");
-        auto fieldlist = std::dynamic_pointer_cast<fakelua::syntax_tree_fieldlist>(yystack_[2].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto fieldlist = std::dynamic_pointer_cast<fakelua::SyntaxTreeFieldlist>(yystack_[2].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (fieldlist == nullptr) {
             LOG_ERROR("[bison]: fieldlist: fieldlist is not a fieldlist");
-            fakelua::throw_fakelua_exception("fieldlist is not a fieldlist");
+            fakelua::ThrowFakeluaException("fieldlist is not a fieldlist");
         }
-        auto field = std::dynamic_pointer_cast<fakelua::syntax_tree_field>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto field = std::dynamic_pointer_cast<fakelua::SyntaxTreeField>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (field == nullptr) {
             LOG_ERROR("[bison]: fieldlist: field is not a field");
-            fakelua::throw_fakelua_exception("field is not a field");
+            fakelua::ThrowFakeluaException("field is not a field");
         }
-        fieldlist->add_field(field);
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = fieldlist;
+        fieldlist->AddField(field);
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = fieldlist;
     }
 #line 2709 "parser.cpp"
     break;
@@ -2712,21 +2712,21 @@ namespace yy {
 #line 1739 "parser.y"
     {
         LOG_INFO("[bison]: field: LSQUARE exp RSQUARE ASSIGN exp");
-        auto field = std::make_shared<fakelua::syntax_tree_field>(yystack_[4].location);
-        auto key = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[3].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto field = std::make_shared<fakelua::SyntaxTreeField>(yystack_[4].location);
+        auto key = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[3].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (key == nullptr) {
             LOG_ERROR("[bison]: key: key is not a exp");
-            fakelua::throw_fakelua_exception("key is not a exp");
+            fakelua::ThrowFakeluaException("key is not a exp");
         }
-        field->set_key(key);
-        auto value = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        field->SetKey(key);
+        auto value = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (value == nullptr) {
             LOG_ERROR("[bison]: field: value is not a exp");
-            fakelua::throw_fakelua_exception("value is not a exp");
+            fakelua::ThrowFakeluaException("value is not a exp");
         }
-        field->set_value(value);
-        field->set_type("array");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = field;
+        field->SetValue(value);
+        field->SetType("array");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = field;
     }
 #line 2732 "parser.cpp"
     break;
@@ -2735,16 +2735,16 @@ namespace yy {
 #line 1759 "parser.y"
     {
         LOG_INFO("[bison]: field: IDENTIFIER ASSIGN exp");
-        auto field = std::make_shared<fakelua::syntax_tree_field>(yystack_[2].location);
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto field = std::make_shared<fakelua::SyntaxTreeField>(yystack_[2].location);
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: field: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        field->set_name(yystack_[2].value.as < std::string > ());
-        field->set_value(exp);
-        field->set_type("object");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = field;
+        field->SetName(yystack_[2].value.as < std::string > ());
+        field->SetValue(exp);
+        field->SetType("object");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = field;
     }
 #line 2750 "parser.cpp"
     break;
@@ -2753,15 +2753,15 @@ namespace yy {
 #line 1774 "parser.y"
     {
         LOG_INFO("[bison]: field: exp");
-        auto field = std::make_shared<fakelua::syntax_tree_field>(yystack_[0].location);
-        auto exp = std::dynamic_pointer_cast<fakelua::syntax_tree_exp>(yystack_[0].value.as < fakelua::syntax_tree_interface_ptr > ());
+        auto field = std::make_shared<fakelua::SyntaxTreeField>(yystack_[0].location);
+        auto exp = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(yystack_[0].value.as < fakelua::SyntaxTreeInterfacePtr > ());
         if (exp == nullptr) {
             LOG_ERROR("[bison]: field: exp is not a exp");
-            fakelua::throw_fakelua_exception("exp is not a exp");
+            fakelua::ThrowFakeluaException("exp is not a exp");
         }
-        field->set_value(exp);
-        field->set_type("array");
-        yylhs.value.as < fakelua::syntax_tree_interface_ptr > () = field;
+        field->SetValue(exp);
+        field->SetType("array");
+        yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = field;
     }
 #line 2767 "parser.cpp"
     break;
@@ -2792,7 +2792,7 @@ namespace yy {
             }
         }
 #if YY_EXCEPTIONS
-      catch (const syntax_error& yyexc)
+      catch (const SyntaxError& yyexc)
         {
           YYCDEBUG << "Caught exception: " << yyexc.what() << '\n';
           error (yyexc);
@@ -2830,7 +2830,7 @@ namespace yy {
            error, discard it.  */
 
         // Return failure if at end of input.
-        if (yyla.kind () == symbol_kind::S_YYEOF)
+        if (yyla.kind () == SymbolKind::S_YYEOF)
           YYABORT;
         else if (!yyla.empty ())
           {
@@ -2871,9 +2871,9 @@ namespace yy {
         yyn = yypact_[+yystack_[0].state];
         if (!yy_pact_value_is_default_ (yyn))
           {
-            yyn += symbol_kind::S_YYerror;
+            yyn += SymbolKind::S_YYerror;
             if (0 <= yyn && yyn <= yylast_
-                && yycheck_[yyn] == symbol_kind::S_YYerror)
+                && yycheck_[yyn] == SymbolKind::S_YYerror)
               {
                 yyn = yytable_[yyn];
                 if (0 < yyn)
@@ -2891,7 +2891,7 @@ namespace yy {
         YY_STACK_PRINT ();
       }
     {
-      stack_symbol_type error_token;
+      StackSymbolType error_token;
 
       yyerror_range[2].location = yyla.location;
       YYLLOC_DEFAULT (error_token.location, yyerror_range, 2);
@@ -2959,13 +2959,13 @@ namespace yy {
   }
 
   void
-  parser::error (const syntax_error& yyexc)
+  parser::error (const SyntaxError& yyexc)
   {
     error (yyexc.location, yyexc.what ());
   }
 
   const char *
-  parser::symbol_name (symbol_kind_type yysymbol)
+  parser::SymbolName (SymbolKindType yysymbol)
   {
     static const char *const yy_sname[] =
     {
@@ -2987,13 +2987,13 @@ namespace yy {
 
 
   // parser::context.
-  parser::context::context (const parser& yyparser, const symbol_type& yyla)
+  parser::context::context (const parser& yyparser, const SymbolType& yyla)
     : yyparser_ (yyparser)
     , yyla_ (yyla)
   {}
 
   int
-  parser::context::expected_tokens (symbol_kind_type yyarg[], int yyargn) const
+  parser::context::ExpectedTokens (SymbolKindType yyarg[], int yyargn) const
   {
     // Actual number of expected tokens
     int yycount = 0;
@@ -3007,9 +3007,9 @@ namespace yy {
 
     for (int yyx = 0; yyx < YYNTOKENS; ++yyx)
       {
-        symbol_kind_type yysym = YY_CAST (symbol_kind_type, yyx);
-        if (yysym != symbol_kind::S_YYerror
-            && yysym != symbol_kind::S_YYUNDEF
+        SymbolKindType yysym = YY_CAST (SymbolKindType, yyx);
+        if (yysym != SymbolKind::S_YYerror
+            && yysym != SymbolKind::S_YYUNDEF
             && yyparser_.yy_lac_check_ (yysym))
           {
             if (!yyarg)
@@ -3021,7 +3021,7 @@ namespace yy {
           }
       }
     if (yyarg && yycount == 0 && 0 < yyargn)
-      yyarg[0] = symbol_kind::S_YYEMPTY;
+      yyarg[0] = SymbolKind::S_YYEMPTY;
     return yycount;
   }
 
@@ -3029,14 +3029,14 @@ namespace yy {
 
 
   bool
-  parser::yy_lac_check_ (symbol_kind_type yytoken) const
+  parser::yy_lac_check_ (SymbolKindType yytoken) const
   {
     // Logically, the yylac_stack's lifetime is confined to this function.
     // Clear it, to get rid of potential left-overs from previous call.
     yylac_stack_.clear ();
     // Reduce until we encounter a shift and thereby accept the token.
 #if YYDEBUG
-    YYCDEBUG << "LAC: checking lookahead " << symbol_name (yytoken) << ':';
+    YYCDEBUG << "LAC: checking lookahead " << SymbolName (yytoken) << ':';
 #endif
     std::ptrdiff_t lac_top = 0;
     while (true)
@@ -3107,7 +3107,7 @@ namespace yy {
 
   // Establish the initial context if no initial context currently exists.
   bool
-  parser::yy_lac_establish_ (symbol_kind_type yytoken)
+  parser::yy_lac_establish_ (SymbolKindType yytoken)
   {
     /* Establish the initial context for the current lookahead if no initial
        context is currently established.
@@ -3138,7 +3138,7 @@ namespace yy {
       {
 #if YYDEBUG
         YYCDEBUG << "LAC: initial context established for "
-                 << symbol_name (yytoken) << '\n';
+                 << SymbolName (yytoken) << '\n';
 #endif
         yy_lac_established_ = true;
         return yy_lac_check_ (yytoken);
@@ -3171,7 +3171,7 @@ namespace yy {
 
   int
   parser::yy_syntax_error_arguments_ (const context& yyctx,
-                                                 symbol_kind_type yyarg[], int yyargn) const
+                                                 SymbolKindType yyarg[], int yyargn) const
   {
     /* There are many possibilities here to consider:
        - If this state is a consistent state with a default action, then
@@ -3200,7 +3200,7 @@ namespace yy {
       {
         if (yyarg)
           yyarg[0] = yyctx.token ();
-        int yyn = yyctx.expected_tokens (yyarg ? yyarg + 1 : yyarg, yyargn - 1);
+        int yyn = yyctx.ExpectedTokens (yyarg ? yyarg + 1 : yyarg, yyargn - 1);
         return yyn + 1;
       }
     return 0;
@@ -3213,7 +3213,7 @@ namespace yy {
     // Its maximum.
     enum { YYARGS_MAX = 5 };
     // Arguments of yyformat.
-    symbol_kind_type yyarg[YYARGS_MAX];
+    SymbolKindType yyarg[YYARGS_MAX];
     int yycount = yy_syntax_error_arguments_ (yyctx, yyarg, YYARGS_MAX);
 
     char const* yyformat = YY_NULLPTR;
@@ -3223,7 +3223,7 @@ namespace yy {
         case N:                               \
           yyformat = S;                       \
         break
-      default: // Avoid compiler warnings.
+      default: // Avoid Compiler warnings.
         YYCASE_ (0, YY_("syntax error"));
         YYCASE_ (1, YY_("syntax error, unexpected %s"));
         YYCASE_ (2, YY_("syntax error, unexpected %s, expecting %s"));
@@ -3239,7 +3239,7 @@ namespace yy {
     for (char const* yyp = yyformat; *yyp; ++yyp)
       if (yyp[0] == '%' && yyp[1] == 's' && yyi < yycount)
         {
-          yyres += symbol_name (yyarg[yyi++]);
+          yyres += SymbolName (yyarg[yyi++]);
           ++yyp;
         }
       else
@@ -3744,5 +3744,5 @@ yy::parser::error (const location_type& l, const std::string& m)
 {
     std::stringstream ss;
     ss << l;
-    fakelua::throw_fakelua_exception(std::format("{}: {}", ss.str(), m));
+    fakelua::ThrowFakeluaException(std::format("{}: {}", ss.str(), m));
 }

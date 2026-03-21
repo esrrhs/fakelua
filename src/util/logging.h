@@ -5,21 +5,21 @@ namespace fakelua {
 // a simple logging system, just use to debug
 
 // log level
-enum class log_level {
+enum class LogLevel {
     Off = 0,
     Error = 1,
     Info = 2,
 };
 
 // set the log level, default is Error
-void set_log_level(const log_level &level);
+void SetLogLevel(const LogLevel &level);
 
 // check the log level, return true if the level is enabled
-bool check_log_level(const log_level &level);
+bool CheckLogLevel(const LogLevel &level);
 
-void log(const log_level &level, const std::string_view &message, const std::source_location &source = std::source_location::current());
+void Log(const LogLevel &level, const std::string_view &message, const std::source_location &source = std::source_location::current());
 
-#define LOG_INFO(fmt, ...) if (fakelua::check_log_level(fakelua::log_level::Info)) { fakelua::log(fakelua::log_level::Info, std::format(fmt, ##__VA_ARGS__), std::source_location::current()); }
-#define LOG_ERROR(fmt, ...) if (fakelua::check_log_level(fakelua::log_level::Error)) { fakelua::log(fakelua::log_level::Error, std::format(fmt, ##__VA_ARGS__), std::source_location::current()); }
+#define LOG_INFO(fmt, ...) if (fakelua::CheckLogLevel(fakelua::LogLevel::Info)) { fakelua::Log(fakelua::LogLevel::Info, std::format(fmt, ##__VA_ARGS__), std::source_location::current()); }
+#define LOG_ERROR(fmt, ...) if (fakelua::CheckLogLevel(fakelua::LogLevel::Error)) { fakelua::Log(fakelua::LogLevel::Error, std::format(fmt, ##__VA_ARGS__), std::source_location::current()); }
 
 }// namespace fakelua

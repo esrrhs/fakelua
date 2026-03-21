@@ -2,7 +2,7 @@
 
 namespace fakelua {
 
-std::string exec(const char *cmd) {
+std::string Exec(const char *cmd) {
     std::shared_ptr<FILE> pipe(popen(cmd, "r"), fclose);
 
     if (!pipe) {

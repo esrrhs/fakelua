@@ -1,52 +1,52 @@
-#include "compile/compiler.h"
+#include "compile/Compiler.h"
 #include "bison/parser.h"
 #include "jit/preprocessor.h"
 #include "util/exception.h"
 
 namespace fakelua {
 
-compile_result compiler::compile_file(const fakelua_state_ptr &sp, const std::string &file, const compile_config &cfg) {
-    LOG_INFO("start compile_file {}", file);
-    myflexer f;
-    f.input_file(file);
-    return compile(sp, f, cfg);
+CompileResult Compiler::CompileFile(const FakeluaStatePtr &sp, const std::string &file, const CompileConfig &cfg) {
+    LOG_INFO("start CompileFile {}", file);
+    MyFlexer f;
+    f.InputFile(file);
+    return Compile(sp, f, cfg);
 }
 
-compile_result compiler::compile_string(const fakelua_state_ptr &sp, const std::string &str, const compile_config &cfg) {
-    LOG_INFO("start compile_string");
-    myflexer f;
-    f.input_string(str);
-    return compile(sp, f, cfg);
+CompileResult Compiler::CompileString(const FakeluaStatePtr &sp, const std::string &str, const CompileConfig &cfg) {
+    LOG_INFO("start CompileString");
+    MyFlexer f;
+    f.InputString(str);
+    return Compile(sp, f, cfg);
 }
 
-compile_result compiler::compile(const fakelua_state_ptr &sp, myflexer &f, const compile_config &cfg) {
-    LOG_INFO("start compile {}", f.get_filename());
+CompileResult Compiler::Compile(const FakeluaStatePtr &sp, MyFlexer &f, const CompileConfig &cfg) {
+    LOG_INFO("start compile {}", f.GetFilename());
 
-    compile_result ret;
+    CompileResult ret;
 
-    ret.file_name = f.get_filename();
+    ret.fileName = f.GetFilename();
 
     // generate the tree
     yy::parser parse(&f);
     auto code = parse.parse();
     LOG_INFO("compile ret {}", code);
     DEBUG_ASSERT(code == 0);
-    ret.chunk = f.get_chunk();
+    ret.chunk = f.GetChunk();
 
     if (cfg.debug_mode) {
         // just walk the tree, do nothing
-        walk_syntax_tree(ret.chunk, [](const syntax_tree_interface_ptr &ptr) {});
+        WalkSyntaxTree(ret.chunk, [](const SyntaxTreeInterfacePtr &ptr) {});
     }
 
     // compile tree
     if (!cfg.skip_jit) {
         // preprocess
-        pre_processor pp;
-        pp.process(sp, cfg, ret.file_name, ret.chunk);
+        PreProcessor pp;
+        pp.Process(sp, cfg, ret.fileName, ret.chunk);
 
         // compile
-        gcc_jitter jitter;
-        jitter.compile(sp, cfg, ret.file_name, ret.chunk);
+        GccJitter jitter;
+        jitter.Compile(sp, cfg, ret.fileName, ret.chunk);
     }
 
     return ret;

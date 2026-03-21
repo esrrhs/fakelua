@@ -1,6 +1,6 @@
-#include "compile/compiler.h"
+#include "compile/Compiler.h"
 #include "fakelua.h"
-#include "var/var_string.h"
+#include "var/var_String.h"
 #include "var/var_table.h"
 #include "gtest/gtest.h"
 
@@ -10,7 +10,7 @@ using namespace fakelua;
 
 static int jitter_gccjit_called_with[3];
 
-extern "C" __attribute__((used)) void jitter_gccjit_called_function(int i, int j, int k) {
+extern "C" __attribute__((used)) void JitterGccjitCalledFunction(int i, int j, int k) {
     jitter_gccjit_called_with[0] = i;
     jitter_gccjit_called_with[1] = j;
     jitter_gccjit_called_with[2] = k;
@@ -19,12 +19,12 @@ extern "C" __attribute__((used)) void jitter_gccjit_called_function(int i, int j
 TEST(jitter, gccjit) {
     gcc_jit_context *ctxt = gcc_jit_context_acquire();
     /* Let's try to inject the equivalent of:
-     extern void called_function (int i, int j, int k);
+     extern void CalledFunction (int i, int j, int k);
 
     void
-    test_caller (int a)
+    TestCaller (int a)
     {
-        called_function (a * 3, a * 4, a * 5);
+        CalledFunction (a * 3, a * 4, a * 5);
     }
     */
     int i;
@@ -37,12 +37,12 @@ TEST(jitter, gccjit) {
     params[1] = gcc_jit_context_new_param(ctxt, NULL, int_type, "j");
     params[2] = gcc_jit_context_new_param(ctxt, NULL, int_type, "k");
     gcc_jit_function *called_fn =
-            gcc_jit_context_new_function(ctxt, NULL, GCC_JIT_FUNCTION_IMPORTED, void_type, "jitter_gccjit_called_function", 3, params, 0);
+            gcc_jit_context_new_function(ctxt, NULL, GCC_JIT_FUNCTION_IMPORTED, void_type, "JitterGccjitCalledFunction", 3, params, 0);
 
     /* Build the test_fn.  */
     gcc_jit_param *param_a = gcc_jit_context_new_param(ctxt, NULL, int_type, "a");
     gcc_jit_function *test_fn =
-            gcc_jit_context_new_function(ctxt, NULL, GCC_JIT_FUNCTION_EXPORTED, void_type, "test_caller", 1, &param_a, 0);
+            gcc_jit_context_new_function(ctxt, NULL, GCC_JIT_FUNCTION_EXPORTED, void_type, "TestCaller", 1, &param_a, 0);
     /* "a * 3, a * 4, a * 5"  */
     gcc_jit_rvalue *args[3];
     for (i = 0; i < 3; i++)
@@ -60,17 +60,17 @@ TEST(jitter, gccjit) {
 
     typedef void (*fn_type)(int);
 
-    fn_type test_caller = (fn_type) gcc_jit_result_get_code(result, "test_caller");
-    ASSERT_NE(test_caller, nullptr);
+    fn_type TestCaller = (fn_type) gcc_jit_result_get_code(result, "TestCaller");
+    ASSERT_NE(TestCaller, nullptr);
 
     jitter_gccjit_called_with[0] = 0;
     jitter_gccjit_called_with[1] = 0;
     jitter_gccjit_called_with[2] = 0;
 
     /* Call the JIT-generated function.  */
-    test_caller(5);
+    TestCaller(5);
 
-    /* Verify that it correctly called "called_function".  */
+    /* Verify that it correctly called "CalledFunction".  */
     ASSERT_EQ(jitter_gccjit_called_with[0], 15);
     ASSERT_EQ(jitter_gccjit_called_with[1], 20);
     ASSERT_EQ(jitter_gccjit_called_with[2], 25);
@@ -80,49 +80,49 @@ TEST(jitter, gccjit) {
 
 #endif
 
-static void jitter_run_helper(const std::function<void(bool)> &f) {
+static void JitterRunHelper(const std::function<void(bool)> &f) {
     f(true);
     f(false);
 }
 
 TEST(jitter, empty_file) {
-    jitter_run_helper([](bool debug_mode) {
-        const auto L = fakelua_newstate();
+    JitterRunHelper([](bool debug_mode) {
+        const auto L = FakeluaNewstate();
         ASSERT_NE(L.get(), nullptr);
 
-        L->compile_file("./jit/test_empty_file.lua", {.debug_mode = debug_mode});
+        L->CompileFile("./jit/test_empty_file.lua", {.debug_mode = debug_mode});
     });
 }
 
 TEST(jitter, empty_func) {
-    jitter_run_helper([](bool debug_mode) {
-        const auto L = fakelua_newstate();
+    JitterRunHelper([](bool debug_mode) {
+        const auto L = FakeluaNewstate();
         ASSERT_NE(L.get(), nullptr);
 
-        L->compile_file("./jit/test_empty_func.lua", {.debug_mode = debug_mode});
-        cvar ret;
-        const auto v = static_cast<var &>(ret);
+        L->CompileFile("./jit/test_empty_func.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        const auto v = static_cast<Var &>(ret);
         L->call("test", std::tie(ret));
-        ASSERT_EQ(v.type(), var_type::VAR_NIL);
+        ASSERT_EQ(v.Type(), VarType::Nil);
     });
 }
 
 TEST(jitter, empty_local_func) {
-    jitter_run_helper([](bool debug_mode) {
-        const auto L = fakelua_newstate();
+    JitterRunHelper([](bool debug_mode) {
+        const auto L = FakeluaNewstate();
         ASSERT_NE(L.get(), nullptr);
 
-        cvar ret;
-        const auto &v = *reinterpret_cast<var *>(&ret);
-        L->compile_file("./jit/test_empty_local_func.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        const auto &v = *reinterpret_cast<Var *>(&ret);
+        L->CompileFile("./jit/test_empty_local_func.lua", {.debug_mode = debug_mode});
         L->call("test", std::tie(ret));
-        ASSERT_EQ(v.type(), var_type::VAR_NIL);
+        ASSERT_EQ(v.Type(), VarType::Nil);
     });
 }
 
 TEST(jitter, multi_return) {
-    jitter_run_helper([](bool debug_mode) {
-        const auto L = fakelua_newstate();
+    JitterRunHelper([](bool debug_mode) {
+        const auto L = FakeluaNewstate();
         ASSERT_NE(L.get(), nullptr);
 
         int i = 0;
@@ -130,7 +130,7 @@ TEST(jitter, multi_return) {
         bool b1 = false;
         bool b2 = false;
         std::string s;
-        L->compile_file("./jit/test_multi_return.lua", {.debug_mode = debug_mode});
+        L->CompileFile("./jit/test_multi_return.lua", {.debug_mode = debug_mode});
         L->call("test", std::tie(i, f, b1, b2, s));
         ASSERT_EQ(i, 1);
         ASSERT_NEAR(f, 2.3, 0.001);
@@ -141,13 +141,13 @@ TEST(jitter, multi_return) {
 }
 
 TEST(jitter, multi_return_call) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     std::string s;
     int i = 0;
     float f = 0;
-    L->compile_file("./jit/test_multi_return_call.lua", {});
+    L->CompileFile("./jit/test_multi_return_call.lua", {});
     L->call("test", std::tie(s, i, f));
     ASSERT_EQ(s, "test");
     ASSERT_EQ(i, 1);
@@ -156,7 +156,7 @@ TEST(jitter, multi_return_call) {
     s.clear();
     i = 0;
     f = 0;
-    L->compile_file("./jit/test_multi_return_call.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_multi_return_call.lua", {.debug_mode = false});
     L->call("test", std::tie(s, i, f));
     ASSERT_EQ(s, "test");
     ASSERT_EQ(i, 1);
@@ -164,13 +164,13 @@ TEST(jitter, multi_return_call) {
 }
 
 TEST(jitter, multi_return_call_ex) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     std::string s;
     int i = 0;
     float f = 0;
-    L->compile_file("./jit/test_multi_return_call_ex.lua", {});
+    L->CompileFile("./jit/test_multi_return_call_ex.lua", {});
     L->call("test", std::tie(s, i, f));
     ASSERT_EQ(s, "test");
     ASSERT_EQ(i, 1);
@@ -179,7 +179,7 @@ TEST(jitter, multi_return_call_ex) {
     s.clear();
     i = 0;
     f = 0;
-    L->compile_file("./jit/test_multi_return_call_ex.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_multi_return_call_ex.lua", {.debug_mode = false});
     L->call("test", std::tie(s, i, f));
     ASSERT_EQ(s, "test");
     ASSERT_EQ(i, 1);
@@ -187,13 +187,13 @@ TEST(jitter, multi_return_call_ex) {
 }
 
 TEST(jitter, multi_return_sub) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     std::string s;
     int i = 0;
     float f = 0;
-    L->compile_file("./jit/test_multi_return_sub.lua", {});
+    L->CompileFile("./jit/test_multi_return_sub.lua", {});
     L->call("test", std::tie(s, i, f));
     ASSERT_EQ(s, "test");
     ASSERT_EQ(i, 1);
@@ -202,7 +202,7 @@ TEST(jitter, multi_return_sub) {
     s.clear();
     i = 0;
     f = 0;
-    L->compile_file("./jit/test_multi_return_sub.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_multi_return_sub.lua", {.debug_mode = false});
     L->call("test", std::tie(s, i, f));
     ASSERT_EQ(s, "test");
     ASSERT_EQ(i, 1);
@@ -210,7 +210,7 @@ TEST(jitter, multi_return_sub) {
 }
 
 TEST(jitter, multi_return_multi) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int i1 = 0;
@@ -218,7 +218,7 @@ TEST(jitter, multi_return_multi) {
     int i3 = 0;
     int i4 = 0;
     int i5 = 0;
-    L->compile_file("./jit/test_multi_return_multi.lua", {});
+    L->CompileFile("./jit/test_multi_return_multi.lua", {});
     L->call("test", std::tie(i1, i2, i3, i4, i5));
     ASSERT_EQ(i1, 1);
     ASSERT_EQ(i2, 2);
@@ -231,7 +231,7 @@ TEST(jitter, multi_return_multi) {
     i3 = 0;
     i4 = 0;
     i5 = 0;
-    L->compile_file("./jit/test_multi_return_multi.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_multi_return_multi.lua", {.debug_mode = false});
     L->call("test", std::tie(i1, i2, i3, i4, i5));
     ASSERT_EQ(i1, 1);
     ASSERT_EQ(i2, 2);
@@ -241,14 +241,14 @@ TEST(jitter, multi_return_multi) {
 }
 
 TEST(jitter, multi_return_multi_ex) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int i1 = 0;
     int i2 = 0;
     int i3 = 0;
     int i4 = 0;
-    L->compile_file("./jit/test_multi_return_multi_ex.lua", {});
+    L->CompileFile("./jit/test_multi_return_multi_ex.lua", {});
     L->call("test", std::tie(i1, i2, i3, i4));
     ASSERT_EQ(i1, 1);
     ASSERT_EQ(i2, 2);
@@ -259,7 +259,7 @@ TEST(jitter, multi_return_multi_ex) {
     i2 = 0;
     i3 = 0;
     i4 = 0;
-    L->compile_file("./jit/test_multi_return_multi_ex.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_multi_return_multi_ex.lua", {.debug_mode = false});
     L->call("test", std::tie(i1, i2, i3, i4));
     ASSERT_EQ(i1, 1);
     ASSERT_EQ(i2, 2);
@@ -268,70 +268,70 @@ TEST(jitter, multi_return_multi_ex) {
 }
 
 TEST(jitter, multi_name) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret = 0;
-    L->compile_file("./jit/test_multi_name_func.lua", {});
+    L->CompileFile("./jit/test_multi_name_func.lua", {});
     L->call("test", std::tie(ret), 1);
     ASSERT_EQ(ret, 2);
 
     ret = 0;
-    L->compile_file("./jit/test_multi_name_func.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_multi_name_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 1);
     ASSERT_EQ(ret, 2);
 }
 
 TEST(jitter, multi_col_name) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret = 0;
-    L->compile_file("./jit/test_multi_col_name_func.lua", {});
+    L->CompileFile("./jit/test_multi_col_name_func.lua", {});
     L->call("test", std::tie(ret), 1);
     ASSERT_EQ(ret, 2);
 
     ret = 0;
-    L->compile_file("./jit/test_multi_col_name_func.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_multi_col_name_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 1);
     ASSERT_EQ(ret, 2);
 }
 
 TEST(jitter, const_define) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int i = 0;
-    L->compile_file("./jit/test_const_define.lua", {});
+    L->CompileFile("./jit/test_const_define.lua", {});
     L->call("test", std::tie(i));
     ASSERT_EQ(i, 1);
 
     i = 0;
-    L->compile_file("./jit/test_const_define.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_define.lua", {.debug_mode = false});
     L->call("test", std::tie(i));
     ASSERT_EQ(i, 1);
 }
 
 TEST(jitter, multi_const_define) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    cvar ret0 = {};
-    auto v = (var &) ret0;
+    CVar ret0 = {};
+    auto v = (Var &) ret0;
     int ret1 = 0;
     bool ret2 = false;
     bool ret3 = false;
     std::string ret4;
     double ret5;
-    L->compile_file("./jit/test_multi_const_define.lua", {});
+    L->CompileFile("./jit/test_multi_const_define.lua", {});
     L->call("test", std::tie(ret0, ret1, ret2, ret3, ret4, ret5));
-    ASSERT_EQ(v.type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.Type(), VarType::Nil);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, false);
     ASSERT_EQ(ret3, true);
     ASSERT_EQ(ret4, "test");
     ASSERT_NEAR(ret5, 2.3, 0.001);
-    L->compile_file("./jit/test_multi_const_define.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_multi_const_define.lua", {.debug_mode = false});
     ret0 = {};
     ret1 = 0;
     ret2 = false;
@@ -339,7 +339,7 @@ TEST(jitter, multi_const_define) {
     ret4.clear();
     ret5 = 0;
     L->call("test", std::tie(ret0, ret1, ret2, ret3, ret4, ret5));
-    ASSERT_EQ(v.type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.Type(), VarType::Nil);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, false);
     ASSERT_EQ(ret3, true);
@@ -348,14 +348,14 @@ TEST(jitter, multi_const_define) {
 }
 
 TEST(jitter, empty_func_with_params) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     bool ret2 = false;
     std::string ret3;
     double ret4 = 0;
-    L->compile_file("./jit/test_empty_func_with_params.lua", {});
+    L->CompileFile("./jit/test_empty_func_with_params.lua", {});
     L->call("test", std::tie(ret1, ret2, ret3, ret4), 2.3, "test", true, 1);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
@@ -366,7 +366,7 @@ TEST(jitter, empty_func_with_params) {
     ret2 = false;
     ret3.clear();
     ret4 = 0;
-    L->compile_file("./jit/test_empty_func_with_params.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_empty_func_with_params.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2, ret3, ret4), 2.3, "test", true, 1);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
@@ -375,14 +375,14 @@ TEST(jitter, empty_func_with_params) {
 }
 
 TEST(jitter, variadic_func) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     bool ret2 = false;
     std::string ret3;
     double ret4 = 0;
-    L->compile_file("./jit/test_variadic_func.lua", {});
+    L->CompileFile("./jit/test_variadic_func.lua", {});
     L->call("test", std::tie(ret1, ret2, ret3, ret4), 1, true, "test", 2.3);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
@@ -393,7 +393,7 @@ TEST(jitter, variadic_func) {
     ret2 = false;
     ret3.clear();
     ret4 = 0;
-    L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2, ret3, ret4), 1, true, "test", 2.3);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, true);
@@ -402,13 +402,13 @@ TEST(jitter, variadic_func) {
 }
 
 TEST(jitter, variadic_func_with_params) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     std::string ret1;
     bool ret2 = false;
     int ret3 = 0;
-    L->compile_file("./jit/test_variadic_func_with_params.lua", {});
+    L->CompileFile("./jit/test_variadic_func_with_params.lua", {});
     L->call("test", std::tie(ret1, ret2, ret3), 1, true, "test", 2.3);
     ASSERT_EQ(ret1, "test");
     ASSERT_EQ(ret2, true);
@@ -417,7 +417,7 @@ TEST(jitter, variadic_func_with_params) {
     ret1.clear();
     ret2 = false;
     ret3 = 0;
-    L->compile_file("./jit/test_variadic_func_with_params.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_variadic_func_with_params.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2, ret3), 1, true, "test", 2.3);
     ASSERT_EQ(ret1, "test");
     ASSERT_EQ(ret2, true);
@@ -425,7 +425,7 @@ TEST(jitter, variadic_func_with_params) {
 }
 
 TEST(jitter, variadic_func_multi_type) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     char in1 = 1, out1 = 0;
@@ -445,7 +445,7 @@ TEST(jitter, variadic_func_multi_type) {
     float in15 = 15.1, out15 = 0;
     double in16 = 16.2, out16 = 0;
     double in17 = 17, out17 = 0;
-    L->compile_file("./jit/test_variadic_func.lua", {});
+    L->CompileFile("./jit/test_variadic_func.lua", {});
     L->call("test", std::tie(out1, out2, out3, out4, out5, out6, out7, out8, out9, out10, out11, out12, out13, out14, out15, out16, out17),
             in1, in2, in3, in4, in5, in6, in7, in8, in9, in10, in11, in12, in13, in14, in15, in16, in17);
     ASSERT_EQ(out1, in1);
@@ -479,7 +479,7 @@ TEST(jitter, variadic_func_multi_type) {
     out11 = nullptr;
     out12.clear();
     out13 = "";
-    L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie(out1, out2, out3, out4, out5, out6, out7, out8, out9, out10, out11, out12, out13, out14, out15, out16, out17),
             in1, in2, in3, in4, in5, in6, in7, in8, in9, in10, in11, in12, in13, in14, in15, in16, in17);
     ASSERT_EQ(out1, in1);
@@ -502,18 +502,18 @@ TEST(jitter, variadic_func_multi_type) {
 }
 
 TEST(jitter, variadic_func_vi) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    std::vector<var_interface *> tmp;
+    std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
-        auto ret = new simple_var_impl();
+        auto ret = new SimpleVarImpl();
         tmp.push_back(ret);
         return ret;
     };
-    L->set_var_interface_new_func(newfunc);
+    L->SetVarInterfaceNewFunc(newfunc);
 
-    // construct a table below by use simple_var_impl:
+    // construct a table below by use SimpleVarImpl:
     //    {
     //        a = 1,
     //        b = "test",
@@ -523,42 +523,42 @@ TEST(jitter, variadic_func_vi) {
     //            f = 1,
     //        }
     //    }
-    simple_var_impl *var = newfunc();
-    std::vector<std::pair<var_interface *, var_interface *>> kv;
+    SimpleVarImpl *var = newfunc();
+    std::vector<std::pair<VarInterface *, VarInterface *>> kv;
     auto k = newfunc();
-    k->vi_set_string("a");
+    k->ViSetString("a");
     auto v = newfunc();
-    v->vi_set_int(1);
+    v->ViSetInt(1);
     kv.emplace_back(k, v);
     k = newfunc();
-    k->vi_set_string("b");
+    k->ViSetString("b");
     v = newfunc();
-    v->vi_set_string("test");
+    v->ViSetString("test");
     kv.emplace_back(k, v);
     k = newfunc();
-    k->vi_set_string("c");
+    k->ViSetString("c");
     v = newfunc();
-    v->vi_set_float(2.3);
+    v->ViSetFloat(2.3);
     kv.emplace_back(k, v);
     k = newfunc();
-    k->vi_set_string("d");
+    k->ViSetString("d");
     v = newfunc();
-    v->vi_set_bool(true);
+    v->ViSetBool(true);
     kv.emplace_back(k, v);
     k = newfunc();
-    k->vi_set_string("e");
+    k->ViSetString("e");
     v = newfunc();
-    std::vector<std::pair<var_interface *, var_interface *>> sub_kv;
+    std::vector<std::pair<VarInterface *, VarInterface *>> sub_kv;
     auto sub_k = newfunc();
-    sub_k->vi_set_string("f");
+    sub_k->ViSetString("f");
     auto sub_v = newfunc();
-    sub_v->vi_set_int(1);
+    sub_v->ViSetInt(1);
     sub_kv.emplace_back(sub_k, sub_v);
-    v->vi_set_table(sub_kv);
+    v->ViSetTable(sub_kv);
     kv.emplace_back(k, v);
-    var->vi_set_table(kv);
+    var->ViSetTable(kv);
 
-    auto dumpstr = var->vi_to_string(0);
+    auto dumpstr = var->ViToString(0);
     ASSERT_EQ(dumpstr, "table:\n"
                        "\t[\"a\"] = 1\n"
                        "\t[\"b\"] = \"test\"\n"
@@ -567,25 +567,25 @@ TEST(jitter, variadic_func_vi) {
                        "\t[\"e\"] = table:\n"
                        "\t\t[\"f\"] = 1");
 
-    var_interface *ret = nullptr;
-    L->compile_file("./jit/test_variadic_func.lua", {});
+    VarInterface *ret = nullptr;
+    L->CompileFile("./jit/test_variadic_func.lua", {});
     L->call("test", std::tie(ret), var);
     ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(ret->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(ret)->vi_sort_table();
-    ASSERT_EQ(ret->vi_to_string(0), dumpstr);
+    dynamic_cast<SimpleVarImpl *>(ret)->ViSortTable();
+    ASSERT_EQ(ret->ViToString(0), dumpstr);
 
     ret = nullptr;
-    L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), var);
     ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(ret->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(ret)->vi_sort_table();
-    ASSERT_EQ(ret->vi_to_string(0), dumpstr);
+    dynamic_cast<SimpleVarImpl *>(ret)->ViSortTable();
+    ASSERT_EQ(ret->ViToString(0), dumpstr);
 
     for (auto &i: tmp) {
         delete i;
@@ -593,77 +593,77 @@ TEST(jitter, variadic_func_vi) {
 }
 
 TEST(jitter, variadic_func_with_empty) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    L->compile_file("./jit/test_variadic_func.lua", {});
+    L->CompileFile("./jit/test_variadic_func.lua", {});
     L->call("test", std::tie());
 
-    L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie());
 }
 
 TEST(jitter, variadic_func_vi_array) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    std::vector<var_interface *> tmp;
+    std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
-        auto ret = new simple_var_impl();
+        auto ret = new SimpleVarImpl();
         tmp.push_back(ret);
         return ret;
     };
-    L->set_var_interface_new_func(newfunc);
+    L->SetVarInterfaceNewFunc(newfunc);
 
-    // construct a table below by use simple_var_impl:
+    // construct a table below by use SimpleVarImpl:
     //    {
     //        1, nil, 2
     //    }
-    simple_var_impl *var = newfunc();
-    std::vector<std::pair<var_interface *, var_interface *>> kv;
+    SimpleVarImpl *var = newfunc();
+    std::vector<std::pair<VarInterface *, VarInterface *>> kv;
     auto k = newfunc();
-    k->vi_set_int(1);
+    k->ViSetInt(1);
     auto v = newfunc();
-    v->vi_set_int(1);
+    v->ViSetInt(1);
     kv.emplace_back(k, v);
     k = newfunc();
-    k->vi_set_int(2);
+    k->ViSetInt(2);
     v = newfunc();
-    v->vi_set_int(2);
+    v->ViSetInt(2);
     kv.emplace_back(k, v);
     k = newfunc();
-    k->vi_set_int(3);
+    k->ViSetInt(3);
     v = newfunc();
-    v->vi_set_int(3);
+    v->ViSetInt(3);
     kv.emplace_back(k, v);
-    var->vi_set_table(kv);
+    var->ViSetTable(kv);
 
-    auto dumpstr = var->vi_to_string(0);
+    auto dumpstr = var->ViToString(0);
     ASSERT_EQ(dumpstr, "table:\n"
                        "\t[1] = 1\n"
                        "\t[2] = 2\n"
                        "\t[3] = 3");
 
 
-    var_interface *ret = nullptr;
-    L->compile_file("./jit/test_variadic_func.lua", {});
+    VarInterface *ret = nullptr;
+    L->CompileFile("./jit/test_variadic_func.lua", {});
     L->call("test", std::tie(ret), var);
     ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(ret->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(ret)->vi_sort_table();
-    ASSERT_EQ(ret->vi_to_string(0), dumpstr);
+    dynamic_cast<SimpleVarImpl *>(ret)->ViSortTable();
+    ASSERT_EQ(ret->ViToString(0), dumpstr);
 
     ret = nullptr;
-    L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), var);
     ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(ret->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(ret)->vi_sort_table();
-    ASSERT_EQ(ret->vi_to_string(0), dumpstr);
+    dynamic_cast<SimpleVarImpl *>(ret)->ViSortTable();
+    ASSERT_EQ(ret->ViToString(0), dumpstr);
 
     for (auto &i: tmp) {
         delete i;
@@ -671,34 +671,34 @@ TEST(jitter, variadic_func_vi_array) {
 }
 
 TEST(jitter, variadic_func_vi_nil) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    std::vector<var_interface *> tmp;
+    std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
-        auto ret = new simple_var_impl();
+        auto ret = new SimpleVarImpl();
         tmp.push_back(ret);
         return ret;
     };
-    L->set_var_interface_new_func(newfunc);
+    L->SetVarInterfaceNewFunc(newfunc);
 
-    simple_var_impl *var = newfunc();
-    var->vi_set_nil();
+    SimpleVarImpl *var = newfunc();
+    var->ViSetNil();
 
-    auto dumpstr = var->vi_to_string(0);
+    auto dumpstr = var->ViToString(0);
     ASSERT_EQ(dumpstr, "nil");
 
-    var_interface *ret = nullptr;
-    L->compile_file("./jit/test_variadic_func.lua", {});
+    VarInterface *ret = nullptr;
+    L->CompileFile("./jit/test_variadic_func.lua", {});
     L->call("test", std::tie(ret), var);
     ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->vi_get_type(), var_interface::type::NIL);
+    ASSERT_EQ(ret->ViGetType(), VarInterface::Type::NIL);
 
     ret = nullptr;
-    L->compile_file("./jit/test_variadic_func.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_variadic_func.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), var);
     ASSERT_NE(ret, nullptr);
-    ASSERT_EQ(ret->vi_get_type(), var_interface::type::NIL);
+    ASSERT_EQ(ret->ViGetType(), VarInterface::Type::NIL);
 
     for (auto &i: tmp) {
         delete i;
@@ -706,114 +706,114 @@ TEST(jitter, variadic_func_vi_nil) {
 }
 
 TEST(jitter, string) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret = 0;
-    L->compile_string("function test() return 1 end", {});
+    L->CompileString("function test() return 1 end", {});
     L->call("test", std::tie(ret));
     ASSERT_EQ(ret, 1);
 
-    L->compile_string("function test() return 1 end", {.debug_mode = false});
+    L->CompileString("function test() return 1 end", {.debug_mode = false});
     L->call("test", std::tie(ret));
     ASSERT_EQ(ret, 1);
 }
 
 TEST(jitter, local_define) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    cvar a;
-    auto va = (var &) a;
-    cvar b;
-    auto vb = (var &) b;
-    L->compile_file("./jit/test_local_define.lua", {});
+    CVar a;
+    auto va = (Var &) a;
+    CVar b;
+    auto vb = (Var &) b;
+    L->CompileFile("./jit/test_local_define.lua", {});
     L->call("test", std::tie(a, b));
-    ASSERT_EQ(va.type(), var_type::VAR_NIL);
+    ASSERT_EQ(va.Type(), VarType::Nil);
 
-    ASSERT_EQ(vb.type(), var_type::VAR_NIL);
+    ASSERT_EQ(vb.Type(), VarType::Nil);
 
     a = {};
     b = {};
-    L->compile_file("./jit/test_local_define.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_local_define.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b));
-    ASSERT_EQ(va.type(), var_type::VAR_NIL);
+    ASSERT_EQ(va.Type(), VarType::Nil);
 
-    ASSERT_EQ(vb.type(), var_type::VAR_NIL);
+    ASSERT_EQ(vb.Type(), VarType::Nil);
 }
 
 TEST(jitter, local_define_with_values) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    cvar a = {};
-    auto va = (var &) a;
-    cvar b = {};
-    auto vb = (var &) b;
-    cvar c = {};
-    auto vc = (var &) c;
-    cvar d = {};
-    auto vd = (var &) d;
-    cvar e = {};
-    auto ve = (var &) e;
-    L->compile_file("./jit/test_local_define_with_value.lua", {});
+    CVar a = {};
+    auto va = (Var &) a;
+    CVar b = {};
+    auto vb = (Var &) b;
+    CVar c = {};
+    auto vc = (Var &) c;
+    CVar d = {};
+    auto vd = (Var &) d;
+    CVar e = {};
+    auto ve = (Var &) e;
+    L->CompileFile("./jit/test_local_define_with_value.lua", {});
     L->call("test", std::tie(a, b, c, d, e), true, 2);
-    ASSERT_EQ(va.type(), var_type::VAR_BOOL);
-    ASSERT_EQ(va.get_bool(), true);
-    ASSERT_EQ(vb.type(), var_type::VAR_INT);
-    ASSERT_EQ(vb.get_int(), 2);
-    ASSERT_EQ(vc.type(), var_type::VAR_INT);
-    ASSERT_EQ(vc.get_int(), 1);
-    ASSERT_EQ(vd.type(), var_type::VAR_STRING);
-    ASSERT_EQ(vd.get_string()->str(), "test");
-    ASSERT_EQ(ve.type(), var_type::VAR_NIL);
+    ASSERT_EQ(va.Type(), VarType::Bool);
+    ASSERT_EQ(va.GetBool(), true);
+    ASSERT_EQ(vb.Type(), VarType::Int);
+    ASSERT_EQ(vb.GetInt(), 2);
+    ASSERT_EQ(vc.Type(), VarType::Int);
+    ASSERT_EQ(vc.GetInt(), 1);
+    ASSERT_EQ(vd.Type(), VarType::String);
+    ASSERT_EQ(vd.GetString()->Str(), "test");
+    ASSERT_EQ(ve.Type(), VarType::Nil);
 
     a = {};
     b = {};
     c = {};
     d = {};
     e = {};
-    L->compile_file("./jit/test_local_define_with_value.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_local_define_with_value.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b, c, d, e), true, 2);
-    ASSERT_EQ(va.type(), var_type::VAR_BOOL);
-    ASSERT_EQ(va.get_bool(), true);
-    ASSERT_EQ(vb.type(), var_type::VAR_INT);
-    ASSERT_EQ(vb.get_int(), 2);
-    ASSERT_EQ(vc.type(), var_type::VAR_INT);
-    ASSERT_EQ(vc.get_int(), 1);
-    ASSERT_EQ(vd.type(), var_type::VAR_STRING);
-    ASSERT_EQ(vd.get_string()->str(), "test");
-    ASSERT_EQ(ve.type(), var_type::VAR_NIL);
+    ASSERT_EQ(va.Type(), VarType::Bool);
+    ASSERT_EQ(va.GetBool(), true);
+    ASSERT_EQ(vb.Type(), VarType::Int);
+    ASSERT_EQ(vb.GetInt(), 2);
+    ASSERT_EQ(vc.Type(), VarType::Int);
+    ASSERT_EQ(vc.GetInt(), 1);
+    ASSERT_EQ(vd.Type(), VarType::String);
+    ASSERT_EQ(vd.GetString()->Str(), "test");
+    ASSERT_EQ(ve.Type(), VarType::Nil);
 }
 
 TEST(jitter, test_assign) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
     std::string b;
-    L->compile_file("./jit/test_assign.lua", {});
+    L->CompileFile("./jit/test_assign.lua", {});
     L->call("test", std::tie(a, b), true, 1.1);
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, "2");
 
     a = 0;
     b.clear();
-    L->compile_file("./jit/test_assign.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_assign.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b), true, 1.1);
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, "2");
 }
 
 TEST(jitter, test_assign_not_match) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
     std::string b;
     int c = 0;
     int d = 0;
-    L->compile_file("./jit/test_assign_not_match.lua", {});
+    L->CompileFile("./jit/test_assign_not_match.lua", {});
     L->call("test", std::tie(a, b, c, d), true, "2", 1.1, 1);
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, "2");
@@ -822,7 +822,7 @@ TEST(jitter, test_assign_not_match) {
 
     a = 0;
     b.clear();
-    L->compile_file("./jit/test_assign_not_match.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_assign_not_match.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b, c, d), true, "2", 1.1, 1);
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, "2");
@@ -831,115 +831,115 @@ TEST(jitter, test_assign_not_match) {
 }
 
 TEST(jitter, test_assign_variadic_match) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     std::string a;
     int b = 0;
-    L->compile_file("./jit/test_assign_variadic.lua", {});
+    L->CompileFile("./jit/test_assign_variadic.lua", {});
     L->call("test", std::tie(a, b), 1, "2");
     ASSERT_EQ(a, "2");
     ASSERT_EQ(b, 1);
 
     a.clear();
     b = 0;
-    L->compile_file("./jit/test_assign_variadic.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_assign_variadic.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b), 1, "2");
     ASSERT_EQ(a, "2");
     ASSERT_EQ(b, 1);
 }
 
 TEST(jitter, test_assign_variadic_no_match) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
     int b = 0;
-    L->compile_file("./jit/test_assign_variadic_no_match.lua", {});
+    L->CompileFile("./jit/test_assign_variadic_no_match.lua", {});
     L->call("test", std::tie(a, b), 2, "2");
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, 2);
 
     a = 0;
     b = 0;
-    L->compile_file("./jit/test_assign_variadic_no_match.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_assign_variadic_no_match.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b), 2, "2");
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, 2);
 }
 
 TEST(jitter, test_assign_variadic_empty) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    cvar b = {};
-    auto vb = (var &) b;
-    L->compile_file("./jit/test_assign_variadic_no_match.lua", {});
+    CVar b = {};
+    auto vb = (Var &) b;
+    L->CompileFile("./jit/test_assign_variadic_no_match.lua", {});
     L->call("test", std::tie(a, b));
     ASSERT_EQ(a, 1);
-    ASSERT_EQ(vb.type(), var_type::VAR_NIL);
+    ASSERT_EQ(vb.Type(), VarType::Nil);
 
     a = 0;
     b = {};
-    L->compile_file("./jit/test_assign_variadic_no_match.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_assign_variadic_no_match.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b));
     ASSERT_EQ(a, 1);
-    ASSERT_EQ(vb.type(), var_type::VAR_NIL);
+    ASSERT_EQ(vb.Type(), VarType::Nil);
 }
 
 TEST(jitter, test_const_table) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
-    std::vector<var_interface *> tmp;
+    std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
-        auto ret = new simple_var_impl();
+        auto ret = new SimpleVarImpl();
         tmp.push_back(ret);
         return ret;
     };
-    L->set_var_interface_new_func(newfunc);
+    L->SetVarInterfaceNewFunc(newfunc);
 
-    var_interface *t1 = nullptr;
-    var_interface *t2 = nullptr;
-    var_interface *t3 = nullptr;
-    L->compile_file("./jit/test_const_table.lua", {});
+    VarInterface *t1 = nullptr;
+    VarInterface *t2 = nullptr;
+    VarInterface *t3 = nullptr;
+    L->CompileFile("./jit/test_const_table.lua", {});
     L->call("test", std::tie(t1, t2, t3));
     ASSERT_NE(t1, nullptr);
-    ASSERT_EQ(t1->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t1->ViGetType(), VarInterface::Type::TABLE);
     ASSERT_NE(t2, nullptr);
-    ASSERT_EQ(t2->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t2->ViGetType(), VarInterface::Type::TABLE);
     ASSERT_NE(t3, nullptr);
-    ASSERT_EQ(t3->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t3->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t1)->vi_sort_table();
-    dynamic_cast<simple_var_impl *>(t2)->vi_sort_table();
-    dynamic_cast<simple_var_impl *>(t3)->vi_sort_table();
-    ASSERT_EQ(t1->vi_to_string(0),
+    dynamic_cast<SimpleVarImpl *>(t1)->ViSortTable();
+    dynamic_cast<SimpleVarImpl *>(t2)->ViSortTable();
+    dynamic_cast<SimpleVarImpl *>(t3)->ViSortTable();
+    ASSERT_EQ(t1->ViToString(0),
               "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
-    ASSERT_EQ(t2->vi_to_string(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
-    ASSERT_EQ(t3->vi_to_string(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
+    ASSERT_EQ(t2->ViToString(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
+    ASSERT_EQ(t3->ViToString(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
 
     t1 = nullptr;
     t2 = nullptr;
     t3 = nullptr;
-    L->compile_file("./jit/test_const_table.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_table.lua", {.debug_mode = false});
     L->call("test", std::tie(t1, t2, t3));
     ASSERT_NE(t1, nullptr);
-    ASSERT_EQ(t1->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t1->ViGetType(), VarInterface::Type::TABLE);
     ASSERT_NE(t2, nullptr);
-    ASSERT_EQ(t2->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t2->ViGetType(), VarInterface::Type::TABLE);
     ASSERT_NE(t3, nullptr);
-    ASSERT_EQ(t3->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t3->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t1)->vi_sort_table();
-    dynamic_cast<simple_var_impl *>(t2)->vi_sort_table();
-    dynamic_cast<simple_var_impl *>(t3)->vi_sort_table();
-    ASSERT_EQ(t1->vi_to_string(0),
+    dynamic_cast<SimpleVarImpl *>(t1)->ViSortTable();
+    dynamic_cast<SimpleVarImpl *>(t2)->ViSortTable();
+    dynamic_cast<SimpleVarImpl *>(t3)->ViSortTable();
+    ASSERT_EQ(t1->ViToString(0),
               "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
-    ASSERT_EQ(t2->vi_to_string(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
-    ASSERT_EQ(t3->vi_to_string(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
+    ASSERT_EQ(t2->ViToString(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
+    ASSERT_EQ(t3->ViToString(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
 
     for (auto &i: tmp) {
         delete i;
@@ -947,39 +947,37 @@ TEST(jitter, test_const_table) {
 }
 
 TEST(jitter, test_const_nested_table) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
-    std::vector<var_interface *> tmp;
+    std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
-        auto ret = new simple_var_impl();
+        auto ret = new SimpleVarImpl();
         tmp.push_back(ret);
         return ret;
     };
-    L->set_var_interface_new_func(newfunc);
+    L->SetVarInterfaceNewFunc(newfunc);
 
-    var_interface *t = nullptr;
-    L->compile_file("./jit/test_const_nested_table.lua", {});
+    VarInterface *t = nullptr;
+    L->CompileFile("./jit/test_const_nested_table.lua", {});
     L->call("test", std::tie(t));
     ASSERT_NE(t, nullptr);
-    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(0),
-              "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-              "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+    dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
+    ASSERT_EQ(t->ViToString(0), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
+                                "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
 
     t = nullptr;
-    L->compile_file("./jit/test_const_nested_table.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_nested_table.lua", {.debug_mode = false});
     L->call("test", std::tie(t));
     ASSERT_NE(t, nullptr);
-    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(0),
-              "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-              "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+    dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
+    ASSERT_EQ(t->ViToString(0), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
+                                "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
 
     for (auto &i: tmp) {
         delete i;
@@ -987,57 +985,57 @@ TEST(jitter, test_const_nested_table) {
 }
 
 TEST(jitter, test_local_table) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
-    std::vector<var_interface *> tmp;
+    std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
-        auto ret = new simple_var_impl();
+        auto ret = new SimpleVarImpl();
         tmp.push_back(ret);
         return ret;
     };
-    L->set_var_interface_new_func(newfunc);
+    L->SetVarInterfaceNewFunc(newfunc);
 
-    var_interface *t1 = nullptr;
-    var_interface *t2 = nullptr;
-    var_interface *t3 = nullptr;
-    L->compile_file("./jit/test_local_table.lua", {});
+    VarInterface *t1 = nullptr;
+    VarInterface *t2 = nullptr;
+    VarInterface *t3 = nullptr;
+    L->CompileFile("./jit/test_local_table.lua", {});
     L->call("test", std::tie(t1, t2, t3));
     ASSERT_NE(t1, nullptr);
-    ASSERT_EQ(t1->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t1->ViGetType(), VarInterface::Type::TABLE);
     ASSERT_NE(t2, nullptr);
-    ASSERT_EQ(t2->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t2->ViGetType(), VarInterface::Type::TABLE);
     ASSERT_NE(t3, nullptr);
-    ASSERT_EQ(t3->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t3->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t1)->vi_sort_table();
-    dynamic_cast<simple_var_impl *>(t2)->vi_sort_table();
-    dynamic_cast<simple_var_impl *>(t3)->vi_sort_table();
-    ASSERT_EQ(t1->vi_to_string(0),
+    dynamic_cast<SimpleVarImpl *>(t1)->ViSortTable();
+    dynamic_cast<SimpleVarImpl *>(t2)->ViSortTable();
+    dynamic_cast<SimpleVarImpl *>(t3)->ViSortTable();
+    ASSERT_EQ(t1->ViToString(0),
               "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
-    ASSERT_EQ(t2->vi_to_string(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
-    ASSERT_EQ(t3->vi_to_string(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
+    ASSERT_EQ(t2->ViToString(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
+    ASSERT_EQ(t3->ViToString(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
 
     t1 = nullptr;
     t2 = nullptr;
     t3 = nullptr;
-    L->compile_file("./jit/test_local_table.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_local_table.lua", {.debug_mode = false});
     L->call("test", std::tie(t1, t2, t3));
     ASSERT_NE(t1, nullptr);
-    ASSERT_EQ(t1->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t1->ViGetType(), VarInterface::Type::TABLE);
     ASSERT_NE(t2, nullptr);
-    ASSERT_EQ(t2->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t2->ViGetType(), VarInterface::Type::TABLE);
     ASSERT_NE(t3, nullptr);
-    ASSERT_EQ(t3->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t3->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t1)->vi_sort_table();
-    dynamic_cast<simple_var_impl *>(t2)->vi_sort_table();
-    dynamic_cast<simple_var_impl *>(t3)->vi_sort_table();
-    ASSERT_EQ(t1->vi_to_string(0),
+    dynamic_cast<SimpleVarImpl *>(t1)->ViSortTable();
+    dynamic_cast<SimpleVarImpl *>(t2)->ViSortTable();
+    dynamic_cast<SimpleVarImpl *>(t3)->ViSortTable();
+    ASSERT_EQ(t1->ViToString(0),
               "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
-    ASSERT_EQ(t2->vi_to_string(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
-    ASSERT_EQ(t3->vi_to_string(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
+    ASSERT_EQ(t2->ViToString(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
+    ASSERT_EQ(t3->ViToString(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
 
     for (auto &i: tmp) {
         delete i;
@@ -1045,39 +1043,37 @@ TEST(jitter, test_local_table) {
 }
 
 TEST(jitter, test_local_nested_table) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
-    std::vector<var_interface *> tmp;
+    std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
-        auto ret = new simple_var_impl();
+        auto ret = new SimpleVarImpl();
         tmp.push_back(ret);
         return ret;
     };
-    L->set_var_interface_new_func(newfunc);
+    L->SetVarInterfaceNewFunc(newfunc);
 
-    var_interface *t = nullptr;
-    L->compile_file("./jit/test_local_nested_table.lua", {});
+    VarInterface *t = nullptr;
+    L->CompileFile("./jit/test_local_nested_table.lua", {});
     L->call("test", std::tie(t));
     ASSERT_NE(t, nullptr);
-    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(0),
-              "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-              "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+    dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
+    ASSERT_EQ(t->ViToString(0), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
+                                "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
 
     t = nullptr;
-    L->compile_file("./jit/test_local_nested_table.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_local_nested_table.lua", {.debug_mode = false});
     L->call("test", std::tie(t));
     ASSERT_NE(t, nullptr);
-    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(0),
-              "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-              "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+    dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
+    ASSERT_EQ(t->ViToString(0), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
+                                "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
 
     for (auto &i: tmp) {
         delete i;
@@ -1085,35 +1081,35 @@ TEST(jitter, test_local_nested_table) {
 }
 
 TEST(jitter, test_local_table_with_variadic) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
-    std::vector<var_interface *> tmp;
+    std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
-        auto ret = new simple_var_impl();
+        auto ret = new SimpleVarImpl();
         tmp.push_back(ret);
         return ret;
     };
-    L->set_var_interface_new_func(newfunc);
+    L->SetVarInterfaceNewFunc(newfunc);
 
-    var_interface *t = nullptr;
-    L->compile_file("./jit/test_local_table_with_variadic.lua", {});
+    VarInterface *t = nullptr;
+    L->CompileFile("./jit/test_local_table_with_variadic.lua", {});
     L->call("test", std::tie(t), "a", "b", "c");
     ASSERT_NE(t, nullptr);
-    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(0), "table:\n\t[1] = \"a\"\n\t[2] = \"b\"\n\t[3] = \"c\"");
+    dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
+    ASSERT_EQ(t->ViToString(0), "table:\n\t[1] = \"a\"\n\t[2] = \"b\"\n\t[3] = \"c\"");
 
     t = nullptr;
-    L->compile_file("./jit/test_local_table_with_variadic.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_local_table_with_variadic.lua", {.debug_mode = false});
     L->call("test", std::tie(t), "a", "b", "c");
     ASSERT_NE(t, nullptr);
-    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(0), "table:\n\t[1] = \"a\"\n\t[2] = \"b\"\n\t[3] = \"c\"");
+    dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
+    ASSERT_EQ(t->ViToString(0), "table:\n\t[1] = \"a\"\n\t[2] = \"b\"\n\t[3] = \"c\"");
 
     for (auto &i: tmp) {
         delete i;
@@ -1121,35 +1117,35 @@ TEST(jitter, test_local_table_with_variadic) {
 }
 
 TEST(jitter, test_local_table_with_variadic_no_end) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
-    std::vector<var_interface *> tmp;
+    std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
-        auto ret = new simple_var_impl();
+        auto ret = new SimpleVarImpl();
         tmp.push_back(ret);
         return ret;
     };
-    L->set_var_interface_new_func(newfunc);
+    L->SetVarInterfaceNewFunc(newfunc);
 
-    var_interface *t = nullptr;
-    L->compile_file("./jit/test_local_table_with_variadic_no_end.lua", {});
+    VarInterface *t = nullptr;
+    L->CompileFile("./jit/test_local_table_with_variadic_no_end.lua", {});
     L->call("test", std::tie(t), "a", "b", "c", "d", "e");
     ASSERT_NE(t, nullptr);
-    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(0), "table:\n\t[1] = \"c\"\n\t[2] = \"a\"\n\t[3] = \"b\"");
+    dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
+    ASSERT_EQ(t->ViToString(0), "table:\n\t[1] = \"c\"\n\t[2] = \"a\"\n\t[3] = \"b\"");
 
     t = nullptr;
-    L->compile_file("./jit/test_local_table_with_variadic_no_end.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_local_table_with_variadic_no_end.lua", {.debug_mode = false});
     L->call("test", std::tie(t), "a", "b", "c", "d", "e");
     ASSERT_NE(t, nullptr);
-    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(0), "table:\n\t[1] = \"c\"\n\t[2] = \"a\"\n\t[3] = \"b\"");
+    dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
+    ASSERT_EQ(t->ViToString(0), "table:\n\t[1] = \"c\"\n\t[2] = \"a\"\n\t[3] = \"b\"");
 
     for (auto &i: tmp) {
         delete i;
@@ -1157,35 +1153,35 @@ TEST(jitter, test_local_table_with_variadic_no_end) {
 }
 
 TEST(jitter, test_local_table_with_variadic_no_end_replace) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
-    std::vector<var_interface *> tmp;
+    std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
-        auto ret = new simple_var_impl();
+        auto ret = new SimpleVarImpl();
         tmp.push_back(ret);
         return ret;
     };
-    L->set_var_interface_new_func(newfunc);
+    L->SetVarInterfaceNewFunc(newfunc);
 
-    var_interface *t = nullptr;
-    L->compile_file("./jit/test_local_table_with_variadic_no_end_replace.lua", {});
+    VarInterface *t = nullptr;
+    L->CompileFile("./jit/test_local_table_with_variadic_no_end_replace.lua", {});
     L->call("test", std::tie(t), "a", "b", "c", "d", "e");
     ASSERT_NE(t, nullptr);
-    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(0), "table:\n\t[1] = \"c\"\n\t[2] = \"b\"");
+    dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
+    ASSERT_EQ(t->ViToString(0), "table:\n\t[1] = \"c\"\n\t[2] = \"b\"");
 
     t = nullptr;
-    L->compile_file("./jit/test_local_table_with_variadic_no_end_replace.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_local_table_with_variadic_no_end_replace.lua", {.debug_mode = false});
     L->call("test", std::tie(t), "a", "b", "c", "d", "e");
     ASSERT_NE(t, nullptr);
-    ASSERT_EQ(t->vi_get_type(), var_interface::type::TABLE);
+    ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
 
     // need sort kv
-    dynamic_cast<simple_var_impl *>(t)->vi_sort_table();
-    ASSERT_EQ(t->vi_to_string(0), "table:\n\t[1] = \"c\"\n\t[2] = \"b\"");
+    dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
+    ASSERT_EQ(t->ViToString(0), "table:\n\t[1] = \"c\"\n\t[2] = \"b\"");
 
     for (auto &i: tmp) {
         delete i;
@@ -1193,39 +1189,39 @@ TEST(jitter, test_local_table_with_variadic_no_end_replace) {
 }
 
 TEST(jitter, compile_empty_string) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    L->compile_string("", {});
+    L->CompileString("", {});
 }
 
 TEST(jitter, test_assign_simple_var) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
     int b = 0;
-    L->compile_file("./jit/test_assign_simple_var.lua", {});
+    L->CompileFile("./jit/test_assign_simple_var.lua", {});
     L->call("test", std::tie(a, b), "test", 1);
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, 1);
 
     a = 0;
     b = 0;
-    L->compile_file("./jit/test_assign_simple_var.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_assign_simple_var.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b), "test", 1);
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, 1);
 }
 
 TEST(jitter, test_const_define_simple_var) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
     int b = 0;
     int c = 0;
-    L->compile_file("./jit/test_const_define_simple_var.lua", {});
+    L->CompileFile("./jit/test_const_define_simple_var.lua", {});
     L->call("test", std::tie(a, b, c));
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, 1);
@@ -1233,7 +1229,7 @@ TEST(jitter, test_const_define_simple_var) {
 
     a = 0;
     b = 0;
-    L->compile_file("./jit/test_const_define_simple_var.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_define_simple_var.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b, c));
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, 1);
@@ -1241,1026 +1237,1026 @@ TEST(jitter, test_const_define_simple_var) {
 }
 
 TEST(jitter, test_binop_plus) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     double ret2 = 0;
-    L->compile_file("./jit/test_binop_plus.lua", {});
+    L->CompileFile("./jit/test_binop_plus.lua", {});
     L->call("test", std::tie(ret1, ret2), 1, 2, 1.1, 2.2);
     ASSERT_EQ(ret1, 3);
     ASSERT_NEAR(ret2, 3.3, 0.001);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_plus.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_plus.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), "1", 2, "1.1", 2.2);
     ASSERT_EQ(ret1, 3);
     ASSERT_NEAR(ret2, 3.3, 0.001);
 }
 
 TEST(jitter, test_const_binop_plus) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     double ret2 = 0;
-    L->compile_file("./jit/test_const_binop_plus.lua", {});
+    L->CompileFile("./jit/test_const_binop_plus.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
     ASSERT_NEAR(ret2, 3.2, 0.001);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_plus.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_plus.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
     ASSERT_NEAR(ret2, 3.2, 0.001);
 }
 
 TEST(jitter, test_binop_minus) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     double ret2 = 0;
-    L->compile_file("./jit/test_binop_minus.lua", {});
+    L->CompileFile("./jit/test_binop_minus.lua", {});
     L->call("test", std::tie(ret1, ret2), 1, 2, 2, 1.2);
     ASSERT_EQ(ret1, -1);
     ASSERT_NEAR(ret2, 0.8, 0.001);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_minus.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_minus.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), "1", "2", 2, 1.2);
     ASSERT_EQ(ret1, -1);
     ASSERT_NEAR(ret2, 0.8, 0.001);
 }
 
 TEST(jitter, test_const_binop_minus) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     double ret2 = 0;
-    L->compile_file("./jit/test_const_binop_minus.lua", {});
+    L->CompileFile("./jit/test_const_binop_minus.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, -1);
     ASSERT_NEAR(ret2, 1.1, 0.001);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_minus.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_minus.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, -1);
     ASSERT_NEAR(ret2, 1.1, 0.001);
 }
 
 TEST(jitter, test_binop_star) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     double ret2 = 0;
-    L->compile_file("./jit/test_binop_star.lua", {});
+    L->CompileFile("./jit/test_binop_star.lua", {});
     L->call("test", std::tie(ret1, ret2), 1, 2, 2, 1.2);
     ASSERT_EQ(ret1, 4);
     ASSERT_NEAR(ret2, 1.4, 0.001);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_star.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_star.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), "1", "2", 2, 1.2);
     ASSERT_EQ(ret1, 4);
     ASSERT_NEAR(ret2, 1.4, 0.001);
 }
 
 TEST(jitter, test_const_binop_star) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     double ret1 = 0;
     double ret2 = 0;
-    L->compile_file("./jit/test_const_binop_star.lua", {});
+    L->CompileFile("./jit/test_const_binop_star.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_NEAR(ret1, 3.2, 0.001);
     ASSERT_NEAR(ret2, 0.1, 0.001);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_star.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_star.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_NEAR(ret1, 3.2, 0.001);
     ASSERT_NEAR(ret2, 0.1, 0.001);
 }
 
 TEST(jitter, test_empty_return) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    cvar ret = {};
-    auto v = (var &) ret;
-    L->compile_file("./jit/test_empty_return.lua", {});
+    CVar ret = {};
+    auto v = (Var &) ret;
+    L->CompileFile("./jit/test_empty_return.lua", {});
     L->call("test", std::tie(ret));
-    ASSERT_EQ(v.type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.Type(), VarType::Nil);
 
     ret = {};
-    L->compile_file("./jit/test_empty_return.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_empty_return.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
-    ASSERT_EQ(v.type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.Type(), VarType::Nil);
 }
 
 TEST(jitter, test_empty_func_no_return) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    cvar ret = {};
-    auto v = (var &) ret;
-    L->compile_file("./jit/test_empty_func_no_return.lua", {});
+    CVar ret = {};
+    auto v = (Var &) ret;
+    L->CompileFile("./jit/test_empty_func_no_return.lua", {});
     L->call("test", std::tie(ret));
-    ASSERT_EQ(v.type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.Type(), VarType::Nil);
 
     ret = {};
-    L->compile_file("./jit/test_empty_func_no_return.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_empty_func_no_return.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
-    ASSERT_EQ(v.type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.Type(), VarType::Nil);
 }
 
 TEST(jitter, test_binop_slash) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     double ret1 = 0;
     double ret2 = 0;
-    L->compile_file("./jit/test_binop_slash.lua", {});
+    L->CompileFile("./jit/test_binop_slash.lua", {});
     L->call("test", std::tie(ret1, ret2), 1, 2, 2.4, 1.2);
     ASSERT_NEAR(ret1, 2.5, 0.001);
     ASSERT_NEAR(ret2, 1, 0.001);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_slash.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_slash.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), "1", "2", 2.4, 1.2);
     ASSERT_NEAR(ret1, 2.5, 0.001);
     ASSERT_NEAR(ret2, 1, 0.001);
 }
 
 TEST(jitter, test_const_binop_slash) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     double ret1 = 0;
     double ret2 = 0;
-    L->compile_file("./jit/test_const_binop_slash.lua", {});
+    L->CompileFile("./jit/test_const_binop_slash.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_NEAR(ret1, 1.7, 0.001);
     ASSERT_NEAR(ret2, 0.1, 0.001);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_slash.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_slash.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_NEAR(ret1, 1.7, 0.001);
     ASSERT_NEAR(ret2, 0.1, 0.001);
 }
 
 TEST(jitter, test_binop_double_slash) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_binop_double_slash.lua", {});
+    L->CompileFile("./jit/test_binop_double_slash.lua", {});
     L->call("test", std::tie(ret1, ret2), 3, 2, 2.4, 1.2);
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, 1);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_double_slash.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_double_slash.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, 2.4, 1.2);
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, 1);
 }
 
 TEST(jitter, test_const_binop_double_slash) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     double ret1 = 0;
     double ret2 = 0;
-    L->compile_file("./jit/test_const_binop_double_slash.lua", {});
+    L->CompileFile("./jit/test_const_binop_double_slash.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_NEAR(ret1, 2.2, 0.001);
     ASSERT_NEAR(ret2, -0.1, 0.001);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_double_slash.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_double_slash.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_NEAR(ret1, 2.2, 0.001);
     ASSERT_NEAR(ret2, -0.1, 0.001);
 }
 
 TEST(jitter, test_binop_pow) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     double ret2 = 0;
-    L->compile_file("./jit/test_binop_pow.lua", {});
+    L->CompileFile("./jit/test_binop_pow.lua", {});
     L->call("test", std::tie(ret1, ret2), 3, 2, 2.4, 1.2);
     ASSERT_EQ(ret1, 11);
     ASSERT_NEAR(ret2, 1.859258955601, 0.001);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_pow.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_pow.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, 2.4, 1.2);
     ASSERT_EQ(ret1, 11);
     ASSERT_NEAR(ret2, 1.859258955601, 0.001);
 }
 
 TEST(jitter, test_const_binop_pow) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     double ret2 = 0;
-    L->compile_file("./jit/test_const_binop_pow.lua", {});
+    L->CompileFile("./jit/test_const_binop_pow.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 8);
     ASSERT_NEAR(ret2, 1.2332863005547, 0.001);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_pow.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_pow.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 8);
     ASSERT_NEAR(ret2, 1.2332863005547, 0.001);
 }
 
 TEST(jitter, test_binop_mod) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_binop_mod.lua", {});
+    L->CompileFile("./jit/test_binop_mod.lua", {});
     L->call("test", std::tie(ret1, ret2), 3, 2, 2.4, 1.2);
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, -1);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_mod.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_mod.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, 2.4, 1.2);
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, -1);
 }
 
 TEST(jitter, test_const_binop_mod) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_const_binop_mod.lua", {});
+    L->CompileFile("./jit/test_const_binop_mod.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 2);
     ASSERT_EQ(ret2, 0);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_mod.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_mod.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 2);
     ASSERT_EQ(ret2, 0);
 }
 
 TEST(jitter, test_binop_bitand) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_binop_bitand.lua", {});
+    L->CompileFile("./jit/test_binop_bitand.lua", {});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 0);
     ASSERT_EQ(ret2, 0);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_bitand.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_bitand.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 0);
     ASSERT_EQ(ret2, 0);
 }
 
 TEST(jitter, test_const_binop_bitand) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_const_binop_bitand.lua", {});
+    L->CompileFile("./jit/test_const_binop_bitand.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 2);
     ASSERT_EQ(ret2, -124);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_bitand.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_bitand.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 2);
     ASSERT_EQ(ret2, -124);
 }
 
 TEST(jitter, test_binop_xor) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_binop_xor.lua", {});
+    L->CompileFile("./jit/test_binop_xor.lua", {});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 7);
     ASSERT_EQ(ret2, 15);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_xor.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_xor.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 7);
     ASSERT_EQ(ret2, 15);
 }
 
 TEST(jitter, test_const_binop_xor) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_const_binop_xor.lua", {});
+    L->CompileFile("./jit/test_const_binop_xor.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, 18);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_xor.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_xor.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, 18);
 }
 
 TEST(jitter, test_binop_bitor) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_binop_bitor.lua", {});
+    L->CompileFile("./jit/test_binop_bitor.lua", {});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 7);
     ASSERT_EQ(ret2, 15);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_bitor.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_bitor.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 7);
     ASSERT_EQ(ret2, 15);
 }
 
 TEST(jitter, test_const_binop_bitor) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_const_binop_bitor.lua", {});
+    L->CompileFile("./jit/test_const_binop_bitor.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, -123);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_bitor.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_bitor.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, -123);
 }
 
 TEST(jitter, test_binop_right_shift) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_binop_right_shift.lua", {});
+    L->CompileFile("./jit/test_binop_right_shift.lua", {});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, 0);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_right_shift.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_right_shift.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 1);
     ASSERT_EQ(ret2, 0);
 }
 
 TEST(jitter, test_const_binop_right_shift) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int64_t ret2 = 0;
-    L->compile_file("./jit/test_const_binop_right_shift.lua", {});
+    L->CompileFile("./jit/test_const_binop_right_shift.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 1776);
     ASSERT_EQ(ret2, 4611686018427387873);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_right_shift.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_right_shift.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 1776);
     ASSERT_EQ(ret2, 4611686018427387873);
 }
 
 TEST(jitter, test_binop_left_shift) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_binop_left_shift.lua", {});
+    L->CompileFile("./jit/test_binop_left_shift.lua", {});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 20);
     ASSERT_EQ(ret2, 8192);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_left_shift.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_left_shift.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 2, "4", 12);
     ASSERT_EQ(ret1, 20);
     ASSERT_EQ(ret2, 8192);
 }
 
 TEST(jitter, test_const_binop_left_shift) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_const_binop_left_shift.lua", {});
+    L->CompileFile("./jit/test_const_binop_left_shift.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 27);
     ASSERT_EQ(ret2, -496);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_left_shift.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_left_shift.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 27);
     ASSERT_EQ(ret2, -496);
 }
 
 TEST(jitter, test_binop_concat) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     std::string ret;
-    L->compile_file("./jit/test_binop_concat.lua", {});
+    L->CompileFile("./jit/test_binop_concat.lua", {});
     L->call("test", std::tie(ret), 3, 1.2, true, "test");
     ASSERT_EQ(ret, "31.2truetest");
 
     ret.clear();
-    L->compile_file("./jit/test_binop_concat.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_concat.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 3, 1.2, true, "test");
     ASSERT_EQ(ret, "31.2truetest");
 }
 
 TEST(jitter, test_const_binop_concat) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     std::string ret;
-    L->compile_file("./jit/test_const_binop_concat.lua", {});
+    L->CompileFile("./jit/test_const_binop_concat.lua", {});
     L->call("test", std::tie(ret));
     ASSERT_EQ(ret, "23.2trueabcnil");
 
     ret.clear();
-    L->compile_file("./jit/test_const_binop_concat.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_concat.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
     ASSERT_EQ(ret, "23.2trueabcnil");
 }
 
 TEST(jitter, test_binop_less) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_binop_less.lua", {});
+    L->CompileFile("./jit/test_binop_less.lua", {});
     L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_binop_less.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_less.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 }
 
 TEST(jitter, test_const_binop_less) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_const_binop_less.lua", {});
+    L->CompileFile("./jit/test_const_binop_less.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_binop_less.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_less.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 }
 
 TEST(jitter, test_binop_less_equal) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_binop_less_equal.lua", {});
+    L->CompileFile("./jit/test_binop_less_equal.lua", {});
     L->call("test", std::tie(ret1, ret2), 3, 1.2, 10, "10");
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_binop_less_equal.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_less_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 1.2, 10, "10");
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 }
 
 TEST(jitter, test_const_binop_less_equal) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_const_binop_less_equal.lua", {});
+    L->CompileFile("./jit/test_const_binop_less_equal.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_binop_less_equal.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_less_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 }
 
 TEST(jitter, test_binop_more) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_binop_more.lua", {});
+    L->CompileFile("./jit/test_binop_more.lua", {});
     L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
     ASSERT_TRUE(ret1);
     ASSERT_FALSE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_binop_more.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_more.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
     ASSERT_TRUE(ret1);
     ASSERT_FALSE(ret2);
 }
 
 TEST(jitter, test_const_binop_more) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_const_binop_more.lua", {});
+    L->CompileFile("./jit/test_const_binop_more.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_TRUE(ret1);
     ASSERT_FALSE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_binop_more.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_more.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_TRUE(ret1);
     ASSERT_FALSE(ret2);
 }
 
 TEST(jitter, test_binop_more_equal) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_binop_more_equal.lua", {});
+    L->CompileFile("./jit/test_binop_more_equal.lua", {});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, 10, "10");
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_binop_more_equal.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_more_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, 10, "10");
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 }
 
 TEST(jitter, test_const_binop_more_equal) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_const_binop_more_equal.lua", {});
+    L->CompileFile("./jit/test_const_binop_more_equal.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_TRUE(ret1);
     ASSERT_TRUE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_binop_more_equal.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_more_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_TRUE(ret1);
     ASSERT_TRUE(ret2);
 }
 
 TEST(jitter, test_binop_equal) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_binop_equal.lua", {});
+    L->CompileFile("./jit/test_binop_equal.lua", {});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, "10", "10");
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_binop_equal.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, "10", "10");
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 }
 
 TEST(jitter, test_const_binop_equal) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_const_binop_equal.lua", {});
+    L->CompileFile("./jit/test_const_binop_equal.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_binop_equal.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 }
 
 TEST(jitter, test_binop_not_equal) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_binop_not_equal.lua", {});
+    L->CompileFile("./jit/test_binop_not_equal.lua", {});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, "10", "10");
     ASSERT_TRUE(ret1);
     ASSERT_FALSE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_binop_not_equal.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_not_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, "10", "10");
     ASSERT_TRUE(ret1);
     ASSERT_FALSE(ret2);
 }
 
 TEST(jitter, test_const_binop_not_equal) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_const_binop_not_equal.lua", {});
+    L->CompileFile("./jit/test_const_binop_not_equal.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_TRUE(ret1);
     ASSERT_FALSE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_binop_not_equal.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_not_equal.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_TRUE(ret1);
     ASSERT_FALSE(ret2);
 }
 
 TEST(jitter, test_binop_and) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     float ret1 = 0;
-    cvar ret2 = {};
-    auto v = (var &) ret2;
-    L->compile_file("./jit/test_binop_and.lua", {});
+    CVar ret2 = {};
+    auto v = (Var &) ret2;
+    L->CompileFile("./jit/test_binop_and.lua", {});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
     ASSERT_NEAR(ret1, 1.2, 0.001);
-    ASSERT_EQ(v.type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.Type(), VarType::Nil);
 
     ret1 = 0;
     ret2 = {};
-    L->compile_file("./jit/test_binop_and.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_and.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
     ASSERT_NEAR(ret1, 1.2, 0.001);
-    ASSERT_EQ(v.type(), var_type::VAR_NIL);
+    ASSERT_EQ(v.Type(), VarType::Nil);
 }
 
 TEST(jitter, test_binop_and_bool) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_binop_and_bool.lua", {});
+    L->CompileFile("./jit/test_binop_and_bool.lua", {});
     L->call("test", std::tie(ret1, ret2), true, false);
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_binop_and_bool.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_and_bool.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), true, false);
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 }
 
 TEST(jitter, test_binop_and_or) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     float ret2 = 0;
-    L->compile_file("./jit/test_binop_and_or.lua", {});
+    L->CompileFile("./jit/test_binop_and_or.lua", {});
     L->call("test", std::tie(ret1, ret2), 1, 2, 3, nullptr);
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, 4);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_and_or.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_and_or.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 1, 2, 3, nullptr);
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, 4);
 }
 
 TEST(jitter, test_const_binop_and) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
-    cvar ret2 = {};
-    auto v = (var &) ret2;
-    L->compile_file("./jit/test_const_binop_and.lua", {});
+    CVar ret2 = {};
+    auto v = (Var &) ret2;
+    L->CompileFile("./jit/test_const_binop_and.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
-    ASSERT_EQ(v.type(), var_type::VAR_BOOL);
-    ASSERT_EQ(v.get_bool(), false);
+    ASSERT_EQ(v.Type(), VarType::Bool);
+    ASSERT_EQ(v.GetBool(), false);
 
     ret1 = 0;
     ret2 = {};
-    L->compile_file("./jit/test_const_binop_and.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_and.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 3);
-    ASSERT_EQ(v.type(), var_type::VAR_BOOL);
-    ASSERT_EQ(v.get_bool(), false);
+    ASSERT_EQ(v.Type(), VarType::Bool);
+    ASSERT_EQ(v.GetBool(), false);
 }
 
 TEST(jitter, test_binop_or) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_binop_or.lua", {});
+    L->CompileFile("./jit/test_binop_or.lua", {});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, 9);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_binop_or.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_binop_or.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, 9);
 }
 
 TEST(jitter, test_const_binop_or) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     float ret2 = 0;
-    L->compile_file("./jit/test_const_binop_or.lua", {});
+    L->CompileFile("./jit/test_const_binop_or.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 21);
     ASSERT_NEAR(ret2, 2.2, 0.001);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_binop_or.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_binop_or.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 21);
     ASSERT_NEAR(ret2, 2.2, 0.001);
 }
 
 TEST(jitter, test_unop_minus) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     float ret = 0;
-    L->compile_file("./jit/test_unop_minus.lua", {});
+    L->CompileFile("./jit/test_unop_minus.lua", {});
     L->call("test", std::tie(ret), 2, "2.2");
     ASSERT_NEAR(ret, -3.4, 0.001);
 
     ret = 0;
-    L->compile_file("./jit/test_unop_minus.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_unop_minus.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 2, "2.2");
     ASSERT_NEAR(ret, -3.4, 0.001);
 }
 
 TEST(jitter, test_const_unop_minus) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret = 0;
-    L->compile_file("./jit/test_const_unop_minus.lua", {});
+    L->CompileFile("./jit/test_const_unop_minus.lua", {});
     L->call("test", std::tie(ret));
     ASSERT_EQ(ret, 24);
 
     ret = 0;
-    L->compile_file("./jit/test_const_unop_minus.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_unop_minus.lua", {.debug_mode = false});
     L->call("test", std::tie(ret));
     ASSERT_EQ(ret, 24);
 }
 
 TEST(jitter, test_unop_not) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_unop_not.lua", {});
+    L->CompileFile("./jit/test_unop_not.lua", {});
     L->call("test", std::tie(ret1, ret2), 2, nullptr);
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_unop_not.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_unop_not.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 2, nullptr);
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 }
 
 TEST(jitter, test_const_unop_not) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
     bool ret2 = false;
-    L->compile_file("./jit/test_const_unop_not.lua", {});
+    L->CompileFile("./jit/test_const_unop_not.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 
     ret1 = false;
     ret2 = false;
-    L->compile_file("./jit/test_const_unop_not.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_unop_not.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_FALSE(ret1);
     ASSERT_TRUE(ret2);
 }
 
 TEST(jitter, test_unop_len) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_unop_len.lua", {});
+    L->CompileFile("./jit/test_unop_len.lua", {});
     L->call("test", std::tie(ret1, ret2), "abc", "123");
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, 3);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_unop_len.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_unop_len.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), "abc", "123");
     ASSERT_EQ(ret1, 3);
     ASSERT_EQ(ret2, 3);
 }
 
 TEST(jitter, test_const_unop_len) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_const_unop_len.lua", {});
+    L->CompileFile("./jit/test_const_unop_len.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 2);
     ASSERT_EQ(ret2, 3);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_unop_len.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_unop_len.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, 2);
     ASSERT_EQ(ret2, 3);
 }
 
 TEST(jitter, test_unop_bitnot) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_unop_bitnot.lua", {});
+    L->CompileFile("./jit/test_unop_bitnot.lua", {});
     L->call("test", std::tie(ret1, ret2), 123, -123);
     ASSERT_EQ(ret1, -124);
     ASSERT_EQ(ret2, 122);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_unop_bitnot.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_unop_bitnot.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2), 123, -123);
     ASSERT_EQ(ret1, -124);
     ASSERT_EQ(ret2, 122);
 }
 
 TEST(jitter, test_const_unop_bitnot) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
     int ret2 = 0;
-    L->compile_file("./jit/test_const_unop_bitnot.lua", {});
+    L->CompileFile("./jit/test_const_unop_bitnot.lua", {});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, -124);
     ASSERT_EQ(ret2, 122);
 
     ret1 = 0;
     ret2 = 0;
-    L->compile_file("./jit/test_const_unop_bitnot.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_const_unop_bitnot.lua", {.debug_mode = false});
     L->call("test", std::tie(ret1, ret2));
     ASSERT_EQ(ret1, -124);
     ASSERT_EQ(ret2, 122);
 }
 
 TEST(jitter, test_local_func_call) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret = false;
-    L->compile_file("./jit/test_local_func_call.lua", {});
+    L->CompileFile("./jit/test_local_func_call.lua", {});
     L->call("test", std::tie(ret), 2, 1);
     ASSERT_TRUE(ret);
     L->call("test", std::tie(ret), 1, 2);
     ASSERT_FALSE(ret);
 
     ret = false;
-    L->compile_file("./jit/test_local_func_call.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_local_func_call.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 2, 1);
     ASSERT_TRUE(ret);
     L->call("test", std::tie(ret), 1, 2);
@@ -2268,128 +2264,128 @@ TEST(jitter, test_local_func_call) {
 }
 
 TEST(jitter, test_global_func_call) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret = false;
-    L->compile_file("./jit/test_global_func_call.lua", {});
+    L->CompileFile("./jit/test_global_func_call.lua", {});
     L->call("test", std::tie(ret), 2, 1);
     ASSERT_TRUE(ret);
 
     ret = false;
-    L->compile_file("./jit/test_global_func_call.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_global_func_call.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 2, 1);
     ASSERT_TRUE(ret);
 }
 
 TEST(jitter, test_assign_table_var) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_assign_table_var.lua", {});
+    L->CompileFile("./jit/test_assign_table_var.lua", {});
     L->call("test", std::tie(a), "test", 1);
     ASSERT_EQ(a, 1);
 
     a = 0;
-    L->compile_file("./jit/test_assign_simple_var.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_assign_simple_var.lua", {.debug_mode = false});
     L->call("test", std::tie(a), "test", 1);
     ASSERT_EQ(a, 1);
 }
 
 TEST(jitter, test_do_block) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
     std::string b;
-    L->compile_file("./jit/test_do_block.lua", {});
+    L->CompileFile("./jit/test_do_block.lua", {});
     L->call("test", std::tie(a, b), true, 1.1);
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, "2");
 
     a = 0;
     b.clear();
-    L->compile_file("./jit/test_do_block.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_do_block.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b), true, 1.1);
     ASSERT_EQ(a, 1);
     ASSERT_EQ(b, "2");
 }
 
 TEST(jitter, test_while) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
     std::string b;
-    L->compile_file("./jit/test_while.lua", {});
+    L->CompileFile("./jit/test_while.lua", {});
     L->call("test", std::tie(a, b), 1, "a");
     ASSERT_EQ(a, 3);
     ASSERT_EQ(b, "a22");
 
     a = 0;
     b.clear();
-    L->compile_file("./jit/test_while.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_while.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b), 1, "a");
     ASSERT_EQ(a, 3);
     ASSERT_EQ(b, "a22");
 }
 
 TEST(jitter, test_repeat) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
     std::string b;
-    L->compile_file("./jit/test_repeat.lua", {});
+    L->CompileFile("./jit/test_repeat.lua", {});
     L->call("test", std::tie(a, b), 1, "a");
     ASSERT_EQ(a, 3);
     ASSERT_EQ(b, "a22");
 
     a = 0;
     b.clear();
-    L->compile_file("./jit/test_repeat.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_repeat.lua", {.debug_mode = false});
     L->call("test", std::tie(a, b), 1, "a");
     ASSERT_EQ(a, 3);
     ASSERT_EQ(b, "a22");
 }
 
 TEST(jitter, test_while_double) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_while_double.lua", {});
+    L->CompileFile("./jit/test_while_double.lua", {});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 18);
 
     a = 0;
-    L->compile_file("./jit/test_while_double.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_while_double.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 18);
 }
 
 TEST(jitter, test_repeat_double) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_repeat_double.lua", {});
+    L->CompileFile("./jit/test_repeat_double.lua", {});
     L->call("test", std::tie(a), 4, 3);
     ASSERT_EQ(a, 18);
 
     a = 0;
-    L->compile_file("./jit/test_repeat_double.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_repeat_double.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 4, 3);
     ASSERT_EQ(a, 18);
 }
 
 TEST(jitter, test_if) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_if.lua", {});
+    L->CompileFile("./jit/test_if.lua", {});
     L->call("test", std::tie(a), 5, 6);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 5, 2);
@@ -2400,7 +2396,7 @@ TEST(jitter, test_if) {
     ASSERT_EQ(a, 0);
 
     a = 0;
-    L->compile_file("./jit/test_if.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_if.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 5, 6);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 5, 2);
@@ -2412,18 +2408,18 @@ TEST(jitter, test_if) {
 }
 
 TEST(jitter, test_if_simple) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_if_simple.lua", {});
+    L->CompileFile("./jit/test_if_simple.lua", {});
     L->call("test", std::tie(a), 5, 6);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 0, 2);
     ASSERT_EQ(a, 0);
 
     a = 0;
-    L->compile_file("./jit/test_if_simple.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_if_simple.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 5, 6);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 0, 2);
@@ -2431,11 +2427,11 @@ TEST(jitter, test_if_simple) {
 }
 
 TEST(jitter, test_if_elseif) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_if_elseif.lua", {});
+    L->CompileFile("./jit/test_if_elseif.lua", {});
     L->call("test", std::tie(a), 5, 5);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 4, 3);
@@ -2448,7 +2444,7 @@ TEST(jitter, test_if_elseif) {
     ASSERT_EQ(a, 0);
 
     a = 0;
-    L->compile_file("./jit/test_if_elseif.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_if_elseif.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 5, 5);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 4, 3);
@@ -2462,11 +2458,11 @@ TEST(jitter, test_if_elseif) {
 }
 
 TEST(jitter, test_if_elseif_normal) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_if_elseif_normal.lua", {});
+    L->CompileFile("./jit/test_if_elseif_normal.lua", {});
     L->call("test", std::tie(a), 5, 5);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 4, 3);
@@ -2479,7 +2475,7 @@ TEST(jitter, test_if_elseif_normal) {
     ASSERT_EQ(a, 0);
 
     a = 0;
-    L->compile_file("./jit/test_if_elseif_normal.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_if_elseif_normal.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 5, 5);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 4, 3);
@@ -2493,11 +2489,11 @@ TEST(jitter, test_if_elseif_normal) {
 }
 
 TEST(jitter, test_if_elseif_return) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_if_elseif_return.lua", {});
+    L->CompileFile("./jit/test_if_elseif_return.lua", {});
     L->call("test", std::tie(a), 5, 5);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 4, 3);
@@ -2510,7 +2506,7 @@ TEST(jitter, test_if_elseif_return) {
     ASSERT_EQ(a, 0);
 
     a = 0;
-    L->compile_file("./jit/test_if_elseif_return.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_if_elseif_return.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 5, 5);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 4, 3);
@@ -2524,18 +2520,18 @@ TEST(jitter, test_if_elseif_return) {
 }
 
 TEST(jitter, test_if_else) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_if_else.lua", {});
+    L->CompileFile("./jit/test_if_else.lua", {});
     L->call("test", std::tie(a), 5, 6);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 0, 2);
     ASSERT_EQ(a, 0);
 
     a = 0;
-    L->compile_file("./jit/test_if_else.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_if_else.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 5, 6);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 0, 2);
@@ -2543,18 +2539,18 @@ TEST(jitter, test_if_else) {
 }
 
 TEST(jitter, test_while_return) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_while_return.lua", {});
+    L->CompileFile("./jit/test_while_return.lua", {});
     L->call("test", std::tie(a), 4, 4);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 2, 4);
     ASSERT_EQ(a, 2);
 
     a = 0;
-    L->compile_file("./jit/test_while_return.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_while_return.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 4, 4);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 2, 4);
@@ -2562,63 +2558,63 @@ TEST(jitter, test_while_return) {
 }
 
 TEST(jitter, test_repeat_return) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_repeat_return.lua", {});
+    L->CompileFile("./jit/test_repeat_return.lua", {});
     L->call("test", std::tie(a), 4, 4);
     ASSERT_EQ(a, 4);
 
     a = 0;
-    L->compile_file("./jit/test_repeat_return.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_repeat_return.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 4, 4);
     ASSERT_EQ(a, 4);
 }
 
 TEST(jitter, test_while_break) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_while_break.lua", {});
+    L->CompileFile("./jit/test_while_break.lua", {});
     L->call("test", std::tie(a), 4, 4);
     ASSERT_EQ(a, 11);
 
     a = 0;
-    L->compile_file("./jit/test_while_break.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_while_break.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 4, 4);
     ASSERT_EQ(a, 11);
 }
 
 TEST(jitter, test_repeat_break) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_repeat_break.lua", {});
+    L->CompileFile("./jit/test_repeat_break.lua", {});
     L->call("test", std::tie(a), 4, 4);
     ASSERT_EQ(a, 11);
 
     a = 0;
-    L->compile_file("./jit/test_repeat_break.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_repeat_break.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 4, 4);
     ASSERT_EQ(a, 11);
 }
 
 TEST(jitter, test_while_if_return) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_while_if_return.lua", {});
+    L->CompileFile("./jit/test_while_if_return.lua", {});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 3);
     L->call("test", std::tie(a), 4, 4);
     ASSERT_EQ(a, 4);
 
     a = 0;
-    L->compile_file("./jit/test_while_if_return.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_while_if_return.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 3);
     L->call("test", std::tie(a), 4, 4);
@@ -2626,18 +2622,18 @@ TEST(jitter, test_while_if_return) {
 }
 
 TEST(jitter, test_repeat_if_return) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_repeat_if_return.lua", {});
+    L->CompileFile("./jit/test_repeat_if_return.lua", {});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 3);
     L->call("test", std::tie(a), 4, 4);
     ASSERT_EQ(a, 4);
 
     a = 0;
-    L->compile_file("./jit/test_repeat_if_return.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_repeat_if_return.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 3);
     L->call("test", std::tie(a), 4, 4);
@@ -2645,48 +2641,48 @@ TEST(jitter, test_repeat_if_return) {
 }
 
 TEST(jitter, test_for_loop) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_loop.lua", {});
+    L->CompileFile("./jit/test_for_loop.lua", {});
     L->call("test", std::tie(a), 3, 5);
     ASSERT_EQ(a, 8);
 
     a = 0;
-    L->compile_file("./jit/test_for_loop.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_loop.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 5);
     ASSERT_EQ(a, 8);
 }
 
 TEST(jitter, test_for_loop_default) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_loop_default.lua", {});
+    L->CompileFile("./jit/test_for_loop_default.lua", {});
     L->call("test", std::tie(a), 3, 5);
     ASSERT_EQ(a, 12);
 
     a = 0;
-    L->compile_file("./jit/test_for_loop_default.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_loop_default.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 5);
     ASSERT_EQ(a, 12);
 }
 
 TEST(jitter, test_for_loop_return) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_loop_return.lua", {});
+    L->CompileFile("./jit/test_for_loop_return.lua", {});
     L->call("test", std::tie(a), 3, 3);
     ASSERT_EQ(a, 3);
     L->call("test", std::tie(a), 4, 3);
     ASSERT_EQ(a, 0);
 
     a = 0;
-    L->compile_file("./jit/test_for_loop_return.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_loop_return.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 3);
     ASSERT_EQ(a, 3);
     L->call("test", std::tie(a), 4, 3);
@@ -2694,18 +2690,18 @@ TEST(jitter, test_for_loop_return) {
 }
 
 TEST(jitter, test_while_just_break) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_while_just_break.lua", {});
+    L->CompileFile("./jit/test_while_just_break.lua", {});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 5, 4);
     ASSERT_EQ(a, 5);
 
     a = 0;
-    L->compile_file("./jit/test_while_just_break.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_while_just_break.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 5, 4);
@@ -2713,18 +2709,18 @@ TEST(jitter, test_while_just_break) {
 }
 
 TEST(jitter, test_repeat_just_break) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_repeat_just_break.lua", {});
+    L->CompileFile("./jit/test_repeat_just_break.lua", {});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 5, 4);
     ASSERT_EQ(a, 4);
 
     a = 0;
-    L->compile_file("./jit/test_repeat_just_break.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_repeat_just_break.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 4);
     L->call("test", std::tie(a), 5, 4);
@@ -2732,48 +2728,48 @@ TEST(jitter, test_repeat_just_break) {
 }
 
 TEST(jitter, test_for_loop_double) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_loop_double.lua", {});
+    L->CompileFile("./jit/test_for_loop_double.lua", {});
     L->call("test", std::tie(a), 3, 5);
     ASSERT_EQ(a, 21);
 
     a = 0;
-    L->compile_file("./jit/test_for_loop_double.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_loop_double.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 5);
     ASSERT_EQ(a, 21);
 }
 
 TEST(jitter, test_for_loop_break) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_loop_break.lua", {});
+    L->CompileFile("./jit/test_for_loop_break.lua", {});
     L->call("test", std::tie(a), 3, 5);
     ASSERT_EQ(a, 4);
 
     a = 0;
-    L->compile_file("./jit/test_for_loop_break.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_loop_break.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 5);
     ASSERT_EQ(a, 4);
 }
 
 TEST(jitter, test_for_loop_if_return) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_loop_if_return.lua", {});
+    L->CompileFile("./jit/test_for_loop_if_return.lua", {});
     L->call("test", std::tie(a), 3, 5);
     ASSERT_EQ(a, 3);
     L->call("test", std::tie(a), 6, 10);
     ASSERT_EQ(a, 10);
 
     a = 0;
-    L->compile_file("./jit/test_for_loop_if_return.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_loop_if_return.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 5);
     ASSERT_EQ(a, 3);
     L->call("test", std::tie(a), 6, 10);
@@ -2781,18 +2777,18 @@ TEST(jitter, test_for_loop_if_return) {
 }
 
 TEST(jitter, test_for_loop_just_break) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_loop_just_break.lua", {});
+    L->CompileFile("./jit/test_for_loop_just_break.lua", {});
     L->call("test", std::tie(a), 3, 5);
     ASSERT_EQ(a, 5);
     L->call("test", std::tie(a), 5, 3);
     ASSERT_EQ(a, 5);
 
     a = 0;
-    L->compile_file("./jit/test_for_loop_just_break.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_loop_just_break.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 5);
     ASSERT_EQ(a, 5);
     L->call("test", std::tie(a), 5, 3);
@@ -2800,63 +2796,63 @@ TEST(jitter, test_for_loop_just_break) {
 }
 
 TEST(jitter, test_for_in) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_in.lua", {});
+    L->CompileFile("./jit/test_for_in.lua", {});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 32);
 
     a = 0;
-    L->compile_file("./jit/test_for_in.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_in.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 32);
 }
 
 TEST(jitter, test_for_in_double) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_in_double.lua", {});
+    L->CompileFile("./jit/test_for_in_double.lua", {});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 320);
 
     a = 0;
-    L->compile_file("./jit/test_for_in_double.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_in_double.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 320);
 }
 
 TEST(jitter, test_for_in_break) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_in_break.lua", {});
+    L->CompileFile("./jit/test_for_in_break.lua", {});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 30);
 
     a = 0;
-    L->compile_file("./jit/test_for_in_break.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_in_break.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 30);
 }
 
 TEST(jitter, test_for_in_if_return) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_in_if_return.lua", {});
+    L->CompileFile("./jit/test_for_in_if_return.lua", {});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 3);
     L->call("test", std::tie(a), 5, 4);
     ASSERT_EQ(a, 4);
 
     a = 0;
-    L->compile_file("./jit/test_for_in_if_return.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_in_if_return.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 3);
     L->call("test", std::tie(a), 5, 4);
@@ -2864,63 +2860,63 @@ TEST(jitter, test_for_in_if_return) {
 }
 
 TEST(jitter, test_for_in_just_break) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_in_just_break.lua", {});
+    L->CompileFile("./jit/test_for_in_just_break.lua", {});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 3);
 
     a = 0;
-    L->compile_file("./jit/test_for_in_just_break.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_in_just_break.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 3);
 }
 
 TEST(jitter, test_for_in_return) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_in_return.lua", {});
+    L->CompileFile("./jit/test_for_in_return.lua", {});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 3);
 
     a = 0;
-    L->compile_file("./jit/test_for_in_return.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_in_return.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 3);
 }
 
 TEST(jitter, test_for_in_return_fallback) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
-    L->compile_file("./jit/test_for_in_return_fallback.lua", {});
+    L->CompileFile("./jit/test_for_in_return_fallback.lua", {});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 0);
 
     a = 0;
-    L->compile_file("./jit/test_for_in_return_fallback.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_for_in_return_fallback.lua", {.debug_mode = false});
     L->call("test", std::tie(a), 3, 4);
     ASSERT_EQ(a, 0);
 }
 
 TEST(jitter, test_local_func_call_table_construct) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret = false;
-    L->compile_file("./jit/test_local_func_call_table_construct.lua", {});
+    L->CompileFile("./jit/test_local_func_call_table_construct.lua", {});
     L->call("test", std::tie(ret), 2, 1);
     ASSERT_TRUE(ret);
     L->call("test", std::tie(ret), 1, 2);
     ASSERT_FALSE(ret);
 
     ret = false;
-    L->compile_file("./jit/test_local_func_call_table_construct.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_local_func_call_table_construct.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 2, 1);
     ASSERT_TRUE(ret);
     L->call("test", std::tie(ret), 1, 2);
@@ -2928,33 +2924,33 @@ TEST(jitter, test_local_func_call_table_construct) {
 }
 
 TEST(jitter, test_local_func_call_string) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     std::string ret;
-    L->compile_file("./jit/test_local_func_call_string.lua", {});
+    L->CompileFile("./jit/test_local_func_call_string.lua", {});
     L->call("test", std::tie(ret), 2, 1);
     ASSERT_EQ(ret, "test_test");
 
     ret.clear();
-    L->compile_file("./jit/test_local_func_call_string.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_local_func_call_string.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 2, 1);
     ASSERT_EQ(ret, "test_test");
 }
 
 TEST(jitter, test_var_func_call) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret = false;
-    L->compile_file("./jit/test_var_func_call.lua", {});
+    L->CompileFile("./jit/test_var_func_call.lua", {});
     L->call("test", std::tie(ret), 2, 2);
     ASSERT_TRUE(ret);
     L->call("test", std::tie(ret), 1, 2);
     ASSERT_FALSE(ret);
 
     ret = false;
-    L->compile_file("./jit/test_var_func_call.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_var_func_call.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 2, 2);
     ASSERT_TRUE(ret);
     L->call("test", std::tie(ret), 1, 2);
@@ -2962,18 +2958,18 @@ TEST(jitter, test_var_func_call) {
 }
 
 TEST(jitter, test_table_var_func_call) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret = false;
-    L->compile_file("./jit/test_table_var_func_call.lua", {});
+    L->CompileFile("./jit/test_table_var_func_call.lua", {});
     L->call("test", std::tie(ret), 2, 2);
     ASSERT_TRUE(ret);
     L->call("test", std::tie(ret), 1, 2);
     ASSERT_FALSE(ret);
 
     ret = false;
-    L->compile_file("./jit/test_table_var_func_call.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_table_var_func_call.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 2, 2);
     ASSERT_TRUE(ret);
     L->call("test", std::tie(ret), 1, 2);
@@ -2981,31 +2977,31 @@ TEST(jitter, test_table_var_func_call) {
 }
 
 TEST(jitter, test_empty_func_call) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret = 0;
-    L->compile_file("./jit/test_empty_func_call.lua", {});
+    L->CompileFile("./jit/test_empty_func_call.lua", {});
     L->call("test", std::tie(ret), 2, 2);
     ASSERT_EQ(ret, 1);
 
     ret = 0;
-    L->compile_file("./jit/test_empty_func_call.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_empty_func_call.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 2, 2);
     ASSERT_EQ(ret, 1);
 }
 
 TEST(jitter, test_table_get_set) {
-    auto L = fakelua_newstate();
+    auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
     int ret = 0;
-    L->compile_file("./jit/test_table_get_set.lua", {});
+    L->CompileFile("./jit/test_table_get_set.lua", {});
     L->call("test", std::tie(ret), 1, 2);
     ASSERT_EQ(ret, 3);
 
     ret = 0;
-    L->compile_file("./jit/test_table_get_set.lua", {.debug_mode = false});
+    L->CompileFile("./jit/test_table_get_set.lua", {.debug_mode = false});
     L->call("test", std::tie(ret), 1, 2);
     ASSERT_EQ(ret, 3);
 }

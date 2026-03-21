@@ -2,6 +2,6 @@
 
 namespace fakelua {
 
-std::string generate_tmp_filename(const std::string &head, const std::string &tail);
+std::string GenerateTmpFilename(const std::string &head, const std::string &tail);
 
 }

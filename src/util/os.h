@@ -3,6 +3,6 @@
 namespace fakelua {
 
 // Execute a command and return the output as a string
-std::string exec(const char *cmd);
+std::string Exec(const char *cmd);
 
 }// namespace fakelua

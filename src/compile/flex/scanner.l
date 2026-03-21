@@ -5,13 +5,13 @@
 #include <cstring>
 #include <string>
 #include "compile/bison/parser.h"
-#include "compile/myflexer.h"
+#include "compile/my_flexer.h"
 
 // https://westes.github.io/flex/manual/Cxx.html
 
 // Give Flex the prototype of yylex we want ...
 # define YY_DECL \
-    yy::parser::symbol_type fakelua::myflexer::my_yylex()
+    yy::parser::SymbolType fakelua::MyFlexer::MyYylex()
 
 %}
 
@@ -126,7 +126,7 @@ number   {num1}|{num2}
 
 {string}        return yy::parser::make_STRING(yytext, loc);
 
-.               { throw yy::parser::syntax_error(loc, "invalid character: [" + std::string(yytext) + "]"); }
+.               { throw yy::parser::SyntaxError(loc, "invalid character: [" + std::string(yytext) + "]"); }
 
 <<EOF>>         return yy::parser::make_YYEOF (loc);
 

@@ -1,146 +1,145 @@
 #pragma once
 
+#include "Vm.h"
 #include "compile/compile_common.h"
 #include "compile/syntax_tree.h"
 #include "fakelua.h"
 #include "gcc_jit_handle.h"
 #include "var/var.h"
-#include "vm.h"
 #include <libgccjit++.h>
 
 namespace fakelua {
 
-typedef std::shared_ptr<gccjit::context> gccjit_context_ptr;
+typedef std::shared_ptr<gccjit::context> GccjitContextPtr;
 
-class gcc_jitter {
+class GccJitter {
 public:
-    gcc_jitter() = default;
+    GccJitter() = default;
 
-    ~gcc_jitter();
+    ~GccJitter();
 
-    void compile(const fakelua_state_ptr &sp, const compile_config &cfg, const std::string &file_name,
-                 const syntax_tree_interface_ptr &chunk);
-
-private:
-    void compile_const_defines(const syntax_tree_interface_ptr &chunk);
-
-    void compile_const_define(const syntax_tree_interface_ptr &stmt);
-
-    void compile_functions(const syntax_tree_interface_ptr &chunk);
-
-    void compile_function(const std::string &name, const syntax_tree_interface_ptr &funcbody);
-
-    std::string compile_funcname(const syntax_tree_interface_ptr &ptr);
-
-    gccjit::rvalue compile_exp(gccjit::function &func, const syntax_tree_interface_ptr &exp);
-
-    std::vector<std::pair<std::string, gccjit::lvalue>> compile_parlist(gccjit::function &func, syntax_tree_interface_ptr parlist,
-                                                                        int &is_variadic);
-
-    void compile_stmt(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
-
-    void compile_stmt_return(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
-
-    std::vector<gccjit::rvalue> compile_explist(gccjit::function &func, const syntax_tree_interface_ptr &explist);
-
-    gccjit::rvalue compile_prefixexp(gccjit::function &func, const syntax_tree_interface_ptr &pe);
-
-    gccjit::rvalue compile_var(gccjit::function &func, const syntax_tree_interface_ptr &v);
-
-    gccjit::lvalue compile_var_lvalue(gccjit::function &func, const syntax_tree_interface_ptr &v);
-
-    void compile_stmt_local_var(gccjit::function &function, const syntax_tree_interface_ptr &stmt);
-
-    void compile_stmt_assign(gccjit::function &function, const syntax_tree_interface_ptr &stmt);
-
-    std::vector<gccjit::lvalue> compile_varlist_lvalue(gccjit::function &func, const syntax_tree_interface_ptr &explist);
-
-    gccjit::rvalue compile_tableconstructor(gccjit::function &func, const syntax_tree_interface_ptr &tc);
-
-    std::vector<gccjit::rvalue> compile_fieldlist(gccjit::function &func, const syntax_tree_interface_ptr &fieldlist);
-
-    std::pair<gccjit::rvalue, gccjit::rvalue> compile_field(gccjit::function &func, const syntax_tree_interface_ptr &field);
-
-    gccjit::rvalue compile_binop(gccjit::function &func, const syntax_tree_interface_ptr &left, const syntax_tree_interface_ptr &right,
-                                 const syntax_tree_interface_ptr &op);
-
-    gccjit::rvalue compile_unop(gccjit::function &func, const syntax_tree_interface_ptr &right, const syntax_tree_interface_ptr &op);
-
-    gccjit::rvalue compile_functioncall(gccjit::function &func, const syntax_tree_interface_ptr &functioncall);
-
-    std::vector<gccjit::rvalue> compile_args(gccjit::function &func, const syntax_tree_interface_ptr &args);
-
-    void compile_stmt_functioncall(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
-
-    void compile_stmt_label(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
-
-    void compile_stmt_block(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
-
-    void compile_stmt_while(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
-
-    void compile_stmt_repeat(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
-
-    void compile_stmt_if(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
-
-    void compile_stmt_break(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
-
-    void compile_stmt_for_loop(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
-
-    void compile_stmt_for_in(gccjit::function &func, const syntax_tree_interface_ptr &stmt);
+    void Compile(const FakeluaStatePtr &sp, const CompileConfig &cfg, const std::string &file_name, const SyntaxTreeInterfacePtr &chunk);
 
 private:
-    gccjit::location new_location(const syntax_tree_interface_ptr &ptr);
+    void CompileConstDefines(const SyntaxTreeInterfacePtr &chunk);
 
-    std::string new_block_name(const std::string &name, const syntax_tree_interface_ptr &ptr);
+    void CompileConstDefine(const SyntaxTreeInterfacePtr &stmt);
 
-    void call_global_init_func();
+    void CompileFunctions(const SyntaxTreeInterfacePtr &chunk);
 
-    std::string location_str(const syntax_tree_interface_ptr &ptr);
+    void CompileFunction(const std::string &name, const SyntaxTreeInterfacePtr &funcbody);
 
-    gccjit::lvalue find_lvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr);
+    std::string CompileFuncname(const SyntaxTreeInterfacePtr &ptr);
 
-    std::optional<gccjit::lvalue> try_find_lvalue_by_name(const std::string &name, const syntax_tree_interface_ptr &ptr);
+    gccjit::rvalue CompileExp(gccjit::function &func, const SyntaxTreeInterfacePtr &exp);
 
-    void save_stack_lvalue_by_name(const std::string &name, const gccjit::lvalue &value, const syntax_tree_interface_ptr &ptr);
+    std::vector<std::pair<std::string, gccjit::lvalue>> CompileParlist(gccjit::function &func, SyntaxTreeInterfacePtr parlist,
+                                                                       int &IsVariadic);
 
-    [[noreturn]] void throw_error(const std::string &msg, const syntax_tree_interface_ptr &ptr);
+    void CompileStmt(gccjit::function &func, const SyntaxTreeInterfacePtr &stmt);
 
-    void check_return_block(gccjit::function &func, const syntax_tree_interface_ptr &ptr);
+    void CompileStmtReturn(gccjit::function &func, const SyntaxTreeInterfacePtr &stmt);
 
-    bool is_block_ended();
+    std::vector<gccjit::rvalue> CompileExplist(gccjit::function &func, const SyntaxTreeInterfacePtr &explist);
 
-    void init_global_const_var(gccjit::function &func);
+    gccjit::rvalue CompilePrefixexp(gccjit::function &func, const SyntaxTreeInterfacePtr &pe);
+
+    gccjit::rvalue CompileVar(gccjit::function &func, const SyntaxTreeInterfacePtr &v);
+
+    gccjit::lvalue CompileVarLvalue(gccjit::function &func, const SyntaxTreeInterfacePtr &v);
+
+    void CompileStmtLocalVar(gccjit::function &function, const SyntaxTreeInterfacePtr &stmt);
+
+    void CompileStmtAssign(gccjit::function &function, const SyntaxTreeInterfacePtr &stmt);
+
+    std::vector<gccjit::lvalue> CompileVarlistLvalue(gccjit::function &func, const SyntaxTreeInterfacePtr &explist);
+
+    gccjit::rvalue CompileTableconstructor(gccjit::function &func, const SyntaxTreeInterfacePtr &tc);
+
+    std::vector<gccjit::rvalue> CompileFieldlist(gccjit::function &func, const SyntaxTreeInterfacePtr &fieldlist);
+
+    std::pair<gccjit::rvalue, gccjit::rvalue> CompileField(gccjit::function &func, const SyntaxTreeInterfacePtr &field);
+
+    gccjit::rvalue CompileBinop(gccjit::function &func, const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right,
+                                const SyntaxTreeInterfacePtr &op);
+
+    gccjit::rvalue CompileUnop(gccjit::function &func, const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op);
+
+    gccjit::rvalue CompileFunctioncall(gccjit::function &func, const SyntaxTreeInterfacePtr &functioncall);
+
+    std::vector<gccjit::rvalue> CompileArgs(gccjit::function &func, const SyntaxTreeInterfacePtr &args);
+
+    void CompileStmtFunctioncall(gccjit::function &func, const SyntaxTreeInterfacePtr &stmt);
+
+    void CompileStmtLabel(gccjit::function &func, const SyntaxTreeInterfacePtr &stmt);
+
+    void CompileStmtBlock(gccjit::function &func, const SyntaxTreeInterfacePtr &stmt);
+
+    void CompileStmtWhile(gccjit::function &func, const SyntaxTreeInterfacePtr &stmt);
+
+    void CompileStmtRepeat(gccjit::function &func, const SyntaxTreeInterfacePtr &stmt);
+
+    void CompileStmtIf(gccjit::function &func, const SyntaxTreeInterfacePtr &stmt);
+
+    void CompileStmtBreak(gccjit::function &func, const SyntaxTreeInterfacePtr &stmt);
+
+    void CompileStmtForLoop(gccjit::function &func, const SyntaxTreeInterfacePtr &stmt);
+
+    void CompileStmtForIn(gccjit::function &func, const SyntaxTreeInterfacePtr &stmt);
 
 private:
-    void prepare_compile(const fakelua_state_ptr &sp, const compile_config &cfg, const std::string &file_name);
+    gccjit::location NewLocation(const SyntaxTreeInterfacePtr &ptr);
 
-    bool is_simple_assign(const syntax_tree_interface_ptr &vars, const syntax_tree_interface_ptr &exps);
+    std::string NewBlockName(const std::string &name, const SyntaxTreeInterfacePtr &ptr);
 
-    bool is_simple_args(const syntax_tree_interface_ptr &args);
+    void CallGlobalInitFunc();
 
-    bool is_simple_explist(const syntax_tree_interface_ptr &explist);
+    std::string LocationStr(const SyntaxTreeInterfacePtr &ptr);
 
-    bool is_simple_exp(const syntax_tree_interface_ptr &exp);
+    gccjit::lvalue FindLvalueByName(const std::string &name, const SyntaxTreeInterfacePtr &ptr);
 
-    bool is_simple_prefixexp(const syntax_tree_interface_ptr &pe);
+    std::optional<gccjit::lvalue> TryFindLvalueByName(const std::string &name, const SyntaxTreeInterfacePtr &ptr);
 
-    bool is_simple_tableconstructor(const syntax_tree_interface_ptr &tc);
+    void SaveStackLvalueByName(const std::string &name, const gccjit::lvalue &value, const SyntaxTreeInterfacePtr &ptr);
 
-    bool is_simple_field(const syntax_tree_interface_ptr &fieldlist);
+    [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
 
-    std::string get_simple_prefixexp_name(const syntax_tree_interface_ptr &pe);
+    void CheckReturnBlock(gccjit::function &func, const SyntaxTreeInterfacePtr &ptr);
 
-    std::string get_simple_var_name(const syntax_tree_interface_ptr &v);
+    bool IsBlockEnded();
 
-    bool is_jit_builtin_function(const std::string &name);
+    void InitGlobalConstVar(gccjit::function &func);
 
-    std::string get_jit_builtin_function_vm_name(const std::string &name);
+private:
+    void PrepareCompile(const FakeluaStatePtr &sp, const CompileConfig &cfg, const std::string &file_name);
 
-    void set_var_int(gccjit::lvalue &var, int64_t v, bool is_const, const syntax_tree_interface_ptr &p);
+    bool IsSimpleAssign(const SyntaxTreeInterfacePtr &vars, const SyntaxTreeInterfacePtr &exps);
 
-    void set_var_float(gccjit::lvalue &var, double v, bool is_const, const syntax_tree_interface_ptr &p);
+    bool IsSimpleArgs(const SyntaxTreeInterfacePtr &args);
 
-    void set_var_string(gccjit::lvalue &var, const std::string &v, bool is_const, const syntax_tree_interface_ptr &p);
+    bool IsSimpleExplist(const SyntaxTreeInterfacePtr &explist);
+
+    bool IsSimpleExp(const SyntaxTreeInterfacePtr &exp);
+
+    bool IsSimplePrefixexp(const SyntaxTreeInterfacePtr &pe);
+
+    bool IsSimpleTableconstructor(const SyntaxTreeInterfacePtr &tc);
+
+    bool IsSimpleField(const SyntaxTreeInterfacePtr &fieldlist);
+
+    std::string GetSimplePrefixexpName(const SyntaxTreeInterfacePtr &pe);
+
+    std::string GetSimpleVarName(const SyntaxTreeInterfacePtr &v);
+
+    bool IsJitBuiltinFunction(const std::string &name);
+
+    std::string GetJitBuiltinFunctionVmName(const std::string &name);
+
+    void SetVarInt(gccjit::lvalue &var, int64_t v, bool is_const, const SyntaxTreeInterfacePtr &p);
+
+    void SetVarFloat(gccjit::lvalue &var, double v, bool is_const, const SyntaxTreeInterfacePtr &p);
+
+    void SetVarString(gccjit::lvalue &var, const std::string &v, bool is_const, const SyntaxTreeInterfacePtr &p);
 
 private:
     // the helper type in gccjit
@@ -169,30 +168,30 @@ private:
 
 private:
     // the state contains the running environment we need.
-    fakelua_state_ptr sp_;
-    // the compiler config
+    FakeluaStatePtr sp_;
+    // the Compiler config
     std::string file_name_;
     // gccjit context
-    gccjit_context_ptr gccjit_context_;
-    gcc_jit_handle_ptr gcc_jit_handle_;
+    GccjitContextPtr gccjit_context_;
+    GccJitHandlePtr gcc_jit_handle_;
     // function info saves here
-    struct function_info {
+    struct FunctionInfo {
         int params_count = 0;
-        bool is_variadic = false;
+        bool IsVariadic = false;
         gccjit::function func;
     };
     // function name -> function info
-    std::unordered_map<std::string, function_info> function_infos_;
+    std::unordered_map<std::string, FunctionInfo> function_infos_;
     // global const var name -> gcc_jit_lvalue
-    std::unordered_map<std::string, std::pair<gccjit::lvalue, syntax_tree_interface_ptr>> global_const_vars_;
+    std::unordered_map<std::string, std::pair<gccjit::lvalue, SyntaxTreeInterfacePtr>> global_const_vars_;
     // compiling function tmp data
-    struct function_data {
+    struct FunctionData {
         // save stack frame vars
-        struct stack_frame {
+        struct StackFrame {
             std::unordered_map<std::string, gccjit::lvalue> local_vars;
         };
         // every block stack frame
-        std::vector<stack_frame> stack_frames;
+        std::vector<StackFrame> stack_frames;
         // record the block ended
         std::unordered_set<gcc_jit_block *> ended_blocks;
         // use to save the current block
@@ -207,15 +206,15 @@ private:
         std::string cur_function_name;
         // current compiling function
         gccjit::function cur_gccjit_func;
-        // current func variadic param start index, if is_variadic, it is the index of '...' param
+        // current func variadic param start index, if IsVariadic, it is the index of '...' param
         int cur_variadic_param_start_index = -1;
     };
     // current compiling function data
-    function_data cur_function_data_;
+    FunctionData cur_function_data_;
     // save the preprocess trunk new stmt
-    std::vector<syntax_tree_interface_ptr> preprocess_trunk_new_stmt_;
+    std::vector<SyntaxTreeInterfacePtr> preprocess_trunk_new_stmt_;
 };
 
-typedef std::shared_ptr<gcc_jitter> gcc_jitter_ptr;
+typedef std::shared_ptr<GccJitter> GccJitterPtr;
 
 }// namespace fakelua

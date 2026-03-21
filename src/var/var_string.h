@@ -6,29 +6,29 @@
 namespace fakelua {
 
 // store the string data. use the plain memory to store the string data.
-class var_string {
+class VarString {
 public:
-    // make a var_string with the given data and size
-    static var_string *make_var_string(const char *data, int size) {
-        auto *s = static_cast<var_string *>(malloc(sizeof(var_string) + size));
+    // make a VarString with the given data and size
+    static VarString *MakeVarString(const char *data, int size) {
+        auto *s = static_cast<VarString *>(malloc(sizeof(VarString) + size));
         s->size_ = size;
         memcpy((void *) s->data_, data, size);
         return s;
     }
 
-    // free the var_string
-    static void free_var_string(var_string *s) {
+    // free the VarString
+    static void FreeVarString(VarString *s) {
         if (s) {
             free(s);
         }
     }
 
     // return string view
-    [[nodiscard]] std::string_view str() const {
+    [[nodiscard]] std::string_view Str() const {
         return {data_, static_cast<std::string_view::size_type>(size_)};
     }
 
-    [[nodiscard]] size_t size() const {
+    [[nodiscard]] size_t Size() const {
         return static_cast<size_t>(size_);
     }
 
@@ -37,7 +37,7 @@ private:
     const char data_[0]{};// data of the string
 };
 
-// assert var_string header size is 4 bytes, the same as we defined in gccjit
-static_assert(sizeof(var_string) == 4, "var_string size must be 8 bytes");
+// assert VarString header size is 4 bytes, the same as we defined in gccjit
+static_assert(sizeof(VarString) == 4, "VarString size must be 8 bytes");
 
 }// namespace fakelua

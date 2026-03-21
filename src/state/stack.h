@@ -7,7 +7,7 @@ namespace fakelua {
 // the stack is the runtime stack of fakelua state
 class stack {
 public:
-    stack(state_config config);
+    stack(StateConfig config);
 
     ~stack() = default;
 
@@ -16,20 +16,20 @@ public:
     }
 
     // get current stack top
-    cvar *top();
+    CVar *top();
 
     // get max stack pos
-    cvar *max();
+    CVar *max();
 
     // push a var to stack
-    void push(const cvar &v);
+    void push(const CVar &v);
 
     // pop stack to pos
-    void pop_to(cvar * top);
+    void PopTo(CVar * top);
 
 private:
     // var stack
-    std::vector<cvar> var_stack_;
+    std::vector<CVar> var_stack_;
     // current stack top
     size_t stack_top_ = 0;
 };

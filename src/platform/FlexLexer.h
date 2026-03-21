@@ -76,27 +76,27 @@ public:
   // Call yylex with new input/output sources.
   int yylex( std::istream& new_in, std::ostream& new_out )
   {
-    switch_streams( new_in, new_out );
+    SwitchStreams( new_in, new_out );
     return yylex();
   }
 
   int yylex( std::istream* new_in, std::ostream* new_out = 0)
   {
-    switch_streams( new_in, new_out );
+    SwitchStreams( new_in, new_out );
     return yylex();
   }
 
   // Switch to new input/output streams.  A nil stream pointer
   // indicates "keep the current one".
-  virtual void switch_streams( std::istream* new_in,
+  virtual void SwitchStreams( std::istream* new_in,
                                std::ostream* new_out ) = 0;
-  virtual void switch_streams( std::istream& new_in,
+  virtual void SwitchStreams( std::istream& new_in,
                                std::ostream& new_out ) = 0;
 
   int lineno() const          { return yylineno; }
 
   int debug() const           { return yy_flex_debug; }
-  void set_debug( int flag )  { yy_flex_debug = flag; }
+  void SetDebug( int flag )  { yy_flex_debug = flag; }
 
 protected:
   char* yytext;
@@ -123,7 +123,7 @@ public:
   yyFlexLexer( std::istream& arg_yyin, std::ostream& arg_yyout );
   yyFlexLexer( std::istream* arg_yyin = 0, std::ostream* arg_yyout = 0 );
 private:
-  void ctor_common();
+  void CtorCommon();
 
 public:
 
@@ -140,8 +140,8 @@ public:
   void yypop_buffer_state();
 
   virtual int yylex();
-  virtual void switch_streams( std::istream& new_in, std::ostream& new_out );
-  virtual void switch_streams( std::istream* new_in = 0, std::ostream* new_out = 0 );
+  virtual void SwitchStreams( std::istream& new_in, std::ostream& new_out );
+  virtual void SwitchStreams( std::istream* new_in = 0, std::ostream* new_out = 0 );
   virtual int yywrap();
 
 protected:

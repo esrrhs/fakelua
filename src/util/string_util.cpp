@@ -16,7 +16,7 @@ namespace fakelua {
     \digit: read digits from buffer
  */
 
-std::string replace_escape_chars(const std::string &str) {
+std::string ReplaceEscapeChars(const std::string &str) {
     std::string result;
     for (std::string::const_iterator it = str.begin(); it != str.end();) {
         if (*it == '\\') {
@@ -74,7 +74,7 @@ std::string replace_escape_chars(const std::string &str) {
                     break;
                 default:
                     if (!isdigit(*it)) {
-                        throw_fakelua_exception(std::format("invalid escape sequence \\{}", *it));
+                        ThrowFakeluaException(std::format("invalid escape sequence \\{}", *it));
                     }
                     // read up to 3 digits
                     int r = 0; /* result accumulator */
@@ -86,7 +86,7 @@ std::string replace_escape_chars(const std::string &str) {
                         ++it;
                     }
                     if (r > 0xFF) {
-                        throw_fakelua_exception("decimal escape too large \\" + std::to_string(r));
+                        ThrowFakeluaException("decimal escape too large \\" + std::to_string(r));
                     }
                     result += static_cast<char>(r);
                     break;
@@ -99,7 +99,7 @@ std::string replace_escape_chars(const std::string &str) {
     return result;
 }
 
-int64_t to_integer(const std::string_view &s) {
+int64_t ToInteger(const std::string_view &s) {
     int64_t result = 0;
 
     auto begin = s.begin();
@@ -126,9 +126,9 @@ int64_t to_integer(const std::string_view &s) {
 
     auto [ptr, ec] = std::from_chars(begin, s.data() + s.size(), result, base);
     if (ec == std::errc::invalid_argument) {
-        throw_fakelua_exception(std::format("invalid argument: {}", s));
+        ThrowFakeluaException(std::format("invalid argument: {}", s));
     } else if (ec == std::errc::result_out_of_range) {
-        throw_fakelua_exception(std::format("result out of range: {}", s));
+        ThrowFakeluaException(std::format("result out of range: {}", s));
     }
 
     if (negative) {
@@ -138,7 +138,7 @@ int64_t to_integer(const std::string_view &s) {
     return result;
 }
 
-double to_float(const std::string_view &s) {
+double ToFloat(const std::string_view &s) {
     double result = 0;
 
     auto begin = s.begin();
@@ -164,9 +164,9 @@ double to_float(const std::string_view &s) {
     }
     auto [ptr, ec] = std::from_chars(begin, s.data() + s.size(), result, fmt);
     if (ec == std::errc::invalid_argument) {
-        throw_fakelua_exception(std::format("invalid argument: {}", s));
+        ThrowFakeluaException(std::format("invalid argument: {}", s));
     } else if (ec == std::errc::result_out_of_range) {
-        throw_fakelua_exception(std::format("result out of range: {}", s));
+        ThrowFakeluaException(std::format("result out of range: {}", s));
     }
 
     if (negative) {

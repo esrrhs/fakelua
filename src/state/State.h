@@ -1,7 +1,7 @@
 #pragma once
 
 #include "fakelua.h"
-#include "jit/vm.h"
+#include "jit/Vm.h"
 #include "stack.h"
 #include "var_string_heap.h"
 #include "var_table_heap.h"
@@ -9,15 +9,15 @@
 namespace fakelua {
 
 // the state contains the running environment we need.
-class state final : public fakelua_state {
+class State final : public FakeluaState {
 public:
-    state(state_config config = {});
+    State(StateConfig config = {});
 
-    ~state() override = default;
+    ~State() override = default;
 
-    void compile_file(const std::string &filename, const compile_config &cfg) override;
+    void CompileFile(const std::string &filename, const CompileConfig &cfg) override;
 
-    void compile_string(const std::string &str, const compile_config &cfg) override;
+    void CompileString(const std::string &str, const CompileConfig &cfg) override;
 
     // call before running. this will reset the state. just for speed.
     void reset() {
@@ -27,15 +27,15 @@ public:
         stack_.reset();
     }
 
-    var_string_heap &get_var_string_heap() {
+    VarStringHeap &get_var_string_heap() {
         return var_string_heap_;
     }
 
-    var_table_heap &get_var_table_heap() {
+    VarTableHeap &get_var_table_heap() {
         return var_table_heap_;
     }
 
-    vm &get_vm() {
+    Vm &get_vm() {
         return vm_;
     }
 
@@ -48,9 +48,9 @@ public:
     }
 
 private:
-    var_string_heap var_string_heap_;
-    var_table_heap var_table_heap_;
-    vm vm_;
+    VarStringHeap var_string_heap_;
+    VarTableHeap var_table_heap_;
+    Vm vm_;
     int reentrant_count_ = 0;// used to reset
     stack stack_;
 };

@@ -7,146 +7,146 @@
 namespace fakelua {
 
 // syntax tree type
-enum class syntax_tree_type {
-    syntax_tree_type_none = 0,
-    syntax_tree_type_empty,
-    syntax_tree_type_block,
-    syntax_tree_type_label,
-    syntax_tree_type_return,
-    syntax_tree_type_assign,
-    syntax_tree_type_varlist,
-    syntax_tree_type_explist,
-    syntax_tree_type_var,
-    syntax_tree_type_functioncall,
-    syntax_tree_type_tableconstructor,
-    syntax_tree_type_fieldlist,
-    syntax_tree_type_field,
-    syntax_tree_type_break,
-    syntax_tree_type_goto,
-    syntax_tree_type_while,
-    syntax_tree_type_repeat,
-    syntax_tree_type_if,
-    syntax_tree_type_elseiflist,
-    syntax_tree_type_for_loop,
-    syntax_tree_type_for_in,
-    syntax_tree_type_namelist,
-    syntax_tree_type_function,
-    syntax_tree_type_funcnamelist,
-    syntax_tree_type_funcname,
-    syntax_tree_type_funcbody,
-    syntax_tree_type_functiondef,
-    syntax_tree_type_parlist,
-    syntax_tree_type_local_function,
-    syntax_tree_type_local_var,
-    syntax_tree_type_exp,
-    syntax_tree_type_binop,
-    syntax_tree_type_unop,
-    syntax_tree_type_args,
-    syntax_tree_type_prefixexp,
+enum class SyntaxTreeType {
+    None = 0,
+    Empty,
+    Block,
+    Label,
+    Return,
+    Assign,
+    VarList,
+    ExpList,
+    Var,
+    FunctionCall,
+    TableConstructor,
+    FieldList,
+    Field,
+    Break,
+    Goto,
+    While,
+    Repeat,
+    If,
+    ElseIfList,
+    ForLoop,
+    ForIn,
+    NameList,
+    Function,
+    FuncNameList,
+    FuncName,
+    FuncBody,
+    FunctionDef,
+    ParList,
+    LocalFunction,
+    LocalVar,
+    Exp,
+    Binop,
+    Unop,
+    Args,
+    PrefixExp,
 };
 
-inline std::string syntax_tree_type_to_string(syntax_tree_type t) {
+inline std::string SyntaxTreeTypeToString(SyntaxTreeType t) {
     switch (t) {
-        case syntax_tree_type::syntax_tree_type_none:
-            return "syntax_tree_type_none";
-        case syntax_tree_type::syntax_tree_type_empty:
-            return "syntax_tree_type_empty";
-        case syntax_tree_type::syntax_tree_type_block:
-            return "syntax_tree_type_block";
-        case syntax_tree_type::syntax_tree_type_label:
-            return "syntax_tree_type_label";
-        case syntax_tree_type::syntax_tree_type_return:
-            return "syntax_tree_type_return";
-        case syntax_tree_type::syntax_tree_type_assign:
-            return "syntax_tree_type_assign";
-        case syntax_tree_type::syntax_tree_type_varlist:
-            return "syntax_tree_type_varlist";
-        case syntax_tree_type::syntax_tree_type_explist:
-            return "syntax_tree_type_explist";
-        case syntax_tree_type::syntax_tree_type_var:
-            return "syntax_tree_type_var";
-        case syntax_tree_type::syntax_tree_type_functioncall:
-            return "syntax_tree_type_functioncall";
-        case syntax_tree_type::syntax_tree_type_tableconstructor:
-            return "syntax_tree_type_tableconstructor";
-        case syntax_tree_type::syntax_tree_type_fieldlist:
-            return "syntax_tree_type_fieldlist";
-        case syntax_tree_type::syntax_tree_type_field:
-            return "syntax_tree_type_field";
-        case syntax_tree_type::syntax_tree_type_break:
-            return "syntax_tree_type_break";
-        case syntax_tree_type::syntax_tree_type_goto:
-            return "syntax_tree_type_goto";
-        case syntax_tree_type::syntax_tree_type_while:
-            return "syntax_tree_type_while";
-        case syntax_tree_type::syntax_tree_type_repeat:
-            return "syntax_tree_type_repeat";
-        case syntax_tree_type::syntax_tree_type_if:
-            return "syntax_tree_type_if";
-        case syntax_tree_type::syntax_tree_type_elseiflist:
-            return "syntax_tree_type_elseiflist";
-        case syntax_tree_type::syntax_tree_type_for_loop:
-            return "syntax_tree_type_for_loop";
-        case syntax_tree_type::syntax_tree_type_for_in:
-            return "syntax_tree_type_for_in";
-        case syntax_tree_type::syntax_tree_type_namelist:
-            return "syntax_tree_type_namelist";
-        case syntax_tree_type::syntax_tree_type_function:
-            return "syntax_tree_type_function";
-        case syntax_tree_type::syntax_tree_type_funcnamelist:
-            return "syntax_tree_type_funcnamelist";
-        case syntax_tree_type::syntax_tree_type_funcname:
-            return "syntax_tree_type_funcname";
-        case syntax_tree_type::syntax_tree_type_funcbody:
-            return "syntax_tree_type_funcbody";
-        case syntax_tree_type::syntax_tree_type_functiondef:
-            return "syntax_tree_type_functiondef";
-        case syntax_tree_type::syntax_tree_type_parlist:
-            return "syntax_tree_type_parlist";
-        case syntax_tree_type::syntax_tree_type_local_function:
-            return "syntax_tree_type_local_function";
-        case syntax_tree_type::syntax_tree_type_local_var:
-            return "syntax_tree_type_local_var";
-        case syntax_tree_type::syntax_tree_type_exp:
-            return "syntax_tree_type_exp";
-        case syntax_tree_type::syntax_tree_type_binop:
-            return "syntax_tree_type_binop";
-        case syntax_tree_type::syntax_tree_type_unop:
-            return "syntax_tree_type_unop";
-        case syntax_tree_type::syntax_tree_type_args:
-            return "syntax_tree_type_args";
-        case syntax_tree_type::syntax_tree_type_prefixexp:
-            return "syntax_tree_type_prefixexp";
+        case SyntaxTreeType::None:
+            return "None";
+        case SyntaxTreeType::Empty:
+            return "Empty";
+        case SyntaxTreeType::Block:
+            return "Block";
+        case SyntaxTreeType::Label:
+            return "Label";
+        case SyntaxTreeType::Return:
+            return "Return";
+        case SyntaxTreeType::Assign:
+            return "Assign";
+        case SyntaxTreeType::VarList:
+            return "VarList";
+        case SyntaxTreeType::ExpList:
+            return "ExpList";
+        case SyntaxTreeType::Var:
+            return "Var";
+        case SyntaxTreeType::FunctionCall:
+            return "FunctionCall";
+        case SyntaxTreeType::TableConstructor:
+            return "TableConstructor";
+        case SyntaxTreeType::FieldList:
+            return "FieldList";
+        case SyntaxTreeType::Field:
+            return "Field";
+        case SyntaxTreeType::Break:
+            return "Break";
+        case SyntaxTreeType::Goto:
+            return "Goto";
+        case SyntaxTreeType::While:
+            return "While";
+        case SyntaxTreeType::Repeat:
+            return "Repeat";
+        case SyntaxTreeType::If:
+            return "If";
+        case SyntaxTreeType::ElseIfList:
+            return "ElseIfList";
+        case SyntaxTreeType::ForLoop:
+            return "ForLoop";
+        case SyntaxTreeType::ForIn:
+            return "ForIn";
+        case SyntaxTreeType::NameList:
+            return "NameList";
+        case SyntaxTreeType::Function:
+            return "Function";
+        case SyntaxTreeType::FuncNameList:
+            return "FuncNameList";
+        case SyntaxTreeType::FuncName:
+            return "FuncName";
+        case SyntaxTreeType::FuncBody:
+            return "FuncBody";
+        case SyntaxTreeType::FunctionDef:
+            return "FunctionDef";
+        case SyntaxTreeType::ParList:
+            return "ParList";
+        case SyntaxTreeType::LocalFunction:
+            return "LocalFunction";
+        case SyntaxTreeType::LocalVar:
+            return "LocalVar";
+        case SyntaxTreeType::Exp:
+            return "Exp";
+        case SyntaxTreeType::Binop:
+            return "Binop";
+        case SyntaxTreeType::Unop:
+            return "Unop";
+        case SyntaxTreeType::Args:
+            return "Args";
+        case SyntaxTreeType::PrefixExp:
+            return "PrefixExp";
         default:
             return "UNKNOWN";
     }
 }
 
 // syntax tree location type
-typedef yy::location syntax_tree_location;
+typedef yy::location SyntaxTreeLocation;
 
 // syntax tree interface
-class syntax_tree_interface {
+class SyntaxTreeInterface {
 public:
-    explicit syntax_tree_interface(const syntax_tree_location &loc) : loc_(loc) {
+    explicit SyntaxTreeInterface(const SyntaxTreeLocation &loc) : loc_(loc) {
     }
 
-    virtual ~syntax_tree_interface() = default;
+    virtual ~SyntaxTreeInterface() = default;
 
     // get syntax tree type
-    [[nodiscard]] virtual syntax_tree_type type() const = 0;
+    [[nodiscard]] virtual SyntaxTreeType Type() const = 0;
 
     // dump a syntax tree to string
-    [[nodiscard]] virtual std::string dump(int tab) const = 0;
+    [[nodiscard]] virtual std::string Dump(int tab) const = 0;
 
     // get syntax tree location
-    [[nodiscard]] const syntax_tree_location &loc() const {
+    [[nodiscard]] const SyntaxTreeLocation &Loc() const {
         return loc_;
     }
 
 protected:
     // generate tab string
-    [[nodiscard]] std::string gen_tab(int tab) const {
+    [[nodiscard]] std::string GenTab(int tab) const {
         std::string str;
         for (int i = 0; i < tab; ++i) {
             str += "  ";
@@ -155,7 +155,7 @@ protected:
     }
 
     // generate location string
-    [[nodiscard]] std::string loc_str() const {
+    [[nodiscard]] std::string LocStr() const {
         // maybe the loc_'s filename ptr is invalid now, so ignore it
         std::string str;
         str += std::to_string(loc_.begin.line);
@@ -166,70 +166,70 @@ protected:
 
 private:
     // syntax tree location
-    syntax_tree_location loc_;
+    SyntaxTreeLocation loc_;
 };
 
 // syntax tree shared pointer
-typedef std::shared_ptr<syntax_tree_interface> syntax_tree_interface_ptr;
+typedef std::shared_ptr<SyntaxTreeInterface> SyntaxTreeInterfacePtr;
 
 // empty
-class syntax_tree_empty final : public syntax_tree_interface {
+class SyntaxTreeEmpty final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_empty(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeEmpty(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_empty;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Empty;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 };
 
 // block
-class syntax_tree_block final : public syntax_tree_interface {
+class SyntaxTreeBlock final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_block(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeBlock(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_block() override = default;
+    ~SyntaxTreeBlock() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_block;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Block;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void add_stmt(const syntax_tree_interface_ptr &stmt) {
+    void AddStmt(const SyntaxTreeInterfacePtr &stmt) {
         stmts_.push_back(stmt);
     }
 
-    [[nodiscard]] const std::vector<syntax_tree_interface_ptr> &stmts() const {
+    [[nodiscard]] const std::vector<SyntaxTreeInterfacePtr> &Stmts() const {
         return stmts_;
     }
 
-    void set_stmts(const std::vector<syntax_tree_interface_ptr> &stmts) {
+    void SetStmts(const std::vector<SyntaxTreeInterfacePtr> &stmts) {
         stmts_ = stmts;
     }
 
 private:
-    std::vector<syntax_tree_interface_ptr> stmts_;
+    std::vector<SyntaxTreeInterfacePtr> stmts_;
 };
 
 // label
-class syntax_tree_label final : public syntax_tree_interface {
+class SyntaxTreeLabel final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_label(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeLabel(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_label() override = default;
+    ~SyntaxTreeLabel() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_label;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Label;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_name(const std::string &name) {
+    void SetName(const std::string &name) {
         name_ = name;
     }
 
@@ -238,358 +238,358 @@ private:
 };
 
 // return
-class syntax_tree_return final : public syntax_tree_interface {
+class SyntaxTreeReturn final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_return(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeReturn(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_return() override = default;
+    ~SyntaxTreeReturn() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_return;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Return;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_explist(const syntax_tree_interface_ptr &explist) {
+    void SetExplist(const SyntaxTreeInterfacePtr &explist) {
         explist_ = explist;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr explist() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Explist() const {
         return explist_;
     }
 
 private:
-    syntax_tree_interface_ptr explist_;
+    SyntaxTreeInterfacePtr explist_;
 };
 
 // assign
-class syntax_tree_assign final : public syntax_tree_interface {
+class SyntaxTreeAssign final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_assign(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeAssign(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_assign() override = default;
+    ~SyntaxTreeAssign() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_assign;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Assign;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_varlist(const syntax_tree_interface_ptr &varlist) {
+    void SetVarlist(const SyntaxTreeInterfacePtr &varlist) {
         varlist_ = varlist;
     }
 
-    void set_explist(const syntax_tree_interface_ptr &explist) {
+    void SetExplist(const SyntaxTreeInterfacePtr &explist) {
         explist_ = explist;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr varlist() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Varlist() const {
         return varlist_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr explist() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Explist() const {
         return explist_;
     }
 
 private:
-    syntax_tree_interface_ptr varlist_;
-    syntax_tree_interface_ptr explist_;
+    SyntaxTreeInterfacePtr varlist_;
+    SyntaxTreeInterfacePtr explist_;
 };
 
 // var list
-class syntax_tree_varlist final : public syntax_tree_interface {
+class SyntaxTreeVarlist final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_varlist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeVarlist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_varlist() override = default;
+    ~SyntaxTreeVarlist() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_varlist;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::VarList;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void add_var(const syntax_tree_interface_ptr &var) {
+    void AddVar(const SyntaxTreeInterfacePtr &var) {
         vars_.push_back(var);
     }
 
-    std::vector<syntax_tree_interface_ptr> &vars() {
+    std::vector<SyntaxTreeInterfacePtr> &Vars() {
         return vars_;
     }
 
 private:
-    std::vector<syntax_tree_interface_ptr> vars_;
+    std::vector<SyntaxTreeInterfacePtr> vars_;
 };
 
 // exp list
-class syntax_tree_explist final : public syntax_tree_interface {
+class SyntaxTreeExplist final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_explist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeExplist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_explist() override = default;
+    ~SyntaxTreeExplist() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_explist;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::ExpList;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void add_exp(const syntax_tree_interface_ptr &exp) {
+    void AddExp(const SyntaxTreeInterfacePtr &exp) {
         exps_.push_back(exp);
     }
 
-    std::vector<syntax_tree_interface_ptr> &exps() {
+    std::vector<SyntaxTreeInterfacePtr> &Exps() {
         return exps_;
     }
 
 private:
-    std::vector<syntax_tree_interface_ptr> exps_;
+    std::vector<SyntaxTreeInterfacePtr> exps_;
 };
 
 // var
-class syntax_tree_var final : public syntax_tree_interface {
+class SyntaxTreeVar final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_var(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeVar(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_var() override = default;
+    ~SyntaxTreeVar() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_var;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Var;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_name(const std::string &name) {
+    void SetName(const std::string &name) {
         name_ = name;
     }
 
-    void set_prefixexp(const syntax_tree_interface_ptr &prefixexp) {
+    void SetPrefixexp(const SyntaxTreeInterfacePtr &prefixexp) {
         prefixexp_ = prefixexp;
     }
 
-    syntax_tree_interface_ptr get_prefixexp() {
+    SyntaxTreeInterfacePtr GetPrefixexp() {
         return prefixexp_;
     }
 
-    void set_exp(const syntax_tree_interface_ptr &exp) {
+    void SetExp(const SyntaxTreeInterfacePtr &exp) {
         exp_ = exp;
     }
 
-    syntax_tree_interface_ptr get_exp() {
+    SyntaxTreeInterfacePtr GetExp() {
         return exp_;
     }
 
-    void set_type(const std::string &type) {
+    void SetType(const std::string &type) {
         type_ = type;
     }
 
-    [[nodiscard]] std::string get_name() const {
+    [[nodiscard]] std::string GetName() const {
         return name_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr get_prefixexp() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr GetPrefixexp() const {
         return prefixexp_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr get_exp() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr GetExp() const {
         return exp_;
     }
 
-    [[nodiscard]] std::string get_type() const {
+    [[nodiscard]] std::string GetType() const {
         return type_;
     }
 
 private:
     std::string name_;
-    syntax_tree_interface_ptr exp_;
-    syntax_tree_interface_ptr prefixexp_;
+    SyntaxTreeInterfacePtr exp_;
+    SyntaxTreeInterfacePtr prefixexp_;
     std::string type_;
 };
 
 // function call
-class syntax_tree_functioncall final : public syntax_tree_interface {
+class SyntaxTreeFunctioncall final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_functioncall(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeFunctioncall(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_functioncall() override = default;
+    ~SyntaxTreeFunctioncall() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_functioncall;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::FunctionCall;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_prefixexp(const syntax_tree_interface_ptr &prefixexp) {
+    void SetPrefixexp(const SyntaxTreeInterfacePtr &prefixexp) {
         prefixexp_ = prefixexp;
     }
 
-    void set_args(const syntax_tree_interface_ptr &args) {
+    void SetArgs(const SyntaxTreeInterfacePtr &args) {
         args_ = args;
     }
 
-    void set_name(const std::string &name) {
+    void SetName(const std::string &name) {
         name_ = name;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr prefixexp() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr prefixexp() const {
         return prefixexp_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr args() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Args() const {
         return args_;
     }
 
-    [[nodiscard]] std::string name() const {
+    [[nodiscard]] std::string Name() const {
         return name_;
     }
 
 private:
-    syntax_tree_interface_ptr prefixexp_;
-    syntax_tree_interface_ptr args_;
+    SyntaxTreeInterfacePtr prefixexp_;
+    SyntaxTreeInterfacePtr args_;
     std::string name_;
 };
 
 // table constructor
-class syntax_tree_tableconstructor final : public syntax_tree_interface {
+class SyntaxTreeTableconstructor final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_tableconstructor(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeTableconstructor(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_tableconstructor() override = default;
+    ~SyntaxTreeTableconstructor() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_tableconstructor;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::TableConstructor;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_fieldlist(const syntax_tree_interface_ptr &fieldlist) {
+    void SetFieldlist(const SyntaxTreeInterfacePtr &fieldlist) {
         fieldlist_ = fieldlist;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr fieldlist() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Fieldlist() const {
         return fieldlist_;
     }
 
 private:
-    syntax_tree_interface_ptr fieldlist_;
+    SyntaxTreeInterfacePtr fieldlist_;
 };
 
 // field list
-class syntax_tree_fieldlist final : public syntax_tree_interface {
+class SyntaxTreeFieldlist final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_fieldlist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeFieldlist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_fieldlist() override = default;
+    ~SyntaxTreeFieldlist() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_fieldlist;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::FieldList;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void add_field(const syntax_tree_interface_ptr &field) {
+    void AddField(const SyntaxTreeInterfacePtr &field) {
         fields_.push_back(field);
     }
 
-    std::vector<syntax_tree_interface_ptr> &fields() {
+    std::vector<SyntaxTreeInterfacePtr> &Fields() {
         return fields_;
     }
 
 private:
-    std::vector<syntax_tree_interface_ptr> fields_;
+    std::vector<SyntaxTreeInterfacePtr> fields_;
 };
 
 // field assignment
-class syntax_tree_field final : public syntax_tree_interface {
+class SyntaxTreeField final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_field(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeField(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_field() override = default;
+    ~SyntaxTreeField() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_field;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Field;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_key(const syntax_tree_interface_ptr &key) {
+    void SetKey(const SyntaxTreeInterfacePtr &key) {
         key_ = key;
     }
 
-    void set_value(const syntax_tree_interface_ptr &value) {
+    void SetValue(const SyntaxTreeInterfacePtr &value) {
         value_ = value;
     }
 
-    void set_name(const std::string &name) {
+    void SetName(const std::string &name) {
         name_ = name;
     }
 
-    void set_type(const std::string &type) {
+    void SetType(const std::string &type) {
         type_ = type;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr key() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Key() const {
         return key_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr value() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Value() const {
         return value_;
     }
 
-    [[nodiscard]] std::string name() const {
+    [[nodiscard]] std::string Name() const {
         return name_;
     }
 
-    [[nodiscard]] std::string get_type() const {
+    [[nodiscard]] std::string GetType() const {
         return type_;
     }
 
 private:
-    syntax_tree_interface_ptr key_;
-    syntax_tree_interface_ptr value_;
+    SyntaxTreeInterfacePtr key_;
+    SyntaxTreeInterfacePtr value_;
     std::string name_;
     std::string type_;
 };
 
 // break
-class syntax_tree_break final : public syntax_tree_interface {
+class SyntaxTreeBreak final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_break(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeBreak(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_break() override = default;
+    ~SyntaxTreeBreak() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_break;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Break;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 };
 
 // goto
-class syntax_tree_goto final : public syntax_tree_interface {
+class SyntaxTreeGoto final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_goto(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeGoto(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_goto() override = default;
+    ~SyntaxTreeGoto() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_goto;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Goto;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_label(const std::string &label) {
+    void SetLabel(const std::string &label) {
         label_ = label;
     }
 
@@ -598,304 +598,304 @@ private:
 };
 
 // while
-class syntax_tree_while final : public syntax_tree_interface {
+class SyntaxTreeWhile final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_while(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeWhile(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_while() override = default;
+    ~SyntaxTreeWhile() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_while;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::While;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_exp(const syntax_tree_interface_ptr &exp) {
+    void SetExp(const SyntaxTreeInterfacePtr &exp) {
         exp_ = exp;
     }
 
-    void set_block(const syntax_tree_interface_ptr &block) {
+    void SetBlock(const SyntaxTreeInterfacePtr &block) {
         block_ = block;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr exp() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Exp() const {
         return exp_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr block() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Block() const {
         return block_;
     }
 
 private:
-    syntax_tree_interface_ptr exp_;
-    syntax_tree_interface_ptr block_;
+    SyntaxTreeInterfacePtr exp_;
+    SyntaxTreeInterfacePtr block_;
 };
 
 // repeat
-class syntax_tree_repeat final : public syntax_tree_interface {
+class SyntaxTreeRepeat final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_repeat(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeRepeat(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_repeat() override = default;
+    ~SyntaxTreeRepeat() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_repeat;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Repeat;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_exp(const syntax_tree_interface_ptr &exp) {
+    void SetExp(const SyntaxTreeInterfacePtr &exp) {
         exp_ = exp;
     }
 
-    void set_block(const syntax_tree_interface_ptr &block) {
+    void SetBlock(const SyntaxTreeInterfacePtr &block) {
         block_ = block;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr exp() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Exp() const {
         return exp_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr block() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Block() const {
         return block_;
     }
 
 private:
-    syntax_tree_interface_ptr exp_;
-    syntax_tree_interface_ptr block_;
+    SyntaxTreeInterfacePtr exp_;
+    SyntaxTreeInterfacePtr block_;
 };
 
 // if
-class syntax_tree_if final : public syntax_tree_interface {
+class SyntaxTreeIf final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_if(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeIf(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_if() override = default;
+    ~SyntaxTreeIf() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_if;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::If;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_exp(const syntax_tree_interface_ptr &exp) {
+    void SetExp(const SyntaxTreeInterfacePtr &exp) {
         exp_ = exp;
     }
 
-    void set_block(const syntax_tree_interface_ptr &block) {
+    void SetBlock(const SyntaxTreeInterfacePtr &block) {
         block_ = block;
     }
 
-    void set_elseiflist(const syntax_tree_interface_ptr &elseifs) {
+    void SetElseiflist(const SyntaxTreeInterfacePtr &elseifs) {
         elseifs_ = elseifs;
     }
 
-    void set_else_block(const syntax_tree_interface_ptr &elseblock) {
+    void SetElseBlock(const SyntaxTreeInterfacePtr &elseblock) {
         elseblock_ = elseblock;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr exp() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Exp() const {
         return exp_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr block() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Block() const {
         return block_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr elseifs() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr ElseIfs() const {
         return elseifs_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr elseblock() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr ElseBlock() const {
         return elseblock_;
     }
 
 private:
-    syntax_tree_interface_ptr exp_;
-    syntax_tree_interface_ptr block_;
-    syntax_tree_interface_ptr elseifs_;
-    syntax_tree_interface_ptr elseblock_;
+    SyntaxTreeInterfacePtr exp_;
+    SyntaxTreeInterfacePtr block_;
+    SyntaxTreeInterfacePtr elseifs_;
+    SyntaxTreeInterfacePtr elseblock_;
 };
 
 // elseif_list
-class syntax_tree_elseiflist final : public syntax_tree_interface {
+class SyntaxTreeElseiflist final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_elseiflist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeElseiflist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_elseiflist() override = default;
+    ~SyntaxTreeElseiflist() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_elseiflist;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::ElseIfList;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void add_elseif_expr(const syntax_tree_interface_ptr &exp) {
+    void AddElseifExpr(const SyntaxTreeInterfacePtr &exp) {
         exps_.push_back(exp);
     }
 
-    void add_elseif_block(const syntax_tree_interface_ptr &block) {
+    void AddElseifBlock(const SyntaxTreeInterfacePtr &block) {
         blocks_.push_back(block);
     }
 
-    [[nodiscard]] size_t elseif_size() const {
+    [[nodiscard]] size_t ElseifSize() const {
         return exps_.size();
     }
 
-    [[nodiscard]] const std::vector<syntax_tree_interface_ptr> &elseif_exps() const {
+    [[nodiscard]] const std::vector<SyntaxTreeInterfacePtr> &ElseifExps() const {
         return exps_;
     }
 
-    [[nodiscard]] const std::vector<syntax_tree_interface_ptr> &elseif_blocks() const {
+    [[nodiscard]] const std::vector<SyntaxTreeInterfacePtr> &ElseifBlocks() const {
         return blocks_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr elseif_exp(size_t idx) const {
+    [[nodiscard]] SyntaxTreeInterfacePtr ElseifExp(size_t idx) const {
         return exps_[idx];
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr elseif_block(size_t idx) const {
+    [[nodiscard]] SyntaxTreeInterfacePtr ElseifBlock(size_t idx) const {
         return blocks_[idx];
     }
 
 private:
-    std::vector<syntax_tree_interface_ptr> exps_;
-    std::vector<syntax_tree_interface_ptr> blocks_;
+    std::vector<SyntaxTreeInterfacePtr> exps_;
+    std::vector<SyntaxTreeInterfacePtr> blocks_;
 };
 
 // for loop
-class syntax_tree_for_loop final : public syntax_tree_interface {
+class SyntaxTreeForLoop final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_for_loop(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeForLoop(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_for_loop() override = default;
+    ~SyntaxTreeForLoop() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_for_loop;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::ForLoop;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_name(const std::string &name) {
+    void SetName(const std::string &name) {
         name_ = name;
     }
 
-    void set_block(const syntax_tree_interface_ptr &block) {
+    void SetBlock(const SyntaxTreeInterfacePtr &block) {
         block_ = block;
     }
 
-    void set_exp_begin(const syntax_tree_interface_ptr &exp) {
+    void SetExpBegin(const SyntaxTreeInterfacePtr &exp) {
         exp_begin_ = exp;
     }
 
-    void set_exp_end(const syntax_tree_interface_ptr &exp) {
+    void SetExpEnd(const SyntaxTreeInterfacePtr &exp) {
         exp_end_ = exp;
     }
 
-    void set_exp_step(const syntax_tree_interface_ptr &exp) {
+    void SetExpStep(const SyntaxTreeInterfacePtr &exp) {
         exp_step_ = exp;
     }
 
-    [[nodiscard]] std::string name() const {
+    [[nodiscard]] std::string Name() const {
         return name_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr block() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Block() const {
         return block_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr exp_begin() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr ExpBegin() const {
         return exp_begin_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr exp_end() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr ExpEnd() const {
         return exp_end_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr exp_step() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr ExpStep() const {
         return exp_step_;
     }
 
 private:
     std::string name_;
-    syntax_tree_interface_ptr block_;
-    syntax_tree_interface_ptr exp_begin_;
-    syntax_tree_interface_ptr exp_end_;
-    syntax_tree_interface_ptr exp_step_;
+    SyntaxTreeInterfacePtr block_;
+    SyntaxTreeInterfacePtr exp_begin_;
+    SyntaxTreeInterfacePtr exp_end_;
+    SyntaxTreeInterfacePtr exp_step_;
 };
 
 // for in
-class syntax_tree_for_in final : public syntax_tree_interface {
+class SyntaxTreeForIn final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_for_in(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeForIn(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_for_in() override = default;
+    ~SyntaxTreeForIn() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_for_in;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::ForIn;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_namelist(const syntax_tree_interface_ptr &namelist) {
+    void SetNamelist(const SyntaxTreeInterfacePtr &namelist) {
         namelist_ = namelist;
     }
 
-    void set_explist(const syntax_tree_interface_ptr &explist) {
+    void SetExplist(const SyntaxTreeInterfacePtr &explist) {
         explist_ = explist;
     }
 
-    void set_block(const syntax_tree_interface_ptr &block) {
+    void SetBlock(const SyntaxTreeInterfacePtr &block) {
         block_ = block;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr namelist() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Namelist() const {
         return namelist_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr explist() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Explist() const {
         return explist_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr block() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Block() const {
         return block_;
     }
 
 private:
-    syntax_tree_interface_ptr namelist_;
-    syntax_tree_interface_ptr explist_;
-    syntax_tree_interface_ptr block_;
+    SyntaxTreeInterfacePtr namelist_;
+    SyntaxTreeInterfacePtr explist_;
+    SyntaxTreeInterfacePtr block_;
 };
 
 // name list
-class syntax_tree_namelist final : public syntax_tree_interface {
+class SyntaxTreeNamelist final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_namelist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeNamelist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_namelist() override = default;
+    ~SyntaxTreeNamelist() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_namelist;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::NameList;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void add_name(const std::string &name) {
+    void AddName(const std::string &name) {
         names_.push_back(name);
     }
 
-    void add_attrib(const std::string &attrib) {
+    void AddAttrib(const std::string &attrib) {
         attrib_.push_back(attrib);
     }
 
-    [[nodiscard]] const std::vector<std::string> &names() const {
+    [[nodiscard]] const std::vector<std::string> &Names() const {
         return names_;
     }
 
@@ -905,59 +905,59 @@ private:
 };
 
 // function
-class syntax_tree_function final : public syntax_tree_interface {
+class SyntaxTreeFunction final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_function(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeFunction(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_function() override = default;
+    ~SyntaxTreeFunction() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_function;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Function;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_funcname(const syntax_tree_interface_ptr &funcname) {
+    void SetFuncname(const SyntaxTreeInterfacePtr &funcname) {
         funcname_ = funcname;
     }
 
-    void set_funcbody(const syntax_tree_interface_ptr &funcbody) {
+    void SetFuncbody(const SyntaxTreeInterfacePtr &funcbody) {
         funcbody_ = funcbody;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr funcname() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Funcname() const {
         return funcname_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr funcbody() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Funcbody() const {
         return funcbody_;
     }
 
 private:
-    syntax_tree_interface_ptr funcname_;
-    syntax_tree_interface_ptr funcbody_;
+    SyntaxTreeInterfacePtr funcname_;
+    SyntaxTreeInterfacePtr funcbody_;
 };
 
 // funcnamelist
-class syntax_tree_funcnamelist final : public syntax_tree_interface {
+class SyntaxTreeFuncnamelist final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_funcnamelist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeFuncnamelist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_funcnamelist() override = default;
+    ~SyntaxTreeFuncnamelist() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_funcnamelist;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::FuncNameList;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void add_name(const std::string &funcname) {
+    void AddName(const std::string &funcname) {
         funcnames_.push_back(funcname);
     }
 
-    [[nodiscard]] const std::vector<std::string> &funcnames() const {
+    [[nodiscard]] const std::vector<std::string> &Funcnames() const {
         return funcnames_;
     }
 
@@ -966,287 +966,287 @@ private:
 };
 
 // funcname
-class syntax_tree_funcname final : public syntax_tree_interface {
+class SyntaxTreeFuncname final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_funcname(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeFuncname(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_funcname() override = default;
+    ~SyntaxTreeFuncname() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_funcname;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::FuncName;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_funcnamelist(const syntax_tree_interface_ptr &funcnamelist) {
+    void SetFuncNameList(const SyntaxTreeInterfacePtr &funcnamelist) {
         funcnamelist_ = funcnamelist;
     }
 
-    void set_colon_name(const std::string &name) {
+    void SetColonName(const std::string &name) {
         colon_name_ = name;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr funcnamelist() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr FuncNameList() const {
         return funcnamelist_;
     }
 
-    [[nodiscard]] std::string colon_name() const {
+    [[nodiscard]] std::string ColonName() const {
         return colon_name_;
     }
 
 private:
-    syntax_tree_interface_ptr funcnamelist_;
+    SyntaxTreeInterfacePtr funcnamelist_;
     std::string colon_name_;
 };
 
 // funcbody
-class syntax_tree_funcbody final : public syntax_tree_interface {
+class SyntaxTreeFuncbody final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_funcbody(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeFuncbody(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_funcbody() override = default;
+    ~SyntaxTreeFuncbody() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_funcbody;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::FuncBody;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_parlist(const syntax_tree_interface_ptr &parlist) {
+    void SetParlist(const SyntaxTreeInterfacePtr &parlist) {
         parlist_ = parlist;
     }
 
-    void set_block(const syntax_tree_interface_ptr &block) {
+    void SetBlock(const SyntaxTreeInterfacePtr &block) {
         block_ = block;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr parlist() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Parlist() const {
         return parlist_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr block() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Block() const {
         return block_;
     }
 
 private:
-    syntax_tree_interface_ptr parlist_;
-    syntax_tree_interface_ptr block_;
+    SyntaxTreeInterfacePtr parlist_;
+    SyntaxTreeInterfacePtr block_;
 };
 
 // functiondef
-class syntax_tree_functiondef final : public syntax_tree_interface {
+class SyntaxTreeFunctiondef final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_functiondef(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeFunctiondef(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_functiondef() override = default;
+    ~SyntaxTreeFunctiondef() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_functiondef;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::FunctionDef;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_funcbody(const syntax_tree_interface_ptr &funcbody) {
+    void SetFuncbody(const SyntaxTreeInterfacePtr &funcbody) {
         funcbody_ = funcbody;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr funcbody() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Funcbody() const {
         return funcbody_;
     }
 
 private:
-    syntax_tree_interface_ptr funcbody_;
+    SyntaxTreeInterfacePtr funcbody_;
 };
 
 // parlist
-class syntax_tree_parlist final : public syntax_tree_interface {
+class SyntaxTreeParlist final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_parlist(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeParlist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_parlist() override = default;
+    ~SyntaxTreeParlist() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_parlist;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::ParList;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_namelist(const syntax_tree_interface_ptr &namelist) {
+    void SetNamelist(const SyntaxTreeInterfacePtr &namelist) {
         namelist_ = namelist;
     }
 
-    void set_var_params(bool var_params) {
-        var_params_ = var_params;
+    void SetVarParams(bool VarParams) {
+        var_params_ = VarParams;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr namelist() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Namelist() const {
         return namelist_;
     }
 
-    [[nodiscard]] bool var_params() const {
+    [[nodiscard]] bool VarParams() const {
         return var_params_;
     }
 
 private:
-    syntax_tree_interface_ptr namelist_;
+    SyntaxTreeInterfacePtr namelist_;
     bool var_params_ = false;
 };
 
 // local function
-class syntax_tree_local_function final : public syntax_tree_interface {
+class SyntaxTreeLocalFunction final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_local_function(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeLocalFunction(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_local_function() override = default;
+    ~SyntaxTreeLocalFunction() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_local_function;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::LocalFunction;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_name(const std::string &name) {
+    void SetName(const std::string &name) {
         name_ = name;
     }
 
-    void set_funcbody(const syntax_tree_interface_ptr &funcbody) {
+    void SetFuncbody(const SyntaxTreeInterfacePtr &funcbody) {
         funcbody_ = funcbody;
     }
 
-    [[nodiscard]] std::string name() const {
+    [[nodiscard]] std::string Name() const {
         return name_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr funcbody() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Funcbody() const {
         return funcbody_;
     }
 
 private:
     std::string name_;
-    syntax_tree_interface_ptr funcbody_;
+    SyntaxTreeInterfacePtr funcbody_;
 };
 
 // local var
-class syntax_tree_local_var final : public syntax_tree_interface {
+class SyntaxTreeLocalVar final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_local_var(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeLocalVar(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_local_var() override = default;
+    ~SyntaxTreeLocalVar() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_local_var;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::LocalVar;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_namelist(const syntax_tree_interface_ptr &namelist) {
+    void SetNamelist(const SyntaxTreeInterfacePtr &namelist) {
         namelist_ = namelist;
     }
 
-    void set_explist(const syntax_tree_interface_ptr &explist) {
+    void SetExplist(const SyntaxTreeInterfacePtr &explist) {
         explist_ = explist;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr namelist() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Namelist() const {
         return namelist_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr explist() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Explist() const {
         return explist_;
     }
 
 private:
-    syntax_tree_interface_ptr namelist_;
-    syntax_tree_interface_ptr explist_;
+    SyntaxTreeInterfacePtr namelist_;
+    SyntaxTreeInterfacePtr explist_;
 };
 
 // exp
-class syntax_tree_exp final : public syntax_tree_interface {
+class SyntaxTreeExp final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_exp(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeExp(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_exp() override = default;
+    ~SyntaxTreeExp() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_exp;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Exp;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_type(const std::string &type) {
+    void SetType(const std::string &type) {
         type_ = type;
     }
 
-    void set_value(const std::string &value) {
+    void SetValue(const std::string &value) {
         value_ = value;
     }
 
-    void set_left(const syntax_tree_interface_ptr &left) {
+    void SetLeft(const SyntaxTreeInterfacePtr &left) {
         left_ = left;
     }
 
-    void set_op(const syntax_tree_interface_ptr &op) {
+    void SetOp(const SyntaxTreeInterfacePtr &op) {
         op_ = op;
     }
 
-    void set_right(const syntax_tree_interface_ptr &right) {
+    void SetRight(const SyntaxTreeInterfacePtr &right) {
         right_ = right;
     }
 
-    [[nodiscard]] std::string exp_type() const {
+    [[nodiscard]] std::string ExpType() const {
         return type_;
     }
 
-    [[nodiscard]] std::string exp_value() const {
+    [[nodiscard]] std::string ExpValue() const {
         return value_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr left() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Left() const {
         return left_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr op() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Op() const {
         return op_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr right() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Right() const {
         return right_;
     }
 
 private:
     std::string type_;
     std::string value_;
-    syntax_tree_interface_ptr left_;
-    syntax_tree_interface_ptr op_;
-    syntax_tree_interface_ptr right_;
+    SyntaxTreeInterfacePtr left_;
+    SyntaxTreeInterfacePtr op_;
+    SyntaxTreeInterfacePtr right_;
 };
 
 // binop
-class syntax_tree_binop final : public syntax_tree_interface {
+class SyntaxTreeBinop final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_binop(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeBinop(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_binop() override = default;
+    ~SyntaxTreeBinop() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_binop;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Binop;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_op(const std::string &op) {
+    void SetOp(const std::string &op) {
         op_ = op;
     }
 
-    [[nodiscard]] std::string get_op() const {
+    [[nodiscard]] std::string GetOp() const {
         return op_;
     }
 
@@ -1255,24 +1255,24 @@ private:
 };
 
 // unop
-class syntax_tree_unop final : public syntax_tree_interface {
+class SyntaxTreeUnop final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_unop(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeUnop(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_unop() override = default;
+    ~SyntaxTreeUnop() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_unop;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Unop;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_op(const std::string &op) {
+    void SetOp(const std::string &op) {
         op_ = op;
     }
 
-    [[nodiscard]] std::string get_op() const {
+    [[nodiscard]] std::string GetOp() const {
         return op_;
     }
 
@@ -1281,94 +1281,94 @@ private:
 };
 
 // args
-class syntax_tree_args final : public syntax_tree_interface {
+class SyntaxTreeArgs final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_args(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreeArgs(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_args() override = default;
+    ~SyntaxTreeArgs() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_args;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::Args;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_explist(const syntax_tree_interface_ptr &explist) {
+    void SetExplist(const SyntaxTreeInterfacePtr &explist) {
         explist_ = explist;
     }
 
-    void set_tableconstructor(const syntax_tree_interface_ptr &tableconstructor) {
+    void SetTableconstructor(const SyntaxTreeInterfacePtr &tableconstructor) {
         tableconstructor_ = tableconstructor;
     }
 
-    void set_string(const syntax_tree_interface_ptr &string) {
+    void SetString(const SyntaxTreeInterfacePtr &string) {
         string_ = string;
     }
 
-    void set_type(const std::string &type) {
+    void SetType(const std::string &type) {
         type_ = type;
     }
 
-    [[nodiscard]] std::string get_type() const {
+    [[nodiscard]] std::string GetType() const {
         return type_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr explist() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Explist() const {
         return explist_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr tableconstructor() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr Tableconstructor() const {
         return tableconstructor_;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr string() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr String() const {
         return string_;
     }
 
 private:
-    syntax_tree_interface_ptr explist_;
-    syntax_tree_interface_ptr tableconstructor_;
-    syntax_tree_interface_ptr string_;
+    SyntaxTreeInterfacePtr explist_;
+    SyntaxTreeInterfacePtr tableconstructor_;
+    SyntaxTreeInterfacePtr string_;
     std::string type_;
 };
 
 // prefixexp
-class syntax_tree_prefixexp final : public syntax_tree_interface {
+class SyntaxTreePrefixexp final : public SyntaxTreeInterface {
 public:
-    explicit syntax_tree_prefixexp(const syntax_tree_location &loc) : syntax_tree_interface(loc) {
+    explicit SyntaxTreePrefixexp(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~syntax_tree_prefixexp() override = default;
+    ~SyntaxTreePrefixexp() override = default;
 
-    [[nodiscard]] syntax_tree_type type() const override {
-        return syntax_tree_type::syntax_tree_type_prefixexp;
+    [[nodiscard]] SyntaxTreeType Type() const override {
+        return SyntaxTreeType::PrefixExp;
     }
 
-    [[nodiscard]] std::string dump(int tab) const override;
+    [[nodiscard]] std::string Dump(int tab) const override;
 
-    void set_value(const syntax_tree_interface_ptr &value) {
+    void SetValue(const SyntaxTreeInterfacePtr &value) {
         value_ = value;
     }
 
-    void set_type(const std::string &type) {
+    void SetType(const std::string &type) {
         type_ = type;
     }
 
-    [[nodiscard]] syntax_tree_interface_ptr get_value() const {
+    [[nodiscard]] SyntaxTreeInterfacePtr GetValue() const {
         return value_;
     }
 
-    [[nodiscard]] std::string get_type() const {
+    [[nodiscard]] std::string GetType() const {
         return type_;
     }
 
 private:
-    syntax_tree_interface_ptr value_;
+    SyntaxTreeInterfacePtr value_;
     std::string type_;
 };
 
-typedef std::function<void(const syntax_tree_interface_ptr &)> walk_syntax_tree_func;
-void walk_syntax_tree(const syntax_tree_interface_ptr &node, const walk_syntax_tree_func& func);
+typedef std::function<void(const SyntaxTreeInterfacePtr &)> WalkSyntaxTreeFunc;
+void WalkSyntaxTree(const SyntaxTreeInterfacePtr &node, const WalkSyntaxTreeFunc &func);
 
 }// namespace fakelua

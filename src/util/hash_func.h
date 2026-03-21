@@ -1,18 +1,18 @@
 #pragma once
 
-typedef std::shared_ptr<std::string> str_container_ptr;
+typedef std::shared_ptr<std::string> StrContainerPtr;
 
 namespace std {
 template<>
-struct hash<str_container_ptr> {
-    size_t operator()(const str_container_ptr &k) const noexcept {
+struct hash<StrContainerPtr> {
+    size_t operator()(const StrContainerPtr &k) const noexcept {
         return std::hash<std::string>()(*k);
     }
 };
 
 template<>
-struct equal_to<str_container_ptr> {
-    bool operator()(const str_container_ptr &k1, const str_container_ptr &k2) const {
+struct equal_to<StrContainerPtr> {
+    bool operator()(const StrContainerPtr &k1, const StrContainerPtr &k2) const {
         return *k1 == *k2;
     }
 };
@@ -22,36 +22,36 @@ struct equal_to<str_container_ptr> {
 namespace fakelua {
 
 template<typename K1, typename K2>
-struct my_equal_to {
+struct MyEqualTo {
     bool operator()(const K1 &__x, const K2 &__y) const {
         return __x == __y;
     }
 };
 
 template<>
-struct my_equal_to<std::string, str_container_ptr> {
-    bool operator()(const std::string &k1, const str_container_ptr &k2) const {
+struct MyEqualTo<std::string, StrContainerPtr> {
+    bool operator()(const std::string &k1, const StrContainerPtr &k2) const {
         return k1 == *k2;
     }
 };
 
 template<>
-struct my_equal_to<str_container_ptr, std::string> {
-    bool operator()(const str_container_ptr &k1, const std::string &k2) const {
+struct MyEqualTo<StrContainerPtr, std::string> {
+    bool operator()(const StrContainerPtr &k1, const std::string &k2) const {
         return *k1 == k2;
     }
 };
 
 template<>
-struct my_equal_to<std::string_view, str_container_ptr> {
-    bool operator()(const std::string_view &k1, const str_container_ptr &k2) const {
+struct MyEqualTo<std::string_view, StrContainerPtr> {
+    bool operator()(const std::string_view &k1, const StrContainerPtr &k2) const {
         return k1 == *k2;
     }
 };
 
 template<>
-struct my_equal_to<str_container_ptr, std::string_view> {
-    bool operator()(const str_container_ptr &k1, const std::string_view &k2) const {
+struct MyEqualTo<StrContainerPtr, std::string_view> {
+    bool operator()(const StrContainerPtr &k1, const std::string_view &k2) const {
         return *k1 == k2;
     }
 };

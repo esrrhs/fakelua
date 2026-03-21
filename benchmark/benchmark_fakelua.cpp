@@ -4,20 +4,20 @@
 
 using namespace fakelua;
 
-static void load_fakelua_file(fakelua_state_ptr L, const std::string &file) {
+static void LoadFakeluaFile(FakeluaStatePtr L, const std::string &file) {
     try {
-        L->compile_file(file, {.debug_mode = false});
+        L->CompileFile(file, {.debug_mode = false});
     } catch (...) {
-        L->compile_file("bin/" + file, {.debug_mode = false});
+        L->CompileFile("bin/" + file, {.debug_mode = false});
     }
 }
 
 struct FakeLuaGlobalIni {
     FakeLuaGlobalIni() {
-        L = fakelua_newstate();
-        load_fakelua_file(L, "bench_algo/fibonacci.lua");
+        L = FakeluaNewstate();
+        LoadFakeluaFile(L, "bench_algo/fibonacci.lua");
     }
-    fakelua_state_ptr L;
+    FakeluaStatePtr L;
 };
 
 static FakeLuaGlobalIni fakelua_global_ini;

@@ -20,8 +20,8 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    auto L = fakelua_newstate();
-    L->compile_file(argv[1], {debug_mode: FLAGS_debug});
+    auto L = FakeluaNewstate();
+    L->CompileFile(argv[1], {debug_mode: FLAGS_debug});
 
     int code = 0;
     for (int i = 0; i < FLAGS_repeat; i++) {

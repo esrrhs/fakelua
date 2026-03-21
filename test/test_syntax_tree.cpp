@@ -1,18 +1,18 @@
-#include "compile/compiler.h"
+#include "compile/Compiler.h"
 #include "fakelua.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
 
-TEST(syntax_tree, compile_string) {
-    const auto L = fakelua_newstate();
+TEST(syntax_tree, CompileString) {
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_string(L, "a = 1", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileString(L, "a = 1", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -31,14 +31,14 @@ TEST(syntax_tree, compile_string) {
 }
 
 TEST(syntax_tree, label) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_label.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_label.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -50,14 +50,14 @@ TEST(syntax_tree, label) {
 }
 
 TEST(syntax_tree, assign_simple) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_assign_simple.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_assign_simple.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -76,14 +76,14 @@ TEST(syntax_tree, assign_simple) {
 }
 
 TEST(syntax_tree, assign) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_assign.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_assign.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -145,14 +145,14 @@ TEST(syntax_tree, assign) {
 }
 
 TEST(syntax_tree, function_call) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_function_call.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_function_call.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -217,14 +217,14 @@ TEST(syntax_tree, function_call) {
 }
 
 TEST(syntax_tree, break) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_break.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_break.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -240,14 +240,14 @@ TEST(syntax_tree, break) {
 }
 
 TEST(syntax_tree, continue) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_continue.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_continue.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -281,14 +281,14 @@ TEST(syntax_tree, continue) {
 }
 
 TEST(syntax_tree, do_end) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_do_end.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_do_end.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -325,14 +325,14 @@ TEST(syntax_tree, do_end) {
 }
 
 TEST(syntax_tree, while) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_while.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_while.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -362,14 +362,14 @@ TEST(syntax_tree, while) {
 }
 
 TEST(syntax_tree, repeat) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_repeat.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_repeat.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -419,14 +419,14 @@ TEST(syntax_tree, repeat) {
 }
 
 TEST(syntax_tree, if) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_if.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_if.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -622,14 +622,14 @@ TEST(syntax_tree, if) {
 }
 
 TEST(syntax_tree, string) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_string.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_string.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -703,14 +703,14 @@ TEST(syntax_tree, string) {
 }
 
 TEST(syntax_tree, number) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_number.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_number.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -819,14 +819,14 @@ TEST(syntax_tree, number) {
 }
 
 TEST(syntax_tree, for_num) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_for_num.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_for_num.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -904,14 +904,14 @@ TEST(syntax_tree, for_num) {
 }
 
 TEST(syntax_tree, for_in) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_for_in.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_for_in.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -1019,14 +1019,14 @@ TEST(syntax_tree, for_in) {
 }
 
 TEST(syntax_tree, function) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_function.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_function.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = "(block)[1:1]\n"
@@ -1034,7 +1034,7 @@ TEST(syntax_tree, function) {
                          "    (funcname)[1:10]\n"
                          "      (funcnamelist)[1:10]\n"
                          "        name: func_a\n"
-                         "      colon_name: \n"
+                         "      ColonName: \n"
                          "    (funcbody)[1:16]\n"
                          "      (block)[1:17]\n"
                          "  (function)[4:1]\n"
@@ -1043,14 +1043,14 @@ TEST(syntax_tree, function) {
                          "        name: _G\n"
                          "        name: a\n"
                          "        name: b\n"
-                         "      colon_name: func_b\n"
+                         "      ColonName: func_b\n"
                          "    (funcbody)[4:23]\n"
                          "      (parlist)[4:24]\n"
                          "        (namelist)[4:24]\n"
                          "          name: a\n"
                          "          name: b\n"
                          "          name: c\n"
-                         "        var_params: 1\n"
+                         "        VarParams: 1\n"
                          "      (block)[5:5]\n"
                          "        (return)[5:5]\n"
                          "          (explist)[5:12]\n"
@@ -1092,7 +1092,7 @@ TEST(syntax_tree, function) {
                          "    name: func_c\n"
                          "    (funcbody)[8:22]\n"
                          "      (parlist)[8:23]\n"
-                         "        var_params: 1\n"
+                         "        VarParams: 1\n"
                          "      (block)[9:5]\n"
                          "        (local_var)[9:5]\n"
                          "          (namelist)[9:11]\n"
@@ -1106,7 +1106,7 @@ TEST(syntax_tree, function) {
                          "                  (field)[9:25]\n"
                          "                    type: array\n"
                          "                    (exp)[9:25]\n"
-                         "                      type: var_params\n"
+                         "                      type: VarParams\n"
                          "                      value: \n"
                          "        (for_loop)[10:5]\n"
                          "          name: i\n"
@@ -1160,14 +1160,14 @@ TEST(syntax_tree, function) {
 }
 
 TEST(syntax_tree, var) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_var.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_var.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -1205,14 +1205,14 @@ TEST(syntax_tree, var) {
 }
 
 TEST(syntax_tree, var_attr) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_var_attr.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_var_attr.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -1252,14 +1252,14 @@ TEST(syntax_tree, var_attr) {
 }
 
 TEST(syntax_tree, function_call_args) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_function_call_args.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_function_call_args.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = ""
@@ -1294,14 +1294,14 @@ TEST(syntax_tree, function_call_args) {
 }
 
 TEST(syntax_tree, constructor) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_constructor.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_constructor.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
@@ -1335,14 +1335,14 @@ TEST(syntax_tree, constructor) {
 }
 
 TEST(syntax_tree, function_exp) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_function_exp.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_function_exp.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
@@ -1366,14 +1366,14 @@ TEST(syntax_tree, function_exp) {
 }
 
 TEST(syntax_tree, binop) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_binop.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_binop.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
@@ -1427,14 +1427,14 @@ TEST(syntax_tree, binop) {
 }
 
 TEST(syntax_tree, test_binop_order1) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_binop_order1.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_binop_order1.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
@@ -1473,14 +1473,14 @@ TEST(syntax_tree, test_binop_order1) {
 }
 
 TEST(syntax_tree, test_binop_order2) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_binop_order2.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_binop_order2.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
@@ -1545,14 +1545,14 @@ TEST(syntax_tree, test_binop_order2) {
 }
 
 TEST(syntax_tree, test_binop_order3) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_binop_order3.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_binop_order3.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
@@ -1599,14 +1599,14 @@ TEST(syntax_tree, test_binop_order3) {
 }
 
 TEST(syntax_tree, test_binop_order4) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_binop_order4.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_binop_order4.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = "(block)[2:1]\n"
@@ -1668,14 +1668,14 @@ TEST(syntax_tree, test_binop_order4) {
 }
 
 TEST(syntax_tree, test_binop_order5) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_binop_order5.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_binop_order5.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = "(block)[1:1]\n"
@@ -1711,14 +1711,14 @@ TEST(syntax_tree, test_binop_order5) {
 }
 
 TEST(syntax_tree, test_binop_order6) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_binop_order6.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_binop_order6.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = "(block)[1:1]\n"
@@ -1767,14 +1767,14 @@ TEST(syntax_tree, test_binop_order6) {
 }
 
 TEST(syntax_tree, test_empty) {
-    const auto L = fakelua_newstate();
+    const auto L = FakeluaNewstate();
     ASSERT_NE(L.get(), nullptr);
 
-    compiler c;
-    const auto [file_name, chunk] = c.compile_file(L, "./syntax/test_empty.lua", {true});
+    Compiler c;
+    const auto [file_name, chunk] = c.CompileFile(L, "./syntax/test_empty.lua", {true});
     ASSERT_NE(chunk, nullptr);
 
-    auto dumpstr = chunk->dump(0);
+    auto dumpstr = chunk->Dump(0);
     LOG_INFO("{}", dumpstr);
 
     const auto wantstr = "(block)[1:1]\n"
