@@ -5,9 +5,7 @@
 
 namespace fakelua {
 
-state::state(state_config config) : fakelua_state(config) {
-    LOG_INFO("create state var_stack_size {}", config.max_stack_size);
-    var_stack_.resize(config.max_stack_size);
+state::state(state_config config) : fakelua_state(config), stack_(config) {
 }
 
 void state::compile_file(const std::string &filename, const compile_config &cfg) {
