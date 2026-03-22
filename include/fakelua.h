@@ -192,6 +192,7 @@ class Var;
 struct CVar {
 protected:
     int type_ = 0;
+    int flag_ = 0;
     union cvar_data {
         bool b;
         int64_t i;
@@ -219,7 +220,7 @@ struct StateConfig {
 // every state has its own running environment. there could be many states in one process.
 class FakeluaState : public std::enable_shared_from_this<FakeluaState> {
 public:
-    FakeluaState(StateConfig config = {}) : config_(config) {
+    explicit FakeluaState(StateConfig config = {}) : config_(config) {
     }
 
     virtual ~FakeluaState() = default;
