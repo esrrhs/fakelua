@@ -20,7 +20,7 @@ int main(int argc, char **argv) {
         return 0;
     }
 
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     L->CompileFile(argv[1], {debug_mode: FLAGS_debug});
 
     int code = 0;

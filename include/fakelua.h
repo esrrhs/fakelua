@@ -228,9 +228,9 @@ void CompileFile(State *s, const std::string &filename, const CompileConfig &cfg
 // 编译字符串
 void CompileString(State *s, const std::string &str, const CompileConfig &cfg);
 
-// 调用某个Lua里的函数
-template<typename... Rets, typename... Args>
-void Call(State *s, const std::string &name, std::tuple<Rets &...> &&rets, Args &&...args);
+// 调用某个脚本函数，出于性能考虑，不支持变参，也只允许返回一个值，多返回值可使用Table来实现
+template<typename Ret, typename... Args>
+void Call(State *s, const std::string_view &name, Ret &ret, Args &&...args);
 
 // 设置 VarInterface 构造实例函数
 void SetVarInterfaceNewFunc(State *s, const std::function<VarInterface *()> &func);
@@ -416,35 +416,55 @@ T FakeluaToNative(State *s, const CVar v) {
     }
 }
 
-template<size_t I = 0, typename... Rets>
-inline std::enable_if_t<I == sizeof...(Rets), void> FakeluaFuncRetHelper(State *s, CVar *ret, std::tuple<Rets &...> &rets) {
-}
+void *GetFuncAddr(State *s, const std::string_view &name, int &arg_count);
 
-template<size_t I = 0, typename... Rets>
-        inline std::enable_if_t < I<sizeof...(Rets), void> FakeluaFuncRetHelper(State *s, CVar *ret, std::tuple<Rets &...> &rets) {
-    typedef std::remove_reference_t<std::tuple_element_t<I, std::tuple<Rets &...>>> t;
-    std::get<I>(rets) = FakeluaToNative<t>(s, ret[I]);
-    FakeluaFuncRetHelper<I + 1, Rets...>(s, ret, rets);
-}
+[[noreturn]] void ThrowInterFakeluaException(const std::string &msg);
 
-void Call(State *s, const std::string &name, CVar *args, size_t arg_size, CVar *rets, size_t ret_size);
+int GetReentrantCount(State *s);
+
+void AddReentrantCount(State *s);
+
+void SubReentrantCount(State *s);
+
+void Reset(State *s);
+
+class ReentryCounter {
+public:
+    explicit ReentryCounter(State *s) : s_(s) {
+        AddReentrantCount(s_);
+    }
+
+    ~ReentryCounter() {
+        SubReentrantCount(s_);
+    }
+
+private:
+    State *s_;
+};
 
 }// namespace inter
 
 // 调用函数
-template<typename... Rets, typename... Args>
-void Call(State *s, const std::string &name, std::tuple<Rets &...> &&rets, Args &&...args) {
-    // 将参数传输到变量数组
-    CVar args_array[sizeof...(Args)] = {inter::NativeToFakelua(s, std::forward<Args>(args))...};
+template<typename Ret, typename... Args>
+void Call(State *s, const std::string_view &name, Ret &ret, Args &&...args) {
+    int arg_count = 0;
+    const auto addr = inter::GetFuncAddr(s, name, arg_count);
+    if (!addr) {
+        inter::ThrowInterFakeluaException(std::format("function {} not found", name));
+    }
 
-    // 在栈中分配变量
-    CVar rets_array[sizeof...(Rets)] = {};
+    if (sizeof...(Args) != static_cast<size_t>(arg_count)) {
+        inter::ThrowInterFakeluaException(std::format("function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
+    }
 
-    // 调用函数
-    inter::Call(s, name, args_array, sizeof...(Args), rets_array, sizeof...(Rets));
+    if (const auto reentrant_count = inter::GetReentrantCount(s); !reentrant_count) {
+        inter::Reset(s);
+    }
+    inter::ReentryCounter rc(s);
 
-    // 将变量传输到返回值
-    inter::FakeluaFuncRetHelper(s, rets_array, rets);
+    const CVar ret_var = reinterpret_cast<CVar (*)(...)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+
+    ret = inter::FakeluaToNative<Ret>(s, ret_var);
 }
 
 }// namespace fakelua

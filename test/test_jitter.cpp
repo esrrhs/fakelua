@@ -87,7 +87,7 @@ static void JitterRunHelper(const std::function<void(bool)> &f) {
 
 TEST(jitter, empty_file) {
     JitterRunHelper([](bool debug_mode) {
-        const auto L = FakeluaNewstate();
+        const auto L = FakeluaNewState();
         ASSERT_NE(L.get(), nullptr);
 
         L->CompileFile("./jit/test_empty_file.lua", {.debug_mode = debug_mode});
@@ -96,7 +96,7 @@ TEST(jitter, empty_file) {
 
 TEST(jitter, empty_func) {
     JitterRunHelper([](bool debug_mode) {
-        const auto L = FakeluaNewstate();
+        const auto L = FakeluaNewState();
         ASSERT_NE(L.get(), nullptr);
 
         L->CompileFile("./jit/test_empty_func.lua", {.debug_mode = debug_mode});
@@ -109,7 +109,7 @@ TEST(jitter, empty_func) {
 
 TEST(jitter, empty_local_func) {
     JitterRunHelper([](bool debug_mode) {
-        const auto L = FakeluaNewstate();
+        const auto L = FakeluaNewState();
         ASSERT_NE(L.get(), nullptr);
 
         CVar ret;
@@ -122,7 +122,7 @@ TEST(jitter, empty_local_func) {
 
 TEST(jitter, multi_return) {
     JitterRunHelper([](bool debug_mode) {
-        const auto L = FakeluaNewstate();
+        const auto L = FakeluaNewState();
         ASSERT_NE(L.get(), nullptr);
 
         int i = 0;
@@ -141,7 +141,7 @@ TEST(jitter, multi_return) {
 }
 
 TEST(jitter, multi_return_call) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     std::string s;
@@ -164,7 +164,7 @@ TEST(jitter, multi_return_call) {
 }
 
 TEST(jitter, multi_return_call_ex) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     std::string s;
@@ -187,7 +187,7 @@ TEST(jitter, multi_return_call_ex) {
 }
 
 TEST(jitter, multi_return_sub) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     std::string s;
@@ -210,7 +210,7 @@ TEST(jitter, multi_return_sub) {
 }
 
 TEST(jitter, multi_return_multi) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int i1 = 0;
@@ -241,7 +241,7 @@ TEST(jitter, multi_return_multi) {
 }
 
 TEST(jitter, multi_return_multi_ex) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int i1 = 0;
@@ -268,7 +268,7 @@ TEST(jitter, multi_return_multi_ex) {
 }
 
 TEST(jitter, multi_name) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret = 0;
@@ -283,7 +283,7 @@ TEST(jitter, multi_name) {
 }
 
 TEST(jitter, multi_col_name) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret = 0;
@@ -298,7 +298,7 @@ TEST(jitter, multi_col_name) {
 }
 
 TEST(jitter, const_define) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int i = 0;
@@ -313,7 +313,7 @@ TEST(jitter, const_define) {
 }
 
 TEST(jitter, multi_const_define) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     CVar ret0 = {};
@@ -348,7 +348,7 @@ TEST(jitter, multi_const_define) {
 }
 
 TEST(jitter, empty_func_with_params) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -375,7 +375,7 @@ TEST(jitter, empty_func_with_params) {
 }
 
 TEST(jitter, variadic_func) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -402,7 +402,7 @@ TEST(jitter, variadic_func) {
 }
 
 TEST(jitter, variadic_func_with_params) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     std::string ret1;
@@ -425,7 +425,7 @@ TEST(jitter, variadic_func_with_params) {
 }
 
 TEST(jitter, variadic_func_multi_type) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     char in1 = 1, out1 = 0;
@@ -502,7 +502,7 @@ TEST(jitter, variadic_func_multi_type) {
 }
 
 TEST(jitter, variadic_func_vi) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     std::vector<VarInterface *> tmp;
@@ -593,7 +593,7 @@ TEST(jitter, variadic_func_vi) {
 }
 
 TEST(jitter, variadic_func_with_empty) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     L->CompileFile("./jit/test_variadic_func.lua", {});
@@ -604,7 +604,7 @@ TEST(jitter, variadic_func_with_empty) {
 }
 
 TEST(jitter, variadic_func_vi_array) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     std::vector<VarInterface *> tmp;
@@ -671,7 +671,7 @@ TEST(jitter, variadic_func_vi_array) {
 }
 
 TEST(jitter, variadic_func_vi_nil) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     std::vector<VarInterface *> tmp;
@@ -706,7 +706,7 @@ TEST(jitter, variadic_func_vi_nil) {
 }
 
 TEST(jitter, string) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret = 0;
@@ -720,7 +720,7 @@ TEST(jitter, string) {
 }
 
 TEST(jitter, local_define) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     CVar a;
@@ -743,7 +743,7 @@ TEST(jitter, local_define) {
 }
 
 TEST(jitter, local_define_with_values) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     CVar a = {};
@@ -787,7 +787,7 @@ TEST(jitter, local_define_with_values) {
 }
 
 TEST(jitter, test_assign) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -806,7 +806,7 @@ TEST(jitter, test_assign) {
 }
 
 TEST(jitter, test_assign_not_match) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -831,7 +831,7 @@ TEST(jitter, test_assign_not_match) {
 }
 
 TEST(jitter, test_assign_variadic_match) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     std::string a;
@@ -850,7 +850,7 @@ TEST(jitter, test_assign_variadic_match) {
 }
 
 TEST(jitter, test_assign_variadic_no_match) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -869,7 +869,7 @@ TEST(jitter, test_assign_variadic_no_match) {
 }
 
 TEST(jitter, test_assign_variadic_empty) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -889,7 +889,7 @@ TEST(jitter, test_assign_variadic_empty) {
 }
 
 TEST(jitter, test_const_table) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
@@ -947,7 +947,7 @@ TEST(jitter, test_const_table) {
 }
 
 TEST(jitter, test_const_nested_table) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
@@ -985,7 +985,7 @@ TEST(jitter, test_const_nested_table) {
 }
 
 TEST(jitter, test_local_table) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
@@ -1043,7 +1043,7 @@ TEST(jitter, test_local_table) {
 }
 
 TEST(jitter, test_local_nested_table) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
@@ -1081,7 +1081,7 @@ TEST(jitter, test_local_nested_table) {
 }
 
 TEST(jitter, test_local_table_with_variadic) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
@@ -1117,7 +1117,7 @@ TEST(jitter, test_local_table_with_variadic) {
 }
 
 TEST(jitter, test_local_table_with_variadic_no_end) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
@@ -1153,7 +1153,7 @@ TEST(jitter, test_local_table_with_variadic_no_end) {
 }
 
 TEST(jitter, test_local_table_with_variadic_no_end_replace) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
@@ -1189,14 +1189,14 @@ TEST(jitter, test_local_table_with_variadic_no_end_replace) {
 }
 
 TEST(jitter, compile_empty_string) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     L->CompileString("", {});
 }
 
 TEST(jitter, test_assign_simple_var) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -1215,7 +1215,7 @@ TEST(jitter, test_assign_simple_var) {
 }
 
 TEST(jitter, test_const_define_simple_var) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -1237,7 +1237,7 @@ TEST(jitter, test_const_define_simple_var) {
 }
 
 TEST(jitter, test_binop_plus) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1256,7 +1256,7 @@ TEST(jitter, test_binop_plus) {
 }
 
 TEST(jitter, test_const_binop_plus) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1275,7 +1275,7 @@ TEST(jitter, test_const_binop_plus) {
 }
 
 TEST(jitter, test_binop_minus) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1294,7 +1294,7 @@ TEST(jitter, test_binop_minus) {
 }
 
 TEST(jitter, test_const_binop_minus) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1313,7 +1313,7 @@ TEST(jitter, test_const_binop_minus) {
 }
 
 TEST(jitter, test_binop_star) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1332,7 +1332,7 @@ TEST(jitter, test_binop_star) {
 }
 
 TEST(jitter, test_const_binop_star) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     double ret1 = 0;
@@ -1351,7 +1351,7 @@ TEST(jitter, test_const_binop_star) {
 }
 
 TEST(jitter, test_empty_return) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     CVar ret = {};
@@ -1367,7 +1367,7 @@ TEST(jitter, test_empty_return) {
 }
 
 TEST(jitter, test_empty_func_no_return) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     CVar ret = {};
@@ -1383,7 +1383,7 @@ TEST(jitter, test_empty_func_no_return) {
 }
 
 TEST(jitter, test_binop_slash) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     double ret1 = 0;
@@ -1402,7 +1402,7 @@ TEST(jitter, test_binop_slash) {
 }
 
 TEST(jitter, test_const_binop_slash) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     double ret1 = 0;
@@ -1421,7 +1421,7 @@ TEST(jitter, test_const_binop_slash) {
 }
 
 TEST(jitter, test_binop_double_slash) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1440,7 +1440,7 @@ TEST(jitter, test_binop_double_slash) {
 }
 
 TEST(jitter, test_const_binop_double_slash) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     double ret1 = 0;
@@ -1459,7 +1459,7 @@ TEST(jitter, test_const_binop_double_slash) {
 }
 
 TEST(jitter, test_binop_pow) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1478,7 +1478,7 @@ TEST(jitter, test_binop_pow) {
 }
 
 TEST(jitter, test_const_binop_pow) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1497,7 +1497,7 @@ TEST(jitter, test_const_binop_pow) {
 }
 
 TEST(jitter, test_binop_mod) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1516,7 +1516,7 @@ TEST(jitter, test_binop_mod) {
 }
 
 TEST(jitter, test_const_binop_mod) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1535,7 +1535,7 @@ TEST(jitter, test_const_binop_mod) {
 }
 
 TEST(jitter, test_binop_bitand) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1554,7 +1554,7 @@ TEST(jitter, test_binop_bitand) {
 }
 
 TEST(jitter, test_const_binop_bitand) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1573,7 +1573,7 @@ TEST(jitter, test_const_binop_bitand) {
 }
 
 TEST(jitter, test_binop_xor) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1592,7 +1592,7 @@ TEST(jitter, test_binop_xor) {
 }
 
 TEST(jitter, test_const_binop_xor) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1611,7 +1611,7 @@ TEST(jitter, test_const_binop_xor) {
 }
 
 TEST(jitter, test_binop_bitor) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1630,7 +1630,7 @@ TEST(jitter, test_binop_bitor) {
 }
 
 TEST(jitter, test_const_binop_bitor) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1649,7 +1649,7 @@ TEST(jitter, test_const_binop_bitor) {
 }
 
 TEST(jitter, test_binop_right_shift) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1668,7 +1668,7 @@ TEST(jitter, test_binop_right_shift) {
 }
 
 TEST(jitter, test_const_binop_right_shift) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1687,7 +1687,7 @@ TEST(jitter, test_const_binop_right_shift) {
 }
 
 TEST(jitter, test_binop_left_shift) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1706,7 +1706,7 @@ TEST(jitter, test_binop_left_shift) {
 }
 
 TEST(jitter, test_const_binop_left_shift) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -1725,7 +1725,7 @@ TEST(jitter, test_const_binop_left_shift) {
 }
 
 TEST(jitter, test_binop_concat) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     std::string ret;
@@ -1740,7 +1740,7 @@ TEST(jitter, test_binop_concat) {
 }
 
 TEST(jitter, test_const_binop_concat) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     std::string ret;
@@ -1755,7 +1755,7 @@ TEST(jitter, test_const_binop_concat) {
 }
 
 TEST(jitter, test_binop_less) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -1774,7 +1774,7 @@ TEST(jitter, test_binop_less) {
 }
 
 TEST(jitter, test_const_binop_less) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -1793,7 +1793,7 @@ TEST(jitter, test_const_binop_less) {
 }
 
 TEST(jitter, test_binop_less_equal) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -1812,7 +1812,7 @@ TEST(jitter, test_binop_less_equal) {
 }
 
 TEST(jitter, test_const_binop_less_equal) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -1831,7 +1831,7 @@ TEST(jitter, test_const_binop_less_equal) {
 }
 
 TEST(jitter, test_binop_more) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -1850,7 +1850,7 @@ TEST(jitter, test_binop_more) {
 }
 
 TEST(jitter, test_const_binop_more) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -1869,7 +1869,7 @@ TEST(jitter, test_const_binop_more) {
 }
 
 TEST(jitter, test_binop_more_equal) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -1888,7 +1888,7 @@ TEST(jitter, test_binop_more_equal) {
 }
 
 TEST(jitter, test_const_binop_more_equal) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -1907,7 +1907,7 @@ TEST(jitter, test_const_binop_more_equal) {
 }
 
 TEST(jitter, test_binop_equal) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -1926,7 +1926,7 @@ TEST(jitter, test_binop_equal) {
 }
 
 TEST(jitter, test_const_binop_equal) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -1945,7 +1945,7 @@ TEST(jitter, test_const_binop_equal) {
 }
 
 TEST(jitter, test_binop_not_equal) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -1964,7 +1964,7 @@ TEST(jitter, test_binop_not_equal) {
 }
 
 TEST(jitter, test_const_binop_not_equal) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -1983,7 +1983,7 @@ TEST(jitter, test_const_binop_not_equal) {
 }
 
 TEST(jitter, test_binop_and) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     float ret1 = 0;
@@ -2003,7 +2003,7 @@ TEST(jitter, test_binop_and) {
 }
 
 TEST(jitter, test_binop_and_bool) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -2022,7 +2022,7 @@ TEST(jitter, test_binop_and_bool) {
 }
 
 TEST(jitter, test_binop_and_or) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -2041,7 +2041,7 @@ TEST(jitter, test_binop_and_or) {
 }
 
 TEST(jitter, test_const_binop_and) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -2063,7 +2063,7 @@ TEST(jitter, test_const_binop_and) {
 }
 
 TEST(jitter, test_binop_or) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -2082,7 +2082,7 @@ TEST(jitter, test_binop_or) {
 }
 
 TEST(jitter, test_const_binop_or) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -2101,7 +2101,7 @@ TEST(jitter, test_const_binop_or) {
 }
 
 TEST(jitter, test_unop_minus) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     float ret = 0;
@@ -2116,7 +2116,7 @@ TEST(jitter, test_unop_minus) {
 }
 
 TEST(jitter, test_const_unop_minus) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret = 0;
@@ -2131,7 +2131,7 @@ TEST(jitter, test_const_unop_minus) {
 }
 
 TEST(jitter, test_unop_not) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -2150,7 +2150,7 @@ TEST(jitter, test_unop_not) {
 }
 
 TEST(jitter, test_const_unop_not) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret1 = false;
@@ -2169,7 +2169,7 @@ TEST(jitter, test_const_unop_not) {
 }
 
 TEST(jitter, test_unop_len) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -2188,7 +2188,7 @@ TEST(jitter, test_unop_len) {
 }
 
 TEST(jitter, test_const_unop_len) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -2207,7 +2207,7 @@ TEST(jitter, test_const_unop_len) {
 }
 
 TEST(jitter, test_unop_bitnot) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -2226,7 +2226,7 @@ TEST(jitter, test_unop_bitnot) {
 }
 
 TEST(jitter, test_const_unop_bitnot) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret1 = 0;
@@ -2245,7 +2245,7 @@ TEST(jitter, test_const_unop_bitnot) {
 }
 
 TEST(jitter, test_local_func_call) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret = false;
@@ -2264,7 +2264,7 @@ TEST(jitter, test_local_func_call) {
 }
 
 TEST(jitter, test_global_func_call) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret = false;
@@ -2279,7 +2279,7 @@ TEST(jitter, test_global_func_call) {
 }
 
 TEST(jitter, test_assign_table_var) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2294,7 +2294,7 @@ TEST(jitter, test_assign_table_var) {
 }
 
 TEST(jitter, test_do_block) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2313,7 +2313,7 @@ TEST(jitter, test_do_block) {
 }
 
 TEST(jitter, test_while) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2332,7 +2332,7 @@ TEST(jitter, test_while) {
 }
 
 TEST(jitter, test_repeat) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2351,7 +2351,7 @@ TEST(jitter, test_repeat) {
 }
 
 TEST(jitter, test_while_double) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2366,7 +2366,7 @@ TEST(jitter, test_while_double) {
 }
 
 TEST(jitter, test_repeat_double) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2381,7 +2381,7 @@ TEST(jitter, test_repeat_double) {
 }
 
 TEST(jitter, test_if) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2408,7 +2408,7 @@ TEST(jitter, test_if) {
 }
 
 TEST(jitter, test_if_simple) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2427,7 +2427,7 @@ TEST(jitter, test_if_simple) {
 }
 
 TEST(jitter, test_if_elseif) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2458,7 +2458,7 @@ TEST(jitter, test_if_elseif) {
 }
 
 TEST(jitter, test_if_elseif_normal) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2489,7 +2489,7 @@ TEST(jitter, test_if_elseif_normal) {
 }
 
 TEST(jitter, test_if_elseif_return) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2520,7 +2520,7 @@ TEST(jitter, test_if_elseif_return) {
 }
 
 TEST(jitter, test_if_else) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2539,7 +2539,7 @@ TEST(jitter, test_if_else) {
 }
 
 TEST(jitter, test_while_return) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2558,7 +2558,7 @@ TEST(jitter, test_while_return) {
 }
 
 TEST(jitter, test_repeat_return) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2573,7 +2573,7 @@ TEST(jitter, test_repeat_return) {
 }
 
 TEST(jitter, test_while_break) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2588,7 +2588,7 @@ TEST(jitter, test_while_break) {
 }
 
 TEST(jitter, test_repeat_break) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2603,7 +2603,7 @@ TEST(jitter, test_repeat_break) {
 }
 
 TEST(jitter, test_while_if_return) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2622,7 +2622,7 @@ TEST(jitter, test_while_if_return) {
 }
 
 TEST(jitter, test_repeat_if_return) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2641,7 +2641,7 @@ TEST(jitter, test_repeat_if_return) {
 }
 
 TEST(jitter, test_for_loop) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2656,7 +2656,7 @@ TEST(jitter, test_for_loop) {
 }
 
 TEST(jitter, test_for_loop_default) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2671,7 +2671,7 @@ TEST(jitter, test_for_loop_default) {
 }
 
 TEST(jitter, test_for_loop_return) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2690,7 +2690,7 @@ TEST(jitter, test_for_loop_return) {
 }
 
 TEST(jitter, test_while_just_break) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2709,7 +2709,7 @@ TEST(jitter, test_while_just_break) {
 }
 
 TEST(jitter, test_repeat_just_break) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2728,7 +2728,7 @@ TEST(jitter, test_repeat_just_break) {
 }
 
 TEST(jitter, test_for_loop_double) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2743,7 +2743,7 @@ TEST(jitter, test_for_loop_double) {
 }
 
 TEST(jitter, test_for_loop_break) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2758,7 +2758,7 @@ TEST(jitter, test_for_loop_break) {
 }
 
 TEST(jitter, test_for_loop_if_return) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2777,7 +2777,7 @@ TEST(jitter, test_for_loop_if_return) {
 }
 
 TEST(jitter, test_for_loop_just_break) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2796,7 +2796,7 @@ TEST(jitter, test_for_loop_just_break) {
 }
 
 TEST(jitter, test_for_in) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2811,7 +2811,7 @@ TEST(jitter, test_for_in) {
 }
 
 TEST(jitter, test_for_in_double) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2826,7 +2826,7 @@ TEST(jitter, test_for_in_double) {
 }
 
 TEST(jitter, test_for_in_break) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2841,7 +2841,7 @@ TEST(jitter, test_for_in_break) {
 }
 
 TEST(jitter, test_for_in_if_return) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2860,7 +2860,7 @@ TEST(jitter, test_for_in_if_return) {
 }
 
 TEST(jitter, test_for_in_just_break) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2875,7 +2875,7 @@ TEST(jitter, test_for_in_just_break) {
 }
 
 TEST(jitter, test_for_in_return) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2890,7 +2890,7 @@ TEST(jitter, test_for_in_return) {
 }
 
 TEST(jitter, test_for_in_return_fallback) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int a = 0;
@@ -2905,7 +2905,7 @@ TEST(jitter, test_for_in_return_fallback) {
 }
 
 TEST(jitter, test_local_func_call_table_construct) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret = false;
@@ -2924,7 +2924,7 @@ TEST(jitter, test_local_func_call_table_construct) {
 }
 
 TEST(jitter, test_local_func_call_string) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     std::string ret;
@@ -2939,7 +2939,7 @@ TEST(jitter, test_local_func_call_string) {
 }
 
 TEST(jitter, test_var_func_call) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret = false;
@@ -2958,7 +2958,7 @@ TEST(jitter, test_var_func_call) {
 }
 
 TEST(jitter, test_table_var_func_call) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     bool ret = false;
@@ -2977,7 +2977,7 @@ TEST(jitter, test_table_var_func_call) {
 }
 
 TEST(jitter, test_empty_func_call) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret = 0;
@@ -2992,7 +2992,7 @@ TEST(jitter, test_empty_func_call) {
 }
 
 TEST(jitter, test_table_get_set) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int ret = 0;

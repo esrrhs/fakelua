@@ -1,35 +1,34 @@
 #pragma once
 
+#include "const_string.h"
 #include "fakelua.h"
+#include "heap.h"
 #include "jit/Vm.h"
 #include "stack.h"
-#include "const_string.h"
-#include "heap.h"
 #include "var_table_heap.h"
 
 namespace fakelua {
 
-// the state contains the running environment we need.
-class State final : public FakeluaState {
+// 单个运行实例
+class State {
 public:
-    State(StateConfig config = {});
+    explicit State(StateConfig config = {});
 
-    ~State() override = default;
+    ~State() = default;
 
-    void CompileFile(const std::string &filename, const CompileConfig &cfg) override;
+    void CompileFile(const std::string &filename, const CompileConfig &cfg);
 
-    void CompileString(const std::string &str, const CompileConfig &cfg) override;
+    void CompileString(const std::string &str, const CompileConfig &cfg);
 
-    // call before running. this will reset the state. just for speed.
-    void reset() {
+    void Reset() {
         DEBUG_ASSERT(reentrant_count_ == 0);
-        var_string_heap_.reset();
+        heap_.Reset();
         var_table_heap_.reset();
         stack_.reset();
     }
 
-    Heap &get_var_string_heap() {
-        return var_string_heap_;
+    Heap &GetHeap() {
+        return heap_;
     }
 
     VarTableHeap &get_var_table_heap() {
@@ -40,16 +39,36 @@ public:
         return vm_;
     }
 
-    int &get_reentrant_count() {
+    int GetReentrantCount() const {
         return reentrant_count_;
+    }
+
+    void AddReentrantCount() {
+        ++reentrant_count_;
+    }
+
+    void SubReentrantCount() {
+        --reentrant_count_;
     }
 
     stack &get_stack() {
         return stack_;
     }
 
+    void SetVarInterfaceNewFunc(const std::function<VarInterface *()> &func) {
+        DEBUG_ASSERT(func != nullptr);
+        var_interface_new_func_ = func;
+    }
+
+    std::function<VarInterface *()> &GetVarInterfaceNewFunc() {
+        return var_interface_new_func_;
+    }
+
 private:
-    VarStringHeap var_string_heap_;
+    std::function<VarInterface *()> var_interface_new_func_;
+    StateConfig config_;
+    Heap heap_;
+    ConstString const_string_;
     VarTableHeap var_table_heap_;
     Vm vm_;
     int reentrant_count_ = 0;// used to reset

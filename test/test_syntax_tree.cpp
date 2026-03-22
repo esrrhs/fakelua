@@ -5,7 +5,7 @@
 using namespace fakelua;
 
 TEST(syntax_tree, CompileString) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -31,7 +31,7 @@ TEST(syntax_tree, CompileString) {
 }
 
 TEST(syntax_tree, label) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -50,7 +50,7 @@ TEST(syntax_tree, label) {
 }
 
 TEST(syntax_tree, assign_simple) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -76,7 +76,7 @@ TEST(syntax_tree, assign_simple) {
 }
 
 TEST(syntax_tree, assign) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -145,7 +145,7 @@ TEST(syntax_tree, assign) {
 }
 
 TEST(syntax_tree, function_call) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -217,7 +217,7 @@ TEST(syntax_tree, function_call) {
 }
 
 TEST(syntax_tree, break) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -240,7 +240,7 @@ TEST(syntax_tree, break) {
 }
 
 TEST(syntax_tree, continue) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -281,7 +281,7 @@ TEST(syntax_tree, continue) {
 }
 
 TEST(syntax_tree, do_end) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -325,7 +325,7 @@ TEST(syntax_tree, do_end) {
 }
 
 TEST(syntax_tree, while) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -362,7 +362,7 @@ TEST(syntax_tree, while) {
 }
 
 TEST(syntax_tree, repeat) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -419,7 +419,7 @@ TEST(syntax_tree, repeat) {
 }
 
 TEST(syntax_tree, if) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -622,7 +622,7 @@ TEST(syntax_tree, if) {
 }
 
 TEST(syntax_tree, string) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -703,7 +703,7 @@ TEST(syntax_tree, string) {
 }
 
 TEST(syntax_tree, number) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -819,7 +819,7 @@ TEST(syntax_tree, number) {
 }
 
 TEST(syntax_tree, for_num) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -904,7 +904,7 @@ TEST(syntax_tree, for_num) {
 }
 
 TEST(syntax_tree, for_in) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1019,7 +1019,7 @@ TEST(syntax_tree, for_in) {
 }
 
 TEST(syntax_tree, function) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1160,7 +1160,7 @@ TEST(syntax_tree, function) {
 }
 
 TEST(syntax_tree, var) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1205,7 +1205,7 @@ TEST(syntax_tree, var) {
 }
 
 TEST(syntax_tree, var_attr) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1252,7 +1252,7 @@ TEST(syntax_tree, var_attr) {
 }
 
 TEST(syntax_tree, function_call_args) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1294,7 +1294,7 @@ TEST(syntax_tree, function_call_args) {
 }
 
 TEST(syntax_tree, constructor) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1335,7 +1335,7 @@ TEST(syntax_tree, constructor) {
 }
 
 TEST(syntax_tree, function_exp) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1366,7 +1366,7 @@ TEST(syntax_tree, function_exp) {
 }
 
 TEST(syntax_tree, binop) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1427,7 +1427,7 @@ TEST(syntax_tree, binop) {
 }
 
 TEST(syntax_tree, test_binop_order1) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1473,7 +1473,7 @@ TEST(syntax_tree, test_binop_order1) {
 }
 
 TEST(syntax_tree, test_binop_order2) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1545,7 +1545,7 @@ TEST(syntax_tree, test_binop_order2) {
 }
 
 TEST(syntax_tree, test_binop_order3) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1599,7 +1599,7 @@ TEST(syntax_tree, test_binop_order3) {
 }
 
 TEST(syntax_tree, test_binop_order4) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1668,7 +1668,7 @@ TEST(syntax_tree, test_binop_order4) {
 }
 
 TEST(syntax_tree, test_binop_order5) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1711,7 +1711,7 @@ TEST(syntax_tree, test_binop_order5) {
 }
 
 TEST(syntax_tree, test_binop_order6) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;
@@ -1767,7 +1767,7 @@ TEST(syntax_tree, test_binop_order6) {
 }
 
 TEST(syntax_tree, test_empty) {
-    const auto L = FakeluaNewstate();
+    const auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     Compiler c;

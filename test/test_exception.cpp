@@ -5,7 +5,7 @@
 using namespace fakelua;
 
 TEST(exception, function_param_duplicate) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -19,7 +19,7 @@ TEST(exception, function_param_duplicate) {
 }
 
 TEST(exception, function_param_local_duplicate) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -33,7 +33,7 @@ TEST(exception, function_param_local_duplicate) {
 }
 
 TEST(exception, local_define_duplicate) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -47,7 +47,7 @@ TEST(exception, local_define_duplicate) {
 }
 
 TEST(exception, const_define_duplicate) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -61,7 +61,7 @@ TEST(exception, const_define_duplicate) {
 }
 
 TEST(exception, const_define_func_param_duplicate) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -75,7 +75,7 @@ TEST(exception, const_define_func_param_duplicate) {
 }
 
 TEST(exception, const_define_no_match) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -89,7 +89,7 @@ TEST(exception, const_define_no_match) {
 }
 
 TEST(exception, const_define_no_value) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -103,7 +103,7 @@ TEST(exception, const_define_no_value) {
 }
 
 TEST(exception, function_call_exception) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -127,7 +127,7 @@ TEST(exception, function_call_exception) {
 }
 
 TEST(exception, variadic_function_call_exception) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -143,7 +143,7 @@ TEST(exception, variadic_function_call_exception) {
 }
 
 TEST(exception, compile_fail) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -157,7 +157,7 @@ TEST(exception, compile_fail) {
 }
 
 TEST(exception, compile_no_file) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -210,7 +210,7 @@ TEST(exception, ReplaceEscapeChars) {
 }
 
 TEST(exception, return_type_error_bool) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -226,7 +226,7 @@ TEST(exception, return_type_error_bool) {
 }
 
 TEST(exception, return_type_error_char) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -242,7 +242,7 @@ TEST(exception, return_type_error_char) {
 }
 
 TEST(exception, return_type_error_uchar) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -258,7 +258,7 @@ TEST(exception, return_type_error_uchar) {
 }
 
 TEST(exception, return_type_error_short) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -274,7 +274,7 @@ TEST(exception, return_type_error_short) {
 }
 
 TEST(exception, return_type_error_ushort) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -290,7 +290,7 @@ TEST(exception, return_type_error_ushort) {
 }
 
 TEST(exception, return_type_error_int) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -306,7 +306,7 @@ TEST(exception, return_type_error_int) {
 }
 
 TEST(exception, return_type_error_uint) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -322,7 +322,7 @@ TEST(exception, return_type_error_uint) {
 }
 
 TEST(exception, return_type_error_long) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -338,7 +338,7 @@ TEST(exception, return_type_error_long) {
 }
 
 TEST(exception, return_type_error_ulong) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -354,7 +354,7 @@ TEST(exception, return_type_error_ulong) {
 }
 
 TEST(exception, return_type_error_long_long) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -370,7 +370,7 @@ TEST(exception, return_type_error_long_long) {
 }
 
 TEST(exception, return_type_error_ulong_long) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -386,7 +386,7 @@ TEST(exception, return_type_error_ulong_long) {
 }
 
 TEST(exception, return_type_error_float) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -402,7 +402,7 @@ TEST(exception, return_type_error_float) {
 }
 
 TEST(exception, return_type_error_double) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -418,7 +418,7 @@ TEST(exception, return_type_error_double) {
 }
 
 TEST(exception, return_type_error_cstr) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -434,7 +434,7 @@ TEST(exception, return_type_error_cstr) {
 }
 
 TEST(exception, return_type_error_str) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -450,7 +450,7 @@ TEST(exception, return_type_error_str) {
 }
 
 TEST(exception, return_type_error_string) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -466,7 +466,7 @@ TEST(exception, return_type_error_string) {
 }
 
 TEST(exception, return_type_error_stringview) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -482,7 +482,7 @@ TEST(exception, return_type_error_stringview) {
 }
 
 TEST(exception, return_index_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
     L->CompileFile("./exception/test_return_type_error.lua", {});
@@ -499,7 +499,7 @@ TEST(exception, return_index_error) {
 }
 
 TEST(exception, const_define_variadic) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -513,7 +513,7 @@ TEST(exception, const_define_variadic) {
 }
 
 TEST(exception, test_binop_plus_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -528,7 +528,7 @@ TEST(exception, test_binop_plus_error) {
 }
 
 TEST(exception, test_const_binop_plus_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -542,7 +542,7 @@ TEST(exception, test_const_binop_plus_error) {
 }
 
 TEST(exception, ToInteger) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -552,7 +552,7 @@ TEST(exception, ToInteger) {
 }
 
 TEST(exception, ToFloat) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -561,7 +561,7 @@ TEST(exception, ToFloat) {
 }
 
 TEST(exception, test_const_binop_minus_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -575,7 +575,7 @@ TEST(exception, test_const_binop_minus_error) {
 }
 
 TEST(exception, test_const_binop_star_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -589,7 +589,7 @@ TEST(exception, test_const_binop_star_error) {
 }
 
 TEST(exception, test_const_binop_slash_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -603,7 +603,7 @@ TEST(exception, test_const_binop_slash_error) {
 }
 
 TEST(exception, test_const_binop_double_slash_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -617,7 +617,7 @@ TEST(exception, test_const_binop_double_slash_error) {
 }
 
 TEST(exception, test_const_binop_pow_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -631,7 +631,7 @@ TEST(exception, test_const_binop_pow_error) {
 }
 
 TEST(exception, test_const_binop_mod_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -645,7 +645,7 @@ TEST(exception, test_const_binop_mod_error) {
 }
 
 TEST(exception, test_const_binop_bitand_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -659,7 +659,7 @@ TEST(exception, test_const_binop_bitand_error) {
 }
 
 TEST(exception, test_const_binop_xor_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -673,7 +673,7 @@ TEST(exception, test_const_binop_xor_error) {
 }
 
 TEST(exception, test_const_binop_bitor_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -687,7 +687,7 @@ TEST(exception, test_const_binop_bitor_error) {
 }
 
 TEST(exception, test_const_binop_right_shift_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -701,7 +701,7 @@ TEST(exception, test_const_binop_right_shift_error) {
 }
 
 TEST(exception, test_const_binop_left_shift_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -715,7 +715,7 @@ TEST(exception, test_const_binop_left_shift_error) {
 }
 
 TEST(exception, test_const_binop_less_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -729,7 +729,7 @@ TEST(exception, test_const_binop_less_error) {
 }
 
 TEST(exception, test_const_binop_less_equal_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -743,7 +743,7 @@ TEST(exception, test_const_binop_less_equal_error) {
 }
 
 TEST(exception, test_const_binop_more_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -757,7 +757,7 @@ TEST(exception, test_const_binop_more_error) {
 }
 
 TEST(exception, test_const_binop_more_equal_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -771,7 +771,7 @@ TEST(exception, test_const_binop_more_equal_error) {
 }
 
 TEST(exception, test_unop_minus_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -787,7 +787,7 @@ TEST(exception, test_unop_minus_error) {
 }
 
 TEST(exception, test_const_unop_len_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -801,7 +801,7 @@ TEST(exception, test_const_unop_len_error) {
 }
 
 TEST(exception, test_const_unop_bitnot_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -815,7 +815,7 @@ TEST(exception, test_const_unop_bitnot_error) {
 }
 
 TEST(exception, test_label_exception) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -833,7 +833,7 @@ Var *CALL_VAR_FUNC_TEST_EXCEPTION_FUNC(...) {
 }
 
 TEST(exception, test_call_var_func) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -849,7 +849,7 @@ TEST(exception, test_call_var_func) {
 }
 
 TEST(exception, TableSet) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -865,7 +865,7 @@ TEST(exception, TableSet) {
 }
 
 TEST(exception, TableGet) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -881,7 +881,7 @@ TEST(exception, TableGet) {
 }
 
 TEST(exception, table_loop) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -897,7 +897,7 @@ TEST(exception, table_loop) {
 }
 
 TEST(exception, stmt_support_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -911,7 +911,7 @@ TEST(exception, stmt_support_error) {
 }
 
 TEST(exception, const_func_call_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -925,7 +925,7 @@ TEST(exception, const_func_call_error) {
 }
 
 TEST(exception, no_define_lvalue_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -939,7 +939,7 @@ TEST(exception, no_define_lvalue_error) {
 }
 
 TEST(exception, global_duplicate_lvalue_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -953,7 +953,7 @@ TEST(exception, global_duplicate_lvalue_error) {
 }
 
 TEST(exception, test_break_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -967,7 +967,7 @@ TEST(exception, test_break_error) {
 }
 
 TEST(exception, test_for_in_exp_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -981,7 +981,7 @@ TEST(exception, test_for_in_exp_error) {
 }
 
 TEST(exception, test_for_in_namelist_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -995,7 +995,7 @@ TEST(exception, test_for_in_namelist_error) {
 }
 
 TEST(exception, test_for_in_pairs_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -1009,7 +1009,7 @@ TEST(exception, test_for_in_pairs_error) {
 }
 
 TEST(exception, test_for_in_explist_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -1023,7 +1023,7 @@ TEST(exception, test_for_in_explist_error) {
 }
 
 TEST(exception, test_for_in_prefix_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -1037,7 +1037,7 @@ TEST(exception, test_for_in_prefix_error) {
 }
 
 TEST(exception, test_for_in_func_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -1051,7 +1051,7 @@ TEST(exception, test_for_in_func_error) {
 }
 
 TEST(exception, test_for_in_func_args_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -1065,7 +1065,7 @@ TEST(exception, test_for_in_func_args_error) {
 }
 
 TEST(exception, test_for_in_prefix_func_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -1079,7 +1079,7 @@ TEST(exception, test_for_in_prefix_func_error) {
 }
 
 TEST(exception, test_col_func_not_find_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -1095,7 +1095,7 @@ TEST(exception, test_col_func_not_find_error) {
 }
 
 TEST(exception, test_col_func_param_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -1111,7 +1111,7 @@ TEST(exception, test_col_func_param_error) {
 }
 
 TEST(exception, test_col_func_table_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 
@@ -1127,7 +1127,7 @@ TEST(exception, test_col_func_table_error) {
 }
 
 TEST(exception, test_col_func_type_error) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
     L->SetDebugLogLevel(0);
 

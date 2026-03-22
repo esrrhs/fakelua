@@ -5,7 +5,7 @@
 using namespace fakelua;
 
 TEST(algo, fibonacci) {
-    auto L = FakeluaNewstate();
+    auto L = FakeluaNewState();
     ASSERT_NE(L.get(), nullptr);
 
     int i = 0;
