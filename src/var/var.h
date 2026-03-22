@@ -90,14 +90,8 @@ public:
 
     // set float value
     void SetFloat(double val) {
-        double int_part;
-        if (std::modf(val, &int_part) != 0.0) {
-            type_ = static_cast<int>(VarType::Float);
-            data_.f = val;
-        } else {
-            type_ = static_cast<int>(VarType::Int);
-            data_.i = static_cast<int64_t>(val);
-        }
+        type_ = static_cast<int>(VarType::Float);
+        data_.f = val;
     }
 
     // set string value

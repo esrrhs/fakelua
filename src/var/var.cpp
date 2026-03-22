@@ -104,32 +104,22 @@ bool Var::Equal(const Var &rhs) const {
 }
 
 bool Var::IsCalculable() const {
-    return Type() == VarType::Int || Type() == VarType::Float || (Type() == VarType::String && IsNumber(data_.s->Str()));
+    return Type() == VarType::Int || Type() == VarType::Float;
 }
 
 bool Var::IsCalculableInteger() const {
-    return Type() == VarType::Int || (Type() == VarType::String && IsInteger(data_.s->Str()));
+    return Type() == VarType::Int;
 }
 
 int64_t Var::GetCalculableInt() const {
-    if (Type() == VarType::Int) {
-        return GetInt();
-    } else {// if (Type() == VarType::String)
-        DEBUG_ASSERT(Type() == VarType::String);
-        DEBUG_ASSERT(IsInteger(data_.s->Str()));
-        return ToInteger(data_.s->Str());
-    }
+    return GetInt();
 }
 
 double Var::GetCalculableNumber() const {
     if (type_ == static_cast<int>(VarType::Int)) {
         return static_cast<double>(data_.i);
-    } else if (type_ == static_cast<int>(VarType::Float)) {
+    } else /*if (type_ == static_cast<int>(VarType::Float))*/ {
         return data_.f;
-    } else {// if (type_ == VarType::String)
-        DEBUG_ASSERT(type_ == static_cast<int>(VarType::String));
-        DEBUG_ASSERT(IsNumber(data_.s->Str()));
-        return ToFloat(data_.s->Str());
     }
 }
 
