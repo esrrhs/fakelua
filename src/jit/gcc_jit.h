@@ -1,6 +1,6 @@
 #pragma once
 
-#include "Vm.h"
+#include "vm.h"
 #include "compile/compile_common.h"
 #include "compile/syntax_tree.h"
 #include "fakelua.h"
@@ -14,7 +14,7 @@ typedef std::shared_ptr<gccjit::context> GccjitContextPtr;
 
 class GccJitter {
 public:
-    GccJitter() = default;
+    GccJitter(State *s);
 
     ~GccJitter();
 

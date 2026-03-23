@@ -2,10 +2,12 @@
 
 namespace fakelua {
 
+// 转储空节点信息
 std::string SyntaxTreeEmpty::Dump(int tab) const {
     return GenTab(tab) + "(empty)[" + LocStr() + "]\n";
 }
 
+// 转储代码块及其包含的所有语句
 std::string SyntaxTreeBlock::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(block)[" + LocStr() + "]\n";
@@ -15,12 +17,14 @@ std::string SyntaxTreeBlock::Dump(int tab) const {
     return str;
 }
 
+// 转储标签名
 std::string SyntaxTreeLabel::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + name_ + "(label)[" + LocStr() + "]\n";
     return str;
 }
 
+// 转储返回语句及其表达式列表
 std::string SyntaxTreeReturn::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(return)[" + LocStr() + "]\n";
@@ -30,6 +34,7 @@ std::string SyntaxTreeReturn::Dump(int tab) const {
     return str;
 }
 
+// 转储赋值语句，包括变量列表和表达式列表
 std::string SyntaxTreeAssign::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(assign)[" + LocStr() + "]\n";
@@ -38,6 +43,7 @@ std::string SyntaxTreeAssign::Dump(int tab) const {
     return str;
 }
 
+// 转储变量列表中的所有变量
 std::string SyntaxTreeVarlist::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(varlist)[" + LocStr() + "]\n";
@@ -47,6 +53,7 @@ std::string SyntaxTreeVarlist::Dump(int tab) const {
     return str;
 }
 
+// 转储表达式列表中的所有表达式
 std::string SyntaxTreeExplist::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(explist)[" + LocStr() + "]\n";
@@ -56,6 +63,7 @@ std::string SyntaxTreeExplist::Dump(int tab) const {
     return str;
 }
 
+// 转储变量引用信息（简单变量、下标访问或成员访问）
 std::string SyntaxTreeVar::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(var)[" + LocStr() + "]\n";
@@ -76,6 +84,7 @@ std::string SyntaxTreeVar::Dump(int tab) const {
     return str;
 }
 
+// 转储函数调用信息
 std::string SyntaxTreeFunctioncall::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(functioncall)[" + LocStr() + "]\n";
@@ -87,6 +96,7 @@ std::string SyntaxTreeFunctioncall::Dump(int tab) const {
     return str;
 }
 
+// 转储表构造器信息
 std::string SyntaxTreeTableconstructor::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(tableconstructor)[" + LocStr() + "]\n";
@@ -96,6 +106,7 @@ std::string SyntaxTreeTableconstructor::Dump(int tab) const {
     return str;
 }
 
+// 转储表字段列表
 std::string SyntaxTreeFieldlist::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(fieldlist)[" + LocStr() + "]\n";
@@ -105,6 +116,7 @@ std::string SyntaxTreeFieldlist::Dump(int tab) const {
     return str;
 }
 
+// 转储表字段定义信息（数组部分或对象部分）
 std::string SyntaxTreeField::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(field)[" + LocStr() + "]\n";
@@ -124,12 +136,14 @@ std::string SyntaxTreeField::Dump(int tab) const {
     return str;
 }
 
+// 转储 break 语句
 std::string SyntaxTreeBreak::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(break)[" + LocStr() + "]\n";
     return str;
 }
 
+// 转储 goto 语句及目标标签
 std::string SyntaxTreeGoto::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(goto)[" + LocStr() + "]\n";
@@ -137,6 +151,7 @@ std::string SyntaxTreeGoto::Dump(int tab) const {
     return str;
 }
 
+// 转储 while 循环
 std::string SyntaxTreeWhile::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(while)[" + LocStr() + "]\n";
@@ -145,6 +160,7 @@ std::string SyntaxTreeWhile::Dump(int tab) const {
     return str;
 }
 
+// 转储 repeat-until 循环
 std::string SyntaxTreeRepeat::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(repeat)[" + LocStr() + "]\n";
@@ -153,6 +169,7 @@ std::string SyntaxTreeRepeat::Dump(int tab) const {
     return str;
 }
 
+// 转储 if 条件分支语句
 std::string SyntaxTreeIf::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(if)[" + LocStr() + "]\n";
@@ -165,6 +182,7 @@ std::string SyntaxTreeIf::Dump(int tab) const {
     return str;
 }
 
+// 转储 elseif 列表信息
 std::string SyntaxTreeElseiflist::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(elseif)[" + LocStr() + "]\n";
@@ -175,6 +193,7 @@ std::string SyntaxTreeElseiflist::Dump(int tab) const {
     return str;
 }
 
+// 转储数值型 for 循环
 std::string SyntaxTreeForLoop::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(for_loop)[" + LocStr() + "]\n";
@@ -188,6 +207,7 @@ std::string SyntaxTreeForLoop::Dump(int tab) const {
     return str;
 }
 
+// 转储泛型 for 循环
 std::string SyntaxTreeForIn::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(for_in)[" + LocStr() + "]\n";
@@ -197,6 +217,7 @@ std::string SyntaxTreeForIn::Dump(int tab) const {
     return str;
 }
 
+// 转储变量名及属性列表
 std::string SyntaxTreeNamelist::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(namelist)[" + LocStr() + "]\n";
@@ -211,6 +232,7 @@ std::string SyntaxTreeNamelist::Dump(int tab) const {
     return str;
 }
 
+// 转储全局函数定义
 std::string SyntaxTreeFunction::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(function)[" + LocStr() + "]\n";
@@ -219,6 +241,7 @@ std::string SyntaxTreeFunction::Dump(int tab) const {
     return str;
 }
 
+// 转储函数名组件列表
 std::string SyntaxTreeFuncnamelist::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(funcnamelist)[" + LocStr() + "]\n";
@@ -228,6 +251,7 @@ std::string SyntaxTreeFuncnamelist::Dump(int tab) const {
     return str;
 }
 
+// 转储函数全名，包括冒号后的方法名
 std::string SyntaxTreeFuncname::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(funcname)[" + LocStr() + "]\n";
@@ -236,6 +260,7 @@ std::string SyntaxTreeFuncname::Dump(int tab) const {
     return str;
 }
 
+// 转储函数体，包括形参列表和代码块
 std::string SyntaxTreeFuncbody::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(funcbody)[" + LocStr() + "]\n";
@@ -246,6 +271,7 @@ std::string SyntaxTreeFuncbody::Dump(int tab) const {
     return str;
 }
 
+// 转储匿名函数定义
 std::string SyntaxTreeFunctiondef::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(functiondef)[" + LocStr() + "]\n";
@@ -253,6 +279,7 @@ std::string SyntaxTreeFunctiondef::Dump(int tab) const {
     return str;
 }
 
+// 转储形参列表及变长参数信息
 std::string SyntaxTreeParlist::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(parlist)[" + LocStr() + "]\n";
@@ -265,6 +292,7 @@ std::string SyntaxTreeParlist::Dump(int tab) const {
     return str;
 }
 
+// 转储局部函数定义
 std::string SyntaxTreeLocalFunction::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(local_function)[" + LocStr() + "]\n";
@@ -273,6 +301,7 @@ std::string SyntaxTreeLocalFunction::Dump(int tab) const {
     return str;
 }
 
+// 转储局部变量定义及其初始化列表
 std::string SyntaxTreeLocalVar::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(local_var)[" + LocStr() + "]\n";
@@ -283,6 +312,7 @@ std::string SyntaxTreeLocalVar::Dump(int tab) const {
     return str;
 }
 
+// 转储表达式及其各操作数
 std::string SyntaxTreeExp::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(exp)[" + LocStr() + "]\n";
@@ -300,6 +330,7 @@ std::string SyntaxTreeExp::Dump(int tab) const {
     return str;
 }
 
+// 转储二元运算符
 std::string SyntaxTreeBinop::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(binop)[" + LocStr() + "]\n";
@@ -307,6 +338,7 @@ std::string SyntaxTreeBinop::Dump(int tab) const {
     return str;
 }
 
+// 转储一元运算符
 std::string SyntaxTreeUnop::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(unop)[" + LocStr() + "]\n";
@@ -314,6 +346,7 @@ std::string SyntaxTreeUnop::Dump(int tab) const {
     return str;
 }
 
+// 转储函数参数列表
 std::string SyntaxTreeArgs::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(args)[" + LocStr() + "]\n";
@@ -331,6 +364,7 @@ std::string SyntaxTreeArgs::Dump(int tab) const {
     return str;
 }
 
+// 转储前缀表达式
 std::string SyntaxTreePrefixexp::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(prefixexp)[" + LocStr() + "]\n";
@@ -339,6 +373,7 @@ std::string SyntaxTreePrefixexp::Dump(int tab) const {
     return str;
 }
 
+// 递归遍历语法树的实现函数
 void WalkSyntaxTree(const SyntaxTreeInterfacePtr &node, const WalkSyntaxTreeFunc &func) {
     if (!node) {
         return;

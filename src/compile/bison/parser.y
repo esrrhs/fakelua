@@ -15,7 +15,7 @@
 #include "compile/syntax_tree.h"
 
 namespace fakelua {
-    class myflexer;
+    class MyFlexer;
 }
 
 // https://www.gnu.org/software/bison/manual/html_node/A-Simple-C_002b_002b-Example.html
@@ -23,7 +23,7 @@ namespace fakelua {
 }
 
 // The parsing context.
-%param { fakelua::myflexer* l }
+%param { fakelua::MyFlexer* l }
 
 %locations
 
@@ -32,9 +32,9 @@ namespace fakelua {
 %define parse.lac full
 
 %code {
-#include "compile/myflexer.h"
+#include "compile/my_flexer.h"
 
-yy::parser::SymbolType yylex(fakelua::myflexer* l) {
+yy::parser::SymbolType yylex(fakelua::MyFlexer* l) {
     auto ret = l->MyYylex();
     std::stringstream ss;
     ss << ret.location;

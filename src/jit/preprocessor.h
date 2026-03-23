@@ -9,12 +9,11 @@ namespace fakelua {
 
 class PreProcessor {
 public:
-    PreProcessor() = default;
+    PreProcessor(State *s);
 
     ~PreProcessor() = default;
 
-    void Process(const FakeluaStatePtr &sp, const CompileConfig &cfg, const std::string &file_name,
-                 const SyntaxTreeInterfacePtr &chunk);
+    void Process(const FakeluaStatePtr &sp, const CompileConfig &cfg, const std::string &file_name, const SyntaxTreeInterfacePtr &chunk);
 
 private:
     void PreprocessConst(const SyntaxTreeInterfacePtr &chunk);

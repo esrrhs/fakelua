@@ -1,4 +1,4 @@
-#include "Vm.h"
+#include "vm.h"
 #include "fakelua.h"
 #include "state/State.h"
 #include "util/common.h"

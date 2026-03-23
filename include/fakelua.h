@@ -262,7 +262,7 @@ CVar NativeToFakeluaDouble(State *s, double v);
 CVar NativeToFakeluaCstr(State *s, const char *v);
 CVar NativeToFakeluaStr(State *s, char *v);
 CVar NativeToFakeluaString(State *s, const std::string &v);
-CVar NativeToFakeluaStringview(State *s, const std::string_view &v);
+CVar NativeToFakeluaStringView(State *s, const std::string_view &v);
 CVar NativeToFakeluaObj(State *s, const VarInterface *v);
 
 template<typename T>
@@ -367,7 +367,7 @@ double FakeluaToNativeDouble(State *s, CVar v);
 const char *FakeluaToNativeCstr(State *s, CVar v);
 const char *FakeluaToNativeStr(State *s, CVar v);
 std::string FakeluaToNativeString(State *s, CVar v);
-std::string_view FakeluaToNativeStringview(State *s, CVar v);
+std::string_view FakeluaToNativeStringView(State *s, CVar v);
 VarInterface *FakeluaToNativeObj(State *s, CVar v);
 
 template<typename T>
@@ -401,11 +401,11 @@ T FakeluaToNative(State *s, const CVar v) {
     } else if constexpr (std::is_same_v<T, const char *>) {
         return FakeluaToNativeCstr(s, v);
     } else if constexpr (std::is_same_v<T, char *>) {
-        return (char *) FakeluaToNativeStr(s, v);
+        return const_cast<char *>(FakeluaToNativeStr(s, v));
     } else if constexpr (std::is_same_v<T, std::string>) {
         return FakeluaToNativeString(s, v);
     } else if constexpr (std::is_same_v<T, std::string_view>) {
-        return FakeluaToNativeStringview(s, v);
+        return FakeluaToNativeStringView(s, v);
     } else if constexpr (std::is_same_v<T, CVar>) {
         return v;
     } else {

@@ -107,7 +107,7 @@ CVar NativeToFakeluaString(State *s, const std::string &v) {
     return ret;
 }
 
-CVar NativeToFakeluaStringview(State *s, const std::string_view &v) {
+CVar NativeToFakeluaStringView(State *s, const std::string_view &v) {
     Var ret;
     ret.SetString(s, v);
     return ret;
@@ -285,7 +285,7 @@ std::string FakeluaToNativeString(State *s, CVar v) {
     ThrowFakeluaException(std::format("FakeluaToNativeString failed, type is {}", VarTypeToString(vv.Type())));
 }
 
-std::string_view FakeluaToNativeStringview(State *s, CVar v) {
+std::string_view FakeluaToNativeStringView(State *s, CVar v) {
     const auto vv = static_cast<Var &>(v);
     if (vv.Type() == VarType::String) {
         return vv.GetString()->Str();
@@ -367,6 +367,14 @@ State *FakeluaNewState(const StateConfig &cfg) {
 
 void FakeluaFreeState(State *s) {
     delete s;
+}
+
+void CompileFile(State *s, const std::string &filename, const CompileConfig &cfg) {
+    s->CompileFile(filename, cfg);
+}
+
+void CompileString(State *s, const std::string &str, const CompileConfig &cfg) {
+    s->CompileString(str, cfg);
 }
 
 void SetVarInterfaceNewFunc(State *s, const std::function<VarInterface *()> &func) {

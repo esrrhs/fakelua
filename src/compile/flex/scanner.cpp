@@ -37,7 +37,7 @@
 /* %if-c-only */
 /* %endif */
 
-/* First, we deal with  platform-specific or Compiler-specific issues. */
+/* First, we deal with  platform-specific or compiler-specific issues. */
 
 /* begin standard C headers. */
 /* %if-c-only */
@@ -656,13 +656,13 @@ static const flex_int16_t yy_rule_linenum[70] =
 #define YY_RESTORE_YY_MORE_OFFSET
 #line 1 "scanner.l"
 #line 2 "scanner.l"
-#include "compile/my_flexer.h"
-#include "compile/bison/parser.h"
 #include <cerrno>
 #include <climits>
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include "compile/bison/parser.h"
+#include "compile/my_flexer.h"
 
 // https://westes.github.io/flex/manual/Cxx.html
 
@@ -1483,7 +1483,7 @@ yyFlexLexer::yyFlexLexer( std::istream* arg_yyin, std::ostream* arg_yyout ):
 	yyin(arg_yyin ? arg_yyin->rdbuf() : std::cin.rdbuf()),
 	yyout(arg_yyout ? arg_yyout->rdbuf() : std::cout.rdbuf())
 {
-	CtorCommon();
+	ctor_common();
 }
 
 /* The contents of this function are C++ specific, so the () macro is not used.
@@ -1492,12 +1492,12 @@ yyFlexLexer::yyFlexLexer( std::istream& arg_yyin, std::ostream& arg_yyout ):
 	yyin(arg_yyin.rdbuf()),
 	yyout(arg_yyout.rdbuf())
 {
-	CtorCommon();
+	ctor_common();
 }
 
 /* The contents of this function are C++ specific, so the () macro is not used.
  */
-void yyFlexLexer::CtorCommon()
+void yyFlexLexer::ctor_common()
 {
 	yy_c_buf_p = 0;
 	yy_init = 0;
@@ -1535,7 +1535,7 @@ yyFlexLexer::~yyFlexLexer()
 
 /* The contents of this function are C++ specific, so the () macro is not used.
  */
-void yyFlexLexer::SwitchStreams( std::istream& new_in, std::ostream& new_out )
+void yyFlexLexer::switch_streams( std::istream& new_in, std::ostream& new_out )
 {
 	// was if( new_in )
 	yy_delete_buffer( YY_CURRENT_BUFFER );
@@ -1547,7 +1547,7 @@ void yyFlexLexer::SwitchStreams( std::istream& new_in, std::ostream& new_out )
 
 /* The contents of this function are C++ specific, so the () macro is not used.
  */
-void yyFlexLexer::SwitchStreams( std::istream* new_in, std::ostream* new_out )
+void yyFlexLexer::switch_streams( std::istream* new_in, std::ostream* new_out )
 {
 	if( ! new_in ) {
 		new_in = &yyin;
@@ -1557,7 +1557,7 @@ void yyFlexLexer::SwitchStreams( std::istream* new_in, std::ostream* new_out )
 		new_out = &yyout;
 	}
 
-	SwitchStreams(*new_in, *new_out);
+	switch_streams(*new_in, *new_out);
 }
 
 #ifdef YY_INTERACTIVE
@@ -1945,14 +1945,14 @@ int yyFlexLexer::yy_get_next_buffer()
 /* %endif */
 
 /** Immediately switch to a different input stream.
- * @param InputFile A readable stream.
+ * @param input_file A readable stream.
  * 
  * @note This function does not reset the start condition to @c INITIAL .
  */
 /* %if-c-only */
 /* %endif */
 /* %if-c++-only */
-    void yyFlexLexer::yyrestart( std::istream& InputFile )
+    void yyFlexLexer::yyrestart( std::istream& input_file )
 /* %endif */
 {
     
@@ -1962,22 +1962,22 @@ int yyFlexLexer::yy_get_next_buffer()
             yy_create_buffer( yyin, YY_BUF_SIZE );
 	}
 
-	yy_init_buffer( YY_CURRENT_BUFFER, InputFile );
+	yy_init_buffer( YY_CURRENT_BUFFER, input_file );
 	yy_load_buffer_state(  );
 }
 
 /* %if-c++-only */
 /** Delegate to the new version that takes an istream reference.
- * @param InputFile A readable stream.
+ * @param input_file A readable stream.
  * 
  * @note This function does not reset the start condition to @c INITIAL .
  */
-void yyFlexLexer::yyrestart( std::istream* InputFile )
+void yyFlexLexer::yyrestart( std::istream* input_file )
 {
-	if( ! InputFile ) {
-		InputFile = &yyin;
+	if( ! input_file ) {
+		input_file = &yyin;
 	}
-	yyrestart( *InputFile );
+	yyrestart( *input_file );
 }
 /* %endif */
 

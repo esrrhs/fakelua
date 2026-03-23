@@ -1,9 +1,10 @@
 #pragma once
 
+#include "compile/compiler.h"
 #include "const_string.h"
 #include "fakelua.h"
 #include "heap.h"
-#include "jit/Vm.h"
+#include "jit/vm.h"
 #include "stack.h"
 #include "var_table_heap.h"
 
@@ -66,12 +67,13 @@ public:
 
 private:
     std::function<VarInterface *()> var_interface_new_func_;
+    int reentrant_count_ = 0;
     StateConfig config_;
+    Compiler compiler_;
     Heap heap_;
     ConstString const_string_;
     VarTableHeap var_table_heap_;
     Vm vm_;
-    int reentrant_count_ = 0;// used to reset
     stack stack_;
 };
 

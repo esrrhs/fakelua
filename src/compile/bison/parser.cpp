@@ -166,7 +166,7 @@ namespace yy {
   parser::~parser ()
   {}
 
-  parser::SyntaxError::~SyntaxError () YY_NOEXCEPT YY_NOTHROW
+  parser::syntax_error::~syntax_error () YY_NOEXCEPT YY_NOTHROW
   {}
 
   /*---------------.
@@ -175,78 +175,78 @@ namespace yy {
 
 
 
-  // ByState.
-  parser::ByState::ByState () YY_NOEXCEPT
+  // by_state.
+  parser::by_state::by_state () YY_NOEXCEPT
     : state (empty_state)
   {}
 
-  parser::ByState::ByState (const ByState& that) YY_NOEXCEPT
+  parser::by_state::by_state (const by_state& that) YY_NOEXCEPT
     : state (that.state)
   {}
 
   void
-  parser::ByState::clear () YY_NOEXCEPT
+  parser::by_state::clear () YY_NOEXCEPT
   {
     state = empty_state;
   }
 
   void
-  parser::ByState::move (ByState& that)
+  parser::by_state::move (by_state& that)
   {
     state = that.state;
     that.clear ();
   }
 
-  parser::ByState::ByState (state_type s) YY_NOEXCEPT
+  parser::by_state::by_state (state_type s) YY_NOEXCEPT
     : state (s)
   {}
 
-  parser::SymbolKindType
-  parser::ByState::kind () const YY_NOEXCEPT
+  parser::symbol_kind_type
+  parser::by_state::kind () const YY_NOEXCEPT
   {
     if (state == empty_state)
-      return SymbolKind::S_YYEMPTY;
+      return symbol_kind::S_YYEMPTY;
     else
-      return YY_CAST (SymbolKindType, yystos_[+state]);
+      return YY_CAST (symbol_kind_type, yystos_[+state]);
   }
 
-  parser::StackSymbolType::StackSymbolType ()
+  parser::stack_symbol_type::stack_symbol_type ()
   {}
 
-  parser::StackSymbolType::StackSymbolType (YY_RVREF (StackSymbolType) that)
+  parser::stack_symbol_type::stack_symbol_type (YY_RVREF (stack_symbol_type) that)
     : super_type (YY_MOVE (that.state), YY_MOVE (that.location))
   {
     switch (that.kind ())
     {
-      case SymbolKind::S_chunk: // chunk
-      case SymbolKind::S_block: // block
-      case SymbolKind::S_stmt: // stmt
-      case SymbolKind::S_attnamelist: // attnamelist
-      case SymbolKind::S_elseifs: // elseifs
-      case SymbolKind::S_retstat: // retstat
-      case SymbolKind::S_label: // label
-      case SymbolKind::S_funcnamelist: // funcnamelist
-      case SymbolKind::S_funcname: // funcname
-      case SymbolKind::S_varlist: // varlist
-      case SymbolKind::S_var: // var
-      case SymbolKind::S_namelist: // namelist
-      case SymbolKind::S_explist: // explist
-      case SymbolKind::S_exp: // exp
-      case SymbolKind::S_prefixexp: // prefixexp
-      case SymbolKind::S_functioncall: // functioncall
-      case SymbolKind::S_args: // args
-      case SymbolKind::S_functiondef: // functiondef
-      case SymbolKind::S_funcbody: // funcbody
-      case SymbolKind::S_parlist: // parlist
-      case SymbolKind::S_tableconstructor: // tableconstructor
-      case SymbolKind::S_fieldlist: // fieldlist
-      case SymbolKind::S_field: // field
+      case symbol_kind::S_chunk: // chunk
+      case symbol_kind::S_block: // block
+      case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_attnamelist: // attnamelist
+      case symbol_kind::S_elseifs: // elseifs
+      case symbol_kind::S_retstat: // retstat
+      case symbol_kind::S_label: // label
+      case symbol_kind::S_funcnamelist: // funcnamelist
+      case symbol_kind::S_funcname: // funcname
+      case symbol_kind::S_varlist: // varlist
+      case symbol_kind::S_var: // var
+      case symbol_kind::S_namelist: // namelist
+      case symbol_kind::S_explist: // explist
+      case symbol_kind::S_exp: // exp
+      case symbol_kind::S_prefixexp: // prefixexp
+      case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_functiondef: // functiondef
+      case symbol_kind::S_funcbody: // funcbody
+      case symbol_kind::S_parlist: // parlist
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         value.YY_MOVE_OR_COPY< fakelua::SyntaxTreeInterfacePtr > (YY_MOVE (that.value));
         break;
 
-      case SymbolKind::S_IDENTIFIER: // "identifier"
-      case SymbolKind::S_STRING: // "string"
-      case SymbolKind::S_NUMBER: // "number"
+      case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
+      case symbol_kind::S_NUMBER: // "number"
         value.YY_MOVE_OR_COPY< std::string > (YY_MOVE (that.value));
         break;
 
@@ -260,40 +260,40 @@ namespace yy {
 #endif
   }
 
-  parser::StackSymbolType::StackSymbolType (state_type s, YY_MOVE_REF (SymbolType) that)
+  parser::stack_symbol_type::stack_symbol_type (state_type s, YY_MOVE_REF (symbol_type) that)
     : super_type (s, YY_MOVE (that.location))
   {
     switch (that.kind ())
     {
-      case SymbolKind::S_chunk: // chunk
-      case SymbolKind::S_block: // block
-      case SymbolKind::S_stmt: // stmt
-      case SymbolKind::S_attnamelist: // attnamelist
-      case SymbolKind::S_elseifs: // elseifs
-      case SymbolKind::S_retstat: // retstat
-      case SymbolKind::S_label: // label
-      case SymbolKind::S_funcnamelist: // funcnamelist
-      case SymbolKind::S_funcname: // funcname
-      case SymbolKind::S_varlist: // varlist
-      case SymbolKind::S_var: // var
-      case SymbolKind::S_namelist: // namelist
-      case SymbolKind::S_explist: // explist
-      case SymbolKind::S_exp: // exp
-      case SymbolKind::S_prefixexp: // prefixexp
-      case SymbolKind::S_functioncall: // functioncall
-      case SymbolKind::S_args: // args
-      case SymbolKind::S_functiondef: // functiondef
-      case SymbolKind::S_funcbody: // funcbody
-      case SymbolKind::S_parlist: // parlist
-      case SymbolKind::S_tableconstructor: // tableconstructor
-      case SymbolKind::S_fieldlist: // fieldlist
-      case SymbolKind::S_field: // field
+      case symbol_kind::S_chunk: // chunk
+      case symbol_kind::S_block: // block
+      case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_attnamelist: // attnamelist
+      case symbol_kind::S_elseifs: // elseifs
+      case symbol_kind::S_retstat: // retstat
+      case symbol_kind::S_label: // label
+      case symbol_kind::S_funcnamelist: // funcnamelist
+      case symbol_kind::S_funcname: // funcname
+      case symbol_kind::S_varlist: // varlist
+      case symbol_kind::S_var: // var
+      case symbol_kind::S_namelist: // namelist
+      case symbol_kind::S_explist: // explist
+      case symbol_kind::S_exp: // exp
+      case symbol_kind::S_prefixexp: // prefixexp
+      case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_functiondef: // functiondef
+      case symbol_kind::S_funcbody: // funcbody
+      case symbol_kind::S_parlist: // parlist
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         value.move< fakelua::SyntaxTreeInterfacePtr > (YY_MOVE (that.value));
         break;
 
-      case SymbolKind::S_IDENTIFIER: // "identifier"
-      case SymbolKind::S_STRING: // "string"
-      case SymbolKind::S_NUMBER: // "number"
+      case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
+      case symbol_kind::S_NUMBER: // "number"
         value.move< std::string > (YY_MOVE (that.value));
         break;
 
@@ -302,45 +302,45 @@ namespace yy {
     }
 
     // that is emptied.
-    that.kind_ = SymbolKind::S_YYEMPTY;
+    that.kind_ = symbol_kind::S_YYEMPTY;
   }
 
 #if YY_CPLUSPLUS < 201103L
-  parser::StackSymbolType&
-  parser::StackSymbolType::operator= (const StackSymbolType& that)
+  parser::stack_symbol_type&
+  parser::stack_symbol_type::operator= (const stack_symbol_type& that)
   {
     state = that.state;
     switch (that.kind ())
     {
-      case SymbolKind::S_chunk: // chunk
-      case SymbolKind::S_block: // block
-      case SymbolKind::S_stmt: // stmt
-      case SymbolKind::S_attnamelist: // attnamelist
-      case SymbolKind::S_elseifs: // elseifs
-      case SymbolKind::S_retstat: // retstat
-      case SymbolKind::S_label: // label
-      case SymbolKind::S_funcnamelist: // funcnamelist
-      case SymbolKind::S_funcname: // funcname
-      case SymbolKind::S_varlist: // varlist
-      case SymbolKind::S_var: // var
-      case SymbolKind::S_namelist: // namelist
-      case SymbolKind::S_explist: // explist
-      case SymbolKind::S_exp: // exp
-      case SymbolKind::S_prefixexp: // prefixexp
-      case SymbolKind::S_functioncall: // functioncall
-      case SymbolKind::S_args: // args
-      case SymbolKind::S_functiondef: // functiondef
-      case SymbolKind::S_funcbody: // funcbody
-      case SymbolKind::S_parlist: // parlist
-      case SymbolKind::S_tableconstructor: // tableconstructor
-      case SymbolKind::S_fieldlist: // fieldlist
-      case SymbolKind::S_field: // field
+      case symbol_kind::S_chunk: // chunk
+      case symbol_kind::S_block: // block
+      case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_attnamelist: // attnamelist
+      case symbol_kind::S_elseifs: // elseifs
+      case symbol_kind::S_retstat: // retstat
+      case symbol_kind::S_label: // label
+      case symbol_kind::S_funcnamelist: // funcnamelist
+      case symbol_kind::S_funcname: // funcname
+      case symbol_kind::S_varlist: // varlist
+      case symbol_kind::S_var: // var
+      case symbol_kind::S_namelist: // namelist
+      case symbol_kind::S_explist: // explist
+      case symbol_kind::S_exp: // exp
+      case symbol_kind::S_prefixexp: // prefixexp
+      case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_functiondef: // functiondef
+      case symbol_kind::S_funcbody: // funcbody
+      case symbol_kind::S_parlist: // parlist
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         value.copy< fakelua::SyntaxTreeInterfacePtr > (that.value);
         break;
 
-      case SymbolKind::S_IDENTIFIER: // "identifier"
-      case SymbolKind::S_STRING: // "string"
-      case SymbolKind::S_NUMBER: // "number"
+      case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
+      case symbol_kind::S_NUMBER: // "number"
         value.copy< std::string > (that.value);
         break;
 
@@ -352,41 +352,41 @@ namespace yy {
     return *this;
   }
 
-  parser::StackSymbolType&
-  parser::StackSymbolType::operator= (StackSymbolType& that)
+  parser::stack_symbol_type&
+  parser::stack_symbol_type::operator= (stack_symbol_type& that)
   {
     state = that.state;
     switch (that.kind ())
     {
-      case SymbolKind::S_chunk: // chunk
-      case SymbolKind::S_block: // block
-      case SymbolKind::S_stmt: // stmt
-      case SymbolKind::S_attnamelist: // attnamelist
-      case SymbolKind::S_elseifs: // elseifs
-      case SymbolKind::S_retstat: // retstat
-      case SymbolKind::S_label: // label
-      case SymbolKind::S_funcnamelist: // funcnamelist
-      case SymbolKind::S_funcname: // funcname
-      case SymbolKind::S_varlist: // varlist
-      case SymbolKind::S_var: // var
-      case SymbolKind::S_namelist: // namelist
-      case SymbolKind::S_explist: // explist
-      case SymbolKind::S_exp: // exp
-      case SymbolKind::S_prefixexp: // prefixexp
-      case SymbolKind::S_functioncall: // functioncall
-      case SymbolKind::S_args: // args
-      case SymbolKind::S_functiondef: // functiondef
-      case SymbolKind::S_funcbody: // funcbody
-      case SymbolKind::S_parlist: // parlist
-      case SymbolKind::S_tableconstructor: // tableconstructor
-      case SymbolKind::S_fieldlist: // fieldlist
-      case SymbolKind::S_field: // field
+      case symbol_kind::S_chunk: // chunk
+      case symbol_kind::S_block: // block
+      case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_attnamelist: // attnamelist
+      case symbol_kind::S_elseifs: // elseifs
+      case symbol_kind::S_retstat: // retstat
+      case symbol_kind::S_label: // label
+      case symbol_kind::S_funcnamelist: // funcnamelist
+      case symbol_kind::S_funcname: // funcname
+      case symbol_kind::S_varlist: // varlist
+      case symbol_kind::S_var: // var
+      case symbol_kind::S_namelist: // namelist
+      case symbol_kind::S_explist: // explist
+      case symbol_kind::S_exp: // exp
+      case symbol_kind::S_prefixexp: // prefixexp
+      case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_functiondef: // functiondef
+      case symbol_kind::S_funcbody: // funcbody
+      case symbol_kind::S_parlist: // parlist
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         value.move< fakelua::SyntaxTreeInterfacePtr > (that.value);
         break;
 
-      case SymbolKind::S_IDENTIFIER: // "identifier"
-      case SymbolKind::S_STRING: // "string"
-      case SymbolKind::S_NUMBER: // "number"
+      case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
+      case symbol_kind::S_NUMBER: // "number"
         value.move< std::string > (that.value);
         break;
 
@@ -403,7 +403,7 @@ namespace yy {
 
   template <typename Base>
   void
-  parser::yy_destroy_ (const char* yymsg, BasicSymbol<Base>& yysym) const
+  parser::yy_destroy_ (const char* yymsg, basic_symbol<Base>& yysym) const
   {
     if (yymsg)
       YY_SYMBOL_PRINT (yymsg, yysym);
@@ -412,7 +412,7 @@ namespace yy {
 #if YYDEBUG
   template <typename Base>
   void
-  parser::yy_print_ (std::ostream& yyo, const BasicSymbol<Base>& yysym) const
+  parser::yy_print_ (std::ostream& yyo, const basic_symbol<Base>& yysym) const
   {
     std::ostream& yyoutput = yyo;
     YY_USE (yyoutput);
@@ -420,163 +420,163 @@ namespace yy {
       yyo << "empty symbol";
     else
       {
-        SymbolKindType yykind = yysym.kind ();
+        symbol_kind_type yykind = yysym.kind ();
         yyo << (yykind < YYNTOKENS ? "token" : "nterm")
             << ' ' << yysym.name () << " ("
             << yysym.location << ": ";
         switch (yykind)
     {
-      case SymbolKind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_IDENTIFIER: // "identifier"
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < std::string > (); }
 #line 433 "parser.cpp"
         break;
 
-      case SymbolKind::S_STRING: // "string"
+      case symbol_kind::S_STRING: // "string"
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < std::string > (); }
 #line 439 "parser.cpp"
         break;
 
-      case SymbolKind::S_NUMBER: // "number"
+      case symbol_kind::S_NUMBER: // "number"
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < std::string > (); }
 #line 445 "parser.cpp"
         break;
 
-      case SymbolKind::S_chunk: // chunk
+      case symbol_kind::S_chunk: // chunk
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 451 "parser.cpp"
         break;
 
-      case SymbolKind::S_block: // block
+      case symbol_kind::S_block: // block
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 457 "parser.cpp"
         break;
 
-      case SymbolKind::S_stmt: // stmt
+      case symbol_kind::S_stmt: // stmt
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 463 "parser.cpp"
         break;
 
-      case SymbolKind::S_attnamelist: // attnamelist
+      case symbol_kind::S_attnamelist: // attnamelist
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 469 "parser.cpp"
         break;
 
-      case SymbolKind::S_elseifs: // elseifs
+      case symbol_kind::S_elseifs: // elseifs
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 475 "parser.cpp"
         break;
 
-      case SymbolKind::S_retstat: // retstat
+      case symbol_kind::S_retstat: // retstat
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 481 "parser.cpp"
         break;
 
-      case SymbolKind::S_label: // label
+      case symbol_kind::S_label: // label
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 487 "parser.cpp"
         break;
 
-      case SymbolKind::S_funcnamelist: // funcnamelist
+      case symbol_kind::S_funcnamelist: // funcnamelist
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 493 "parser.cpp"
         break;
 
-      case SymbolKind::S_funcname: // funcname
+      case symbol_kind::S_funcname: // funcname
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 499 "parser.cpp"
         break;
 
-      case SymbolKind::S_varlist: // varlist
+      case symbol_kind::S_varlist: // varlist
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 505 "parser.cpp"
         break;
 
-      case SymbolKind::S_var: // var
+      case symbol_kind::S_var: // var
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 511 "parser.cpp"
         break;
 
-      case SymbolKind::S_namelist: // namelist
+      case symbol_kind::S_namelist: // namelist
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 517 "parser.cpp"
         break;
 
-      case SymbolKind::S_explist: // explist
+      case symbol_kind::S_explist: // explist
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 523 "parser.cpp"
         break;
 
-      case SymbolKind::S_exp: // exp
+      case symbol_kind::S_exp: // exp
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 529 "parser.cpp"
         break;
 
-      case SymbolKind::S_prefixexp: // prefixexp
+      case symbol_kind::S_prefixexp: // prefixexp
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 535 "parser.cpp"
         break;
 
-      case SymbolKind::S_functioncall: // functioncall
+      case symbol_kind::S_functioncall: // functioncall
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 541 "parser.cpp"
         break;
 
-      case SymbolKind::S_args: // args
+      case symbol_kind::S_args: // args
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 547 "parser.cpp"
         break;
 
-      case SymbolKind::S_functiondef: // functiondef
+      case symbol_kind::S_functiondef: // functiondef
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 553 "parser.cpp"
         break;
 
-      case SymbolKind::S_funcbody: // funcbody
+      case symbol_kind::S_funcbody: // funcbody
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 559 "parser.cpp"
         break;
 
-      case SymbolKind::S_parlist: // parlist
+      case symbol_kind::S_parlist: // parlist
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 565 "parser.cpp"
         break;
 
-      case SymbolKind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_tableconstructor: // tableconstructor
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 571 "parser.cpp"
         break;
 
-      case SymbolKind::S_fieldlist: // fieldlist
+      case symbol_kind::S_fieldlist: // fieldlist
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 577 "parser.cpp"
         break;
 
-      case SymbolKind::S_field: // field
+      case symbol_kind::S_field: // field
 #line 149 "parser.y"
                  { yyo << yysym.value.template as < fakelua::SyntaxTreeInterfacePtr > (); }
 #line 583 "parser.cpp"
@@ -591,7 +591,7 @@ namespace yy {
 #endif
 
   void
-  parser::yypush_ (const char* m, YY_MOVE_REF (StackSymbolType) sym)
+  parser::yypush_ (const char* m, YY_MOVE_REF (stack_symbol_type) sym)
   {
     if (m)
       YY_SYMBOL_PRINT (m, sym);
@@ -599,12 +599,12 @@ namespace yy {
   }
 
   void
-  parser::yypush_ (const char* m, state_type s, YY_MOVE_REF (SymbolType) sym)
+  parser::yypush_ (const char* m, state_type s, YY_MOVE_REF (symbol_type) sym)
   {
 #if 201103L <= YY_CPLUSPLUS
-    yypush_ (m, StackSymbolType (s, std::move (sym)));
+    yypush_ (m, stack_symbol_type (s, std::move (sym)));
 #else
-    StackSymbolType ss (s, sym);
+    stack_symbol_type ss (s, sym);
     yypush_ (m, ss);
 #endif
   }
@@ -617,26 +617,26 @@ namespace yy {
 
 #if YYDEBUG
   std::ostream&
-  parser::DebugStream () const
+  parser::debug_stream () const
   {
     return *yycdebug_;
   }
 
   void
-  parser::SetDebugStream (std::ostream& o)
+  parser::set_debug_stream (std::ostream& o)
   {
     yycdebug_ = &o;
   }
 
 
   parser::debug_level_type
-  parser::DebugLevel () const
+  parser::debug_level () const
   {
     return yydebug_;
   }
 
   void
-  parser::SetDebugLevel (debug_level_type l)
+  parser::set_debug_level (debug_level_type l)
   {
     yydebug_ = l;
   }
@@ -682,10 +682,10 @@ namespace yy {
     int yyerrstatus_ = 0;
 
     /// The lookahead symbol.
-    SymbolType yyla;
+    symbol_type yyla;
 
     /// The locations where the error started and ended.
-    StackSymbolType yyerror_range[3];
+    stack_symbol_type yyerror_range[3];
 
     /// The return value of parse ().
     int yyresult;
@@ -739,11 +739,11 @@ namespace yy {
         try
 #endif // YY_EXCEPTIONS
           {
-            SymbolType yylookahead (yylex (l));
+            symbol_type yylookahead (yylex (l));
             yyla.move (yylookahead);
           }
 #if YY_EXCEPTIONS
-        catch (const SyntaxError& yyexc)
+        catch (const syntax_error& yyexc)
           {
             YYCDEBUG << "Caught exception: " << yyexc.what() << '\n';
             error (yyexc);
@@ -753,13 +753,13 @@ namespace yy {
       }
     YY_SYMBOL_PRINT ("Next token is", yyla);
 
-    if (yyla.kind () == SymbolKind::S_YYerror)
+    if (yyla.kind () == symbol_kind::S_YYerror)
     {
       // The scanner already issued an error message, process directly
       // to error recovery.  But do not keep the error token as
       // lookahead, it is too special and may lead us to an endless
       // loop in error recovery. */
-      yyla.kind_ = SymbolKind::S_YYUNDEF;
+      yyla.kind_ = symbol_kind::S_YYUNDEF;
       goto yyerrlab1;
     }
 
@@ -812,42 +812,42 @@ namespace yy {
   yyreduce:
     yylen = yyr2_[yyn];
     {
-      StackSymbolType yylhs;
+      stack_symbol_type yylhs;
       yylhs.state = yy_lr_goto_state_ (yystack_[yylen].state, yyr1_[yyn]);
       /* Variants are always initialized to an empty instance of the
          correct type. The default '$$ = $1' action is NOT applied
          when using variants.  */
       switch (yyr1_[yyn])
     {
-      case SymbolKind::S_chunk: // chunk
-      case SymbolKind::S_block: // block
-      case SymbolKind::S_stmt: // stmt
-      case SymbolKind::S_attnamelist: // attnamelist
-      case SymbolKind::S_elseifs: // elseifs
-      case SymbolKind::S_retstat: // retstat
-      case SymbolKind::S_label: // label
-      case SymbolKind::S_funcnamelist: // funcnamelist
-      case SymbolKind::S_funcname: // funcname
-      case SymbolKind::S_varlist: // varlist
-      case SymbolKind::S_var: // var
-      case SymbolKind::S_namelist: // namelist
-      case SymbolKind::S_explist: // explist
-      case SymbolKind::S_exp: // exp
-      case SymbolKind::S_prefixexp: // prefixexp
-      case SymbolKind::S_functioncall: // functioncall
-      case SymbolKind::S_args: // args
-      case SymbolKind::S_functiondef: // functiondef
-      case SymbolKind::S_funcbody: // funcbody
-      case SymbolKind::S_parlist: // parlist
-      case SymbolKind::S_tableconstructor: // tableconstructor
-      case SymbolKind::S_fieldlist: // fieldlist
-      case SymbolKind::S_field: // field
+      case symbol_kind::S_chunk: // chunk
+      case symbol_kind::S_block: // block
+      case symbol_kind::S_stmt: // stmt
+      case symbol_kind::S_attnamelist: // attnamelist
+      case symbol_kind::S_elseifs: // elseifs
+      case symbol_kind::S_retstat: // retstat
+      case symbol_kind::S_label: // label
+      case symbol_kind::S_funcnamelist: // funcnamelist
+      case symbol_kind::S_funcname: // funcname
+      case symbol_kind::S_varlist: // varlist
+      case symbol_kind::S_var: // var
+      case symbol_kind::S_namelist: // namelist
+      case symbol_kind::S_explist: // explist
+      case symbol_kind::S_exp: // exp
+      case symbol_kind::S_prefixexp: // prefixexp
+      case symbol_kind::S_functioncall: // functioncall
+      case symbol_kind::S_args: // args
+      case symbol_kind::S_functiondef: // functiondef
+      case symbol_kind::S_funcbody: // funcbody
+      case symbol_kind::S_parlist: // parlist
+      case symbol_kind::S_tableconstructor: // tableconstructor
+      case symbol_kind::S_fieldlist: // fieldlist
+      case symbol_kind::S_field: // field
         yylhs.value.emplace< fakelua::SyntaxTreeInterfacePtr > ();
         break;
 
-      case SymbolKind::S_IDENTIFIER: // "identifier"
-      case SymbolKind::S_STRING: // "string"
-      case SymbolKind::S_NUMBER: // "number"
+      case symbol_kind::S_IDENTIFIER: // "identifier"
+      case symbol_kind::S_STRING: // "string"
+      case symbol_kind::S_NUMBER: // "number"
         yylhs.value.emplace< std::string > ();
         break;
 
@@ -1473,7 +1473,7 @@ namespace yy {
             LOG_ERROR("[bison]: funcname: funcnamelist is not a funcnamelist");
             fakelua::ThrowFakeluaException("funcnamelist is not a funcnamelist");
         }
-        funcname->SetFuncNameList(funcnamelist);
+        funcname->SetFuncnamelist(funcnamelist);
         yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = funcname;
     }
 #line 1480 "parser.cpp"
@@ -1489,7 +1489,7 @@ namespace yy {
             LOG_ERROR("[bison]: funcname: funcnamelist is not a funcnamelist");
             fakelua::ThrowFakeluaException("funcnamelist is not a funcnamelist");
         }
-        funcname->SetFuncNameList(funcnamelist);
+        funcname->SetFuncnamelist(funcnamelist);
         funcname->SetColonName(yystack_[0].value.as < std::string > ());
         yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = funcname;
     }
@@ -2792,7 +2792,7 @@ namespace yy {
             }
         }
 #if YY_EXCEPTIONS
-      catch (const SyntaxError& yyexc)
+      catch (const syntax_error& yyexc)
         {
           YYCDEBUG << "Caught exception: " << yyexc.what() << '\n';
           error (yyexc);
@@ -2830,7 +2830,7 @@ namespace yy {
            error, discard it.  */
 
         // Return failure if at end of input.
-        if (yyla.kind () == SymbolKind::S_YYEOF)
+        if (yyla.kind () == symbol_kind::S_YYEOF)
           YYABORT;
         else if (!yyla.empty ())
           {
@@ -2871,9 +2871,9 @@ namespace yy {
         yyn = yypact_[+yystack_[0].state];
         if (!yy_pact_value_is_default_ (yyn))
           {
-            yyn += SymbolKind::S_YYerror;
+            yyn += symbol_kind::S_YYerror;
             if (0 <= yyn && yyn <= yylast_
-                && yycheck_[yyn] == SymbolKind::S_YYerror)
+                && yycheck_[yyn] == symbol_kind::S_YYerror)
               {
                 yyn = yytable_[yyn];
                 if (0 < yyn)
@@ -2891,7 +2891,7 @@ namespace yy {
         YY_STACK_PRINT ();
       }
     {
-      StackSymbolType error_token;
+      stack_symbol_type error_token;
 
       yyerror_range[2].location = yyla.location;
       YYLLOC_DEFAULT (error_token.location, yyerror_range, 2);
@@ -2959,13 +2959,13 @@ namespace yy {
   }
 
   void
-  parser::error (const SyntaxError& yyexc)
+  parser::error (const syntax_error& yyexc)
   {
     error (yyexc.location, yyexc.what ());
   }
 
   const char *
-  parser::SymbolName (SymbolKindType yysymbol)
+  parser::symbol_name (symbol_kind_type yysymbol)
   {
     static const char *const yy_sname[] =
     {
@@ -2987,13 +2987,13 @@ namespace yy {
 
 
   // parser::context.
-  parser::context::context (const parser& yyparser, const SymbolType& yyla)
+  parser::context::context (const parser& yyparser, const symbol_type& yyla)
     : yyparser_ (yyparser)
     , yyla_ (yyla)
   {}
 
   int
-  parser::context::ExpectedTokens (SymbolKindType yyarg[], int yyargn) const
+  parser::context::expected_tokens (symbol_kind_type yyarg[], int yyargn) const
   {
     // Actual number of expected tokens
     int yycount = 0;
@@ -3007,9 +3007,9 @@ namespace yy {
 
     for (int yyx = 0; yyx < YYNTOKENS; ++yyx)
       {
-        SymbolKindType yysym = YY_CAST (SymbolKindType, yyx);
-        if (yysym != SymbolKind::S_YYerror
-            && yysym != SymbolKind::S_YYUNDEF
+        symbol_kind_type yysym = YY_CAST (symbol_kind_type, yyx);
+        if (yysym != symbol_kind::S_YYerror
+            && yysym != symbol_kind::S_YYUNDEF
             && yyparser_.yy_lac_check_ (yysym))
           {
             if (!yyarg)
@@ -3021,7 +3021,7 @@ namespace yy {
           }
       }
     if (yyarg && yycount == 0 && 0 < yyargn)
-      yyarg[0] = SymbolKind::S_YYEMPTY;
+      yyarg[0] = symbol_kind::S_YYEMPTY;
     return yycount;
   }
 
@@ -3029,14 +3029,14 @@ namespace yy {
 
 
   bool
-  parser::yy_lac_check_ (SymbolKindType yytoken) const
+  parser::yy_lac_check_ (symbol_kind_type yytoken) const
   {
     // Logically, the yylac_stack's lifetime is confined to this function.
     // Clear it, to get rid of potential left-overs from previous call.
     yylac_stack_.clear ();
     // Reduce until we encounter a shift and thereby accept the token.
 #if YYDEBUG
-    YYCDEBUG << "LAC: checking lookahead " << SymbolName (yytoken) << ':';
+    YYCDEBUG << "LAC: checking lookahead " << symbol_name (yytoken) << ':';
 #endif
     std::ptrdiff_t lac_top = 0;
     while (true)
@@ -3107,7 +3107,7 @@ namespace yy {
 
   // Establish the initial context if no initial context currently exists.
   bool
-  parser::yy_lac_establish_ (SymbolKindType yytoken)
+  parser::yy_lac_establish_ (symbol_kind_type yytoken)
   {
     /* Establish the initial context for the current lookahead if no initial
        context is currently established.
@@ -3138,7 +3138,7 @@ namespace yy {
       {
 #if YYDEBUG
         YYCDEBUG << "LAC: initial context established for "
-                 << SymbolName (yytoken) << '\n';
+                 << symbol_name (yytoken) << '\n';
 #endif
         yy_lac_established_ = true;
         return yy_lac_check_ (yytoken);
@@ -3171,7 +3171,7 @@ namespace yy {
 
   int
   parser::yy_syntax_error_arguments_ (const context& yyctx,
-                                                 SymbolKindType yyarg[], int yyargn) const
+                                                 symbol_kind_type yyarg[], int yyargn) const
   {
     /* There are many possibilities here to consider:
        - If this state is a consistent state with a default action, then
@@ -3200,7 +3200,7 @@ namespace yy {
       {
         if (yyarg)
           yyarg[0] = yyctx.token ();
-        int yyn = yyctx.ExpectedTokens (yyarg ? yyarg + 1 : yyarg, yyargn - 1);
+        int yyn = yyctx.expected_tokens (yyarg ? yyarg + 1 : yyarg, yyargn - 1);
         return yyn + 1;
       }
     return 0;
@@ -3213,7 +3213,7 @@ namespace yy {
     // Its maximum.
     enum { YYARGS_MAX = 5 };
     // Arguments of yyformat.
-    SymbolKindType yyarg[YYARGS_MAX];
+    symbol_kind_type yyarg[YYARGS_MAX];
     int yycount = yy_syntax_error_arguments_ (yyctx, yyarg, YYARGS_MAX);
 
     char const* yyformat = YY_NULLPTR;
@@ -3223,7 +3223,7 @@ namespace yy {
         case N:                               \
           yyformat = S;                       \
         break
-      default: // Avoid Compiler warnings.
+      default: // Avoid compiler warnings.
         YYCASE_ (0, YY_("syntax error"));
         YYCASE_ (1, YY_("syntax error, unexpected %s"));
         YYCASE_ (2, YY_("syntax error, unexpected %s, expecting %s"));
@@ -3239,7 +3239,7 @@ namespace yy {
     for (char const* yyp = yyformat; *yyp; ++yyp)
       if (yyp[0] == '%' && yyp[1] == 's' && yyi < yycount)
         {
-          yyres += SymbolName (yyarg[yyi++]);
+          yyres += symbol_name (yyarg[yyi++]);
           ++yyp;
         }
       else
