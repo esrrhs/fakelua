@@ -1,7 +1,7 @@
 #include "var.h"
 #include "fakelua.h"
-#include "state/State.h"
-#include "state/var_string_heap.h"
+#include "state/const_string.h"
+#include "state/state.h"
 #include "util/common.h"
 #include "var_string.h"
 #include "var_table.h"
@@ -10,14 +10,24 @@ namespace fakelua {
 
 Var const_null_var;
 
-void Var::SetString(const FakeluaStatePtr &s, const std::string_view &val) {
-    SetString(s.get(), val);
+VarString *Var::GetString() const {
+    DEBUG_ASSERT(type_ == static_cast<int>(VarType::String) || type_ == static_cast<int>(VarType::StringId));
+    if (type_ == static_cast<int>(VarType::String)) {
+        return data_.s;
+    } else /*if (type_ == static_cast<int>(VarType::StringId))*/ {
+        return ConstString::GetVarString(data_.i);
+    }
 }
 
-void Var::SetString(FakeluaState *s, const std::string_view &val) {
+void Var::SetTempString(State *s, const std::string_view &val) {
     type_ = static_cast<int>(VarType::String);
-    auto &string_heap = dynamic_cast<State *>(s)->get_var_string_heap();
-    data_.s = string_heap.alloc(val);
+    data_.s = static_cast<VarString *>(s->GetHeap().GetTempAllocator().Alloc(sizeof(VarString) + val.size()));
+    new (data_.s) VarString(val);
+}
+
+void Var::SetConstString(State *s, const std::string_view &val) {
+    type_ = static_cast<int>(VarType::StringId);
+    data_.i = s->GetConstString().Alloc(val);
 }
 
 void Var::SetTable(const FakeluaStatePtr &s) {
@@ -50,6 +60,9 @@ std::string Var::ToString(bool has_quote, bool has_postfix) const {
         case VarType::String:
             ret = has_quote ? std::format("\"{}\"", data_.s->Str()) : std::format("{}", data_.s->Str());
             break;
+        case VarType::StringId:
+            ret = has_quote ? std::format("\"{}\"", ConstString::GetString(data_.i)) : std::format("{}", ConstString::GetString(data_.i));
+            break;
         case VarType::Table:
             ret = std::format("table({})", static_cast<void *>(data_.t));
             break;
@@ -70,6 +83,8 @@ size_t Var::Hash() const {
             return std::hash<double>()(data_.f);
         case VarType::String:
             return std::hash<std::string_view>()(data_.s->Str());
+        case VarType::StringId:
+            return std::hash<int64_t>()(data_.i);
         case VarType::Table:
             return std::hash<size_t>()(reinterpret_cast<size_t>(data_.t));
         default:
@@ -79,6 +94,12 @@ size_t Var::Hash() const {
 
 bool Var::Equal(const Var &rhs) const {
     if (Type() != rhs.Type()) {
+        if (Type() == VarType::String && rhs.Type() == VarType::StringId) {
+            return GetString()->Str() == rhs.GetString()->Str();
+        }
+        if (Type() == VarType::StringId && rhs.Type() == VarType::String) {
+            return GetString()->Str() == rhs.GetString()->Str();
+        }
         return false;
     }
 
@@ -95,7 +116,9 @@ bool Var::Equal(const Var &rhs) const {
             }
             return data_.f == rhs.data_.f;
         case VarType::String:
-            return data_.s == rhs.data_.s;
+            return data_.s->Str() == rhs.data_.s->Str();
+        case VarType::StringId:
+            return data_.i == rhs.data_.i;
         case VarType::Table:
             return data_.t == rhs.data_.t;
         default:
@@ -249,8 +272,8 @@ void Var::LeftShift(const Var &rhs, Var &result) const {
     }
 }
 
-void Var::Concat(FakeluaState *s, const Var &rhs, Var &result) const {
-    result.SetString(s, std::format("{}{}", ToString(false, false), rhs.ToString(false, false)));
+void Var::Concat(State *s, const Var &rhs, Var &result) const {
+    result.SetTempString(s, std::format("{}{}", ToString(false, false), rhs.ToString(false, false)));
 }
 
 void Var::Less(const Var &rhs, Var &result) const {

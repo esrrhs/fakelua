@@ -1,4 +1,4 @@
-#include "compile/Compiler.h"
+#include "compile/compiler.h"
 #include "fakelua.h"
 #include "gtest/gtest.h"
 

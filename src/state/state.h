@@ -32,6 +32,10 @@ public:
         return heap_;
     }
 
+    ConstString &GetConstString() {
+        return const_string_;
+    }
+
     VarTableHeap &get_var_table_heap() {
         return var_table_heap_;
     }

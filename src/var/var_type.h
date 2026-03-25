@@ -11,6 +11,7 @@ enum class VarType {
     Int,
     Float,
     String,
+    StringId,
     Table,
 
     Min = Nil,
@@ -29,6 +30,8 @@ inline std::string VarTypeToString(VarType t) {
             return "Float";
         case VarType::String:
             return "String";
+        case VarType::StringId:
+            return "StringId";
         case VarType::Table:
             return "Table";
         default:

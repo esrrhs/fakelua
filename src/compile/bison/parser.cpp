@@ -46,7 +46,7 @@
 
 #include "compile/my_flexer.h"
 
-yy::parser::SymbolType yylex(fakelua::MyFlexer* l) {
+yy::parser::symbol_type yylex(fakelua::MyFlexer* l) {
     auto ret = l->MyYylex();
     std::stringstream ss;
     ss << ret.location;
@@ -1473,7 +1473,7 @@ namespace yy {
             LOG_ERROR("[bison]: funcname: funcnamelist is not a funcnamelist");
             fakelua::ThrowFakeluaException("funcnamelist is not a funcnamelist");
         }
-        funcname->SetFuncnamelist(funcnamelist);
+        funcname->SetFuncNamelist(funcnamelist);
         yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = funcname;
     }
 #line 1480 "parser.cpp"

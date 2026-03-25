@@ -1,6 +1,6 @@
 #include "preprocessor.h"
 #include "fakelua.h"
-#include "state/State.h"
+#include "state/state.h"
 #include "util/common.h"
 #include "util/exception.h"
 #include "util/file_util.h"

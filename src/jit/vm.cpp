@@ -1,6 +1,6 @@
 #include "vm.h"
 #include "fakelua.h"
-#include "state/State.h"
+#include "state/state.h"
 #include "util/common.h"
 #include "var/var_table.h"
 

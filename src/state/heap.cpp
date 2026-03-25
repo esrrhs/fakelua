@@ -1,12 +1,16 @@
 #include "heap.h"
-#include "State.h"
+#include "state.h"
 #include "util/common.h"
 
 #include <ranges>
 
 namespace fakelua {
 
-void *Heap::Alloc(size_t size) {
+HeapAllocator::~HeapAllocator() {
+    Reset();
+}
+
+void *HeapAllocator::Alloc(size_t size) {
     if (blocks_.empty() || current_block_offset_ + size > BLOCK_SIZE) {
         // allocate a new block
         void *new_block = malloc(std::max(BLOCK_SIZE, size));
@@ -23,13 +27,17 @@ void *Heap::Alloc(size_t size) {
     return ptr;
 }
 
-void Heap::Reset() {
+void HeapAllocator::Reset() {
     current_block_index_ = 0;
     current_block_offset_ = 0;
     for (const auto &block: blocks_) {
         free(block);
     }
     blocks_.clear();
+}
+
+size_t HeapAllocator::Size() const {
+    return blocks_.size() * BLOCK_SIZE;
 }
 
 }// namespace fakelua

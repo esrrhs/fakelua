@@ -31,11 +31,6 @@ public:
         SetFloat(val);
     }
 
-    // 构造字符串型变量
-    explicit Var(const FakeluaStatePtr &s, const std::string_view &val) {
-        SetString(s, val);
-    }
-
     // 重载等于操作符
     bool operator==(const Var &r) const {
         return Equal(r);
@@ -65,10 +60,7 @@ public:
     }
 
     // 获取字符串对象（仅在类型匹配时有效）
-    [[nodiscard]] VarString *GetString() const {
-        DEBUG_ASSERT(type_ == static_cast<int>(VarType::String));
-        return data_.s;
-    }
+    [[nodiscard]] VarString *GetString() const;
 
     // 获取表对象（仅在类型匹配时有效）
     [[nodiscard]] VarTable *GetTable() const {
@@ -106,17 +98,14 @@ public:
         }
     }
 
-    // 设置字符串值
-    void SetString(const FakeluaStatePtr &s, const std::string_view &val);
+    // 设置临时字符串值
+    void SetTempString(State *s, const std::string_view &val);
 
-    // 设置字符串值
-    void SetString(FakeluaState *s, const std::string_view &val);
-
-    // 创建并设置新表
-    void SetTable(const FakeluaStatePtr &s);
+    // 设置常量字符串值
+    void SetConstString(State *s, const std::string_view &val);
 
     // 创建并设置新表
-    void SetTable(FakeluaState *s);
+    void SetTable(State *s);
 
 public:
     // 转换为字符串显示
@@ -178,7 +167,7 @@ public:
     void LeftShift(const Var &rhs, Var &result) const;
 
     // 字符串连接运算
-    void Concat(FakeluaState *s, const Var &rhs, Var &result) const;
+    void Concat(State *s, const Var &rhs, Var &result) const;
 
     // 小于判断
     void Less(const Var &rhs, Var &result) const;

@@ -1,5 +1,5 @@
 #include "fakelua.h"
-#include "state/State.h"
+#include "state/state.h"
 #include "state/var_string_heap.h"
 #include "var/var.h"
 #include "var/var_string.h"

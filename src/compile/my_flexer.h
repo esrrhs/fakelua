@@ -17,7 +17,7 @@ public:
     ~MyFlexer() override = default;
 
     // Bison 调用的词法分析接口，实现在 scanner.cpp 中
-    virtual int MyYylex(yy::parser::semantic_type *yylval, yy::parser::location_type *yylloc);
+    virtual yy::parser::symbol_type MyYylex();
 
     // 设置输入为 Lua 源代码文件
     void InputFile(const std::string &file);

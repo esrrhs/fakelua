@@ -1,11 +1,11 @@
-#include "State.h"
-#include "compile/Compiler.h"
+#include "state.h"
+#include "compile/compiler.h"
 #include "fakelua.h"
 #include "util/common.h"
 
 namespace fakelua {
 
-State::State(StateConfig config) : compiler_(this), stack_(config) {
+State::State(StateConfig config) : compiler_(this), const_string_(this), stack_(config) {
 }
 
 void State::CompileFile(const std::string &filename, const CompileConfig &cfg) {

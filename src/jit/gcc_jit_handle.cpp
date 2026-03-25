@@ -1,5 +1,5 @@
 #include "gcc_jit_handle.h"
-#include "state/State.h"
+#include "state/state.h"
 
 namespace fakelua {
 

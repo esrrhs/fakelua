@@ -1,4 +1,4 @@
-#include "compile/Compiler.h"
+#include "compile/compiler.h"
 #include "bison/parser.h"
 
 namespace fakelua {
