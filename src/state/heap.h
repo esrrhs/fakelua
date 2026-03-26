@@ -13,7 +13,7 @@ public:
     // 分配一块连续的临时内存，分配后的指针地址不会变化
     [[nodiscard]] void *Alloc(size_t size);
 
-    // 重置，释放所有临时内存
+    // 重置下标，内存保留
     void Reset();
 
     // 当前临时内存使用

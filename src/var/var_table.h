@@ -6,7 +6,8 @@
 
 namespace fakelua {
 
-// table type, like the lua table. but we implement it in a simple way.
+// 纯数组实现的Table，不用Hash是因为大部分情况Table的Key都比较少，Hash反而慢。
+// 并且在JIT层面本身会有加速查找的方式。
 class VarTable {
 public:
     // get value by key. if the key does not exist, return const var(nullptr).

@@ -2,24 +2,34 @@
 #include "state.h"
 #include "util/common.h"
 
-#include <ranges>
-
 namespace fakelua {
 
 HeapAllocator::~HeapAllocator() {
-    Reset();
+    current_block_index_ = 0;
+    current_block_offset_ = 0;
+    for (const auto &block: blocks_) {
+        free(block);
+    }
+    blocks_.clear();
 }
 
 void *HeapAllocator::Alloc(size_t size) {
-    if (blocks_.empty() || current_block_offset_ + size > BLOCK_SIZE) {
+    if (size > BLOCK_SIZE) {
+        ThrowFakeluaException(std::format("requested size {} exceeds block size {}", size, BLOCK_SIZE));
+    }
+
+    if (current_block_offset_ + size > BLOCK_SIZE) {
+        current_block_offset_ = 0;
+        current_block_index_++;
+    }
+
+    if (current_block_index_ >= blocks_.size()) {
         // allocate a new block
-        void *new_block = malloc(std::max(BLOCK_SIZE, size));
+        void *new_block = malloc(BLOCK_SIZE);
         if (!new_block) {
             throw std::runtime_error("failed to allocate memory");
         }
         blocks_.emplace_back(new_block);
-        current_block_index_ = blocks_.size() - 1;
-        current_block_offset_ = 0;
     }
 
     void *ptr = static_cast<char *>(blocks_[current_block_index_]) + current_block_offset_;
@@ -30,14 +40,10 @@ void *HeapAllocator::Alloc(size_t size) {
 void HeapAllocator::Reset() {
     current_block_index_ = 0;
     current_block_offset_ = 0;
-    for (const auto &block: blocks_) {
-        free(block);
-    }
-    blocks_.clear();
 }
 
 size_t HeapAllocator::Size() const {
-    return blocks_.size() * BLOCK_SIZE;
+    return current_block_index_ * BLOCK_SIZE + current_block_offset_;
 }
 
 }// namespace fakelua
