@@ -44,14 +44,18 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
         WalkSyntaxTree(ret.chunk, [](const SyntaxTreeInterfacePtr &ptr) {});
     }
 
-    // 2. 编译语法树
-    if (!cfg.skip_jit) {
-        // 预处理语法树
-        pp_.Process(cfg, ret.fileName, ret.chunk);
-
-        // 编译为原生机器码
-        jitter_.Compile(cfg, ret.fileName, ret.chunk);
+    if (cfg.skip_jit) {
+        return ret;
     }
+
+    // 2. 预处理语法树
+    pp_.Process(cfg, ret.fileName, ret.chunk);
+
+    // 3. 转译为C
+    
+
+    // 4. 编译为原生机器码
+    jitter_.Compile(cfg, ret.fileName, ret.chunk);
 
     return ret;
 }
