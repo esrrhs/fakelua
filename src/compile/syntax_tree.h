@@ -2,7 +2,6 @@
 
 #include "bison/location.hh"
 #include "util/common.h"
-#include "util/exception.h"
 
 namespace fakelua {
 

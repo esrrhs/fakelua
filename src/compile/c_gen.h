@@ -1,4 +1,6 @@
 #pragma once
+#include "compile_common.h"
+#include "fakelua.h"
 
 namespace fakelua {
 
@@ -10,8 +12,12 @@ public:
 
     ~CGen() = default;
 
+    void Generate(const CompileResult &cr, const CompileConfig &cfg);
+
 public:
+
 private:
+    State *s_;
 };
 
 }// namespace fakelua

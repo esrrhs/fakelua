@@ -1,10 +1,13 @@
 #include "compile/compiler.h"
 #include "bison/parser.h"
+#include "compile/c_gen.h"
+#include "compile/preprocessor.h"
+#include "jit/gcc_jit.h"
 
 namespace fakelua {
 
 // 构造函数
-Compiler::Compiler(State *s) : s_(s), pp_(s), jitter_(s) {
+Compiler::Compiler(State *s) : s_(s) {
 }
 
 // 编译文件接口
@@ -28,7 +31,7 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     LOG_INFO("start compile {}", f.GetFilename());
 
     CompileResult ret;
-    ret.fileName = f.GetFilename();
+    ret.file_name = f.GetFilename();
 
     // 1. 生成语法树（AST）
     yy::parser parse(&f);
@@ -49,12 +52,16 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     }
 
     // 2. 预处理语法树
-    pp_.Process(cfg, ret.fileName, ret.chunk);
+    PreProcessor pp(s_);
+    pp.Process(ret, cfg);
 
     // 3. 转译为C
-    
+    CGen cgen(s_);
+    cgen.Generate(ret, cfg);
+
 
     // 4. 编译为原生机器码
+    GccJitter jitter_(s_);
     jitter_.Compile(cfg, ret.fileName, ret.chunk);
 
     return ret;

@@ -186,7 +186,7 @@ std::string SyntaxTreeIf::Dump(int tab) const {
 std::string SyntaxTreeElseiflist::Dump(int tab) const {
     std::string str;
     str += GenTab(tab) + "(elseif)[" + LocStr() + "]\n";
-    for (int i = 0; i < (int) exps_.size(); ++i) {
+    for (int i = 0; i < static_cast<int>(exps_.size()); ++i) {
         str += exps_[i]->Dump(tab + 1);
         str += blocks_[i]->Dump(tab + 1);
     }

@@ -91,25 +91,25 @@ CVar NativeToFakeluaDouble(State *s, double v) {
 
 CVar NativeToFakeluaCstr(State *s, const char *v) {
     Var ret;
-    ret.SetString(s, v);
+    ret.SetTempString(s, v);
     return ret;
 }
 
 CVar NativeToFakeluaStr(State *s, char *v) {
     Var ret;
-    ret.SetString(s, v);
+    ret.SetTempString(s, v);
     return ret;
 }
 
 CVar NativeToFakeluaString(State *s, const std::string &v) {
     Var ret;
-    ret.SetString(s, v);
+    ret.SetTempString(s, v);
     return ret;
 }
 
 CVar NativeToFakeluaStringView(State *s, const std::string_view &v) {
     Var ret;
-    ret.SetString(s, v);
+    ret.SetTempString(s, v);
     return ret;
 }
 
@@ -130,7 +130,7 @@ Var ViToVar(State *s, const VarInterface *src) {
             ret.SetFloat(src->ViGetFloat());
             break;
         case VarInterface::Type::STRING:
-            ret.SetString(s, src->ViGetString());
+            ret.SetTempString(s, src->ViGetString());
             break;
         case VarInterface::Type::TABLE:
             ret.SetTable(s);
@@ -312,6 +312,9 @@ void VarToVi(State *s, CVar src, VarInterface *dst) {
         case VarType::String:
             dst->ViSetString(vv.GetString()->Str());
             break;
+        case VarType::StringId:
+            dst->ViSetString(vv.GetString()->Str());
+            break;
         case VarType::Table: {
             std::vector<std::pair<VarInterface *, VarInterface *>> kvs;
             for (size_t i = 0; i < vv.GetTable()->Size(); ++i) {
@@ -370,11 +373,11 @@ void FakeluaFreeState(State *s) {
 }
 
 void CompileFile(State *s, const std::string &filename, const CompileConfig &cfg) {
-    s->CompileFile(filename, cfg);
+    s->GetCompiler().CompileFile(filename, cfg);
 }
 
 void CompileString(State *s, const std::string &str, const CompileConfig &cfg) {
-    s->CompileString(str, cfg);
+    s->GetCompiler().CompileString(str, cfg);
 }
 
 void SetVarInterfaceNewFunc(State *s, const std::function<VarInterface *()> &func) {

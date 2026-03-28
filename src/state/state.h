@@ -1,31 +1,31 @@
 #pragma once
 
 #include "compile/compiler.h"
-#include "const_string.h"
 #include "fakelua.h"
-#include "heap.h"
 #include "jit/vm.h"
-#include "stack.h"
-#include "var_table_heap.h"
+#include "state/const_string.h"
+#include "state/heap.h"
+#include "state/stack.h"
+#include "state/var_table_heap.h"
 
 namespace fakelua {
 
 // 单个运行实例
 class State {
 public:
-    explicit State(StateConfig config = {});
+    explicit State(const StateConfig &config = {});
 
     ~State() = default;
-
-    void CompileFile(const std::string &filename, const CompileConfig &cfg);
-
-    void CompileString(const std::string &str, const CompileConfig &cfg);
 
     void Reset() {
         DEBUG_ASSERT(reentrant_count_ == 0);
         heap_.Reset();
         var_table_heap_.reset();
         stack_.reset();
+    }
+
+    Compiler &GetCompiler() {
+        return compiler_;
     }
 
     Heap &GetHeap() {
