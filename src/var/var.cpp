@@ -21,8 +21,7 @@ VarString *Var::GetString() const {
 
 void Var::SetTempString(State *s, const std::string_view &val) {
     type_ = static_cast<int>(VarType::String);
-    data_.s = static_cast<VarString *>(s->GetHeap().GetTempAllocator().Alloc(sizeof(VarString) + val.size()));
-    new (data_.s) VarString(val);
+    data_.s = VarString::AllocTemp(s, val);
 }
 
 void Var::SetConstString(State *s, const std::string_view &val) {

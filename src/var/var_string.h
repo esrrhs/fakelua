@@ -25,6 +25,8 @@ public:
         return static_cast<size_t>(size_);
     }
 
+    static VarString * AllocTemp(State *s, const std::string_view &str);
+
 private:
     int size_ = 0;
     char data_[0];
