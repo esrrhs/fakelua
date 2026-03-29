@@ -1,54 +1,49 @@
 #include "var_table.h"
-#include "var.h"
-#include "fakelua.h"
 #include "util/common.h"
-#include <cstdlib>
+#include "var.h"
 
 namespace fakelua {
-
-VarTable::~VarTable() {
-    if (slow_data_) {
-        free(slow_data_);
-    }
-}
 
 Var VarTable::Get(const Var &key) const {
     if (count_ == 0) {
         return const_null_var;
     }
 
-    uint32_t h = (uint32_t)key.Hash();
+    const auto h = static_cast<uint32_t>(key.Hash());
 
-    if (capacity_ == 0) { // 快速模式：对紧凑数组进行线性扫描
-        for (uint32_t i = 0; i < count_; ++i) {
-            if (nodes_[i].hash == h && nodes_[i].key.Equal(key)) {
-                return nodes_[i].val;
-            }
+    if (bucket_count_ == 0) {// 快速模式：手动展开线性扫描
+        if (quick_data_[0].hash == h && quick_data_[0].key.Equal(key)) {
+            return quick_data_[0].val;
         }
-    } else { // 慢速模式：采用罗宾汉哈希查找
-        uint32_t mask = capacity_ - 1;
-        uint32_t idx = h & mask;
-        uint32_t dist = 0; 
-
-        while (nodes_[idx].key.Type() != VarType::Nil) {
-            // 罗宾汉哈希提前退出判定
-            if (dist > nodes_[idx].dist) {
-                return const_null_var;
+        if (count_ > 1 && quick_data_[1].hash == h && quick_data_[1].key.Equal(key)) {
+            return quick_data_[1].val;
+        }
+        if (count_ > 2 && quick_data_[2].hash == h && quick_data_[2].key.Equal(key)) {
+            return quick_data_[2].val;
+        }
+        if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(key)) {
+            return quick_data_[3].val;
+        }
+        return const_null_var;
+    } else {// 慢速模式：拉链法（首节点嵌入）
+        const uint32_t mask = bucket_count_ - 1;
+        const uint32_t idx = h & mask;
+        const TableNode *curr = &nodes_[idx];
+        if (curr->entry.key.Type() == VarType::Nil) {
+            return const_null_var;
+        }
+        while (curr) {
+            if (curr->entry.hash == h && curr->entry.key.Equal(key)) {
+                return curr->entry.val;
             }
-
-            if (nodes_[idx].hash == h && nodes_[idx].key.Equal(key)) {
-                return nodes_[idx].val;
-            }
-
-            idx = (idx + 1) & mask;
-            dist++;
+            curr = curr->next;
         }
     }
     return const_null_var;
 }
 
 void VarTable::Set(const Var &key, const Var &val, bool can_be_nil) {
-    uint32_t h = (uint32_t)key.Hash();
+    const auto h = static_cast<uint32_t>(key.Hash());
 
     if (val.Type() == VarType::Nil && !can_be_nil) {
         // 执行删除操作
@@ -56,160 +51,193 @@ void VarTable::Set(const Var &key, const Var &val, bool can_be_nil) {
             return;
         }
 
-        if (capacity_ == 0) { // 快速模式删除
-            for (uint32_t i = 0; i < count_; ++i) {
-                if (nodes_[i].hash == h && nodes_[i].key.Equal(key)) {
-                    // 通过交换最后一个元素保持数组紧凑
-                    if (i < count_ - 1) {
-                        nodes_[i] = nodes_[count_ - 1];
-                    }
-                    // 直接减少计数，无需清理任何槽位数据
-                    count_--;
-                    return;
+        if (bucket_count_ == 0) {// 快速模式删除：手动展开
+            if (quick_data_[0].hash == h && quick_data_[0].key.Equal(key)) {
+                if (count_ > 1) {
+                    quick_data_[0] = quick_data_[count_ - 1];
                 }
+                count_--;
+                return;
             }
-        } else { // 慢速模式删除
-            uint32_t mask = capacity_ - 1;
-            uint32_t i = h & mask;
-            uint32_t dist = 0;
-
-            while (nodes_[i].key.Type() != VarType::Nil) {
-                if (dist > nodes_[i].dist) {
-                    return; // Key 不存在
+            if (count_ > 1 && quick_data_[1].hash == h && quick_data_[1].key.Equal(key)) {
+                if (count_ > 2) {
+                    quick_data_[1] = quick_data_[count_ - 1];
                 }
+                count_--;
+                return;
+            }
+            if (count_ > 2 && quick_data_[2].hash == h && quick_data_[2].key.Equal(key)) {
+                if (count_ > 3) {
+                    quick_data_[2] = quick_data_[count_ - 1];
+                }
+                count_--;
+                return;
+            }
+            if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(key)) {
+                count_--;
+                return;
+            }
+        } else {// 慢速模式删除
+            const uint32_t mask = bucket_count_ - 1;
+            const uint32_t idx = h & mask;
+            TableNode *curr = &nodes_[idx];
 
-                if (nodes_[i].hash == h && nodes_[i].key.Equal(key)) {
-                    // 找到目标，开始执行后移填补删除。
-                    // 逻辑上只需将目标 key 设为 Nil 即可形成“洞口”。
-                    nodes_[i].key.SetNil();
+            if (curr->entry.key.Type() == VarType::Nil) {
+                return;
+            }
+
+            // 如果要删除的是主桶位置的节点
+            if (curr->entry.hash == h && curr->entry.key.Equal(key)) {
+                if (curr->next) {
+                    // 将溢出池中的后续节点内容拷贝到主桶
+                    TableNode *next_node = curr->next;
+                    curr->entry = next_node->entry;
+                    curr->next = next_node->next;
+                    // 释放后续节点到自由链表
+                    next_node->next = free_list_;
+                    free_list_ = next_node;
+                } else {
+                    curr->entry.key.SetNil();
+                }
+                count_--;
+                return;
+            }
+
+            // 沿着溢出链查找
+            TableNode *prev = curr;
+            curr = curr->next;
+            while (curr) {
+                if (curr->entry.hash == h && curr->entry.key.Equal(key)) {
+                    prev->next = curr->next;
+                    // 释放该节点到自由链表
+                    curr->next = free_list_;
+                    free_list_ = curr;
                     count_--;
-
-                    uint32_t j = i;
-                    while (true) {
-                        i = (i + 1) & mask;
-                        if (nodes_[i].key.Type() == VarType::Nil) {
-                            break;
-                        }
-                        
-                        uint32_t k = nodes_[i].hash & mask;
-                        // 判断 nodes[i] 的原始哈希位置是否在 (j, i] 之外（循环判断）
-                        if ((i > j && (k <= j || k > i)) || (i < j && (k <= j && k > i))) {
-                            // 将 i 位置的元素前移到洞口 j
-                            nodes_[j] = nodes_[i];
-                            nodes_[j].dist = (j - k) & mask; // 更新前移后的探测距离
-                            
-                            // 元素移走后，i 处形成新的洞口，只需标记 key 为 Nil
-                            nodes_[i].key.SetNil();
-                            j = i;
-                        }
-                    }
                     return;
                 }
-                i = (i + 1) & mask;
-                dist++;
+                prev = curr;
+                curr = curr->next;
             }
         }
         return;
     }
 
     // 执行插入或更新操作
-    if (capacity_ == 0) { // 快速模式
-        for (uint32_t i = 0; i < count_; ++i) {
-            if (nodes_[i].hash == h && nodes_[i].key.Equal(key)) {
-                nodes_[i].val = val;
-                return;
-            }
+    if (bucket_count_ == 0) {// 快速模式：尝试匹配现有 Key
+        if (count_ > 0 && quick_data_[0].hash == h && quick_data_[0].key.Equal(key)) {
+            quick_data_[0].val = val;
+            return;
         }
+        if (count_ > 1 && quick_data_[1].hash == h && quick_data_[1].key.Equal(key)) {
+            quick_data_[1].val = val;
+            return;
+        }
+        if (count_ > 2 && quick_data_[2].hash == h && quick_data_[2].key.Equal(key)) {
+            quick_data_[2].val = val;
+            return;
+        }
+        if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(key)) {
+            quick_data_[3].val = val;
+            return;
+        }
+
         if (count_ < QUICK_DATA_SIZE) {
-            nodes_[count_].key = key;
-            nodes_[count_].val = val;
-            nodes_[count_].hash = h;
+            quick_data_[count_].key = key;
+            quick_data_[count_].val = val;
+            quick_data_[count_].hash = h;
             count_++;
             return;
         }
-        // 升级为哈希表
+        // 升级为拉链法哈希表
         Rehash(QUICK_DATA_SIZE * 2);
     }
 
-    // 慢速模式插入逻辑
-    if (count_ >= capacity_ * 0.75) {
-        Rehash(capacity_ * 2);
+    // 慢速模式插入
+    if (count_ >= bucket_count_ * 1.5) {
+        Rehash(bucket_count_ * 2);
     }
 
-    uint32_t mask = capacity_ - 1;
-    uint32_t idx = h & mask;
-    uint32_t dist = 0;
-    
-    TableEntry entry = {key, val, h, dist};
+    const uint32_t mask = bucket_count_ - 1;
+    const uint32_t idx = h & mask;
+    TableNode *main_node = &nodes_[idx];
 
-    while (true) {
-        if (nodes_[idx].key.Type() == VarType::Nil) {
-            entry.dist = dist;
-            nodes_[idx] = entry;
-            count_++;
-            return;
-        }
-
-        if (nodes_[idx].hash == entry.hash && nodes_[idx].key.Equal(entry.key)) {
-            nodes_[idx].val = entry.val;
-            return;
-        }
-
-        if (dist > nodes_[idx].dist) {
-            // 罗宾汉交换
-            entry.dist = dist;
-            TableEntry temp = nodes_[idx];
-            nodes_[idx] = entry;
-            entry = temp;
-            dist = entry.dist;
-        }
-
-        idx = (idx + 1) & mask;
-        dist++;
+    // 如果主桶位置为空
+    if (main_node->entry.key.Type() == VarType::Nil) {
+        main_node->entry.key = key;
+        main_node->entry.val = val;
+        main_node->entry.hash = h;
+        main_node->next = nullptr;
+        count_++;
+        return;
     }
+
+    // 检查并更新现有节点
+    TableNode *curr = main_node;
+    while (curr) {
+        if (curr->entry.hash == h && curr->entry.key.Equal(key)) {
+            curr->entry.val = val;
+            return;
+        }
+        curr = curr->next;
+    }
+
+    // 从自由链表取出一个溢出节点，链入主桶的后续
+    DEBUG_ASSERT(free_list_ != nullptr);
+    TableNode *new_node = free_list_;
+    free_list_ = free_list_->next;
+
+    new_node->entry.key = key;
+    new_node->entry.val = val;
+    new_node->entry.hash = h;
+    new_node->next = main_node->next;
+    main_node->next = new_node;
+    count_++;
 }
 
-void VarTable::Rehash(uint32_t new_capacity) {
-    auto old_nodes = nodes_;
-    auto old_capacity = capacity_;
-    uint32_t old_count = count_;
-    
-    // 申请并清零新空间，calloc 会将所有 key.type 初始化为 VAR_NIL
-    TableEntry* new_nodes = (TableEntry*)calloc(new_capacity, sizeof(TableEntry));
-    
-    nodes_ = new_nodes;
-    capacity_ = new_capacity;
-    count_ = 0;
-    slow_data_ = new_nodes;
+void VarTable::Rehash(uint32_t new_bucket_count) {
+    TableNode *old_nodes = nodes_;
+    const uint32_t old_bucket_count = bucket_count_;
+    const uint32_t old_count = count_;
 
-    if (old_capacity == 0) {
-        for (uint32_t i = 0; i < old_count; ++i) {
-            Set(old_nodes[i].key, old_nodes[i].val, false);
-        }
+    // 池大小设定为桶数量的 2 倍（1 倍主桶，1 倍溢出池）
+    const uint32_t total_nodes = new_bucket_count * 2;
+    const size_t total_size = total_nodes * sizeof(TableNode);
+    nodes_ = static_cast<TableNode *>(malloc(total_size));
+    memset(nodes_, 0, total_size);
+
+    bucket_count_ = new_bucket_count;
+    count_ = 0;
+
+    // 初始化自由链表（从溢出池区域开始）
+    TableNode *pool = nodes_ + new_bucket_count;
+    for (uint32_t i = 0; i < new_bucket_count - 1; ++i) {
+        pool[i].next = &pool[i + 1];
+    }
+    pool[new_bucket_count - 1].next = nullptr;
+    free_list_ = pool;
+
+    if (old_bucket_count == 0) {
+        // 从 quick_data_ 迁移：手动展开
+        if (old_count > 0) Set(quick_data_[0].key, quick_data_[0].val, false);
+        if (old_count > 1) Set(quick_data_[1].key, quick_data_[1].val, false);
+        if (old_count > 2) Set(quick_data_[2].key, quick_data_[2].val, false);
+        if (old_count > 3) Set(quick_data_[3].key, quick_data_[3].val, false);
     } else {
-        for (uint32_t i = 0; i < old_capacity; ++i) {
-            if (old_nodes[i].key.Type() != VarType::Nil) {
-                Set(old_nodes[i].key, old_nodes[i].val, false);
+        // 从旧主桶节点和其链表迁移
+        for (uint32_t i = 0; i < old_bucket_count; ++i) {
+            if (const TableNode *curr = &old_nodes[i]; curr->entry.key.Type() != VarType::Nil) {
+                Set(curr->entry.key, curr->entry.val, false);
+                curr = curr->next;
+                while (curr) {
+                    Set(curr->entry.key, curr->entry.val, false);
+                    curr = curr->next;
+                }
             }
         }
         free(old_nodes);
     }
-    
-    DEBUG_ASSERT(count_ == old_count);
-}
 
-void VarTable::GetKeys(std::vector<Var>& keys) const {
-    if (capacity_ == 0) {
-        for (uint32_t i = 0; i < count_; ++i) {
-            keys.push_back(nodes_[i].key);
-        }
-    } else {
-        for (uint32_t i = 0; i < capacity_; ++i) {
-            if (nodes_[i].key.Type() != VarType::Nil) {
-                keys.push_back(nodes_[i].key);
-            }
-        }
-    }
+    DEBUG_ASSERT(count_ == old_count);
 }
 
 Var VarTable::KeyAt(size_t pos) const {
@@ -217,16 +245,20 @@ Var VarTable::KeyAt(size_t pos) const {
         return const_null_var;
     }
 
-    if (capacity_ == 0) {
-        return nodes_[pos].key;
+    if (bucket_count_ == 0) {
+        return quick_data_[pos].key;
     } else {
         size_t current = 0;
-        for (uint32_t i = 0; i < capacity_; ++i) {
-            if (nodes_[i].key.Type() != VarType::Nil) {
-                if (current == pos) {
-                    return nodes_[i].key;
-                }
+        for (uint32_t i = 0; i < bucket_count_; ++i) {
+            if (const TableNode *curr = &nodes_[i]; curr->entry.key.Type() != VarType::Nil) {
+                if (current == pos) return curr->entry.key;
                 current++;
+                curr = curr->next;
+                while (curr) {
+                    if (current == pos) return curr->entry.key;
+                    current++;
+                    curr = curr->next;
+                }
             }
         }
     }
@@ -238,16 +270,20 @@ Var VarTable::ValueAt(size_t pos) const {
         return const_null_var;
     }
 
-    if (capacity_ == 0) {
-        return nodes_[pos].val;
+    if (bucket_count_ == 0) {
+        return quick_data_[pos].val;
     } else {
         size_t current = 0;
-        for (uint32_t i = 0; i < capacity_; ++i) {
-            if (nodes_[i].key.Type() != VarType::Nil) {
-                if (current == pos) {
-                    return nodes_[i].val;
-                }
+        for (uint32_t i = 0; i < bucket_count_; ++i) {
+            if (const TableNode *curr = &nodes_[i]; curr->entry.key.Type() != VarType::Nil) {
+                if (current == pos) return curr->entry.val;
                 current++;
+                curr = curr->next;
+                while (curr) {
+                    if (current == pos) return curr->entry.val;
+                    current++;
+                    curr = curr->next;
+                }
             }
         }
     }
