@@ -11,6 +11,8 @@ namespace fakelua {
 // 3. 内存布局设计为 C 兼容，方便未来在 C 代码中直接访问。
 class VarTable {
 public:
+    static constexpr uint32_t INVALID_INDEX = 0xFFFFFFFF;
+
     // 基础条目：键、值、哈希
     struct VarEntry {
         Var key;
@@ -18,16 +20,13 @@ public:
         uint32_t hash;
     };
 
-    // 链表节点：基础条目 + 下一个节点指针
+    // 链表节点：基础条目 + 下一个节点下标
     struct TableNode {
         VarEntry entry;
-        TableNode *next = nullptr;
+        uint32_t next = INVALID_INDEX;
     };
 
 public:
-    VarTable() = default;
-    ~VarTable() = default;
-
     // 禁止拷贝
     VarTable(const VarTable &) = delete;
     VarTable &operator=(const VarTable &) = delete;
@@ -51,7 +50,10 @@ public:
 
 private:
     // 重新哈希并扩容
-    void Rehash(State *s, uint32_t new_capacity);
+    void Rehash(State *s);
+
+    // 原始插入逻辑，不检查扩容，返回是否成功（溢出池是否够用）
+    bool InsertRaw(const Var &key, const Var &val, uint32_t hash);
 
 private:
     static constexpr uint32_t QUICK_DATA_SIZE = 4;// 快速路径的最大容量
@@ -59,7 +61,7 @@ private:
     uint32_t bucket_count_ = 0;                   // 桶的数量（必须是 2 的幂）
     TableNode *nodes_ = nullptr;                  // 指向内存块开头（包含主桶节点和溢出池节点）
     VarEntry quick_data_[QUICK_DATA_SIZE] = {};   // 嵌入式数组（不包含 next 指针）
-    TableNode *free_list_ = nullptr;              // 溢出池中的自由节点链表
+    uint32_t free_list_idx_ = INVALID_INDEX;      // 溢出池中的自由节点链表头下标
 };
 
 
