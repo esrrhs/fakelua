@@ -89,8 +89,7 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
         } else {
             const uint32_t mask = bucket_count_ - 1;
             const uint32_t idx = h & mask;
-            uint32_t curr_idx = idx;
-            TableNode *curr = &nodes_[curr_idx];
+            TableNode *curr = &nodes_[idx];
 
             if (curr->entry.key.Type() == VarType::Nil) {
                 return;
@@ -100,30 +99,54 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
                 if (curr->next != INVALID_INDEX) {
                     const uint32_t next_idx = curr->next;
                     TableNode *next_node = &nodes_[next_idx];
+                    
+                    // AIA 移除逻辑：next_node 物理消失
+                    const uint32_t pos = next_node->active_pos;
+                    if (const uint32_t last_node_idx = active_list_[count_ - 1]; next_idx != last_node_idx) {
+                        active_list_[pos] = last_node_idx;
+                        nodes_[last_node_idx].active_pos = pos;
+                    }
+                    next_node->active_pos = INVALID_INDEX;
+
                     curr->entry = next_node->entry;
                     curr->next = next_node->next;
                     next_node->next = free_list_idx_;
                     free_list_idx_ = next_idx;
                 } else {
+                    // AIA 移除逻辑：curr 物理标记为 Nil
+                    const uint32_t pos = curr->active_pos;
+                    if (const uint32_t last_node_idx = active_list_[count_ - 1]; idx != last_node_idx) {
+                        active_list_[pos] = last_node_idx;
+                        nodes_[last_node_idx].active_pos = pos;
+                    }
+                    curr->active_pos = INVALID_INDEX;
                     curr->entry.key.SetNil();
                 }
                 count_--;
                 return;
             }
 
-            uint32_t prev_idx = curr_idx;
-            curr_idx = curr->next;
+            uint32_t prev_idx = idx;
+            uint32_t curr_idx = curr->next;
             while (curr_idx != INVALID_INDEX) {
-                TableNode *curr_p = &nodes_[curr_idx];
-                if (curr_p->entry.hash == h && curr_p->entry.key.Equal(key)) {
-                    nodes_[prev_idx].next = curr_p->next;
-                    curr_p->next = free_list_idx_;
+                TableNode *node = &nodes_[curr_idx];
+                if (node->entry.hash == h && node->entry.key.Equal(key)) {
+                    // AIA 移除逻辑：node 物理移除
+                    const uint32_t pos = node->active_pos;
+                    if (const uint32_t last_node_idx = active_list_[count_ - 1]; curr_idx != last_node_idx) {
+                        active_list_[pos] = last_node_idx;
+                        nodes_[last_node_idx].active_pos = pos;
+                    }
+                    node->active_pos = INVALID_INDEX;
+
+                    nodes_[prev_idx].next = node->next;
+                    node->next = free_list_idx_;
                     free_list_idx_ = curr_idx;
                     count_--;
                     return;
                 }
                 prev_idx = curr_idx;
-                curr_idx = curr_p->next;
+                curr_idx = node->next;
             }
         }
         return;
@@ -175,6 +198,10 @@ bool VarTable::InsertRaw(const Var &key, const Var &val, uint32_t hash) {
         main_node->entry.val = val;
         main_node->entry.hash = hash;
         main_node->next = INVALID_INDEX;
+        
+        main_node->active_pos = count_;
+        active_list_[count_] = idx;
+        
         count_++;
         return true;
     }
@@ -205,6 +232,10 @@ bool VarTable::InsertRaw(const Var &key, const Var &val, uint32_t hash) {
     new_node->entry.hash = hash;
     new_node->next = main_node->next;
     main_node->next = new_node_idx;
+
+    new_node->active_pos = count_;
+    active_list_[count_] = new_node_idx;
+
     count_++;
     return true;
 }
@@ -221,24 +252,29 @@ void VarTable::Rehash(State *s) {
 
     while (true) {
         const uint32_t overflow_count = new_bucket_count / 2;
-
         const uint32_t total_nodes = new_bucket_count + overflow_count;
-        const size_t total_size = total_nodes * sizeof(TableNode);
-        auto *new_nodes = static_cast<TableNode *>(s->GetHeap().GetTempAllocator().Alloc(total_size));
+        
+        const size_t nodes_size = total_nodes * sizeof(TableNode);
+        const size_t active_list_size = total_nodes * sizeof(uint32_t);
+        auto *buffer = static_cast<char *>(s->GetHeap().GetTempAllocator().Alloc(nodes_size + active_list_size));
+        
+        auto *new_nodes = reinterpret_cast<TableNode *>(buffer);
+        auto *new_active_list = reinterpret_cast<uint32_t *>(buffer + nodes_size);
 
         for (uint32_t i = 0; i < total_nodes; ++i) {
             new_nodes[i].entry.key.SetNil();
             new_nodes[i].next = INVALID_INDEX;
+            new_nodes[i].active_pos = INVALID_INDEX;
         }
 
-        // 保存当前状态，以便重试
         TableNode *prev_nodes = nodes_;
+        uint32_t *prev_active_list = active_list_;
         const uint32_t prev_bucket_count = bucket_count_;
         const uint32_t prev_count = count_;
         const uint32_t prev_free_list_idx = free_list_idx_;
 
-        // 临时切换到新表
         nodes_ = new_nodes;
+        active_list_ = new_active_list;
         bucket_count_ = new_bucket_count;
         count_ = 0;
         for (uint32_t i = 0; i < overflow_count - 1; ++i) {
@@ -293,6 +329,7 @@ void VarTable::Rehash(State *s) {
             break;
         } else {
             nodes_ = prev_nodes;
+            active_list_ = prev_active_list;
             bucket_count_ = prev_bucket_count;
             count_ = prev_count;
             free_list_idx_ = prev_free_list_idx;
@@ -309,22 +346,8 @@ Var VarTable::KeyAt(size_t pos) const {
     if (bucket_count_ == 0) {
         return quick_data_[pos].key;
     } else {
-        size_t current = 0;
-        for (uint32_t i = 0; i < bucket_count_; ++i) {
-            uint32_t curr_idx = i;
-            while (curr_idx != INVALID_INDEX) {
-                const TableNode *curr = &nodes_[curr_idx];
-                if (curr->entry.key.Type() != VarType::Nil) {
-                    if (current == pos) {
-                        return curr->entry.key;
-                    }
-                    current++;
-                }
-                curr_idx = curr->next;
-            }
-        }
+        return nodes_[active_list_[pos]].entry.key;
     }
-    return const_null_var;
 }
 
 Var VarTable::ValueAt(size_t pos) const {
@@ -335,22 +358,8 @@ Var VarTable::ValueAt(size_t pos) const {
     if (bucket_count_ == 0) {
         return quick_data_[pos].val;
     } else {
-        size_t current = 0;
-        for (uint32_t i = 0; i < bucket_count_; ++i) {
-            uint32_t curr_idx = i;
-            while (curr_idx != INVALID_INDEX) {
-                const TableNode *curr = &nodes_[curr_idx];
-                if (curr->entry.key.Type() != VarType::Nil) {
-                    if (current == pos) {
-                        return curr->entry.val;
-                    }
-                    current++;
-                }
-                curr_idx = curr->next;
-            }
-        }
+        return nodes_[active_list_[pos]].entry.val;
     }
-    return const_null_var;
 }
 
 }// namespace fakelua
