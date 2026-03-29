@@ -36,7 +36,7 @@ public:
     [[nodiscard]] Var Get(const Var &key) const;
 
     // 设置键值对。如果 val 为 Nil 且 can_be_nil 为 false，则执行删除操作。
-    void Set(const Var &key, const Var &val, bool can_be_nil);
+    void Set(State *s, const Var &key, const Var &val, bool can_be_nil);
 
     // 获取当前元素数量
     [[nodiscard]] size_t Size() const {
@@ -51,7 +51,7 @@ public:
 
 private:
     // 重新哈希并扩容
-    void Rehash(uint32_t new_capacity);
+    void Rehash(State *s, uint32_t new_capacity);
 
 private:
     static constexpr uint32_t QUICK_DATA_SIZE = 4;// 快速路径的最大容量

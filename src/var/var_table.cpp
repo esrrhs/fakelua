@@ -1,4 +1,5 @@
 #include "var_table.h"
+#include "state/state.h"
 #include "util/common.h"
 #include "var.h"
 
@@ -42,7 +43,7 @@ Var VarTable::Get(const Var &key) const {
     return const_null_var;
 }
 
-void VarTable::Set(const Var &key, const Var &val, bool can_be_nil) {
+void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
     const auto h = static_cast<uint32_t>(key.Hash());
 
     if (val.Type() == VarType::Nil && !can_be_nil) {
@@ -149,12 +150,12 @@ void VarTable::Set(const Var &key, const Var &val, bool can_be_nil) {
             return;
         }
         // 升级为拉链法哈希表
-        Rehash(QUICK_DATA_SIZE * 2);
+        Rehash(s, QUICK_DATA_SIZE * 2);
     }
 
     // 慢速模式插入
     if (count_ >= bucket_count_ * 1.5) {
-        Rehash(bucket_count_ * 2);
+        Rehash(s, bucket_count_ * 2);
     }
 
     const uint32_t mask = bucket_count_ - 1;
@@ -194,7 +195,7 @@ void VarTable::Set(const Var &key, const Var &val, bool can_be_nil) {
     count_++;
 }
 
-void VarTable::Rehash(uint32_t new_bucket_count) {
+void VarTable::Rehash(State *s, uint32_t new_bucket_count) {
     TableNode *old_nodes = nodes_;
     const uint32_t old_bucket_count = bucket_count_;
     const uint32_t old_count = count_;
@@ -202,7 +203,7 @@ void VarTable::Rehash(uint32_t new_bucket_count) {
     // 池大小设定为桶数量的 2 倍（1 倍主桶，1 倍溢出池）
     const uint32_t total_nodes = new_bucket_count * 2;
     const size_t total_size = total_nodes * sizeof(TableNode);
-    nodes_ = static_cast<TableNode *>(malloc(total_size));
+    nodes_ = static_cast<TableNode *>(s->GetHeap().GetTempAllocator().Alloc(total_size));
     memset(nodes_, 0, total_size);
 
     bucket_count_ = new_bucket_count;
@@ -218,23 +219,30 @@ void VarTable::Rehash(uint32_t new_bucket_count) {
 
     if (old_bucket_count == 0) {
         // 从 quick_data_ 迁移：手动展开
-        if (old_count > 0) Set(quick_data_[0].key, quick_data_[0].val, false);
-        if (old_count > 1) Set(quick_data_[1].key, quick_data_[1].val, false);
-        if (old_count > 2) Set(quick_data_[2].key, quick_data_[2].val, false);
-        if (old_count > 3) Set(quick_data_[3].key, quick_data_[3].val, false);
+        if (old_count > 0) {
+            Set(s, quick_data_[0].key, quick_data_[0].val, false);
+        }
+        if (old_count > 1) {
+            Set(s, quick_data_[1].key, quick_data_[1].val, false);
+        }
+        if (old_count > 2) {
+            Set(s, quick_data_[2].key, quick_data_[2].val, false);
+        }
+        if (old_count > 3) {
+            Set(s, quick_data_[3].key, quick_data_[3].val, false);
+        }
     } else {
         // 从旧主桶节点和其链表迁移
         for (uint32_t i = 0; i < old_bucket_count; ++i) {
             if (const TableNode *curr = &old_nodes[i]; curr->entry.key.Type() != VarType::Nil) {
-                Set(curr->entry.key, curr->entry.val, false);
+                Set(s, curr->entry.key, curr->entry.val, false);
                 curr = curr->next;
                 while (curr) {
-                    Set(curr->entry.key, curr->entry.val, false);
+                    Set(s, curr->entry.key, curr->entry.val, false);
                     curr = curr->next;
                 }
             }
         }
-        free(old_nodes);
     }
 
     DEBUG_ASSERT(count_ == old_count);
@@ -251,11 +259,15 @@ Var VarTable::KeyAt(size_t pos) const {
         size_t current = 0;
         for (uint32_t i = 0; i < bucket_count_; ++i) {
             if (const TableNode *curr = &nodes_[i]; curr->entry.key.Type() != VarType::Nil) {
-                if (current == pos) return curr->entry.key;
+                if (current == pos) {
+                    return curr->entry.key;
+                }
                 current++;
                 curr = curr->next;
                 while (curr) {
-                    if (current == pos) return curr->entry.key;
+                    if (current == pos) {
+                        return curr->entry.key;
+                    }
                     current++;
                     curr = curr->next;
                 }
@@ -276,11 +288,15 @@ Var VarTable::ValueAt(size_t pos) const {
         size_t current = 0;
         for (uint32_t i = 0; i < bucket_count_; ++i) {
             if (const TableNode *curr = &nodes_[i]; curr->entry.key.Type() != VarType::Nil) {
-                if (current == pos) return curr->entry.val;
+                if (current == pos) {
+                    return curr->entry.val;
+                }
                 current++;
                 curr = curr->next;
                 while (curr) {
-                    if (current == pos) return curr->entry.val;
+                    if (current == pos) {
+                        return curr->entry.val;
+                    }
                     current++;
                     curr = curr->next;
                 }
