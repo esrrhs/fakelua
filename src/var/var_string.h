@@ -13,6 +13,7 @@ public:
     explicit VarString(const std::string_view &str) {
         DEBUG_ASSERT(str.size() <= static_cast<size_t>(std::numeric_limits<int>::max()));
         size_ = static_cast<int>(str.size());
+        hash_ = static_cast<uint32_t>(std::hash<std::string_view>()(str));
         memcpy(&data_[0], str.data(), size_);
     }
 
@@ -25,13 +26,18 @@ public:
         return static_cast<size_t>(size_);
     }
 
+    [[nodiscard]] uint32_t Hash() const {
+        return hash_;
+    }
+
     static VarString * AllocTemp(State *s, const std::string_view &str);
 
 private:
     int size_ = 0;
+    uint32_t hash_ = 0;
     char data_[0];
 };
 
-static_assert(sizeof(VarString) == 4, "VarString size must be 4 bytes");
+static_assert(sizeof(VarString) == 8, "VarString size must be 8 bytes");
 
 }// namespace fakelua

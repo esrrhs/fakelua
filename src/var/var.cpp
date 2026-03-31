@@ -81,9 +81,8 @@ size_t Var::Hash() const {
         case VarType::Float:
             return std::hash<double>()(data_.f);
         case VarType::String:
-            return std::hash<std::string_view>()(data_.s->Str());
         case VarType::StringId:
-            return std::hash<int64_t>()(data_.i);
+            return GetString()->Hash();
         case VarType::Table:
             return std::hash<size_t>()(reinterpret_cast<size_t>(data_.t));
         default:

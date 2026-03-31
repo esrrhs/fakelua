@@ -7,6 +7,10 @@
 namespace fakelua {
 
 Var VarTable::Get(const Var &key) const {
+    if (key.Type() == VarType::Nil) {
+        ThrowFakeluaException("table index is nil");
+    }
+
     if (count_ == 0) {
         return const_null_var;
     }
@@ -52,6 +56,9 @@ Var VarTable::Get(const Var &key) const {
 }
 
 void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
+    if (key.Type() == VarType::Nil) {
+        ThrowFakeluaException("table index is nil");
+    }
     const auto h = static_cast<uint32_t>(key.Hash());
 
     if (val.Type() == VarType::Nil && !can_be_nil) {
@@ -185,7 +192,8 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
         Rehash(s);
     }
 
-    InsertRaw(key, val, h);
+    [[maybe_unused]] bool success = InsertRaw(key, val, h);
+    DEBUG_ASSERT(success);
 }
 
 bool VarTable::InsertRaw(const Var &key, const Var &val, uint32_t hash) {
