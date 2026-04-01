@@ -14,13 +14,17 @@ HeapAllocator::~HeapAllocator() {
 }
 
 void *HeapAllocator::Alloc(size_t size) {
-    if (size > BLOCK_SIZE) {
-        ThrowFakeluaException(std::format("requested size {} exceeds block size {}", size, BLOCK_SIZE));
+    constexpr size_t alignment = alignof(std::max_align_t);
+    size_t padding = (alignment - (current_block_offset_ % alignment)) % alignment;
+
+    if (size + padding > BLOCK_SIZE) {
+        ThrowFakeluaException(std::format("requested size {} with padding {} exceeds block size {}", size, padding, BLOCK_SIZE));
     }
 
-    if (current_block_offset_ + size > BLOCK_SIZE) {
+    if (current_block_offset_ + padding + size > BLOCK_SIZE) {
         current_block_offset_ = 0;
         current_block_index_++;
+        padding = 0;
     }
 
     if (current_block_index_ >= blocks_.size()) {
@@ -32,6 +36,7 @@ void *HeapAllocator::Alloc(size_t size) {
         blocks_.emplace_back(new_block);
     }
 
+    current_block_offset_ += padding;
     void *ptr = static_cast<char *>(blocks_[current_block_index_]) + current_block_offset_;
     current_block_offset_ += size;
     return ptr;

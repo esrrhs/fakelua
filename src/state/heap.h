@@ -1,8 +1,6 @@
 #pragma once
 
 #include "fakelua.h"
-#include "util/common.h"
-#include "var/var_string.h"
 
 namespace fakelua {
 
