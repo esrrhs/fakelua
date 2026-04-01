@@ -4,7 +4,6 @@
 #include "compile/compile_common.h"
 #include "compile/syntax_tree.h"
 #include "fakelua.h"
-#include "gcc_jit_handle.h"
 #include "var/var.h"
 #include <libgccjit++.h>
 
@@ -154,7 +153,6 @@ private:
     std::string file_name_;
     // gccjit context
     GccjitContextPtr gccjit_context_;
-    GccJitHandlePtr gcc_jit_handle_;
     // function info saves here
     struct FunctionInfo {
         int params_count = 0;

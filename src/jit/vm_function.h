@@ -2,7 +2,6 @@
 
 #include "compile/syntax_tree.h"
 #include "fakelua.h"
-#include "gcc_jit_handle.h"
 #include "var/var.h"
 
 namespace fakelua {
@@ -10,18 +9,14 @@ namespace fakelua {
 // wrapper of gcc_jit_function call
 class VmFunction {
 public:
-    VmFunction(const GccJitHandlePtr &GccJitHandle, void *gcc_jit_func, int arg_count, bool IsVariadic)
-        : gcc_jit_handle_(GccJitHandle), gcc_jit_func_(gcc_jit_func), arg_count_(arg_count), is_variadic_(IsVariadic) {
+    VmFunction(void *gcc_jit_func, int arg_count, bool IsVariadic)
+        : gcc_jit_func_(gcc_jit_func), arg_count_(arg_count), is_variadic_(IsVariadic) {
     }
 
     ~VmFunction() = default;
 
     void *get_addr() const {
         return gcc_jit_func_;
-    }
-
-    GccJitHandlePtr GetGccJitHandle() const {
-        return gcc_jit_handle_;
     }
 
     int GetArgCount() const {
@@ -33,7 +28,6 @@ public:
     }
 
 private:
-    GccJitHandlePtr gcc_jit_handle_;
     void *gcc_jit_func_ = nullptr;
     int arg_count_ = 0;
     bool is_variadic_ = false;

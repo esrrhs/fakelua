@@ -1,6 +1,6 @@
 #pragma once
 
-#include <map>
+#include "syntax_tree.h"
 #include <string>
 
 namespace fakelua {
