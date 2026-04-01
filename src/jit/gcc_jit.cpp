@@ -15,7 +15,7 @@ GccJitter::~GccJitter() {
     }
 }
 
-void GccJitter::PrepareCompile(const FakeluaStatePtr &sp, const CompileConfig &cfg, const std::string &file_name) {
+void GccJitter::PrepareCompile(State *sp, const CompileConfig &cfg, const std::string &file_name) {
     gcc_jit_handle_ = std::make_shared<GccJitHandle>();
     sp_ = sp;
     file_name_ = file_name;
@@ -90,7 +90,7 @@ void GccJitter::PrepareCompile(const FakeluaStatePtr &sp, const CompileConfig &c
     global_const_true_var_ = gccjit_context_->new_global(GCC_JIT_GLOBAL_INTERNAL, var_struct_, "__fakelua_jit_const_true_var__");
 }
 
-void GccJitter::Compile(const FakeluaStatePtr &sp, const CompileConfig &cfg, const std::string &file_name,
+void GccJitter::Compile(State *sp, const CompileConfig &cfg, const std::string &file_name,
                         const SyntaxTreeInterfacePtr &chunk) {
     LOG_INFO("start GccJitter::Compile {}", file_name);
 
@@ -119,7 +119,7 @@ void GccJitter::Compile(const FakeluaStatePtr &sp, const CompileConfig &cfg, con
     for (auto &[name, info]: function_infos_) {
         auto func = gcc_jit_result_get_code(result, name.c_str());
         DEBUG_ASSERT(func);
-        std::dynamic_pointer_cast<State>(sp_)->get_vm().RegisterFunction(
+        sp_->get_vm().RegisterFunction(
                 name, std::make_shared<VmFunction>(gcc_jit_handle_, func, info.params_count, info.IsVariadic));
         LOG_INFO("register function: {}", name);
     }

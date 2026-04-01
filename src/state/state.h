@@ -6,7 +6,6 @@
 #include "state/const_string.h"
 #include "state/heap.h"
 #include "state/stack.h"
-#include "state/var_table_heap.h"
 
 namespace fakelua {
 
@@ -20,7 +19,6 @@ public:
     void Reset() {
         DEBUG_ASSERT(reentrant_count_ == 0);
         heap_.Reset();
-        var_table_heap_.reset();
         stack_.reset();
     }
 
@@ -34,10 +32,6 @@ public:
 
     ConstString &GetConstString() {
         return const_string_;
-    }
-
-    VarTableHeap &get_var_table_heap() {
-        return var_table_heap_;
     }
 
     Vm &get_vm() {
@@ -76,7 +70,6 @@ private:
     Compiler compiler_;
     Heap heap_;
     ConstString const_string_;
-    VarTableHeap var_table_heap_;
     Vm vm_;
     stack stack_;
 };

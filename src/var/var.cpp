@@ -29,14 +29,9 @@ void Var::SetConstString(State *s, const std::string_view &val) {
     data_.i = s->GetConstString().Alloc(val);
 }
 
-void Var::SetTable(const FakeluaStatePtr &s) {
-    SetTable(s.get());
-}
-
-void Var::SetTable(FakeluaState *s) {
+void Var::SetTable(State *s) {
     type_ = static_cast<int>(VarType::Table);
-    auto &table_heap = dynamic_cast<State *>(s)->get_var_table_heap();
-    data_.t = table_heap.alloc();
+    data_.t = s->GetHeap().GetTempAllocator().New<VarTable>();
 }
 
 std::string Var::ToString(bool has_quote, bool has_postfix) const {
@@ -380,12 +375,12 @@ void Var::UnopBitnot(Var &result) const {
     result.SetInt(~GetInt());
 }
 
-void Var::TableSet(const Var &key, const Var &val, bool can_be_nil) const {
+void Var::TableSet(State *s, const Var &key, const Var &val, bool can_be_nil) const {
     if (Type() != VarType::Table) {
         ThrowFakeluaException(std::format("operand of 'TableSet' must be table, got {} {}", VarTypeToString(Type()), ToString()));
     }
 
-    GetTable()->Set(key, val, can_be_nil);
+    GetTable()->Set(s, key, val, can_be_nil);
 }
 
 Var Var::TableGet(const Var &key) const {

@@ -203,7 +203,7 @@ public:
     void UnopBitnot(Var &result) const;
 
     // 表元素设置
-    void TableSet(const Var &key, const Var &val, bool can_be_nil) const;
+    void TableSet(State *s, const Var &key, const Var &val, bool can_be_nil) const;
 
     // 获取表元素
     [[nodiscard]] Var TableGet(const Var &key) const;

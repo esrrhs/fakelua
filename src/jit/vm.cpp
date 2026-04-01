@@ -6,10 +6,12 @@
 
 namespace fakelua {
 
-static Var *alloc_val_helper(FakeluaState *s, GccJitHandle *h, bool is_const) {
-    DEBUG_ASSERT(s);
-    DEBUG_ASSERT(h);
-    return nullptr;// TODO
+static Var *alloc_val_helper(State *s, GccJitHandle *h, bool is_const) {
+    if (is_const) {
+        return h->get_result() ? nullptr : s->GetHeap().GetConstAllocator().New<Var>();
+    } else {
+        return h->get_result() ? nullptr : s->GetHeap().GetTempAllocator().New<Var>();
+    }
 }
 
 // Expand the list of expressions that may contain variable parameters.
@@ -21,24 +23,6 @@ static void ExpandVarList(std::vector<Var *> &params) {
         const auto param = params[i];
         DEBUG_ASSERT(param);
         DEBUG_ASSERT(param->Type() >= VarType::Min && param->Type() <= VarType::Max);
-        // if (param->IsVariadic()) {
-        //     DEBUG_ASSERT(param->Type() == VarType::Table);
-        //     const auto table = param->GetTable();
-        //     if (i == params.size() - 1) {
-        //         params.pop_back();
-        //         for (int j = 1; j <= (int) table->size(); j++) {
-        //             var tmp;
-        //             tmp.SetInt(j);
-        //             auto value = table->get(tmp);
-        //             params.push_back(&value);
-        //         }
-        //     } else {
-        //         var tmp;
-        //         tmp.SetInt(1);
-        //         const auto value = table->get(tmp);
-        //         params[i] = (var *) &value;
-        //     }
-        // }
     }
 }
 
@@ -46,28 +30,10 @@ static void ExpandVarList(std::vector<Var> &params) {
     for (size_t i = 0; i < params.size(); i++) {
         const auto param = params[i];
         DEBUG_ASSERT(param.Type() >= VarType::Min && param.Type() <= VarType::Max);
-        // if (param.IsVariadic()) {
-        //     DEBUG_ASSERT(param.Type() == VarType::Table);
-        //     const auto table = param.GetTable();
-        //     if (i == params.size() - 1) {
-        //         params.pop_back();
-        //         for (int j = 1; j <= static_cast<int>(table->size()); j++) {
-        //             var tmp;
-        //             tmp.SetInt(j);
-        //             auto value = table->get(tmp);
-        //             params.push_back(value);
-        //         }
-        //     } else {
-        //         var tmp;
-        //         tmp.SetInt(1);
-        //         const auto value = table->get(tmp);
-        //         params[i] = value;
-        //     }
-        // }
     }
 }
 
-extern "C" __attribute__((used)) Var *NewVarTable(FakeluaState *s, GccJitHandle *h, bool is_const, int n, ...) {
+extern "C" __attribute__((used)) Var *NewVarTable(State *s, GccJitHandle *h, bool is_const, int n, ...) {
     DEBUG_ASSERT(n % 2 == 0);
     std::vector<Var *> keys;
     std::vector<Var *> values;
@@ -84,6 +50,9 @@ extern "C" __attribute__((used)) Var *NewVarTable(FakeluaState *s, GccJitHandle 
     va_end(args);
 
     auto ret = alloc_val_helper(s, h, is_const);
+    if (!ret) {
+        return nullptr;
+    }
     ret->SetTable(s);
 
     ExpandVarList(values);
@@ -97,12 +66,12 @@ extern "C" __attribute__((used)) Var *NewVarTable(FakeluaState *s, GccJitHandle 
             index++;
         }
         auto v = values[i];
-        ret->GetTable()->Set(*k, *v, false);
+        ret->TableSet(s, *k, *v, false);
     }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var WrapReturnVar(FakeluaState *s, bool is_const, int n, ...) {
+extern "C" __attribute__((used)) Var WrapReturnVar(State *s, bool is_const, int n, ...) {
     DEBUG_ASSERT(n >= 0);
     std::vector<Var> params;
     va_list args;
@@ -124,12 +93,12 @@ extern "C" __attribute__((used)) Var WrapReturnVar(FakeluaState *s, bool is_cons
         auto arg = params[i];
         Var k;
         k.SetInt(static_cast<int64_t>(i) + 1);
-        ret.GetTable()->Set(k, arg, true);
+        ret.TableSet(s, k, arg, true);
     }
     return ret;
 }
 
-extern "C" __attribute__((used)) void AssignVar(FakeluaState *s, GccJitHandle *h, bool is_const, int left_n, int right_n, ...) {
+extern "C" __attribute__((used)) void AssignVar(State *s, GccJitHandle *h, bool is_const, int left_n, int right_n, ...) {
     DEBUG_ASSERT(left_n >= 0);
     DEBUG_ASSERT(right_n >= 0);
     std::vector<Var **> left;
@@ -163,241 +132,287 @@ extern "C" __attribute__((used)) void AssignVar(FakeluaState *s, GccJitHandle *h
     }
 }
 
-extern "C" __attribute__((used)) Var *BinopPlus(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopPlus(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->Plus(*r, *ret);
+    if (ret) {
+        l->Plus(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopMinus(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopMinus(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->Minus(*r, *ret);
+    if (ret) {
+        l->Minus(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopStar(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopStar(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->Star(*r, *ret);
+    if (ret) {
+        l->Star(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopSlash(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopSlash(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->Slash(*r, *ret);
+    if (ret) {
+        l->Slash(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopDoubleSlash(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopDoubleSlash(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->DoubleSlash(*r, *ret);
+    if (ret) {
+        l->DoubleSlash(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopPow(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopPow(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->Pow(*r, *ret);
+    if (ret) {
+        l->Pow(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopMod(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopMod(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->Mod(*r, *ret);
+    if (ret) {
+        l->Mod(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopBitand(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopBitand(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->Bitand(*r, *ret);
+    if (ret) {
+        l->Bitand(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopXor(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopXor(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->Xor(*r, *ret);
+    if (ret) {
+        l->Xor(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopBitor(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopBitor(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->Bitor(*r, *ret);
+    if (ret) {
+        l->Bitor(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopRightShift(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopRightShift(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->RightShift(*r, *ret);
+    if (ret) {
+        l->RightShift(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopLeftShift(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopLeftShift(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->LeftShift(*r, *ret);
+    if (ret) {
+        l->LeftShift(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopConcat(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopConcat(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->Concat(s, *r, *ret);
+    if (ret) {
+        l->Concat(s, *r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopLess(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopLess(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->Less(*r, *ret);
+    if (ret) {
+        l->Less(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopLessEqual(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopLessEqual(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->LessEqual(*r, *ret);
+    if (ret) {
+        l->LessEqual(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopMore(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopMore(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->More(*r, *ret);
+    if (ret) {
+        l->More(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopMoreEqual(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopMoreEqual(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->MoreEqual(*r, *ret);
+    if (ret) {
+        l->MoreEqual(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopEqual(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopEqual(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->Equal(*r, *ret);
+    if (ret) {
+        l->Equal(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *BinopNotEqual(FakeluaState *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
+extern "C" __attribute__((used)) Var *BinopNotEqual(State *s, GccJitHandle *h, bool is_const, Var *l, Var *r) {
     DEBUG_ASSERT(l);
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(l->Type() >= VarType::Min && l->Type() <= VarType::Max);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    l->NotEqual(*r, *ret);
+    if (ret) {
+        l->NotEqual(*r, *ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) bool TestVar(FakeluaState *s, GccJitHandle *h, bool is_const, Var *v) {
+extern "C" __attribute__((used)) bool TestVar(State *s, GccJitHandle *h, bool is_const, Var *v) {
     DEBUG_ASSERT(v);
     DEBUG_ASSERT(v->Type() >= VarType::Min && v->Type() <= VarType::Max);
     return v->TestTrue();
 }
 
-extern "C" __attribute__((used)) bool TestNotVar(FakeluaState *s, GccJitHandle *h, bool is_const, Var *v) {
+extern "C" __attribute__((used)) bool TestNotVar(State *s, GccJitHandle *h, bool is_const, Var *v) {
     DEBUG_ASSERT(v);
     DEBUG_ASSERT(v->Type() >= VarType::Min && v->Type() <= VarType::Max);
     return !v->TestTrue();
 }
 
-extern "C" __attribute__((used)) Var *UnopMinus(FakeluaState *s, GccJitHandle *h, bool is_const, Var *r) {
+extern "C" __attribute__((used)) Var *UnopMinus(State *s, GccJitHandle *h, bool is_const, Var *r) {
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    r->UnopMinus(*ret);
+    if (ret) {
+        r->UnopMinus(*ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *UnopNot(FakeluaState *s, GccJitHandle *h, bool is_const, Var *r) {
+extern "C" __attribute__((used)) Var *UnopNot(State *s, GccJitHandle *h, bool is_const, Var *r) {
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    r->UnopNot(*ret);
+    if (ret) {
+        r->UnopNot(*ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *UnopNumberSign(FakeluaState *s, GccJitHandle *h, bool is_const, Var *r) {
+extern "C" __attribute__((used)) Var *UnopNumberSign(State *s, GccJitHandle *h, bool is_const, Var *r) {
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    r->UnopNumberSign(*ret);
+    if (ret) {
+        r->UnopNumberSign(*ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *UnopBitnot(FakeluaState *s, GccJitHandle *h, bool is_const, Var *r) {
+extern "C" __attribute__((used)) Var *UnopBitnot(State *s, GccJitHandle *h, bool is_const, Var *r) {
     DEBUG_ASSERT(r);
     DEBUG_ASSERT(r->Type() >= VarType::Min && r->Type() <= VarType::Max);
     auto ret = alloc_val_helper(s, h, is_const);
-    r->UnopBitnot(*ret);
+    if (ret) {
+        r->UnopBitnot(*ret);
+    }
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *CallVar(FakeluaState *s, GccJitHandle *h, bool is_const, Var *func, Var *col_key, int n, ...) {
+extern "C" __attribute__((used)) Var *CallVar(State *s, GccJitHandle *h, bool is_const, Var *func, Var *col_key, int n, ...) {
     DEBUG_ASSERT(func);
     DEBUG_ASSERT(func->Type() >= VarType::Min && func->Type() <= VarType::Max);
     DEBUG_ASSERT(n >= 0);
@@ -429,13 +444,13 @@ extern "C" __attribute__((used)) Var *CallVar(FakeluaState *s, GccJitHandle *h, 
     }
 
     // func must be a string type
-    if (func->Type() != VarType::String) {
+    if (func->Type() != VarType::String && func->Type() != VarType::StringId) {
         ThrowFakeluaException(std::format("CallVar: func must be string type, but got {}", func->ToString()));
     }
 
     // get function address
     auto name = func->GetString();
-    auto function = dynamic_cast<State *>(s)->get_vm().GetFunction(std::string(name->Str()));
+    auto function = s->get_vm().GetFunction(std::string(name->Str()));
     if (!function) {
         ThrowFakeluaException(std::format("CallVar: function {} not found", name->Str()));
     }
@@ -455,7 +470,7 @@ extern "C" __attribute__((used)) Var *CallVar(FakeluaState *s, GccJitHandle *h, 
     return ret;
 }
 
-extern "C" __attribute__((used)) Var *TableIndexByVar(FakeluaState *s, GccJitHandle *h, bool is_const, Var *table, Var *key) {
+extern "C" __attribute__((used)) Var *TableIndexByVar(State *s, GccJitHandle *h, bool is_const, Var *table, Var *key) {
     DEBUG_ASSERT(table);
     DEBUG_ASSERT(table->Type() >= VarType::Min && table->Type() <= VarType::Max);
     DEBUG_ASSERT(key);
@@ -463,31 +478,38 @@ extern "C" __attribute__((used)) Var *TableIndexByVar(FakeluaState *s, GccJitHan
     return nullptr;//&table->TableGet(*key);
 }
 
-extern "C" __attribute__((used)) Var *TableSet(FakeluaState *s, GccJitHandle *h, bool is_const, Var *table, Var *key, Var *val) {
+extern "C" __attribute__((used)) Var *TableIndexByName(State *s, GccJitHandle *h, bool is_const, Var *table, const char *key, int len) {
+    DEBUG_ASSERT(table);
+    DEBUG_ASSERT(table->Type() >= VarType::Min && table->Type() <= VarType::Max);
+    DEBUG_ASSERT(key);
+    return nullptr;
+}
+
+extern "C" __attribute__((used)) Var *TableSet(State *s, GccJitHandle *h, bool is_const, Var *table, Var *key, Var *val) {
     DEBUG_ASSERT(table);
     DEBUG_ASSERT(table->Type() >= VarType::Min && table->Type() <= VarType::Max);
     DEBUG_ASSERT(key);
     DEBUG_ASSERT(key->Type() >= VarType::Min && key->Type() <= VarType::Max);
     DEBUG_ASSERT(val);
     DEBUG_ASSERT(val->Type() >= VarType::Min && val->Type() <= VarType::Max);
-    table->TableSet(*key, *val, false);
+    table->TableSet(s, *key, *val, false);
     return table;
 }
 
-extern "C" __attribute__((used)) size_t TableSize(FakeluaState *s, GccJitHandle *h, bool is_const, Var *table) {
+extern "C" __attribute__((used)) size_t TableSize(State *s, GccJitHandle *h, bool is_const, Var *table) {
     DEBUG_ASSERT(table);
     DEBUG_ASSERT(table->Type() >= VarType::Min && table->Type() <= VarType::Max);
     return table->TableSize();
 }
 
-extern "C" __attribute__((used)) Var *TableKeyByPos(FakeluaState *s, GccJitHandle *h, bool is_const, Var *table, size_t pos) {
+extern "C" __attribute__((used)) Var *TableKeyByPos(State *s, GccJitHandle *h, bool is_const, Var *table, size_t pos) {
     DEBUG_ASSERT(table);
     DEBUG_ASSERT(table->Type() >= VarType::Min && table->Type() <= VarType::Max);
     DEBUG_ASSERT(pos < table->TableSize());
     return nullptr;//&table->TableKeyAt(pos);
 }
 
-extern "C" __attribute__((used)) Var *TableValueByPos(FakeluaState *s, GccJitHandle *h, bool is_const, Var *table, size_t pos) {
+extern "C" __attribute__((used)) Var *TableValueByPos(State *s, GccJitHandle *h, bool is_const, Var *table, size_t pos) {
     DEBUG_ASSERT(table);
     DEBUG_ASSERT(table->Type() >= VarType::Min && table->Type() <= VarType::Max);
     DEBUG_ASSERT(pos < table->TableSize());

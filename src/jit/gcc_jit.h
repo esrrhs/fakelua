@@ -18,35 +18,16 @@ public:
 
     ~GccJitter();
 
-    void Compile(const FakeluaStatePtr &sp, const CompileConfig &cfg, const std::string &file_name, const SyntaxTreeInterfacePtr &chunk);
+    void Compile(State *sp, const CompileConfig &cfg, const std::string &file_name, const SyntaxTreeInterfacePtr &chunk);
 
 private:
     void CompileConstDefines(const SyntaxTreeInterfacePtr &chunk);
 
-    void CompileConstDefine(const SyntaxTreeInterfacePtr &stmt);
-
-    void CompileFunctions(const SyntaxTreeInterfacePtr &chunk);
-
     void CompileFunction(const std::string &name, const SyntaxTreeInterfacePtr &funcbody);
 
-    std::string CompileFuncname(const SyntaxTreeInterfacePtr &ptr);
+    void CompileStmt(gccjit::function &function, const SyntaxTreeInterfacePtr &stmt);
 
-    gccjit::rvalue CompileExp(gccjit::function &func, const SyntaxTreeInterfacePtr &exp);
-
-    std::vector<std::pair<std::string, gccjit::lvalue>> CompileParlist(gccjit::function &func, SyntaxTreeInterfacePtr parlist,
-                                                                       int &IsVariadic);
-
-    void CompileStmt(gccjit::function &func, const SyntaxTreeInterfacePtr &stmt);
-
-    void CompileStmtReturn(gccjit::function &func, const SyntaxTreeInterfacePtr &stmt);
-
-    std::vector<gccjit::rvalue> CompileExplist(gccjit::function &func, const SyntaxTreeInterfacePtr &explist);
-
-    gccjit::rvalue CompilePrefixexp(gccjit::function &func, const SyntaxTreeInterfacePtr &pe);
-
-    gccjit::rvalue CompileVar(gccjit::function &func, const SyntaxTreeInterfacePtr &v);
-
-    gccjit::lvalue CompileVarLvalue(gccjit::function &func, const SyntaxTreeInterfacePtr &v);
+    void CompileStmtLocalFunction(gccjit::function &function, const SyntaxTreeInterfacePtr &stmt);
 
     void CompileStmtLocalVar(gccjit::function &function, const SyntaxTreeInterfacePtr &stmt);
 
@@ -111,7 +92,7 @@ private:
     void InitGlobalConstVar(gccjit::function &func);
 
 private:
-    void PrepareCompile(const FakeluaStatePtr &sp, const CompileConfig &cfg, const std::string &file_name);
+    void PrepareCompile(State *sp, const CompileConfig &cfg, const std::string &file_name);
 
     bool IsSimpleAssign(const SyntaxTreeInterfacePtr &vars, const SyntaxTreeInterfacePtr &exps);
 
@@ -168,7 +149,7 @@ private:
 
 private:
     // the state contains the running environment we need.
-    FakeluaStatePtr sp_;
+    State *sp_;
     // the Compiler config
     std::string file_name_;
     // gccjit context

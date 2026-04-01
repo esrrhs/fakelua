@@ -4,7 +4,7 @@
 
 using namespace fakelua;
 
-static void LoadFakeluaFile(FakeluaStatePtr L, const std::string &file) {
+static void LoadFakeluaFile(State *L, const std::string &file) {
     try {
         L->CompileFile(file, {.debug_mode = false});
     } catch (...) {
@@ -17,7 +17,10 @@ struct FakeLuaGlobalIni {
         L = FakeluaNewState();
         LoadFakeluaFile(L, "bench_algo/fibonacci.lua");
     }
-    FakeluaStatePtr L;
+    ~FakeLuaGlobalIni() {
+        FakeluaFreeState(L);
+    }
+    State *L;
 };
 
 static FakeLuaGlobalIni fakelua_global_ini;

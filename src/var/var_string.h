@@ -13,7 +13,7 @@ public:
     explicit VarString(const std::string_view &str) {
         DEBUG_ASSERT(str.size() <= static_cast<size_t>(std::numeric_limits<int>::max()));
         size_ = static_cast<int>(str.size());
-        hash_ = static_cast<uint32_t>(std::hash<std::string_view>()(str));
+        hash_ = 0;
         memcpy(&data_[0], str.data(), size_);
     }
 
@@ -27,6 +27,12 @@ public:
     }
 
     [[nodiscard]] uint32_t Hash() const {
+        if (hash_ == 0) {
+            hash_ = static_cast<uint32_t>(std::hash<std::string_view>()(Str()));
+            if (hash_ == 0) {
+                hash_ = 1;
+            }
+        }
         return hash_;
     }
 
@@ -34,7 +40,7 @@ public:
 
 private:
     int size_ = 0;
-    uint32_t hash_ = 0;
+    mutable uint32_t hash_ = 0;
     char data_[0];
 };
 

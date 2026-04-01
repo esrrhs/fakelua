@@ -11,6 +11,8 @@ namespace fakelua {
 // 3. 内存布局设计为 C 兼容，方便未来在 C 代码中直接访问。
 class VarTable {
 public:
+    VarTable() = default;
+
     static constexpr uint32_t INVALID_INDEX = 0xFFFFFFFF;
 
     // 基础条目：键、值、哈希
