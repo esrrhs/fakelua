@@ -5,8 +5,7 @@
 namespace fakelua {
 
 HeapAllocator::~HeapAllocator() {
-    current_block_index_ = 0;
-    current_block_offset_ = 0;
+    Reset();
     for (const auto &block: blocks_) {
         free(block);
     }
@@ -43,6 +42,10 @@ void *HeapAllocator::Alloc(size_t size) {
 }
 
 void HeapAllocator::Reset() {
+    for (auto it = destructors_.rbegin(); it != destructors_.rend(); ++it) {
+        it->destroyer(it->ptr);
+    }
+    destructors_.clear();
     current_block_index_ = 0;
     current_block_offset_ = 0;
 }
