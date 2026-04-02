@@ -370,3 +370,148 @@ TEST(var, call_var_func) {
         ASSERT_EQ(TEST_CALL_VAR_CALL_SEQ[i], i);
     }
 }
+
+TEST(var, arithmetic) {
+    Var v1((int64_t) 10);
+    Var v2((int64_t) 3);
+    Var res;
+
+    // Plus
+    v1.Plus(v2, res);
+    ASSERT_EQ(res.GetInt(), 13);
+    v1.Plus(Var(2.5), res);
+    ASSERT_EQ(res.GetCalculableNumber(), 12.5);
+
+    // Minus
+    v1.Minus(v2, res);
+    ASSERT_EQ(res.GetInt(), 7);
+    v1.Minus(Var(0.5), res);
+    ASSERT_EQ(res.GetCalculableNumber(), 9.5);
+
+    // Star
+    v1.Star(v2, res);
+    ASSERT_EQ(res.GetInt(), 30);
+    v1.Star(Var(1.5), res);
+    ASSERT_EQ(res.GetCalculableNumber(), 15.0);
+
+    // Slash (always float)
+    v1.Slash(v2, res);
+    ASSERT_NEAR(res.GetCalculableNumber(), 3.333333, 0.000001);
+
+    // DoubleSlash (floor division)
+    v1.DoubleSlash(v2, res);
+    ASSERT_EQ(res.GetInt(), 3);
+    Var(-10LL).DoubleSlash(Var(3LL), res);
+    ASSERT_EQ(res.GetInt(), -3);
+
+    // Mod
+    v1.Mod(v2, res);
+    ASSERT_EQ(res.GetInt(), 1);
+
+    // Pow
+    Var(2LL).Pow(Var(3LL), res);
+    ASSERT_EQ(res.GetCalculableNumber(), 8.0);
+}
+
+TEST(var, bitwise) {
+    Var v1((int64_t) 0b1010);
+    Var v2((int64_t) 0b1100);
+    Var res;
+
+    // Bitand
+    v1.Bitand(v2, res);
+    ASSERT_EQ(res.GetInt(), 0b1000);
+
+    // Bitor
+    v1.Bitor(v2, res);
+    ASSERT_EQ(res.GetInt(), 0b1110);
+
+    // Xor
+    v1.Xor(v2, res);
+    ASSERT_EQ(res.GetInt(), 0b0110);
+
+    // Shift
+    Var(1LL).LeftShift(Var(2LL), res);
+    ASSERT_EQ(res.GetInt(), 4);
+    Var(4LL).RightShift(Var(2LL), res);
+    ASSERT_EQ(res.GetInt(), 1);
+
+    // UnopBitnot
+    v1.UnopBitnot(res);
+    ASSERT_EQ(res.GetInt(), ~0b1010LL);
+}
+
+TEST(var, comparison) {
+    Var v1((int64_t) 10);
+    Var v2((int64_t) 20);
+    Var res;
+
+    v1.Less(v2, res);
+    ASSERT_TRUE(res.GetBool());
+    v1.LessEqual(v1, res);
+    ASSERT_TRUE(res.GetBool());
+    v2.More(v1, res);
+    ASSERT_TRUE(res.GetBool());
+    v2.MoreEqual(v2, res);
+    ASSERT_TRUE(res.GetBool());
+    v1.NotEqual(v2, res);
+    ASSERT_TRUE(res.GetBool());
+}
+
+TEST(var, logical_unary) {
+    auto s = FakeluaNewState();
+    Var v_true(true);
+    Var v_false(false);
+    Var v_nil;
+    Var res;
+
+    ASSERT_TRUE(v_true.TestTrue());
+    ASSERT_FALSE(v_false.TestTrue());
+    ASSERT_FALSE(v_nil.TestTrue());
+    ASSERT_TRUE(Var(10LL).TestTrue());
+
+    v_true.UnopNot(res);
+    ASSERT_FALSE(res.GetBool());
+    v_nil.UnopNot(res);
+    ASSERT_TRUE(res.GetBool());
+
+    Var(10LL).UnopMinus(res);
+    ASSERT_EQ(res.GetInt(), -10);
+
+    Var s_var;
+    s_var.SetTempString(s, "abc");
+    s_var.UnopNumberSign(res);
+    ASSERT_EQ(res.GetInt(), 3);
+
+    Var t_var;
+    t_var.SetTable(s);
+    t_var.TableSet(s, Var(1LL), Var(100LL), false);
+    t_var.UnopNumberSign(res);
+    ASSERT_EQ(res.GetInt(), 1);
+}
+
+TEST(var, concat) {
+    auto s = FakeluaNewState();
+    Var v1; v1.SetTempString(s, "hello ");
+    Var v2; v2.SetTempString(s, "world");
+    Var res;
+
+    v1.Concat(s, v2, res);
+    ASSERT_EQ(res.GetString()->Str(), "hello world");
+}
+
+TEST(var, table_rehash) {
+    auto s = FakeluaNewState();
+    VarTable vt;
+
+    // Trigger rehash by inserting many elements
+    for (int i = 0; i < 100; ++i) {
+        vt.Set(s, Var((int64_t)i), Var((int64_t)(i * 10)), false);
+    }
+
+    ASSERT_EQ(vt.Size(), 100);
+    for (int i = 0; i < 100; ++i) {
+        ASSERT_EQ(vt.Get(Var((int64_t)i)).GetInt(), i * 10);
+    }
+}
+
