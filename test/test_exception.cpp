@@ -4,13 +4,15 @@
 
 using namespace fakelua;
 
+int noop;
+
 TEST(exception, function_param_duplicate) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_function_param_duplicate.lua", {});
+        CompileFile(s, "./exception/test_function_param_duplicate.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -19,12 +21,12 @@ TEST(exception, function_param_duplicate) {
 }
 
 TEST(exception, function_param_local_duplicate) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_function_param_local_duplicate.lua", {});
+        CompileFile(s, "./exception/test_function_param_local_duplicate.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -33,12 +35,12 @@ TEST(exception, function_param_local_duplicate) {
 }
 
 TEST(exception, local_define_duplicate) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_local_define_duplicate.lua", {});
+        CompileFile(s, "./exception/test_local_define_duplicate.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -47,12 +49,12 @@ TEST(exception, local_define_duplicate) {
 }
 
 TEST(exception, const_define_duplicate) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_define_duplicate.lua", {});
+        CompileFile(s, "./exception/test_const_define_duplicate.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -61,12 +63,12 @@ TEST(exception, const_define_duplicate) {
 }
 
 TEST(exception, const_define_func_param_duplicate) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_define_func_param_duplicate.lua", {});
+        CompileFile(s, "./exception/test_const_define_func_param_duplicate.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -75,12 +77,12 @@ TEST(exception, const_define_func_param_duplicate) {
 }
 
 TEST(exception, const_define_no_match) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_define_no_match.lua", {});
+        CompileFile(s, "./exception/test_const_define_no_match.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -89,12 +91,12 @@ TEST(exception, const_define_no_match) {
 }
 
 TEST(exception, const_define_no_value) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_define_no_value.lua", {});
+        CompileFile(s, "./exception/test_const_define_no_value.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -103,14 +105,14 @@ TEST(exception, const_define_no_value) {
 }
 
 TEST(exception, function_call_exception) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
-    L->CompileFile("./exception/test_function_call_exception.lua", {});
+    CompileFile(s, "./exception/test_function_call_exception.lua", {});
 
     try {
-        L->call("test", std::tie(), 1, 2, 3);
+        Call(s, "test", noop, 1, 2, 3);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -118,7 +120,7 @@ TEST(exception, function_call_exception) {
     }
 
     try {
-        L->call("test1", std::tie(), 1, 2, 3);
+        Call(s, "test1", noop, 1, 2, 3);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -127,14 +129,14 @@ TEST(exception, function_call_exception) {
 }
 
 TEST(exception, variadic_function_call_exception) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
-    L->CompileFile("./exception/test_variadic_function_call_exception.lua", {});
+    CompileFile(s, "./exception/test_variadic_function_call_exception.lua", {});
 
     try {
-        L->call("test", std::tie(), 1);
+        Call(s, "test", noop, 1);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -143,12 +145,12 @@ TEST(exception, variadic_function_call_exception) {
 }
 
 TEST(exception, compile_fail) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_compile_fail.lua", {});
+        CompileFile(s, "./exception/test_compile_fail.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -157,12 +159,12 @@ TEST(exception, compile_fail) {
 }
 
 TEST(exception, compile_no_file) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_no_file.lua", {});
+        CompileFile(s, "./exception/test_no_file.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -210,14 +212,14 @@ TEST(exception, ReplaceEscapeChars) {
 }
 
 TEST(exception, return_type_error_bool) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         bool ret = 0;
-        L->call("test", std::tie(ret), 1);
+        Call(s, "test", ret, 1);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -226,14 +228,14 @@ TEST(exception, return_type_error_bool) {
 }
 
 TEST(exception, return_type_error_char) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         char ret = 0;
-        L->call("test", std::tie(ret), "1");
+        Call(s, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -242,14 +244,14 @@ TEST(exception, return_type_error_char) {
 }
 
 TEST(exception, return_type_error_uchar) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         unsigned char ret = 0;
-        L->call("test", std::tie(ret), "1");
+        Call(s, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -258,14 +260,14 @@ TEST(exception, return_type_error_uchar) {
 }
 
 TEST(exception, return_type_error_short) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         short ret = 0;
-        L->call("test", std::tie(ret), "1");
+        Call(s, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -274,14 +276,14 @@ TEST(exception, return_type_error_short) {
 }
 
 TEST(exception, return_type_error_ushort) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         unsigned short ret = 0;
-        L->call("test", std::tie(ret), "1");
+        Call(s, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -290,14 +292,14 @@ TEST(exception, return_type_error_ushort) {
 }
 
 TEST(exception, return_type_error_int) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         int ret = 0;
-        L->call("test", std::tie(ret), "1");
+        Call(s, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -306,14 +308,14 @@ TEST(exception, return_type_error_int) {
 }
 
 TEST(exception, return_type_error_uint) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         unsigned int ret = 0;
-        L->call("test", std::tie(ret), "1");
+        Call(s, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -322,14 +324,14 @@ TEST(exception, return_type_error_uint) {
 }
 
 TEST(exception, return_type_error_long) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         long ret = 0;
-        L->call("test", std::tie(ret), "1");
+        Call(s, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -338,14 +340,14 @@ TEST(exception, return_type_error_long) {
 }
 
 TEST(exception, return_type_error_ulong) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         unsigned long ret = 0;
-        L->call("test", std::tie(ret), "1");
+        Call(s, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -354,14 +356,14 @@ TEST(exception, return_type_error_ulong) {
 }
 
 TEST(exception, return_type_error_long_long) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         long long ret = 0;
-        L->call("test", std::tie(ret), "1");
+        Call(s, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -370,14 +372,14 @@ TEST(exception, return_type_error_long_long) {
 }
 
 TEST(exception, return_type_error_ulong_long) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         unsigned long long ret = 0;
-        L->call("test", std::tie(ret), "1");
+        Call(s, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -386,14 +388,14 @@ TEST(exception, return_type_error_ulong_long) {
 }
 
 TEST(exception, return_type_error_float) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         float ret = 0;
-        L->call("test", std::tie(ret), "1");
+        Call(s, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -402,14 +404,14 @@ TEST(exception, return_type_error_float) {
 }
 
 TEST(exception, return_type_error_double) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         double ret = 0;
-        L->call("test", std::tie(ret), "1");
+        Call(s, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -418,14 +420,14 @@ TEST(exception, return_type_error_double) {
 }
 
 TEST(exception, return_type_error_cstr) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         const char *ret = 0;
-        L->call("test", std::tie(ret), 123);
+        Call(s, "test", ret, 123);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -434,14 +436,14 @@ TEST(exception, return_type_error_cstr) {
 }
 
 TEST(exception, return_type_error_str) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         char *ret = 0;
-        L->call("test", std::tie(ret), 123);
+        Call(s, "test", ret, 123);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -450,14 +452,14 @@ TEST(exception, return_type_error_str) {
 }
 
 TEST(exception, return_type_error_string) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         std::string ret;
-        L->call("test", std::tie(ret), 123);
+        Call(s, "test", ret, 123);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -466,14 +468,14 @@ TEST(exception, return_type_error_string) {
 }
 
 TEST(exception, return_type_error_stringview) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         std::string_view ret;
-        L->call("test", std::tie(ret), 123);
+        Call(s, "test", ret, 123);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -482,15 +484,14 @@ TEST(exception, return_type_error_stringview) {
 }
 
 TEST(exception, return_index_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
-    L->CompileFile("./exception/test_return_type_error.lua", {});
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_return_type_error.lua", {});
 
     try {
         int a = 0;
-        int b = 0;
-        L->call("test", std::tie(a, b), 123);
+        Call(s, "test", a, 123);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -499,12 +500,12 @@ TEST(exception, return_index_error) {
 }
 
 TEST(exception, const_define_variadic) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_define_variadic.lua", {});
+        CompileFile(s, "./exception/test_const_define_variadic.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -513,13 +514,13 @@ TEST(exception, const_define_variadic) {
 }
 
 TEST(exception, test_binop_plus_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
-    L->CompileFile("./exception/test_binop_plus_error.lua", {});
+    CompileFile(s, "./exception/test_binop_plus_error.lua", {});
     try {
-        L->call("test", std::tie(), 1, "a");
+        Call(s, "test", noop, 1, "a");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -528,12 +529,12 @@ TEST(exception, test_binop_plus_error) {
 }
 
 TEST(exception, test_const_binop_plus_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_plus_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_plus_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -542,9 +543,9 @@ TEST(exception, test_const_binop_plus_error) {
 }
 
 TEST(exception, ToInteger) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     ASSERT_ANY_THROW(ToInteger("9223372036854775808"));
     ASSERT_ANY_THROW(ToInteger("-9223372036854775809"));
@@ -552,21 +553,21 @@ TEST(exception, ToInteger) {
 }
 
 TEST(exception, ToFloat) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     ASSERT_ANY_THROW(ToFloat("f"));
     ASSERT_ANY_THROW(ToFloat("1.7976931348623157e+309"));
 }
 
 TEST(exception, test_const_binop_minus_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_minus_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_minus_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -575,12 +576,12 @@ TEST(exception, test_const_binop_minus_error) {
 }
 
 TEST(exception, test_const_binop_star_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_star_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_star_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -589,12 +590,12 @@ TEST(exception, test_const_binop_star_error) {
 }
 
 TEST(exception, test_const_binop_slash_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_slash_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_slash_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -603,12 +604,12 @@ TEST(exception, test_const_binop_slash_error) {
 }
 
 TEST(exception, test_const_binop_double_slash_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_double_slash_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_double_slash_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -617,12 +618,12 @@ TEST(exception, test_const_binop_double_slash_error) {
 }
 
 TEST(exception, test_const_binop_pow_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_pow_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_pow_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -631,12 +632,12 @@ TEST(exception, test_const_binop_pow_error) {
 }
 
 TEST(exception, test_const_binop_mod_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_mod_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_mod_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -645,12 +646,12 @@ TEST(exception, test_const_binop_mod_error) {
 }
 
 TEST(exception, test_const_binop_bitand_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_bitand_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_bitand_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -659,12 +660,12 @@ TEST(exception, test_const_binop_bitand_error) {
 }
 
 TEST(exception, test_const_binop_xor_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_xor_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_xor_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -673,12 +674,12 @@ TEST(exception, test_const_binop_xor_error) {
 }
 
 TEST(exception, test_const_binop_bitor_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_bitor_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_bitor_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -687,12 +688,12 @@ TEST(exception, test_const_binop_bitor_error) {
 }
 
 TEST(exception, test_const_binop_right_shift_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_right_shift_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_right_shift_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -701,12 +702,12 @@ TEST(exception, test_const_binop_right_shift_error) {
 }
 
 TEST(exception, test_const_binop_left_shift_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_left_shift_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_left_shift_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -715,12 +716,12 @@ TEST(exception, test_const_binop_left_shift_error) {
 }
 
 TEST(exception, test_const_binop_less_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_less_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_less_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -729,12 +730,12 @@ TEST(exception, test_const_binop_less_error) {
 }
 
 TEST(exception, test_const_binop_less_equal_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_less_equal_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_less_equal_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -743,12 +744,12 @@ TEST(exception, test_const_binop_less_equal_error) {
 }
 
 TEST(exception, test_const_binop_more_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_more_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_more_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -757,12 +758,12 @@ TEST(exception, test_const_binop_more_error) {
 }
 
 TEST(exception, test_const_binop_more_equal_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_binop_more_equal_error.lua", {});
+        CompileFile(s, "./exception/test_const_binop_more_equal_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -771,14 +772,14 @@ TEST(exception, test_const_binop_more_equal_error) {
 }
 
 TEST(exception, test_unop_minus_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_unop_minus_error.lua", {});
+        CompileFile(s, "./exception/test_unop_minus_error.lua", {});
         int ret = 0;
-        L->call("test", std::tie(ret), "abc");
+        Call(s, "test", ret, "abc");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -787,12 +788,12 @@ TEST(exception, test_unop_minus_error) {
 }
 
 TEST(exception, test_const_unop_len_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_unop_len_error.lua", {});
+        CompileFile(s, "./exception/test_const_unop_len_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -801,12 +802,12 @@ TEST(exception, test_const_unop_len_error) {
 }
 
 TEST(exception, test_const_unop_bitnot_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_unop_bitnot_error.lua", {});
+        CompileFile(s, "./exception/test_const_unop_bitnot_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -815,12 +816,12 @@ TEST(exception, test_const_unop_bitnot_error) {
 }
 
 TEST(exception, test_label_exception) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_label_exception.lua", {});
+        CompileFile(s, "./exception/test_label_exception.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -833,9 +834,9 @@ Var *CALL_VAR_FUNC_TEST_EXCEPTION_FUNC(...) {
 }
 
 TEST(exception, test_call_var_func) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
         std::vector<Var *> args;
@@ -849,14 +850,14 @@ TEST(exception, test_call_var_func) {
 }
 
 TEST(exception, TableSet) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_table_set_error.lua", {});
+        CompileFile(s, "./exception/test_table_set_error.lua", {});
         int ret = 0;
-        L->call("test", std::tie(ret), "abc");
+        Call(s, "test", ret, "abc");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -865,14 +866,14 @@ TEST(exception, TableSet) {
 }
 
 TEST(exception, TableGet) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_table_get_error.lua", {});
+        CompileFile(s, "./exception/test_table_get_error.lua", {});
         int ret = 0;
-        L->call("test", std::tie(ret), "abc");
+        Call(s, "test", ret, "abc");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -881,14 +882,14 @@ TEST(exception, TableGet) {
 }
 
 TEST(exception, table_loop) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_table_loop_error.lua", {});
+        CompileFile(s, "./exception/test_table_loop_error.lua", {});
         int ret = 0;
-        L->call("test", std::tie(ret), "abc");
+        Call(s, "test", ret, "abc");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -897,12 +898,12 @@ TEST(exception, table_loop) {
 }
 
 TEST(exception, stmt_support_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_stmt_support_error.lua", {});
+        CompileFile(s, "./exception/test_stmt_support_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -911,12 +912,12 @@ TEST(exception, stmt_support_error) {
 }
 
 TEST(exception, const_func_call_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_const_func_call_error.lua", {});
+        CompileFile(s, "./exception/test_const_func_call_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -925,12 +926,12 @@ TEST(exception, const_func_call_error) {
 }
 
 TEST(exception, no_define_lvalue_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_no_define_lvalue_error.lua", {});
+        CompileFile(s, "./exception/test_no_define_lvalue_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -939,12 +940,12 @@ TEST(exception, no_define_lvalue_error) {
 }
 
 TEST(exception, global_duplicate_lvalue_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_global_duplicate_lvalue_error.lua", {});
+        CompileFile(s, "./exception/test_global_duplicate_lvalue_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -953,12 +954,12 @@ TEST(exception, global_duplicate_lvalue_error) {
 }
 
 TEST(exception, test_break_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_break_error.lua", {});
+        CompileFile(s, "./exception/test_break_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -967,12 +968,12 @@ TEST(exception, test_break_error) {
 }
 
 TEST(exception, test_for_in_exp_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_for_in_exp_error.lua", {});
+        CompileFile(s, "./exception/test_for_in_exp_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -981,12 +982,12 @@ TEST(exception, test_for_in_exp_error) {
 }
 
 TEST(exception, test_for_in_namelist_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_for_in_namelist_error.lua", {});
+        CompileFile(s, "./exception/test_for_in_namelist_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -995,12 +996,12 @@ TEST(exception, test_for_in_namelist_error) {
 }
 
 TEST(exception, test_for_in_pairs_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_for_in_pairs_error.lua", {});
+        CompileFile(s, "./exception/test_for_in_pairs_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -1009,12 +1010,12 @@ TEST(exception, test_for_in_pairs_error) {
 }
 
 TEST(exception, test_for_in_explist_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_for_in_explist_error.lua", {});
+        CompileFile(s, "./exception/test_for_in_explist_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -1023,12 +1024,12 @@ TEST(exception, test_for_in_explist_error) {
 }
 
 TEST(exception, test_for_in_prefix_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_for_in_prefix_error.lua", {});
+        CompileFile(s, "./exception/test_for_in_prefix_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -1037,12 +1038,12 @@ TEST(exception, test_for_in_prefix_error) {
 }
 
 TEST(exception, test_for_in_func_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_for_in_func_error.lua", {});
+        CompileFile(s, "./exception/test_for_in_func_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -1051,12 +1052,12 @@ TEST(exception, test_for_in_func_error) {
 }
 
 TEST(exception, test_for_in_func_args_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_for_in_func_args_error.lua", {});
+        CompileFile(s, "./exception/test_for_in_func_args_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -1065,12 +1066,12 @@ TEST(exception, test_for_in_func_args_error) {
 }
 
 TEST(exception, test_for_in_prefix_func_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_for_in_prefix_func_error.lua", {});
+        CompileFile(s, "./exception/test_for_in_prefix_func_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -1079,14 +1080,14 @@ TEST(exception, test_for_in_prefix_func_error) {
 }
 
 TEST(exception, test_col_func_not_find_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_col_func_not_find_error.lua", {});
+        CompileFile(s, "./exception/test_col_func_not_find_error.lua", {});
         int ret = 0;
-        L->call("test", std::tie(ret), "abc");
+        Call(s, "test", ret, "abc");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -1095,14 +1096,14 @@ TEST(exception, test_col_func_not_find_error) {
 }
 
 TEST(exception, test_col_func_param_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_col_func_param_error.lua", {});
+        CompileFile(s, "./exception/test_col_func_param_error.lua", {});
         int ret = 0;
-        L->call("test", std::tie(ret), "abc");
+        Call(s, "test", ret, "abc");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -1111,14 +1112,14 @@ TEST(exception, test_col_func_param_error) {
 }
 
 TEST(exception, test_col_func_table_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_col_func_table_error.lua", {});
+        CompileFile(s, "./exception/test_col_func_table_error.lua", {});
         int ret = 0;
-        L->call("test", std::tie(ret), "abc");
+        Call(s, "test", ret, "abc");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -1127,14 +1128,14 @@ TEST(exception, test_col_func_table_error) {
 }
 
 TEST(exception, test_col_func_type_error) {
-    auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
-    L->SetDebugLogLevel(0);
+    auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
 
     try {
-        L->CompileFile("./exception/test_col_func_type_error.lua", {});
+        CompileFile(s, "./exception/test_col_func_type_error.lua", {});
         int ret = 0;
-        L->call("test", std::tie(ret), "abc");
+        Call(s, "test", ret, "abc");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;

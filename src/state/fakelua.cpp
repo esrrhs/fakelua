@@ -2,6 +2,7 @@
 #include "state/state.h"
 #include "util/common.h"
 #include "var/var_table.h"
+#include "var/var_string.h"
 
 namespace fakelua {
 
@@ -138,7 +139,7 @@ Var ViToVar(State *s, const VarInterface *src) {
                 const auto [fst, snd] = src->ViGetTableKv(i);
                 auto k = ViToVar(s, fst);
                 auto v = ViToVar(s, snd);
-                ret.GetTable()->Set(k, v, true);
+                ret.GetTable()->Set(s, k, v, true);
             }
             break;
         default:
@@ -368,7 +369,7 @@ State *FakeluaNewState(const StateConfig &cfg) {
     return new State(cfg);
 }
 
-void FakeluaFreeState(State *s) {
+void FakeluaDeleteState(State *s) {
     delete s;
 }
 

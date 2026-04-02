@@ -1,6 +1,5 @@
 #include "fakelua.h"
 #include "state/state.h"
-#include "state/var_string_heap.h"
 #include "var/var.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
@@ -9,7 +8,7 @@
 using namespace fakelua;
 
 TEST(var, construct) {
-    auto s = std::make_shared<State>();
+    auto s = FakeluaNewState();
 
     Var v;
     ASSERT_EQ(v.Type(), VarType::Nil);
@@ -29,34 +28,39 @@ TEST(var, construct) {
     Var v4_1(1.00);
     ASSERT_EQ(v4_1.Type(), VarType::Int);
 
-    Var v5(s, "hello");
+    Var v5;
+    v5.SetTempString(s, "hello");
     ASSERT_EQ(v5.Type(), VarType::String);
 
-    Var v6(s, std::string("hello"));
+    Var v6;
+    v6.SetTempString(s, std::string("hello"));
     ASSERT_EQ(v6.Type(), VarType::String);
 
-    Var v7(s, std::move(std::string("hello")));
+    Var v7;
+    v7.SetTempString(s, std::move(std::string("hello")));
     ASSERT_EQ(v7.Type(), VarType::String);
 
     std::string str("hello");
-    Var v8(s, str);
+    Var v8;
+    v8.SetTempString(s, str);
     ASSERT_EQ(v8.Type(), VarType::String);
 
     Var v9;
-    v9.SetString(s, str);
+    v9.SetTempString(s, str);
     ASSERT_EQ(v9.Type(), VarType::String);
 
     std::string_view StrView("hello");
-    Var v10(s, StrView);
+    Var v10;
+    v10.SetTempString(s, StrView);
     ASSERT_EQ(v10.Type(), VarType::String);
 
     Var v11;
-    v11.SetString(s, StrView);
+    v11.SetTempString(s, StrView);
     ASSERT_EQ(v11.Type(), VarType::String);
 }
 
 TEST(var, set_get) {
-    auto s = std::make_shared<State>();
+    auto s = FakeluaNewState();
 
     Var v;
     v.SetNil();
@@ -78,41 +82,21 @@ TEST(var, set_get) {
     ASSERT_EQ(v.Type(), VarType::Int);
     ASSERT_EQ(v.GetInt(), 1);
 
-    v.SetString(s, "hello");
+    v.SetTempString(s, "hello");
     ASSERT_EQ(v.Type(), VarType::String);
     ASSERT_EQ(v.GetString()->Str(), "hello");
 
-    v.SetString(s, std::string("hello"));
+    v.SetTempString(s, std::string("hello"));
     ASSERT_EQ(v.Type(), VarType::String);
     ASSERT_EQ(v.GetString()->Str(), "hello");
 
-    v.SetString(s, std::move(std::string("hello")));
+    v.SetTempString(s, std::move(std::string("hello")));
     ASSERT_EQ(v.Type(), VarType::String);
     ASSERT_EQ(v.GetString()->Str(), "hello");
-}
-
-TEST(var, VarStringHeap) {
-    auto s = std::make_shared<State>();
-
-    VarStringHeap &heap = s->get_var_string_heap();
-    auto ret = heap.alloc("hello");
-    ASSERT_EQ(ret->Str(), "hello");
-
-    auto ret1 = heap.alloc("hello");
-    ASSERT_EQ(ret1->Str(), "hello");
-    ASSERT_EQ(ret, ret1);
-
-    ret = heap.alloc("hello");
-    ASSERT_EQ(ret->Str(), "hello");
-    ASSERT_EQ(ret, ret1);
-
-    ret = heap.alloc("hello1");
-    ASSERT_EQ(ret->Str(), "hello1");
-    ASSERT_NE(ret, ret1);
 }
 
 TEST(var, ToString) {
-    auto s = std::make_shared<State>();
+    auto s = FakeluaNewState();
 
     Var v;
     v.SetNil();
@@ -133,7 +117,7 @@ TEST(var, ToString) {
     v.SetFloat(2.1245e-10);
     ASSERT_EQ(v.ToString(), "2.1245e-10");
 
-    v.SetString(s, "hello");
+    v.SetTempString(s, "hello");
     ASSERT_EQ(v.ToString(), "\"hello\"");
 
     v.SetTable(s);
@@ -141,91 +125,75 @@ TEST(var, ToString) {
 }
 
 TEST(var, VarTable) {
-    auto s = std::make_shared<State>();
+    auto s = FakeluaNewState();
 
     VarTable vt;
 
     Var k1((int64_t) 1);
     Var v1((int64_t) 2);
-    vt.Set(k1, v1, false);
+    vt.Set(s, k1, v1, false);
     ASSERT_EQ(vt.Get(k1), v1);
 
     Var k2((int64_t) 1);
     Var v2((int64_t) 3);
-    vt.Set(k2, v2, false);
+    vt.Set(s, k2, v2, false);
     ASSERT_EQ(vt.Get(k2), v2);
 
     Var k3((int64_t) 2);
     Var v3((int64_t) 4);
-    vt.Set(k3, v3, false);
+    vt.Set(s, k3, v3, false);
     ASSERT_EQ(vt.Get(k3), v3);
 
-    Var k4(s, "hello");
+    Var k4;
+    k4.SetTempString(s, "hello");
     Var v4((int64_t) 5);
-    vt.Set(k4, v4, false);
+    vt.Set(s, k4, v4, false);
     ASSERT_EQ(vt.Get(k4), v4);
 
-    vt.Set(k4, Var(), false);
+    vt.Set(s, k4, Var(), false);
     ASSERT_EQ(vt.Get(k4), const_null_var);
 
-    Var k5(s, "hello");
+    Var k5;
+    k5.SetTempString(s, "hello");
     Var v5((int64_t) 6);
-    vt.Set(k5, v5, false);
+    vt.Set(s, k5, v5, false);
     ASSERT_EQ(vt.Get(k5), v5);
 
     Var nil;
-    vt.Set(k5, nil, false);
+    vt.Set(s, k5, nil, false);
     ASSERT_EQ(vt.Get(k5), const_null_var);
 
-    vt.Set(k1, v1, false);
+    vt.Set(s, k1, v1, false);
     ASSERT_EQ(vt.Get(k1), v1);
 
-    vt.Set(k1, Var(), false);
+    vt.Set(s, k1, Var(), false);
     ASSERT_EQ(vt.Get(k1), const_null_var);
 }
 
-TEST(var, var_string_heap_reset) {
-    auto s = std::make_shared<State>();
-
-    VarStringHeap &heap = s->get_var_string_heap();
-    auto str = heap.alloc("hello");
-    ASSERT_EQ(str->Str(), "hello");
-
-    auto str1 = heap.alloc("world");
-    auto str2 = heap.alloc("world");
-
-    ASSERT_EQ(str1->Str(), "world");
-    ASSERT_EQ(str2->Str(), "world");
-
-    ASSERT_EQ(str1->Str().data(), str2->Str().data());
-
-    ASSERT_EQ(heap.size(), 2);
-}
-
-TEST(var, SetString) {
-    auto s = std::make_shared<State>();
+TEST(var, SetTempString) {
+    auto s = FakeluaNewState();
 
     Var v;
     const std::string str("hello");
-    v.SetString(s, str);
+    v.SetTempString(s, str);
     ASSERT_EQ(v.Type(), VarType::String);
     ASSERT_EQ(v.GetString()->Str(), str);
 
-    v.SetString(s, std::move(std::string("hello")));
+    v.SetTempString(s, std::move(std::string("hello")));
     ASSERT_EQ(v.Type(), VarType::String);
     ASSERT_EQ(v.GetString()->Str(), str);
 
-    v.SetString(s, "hello");
+    v.SetTempString(s, "hello");
     ASSERT_EQ(v.Type(), VarType::String);
     ASSERT_EQ(v.GetString()->Str(), str);
 
-    v.SetString(s, std::string_view("hello"));
+    v.SetTempString(s, std::string_view("hello"));
     ASSERT_EQ(v.Type(), VarType::String);
     ASSERT_EQ(v.GetString()->Str(), str);
 }
 
 TEST(var, var_table_keys) {
-    auto s = std::make_shared<State>();
+    auto s = FakeluaNewState();
 
     VarTable vt;
 
@@ -239,8 +207,8 @@ TEST(var, var_table_keys) {
     Var v2;
     v2.SetInt((int64_t) 2);
 
-    vt.Set(k1, v1, false);
-    vt.Set(k2, v2, false);
+    vt.Set(s, k1, v1, false);
+    vt.Set(s, k2, v2, false);
 
     auto v = vt.Get(k1);
     ASSERT_EQ(v.Type(), VarType::Int);
@@ -255,8 +223,8 @@ TEST(var, var_table_keys) {
     Var k4;
     k4.SetFloat(2.3);
 
-    vt.Set(k3, v1, false);
-    vt.Set(k4, v2, false);
+    vt.Set(s, k3, v1, false);
+    vt.Set(s, k4, v2, false);
 
     v = vt.Get(k3);
     ASSERT_EQ(v.Type(), VarType::Int);
@@ -271,8 +239,8 @@ TEST(var, var_table_keys) {
     Var k8;
     k8.SetTable(s);
 
-    vt.Set(k7, v1, false);
-    vt.Set(k8, v2, false);
+    vt.Set(s, k7, v1, false);
+    vt.Set(s, k8, v2, false);
 
     v = vt.Get(k7);
     ASSERT_EQ(v.Type(), VarType::Int);
@@ -284,7 +252,7 @@ TEST(var, var_table_keys) {
 }
 
 TEST(var, var_table_int_float_keys) {
-    auto s = std::make_shared<State>();
+    auto s = FakeluaNewState();
 
     VarTable vt;
 
@@ -298,8 +266,8 @@ TEST(var, var_table_int_float_keys) {
     Var k10;
     k10.SetFloat(1.0);
 
-    vt.Set(k9, v1, false);
-    vt.Set(k10, v2, false);
+    vt.Set(s, k9, v1, false);
+    vt.Set(s, k10, v2, false);
 
     auto v = vt.Get(k9);
     ASSERT_EQ(v.Type(), VarType::Int);
@@ -314,8 +282,8 @@ TEST(var, var_table_int_float_keys) {
     Var k12;
     k12.SetInt(2);
 
-    vt.Set(k11, v1, false);
-    vt.Set(k12, v2, false);
+    vt.Set(s, k11, v1, false);
+    vt.Set(s, k12, v2, false);
 
     v = vt.Get(k11);
     ASSERT_EQ(v.Type(), VarType::Int);
@@ -327,7 +295,7 @@ TEST(var, var_table_int_float_keys) {
 }
 
 TEST(var, var_table_nan_keys) {
-    auto s = std::make_shared<State>();
+    auto s = FakeluaNewState();
 
     VarTable vt;
 
@@ -341,8 +309,8 @@ TEST(var, var_table_nan_keys) {
     Var v2;
     v2.SetInt(2);
 
-    vt.Set(k1, v1, false);
-    vt.Set(k2, v2, false);
+    vt.Set(s, k1, v1, false);
+    vt.Set(s, k2, v2, false);
 
     auto v = vt.Get(k1);
     ASSERT_EQ(v.Type(), VarType::Int);
@@ -354,7 +322,7 @@ TEST(var, var_table_nan_keys) {
 }
 
 TEST(var, var_table_size) {
-    auto s = std::make_shared<State>();
+    auto s = FakeluaNewState();
 
     VarTable vt;
 
@@ -368,15 +336,15 @@ TEST(var, var_table_size) {
     Var k10;
     k10.SetFloat(1.0);
 
-    vt.Set(k9, v1, false);
-    vt.Set(k10, v2, false);
+    vt.Set(s, k9, v1, false);
+    vt.Set(s, k10, v2, false);
 
     ASSERT_EQ(vt.Size(), 1);
 
     Var k11;
     k11.SetInt(2);
 
-    vt.Set(k11, v2, false);
+    vt.Set(s, k11, v2, false);
     ASSERT_EQ(vt.Size(), 2);
 }
 

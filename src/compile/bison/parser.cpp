@@ -1473,7 +1473,7 @@ namespace yy {
             LOG_ERROR("[bison]: funcname: funcnamelist is not a funcnamelist");
             fakelua::ThrowFakeluaException("funcnamelist is not a funcnamelist");
         }
-        funcname->SetFuncNamelist(funcnamelist);
+        funcname->SetFuncNameList(funcnamelist);
         yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = funcname;
     }
 #line 1480 "parser.cpp"
@@ -1489,7 +1489,7 @@ namespace yy {
             LOG_ERROR("[bison]: funcname: funcnamelist is not a funcnamelist");
             fakelua::ThrowFakeluaException("funcnamelist is not a funcnamelist");
         }
-        funcname->SetFuncnamelist(funcnamelist);
+        funcname->SetFuncNameList(funcnamelist);
         funcname->SetColonName(yystack_[0].value.as < std::string > ());
         yylhs.value.as < fakelua::SyntaxTreeInterfacePtr > () = funcname;
     }

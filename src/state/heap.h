@@ -45,8 +45,6 @@ private:
 // 从大块内存中切出一小块内存使用，释放的时候一口气全释放
 class Heap {
 public:
-    ~Heap();
-
     HeapAllocator &GetTempAllocator() {
         return temp_allocator_;
     }

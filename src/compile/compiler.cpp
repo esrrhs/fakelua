@@ -59,11 +59,6 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     CGen cgen(s_);
     cgen.Generate(ret, cfg);
 
-
-    // 4. 编译为原生机器码
-    GccJitter jitter_(s_);
-    jitter_.Compile(cfg, ret.fileName, ret.chunk);
-
     return ret;
 }
 

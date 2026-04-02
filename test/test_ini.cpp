@@ -4,6 +4,7 @@
 using namespace fakelua;
 
 TEST(ini, newstate) {
-    const auto L = FakeluaNewState();
-    ASSERT_NE(L.get(), nullptr);
+    const auto s = FakeluaNewState();
+    ASSERT_NE(s, nullptr);
+    FakeluaDeleteState(s);
 }

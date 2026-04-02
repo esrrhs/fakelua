@@ -664,7 +664,7 @@ funcname:
             LOG_ERROR("[bison]: funcname: funcnamelist is not a funcnamelist");
             fakelua::ThrowFakeluaException("funcnamelist is not a funcnamelist");
         }
-        funcname->SetFuncNamelist(funcnamelist);
+        funcname->SetFuncNameList(funcnamelist);
         $$ = funcname;
     }
     |
@@ -677,7 +677,7 @@ funcname:
             LOG_ERROR("[bison]: funcname: funcnamelist is not a funcnamelist");
             fakelua::ThrowFakeluaException("funcnamelist is not a funcnamelist");
         }
-        funcname->SetFuncNamelist(funcnamelist);
+        funcname->SetFuncNameList(funcnamelist);
         funcname->SetColonName($3);
         $$ = funcname;
     }

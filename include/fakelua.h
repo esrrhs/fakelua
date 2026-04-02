@@ -220,7 +220,7 @@ class State;
 State *FakeluaNewState(const StateConfig &cfg = {});
 
 // 释放 FakeLua 状态
-void FakeluaFreeState(State *s);
+void FakeluaDeleteState(State *s);
 
 // 编译文件
 void CompileFile(State *s, const std::string &filename, const CompileConfig &cfg);
@@ -240,7 +240,7 @@ std::function<VarInterface *()> &GetVarInterfaceNewFunc(State *s);
 
 // 设置全局调试日志级别，注意所有状态都将被设置。
 // 0: 关闭, 1: 错误, 2: 信息, 默认为错误。
-void SetDebugLogLevel(State *s, int level);
+void SetDebugLogLevel(int level);
 
 namespace inter {
 
