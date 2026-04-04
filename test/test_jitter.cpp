@@ -1,6 +1,6 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
-#include "var/var_String.h"
+#include "var/var_string.h"
 #include "var/var_table.h"
 #include "gtest/gtest.h"
 
