@@ -37,7 +37,7 @@ bool CallLuaFunc(lua_State *L, const std::string &funcName, int &ret, Args... ar
     PushArgs(L, args...);
 
     constexpr int nargs = sizeof...(Args);
-    int code = lua_pcall(L, nargs, 1, 0);
+    [[maybe_unused]] int code = lua_pcall(L, nargs, 1, 0);
     DEBUG_ASSERT(code == LUA_OK);
 
     ret = lua_tointeger(L, -1);
