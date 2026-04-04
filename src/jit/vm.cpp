@@ -7,6 +7,15 @@
 #include "var/var_string.h"
 
 namespace fakelua {
+
+extern "C" void *FakeluaAllocTemp(State *s, size_t size) {
+    return s->GetHeap().GetTempAllocator().Alloc(size);
+}
+
+extern "C" void FakeluaThrowError(State *s, const char *msg) {
+    ThrowFakeluaException(msg);
+}
+
 //
 // static Var *alloc_val_helper(State *s, bool is_const) {
 //     if (is_const) {

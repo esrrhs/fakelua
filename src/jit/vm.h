@@ -45,6 +45,10 @@ private:
     // global name counter
     uint64_t global_name_ = 0;
 };
+
+extern "C" void *FakeluaAllocTemp(State *s, size_t size);
+extern "C" void FakeluaThrowError(State *s, const char *msg);
+
 //
 // extern "C" __attribute__((used)) Var *NewVarTable(State *s, bool is_const, int n, ...);
 //

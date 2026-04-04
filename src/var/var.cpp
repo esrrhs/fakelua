@@ -67,21 +67,33 @@ std::string Var::ToString(bool has_quote, bool has_postfix) const {
 
 size_t Var::Hash() const {
     switch (Type()) {
-        case VarType::Nil:
+        case VarType::Nil: {
             return 0;
-        case VarType::Bool:
-            return GetBool() ? 1 : 0;
-        case VarType::Int:
-            return std::hash<int64_t>()(data_.i);
-        case VarType::Float:
-            return std::hash<double>()(data_.f);
+        }
+        case VarType::Bool: {
+            return data_.b ? 1 : 0;
+        }
+        case VarType::Int: {
+            return static_cast<uint32_t>(data_.i ^ (data_.i >> 32));
+        }
+        case VarType::Float: {
+            union {
+                double d;
+                uint64_t u;
+            } u;
+            u.d = data_.f;
+            return static_cast<uint32_t>(u.u ^ (u.u >> 32));
+        }
         case VarType::String:
-        case VarType::StringId:
+        case VarType::StringId: {
             return GetString()->Hash();
-        case VarType::Table:
-            return std::hash<size_t>()(reinterpret_cast<size_t>(data_.t));
-        default:
+        }
+        case VarType::Table: {
+            return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data_.t) ^ (reinterpret_cast<uintptr_t>(data_.t) >> 32));
+        }
+        default: {
             return 0;
+        }
     }
 }
 

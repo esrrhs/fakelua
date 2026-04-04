@@ -28,6 +28,14 @@ void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
 }
 
 std::string CGen::Build(const CompileResult &cr, const CompileConfig &cfg) {
+    header_.str("");
+    header_.clear();
+    decl_.str("");
+    decl_.clear();
+    impl_.str("");
+    impl_.clear();
+    function_param_counts_.clear();
+
     GenerateHeader();
 
     // 遍历所有函数进行前置声明
@@ -139,108 +147,351 @@ enum {
     } \
 } while(0)
 
-// External functions for allocation and complex operations
-extern VarString* fakelua_alloc_string(State *s, const char *str, int len);
-extern VarTable* fakelua_alloc_table(State *s);
-extern CVar fakelua_get_table(State *s, VarTable *t, CVar k);
-extern void fakelua_set_table(State *s, VarTable *t, CVar k, CVar v);
+// External functions for allocation and error handling
+extern void* FakeluaAllocTemp(State *s, size_t size);
+extern void FakeluaThrowError(State *s, const char *msg);
+
+static inline uint32_t FlHashString(const char *str, int len) {
+    uint32_t hash = 5381;
+    for (int i = 0; i < len; ++i) {
+        hash = ((hash << 5) + hash) + (uint8_t)str[i];
+    }
+    if (hash == 0) {
+        hash = 1;
+    }
+    return hash;
+}
 
 #define SET_STRING(v, s, str, len) do { \
+    int __len = (len); \
+    const char *__s_ptr = (str); \
+    VarString *__vs = (VarString *)FakeluaAllocTemp(s, sizeof(VarString) + __len); \
+    __vs->size_ = __len; \
+    __vs->hash_ = 0; \
+    memcpy(__vs->data_, __s_ptr, __len); \
     (v).type_ = VAR_STRING; \
-    (v).data_.s = fakelua_alloc_string(s, str, len); \
+    (v).data_.s = __vs; \
 } while(0)
 
 #define SET_TABLE(v, s) do { \
+    VarTable *__t = (VarTable *)FakeluaAllocTemp(s, sizeof(VarTable)); \
+    __t->count_ = 0; \
+    __t->bucket_count_ = 0; \
+    __t->nodes_ = NULL; \
+    __t->active_list_ = NULL; \
+    __t->free_list_idx_ = 0xFFFFFFFF; \
+    for (int __i = 0; __i < 4; ++__i) { \
+        __t->quick_data_[__i].key.type_ = VAR_NIL; \
+        __t->quick_data_[__i].val.type_ = VAR_NIL; \
+        __t->quick_data_[__i].hash = 0; \
+    } \
     (v).type_ = VAR_TABLE; \
-    (v).data_.t = fakelua_alloc_table(s); \
+    (v).data_.t = __t; \
 } while(0)
 
-static inline bool is_true(CVar v) { return v.type_ != VAR_NIL && (v.type_ != VAR_BOOL || v.data_.b); }
-static inline bool var_equal(CVar a, CVar b) {
-    if (a.type_ != b.type_) return false;
-    switch(a.type_) {
-        case VAR_NIL: return true;
-        case VAR_BOOL: return a.data_.b == b.data_.b;
-        case VAR_INT: return a.data_.i == b.data_.i;
-        case VAR_FLOAT: return a.data_.f == b.data_.f;
-        case VAR_STRING: return a.data_.s == b.data_.s;
-        case VAR_TABLE: return a.data_.t == b.data_.t;
-        default: return false;
-    }
-}
+// Logical and Equality macros
+#define IsTrue(v) ({ \
+    CVar __v = (v); \
+    (__v.type_ != VAR_NIL && (__v.type_ != VAR_BOOL || __v.data_.b)); \
+})
 
-// Table operations
-static inline CVar fl_get_table(State *s, CVar t, CVar k) {
-    if (t.type_ != VAR_TABLE) return (CVar){VAR_NIL};
-    VarTable *tbl = t.data_.t;
-    for (int i = 0; i < 4; ++i) {
-        if (var_equal(tbl->quick_data_[i].key, k)) return tbl->quick_data_[i].val;
-    }
-    return fakelua_get_table(s, tbl, k);
-}
+#define VarEqual(a, b) ({ \
+    CVar __a = (a); CVar __b = (b); bool __res = false; \
+    if (__a.type_ != __b.type_) { \
+        if ((__a.type_ == VAR_STRING || __a.type_ == VAR_STRINGID) && \
+            (__b.type_ == VAR_STRING || __b.type_ == VAR_STRINGID)) { \
+            VarString *__sa = (__a.type_ == VAR_STRING) ? __a.data_.s : (VarString *)__a.data_.i; \
+            VarString *__sb = (__b.type_ == VAR_STRING) ? __b.data_.s : (VarString *)__b.data_.i; \
+            if (__sa == __sb) { __res = true; } \
+            else if (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0) { __res = true; } \
+        } \
+    } else { \
+        switch(__a.type_) { \
+            case VAR_NIL: { __res = true; break; } \
+            case VAR_BOOL: { __res = (__a.data_.b == __b.data_.b); break; } \
+            case VAR_INT: { __res = (__a.data_.i == __b.data_.i); break; } \
+            case VAR_FLOAT: { if (isnan(__a.data_.f) && isnan(__b.data_.f)) { __res = true; } else { __res = (__a.data_.f == __b.data_.f); } break; } \
+            case VAR_STRING: { if (__a.data_.s == __b.data_.s) { __res = true; } else if (__a.data_.s->size_ == __b.data_.s->size_ && memcmp(__a.data_.s->data_, __b.data_.s->data_, __a.data_.s->size_) == 0) { __res = true; } break; } \
+            case VAR_STRINGID: { __res = (__a.data_.i == __b.data_.i); break; } \
+            case VAR_TABLE: { __res = (__a.data_.t == __b.data_.t); break; } \
+        } \
+    } \
+    __res; \
+})
 
-static inline void fl_set_table(State *s, CVar t, CVar k, CVar v) {
-    if (t.type_ != VAR_TABLE) return;
+#define VarHash(v) ({ \
+    CVar __v = (v); uint32_t __h = 0; \
+    switch(__v.type_) { \
+        case VAR_NIL: { __h = 0; break; } \
+        case VAR_BOOL: { __h = __v.data_.b ? 1 : 0; break; } \
+        case VAR_INT: { __h = (uint32_t)(__v.data_.i ^ (__v.data_.i >> 32)); break; } \
+        case VAR_FLOAT: { union { double d; uint64_t u; } __u; __u.d = __v.data_.f; __h = (uint32_t)(__u.u ^ (__u.u >> 32)); break; } \
+        case VAR_STRING: { if (__v.data_.s->hash_ == 0) { __v.data_.s->hash_ = FlHashString(__v.data_.s->data_, __v.data_.s->size_); } __h = __v.data_.s->hash_; break; } \
+        case VAR_STRINGID: { VarString *__vs = (VarString *)__v.data_.i; if (__vs->hash_ == 0) { __vs->hash_ = FlHashString(__vs->data_, __vs->size_); } __h = __vs->hash_; break; } \
+        case VAR_TABLE: { __h = (uint32_t)((uintptr_t)__v.data_.t ^ ((uintptr_t)__v.data_.t >> 32)); break; } \
+    } \
+    __h; \
+})
+
+static inline CVar FlGetTable(State *s, CVar t, CVar k) {
+    if (t.type_ != VAR_TABLE) { return (CVar){VAR_NIL}; }
+    if (k.type_ == VAR_NIL) { FakeluaThrowError(s, "table index is nil"); }
     VarTable *tbl = t.data_.t;
-    for (int i = 0; i < 4; ++i) {
-        if (var_equal(tbl->quick_data_[i].key, k)) {
-            tbl->quick_data_[i].val = v;
-            return;
+    if (tbl->count_ == 0) { return (CVar){VAR_NIL}; }
+    uint32_t h = VarHash(k);
+    if (tbl->bucket_count_ == 0) {
+        if (tbl->quick_data_[0].hash == h && VarEqual(tbl->quick_data_[0].key, k)) { return tbl->quick_data_[0].val; }
+        if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h && VarEqual(tbl->quick_data_[1].key, k)) { return tbl->quick_data_[1].val; }
+        if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h && VarEqual(tbl->quick_data_[2].key, k)) { return tbl->quick_data_[2].val; }
+        if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h && VarEqual(tbl->quick_data_[3].key, k)) { return tbl->quick_data_[3].val; }
+    } else {
+        uint32_t mask = tbl->bucket_count_ - 1;
+        uint32_t idx = h & mask;
+        TableNode *curr = &tbl->nodes_[idx];
+        if (curr->entry.key.type_ == VAR_NIL) { return (CVar){VAR_NIL}; }
+        while (1) {
+            if (curr->entry.hash == h && VarEqual(curr->entry.key, k)) { return curr->entry.val; }
+            uint32_t next = curr->next;
+            if (next == 0xFFFFFFFF) { break; }
+            curr = &tbl->nodes_[next];
         }
     }
-    fakelua_set_table(s, tbl, k, v);
+    return (CVar){VAR_NIL};
 }
 
-// Arithmetic operations
-static inline CVar op_add(CVar a, CVar b) {
-    CVar res;
-    if (a.type_ == VAR_INT && b.type_ == VAR_INT) { SET_INT(res, a.data_.i + b.data_.i); }
-    else { double f1 = (a.type_ == VAR_INT) ? (double)a.data_.i : a.data_.f; double f2 = (b.type_ == VAR_INT) ? (double)b.data_.i : b.data_.f; SET_FLOAT(res, f1 + f2); }
-    return res;
-}
-static inline CVar op_sub(CVar a, CVar b) {
-    CVar res;
-    if (a.type_ == VAR_INT && b.type_ == VAR_INT) { SET_INT(res, a.data_.i - b.data_.i); }
-    else { double f1 = (a.type_ == VAR_INT) ? (double)a.data_.i : a.data_.f; double f2 = (b.type_ == VAR_INT) ? (double)b.data_.i : b.data_.f; SET_FLOAT(res, f1 - f2); }
-    return res;
-}
-static inline CVar op_mul(CVar a, CVar b) {
-    CVar res;
-    if (a.type_ == VAR_INT && b.type_ == VAR_INT) { SET_INT(res, a.data_.i * b.data_.i); }
-    else { double f1 = (a.type_ == VAR_INT) ? (double)a.data_.i : a.data_.f; double f2 = (b.type_ == VAR_INT) ? (double)b.data_.i : b.data_.f; SET_FLOAT(res, f1 * f2); }
-    return res;
-}
-static inline CVar op_div(CVar a, CVar b) {
-    CVar res;
-    double f1 = (a.type_ == VAR_INT) ? (double)a.data_.i : a.data_.f;
-    double f2 = (b.type_ == VAR_INT) ? (double)b.data_.i : b.data_.f;
-    SET_FLOAT(res, f1 / f2);
-    return res;
+static inline uint32_t NextPowerOfTwo(uint32_t v) {
+    v--; v |= v >> 1; v |= v >> 2; v |= v >> 4; v |= v >> 8; v |= v >> 16; v++;
+    return v;
 }
 
-// Comparison operations
-static inline CVar op_lt(CVar a, CVar b) {
-    CVar res;
-    if (a.type_ == VAR_INT && b.type_ == VAR_INT) { SET_BOOL(res, a.data_.i < b.data_.i); }
-    else { double f1 = (a.type_ == VAR_INT) ? (double)a.data_.i : a.data_.f; double f2 = (b.type_ == VAR_INT) ? (double)b.data_.i : b.data_.f; SET_BOOL(res, f1 < f2); }
-    return res;
-}
-static inline CVar op_gt(CVar a, CVar b) {
-    CVar res;
-    if (a.type_ == VAR_INT && b.type_ == VAR_INT) { SET_BOOL(res, a.data_.i > b.data_.i); }
-    else { double f1 = (a.type_ == VAR_INT) ? (double)a.data_.i : a.data_.f; double f2 = (b.type_ == VAR_INT) ? (double)b.data_.i : b.data_.f; SET_BOOL(res, f1 > f2); }
-    return res;
-}
-static inline CVar op_eq(CVar a, CVar b) {
-    CVar res;
-    SET_BOOL(res, var_equal(a, b));
-    return res;
+static inline bool FlTableInsertRaw(VarTable *tbl, CVar key, CVar val, uint32_t hash) {
+    uint32_t mask = tbl->bucket_count_ - 1;
+    uint32_t idx = hash & mask;
+    TableNode *main_node = &tbl->nodes_[idx];
+    if (main_node->entry.key.type_ == VAR_NIL) {
+        main_node->entry.key = key; main_node->entry.val = val; main_node->entry.hash = hash; main_node->next = 0xFFFFFFFF;
+        main_node->active_pos = tbl->count_; tbl->active_list_[tbl->count_] = idx;
+        tbl->count_++; return true;
+    }
+    uint32_t curr_idx = idx;
+    while (1) {
+        TableNode *curr = &tbl->nodes_[curr_idx];
+        if (curr->entry.hash == hash && VarEqual(curr->entry.key, key)) { curr->entry.val = val; return true; }
+        if (curr->next == 0xFFFFFFFF) { break; }
+        curr_idx = curr->next;
+    }
+    if (tbl->free_list_idx_ == 0xFFFFFFFF) { return false; }
+    uint32_t new_node_idx = tbl->free_list_idx_;
+    TableNode *new_node = &tbl->nodes_[new_node_idx];
+    tbl->free_list_idx_ = new_node->next;
+    new_node->entry.key = key; new_node->entry.val = val; new_node->entry.hash = hash;
+    new_node->next = main_node->next; main_node->next = new_node_idx;
+    new_node->active_pos = tbl->count_; tbl->active_list_[tbl->count_] = new_node_idx;
+    tbl->count_++; return true;
 }
 
-static inline CVar op_not(CVar a) { CVar res; SET_BOOL(res, !is_true(a)); return res; }
+static inline void FlTableRehash(State *s, VarTable *tbl) {
+    uint32_t old_count = tbl->count_;
+    uint32_t old_bucket_count = tbl->bucket_count_;
+    TableNode *old_nodes = tbl->nodes_;
+    uint32_t new_bucket_count = NextPowerOfTwo(old_count + 1);
+    if (new_bucket_count <= old_bucket_count) { new_bucket_count = old_bucket_count * 2; }
+    while (1) {
+        uint32_t overflow_count = new_bucket_count / 2;
+        uint32_t total_nodes = new_bucket_count + overflow_count;
+        size_t nodes_size = total_nodes * sizeof(TableNode);
+        size_t active_list_size = total_nodes * sizeof(uint32_t);
+        char *buffer = (char *)FakeluaAllocTemp(s, nodes_size + active_list_size);
+        TableNode *new_nodes = (TableNode *)buffer;
+        uint32_t *new_active_list = (uint32_t *)(buffer + nodes_size);
+        for (uint32_t i = 0; i < total_nodes; ++i) { new_nodes[i].entry.key.type_ = VAR_NIL; new_nodes[i].next = 0xFFFFFFFF; new_nodes[i].active_pos = 0xFFFFFFFF; }
+        TableNode *prev_nodes = tbl->nodes_; uint32_t *prev_active_list = tbl->active_list_; uint32_t prev_bucket_count = tbl->bucket_count_; uint32_t prev_count = tbl->count_; uint32_t prev_free_list_idx = tbl->free_list_idx_;
+        tbl->nodes_ = new_nodes; tbl->active_list_ = new_active_list; tbl->bucket_count_ = new_bucket_count; tbl->count_ = 0;
+        for (uint32_t i = 0; i < overflow_count - 1; ++i) { tbl->nodes_[new_bucket_count + i].next = new_bucket_count + i + 1; }
+        if (overflow_count > 0) { tbl->nodes_[new_bucket_count + overflow_count - 1].next = 0xFFFFFFFF; }
+        tbl->free_list_idx_ = new_bucket_count;
+        bool success = true;
+        if (old_bucket_count == 0) {
+            for (uint32_t i = 0; i < old_count; ++i) { if (!FlTableInsertRaw(tbl, tbl->quick_data_[i].key, tbl->quick_data_[i].val, tbl->quick_data_[i].hash)) { success = false; break; } }
+        } else {
+            for (uint32_t i = 0; i < old_bucket_count; ++i) {
+                uint32_t curr_idx = i;
+                while (curr_idx != 0xFFFFFFFF) {
+                    TableNode *old_node = &old_nodes[curr_idx];
+                    if (old_node->entry.key.type_ != VAR_NIL) { if (!FlTableInsertRaw(tbl, old_node->entry.key, old_node->entry.val, old_node->entry.hash)) { success = false; break; } }
+                    curr_idx = old_node->next;
+                }
+                if (!success) { break; }
+            }
+        }
+        if (success) { break; } else { tbl->nodes_ = prev_nodes; tbl->active_list_ = prev_active_list; tbl->bucket_count_ = prev_bucket_count; tbl->count_ = prev_count; tbl->free_list_idx_ = prev_free_list_idx; new_bucket_count *= 2; }
+    }
+}
 
-// Placeholders for Table and String
-static inline CVar fl_concat(State *s, CVar a, CVar b) { return (CVar){VAR_NIL}; }
+static inline void FlSetTable(State *s, CVar t, CVar k, CVar v) {
+    if (t.type_ != VAR_TABLE) { return; }
+    if (k.type_ == VAR_NIL) { FakeluaThrowError(s, "table index is nil"); }
+    VarTable *tbl = t.data_.t; uint32_t h = VarHash(k);
+    if (v.type_ == VAR_NIL) {
+        if (tbl->count_ == 0) { return; }
+        if (tbl->bucket_count_ == 0) {
+            if (tbl->quick_data_[0].hash == h && VarEqual(tbl->quick_data_[0].key, k)) { if (tbl->count_ > 1) { tbl->quick_data_[0] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
+            if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h && VarEqual(tbl->quick_data_[1].key, k)) { if (tbl->count_ > 2) { tbl->quick_data_[1] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
+            if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h && VarEqual(tbl->quick_data_[2].key, k)) { if (tbl->count_ > 3) { tbl->quick_data_[2] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
+            if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h && VarEqual(tbl->quick_data_[3].key, k)) { tbl->count_--; return; }
+        } else {
+            uint32_t mask = tbl->bucket_count_ - 1; uint32_t idx = h & mask; TableNode *curr = &tbl->nodes_[idx];
+            if (curr->entry.key.type_ == VAR_NIL) { return; }
+            if (curr->entry.hash == h && VarEqual(curr->entry.key, k)) {
+                if (curr->next != 0xFFFFFFFF) {
+                    uint32_t next_idx = curr->next; TableNode *next_node = &tbl->nodes_[next_idx];
+                    uint32_t pos = next_node->active_pos; uint32_t last_node_idx = tbl->active_list_[tbl->count_ - 1];
+                    if (next_idx != last_node_idx) { tbl->active_list_[pos] = last_node_idx; tbl->nodes_[last_node_idx].active_pos = pos; }
+                    next_node->active_pos = 0xFFFFFFFF; curr->entry = next_node->entry; curr->next = next_node->next; next_node->next = tbl->free_list_idx_; tbl->free_list_idx_ = next_idx;
+                } else {
+                    uint32_t pos = curr->active_pos; uint32_t last_node_idx = tbl->active_list_[tbl->count_ - 1];
+                    if (idx != last_node_idx) { tbl->active_list_[pos] = last_node_idx; tbl->nodes_[last_node_idx].active_pos = pos; }
+                    curr->active_pos = 0xFFFFFFFF; curr->entry.key.type_ = VAR_NIL;
+                }
+                tbl->count_--; return;
+            }
+            uint32_t prev_idx = idx; uint32_t curr_idx = curr->next;
+            while (curr_idx != 0xFFFFFFFF) {
+                TableNode *node = &tbl->nodes_[curr_idx];
+                if (node->entry.hash == h && VarEqual(node->entry.key, k)) {
+                    uint32_t pos = node->active_pos; uint32_t last_node_idx = tbl->active_list_[tbl->count_ - 1];
+                    if (curr_idx != last_node_idx) { tbl->active_list_[pos] = last_node_idx; tbl->nodes_[last_node_idx].active_pos = pos; }
+                    node->active_pos = 0xFFFFFFFF; tbl->nodes_[prev_idx].next = node->next; node->next = tbl->free_list_idx_; tbl->free_list_idx_ = curr_idx; tbl->count_--; return;
+                }
+                prev_idx = curr_idx; curr_idx = node->next;
+            }
+        }
+        return;
+    }
+    if (tbl->bucket_count_ == 0) {
+        if (tbl->count_ > 0 && tbl->quick_data_[0].hash == h && VarEqual(tbl->quick_data_[0].key, k)) { tbl->quick_data_[0].val = v; return; }
+        if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h && VarEqual(tbl->quick_data_[1].key, k)) { tbl->quick_data_[1].val = v; return; }
+        if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h && VarEqual(tbl->quick_data_[2].key, k)) { tbl->quick_data_[2].val = v; return; }
+        if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h && VarEqual(tbl->quick_data_[3].key, k)) { tbl->quick_data_[3].val = v; return; }
+        if (tbl->count_ < 4) { tbl->quick_data_[tbl->count_].key = k; tbl->quick_data_[tbl->count_].val = v; tbl->quick_data_[tbl->count_].hash = h; tbl->count_++; return; }
+        FlTableRehash(s, tbl);
+    }
+    if (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF) { FlTableRehash(s, tbl); }
+    FlTableInsertRaw(tbl, k, v, h);
+}
+
+// Arithmetic and Comparison Macros (Expression-style)
+#define OpAdd(a, b) ({ \
+    CVar __a = (a); CVar __b = (b); CVar __res; \
+    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_INT(__res, __a.data_.i + __b.data_.i); } \
+    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
+           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
+           SET_FLOAT(__res, __f1 + __f2); } \
+    __res; \
+})
+
+#define OpSub(a, b) ({ \
+    CVar __a = (a); CVar __b = (b); CVar __res; \
+    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_INT(__res, __a.data_.i - __b.data_.i); } \
+    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
+           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
+           SET_FLOAT(__res, __f1 - __f2); } \
+    __res; \
+})
+
+#define OpMul(a, b) ({ \
+    CVar __a = (a); CVar __b = (b); CVar __res; \
+    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_INT(__res, __a.data_.i * __b.data_.i); } \
+    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
+           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
+           SET_FLOAT(__res, __f1 * __f2); } \
+    __res; \
+})
+
+#define OpDiv(a, b) ({ \
+    CVar __a = (a); CVar __b = (b); CVar __res; \
+    double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
+    double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
+    SET_FLOAT(__res, __f1 / __f2); \
+    __res; \
+})
+
+#define OpLt(a, b) ({ \
+    CVar __a = (a); CVar __b = (b); CVar __res; \
+    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_BOOL(__res, __a.data_.i < __b.data_.i); } \
+    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
+           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
+           SET_BOOL(__res, __f1 < __f2); } \
+    __res; \
+})
+
+#define OpGt(a, b) ({ \
+    CVar __a = (a); CVar __b = (b); CVar __res; \
+    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_BOOL(__res, __a.data_.i > __b.data_.i); } \
+    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
+           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
+           SET_BOOL(__res, __f1 > __f2); } \
+    __res; \
+})
+
+#define OpEq(a, b) ({ \
+    CVar __res; SET_BOOL(__res, VarEqual(a, b)); \
+    __res; \
+})
+
+#define OpNot(a) ({ \
+    CVar __res; SET_BOOL(__res, !IsTrue(a)); \
+    __res; \
+})
+
+static inline CVar FlConcat(State *s, CVar a, CVar b) { return (CVar){VAR_NIL}; }
+
+#undef SET_NIL
+#undef SET_BOOL
+#undef SET_INT
+#undef SET_FLOAT
+#undef SET_STRING
+#undef SET_TABLE
+
+#define SET_NIL(v) do { (v).type_ = VAR_NIL; } while(0)
+#define SET_BOOL(v, val) do { (v).type_ = VAR_BOOL; (v).data_.b = (val); } while(0)
+#define SET_INT(v, val) do { (v).type_ = VAR_INT; (v).data_.i = (val); } while(0)
+#define SET_FLOAT(v, val) do { \
+    double __f = (val); \
+    int64_t __i = (int64_t)__f; \
+    if ((double)__i == __f) { \
+        (v).type_ = VAR_INT; \
+        (v).data_.i = __i; \
+    } else { \
+        (v).type_ = VAR_FLOAT; \
+        (v).data_.f = __f; \
+    } \
+} while(0)
+#define SET_STRING(v, s, str, len) do { \
+    int __len = (len); \
+    const char *__s_ptr = (str); \
+    VarString *__vs = (VarString *)FakeluaAllocTemp(s, sizeof(VarString) + __len); \
+    __vs->size_ = __len; \
+    __vs->hash_ = 0; \
+    memcpy(__vs->data_, __s_ptr, __len); \
+    (v).type_ = VAR_STRING; \
+    (v).data_.s = __vs; \
+} while(0)
+#define SET_TABLE(v, s) do { \
+    VarTable *__t = (VarTable *)FakeluaAllocTemp(s, sizeof(VarTable)); \
+    __t->count_ = 0; \
+    __t->bucket_count_ = 0; \
+    __t->nodes_ = NULL; \
+    __t->active_list_ = NULL; \
+    __t->free_list_idx_ = 0xFFFFFFFF; \
+    for (int __i = 0; __i < 4; ++__i) { \
+        __t->quick_data_[__i].key.type_ = VAR_NIL; \
+        __t->quick_data_[__i].val.type_ = VAR_NIL; \
+        __t->quick_data_[__i].hash = 0; \
+    } \
+    (v).type_ = VAR_TABLE; \
+    (v).data_.t = __t; \
+} while(0)
 
 )";
 }
@@ -283,7 +534,9 @@ void CGen::GenerateFunction(const std::string &name, const SyntaxTreeInterfacePt
     CollectLocals(funcbody->Block(), locals);
     if (parlist && parlist->Namelist()) {
         auto names = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())->Names();
-        for (const auto &pname: names) locals.erase(pname);
+        for (const auto &pname: names) {
+            locals.erase(pname);
+        }
     }
     for (const auto &lname: locals) {
         impl_ << "    CVar " << lname << " = {VAR_NIL};\n";
@@ -296,12 +549,16 @@ void CGen::GenerateFunction(const std::string &name, const SyntaxTreeInterfacePt
 }
 
 void CGen::CollectLocals(const SyntaxTreeInterfacePtr &node, std::set<std::string> &locals) {
-    if (!node) return;
+    if (!node) {
+        return;
+    }
     WalkSyntaxTree(node, [&](const SyntaxTreeInterfacePtr &ptr) {
         if (ptr->Type() == SyntaxTreeType::LocalVar) {
             auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(ptr);
             auto names = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist())->Names();
-            for (const auto &n: names) locals.insert(n);
+            for (const auto &n: names) {
+                locals.insert(n);
+            }
         }
     });
 }
@@ -325,12 +582,14 @@ void CGen::GenerateStmt(const SyntaxTreeInterfacePtr &stmt, int indent) {
                 GenerateExp(exp);
                 impl_ << ";\n";
             } else {
-                impl_ << tabs << "fl_set_table(s, ";
+                impl_ << tabs << "FlSetTable(s, ";
                 GeneratePrefixexp(var->GetPrefixexp());
                 impl_ << ", ";
-                if (var->GetType() == "dot") impl_ << "/* TODO: string k */";
-                else
+                if (var->GetType() == "dot") {
+                    impl_ << "/* TODO: string k */";
+                } else {
                     GenerateExp(var->GetExp());
+                }
                 impl_ << ", ";
                 GenerateExp(exp);
                 impl_ << ");\n";
@@ -363,7 +622,7 @@ void CGen::GenerateStmt(const SyntaxTreeInterfacePtr &stmt, int indent) {
         }
         case SyntaxTreeType::If: {
             auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
-            impl_ << tabs << "if (is_true(";
+            impl_ << tabs << "if (IsTrue(";
             GenerateExp(if_stmt->Exp());
             impl_ << ")) {\n";
             GenerateBlock(if_stmt->Block(), indent + 1);
@@ -371,7 +630,7 @@ void CGen::GenerateStmt(const SyntaxTreeInterfacePtr &stmt, int indent) {
             if (if_stmt->ElseIfs()) {
                 auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs());
                 for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
-                    impl_ << tabs << "} else if (is_true(";
+                    impl_ << tabs << "} else if (IsTrue(";
                     GenerateExp(elseifs->ElseifExp(i));
                     impl_ << ")) {\n";
                     GenerateBlock(elseifs->ElseifBlock(i), indent + 1);
@@ -388,16 +647,17 @@ void CGen::GenerateStmt(const SyntaxTreeInterfacePtr &stmt, int indent) {
         }
         case SyntaxTreeType::While: {
             auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
-            impl_ << tabs << "while (is_true(";
+            impl_ << tabs << "while (IsTrue(";
             GenerateExp(while_stmt->Exp());
             impl_ << ")) {\n";
             GenerateBlock(while_stmt->Block(), indent + 1);
             impl_ << tabs << "}\n";
             break;
         }
-        default:
+        default: {
             impl_ << tabs << "// Unsupported statement type: " << SyntaxTreeTypeToString(stmt->Type()) << "\n";
             break;
+        }
     }
 }
 
@@ -423,19 +683,21 @@ void CGen::GenerateExp(const SyntaxTreeInterfacePtr &node) {
     } else if (type == "binop") {
         auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op())->GetOp();
         std::string func;
-        if (op == "PLUS") func = "op_add";
-        else if (op == "MINUS")
-            func = "op_sub";
-        else if (op == "STAR")
-            func = "op_mul";
-        else if (op == "SLASH")
-            func = "op_div";
-        else if (op == "LESS")
-            func = "op_lt";
-        else if (op == "MORE")
-            func = "op_gt";
-        else if (op == "EQUAL")
-            func = "op_eq";
+        if (op == "PLUS") {
+            func = "OpAdd";
+        } else if (op == "MINUS") {
+            func = "OpSub";
+        } else if (op == "STAR") {
+            func = "OpMul";
+        } else if (op == "SLASH") {
+            func = "OpDiv";
+        } else if (op == "LESS") {
+            func = "OpLt";
+        } else if (op == "MORE") {
+            func = "OpGt";
+        } else if (op == "EQUAL") {
+            func = "OpEq";
+        }
 
         if (!func.empty()) {
             impl_ << func << "(";
@@ -447,7 +709,7 @@ void CGen::GenerateExp(const SyntaxTreeInterfacePtr &node) {
     } else if (type == "unop") {
         auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op())->GetOp();
         if (op == "NOT") {
-            impl_ << "op_not(";
+            impl_ << "OpNot(";
             GenerateExp(exp->Right());
             impl_ << ")";
         }
@@ -461,12 +723,14 @@ void CGen::GeneratePrefixexp(const SyntaxTreeInterfacePtr &node) {
         if (var->GetType() == "simple") {
             impl_ << var->GetName();
         } else {
-            impl_ << "fl_get_table(s, ";
+            impl_ << "FlGetTable(s, ";
             GeneratePrefixexp(var->GetPrefixexp());
             impl_ << ", ";
-            if (var->GetType() == "dot") impl_ << "/* TODO: string k */";
-            else
+            if (var->GetType() == "dot") {
+                impl_ << "/* TODO: string k */";
+            } else {
                 GenerateExp(var->GetExp());
+            }
             impl_ << ")";
         }
     } else if (pe->GetType() == "functioncall") {

@@ -28,10 +28,12 @@ public:
 
     [[nodiscard]] uint32_t Hash() const {
         if (hash_ == 0) {
-            hash_ = static_cast<uint32_t>(std::hash<std::string_view>()(Str()));
-            if (hash_ == 0) {
-                hash_ = 1;
+            uint32_t h = 5381;
+            const char *p = data_;
+            for (int i = 0; i < size_; ++i) {
+                h = ((h << 5) + h) + static_cast<uint8_t>(p[i]);
             }
+            hash_ = (h == 0) ? 1 : h;
         }
         return hash_;
     }
