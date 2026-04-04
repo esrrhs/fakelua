@@ -8,7 +8,8 @@
 using namespace fakelua;
 
 TEST(var, construct) {
-    auto s = FakeluaNewState();
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
 
     Var v;
     ASSERT_EQ(v.Type(), VarType::Nil);
@@ -60,7 +61,8 @@ TEST(var, construct) {
 }
 
 TEST(var, set_get) {
-    auto s = FakeluaNewState();
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
 
     Var v;
     v.SetNil();
@@ -96,7 +98,8 @@ TEST(var, set_get) {
 }
 
 TEST(var, ToString) {
-    auto s = FakeluaNewState();
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
 
     Var v;
     v.SetNil();
@@ -125,7 +128,8 @@ TEST(var, ToString) {
 }
 
 TEST(var, VarTable) {
-    auto s = FakeluaNewState();
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
 
     VarTable vt;
 
@@ -171,7 +175,8 @@ TEST(var, VarTable) {
 }
 
 TEST(var, SetTempString) {
-    auto s = FakeluaNewState();
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
 
     Var v;
     const std::string str("hello");
@@ -193,7 +198,8 @@ TEST(var, SetTempString) {
 }
 
 TEST(var, var_table_keys) {
-    auto s = FakeluaNewState();
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
 
     VarTable vt;
 
@@ -252,7 +258,8 @@ TEST(var, var_table_keys) {
 }
 
 TEST(var, var_table_int_float_keys) {
-    auto s = FakeluaNewState();
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
 
     VarTable vt;
 
@@ -295,7 +302,8 @@ TEST(var, var_table_int_float_keys) {
 }
 
 TEST(var, var_table_nan_keys) {
-    auto s = FakeluaNewState();
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
 
     VarTable vt;
 
@@ -322,7 +330,8 @@ TEST(var, var_table_nan_keys) {
 }
 
 TEST(var, var_table_size) {
-    auto s = FakeluaNewState();
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
 
     VarTable vt;
 
@@ -459,7 +468,8 @@ TEST(var, comparison) {
 }
 
 TEST(var, logical_unary) {
-    auto s = FakeluaNewState();
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
     Var v_true(true);
     Var v_false(false);
     Var v_nil;
@@ -491,9 +501,12 @@ TEST(var, logical_unary) {
 }
 
 TEST(var, concat) {
-    auto s = FakeluaNewState();
-    Var v1; v1.SetTempString(s, "hello ");
-    Var v2; v2.SetTempString(s, "world");
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    Var v1;
+    v1.SetTempString(s, "hello ");
+    Var v2;
+    v2.SetTempString(s, "world");
     Var res;
 
     v1.Concat(s, v2, res);
@@ -501,17 +514,17 @@ TEST(var, concat) {
 }
 
 TEST(var, table_rehash) {
-    auto s = FakeluaNewState();
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
     VarTable vt;
 
     // Trigger rehash by inserting many elements
     for (int i = 0; i < 100; ++i) {
-        vt.Set(s, Var((int64_t)i), Var((int64_t)(i * 10)), false);
+        vt.Set(s, Var((int64_t) i), Var((int64_t) (i * 10)), false);
     }
 
     ASSERT_EQ(vt.Size(), 100);
     for (int i = 0; i < 100; ++i) {
-        ASSERT_EQ(vt.Get(Var((int64_t)i)).GetInt(), i * 10);
+        ASSERT_EQ(vt.Get(Var((int64_t) i)).GetInt(), i * 10);
     }
 }
-

@@ -222,6 +222,24 @@ State *FakeluaNewState(const StateConfig &cfg = {});
 // 释放 FakeLua 状态
 void FakeluaDeleteState(State *s);
 
+// 作用域下自动new delete
+class FakeluaStateGuard {
+public:
+    explicit FakeluaStateGuard(const StateConfig &cfg = {}) : state_(FakeluaNewState(cfg)) {
+    }
+
+    ~FakeluaStateGuard() {
+        FakeluaDeleteState(state_);
+    }
+
+    State *GetState() const {
+        return state_;
+    }
+
+private:
+    State *state_;
+};
+
 // 编译文件
 void CompileFile(State *s, const std::string &filename, const CompileConfig &cfg);
 
