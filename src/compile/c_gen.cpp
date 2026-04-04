@@ -29,7 +29,6 @@ void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
 
 std::string CGen::Build(const CompileResult &cr, const CompileConfig &cfg) {
     GenerateHeader();
-    GenerateMacros();
 
     // 遍历所有函数进行前置声明
     DEBUG_ASSERT(cr.chunk->Type() == SyntaxTreeType::Block);
@@ -74,6 +73,20 @@ typedef struct VarString {
     char data_[0];
 } VarString;
 
+typedef struct VarTable VarTable;
+
+typedef struct CVar {
+    int type_;
+    int flag_;
+    union {
+        bool b;
+        int64_t i;
+        double f;
+        VarString *s;
+        VarTable *t;
+    } data_;
+} CVar;
+
 typedef struct VarEntry {
     CVar key;
     CVar val;
@@ -86,14 +99,14 @@ typedef struct TableNode {
     uint32_t active_pos;
 } TableNode;
 
-typedef struct VarTable {
+struct VarTable {
     uint32_t count_;
     uint32_t bucket_count_;
     TableNode *nodes_;
     uint32_t *active_list_;
     VarEntry quick_data_[4];
     uint32_t free_list_idx_;
-} VarTable;
+};
 
 typedef struct State State;
 
@@ -126,36 +139,81 @@ enum {
     } \
 } while(0)
 
-static inline bool is_true(CVar v) { return v.type_ != VAR_NIL && (v.type_ != VAR_BOOL || v.data_.b); }
+// External functions for allocation and complex operations
+extern VarString* fakelua_alloc_string(State *s, const char *str, int len);
+extern VarTable* fakelua_alloc_table(State *s);
+extern CVar fakelua_get_table(State *s, VarTable *t, CVar k);
+extern void fakelua_set_table(State *s, VarTable *t, CVar k, CVar v);
 
-)";
+#define SET_STRING(v, s, str, len) do { \
+    (v).type_ = VAR_STRING; \
+    (v).data_.s = fakelua_alloc_string(s, str, len); \
+} while(0)
+
+#define SET_TABLE(v, s) do { \
+    (v).type_ = VAR_TABLE; \
+    (v).data_.t = fakelua_alloc_table(s); \
+} while(0)
+
+static inline bool is_true(CVar v) { return v.type_ != VAR_NIL && (v.type_ != VAR_BOOL || v.data_.b); }
+static inline bool var_equal(CVar a, CVar b) {
+    if (a.type_ != b.type_) return false;
+    switch(a.type_) {
+        case VAR_NIL: return true;
+        case VAR_BOOL: return a.data_.b == b.data_.b;
+        case VAR_INT: return a.data_.i == b.data_.i;
+        case VAR_FLOAT: return a.data_.f == b.data_.f;
+        case VAR_STRING: return a.data_.s == b.data_.s;
+        case VAR_TABLE: return a.data_.t == b.data_.t;
+        default: return false;
+    }
 }
 
-void CGen::GenerateMacros() {
-    header_ << R"(
+// Table operations
+static inline CVar fl_get_table(State *s, CVar t, CVar k) {
+    if (t.type_ != VAR_TABLE) return (CVar){VAR_NIL};
+    VarTable *tbl = t.data_.t;
+    for (int i = 0; i < 4; ++i) {
+        if (var_equal(tbl->quick_data_[i].key, k)) return tbl->quick_data_[i].val;
+    }
+    return fakelua_get_table(s, tbl, k);
+}
+
+static inline void fl_set_table(State *s, CVar t, CVar k, CVar v) {
+    if (t.type_ != VAR_TABLE) return;
+    VarTable *tbl = t.data_.t;
+    for (int i = 0; i < 4; ++i) {
+        if (var_equal(tbl->quick_data_[i].key, k)) {
+            tbl->quick_data_[i].val = v;
+            return;
+        }
+    }
+    fakelua_set_table(s, tbl, k, v);
+}
+
 // Arithmetic operations
 static inline CVar op_add(CVar a, CVar b) {
     CVar res;
-    if (a.type == VAR_INT && b.type == VAR_INT) { SET_INT(res, a.data.i + b.data.i); }
-    else { double f1 = (a.type == VAR_INT) ? (double)a.data.i : a.data.f; double f2 = (b.type == VAR_INT) ? (double)b.data.i : b.data.f; SET_FLOAT(res, f1 + f2); }
+    if (a.type_ == VAR_INT && b.type_ == VAR_INT) { SET_INT(res, a.data_.i + b.data_.i); }
+    else { double f1 = (a.type_ == VAR_INT) ? (double)a.data_.i : a.data_.f; double f2 = (b.type_ == VAR_INT) ? (double)b.data_.i : b.data_.f; SET_FLOAT(res, f1 + f2); }
     return res;
 }
 static inline CVar op_sub(CVar a, CVar b) {
     CVar res;
-    if (a.type == VAR_INT && b.type == VAR_INT) { SET_INT(res, a.data.i - b.data.i); }
-    else { double f1 = (a.type == VAR_INT) ? (double)a.data.i : a.data.f; double f2 = (b.type == VAR_INT) ? (double)b.data.i : b.data.f; SET_FLOAT(res, f1 - f2); }
+    if (a.type_ == VAR_INT && b.type_ == VAR_INT) { SET_INT(res, a.data_.i - b.data_.i); }
+    else { double f1 = (a.type_ == VAR_INT) ? (double)a.data_.i : a.data_.f; double f2 = (b.type_ == VAR_INT) ? (double)b.data_.i : b.data_.f; SET_FLOAT(res, f1 - f2); }
     return res;
 }
 static inline CVar op_mul(CVar a, CVar b) {
     CVar res;
-    if (a.type == VAR_INT && b.type == VAR_INT) { SET_INT(res, a.data.i * b.data.i); }
-    else { double f1 = (a.type == VAR_INT) ? (double)a.data.i : a.data.f; double f2 = (b.type == VAR_INT) ? (double)b.data.i : b.data.f; SET_FLOAT(res, f1 * f2); }
+    if (a.type_ == VAR_INT && b.type_ == VAR_INT) { SET_INT(res, a.data_.i * b.data_.i); }
+    else { double f1 = (a.type_ == VAR_INT) ? (double)a.data_.i : a.data_.f; double f2 = (b.type_ == VAR_INT) ? (double)b.data_.i : b.data_.f; SET_FLOAT(res, f1 * f2); }
     return res;
 }
 static inline CVar op_div(CVar a, CVar b) {
     CVar res;
-    double f1 = (a.type == VAR_INT) ? (double)a.data.i : a.data.f;
-    double f2 = (b.type == VAR_INT) ? (double)b.data.i : b.data.f;
+    double f1 = (a.type_ == VAR_INT) ? (double)a.data_.i : a.data_.f;
+    double f2 = (b.type_ == VAR_INT) ? (double)b.data_.i : b.data_.f;
     SET_FLOAT(res, f1 / f2);
     return res;
 }
@@ -163,31 +221,25 @@ static inline CVar op_div(CVar a, CVar b) {
 // Comparison operations
 static inline CVar op_lt(CVar a, CVar b) {
     CVar res;
-    if (a.type == VAR_INT && b.type == VAR_INT) { SET_BOOL(res, a.data.i < b.data.i); }
-    else { double f1 = (a.type == VAR_INT) ? (double)a.data.i : a.data.f; double f2 = (b.type == VAR_INT) ? (double)b.data.i : b.data.f; SET_BOOL(res, f1 < f2); }
+    if (a.type_ == VAR_INT && b.type_ == VAR_INT) { SET_BOOL(res, a.data_.i < b.data_.i); }
+    else { double f1 = (a.type_ == VAR_INT) ? (double)a.data_.i : a.data_.f; double f2 = (b.type_ == VAR_INT) ? (double)b.data_.i : b.data_.f; SET_BOOL(res, f1 < f2); }
     return res;
 }
 static inline CVar op_gt(CVar a, CVar b) {
     CVar res;
-    if (a.type == VAR_INT && b.type == VAR_INT) { SET_BOOL(res, a.data.i > b.data.i); }
-    else { double f1 = (a.type == VAR_INT) ? (double)a.data.i : a.data.f; double f2 = (b.type == VAR_INT) ? (double)b.data.i : b.data.f; SET_BOOL(res, f1 > f2); }
+    if (a.type_ == VAR_INT && b.type_ == VAR_INT) { SET_BOOL(res, a.data_.i > b.data_.i); }
+    else { double f1 = (a.type_ == VAR_INT) ? (double)a.data_.i : a.data_.f; double f2 = (b.type_ == VAR_INT) ? (double)b.data_.i : b.data_.f; SET_BOOL(res, f1 > f2); }
     return res;
 }
 static inline CVar op_eq(CVar a, CVar b) {
     CVar res;
-    if (a.type != b.type) { SET_BOOL(res, false); }
-    else if (a.type == VAR_INT) { SET_BOOL(res, a.data.i == b.data.i); }
-    else if (a.type == VAR_FLOAT) { SET_BOOL(res, a.data.f == b.data.f); }
-    else if (a.type == VAR_BOOL) { SET_BOOL(res, a.data.b == b.data.b); }
-    else { SET_BOOL(res, false); } // TODO: string/table
+    SET_BOOL(res, var_equal(a, b));
     return res;
 }
 
 static inline CVar op_not(CVar a) { CVar res; SET_BOOL(res, !is_true(a)); return res; }
 
 // Placeholders for Table and String
-static inline CVar fl_get_table(State *s, CVar t, CVar k) { return (CVar){VAR_NIL}; }
-static inline void fl_set_table(State *s, CVar t, CVar k, CVar v) { }
 static inline CVar fl_concat(State *s, CVar a, CVar b) { return (CVar){VAR_NIL}; }
 
 )";

@@ -19,7 +19,6 @@ public:
 private:
     std::string Build(const CompileResult &cr, const CompileConfig &cfg);
     void GenerateHeader();
-    void GenerateMacros();
     std::string GetFuncName(const SyntaxTreeInterfacePtr &ptr);
     void GenerateDecl(const std::string &name, const SyntaxTreeInterfacePtr &body);
     void GenerateFunction(const std::string &name, const SyntaxTreeInterfacePtr &body);
