@@ -1,8 +1,8 @@
 #include "fakelua.h"
 #include "state/state.h"
 #include "util/common.h"
-#include "var/var_table.h"
 #include "var/var_string.h"
+#include "var/var_table.h"
 
 namespace fakelua {
 
@@ -341,6 +341,7 @@ VarInterface *FakeluaToNativeObj(State *s, CVar v) {
 
 void *GetFuncAddr(State *s, const std::string_view &name, int &arg_count) {
     // TODO
+    return nullptr;
 }
 
 [[noreturn]] void ThrowInterFakeluaException(const std::string &msg) {

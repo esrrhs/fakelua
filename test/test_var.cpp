@@ -410,7 +410,7 @@ TEST(var, arithmetic) {
     // DoubleSlash (floor division)
     v1.DoubleSlash(v2, res);
     ASSERT_EQ(res.GetInt(), 3);
-    Var(-10LL).DoubleSlash(Var(3LL), res);
+    Var((int64_t) -10LL).DoubleSlash(Var((int64_t) 3LL), res);
     ASSERT_EQ(res.GetInt(), -3);
 
     // Mod
@@ -418,7 +418,7 @@ TEST(var, arithmetic) {
     ASSERT_EQ(res.GetInt(), 1);
 
     // Pow
-    Var(2LL).Pow(Var(3LL), res);
+    Var((int64_t) 2LL).Pow(Var((int64_t) 3LL), res);
     ASSERT_EQ(res.GetCalculableNumber(), 8.0);
 }
 
@@ -440,9 +440,9 @@ TEST(var, bitwise) {
     ASSERT_EQ(res.GetInt(), 0b0110);
 
     // Shift
-    Var(1LL).LeftShift(Var(2LL), res);
+    Var((int64_t) 1LL).LeftShift(Var((int64_t) 2LL), res);
     ASSERT_EQ(res.GetInt(), 4);
-    Var(4LL).RightShift(Var(2LL), res);
+    Var((int64_t) 4LL).RightShift(Var((int64_t) 2LL), res);
     ASSERT_EQ(res.GetInt(), 1);
 
     // UnopBitnot
@@ -478,14 +478,14 @@ TEST(var, logical_unary) {
     ASSERT_TRUE(v_true.TestTrue());
     ASSERT_FALSE(v_false.TestTrue());
     ASSERT_FALSE(v_nil.TestTrue());
-    ASSERT_TRUE(Var(10LL).TestTrue());
+    ASSERT_TRUE(Var((int64_t) 10LL).TestTrue());
 
     v_true.UnopNot(res);
     ASSERT_FALSE(res.GetBool());
     v_nil.UnopNot(res);
     ASSERT_TRUE(res.GetBool());
 
-    Var(10LL).UnopMinus(res);
+    Var((int64_t) 10LL).UnopMinus(res);
     ASSERT_EQ(res.GetInt(), -10);
 
     Var s_var;
@@ -495,7 +495,7 @@ TEST(var, logical_unary) {
 
     Var t_var;
     t_var.SetTable(s);
-    t_var.TableSet(s, Var(1LL), Var(100LL), false);
+    t_var.TableSet(s, Var((int64_t) 1LL), Var((int64_t) 100LL), false);
     t_var.UnopNumberSign(res);
     ASSERT_EQ(res.GetInt(), 1);
 }
