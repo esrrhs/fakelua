@@ -8,31 +8,26 @@ namespace fakelua {
 CGen::CGen(State *s) : s_(s) {
 }
 
-void CGen::Generate(const CompileResult &cr, const CompileConfig &cfg) {
+void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
     LOG_INFO("start CGen::Generate {}", cr.file_name);
 
-    std::string code = Build(cr, cfg);
+    const std::string code = Build(cr, cfg);
 
-    auto output_file = cr.file_name + ".c";
-    std::ofstream ofs(output_file);
-    if (ofs.is_open()) {
-        ofs << code;
-        ofs.close();
-        LOG_INFO("C code generated: {}", output_file);
-    } else {
-        LOG_ERROR("Failed to open output file: {}", output_file);
+    if (cfg.debug_mode) {
+        const auto dumpfile = GenerateTmpFilename("fakelua_jit_", ".c");
+        if (std::ofstream ofs(dumpfile); ofs.is_open()) {
+            ofs << code;
+            ofs.close();
+            LOG_INFO("C code generated: {}", dumpfile);
+        } else {
+            LOG_ERROR("Failed to open output file: {}", dumpfile);
+        }
     }
+
+    cr.c_code = code;
 }
 
 std::string CGen::Build(const CompileResult &cr, const CompileConfig &cfg) {
-    header_.str("");
-    header_.clear();
-    decl_.str("");
-    decl_.clear();
-    impl_.str("");
-    impl_.clear();
-    function_param_counts_.clear();
-
     GenerateHeader();
     GenerateMacros();
 
@@ -78,15 +73,15 @@ typedef struct VarTable VarTable;
 typedef struct State State;
 
 typedef struct CVar {
-    int type;
-    int flag;
+    int type_;
+    int flag_;
     union {
         bool b;
         int64_t i;
         double f;
         VarString *s;
         VarTable *t;
-    } data;
+    } data_;
 } CVar;
 
 enum {
@@ -99,12 +94,12 @@ enum {
     VAR_TABLE = 6,
 };
 
-#define SET_NIL(v) do { (v).type = VAR_NIL; } while(0)
-#define SET_BOOL(v, val) do { (v).type = VAR_BOOL; (v).data.b = (val); } while(0)
-#define SET_INT(v, val) do { (v).type = VAR_INT; (v).data.i = (val); } while(0)
-#define SET_FLOAT(v, val) do { (v).type = VAR_FLOAT; (v).data.f = (val); } while(0)
+#define SET_NIL(v) do { (v).type_ = VAR_NIL; } while(0)
+#define SET_BOOL(v, val) do { (v).type_ = VAR_BOOL; (v).data_.b = (val); } while(0)
+#define SET_INT(v, val) do { (v).type_ = VAR_INT; (v).data_.i = (val); } while(0)
+#define SET_FLOAT(v, val) do { (v).type_ = VAR_FLOAT; (v).data_.f = (val); } while(0)
 
-static inline bool is_true(CVar v) { return v.type != VAR_NIL && (v.type != VAR_BOOL || v.data.b); }
+static inline bool is_true(CVar v) { return v.type_ != VAR_NIL && (v.type_ != VAR_BOOL || v.data_.b); }
 
 )";
 }

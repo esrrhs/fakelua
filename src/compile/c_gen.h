@@ -14,7 +14,7 @@ public:
 
     ~CGen() = default;
 
-    void Generate(const CompileResult &cr, const CompileConfig &cfg);
+    void Generate(CompileResult &cr, const CompileConfig &cfg);
 
 private:
     std::string Build(const CompileResult &cr, const CompileConfig &cfg);

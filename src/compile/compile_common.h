@@ -11,6 +11,8 @@ struct CompileResult {
     std::string file_name;
     // 语法树根节点（代码块）
     SyntaxTreeInterfacePtr chunk;
+    // 生成的C代码字符串
+    std::string c_code;
 };
 
 }// namespace fakelua
