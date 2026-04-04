@@ -68,21 +68,38 @@ void CGen::GenerateHeader() {
 #include <math.h>
 #include <assert.h>
 
-typedef struct VarString VarString;
-typedef struct VarTable VarTable;
+typedef struct VarString {
+    int size_;
+    uint32_t hash_;
+    char data_[0];
+} VarString;
+
+typedef struct VarEntry {
+    CVar key;
+    CVar val;
+    uint32_t hash;
+} VarEntry;
+
+typedef struct TableNode {
+    VarEntry entry;
+    uint32_t next;
+    uint32_t active_pos;
+} TableNode;
+
+typedef struct VarTable {
+    uint32_t count_;
+    uint32_t bucket_count_;
+    TableNode *nodes_;
+    uint32_t *active_list_;
+    VarEntry quick_data_[4];
+    uint32_t free_list_idx_;
+} VarTable;
+
 typedef struct State State;
 
-typedef struct CVar {
-    int type_;
-    int flag_;
-    union {
-        bool b;
-        int64_t i;
-        double f;
-        VarString *s;
-        VarTable *t;
-    } data_;
-} CVar;
+#define STR_SIZE(s) ((s)->size_)
+#define STR_DATA(s) ((s)->data_)
+#define TABLE_SIZE(t) ((t)->count_)
 
 enum {
     VAR_NIL = 0,
