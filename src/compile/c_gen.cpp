@@ -97,7 +97,17 @@ enum {
 #define SET_NIL(v) do { (v).type_ = VAR_NIL; } while(0)
 #define SET_BOOL(v, val) do { (v).type_ = VAR_BOOL; (v).data_.b = (val); } while(0)
 #define SET_INT(v, val) do { (v).type_ = VAR_INT; (v).data_.i = (val); } while(0)
-#define SET_FLOAT(v, val) do { (v).type_ = VAR_FLOAT; (v).data_.f = (val); } while(0)
+#define SET_FLOAT(v, val) do { \
+    double __f = (val); \
+    int64_t __i = (int64_t)__f; \
+    if ((double)__i == __f) { \
+        (v).type_ = VAR_INT; \
+        (v).data_.i = __i; \
+    } else { \
+        (v).type_ = VAR_FLOAT; \
+        (v).data_.f = __f; \
+    } \
+} while(0)
 
 static inline bool is_true(CVar v) { return v.type_ != VAR_NIL && (v.type_ != VAR_BOOL || v.data_.b); }
 
