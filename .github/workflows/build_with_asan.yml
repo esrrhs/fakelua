@@ -28,6 +28,15 @@ jobs:
           sudo make install
           cd ..
 
+      - name: Setup TCC
+        run: |
+          git clone https://repo.or.cz/tinycc.git
+          cd tinycc
+          ./configure --extra-cflags="-fPIC"
+          make -j8
+          sudo make install
+          cd ..
+
       - name: Prepare
         run: |
           sudo apt-get -y install libgccjit-13-dev
