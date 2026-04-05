@@ -50,7 +50,10 @@ ENDIF ()
 
 add_executable(bench_mark ${BENCHMARK_SRC_LIST})
 
-target_link_libraries(bench_mark PRIVATE fakelua benchmark gccjit lua dl)
+if (NOT WIN32)
+    target_link_libraries(bench_mark PRIVATE dl)
+endif ()
+target_link_libraries(bench_mark PRIVATE fakelua benchmark gccjit lua)
 
 add_custom_command(
         TARGET bench_mark
