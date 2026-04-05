@@ -90,6 +90,55 @@ static void BM_StdUnorderedMap_Get(benchmark::State &state) {
     state.SetComplexityN(state.range(0));
 }
 
+static void BM_VarTable_Iter(benchmark::State &state) {
+    auto *s = FakeluaNewState();
+    const int n = static_cast<int>(state.range(0));
+    Var table_var;
+    table_var.SetTable(s);
+    auto *table = table_var.GetTable();
+    for (int i = 0; i < n; ++i) {
+        table->Set(s, Var(static_cast<int64_t>(i)), Var(static_cast<int64_t>(i * 2)), false);
+    }
+
+    // 预先判定模式，模拟 JIT 高性能访问
+    const uint32_t count = static_cast<uint32_t>(table->Size());
+    const auto *nodes = table->Nodes();
+    const uint32_t *active_list = table->ActiveList();
+
+    for (auto _: state) {
+        if (active_list == nullptr) {// Quick Path
+            for (uint32_t i = 0; i < count; ++i) {
+                benchmark::DoNotOptimize(table->KeyAt(i));
+                benchmark::DoNotOptimize(table->ValueAt(i));
+            }
+        } else {// Hash Table Path
+            for (uint32_t i = 0; i < count; ++i) {
+                const auto &entry = nodes[active_list[i]].entry;
+                benchmark::DoNotOptimize(entry.key);
+                benchmark::DoNotOptimize(entry.val);
+            }
+        }
+    }
+    state.SetComplexityN(state.range(0));
+    FakeluaDeleteState(s);
+}
+
+static void BM_StdUnorderedMap_Iter(benchmark::State &state) {
+    const int n = static_cast<int>(state.range(0));
+    std::unordered_map<int64_t, int64_t> m;
+    for (int i = 0; i < n; ++i) {
+        m[i] = i * 2;
+    }
+
+    for (auto _: state) {
+        for (auto it = m.begin(); it != m.end(); ++it) {
+            benchmark::DoNotOptimize(it->first);
+            benchmark::DoNotOptimize(it->second);
+        }
+    }
+    state.SetComplexityN(state.range(0));
+}
+
 // 注册测试，覆盖 quick_data (<=4) 和 hash table (>4) 两种情况
 #define ARGS ->Arg(2)->Arg(4)->Arg(8)->Arg(16)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)
 
@@ -97,3 +146,5 @@ BENCHMARK(BM_VarTable_Set) ARGS;
 BENCHMARK(BM_StdUnorderedMap_Set) ARGS;
 BENCHMARK(BM_VarTable_Get) ARGS;
 BENCHMARK(BM_StdUnorderedMap_Get) ARGS;
+BENCHMARK(BM_VarTable_Iter) ARGS;
+BENCHMARK(BM_StdUnorderedMap_Iter) ARGS;

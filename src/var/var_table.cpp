@@ -18,8 +18,8 @@ Var VarTable::Get(const Var &key) const {
     const auto h = static_cast<uint32_t>(key.Hash());
 
     if (bucket_count_ == 0) {
-        // 快速模式：手动展开以适配 TCC 编译环境
-        if (quick_data_[0].hash == h && quick_data_[0].key.Equal(key)) {
+        // 快速模式：手动展开以提升性能
+        if (count_ > 0 && quick_data_[0].hash == h && quick_data_[0].key.Equal(key)) {
             return quick_data_[0].val;
         }
         if (count_ > 1 && quick_data_[1].hash == h && quick_data_[1].key.Equal(key)) {
@@ -30,6 +30,18 @@ Var VarTable::Get(const Var &key) const {
         }
         if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(key)) {
             return quick_data_[3].val;
+        }
+        if (count_ > 4 && quick_data_[4].hash == h && quick_data_[4].key.Equal(key)) {
+            return quick_data_[4].val;
+        }
+        if (count_ > 5 && quick_data_[5].hash == h && quick_data_[5].key.Equal(key)) {
+            return quick_data_[5].val;
+        }
+        if (count_ > 6 && quick_data_[6].hash == h && quick_data_[6].key.Equal(key)) {
+            return quick_data_[6].val;
+        }
+        if (count_ > 7 && quick_data_[7].hash == h && quick_data_[7].key.Equal(key)) {
+            return quick_data_[7].val;
         }
         return const_null_var;
     } else {
@@ -68,7 +80,7 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
 
         if (bucket_count_ == 0) {
             // 快速模式删除：手动展开
-            if (quick_data_[0].hash == h && quick_data_[0].key.Equal(key)) {
+            if (count_ > 0 && quick_data_[0].hash == h && quick_data_[0].key.Equal(key)) {
                 if (count_ > 1) {
                     quick_data_[0] = quick_data_[count_ - 1];
                 }
@@ -90,6 +102,34 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
                 return;
             }
             if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(key)) {
+                if (count_ > 4) {
+                    quick_data_[3] = quick_data_[count_ - 1];
+                }
+                count_--;
+                return;
+            }
+            if (count_ > 4 && quick_data_[4].hash == h && quick_data_[4].key.Equal(key)) {
+                if (count_ > 5) {
+                    quick_data_[4] = quick_data_[count_ - 1];
+                }
+                count_--;
+                return;
+            }
+            if (count_ > 5 && quick_data_[5].hash == h && quick_data_[5].key.Equal(key)) {
+                if (count_ > 6) {
+                    quick_data_[5] = quick_data_[count_ - 1];
+                }
+                count_--;
+                return;
+            }
+            if (count_ > 6 && quick_data_[6].hash == h && quick_data_[6].key.Equal(key)) {
+                if (count_ > 7) {
+                    quick_data_[6] = quick_data_[count_ - 1];
+                }
+                count_--;
+                return;
+            }
+            if (count_ > 7 && quick_data_[7].hash == h && quick_data_[7].key.Equal(key)) {
                 count_--;
                 return;
             }
@@ -106,7 +146,7 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
                 if (curr->next != INVALID_INDEX) {
                     const uint32_t next_idx = curr->next;
                     TableNode *next_node = &nodes_[next_idx];
-                    
+
                     // AIA 移除逻辑：next_node 物理消失
                     const uint32_t pos = next_node->active_pos;
                     if (const uint32_t last_node_idx = active_list_[count_ - 1]; next_idx != last_node_idx) {
@@ -177,6 +217,22 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
             quick_data_[3].val = val;
             return;
         }
+        if (count_ > 4 && quick_data_[4].hash == h && quick_data_[4].key.Equal(key)) {
+            quick_data_[4].val = val;
+            return;
+        }
+        if (count_ > 5 && quick_data_[5].hash == h && quick_data_[5].key.Equal(key)) {
+            quick_data_[5].val = val;
+            return;
+        }
+        if (count_ > 6 && quick_data_[6].hash == h && quick_data_[6].key.Equal(key)) {
+            quick_data_[6].val = val;
+            return;
+        }
+        if (count_ > 7 && quick_data_[7].hash == h && quick_data_[7].key.Equal(key)) {
+            quick_data_[7].val = val;
+            return;
+        }
 
         if (count_ < QUICK_DATA_SIZE) {
             quick_data_[count_].key = key;
@@ -206,10 +262,10 @@ bool VarTable::InsertRaw(const Var &key, const Var &val, uint32_t hash) {
         main_node->entry.val = val;
         main_node->entry.hash = hash;
         main_node->next = INVALID_INDEX;
-        
+
         main_node->active_pos = count_;
         active_list_[count_] = idx;
-        
+
         count_++;
         return true;
     }
@@ -261,11 +317,11 @@ void VarTable::Rehash(State *s) {
     while (true) {
         const uint32_t overflow_count = new_bucket_count / 2;
         const uint32_t total_nodes = new_bucket_count + overflow_count;
-        
+
         const size_t nodes_size = total_nodes * sizeof(TableNode);
         const size_t active_list_size = total_nodes * sizeof(uint32_t);
         auto *buffer = static_cast<char *>(s->GetHeap().GetTempAllocator().Alloc(nodes_size + active_list_size));
-        
+
         auto *new_nodes = reinterpret_cast<TableNode *>(buffer);
         auto *new_active_list = reinterpret_cast<uint32_t *>(buffer + nodes_size);
 
@@ -293,26 +349,30 @@ void VarTable::Rehash(State *s) {
 
         bool success = true;
         if (old_bucket_count == 0) {
-            // 数据迁移时的源数据同样需要手动展开访问
-            if (old_count > 0) {
-                if (!InsertRaw(quick_data_[0].key, quick_data_[0].val, quick_data_[0].hash)) {
-                    success = false;
-                }
+            // 数据迁移：手动展开
+            if (old_count > 0 && !InsertRaw(quick_data_[0].key, quick_data_[0].val, quick_data_[0].hash)) {
+                success = false;
             }
-            if (success && old_count > 1) {
-                if (!InsertRaw(quick_data_[1].key, quick_data_[1].val, quick_data_[1].hash)) {
-                    success = false;
-                }
+            if (success && old_count > 1 && !InsertRaw(quick_data_[1].key, quick_data_[1].val, quick_data_[1].hash)) {
+                success = false;
             }
-            if (success && old_count > 2) {
-                if (!InsertRaw(quick_data_[2].key, quick_data_[2].val, quick_data_[2].hash)) {
-                    success = false;
-                }
+            if (success && old_count > 2 && !InsertRaw(quick_data_[2].key, quick_data_[2].val, quick_data_[2].hash)) {
+                success = false;
             }
-            if (success && old_count > 3) {
-                if (!InsertRaw(quick_data_[3].key, quick_data_[3].val, quick_data_[3].hash)) {
-                    success = false;
-                }
+            if (success && old_count > 3 && !InsertRaw(quick_data_[3].key, quick_data_[3].val, quick_data_[3].hash)) {
+                success = false;
+            }
+            if (success && old_count > 4 && !InsertRaw(quick_data_[4].key, quick_data_[4].val, quick_data_[4].hash)) {
+                success = false;
+            }
+            if (success && old_count > 5 && !InsertRaw(quick_data_[5].key, quick_data_[5].val, quick_data_[5].hash)) {
+                success = false;
+            }
+            if (success && old_count > 6 && !InsertRaw(quick_data_[6].key, quick_data_[6].val, quick_data_[6].hash)) {
+                success = false;
+            }
+            if (success && old_count > 7 && !InsertRaw(quick_data_[7].key, quick_data_[7].val, quick_data_[7].hash)) {
+                success = false;
             }
         } else {
             for (uint32_t i = 0; i < old_bucket_count; ++i) {

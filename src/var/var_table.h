@@ -69,7 +69,7 @@ private:
     bool InsertRaw(const Var &key, const Var &val, uint32_t hash);
 
 private:
-    static constexpr uint32_t QUICK_DATA_SIZE = 4;// 快速路径的最大容量
+    static constexpr uint32_t QUICK_DATA_SIZE = 8;// 快速路径的最大容量
     uint32_t count_ = 0;                          // 当前元素数量
     uint32_t bucket_count_ = 0;                   // 桶的数量（必须是 2 的幂）
     TableNode *nodes_ = nullptr;                  // 指向内存块开头（包含主桶节点和溢出池节点）

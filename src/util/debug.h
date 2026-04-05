@@ -5,7 +5,7 @@ namespace fakelua {
 // a simple assert system, just use to debug. only work in mingw
 [[noreturn]] void DebugAssertFail(const std::string &str, const std::source_location &source = std::source_location::current());
 
-#ifdef _WIN32
+#if defined(_WIN32) && defined(_DEBUG)
 #define DEBUG_ASSERT(x)                                                                                                                    \
     if (!(x)) {                                                                                                                            \
         fakelua::DebugAssertFail(#x);                                                                   \

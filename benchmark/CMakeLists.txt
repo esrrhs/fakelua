@@ -53,10 +53,19 @@ add_executable(bench_mark ${BENCHMARK_SRC_LIST})
 if (NOT WIN32)
     target_link_libraries(bench_mark PRIVATE dl)
 endif ()
-target_link_libraries(bench_mark PRIVATE fakelua benchmark gccjit lua)
+target_link_libraries(bench_mark PRIVATE fakelua benchmark lua)
 
 add_custom_command(
         TARGET bench_mark
         POST_BUILD
         COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/lua/ ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/
 )
+
+IF (WIN32)
+    add_custom_command(
+            TARGET bench_mark
+            POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/../src/platform/third_party/prebuilt/win_x64/tinycc/ ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/
+    )
+ELSE ()
+ENDIF ()
