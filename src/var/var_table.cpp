@@ -406,28 +406,4 @@ void VarTable::Rehash(State *s) {
     }
 }
 
-Var VarTable::KeyAt(size_t pos) const {
-    if (pos >= count_) {
-        return const_null_var;
-    }
-
-    if (bucket_count_ == 0) {
-        return quick_data_[pos].key;
-    } else {
-        return nodes_[active_list_[pos]].entry.key;
-    }
-}
-
-Var VarTable::ValueAt(size_t pos) const {
-    if (pos >= count_) {
-        return const_null_var;
-    }
-
-    if (bucket_count_ == 0) {
-        return quick_data_[pos].val;
-    } else {
-        return nodes_[active_list_[pos]].entry.val;
-    }
-}
-
 }// namespace fakelua

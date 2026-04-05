@@ -210,12 +210,6 @@ public:
 
     // 获取表大小
     [[nodiscard]] size_t TableSize() const;
-
-    // 获取表中指定位置的键
-    [[nodiscard]] Var TableKeyAt(size_t pos) const;
-
-    // 获取表中指定位置的值
-    [[nodiscard]] Var TableValueAt(size_t pos) const;
 };
 
 // 确保 Var 的大小为 16 字节，与 gccjit 中定义的 CVar 一致

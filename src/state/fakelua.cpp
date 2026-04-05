@@ -318,14 +318,32 @@ void VarToVi(State *s, CVar src, VarInterface *dst) {
             break;
         case VarType::Table: {
             std::vector<std::pair<VarInterface *, VarInterface *>> kvs;
-            for (size_t i = 0; i < vv.GetTable()->Size(); ++i) {
-                const auto k = vv.GetTable()->KeyAt(i);
-                const auto v = vv.GetTable()->ValueAt(i);
-                auto ki = GetVarInterfaceNewFunc(s)();
-                auto vi = GetVarInterfaceNewFunc(s)();
-                VarToVi(s, k, ki);
-                VarToVi(s, v, vi);
-                kvs.emplace_back(ki, vi);
+            const auto table = vv.GetTable();
+            const uint32_t count = static_cast<uint32_t>(table->Size());
+            const VarTable::VarEntry *quick_data = table->GetQuickData();
+            const auto *nodes = table->GetNodes();
+            if (const uint32_t *active_list = table->GetActiveList(); active_list == nullptr) {// Quick Path
+                for (uint32_t i = 0; i < count; ++i) {
+                    const auto &entry = quick_data[i];
+                    const auto k = entry.key;
+                    const auto v = entry.val;
+                    auto ki = GetVarInterfaceNewFunc(s)();
+                    auto vi = GetVarInterfaceNewFunc(s)();
+                    VarToVi(s, k, ki);
+                    VarToVi(s, v, vi);
+                    kvs.emplace_back(ki, vi);
+                }
+            } else {// Hash Table Path
+                for (uint32_t i = 0; i < count; ++i) {
+                    const auto &entry = nodes[active_list[i]].entry;
+                    const auto k = entry.key;
+                    const auto v = entry.val;
+                    auto ki = GetVarInterfaceNewFunc(s)();
+                    auto vi = GetVarInterfaceNewFunc(s)();
+                    VarToVi(s, k, ki);
+                    VarToVi(s, v, vi);
+                    kvs.emplace_back(ki, vi);
+                }
             }
             dst->ViSetTable(kvs);
             break;

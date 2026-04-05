@@ -102,14 +102,16 @@ static void BM_VarTable_Iter(benchmark::State &state) {
 
     // 预先判定模式，模拟 JIT 高性能访问
     const uint32_t count = static_cast<uint32_t>(table->Size());
-    const auto *nodes = table->Nodes();
-    const uint32_t *active_list = table->ActiveList();
+    const VarTable::VarEntry *quick_data = table->GetQuickData();
+    const auto *nodes = table->GetNodes();
+    const uint32_t *active_list = table->GetActiveList();
 
     for (auto _: state) {
         if (active_list == nullptr) {// Quick Path
             for (uint32_t i = 0; i < count; ++i) {
-                benchmark::DoNotOptimize(table->KeyAt(i));
-                benchmark::DoNotOptimize(table->ValueAt(i));
+                const auto &entry = quick_data[i];
+                benchmark::DoNotOptimize(entry.key);
+                benchmark::DoNotOptimize(entry.val);
             }
         } else {// Hash Table Path
             for (uint32_t i = 0; i < count; ++i) {

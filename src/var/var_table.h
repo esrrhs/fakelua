@@ -13,6 +13,7 @@ class VarTable {
 public:
     VarTable() = default;
 
+    static constexpr uint32_t QUICK_DATA_SIZE = 8;// 快速路径的最大容量
     static constexpr uint32_t INVALID_INDEX = 0xFFFFFFFF;
 
     // 基础条目：键、值、哈希
@@ -45,19 +46,18 @@ public:
         return count_;
     }
 
-    // 获取指定位置的 Key
-    [[nodiscard]] Var KeyAt(size_t pos) const;
-
-    // 获取指定位置的 Value
-    [[nodiscard]] Var ValueAt(size_t pos) const;
+    // 遍历支持：获取快速路径数据指针
+    [[nodiscard]] VarEntry* GetQuickData() {
+        return quick_data_;
+    }
 
     // AIA 遍历支持：返回活跃索引数组起始地址
-    [[nodiscard]] const uint32_t *ActiveList() const {
+    [[nodiscard]] const uint32_t *GetActiveList() const {
         return active_list_;
     }
 
     // AIA 遍历支持：返回底层节点数组起始地址
-    [[nodiscard]] const TableNode *Nodes() const {
+    [[nodiscard]] const TableNode *GetNodes() const {
         return nodes_;
     }
 
@@ -69,13 +69,12 @@ private:
     bool InsertRaw(const Var &key, const Var &val, uint32_t hash);
 
 private:
-    static constexpr uint32_t QUICK_DATA_SIZE = 8;// 快速路径的最大容量
-    uint32_t count_ = 0;                          // 当前元素数量
-    uint32_t bucket_count_ = 0;                   // 桶的数量（必须是 2 的幂）
-    TableNode *nodes_ = nullptr;                  // 指向内存块开头（包含主桶节点和溢出池节点）
-    uint32_t *active_list_ = nullptr;             // 活跃索引数组，存储 nodes_ 的下标
-    VarEntry quick_data_[QUICK_DATA_SIZE] = {};   // 嵌入式数组（不包含 next 指针）
-    uint32_t free_list_idx_ = INVALID_INDEX;      // 溢出池中的自由节点链表头下标
+    uint32_t count_ = 0;                       // 当前元素数量
+    uint32_t bucket_count_ = 0;                // 桶的数量（必须是 2 的幂）
+    TableNode *nodes_ = nullptr;               // 指向内存块开头（包含主桶节点和溢出池节点）
+    uint32_t *active_list_ = nullptr;          // 活跃索引数组，存储 nodes_ 的下标
+    VarEntry quick_data_[QUICK_DATA_SIZE] = {};// 嵌入式数组（不包含 next 指针）
+    uint32_t free_list_idx_ = INVALID_INDEX;   // 溢出池中的自由节点链表头下标
 };
 
 

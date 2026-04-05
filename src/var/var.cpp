@@ -411,16 +411,4 @@ size_t Var::TableSize() const {
     return GetTable()->Size();
 }
 
-Var Var::TableKeyAt(size_t pos) const {
-    DEBUG_ASSERT(Type() == VarType::Table);
-    DEBUG_ASSERT(pos < GetTable()->Size());
-    return GetTable()->KeyAt(pos);
-}
-
-Var Var::TableValueAt(size_t pos) const {
-    DEBUG_ASSERT(Type() == VarType::Table);
-    DEBUG_ASSERT(pos < GetTable()->Size());
-    return GetTable()->ValueAt(pos);
-}
-
 }// namespace fakelua
