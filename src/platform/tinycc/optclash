@@ -1,0 +1,38 @@
+#!/bin/sh
+
+export LC_ALL=C
+
+defname=libtcc.c
+
+# $1 is the line number, $2... is the actual source line
+extract_opts() { awk '/tcc_options\[\]/ {x=1}; x; x && $2~/^}/ {exit}'; }
+
+case $1 in -h|--help)
+    echo "Usage: $0 [INFILE]"
+    echo "Detect tcc_options[] clashes in $defname-like INFILE."
+    echo "If INFILE is missing, use $defname at the same dir as this script."
+    echo "Clashes are reported as longer-overrides, or longer-unreachable."
+    exit
+esac
+
+f=${1-$(dirname "$0")/$defname}
+[ -r "$f" ] || { >&2 echo "$0: can't read -- $f"; exit 1; }
+
+nl -b a <"$f" | extract_opts | tr \" ' ' | awk '$2=="{"' | sort -b -k 3 |
+# "<line-num> { <unquoted-opt> <rest-of-line>"  sorted-up by opt
+# unavoidable O(N^2). the sort simplifies the awk code - only test prior opts.
+awk '
+    {
+        n=$1; opt=$3; h=/HAS_ARG/
+        for (pn in prevs) {  # pn: line-num
+            po = prevs[pn]   # po: opt-with-has-arg
+            if (index(opt,po) == 1) {
+                clash=1
+                printf("-%s%s (%d) %s -%s... (%s)\n", opt,h?"...":"",n,
+                       n>pn? "is not reachable! by":"overrides", po,pn)
+            }
+        }
+    }
+    h   {prevs[n] = opt}
+    END {if (clash) exit 1; print "no clashes"}
+'

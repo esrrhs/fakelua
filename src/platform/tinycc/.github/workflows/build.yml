@@ -1,0 +1,140 @@
+name: build and test
+
+on:
+  push:
+    branches: [ mob ]
+
+jobs:
+  test-x86_64-linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 2
+    steps:
+    - uses: actions/checkout@v4
+    - name: make & test tcc (x86_64-linux)
+      run: ./configure && make && make test -k
+
+  test-x86_64-osx:
+    runs-on: macos-15-intel
+    timeout-minutes: 2
+    steps:
+    - uses: actions/checkout@v4
+    - name: make & test tcc (x86_64-osx)
+      run: ./configure && make && make test -k
+
+  test-aarch64-osx:
+    runs-on: macos-15
+    timeout-minutes: 2
+    steps:
+    - uses: actions/checkout@v4
+    - name: make & test tcc (aarch64-osx)
+      run: ./configure && make && make test -k
+
+  test-x86_64-win32:
+    runs-on: windows-2025
+    timeout-minutes: 6
+    steps:
+    - uses: actions/checkout@v4
+    - name: make & test tcc (x86_64-win32)
+      shell: cmd
+      run: |
+        echo ::group:: setup msys mingw64-gcc
+        set MSYS2_PATH_TYPE=inherit
+        set MSYSTEM=MINGW64
+        set CHERE_INVOKING=yes
+        C:\msys64\usr\bin\bash -l -c "pacman -S --noconfirm mingw-w64-x86_64-gcc"
+        echo ::endgroup::
+        C:\msys64\usr\bin\bash -l -c "./configure && make && make test -k"
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: amd64
+    - name: build with MSVC (x86_64-win32)
+      shell: cmd
+      run: |
+        echo ::group:: run build-tcc.bat
+        cd win32
+        call build-tcc.bat -t 64 -c cl
+        echo ::endgroup::
+        .\tcc -I.. libtcc.dll -v ../tests/libtcc_test.c -o libtest.exe && .\libtest.exe
+        .\tcc -I.. libtcc.dll -run ../tests/libtcc_test.c
+
+  test-i386-win32:
+    runs-on: windows-2025
+    timeout-minutes: 6
+    steps:
+    - uses: actions/checkout@v4
+    - name: make & test tcc (i386-win32)
+      shell: cmd
+      run: |
+        echo ::group:: setup msys mingw32-gcc
+        set MSYS2_PATH_TYPE=inherit
+        set MSYSTEM=MINGW32
+        set CHERE_INVOKING=yes
+        C:\msys64\usr\bin\bash -l -c "pacman -S --noconfirm mingw-w64-i686-gcc"
+        echo ::endgroup::
+        C:\msys64\usr\bin\bash -l -c "./configure && make && make test -k"
+    - uses: ilammy/msvc-dev-cmd@v1
+      with:
+        arch: x86
+    - name: build with MSVC (i386-win32)
+      shell: cmd
+      run: |
+        echo ::group:: run build-tcc.bat
+        cd win32
+        call build-tcc.bat -t 32 -c cl
+        echo ::endgroup::
+        .\tcc -I.. libtcc.dll -v ../tests/libtcc_test.c -o libtest.exe && .\libtest.exe
+        .\tcc -I.. libtcc.dll -run ../tests/libtcc_test.c
+
+  test-armv7-linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+    - uses: actions/checkout@v4
+    - uses: uraimo/run-on-arch-action@v3
+      name: make & test tcc (armv7-linux)
+      with:
+        arch: armv7
+        distro: ubuntu22.04
+        githubToken: ${{ github.token }}
+        install: |
+          apt-get update -q -y
+          apt-get install -q -y gcc make
+        run: |
+            echo "::endgroup::" # flatten 'run container'
+            ./configure && make && make test -k
+
+  test-aarch64-linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+    - uses: actions/checkout@v4
+    - uses: uraimo/run-on-arch-action@v3
+      name: make & test tcc (aarch64-linux)
+      with:
+        arch: aarch64
+        distro: ubuntu24.04
+        githubToken: ${{ github.token }}
+        install: |
+          apt-get update -q -y
+          apt-get install -q -y gcc make
+        run: |
+            echo "::endgroup::" # flatten 'run container'
+            ./configure && make && make test -k
+
+  test-riscv64-linux:
+    runs-on: ubuntu-22.04
+    timeout-minutes: 8
+    steps:
+    - uses: actions/checkout@v4
+    - uses: uraimo/run-on-arch-action@v3
+      name: make & test tcc (riscv64-linux)
+      with:
+        arch: riscv64
+        distro: ubuntu22.04
+        githubToken: ${{ github.token }}
+        install: |
+          apt-get update -q -y
+          apt-get install -q -y gcc make
+        run: |
+            echo "::endgroup::" # flatten 'run container'
+            ./configure && make && make test -k
