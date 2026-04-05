@@ -10,7 +10,7 @@ TEST(syntax_tree, CompileString) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileString("a = 1", {true});
+    const auto chunk = c.CompileString("a = 1", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -37,7 +37,7 @@ TEST(syntax_tree, label) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_label.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_label.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -57,7 +57,7 @@ TEST(syntax_tree, assign_simple) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_assign_simple.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_assign_simple.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -84,7 +84,7 @@ TEST(syntax_tree, assign) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_assign.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_assign.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -154,7 +154,7 @@ TEST(syntax_tree, function_call) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_function_call.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_function_call.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -227,7 +227,7 @@ TEST(syntax_tree, break) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_break.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_break.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -251,7 +251,7 @@ TEST(syntax_tree, continue) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_continue.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_continue.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -293,7 +293,7 @@ TEST(syntax_tree, do_end) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_do_end.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_do_end.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -338,7 +338,7 @@ TEST(syntax_tree, while) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_while.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_while.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -376,7 +376,7 @@ TEST(syntax_tree, repeat) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_repeat.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_repeat.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -434,7 +434,7 @@ TEST(syntax_tree, if) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_if.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_if.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -638,7 +638,7 @@ TEST(syntax_tree, string) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_string.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_string.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -720,7 +720,7 @@ TEST(syntax_tree, number) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_number.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_number.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -837,7 +837,7 @@ TEST(syntax_tree, for_num) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_for_num.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_for_num.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -923,7 +923,7 @@ TEST(syntax_tree, for_in) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_for_in.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_for_in.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1039,7 +1039,7 @@ TEST(syntax_tree, function) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_function.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_function.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1181,7 +1181,7 @@ TEST(syntax_tree, var) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_var.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_var.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1227,7 +1227,7 @@ TEST(syntax_tree, var_attr) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_var_attr.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_var_attr.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1275,7 +1275,7 @@ TEST(syntax_tree, function_call_args) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_function_call_args.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_function_call_args.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1318,7 +1318,7 @@ TEST(syntax_tree, constructor) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_constructor.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_constructor.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1360,7 +1360,7 @@ TEST(syntax_tree, function_exp) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_function_exp.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_function_exp.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1392,7 +1392,7 @@ TEST(syntax_tree, binop) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_binop.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_binop.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1454,7 +1454,7 @@ TEST(syntax_tree, test_binop_order1) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_binop_order1.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_binop_order1.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1501,7 +1501,7 @@ TEST(syntax_tree, test_binop_order2) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_binop_order2.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_binop_order2.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1574,7 +1574,7 @@ TEST(syntax_tree, test_binop_order3) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_binop_order3.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_binop_order3.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1629,7 +1629,7 @@ TEST(syntax_tree, test_binop_order4) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_binop_order4.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_binop_order4.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1699,7 +1699,7 @@ TEST(syntax_tree, test_binop_order5) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_binop_order5.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_binop_order5.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1743,7 +1743,7 @@ TEST(syntax_tree, test_binop_order6) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_binop_order6.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_binop_order6.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);
@@ -1800,7 +1800,7 @@ TEST(syntax_tree, test_empty) {
     ASSERT_NE(s, nullptr);
 
     Compiler c(s);
-    const auto [file_name, chunk, _] = c.CompileFile("./syntax/test_empty.lua", {true});
+    const auto chunk = c.CompileFile("./syntax/test_empty.lua", {true}).chunk;
     ASSERT_NE(chunk, nullptr);
 
     auto dumpstr = chunk->Dump(0);

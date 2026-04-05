@@ -18,6 +18,7 @@ void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
         if (std::ofstream ofs(dumpfile); ofs.is_open()) {
             ofs << code;
             ofs.close();
+            std::cerr << "CGen::Generate: C code dumped to " << dumpfile << std::endl;
             LOG_INFO("C code generated: {}", dumpfile);
         } else {
             LOG_ERROR("Failed to open output file: {}", dumpfile);
@@ -461,4 +462,4 @@ static inline CVar FlConcat(State *s, CVar a, CVar b) { return (CVar){VAR_NIL}; 
 )";
 }
 
-} // namespace fakelua
+}// namespace fakelua

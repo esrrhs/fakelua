@@ -7,6 +7,8 @@
 #include "state/heap.h"
 #include "state/stack.h"
 
+struct TCCState;
+
 namespace fakelua {
 
 // 单个运行实例
@@ -22,6 +24,10 @@ public:
         stack_.reset();
     }
 
+    const StateConfig &GetStateConfig() const {
+        return config_;
+    }
+
     Compiler &GetCompiler() {
         return compiler_;
     }
@@ -34,7 +40,7 @@ public:
         return const_string_;
     }
 
-    Vm &get_vm() {
+    Vm &GetVM() {
         return vm_;
     }
 

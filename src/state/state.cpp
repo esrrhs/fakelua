@@ -1,5 +1,6 @@
 #include "state/state.h"
 #include "fakelua.h"
+#include "jit/tcc_jit.h"
 
 namespace fakelua {
 

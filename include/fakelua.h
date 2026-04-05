@@ -208,12 +208,21 @@ struct CompileConfig {
     // 调试模式。如果为 true，JIT 代码将被转储到文件中。
     bool debug_mode = true;
     // 是否使用 TCC 进行 JIT 编译
-    bool tcc_jit = false;
+    bool tcc_jit = true;
+};
+
+struct StateTCCConfig {
+    std::vector<std::string> include_paths = {"./include"};
+    std::vector<std::string> library_paths = {"./lib"};
+    std::vector<std::string> libraries;
 };
 
 struct StateConfig {
     // 最大栈深，超过该深度将抛出异常。默认为 65536。
     size_t max_stack_size = 65536;
+    // 打开tcc
+    bool open_tcc_jit = true;
+    StateTCCConfig tcc_config;
 };
 
 class State;

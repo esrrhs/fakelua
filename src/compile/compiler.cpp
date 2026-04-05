@@ -4,6 +4,7 @@
 #include "compile/preprocessor.h"
 #include "jit/gcc_jit.h"
 #include "jit/tcc_jit.h"
+#include "state/state.h"
 
 namespace fakelua {
 
@@ -62,6 +63,9 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
 
     // 4. JIT编译
     if (cfg.tcc_jit) {
+        if (!s_->GetStateConfig().open_tcc_jit) {
+            ThrowFakeluaException("TCC JIT is not enabled in StateConfig");
+        }
         TccJitter jitter(s_);
         jitter.Compile(ret, cfg);
     }

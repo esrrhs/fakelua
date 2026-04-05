@@ -14,8 +14,8 @@ struct CompileResult {
     SyntaxTreeInterfacePtr chunk;
     // 生成的C代码字符串
     std::string c_code;
-    // JIT编译出来的入口函数
-    VmFunctionPtr main_func;
+    // 入口函数名->参数个数
+    std::unordered_map<std::string, int> function_names;
 };
 
 }// namespace fakelua

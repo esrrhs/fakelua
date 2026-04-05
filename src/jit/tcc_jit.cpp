@@ -2,53 +2,33 @@
 #include "state/state.h"
 #include "util/logging.h"
 
-// Assuming libtcc.h is available in the include path
-#include <libtcc.h>
-
 namespace fakelua {
 
-static void TccStateFree(void *ctx) {
-    if (ctx) {
-        tcc_delete((TCCState *)ctx);
-    }
+TccJitter::TccJitter(State *s) : s_(s) {
 }
 
-TccJitter::TccJitter(State *s) : s_(s) {}
-
 void TccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
-    TCCState *s = tcc_new();
-    if (!s) {
-        LOG_ERROR("tcc_new failed");
-        return;
-    }
-
-    tcc_set_output_type(s, TCC_OUTPUT_MEMORY);
-
-    // Add symbols that the JIT code might call
-    tcc_add_symbol(s, "FakeluaAllocTemp", (void *)FakeluaAllocTemp);
-    tcc_add_symbol(s, "FakeluaThrowError", (void *)FakeluaThrowError);
+    const auto handle = std::make_shared<TCCHandle>(s_);
+    ::TCCState *s = handle->GetTCCState();
 
     if (tcc_compile_string(s, cr.c_code.c_str()) == -1) {
-        LOG_ERROR("tcc_compile_string failed for {}", cr.file_name);
-        tcc_delete(s);
-        return;
+        ThrowFakeluaException(std::format("tcc_compile_string failed for {}", cr.file_name));
     }
 
-    if (tcc_relocate(s, TCC_RELOCATE_AUTO) < 0) {
-        LOG_ERROR("tcc_relocate failed for {}", cr.file_name);
-        tcc_delete(s);
-        return;
+    if (const int size = tcc_relocate(s); size == -1) {
+        ThrowFakeluaException(std::format("tcc_relocate failed for {}", cr.file_name));
     }
 
-    // Currently we don't have a main function yet in CGen, 
-    // but we can try to find one if it exists.
-    // For now, CGen only generates the header.
-    void *func_ptr = tcc_get_symbol(s, "__fakelua_main__");
-    
-    // Create VmFunction. Even if func_ptr is null, we store the state so it's alive.
-    cr.main_func = std::make_shared<VmFunction>(func_ptr, 0, false, (void *)s, TccStateFree);
-    
+    for (const auto &[name, params_count]: cr.function_names) {
+        void *func_ptr = tcc_get_symbol(s, name.c_str());
+        if (!func_ptr) {
+            ThrowFakeluaException(std::format("tcc_get_symbol failed for symbol {} in {}", name, cr.file_name));
+        }
+        s_->GetVM().RegisterFunction(name, VmFunction(params_count, func_ptr, handle));
+        LOG_INFO("Registered function {} with {} params at address {}", name, params_count, func_ptr);
+    }
+
     LOG_INFO("TCC JIT compilation finished for {}", cr.file_name);
 }
 
-} // namespace fakelua
+}// namespace fakelua

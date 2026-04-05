@@ -2,11 +2,12 @@
 
 #include "compile/compile_common.h"
 #include "fakelua.h"
-#include "jit/vm_function.h"
+#include <libtcc.h>
 
 namespace fakelua {
 
 class State;
+struct TCCState;
 
 class TccJitter {
 public:
@@ -19,4 +20,4 @@ private:
     State *s_;
 };
 
-} // namespace fakelua
+}// namespace fakelua

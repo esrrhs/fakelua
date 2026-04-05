@@ -1,52 +1,44 @@
 #pragma once
 
-#include "compile/syntax_tree.h"
 #include "fakelua.h"
 #include "var/var.h"
-#include "vm_function.h"
+#include "jit/vm_function.h"
 
 namespace fakelua {
 
-// store all compiled jit functions and some other running used data.
-// every state has one Vm.
+// 负责运行时
 class Vm {
 public:
     Vm() = default;
 
     ~Vm() = default;
 
-    // register function
-    void RegisterFunction(const std::string &name, const VmFunctionPtr &func) {
+    // 注册函数
+    void RegisterFunction(const std::string &name, const VmFunction &func) {
         vm_functions_[name] = func;
     }
 
-    // get function
-    VmFunctionPtr GetFunction(const std::string &name) const {
+    // 获取函数
+    VmFunction GetFunction(const std::string &name) const {
         const auto iter = vm_functions_.find(name);
         if (iter == vm_functions_.end()) {
-            return nullptr;
+            return {};
         }
         return iter->second;
     }
 
-    // get all functions
-    const std::unordered_map<std::string, VmFunctionPtr> &GetFunctions() {
-        return vm_functions_;
-    }
-
-    // alloc global name, life cycle is all through the process, so put it in Vm
+    // 申请全局变量名字
     std::string AllocGlobalName() {
         return std::format("__fakelua_global_{}__", global_name_++);
     }
 
 private:
-    // all registered functions
-    std::unordered_map<std::string, VmFunctionPtr> vm_functions_;
-    // global name counter
+    std::unordered_map<std::string, VmFunction> vm_functions_;
     uint64_t global_name_ = 0;
 };
 
 extern "C" void *FakeluaAllocTemp(State *s, size_t size);
+
 extern "C" void FakeluaThrowError(State *s, const char *msg);
 
 //
