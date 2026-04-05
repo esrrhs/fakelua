@@ -16,8 +16,8 @@ FakeLua 是一个高性能、可嵌入的脚本执行引擎，实现了 Lua 5.4 
 
 # 构建 (Build)
 ### Linux
-* 依赖: `cmake`, `flex`, `bison`。
-* 安装TCC。
+* 依赖: `cmake`, `flex`, `bison`
+* 安装TCC
 ```shell
 # git clone https://repo.or.cz/tinycc.git
 # cd tinycc
@@ -25,7 +25,7 @@ FakeLua 是一个高性能、可嵌入的脚本执行引擎，实现了 Lua 5.4 
 # make
 # sudo make install
 ```
-* 编译: 
+* 编译
 ```shell
 mkdir build
 cd build
@@ -34,5 +34,5 @@ make
 ```
 
 ### Windows (MinGW)
-* 安装 [MSYS2](https://www.msys2.org)。安装[mingw-w64-x86_64-gcc](https://packages.msys2.org/packages/mingw-w64-x86_64-gcc), [mingw-w64-x86_64-lua](https://packages.msys2.org/package/mingw-w64-x86_64-lua)。
-* 使用 CLion 打开项目编译。
+* 安装 [MSYS2](https://www.msys2.org)。安装[mingw-w64-x86_64-gcc](https://packages.msys2.org/packages/mingw-w64-x86_64-gcc), [mingw-w64-x86_64-lua](https://packages.msys2.org/package/mingw-w64-x86_64-lua)
+* 使用 CLion 打开项目编译
