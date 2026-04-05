@@ -141,6 +141,60 @@ static void BM_StdUnorderedMap_Iter(benchmark::State &state) {
     state.SetComplexityN(state.range(0));
 }
 
+static void BM_VarTable_Del(benchmark::State &state) {
+    auto *s = FakeluaNewState();
+    const int n = static_cast<int>(state.range(0));
+    std::vector<Var> keys;
+    std::vector<Var> vals;
+    for (int i = 0; i < n; ++i) {
+        keys.emplace_back(static_cast<int64_t>(i));
+        vals.emplace_back(static_cast<int64_t>(i * 2));
+    }
+
+    for (auto _: state) {
+        state.PauseTiming();
+        Var table_var;
+        table_var.SetTable(s);
+        auto *table = table_var.GetTable();
+        for (int i = 0; i < n; ++i) {
+            table->Set(s, keys[i], vals[i], false);
+        }
+        state.ResumeTiming();
+
+        for (int i = 0; i < n; ++i) {
+            table->Set(s, keys[i], Var(), false);
+        }
+        benchmark::DoNotOptimize(table);
+    }
+    state.SetComplexityN(state.range(0));
+    FakeluaDeleteState(s);
+}
+
+static void BM_StdUnorderedMap_Del(benchmark::State &state) {
+    const int n = static_cast<int>(state.range(0));
+    std::vector<int64_t> keys;
+    std::vector<int64_t> vals;
+    for (int i = 0; i < n; ++i) {
+        keys.emplace_back(i);
+        vals.emplace_back(i * 2);
+    }
+
+    for (auto _: state) {
+        state.PauseTiming();
+        std::unordered_map<int64_t, int64_t> m;
+        for (int i = 0; i < n; ++i) {
+            m[keys[i]] = vals[i];
+        }
+        state.ResumeTiming();
+
+        for (int i = 0; i < n; ++i) {
+            m.erase(keys[i]);
+        }
+        benchmark::DoNotOptimize(m);
+    }
+    state.SetComplexityN(state.range(0));
+}
+
 // 注册测试，覆盖 quick_data (<=4) 和 hash table (>4) 两种情况
 #define ARGS ->Arg(2)->Arg(4)->Arg(8)->Arg(16)->Arg(32)->Arg(64)->Arg(128)->Arg(256)->Arg(512)->Arg(1024)
 
@@ -150,3 +204,5 @@ BENCHMARK(BM_VarTable_Get) ARGS;
 BENCHMARK(BM_StdUnorderedMap_Get) ARGS;
 BENCHMARK(BM_VarTable_Iter) ARGS;
 BENCHMARK(BM_StdUnorderedMap_Iter) ARGS;
+BENCHMARK(BM_VarTable_Del) ARGS;
+BENCHMARK(BM_StdUnorderedMap_Del) ARGS;
