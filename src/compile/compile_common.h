@@ -1,5 +1,6 @@
 #pragma once
 
+#include "jit/vm_function.h"
 #include "syntax_tree.h"
 #include <string>
 
@@ -13,6 +14,8 @@ struct CompileResult {
     SyntaxTreeInterfacePtr chunk;
     // 生成的C代码字符串
     std::string c_code;
+    // JIT编译出来的入口函数
+    VmFunctionPtr main_func;
 };
 
 }// namespace fakelua

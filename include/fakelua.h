@@ -207,6 +207,8 @@ struct CompileConfig {
     bool skip_jit = false;
     // 调试模式。如果为 true，JIT 代码将被转储到文件中。
     bool debug_mode = true;
+    // 是否使用 TCC 进行 JIT 编译
+    bool tcc_jit = false;
 };
 
 struct StateConfig {

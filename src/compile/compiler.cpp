@@ -3,6 +3,7 @@
 #include "compile/c_gen.h"
 #include "compile/preprocessor.h"
 #include "jit/gcc_jit.h"
+#include "jit/tcc_jit.h"
 
 namespace fakelua {
 
@@ -58,6 +59,12 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     // 3. 转译为C
     CGen cgen(s_);
     cgen.Generate(ret, cfg);
+
+    // 4. JIT编译
+    if (cfg.tcc_jit) {
+        TccJitter jitter(s_);
+        jitter.Compile(ret, cfg);
+    }
 
     return ret;
 }

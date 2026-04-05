@@ -17,7 +17,7 @@ include_directories(./platform)
 add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
 
 IF (WIN32)
-    set(TARGET_LIB gccjit)
+    set(TARGET_LIB gccjit tcc)
 ENDIF ()
 
 if (USE_COV)
