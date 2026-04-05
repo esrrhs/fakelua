@@ -26,6 +26,15 @@ make
 ```
 
 ### Windows (MinGW)
-* 依赖: 安装 [MSYS2](https://www.msys2.org)。安装 `mingw-w64-x86_64-gcc`, `flex`, `bison`。可选安装 `tcc`。
-* 使用 CMake 进行构建或使用 CLion 打开项目。
+* 安装 [MSYS2](https://www.msys2.org)。安装[mingw-w64-x86_64-gcc](https://packages.msys2.org/packages/mingw-w64-x86_64-gcc), [mingw-w64-x86_64-lua](https://packages.msys2.org/package/mingw-w64-x86_64-lua).
+* 使用 CLion 打开项目编译。
 
+### Linux
+* 安装TCC
+```shell
+# git clone https://repo.or.cz/tinycc.git
+# cd tinycc
+# ./configure --extra-cflags="-fPIC"
+# make
+# sudo make install
+```
