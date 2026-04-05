@@ -28,14 +28,6 @@ void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
 }
 
 std::string CGen::Build(const CompileResult &cr, const CompileConfig &cfg) {
-    header_.str("");
-    header_.clear();
-    decl_.str("");
-    decl_.clear();
-    impl_.str("");
-    impl_.clear();
-    function_param_counts_.clear();
-
     GenerateHeader();
 
     // 遍历所有函数进行前置声明
