@@ -40,7 +40,7 @@ jobs:
           cd ..
           cd ..
           cppcheck --version
-          FILES=`find src/ cmd/ -type f -name "*.cpp" -o -name "*.h"|grep -v parser|grep -v scanner`
+          FILES=`find src/ cmd/ -type f -name "*.cpp" -o -name "*.h"|grep -v parser|grep -v scanner|grep -v third_party`
           cppcheck --language=c++ --check-level=exhaustive --max-ctu-depth=64 -j8 $FILES 2> err.txt
           cat err.txt
           if [[ -s err.txt ]]
