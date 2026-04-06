@@ -51,6 +51,12 @@ void CGen::GenerateHeader() {
 #include <math.h>
 #include <assert.h>
 
+)";
+
+    // 硬编码state指针
+    headers_ << "static const void * _S = (void *) " << s_ << ";\n";
+
+    headers_ << R"(
 typedef struct VarString {
     int size_;
     uint32_t hash_;
@@ -138,10 +144,10 @@ static inline uint32_t FlHashString(const char *str, int len) {
     return hash;
 }
 
-#define SET_STRING(v, s, str, len) do { \
+#define SET_STRING(v, str, len) do { \
     int __len = (len); \
     const char *__s_ptr = (str); \
-    VarString *__vs = (VarString *)FakeluaAllocTemp(s, sizeof(VarString) + __len); \
+    VarString *__vs = (VarString *)FakeluaAllocTemp(_S, sizeof(VarString) + __len); \
     __vs->size_ = __len; \
     __vs->hash_ = 0; \
     memcpy(__vs->data_, __s_ptr, __len); \
@@ -149,8 +155,8 @@ static inline uint32_t FlHashString(const char *str, int len) {
     (v).data_.s = __vs; \
 } while(0)
 
-#define SET_TABLE(v, s) do { \
-    VarTable *__t = (VarTable *)FakeluaAllocTemp(s, sizeof(VarTable)); \
+#define SET_TABLE(v) do { \
+    VarTable *__t = (VarTable *)FakeluaAllocTemp(_S, sizeof(VarTable)); \
     __t->count_ = 0; \
     __t->bucket_count_ = 0; \
     __t->nodes_ = NULL; \
@@ -209,9 +215,9 @@ static inline uint32_t FlHashString(const char *str, int len) {
     __h; \
 })
 
-static inline CVar FlGetTable(State *s, CVar t, CVar k) {
+static inline CVar FlGetTable(CVar t, CVar k) {
     if (t.type_ != VAR_TABLE) { return (CVar){VAR_NIL}; }
-    if (k.type_ == VAR_NIL) { FakeluaThrowError(s, "table index is nil"); }
+    if (k.type_ == VAR_NIL) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t;
     if (tbl->count_ == 0) { return (CVar){VAR_NIL}; }
     uint32_t h = VarHash(k);
@@ -270,7 +276,7 @@ static inline bool FlTableInsertRaw(VarTable *tbl, CVar key, CVar val, uint32_t 
     tbl->count_++; return true;
 }
 
-static inline void FlTableRehash(State *s, VarTable *tbl) {
+static inline void FlTableRehash(VarTable *tbl) {
     uint32_t old_count = tbl->count_;
     uint32_t old_bucket_count = tbl->bucket_count_;
     TableNode *old_nodes = tbl->nodes_;
@@ -281,7 +287,7 @@ static inline void FlTableRehash(State *s, VarTable *tbl) {
         uint32_t total_nodes = new_bucket_count + overflow_count;
         size_t nodes_size = total_nodes * sizeof(TableNode);
         size_t active_list_size = total_nodes * sizeof(uint32_t);
-        char *buffer = (char *)FakeluaAllocTemp(s, nodes_size + active_list_size);
+        char *buffer = (char *)FakeluaAllocTemp(_S, nodes_size + active_list_size);
         TableNode *new_nodes = (TableNode *)buffer;
         uint32_t *new_active_list = (uint32_t *)(buffer + nodes_size);
         for (uint32_t i = 0; i < total_nodes; ++i) { new_nodes[i].entry.key.type_ = VAR_NIL; new_nodes[i].next = 0xFFFFFFFF; new_nodes[i].active_pos = 0xFFFFFFFF; }
@@ -308,9 +314,9 @@ static inline void FlTableRehash(State *s, VarTable *tbl) {
     }
 }
 
-static inline void FlSetTable(State *s, CVar t, CVar k, CVar v) {
+static inline void FlSetTable(CVar t, CVar k, CVar v) {
     if (t.type_ != VAR_TABLE) { return; }
-    if (k.type_ == VAR_NIL) { FakeluaThrowError(s, "table index is nil"); }
+    if (k.type_ == VAR_NIL) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t; uint32_t h = VarHash(k);
     if (v.type_ == VAR_NIL) {
         if (tbl->count_ == 0) { return; }
@@ -362,9 +368,9 @@ static inline void FlSetTable(State *s, CVar t, CVar k, CVar v) {
         if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h && VarEqual(tbl->quick_data_[6].key, k)) { tbl->quick_data_[6].val = v; return; }
         if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h && VarEqual(tbl->quick_data_[7].key, k)) { tbl->quick_data_[7].val = v; return; }
         if (tbl->count_ < 8) { tbl->quick_data_[tbl->count_].key = k; tbl->quick_data_[tbl->count_].val = v; tbl->quick_data_[tbl->count_].hash = h; tbl->count_++; return; }
-        FlTableRehash(s, tbl);
+        FlTableRehash(_S, tbl);
     }
-    if (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF) { FlTableRehash(s, tbl); }
+    if (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF) { FlTableRehash(_S, tbl); }
     FlTableInsertRaw(tbl, k, v, h);
 }
 
@@ -432,54 +438,7 @@ static inline void FlSetTable(State *s, CVar t, CVar k, CVar v) {
     __res; \
 })
 
-static inline CVar FlConcat(State *s, CVar a, CVar b) { return (CVar){VAR_NIL}; }
-
-#undef SET_NIL
-#undef SET_BOOL
-#undef SET_INT
-#undef SET_FLOAT
-#undef SET_STRING
-#undef SET_TABLE
-
-#define SET_NIL(v) do { (v).type_ = VAR_NIL; } while(0)
-#define SET_BOOL(v, val) do { (v).type_ = VAR_BOOL; (v).data_.b = (val); } while(0)
-#define SET_INT(v, val) do { (v).type_ = VAR_INT; (v).data_.i = (val); } while(0)
-#define SET_FLOAT(v, val) do { \
-    double __f = (val); \
-    int64_t __i = (int64_t)__f; \
-    if ((double)__i == __f) { \
-        (v).type_ = VAR_INT; \
-        (v).data_.i = __i; \
-    } else { \
-        (v).type_ = VAR_FLOAT; \
-        (v).data_.f = __f; \
-    } \
-} while(0)
-#define SET_STRING(v, s, str, len) do { \
-    int __len = (len); \
-    const char *__s_ptr = (str); \
-    VarString *__vs = (VarString *)FakeluaAllocTemp(s, sizeof(VarString) + __len); \
-    __vs->size_ = __len; \
-    __vs->hash_ = 0; \
-    memcpy(__vs->data_, __s_ptr, __len); \
-    (v).type_ = VAR_STRING; \
-    (v).data_.s = __vs; \
-} while(0)
-#define SET_TABLE(v, s) do { \
-    VarTable *__t = (VarTable *)FakeluaAllocTemp(s, sizeof(VarTable)); \
-    __t->count_ = 0; \
-    __t->bucket_count_ = 0; \
-    __t->nodes_ = NULL; \
-    __t->active_list_ = NULL; \
-    __t->free_list_idx_ = 0xFFFFFFFF; \
-    for (int __i = 0; __i < 8; ++__i) { \
-        __t->quick_data_[__i].key.type_ = VAR_NIL; \
-        __t->quick_data_[__i].val.type_ = VAR_NIL; \
-        __t->quick_data_[__i].hash = 0; \
-    } \
-    (v).type_ = VAR_TABLE; \
-    (v).data_.t = __t; \
-} while(0)
+static inline CVar FlConcat(CVar a, CVar b) { return (CVar){VAR_NIL}; }
 
 )";
 }
@@ -583,7 +542,7 @@ void CGen::GenerateDecls(CompileResult &cr) {
 
     for (const auto &[name, params]: func_decls) {
         // 生成函数声明
-        decls_ << "CVar " << name << "(State *s";
+        decls_ << "CVar " << name << "(";
         for (const auto &param: params) {
             decls_ << ", CVar " << param;
         }
@@ -693,7 +652,7 @@ void CGen::GenerateImpl(CompileResult &cr) {
         }
 
         // 生成函数声明
-        decls_ << "CVar " << name << "(State *s";
+        decls_ << "CVar " << name << "(";
         for (const auto &param: func_params) {
             decls_ << ", CVar " << param;
         }
@@ -942,7 +901,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         auto exp_ret = CompileExp(exp);
 
         // 调用table的get函数
-        return std::format("FlGetTable(s, {}, {})", pe_ret, exp_ret);
+        return std::format("FlGetTable({}, {})", pe_ret, exp_ret);
     } else /*if (type == "dot")*/ {
         if (in_global_init_) {
             ThrowError("table access is not allowed in global variable initialization", v);
@@ -957,7 +916,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         auto exp_ret = CompileExp(name_exp);
 
         // 调用table的get函数
-        return std::format("FlGetTable(s, {}, {})", pe_ret, exp_ret);
+        return std::format("FlGetTable({}, {})", pe_ret, exp_ret);
     }
 }
 
