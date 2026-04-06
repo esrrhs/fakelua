@@ -37,153 +37,62 @@ TEST(jitter, empty_local_func) {
         ASSERT_EQ(v.Type(), VarType::Nil);
     });
 }
-// TEST(jitter, multi_return) {
-//     JitterRunHelper([](bool debug_mode) {
-//         const auto L = FakeluaNewState();
-//         ASSERT_NE(L.get(), nullptr);
-//
-//         int i = 0;
-//         float f = 0;
-//         bool b1 = false;
-//         bool b2 = false;
-//         std::string s;
-//         L->CompileFile("./jit/test_multi_return.lua", {.debug_mode = debug_mode});
-//         L->call("test", std::tie(i, f, b1, b2, s));
-//         ASSERT_EQ(i, 1);
-//         ASSERT_NEAR(f, 2.3, 0.001);
-//         ASSERT_EQ(b1, false);
-//         ASSERT_EQ(b2, true);
-//         ASSERT_EQ(s, "test");
-//     });
-// }
-//
-// TEST(jitter, multi_return_call) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     std::string s;
-//     int i = 0;
-//     float f = 0;
-//     L->CompileFile("./jit/test_multi_return_call.lua", {});
-//     L->call("test", std::tie(s, i, f));
-//     ASSERT_EQ(s, "test");
-//     ASSERT_EQ(i, 1);
-//     ASSERT_NEAR(f, 2.3, 0.001);
-//
-//     s.clear();
-//     i = 0;
-//     f = 0;
-//     L->CompileFile("./jit/test_multi_return_call.lua", {.debug_mode = false});
-//     L->call("test", std::tie(s, i, f));
-//     ASSERT_EQ(s, "test");
-//     ASSERT_EQ(i, 1);
-//     ASSERT_NEAR(f, 2.3, 0.001);
-// }
-//
-// TEST(jitter, multi_return_call_ex) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     std::string s;
-//     int i = 0;
-//     float f = 0;
-//     L->CompileFile("./jit/test_multi_return_call_ex.lua", {});
-//     L->call("test", std::tie(s, i, f));
-//     ASSERT_EQ(s, "test");
-//     ASSERT_EQ(i, 1);
-//     ASSERT_NEAR(f, 2.4, 0.001);
-//
-//     s.clear();
-//     i = 0;
-//     f = 0;
-//     L->CompileFile("./jit/test_multi_return_call_ex.lua", {.debug_mode = false});
-//     L->call("test", std::tie(s, i, f));
-//     ASSERT_EQ(s, "test");
-//     ASSERT_EQ(i, 1);
-//     ASSERT_NEAR(f, 2.4, 0.001);
-// }
-//
-// TEST(jitter, multi_return_sub) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     std::string s;
-//     int i = 0;
-//     float f = 0;
-//     L->CompileFile("./jit/test_multi_return_sub.lua", {});
-//     L->call("test", std::tie(s, i, f));
-//     ASSERT_EQ(s, "test");
-//     ASSERT_EQ(i, 1);
-//     ASSERT_NEAR(f, 2.3, 0.001);
-//
-//     s.clear();
-//     i = 0;
-//     f = 0;
-//     L->CompileFile("./jit/test_multi_return_sub.lua", {.debug_mode = false});
-//     L->call("test", std::tie(s, i, f));
-//     ASSERT_EQ(s, "test");
-//     ASSERT_EQ(i, 1);
-//     ASSERT_NEAR(f, 2.3, 0.001);
-// }
-//
-// TEST(jitter, multi_return_multi) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int i1 = 0;
-//     int i2 = 0;
-//     int i3 = 0;
-//     int i4 = 0;
-//     int i5 = 0;
-//     L->CompileFile("./jit/test_multi_return_multi.lua", {});
-//     L->call("test", std::tie(i1, i2, i3, i4, i5));
-//     ASSERT_EQ(i1, 1);
-//     ASSERT_EQ(i2, 2);
-//     ASSERT_EQ(i3, 3);
-//     ASSERT_EQ(i4, 4);
-//     ASSERT_EQ(i5, 5);
-//
-//     i1 = 0;
-//     i2 = 0;
-//     i3 = 0;
-//     i4 = 0;
-//     i5 = 0;
-//     L->CompileFile("./jit/test_multi_return_multi.lua", {.debug_mode = false});
-//     L->call("test", std::tie(i1, i2, i3, i4, i5));
-//     ASSERT_EQ(i1, 1);
-//     ASSERT_EQ(i2, 2);
-//     ASSERT_EQ(i3, 3);
-//     ASSERT_EQ(i4, 4);
-//     ASSERT_EQ(i5, 5);
-// }
-//
-// TEST(jitter, multi_return_multi_ex) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int i1 = 0;
-//     int i2 = 0;
-//     int i3 = 0;
-//     int i4 = 0;
-//     L->CompileFile("./jit/test_multi_return_multi_ex.lua", {});
-//     L->call("test", std::tie(i1, i2, i3, i4));
-//     ASSERT_EQ(i1, 1);
-//     ASSERT_EQ(i2, 2);
-//     ASSERT_EQ(i3, 3);
-//     ASSERT_EQ(i4, 6);
-//
-//     i1 = 0;
-//     i2 = 0;
-//     i3 = 0;
-//     i4 = 0;
-//     L->CompileFile("./jit/test_multi_return_multi_ex.lua", {.debug_mode = false});
-//     L->call("test", std::tie(i1, i2, i3, i4));
-//     ASSERT_EQ(i1, 1);
-//     ASSERT_EQ(i2, 2);
-//     ASSERT_EQ(i3, 3);
-//     ASSERT_EQ(i4, 6);
-// }
-//
+
+// Multi-return is not supported yet, these tests verify the exception is thrown
+TEST(jitter, multi_return) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_multi_return.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, multi_return_call) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_multi_return_call.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, multi_return_call_ex) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_multi_return_call_ex.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, multi_return_sub) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_multi_return_sub.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, multi_return_multi) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_multi_return_multi.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, multi_return_multi_ex) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_multi_return_multi_ex.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
 // TEST(jitter, multi_name) {
 //     auto L = FakeluaNewState();
 //     ASSERT_NE(L.get(), nullptr);
