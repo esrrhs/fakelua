@@ -1092,3 +1092,761 @@ TEST(var, equal_default_branch) {
 
     ASSERT_FALSE(v1.Equal(v2));
 }
+
+// VarTable tests for full coverage
+
+TEST(var, vartable_get_empty) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    Var key(static_cast<int64_t>(1));
+    Var result = vt.Get(key);
+    ASSERT_EQ(result.Type(), VarType::Nil);
+}
+
+TEST(var, vartable_get_quick_data_all_positions) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert 8 elements to fill quick_data_
+    for (int i = 0; i < 8; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Get from all positions including position 6 and 7
+    for (int i = 0; i < 8; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var result = vt.Get(key);
+        ASSERT_EQ(result.GetInt(), i * 100);
+    }
+}
+
+TEST(var, vartable_get_hash_mode_not_found) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert more than 8 elements to trigger hash mode
+    for (int i = 0; i < 20; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Get a key that doesn't exist (should traverse hash chain)
+    Var key(static_cast<int64_t>(1000));
+    Var result = vt.Get(key);
+    ASSERT_EQ(result.Type(), VarType::Nil);
+}
+
+TEST(var, vartable_set_nil_key_exception) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    Var key;
+    Var val(static_cast<int64_t>(100));
+
+    EXPECT_THROW(vt.Set(s, key, val, false), std::exception);
+}
+
+TEST(var, vartable_get_nil_key_exception) {
+    VarTable vt;
+    Var key;
+
+    EXPECT_THROW(vt.Get(key), std::exception);
+}
+
+TEST(var, vartable_delete_empty) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    Var key(static_cast<int64_t>(1));
+    Var nil_val;
+
+    // Delete from empty table should return without error
+    vt.Set(s, key, nil_val, false);
+    ASSERT_EQ(vt.Size(), 0);
+}
+
+TEST(var, vartable_delete_quick_data_all_positions) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert 8 elements
+    for (int i = 0; i < 8; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+    ASSERT_EQ(vt.Size(), 8);
+
+    Var nil_val;
+
+    // Delete from position 0
+    vt.Set(s, Var(static_cast<int64_t>(0)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 7);
+
+    // Delete from position 1 (now has different value due to swap)
+    vt.Set(s, Var(static_cast<int64_t>(1)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 6);
+
+    // Delete from position 2
+    vt.Set(s, Var(static_cast<int64_t>(2)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 5);
+
+    // Delete from position 3
+    vt.Set(s, Var(static_cast<int64_t>(3)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 4);
+
+    // Delete from position 4
+    vt.Set(s, Var(static_cast<int64_t>(4)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 3);
+
+    // Delete from position 5
+    vt.Set(s, Var(static_cast<int64_t>(5)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 2);
+
+    // Delete from position 6
+    vt.Set(s, Var(static_cast<int64_t>(6)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 1);
+
+    // Delete from position 7
+    vt.Set(s, Var(static_cast<int64_t>(7)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 0);
+}
+
+TEST(var, vartable_update_quick_data_all_positions) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert 8 elements
+    for (int i = 0; i < 8; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Update each position
+    for (int i = 0; i < 8; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var new_val(static_cast<int64_t>(i * 1000));
+        vt.Set(s, key, new_val, false);
+    }
+
+    // Verify updates
+    for (int i = 0; i < 8; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var result = vt.Get(key);
+        ASSERT_EQ(result.GetInt(), i * 1000);
+    }
+}
+
+TEST(var, vartable_delete_hash_mode_not_found) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert more than 8 elements to trigger hash mode
+    for (int i = 0; i < 20; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    Var nil_val;
+
+    // Delete a key that doesn't exist
+    vt.Set(s, Var(static_cast<int64_t>(1000)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 20);
+}
+
+TEST(var, vartable_delete_hash_mode_found) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert more than 8 elements to trigger hash mode
+    for (int i = 0; i < 20; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    Var nil_val;
+
+    // Delete existing keys
+    vt.Set(s, Var(static_cast<int64_t>(0)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 19);
+
+    vt.Set(s, Var(static_cast<int64_t>(10)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 18);
+
+    vt.Set(s, Var(static_cast<int64_t>(19)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 17);
+}
+
+TEST(var, vartable_delete_with_collision) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert many elements to ensure hash collisions
+    for (int i = 0; i < 100; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    Var nil_val;
+
+    // Delete various keys to test collision chain handling
+    for (int i = 0; i < 50; ++i) {
+        vt.Set(s, Var(static_cast<int64_t>(i)), nil_val, false);
+    }
+
+    ASSERT_EQ(vt.Size(), 50);
+
+    // Verify remaining keys still work
+    for (int i = 50; i < 100; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var result = vt.Get(key);
+        ASSERT_EQ(result.GetInt(), i * 100);
+    }
+}
+
+TEST(var, vartable_rehash_expand) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert exactly 8 elements (fills quick_data_)
+    for (int i = 0; i < 8; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+    ASSERT_EQ(vt.Size(), 8);
+
+    // Insert 9th element triggers rehash to hash mode
+    Var key9(static_cast<int64_t>(8));
+    Var val9(static_cast<int64_t>(800));
+    vt.Set(s, key9, val9, false);
+    ASSERT_EQ(vt.Size(), 9);
+
+    // Verify all elements still accessible
+    for (int i = 0; i < 9; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var result = vt.Get(key);
+        ASSERT_EQ(result.GetInt(), i * 100);
+    }
+}
+
+TEST(var, vartable_large_scale) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert many elements to trigger multiple rehashes
+    for (int i = 0; i < 1000; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    ASSERT_EQ(vt.Size(), 1000);
+
+    // Verify all elements
+    for (int i = 0; i < 1000; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var result = vt.Get(key);
+        ASSERT_EQ(result.GetInt(), i * 100);
+    }
+
+    Var nil_val;
+
+    // Delete half
+    for (int i = 0; i < 500; ++i) {
+        vt.Set(s, Var(static_cast<int64_t>(i)), nil_val, false);
+    }
+
+    ASSERT_EQ(vt.Size(), 500);
+
+    // Verify remaining
+    for (int i = 500; i < 1000; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var result = vt.Get(key);
+        ASSERT_EQ(result.GetInt(), i * 100);
+    }
+}
+
+TEST(var, vartable_string_keys) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Test with string keys
+    Var key1;
+    key1.SetTempString(s, "hello");
+    Var val1(static_cast<int64_t>(100));
+    vt.Set(s, key1, val1, false);
+
+    Var key2;
+    key2.SetTempString(s, "world");
+    Var val2(static_cast<int64_t>(200));
+    vt.Set(s, key2, val2, false);
+
+    ASSERT_EQ(vt.Get(key1).GetInt(), 100);
+    ASSERT_EQ(vt.Get(key2).GetInt(), 200);
+
+    Var nil_val;
+    vt.Set(s, key1, nil_val, false);
+    ASSERT_EQ(vt.Get(key1).Type(), VarType::Nil);
+    ASSERT_EQ(vt.Size(), 1);
+}
+
+TEST(var, vartable_update_existing_in_hash_mode) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert more than 8 elements to trigger hash mode
+    for (int i = 0; i < 20; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Update existing values
+    for (int i = 0; i < 20; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var new_val(static_cast<int64_t>(i * 1000));
+        vt.Set(s, key, new_val, false);
+    }
+
+    // Verify updates
+    for (int i = 0; i < 20; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var result = vt.Get(key);
+        ASSERT_EQ(result.GetInt(), i * 1000);
+    }
+}
+
+TEST(var, vartable_delete_quick_data_position_4_7) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    Var nil_val;
+
+    // Insert 5 elements and delete position 4
+    for (int i = 0; i < 5; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+    vt.Set(s, Var(static_cast<int64_t>(4)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 4);
+
+    // Reset and test position 5
+    VarTable vt2;
+    for (int i = 0; i < 6; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt2.Set(s, key, val, false);
+    }
+    vt2.Set(s, Var(static_cast<int64_t>(5)), nil_val, false);
+    ASSERT_EQ(vt2.Size(), 5);
+
+    // Reset and test position 6
+    VarTable vt3;
+    for (int i = 0; i < 7; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt3.Set(s, key, val, false);
+    }
+    vt3.Set(s, Var(static_cast<int64_t>(6)), nil_val, false);
+    ASSERT_EQ(vt3.Size(), 6);
+
+    // Reset and test position 7 (last element, no swap needed)
+    VarTable vt4;
+    for (int i = 0; i < 8; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt4.Set(s, key, val, false);
+    }
+    vt4.Set(s, Var(static_cast<int64_t>(7)), nil_val, false);
+    ASSERT_EQ(vt4.Size(), 7);
+}
+
+TEST(var, vartable_get_hash_mode_chain_traversal) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert enough elements to ensure hash collisions and chain traversal
+    for (int i = 0; i < 50; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Get non-existent key to force chain traversal
+    Var key(static_cast<int64_t>(1000));
+    Var result = vt.Get(key);
+    ASSERT_EQ(result.Type(), VarType::Nil);
+}
+
+TEST(var, vartable_delete_hash_mode_chain_node) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    Var nil_val;
+
+    // Insert many elements to ensure hash collisions
+    for (int i = 0; i < 50; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Delete from hash mode - should cover various deletion paths
+    // Delete first element (may be at different position after rehash)
+    vt.Set(s, Var(static_cast<int64_t>(0)), nil_val, false);
+
+    // Delete middle elements
+    vt.Set(s, Var(static_cast<int64_t>(25)), nil_val, false);
+    vt.Set(s, Var(static_cast<int64_t>(30)), nil_val, false);
+
+    ASSERT_EQ(vt.Size(), 47);
+}
+
+TEST(var, vartable_delete_hash_mode_main_bucket_with_next) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    Var nil_val;
+
+    // Insert elements to create hash collisions
+    // Using specific values to increase chance of collisions
+    for (int i = 0; i < 20; ++i) {
+        Var key(static_cast<int64_t>(i * 16));  // Multiples of 16 may collide
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Delete some to test different deletion paths
+    vt.Set(s, Var(static_cast<int64_t>(0)), nil_val, false);
+    vt.Set(s, Var(static_cast<int64_t>(16)), nil_val, false);
+    vt.Set(s, Var(static_cast<int64_t>(32)), nil_val, false);
+
+    ASSERT_EQ(vt.Size(), 17);
+}
+
+TEST(var, vartable_insert_raw_chain) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert many elements to trigger InsertRaw chain behavior
+    for (int i = 0; i < 100; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    ASSERT_EQ(vt.Size(), 100);
+
+    // Verify all inserted correctly via chain
+    for (int i = 0; i < 100; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var result = vt.Get(key);
+        ASSERT_EQ(result.GetInt(), i * 100);
+    }
+}
+
+TEST(var, vartable_rehash_from_hash_mode) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert enough to get into hash mode
+    for (int i = 0; i < 20; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Insert more to trigger rehash from hash mode (line 314)
+    for (int i = 20; i < 100; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    ASSERT_EQ(vt.Size(), 100);
+
+    // Verify all elements
+    for (int i = 0; i < 100; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var result = vt.Get(key);
+        ASSERT_EQ(result.GetInt(), i * 100);
+    }
+}
+
+TEST(var, vartable_delete_from_full_quick_data) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    Var nil_val;
+
+    // Fill quick_data_ completely
+    for (int i = 0; i < 8; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Delete each one by one to cover all delete paths in quick mode
+    for (int i = 7; i >= 0; --i) {
+        vt.Set(s, Var(static_cast<int64_t>(i)), nil_val, false);
+        ASSERT_EQ(vt.Size(), static_cast<size_t>(i));
+    }
+}
+
+TEST(var, vartable_update_after_rehash) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert to trigger rehash
+    for (int i = 0; i < 50; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Update values after rehash (covers InsertRaw update path)
+    for (int i = 0; i < 50; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var new_val(static_cast<int64_t>(i * 1000));
+        vt.Set(s, key, new_val, false);
+    }
+
+    // Verify
+    for (int i = 0; i < 50; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var result = vt.Get(key);
+        ASSERT_EQ(result.GetInt(), i * 1000);
+    }
+}
+
+TEST(var, vartable_delete_nonexistent_from_hash_mode) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    Var nil_val;
+
+    // Insert elements to enter hash mode
+    for (int i = 0; i < 20; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Try to delete non-existent key from hash mode
+    vt.Set(s, Var(static_cast<int64_t>(1000)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 20);
+}
+
+TEST(var, vartable_stress_test) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    Var nil_val;
+
+    // Insert many
+    for (int i = 0; i < 500; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Update many
+    for (int i = 0; i < 500; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var new_val(static_cast<int64_t>(i * 1000));
+        vt.Set(s, key, new_val, false);
+    }
+
+    // Delete half
+    for (int i = 0; i < 250; ++i) {
+        vt.Set(s, Var(static_cast<int64_t>(i)), nil_val, false);
+    }
+
+    // Verify remaining
+    for (int i = 250; i < 500; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var result = vt.Get(key);
+        ASSERT_EQ(result.GetInt(), i * 1000);
+    }
+
+    ASSERT_EQ(vt.Size(), 250);
+}
+
+TEST(var, vartable_delete_quick_data_swap_paths) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var nil_val;
+
+    // Test delete position 4 with count > 5 (line 113)
+    {
+        VarTable vt;
+        for (int i = 0; i < 6; ++i) {
+            Var key(static_cast<int64_t>(i));
+            Var val(static_cast<int64_t>(i * 100));
+            vt.Set(s, key, val, false);
+        }
+        vt.Set(s, Var(static_cast<int64_t>(4)), nil_val, false);
+        ASSERT_EQ(vt.Size(), 5);
+    }
+
+    // Test delete position 5 with count > 6 (line 120)
+    {
+        VarTable vt;
+        for (int i = 0; i < 7; ++i) {
+            Var key(static_cast<int64_t>(i));
+            Var val(static_cast<int64_t>(i * 100));
+            vt.Set(s, key, val, false);
+        }
+        vt.Set(s, Var(static_cast<int64_t>(5)), nil_val, false);
+        ASSERT_EQ(vt.Size(), 6);
+    }
+
+    // Test delete position 6 with count > 7 (line 127)
+    {
+        VarTable vt;
+        for (int i = 0; i < 8; ++i) {
+            Var key(static_cast<int64_t>(i));
+            Var val(static_cast<int64_t>(i * 100));
+            vt.Set(s, key, val, false);
+        }
+        vt.Set(s, Var(static_cast<int64_t>(6)), nil_val, false);
+        ASSERT_EQ(vt.Size(), 7);
+    }
+}
+
+TEST(var, vartable_get_empty_bucket_in_hash_mode) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert some elements to get into hash mode
+    for (int i = 0; i < 20; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Get a key that will hash to an empty bucket
+    // We use a large key value that likely hashes differently
+    Var key(static_cast<int64_t>(99999999));
+    Var result = vt.Get(key);
+    ASSERT_EQ(result.Type(), VarType::Nil);
+}
+
+TEST(var, vartable_delete_empty_bucket_in_hash_mode) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    Var nil_val;
+
+    // Insert some elements to get into hash mode
+    for (int i = 0; i < 20; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Delete a key that will hash to an empty bucket (line 142)
+    vt.Set(s, Var(static_cast<int64_t>(99999999)), nil_val, false);
+    ASSERT_EQ(vt.Size(), 20);
+}
+
+TEST(var, vartable_get_with_chain_traversal) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert elements with similar hash values to create chains
+    for (int i = 0; i < 100; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Get a key that requires chain traversal (line 64)
+    Var key(static_cast<int64_t>(50));
+    Var result = vt.Get(key);
+    ASSERT_EQ(result.GetInt(), 5000);
+
+    // Get non-existent key requiring full chain traversal
+    Var key2(static_cast<int64_t>(1000));
+    Var result2 = vt.Get(key2);
+    ASSERT_EQ(result2.Type(), VarType::Nil);
+}
+
+TEST(var, vartable_find_key_in_chain) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+
+    // Insert enough elements to ensure hash collisions and chain formation
+    // The hash function uses the key value, so we insert sequential keys
+    // to potentially create collisions
+    for (int i = 0; i < 200; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var val(static_cast<int64_t>(i * 100));
+        vt.Set(s, key, val, false);
+    }
+
+    // Now try to get keys that might be deep in a chain
+    // This should trigger line 64 when the key is found after traversing chain
+    for (int i = 0; i < 200; ++i) {
+        Var key(static_cast<int64_t>(i));
+        Var result = vt.Get(key);
+        ASSERT_EQ(result.GetInt(), i * 100);
+    }
+}
