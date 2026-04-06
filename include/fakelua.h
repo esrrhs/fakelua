@@ -201,14 +201,21 @@ protected:
     cvar_data data_{};
 };
 
+// JIT类型
+enum JITType {
+    // TinyCC 是一个小型的 C 语言编译器，支持即时编译（JIT）。它的特点是编译速度快，适合于需要快速生成和执行代码的场景
+    JIT_TCC = 0,
+    JIT_MAX = 1,
+};
+
 // 控制编译器的配置项
 struct CompileConfig {
     // 跳过 JIT 编译。仅进行词法分析和语法解析。
     bool skip_jit = false;
     // 调试模式。如果为 true，JIT 代码将被转储到文件中。
     bool debug_mode = true;
-    // 是否使用 TCC 进行 JIT 编译
-    bool tcc_jit = true;
+    // 是否使用 JIT 编译，默认都开启
+    bool disable_jit[JIT_MAX] = {false};
 };
 
 struct StateTCCConfig {
@@ -220,8 +227,7 @@ struct StateTCCConfig {
 struct StateConfig {
     // 最大栈深，超过该深度将抛出异常。默认为 65536。
     size_t max_stack_size = 65536;
-    // 打开tcc
-    bool open_tcc_jit = true;
+    // tcc编译配置
     StateTCCConfig tcc_config;
 };
 
@@ -259,7 +265,7 @@ void CompileString(State *s, const std::string &str, const CompileConfig &cfg);
 
 // 调用某个脚本函数，出于性能考虑，不支持变参，也只允许返回一个值，多返回值可使用Table来实现
 template<typename Ret, typename... Args>
-void Call(State *s, const std::string_view &name, Ret &ret, Args &&...args);
+void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &&...args);
 
 // 设置 VarInterface 构造实例函数
 void SetVarInterfaceNewFunc(State *s, const std::function<VarInterface *()> &func);
@@ -445,7 +451,7 @@ T FakeluaToNative(State *s, const CVar v) {
     }
 }
 
-void *GetFuncAddr(State *s, const std::string_view &name, int &arg_count);
+void *GetFuncAddr(State *s, JITType type, const std::string_view &name, int &arg_count);
 
 [[noreturn]] void ThrowInterFakeluaException(const std::string &msg);
 
@@ -475,15 +481,16 @@ private:
 
 // 调用函数
 template<typename Ret, typename... Args>
-void Call(State *s, const std::string_view &name, Ret &ret, Args &&...args) {
+void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &&...args) {
     int arg_count = 0;
-    const auto addr = inter::GetFuncAddr(s, name, arg_count);
+    const auto addr = inter::GetFuncAddr(s, type, name, arg_count);
     if (!addr) {
-        inter::ThrowInterFakeluaException(std::format("function {} not found", name));
+        inter::ThrowInterFakeluaException(std::format("Call failed, function {} not found", name));
     }
 
     if (sizeof...(Args) != static_cast<size_t>(arg_count)) {
-        inter::ThrowInterFakeluaException(std::format("function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
+        inter::ThrowInterFakeluaException(
+                std::format("Call failed, function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
     }
 
     if (const auto reentrant_count = inter::GetReentrantCount(s); !reentrant_count) {

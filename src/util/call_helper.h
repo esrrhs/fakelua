@@ -103,7 +103,7 @@ inline Var *CallVarFunc(const VAR_FUNC func, const std::vector<Var *> &args) {
                         args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19], args[20], args[21], args[22],
                         args[23], args[24], args[25], args[26], args[27], args[28], args[29], args[30], args[31]);
         default:
-            ThrowFakeluaException(std::format("too many arguments: {}", args.size()));
+            ThrowFakeluaException(std::format("Call failed, too many arguments: {}", args.size()));
     }
 }
 

@@ -42,7 +42,7 @@ void PreProcessor::DumpDebugFile(const SyntaxTreeInterfacePtr &chunk, int step) 
 }
 
 [[noreturn]] void PreProcessor::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) {
-    ThrowFakeluaException(std::format("{} at {}", msg, LocationStr(ptr)));
+    ThrowFakeluaException(std::format("PreProcess file failed, {} at {}", msg, LocationStr(ptr)));
 }
 
 std::string PreProcessor::LocationStr(const SyntaxTreeInterfacePtr &ptr) {

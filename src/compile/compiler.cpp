@@ -62,10 +62,7 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     cgen.Generate(ret, cfg);
 
     // 4. JIT编译
-    if (cfg.tcc_jit) {
-        if (!s_->GetStateConfig().open_tcc_jit) {
-            ThrowFakeluaException("TCC JIT is not enabled in StateConfig");
-        }
+    if (!cfg.disable_jit[JIT_TCC]) {
         TccJitter jitter(s_);
         jitter.Compile(ret, cfg);
     }

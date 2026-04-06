@@ -357,9 +357,13 @@ VarInterface *FakeluaToNativeObj(State *s, CVar v) {
     return ret;
 }
 
-void *GetFuncAddr(State *s, const std::string_view &name, int &arg_count) {
-    // TODO
-    return nullptr;
+void *GetFuncAddr(State *s, JITType type, const std::string_view &name, int &arg_count) {
+    const auto ret = s->GetVM().GetFunction({name.data(), name.size()});
+    if (ret.Empty()) {
+        return nullptr;
+    }
+    arg_count = ret.GetArgCount();
+    return ret.GetAddr(type);
 }
 
 [[noreturn]] void ThrowInterFakeluaException(const std::string &msg) {

@@ -6,30 +6,28 @@
 
 using namespace fakelua;
 
-static void JitterRunHelper(const std::function<void(State *, bool)> &f) {
+static void JitterRunHelper(const std::function<void(State *, JITType, bool)> &f) {
     const auto s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
-    f(s, true);
-    f(s, false);
+    f(s, JIT_TCC, true);
+    f(s, JIT_TCC, false);
 }
 
 TEST(jitter, empty_file) {
-    JitterRunHelper([](State *s, bool debug_mode) { CompileFile(s, "./jit/test_empty_file.lua", {.debug_mode = debug_mode}); });
+    JitterRunHelper(
+            [](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_empty_file.lua", {.debug_mode = debug_mode}); });
 }
 
-// TEST(jitter, empty_func) {
-//     JitterRunHelper([](bool debug_mode) {
-//         const auto L = FakeluaNewState();
-//         ASSERT_NE(L.get(), nullptr);
-//
-//         L->CompileFile("./jit/test_empty_func.lua", {.debug_mode = debug_mode});
-//         CVar ret;
-//         const auto v = static_cast<Var &>(ret);
-//         L->call("test", std::tie(ret));
-//         ASSERT_EQ(v.Type(), VarType::Nil);
-//     });
-// }
-//
+TEST(jitter, empty_func) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_empty_func.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        const auto v = static_cast<Var &>(ret);
+        Call(s, type, "test", ret);
+        ASSERT_EQ(v.Type(), VarType::Nil);
+    });
+}
+
 // TEST(jitter, empty_local_func) {
 //     JitterRunHelper([](bool debug_mode) {
 //         const auto L = FakeluaNewState();

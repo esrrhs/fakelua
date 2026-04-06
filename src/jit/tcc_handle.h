@@ -1,6 +1,6 @@
 #pragma once
 
-#include <memory>
+#include "jit/jit_common.h"
 
 struct TCCState;
 
@@ -8,13 +8,13 @@ namespace fakelua {
 
 class State;
 
-class TCCHandle {
+class TCCHandle : public JITHandle {
 public:
     explicit TCCHandle() = default;
 
     explicit TCCHandle(State *s);
 
-    ~TCCHandle();
+    ~TCCHandle() override;
 
     [[nodiscard]] ::TCCState *GetTCCState() const {
         return tcc_state_;

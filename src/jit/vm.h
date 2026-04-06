@@ -1,8 +1,8 @@
 #pragma once
 
 #include "fakelua.h"
-#include "var/var.h"
 #include "jit/vm_function.h"
+#include "var/var.h"
 
 namespace fakelua {
 
@@ -14,8 +14,14 @@ public:
     ~Vm() = default;
 
     // 注册函数
-    void RegisterFunction(const std::string &name, const VmFunction &func) {
-        vm_functions_[name] = func;
+    void RegisterFunction(const VmFunction &func) {
+        const auto &name = func.GetName();
+        const auto it = vm_functions_.find(name);
+        if (it == vm_functions_.end()) {
+            vm_functions_.emplace(name, func);
+            return;
+        }
+        it->second.Merge(func);
     }
 
     // 获取函数

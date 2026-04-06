@@ -12,19 +12,19 @@ void TccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     ::TCCState *s = handle->GetTCCState();
 
     if (tcc_compile_string(s, cr.c_code.c_str()) == -1) {
-        ThrowFakeluaException(std::format("tcc_compile_string failed for {}", cr.file_name));
+        ThrowFakeluaException(std::format("TCC compile failed, tcc_compile_string failed for {}", cr.file_name));
     }
 
     if (const int size = tcc_relocate(s); size == -1) {
-        ThrowFakeluaException(std::format("tcc_relocate failed for {}", cr.file_name));
+        ThrowFakeluaException(std::format("TCC compile failed, tcc_relocate failed for {}", cr.file_name));
     }
 
     for (const auto &[name, params_count]: cr.function_names) {
         void *func_ptr = tcc_get_symbol(s, name.c_str());
         if (!func_ptr) {
-            ThrowFakeluaException(std::format("tcc_get_symbol failed for symbol {} in {}", name, cr.file_name));
+            ThrowFakeluaException(std::format("TCC compile failed, tcc_get_symbol failed for symbol {} in {}", name, cr.file_name));
         }
-        s_->GetVM().RegisterFunction(name, VmFunction(params_count, func_ptr, handle));
+        s_->GetVM().RegisterFunction(VmFunction(name, params_count, func_ptr, handle));
         LOG_INFO("Registered function {} with {} params at address {}", name, params_count, func_ptr);
     }
 

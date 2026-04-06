@@ -9,7 +9,7 @@ namespace fakelua {
 void MyFlexer::InputFile(const std::string &file) {
     file_.open(file.data(), std::ios::binary);
     if (file_.fail()) {
-        ThrowFakeluaException("failed to open file " + file);
+        ThrowFakeluaException("Read file failed, failed to open file " + file);
     }
     filename_ = file;
     location_.initialize(&filename_);

@@ -74,7 +74,7 @@ std::string ReplaceEscapeChars(const std::string &str) {
                     break;
                 default:
                     if (!isdigit(*it)) {
-                        ThrowFakeluaException(std::format("invalid escape sequence \\{}", *it));
+                        ThrowFakeluaException(std::format("ReplaceEscapeChars failed, invalid escape sequence \\{}", *it));
                     }
                     // read up to 3 digits
                     int r = 0; /* result accumulator */
@@ -86,7 +86,7 @@ std::string ReplaceEscapeChars(const std::string &str) {
                         ++it;
                     }
                     if (r > 0xFF) {
-                        ThrowFakeluaException("decimal escape too large \\" + std::to_string(r));
+                        ThrowFakeluaException("ReplaceEscapeChars failed, decimal escape too large \\" + std::to_string(r));
                     }
                     result += static_cast<char>(r);
                     break;
@@ -126,9 +126,9 @@ int64_t ToInteger(const std::string_view &s) {
 
     auto [ptr, ec] = std::from_chars(begin, s.data() + s.size(), result, base);
     if (ec == std::errc::invalid_argument) {
-        ThrowFakeluaException(std::format("invalid argument: {}", s));
+        ThrowFakeluaException(std::format("ToInteger failed, invalid argument: {}", s));
     } else if (ec == std::errc::result_out_of_range) {
-        ThrowFakeluaException(std::format("result out of range: {}", s));
+        ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", s));
     }
 
     if (negative) {
@@ -164,9 +164,9 @@ double ToFloat(const std::string_view &s) {
     }
     auto [ptr, ec] = std::from_chars(begin, s.data() + s.size(), result, fmt);
     if (ec == std::errc::invalid_argument) {
-        ThrowFakeluaException(std::format("invalid argument: {}", s));
+        ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", s));
     } else if (ec == std::errc::result_out_of_range) {
-        ThrowFakeluaException(std::format("result out of range: {}", s));
+        ThrowFakeluaException(std::format("ToFloat failed, result out of range: {}", s));
     }
 
     if (negative) {

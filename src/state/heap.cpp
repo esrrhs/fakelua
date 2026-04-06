@@ -17,7 +17,7 @@ void *HeapAllocator::Alloc(size_t size) {
     size_t padding = (alignment - (current_block_offset_ % alignment)) % alignment;
 
     if (size + padding > BLOCK_SIZE) {
-        ThrowFakeluaException(std::format("requested size {} with padding {} exceeds block size {}", size, padding, BLOCK_SIZE));
+        ThrowFakeluaException(std::format("Alloc failed, requested size {} with padding {} exceeds block size {}", size, padding, BLOCK_SIZE));
     }
 
     if (current_block_offset_ + padding + size > BLOCK_SIZE) {
