@@ -20,7 +20,7 @@ TEST(var, construct) {
     Var v2(true);
     ASSERT_EQ(v2.Type(), VarType::Bool);
 
-    Var v3((int64_t) 1);
+    Var v3(static_cast<int64_t>(1));
     ASSERT_EQ(v3.Type(), VarType::Int);
 
     Var v4(1.1);
@@ -124,7 +124,7 @@ TEST(var, ToString) {
     ASSERT_EQ(v.ToString(), "\"hello\"");
 
     v.SetTable(s);
-    ASSERT_EQ(v.ToString(), std::format("table({})", (void *) v.GetTable()));
+    ASSERT_EQ(v.ToString(), std::format("table({})", static_cast<void *>(v.GetTable())));
 }
 
 TEST(var, VarTable) {
@@ -133,24 +133,24 @@ TEST(var, VarTable) {
 
     VarTable vt;
 
-    Var k1((int64_t) 1);
-    Var v1((int64_t) 2);
+    Var k1(static_cast<int64_t>(1));
+    Var v1(static_cast<int64_t>(2));
     vt.Set(s, k1, v1, false);
     ASSERT_EQ(vt.Get(k1), v1);
 
-    Var k2((int64_t) 1);
-    Var v2((int64_t) 3);
+    Var k2(static_cast<int64_t>(1));
+    Var v2(static_cast<int64_t>(3));
     vt.Set(s, k2, v2, false);
     ASSERT_EQ(vt.Get(k2), v2);
 
-    Var k3((int64_t) 2);
-    Var v3((int64_t) 4);
+    Var k3(static_cast<int64_t>(2));
+    Var v3(static_cast<int64_t>(4));
     vt.Set(s, k3, v3, false);
     ASSERT_EQ(vt.Get(k3), v3);
 
     Var k4;
     k4.SetTempString(s, "hello");
-    Var v4((int64_t) 5);
+    Var v4(static_cast<int64_t>(5));
     vt.Set(s, k4, v4, false);
     ASSERT_EQ(vt.Get(k4), v4);
 
@@ -159,7 +159,7 @@ TEST(var, VarTable) {
 
     Var k5;
     k5.SetTempString(s, "hello");
-    Var v5((int64_t) 6);
+    Var v5(static_cast<int64_t>(6));
     vt.Set(s, k5, v5, false);
     ASSERT_EQ(vt.Get(k5), v5);
 
@@ -381,8 +381,8 @@ TEST(var, call_var_func) {
 }
 
 TEST(var, arithmetic) {
-    Var v1((int64_t) 10);
-    Var v2((int64_t) 3);
+    Var v1(static_cast<int64_t>(10));
+    Var v2(static_cast<int64_t>(3));
     Var res;
 
     // Plus
@@ -423,8 +423,8 @@ TEST(var, arithmetic) {
 }
 
 TEST(var, bitwise) {
-    Var v1((int64_t) 0b1010);
-    Var v2((int64_t) 0b1100);
+    Var v1(static_cast<int64_t>(0b1010));
+    Var v2(static_cast<int64_t>(0b1100));
     Var res;
 
     // Bitand
@@ -451,8 +451,8 @@ TEST(var, bitwise) {
 }
 
 TEST(var, comparison) {
-    Var v1((int64_t) 10);
-    Var v2((int64_t) 20);
+    Var v1(static_cast<int64_t>(10));
+    Var v2(static_cast<int64_t>(20));
     Var res;
 
     v1.Less(v2, res);
@@ -520,12 +520,12 @@ TEST(var, table_rehash) {
 
     // Trigger rehash by inserting many elements
     for (int i = 0; i < 100; ++i) {
-        vt.Set(s, Var((int64_t) i), Var((int64_t) (i * 10)), false);
+        vt.Set(s, Var(static_cast<int64_t>(i)), Var(static_cast<int64_t>(i * 10)), false);
     }
 
     ASSERT_EQ(vt.Size(), 100);
     for (int i = 0; i < 100; ++i) {
-        ASSERT_EQ(vt.Get(Var((int64_t) i)).GetInt(), i * 10);
+        ASSERT_EQ(vt.Get(Var(static_cast<int64_t>(i))).GetInt(), i * 10);
     }
 }
 
@@ -580,7 +580,7 @@ TEST(var, hash_string_types) {
 }
 
 TEST(var, hash_int_float) {
-    Var v1((int64_t) 12345);
+    Var v1(static_cast<int64_t>(12345));
     size_t hash1 = v1.Hash();
     ASSERT_NE(hash1, 0);
 
@@ -683,7 +683,7 @@ TEST(var, equal_table) {
 }
 
 TEST(var, is_calculable) {
-    Var v1((int64_t) 10);
+    Var v1(static_cast<int64_t>(10));
     ASSERT_TRUE(v1.IsCalculable());
 
     Var v2(3.14);
@@ -694,7 +694,7 @@ TEST(var, is_calculable) {
 }
 
 TEST(var, is_calculable_integer) {
-    Var v1((int64_t) 10);
+    Var v1(static_cast<int64_t>(10));
     ASSERT_TRUE(v1.IsCalculableInteger());
 
     Var v2(3.14);
@@ -702,7 +702,7 @@ TEST(var, is_calculable_integer) {
 }
 
 TEST(var, get_calculable_number_from_int) {
-    Var v((int64_t) 42);
+    Var v(static_cast<int64_t>(42));
     double result = v.GetCalculableNumber();
     ASSERT_DOUBLE_EQ(result, 42.0);
 }
@@ -711,7 +711,7 @@ TEST(var, plus_type_error) {
     const FakeluaStateGuard guard;
 
     Var v1(true);
-    Var v2((int64_t) 10);
+    Var v2(static_cast<int64_t>(10));
     Var res;
 
     EXPECT_THROW(v1.Plus(v2, res), std::exception);
@@ -733,7 +733,7 @@ TEST(var, minus_type_error) {
 
     Var v1;
     v1.SetTempString(s, "hello");
-    Var v2((int64_t) 10);
+    Var v2(static_cast<int64_t>(10));
     Var res;
 
     EXPECT_THROW(v1.Minus(v2, res), std::exception);
@@ -741,7 +741,7 @@ TEST(var, minus_type_error) {
 
 TEST(var, star_type_error) {
     Var v1(true);
-    Var v2((int64_t) 10);
+    Var v2(static_cast<int64_t>(10));
     Var res;
 
     EXPECT_THROW(v1.Star(v2, res), std::exception);
@@ -763,7 +763,7 @@ TEST(var, slash_type_error) {
 
     Var v1;
     v1.SetTempString(s, "hello");
-    Var v2((int64_t) 10);
+    Var v2(static_cast<int64_t>(10));
     Var res;
 
     EXPECT_THROW(v1.Slash(v2, res), std::exception);
@@ -771,7 +771,7 @@ TEST(var, slash_type_error) {
 
 TEST(var, doubleslash_type_error) {
     Var v1(true);
-    Var v2((int64_t) 10);
+    Var v2(static_cast<int64_t>(10));
     Var res;
 
     EXPECT_THROW(v1.DoubleSlash(v2, res), std::exception);
