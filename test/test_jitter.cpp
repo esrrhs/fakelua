@@ -93,36 +93,25 @@ TEST(jitter, multi_return_multi_ex) {
             std::exception);
 }
 
-// TEST(jitter, multi_name) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret = 0;
-//     L->CompileFile("./jit/test_multi_name_func.lua", {});
-//     L->call("test", std::tie(ret), 1);
-//     ASSERT_EQ(ret, 2);
-//
-//     ret = 0;
-//     L->CompileFile("./jit/test_multi_name_func.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret), 1);
-//     ASSERT_EQ(ret, 2);
-// }
-//
-// TEST(jitter, multi_col_name) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret = 0;
-//     L->CompileFile("./jit/test_multi_col_name_func.lua", {});
-//     L->call("test", std::tie(ret), 1);
-//     ASSERT_EQ(ret, 2);
-//
-//     ret = 0;
-//     L->CompileFile("./jit/test_multi_col_name_func.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret), 1);
-//     ASSERT_EQ(ret, 2);
-// }
-//
+// Multi-part function names are not supported yet
+TEST(jitter, multi_name) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_multi_name_func.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, multi_col_name) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_multi_col_name_func.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
 // TEST(jitter, const_define) {
 //     auto L = FakeluaNewState();
 //     ASSERT_NE(L.get(), nullptr);
