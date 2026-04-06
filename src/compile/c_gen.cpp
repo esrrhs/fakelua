@@ -78,7 +78,7 @@ struct VarTable {
     uint32_t bucket_count_;
     TableNode *nodes_;
     uint32_t *active_list_;
-    VarEntry quick_data_[4];
+    VarEntry quick_data_[8];
     uint32_t free_list_idx_;
 };
 
@@ -146,7 +146,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
     __t->nodes_ = NULL; \
     __t->active_list_ = NULL; \
     __t->free_list_idx_ = 0xFFFFFFFF; \
-    for (int __i = 0; __i < 4; ++__i) { \
+    for (int __i = 0; __i < 8; ++__i) { \
         __t->quick_data_[__i].key.type_ = VAR_NIL; \
         __t->quick_data_[__i].val.type_ = VAR_NIL; \
         __t->quick_data_[__i].hash = 0; \
@@ -210,6 +210,10 @@ static inline CVar FlGetTable(State *s, CVar t, CVar k) {
         if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h && VarEqual(tbl->quick_data_[1].key, k)) { return tbl->quick_data_[1].val; }
         if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h && VarEqual(tbl->quick_data_[2].key, k)) { return tbl->quick_data_[2].val; }
         if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h && VarEqual(tbl->quick_data_[3].key, k)) { return tbl->quick_data_[3].val; }
+        if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h && VarEqual(tbl->quick_data_[4].key, k)) { return tbl->quick_data_[4].val; }
+        if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h && VarEqual(tbl->quick_data_[5].key, k)) { return tbl->quick_data_[5].val; }
+        if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h && VarEqual(tbl->quick_data_[6].key, k)) { return tbl->quick_data_[6].val; }
+        if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h && VarEqual(tbl->quick_data_[7].key, k)) { return tbl->quick_data_[7].val; }
     } else {
         uint32_t mask = tbl->bucket_count_ - 1;
         uint32_t idx = h & mask;
@@ -304,7 +308,11 @@ static inline void FlSetTable(State *s, CVar t, CVar k, CVar v) {
             if (tbl->quick_data_[0].hash == h && VarEqual(tbl->quick_data_[0].key, k)) { if (tbl->count_ > 1) { tbl->quick_data_[0] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
             if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h && VarEqual(tbl->quick_data_[1].key, k)) { if (tbl->count_ > 2) { tbl->quick_data_[1] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
             if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h && VarEqual(tbl->quick_data_[2].key, k)) { if (tbl->count_ > 3) { tbl->quick_data_[2] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
-            if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h && VarEqual(tbl->quick_data_[3].key, k)) { tbl->count_--; return; }
+            if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h && VarEqual(tbl->quick_data_[3].key, k)) { if (tbl->count_ > 4) { tbl->quick_data_[3] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
+            if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h && VarEqual(tbl->quick_data_[4].key, k)) { if (tbl->count_ > 5) { tbl->quick_data_[4] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
+            if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h && VarEqual(tbl->quick_data_[5].key, k)) { if (tbl->count_ > 6) { tbl->quick_data_[5] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
+            if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h && VarEqual(tbl->quick_data_[6].key, k)) { if (tbl->count_ > 7) { tbl->quick_data_[6] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
+            if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h && VarEqual(tbl->quick_data_[7].key, k)) { tbl->count_--; return; }
         } else {
             uint32_t mask = tbl->bucket_count_ - 1; uint32_t idx = h & mask; TableNode *curr = &tbl->nodes_[idx];
             if (curr->entry.key.type_ == VAR_NIL) { return; }
@@ -339,7 +347,11 @@ static inline void FlSetTable(State *s, CVar t, CVar k, CVar v) {
         if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h && VarEqual(tbl->quick_data_[1].key, k)) { tbl->quick_data_[1].val = v; return; }
         if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h && VarEqual(tbl->quick_data_[2].key, k)) { tbl->quick_data_[2].val = v; return; }
         if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h && VarEqual(tbl->quick_data_[3].key, k)) { tbl->quick_data_[3].val = v; return; }
-        if (tbl->count_ < 4) { tbl->quick_data_[tbl->count_].key = k; tbl->quick_data_[tbl->count_].val = v; tbl->quick_data_[tbl->count_].hash = h; tbl->count_++; return; }
+        if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h && VarEqual(tbl->quick_data_[4].key, k)) { tbl->quick_data_[4].val = v; return; }
+        if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h && VarEqual(tbl->quick_data_[5].key, k)) { tbl->quick_data_[5].val = v; return; }
+        if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h && VarEqual(tbl->quick_data_[6].key, k)) { tbl->quick_data_[6].val = v; return; }
+        if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h && VarEqual(tbl->quick_data_[7].key, k)) { tbl->quick_data_[7].val = v; return; }
+        if (tbl->count_ < 8) { tbl->quick_data_[tbl->count_].key = k; tbl->quick_data_[tbl->count_].val = v; tbl->quick_data_[tbl->count_].hash = h; tbl->count_++; return; }
         FlTableRehash(s, tbl);
     }
     if (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF) { FlTableRehash(s, tbl); }
@@ -450,7 +462,7 @@ static inline CVar FlConcat(State *s, CVar a, CVar b) { return (CVar){VAR_NIL}; 
     __t->nodes_ = NULL; \
     __t->active_list_ = NULL; \
     __t->free_list_idx_ = 0xFFFFFFFF; \
-    for (int __i = 0; __i < 4; ++__i) { \
+    for (int __i = 0; __i < 8; ++__i) { \
         __t->quick_data_[__i].key.type_ = VAR_NIL; \
         __t->quick_data_[__i].val.type_ = VAR_NIL; \
         __t->quick_data_[__i].hash = 0; \
