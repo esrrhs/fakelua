@@ -28,19 +28,15 @@ TEST(jitter, empty_func) {
     });
 }
 
-// TEST(jitter, empty_local_func) {
-//     JitterRunHelper([](bool debug_mode) {
-//         const auto L = FakeluaNewState();
-//         ASSERT_NE(L.get(), nullptr);
-//
-//         CVar ret;
-//         const auto &v = *reinterpret_cast<Var *>(&ret);
-//         L->CompileFile("./jit/test_empty_local_func.lua", {.debug_mode = debug_mode});
-//         L->call("test", std::tie(ret));
-//         ASSERT_EQ(v.Type(), VarType::Nil);
-//     });
-// }
-//
+TEST(jitter, empty_local_func) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_empty_local_func.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        const auto v = static_cast<Var &>(ret);
+        Call(s, type, "test", ret);
+        ASSERT_EQ(v.Type(), VarType::Nil);
+    });
+}
 // TEST(jitter, multi_return) {
 //     JitterRunHelper([](bool debug_mode) {
 //         const auto L = FakeluaNewState();
