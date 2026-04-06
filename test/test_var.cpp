@@ -1847,3 +1847,17 @@ TEST(var, vartable_find_key_in_chain) {
         ASSERT_EQ(result.GetInt(), i * 100);
     }
 }
+
+TEST(var, VarTypeToString_all_types) {
+    EXPECT_EQ(VarTypeToString(VarType::Nil), "Nil");
+    EXPECT_EQ(VarTypeToString(VarType::Bool), "Bool");
+    EXPECT_EQ(VarTypeToString(VarType::Int), "Int");
+    EXPECT_EQ(VarTypeToString(VarType::Float), "Float");
+    EXPECT_EQ(VarTypeToString(VarType::String), "String");
+    EXPECT_EQ(VarTypeToString(VarType::StringId), "StringId");
+    EXPECT_EQ(VarTypeToString(VarType::Table), "Table");
+
+    // Test default case with invalid value
+    auto invalid_type = static_cast<VarType>(999);
+    EXPECT_EQ(VarTypeToString(invalid_type), "UNKNOWN");
+}
