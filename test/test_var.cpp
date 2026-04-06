@@ -1097,7 +1097,6 @@ TEST(var, equal_default_branch) {
 
 TEST(var, vartable_get_empty) {
     const FakeluaStateGuard guard;
-    const auto s = guard.GetState();
 
     VarTable vt;
     Var key(static_cast<int64_t>(1));
@@ -1312,10 +1311,9 @@ TEST(var, vartable_delete_with_collision) {
         vt.Set(s, key, val, false);
     }
 
-    Var nil_val;
-
     // Delete various keys to test collision chain handling
     for (int i = 0; i < 50; ++i) {
+        Var nil_val;
         vt.Set(s, Var(static_cast<int64_t>(i)), nil_val, false);
     }
 
@@ -1379,10 +1377,9 @@ TEST(var, vartable_large_scale) {
         ASSERT_EQ(result.GetInt(), i * 100);
     }
 
-    Var nil_val;
-
     // Delete half
     for (int i = 0; i < 500; ++i) {
+        Var nil_val;
         vt.Set(s, Var(static_cast<int64_t>(i)), nil_val, false);
     }
 
@@ -1551,7 +1548,7 @@ TEST(var, vartable_delete_hash_mode_main_bucket_with_next) {
     // Insert elements to create hash collisions
     // Using specific values to increase chance of collisions
     for (int i = 0; i < 20; ++i) {
-        Var key(static_cast<int64_t>(i * 16));  // Multiples of 16 may collide
+        Var key(static_cast<int64_t>(i * 16));// Multiples of 16 may collide
         Var val(static_cast<int64_t>(i * 100));
         vt.Set(s, key, val, false);
     }
@@ -1622,7 +1619,6 @@ TEST(var, vartable_delete_from_full_quick_data) {
     const auto s = guard.GetState();
 
     VarTable vt;
-    Var nil_val;
 
     // Fill quick_data_ completely
     for (int i = 0; i < 8; ++i) {
@@ -1633,6 +1629,7 @@ TEST(var, vartable_delete_from_full_quick_data) {
 
     // Delete each one by one to cover all delete paths in quick mode
     for (int i = 7; i >= 0; --i) {
+        Var nil_val;
         vt.Set(s, Var(static_cast<int64_t>(i)), nil_val, false);
         ASSERT_EQ(vt.Size(), static_cast<size_t>(i));
     }
@@ -1690,7 +1687,6 @@ TEST(var, vartable_stress_test) {
     const auto s = guard.GetState();
 
     VarTable vt;
-    Var nil_val;
 
     // Insert many
     for (int i = 0; i < 500; ++i) {
@@ -1708,6 +1704,7 @@ TEST(var, vartable_stress_test) {
 
     // Delete half
     for (int i = 0; i < 250; ++i) {
+        Var nil_val;
         vt.Set(s, Var(static_cast<int64_t>(i)), nil_val, false);
     }
 
