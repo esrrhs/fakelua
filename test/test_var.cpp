@@ -792,3 +792,338 @@ TEST(var, doubleslash_float_result) {
     // floor(-7.5 / 2.0) = -4.0, but -4.0 is stored as integer
     ASSERT_EQ(res.GetInt(), -4);
 }
+
+// Test Hash() for Nil type (lines 70-71)
+TEST(var, hash_nil) {
+    Var v;
+    size_t hash = v.Hash();
+    ASSERT_EQ(hash, 0);
+}
+
+// Test Pow() type error exception (lines 212-213)
+TEST(var, pow_type_error) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTempString(s, "hello");
+    Var v2(static_cast<int64_t>(10));
+    Var res;
+
+    EXPECT_THROW(v1.Pow(v2, res), std::exception);
+}
+
+// Test Mod() type error exception (lines 220-221)
+TEST(var, mod_type_error) {
+    Var v1(true);
+    Var v2(static_cast<int64_t>(10));
+    Var res;
+
+    EXPECT_THROW(v1.Mod(v2, res), std::exception);
+}
+
+// Test Mod() float result (line 226)
+TEST(var, mod_float_result) {
+    Var v1(7.5);
+    Var v2(2.5);
+    Var res;
+
+    v1.Mod(v2, res);
+    ASSERT_DOUBLE_EQ(res.GetFloat(), 0.0);  // fmod(7.5, 2.5) = 0.0
+
+    Var v3(7.7);
+    Var v4(2.5);
+    v3.Mod(v4, res);
+    ASSERT_NEAR(res.GetFloat(), 0.2, 0.0001);  // fmod(7.7, 2.5) = 0.2
+}
+
+// Test Bitand() type error exception (lines 232-233)
+TEST(var, bitand_type_error) {
+    Var v1(3.14);
+    Var v2(static_cast<int64_t>(10));
+    Var res;
+
+    EXPECT_THROW(v1.Bitand(v2, res), std::exception);
+}
+
+// Test Xor() type error exception (lines 240-241)
+TEST(var, xor_type_error) {
+    Var v1(3.14);
+    Var v2(static_cast<int64_t>(10));
+    Var res;
+
+    EXPECT_THROW(v1.Xor(v2, res), std::exception);
+}
+
+// Test Bitor() type error exception (lines 248-249)
+TEST(var, bitor_type_error) {
+    Var v1(3.14);
+    Var v2(static_cast<int64_t>(10));
+    Var res;
+
+    EXPECT_THROW(v1.Bitor(v2, res), std::exception);
+}
+
+// Test RightShift() type error exception (lines 256-257)
+TEST(var, rightshift_type_error) {
+    Var v1(3.14);
+    Var v2(static_cast<int64_t>(2));
+    Var res;
+
+    EXPECT_THROW(v1.RightShift(v2, res), std::exception);
+}
+
+// Test RightShift() with negative shift (line 263)
+TEST(var, rightshift_negative_shift) {
+    Var v1(static_cast<int64_t>(8));
+    Var v2(static_cast<int64_t>(-2));  // negative shift means left shift
+    Var res;
+
+    v1.RightShift(v2, res);
+    ASSERT_EQ(res.GetInt(), 32);  // 8 >> (-2) = 8 << 2 = 32
+}
+
+// Test LeftShift() type error exception (lines 269-270)
+TEST(var, leftshift_type_error) {
+    Var v1(3.14);
+    Var v2(static_cast<int64_t>(2));
+    Var res;
+
+    EXPECT_THROW(v1.LeftShift(v2, res), std::exception);
+}
+
+// Test LeftShift() with negative shift (line 276)
+TEST(var, leftshift_negative_shift) {
+    Var v1(static_cast<int64_t>(8));
+    Var v2(static_cast<int64_t>(-2));  // negative shift means right shift
+    Var res;
+
+    v1.LeftShift(v2, res);
+    ASSERT_EQ(res.GetInt(), 2);  // 8 << (-2) = 8 >> 2 = 2
+}
+
+// Test Less() type error exception (lines 286-287)
+TEST(var, less_type_error) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTempString(s, "hello");
+    Var v2(static_cast<int64_t>(10));
+    Var res;
+
+    EXPECT_THROW(v1.Less(v2, res), std::exception);
+}
+
+// Test Less() float result (line 293)
+TEST(var, less_float_result) {
+    Var v1(2.5);
+    Var v2(3.5);
+    Var res;
+
+    v1.Less(v2, res);
+    ASSERT_TRUE(res.GetBool());
+}
+
+// Test LessEqual() type error exception (lines 299-300)
+TEST(var, less_equal_type_error) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTempString(s, "hello");
+    Var v2(static_cast<int64_t>(10));
+    Var res;
+
+    EXPECT_THROW(v1.LessEqual(v2, res), std::exception);
+}
+
+// Test LessEqual() float result (line 306)
+TEST(var, less_equal_float_result) {
+    Var v1(3.5);
+    Var v2(3.5);
+    Var res;
+
+    v1.LessEqual(v2, res);
+    ASSERT_TRUE(res.GetBool());
+}
+
+// Test More() type error exception (lines 312-313)
+TEST(var, more_type_error) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTempString(s, "hello");
+    Var v2(static_cast<int64_t>(10));
+    Var res;
+
+    EXPECT_THROW(v1.More(v2, res), std::exception);
+}
+
+// Test More() float result (line 319)
+TEST(var, more_float_result) {
+    Var v1(3.5);
+    Var v2(2.5);
+    Var res;
+
+    v1.More(v2, res);
+    ASSERT_TRUE(res.GetBool());
+}
+
+// Test MoreEqual() type error exception (lines 325-326)
+TEST(var, more_equal_type_error) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTempString(s, "hello");
+    Var v2(static_cast<int64_t>(10));
+    Var res;
+
+    EXPECT_THROW(v1.MoreEqual(v2, res), std::exception);
+}
+
+// Test MoreEqual() float result (line 332)
+TEST(var, more_equal_float_result) {
+    Var v1(3.5);
+    Var v2(3.5);
+    Var res;
+
+    v1.MoreEqual(v2, res);
+    ASSERT_TRUE(res.GetBool());
+}
+
+// Test Equal(rhs, result) method (lines 336-338)
+TEST(var, equal_with_result) {
+    Var v1(static_cast<int64_t>(10));
+    Var v2(static_cast<int64_t>(10));
+    Var res;
+
+    v1.Equal(v2, res);
+    ASSERT_TRUE(res.GetBool());
+
+    Var v3(static_cast<int64_t>(20));
+    v1.Equal(v3, res);
+    ASSERT_FALSE(res.GetBool());
+}
+
+// Test UnopMinus() type error exception (line 357)
+TEST(var, unop_minus_type_error) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTempString(s, "hello");
+    Var res;
+
+    EXPECT_THROW(v1.UnopMinus(res), std::exception);
+}
+
+// Test UnopMinus() float result (line 362)
+TEST(var, unop_minus_float_result) {
+    Var v1(3.14);
+    Var res;
+
+    v1.UnopMinus(res);
+    ASSERT_DOUBLE_EQ(res.GetFloat(), -3.14);
+}
+
+// Test UnopNumberSign() type error exception (line 372)
+TEST(var, unop_numbersign_type_error) {
+    Var v1(static_cast<int64_t>(42));
+    Var res;
+
+    EXPECT_THROW(v1.UnopNumberSign(res), std::exception);
+}
+
+// Test UnopBitnot() type error exception (line 384)
+TEST(var, unop_bitnot_type_error) {
+    Var v1(3.14);
+    Var res;
+
+    EXPECT_THROW(v1.UnopBitnot(res), std::exception);
+}
+
+// Test TableSet() type error exception (line 392)
+TEST(var, table_set_type_error) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;  // nil
+    Var key(static_cast<int64_t>(1));
+    Var val(static_cast<int64_t>(100));
+
+    EXPECT_THROW(v1.TableSet(s, key, val, false), std::exception);
+}
+
+// Test TableGet() method and exception (lines 398-403)
+TEST(var, table_get) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTable(s);
+    Var key(static_cast<int64_t>(1));
+    Var val(static_cast<int64_t>(100));
+    v1.TableSet(s, key, val, false);
+
+    Var result = v1.TableGet(key);
+    ASSERT_EQ(result.GetInt(), 100);
+}
+
+TEST(var, table_get_type_error) {
+    Var v1;  // nil
+    Var key(static_cast<int64_t>(1));
+
+    EXPECT_THROW(v1.TableGet(key), std::exception);
+}
+
+// Test TableSize() method and exception (lines 406-411)
+TEST(var, table_size) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTable(s);
+    ASSERT_EQ(v1.TableSize(), 0);
+
+    Var key(static_cast<int64_t>(1));
+    Var val(static_cast<int64_t>(100));
+    v1.TableSet(s, key, val, false);
+    ASSERT_EQ(v1.TableSize(), 1);
+}
+
+TEST(var, table_size_type_error) {
+    Var v1;  // nil
+
+    EXPECT_THROW(v1.TableSize(), std::exception);
+}
+
+// Test Hash() default branch (lines 94-95) - defensive code for invalid type
+// Note: This test uses reinterpret_cast to access protected member for testing purposes
+TEST(var, hash_default_branch) {
+    Var v;
+    // Manually set type_ to an invalid value to trigger default branch
+    // This is defensive code that normally shouldn't be reached
+    int *type_ptr = reinterpret_cast<int *>(&v);
+    *type_ptr = 100;  // Invalid VarType value
+    size_t hash = v.Hash();
+    ASSERT_EQ(hash, 0);  // Default branch returns 0
+}
+
+// Test Equal() default branch (lines 129-130) - defensive code for invalid type
+// Note: This test uses reinterpret_cast to access protected member for testing purposes
+TEST(var, equal_default_branch) {
+    Var v1(static_cast<int64_t>(10));
+    Var v2(static_cast<int64_t>(10));
+
+    // Manually set type_ to an invalid value to trigger default branch
+    int *type_ptr1 = reinterpret_cast<int *>(&v1);
+    int *type_ptr2 = reinterpret_cast<int *>(&v2);
+    *type_ptr1 = 100;  // Invalid VarType value
+    *type_ptr2 = 100;  // Same invalid value
+
+    // Default branch returns false
+    ASSERT_FALSE(v1.Equal(v2));
+}
