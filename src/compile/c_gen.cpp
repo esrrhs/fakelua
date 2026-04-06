@@ -11,6 +11,13 @@ CGen::CGen(State *s) : s_(s) {
 void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
     LOG_INFO("start CGen::Generate {}", cr.file_name);
 
+    // 收集函数定义
+    functions_.clear();
+    func_counter_ = 0;
+    func_prefix_ = "";
+    CollectFunctions(cr.chunk);
+
+    // 生成代码
     const std::string code = Build(cr, cfg);
 
     if (cfg.debug_mode) {
@@ -26,11 +33,17 @@ void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
     }
 
     cr.c_code = code;
+
+    // 将收集到的函数信息写入 CompileResult
+    cr.function_names = functions_;
+
+    LOG_INFO("end CGen::Generate {}, functions: {}", cr.file_name, functions_.size());
 }
 
 std::string CGen::Build(const CompileResult &cr, const CompileConfig &cfg) {
     GenerateHeader();
-    return header_.str();
+    GenerateDecls(const_cast<CompileResult &>(cr));
+    return header_.str() + decls_.str();
 }
 
 void CGen::GenerateHeader() {
@@ -472,6 +485,149 @@ static inline CVar FlConcat(State *s, CVar a, CVar b) { return (CVar){VAR_NIL}; 
 } while(0)
 
 )";
+}
+
+void CGen::GenerateDecls(CompileResult &cr) {
+    decls_ << "\n// ===== Function Declarations =====\n\n";
+
+    for (const auto &[name, param_count]: functions_) {
+        // 生成函数声明
+        decls_ << "CVar " << name << "(State *s";
+        for (int i = 0; i < param_count; ++i) {
+            decls_ << ", CVar arg" << i;
+        }
+        decls_ << ");\n";
+    }
+
+    decls_ << "\n";
+}
+
+void CGen::CollectFunctions(const SyntaxTreeInterfacePtr &node) {
+    if (!node) {
+        return;
+    }
+
+    // 从 chunk/block 开始遍历
+    if (node->Type() == SyntaxTreeType::Block) {
+        CollectFunctionsFromBlock(node);
+    } else {
+        // 遍历所有子节点
+        WalkSyntaxTree(node, [this](const SyntaxTreeInterfacePtr &child) {
+            if (child->Type() == SyntaxTreeType::Block) {
+                CollectFunctionsFromBlock(child);
+            }
+        });
+    }
+}
+
+void CGen::CollectFunctionsFromBlock(const SyntaxTreeInterfacePtr &block) {
+    if (!block || block->Type() != SyntaxTreeType::Block) {
+        return;
+    }
+
+    const auto block_ptr = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
+    for (const auto &stmt: block_ptr->Stmts()) {
+        CollectFunctionFromStmt(stmt);
+    }
+}
+
+void CGen::CollectFunctionFromStmt(const SyntaxTreeInterfacePtr &stmt) {
+    if (!stmt) {
+        return;
+    }
+
+    if (stmt->Type() == SyntaxTreeType::Function) {
+        // 全局函数定义: function name.xxx() ... end
+        const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
+        const auto funcname = func->Funcname();
+        const auto funcnamelist = funcname->FuncNameList();
+
+        // 构建函数名（用下划线连接）
+        std::string func_name;
+        for (const auto &name: funcnamelist->Funcnames()) {
+            if (!func_name.empty()) {
+                func_name += "_";
+            }
+            func_name += name;
+        }
+
+        // 处理冒号语法: function a:b() -> a_b
+        if (!funcname->ColonName().empty()) {
+            func_name += "_" + funcname->ColonName();
+        }
+
+        // 获取参数个数
+        const auto funcbody = func->Funcbody();
+        int param_count = 0;
+        if (const auto parlist = funcbody->Parlist()) {
+            if (const auto namelist = parlist->Namelist()) {
+                param_count = static_cast<int>(namelist->Names().size());
+            }
+        }
+
+        functions_[func_name] = param_count;
+        LOG_INFO("Collected function: {} with {} params", func_name, param_count);
+
+        // 递归收集函数体中的嵌套函数
+        CollectFunctions(funcbody->Block());
+
+    } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
+        // 局部函数定义: local function name() ... end
+        const auto local_func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
+        const std::string &func_name = local_func->Name();
+
+        // 获取参数个数
+        const auto funcbody = local_func->Funcbody();
+        int param_count = 0;
+        if (const auto parlist = funcbody->Parlist()) {
+            if (const auto namelist = parlist->Namelist()) {
+                param_count = static_cast<int>(namelist->Names().size());
+            }
+        }
+
+        functions_[func_name] = param_count;
+        LOG_INFO("Collected local function: {} with {} params", func_name, param_count);
+
+        // 递归收集函数体中的嵌套函数
+        CollectFunctions(funcbody->Block());
+
+    } else if (stmt->Type() == SyntaxTreeType::While) {
+        // while 循环
+        const auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
+        CollectFunctions(while_stmt->Block());
+
+    } else if (stmt->Type() == SyntaxTreeType::Repeat) {
+        // repeat 循环
+        const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
+        CollectFunctions(repeat_stmt->Block());
+
+    } else if (stmt->Type() == SyntaxTreeType::If) {
+        // if 语句
+        const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+        CollectFunctions(if_stmt->Block());
+        if (if_stmt->ElseBlock()) {
+            CollectFunctions(if_stmt->ElseBlock());
+        }
+        // elseif 块
+        const auto elseifs = if_stmt->ElseIfs();
+        for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
+            CollectFunctions(elseifs->ElseifBlock(i));
+        }
+
+    } else if (stmt->Type() == SyntaxTreeType::ForLoop) {
+        // 数值 for 循环
+        const auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
+        CollectFunctions(for_loop->Block());
+
+    } else if (stmt->Type() == SyntaxTreeType::ForIn) {
+        // 泛型 for 循环
+        const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
+        CollectFunctions(for_in->Block());
+
+    } else if (stmt->Type() == SyntaxTreeType::Do) {
+        // do ... end 块（直接是 block）
+        CollectFunctions(stmt);
+    }
 }
 
 }// namespace fakelua
