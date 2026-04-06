@@ -93,7 +93,6 @@ TEST(jitter, multi_return_multi_ex) {
             std::exception);
 }
 
-// Multi-part function names are not supported yet
 TEST(jitter, multi_name) {
     EXPECT_THROW(
             {
@@ -112,21 +111,16 @@ TEST(jitter, multi_col_name) {
             std::exception);
 }
 
-// TEST(jitter, const_define) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int i = 0;
-//     L->CompileFile("./jit/test_const_define.lua", {});
-//     L->call("test", std::tie(i));
-//     ASSERT_EQ(i, 1);
-//
-//     i = 0;
-//     L->CompileFile("./jit/test_const_define.lua", {.debug_mode = false});
-//     L->call("test", std::tie(i));
-//     ASSERT_EQ(i, 1);
-// }
-//
+// Global const variable definitions
+TEST(jitter, const_define) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_const_define.lua", {.debug_mode = debug_mode});
+        int i = 0;
+        Call(s, type, "test", i);
+        ASSERT_EQ(i, 1);
+    });
+}
+
 // TEST(jitter, multi_const_define) {
 //     auto L = FakeluaNewState();
 //     ASSERT_NE(L.get(), nullptr);

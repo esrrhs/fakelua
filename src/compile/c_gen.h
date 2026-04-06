@@ -21,11 +21,11 @@ private:
 
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
 
-    std::string GenTab();
+    std::string GenTab() const;
 
     void GenerateHeader();
 
-    void GenerateGlobal();
+    void GenerateGlobal(CompileResult &cr);
 
     void GenerateDecls(CompileResult &cr);
 
@@ -45,25 +45,29 @@ private:
 
     void CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt);
 
-    void CompileStmtFunctioncall(SyntaxTreeInterfacePtr shared);
+    void CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared);
 
     void CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt);
 
     void CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt);
 
-    void CompileStmtRepeat(SyntaxTreeInterfacePtr stmt);
+    void CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt);
 
-    void CompileStmtIf(SyntaxTreeInterfacePtr stmt);
+    void CompileStmtIf(const SyntaxTreeInterfacePtr &stmt);
 
-    void CompileStmtBreak(SyntaxTreeInterfacePtr stmt);
+    void CompileStmtBreak(const SyntaxTreeInterfacePtr &stmt);
 
-    void CompileStmtForLoop(SyntaxTreeInterfacePtr stmt);
+    void CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt);
 
     void CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt);
 
     std::string CompileExp(const SyntaxTreeInterfacePtr &exp);
 
     std::string CompilePrefixexp(const SyntaxTreeInterfacePtr &pe);
+
+    std::string CompileVar(const SyntaxTreeInterfacePtr &v);
+
+    std::string CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall);
 
     std::string CompileTableconstructor(const SyntaxTreeInterfacePtr &tc);
 
@@ -81,6 +85,7 @@ private:
     std::stringstream impls_;
 
     int cur_tab_ = 0;
+    bool in_global_init_ = false;
     std::unordered_set<std::string> global_const_vars_;
 };
 

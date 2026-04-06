@@ -37,7 +37,7 @@ void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
 
 std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
     GenerateHeader();
-    GenerateGlobal();
+    GenerateGlobal(cr);
     GenerateDecls(cr);
     GenerateImpl(cr);
     return headers_.str() + globals_.str() + decls_.str() + impls_.str();
@@ -484,13 +484,65 @@ static inline CVar FlConcat(State *s, CVar a, CVar b) { return (CVar){VAR_NIL}; 
 )";
 }
 
-void CGen::GenerateGlobal() {
+void CGen::GenerateGlobal(CompileResult &cr) {
     globals_ << "// ===== Global Variables =====\n\n";
+
+    in_global_init_ = true;
 
     // 静态全局的CVar
     globals_ << "static const CVar kNil = {.type_ = VAR_NIL};\n";
     globals_ << "static const CVar kTrue = {.type_ = VAR_BOOL, .data_.b = true};\n";
     globals_ << "static const CVar kFalse = {.type_ = VAR_BOOL, .data_.b = false};\n";
+
+    // 遍历顶层的 local 变量定义，生成全局常量
+    const auto chunk = cr.chunk;
+    DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
+
+    for (const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk); const auto &stmt: block->Stmts()) {
+        if (stmt->Type() == SyntaxTreeType::LocalVar) {
+            const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+            const auto namelist = local_var->Namelist();
+            const auto explist = local_var->Explist();
+
+            if (!namelist || !explist) {
+                continue;
+            }
+
+            DEBUG_ASSERT(namelist->Type() == SyntaxTreeType::NameList);
+            DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
+
+            const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
+            const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+            const auto &names = namelist_ptr->Names();
+            auto &exps = explist_ptr->Exps();
+
+            // 变量名和表达式数量必须匹配
+            if (names.size() != exps.size()) {
+                ThrowError(std::format("local variable count {} not match expression count {}", names.size(), exps.size()), stmt);
+            }
+
+            for (size_t i = 0; i < names.size(); ++i) {
+                const auto &name = names[i];
+                const auto &exp = exps[i];
+
+                // 检查是否重复定义
+                if (global_const_vars_.contains(name)) {
+                    ThrowError("duplicate global const variable: " + name, stmt);
+                }
+
+                // 编译表达式为 CVar 初始化字符串
+                std::string cvar_init = CompileExp(exp);
+
+                // 生成静态全局变量
+                globals_ << "static CVar " << name << " = " << cvar_init << ";\n";
+
+                // 记录变量名
+                global_const_vars_.insert(name);
+            }
+        }
+    }
+
+    in_global_init_ = false;
 
     globals_ << "\n";
 }
@@ -538,7 +590,7 @@ void CGen::GenerateDecls(CompileResult &cr) {
         decls_ << ");\n";
 
         // 记录函数参数数量
-        cr.function_names[name] = params.size();
+        cr.function_names[name] = static_cast<int>(params.size());
     }
 
     decls_ << "\n";
@@ -571,10 +623,11 @@ std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
 }
 
 [[noreturn]] void CGen::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) {
-    ThrowFakeluaException(std::format("Code generate failed, {} at {}:{}:{}", msg, file_name_, ptr->Loc().begin.line, ptr->Loc().begin.column));
+    ThrowFakeluaException(
+            std::format("Code generate failed, {} at {}:{}:{}", msg, file_name_, ptr->Loc().begin.line, ptr->Loc().begin.column));
 }
 
-std::string CGen::GenTab() {
+std::string CGen::GenTab() const {
     return std::string(cur_tab_ * 4, ' ');
 }
 
@@ -595,7 +648,6 @@ std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parl
         for (const auto &key: global_const_vars_) {
             param_names_set.insert(key);
         }
-
 
         for (auto &name: param_names) {
             if (param_names_set.contains(name)) {
@@ -737,7 +789,7 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
 
     const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
     DEBUG_ASSERT(!explist_ptr->Exps().empty());
-    if (explist_ptr->Exps().size() == 0) {
+    if (explist_ptr->Exps().empty()) {
         // 默认返回 nil
         const auto exp = std::make_shared<SyntaxTreeExp>(return_stmt->Loc());
         exp->SetType("nil");
@@ -759,7 +811,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
 void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
 }
 
-void CGen::CompileStmtFunctioncall(SyntaxTreeInterfacePtr shared) {
+void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared) {
 }
 
 void CGen::CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt) {
@@ -768,16 +820,16 @@ void CGen::CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt) {
 void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
 }
 
-void CGen::CompileStmtRepeat(SyntaxTreeInterfacePtr stmt) {
+void CGen::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
 }
 
-void CGen::CompileStmtIf(SyntaxTreeInterfacePtr stmt) {
+void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
 }
 
-void CGen::CompileStmtBreak(SyntaxTreeInterfacePtr stmt) {
+void CGen::CompileStmtBreak(const SyntaxTreeInterfacePtr &stmt) {
 }
 
-void CGen::CompileStmtForLoop(SyntaxTreeInterfacePtr stmt) {
+void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
 }
 
 void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
@@ -836,19 +888,83 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
 }
 
 std::string CGen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe) {
-    // TODO
+    DEBUG_ASSERT(pe->Type() == SyntaxTreeType::PrefixExp);
+    const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
+
+    const auto &pe_type = pe_ptr->GetType();
+    const auto value = pe_ptr->GetValue();
+
+    DEBUG_ASSERT(pe_type == "var" || pe_type == "functioncall" || pe_type == "exp");
+
+    if (pe_type == "var") {
+        return CompileVar(value);
+    } else if (pe_type == "functioncall") {
+        return CompileFunctioncall(value);
+    } else /*if (pe_type == "exp")*/ {
+        return CompileExp(value);
+    }
 }
 
 std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
-    // TODO
+    if (in_global_init_) {
+        ThrowError("table constructor is not supported in global variable initialization", tc);
+    }
 }
 
 std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op) {
-    // TODO
+    if (in_global_init_) {
+        ThrowError("binary operator is not supported in global variable initialization", op);
+    }
 }
 
 std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op) {
-    // TODO
+    if (in_global_init_) {
+        ThrowError("unary operator is not supported in global variable initialization", op);
+    }
+}
+
+std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
+    DEBUG_ASSERT(v->Type() == SyntaxTreeType::Var);
+    auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(v);
+
+    DEBUG_ASSERT(v_ptr->GetType() == "simple" || v_ptr->GetType() == "square" || v_ptr->GetType() == "dot");
+
+    if (const auto &type = v_ptr->GetType(); type == "simple") {
+        const auto &name = v_ptr->GetName();
+        return name;
+    } else if (type == "square") {
+        if (in_global_init_) {
+            ThrowError("table access is not allowed in global variable initialization", v);
+        }
+        const auto pe = v_ptr->GetPrefixexp();
+        const auto exp = v_ptr->GetExp();
+        auto pe_ret = CompilePrefixexp(pe);
+        auto exp_ret = CompileExp(exp);
+
+        // 调用table的get函数
+        return std::format("FlGetTable(s, {}, {})", pe_ret, exp_ret);
+    } else /*if (type == "dot")*/ {
+        if (in_global_init_) {
+            ThrowError("table access is not allowed in global variable initialization", v);
+        }
+        const auto pe = v_ptr->GetPrefixexp();
+        const auto name = v_ptr->GetName();
+        auto pe_ret = CompilePrefixexp(pe);
+
+        const auto name_exp = std::make_shared<SyntaxTreeExp>(v_ptr->Loc());
+        name_exp->SetType("string");
+        name_exp->SetValue(name);
+        auto exp_ret = CompileExp(name_exp);
+
+        // 调用table的get函数
+        return std::format("FlGetTable(s, {}, {})", pe_ret, exp_ret);
+    }
+}
+
+std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall) {
+    if (in_global_init_) {
+        ThrowError("function call is not allowed in global variable initialization", functioncall);
+    }
 }
 
 }// namespace fakelua
