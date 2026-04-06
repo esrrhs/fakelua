@@ -17,28 +17,23 @@ public:
     void Generate(CompileResult &cr, const CompileConfig &cfg);
 
 private:
-    std::string Build(const CompileResult &cr, const CompileConfig &cfg);
-    void GenerateHeader();
-    void GenerateDecls(CompileResult &cr);
+    std::string Build(CompileResult &cr, const CompileConfig &cfg);
 
-    // 收集函数定义
-    void CollectFunctions(const SyntaxTreeInterfacePtr &node);
-    void CollectFunctionFromStmt(const SyntaxTreeInterfacePtr &stmt);
+    [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
 
-    // 收集函数体中的嵌套函数定义
-    void CollectFunctionsFromBlock(const SyntaxTreeInterfacePtr &block);
+    std::string GenerateHeader();
+
+    std::string GenerateDecls(CompileResult &cr);
+
+    std::string CompileFuncName(const SyntaxTreeInterfacePtr &ptr);
+
+    std::vector<std::string> CompileParlist(const SyntaxTreeInterfacePtr &parlist);
 
 private:
     State *s_;
-    std::stringstream header_;
-    std::stringstream decls_;
+    std::string file_name_;
 
-    // 收集到的函数信息：函数名 -> 参数个数
-    std::unordered_map<std::string, int> functions_;
-
-    // 当前函数名前缀（用于嵌套函数）
-    std::string func_prefix_;
-    int func_counter_ = 0;
+    std::unordered_set<std::string> global_const_vars_;
 };
 
 }// namespace fakelua
