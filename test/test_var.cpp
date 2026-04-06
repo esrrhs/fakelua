@@ -528,3 +528,267 @@ TEST(var, table_rehash) {
         ASSERT_EQ(vt.Get(Var((int64_t) i)).GetInt(), i * 10);
     }
 }
+
+TEST(var, get_string_string_type) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v;
+    v.SetTempString(s, "test string");
+    ASSERT_EQ(v.Type(), VarType::String);
+    ASSERT_EQ(v.GetString()->Str(), "test string");
+}
+
+TEST(var, get_string_stringid_type) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v;
+    v.SetConstString(s, "const string");
+    ASSERT_EQ(v.Type(), VarType::StringId);
+    ASSERT_EQ(v.GetString()->Str(), "const string");
+}
+
+TEST(var, tostring_stringid) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v;
+    v.SetConstString(s, "const");
+    ASSERT_EQ(v.ToString(), "\"const\"");
+
+    // Test without quote
+    ASSERT_EQ(v.ToString(false), "const");
+}
+
+TEST(var, hash_string_types) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTempString(s, "hello");
+    size_t hash1 = v1.Hash();
+    ASSERT_NE(hash1, 0);
+
+    Var v2;
+    v2.SetConstString(s, "hello");
+    size_t hash2 = v2.Hash();
+    ASSERT_NE(hash2, 0);
+
+    // Same string content should have same hash
+    ASSERT_EQ(hash1, hash2);
+}
+
+TEST(var, hash_int_float) {
+    Var v1((int64_t) 12345);
+    size_t hash1 = v1.Hash();
+    ASSERT_NE(hash1, 0);
+
+    Var v2(12345.0);
+    size_t hash2 = v2.Hash();
+    ASSERT_NE(hash2, 0);
+}
+
+TEST(var, hash_table) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v;
+    v.SetTable(s);
+    size_t hash = v.Hash();
+    ASSERT_NE(hash, 0);
+}
+
+TEST(var, equal_string_stringid) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTempString(s, "hello");
+
+    Var v2;
+    v2.SetConstString(s, "hello");
+
+    // String == StringId should compare content
+    ASSERT_TRUE(v1.Equal(v2));
+    ASSERT_TRUE(v2.Equal(v1));
+
+    Var v3;
+    v3.SetConstString(s, "world");
+    ASSERT_FALSE(v1.Equal(v3));
+}
+
+TEST(var, equal_string) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTempString(s, "hello");
+
+    Var v2;
+    v2.SetTempString(s, "hello");
+
+    // Same string content, different pointers
+    ASSERT_TRUE(v1.Equal(v2));
+
+    Var v3;
+    v3.SetTempString(s, "world");
+    ASSERT_FALSE(v1.Equal(v3));
+}
+
+TEST(var, equal_stringid) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetConstString(s, "hello");
+
+    Var v2;
+    v2.SetConstString(s, "hello");
+
+    // Same StringId should be equal
+    ASSERT_TRUE(v1.Equal(v2));
+
+    Var v3;
+    v3.SetConstString(s, "world");
+    ASSERT_FALSE(v1.Equal(v3));
+}
+
+TEST(var, equal_float_nan) {
+    Var v1(std::nan(""));
+    Var v2(std::nan(""));
+
+    // NaN == NaN should be true in Lua semantics
+    ASSERT_TRUE(v1.Equal(v2));
+
+    Var v3(1.0);
+    ASSERT_FALSE(v1.Equal(v3));
+}
+
+TEST(var, equal_table) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTable(s);
+
+    // Same table pointer
+    Var v2 = v1;
+    ASSERT_TRUE(v1.Equal(v2));
+
+    // Different table pointers
+    Var v3;
+    v3.SetTable(s);
+    ASSERT_FALSE(v1.Equal(v3));
+}
+
+TEST(var, is_calculable) {
+    Var v1((int64_t) 10);
+    ASSERT_TRUE(v1.IsCalculable());
+
+    Var v2(3.14);
+    ASSERT_TRUE(v2.IsCalculable());
+
+    Var v3(true);
+    ASSERT_FALSE(v3.IsCalculable());
+}
+
+TEST(var, is_calculable_integer) {
+    Var v1((int64_t) 10);
+    ASSERT_TRUE(v1.IsCalculableInteger());
+
+    Var v2(3.14);
+    ASSERT_FALSE(v2.IsCalculableInteger());
+}
+
+TEST(var, get_calculable_number_from_int) {
+    Var v((int64_t) 42);
+    double result = v.GetCalculableNumber();
+    ASSERT_DOUBLE_EQ(result, 42.0);
+}
+
+TEST(var, plus_type_error) {
+    const FakeluaStateGuard guard;
+
+    Var v1(true);
+    Var v2((int64_t) 10);
+    Var res;
+
+    EXPECT_THROW(v1.Plus(v2, res), std::exception);
+}
+
+TEST(var, plus_float_result) {
+    Var v1(2.5);
+    Var v2(3.7);
+    Var res;
+
+    v1.Plus(v2, res);
+    // Result should be float since 2.5 + 3.7 = 6.2 is not an integer
+    ASSERT_DOUBLE_EQ(res.GetFloat(), 6.2);
+}
+
+TEST(var, minus_type_error) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTempString(s, "hello");
+    Var v2((int64_t) 10);
+    Var res;
+
+    EXPECT_THROW(v1.Minus(v2, res), std::exception);
+}
+
+TEST(var, star_type_error) {
+    Var v1(true);
+    Var v2((int64_t) 10);
+    Var res;
+
+    EXPECT_THROW(v1.Star(v2, res), std::exception);
+}
+
+TEST(var, star_float_result) {
+    Var v1(2.5);
+    Var v2(4.1);
+    Var res;
+
+    v1.Star(v2, res);
+    // Result should be float since 2.5 * 4.1 = 10.25 is not an integer
+    ASSERT_DOUBLE_EQ(res.GetFloat(), 10.25);
+}
+
+TEST(var, slash_type_error) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v1;
+    v1.SetTempString(s, "hello");
+    Var v2((int64_t) 10);
+    Var res;
+
+    EXPECT_THROW(v1.Slash(v2, res), std::exception);
+}
+
+TEST(var, doubleslash_type_error) {
+    Var v1(true);
+    Var v2((int64_t) 10);
+    Var res;
+
+    EXPECT_THROW(v1.DoubleSlash(v2, res), std::exception);
+}
+
+TEST(var, doubleslash_float_result) {
+    Var v1(7.5);
+    Var v2(2.0);
+    Var res;
+
+    v1.DoubleSlash(v2, res);
+    // floor(7.5 / 2.0) = 3.0, but 3.0 is stored as integer
+    ASSERT_EQ(res.GetInt(), 3);
+
+    Var v3(-7.5);
+    Var v4(2.0);
+    v3.DoubleSlash(v4, res);
+    // floor(-7.5 / 2.0) = -4.0, but -4.0 is stored as integer
+    ASSERT_EQ(res.GetInt(), -4);
+}
