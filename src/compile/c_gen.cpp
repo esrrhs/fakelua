@@ -512,7 +512,7 @@ std::string CGen::GenerateDecls(CompileResult &cr) {
         const auto parlist = funcbody_ptr->Parlist();
         std::vector<std::string> func_params;
         if (parlist) {
-            func_params = CompileParlist(parlist);
+            func_params = CompileParList(parlist);
         }
         func_decls[name] = func_params;
     }
@@ -564,7 +564,7 @@ std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
     ThrowFakeluaException(std::format("{} at {}:{}:{}", msg, file_name_, ptr->Loc().begin.line, ptr->Loc().begin.column));
 }
 
-std::vector<std::string> CGen::CompileParlist(const SyntaxTreeInterfacePtr &parlist) {
+std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parlist) {
     DEBUG_ASSERT(parlist->Type() == SyntaxTreeType::ParList);
     const auto parlist_ptr = std::dynamic_pointer_cast<SyntaxTreeParlist>(parlist);
 

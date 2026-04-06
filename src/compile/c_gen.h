@@ -27,7 +27,7 @@ private:
 
     std::string CompileFuncName(const SyntaxTreeInterfacePtr &ptr);
 
-    std::vector<std::string> CompileParlist(const SyntaxTreeInterfacePtr &parlist);
+    std::vector<std::string> CompileParList(const SyntaxTreeInterfacePtr &parlist);
 
 private:
     State *s_;
