@@ -182,6 +182,9 @@ void PreProcessor::PreprocessTableAssign(const SyntaxTreeInterfacePtr &node) {
                     args_explist->AddExp(exp);
                 }
 
+                args->SetExplist(args_explist);
+                func_call->SetArgs(args);
+
                 new_stmts.push_back(func_call);
             } else {
                 new_stmts.push_back(stmt);

@@ -264,7 +264,7 @@ double FakeluaToNativeDouble(State *s, CVar v) {
 
 const char *FakeluaToNativeCstr(State *s, CVar v) {
     const auto vv = static_cast<Var &>(v);
-    if (vv.Type() == VarType::String) {
+    if (vv.Type() == VarType::String || vv.Type() == VarType::StringId) {
         return vv.GetString()->Str().data();
     }
     ThrowFakeluaException(std::format("FakeluaToNativeCstr failed, type is {}", VarTypeToString(vv.Type())));
@@ -272,7 +272,7 @@ const char *FakeluaToNativeCstr(State *s, CVar v) {
 
 const char *FakeluaToNativeStr(State *s, CVar v) {
     const auto vv = static_cast<Var &>(v);
-    if (vv.Type() == VarType::String) {
+    if (vv.Type() == VarType::String || vv.Type() == VarType::StringId) {
         return vv.GetString()->Str().data();
     }
     ThrowFakeluaException(std::format("FakeluaToNativeStr failed, type is {}", VarTypeToString(vv.Type())));
@@ -280,7 +280,7 @@ const char *FakeluaToNativeStr(State *s, CVar v) {
 
 std::string FakeluaToNativeString(State *s, CVar v) {
     const auto vv = static_cast<Var &>(v);
-    if (vv.Type() == VarType::String) {
+    if (vv.Type() == VarType::String || vv.Type() == VarType::StringId) {
         return std::string(vv.GetString()->Str());
     }
     ThrowFakeluaException(std::format("FakeluaToNativeString failed, type is {}", VarTypeToString(vv.Type())));
@@ -288,7 +288,7 @@ std::string FakeluaToNativeString(State *s, CVar v) {
 
 std::string_view FakeluaToNativeStringView(State *s, CVar v) {
     const auto vv = static_cast<Var &>(v);
-    if (vv.Type() == VarType::String) {
+    if (vv.Type() == VarType::String || vv.Type() == VarType::StringId) {
         return vv.GetString()->Str();
     }
     ThrowFakeluaException(std::format("FakeluaToNativeStringview failed, type is {}", VarTypeToString(vv.Type())));

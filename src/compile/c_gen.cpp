@@ -368,9 +368,9 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
         if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h && VarEqual(tbl->quick_data_[6].key, k)) { tbl->quick_data_[6].val = v; return; }
         if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h && VarEqual(tbl->quick_data_[7].key, k)) { tbl->quick_data_[7].val = v; return; }
         if (tbl->count_ < 8) { tbl->quick_data_[tbl->count_].key = k; tbl->quick_data_[tbl->count_].val = v; tbl->quick_data_[tbl->count_].hash = h; tbl->count_++; return; }
-        FlTableRehash(_S, tbl);
+        FlTableRehash(tbl);
     }
-    if (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF) { FlTableRehash(_S, tbl); }
+    if (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF) { FlTableRehash(tbl); }
     FlTableInsertRaw(tbl, k, v, h);
 }
 
