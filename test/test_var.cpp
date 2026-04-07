@@ -833,6 +833,22 @@ TEST(var, mod_float_result) {
     ASSERT_NEAR(res.GetFloat(), 0.2, 0.0001);
 }
 
+TEST(var, doubleslash_division_by_zero) {
+    Var v1(static_cast<int64_t>(10));
+    Var v2(static_cast<int64_t>(0));
+    Var res;
+
+    EXPECT_THROW(v1.DoubleSlash(v2, res), std::exception);
+}
+
+TEST(var, mod_division_by_zero) {
+    Var v1(static_cast<int64_t>(10));
+    Var v2(static_cast<int64_t>(0));
+    Var res;
+
+    EXPECT_THROW(v1.Mod(v2, res), std::exception);
+}
+
 TEST(var, bitand_type_error) {
     Var v1(3.14);
     Var v2(static_cast<int64_t>(10));

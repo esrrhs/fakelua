@@ -201,6 +201,9 @@ void Var::DoubleSlash(const Var &rhs, Var &result) const {
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
     if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
+        if (rhs.GetCalculableInt() == 0) {
+            ThrowFakeluaException("Var op failed, division by zero in '//'");
+        }
         result.SetInt(GetCalculableInt() / rhs.GetCalculableInt());
     } else {
         result.SetFloat(std::floor(GetCalculableNumber() / rhs.GetCalculableNumber()));
@@ -221,6 +224,9 @@ void Var::Mod(const Var &rhs, Var &result) const {
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
     if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
+        if (rhs.GetCalculableInt() == 0) {
+            ThrowFakeluaException("Var op failed, division by zero in '%'");
+        }
         result.SetInt(GetCalculableInt() % rhs.GetCalculableInt());
     } else {
         result.SetFloat(std::fmod(GetCalculableNumber(), rhs.GetCalculableNumber()));
