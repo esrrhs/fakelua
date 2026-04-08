@@ -197,7 +197,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
             case VAR_NIL: { __res = true; break; } \
             case VAR_BOOL: { __res = (__a.data_.b == __b.data_.b); break; } \
             case VAR_INT: { __res = (__a.data_.i == __b.data_.i); break; } \
-            case VAR_FLOAT: { __res = !isnan(__a.data_.f) && !isnan(__b.data_.f) && (__a.data_.f == __b.data_.f); break; } \
+            case VAR_FLOAT: { __res = (__a.data_.f == __b.data_.f); break; } \
             case VAR_STRING: { if (__a.data_.s == __b.data_.s) { __res = true; } else if (__a.data_.s->size_ == __b.data_.s->size_ && memcmp(__a.data_.s->data_, __b.data_.s->data_, __a.data_.s->size_) == 0) { __res = true; } break; } \
             case VAR_STRINGID: { __res = (__a.data_.i == __b.data_.i); break; } \
             case VAR_TABLE: { __res = (__a.data_.t == __b.data_.t); break; } \

@@ -82,28 +82,8 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
             if (vars.size() == 1) {
                 new_stmts.push_back(stmt);
             } else {
-                // Lua multi-assignment semantics: evaluate all RHS expressions first, then assign.
-                // We need to save all expressions to temporary variables before assigning.
-                // Generate: local __tmp0, __tmp1, ... = exps[0], exps[1], ...
-                //           vars[0] = __tmp0; vars[1] = __tmp1; ...
-
-                const auto local_var = std::make_shared<SyntaxTreeLocalVar>(stmt->Loc());
-                const auto tmp_namelist = std::make_shared<SyntaxTreeNamelist>(stmt->Loc());
-                const auto tmp_explist = std::make_shared<SyntaxTreeExplist>(stmt->Loc());
-
-                std::vector<std::string> tmp_names;
-                for (size_t i = 0; i < exps.size(); ++i) {
-                    std::string tmp_name = std::format("__fakelua_tmp_{}", tmp_counter_++);
-                    tmp_names.push_back(tmp_name);
-                    tmp_namelist->AddName(tmp_name);
-                    tmp_explist->AddExp(exps[i]);
-                }
-                local_var->SetNamelist(tmp_namelist);
-                local_var->SetExplist(tmp_explist);
-                new_stmts.push_back(local_var);
-
-                // Now assign from temporaries to actual variables
                 for (size_t i = 0; i < vars.size(); ++i) {
+                    // 直接生成 vars[i] = exps[i]
                     const auto new_assign = std::make_shared<SyntaxTreeAssign>(stmt->Loc());
 
                     const auto single_varlist = std::make_shared<SyntaxTreeVarlist>(stmt->Loc());
@@ -111,16 +91,7 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
                     new_assign->SetVarlist(single_varlist);
 
                     const auto single_explist = std::make_shared<SyntaxTreeExplist>(stmt->Loc());
-                    const auto tmp_exp = std::make_shared<SyntaxTreeExp>(stmt->Loc());
-                    tmp_exp->SetType("prefixexp");
-                    const auto tmp_prefixexp = std::make_shared<SyntaxTreePrefixexp>(stmt->Loc());
-                    tmp_prefixexp->SetType("var");
-                    const auto tmp_var = std::make_shared<SyntaxTreeVar>(stmt->Loc());
-                    tmp_var->SetType("simple");
-                    tmp_var->SetName(tmp_names[i]);
-                    tmp_prefixexp->SetValue(tmp_var);
-                    tmp_exp->SetRight(tmp_prefixexp);
-                    single_explist->AddExp(tmp_exp);
+                    single_explist->AddExp(exps[i]);
                     new_assign->SetExplist(single_explist);
 
                     new_stmts.push_back(new_assign);

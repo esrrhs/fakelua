@@ -116,10 +116,6 @@ bool Var::Equal(const Var &rhs) const {
         case VarType::Int:
             return data_.i == rhs.data_.i;
         case VarType::Float:
-            // NaN is never equal to anything, including itself (IEEE 754 and Lua 5.4 semantics)
-            if (std::isnan(data_.f) || std::isnan(rhs.data_.f)) {
-                return false;
-            }
             return data_.f == rhs.data_.f;
         case VarType::String:
             return data_.s->Str() == rhs.data_.s->Str();
