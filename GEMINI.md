@@ -77,8 +77,12 @@ Generated C code is designed to be highly autonomous. Any JIT-compiled C code mu
 ### 3. Cross-Language Semantic Synchronization
 - **Hash Consistency**: Both C++ (`VarString::Hash`) and C (`FlHashString`) must use the **DJB2 algorithm**. The `hash_` field must be initialized to `0` to support lazy evaluation semantics across both environments.
 - **Equality Semantics**: `VarEqual` (C) and `Var::Equal` (C++) must maintain 100% semantic parity, specifically supporting cross-type comparison between `VAR_STRING` and `VAR_STRINGID`, and explicitly handling `NaN == NaN` as `true`.
-- **Float Normalization**: The `SET_FLOAT` macro must include a high-performance Casting Check (`(double)(int64_t)val == val`) to ensure floats without fractional parts are normalized to `VAR_INT`.
+- **Float Normalization**: Both the `SET_FLOAT` macro (C) and `Var::SetFloat` (C++) must include checks for `NaN` and `Infinity`. These special values MUST NOT be normalized to `VAR_INT`. Normalization to `VAR_INT` only occurs when `(double)(int64_t)val == val` is true for finite numbers.
 
-### 4. Generated Code Style
+### 4. Preprocessing & Assignment Standards
+- **Evaluation Order**: Multi-assignments (e.g., `a, b = b, a`) MUST evaluate all RHS expressions before performing any assignments. The `PreProcessor` achieves this by generating temporary local variables to hold RHS results.
+- **Unique Temporaries**: Temporary variables generated during preprocessing must use a naming convention that avoids collisions (e.g., `__fakelua_tmp_LINE_INDEX`).
+
+### 5. Generated Code Style
 - **Brace Requirement**: All generated C code must explicitly include braces `{}` for all control flow statements (`if`, `for`, `while`), ensuring maximum robustness and compatibility across various C compilers.
 
