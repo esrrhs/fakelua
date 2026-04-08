@@ -34,7 +34,6 @@ private:
 private:
     State *s_;
     std::string file_name_;
-    size_t tmp_counter_ = 0;
 };
 
 }// namespace fakelua

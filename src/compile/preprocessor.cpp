@@ -82,8 +82,27 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
             if (vars.size() == 1) {
                 new_stmts.push_back(stmt);
             } else {
+                // 1. 先生成临时变量名列表
+                const auto tmp_namelist = std::make_shared<SyntaxTreeNamelist>(stmt->Loc());
+                const auto tmp_explist = std::make_shared<SyntaxTreeExplist>(stmt->Loc());
+                std::vector<std::string> tmp_names;
+
                 for (size_t i = 0; i < vars.size(); ++i) {
-                    // 直接生成 vars[i] = exps[i]
+                    // 使用行号和索引生成唯一的临时变量名
+                    std::string tmp_name = std::format("__fakelua_tmp_{}_{}", stmt->Loc().begin.line, i);
+                    tmp_namelist->AddName(tmp_name);
+                    tmp_explist->AddExp(exps[i]);
+                    tmp_names.push_back(tmp_name);
+                }
+
+                // 2. 创建局部变量定义语句：local tmp1, tmp2, ... = exp1, exp2, ...
+                const auto local_var_stmt = std::make_shared<SyntaxTreeLocalVar>(stmt->Loc());
+                local_var_stmt->SetNamelist(tmp_namelist);
+                local_var_stmt->SetExplist(tmp_explist);
+                new_stmts.push_back(local_var_stmt);
+
+                // 3. 为每个变量生成单赋值语句：vars[i] = tmp_names[i]
+                for (size_t i = 0; i < vars.size(); ++i) {
                     const auto new_assign = std::make_shared<SyntaxTreeAssign>(stmt->Loc());
 
                     const auto single_varlist = std::make_shared<SyntaxTreeVarlist>(stmt->Loc());
@@ -91,7 +110,18 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
                     new_assign->SetVarlist(single_varlist);
 
                     const auto single_explist = std::make_shared<SyntaxTreeExplist>(stmt->Loc());
-                    single_explist->AddExp(exps[i]);
+                    const auto tmp_exp = std::make_shared<SyntaxTreeExp>(stmt->Loc());
+                    tmp_exp->SetType("prefixexp");
+                    
+                    const auto tmp_prefix = std::make_shared<SyntaxTreePrefixexp>(stmt->Loc());
+                    tmp_prefix->SetType("var");
+                    const auto tmp_var = std::make_shared<SyntaxTreeVar>(stmt->Loc());
+                    tmp_var->SetType("simple");
+                    tmp_var->SetName(tmp_names[i]);
+                    tmp_prefix->SetValue(tmp_var);
+                    
+                    tmp_exp->SetRight(tmp_prefix);
+                    single_explist->AddExp(tmp_exp);
                     new_assign->SetExplist(single_explist);
 
                     new_stmts.push_back(new_assign);
