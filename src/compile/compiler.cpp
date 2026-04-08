@@ -40,8 +40,10 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     auto code = parse.parse();
     LOG_INFO("compile ret {}", code);
 
-    // 断言语法解析无误
-    DEBUG_ASSERT(code == 0);
+    // 检查语法解析结果，解析失败必须抛出异常
+    if (code != 0) {
+        ThrowFakeluaException(std::format("Parse failed with code {}", code));
+    }
     ret.chunk = f.GetChunk();
 
     // 调试模式下遍历语法树，可用于语法树检查

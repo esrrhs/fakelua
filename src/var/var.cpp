@@ -116,8 +116,9 @@ bool Var::Equal(const Var &rhs) const {
         case VarType::Int:
             return data_.i == rhs.data_.i;
         case VarType::Float:
-            if (std::isnan(data_.f) && std::isnan(rhs.data_.f)) {
-                return true;
+            // NaN is never equal to anything, including itself (IEEE 754 and Lua 5.4 semantics)
+            if (std::isnan(data_.f) || std::isnan(rhs.data_.f)) {
+                return false;
             }
             return data_.f == rhs.data_.f;
         case VarType::String:
@@ -204,7 +205,16 @@ void Var::DoubleSlash(const Var &rhs, Var &result) const {
         if (rhs.GetCalculableInt() == 0) {
             ThrowFakeluaException("Var op failed, division by zero in '//'");
         }
-        result.SetInt(GetCalculableInt() / rhs.GetCalculableInt());
+        // Lua // is floor division, which rounds toward negative infinity
+        // C++ / truncates toward zero, so we need to adjust for negative results
+        int64_t a = GetCalculableInt();
+        int64_t b = rhs.GetCalculableInt();
+        int64_t q = a / b;
+        // If signs differ and there's a remainder, adjust toward negative infinity
+        if ((a ^ b) < 0 && a % b != 0) {
+            q -= 1;
+        }
+        result.SetInt(q);
     } else {
         result.SetFloat(std::floor(GetCalculableNumber() / rhs.GetCalculableNumber()));
     }
@@ -227,9 +237,21 @@ void Var::Mod(const Var &rhs, Var &result) const {
         if (rhs.GetCalculableInt() == 0) {
             ThrowFakeluaException("Var op failed, division by zero in '%'");
         }
-        result.SetInt(GetCalculableInt() % rhs.GetCalculableInt());
+        // Lua % follows floor division semantics: a % b = a - b * floor(a / b)
+        // This is different from C++ % which truncates toward zero
+        int64_t a = GetCalculableInt();
+        int64_t b = rhs.GetCalculableInt();
+        int64_t q = a / b;
+        // If signs differ and there's a remainder, adjust toward negative infinity
+        if ((a ^ b) < 0 && a % b != 0) {
+            q -= 1;
+        }
+        result.SetInt(a - b * q);
     } else {
-        result.SetFloat(std::fmod(GetCalculableNumber(), rhs.GetCalculableNumber()));
+        // For floats, use fmod which already gives correct remainder, but we need to adjust for Lua semantics
+        double a = GetCalculableNumber();
+        double b = rhs.GetCalculableNumber();
+        result.SetFloat(a - b * std::floor(a / b));
     }
 }
 
@@ -374,12 +396,14 @@ void Var::UnopNot(Var &result) const {
 }
 
 void Var::UnopNumberSign(Var &result) const {
-    if (Type() != VarType::String && Type() != VarType::Table) {
+    if (Type() != VarType::String && Type() != VarType::StringId && Type() != VarType::Table) {
         ThrowFakeluaException(std::format("Var op failed, operand of '#' must be string or table, got {} {}", VarTypeToString(Type()), ToString()));
     }
 
     if (Type() == VarType::String) {
         result.SetInt(static_cast<int64_t>(data_.s->Size()));
+    } else if (Type() == VarType::StringId) {
+        result.SetInt(static_cast<int64_t>(ConstString::GetVarString(data_.i)->Size()));
     } else {
         result.SetInt(static_cast<int64_t>(data_.t->Size()));
     }

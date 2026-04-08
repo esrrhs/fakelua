@@ -119,13 +119,18 @@ enum {
 #define SET_INT(v, val) do { (v).type_ = VAR_INT; (v).data_.i = (val); } while(0)
 #define SET_FLOAT(v, val) do { \
     double __f = (val); \
-    int64_t __i = (int64_t)__f; \
-    if ((double)__i == __f) { \
-        (v).type_ = VAR_INT; \
-        (v).data_.i = __i; \
-    } else { \
+    if (isnan(__f) || isinf(__f)) { \
         (v).type_ = VAR_FLOAT; \
         (v).data_.f = __f; \
+    } else { \
+        int64_t __i = (int64_t)__f; \
+        if ((double)__i == __f) { \
+            (v).type_ = VAR_INT; \
+            (v).data_.i = __i; \
+        } else { \
+            (v).type_ = VAR_FLOAT; \
+            (v).data_.f = __f; \
+        } \
     } \
 } while(0)
 
@@ -192,7 +197,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
             case VAR_NIL: { __res = true; break; } \
             case VAR_BOOL: { __res = (__a.data_.b == __b.data_.b); break; } \
             case VAR_INT: { __res = (__a.data_.i == __b.data_.i); break; } \
-            case VAR_FLOAT: { if (isnan(__a.data_.f) && isnan(__b.data_.f)) { __res = true; } else { __res = (__a.data_.f == __b.data_.f); } break; } \
+            case VAR_FLOAT: { __res = !isnan(__a.data_.f) && !isnan(__b.data_.f) && (__a.data_.f == __b.data_.f); break; } \
             case VAR_STRING: { if (__a.data_.s == __b.data_.s) { __res = true; } else if (__a.data_.s->size_ == __b.data_.s->size_ && memcmp(__a.data_.s->data_, __b.data_.s->data_, __a.data_.s->size_) == 0) { __res = true; } break; } \
             case VAR_STRINGID: { __res = (__a.data_.i == __b.data_.i); break; } \
             case VAR_TABLE: { __res = (__a.data_.t == __b.data_.t); break; } \
@@ -543,8 +548,11 @@ void CGen::GenerateDecls(CompileResult &cr) {
     for (const auto &[name, params]: func_decls) {
         // 生成函数声明
         decls_ << "CVar " << name << "(";
-        for (const auto &param: params) {
-            decls_ << ", CVar " << param;
+        for (size_t i = 0; i < params.size(); ++i) {
+            if (i > 0) {
+                decls_ << ", ";
+            }
+            decls_ << "CVar " << params[i];
         }
         decls_ << ");\n";
 
@@ -653,8 +661,11 @@ void CGen::GenerateImpl(CompileResult &cr) {
 
         // 生成函数声明
         decls_ << "CVar " << name << "(";
-        for (const auto &param: func_params) {
-            decls_ << ", CVar " << param;
+        for (size_t i = 0; i < func_params.size(); ++i) {
+            if (i > 0) {
+                decls_ << ", ";
+            }
+            decls_ << "CVar " << func_params[i];
         }
         decls_ << ") {\n";
 

@@ -3,7 +3,7 @@
 namespace fakelua {
 
 std::string Exec(const char *cmd) {
-    std::shared_ptr<FILE> pipe(popen(cmd, "r"), fclose);
+    std::shared_ptr<FILE> pipe(popen(cmd, "r"), pclose);
 
     if (!pipe) {
         throw std::runtime_error("popen() failed!");

@@ -317,16 +317,21 @@ TEST(var, var_table_nan_keys) {
     Var v2;
     v2.SetInt(2);
 
+    // In Lua, NaN ~= NaN, so each NaN key is treated as different
+    // Setting with k1 and k2 creates two separate entries
     vt.Set(s, k1, v1, false);
     vt.Set(s, k2, v2, false);
 
+    // Size should be 2 because NaN keys are not equal
+    ASSERT_EQ(vt.Size(), 2);
+
+    // Getting with NaN keys returns nil because NaN ~= NaN
+    // This is the correct Lua semantics
     auto v = vt.Get(k1);
-    ASSERT_EQ(v.Type(), VarType::Int);
-    ASSERT_EQ(v.GetInt(), 2);
+    ASSERT_EQ(v.Type(), VarType::Nil);
 
     v = vt.Get(k2);
-    ASSERT_EQ(v.Type(), VarType::Int);
-    ASSERT_EQ(v.GetInt(), 2);
+    ASSERT_EQ(v.Type(), VarType::Nil);
 }
 
 TEST(var, var_table_size) {
@@ -407,15 +412,30 @@ TEST(var, arithmetic) {
     v1.Slash(v2, res);
     ASSERT_NEAR(res.GetCalculableNumber(), 3.333333, 0.000001);
 
-    // DoubleSlash (floor division)
+    // DoubleSlash (floor division - Lua semantics: rounds toward negative infinity)
     v1.DoubleSlash(v2, res);
     ASSERT_EQ(res.GetInt(), 3);
+    // -10 // 3 = -4 (floor division, not truncation toward zero)
     Var((int64_t) -10LL).DoubleSlash(Var((int64_t) 3LL), res);
-    ASSERT_EQ(res.GetInt(), -3);
+    ASSERT_EQ(res.GetInt(), -4);
+    // Additional floor division tests
+    Var((int64_t) 10LL).DoubleSlash(Var((int64_t) -3LL), res);
+    ASSERT_EQ(res.GetInt(), -4);
+    Var((int64_t) -10LL).DoubleSlash(Var((int64_t) -3LL), res);
+    ASSERT_EQ(res.GetInt(), 3);
 
-    // Mod
+    // Mod (Lua semantics: a % b = a - b * floor(a / b))
     v1.Mod(v2, res);
     ASSERT_EQ(res.GetInt(), 1);
+    // -10 % 3 = 2 (Lua semantics: -10 - 3 * floor(-10/3) = -10 - 3 * (-4) = -10 + 12 = 2)
+    Var((int64_t) -10LL).Mod(Var((int64_t) 3LL), res);
+    ASSERT_EQ(res.GetInt(), 2);
+    // 10 % -3 = -2 (Lua semantics: 10 - (-3) * floor(10/-3) = 10 - (-3) * (-4) = 10 - 12 = -2)
+    Var((int64_t) 10LL).Mod(Var((int64_t) -3LL), res);
+    ASSERT_EQ(res.GetInt(), -2);
+    // -10 % -3 = -1 (Lua semantics: -10 - (-3) * floor(-10/-3) = -10 - (-3) * 3 = -10 + 9 = -1)
+    Var((int64_t) -10LL).Mod(Var((int64_t) -3LL), res);
+    ASSERT_EQ(res.GetInt(), -1);
 
     // Pow
     Var((int64_t) 2LL).Pow(Var((int64_t) 3LL), res);
@@ -658,8 +678,10 @@ TEST(var, equal_float_nan) {
     Var v1(std::nan(""));
     Var v2(std::nan(""));
 
-    // NaN == NaN should be true in Lua semantics
-    ASSERT_TRUE(v1.Equal(v2));
+    // NaN == NaN should be false (IEEE 754 and Lua 5.4 semantics)
+    ASSERT_FALSE(v1.Equal(v2));
+    // NaN is also not equal to itself
+    ASSERT_FALSE(v1.Equal(v1));
 
     Var v3(1.0);
     ASSERT_FALSE(v1.Equal(v3));
