@@ -167,6 +167,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
     __t->nodes_ = NULL; \
     __t->active_list_ = NULL; \
     __t->free_list_idx_ = 0xFFFFFFFF; \
+    assert(sizeof(__t->quick_data_) == 8 * sizeof(VarEntry)); \
     for (int __i = 0; __i < 8; ++__i) { \
         __t->quick_data_[__i].key.type_ = VAR_NIL; \
         __t->quick_data_[__i].val.type_ = VAR_NIL; \
@@ -257,6 +258,8 @@ static inline uint32_t NextPowerOfTwo(uint32_t v) {
 
 static inline bool FlTableInsertRaw(VarTable *tbl, CVar key, CVar val, uint32_t hash) {
     uint32_t mask = tbl->bucket_count_ - 1;
+    uint32_t total_nodes = tbl->bucket_count_ + tbl->bucket_count_ / 2;
+    assert(tbl->count_ < total_nodes);
     uint32_t idx = hash & mask;
     TableNode *main_node = &tbl->nodes_[idx];
     if (main_node->entry.key.type_ == VAR_NIL) {
