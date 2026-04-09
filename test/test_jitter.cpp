@@ -121,40 +121,32 @@ TEST(jitter, const_define) {
     });
 }
 
-// TEST(jitter, multi_const_define) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     CVar ret0 = {};
-//     auto v = (Var &) ret0;
-//     int ret1 = 0;
-//     bool ret2 = false;
-//     bool ret3 = false;
-//     std::string ret4;
-//     double ret5;
-//     L->CompileFile("./jit/test_multi_const_define.lua", {});
-//     L->call("test", std::tie(ret0, ret1, ret2, ret3, ret4, ret5));
-//     ASSERT_EQ(v.Type(), VarType::Nil);
-//     ASSERT_EQ(ret1, 1);
-//     ASSERT_EQ(ret2, false);
-//     ASSERT_EQ(ret3, true);
-//     ASSERT_EQ(ret4, "test");
-//     ASSERT_NEAR(ret5, 2.3, 0.001);
-//     L->CompileFile("./jit/test_multi_const_define.lua", {.debug_mode = false});
-//     ret0 = {};
-//     ret1 = 0;
-//     ret2 = false;
-//     ret3 = false;
-//     ret4.clear();
-//     ret5 = 0;
-//     L->call("test", std::tie(ret0, ret1, ret2, ret3, ret4, ret5));
-//     ASSERT_EQ(v.Type(), VarType::Nil);
-//     ASSERT_EQ(ret1, 1);
-//     ASSERT_EQ(ret2, false);
-//     ASSERT_EQ(ret3, true);
-//     ASSERT_EQ(ret4, "test");
-//     ASSERT_NEAR(ret5, 2.3, 0.001);
-// }
+TEST(jitter, multi_const_define) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_const_define.lua", {.debug_mode = debug_mode});
+
+        CVar ret0 = {};
+        auto v = (Var &) ret0;
+        int ret1 = 0;
+        bool ret2 = false;
+        bool ret3 = false;
+        std::string ret4;
+        double ret5;
+        Call(s, type, "test0", ret0);
+        Call(s, type, "test1", ret1);
+        Call(s, type, "test2", ret2);
+        Call(s, type, "test3", ret3);
+        Call(s, type, "test4", ret4);
+        Call(s, type, "test5", ret5);
+
+        ASSERT_EQ(v.Type(), VarType::Nil);
+        ASSERT_EQ(ret1, 1);
+        ASSERT_EQ(ret2, false);
+        ASSERT_EQ(ret3, true);
+        ASSERT_EQ(ret4, "test");
+        ASSERT_NEAR(ret5, 2.3, 0.001);
+    });
+}
 //
 // TEST(jitter, empty_func_with_params) {
 //     auto L = FakeluaNewState();

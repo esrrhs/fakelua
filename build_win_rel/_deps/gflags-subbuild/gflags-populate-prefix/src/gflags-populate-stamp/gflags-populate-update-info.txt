@@ -1,0 +1,7 @@
+# This is a generated file and its contents are an internal implementation detail.
+# The patch step will be re-executed if anything in this file changes.
+# No other meaning or use of this file is supported.
+
+command (connected)=C:/Users/zx/AppData/Local/Programs/CLion/bin/cmake/win/x64/bin/cmake.exe;-Dcan_fetch=YES;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;N:/project/fakelua/build_win_rel/_deps/gflags-subbuild/gflags-populate-prefix/tmp/gflags-populate-gitupdate.cmake
+command (disconnected)=C:/Users/zx/AppData/Local/Programs/CLion/bin/cmake/win/x64/bin/cmake.exe;-Dcan_fetch=NO;-DCMAKE_MESSAGE_LOG_LEVEL=VERBOSE;-P;N:/project/fakelua/build_win_rel/_deps/gflags-subbuild/gflags-populate-prefix/tmp/gflags-populate-gitupdate.cmake
+work_dir=N:/project/fakelua/build_win_rel/_deps/gflags-src

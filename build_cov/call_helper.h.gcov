@@ -1,0 +1,114 @@
+        -:    0:Source:N:/project/fakelua/src/util/call_helper.h
+        -:    0:Graph:test/CMakeFiles/unit_tests.dir/test_var.cpp.gcno
+        -:    0:Data:test/CMakeFiles/unit_tests.dir/test_var.cpp.gcda
+        -:    0:Runs:3
+        -:    1:#pragma once
+        -:    2:
+        -:    3:namespace fakelua {
+        -:    4:
+        -:    5:class Var;
+        -:    6:typedef Var *(*VAR_FUNC)(...);
+        -:    7:
+       66:    8:inline Var *CallVarFunc(const VAR_FUNC func, const std::vector<Var *> &args) {
+       66:    9:    switch (args.size()) {
+        2:   10:        case 0:
+        2:   11:            return func();
+        2:   12:        case 1:
+        2:   13:            return func(args[0]);
+        2:   14:        case 2:
+        2:   15:            return func(args[0], args[1]);
+        2:   16:        case 3:
+        2:   17:            return func(args[0], args[1], args[2]);
+        2:   18:        case 4:
+        2:   19:            return func(args[0], args[1], args[2], args[3]);
+        2:   20:        case 5:
+        2:   21:            return func(args[0], args[1], args[2], args[3], args[4]);
+        2:   22:        case 6:
+        2:   23:            return func(args[0], args[1], args[2], args[3], args[4], args[5]);
+        2:   24:        case 7:
+        2:   25:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+        2:   26:        case 8:
+        2:   27:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
+        2:   28:        case 9:
+        2:   29:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8]);
+        2:   30:        case 10:
+        2:   31:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9]);
+        2:   32:        case 11:
+        2:   33:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10]);
+        2:   34:        case 12:
+        2:   35:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11]);
+        2:   36:        case 13:
+        2:   37:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        4:   38:                        args[12]);
+        2:   39:        case 14:
+        2:   40:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        4:   41:                        args[12], args[13]);
+        2:   42:        case 15:
+        2:   43:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        4:   44:                        args[12], args[13], args[14]);
+        2:   45:        case 16:
+        2:   46:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        4:   47:                        args[12], args[13], args[14], args[15]);
+        2:   48:        case 17:
+        2:   49:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        4:   50:                        args[12], args[13], args[14], args[15], args[16]);
+        2:   51:        case 18:
+        2:   52:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        4:   53:                        args[12], args[13], args[14], args[15], args[16], args[17]);
+        2:   54:        case 19:
+        2:   55:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        4:   56:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18]);
+        2:   57:        case 20:
+        2:   58:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        4:   59:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19]);
+        2:   60:        case 21:
+        2:   61:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        4:   62:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19], args[20]);
+        2:   63:        case 22:
+        2:   64:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        4:   65:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19], args[20], args[21]);
+        2:   66:        case 23:
+        2:   67:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        4:   68:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19], args[20], args[21], args[22]);
+        2:   69:        case 24:
+        2:   70:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        2:   71:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19], args[20], args[21], args[22],
+        4:   72:                        args[23]);
+        2:   73:        case 25:
+        2:   74:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        2:   75:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19], args[20], args[21], args[22],
+        4:   76:                        args[23], args[24]);
+        2:   77:        case 26:
+        2:   78:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        2:   79:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19], args[20], args[21], args[22],
+        4:   80:                        args[23], args[24], args[25]);
+        2:   81:        case 27:
+        2:   82:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        2:   83:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19], args[20], args[21], args[22],
+        4:   84:                        args[23], args[24], args[25], args[26]);
+        2:   85:        case 28:
+        2:   86:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        2:   87:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19], args[20], args[21], args[22],
+        4:   88:                        args[23], args[24], args[25], args[26], args[27]);
+        2:   89:        case 29:
+        2:   90:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        2:   91:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19], args[20], args[21], args[22],
+        4:   92:                        args[23], args[24], args[25], args[26], args[27], args[28]);
+        2:   93:        case 30:
+        2:   94:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        2:   95:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19], args[20], args[21], args[22],
+        4:   96:                        args[23], args[24], args[25], args[26], args[27], args[28], args[29]);
+        2:   97:        case 31:
+        2:   98:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        2:   99:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19], args[20], args[21], args[22],
+        4:  100:                        args[23], args[24], args[25], args[26], args[27], args[28], args[29], args[30]);
+        2:  101:        case 32:
+        2:  102:            return func(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7], args[8], args[9], args[10], args[11],
+        2:  103:                        args[12], args[13], args[14], args[15], args[16], args[17], args[18], args[19], args[20], args[21], args[22],
+        4:  104:                        args[23], args[24], args[25], args[26], args[27], args[28], args[29], args[30], args[31]);
+    #####:  105:        default:
+    #####:  106:            ThrowFakeluaException(std::format("Call failed, too many arguments: {}", args.size()));
+        -:  107:    }
+        -:  108:}
+        -:  109:
+        -:  110:}// namespace fakelua

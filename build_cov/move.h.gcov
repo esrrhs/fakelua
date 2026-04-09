@@ -1,0 +1,1019 @@
+        -:    0:Source:C:/msys64/mingw64/include/c++/14.2.0/bits/move.h
+        -:    0:Graph:test/CMakeFiles/unit_tests.dir/test_var.cpp.gcno
+        -:    0:Data:test/CMakeFiles/unit_tests.dir/test_var.cpp.gcda
+        -:    0:Runs:3
+        -:    1:// Move, forward and identity for C++11 + swap -*- C++ -*-
+        -:    2:
+        -:    3:// Copyright (C) 2007-2024 Free Software Foundation, Inc.
+        -:    4://
+        -:    5:// This file is part of the GNU ISO C++ Library.  This library is free
+        -:    6:// software; you can redistribute it and/or modify it under the
+        -:    7:// terms of the GNU General Public License as published by the
+        -:    8:// Free Software Foundation; either version 3, or (at your option)
+        -:    9:// any later version.
+        -:   10:
+        -:   11:// This library is distributed in the hope that it will be useful,
+        -:   12:// but WITHOUT ANY WARRANTY; without even the implied warranty of
+        -:   13:// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+        -:   14:// GNU General Public License for more details.
+        -:   15:
+        -:   16:// Under Section 7 of GPL version 3, you are granted additional
+        -:   17:// permissions described in the GCC Runtime Library Exception, version
+        -:   18:// 3.1, as published by the Free Software Foundation.
+        -:   19:
+        -:   20:// You should have received a copy of the GNU General Public License and
+        -:   21:// a copy of the GCC Runtime Library Exception along with this program;
+        -:   22:// see the files COPYING3 and COPYING.RUNTIME respectively.  If not, see
+        -:   23:// <http://www.gnu.org/licenses/>.
+        -:   24:
+        -:   25:/** @file bits/move.h
+        -:   26: *  This is an internal header file, included by other library headers.
+        -:   27: *  Do not attempt to use it directly. @headername{utility}
+        -:   28: */
+        -:   29:
+        -:   30:#ifndef _MOVE_H
+        -:   31:#define _MOVE_H 1
+        -:   32:
+        -:   33:#include <bits/c++config.h>
+        -:   34:#if __cplusplus < 201103L
+        -:   35:# include <bits/concept_check.h>
+        -:   36:#else
+        -:   37:# include <type_traits> // Brings in std::declval too.
+        -:   38:#endif
+        -:   39:
+        -:   40:namespace std _GLIBCXX_VISIBILITY(default)
+        -:   41:{
+        -:   42:_GLIBCXX_BEGIN_NAMESPACE_VERSION
+        -:   43:
+        -:   44:  // Used, in C++03 mode too, by allocators, etc.
+        -:   45:  /**
+        -:   46:   *  @brief Same as C++11 std::addressof
+        -:   47:   *  @ingroup utilities
+        -:   48:   */
+        -:   49:  template<typename _Tp>
+        -:   50:    inline _GLIBCXX_CONSTEXPR _Tp*
+      64*:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+      64*:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1ELb1EEEEPT_RS7_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIcEPT_RS0_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEEPT_RS6_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEEPT_RS7_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofINSt8__format5_SinkIcEEEPT_RS3_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKcEPT_RS1_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIyEPT_RS0_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIPN7fakelua3VarEEPT_RS3_:
+       64:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+       64:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIiEPT_RS0_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofISaISt23_Sp_counted_ptr_inplaceINSt8__detail4_NFAINSt7__cxx1112regex_traitsIcEEEESaIvELN9__gnu_cxx12_Lock_policyE2EEEEPT_RSC_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofINSt8__detail6_StateIcEEEPT_RS3_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0ELb0EEEEPT_RS7_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0ELb1EEEEPT_RS7_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1ELb0EEEEPT_RS7_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKN7fakelua3VarEEPT_RS3_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0ELb0EEEEPT_RS7_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0ELb1EEEEPT_RS7_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1ELb0EEEEPT_RS7_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1ELb1EEEEPT_RS7_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKNSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0EEEEPT_RS7_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKNSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1EEEEPT_RS7_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKNSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0EEEEPT_RS7_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKNSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1EEEEPT_RS7_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofISt4pairIccEEPT_RS2_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofINSt7__cxx1112regex_traitsIcE10_RegexMaskEEPT_RS4_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofISt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES6_EEPT_RS8_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+_ZSt11__addressofIKN7fakelua7VarTypeEEPT_RS3_:
+    #####:   51:    __addressof(_Tp& __r) _GLIBCXX_NOEXCEPT
+    #####:   52:    { return __builtin_addressof(__r); }
+------------------
+        -:   53:
+        -:   54:#if __cplusplus >= 201103L
+        -:   55:
+        -:   56:  /**
+        -:   57:   *  @addtogroup utilities
+        -:   58:   *  @{
+        -:   59:   */
+        -:   60:
+        -:   61:  /**
+        -:   62:   *  @brief  Forward an lvalue.
+        -:   63:   *  @return The parameter cast to the specified type.
+        -:   64:   *
+        -:   65:   *  This function is used to implement "perfect forwarding".
+        -:   66:   */
+        -:   67:  template<typename _Tp>
+        -:   68:    _GLIBCXX_NODISCARD
+        -:   69:    constexpr _Tp&&
+     146*:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+     146*:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1ELb0EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail9_StateSeqINSt7__cxx1112regex_traitsIcEEEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail9_StateSeqINSt7__cxx1112regex_traitsIcEEEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIPN7fakelua3VarEEOT_RNSt16remove_referenceIS3_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0ELb0EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0ELb1EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1ELb0EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1ELb1EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0ELb0EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0ELb1EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail6_StateIcEEEOT_RNSt16remove_referenceIS3_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1ELb1EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt7__cxx1112regex_traitsIcE10_RegexMaskEEOT_RNSt16remove_referenceIS4_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardISt14default_deleteINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardItEOT_RNSt16remove_referenceIS0_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIPKcEOT_RNSt16remove_referenceIS2_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIcEOT_RNSt16remove_referenceIS0_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIiEOT_RNSt16remove_referenceIS0_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardISt5tupleIJEEEOT_RNSt16remove_referenceIS2_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKcEOT_RNSt16remove_referenceIS2_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKSt6localeEOT_RNSt16remove_referenceIS3_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIyEOT_RNSt16remove_referenceIS0_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIDnEOT_RNSt16remove_referenceIS0_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKSt21piecewise_construct_tEOT_RNSt16remove_referenceIS3_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRPKcEOT_RNSt16remove_referenceIS3_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRcEOT_RNSt16remove_referenceIS1_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIZNSt8__format15__do_vformat_toINS0_10_Sink_iterIcEEcSt20basic_format_contextIS3_cEEET_S6_St17basic_string_viewIT0_St11char_traitsIS8_EERKSt17basic_format_argsIT1_EPKSt6localeEUlRS6_E_EOS6_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt6ranges8subrangeIPKcS3_LNS0_13subrange_kindE1EEEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKiEOT_RNSt16remove_referenceIS2_E4typeE:
+      146:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+      146:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRtEOT_RNSt16remove_referenceIS1_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKPKcEOT_RNSt16remove_referenceIS4_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt15regex_constants18syntax_option_typeEEOT_RNSt16remove_referenceIS3_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRPSt18_Rb_tree_node_baseEOT_RNSt16remove_referenceIS3_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKyEOT_RNSt16remove_referenceIS2_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1ELb1EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0ELb0EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0ELb1EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1ELb0EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1ELb1EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1ELb0EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardISt4pairIccEEOT_RNSt16remove_referenceIS2_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardISt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES6_EEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRPSt13_Rb_tree_nodeISt4pairIKllEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKSt4pairIccEEOT_RNSt16remove_referenceIS4_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKSt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES6_EEOT_RNSt16remove_referenceISA_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIZNSt8__format19_Formatting_scannerINS0_10_Sink_iterIcEEcE13_M_format_argEyEUlRT_E_EOS5_RNSt16remove_referenceIS5_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRA1_KDiEOT_RNSt16remove_referenceIS3_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardINSt8__format17_WidthPrecVisitorEEOT_RNSt16remove_referenceIS2_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardISt5tupleIJRKlEEEOT_RNSt16remove_referenceIS4_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKlEOT_RNSt16remove_referenceIS2_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0ELb0EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0ELb1EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1ELb0EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1ELb1EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0ELb0EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0ELb1EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1ELb0EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1ELb1EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardISt17basic_string_viewIcSt11char_traitsIcEEEOT_RNSt16remove_referenceIS4_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail12_CharMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt7__cxx1112regex_traitsIcE10_RegexMaskEEOT_RNSt16remove_referenceIS6_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRNSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1EEEEOT_RNSt16remove_referenceIS7_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0ELb0EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+_ZSt7forwardIRKNSt8__detail11_AnyMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0ELb1EEEEOT_RNSt16remove_referenceIS8_E4typeE:
+    #####:   70:    forward(typename std::remove_reference<_Tp>::type& __t) noexcept
+    #####:   71:    { return static_cast<_Tp&&>(__t); }
+------------------
+        -:   72:
+        -:   73:  /**
+        -:   74:   *  @brief  Forward an rvalue.
+        -:   75:   *  @return The parameter cast to the specified type.
+        -:   76:   *
+        -:   77:   *  This function is used to implement "perfect forwarding".
+        -:   78:   */
+        -:   79:  template<typename _Tp>
+        -:   80:    _GLIBCXX_NODISCARD
+        -:   81:    constexpr _Tp&&
+        -:   82:    forward(typename std::remove_reference<_Tp>::type&& __t) noexcept
+        -:   83:    {
+        -:   84:      static_assert(!std::is_lvalue_reference<_Tp>::value,
+        -:   85:	  "std::forward must not be used to convert an rvalue to an lvalue");
+        -:   86:      return static_cast<_Tp&&>(__t);
+        -:   87:    }
+        -:   88:
+        -:   89:#if __glibcxx_forward_like // C++ >= 23
+        -:   90:  template<typename _Tp, typename _Up>
+        -:   91:  [[nodiscard]]
+        -:   92:  constexpr decltype(auto)
+        -:   93:  forward_like(_Up&& __x) noexcept
+        -:   94:  {
+        -:   95:    constexpr bool __as_rval = is_rvalue_reference_v<_Tp&&>;
+        -:   96:
+        -:   97:    if constexpr (is_const_v<remove_reference_t<_Tp>>)
+        -:   98:      {
+        -:   99:	using _Up2 = remove_reference_t<_Up>;
+        -:  100:	if constexpr (__as_rval)
+        -:  101:	  return static_cast<const _Up2&&>(__x);
+        -:  102:	else
+        -:  103:	  return static_cast<const _Up2&>(__x);
+        -:  104:      }
+        -:  105:    else
+        -:  106:      {
+        -:  107:	if constexpr (__as_rval)
+        -:  108:	  return static_cast<remove_reference_t<_Up>&&>(__x);
+        -:  109:	else
+        -:  110:	  return static_cast<_Up&>(__x);
+        -:  111:      }
+        -:  112:  }
+        -:  113:
+        -:  114:  template<typename _Tp, typename _Up>
+        -:  115:    using __like_t = decltype(std::forward_like<_Tp>(std::declval<_Up>()));
+        -:  116:#endif
+        -:  117:
+        -:  118:  /**
+        -:  119:   *  @brief  Convert a value to an rvalue.
+        -:  120:   *  @param  __t  A thing of arbitrary type.
+        -:  121:   *  @return The parameter cast to an rvalue-reference to allow moving it.
+        -:  122:  */
+        -:  123:  template<typename _Tp>
+        -:  124:    _GLIBCXX_NODISCARD
+        -:  125:    constexpr typename std::remove_reference<_Tp>::type&&
+     438*:  126:    move(_Tp&& __t) noexcept
+     438*:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRSt10shared_ptrINSt8__detail4_NFAINSt7__cxx1112regex_traitsIcEEEEEEONSt16remove_referenceIT_E4typeEOSA_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb0ELb0EEEEONSt16remove_referenceIT_E4typeEOS8_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRPN7fakelua3VarEEONSt16remove_referenceIT_E4typeEOS5_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRiEONSt16remove_referenceIT_E4typeEOS2_:
+      432:  126:    move(_Tp&& __t) noexcept
+      432:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRPKNSt8__detail4_NFAINSt7__cxx1112regex_traitsIcEEEEEONSt16remove_referenceIT_E4typeEOSA_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt8__detail9_StateSeqINSt7__cxx1112regex_traitsIcEEEEEONSt16remove_referenceIT_E4typeEOS8_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRSt8functionIFbcEEEONSt16remove_referenceIT_E4typeEOS5_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRSt12__shared_ptrIKNSt8__detail4_NFAINSt7__cxx1112regex_traitsIcEEEELN9__gnu_cxx12_Lock_policyE2EEEONSt16remove_referenceIT_E4typeEOSD_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt8__detail6_StateIcEEEONSt16remove_referenceIT_E4typeEOS5_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRPFbRSt9_Any_dataRKS0_St18_Manager_operationEEONSt16remove_referenceIT_E4typeEOS9_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRSt9_Any_dataEONSt16remove_referenceIT_E4typeEOS3_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRSt10shared_ptrIKNSt8__detail4_NFAINSt7__cxx1112regex_traitsIcEEEEEEONSt16remove_referenceIT_E4typeEOSB_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb0ELb1EEEEONSt16remove_referenceIT_E4typeEOS8_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRPKcEONSt16remove_referenceIT_E4typeEOS4_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRPNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEEONSt16remove_referenceIT_E4typeEOS9_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRPNSt7__cxx1118basic_stringstreamIcSt11char_traitsIcESaIcEEEEONSt16remove_referenceIT_E4typeEOS9_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt8__format10_Sink_iterIcEEEONSt16remove_referenceIT_E4typeEOS5_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEEONSt16remove_referenceIT_E4typeEOS7_:
+        6:  126:    move(_Tp&& __t) noexcept
+        6:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEEONSt16remove_referenceIT_E4typeEOS8_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt8__format9_Seq_sinkINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEEEEONSt16remove_referenceIT_E4typeEOSB_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRSt6localeEONSt16remove_referenceIT_E4typeEOS3_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRSt4pairItPKcEEONSt16remove_referenceIT_E4typeEOS6_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRSaIcEEONSt16remove_referenceIT_E4typeEOS3_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRPFbRKSt9_Any_dataOcEEONSt16remove_referenceIT_E4typeEOS8_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRZNKSt8__format14__formatter_fpIcE11_M_localizeESt17basic_string_viewIcSt11char_traitsIcEEcRKSt6localeEUlPcyE_EONSt16remove_referenceIT_E4typeEOSE_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRZNKSt8__format14__formatter_fpIcE6formatIeNS0_10_Sink_iterIcEEEENSt20basic_format_contextIT0_cE8iteratorET_RS8_EUlPcyE_EONSt16remove_referenceISA_E4typeEOSA_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRZNKSt8__format14__formatter_fpIcE6formatIdNS0_10_Sink_iterIcEEEENSt20basic_format_contextIT0_cE8iteratorET_RS8_EUlPcyE_EONSt16remove_referenceISA_E4typeEOSA_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRZNKSt8__format14__formatter_fpIcE6formatIfNS0_10_Sink_iterIcEEEENSt20basic_format_contextIT0_cE8iteratorET_RS8_EUlPcyE_EONSt16remove_referenceISA_E4typeEOSA_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRPcEONSt16remove_referenceIT_E4typeEOS3_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRSt17basic_string_viewIcSt11char_traitsIcEEEONSt16remove_referenceIT_E4typeEOS6_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRZNSt8__format9_Seq_sinkINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEEE10_M_reserveEyEUlT_T0_E_EONSt16remove_referenceIS9_E4typeEOS9_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRN9__gnu_cxx17__normal_iteratorIPcSt4spanIcLy18446744073709551615EEEEEONSt16remove_referenceIT_E4typeEOS8_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt7__cxx1112regex_traitsIcE10_RegexMaskEEONSt16remove_referenceIT_E4typeEOS6_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRSt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES6_EEONSt16remove_referenceIT_E4typeEOSA_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRSt4pairIccEEONSt16remove_referenceIT_E4typeEOS4_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRPKDiEONSt16remove_referenceIT_E4typeEOS4_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRcEONSt16remove_referenceIT_E4typeEOS2_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRyEONSt16remove_referenceIT_E4typeEOS2_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt12_Vector_baseISt4pairINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEES7_ESaIS8_EE12_Vector_implEEONSt16remove_referenceIT_E4typeEOSE_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt12_Vector_baseINSt7__cxx1112regex_traitsIcE10_RegexMaskESaIS4_EE12_Vector_implEEONSt16remove_referenceIT_E4typeEOSA_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt12_Vector_baseISt4pairIccESaIS2_EE12_Vector_implEEONSt16remove_referenceIT_E4typeEOS8_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt12_Vector_baseINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaIS6_EE12_Vector_implEEONSt16remove_referenceIT_E4typeEOSC_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt12_Vector_baseIcSaIcEE12_Vector_implEEONSt16remove_referenceIT_E4typeEOS6_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRlEONSt16remove_referenceIT_E4typeEOS2_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb1ELb1EEEEONSt16remove_referenceIT_E4typeEOS8_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+_ZSt4moveIRNSt8__detail15_BracketMatcherINSt7__cxx1112regex_traitsIcEELb1ELb0EEEEONSt16remove_referenceIT_E4typeEOS8_:
+    #####:  126:    move(_Tp&& __t) noexcept
+    #####:  127:    { return static_cast<typename std::remove_reference<_Tp>::type&&>(__t); }
+------------------
+        -:  128:
+        -:  129:
+        -:  130:  template<typename _Tp>
+        -:  131:    struct __move_if_noexcept_cond
+        -:  132:    : public __and_<__not_<is_nothrow_move_constructible<_Tp>>,
+        -:  133:                    is_copy_constructible<_Tp>>::type { };
+        -:  134:
+        -:  135:  /**
+        -:  136:   *  @brief  Conditionally convert a value to an rvalue.
+        -:  137:   *  @param  __x  A thing of arbitrary type.
+        -:  138:   *  @return The parameter, possibly cast to an rvalue-reference.
+        -:  139:   *
+        -:  140:   *  Same as std::move unless the type's move constructor could throw and the
+        -:  141:   *  type is copyable, in which case an lvalue-reference is returned instead.
+        -:  142:   */
+        -:  143:  template<typename _Tp>
+        -:  144:    _GLIBCXX_NODISCARD
+        -:  145:    constexpr
+        -:  146:    __conditional_t<__move_if_noexcept_cond<_Tp>::value, const _Tp&, _Tp&&>
+        -:  147:    move_if_noexcept(_Tp& __x) noexcept
+        -:  148:    { return std::move(__x); }
+        -:  149:
+        -:  150:  // declval, from type_traits.
+        -:  151:
+        -:  152:  /**
+        -:  153:   *  @brief Returns the actual address of the object or function
+        -:  154:   *         referenced by r, even in the presence of an overloaded
+        -:  155:   *         operator&.
+        -:  156:   *  @param  __r  Reference to an object or function.
+        -:  157:   *  @return   The actual address.
+        -:  158:  */
+        -:  159:  template<typename _Tp>
+        -:  160:    _GLIBCXX_NODISCARD
+        -:  161:    inline _GLIBCXX17_CONSTEXPR _Tp*
+    #####:  162:    addressof(_Tp& __r) noexcept
+    #####:  163:    { return std::__addressof(__r); }
+------------------
+_ZSt9addressofIKN7fakelua3VarEEPT_RS3_:
+    #####:  162:    addressof(_Tp& __r) noexcept
+    #####:  163:    { return std::__addressof(__r); }
+------------------
+_ZSt9addressofIKN7fakelua7VarTypeEEPT_RS3_:
+    #####:  162:    addressof(_Tp& __r) noexcept
+    #####:  163:    { return std::__addressof(__r); }
+------------------
+_ZSt9addressofIKcEPT_RS1_:
+    #####:  162:    addressof(_Tp& __r) noexcept
+    #####:  163:    { return std::__addressof(__r); }
+------------------
+_ZSt9addressofINSt8__format5_SinkIcEEEPT_RS3_:
+    #####:  162:    addressof(_Tp& __r) noexcept
+    #####:  163:    { return std::__addressof(__r); }
+------------------
+_ZSt9addressofIcEPT_RS0_:
+    #####:  162:    addressof(_Tp& __r) noexcept
+    #####:  163:    { return std::__addressof(__r); }
+------------------
+        -:  164:
+        -:  165:  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+        -:  166:  // 2598. addressof works on temporaries
+        -:  167:  template<typename _Tp>
+        -:  168:    const _Tp* addressof(const _Tp&&) = delete;
+        -:  169:
+        -:  170:  // C++11 version of std::exchange for internal use.
+        -:  171:  template <typename _Tp, typename _Up = _Tp>
+        -:  172:    _GLIBCXX20_CONSTEXPR
+        -:  173:    inline _Tp
+        -:  174:    __exchange(_Tp& __obj, _Up&& __new_val)
+        -:  175:    {
+        -:  176:      _Tp __old_val = std::move(__obj);
+        -:  177:      __obj = std::forward<_Up>(__new_val);
+        -:  178:      return __old_val;
+        -:  179:    }
+        -:  180:
+        -:  181:  /// @} group utilities
+        -:  182:
+        -:  183:#define _GLIBCXX_FWDREF(_Tp) _Tp&&
+        -:  184:#define _GLIBCXX_MOVE(__val) std::move(__val)
+        -:  185:#define _GLIBCXX_FORWARD(_Tp, __val) std::forward<_Tp>(__val)
+        -:  186:#else
+        -:  187:#define _GLIBCXX_FWDREF(_Tp) const _Tp&
+        -:  188:#define _GLIBCXX_MOVE(__val) (__val)
+        -:  189:#define _GLIBCXX_FORWARD(_Tp, __val) (__val)
+        -:  190:#endif
+        -:  191:
+        -:  192:  /**
+        -:  193:   *  @addtogroup utilities
+        -:  194:   *  @{
+        -:  195:   */
+        -:  196:
+        -:  197:  /**
+        -:  198:   *  @brief Swaps two values.
+        -:  199:   *  @param  __a  A thing of arbitrary type.
+        -:  200:   *  @param  __b  Another thing of arbitrary type.
+        -:  201:   *  @return   Nothing.
+        -:  202:  */
+        -:  203:  template<typename _Tp>
+        -:  204:    _GLIBCXX20_CONSTEXPR
+        -:  205:    inline
+        -:  206:#if __cplusplus >= 201103L
+        -:  207:    typename enable_if<__and_<__not_<__is_tuple_like<_Tp>>,
+        -:  208:			      is_move_constructible<_Tp>,
+        -:  209:			      is_move_assignable<_Tp>>::value>::type
+        -:  210:#else
+        -:  211:    void
+        -:  212:#endif
+    #####:  213:    swap(_Tp& __a, _Tp& __b)
+        -:  214:    _GLIBCXX_NOEXCEPT_IF(__and_<is_nothrow_move_constructible<_Tp>,
+        -:  215:				is_nothrow_move_assignable<_Tp>>::value)
+        -:  216:    {
+        -:  217:#if __cplusplus < 201103L
+        -:  218:      // concept requirements
+        -:  219:      __glibcxx_function_requires(_SGIAssignableConcept<_Tp>)
+        -:  220:#endif
+    #####:  221:      _Tp __tmp = _GLIBCXX_MOVE(__a);
+    #####:  222:      __a = _GLIBCXX_MOVE(__b);
+    #####:  223:      __b = _GLIBCXX_MOVE(__tmp);
+    #####:  224:    }
+------------------
+_ZSt4swapIcENSt9enable_ifIXsrSt6__and_IJSt6__not_ISt15__is_tuple_likeIT_EESt21is_move_constructibleIS4_ESt18is_move_assignableIS4_EEE5valueEvE4typeERS4_SE_:
+    #####:  213:    swap(_Tp& __a, _Tp& __b)
+        -:  214:    _GLIBCXX_NOEXCEPT_IF(__and_<is_nothrow_move_constructible<_Tp>,
+        -:  215:				is_nothrow_move_assignable<_Tp>>::value)
+        -:  216:    {
+        -:  217:#if __cplusplus < 201103L
+        -:  218:      // concept requirements
+        -:  219:      __glibcxx_function_requires(_SGIAssignableConcept<_Tp>)
+        -:  220:#endif
+    #####:  221:      _Tp __tmp = _GLIBCXX_MOVE(__a);
+    #####:  222:      __a = _GLIBCXX_MOVE(__b);
+    #####:  223:      __b = _GLIBCXX_MOVE(__tmp);
+    #####:  224:    }
+------------------
+_ZSt4swapISt6localeENSt9enable_ifIXsrSt6__and_IJSt6__not_ISt15__is_tuple_likeIT_EESt21is_move_constructibleIS5_ESt18is_move_assignableIS5_EEE5valueEvE4typeERS5_SF_:
+    #####:  213:    swap(_Tp& __a, _Tp& __b)
+        -:  214:    _GLIBCXX_NOEXCEPT_IF(__and_<is_nothrow_move_constructible<_Tp>,
+        -:  215:				is_nothrow_move_assignable<_Tp>>::value)
+        -:  216:    {
+        -:  217:#if __cplusplus < 201103L
+        -:  218:      // concept requirements
+        -:  219:      __glibcxx_function_requires(_SGIAssignableConcept<_Tp>)
+        -:  220:#endif
+    #####:  221:      _Tp __tmp = _GLIBCXX_MOVE(__a);
+    #####:  222:      __a = _GLIBCXX_MOVE(__b);
+    #####:  223:      __b = _GLIBCXX_MOVE(__tmp);
+    #####:  224:    }
+------------------
+_ZSt4swapIPFbRKSt9_Any_dataOcEENSt9enable_ifIXsrSt6__and_IJSt6__not_ISt15__is_tuple_likeIT_EESt21is_move_constructibleISA_ESt18is_move_assignableISA_EEE5valueEvE4typeERSA_SK_:
+    #####:  213:    swap(_Tp& __a, _Tp& __b)
+        -:  214:    _GLIBCXX_NOEXCEPT_IF(__and_<is_nothrow_move_constructible<_Tp>,
+        -:  215:				is_nothrow_move_assignable<_Tp>>::value)
+        -:  216:    {
+        -:  217:#if __cplusplus < 201103L
+        -:  218:      // concept requirements
+        -:  219:      __glibcxx_function_requires(_SGIAssignableConcept<_Tp>)
+        -:  220:#endif
+    #####:  221:      _Tp __tmp = _GLIBCXX_MOVE(__a);
+    #####:  222:      __a = _GLIBCXX_MOVE(__b);
+    #####:  223:      __b = _GLIBCXX_MOVE(__tmp);
+    #####:  224:    }
+------------------
+_ZSt4swapIlENSt9enable_ifIXsrSt6__and_IJSt6__not_ISt15__is_tuple_likeIT_EESt21is_move_constructibleIS4_ESt18is_move_assignableIS4_EEE5valueEvE4typeERS4_SE_:
+    #####:  213:    swap(_Tp& __a, _Tp& __b)
+        -:  214:    _GLIBCXX_NOEXCEPT_IF(__and_<is_nothrow_move_constructible<_Tp>,
+        -:  215:				is_nothrow_move_assignable<_Tp>>::value)
+        -:  216:    {
+        -:  217:#if __cplusplus < 201103L
+        -:  218:      // concept requirements
+        -:  219:      __glibcxx_function_requires(_SGIAssignableConcept<_Tp>)
+        -:  220:#endif
+    #####:  221:      _Tp __tmp = _GLIBCXX_MOVE(__a);
+    #####:  222:      __a = _GLIBCXX_MOVE(__b);
+    #####:  223:      __b = _GLIBCXX_MOVE(__tmp);
+    #####:  224:    }
+------------------
+_ZSt4swapIPKNSt8__detail4_NFAINSt7__cxx1112regex_traitsIcEEEEENSt9enable_ifIXsrSt6__and_IJSt6__not_ISt15__is_tuple_likeIT_EESt21is_move_constructibleISC_ESt18is_move_assignableISC_EEE5valueEvE4typeERSC_SM_:
+    #####:  213:    swap(_Tp& __a, _Tp& __b)
+        -:  214:    _GLIBCXX_NOEXCEPT_IF(__and_<is_nothrow_move_constructible<_Tp>,
+        -:  215:				is_nothrow_move_assignable<_Tp>>::value)
+        -:  216:    {
+        -:  217:#if __cplusplus < 201103L
+        -:  218:      // concept requirements
+        -:  219:      __glibcxx_function_requires(_SGIAssignableConcept<_Tp>)
+        -:  220:#endif
+    #####:  221:      _Tp __tmp = _GLIBCXX_MOVE(__a);
+    #####:  222:      __a = _GLIBCXX_MOVE(__b);
+    #####:  223:      __b = _GLIBCXX_MOVE(__tmp);
+    #####:  224:    }
+------------------
+_ZSt4swapIPFbRSt9_Any_dataRKS0_St18_Manager_operationEENSt9enable_ifIXsrSt6__and_IJSt6__not_ISt15__is_tuple_likeIT_EESt21is_move_constructibleISB_ESt18is_move_assignableISB_EEE5valueEvE4typeERSB_SL_:
+    #####:  213:    swap(_Tp& __a, _Tp& __b)
+        -:  214:    _GLIBCXX_NOEXCEPT_IF(__and_<is_nothrow_move_constructible<_Tp>,
+        -:  215:				is_nothrow_move_assignable<_Tp>>::value)
+        -:  216:    {
+        -:  217:#if __cplusplus < 201103L
+        -:  218:      // concept requirements
+        -:  219:      __glibcxx_function_requires(_SGIAssignableConcept<_Tp>)
+        -:  220:#endif
+    #####:  221:      _Tp __tmp = _GLIBCXX_MOVE(__a);
+    #####:  222:      __a = _GLIBCXX_MOVE(__b);
+    #####:  223:      __b = _GLIBCXX_MOVE(__tmp);
+    #####:  224:    }
+------------------
+_ZSt4swapISt9_Any_dataENSt9enable_ifIXsrSt6__and_IJSt6__not_ISt15__is_tuple_likeIT_EESt21is_move_constructibleIS5_ESt18is_move_assignableIS5_EEE5valueEvE4typeERS5_SF_:
+    #####:  213:    swap(_Tp& __a, _Tp& __b)
+        -:  214:    _GLIBCXX_NOEXCEPT_IF(__and_<is_nothrow_move_constructible<_Tp>,
+        -:  215:				is_nothrow_move_assignable<_Tp>>::value)
+        -:  216:    {
+        -:  217:#if __cplusplus < 201103L
+        -:  218:      // concept requirements
+        -:  219:      __glibcxx_function_requires(_SGIAssignableConcept<_Tp>)
+        -:  220:#endif
+    #####:  221:      _Tp __tmp = _GLIBCXX_MOVE(__a);
+    #####:  222:      __a = _GLIBCXX_MOVE(__b);
+    #####:  223:      __b = _GLIBCXX_MOVE(__tmp);
+    #####:  224:    }
+------------------
+        -:  225:
+        -:  226:  // _GLIBCXX_RESOLVE_LIB_DEFECTS
+        -:  227:  // DR 809. std::swap should be overloaded for array types.
+        -:  228:  /// Swap the contents of two arrays.
+        -:  229:  template<typename _Tp, size_t _Nm>
+        -:  230:    _GLIBCXX20_CONSTEXPR
+        -:  231:    inline
+        -:  232:#if __cplusplus >= 201103L
+        -:  233:    typename enable_if<__is_swappable<_Tp>::value>::type
+        -:  234:#else
+        -:  235:    void
+        -:  236:#endif
+        -:  237:    swap(_Tp (&__a)[_Nm], _Tp (&__b)[_Nm])
+        -:  238:    _GLIBCXX_NOEXCEPT_IF(__is_nothrow_swappable<_Tp>::value)
+        -:  239:    {
+        -:  240:      for (size_t __n = 0; __n < _Nm; ++__n)
+        -:  241:	swap(__a[__n], __b[__n]);
+        -:  242:    }
+        -:  243:
+        -:  244:  /// @} group utilities
+        -:  245:_GLIBCXX_END_NAMESPACE_VERSION
+        -:  246:} // namespace
+        -:  247:
+        -:  248:#endif /* _MOVE_H */

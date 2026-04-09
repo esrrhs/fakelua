@@ -1,0 +1,510 @@
+        -:    0:Source:N:/project/fakelua/include/fakelua.h
+        -:    0:Graph:test/CMakeFiles/unit_tests.dir/test_var.cpp.gcno
+        -:    0:Data:test/CMakeFiles/unit_tests.dir/test_var.cpp.gcda
+        -:    0:Runs:3
+        -:    1:#pragma once
+        -:    2:
+        -:    3:#include <format>
+        -:    4:#include <functional>
+        -:    5:#include <memory>
+        -:    6:#include <ranges>
+        -:    7:#include <string>
+        -:    8:
+        -:    9:namespace fakelua {
+        -:   10:
+        -:   11:// 用于FakeLua与原生代码之间的通信，传输像table这样的复杂类型。
+        -:   12:struct VarInterface {
+        -:   13:    enum class Type {
+        -:   14:        MIN,
+        -:   15:        NIL = MIN,
+        -:   16:        BOOL,
+        -:   17:        INT,
+        -:   18:        FLOAT,
+        -:   19:        STRING,
+        -:   20:        TABLE,
+        -:   21:        MAX = TABLE,
+        -:   22:    };
+        -:   23:
+        -:   24:    virtual ~VarInterface() = default;
+        -:   25:
+        -:   26:    [[nodiscard]] virtual Type ViGetType() const = 0;
+        -:   27:
+        -:   28:    virtual void ViSetNil() = 0;
+        -:   29:
+        -:   30:    virtual void ViSetBool(bool v) = 0;
+        -:   31:
+        -:   32:    virtual void ViSetInt(int64_t v) = 0;
+        -:   33:
+        -:   34:    virtual void ViSetFloat(double v) = 0;
+        -:   35:
+        -:   36:    virtual void ViSetString(const std::string_view &v) = 0;
+        -:   37:
+        -:   38:    virtual void ViSetTable(const std::vector<std::pair<VarInterface *, VarInterface *>> &kv) = 0;
+        -:   39:
+        -:   40:    [[nodiscard]] virtual bool ViGetBool() const = 0;
+        -:   41:
+        -:   42:    [[nodiscard]] virtual int64_t ViGetInt() const = 0;
+        -:   43:
+        -:   44:    [[nodiscard]] virtual double ViGetFloat() const = 0;
+        -:   45:
+        -:   46:    [[nodiscard]] virtual std::string_view ViGetString() const = 0;
+        -:   47:
+        -:   48:    [[nodiscard]] virtual size_t ViGetTableSize() const = 0;
+        -:   49:
+        -:   50:    [[nodiscard]] virtual std::pair<VarInterface *, VarInterface *> ViGetTableKv(int index) const = 0;
+        -:   51:
+        -:   52:    [[nodiscard]] virtual std::string ViToString(int tab) const = 0;
+        -:   53:};
+        -:   54:
+        -:   55:// 简单的实现，仅用于测试和调试。实际使用中，用户可以根据需要实现自己的 VarInterface。
+        -:   56:struct SimpleVarImpl final : public VarInterface {
+        -:   57:    SimpleVarImpl() = default;
+        -:   58:
+        -:   59:    ~SimpleVarImpl() override = default;
+        -:   60:
+        -:   61:    [[nodiscard]] Type ViGetType() const override {
+        -:   62:        return type_;
+        -:   63:    }
+        -:   64:
+        -:   65:    void ViSetNil() override {
+        -:   66:        type_ = Type::NIL;
+        -:   67:    }
+        -:   68:
+        -:   69:    void ViSetBool(bool v) override {
+        -:   70:        type_ = Type::BOOL;
+        -:   71:        bool_ = v;
+        -:   72:    }
+        -:   73:
+        -:   74:    void ViSetInt(int64_t v) override {
+        -:   75:        type_ = Type::INT;
+        -:   76:        int_ = v;
+        -:   77:    }
+        -:   78:
+        -:   79:    void ViSetFloat(double v) override {
+        -:   80:        type_ = Type::FLOAT;
+        -:   81:        float_ = v;
+        -:   82:    }
+        -:   83:
+        -:   84:    void ViSetString(const std::string_view &v) override {
+        -:   85:        type_ = Type::STRING;
+        -:   86:        string_ = v;
+        -:   87:    }
+        -:   88:
+        -:   89:    void ViSetTable(const std::vector<std::pair<VarInterface *, VarInterface *>> &kv) override {
+        -:   90:        type_ = Type::TABLE;
+        -:   91:        table_ = kv;
+        -:   92:    }
+        -:   93:
+        -:   94:    [[nodiscard]] bool ViGetBool() const override {
+        -:   95:        return bool_;
+        -:   96:    }
+        -:   97:
+        -:   98:    [[nodiscard]] int64_t ViGetInt() const override {
+        -:   99:        return int_;
+        -:  100:    }
+        -:  101:
+        -:  102:    [[nodiscard]] double ViGetFloat() const override {
+        -:  103:        return float_;
+        -:  104:    }
+        -:  105:
+        -:  106:    [[nodiscard]] std::string_view ViGetString() const override {
+        -:  107:        return string_;
+        -:  108:    }
+        -:  109:
+        -:  110:    [[nodiscard]] size_t ViGetTableSize() const override {
+        -:  111:        return table_.size();
+        -:  112:    }
+        -:  113:
+        -:  114:    [[nodiscard]] std::pair<VarInterface *, VarInterface *> ViGetTableKv(int index) const override {
+        -:  115:        return table_[index];
+        -:  116:    }
+        -:  117:
+        -:  118:    [[nodiscard]] std::string ViToString(int tab) const override {
+        -:  119:        std::string ret;
+        -:  120:        switch (type_) {
+        -:  121:            case Type::NIL:
+        -:  122:                ret = "nil";
+        -:  123:                break;
+        -:  124:            case Type::BOOL:
+        -:  125:                ret = bool_ ? "true" : "false";
+        -:  126:                break;
+        -:  127:            case Type::INT:
+        -:  128:                ret = std::to_string(int_);
+        -:  129:                break;
+        -:  130:            case Type::FLOAT:
+        -:  131:                ret = std::to_string(float_);
+        -:  132:                break;
+        -:  133:            case Type::STRING:
+        -:  134:                ret = std::format("\"{}\"", string_);
+        -:  135:                break;
+        -:  136:            case Type::TABLE:
+        -:  137:                ret = "table:";
+        -:  138:                for (const auto &[fst, snd]: table_) {
+        -:  139:                    ret += std::format("\n{}[{}] = {}", std::string(tab + 1, '\t'), fst->ViToString(tab + 1), snd->ViToString(tab + 1));
+        -:  140:                }
+        -:  141:                break;
+        -:  142:        }
+        -:  143:
+        -:  144:        return ret;
+        -:  145:    }
+        -:  146:
+        -:  147:    // 按键对表进行排序，仅用于调试
+        -:  148:    void ViSortTable() {
+        -:  149:        std::sort(table_.begin(), table_.end(), [](const auto &a, const auto &b) {
+        -:  150:            if (a.first->ViGetType() != b.first->ViGetType()) {
+        -:  151:                return a.first->ViGetType() < b.first->ViGetType();
+        -:  152:            }
+        -:  153:            switch (a.first->ViGetType()) {
+        -:  154:                case Type::NIL:
+        -:  155:                    return false;
+        -:  156:                case Type::BOOL:
+        -:  157:                    return a.first->ViGetBool() < b.first->ViGetBool();
+        -:  158:                case Type::INT:
+        -:  159:                    return a.first->ViGetInt() < b.first->ViGetInt();
+        -:  160:                case Type::FLOAT:
+        -:  161:                    return a.first->ViGetFloat() < b.first->ViGetFloat();
+        -:  162:                case Type::STRING:
+        -:  163:                    return a.first->ViGetString() < b.first->ViGetString();
+        -:  164:                case Type::TABLE:
+        -:  165:                    return a.first->ViGetTableSize() < b.first->ViGetTableSize();
+        -:  166:                default:
+        -:  167:                    return false;
+        -:  168:            }
+        -:  169:        });
+        -:  170:        for (const auto &val: table_ | std::views::values) {
+        -:  171:            if (val->ViGetType() == Type::TABLE) {
+        -:  172:                dynamic_cast<SimpleVarImpl *>(val)->ViSortTable();
+        -:  173:            }
+        -:  174:        }
+        -:  175:    }
+        -:  176:
+        -:  177:    Type type_ = Type::NIL;
+        -:  178:    bool bool_ = false;
+        -:  179:    int64_t int_ = 0;
+        -:  180:    double float_ = 0;
+        -:  181:    std::string_view string_;
+        -:  182:    std::vector<std::pair<VarInterface *, VarInterface *>> table_;
+        -:  183:};
+        -:  184:
+        -:  185:class VarTable;
+        -:  186:class VarString;
+        -:  187:class Var;
+        -:  188:
+        -:  189:// 基本变量类型，包含类型标识和数据。数据使用 union 存储，根据类型标识来访问。
+        -:  190:struct CVar {
+        -:  191:protected:
+        -:  192:    int type_ = 0;
+        -:  193:    int flag_ = 0;
+        -:  194:    union cvar_data {
+        -:  195:        bool b;
+        -:  196:        int64_t i;
+        -:  197:        double f;
+        -:  198:        VarString *s;
+        -:  199:        VarTable *t;
+        -:  200:    };
+        -:  201:    cvar_data data_{};
+        -:  202:};
+        -:  203:
+        -:  204:// JIT类型
+        -:  205:enum JITType {
+        -:  206:    // TinyCC 是一个小型的 C 语言编译器，支持即时编译（JIT）。它的特点是编译速度快，适合于需要快速生成和执行代码的场景
+        -:  207:    JIT_TCC = 0,
+        -:  208:    JIT_MAX = 1,
+        -:  209:};
+        -:  210:
+        -:  211:// 控制编译器的配置项
+        -:  212:struct CompileConfig {
+        -:  213:    // 跳过 JIT 编译。仅进行词法分析和语法解析。
+        -:  214:    bool skip_jit = false;
+        -:  215:    // 调试模式。如果为 true，JIT 代码将被转储到文件中。
+        -:  216:    bool debug_mode = true;
+        -:  217:    // 是否使用 JIT 编译，默认都开启
+        -:  218:    bool disable_jit[JIT_MAX] = {false};
+        -:  219:};
+        -:  220:
+        -:  221:struct StateTCCConfig {
+        -:  222:    std::vector<std::string> include_paths = {"./include"};
+        -:  223:    std::vector<std::string> library_paths = {"./lib"};
+        -:  224:    std::vector<std::string> libraries;
+        -:  225:};
+        -:  226:
+        -:  227:struct StateConfig {
+        -:  228:    // 最大栈深，超过该深度将抛出异常。默认为 65536。
+        -:  229:    size_t max_stack_size = 65536;
+        -:  230:    // tcc编译配置
+        -:  231:    StateTCCConfig tcc_config;
+        -:  232:};
+        -:  233:
+        -:  234:class State;
+        -:  235:
+        -:  236:// 创建 FakeLua 状态
+        -:  237:State *FakeluaNewState(const StateConfig &cfg = {});
+        -:  238:
+        -:  239:// 释放 FakeLua 状态
+        -:  240:void FakeluaDeleteState(State *s);
+        -:  241:
+        -:  242:// 作用域下自动new delete
+        -:  243:class FakeluaStateGuard {
+        -:  244:public:
+    #####:  245:    explicit FakeluaStateGuard(const StateConfig &cfg = {}) : state_(FakeluaNewState(cfg)) {
+    #####:  246:    }
+        -:  247:
+    #####:  248:    ~FakeluaStateGuard() {
+    #####:  249:        FakeluaDeleteState(state_);
+    #####:  250:    }
+        -:  251:
+    #####:  252:    State *GetState() const {
+    #####:  253:        return state_;
+        -:  254:    }
+        -:  255:
+        -:  256:private:
+        -:  257:    State *state_;
+        -:  258:};
+        -:  259:
+        -:  260:// 编译文件
+        -:  261:void CompileFile(State *s, const std::string &filename, const CompileConfig &cfg);
+        -:  262:
+        -:  263:// 编译字符串
+        -:  264:void CompileString(State *s, const std::string &str, const CompileConfig &cfg);
+        -:  265:
+        -:  266:// 调用某个脚本函数，出于性能考虑，不支持变参，也只允许返回一个值，多返回值可使用Table来实现
+        -:  267:template<typename Ret, typename... Args>
+        -:  268:void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &&...args);
+        -:  269:
+        -:  270:// 设置 VarInterface 构造实例函数
+        -:  271:void SetVarInterfaceNewFunc(State *s, const std::function<VarInterface *()> &func);
+        -:  272:
+        -:  273:// 获取 VarInterface 构造实例函数
+        -:  274:std::function<VarInterface *()> &GetVarInterfaceNewFunc(State *s);
+        -:  275:
+        -:  276:// 设置全局调试日志级别，注意所有状态都将被设置。
+        -:  277:// 0: 关闭, 1: 错误, 2: 信息, 默认为错误。
+        -:  278:void SetDebugLogLevel(int level);
+        -:  279:
+        -:  280:namespace inter {
+        -:  281:
+        -:  282:// 原生转 FakeLua
+        -:  283:CVar NativeToFakeluaNil(State *s);
+        -:  284:CVar NativeToFakeluaBool(State *s, bool v);
+        -:  285:CVar NativeToFakeluaChar(State *s, char v);
+        -:  286:CVar NativeToFakeluaUchar(State *s, unsigned char v);
+        -:  287:CVar NativeToFakeluaShort(State *s, short v);
+        -:  288:CVar NativeToFakeluaUshort(State *s, unsigned short v);
+        -:  289:CVar NativeToFakeluaInt(State *s, int v);
+        -:  290:CVar NativeToFakeluaUint(State *s, unsigned int v);
+        -:  291:CVar NativeToFakeluaLong(State *s, long v);
+        -:  292:CVar NativeToFakeluaUlong(State *s, unsigned long v);
+        -:  293:CVar NativeToFakeluaLonglong(State *s, long long v);
+        -:  294:CVar NativeToFakeluaUlonglong(State *s, unsigned long long v);
+        -:  295:CVar NativeToFakeluaFloat(State *s, float v);
+        -:  296:CVar NativeToFakeluaDouble(State *s, double v);
+        -:  297:CVar NativeToFakeluaCstr(State *s, const char *v);
+        -:  298:CVar NativeToFakeluaStr(State *s, char *v);
+        -:  299:CVar NativeToFakeluaString(State *s, const std::string &v);
+        -:  300:CVar NativeToFakeluaStringView(State *s, const std::string_view &v);
+        -:  301:CVar NativeToFakeluaObj(State *s, const VarInterface *v);
+        -:  302:
+        -:  303:template<typename T>
+        -:  304:CVar NativeToFakelua(State *s, T v) {
+        -:  305:    // 检查 T 是否为 nil
+        -:  306:    if constexpr (std::is_same_v<T, std::nullptr_t>) {
+        -:  307:        return NativeToFakeluaNil(s);
+        -:  308:    }
+        -:  309:    // 检查 T 是否为 bool
+        -:  310:    else if constexpr (std::is_same_v<T, bool>) {
+        -:  311:        return NativeToFakeluaBool(s, v);
+        -:  312:    }
+        -:  313:    // 检查 T 是否为 char
+        -:  314:    else if constexpr (std::is_same_v<T, char>) {
+        -:  315:        return NativeToFakeluaChar(s, v);
+        -:  316:    }
+        -:  317:    // 检查 T 是否为 unsigned char
+        -:  318:    else if constexpr (std::is_same_v<T, unsigned char>) {
+        -:  319:        return NativeToFakeluaUchar(s, v);
+        -:  320:    }
+        -:  321:    // 检查 T 是否为 short
+        -:  322:    else if constexpr (std::is_same_v<T, short>) {
+        -:  323:        return NativeToFakeluaShort(s, v);
+        -:  324:    }
+        -:  325:    // 检查 T 是否为 unsigned short
+        -:  326:    else if constexpr (std::is_same_v<T, unsigned short>) {
+        -:  327:        return NativeToFakeluaUshort(s, v);
+        -:  328:    }
+        -:  329:    // 检查 T 是否为 int
+        -:  330:    else if constexpr (std::is_same_v<T, int>) {
+        -:  331:        return NativeToFakeluaInt(s, v);
+        -:  332:    }
+        -:  333:    // 检查 T 是否为 unsigned int
+        -:  334:    else if constexpr (std::is_same_v<T, unsigned int>) {
+        -:  335:        return NativeToFakeluaUint(s, v);
+        -:  336:    }
+        -:  337:    // 检查 T 是否为 long
+        -:  338:    else if constexpr (std::is_same_v<T, long>) {
+        -:  339:        return NativeToFakeluaLong(s, v);
+        -:  340:    }
+        -:  341:    // 检查 T 是否为 unsigned long
+        -:  342:    else if constexpr (std::is_same_v<T, unsigned long>) {
+        -:  343:        return NativeToFakeluaUlong(s, v);
+        -:  344:    }
+        -:  345:    // 检查 T 是否为 long long
+        -:  346:    else if constexpr (std::is_same_v<T, long long>) {
+        -:  347:        return NativeToFakeluaLonglong(s, v);
+        -:  348:    }
+        -:  349:    // 检查 T 是否为 unsigned long long
+        -:  350:    else if constexpr (std::is_same_v<T, unsigned long long>) {
+        -:  351:        return NativeToFakeluaUlonglong(s, v);
+        -:  352:    }
+        -:  353:    // 检查 T 是否为 float
+        -:  354:    else if constexpr (std::is_same_v<T, float>) {
+        -:  355:        return NativeToFakeluaFloat(s, v);
+        -:  356:    }
+        -:  357:    // 检查 T 是否为 double
+        -:  358:    else if constexpr (std::is_same_v<T, double>) {
+        -:  359:        return NativeToFakeluaDouble(s, v);
+        -:  360:    }
+        -:  361:    // 检查 T 是否为 const char *
+        -:  362:    else if constexpr (std::is_same_v<T, const char *>) {
+        -:  363:        return NativeToFakeluaCstr(s, v);
+        -:  364:    }
+        -:  365:    // 检查 T 是否为 char *
+        -:  366:    else if constexpr (std::is_same_v<T, char *>) {
+        -:  367:        return NativeToFakeluaStr(s, v);
+        -:  368:    }
+        -:  369:    // 检查 T 是否为 std::string
+        -:  370:    else if constexpr (std::is_same_v<T, std::string>) {
+        -:  371:        return NativeToFakeluaString(s, v);
+        -:  372:    }
+        -:  373:    // 检查 T 是否为 std::string_view
+        -:  374:    else if constexpr (std::is_same_v<T, std::string_view>) {
+        -:  375:        return NativeToFakeluaStringview(s, v);
+        -:  376:    }
+        -:  377:    // 检查 T 是否为 cvar
+        -:  378:    else if constexpr (std::is_same_v<T, CVar>) {
+        -:  379:        return v;
+        -:  380:    } else {
+        -:  381:        // 静态断言 T 应该是 VarInterface* 或实现 VarInterface
+        -:  382:        static_assert(std::is_pointer_v<T>, "T should be pointer");
+        -:  383:        static_assert(std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>, "T should be VarInterface");
+        -:  384:        return NativeToFakeluaObj(s, v);
+        -:  385:    }
+        -:  386:}
+        -:  387:
+        -:  388:// FakeLua 转原生
+        -:  389:bool FakeluaToNativeBool(State *s, CVar v);
+        -:  390:char FakeluaToNativeChar(State *s, CVar v);
+        -:  391:unsigned char FakeluaToNativeUchar(State *s, CVar v);
+        -:  392:short FakeluaToNativeShort(State *s, CVar v);
+        -:  393:unsigned short FakeluaToNativeUshort(State *s, CVar v);
+        -:  394:int FakeluaToNativeInt(State *s, CVar v);
+        -:  395:unsigned int FakeluaToNativeUint(State *s, CVar v);
+        -:  396:long FakeluaToNativeLong(State *s, CVar v);
+        -:  397:unsigned long FakeluaToNativeUlong(State *s, CVar v);
+        -:  398:long long FakeluaToNativeLonglong(State *s, CVar v);
+        -:  399:unsigned long long FakeluaToNativeUlonglong(State *s, CVar v);
+        -:  400:float FakeluaToNativeFloat(State *s, CVar v);
+        -:  401:double FakeluaToNativeDouble(State *s, CVar v);
+        -:  402:const char *FakeluaToNativeCstr(State *s, CVar v);
+        -:  403:const char *FakeluaToNativeStr(State *s, CVar v);
+        -:  404:std::string FakeluaToNativeString(State *s, CVar v);
+        -:  405:std::string_view FakeluaToNativeStringView(State *s, CVar v);
+        -:  406:VarInterface *FakeluaToNativeObj(State *s, CVar v);
+        -:  407:
+        -:  408:template<typename T>
+        -:  409:T FakeluaToNative(State *s, const CVar v) {
+        -:  410:    if constexpr (std::is_same_v<T, bool>) {
+        -:  411:        return FakeluaToNativeBool(s, v);
+        -:  412:    } else if constexpr (std::is_same_v<T, char>) {
+        -:  413:        return FakeluaToNativeChar(s, v);
+        -:  414:    } else if constexpr (std::is_same_v<T, unsigned char>) {
+        -:  415:        return FakeluaToNativeUchar(s, v);
+        -:  416:    } else if constexpr (std::is_same_v<T, short>) {
+        -:  417:        return FakeluaToNativeShort(s, v);
+        -:  418:    } else if constexpr (std::is_same_v<T, unsigned short>) {
+        -:  419:        return FakeluaToNativeUshort(s, v);
+        -:  420:    } else if constexpr (std::is_same_v<T, int>) {
+        -:  421:        return FakeluaToNativeInt(s, v);
+        -:  422:    } else if constexpr (std::is_same_v<T, unsigned int>) {
+        -:  423:        return FakeluaToNativeUint(s, v);
+        -:  424:    } else if constexpr (std::is_same_v<T, long>) {
+        -:  425:        return FakeluaToNativeLong(s, v);
+        -:  426:    } else if constexpr (std::is_same_v<T, unsigned long>) {
+        -:  427:        return FakeluaToNativeUlong(s, v);
+        -:  428:    } else if constexpr (std::is_same_v<T, long long>) {
+        -:  429:        return FakeluaToNativeLonglong(s, v);
+        -:  430:    } else if constexpr (std::is_same_v<T, unsigned long long>) {
+        -:  431:        return FakeluaToNativeUlonglong(s, v);
+        -:  432:    } else if constexpr (std::is_same_v<T, float>) {
+        -:  433:        return FakeluaToNativeFloat(s, v);
+        -:  434:    } else if constexpr (std::is_same_v<T, double>) {
+        -:  435:        return FakeluaToNativeDouble(s, v);
+        -:  436:    } else if constexpr (std::is_same_v<T, const char *>) {
+        -:  437:        return FakeluaToNativeCstr(s, v);
+        -:  438:    } else if constexpr (std::is_same_v<T, char *>) {
+        -:  439:        return const_cast<char *>(FakeluaToNativeStr(s, v));
+        -:  440:    } else if constexpr (std::is_same_v<T, std::string>) {
+        -:  441:        return FakeluaToNativeString(s, v);
+        -:  442:    } else if constexpr (std::is_same_v<T, std::string_view>) {
+        -:  443:        return FakeluaToNativeStringView(s, v);
+        -:  444:    } else if constexpr (std::is_same_v<T, CVar>) {
+        -:  445:        return v;
+        -:  446:    } else {
+        -:  447:        // 静态断言 T 应该是 VarInterface* 或实现 VarInterface
+        -:  448:        static_assert(std::is_pointer_v<T>, "T should be pointer");
+        -:  449:        static_assert(std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>, "T should be VarInterface");
+        -:  450:        return FakeluaToNativeObj(s, v);
+        -:  451:    }
+        -:  452:}
+        -:  453:
+        -:  454:void *GetFuncAddr(State *s, JITType type, const std::string_view &name, int &arg_count);
+        -:  455:
+        -:  456:[[noreturn]] void ThrowInterFakeluaException(const std::string &msg);
+        -:  457:
+        -:  458:int GetReentrantCount(State *s);
+        -:  459:
+        -:  460:void AddReentrantCount(State *s);
+        -:  461:
+        -:  462:void SubReentrantCount(State *s);
+        -:  463:
+        -:  464:void Reset(State *s);
+        -:  465:
+        -:  466:class ReentryCounter {
+        -:  467:public:
+        -:  468:    explicit ReentryCounter(State *s) : s_(s) {
+        -:  469:        AddReentrantCount(s_);
+        -:  470:    }
+        -:  471:
+        -:  472:    ~ReentryCounter() {
+        -:  473:        SubReentrantCount(s_);
+        -:  474:    }
+        -:  475:
+        -:  476:private:
+        -:  477:    State *s_;
+        -:  478:};
+        -:  479:
+        -:  480:}// namespace inter
+        -:  481:
+        -:  482:// 调用函数
+        -:  483:template<typename Ret, typename... Args>
+        -:  484:void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &&...args) {
+        -:  485:    int arg_count = 0;
+        -:  486:    const auto addr = inter::GetFuncAddr(s, type, name, arg_count);
+        -:  487:    if (!addr) {
+        -:  488:        inter::ThrowInterFakeluaException(std::format("Call failed, function {} not found", name));
+        -:  489:    }
+        -:  490:
+        -:  491:    if (sizeof...(Args) != static_cast<size_t>(arg_count)) {
+        -:  492:        inter::ThrowInterFakeluaException(
+        -:  493:                std::format("Call failed, function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
+        -:  494:    }
+        -:  495:
+        -:  496:    if (const auto reentrant_count = inter::GetReentrantCount(s); !reentrant_count) {
+        -:  497:        inter::Reset(s);
+        -:  498:    }
+        -:  499:    inter::ReentryCounter rc(s);
+        -:  500:
+        -:  501:    const CVar ret_var = reinterpret_cast<CVar (*)(...)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+        -:  502:
+        -:  503:    ret = inter::FakeluaToNative<Ret>(s, ret_var);
+        -:  504:}
+        -:  505:
+        -:  506:}// namespace fakelua

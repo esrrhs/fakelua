@@ -457,9 +457,10 @@ void CGen::GenerateGlobal(CompileResult &cr) {
     in_global_init_ = true;
 
     // 静态全局的CVar
-    globals_ << "static const CVar kNil = {.type_ = VAR_NIL};\n";
-    globals_ << "static const CVar kTrue = {.type_ = VAR_BOOL, .data_.b = true};\n";
-    globals_ << "static const CVar kFalse = {.type_ = VAR_BOOL, .data_.b = false};\n";
+    // 定义初始化器宏
+    globals_ << "static const CVar kNil = (CVar){.type_ = VAR_NIL};\n";
+    globals_ << "static const CVar kTrue = (CVar){.type_ = VAR_BOOL, .data_.b = true};\n";
+    globals_ << "static const CVar kFalse = (CVar){.type_ = VAR_BOOL, .data_.b = false};\n";
 
     // 遍历顶层的 local 变量定义，生成全局常量
     const auto chunk = cr.chunk;
@@ -501,7 +502,7 @@ void CGen::GenerateGlobal(CompileResult &cr) {
                 std::string cvar_init = CompileExp(exp);
 
                 // 生成静态全局变量
-                globals_ << "static CVar " << name << " = " << cvar_init << ";\n";
+                globals_ << "static const CVar " << name << " = " << cvar_init << ";\n";
 
                 // 记录变量名
                 global_const_vars_.insert(name);
@@ -820,11 +821,23 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
                  ExpType == "unop")
 
     if (ExpType == "nil") {
-        return "kNil";
+        if (in_global_init_) {
+            return "(CVar){.type_ = VAR_NIL}";
+        } else {
+            return "kNil";
+        }
     } else if (ExpType == "false") {
-        return "kFalse";
+        if (in_global_init_) {
+            return "(CVar){.type_ = VAR_BOOL, .data_.b = false}";
+        } else {
+            return "kFalse";
+        }
     } else if (ExpType == "true") {
-        return "kTrue";
+        if (in_global_init_) {
+            return "(CVar){.type_ = VAR_BOOL, .data_.b = true}";
+        } else {
+            return "kTrue";
+        }
     } else if (ExpType == "number") {
         if (IsInteger(value)) {
             // eg: (CVar){.type_ = VAR_INT, .data_.i = 42}

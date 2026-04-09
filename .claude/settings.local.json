@@ -1,0 +1,31 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cmake *)",
+      "Bash(where cmake:*)",
+      "Skill(update-config)",
+      "Bash(git *)",
+      "Bash(./bin/unit_tests --gtest_filter=\"var.*\")",
+      "Bash(./bin/unit_tests)",
+      "Bash(ls -la *.gcda *.gcno)",
+      "Bash(where gcov:*)",
+      "Bash(gcov -o ./src/CMakeFiles/fakelua.dir/var/var.cpp.gcda ../src/var/var.cpp)",
+      "Bash(gcov -o ./src/CMakeFiles/fakelua.dir/var/var_table.cpp.gcda ../src/var/var_table.cpp)",
+      "Bash(./build_cov/bin/test_fakelua --gtest_filter=\"*vartable*\")",
+      "Bash(./unit_tests.exe --gtest_filter=\"*vartable*\")",
+      "Bash(N:/project/fakelua/build_cov/unit_tests.exe --gtest_filter=\"*vartable*\")",
+      "Bash(ls:*)",
+      "Bash(bin/unit_tests.exe --gtest_filter=\"*vartable*\")",
+      "Bash(gcovr -r .. --html --html-details -o coverage.html)",
+      "Bash(make -j4)",
+      "Bash(bin/unit_tests.exe:*)",
+      "Bash(gcov:*)",
+      "Bash(./bin/unit_tests.exe --gtest_filter=\"jitter.empty_local_func\")",
+      "Bash(./unit_tests.exe --gtest_filter=\"jitter.empty_local_func\")",
+      "Bash(./unit_tests.exe --gtest_filter=\"jitter.*\")",
+      "Bash(./unit_tests.exe)",
+      "Bash(./flua.exe -f ./jit/test_multi_name_func.lua)",
+      "Bash(./flua.exe --help)"
+    ]
+  }
+}

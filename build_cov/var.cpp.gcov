@@ -1,0 +1,418 @@
+        -:    0:Source:N:/project/fakelua/src/var/var.cpp
+        -:    0:Graph:src/CMakeFiles/fakelua.dir/var/var.cpp.gcno
+        -:    0:Data:src/CMakeFiles/fakelua.dir/var/var.cpp.gcda
+        -:    0:Runs:15
+        -:    1:#include "var.h"
+        -:    2:#include "fakelua.h"
+        -:    3:#include "state/const_string.h"
+        -:    4:#include "state/state.h"
+        -:    5:#include "util/common.h"
+        -:    6:#include "var_string.h"
+        -:    7:#include "var_table.h"
+        -:    8:
+        -:    9:namespace fakelua {
+        -:   10:
+        -:   11:Var const_null_var;
+        -:   12:
+      250:   13:VarString *Var::GetString() const {
+        -:   14:    DEBUG_ASSERT(type_ == static_cast<int>(VarType::String) || type_ == static_cast<int>(VarType::StringId));
+      250:   15:    if (type_ == static_cast<int>(VarType::String)) {
+      210:   16:        return data_.s;
+        -:   17:    } else /*if (type_ == static_cast<int>(VarType::StringId))*/ {
+       40:   18:        return ConstString::GetVarString(data_.i);
+        -:   19:    }
+        -:   20:}
+        -:   21:
+      288:   22:void Var::SetTempString(State *s, const std::string_view &val) {
+      288:   23:    type_ = static_cast<int>(VarType::String);
+      288:   24:    data_.s = VarString::AllocTemp(s, val);
+      288:   25:}
+        -:   26:
+       64:   27:void Var::SetConstString(State *s, const std::string_view &val) {
+       64:   28:    type_ = static_cast<int>(VarType::StringId);
+       64:   29:    data_.i = s->GetConstString().Alloc(val);
+       64:   30:}
+        -:   31:
+       70:   32:void Var::SetTable(State *s) {
+       70:   33:    type_ = static_cast<int>(VarType::Table);
+       70:   34:    data_.t = s->GetHeap().GetTempAllocator().New<VarTable>();
+       70:   35:}
+        -:   36:
+      372:   37:std::string Var::ToString(bool has_quote, bool has_postfix) const {
+      372:   38:    std::string ret;
+        -:   39:    DEBUG_ASSERT(Type() >= VarType::Min && Type() <= VarType::Max);
+      372:   40:    switch (Type()) {
+       29:   41:        case VarType::Nil:
+       29:   42:            ret = "nil";
+       29:   43:            break;
+       39:   44:        case VarType::Bool:
+      39*:   45:            ret = GetBool() ? "true" : "false";
+       39:   46:            break;
+      140:   47:        case VarType::Int:
+      140:   48:            ret = std::to_string(data_.i);
+      140:   49:            break;
+       58:   50:        case VarType::Float: {
+       58:   51:            ret = std::format("{}", data_.f);
+       58:   52:            break;
+        -:   53:        }
+       82:   54:        case VarType::String:
+       82:   55:            ret = has_quote ? std::format("\"{}\"", data_.s->Str()) : std::format("{}", data_.s->Str());
+       82:   56:            break;
+       16:   57:        case VarType::StringId:
+       16:   58:            ret = has_quote ? std::format("\"{}\"", ConstString::GetString(data_.i)) : std::format("{}", ConstString::GetString(data_.i));
+       16:   59:            break;
+        8:   60:        case VarType::Table:
+        8:   61:            ret = std::format("table({})", static_cast<void *>(data_.t));
+        8:   62:            break;
+        -:   63:    }
+        -:   64:
+      372:   65:    return ret;
+    =====:   66:}
+        -:   67:
+    42188:   68:size_t Var::Hash() const {
+    42188:   69:    switch (Type()) {
+        7:   70:        case VarType::Nil: {
+        7:   71:            return 0;
+        -:   72:        }
+       32:   73:        case VarType::Bool: {
+       32:   74:            return data_.b ? 1 : 0;
+        -:   75:        }
+    41917:   76:        case VarType::Int: {
+    41917:   77:            return static_cast<uint32_t>(data_.i ^ (data_.i >> 32));
+        -:   78:        }
+       64:   79:        case VarType::Float: {
+        -:   80:            union {
+        -:   81:                double d;
+        -:   82:                uint64_t u;
+        -:   83:            } u;
+       64:   84:            u.d = data_.f;
+       64:   85:            return static_cast<uint32_t>(u.u ^ (u.u >> 32));
+        -:   86:        }
+      122:   87:        case VarType::String:
+        -:   88:        case VarType::StringId: {
+      122:   89:            return GetString()->Hash();
+        -:   90:        }
+       40:   91:        case VarType::Table: {
+       40:   92:            return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data_.t) ^ (reinterpret_cast<uintptr_t>(data_.t) >> 32));
+        -:   93:        }
+        6:   94:        default: {
+        6:   95:            return 0;
+        -:   96:        }
+        -:   97:    }
+        -:   98:}
+        -:   99:
+    25448:  100:bool Var::Equal(const Var &rhs) const {
+    25448:  101:    if (Type() != rhs.Type()) {
+       32:  102:        if (Type() == VarType::String && rhs.Type() == VarType::StringId) {
+       16:  103:            return GetString()->Str() == rhs.GetString()->Str();
+        -:  104:        }
+       16:  105:        if (Type() == VarType::StringId && rhs.Type() == VarType::String) {
+        8:  106:            return GetString()->Str() == rhs.GetString()->Str();
+        -:  107:        }
+        8:  108:        return false;
+        -:  109:    }
+        -:  110:
+    25416:  111:    switch (Type()) {
+       24:  112:        case VarType::Nil:
+       24:  113:            return true;
+       16:  114:        case VarType::Bool:
+       16:  115:            return data_.b == rhs.data_.b;
+    25205:  116:        case VarType::Int:
+    25205:  117:            return data_.i == rhs.data_.i;
+       48:  118:        case VarType::Float:
+       48:  119:            if (std::isnan(data_.f) && std::isnan(rhs.data_.f)) {
+       32:  120:                return true;
+        -:  121:            }
+       16:  122:            return data_.f == rhs.data_.f;
+       69:  123:        case VarType::String:
+       69:  124:            return data_.s->Str() == rhs.data_.s->Str();
+       16:  125:        case VarType::StringId:
+       16:  126:            return data_.i == rhs.data_.i;
+       32:  127:        case VarType::Table:
+       32:  128:            return data_.t == rhs.data_.t;
+        6:  129:        default:
+        6:  130:            return false;
+        -:  131:    }
+        -:  132:}
+        -:  133:
+      516:  134:bool Var::IsCalculable() const {
+      516:  135:    return Type() == VarType::Int || Type() == VarType::Float;
+        -:  136:}
+        -:  137:
+      456:  138:bool Var::IsCalculableInteger() const {
+      456:  139:    return Type() == VarType::Int;
+        -:  140:}
+        -:  141:
+      276:  142:int64_t Var::GetCalculableInt() const {
+      276:  143:    return GetInt();
+        -:  144:}
+        -:  145:
+      283:  146:double Var::GetCalculableNumber() const {
+      283:  147:    if (type_ == static_cast<int>(VarType::Int)) {
+       96:  148:        return static_cast<double>(data_.i);
+        -:  149:    } else /*if (type_ == static_cast<int>(VarType::Float))*/ {
+      187:  150:        return data_.f;
+        -:  151:    }
+        -:  152:}
+        -:  153:
+       32:  154:void Var::Plus(const Var &rhs, Var &result) const {
+       32:  155:    if (!IsCalculable() || !rhs.IsCalculable()) {
+       32:  156:        ThrowFakeluaException(std::format("Var op failed, operand of '+' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       32:  157:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  158:    }
+       24:  159:    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
+        8:  160:        result.SetInt(GetCalculableInt() + rhs.GetCalculableInt());
+        -:  161:    } else {
+       16:  162:        result.SetFloat(GetCalculableNumber() + rhs.GetCalculableNumber());
+        -:  163:    }
+       24:  164:}
+        -:  165:
+       24:  166:void Var::Minus(const Var &rhs, Var &result) const {
+       24:  167:    if (!IsCalculable() || !rhs.IsCalculable()) {
+       32:  168:        ThrowFakeluaException(std::format("Var op failed, operand of '-' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       32:  169:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  170:    }
+       16:  171:    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
+        8:  172:        result.SetInt(GetCalculableInt() - rhs.GetCalculableInt());
+        -:  173:    } else {
+        8:  174:        result.SetFloat(GetCalculableNumber() - rhs.GetCalculableNumber());
+        -:  175:    }
+       16:  176:}
+        -:  177:
+       32:  178:void Var::Star(const Var &rhs, Var &result) const {
+       32:  179:    if (!IsCalculable() || !rhs.IsCalculable()) {
+       32:  180:        ThrowFakeluaException(std::format("Var op failed, operand of '*' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       32:  181:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  182:    }
+       24:  183:    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
+        8:  184:        result.SetInt(GetCalculableInt() * rhs.GetCalculableInt());
+        -:  185:    } else {
+       16:  186:        result.SetFloat(GetCalculableNumber() * rhs.GetCalculableNumber());
+        -:  187:    }
+       24:  188:}
+        -:  189:
+       16:  190:void Var::Slash(const Var &rhs, Var &result) const {
+       16:  191:    if (!IsCalculable() || !rhs.IsCalculable()) {
+       32:  192:        ThrowFakeluaException(std::format("Var op failed, operand of '/' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       32:  193:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  194:    }
+        8:  195:    result.SetFloat(GetCalculableNumber() / rhs.GetCalculableNumber());
+        8:  196:}
+        -:  197:
+       40:  198:void Var::DoubleSlash(const Var &rhs, Var &result) const {
+       40:  199:    if (!IsCalculable() || !rhs.IsCalculable()) {
+       32:  200:        ThrowFakeluaException(std::format("Var op failed, operand of '//' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       32:  201:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  202:    }
+       32:  203:    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
+       16:  204:        result.SetInt(GetCalculableInt() / rhs.GetCalculableInt());
+        -:  205:    } else {
+       16:  206:        result.SetFloat(std::floor(GetCalculableNumber() / rhs.GetCalculableNumber()));
+        -:  207:    }
+       32:  208:}
+        -:  209:
+       15:  210:void Var::Pow(const Var &rhs, Var &result) const {
+       15:  211:    if (!IsCalculable() || !rhs.IsCalculable()) {
+       28:  212:        ThrowFakeluaException(std::format("Var op failed, operand of '^' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       28:  213:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  214:    }
+        8:  215:    result.SetFloat(std::pow(GetCalculableNumber(), rhs.GetCalculableNumber()));
+        8:  216:}
+        -:  217:
+       29:  218:void Var::Mod(const Var &rhs, Var &result) const {
+       29:  219:    if (!IsCalculable() || !rhs.IsCalculable()) {
+       28:  220:        ThrowFakeluaException(std::format("Var op failed, operand of '%' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       28:  221:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  222:    }
+       22:  223:    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
+        8:  224:        result.SetInt(GetCalculableInt() % rhs.GetCalculableInt());
+        -:  225:    } else {
+       14:  226:        result.SetFloat(std::fmod(GetCalculableNumber(), rhs.GetCalculableNumber()));
+        -:  227:    }
+       22:  228:}
+        -:  229:
+       15:  230:void Var::Bitand(const Var &rhs, Var &result) const {
+       15:  231:    if (!IsCalculableInteger() || !rhs.IsCalculableInteger()) {
+       28:  232:        ThrowFakeluaException(std::format("Var op failed, operand of '&' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       28:  233:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  234:    }
+        8:  235:    result.SetInt(GetCalculableInt() & rhs.GetCalculableInt());
+        8:  236:}
+        -:  237:
+       15:  238:void Var::Xor(const Var &rhs, Var &result) const {
+       15:  239:    if (!IsCalculableInteger() || !rhs.IsCalculableInteger()) {
+       28:  240:        ThrowFakeluaException(std::format("Var op failed, operand of '~' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       28:  241:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  242:    }
+        8:  243:    result.SetInt(GetCalculableInt() ^ rhs.GetCalculableInt());
+        8:  244:}
+        -:  245:
+       15:  246:void Var::Bitor(const Var &rhs, Var &result) const {
+       15:  247:    if (!IsCalculableInteger() || !rhs.IsCalculableInteger()) {
+       28:  248:        ThrowFakeluaException(std::format("Var op failed, operand of '|' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       28:  249:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  250:    }
+        8:  251:    result.SetInt(GetCalculableInt() | rhs.GetCalculableInt());
+        8:  252:}
+        -:  253:
+       22:  254:void Var::RightShift(const Var &rhs, Var &result) const {
+       22:  255:    if (!IsCalculableInteger() || !rhs.IsCalculableInteger()) {
+       28:  256:        ThrowFakeluaException(std::format("Var op failed, operand of '>>' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       28:  257:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  258:    }
+       15:  259:    auto shift = rhs.GetCalculableInt();
+       15:  260:    if (shift >= 0) {
+        8:  261:        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(GetCalculableInt()) >> shift));
+        -:  262:    } else {
+        7:  263:        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(GetCalculableInt()) << (-shift)));
+        -:  264:    }
+       15:  265:}
+        -:  266:
+       22:  267:void Var::LeftShift(const Var &rhs, Var &result) const {
+       22:  268:    if (!IsCalculableInteger() || !rhs.IsCalculableInteger()) {
+       28:  269:        ThrowFakeluaException(std::format("Var op failed, operand of '<<' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       28:  270:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  271:    }
+       15:  272:    auto shift = rhs.GetCalculableInt();
+       15:  273:    if (shift >= 0) {
+        8:  274:        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(GetCalculableInt()) << shift));
+        -:  275:    } else {
+        7:  276:        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(GetCalculableInt()) >> (-shift)));
+        -:  277:    }
+       15:  278:}
+        -:  279:
+        8:  280:void Var::Concat(State *s, const Var &rhs, Var &result) const {
+        8:  281:    result.SetTempString(s, std::format("{}{}", ToString(false, false), rhs.ToString(false, false)));
+        8:  282:}
+        -:  283:
+       22:  284:void Var::Less(const Var &rhs, Var &result) const {
+       22:  285:    if (!IsCalculable() || !rhs.IsCalculable()) {
+       28:  286:        ThrowFakeluaException(std::format("Var op failed, operand of '<' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       28:  287:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  288:    }
+        -:  289:
+       15:  290:    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
+        8:  291:        result.SetBool(GetCalculableInt() < rhs.GetCalculableInt());
+        -:  292:    } else {
+        7:  293:        result.SetBool(GetCalculableNumber() < rhs.GetCalculableNumber());
+        -:  294:    }
+       15:  295:}
+        -:  296:
+       22:  297:void Var::LessEqual(const Var &rhs, Var &result) const {
+       22:  298:    if (!IsCalculable() || !rhs.IsCalculable()) {
+       28:  299:        ThrowFakeluaException(std::format("Var op failed, operand of '<=' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       28:  300:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  301:    }
+        -:  302:
+       15:  303:    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
+        8:  304:        result.SetBool(GetCalculableInt() <= rhs.GetCalculableInt());
+        -:  305:    } else {
+        7:  306:        result.SetBool(GetCalculableNumber() <= rhs.GetCalculableNumber());
+        -:  307:    }
+       15:  308:}
+        -:  309:
+       22:  310:void Var::More(const Var &rhs, Var &result) const {
+       22:  311:    if (!IsCalculable() || !rhs.IsCalculable()) {
+       28:  312:        ThrowFakeluaException(std::format("Var op failed, operand of '>' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       28:  313:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  314:    }
+        -:  315:
+       15:  316:    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
+        8:  317:        result.SetBool(GetCalculableInt() > rhs.GetCalculableInt());
+        -:  318:    } else {
+        7:  319:        result.SetBool(GetCalculableNumber() > rhs.GetCalculableNumber());
+        -:  320:    }
+       15:  321:}
+        -:  322:
+       22:  323:void Var::MoreEqual(const Var &rhs, Var &result) const {
+       22:  324:    if (!IsCalculable() || !rhs.IsCalculable()) {
+       28:  325:        ThrowFakeluaException(std::format("Var op failed, operand of '>=' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+       28:  326:                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+        -:  327:    }
+        -:  328:
+       15:  329:    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
+        8:  330:        result.SetBool(GetCalculableInt() >= rhs.GetCalculableInt());
+        -:  331:    } else {
+        7:  332:        result.SetBool(GetCalculableNumber() >= rhs.GetCalculableNumber());
+        -:  333:    }
+       15:  334:}
+        -:  335:
+       14:  336:void Var::Equal(const Var &rhs, Var &result) const {
+       14:  337:    result.SetBool(Equal(rhs));
+       14:  338:}
+        -:  339:
+        8:  340:void Var::NotEqual(const Var &rhs, Var &result) const {
+        8:  341:    result.SetBool(!Equal(rhs));
+        8:  342:}
+        -:  343:
+       48:  344:bool Var::TestTrue() const {
+       48:  345:    switch (Type()) {
+       16:  346:        case VarType::Nil:
+       16:  347:            return false;
+       24:  348:        case VarType::Bool:
+       24:  349:            return GetBool();
+        8:  350:        default:
+        8:  351:            return true;
+        -:  352:    }
+        -:  353:}
+        -:  354:
+       22:  355:void Var::UnopMinus(Var &result) const {
+       22:  356:    if (!IsCalculable()) {
+       28:  357:        ThrowFakeluaException(std::format("Var op failed, operand of '-' must be number, got {} {}", VarTypeToString(Type()), ToString()));
+        -:  358:    }
+       15:  359:    if (IsCalculableInteger()) {
+        8:  360:        result.SetInt(-GetCalculableInt());
+        -:  361:    } else {
+        7:  362:        result.SetFloat(-GetCalculableNumber());
+        -:  363:    }
+       15:  364:}
+        -:  365:
+       16:  366:void Var::UnopNot(Var &result) const {
+       16:  367:    result.SetBool(!TestTrue());
+       16:  368:}
+        -:  369:
+       23:  370:void Var::UnopNumberSign(Var &result) const {
+       23:  371:    if (Type() != VarType::String && Type() != VarType::Table) {
+       28:  372:        ThrowFakeluaException(std::format("Var op failed, operand of '#' must be string or table, got {} {}", VarTypeToString(Type()), ToString()));
+        -:  373:    }
+        -:  374:
+       16:  375:    if (Type() == VarType::String) {
+        8:  376:        result.SetInt(static_cast<int64_t>(data_.s->Size()));
+        -:  377:    } else {
+        8:  378:        result.SetInt(static_cast<int64_t>(data_.t->Size()));
+        -:  379:    }
+       16:  380:}
+        -:  381:
+       15:  382:void Var::UnopBitnot(Var &result) const {
+       15:  383:    if (Type() != VarType::Int) {
+       28:  384:        ThrowFakeluaException(std::format("Var op failed, operand of '~' must be integer, got {} {}", VarTypeToString(Type()), ToString()));
+        -:  385:    }
+        -:  386:
+        8:  387:    result.SetInt(~GetInt());
+        8:  388:}
+        -:  389:
+       29:  390:void Var::TableSet(State *s, const Var &key, const Var &val, bool can_be_nil) const {
+       29:  391:    if (Type() != VarType::Table) {
+       28:  392:        ThrowFakeluaException(std::format("Var op failed, operand of 'TableSet' must be table, got {} {}", VarTypeToString(Type()), ToString()));
+        -:  393:    }
+        -:  394:
+       22:  395:    GetTable()->Set(s, key, val, can_be_nil);
+       22:  396:}
+        -:  397:
+       14:  398:Var Var::TableGet(const Var &key) const {
+       14:  399:    if (Type() != VarType::Table) {
+       28:  400:        ThrowFakeluaException(std::format("Var op failed, operand of 'TableGet' must be table, got {} {}", VarTypeToString(Type()), ToString()));
+        -:  401:    }
+        -:  402:
+        7:  403:    return GetTable()->Get(key);
+        -:  404:}
+        -:  405:
+       21:  406:size_t Var::TableSize() const {
+       21:  407:    if (Type() != VarType::Table) {
+       28:  408:        ThrowFakeluaException(std::format("Var op failed, operand of 'TableSize' must be table, got {} {}", VarTypeToString(Type()), ToString()));
+        -:  409:    }
+        -:  410:
+       14:  411:    return GetTable()->Size();
+        -:  412:}
+        -:  413:
+        -:  414:}// namespace fakelua

@@ -1,0 +1,413 @@
+        -:    0:Source:N:/project/fakelua/src/var/var_table.cpp
+        -:    0:Graph:./src/CMakeFiles/fakelua.dir/var/var_table.cpp.gcno
+        -:    0:Data:./src/CMakeFiles/fakelua.dir/var/var_table.cpp.gcda
+        -:    0:Runs:10
+        -:    1:#include "var_table.h"
+        -:    2:#include "state/state.h"
+        -:    3:#include "util/common.h"
+        -:    4:#include "var.h"
+        -:    5:#include <bit>
+        -:    6:
+        -:    7:namespace fakelua {
+        -:    8:
+     6617:    9:Var VarTable::Get(const Var &key) const {
+     6617:   10:    if (key.Type() == VarType::Nil) {
+        6:   11:        ThrowFakeluaException("VarTable Get failed, table index is nil");
+        -:   12:    }
+        -:   13:
+     6614:   14:    if (count_ == 0) {
+        3:   15:        return const_null_var;
+        -:   16:    }
+        -:   17:
+     6611:   18:    const auto h = static_cast<uint32_t>(key.Hash());
+        -:   19:
+     6611:   20:    if (bucket_count_ == 0) {
+        -:   21:        // 快速模式：手动展开以提升性能
+      166:   22:        if (count_ > 0 && quick_data_[0].hash == h && quick_data_[0].key.Equal(key)) {
+       53:   23:            return quick_data_[0].val;
+        -:   24:        }
+      113:   25:        if (count_ > 1 && quick_data_[1].hash == h && quick_data_[1].key.Equal(key)) {
+       29:   26:            return quick_data_[1].val;
+        -:   27:        }
+       84:   28:        if (count_ > 2 && quick_data_[2].hash == h && quick_data_[2].key.Equal(key)) {
+       21:   29:            return quick_data_[2].val;
+        -:   30:        }
+       63:   31:        if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(key)) {
+       11:   32:            return quick_data_[3].val;
+        -:   33:        }
+       52:   34:        if (count_ > 4 && quick_data_[4].hash == h && quick_data_[4].key.Equal(key)) {
+       11:   35:            return quick_data_[4].val;
+        -:   36:        }
+       41:   37:        if (count_ > 5 && quick_data_[5].hash == h && quick_data_[5].key.Equal(key)) {
+       11:   38:            return quick_data_[5].val;
+        -:   39:        }
+       30:   40:        if (count_ > 6 && quick_data_[6].hash == h && quick_data_[6].key.Equal(key)) {
+        6:   41:            return quick_data_[6].val;
+        -:   42:        }
+       24:   43:        if (count_ > 7 && quick_data_[7].hash == h && quick_data_[7].key.Equal(key)) {
+        6:   44:            return quick_data_[7].val;
+        -:   45:        }
+       18:   46:        return const_null_var;
+        -:   47:    } else {
+     6445:   48:        const uint32_t mask = bucket_count_ - 1;
+     6445:   49:        uint32_t curr_idx = h & mask;
+     6445:   50:        const TableNode *curr = &nodes_[curr_idx];
+        -:   51:
+     6445:   52:        if (curr->entry.key.Type() == VarType::Nil) {
+        2:   53:            return const_null_var;
+        -:   54:        }
+        -:   55:
+        -:   56:        for (;;) {
+    6443*:   57:            if (curr->entry.hash == h && curr->entry.key.Equal(key)) {
+     6438:   58:                return curr->entry.val;
+        -:   59:            }
+        5:   60:            curr_idx = curr->next;
+        5:   61:            if (curr_idx == INVALID_INDEX) {
+        5:   62:                break;
+        -:   63:            }
+    #####:   64:            curr = &nodes_[curr_idx];
+        -:   65:        }
+        -:   66:    }
+        5:   67:    return const_null_var;
+        -:   68:}
+        -:   69:
+     9908:   70:void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
+     9908:   71:    if (key.Type() == VarType::Nil) {
+        6:   72:        ThrowFakeluaException("VarTable Set failed, table index is nil");
+        -:   73:    }
+     9905:   74:    const auto h = static_cast<uint32_t>(key.Hash());
+        -:   75:
+     9905:   76:    if (val.Type() == VarType::Nil && !can_be_nil) {
+     2249:   77:        if (count_ == 0) {
+        3:   78:            return;
+        -:   79:        }
+        -:   80:
+     2246:   81:        if (bucket_count_ == 0) {
+        -:   82:            // 快速模式删除：手动展开
+       69:   83:            if (count_ > 0 && quick_data_[0].hash == h && quick_data_[0].key.Equal(key)) {
+       16:   84:                if (count_ > 1) {
+       11:   85:                    quick_data_[0] = quick_data_[count_ - 1];
+        -:   86:                }
+       16:   87:                count_--;
+       16:   88:                return;
+        -:   89:            }
+       53:   90:            if (count_ > 1 && quick_data_[1].hash == h && quick_data_[1].key.Equal(key)) {
+        8:   91:                if (count_ > 2) {
+        3:   92:                    quick_data_[1] = quick_data_[count_ - 1];
+        -:   93:                }
+        8:   94:                count_--;
+        8:   95:                return;
+        -:   96:            }
+       45:   97:            if (count_ > 2 && quick_data_[2].hash == h && quick_data_[2].key.Equal(key)) {
+       18:   98:                if (count_ > 3) {
+        3:   99:                    quick_data_[2] = quick_data_[count_ - 1];
+        -:  100:                }
+       18:  101:                count_--;
+       18:  102:                return;
+        -:  103:            }
+       27:  104:            if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(key)) {
+        8:  105:                if (count_ > 4) {
+        3:  106:                    quick_data_[3] = quick_data_[count_ - 1];
+        -:  107:                }
+        8:  108:                count_--;
+        8:  109:                return;
+        -:  110:            }
+       19:  111:            if (count_ > 4 && quick_data_[4].hash == h && quick_data_[4].key.Equal(key)) {
+        5:  112:                if (count_ > 5) {
+        1:  113:                    quick_data_[4] = quick_data_[count_ - 1];
+        -:  114:                }
+        5:  115:                count_--;
+        5:  116:                return;
+        -:  117:            }
+       14:  118:            if (count_ > 5 && quick_data_[5].hash == h && quick_data_[5].key.Equal(key)) {
+        5:  119:                if (count_ > 6) {
+        1:  120:                    quick_data_[5] = quick_data_[count_ - 1];
+        -:  121:                }
+        5:  122:                count_--;
+        5:  123:                return;
+        -:  124:            }
+        9:  125:            if (count_ > 6 && quick_data_[6].hash == h && quick_data_[6].key.Equal(key)) {
+        5:  126:                if (count_ > 7) {
+        1:  127:                    quick_data_[6] = quick_data_[count_ - 1];
+        -:  128:                }
+        5:  129:                count_--;
+        5:  130:                return;
+        -:  131:            }
+       4*:  132:            if (count_ > 7 && quick_data_[7].hash == h && quick_data_[7].key.Equal(key)) {
+        4:  133:                count_--;
+        4:  134:                return;
+        -:  135:            }
+        -:  136:        } else {
+     2177:  137:            const uint32_t mask = bucket_count_ - 1;
+     2177:  138:            const uint32_t idx = h & mask;
+     2177:  139:            TableNode *curr = &nodes_[idx];
+        -:  140:
+     2177:  141:            if (curr->entry.key.Type() == VarType::Nil) {
+        1:  142:                return;
+        -:  143:            }
+        -:  144:
+     2176:  145:            if (curr->entry.hash == h && curr->entry.key.Equal(key)) {
+     2167:  146:                if (curr->next != INVALID_INDEX) {
+        2:  147:                    const uint32_t next_idx = curr->next;
+        2:  148:                    TableNode *next_node = &nodes_[next_idx];
+        -:  149:
+        -:  150:                    // AIA 移除逻辑：next_node 物理消失
+        2:  151:                    const uint32_t pos = next_node->active_pos;
+        2:  152:                    if (const uint32_t last_node_idx = active_list_[count_ - 1]; next_idx != last_node_idx) {
+        2:  153:                        active_list_[pos] = last_node_idx;
+        2:  154:                        nodes_[last_node_idx].active_pos = pos;
+        -:  155:                    }
+        2:  156:                    next_node->active_pos = INVALID_INDEX;
+        -:  157:
+        2:  158:                    curr->entry = next_node->entry;
+        2:  159:                    curr->next = next_node->next;
+        2:  160:                    next_node->next = free_list_idx_;
+        2:  161:                    free_list_idx_ = next_idx;
+        -:  162:                } else {
+        -:  163:                    // AIA 移除逻辑：curr 物理标记为 Nil
+     2165:  164:                    const uint32_t pos = curr->active_pos;
+     2165:  165:                    if (const uint32_t last_node_idx = active_list_[count_ - 1]; idx != last_node_idx) {
+     2165:  166:                        active_list_[pos] = last_node_idx;
+     2165:  167:                        nodes_[last_node_idx].active_pos = pos;
+        -:  168:                    }
+     2165:  169:                    curr->active_pos = INVALID_INDEX;
+     2165:  170:                    curr->entry.key.SetNil();
+        -:  171:                }
+     2167:  172:                count_--;
+     2167:  173:                return;
+        -:  174:            }
+        -:  175:
+        9:  176:            uint32_t prev_idx = idx;
+        9:  177:            uint32_t curr_idx = curr->next;
+       15:  178:            while (curr_idx != INVALID_INDEX) {
+       10:  179:                TableNode *node = &nodes_[curr_idx];
+       10:  180:                if (node->entry.hash == h && node->entry.key.Equal(key)) {
+        -:  181:                    // AIA 移除逻辑：node 物理移除
+        4:  182:                    const uint32_t pos = node->active_pos;
+        4:  183:                    if (const uint32_t last_node_idx = active_list_[count_ - 1]; curr_idx != last_node_idx) {
+        4:  184:                        active_list_[pos] = last_node_idx;
+        4:  185:                        nodes_[last_node_idx].active_pos = pos;
+        -:  186:                    }
+        4:  187:                    node->active_pos = INVALID_INDEX;
+        -:  188:
+        4:  189:                    nodes_[prev_idx].next = node->next;
+        4:  190:                    node->next = free_list_idx_;
+        4:  191:                    free_list_idx_ = curr_idx;
+        4:  192:                    count_--;
+        4:  193:                    return;
+        -:  194:                }
+        6:  195:                prev_idx = curr_idx;
+        6:  196:                curr_idx = node->next;
+        -:  197:            }
+        -:  198:        }
+        5:  199:        return;
+        -:  200:    }
+        -:  201:
+     7656:  202:    if (bucket_count_ == 0) {
+        -:  203:        // 快速模式更新/插入：手动展开
+      723:  204:        if (count_ > 0 && quick_data_[0].hash == h && quick_data_[0].key.Equal(key)) {
+       28:  205:            quick_data_[0].val = val;
+       28:  206:            return;
+        -:  207:        }
+      695:  208:        if (count_ > 1 && quick_data_[1].hash == h && quick_data_[1].key.Equal(key)) {
+        8:  209:            quick_data_[1].val = val;
+        8:  210:            return;
+        -:  211:        }
+      687:  212:        if (count_ > 2 && quick_data_[2].hash == h && quick_data_[2].key.Equal(key)) {
+        3:  213:            quick_data_[2].val = val;
+        3:  214:            return;
+        -:  215:        }
+      684:  216:        if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(key)) {
+        3:  217:            quick_data_[3].val = val;
+        3:  218:            return;
+        -:  219:        }
+      681:  220:        if (count_ > 4 && quick_data_[4].hash == h && quick_data_[4].key.Equal(key)) {
+        3:  221:            quick_data_[4].val = val;
+        3:  222:            return;
+        -:  223:        }
+      678:  224:        if (count_ > 5 && quick_data_[5].hash == h && quick_data_[5].key.Equal(key)) {
+        3:  225:            quick_data_[5].val = val;
+        3:  226:            return;
+        -:  227:        }
+      675:  228:        if (count_ > 6 && quick_data_[6].hash == h && quick_data_[6].key.Equal(key)) {
+        3:  229:            quick_data_[6].val = val;
+        3:  230:            return;
+        -:  231:        }
+      672:  232:        if (count_ > 7 && quick_data_[7].hash == h && quick_data_[7].key.Equal(key)) {
+        3:  233:            quick_data_[7].val = val;
+        3:  234:            return;
+        -:  235:        }
+        -:  236:
+      669:  237:        if (count_ < QUICK_DATA_SIZE) {
+      623:  238:            quick_data_[count_].key = key;
+      623:  239:            quick_data_[count_].val = val;
+      623:  240:            quick_data_[count_].hash = h;
+      623:  241:            count_++;
+      623:  242:            return;
+        -:  243:        }
+       46:  244:        Rehash(s);
+        -:  245:    }
+        -:  246:
+     6979:  247:    if (count_ >= bucket_count_ || free_list_idx_ == INVALID_INDEX) {
+      103:  248:        Rehash(s);
+        -:  249:    }
+        -:  250:
+     6979:  251:    [[maybe_unused]] bool success = InsertRaw(key, val, h);
+        -:  252:    DEBUG_ASSERT(success);
+        -:  253:}
+        -:  254:
+    13657:  255:bool VarTable::InsertRaw(const Var &key, const Var &val, uint32_t hash) {
+    13657:  256:    const uint32_t mask = bucket_count_ - 1;
+    13657:  257:    const uint32_t idx = hash & mask;
+    13657:  258:    TableNode *main_node = &nodes_[idx];
+        -:  259:
+    13657:  260:    if (main_node->entry.key.Type() == VarType::Nil) {
+    12417:  261:        main_node->entry.key = key;
+    12417:  262:        main_node->entry.val = val;
+    12417:  263:        main_node->entry.hash = hash;
+    12417:  264:        main_node->next = INVALID_INDEX;
+        -:  265:
+    12417:  266:        main_node->active_pos = count_;
+    12417:  267:        active_list_[count_] = idx;
+        -:  268:
+    12417:  269:        count_++;
+    12417:  270:        return true;
+        -:  271:    }
+        -:  272:
+     1240:  273:    uint32_t curr_idx = idx;
+        -:  274:    for (;;) {
+     1456:  275:        TableNode *curr = &nodes_[curr_idx];
+     1456:  276:        if (curr->entry.hash == hash && curr->entry.key.Equal(key)) {
+     1160:  277:            curr->entry.val = val;
+     1160:  278:            return true;
+        -:  279:        }
+      296:  280:        if (curr->next == INVALID_INDEX) {
+       80:  281:            break;
+        -:  282:        }
+      216:  283:        curr_idx = curr->next;
+      216:  284:    }
+        -:  285:
+       80:  286:    if (free_list_idx_ == INVALID_INDEX) {
+    #####:  287:        return false;
+        -:  288:    }
+        -:  289:
+       80:  290:    const uint32_t new_node_idx = free_list_idx_;
+       80:  291:    TableNode *new_node = &nodes_[new_node_idx];
+       80:  292:    free_list_idx_ = new_node->next;
+        -:  293:
+       80:  294:    new_node->entry.key = key;
+       80:  295:    new_node->entry.val = val;
+       80:  296:    new_node->entry.hash = hash;
+       80:  297:    new_node->next = main_node->next;
+       80:  298:    main_node->next = new_node_idx;
+        -:  299:
+       80:  300:    new_node->active_pos = count_;
+       80:  301:    active_list_[count_] = new_node_idx;
+        -:  302:
+       80:  303:    count_++;
+       80:  304:    return true;
+        -:  305:}
+        -:  306:
+      149:  307:void VarTable::Rehash(State *s) {
+      149:  308:    const uint32_t old_count = count_;
+      149:  309:    const uint32_t old_bucket_count = bucket_count_;
+      149:  310:    const TableNode *old_nodes = nodes_;
+        -:  311:
+      149:  312:    uint32_t new_bucket_count = std::bit_ceil(old_count + 1);
+      149:  313:    if (new_bucket_count <= old_bucket_count) {
+        4:  314:        new_bucket_count = old_bucket_count * 2;
+        -:  315:    }
+        -:  316:
+        -:  317:    while (true) {
+      149:  318:        const uint32_t overflow_count = new_bucket_count / 2;
+      149:  319:        const uint32_t total_nodes = new_bucket_count + overflow_count;
+        -:  320:
+      149:  321:        const size_t nodes_size = total_nodes * sizeof(TableNode);
+      149:  322:        const size_t active_list_size = total_nodes * sizeof(uint32_t);
+      149:  323:        auto *buffer = static_cast<char *>(s->GetHeap().GetTempAllocator().Alloc(nodes_size + active_list_size));
+        -:  324:
+      149:  325:        auto *new_nodes = reinterpret_cast<TableNode *>(buffer);
+      149:  326:        auto *new_active_list = reinterpret_cast<uint32_t *>(buffer + nodes_size);
+        -:  327:
+    20309:  328:        for (uint32_t i = 0; i < total_nodes; ++i) {
+    20160:  329:            new_nodes[i].entry.key.SetNil();
+    20160:  330:            new_nodes[i].next = INVALID_INDEX;
+    20160:  331:            new_nodes[i].active_pos = INVALID_INDEX;
+        -:  332:        }
+        -:  333:
+      149:  334:        TableNode *prev_nodes = nodes_;
+      149:  335:        uint32_t *prev_active_list = active_list_;
+      149:  336:        const uint32_t prev_bucket_count = bucket_count_;
+      149:  337:        const uint32_t prev_count = count_;
+      149:  338:        const uint32_t prev_free_list_idx = free_list_idx_;
+        -:  339:
+      149:  340:        nodes_ = new_nodes;
+      149:  341:        active_list_ = new_active_list;
+      149:  342:        bucket_count_ = new_bucket_count;
+      149:  343:        count_ = 0;
+     6720:  344:        for (uint32_t i = 0; i < overflow_count - 1; ++i) {
+     6571:  345:            nodes_[new_bucket_count + i].next = new_bucket_count + i + 1;
+        -:  346:        }
+      149:  347:        nodes_[new_bucket_count + overflow_count - 1].next = INVALID_INDEX;
+      149:  348:        free_list_idx_ = new_bucket_count;
+        -:  349:
+      149:  350:        bool success = true;
+      149:  351:        if (old_bucket_count == 0) {
+        -:  352:            // 数据迁移：手动展开
+      46*:  353:            if (old_count > 0 && !InsertRaw(quick_data_[0].key, quick_data_[0].val, quick_data_[0].hash)) {
+    #####:  354:                success = false;
+        -:  355:            }
+      46*:  356:            if (success && old_count > 1 && !InsertRaw(quick_data_[1].key, quick_data_[1].val, quick_data_[1].hash)) {
+    #####:  357:                success = false;
+        -:  358:            }
+      46*:  359:            if (success && old_count > 2 && !InsertRaw(quick_data_[2].key, quick_data_[2].val, quick_data_[2].hash)) {
+    #####:  360:                success = false;
+        -:  361:            }
+      46*:  362:            if (success && old_count > 3 && !InsertRaw(quick_data_[3].key, quick_data_[3].val, quick_data_[3].hash)) {
+    #####:  363:                success = false;
+        -:  364:            }
+      46*:  365:            if (success && old_count > 4 && !InsertRaw(quick_data_[4].key, quick_data_[4].val, quick_data_[4].hash)) {
+    #####:  366:                success = false;
+        -:  367:            }
+      46*:  368:            if (success && old_count > 5 && !InsertRaw(quick_data_[5].key, quick_data_[5].val, quick_data_[5].hash)) {
+    #####:  369:                success = false;
+        -:  370:            }
+      46*:  371:            if (success && old_count > 6 && !InsertRaw(quick_data_[6].key, quick_data_[6].val, quick_data_[6].hash)) {
+    #####:  372:                success = false;
+        -:  373:            }
+      46*:  374:            if (success && old_count > 7 && !InsertRaw(quick_data_[7].key, quick_data_[7].val, quick_data_[7].hash)) {
+    #####:  375:                success = false;
+        -:  376:            }
+        -:  377:        } else {
+     6455:  378:            for (uint32_t i = 0; i < old_bucket_count; ++i) {
+     6352:  379:                uint32_t curr_idx = i;
+    12752:  380:                while (curr_idx != INVALID_INDEX) {
+     6400:  381:                    const TableNode *old_node = &old_nodes[curr_idx];
+     6400:  382:                    if (old_node->entry.key.Type() != VarType::Nil) {
+     6310:  383:                        if (!InsertRaw(old_node->entry.key, old_node->entry.val, old_node->entry.hash)) {
+    #####:  384:                            success = false;
+    #####:  385:                            break;
+        -:  386:                        }
+        -:  387:                    }
+     6400:  388:                    curr_idx = old_node->next;
+        -:  389:                }
+     6352:  390:                if (!success) {
+    #####:  391:                    break;
+        -:  392:                }
+        -:  393:            }
+        -:  394:        }
+        -:  395:
+      149:  396:        if (success) {
+      149:  397:            break;
+        -:  398:        } else {
+    #####:  399:            nodes_ = prev_nodes;
+    #####:  400:            active_list_ = prev_active_list;
+    #####:  401:            bucket_count_ = prev_bucket_count;
+    #####:  402:            count_ = prev_count;
+    #####:  403:            free_list_idx_ = prev_free_list_idx;
+    #####:  404:            new_bucket_count *= 2;
+        -:  405:        }
+    #####:  406:    }
+      149:  407:}
+        -:  408:
+        -:  409:}// namespace fakelua

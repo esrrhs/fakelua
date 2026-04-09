@@ -1,0 +1,85 @@
+        -:    0:Source:N:/project/fakelua/src/var/var_table.h
+        -:    0:Graph:test/CMakeFiles/unit_tests.dir/test_var.cpp.gcno
+        -:    0:Data:test/CMakeFiles/unit_tests.dir/test_var.cpp.gcda
+        -:    0:Runs:3
+        -:    1:#pragma once
+        -:    2:
+        -:    3:#include "util/common.h"
+        -:    4:#include "var/var.h"
+        -:    5:
+        -:    6:namespace fakelua {
+        -:    7:
+        -:    8:// 混合模式哈希表：
+        -:    9:// 1. 元素较少时（QUICK_DATA_SIZE），使用 quick_data_ 进行线性扫描。
+        -:   10:// 2. 元素增多时，自动升级为 buckets_，使用拉链法 (Chaining) 哈希表。
+        -:   11:// 3. 内存布局设计为 C 兼容，方便未来在 C 代码中直接访问。
+        -:   12:class VarTable {
+        -:   13:public:
+        -:   14:    VarTable() = default;
+        -:   15:
+        -:   16:    static constexpr uint32_t QUICK_DATA_SIZE = 8;// 快速路径的最大容量
+        -:   17:    static constexpr uint32_t INVALID_INDEX = 0xFFFFFFFF;
+        -:   18:
+        -:   19:    // 基础条目：键、值、哈希
+        -:   20:    struct VarEntry {
+        -:   21:        Var key;
+        -:   22:        Var val;
+        -:   23:        uint32_t hash = 0;
+        -:   24:    };
+        -:   25:
+        -:   26:    // 链表节点：基础条目 + 下一个节点下标
+        -:   27:    struct TableNode {
+        -:   28:        VarEntry entry;
+        -:   29:        uint32_t next = INVALID_INDEX;
+        -:   30:        uint32_t active_pos = INVALID_INDEX;// 在 active_list_ 中的位置
+        -:   31:    };
+        -:   32:
+        -:   33:public:
+        -:   34:    // 禁止拷贝
+        -:   35:    VarTable(const VarTable &) = delete;
+        -:   36:    VarTable &operator=(const VarTable &) = delete;
+        -:   37:
+        -:   38:    // 根据 Key 获取 Value。如果不存在则返回 const_null_var。
+        -:   39:    [[nodiscard]] Var Get(const Var &key) const;
+        -:   40:
+        -:   41:    // 设置键值对。如果 val 为 Nil 且 can_be_nil 为 false，则执行删除操作。
+        -:   42:    void Set(State *s, const Var &key, const Var &val, bool can_be_nil);
+        -:   43:
+        -:   44:    // 获取当前元素数量
+       90:   45:    [[nodiscard]] size_t Size() const {
+       90:   46:        return count_;
+        -:   47:    }
+        -:   48:
+        -:   49:    // 遍历支持：获取快速路径数据指针
+        -:   50:    [[nodiscard]] VarEntry* GetQuickData() {
+        -:   51:        return quick_data_;
+        -:   52:    }
+        -:   53:
+        -:   54:    // AIA 遍历支持：返回活跃索引数组起始地址
+        -:   55:    [[nodiscard]] const uint32_t *GetActiveList() const {
+        -:   56:        return active_list_;
+        -:   57:    }
+        -:   58:
+        -:   59:    // AIA 遍历支持：返回底层节点数组起始地址
+        -:   60:    [[nodiscard]] const TableNode *GetNodes() const {
+        -:   61:        return nodes_;
+        -:   62:    }
+        -:   63:
+        -:   64:private:
+        -:   65:    // 重新哈希并扩容
+        -:   66:    void Rehash(State *s);
+        -:   67:
+        -:   68:    // 原始插入逻辑，不检查扩容，返回是否成功（溢出池是否够用）
+        -:   69:    bool InsertRaw(const Var &key, const Var &val, uint32_t hash);
+        -:   70:
+        -:   71:private:
+        -:   72:    uint32_t count_ = 0;                       // 当前元素数量
+        -:   73:    uint32_t bucket_count_ = 0;                // 桶的数量（必须是 2 的幂）
+        -:   74:    TableNode *nodes_ = nullptr;               // 指向内存块开头（包含主桶节点和溢出池节点）
+        -:   75:    uint32_t *active_list_ = nullptr;          // 活跃索引数组，存储 nodes_ 的下标
+        -:   76:    VarEntry quick_data_[QUICK_DATA_SIZE] = {};// 嵌入式数组（不包含 next 指针）
+        -:   77:    uint32_t free_list_idx_ = INVALID_INDEX;   // 溢出池中的自由节点链表头下标
+        -:   78:};
+        -:   79:
+        -:   80:
+        -:   81:}// namespace fakelua
