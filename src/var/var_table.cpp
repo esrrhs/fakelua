@@ -6,6 +6,9 @@
 
 namespace fakelua {
 
+// QUICK_DATA_SIZE must be 8 for the manually unrolled code in this file
+static_assert(VarTable::QUICK_DATA_SIZE == 8, "QUICK_DATA_SIZE must be 8 for manually unrolled code");
+
 Var VarTable::Get(const Var &key) const {
     if (key.Type() == VarType::Nil) {
         ThrowFakeluaException("VarTable Get failed, table index is nil");
@@ -253,6 +256,8 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
 }
 
 bool VarTable::InsertRaw(const Var &key, const Var &val, uint32_t hash) {
+    const uint32_t total_nodes = bucket_count_ + bucket_count_ / 2;
+    DEBUG_ASSERT(count_ < total_nodes);
     const uint32_t mask = bucket_count_ - 1;
     const uint32_t idx = hash & mask;
     TableNode *main_node = &nodes_[idx];
