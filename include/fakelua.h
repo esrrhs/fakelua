@@ -372,7 +372,7 @@ CVar NativeToFakelua(State *s, T v) {
     }
     // 检查 T 是否为 std::string_view
     else if constexpr (std::is_same_v<T, std::string_view>) {
-        return NativeToFakeluaStringview(s, v);
+        return NativeToFakeluaStringView(s, v);
     }
     // 检查 T 是否为 cvar
     else if constexpr (std::is_same_v<T, CVar>) {

@@ -634,7 +634,7 @@ std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parl
 }
 
 void CGen::GenerateImpl(CompileResult &cr) {
-    std::stringstream impl;
+    out_ = &impls_;
 
     const auto chunk = cr.chunk;
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
@@ -664,14 +664,14 @@ void CGen::GenerateImpl(CompileResult &cr) {
         }
 
         // 生成函数声明
-        decls_ << "CVar " << name << "(";
+        *out_ << "CVar " << name << "(";
         for (size_t i = 0; i < func_params.size(); ++i) {
             if (i > 0) {
-                decls_ << ", ";
+                *out_ << ", ";
             }
-            decls_ << "CVar " << func_params[i];
+            *out_ << "CVar " << func_params[i];
         }
-        decls_ << ") {\n";
+        *out_ << ") {\n";
 
         // 编译函数体
         const auto func_block = funcbody_ptr->Block();
@@ -679,7 +679,7 @@ void CGen::GenerateImpl(CompileResult &cr) {
         CompileStmtBlock(func_block);
         cur_tab_--;
 
-        decls_ << "}\n";
+        *out_ << "}\n";
     }
 }
 
@@ -776,7 +776,7 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     const auto exp = explist_ptr->Exps()[0];
     const auto ret = CompileExp(exp);
 
-    decls_ << GenTab() << "return " << ret << ";\n";
+    *out_ << GenTab() << "return " << ret << ";\n";
 }
 
 void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
