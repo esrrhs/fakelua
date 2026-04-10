@@ -148,32 +148,24 @@ TEST(jitter, multi_const_define) {
     });
 }
 //
-// TEST(jitter, empty_func_with_params) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret1 = 0;
-//     bool ret2 = false;
-//     std::string ret3;
-//     double ret4 = 0;
-//     L->CompileFile("./jit/test_empty_func_with_params.lua", {});
-//     L->call("test", std::tie(ret1, ret2, ret3, ret4), 2.3, "test", true, 1);
-//     ASSERT_EQ(ret1, 1);
-//     ASSERT_EQ(ret2, true);
-//     ASSERT_EQ(ret3, "test");
-//     ASSERT_NEAR(ret4, 2.3, 0.001);
-//
-//     ret1 = 0;
-//     ret2 = false;
-//     ret3.clear();
-//     ret4 = 0;
-//     L->CompileFile("./jit/test_empty_func_with_params.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2, ret3, ret4), 2.3, "test", true, 1);
-//     ASSERT_EQ(ret1, 1);
-//     ASSERT_EQ(ret2, true);
-//     ASSERT_EQ(ret3, "test");
-//     ASSERT_NEAR(ret4, 2.3, 0.001);
-// }
+TEST(jitter, empty_func_with_params) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_empty_func_with_params.lua", {.debug_mode = debug_mode});
+
+        int ret1 = 0;
+        bool ret2 = false;
+        std::string ret3;
+        double ret4 = 0;
+        Call(s, type, "test1", ret1, 2.3, "test", true, 1);
+        Call(s, type, "test2", ret2, 2.3, "test", true, 1);
+        Call(s, type, "test3", ret3, 2.3, "test", true, 1);
+        Call(s, type, "test4", ret4, 2.3, "test", true, 1);
+        ASSERT_EQ(ret1, 1);
+        ASSERT_EQ(ret2, true);
+        ASSERT_EQ(ret3, "test");
+        ASSERT_NEAR(ret4, 2.3, 0.001);
+    });
+}
 //
 // TEST(jitter, variadic_func) {
 //     auto L = FakeluaNewState();
