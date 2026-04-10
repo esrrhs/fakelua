@@ -83,7 +83,6 @@ private:
     std::stringstream globals_;
     std::stringstream decls_;
     std::stringstream impls_;
-    std::stringstream *out_ = &decls_;
 
     int cur_tab_ = 0;
     bool in_global_init_ = false;
