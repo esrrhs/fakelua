@@ -186,19 +186,14 @@ TEST(jitter, variadic_func_with_params) {
             std::exception);
 }
 
-// TEST(jitter, string) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret = 0;
-//     L->CompileString("function test() return 1 end", {});
-//     L->call("test", std::tie(ret));
-//     ASSERT_EQ(ret, 1);
-//
-//     L->CompileString("function test() return 1 end", {.debug_mode = false});
-//     L->call("test", std::tie(ret));
-//     ASSERT_EQ(ret, 1);
-// }
+TEST(jitter, string) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileString(s, "function test() return 1 end", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
 //
 // TEST(jitter, local_define) {
 //     auto L = FakeluaNewState();
