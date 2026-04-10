@@ -812,7 +812,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             ThrowError("duplicate local variable: " + name, stmt);
         }
         if (global_const_vars_.contains(name)) {
-            ThrowError("duplicate local variable: " + name, stmt);
+            ThrowError("local variable conflicts with global constant: " + name, stmt);
         }
 
         const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
