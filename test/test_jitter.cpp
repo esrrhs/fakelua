@@ -195,72 +195,37 @@ TEST(jitter, string) {
     });
 }
 //
-// TEST(jitter, local_define) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     CVar a;
-//     auto va = (Var &) a;
-//     CVar b;
-//     auto vb = (Var &) b;
-//     L->CompileFile("./jit/test_local_define.lua", {});
-//     L->call("test", std::tie(a, b));
-//     ASSERT_EQ(va.Type(), VarType::Nil);
-//
-//     ASSERT_EQ(vb.Type(), VarType::Nil);
-//
-//     a = {};
-//     b = {};
-//     L->CompileFile("./jit/test_local_define.lua", {.debug_mode = false});
-//     L->call("test", std::tie(a, b));
-//     ASSERT_EQ(va.Type(), VarType::Nil);
-//
-//     ASSERT_EQ(vb.Type(), VarType::Nil);
-// }
-//
-// TEST(jitter, local_define_with_values) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     CVar a = {};
-//     auto va = (Var &) a;
-//     CVar b = {};
-//     auto vb = (Var &) b;
-//     CVar c = {};
-//     auto vc = (Var &) c;
-//     CVar d = {};
-//     auto vd = (Var &) d;
-//     CVar e = {};
-//     auto ve = (Var &) e;
-//     L->CompileFile("./jit/test_local_define_with_value.lua", {});
-//     L->call("test", std::tie(a, b, c, d, e), true, 2);
-//     ASSERT_EQ(va.Type(), VarType::Bool);
-//     ASSERT_EQ(va.GetBool(), true);
-//     ASSERT_EQ(vb.Type(), VarType::Int);
-//     ASSERT_EQ(vb.GetInt(), 2);
-//     ASSERT_EQ(vc.Type(), VarType::Int);
-//     ASSERT_EQ(vc.GetInt(), 1);
-//     ASSERT_EQ(vd.Type(), VarType::String);
-//     ASSERT_EQ(vd.GetString()->Str(), "test");
-//     ASSERT_EQ(ve.Type(), VarType::Nil);
-//
-//     a = {};
-//     b = {};
-//     c = {};
-//     d = {};
-//     e = {};
-//     L->CompileFile("./jit/test_local_define_with_value.lua", {.debug_mode = false});
-//     L->call("test", std::tie(a, b, c, d, e), true, 2);
-//     ASSERT_EQ(va.Type(), VarType::Bool);
-//     ASSERT_EQ(va.GetBool(), true);
-//     ASSERT_EQ(vb.Type(), VarType::Int);
-//     ASSERT_EQ(vb.GetInt(), 2);
-//     ASSERT_EQ(vc.Type(), VarType::Int);
-//     ASSERT_EQ(vc.GetInt(), 1);
-//     ASSERT_EQ(vd.Type(), VarType::String);
-//     ASSERT_EQ(vd.GetString()->Str(), "test");
-//     ASSERT_EQ(ve.Type(), VarType::Nil);
-// }
+TEST(jitter, local_define) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_local_define.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        const auto v = static_cast<Var &>(ret);
+        Call(s, type, "test", ret);
+        ASSERT_EQ(v.Type(), VarType::Nil);
+    });
+}
+
+TEST(jitter, local_define_with_values) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_local_define_with_value.lua", {.debug_mode = debug_mode});
+        bool ret1 = false;
+        int ret2 = 0;
+        int ret3 = 0;
+        std::string ret4;
+        CVar ret5;
+        const auto v5 = static_cast<Var &>(ret5);
+        Call(s, type, "test1", ret1, true, 2);
+        Call(s, type, "test2", ret2, true, 2);
+        Call(s, type, "test3", ret3, true, 2);
+        Call(s, type, "test4", ret4, true, 2);
+        Call(s, type, "test5", ret5, true, 2);
+        ASSERT_EQ(ret1, true);
+        ASSERT_EQ(ret2, 2);
+        ASSERT_EQ(ret3, 1);
+        ASSERT_EQ(ret4, "test");
+        ASSERT_EQ(v5.Type(), VarType::Nil);
+    });
+}
 //
 // TEST(jitter, test_assign) {
 //     auto L = FakeluaNewState();

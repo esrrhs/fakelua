@@ -673,6 +673,12 @@ void CGen::GenerateImpl(CompileResult &cr) {
         }
         decls_ << ") {\n";
 
+        // 重置局部变量追踪，加入函数参数
+        cur_local_vars_.clear();
+        for (const auto &p: func_params) {
+            cur_local_vars_.insert(p);
+        }
+
         // 编译函数体
         const auto func_block = funcbody_ptr->Block();
         cur_tab_++;
@@ -780,6 +786,39 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
 }
 
 void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
+    DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::LocalVar);
+    const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+    const auto namelist = local_var->Namelist();
+
+    if (!namelist) {
+        return;
+    }
+
+    DEBUG_ASSERT(namelist->Type() == SyntaxTreeType::NameList);
+    const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
+    const auto &names = namelist_ptr->Names();
+
+    std::vector<SyntaxTreeInterfacePtr> exps;
+    if (const auto explist = local_var->Explist()) {
+        DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
+        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+        exps = explist_ptr->Exps();
+    }
+
+    for (size_t i = 0; i < names.size(); ++i) {
+        const auto &name = names[i];
+
+        if (cur_local_vars_.contains(name)) {
+            ThrowError("duplicate local variable: " + name, stmt);
+        }
+        if (global_const_vars_.contains(name)) {
+            ThrowError("duplicate local variable: " + name, stmt);
+        }
+
+        const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
+        decls_ << GenTab() << "CVar " << name << " = " << init << ";\n";
+        cur_local_vars_.insert(name);
+    }
 }
 
 void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
