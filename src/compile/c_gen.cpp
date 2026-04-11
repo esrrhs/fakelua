@@ -827,14 +827,17 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
         exps = explist_ptr->Exps();
     }
 
-    // Evaluate all rhs expressions first (in case of aliasing like a, b = b, a)
-    std::vector<std::string> rhs;
-    rhs.reserve(vars.size());
+    // Evaluate all RHS expressions into temporaries first to handle aliasing (e.g. a, b = b, a)
+    std::vector<std::string> tmp_names;
+    tmp_names.reserve(vars.size());
     for (size_t i = 0; i < vars.size(); ++i) {
-        rhs.push_back((i < exps.size()) ? CompileExp(exps[i]) : "kNil");
+        const std::string rhs = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
+        const std::string tmp = std::format("_assign_tmp_{}", assign_tmp_count_++);
+        decls_ << GenTab() << "CVar " << tmp << " = " << rhs << ";\n";
+        tmp_names.push_back(tmp);
     }
 
-    // Generate assignments
+    // Generate assignments from temporaries to lhs targets
     for (size_t i = 0; i < vars.size(); ++i) {
         DEBUG_ASSERT(vars[i]->Type() == SyntaxTreeType::Var);
         const auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[i]);
@@ -842,14 +845,15 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
 
         if (vtype == "simple") {
             const auto &name = v_ptr->GetName();
-            decls_ << GenTab() << name << " = " << rhs[i] << ";\n";
+            decls_ << GenTab() << name << " = " << tmp_names[i] << ";\n";
         } else if (vtype == "square") {
             const auto pe = v_ptr->GetPrefixexp();
             const auto key_exp = v_ptr->GetExp();
             auto pe_ret = CompilePrefixexp(pe);
             auto key_ret = CompileExp(key_exp);
-            decls_ << GenTab() << "FlSetTable(" << pe_ret << ", " << key_ret << ", " << rhs[i] << ");\n";
-        } else /*if (vtype == "dot")*/ {
+            decls_ << GenTab() << "FlSetTable(" << pe_ret << ", " << key_ret << ", " << tmp_names[i] << ");\n";
+        } else {
+            // dot access: t.field = val
             const auto pe = v_ptr->GetPrefixexp();
             const auto field_name = v_ptr->GetName();
             auto pe_ret = CompilePrefixexp(pe);
@@ -858,7 +862,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
             name_exp->SetType("string");
             name_exp->SetValue(field_name);
             auto key_ret = CompileExp(name_exp);
-            decls_ << GenTab() << "FlSetTable(" << pe_ret << ", " << key_ret << ", " << rhs[i] << ");\n";
+            decls_ << GenTab() << "FlSetTable(" << pe_ret << ", " << key_ret << ", " << tmp_names[i] << ");\n";
         }
     }
 }

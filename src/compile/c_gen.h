@@ -85,6 +85,7 @@ private:
     std::stringstream impls_;
 
     int cur_tab_ = 0;
+    int assign_tmp_count_ = 0;
     bool in_global_init_ = false;
     std::unordered_set<std::string> global_const_vars_;
 };
