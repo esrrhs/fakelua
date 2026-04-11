@@ -837,27 +837,11 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     const auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[0]);
     const auto &vtype = v_ptr->GetType();
 
-    if (vtype == "simple") {
-        const auto &name = v_ptr->GetName();
-        decls_ << GenTab() << name << " = " << rhs << ";\n";
-    } else if (vtype == "square") {
-        const auto pe = v_ptr->GetPrefixexp();
-        const auto key_exp = v_ptr->GetExp();
-        auto pe_ret = CompilePrefixexp(pe);
-        auto key_ret = CompileExp(key_exp);
-        decls_ << GenTab() << "FlSetTable(" << pe_ret << ", " << key_ret << ", " << rhs << ");\n";
-    } else {
-        // dot access: t.field = val
-        const auto pe = v_ptr->GetPrefixexp();
-        const auto field_name = v_ptr->GetName();
-        auto pe_ret = CompilePrefixexp(pe);
-
-        const auto name_exp = std::make_shared<SyntaxTreeExp>(v_ptr->Loc());
-        name_exp->SetType("string");
-        name_exp->SetValue(field_name);
-        auto key_ret = CompileExp(name_exp);
-        decls_ << GenTab() << "FlSetTable(" << pe_ret << ", " << key_ret << ", " << rhs << ");\n";
-    }
+    // PreprocessTableAssign rewrites square/dot assignments to FAKELUA_SET_TABLE calls,
+    // so only simple variable assignments can reach here.
+    DEBUG_ASSERT(vtype == "simple");
+    const auto &name = v_ptr->GetName();
+    decls_ << GenTab() << name << " = " << rhs << ";\n";
 }
 
 void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared) {
