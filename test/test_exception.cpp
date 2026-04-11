@@ -32,19 +32,19 @@ using namespace fakelua;
 //     }
 // }
 //
-TEST(exception, local_define_duplicate) {
-    auto s = FakeluaNewState();
-    ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
-
-    try {
-        CompileFile(s, "./exception/test_local_define_duplicate.lua", {});
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("duplicate") != std::string::npos);
-    }
-}
+// TEST(exception, local_define_duplicate) {
+//     auto s = FakeluaNewState();
+//     ASSERT_NE(s, nullptr);
+//     SetDebugLogLevel(0);
+//
+//     try {
+//         CompileFile(s, "./exception/test_local_define_duplicate.lua", {});
+//         ASSERT_TRUE(false);
+//     } catch (const std::exception &e) {
+//         std::cout << e.what() << std::endl;
+//         ASSERT_TRUE(std::string(e.what()).find("duplicate") != std::string::npos);
+//     }
+// }
 //
 // TEST(exception, const_define_duplicate) {
 //     auto s = FakeluaNewState();

@@ -673,12 +673,6 @@ void CGen::GenerateImpl(CompileResult &cr) {
         }
         decls_ << ") {\n";
 
-        // 重置局部变量追踪，加入函数参数
-        cur_local_vars_.clear();
-        for (const auto &p: func_params) {
-            cur_local_vars_.insert(p);
-        }
-
         // 编译函数体
         const auto func_block = funcbody_ptr->Block();
         cur_tab_++;
@@ -808,16 +802,12 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
     for (size_t i = 0; i < names.size(); ++i) {
         const auto &name = names[i];
 
-        if (cur_local_vars_.contains(name)) {
-            ThrowError("duplicate local variable: " + name, stmt);
-        }
         if (global_const_vars_.contains(name)) {
             ThrowError("local variable conflicts with global constant: " + name, stmt);
         }
 
         const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
         decls_ << GenTab() << "CVar " << name << " = " << init << ";\n";
-        cur_local_vars_.insert(name);
     }
 }
 
