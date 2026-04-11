@@ -829,7 +829,9 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
 
     // PreprocessSplitAssign guarantees exactly 1 var and 1 exp at this point
     DEBUG_ASSERT(vars.size() == 1);
-    DEBUG_ASSERT(exps.size() == 1);
+    if (exps.size() != 1) {
+        ThrowError(std::format("CompileStmtAssign: expected 1 expression, got {}", exps.size()), assign);
+    }
 
     const std::string rhs = CompileExp(exps[0]);
 
