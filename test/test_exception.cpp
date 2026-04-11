@@ -1,11 +1,9 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
 #include "gtest/gtest.h"
-//
-// using namespace fakelua;
-//
-// int noop;
-//
+
+using namespace fakelua;
+
 // TEST(exception, function_param_duplicate) {
 //     auto s = FakeluaNewState();
 //     ASSERT_NE(s, nullptr);

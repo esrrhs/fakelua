@@ -780,6 +780,35 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
 }
 
 void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
+    DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::LocalVar);
+    const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+    const auto namelist = local_var->Namelist();
+
+    if (!namelist) {
+        return;
+    }
+
+    DEBUG_ASSERT(namelist->Type() == SyntaxTreeType::NameList);
+    const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
+    const auto &names = namelist_ptr->Names();
+
+    std::vector<SyntaxTreeInterfacePtr> exps;
+    if (const auto explist = local_var->Explist()) {
+        DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
+        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+        exps = explist_ptr->Exps();
+    }
+
+    for (size_t i = 0; i < names.size(); ++i) {
+        const auto &name = names[i];
+
+        if (global_const_vars_.contains(name)) {
+            ThrowError("local variable conflicts with global constant: " + name, stmt);
+        }
+
+        const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
+        decls_ << GenTab() << "CVar " << name << " = " << init << ";\n";
+    }
 }
 
 void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
