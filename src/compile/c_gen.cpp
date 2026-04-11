@@ -812,6 +812,55 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
 }
 
 void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
+    DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::Assign);
+    const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
+
+    const auto varlist = assign->Varlist();
+    DEBUG_ASSERT(varlist->Type() == SyntaxTreeType::VarList);
+    const auto varlist_ptr = std::dynamic_pointer_cast<SyntaxTreeVarlist>(varlist);
+    const auto &vars = varlist_ptr->Vars();
+
+    std::vector<SyntaxTreeInterfacePtr> exps;
+    if (const auto explist = assign->Explist()) {
+        DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
+        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+        exps = explist_ptr->Exps();
+    }
+
+    // Evaluate all rhs expressions first (in case of aliasing like a, b = b, a)
+    std::vector<std::string> rhs;
+    rhs.reserve(vars.size());
+    for (size_t i = 0; i < vars.size(); ++i) {
+        rhs.push_back((i < exps.size()) ? CompileExp(exps[i]) : "kNil");
+    }
+
+    // Generate assignments
+    for (size_t i = 0; i < vars.size(); ++i) {
+        DEBUG_ASSERT(vars[i]->Type() == SyntaxTreeType::Var);
+        const auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[i]);
+        const auto &vtype = v_ptr->GetType();
+
+        if (vtype == "simple") {
+            const auto &name = v_ptr->GetName();
+            decls_ << GenTab() << name << " = " << rhs[i] << ";\n";
+        } else if (vtype == "square") {
+            const auto pe = v_ptr->GetPrefixexp();
+            const auto key_exp = v_ptr->GetExp();
+            auto pe_ret = CompilePrefixexp(pe);
+            auto key_ret = CompileExp(key_exp);
+            decls_ << GenTab() << "FlSetTable(" << pe_ret << ", " << key_ret << ", " << rhs[i] << ");\n";
+        } else /*if (vtype == "dot")*/ {
+            const auto pe = v_ptr->GetPrefixexp();
+            const auto field_name = v_ptr->GetName();
+            auto pe_ret = CompilePrefixexp(pe);
+
+            const auto name_exp = std::make_shared<SyntaxTreeExp>(v_ptr->Loc());
+            name_exp->SetType("string");
+            name_exp->SetValue(field_name);
+            auto key_ret = CompileExp(name_exp);
+            decls_ << GenTab() << "FlSetTable(" << pe_ret << ", " << key_ret << ", " << rhs[i] << ");\n";
+        }
+    }
 }
 
 void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared) {

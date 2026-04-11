@@ -227,24 +227,17 @@ TEST(jitter, local_define_with_values) {
     });
 }
 //
-// TEST(jitter, test_assign) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int a = 0;
-//     std::string b;
-//     L->CompileFile("./jit/test_assign.lua", {});
-//     L->call("test", std::tie(a, b), true, 1.1);
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, "2");
-//
-//     a = 0;
-//     b.clear();
-//     L->CompileFile("./jit/test_assign.lua", {.debug_mode = false});
-//     L->call("test", std::tie(a, b), true, 1.1);
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, "2");
-// }
+TEST(jitter, test_assign) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_assign.lua", {.debug_mode = debug_mode});
+        int a = 0;
+        std::string b;
+        Call(s, type, "test1", a, true, 1.1);
+        Call(s, type, "test2", b, true, 1.1);
+        ASSERT_EQ(a, 1);
+        ASSERT_EQ(b, "2");
+    });
+}
 //
 // TEST(jitter, test_assign_not_match) {
 //     auto L = FakeluaNewState();

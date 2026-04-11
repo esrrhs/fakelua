@@ -15,7 +15,7 @@ void TccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
         ThrowFakeluaException(std::format("TCC compile failed, tcc_compile_string failed for {}", cr.file_name));
     }
 
-    if (const int size = tcc_relocate(s); size == -1) {
+    if (const int size = tcc_relocate(s, TCC_RELOCATE_AUTO); size == -1) {
         ThrowFakeluaException(std::format("TCC compile failed, tcc_relocate failed for {}", cr.file_name));
     }
 
