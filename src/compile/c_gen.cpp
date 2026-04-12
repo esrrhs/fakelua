@@ -183,43 +183,44 @@ static inline uint32_t FlHashString(const char *str, int len) {
     (__v.type_ != VAR_NIL && (__v.type_ != VAR_BOOL || __v.data_.b)); \
 })
 
-#define VarEqual(a, b) ({ \
-    CVar __a = (a); CVar __b = (b); bool __res = false; \
-    if (__a.type_ != __b.type_) { \
-        if ((__a.type_ == VAR_STRING || __a.type_ == VAR_STRINGID) && \
-            (__b.type_ == VAR_STRING || __b.type_ == VAR_STRINGID)) { \
-            VarString *__sa = (__a.type_ == VAR_STRING) ? __a.data_.s : (VarString *)__a.data_.i; \
-            VarString *__sb = (__b.type_ == VAR_STRING) ? __b.data_.s : (VarString *)__b.data_.i; \
-            if (__sa == __sb) { __res = true; } \
-            else if (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0) { __res = true; } \
-        } \
-    } else { \
-        switch(__a.type_) { \
-            case VAR_NIL: { __res = true; break; } \
-            case VAR_BOOL: { __res = (__a.data_.b == __b.data_.b); break; } \
-            case VAR_INT: { __res = (__a.data_.i == __b.data_.i); break; } \
-            case VAR_FLOAT: { __res = (__a.data_.f == __b.data_.f); break; } \
-            case VAR_STRING: { if (__a.data_.s == __b.data_.s) { __res = true; } else if (__a.data_.s->size_ == __b.data_.s->size_ && memcmp(__a.data_.s->data_, __b.data_.s->data_, __a.data_.s->size_) == 0) { __res = true; } break; } \
-            case VAR_STRINGID: { __res = (__a.data_.i == __b.data_.i); break; } \
-            case VAR_TABLE: { __res = (__a.data_.t == __b.data_.t); break; } \
-        } \
-    } \
-    __res; \
-})
+static inline bool VarEqual(CVar a, CVar b) {
+    if (a.type_ != b.type_) {
+        if ((a.type_ == VAR_STRING || a.type_ == VAR_STRINGID) &&
+            (b.type_ == VAR_STRING || b.type_ == VAR_STRINGID)) {
+            VarString *sa = (a.type_ == VAR_STRING) ? a.data_.s : (VarString *)a.data_.i;
+            VarString *sb = (b.type_ == VAR_STRING) ? b.data_.s : (VarString *)b.data_.i;
+            if (sa == sb) { return true; }
+            if (sa->size_ == sb->size_ && memcmp(sa->data_, sb->data_, sa->size_) == 0) { return true; }
+        }
+        return false;
+    }
+    switch (a.type_) {
+        case VAR_NIL: return true;
+        case VAR_BOOL: return a.data_.b == b.data_.b;
+        case VAR_INT: return a.data_.i == b.data_.i;
+        case VAR_FLOAT: return a.data_.f == b.data_.f;
+        case VAR_STRING: {
+            if (a.data_.s == b.data_.s) { return true; }
+            return a.data_.s->size_ == b.data_.s->size_ && memcmp(a.data_.s->data_, b.data_.s->data_, a.data_.s->size_) == 0;
+        }
+        case VAR_STRINGID: return a.data_.i == b.data_.i;
+        case VAR_TABLE: return a.data_.t == b.data_.t;
+    }
+    return false;
+}
 
-#define VarHash(v) ({ \
-    CVar __v = (v); uint32_t __h = 0; \
-    switch(__v.type_) { \
-        case VAR_NIL: { __h = 0; break; } \
-        case VAR_BOOL: { __h = __v.data_.b ? 1 : 0; break; } \
-        case VAR_INT: { __h = (uint32_t)(__v.data_.i ^ (__v.data_.i >> 32)); break; } \
-        case VAR_FLOAT: { union { double d; uint64_t u; } __u; __u.d = __v.data_.f; __h = (uint32_t)(__u.u ^ (__u.u >> 32)); break; } \
-        case VAR_STRING: { if (__v.data_.s->hash_ == 0) { __v.data_.s->hash_ = FlHashString(__v.data_.s->data_, __v.data_.s->size_); } __h = __v.data_.s->hash_; break; } \
-        case VAR_STRINGID: { VarString *__vs = (VarString *)__v.data_.i; if (__vs->hash_ == 0) { __vs->hash_ = FlHashString(__vs->data_, __vs->size_); } __h = __vs->hash_; break; } \
-        case VAR_TABLE: { __h = (uint32_t)((uintptr_t)__v.data_.t ^ ((uintptr_t)__v.data_.t >> 32)); break; } \
-    } \
-    __h; \
-})
+static inline uint32_t VarHash(CVar v) {
+    switch (v.type_) {
+        case VAR_NIL: return 0;
+        case VAR_BOOL: return v.data_.b ? 1 : 0;
+        case VAR_INT: return (uint32_t)(v.data_.i ^ (v.data_.i >> 32));
+        case VAR_FLOAT: { union { double d; uint64_t u; } u; u.d = v.data_.f; return (uint32_t)(u.u ^ (u.u >> 32)); }
+        case VAR_STRING: { if (v.data_.s->hash_ == 0) { v.data_.s->hash_ = FlHashString(v.data_.s->data_, v.data_.s->size_); } return v.data_.s->hash_; }
+        case VAR_STRINGID: { VarString *vs = (VarString *)v.data_.i; if (vs->hash_ == 0) { vs->hash_ = FlHashString(vs->data_, vs->size_); } return vs->hash_; }
+        case VAR_TABLE: return (uint32_t)((uintptr_t)v.data_.t ^ ((uintptr_t)v.data_.t >> 32));
+    }
+    return 0;
+}
 
 static inline CVar FlGetTable(CVar t, CVar k) {
     if (t.type_ != VAR_TABLE) { return (CVar){VAR_NIL}; }
