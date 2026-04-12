@@ -50,6 +50,7 @@ void CGen::GenerateHeader() {
 #include <string.h>
 #include <math.h>
 #include <assert.h>
+#include <stdlib.h>
 
 )";
 
@@ -392,8 +393,46 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
 }
 
 // Arithmetic and Comparison Macros (Expression-style)
+
+static inline CVar FlCoerceToNum(CVar v) {
+    if (v.type_ == VAR_INT || v.type_ == VAR_FLOAT) return v;
+    const char *data; int len;
+    if (v.type_ == VAR_STRING) { data = v.data_.s->data_; len = v.data_.s->size_; }
+    else if (v.type_ == VAR_STRINGID) { VarString *vs = (VarString *)v.data_.i; data = vs->data_; len = vs->size_; }
+    else { FakeluaThrowError(_S, "attempt to perform arithmetic on non-numeric value"); return v; }
+    if (len <= 0 || len >= 64) { FakeluaThrowError(_S, "string is not a number"); return v; }
+    char buf[64]; memcpy(buf, data, len); buf[len] = '\0';
+    char *end;
+    long long i = strtoll(buf, &end, 10);
+    if (end == buf + len) { CVar r = {0}; r.type_ = VAR_INT; r.data_.i = (int64_t)i; return r; }
+    double d = strtod(buf, &end);
+    if (end == buf + len) { CVar r = {0}; SET_FLOAT(r, d); return r; }
+    FakeluaThrowError(_S, "string is not a number");
+    return v;
+}
+
+static inline int64_t FlCoerceToInt(CVar v) {
+    if (v.type_ == VAR_INT) return v.data_.i;
+    if (v.type_ == VAR_FLOAT) {
+        double d = v.data_.f;
+        int64_t i = (int64_t)d;
+        if ((double)i != d) { FakeluaThrowError(_S, "number has no integer representation"); }
+        return i;
+    }
+    CVar num = FlCoerceToNum(v);
+    if (num.type_ == VAR_INT) return num.data_.i;
+    if (num.type_ == VAR_FLOAT) {
+        double d = num.data_.f;
+        int64_t i = (int64_t)d;
+        if ((double)i != d) { FakeluaThrowError(_S, "number has no integer representation"); }
+        return i;
+    }
+    FakeluaThrowError(_S, "not an integer");
+    return 0;
+}
+
 #define OpAdd(a, b) ({ \
-    CVar __a = (a); CVar __b = (b); CVar __res; \
+    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
     if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_INT(__res, __a.data_.i + __b.data_.i); } \
     else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
            double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
@@ -402,7 +441,7 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
 })
 
 #define OpSub(a, b) ({ \
-    CVar __a = (a); CVar __b = (b); CVar __res; \
+    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
     if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_INT(__res, __a.data_.i - __b.data_.i); } \
     else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
            double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
@@ -411,7 +450,7 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
 })
 
 #define OpMul(a, b) ({ \
-    CVar __a = (a); CVar __b = (b); CVar __res; \
+    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
     if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_INT(__res, __a.data_.i * __b.data_.i); } \
     else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
            double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
@@ -420,15 +459,79 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
 })
 
 #define OpDiv(a, b) ({ \
-    CVar __a = (a); CVar __b = (b); CVar __res; \
+    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
     double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
     double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
     SET_FLOAT(__res, __f1 / __f2); \
     __res; \
 })
 
+#define OpFloorDiv(a, b) ({ \
+    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
+    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { \
+        if (__b.data_.i == 0) { FakeluaThrowError(_S, "floor division by zero"); } \
+        int64_t __q = __a.data_.i / __b.data_.i; \
+        if ((__a.data_.i ^ __b.data_.i) < 0 && __a.data_.i % __b.data_.i != 0) { __q -= 1; } \
+        SET_INT(__res, __q); \
+    } else { \
+        double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
+        double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
+        SET_FLOAT(__res, floor(__f1 / __f2)); \
+    } \
+    __res; \
+})
+
+#define OpPow(a, b) ({ \
+    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
+    double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
+    double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
+    SET_FLOAT(__res, pow(__f1, __f2)); \
+    __res; \
+})
+
+#define OpMod(a, b) ({ \
+    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
+    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { \
+        if (__b.data_.i == 0) { FakeluaThrowError(_S, "modulo by zero"); } \
+        int64_t __q = __a.data_.i / __b.data_.i; \
+        if ((__a.data_.i ^ __b.data_.i) < 0 && __a.data_.i % __b.data_.i != 0) { __q -= 1; } \
+        SET_INT(__res, __a.data_.i - __b.data_.i * __q); \
+    } else { \
+        double __fa = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
+        double __fb = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
+        SET_FLOAT(__res, __fa - __fb * floor(__fa / __fb)); \
+    } \
+    __res; \
+})
+
+#define OpBitAnd(a, b) ({ \
+    CVar __res = {0}; SET_INT(__res, FlCoerceToInt(a) & FlCoerceToInt(b)); __res; \
+})
+
+#define OpBitXor(a, b) ({ \
+    CVar __res = {0}; SET_INT(__res, FlCoerceToInt(a) ^ FlCoerceToInt(b)); __res; \
+})
+
+#define OpBitOr(a, b) ({ \
+    CVar __res = {0}; SET_INT(__res, FlCoerceToInt(a) | FlCoerceToInt(b)); __res; \
+})
+
+#define OpRightShift(a, b) ({ \
+    int64_t __ai = FlCoerceToInt(a); int64_t __bi = FlCoerceToInt(b); CVar __res = {0}; \
+    if (__bi >= 0) { SET_INT(__res, (int64_t)((uint64_t)__ai >> __bi)); } \
+    else { SET_INT(__res, (int64_t)((uint64_t)__ai << (-(int64_t)__bi))); } \
+    __res; \
+})
+
+#define OpLeftShift(a, b) ({ \
+    int64_t __ai = FlCoerceToInt(a); int64_t __bi = FlCoerceToInt(b); CVar __res = {0}; \
+    if (__bi >= 0) { SET_INT(__res, (int64_t)((uint64_t)__ai << __bi)); } \
+    else { SET_INT(__res, (int64_t)((uint64_t)__ai >> (-(int64_t)__bi))); } \
+    __res; \
+})
+
 #define OpLt(a, b) ({ \
-    CVar __a = (a); CVar __b = (b); CVar __res; \
+    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
     if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_BOOL(__res, __a.data_.i < __b.data_.i); } \
     else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
            double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
@@ -437,7 +540,7 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
 })
 
 #define OpGt(a, b) ({ \
-    CVar __a = (a); CVar __b = (b); CVar __res; \
+    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
     if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_BOOL(__res, __a.data_.i > __b.data_.i); } \
     else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
            double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
@@ -445,13 +548,36 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
     __res; \
 })
 
+#define OpLe(a, b) ({ \
+    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
+    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_BOOL(__res, __a.data_.i <= __b.data_.i); } \
+    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
+           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
+           SET_BOOL(__res, __f1 <= __f2); } \
+    __res; \
+})
+
+#define OpGe(a, b) ({ \
+    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
+    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_BOOL(__res, __a.data_.i >= __b.data_.i); } \
+    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
+           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
+           SET_BOOL(__res, __f1 >= __f2); } \
+    __res; \
+})
+
 #define OpEq(a, b) ({ \
-    CVar __res; bool __eq; VarEqual(a, b, __eq); SET_BOOL(__res, __eq); \
+    CVar __res = {0}; bool __eq; VarEqual(a, b, __eq); SET_BOOL(__res, __eq); \
+    __res; \
+})
+
+#define OpNe(a, b) ({ \
+    CVar __res = {0}; bool __eq; VarEqual(a, b, __eq); SET_BOOL(__res, !__eq); \
     __res; \
 })
 
 #define OpNot(a) ({ \
-    CVar __res; SET_BOOL(__res, !IsTrue(a)); \
+    CVar __res = {0}; SET_BOOL(__res, !IsTrue(a)); \
     __res; \
 })
 
@@ -1018,6 +1144,52 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     if (in_global_init_) {
         ThrowError("binary operator is not supported in global variable initialization", op);
     }
+
+    const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeBinop>(op);
+    const auto &op_name = op_ptr->GetOp();
+
+    const auto left_str = CompileExp(left);
+    const auto right_str = CompileExp(right);
+
+    if (op_name == "PLUS") {
+        return std::format("OpAdd({}, {})", left_str, right_str);
+    } else if (op_name == "MINUS") {
+        return std::format("OpSub({}, {})", left_str, right_str);
+    } else if (op_name == "STAR") {
+        return std::format("OpMul({}, {})", left_str, right_str);
+    } else if (op_name == "SLASH") {
+        return std::format("OpDiv({}, {})", left_str, right_str);
+    } else if (op_name == "DOUBLE_SLASH") {
+        return std::format("OpFloorDiv({}, {})", left_str, right_str);
+    } else if (op_name == "POW") {
+        return std::format("OpPow({}, {})", left_str, right_str);
+    } else if (op_name == "MOD") {
+        return std::format("OpMod({}, {})", left_str, right_str);
+    } else if (op_name == "BITAND") {
+        return std::format("OpBitAnd({}, {})", left_str, right_str);
+    } else if (op_name == "XOR") {
+        return std::format("OpBitXor({}, {})", left_str, right_str);
+    } else if (op_name == "BITOR") {
+        return std::format("OpBitOr({}, {})", left_str, right_str);
+    } else if (op_name == "RIGHT_SHIFT") {
+        return std::format("OpRightShift({}, {})", left_str, right_str);
+    } else if (op_name == "LEFT_SHIFT") {
+        return std::format("OpLeftShift({}, {})", left_str, right_str);
+    } else if (op_name == "LESS") {
+        return std::format("OpLt({}, {})", left_str, right_str);
+    } else if (op_name == "LESS_EQUAL") {
+        return std::format("OpLe({}, {})", left_str, right_str);
+    } else if (op_name == "MORE") {
+        return std::format("OpGt({}, {})", left_str, right_str);
+    } else if (op_name == "MORE_EQUAL") {
+        return std::format("OpGe({}, {})", left_str, right_str);
+    } else if (op_name == "EQUAL") {
+        return std::format("OpEq({}, {})", left_str, right_str);
+    } else if (op_name == "NOT_EQUAL") {
+        return std::format("OpNe({}, {})", left_str, right_str);
+    }
+
+    ThrowError("binary operator not supported: " + op_name, op);
 }
 
 std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op) {
