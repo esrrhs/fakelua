@@ -812,6 +812,38 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
 }
 
 void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
+    DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::Assign);
+    const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
+
+    const auto varlist = assign->Varlist();
+    DEBUG_ASSERT(varlist->Type() == SyntaxTreeType::VarList);
+    const auto varlist_ptr = std::dynamic_pointer_cast<SyntaxTreeVarlist>(varlist);
+    const auto &vars = varlist_ptr->Vars();
+
+    std::vector<SyntaxTreeInterfacePtr> exps;
+    if (const auto explist = assign->Explist()) {
+        DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
+        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+        exps = explist_ptr->Exps();
+    }
+
+    // PreprocessSplitAssign guarantees exactly 1 var and 1 exp at this point
+    DEBUG_ASSERT(vars.size() == 1);
+    if (exps.size() != 1) {
+        ThrowError(std::format("CompileStmtAssign: expected 1 expression, got {}", exps.size()), assign);
+    }
+
+    const std::string rhs = CompileExp(exps[0]);
+
+    DEBUG_ASSERT(vars[0]->Type() == SyntaxTreeType::Var);
+    const auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[0]);
+    const auto &vtype = v_ptr->GetType();
+
+    // PreprocessTableAssign rewrites square/dot assignments to FAKELUA_SET_TABLE calls,
+    // so only simple variable assignments can reach here.
+    DEBUG_ASSERT(vtype == "simple");
+    const auto &name = v_ptr->GetName();
+    decls_ << GenTab() << name << " = " << rhs << ";\n";
 }
 
 void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared) {

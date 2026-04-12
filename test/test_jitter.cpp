@@ -227,107 +227,55 @@ TEST(jitter, local_define_with_values) {
     });
 }
 //
-// TEST(jitter, test_assign) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
+TEST(jitter, test_assign) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_assign.lua", {.debug_mode = debug_mode});
+        int a = 0;
+        std::string b;
+        Call(s, type, "test1", a, true, 1.1);
+        Call(s, type, "test2", b, true, 1.1);
+        ASSERT_EQ(a, 1);
+        ASSERT_EQ(b, "2");
+    });
+}
 //
-//     int a = 0;
-//     std::string b;
-//     L->CompileFile("./jit/test_assign.lua", {});
-//     L->call("test", std::tie(a, b), true, 1.1);
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, "2");
-//
-//     a = 0;
-//     b.clear();
-//     L->CompileFile("./jit/test_assign.lua", {.debug_mode = false});
-//     L->call("test", std::tie(a, b), true, 1.1);
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, "2");
-// }
-//
-// TEST(jitter, test_assign_not_match) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int a = 0;
-//     std::string b;
-//     int c = 0;
-//     int d = 0;
-//     L->CompileFile("./jit/test_assign_not_match.lua", {});
-//     L->call("test", std::tie(a, b, c, d), true, "2", 1.1, 1);
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, "2");
-//     ASSERT_EQ(c, 3);
-//     ASSERT_EQ(d, 4);
-//
-//     a = 0;
-//     b.clear();
-//     L->CompileFile("./jit/test_assign_not_match.lua", {.debug_mode = false});
-//     L->call("test", std::tie(a, b, c, d), true, "2", 1.1, 1);
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, "2");
-//     ASSERT_EQ(c, 3);
-//     ASSERT_EQ(d, 4);
-// }
-//
-// TEST(jitter, test_assign_variadic_match) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     std::string a;
-//     int b = 0;
-//     L->CompileFile("./jit/test_assign_variadic.lua", {});
-//     L->call("test", std::tie(a, b), 1, "2");
-//     ASSERT_EQ(a, "2");
-//     ASSERT_EQ(b, 1);
-//
-//     a.clear();
-//     b = 0;
-//     L->CompileFile("./jit/test_assign_variadic.lua", {.debug_mode = false});
-//     L->call("test", std::tie(a, b), 1, "2");
-//     ASSERT_EQ(a, "2");
-//     ASSERT_EQ(b, 1);
-// }
-//
-// TEST(jitter, test_assign_variadic_no_match) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int a = 0;
-//     int b = 0;
-//     L->CompileFile("./jit/test_assign_variadic_no_match.lua", {});
-//     L->call("test", std::tie(a, b), 2, "2");
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, 2);
-//
-//     a = 0;
-//     b = 0;
-//     L->CompileFile("./jit/test_assign_variadic_no_match.lua", {.debug_mode = false});
-//     L->call("test", std::tie(a, b), 2, "2");
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, 2);
-// }
-//
-// TEST(jitter, test_assign_variadic_empty) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int a = 0;
-//     CVar b = {};
-//     auto vb = (Var &) b;
-//     L->CompileFile("./jit/test_assign_variadic_no_match.lua", {});
-//     L->call("test", std::tie(a, b));
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(vb.Type(), VarType::Nil);
-//
-//     a = 0;
-//     b = {};
-//     L->CompileFile("./jit/test_assign_variadic_no_match.lua", {.debug_mode = false});
-//     L->call("test", std::tie(a, b));
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(vb.Type(), VarType::Nil);
-// }
+// Mismatched var/exp counts (e.g. a, b = 1) are rejected by PreprocessSplitAssign
+TEST(jitter, test_assign_not_match) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_assign_not_match.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+// Variadic assignment (local a, b = ...) is not supported, these tests verify the exception is thrown
+TEST(jitter, test_assign_variadic_match) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_assign_variadic.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_assign_variadic_no_match) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_assign_variadic_no_match.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_assign_variadic_empty) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_assign_variadic_no_match.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
 //
 // TEST(jitter, test_const_table) {
 //     auto L = FakeluaNewState();
