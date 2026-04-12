@@ -276,103 +276,26 @@ TEST(jitter, test_assign_variadic_empty) {
             },
             std::exception);
 }
-//
-// TEST(jitter, test_const_table) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//     std::vector<VarInterface *> tmp;
-//     auto newfunc = [&]() {
-//         auto ret = new SimpleVarImpl();
-//         tmp.push_back(ret);
-//         return ret;
-//     };
-//     L->SetVarInterfaceNewFunc(newfunc);
-//
-//     VarInterface *t1 = nullptr;
-//     VarInterface *t2 = nullptr;
-//     VarInterface *t3 = nullptr;
-//     L->CompileFile("./jit/test_const_table.lua", {});
-//     L->call("test", std::tie(t1, t2, t3));
-//     ASSERT_NE(t1, nullptr);
-//     ASSERT_EQ(t1->ViGetType(), VarInterface::Type::TABLE);
-//     ASSERT_NE(t2, nullptr);
-//     ASSERT_EQ(t2->ViGetType(), VarInterface::Type::TABLE);
-//     ASSERT_NE(t3, nullptr);
-//     ASSERT_EQ(t3->ViGetType(), VarInterface::Type::TABLE);
-//
-//     // need sort kv
-//     dynamic_cast<SimpleVarImpl *>(t1)->ViSortTable();
-//     dynamic_cast<SimpleVarImpl *>(t2)->ViSortTable();
-//     dynamic_cast<SimpleVarImpl *>(t3)->ViSortTable();
-//     ASSERT_EQ(t1->ViToString(0),
-//               "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
-//     ASSERT_EQ(t2->ViToString(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
-//     ASSERT_EQ(t3->ViToString(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
-//
-//     t1 = nullptr;
-//     t2 = nullptr;
-//     t3 = nullptr;
-//     L->CompileFile("./jit/test_const_table.lua", {.debug_mode = false});
-//     L->call("test", std::tie(t1, t2, t3));
-//     ASSERT_NE(t1, nullptr);
-//     ASSERT_EQ(t1->ViGetType(), VarInterface::Type::TABLE);
-//     ASSERT_NE(t2, nullptr);
-//     ASSERT_EQ(t2->ViGetType(), VarInterface::Type::TABLE);
-//     ASSERT_NE(t3, nullptr);
-//     ASSERT_EQ(t3->ViGetType(), VarInterface::Type::TABLE);
-//
-//     // need sort kv
-//     dynamic_cast<SimpleVarImpl *>(t1)->ViSortTable();
-//     dynamic_cast<SimpleVarImpl *>(t2)->ViSortTable();
-//     dynamic_cast<SimpleVarImpl *>(t3)->ViSortTable();
-//     ASSERT_EQ(t1->ViToString(0),
-//               "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
-//     ASSERT_EQ(t2->ViToString(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
-//     ASSERT_EQ(t3->ViToString(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
-//
-//     for (auto &i: tmp) {
-//         delete i;
-//     }
-// }
-//
-// TEST(jitter, test_const_nested_table) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//     std::vector<VarInterface *> tmp;
-//     auto newfunc = [&]() {
-//         auto ret = new SimpleVarImpl();
-//         tmp.push_back(ret);
-//         return ret;
-//     };
-//     L->SetVarInterfaceNewFunc(newfunc);
-//
-//     VarInterface *t = nullptr;
-//     L->CompileFile("./jit/test_const_nested_table.lua", {});
-//     L->call("test", std::tie(t));
-//     ASSERT_NE(t, nullptr);
-//     ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
-//
-//     // need sort kv
-//     dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
-//     ASSERT_EQ(t->ViToString(0), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-//                                 "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
-//
-//     t = nullptr;
-//     L->CompileFile("./jit/test_const_nested_table.lua", {.debug_mode = false});
-//     L->call("test", std::tie(t));
-//     ASSERT_NE(t, nullptr);
-//     ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
-//
-//     // need sort kv
-//     dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
-//     ASSERT_EQ(t->ViToString(0), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-//                                 "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
-//
-//     for (auto &i: tmp) {
-//         delete i;
-//     }
-// }
-//
+
+// Table constructors in global variable initialization are not supported
+TEST(jitter, test_const_table) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_table.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_const_nested_table) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_nested_table.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
 // TEST(jitter, test_local_table) {
 //     auto L = FakeluaNewState();
 //     ASSERT_NE(L.get(), nullptr);
