@@ -515,6 +515,7 @@ void CGen::GenerateGlobal(CompileResult &cr) {
 
                 // 记录变量名
                 global_const_vars_.insert(name);
+                global_const_var_inits_[name] = cvar_init;
             }
         }
     }
@@ -1034,6 +1035,9 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
 
     if (const auto &type = v_ptr->GetType(); type == "simple") {
         const auto &name = v_ptr->GetName();
+        if (in_global_init_ && global_const_var_inits_.contains(name)) {
+            return global_const_var_inits_.at(name);
+        }
         return name;
     } else if (type == "square") {
         if (in_global_init_) {

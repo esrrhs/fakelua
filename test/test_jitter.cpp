@@ -386,53 +386,33 @@ TEST(jitter, test_local_table_with_variadic_no_end_replace) {
             std::exception);
 }
 
-// TEST(jitter, compile_empty_string) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     L->CompileString("", {});
-// }
-//
-// TEST(jitter, test_assign_simple_var) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int a = 0;
-//     int b = 0;
-//     L->CompileFile("./jit/test_assign_simple_var.lua", {});
-//     L->call("test", std::tie(a, b), "test", 1);
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, 1);
-//
-//     a = 0;
-//     b = 0;
-//     L->CompileFile("./jit/test_assign_simple_var.lua", {.debug_mode = false});
-//     L->call("test", std::tie(a, b), "test", 1);
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, 1);
-// }
-//
-// TEST(jitter, test_const_define_simple_var) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int a = 0;
-//     int b = 0;
-//     int c = 0;
-//     L->CompileFile("./jit/test_const_define_simple_var.lua", {});
-//     L->call("test", std::tie(a, b, c));
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, 1);
-//     ASSERT_EQ(c, 1);
-//
-//     a = 0;
-//     b = 0;
-//     L->CompileFile("./jit/test_const_define_simple_var.lua", {.debug_mode = false});
-//     L->call("test", std::tie(a, b, c));
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, 1);
-//     ASSERT_EQ(c, 1);
-// }
+TEST(jitter, compile_empty_string) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) { CompileString(s, "", {.debug_mode = debug_mode}); });
+}
+
+TEST(jitter, test_assign_simple_var) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_assign_simple_var.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 0, 1);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, test_const_define_simple_var) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_const_define_simple_var.lua", {.debug_mode = debug_mode});
+        int a = 0;
+        int b = 0;
+        int c = 0;
+        Call(s, type, "get_a", a);
+        Call(s, type, "get_b", b);
+        Call(s, type, "get_c", c);
+        ASSERT_EQ(a, 1);
+        ASSERT_EQ(b, 1);
+        ASSERT_EQ(c, 1);
+    });
+}
 //
 // TEST(jitter, test_binop_plus) {
 //     auto L = FakeluaNewState();
