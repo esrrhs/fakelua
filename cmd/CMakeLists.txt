@@ -28,4 +28,4 @@ ENDIF ()
 
 add_executable(flua ${LUA_SRC_LIST})
 
-target_link_libraries(flua PRIVATE fakelua gflags::gflags gccjit)
+target_link_libraries(flua PRIVATE fakelua gflags::gflags)
