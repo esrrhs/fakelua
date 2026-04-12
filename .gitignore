@@ -33,6 +33,7 @@
 
 .idea
 build
+build_*
 cmake-build-debug
 cmake_install.cmake
 CMakeFiles
