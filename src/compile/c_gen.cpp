@@ -183,8 +183,8 @@ static inline uint32_t FlHashString(const char *str, int len) {
     (__v.type_ != VAR_NIL && (__v.type_ != VAR_BOOL || __v.data_.b)); \
 })
 
-#define VarEqual(a, b, result) do { \
-    CVar __a = (a), __b = (b); \
+#define VarEqual(_fa, _fb, result) do { \
+    CVar __a = (_fa), __b = (_fb); \
     if (__a.type_ != __b.type_) { \
         if ((__a.type_ == VAR_STRING || __a.type_ == VAR_STRINGID) && \
             (__b.type_ == VAR_STRING || __b.type_ == VAR_STRINGID)) { \
