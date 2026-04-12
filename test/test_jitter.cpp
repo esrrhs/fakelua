@@ -357,115 +357,35 @@ TEST(jitter, test_local_nested_table) {
         delete i;
     }
 }
-//
-// TEST(jitter, test_local_table_with_variadic) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//     std::vector<VarInterface *> tmp;
-//     auto newfunc = [&]() {
-//         auto ret = new SimpleVarImpl();
-//         tmp.push_back(ret);
-//         return ret;
-//     };
-//     L->SetVarInterfaceNewFunc(newfunc);
-//
-//     VarInterface *t = nullptr;
-//     L->CompileFile("./jit/test_local_table_with_variadic.lua", {});
-//     L->call("test", std::tie(t), "a", "b", "c");
-//     ASSERT_NE(t, nullptr);
-//     ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
-//
-//     // need sort kv
-//     dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
-//     ASSERT_EQ(t->ViToString(0), "table:\n\t[1] = \"a\"\n\t[2] = \"b\"\n\t[3] = \"c\"");
-//
-//     t = nullptr;
-//     L->CompileFile("./jit/test_local_table_with_variadic.lua", {.debug_mode = false});
-//     L->call("test", std::tie(t), "a", "b", "c");
-//     ASSERT_NE(t, nullptr);
-//     ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
-//
-//     // need sort kv
-//     dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
-//     ASSERT_EQ(t->ViToString(0), "table:\n\t[1] = \"a\"\n\t[2] = \"b\"\n\t[3] = \"c\"");
-//
-//     for (auto &i: tmp) {
-//         delete i;
-//     }
-// }
-//
-// TEST(jitter, test_local_table_with_variadic_no_end) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//     std::vector<VarInterface *> tmp;
-//     auto newfunc = [&]() {
-//         auto ret = new SimpleVarImpl();
-//         tmp.push_back(ret);
-//         return ret;
-//     };
-//     L->SetVarInterfaceNewFunc(newfunc);
-//
-//     VarInterface *t = nullptr;
-//     L->CompileFile("./jit/test_local_table_with_variadic_no_end.lua", {});
-//     L->call("test", std::tie(t), "a", "b", "c", "d", "e");
-//     ASSERT_NE(t, nullptr);
-//     ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
-//
-//     // need sort kv
-//     dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
-//     ASSERT_EQ(t->ViToString(0), "table:\n\t[1] = \"c\"\n\t[2] = \"a\"\n\t[3] = \"b\"");
-//
-//     t = nullptr;
-//     L->CompileFile("./jit/test_local_table_with_variadic_no_end.lua", {.debug_mode = false});
-//     L->call("test", std::tie(t), "a", "b", "c", "d", "e");
-//     ASSERT_NE(t, nullptr);
-//     ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
-//
-//     // need sort kv
-//     dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
-//     ASSERT_EQ(t->ViToString(0), "table:\n\t[1] = \"c\"\n\t[2] = \"a\"\n\t[3] = \"b\"");
-//
-//     for (auto &i: tmp) {
-//         delete i;
-//     }
-// }
-//
-// TEST(jitter, test_local_table_with_variadic_no_end_replace) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//     std::vector<VarInterface *> tmp;
-//     auto newfunc = [&]() {
-//         auto ret = new SimpleVarImpl();
-//         tmp.push_back(ret);
-//         return ret;
-//     };
-//     L->SetVarInterfaceNewFunc(newfunc);
-//
-//     VarInterface *t = nullptr;
-//     L->CompileFile("./jit/test_local_table_with_variadic_no_end_replace.lua", {});
-//     L->call("test", std::tie(t), "a", "b", "c", "d", "e");
-//     ASSERT_NE(t, nullptr);
-//     ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
-//
-//     // need sort kv
-//     dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
-//     ASSERT_EQ(t->ViToString(0), "table:\n\t[1] = \"c\"\n\t[2] = \"b\"");
-//
-//     t = nullptr;
-//     L->CompileFile("./jit/test_local_table_with_variadic_no_end_replace.lua", {.debug_mode = false});
-//     L->call("test", std::tie(t), "a", "b", "c", "d", "e");
-//     ASSERT_NE(t, nullptr);
-//     ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
-//
-//     // need sort kv
-//     dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
-//     ASSERT_EQ(t->ViToString(0), "table:\n\t[1] = \"c\"\n\t[2] = \"b\"");
-//
-//     for (auto &i: tmp) {
-//         delete i;
-//     }
-// }
-//
+
+// Variadic (...) in table constructors is not supported yet, these tests verify the exception is thrown
+TEST(jitter, test_local_table_with_variadic) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_local_table_with_variadic.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_local_table_with_variadic_no_end) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_local_table_with_variadic_no_end.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_local_table_with_variadic_no_end_replace) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_local_table_with_variadic_no_end_replace.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
 // TEST(jitter, compile_empty_string) {
 //     auto L = FakeluaNewState();
 //     ASSERT_NE(L.get(), nullptr);
