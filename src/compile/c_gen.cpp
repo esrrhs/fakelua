@@ -960,7 +960,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
     DEBUG_ASSERT(tc->Type() == SyntaxTreeType::TableConstructor);
     const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc);
 
-    const auto var_name = std::format("__tbl_{}", tmp_var_counter_++);
+    const auto var_name = std::format("flua_tbl_{}", tmp_var_counter_++);
 
     // Use GCC statement expression for inline table construction
     std::string result = std::format("({{ CVar {}; SET_TABLE({}); ", var_name, var_name);
