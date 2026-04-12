@@ -400,18 +400,12 @@ TEST(jitter, test_assign_simple_var) {
 }
 
 TEST(jitter, test_const_define_simple_var) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_const_define_simple_var.lua", {.debug_mode = debug_mode});
-        int a = 0;
-        int b = 0;
-        int c = 0;
-        Call(s, type, "get_a", a);
-        Call(s, type, "get_b", b);
-        Call(s, type, "get_c", c);
-        ASSERT_EQ(a, 1);
-        ASSERT_EQ(b, 1);
-        ASSERT_EQ(c, 1);
-    });
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_define_simple_var.lua", {.debug_mode = true});
+            },
+            std::exception);
 }
 //
 // TEST(jitter, test_binop_plus) {

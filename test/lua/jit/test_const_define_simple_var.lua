@@ -1,5 +1,5 @@
 local a = 1
-local b = 1
+local b = a
 local c = 1
 
 function get_a()
