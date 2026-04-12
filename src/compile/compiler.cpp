@@ -2,7 +2,6 @@
 #include "bison/parser.h"
 #include "compile/c_gen.h"
 #include "compile/preprocessor.h"
-#include "jit/gcc_jit.h"
 #include "jit/tcc_jit.h"
 #include "state/state.h"
 

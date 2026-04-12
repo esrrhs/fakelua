@@ -183,66 +183,73 @@ static inline uint32_t FlHashString(const char *str, int len) {
     (__v.type_ != VAR_NIL && (__v.type_ != VAR_BOOL || __v.data_.b)); \
 })
 
-#define VarEqual(a, b) ({ \
-    CVar __a = (a); CVar __b = (b); bool __res = false; \
+#define VarEqual(_fa, _fb, result) do { \
+    CVar __a = (_fa), __b = (_fb); \
     if (__a.type_ != __b.type_) { \
         if ((__a.type_ == VAR_STRING || __a.type_ == VAR_STRINGID) && \
             (__b.type_ == VAR_STRING || __b.type_ == VAR_STRINGID)) { \
             VarString *__sa = (__a.type_ == VAR_STRING) ? __a.data_.s : (VarString *)__a.data_.i; \
             VarString *__sb = (__b.type_ == VAR_STRING) ? __b.data_.s : (VarString *)__b.data_.i; \
-            if (__sa == __sb) { __res = true; } \
-            else if (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0) { __res = true; } \
+            if (__sa == __sb) { (result) = true; break; } \
+            (result) = (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0); \
+        } else { \
+            (result) = false; \
         } \
-    } else { \
-        switch(__a.type_) { \
-            case VAR_NIL: { __res = true; break; } \
-            case VAR_BOOL: { __res = (__a.data_.b == __b.data_.b); break; } \
-            case VAR_INT: { __res = (__a.data_.i == __b.data_.i); break; } \
-            case VAR_FLOAT: { __res = (__a.data_.f == __b.data_.f); break; } \
-            case VAR_STRING: { if (__a.data_.s == __b.data_.s) { __res = true; } else if (__a.data_.s->size_ == __b.data_.s->size_ && memcmp(__a.data_.s->data_, __b.data_.s->data_, __a.data_.s->size_) == 0) { __res = true; } break; } \
-            case VAR_STRINGID: { __res = (__a.data_.i == __b.data_.i); break; } \
-            case VAR_TABLE: { __res = (__a.data_.t == __b.data_.t); break; } \
-        } \
+        break; \
     } \
-    __res; \
-})
+    switch (__a.type_) { \
+        case VAR_NIL: (result) = true; break; \
+        case VAR_BOOL: (result) = (__a.data_.b == __b.data_.b); break; \
+        case VAR_INT: (result) = (__a.data_.i == __b.data_.i); break; \
+        case VAR_FLOAT: (result) = (__a.data_.f == __b.data_.f); break; \
+        case VAR_STRING: { \
+            if (__a.data_.s == __b.data_.s) { (result) = true; break; } \
+            (result) = (__a.data_.s->size_ == __b.data_.s->size_ && memcmp(__a.data_.s->data_, __b.data_.s->data_, __a.data_.s->size_) == 0); \
+            break; \
+        } \
+        case VAR_STRINGID: (result) = (__a.data_.i == __b.data_.i); break; \
+        case VAR_TABLE: (result) = (__a.data_.t == __b.data_.t); break; \
+        default: (result) = false; break; \
+    } \
+} while(0)
 
-#define VarHash(v) ({ \
-    CVar __v = (v); uint32_t __h = 0; \
-    switch(__v.type_) { \
-        case VAR_NIL: { __h = 0; break; } \
-        case VAR_BOOL: { __h = __v.data_.b ? 1 : 0; break; } \
-        case VAR_INT: { __h = (uint32_t)(__v.data_.i ^ (__v.data_.i >> 32)); break; } \
-        case VAR_FLOAT: { union { double d; uint64_t u; } __u; __u.d = __v.data_.f; __h = (uint32_t)(__u.u ^ (__u.u >> 32)); break; } \
-        case VAR_STRING: { if (__v.data_.s->hash_ == 0) { __v.data_.s->hash_ = FlHashString(__v.data_.s->data_, __v.data_.s->size_); } __h = __v.data_.s->hash_; break; } \
-        case VAR_STRINGID: { VarString *__vs = (VarString *)__v.data_.i; if (__vs->hash_ == 0) { __vs->hash_ = FlHashString(__vs->data_, __vs->size_); } __h = __vs->hash_; break; } \
-        case VAR_TABLE: { __h = (uint32_t)((uintptr_t)__v.data_.t ^ ((uintptr_t)__v.data_.t >> 32)); break; } \
+#define VarHash(v, hash) do { \
+    CVar __v = (v); \
+    switch (__v.type_) { \
+        case VAR_NIL: (hash) = 0; break; \
+        case VAR_BOOL: (hash) = (__v.data_.b ? 1 : 0); break; \
+        case VAR_INT: (hash) = (uint32_t)(__v.data_.i ^ (__v.data_.i >> 32)); break; \
+        case VAR_FLOAT: { union { double __d; uint64_t __u; } __fu; __fu.__d = __v.data_.f; (hash) = (uint32_t)(__fu.__u ^ (__fu.__u >> 32)); break; } \
+        case VAR_STRING: { if (__v.data_.s->hash_ == 0) { __v.data_.s->hash_ = FlHashString(__v.data_.s->data_, __v.data_.s->size_); } (hash) = __v.data_.s->hash_; break; } \
+        case VAR_STRINGID: { VarString *__vs = (VarString *)__v.data_.i; if (__vs->hash_ == 0) { __vs->hash_ = FlHashString(__vs->data_, __vs->size_); } (hash) = __vs->hash_; break; } \
+        case VAR_TABLE: (hash) = (uint32_t)((uintptr_t)__v.data_.t ^ ((uintptr_t)__v.data_.t >> 32)); break; \
+        default: (hash) = 0; break; \
     } \
-    __h; \
-})
+} while(0)
 
 static inline CVar FlGetTable(CVar t, CVar k) {
     if (t.type_ != VAR_TABLE) { return (CVar){VAR_NIL}; }
     if (k.type_ == VAR_NIL) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t;
     if (tbl->count_ == 0) { return (CVar){VAR_NIL}; }
-    uint32_t h = VarHash(k);
+    uint32_t h; VarHash(k, h);
     if (tbl->bucket_count_ == 0) {
-        if (tbl->quick_data_[0].hash == h && VarEqual(tbl->quick_data_[0].key, k)) { return tbl->quick_data_[0].val; }
-        if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h && VarEqual(tbl->quick_data_[1].key, k)) { return tbl->quick_data_[1].val; }
-        if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h && VarEqual(tbl->quick_data_[2].key, k)) { return tbl->quick_data_[2].val; }
-        if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h && VarEqual(tbl->quick_data_[3].key, k)) { return tbl->quick_data_[3].val; }
-        if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h && VarEqual(tbl->quick_data_[4].key, k)) { return tbl->quick_data_[4].val; }
-        if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h && VarEqual(tbl->quick_data_[5].key, k)) { return tbl->quick_data_[5].val; }
-        if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h && VarEqual(tbl->quick_data_[6].key, k)) { return tbl->quick_data_[6].val; }
-        if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h && VarEqual(tbl->quick_data_[7].key, k)) { return tbl->quick_data_[7].val; }
+        bool __eq;
+        if (tbl->quick_data_[0].hash == h) { VarEqual(tbl->quick_data_[0].key, k, __eq); if (__eq) { return tbl->quick_data_[0].val; } }
+        if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h) { VarEqual(tbl->quick_data_[1].key, k, __eq); if (__eq) { return tbl->quick_data_[1].val; } }
+        if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h) { VarEqual(tbl->quick_data_[2].key, k, __eq); if (__eq) { return tbl->quick_data_[2].val; } }
+        if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h) { VarEqual(tbl->quick_data_[3].key, k, __eq); if (__eq) { return tbl->quick_data_[3].val; } }
+        if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h) { VarEqual(tbl->quick_data_[4].key, k, __eq); if (__eq) { return tbl->quick_data_[4].val; } }
+        if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h) { VarEqual(tbl->quick_data_[5].key, k, __eq); if (__eq) { return tbl->quick_data_[5].val; } }
+        if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h) { VarEqual(tbl->quick_data_[6].key, k, __eq); if (__eq) { return tbl->quick_data_[6].val; } }
+        if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h) { VarEqual(tbl->quick_data_[7].key, k, __eq); if (__eq) { return tbl->quick_data_[7].val; } }
     } else {
         uint32_t mask = tbl->bucket_count_ - 1;
         uint32_t idx = h & mask;
         TableNode *curr = &tbl->nodes_[idx];
         if (curr->entry.key.type_ == VAR_NIL) { return (CVar){VAR_NIL}; }
         while (1) {
-            if (curr->entry.hash == h && VarEqual(curr->entry.key, k)) { return curr->entry.val; }
+            bool __eq; VarEqual(curr->entry.key, k, __eq); if (curr->entry.hash == h && __eq) { return curr->entry.val; }
             uint32_t next = curr->next;
             if (next == 0xFFFFFFFF) { break; }
             curr = &tbl->nodes_[next];
@@ -270,7 +277,7 @@ static inline bool FlTableInsertRaw(VarTable *tbl, CVar key, CVar val, uint32_t 
     uint32_t curr_idx = idx;
     while (1) {
         TableNode *curr = &tbl->nodes_[curr_idx];
-        if (curr->entry.hash == hash && VarEqual(curr->entry.key, key)) { curr->entry.val = val; return true; }
+        if (curr->entry.hash == hash) { bool __eq; VarEqual(curr->entry.key, key, __eq); if (__eq) { curr->entry.val = val; return true; } }
         if (curr->next == 0xFFFFFFFF) { break; }
         curr_idx = curr->next;
     }
@@ -325,22 +332,23 @@ static inline void FlTableRehash(VarTable *tbl) {
 static inline void FlSetTable(CVar t, CVar k, CVar v) {
     if (t.type_ != VAR_TABLE) { return; }
     if (k.type_ == VAR_NIL) { FakeluaThrowError(_S, "table index is nil"); }
-    VarTable *tbl = t.data_.t; uint32_t h = VarHash(k);
+    VarTable *tbl = t.data_.t; uint32_t h; VarHash(k, h);
     if (v.type_ == VAR_NIL) {
         if (tbl->count_ == 0) { return; }
         if (tbl->bucket_count_ == 0) {
-            if (tbl->quick_data_[0].hash == h && VarEqual(tbl->quick_data_[0].key, k)) { if (tbl->count_ > 1) { tbl->quick_data_[0] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
-            if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h && VarEqual(tbl->quick_data_[1].key, k)) { if (tbl->count_ > 2) { tbl->quick_data_[1] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
-            if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h && VarEqual(tbl->quick_data_[2].key, k)) { if (tbl->count_ > 3) { tbl->quick_data_[2] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
-            if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h && VarEqual(tbl->quick_data_[3].key, k)) { if (tbl->count_ > 4) { tbl->quick_data_[3] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
-            if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h && VarEqual(tbl->quick_data_[4].key, k)) { if (tbl->count_ > 5) { tbl->quick_data_[4] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
-            if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h && VarEqual(tbl->quick_data_[5].key, k)) { if (tbl->count_ > 6) { tbl->quick_data_[5] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
-            if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h && VarEqual(tbl->quick_data_[6].key, k)) { if (tbl->count_ > 7) { tbl->quick_data_[6] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; }
-            if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h && VarEqual(tbl->quick_data_[7].key, k)) { tbl->count_--; return; }
+            bool __eq;
+            if (tbl->quick_data_[0].hash == h) { VarEqual(tbl->quick_data_[0].key, k, __eq); if (__eq) { if (tbl->count_ > 1) { tbl->quick_data_[0] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
+            if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h) { VarEqual(tbl->quick_data_[1].key, k, __eq); if (__eq) { if (tbl->count_ > 2) { tbl->quick_data_[1] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
+            if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h) { VarEqual(tbl->quick_data_[2].key, k, __eq); if (__eq) { if (tbl->count_ > 3) { tbl->quick_data_[2] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
+            if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h) { VarEqual(tbl->quick_data_[3].key, k, __eq); if (__eq) { if (tbl->count_ > 4) { tbl->quick_data_[3] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
+            if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h) { VarEqual(tbl->quick_data_[4].key, k, __eq); if (__eq) { if (tbl->count_ > 5) { tbl->quick_data_[4] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
+            if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h) { VarEqual(tbl->quick_data_[5].key, k, __eq); if (__eq) { if (tbl->count_ > 6) { tbl->quick_data_[5] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
+            if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h) { VarEqual(tbl->quick_data_[6].key, k, __eq); if (__eq) { if (tbl->count_ > 7) { tbl->quick_data_[6] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
+            if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h) { VarEqual(tbl->quick_data_[7].key, k, __eq); if (__eq) { tbl->count_--; return; } }
         } else {
             uint32_t mask = tbl->bucket_count_ - 1; uint32_t idx = h & mask; TableNode *curr = &tbl->nodes_[idx];
             if (curr->entry.key.type_ == VAR_NIL) { return; }
-            if (curr->entry.hash == h && VarEqual(curr->entry.key, k)) {
+            { bool __eq; VarEqual(curr->entry.key, k, __eq); if (curr->entry.hash == h && __eq) {
                 if (curr->next != 0xFFFFFFFF) {
                     uint32_t next_idx = curr->next; TableNode *next_node = &tbl->nodes_[next_idx];
                     uint32_t pos = next_node->active_pos; uint32_t last_node_idx = tbl->active_list_[tbl->count_ - 1];
@@ -352,29 +360,30 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
                     curr->active_pos = 0xFFFFFFFF; curr->entry.key.type_ = VAR_NIL;
                 }
                 tbl->count_--; return;
-            }
+            } }
             uint32_t prev_idx = idx; uint32_t curr_idx = curr->next;
             while (curr_idx != 0xFFFFFFFF) {
                 TableNode *node = &tbl->nodes_[curr_idx];
-                if (node->entry.hash == h && VarEqual(node->entry.key, k)) {
+                { bool __eq; VarEqual(node->entry.key, k, __eq); if (node->entry.hash == h && __eq) {
                     uint32_t pos = node->active_pos; uint32_t last_node_idx = tbl->active_list_[tbl->count_ - 1];
                     if (curr_idx != last_node_idx) { tbl->active_list_[pos] = last_node_idx; tbl->nodes_[last_node_idx].active_pos = pos; }
                     node->active_pos = 0xFFFFFFFF; tbl->nodes_[prev_idx].next = node->next; node->next = tbl->free_list_idx_; tbl->free_list_idx_ = curr_idx; tbl->count_--; return;
-                }
+                } }
                 prev_idx = curr_idx; curr_idx = node->next;
             }
         }
         return;
     }
     if (tbl->bucket_count_ == 0) {
-        if (tbl->count_ > 0 && tbl->quick_data_[0].hash == h && VarEqual(tbl->quick_data_[0].key, k)) { tbl->quick_data_[0].val = v; return; }
-        if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h && VarEqual(tbl->quick_data_[1].key, k)) { tbl->quick_data_[1].val = v; return; }
-        if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h && VarEqual(tbl->quick_data_[2].key, k)) { tbl->quick_data_[2].val = v; return; }
-        if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h && VarEqual(tbl->quick_data_[3].key, k)) { tbl->quick_data_[3].val = v; return; }
-        if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h && VarEqual(tbl->quick_data_[4].key, k)) { tbl->quick_data_[4].val = v; return; }
-        if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h && VarEqual(tbl->quick_data_[5].key, k)) { tbl->quick_data_[5].val = v; return; }
-        if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h && VarEqual(tbl->quick_data_[6].key, k)) { tbl->quick_data_[6].val = v; return; }
-        if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h && VarEqual(tbl->quick_data_[7].key, k)) { tbl->quick_data_[7].val = v; return; }
+        bool __eq;
+        if (tbl->count_ > 0 && tbl->quick_data_[0].hash == h) { VarEqual(tbl->quick_data_[0].key, k, __eq); if (__eq) { tbl->quick_data_[0].val = v; return; } }
+        if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h) { VarEqual(tbl->quick_data_[1].key, k, __eq); if (__eq) { tbl->quick_data_[1].val = v; return; } }
+        if (tbl->count_ > 2 && tbl->quick_data_[2].hash == h) { VarEqual(tbl->quick_data_[2].key, k, __eq); if (__eq) { tbl->quick_data_[2].val = v; return; } }
+        if (tbl->count_ > 3 && tbl->quick_data_[3].hash == h) { VarEqual(tbl->quick_data_[3].key, k, __eq); if (__eq) { tbl->quick_data_[3].val = v; return; } }
+        if (tbl->count_ > 4 && tbl->quick_data_[4].hash == h) { VarEqual(tbl->quick_data_[4].key, k, __eq); if (__eq) { tbl->quick_data_[4].val = v; return; } }
+        if (tbl->count_ > 5 && tbl->quick_data_[5].hash == h) { VarEqual(tbl->quick_data_[5].key, k, __eq); if (__eq) { tbl->quick_data_[5].val = v; return; } }
+        if (tbl->count_ > 6 && tbl->quick_data_[6].hash == h) { VarEqual(tbl->quick_data_[6].key, k, __eq); if (__eq) { tbl->quick_data_[6].val = v; return; } }
+        if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h) { VarEqual(tbl->quick_data_[7].key, k, __eq); if (__eq) { tbl->quick_data_[7].val = v; return; } }
         if (tbl->count_ < 8) { tbl->quick_data_[tbl->count_].key = k; tbl->quick_data_[tbl->count_].val = v; tbl->quick_data_[tbl->count_].hash = h; tbl->count_++; return; }
         FlTableRehash(tbl);
     }
@@ -437,7 +446,7 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
 })
 
 #define OpEq(a, b) ({ \
-    CVar __res; SET_BOOL(__res, VarEqual(a, b)); \
+    CVar __res; bool __eq; VarEqual(a, b, __eq); SET_BOOL(__res, __eq); \
     __res; \
 })
 
@@ -956,6 +965,53 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
     if (in_global_init_) {
         ThrowError("table constructor is not supported in global variable initialization", tc);
     }
+
+    DEBUG_ASSERT(tc->Type() == SyntaxTreeType::TableConstructor);
+    const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc);
+
+    const auto var_name = std::format("flua_tbl_{}", tmp_var_counter_++);
+
+    // Use GCC statement expression for inline table construction
+    std::string result = std::format("({{ CVar {}; SET_TABLE({}); ", var_name, var_name);
+
+    const auto fieldlist = tc_ptr->Fieldlist();
+    if (fieldlist) {
+        DEBUG_ASSERT(fieldlist->Type() == SyntaxTreeType::FieldList);
+        const auto fieldlist_ptr = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(fieldlist);
+
+        int array_idx = 1;
+        for (const auto &field: fieldlist_ptr->Fields()) {
+            DEBUG_ASSERT(field->Type() == SyntaxTreeType::Field);
+            const auto field_ptr = std::dynamic_pointer_cast<SyntaxTreeField>(field);
+            const auto &ftype = field_ptr->GetType();
+
+            const auto value_exp = field_ptr->Value();
+            const auto value_str = CompileExp(value_exp);
+
+            std::string key_str;
+            if (ftype == "object") {
+                // name = value: key is a string identifier
+                const auto name = field_ptr->Name();
+                const auto id = s_->GetConstString().Alloc(name);
+                key_str = std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", id);
+            } else {
+                // array: either [exp] = value (explicit key) or just exp (sequential index)
+                DEBUG_ASSERT(ftype == "array");
+                const auto key = field_ptr->Key();
+                if (key) {
+                    key_str = CompileExp(key);
+                } else {
+                    key_str = std::format("(CVar){{.type_ = VAR_INT, .data_.i = {}}}", array_idx);
+                    ++array_idx;
+                }
+            }
+
+            result += std::format("FlSetTable({}, {}, {}); ", var_name, key_str, value_str);
+        }
+    }
+
+    result += std::format("{}; }})", var_name);
+    return result;
 }
 
 std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op) {
