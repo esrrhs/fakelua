@@ -1035,8 +1035,10 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
 
     if (const auto &type = v_ptr->GetType(); type == "simple") {
         const auto &name = v_ptr->GetName();
-        if (in_global_init_ && global_const_var_inits_.contains(name)) {
-            return global_const_var_inits_.at(name);
+        if (in_global_init_) {
+            if (const auto it = global_const_var_inits_.find(name); it != global_const_var_inits_.end()) {
+                return it->second;
+            }
         }
         return name;
     } else if (type == "square") {
