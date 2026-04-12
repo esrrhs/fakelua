@@ -956,6 +956,53 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
     if (in_global_init_) {
         ThrowError("table constructor is not supported in global variable initialization", tc);
     }
+
+    DEBUG_ASSERT(tc->Type() == SyntaxTreeType::TableConstructor);
+    const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc);
+
+    const auto var_name = std::format("__tbl_{}", tmp_var_counter_++);
+
+    // Use GCC statement expression for inline table construction
+    std::string result = std::format("({{ CVar {}; SET_TABLE({}); ", var_name, var_name);
+
+    const auto fieldlist = tc_ptr->Fieldlist();
+    if (fieldlist) {
+        DEBUG_ASSERT(fieldlist->Type() == SyntaxTreeType::FieldList);
+        const auto fieldlist_ptr = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(fieldlist);
+
+        int array_idx = 1;
+        for (const auto &field: fieldlist_ptr->Fields()) {
+            DEBUG_ASSERT(field->Type() == SyntaxTreeType::Field);
+            const auto field_ptr = std::dynamic_pointer_cast<SyntaxTreeField>(field);
+            const auto &ftype = field_ptr->GetType();
+
+            const auto value_exp = field_ptr->Value();
+            const auto value_str = CompileExp(value_exp);
+
+            std::string key_str;
+            if (ftype == "object") {
+                // name = value: key is a string identifier
+                const auto name = field_ptr->Name();
+                const auto id = s_->GetConstString().Alloc(name);
+                key_str = std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", id);
+            } else {
+                // array: either [exp] = value (explicit key) or just exp (sequential index)
+                DEBUG_ASSERT(ftype == "array");
+                const auto key = field_ptr->Key();
+                if (key) {
+                    key_str = CompileExp(key);
+                } else {
+                    key_str = std::format("(CVar){{.type_ = VAR_INT, .data_.i = {}}}", array_idx);
+                    ++array_idx;
+                }
+            }
+
+            result += std::format("FlSetTable({}, {}, {}); ", var_name, key_str, value_str);
+        }
+    }
+
+    result += std::format("{}; }})", var_name);
+    return result;
 }
 
 std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op) {
