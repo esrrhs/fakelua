@@ -431,155 +431,152 @@ static inline int64_t FlCoerceToInt(CVar v) {
     return 0;
 }
 
-#define OpAdd(a, b) ({ \
-    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
-    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_INT(__res, __a.data_.i + __b.data_.i); } \
-    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
-           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
-           SET_FLOAT(__res, __f1 + __f2); } \
-    __res; \
-})
+static inline CVar OpAdd(CVar a, CVar b) {
+    CVar ra = FlCoerceToNum(a); CVar rb = FlCoerceToNum(b); CVar res = {0};
+    if (ra.type_ == VAR_INT && rb.type_ == VAR_INT) { SET_INT(res, ra.data_.i + rb.data_.i); }
+    else { double f1 = (ra.type_ == VAR_INT) ? (double)ra.data_.i : ra.data_.f;
+           double f2 = (rb.type_ == VAR_INT) ? (double)rb.data_.i : rb.data_.f;
+           SET_FLOAT(res, f1 + f2); }
+    return res;
+}
 
-#define OpSub(a, b) ({ \
-    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
-    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_INT(__res, __a.data_.i - __b.data_.i); } \
-    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
-           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
-           SET_FLOAT(__res, __f1 - __f2); } \
-    __res; \
-})
+static inline CVar OpSub(CVar a, CVar b) {
+    CVar ra = FlCoerceToNum(a); CVar rb = FlCoerceToNum(b); CVar res = {0};
+    if (ra.type_ == VAR_INT && rb.type_ == VAR_INT) { SET_INT(res, ra.data_.i - rb.data_.i); }
+    else { double f1 = (ra.type_ == VAR_INT) ? (double)ra.data_.i : ra.data_.f;
+           double f2 = (rb.type_ == VAR_INT) ? (double)rb.data_.i : rb.data_.f;
+           SET_FLOAT(res, f1 - f2); }
+    return res;
+}
 
-#define OpMul(a, b) ({ \
-    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
-    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_INT(__res, __a.data_.i * __b.data_.i); } \
-    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
-           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
-           SET_FLOAT(__res, __f1 * __f2); } \
-    __res; \
-})
+static inline CVar OpMul(CVar a, CVar b) {
+    CVar ra = FlCoerceToNum(a); CVar rb = FlCoerceToNum(b); CVar res = {0};
+    if (ra.type_ == VAR_INT && rb.type_ == VAR_INT) { SET_INT(res, ra.data_.i * rb.data_.i); }
+    else { double f1 = (ra.type_ == VAR_INT) ? (double)ra.data_.i : ra.data_.f;
+           double f2 = (rb.type_ == VAR_INT) ? (double)rb.data_.i : rb.data_.f;
+           SET_FLOAT(res, f1 * f2); }
+    return res;
+}
 
-#define OpDiv(a, b) ({ \
-    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
-    double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
-    double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
-    SET_FLOAT(__res, __f1 / __f2); \
-    __res; \
-})
+static inline CVar OpDiv(CVar a, CVar b) {
+    CVar ra = FlCoerceToNum(a); CVar rb = FlCoerceToNum(b); CVar res = {0};
+    double f1 = (ra.type_ == VAR_INT) ? (double)ra.data_.i : ra.data_.f;
+    double f2 = (rb.type_ == VAR_INT) ? (double)rb.data_.i : rb.data_.f;
+    SET_FLOAT(res, f1 / f2);
+    return res;
+}
 
-#define OpFloorDiv(a, b) ({ \
-    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
-    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { \
-        if (__b.data_.i == 0) { FakeluaThrowError(_S, "floor division by zero"); } \
-        int64_t __q = __a.data_.i / __b.data_.i; \
-        if ((__a.data_.i ^ __b.data_.i) < 0 && __a.data_.i % __b.data_.i != 0) { __q -= 1; } \
-        SET_INT(__res, __q); \
-    } else { \
-        double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
-        double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
-        SET_FLOAT(__res, floor(__f1 / __f2)); \
-    } \
-    __res; \
-})
+static inline CVar OpFloorDiv(CVar a, CVar b) {
+    CVar ra = FlCoerceToNum(a); CVar rb = FlCoerceToNum(b); CVar res = {0};
+    if (ra.type_ == VAR_INT && rb.type_ == VAR_INT) {
+        if (rb.data_.i == 0) { FakeluaThrowError(_S, "floor division by zero"); }
+        int64_t q = ra.data_.i / rb.data_.i;
+        if ((ra.data_.i ^ rb.data_.i) < 0 && ra.data_.i % rb.data_.i != 0) { q -= 1; }
+        SET_INT(res, q);
+    } else {
+        double f1 = (ra.type_ == VAR_INT) ? (double)ra.data_.i : ra.data_.f;
+        double f2 = (rb.type_ == VAR_INT) ? (double)rb.data_.i : rb.data_.f;
+        SET_FLOAT(res, floor(f1 / f2));
+    }
+    return res;
+}
 
-#define OpPow(a, b) ({ \
-    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
-    double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
-    double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
-    SET_FLOAT(__res, pow(__f1, __f2)); \
-    __res; \
-})
+static inline CVar OpPow(CVar a, CVar b) {
+    CVar ra = FlCoerceToNum(a); CVar rb = FlCoerceToNum(b); CVar res = {0};
+    double f1 = (ra.type_ == VAR_INT) ? (double)ra.data_.i : ra.data_.f;
+    double f2 = (rb.type_ == VAR_INT) ? (double)rb.data_.i : rb.data_.f;
+    SET_FLOAT(res, pow(f1, f2));
+    return res;
+}
 
-#define OpMod(a, b) ({ \
-    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
-    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { \
-        if (__b.data_.i == 0) { FakeluaThrowError(_S, "modulo by zero"); } \
-        int64_t __q = __a.data_.i / __b.data_.i; \
-        if ((__a.data_.i ^ __b.data_.i) < 0 && __a.data_.i % __b.data_.i != 0) { __q -= 1; } \
-        SET_INT(__res, __a.data_.i - __b.data_.i * __q); \
-    } else { \
-        double __fa = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
-        double __fb = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
-        SET_FLOAT(__res, __fa - __fb * floor(__fa / __fb)); \
-    } \
-    __res; \
-})
+static inline CVar OpMod(CVar a, CVar b) {
+    CVar ra = FlCoerceToNum(a); CVar rb = FlCoerceToNum(b); CVar res = {0};
+    if (ra.type_ == VAR_INT && rb.type_ == VAR_INT) {
+        if (rb.data_.i == 0) { FakeluaThrowError(_S, "modulo by zero"); }
+        int64_t q = ra.data_.i / rb.data_.i;
+        if ((ra.data_.i ^ rb.data_.i) < 0 && ra.data_.i % rb.data_.i != 0) { q -= 1; }
+        SET_INT(res, ra.data_.i - rb.data_.i * q);
+    } else {
+        double fa = (ra.type_ == VAR_INT) ? (double)ra.data_.i : ra.data_.f;
+        double fb = (rb.type_ == VAR_INT) ? (double)rb.data_.i : rb.data_.f;
+        SET_FLOAT(res, fa - fb * floor(fa / fb));
+    }
+    return res;
+}
 
-#define OpBitAnd(a, b) ({ \
-    CVar __res = {0}; SET_INT(__res, FlCoerceToInt(a) & FlCoerceToInt(b)); __res; \
-})
+static inline CVar OpBitAnd(CVar a, CVar b) {
+    CVar res = {0}; SET_INT(res, FlCoerceToInt(a) & FlCoerceToInt(b)); return res;
+}
 
-#define OpBitXor(a, b) ({ \
-    CVar __res = {0}; SET_INT(__res, FlCoerceToInt(a) ^ FlCoerceToInt(b)); __res; \
-})
+static inline CVar OpBitXor(CVar a, CVar b) {
+    CVar res = {0}; SET_INT(res, FlCoerceToInt(a) ^ FlCoerceToInt(b)); return res;
+}
 
-#define OpBitOr(a, b) ({ \
-    CVar __res = {0}; SET_INT(__res, FlCoerceToInt(a) | FlCoerceToInt(b)); __res; \
-})
+static inline CVar OpBitOr(CVar a, CVar b) {
+    CVar res = {0}; SET_INT(res, FlCoerceToInt(a) | FlCoerceToInt(b)); return res;
+}
 
-#define OpRightShift(a, b) ({ \
-    int64_t __ai = FlCoerceToInt(a); int64_t __bi = FlCoerceToInt(b); CVar __res = {0}; \
-    if (__bi >= 0) { SET_INT(__res, (int64_t)((uint64_t)__ai >> __bi)); } \
-    else { SET_INT(__res, (int64_t)((uint64_t)__ai << (-(int64_t)__bi))); } \
-    __res; \
-})
+static inline CVar OpRightShift(CVar a, CVar b) {
+    int64_t ai = FlCoerceToInt(a); int64_t bi = FlCoerceToInt(b); CVar res = {0};
+    if (bi >= 0) { SET_INT(res, (int64_t)((uint64_t)ai >> bi)); }
+    else { SET_INT(res, (int64_t)((uint64_t)ai << (-(int64_t)bi))); }
+    return res;
+}
 
-#define OpLeftShift(a, b) ({ \
-    int64_t __ai = FlCoerceToInt(a); int64_t __bi = FlCoerceToInt(b); CVar __res = {0}; \
-    if (__bi >= 0) { SET_INT(__res, (int64_t)((uint64_t)__ai << __bi)); } \
-    else { SET_INT(__res, (int64_t)((uint64_t)__ai >> (-(int64_t)__bi))); } \
-    __res; \
-})
+static inline CVar OpLeftShift(CVar a, CVar b) {
+    int64_t ai = FlCoerceToInt(a); int64_t bi = FlCoerceToInt(b); CVar res = {0};
+    if (bi >= 0) { SET_INT(res, (int64_t)((uint64_t)ai << bi)); }
+    else { SET_INT(res, (int64_t)((uint64_t)ai >> (-(int64_t)bi))); }
+    return res;
+}
 
-#define OpLt(a, b) ({ \
-    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
-    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_BOOL(__res, __a.data_.i < __b.data_.i); } \
-    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
-           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
-           SET_BOOL(__res, __f1 < __f2); } \
-    __res; \
-})
+static inline CVar OpLt(CVar a, CVar b) {
+    CVar ra = FlCoerceToNum(a); CVar rb = FlCoerceToNum(b); CVar res = {0};
+    if (ra.type_ == VAR_INT && rb.type_ == VAR_INT) { SET_BOOL(res, ra.data_.i < rb.data_.i); }
+    else { double f1 = (ra.type_ == VAR_INT) ? (double)ra.data_.i : ra.data_.f;
+           double f2 = (rb.type_ == VAR_INT) ? (double)rb.data_.i : rb.data_.f;
+           SET_BOOL(res, f1 < f2); }
+    return res;
+}
 
-#define OpGt(a, b) ({ \
-    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
-    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_BOOL(__res, __a.data_.i > __b.data_.i); } \
-    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
-           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
-           SET_BOOL(__res, __f1 > __f2); } \
-    __res; \
-})
+static inline CVar OpGt(CVar a, CVar b) {
+    CVar ra = FlCoerceToNum(a); CVar rb = FlCoerceToNum(b); CVar res = {0};
+    if (ra.type_ == VAR_INT && rb.type_ == VAR_INT) { SET_BOOL(res, ra.data_.i > rb.data_.i); }
+    else { double f1 = (ra.type_ == VAR_INT) ? (double)ra.data_.i : ra.data_.f;
+           double f2 = (rb.type_ == VAR_INT) ? (double)rb.data_.i : rb.data_.f;
+           SET_BOOL(res, f1 > f2); }
+    return res;
+}
 
-#define OpLe(a, b) ({ \
-    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
-    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_BOOL(__res, __a.data_.i <= __b.data_.i); } \
-    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
-           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
-           SET_BOOL(__res, __f1 <= __f2); } \
-    __res; \
-})
+static inline CVar OpLe(CVar a, CVar b) {
+    CVar ra = FlCoerceToNum(a); CVar rb = FlCoerceToNum(b); CVar res = {0};
+    if (ra.type_ == VAR_INT && rb.type_ == VAR_INT) { SET_BOOL(res, ra.data_.i <= rb.data_.i); }
+    else { double f1 = (ra.type_ == VAR_INT) ? (double)ra.data_.i : ra.data_.f;
+           double f2 = (rb.type_ == VAR_INT) ? (double)rb.data_.i : rb.data_.f;
+           SET_BOOL(res, f1 <= f2); }
+    return res;
+}
 
-#define OpGe(a, b) ({ \
-    CVar __a = FlCoerceToNum(a); CVar __b = FlCoerceToNum(b); CVar __res = {0}; \
-    if (__a.type_ == VAR_INT && __b.type_ == VAR_INT) { SET_BOOL(__res, __a.data_.i >= __b.data_.i); } \
-    else { double __f1 = (__a.type_ == VAR_INT) ? (double)__a.data_.i : __a.data_.f; \
-           double __f2 = (__b.type_ == VAR_INT) ? (double)__b.data_.i : __b.data_.f; \
-           SET_BOOL(__res, __f1 >= __f2); } \
-    __res; \
-})
+static inline CVar OpGe(CVar a, CVar b) {
+    CVar ra = FlCoerceToNum(a); CVar rb = FlCoerceToNum(b); CVar res = {0};
+    if (ra.type_ == VAR_INT && rb.type_ == VAR_INT) { SET_BOOL(res, ra.data_.i >= rb.data_.i); }
+    else { double f1 = (ra.type_ == VAR_INT) ? (double)ra.data_.i : ra.data_.f;
+           double f2 = (rb.type_ == VAR_INT) ? (double)rb.data_.i : rb.data_.f;
+           SET_BOOL(res, f1 >= f2); }
+    return res;
+}
 
-#define OpEq(a, b) ({ \
-    CVar __res = {0}; bool __eq; VarEqual(a, b, __eq); SET_BOOL(__res, __eq); \
-    __res; \
-})
+static inline CVar OpEq(CVar a, CVar b) {
+    CVar res = {0}; bool eq; VarEqual(a, b, eq); SET_BOOL(res, eq); return res;
+}
 
-#define OpNe(a, b) ({ \
-    CVar __res = {0}; bool __eq; VarEqual(a, b, __eq); SET_BOOL(__res, !__eq); \
-    __res; \
-})
+static inline CVar OpNe(CVar a, CVar b) {
+    CVar res = {0}; bool eq; VarEqual(a, b, eq); SET_BOOL(res, !eq); return res;
+}
 
-#define OpNot(a) ({ \
-    CVar __res = {0}; SET_BOOL(__res, !IsTrue(a)); \
-    __res; \
-})
+static inline CVar OpNot(CVar a) {
+    CVar res = {0}; SET_BOOL(res, !IsTrue(a)); return res;
+}
 
 static inline CVar FlConcat(CVar a, CVar b) { return (CVar){VAR_NIL}; }
 
