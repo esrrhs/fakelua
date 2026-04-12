@@ -1,0 +1,1 @@
+do local a = b.c or {} end
