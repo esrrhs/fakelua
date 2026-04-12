@@ -87,7 +87,6 @@ private:
     int cur_tab_ = 0;
     bool in_global_init_ = false;
     std::unordered_set<std::string> global_const_vars_;
-    std::unordered_map<std::string, std::string> global_const_var_inits_;
     int tmp_var_counter_ = 0;
 };
 

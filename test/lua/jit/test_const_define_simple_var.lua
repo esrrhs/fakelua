@@ -1,6 +1,6 @@
 local a = 1
-local b = a
-local c = b
+local b = 1
+local c = 1
 
 function get_a()
     return a

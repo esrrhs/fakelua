@@ -515,7 +515,6 @@ void CGen::GenerateGlobal(CompileResult &cr) {
 
                 // 记录变量名
                 global_const_vars_.insert(name);
-                global_const_var_inits_[name] = cvar_init;
             }
         }
     }
@@ -1036,9 +1035,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
     if (const auto &type = v_ptr->GetType(); type == "simple") {
         const auto &name = v_ptr->GetName();
         if (in_global_init_) {
-            if (const auto it = global_const_var_inits_.find(name); it != global_const_var_inits_.end()) {
-                return it->second;
-            }
+            ThrowError("variable reference is not allowed in global variable initialization", v);
         }
         return name;
     } else if (type == "square") {
