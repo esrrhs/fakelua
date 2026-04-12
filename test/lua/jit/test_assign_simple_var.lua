@@ -1,4 +1,4 @@
 function test(a, b)
     a = b
-    return a, b
+    return a
 end
