@@ -1147,42 +1147,48 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
     func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
 
+    // Wrap arguments in parentheses to prevent commas in C compound literals
+    // (e.g. (CVar){.type_ = VAR_INT, .data_.i = 2}) from being misinterpreted
+    // as macro argument separators by the C preprocessor.
+    const auto l = std::format("({})", left_str);
+    const auto r = std::format("({})", right_str);
+
     if (op_name == "PLUS") {
-        *cur_output_ << GenTab() << std::format("OpAdd({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpAdd({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "MINUS") {
-        *cur_output_ << GenTab() << std::format("OpSub({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpSub({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "STAR") {
-        *cur_output_ << GenTab() << std::format("OpMul({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpMul({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "SLASH") {
-        *cur_output_ << GenTab() << std::format("OpDiv({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpDiv({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "DOUBLE_SLASH") {
-        *cur_output_ << GenTab() << std::format("OpFloorDiv({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpFloorDiv({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "POW") {
-        *cur_output_ << GenTab() << std::format("OpPow({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpPow({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "MOD") {
-        *cur_output_ << GenTab() << std::format("OpMod({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpMod({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "BITAND") {
-        *cur_output_ << GenTab() << std::format("OpBitAnd({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpBitAnd({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "XOR") {
-        *cur_output_ << GenTab() << std::format("OpBitXor({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpBitXor({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "BITOR") {
-        *cur_output_ << GenTab() << std::format("OpBitOr({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpBitOr({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "RIGHT_SHIFT") {
-        *cur_output_ << GenTab() << std::format("OpRightShift({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpRightShift({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "LEFT_SHIFT") {
-        *cur_output_ << GenTab() << std::format("OpLeftShift({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpLeftShift({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "LESS") {
-        *cur_output_ << GenTab() << std::format("OpLt({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpLt({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "LESS_EQUAL") {
-        *cur_output_ << GenTab() << std::format("OpLe({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpLe({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "MORE") {
-        *cur_output_ << GenTab() << std::format("OpGt({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpGt({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "MORE_EQUAL") {
-        *cur_output_ << GenTab() << std::format("OpGe({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpGe({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "EQUAL") {
-        *cur_output_ << GenTab() << std::format("OpEq({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpEq({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "NOT_EQUAL") {
-        *cur_output_ << GenTab() << std::format("OpNe({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpNe({}, {}, {});\n", l, r, tmp);
     } else {
         ThrowError("binary operator not supported: " + op_name, op);
     }
@@ -1203,14 +1209,17 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxT
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
     func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
 
+    // Wrap argument in parentheses to protect commas in compound literals from macro parsing
+    const auto r = std::format("({})", right_str);
+
     if (op_name == "NOT") {
-        *cur_output_ << GenTab() << std::format("OpNot({}, {});\n", right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpNot({}, {});\n", r, tmp);
     } else if (op_name == "MINUS") {
-        *cur_output_ << GenTab() << std::format("OpUnaryMinus({}, {});\n", right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpUnaryMinus({}, {});\n", r, tmp);
     } else if (op_name == "BITNOT") {
-        *cur_output_ << GenTab() << std::format("OpBitNot({}, {});\n", right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpBitNot({}, {});\n", r, tmp);
     } else if (op_name == "NUMBER_SIGN") {
-        *cur_output_ << GenTab() << std::format("OpLen({}, {});\n", right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpLen({}, {});\n", r, tmp);
     } else {
         ThrowError("unary operator not supported: " + op_name, op);
     }
