@@ -1040,24 +1040,14 @@ TEST(jitter, test_assign_table_var) {
     });
 }
 
-// TEST(jitter, test_do_block) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int a = 0;
-//     std::string b;
-//     L->CompileFile("./jit/test_do_block.lua", {});
-//     L->call("test", std::tie(a, b), true, 1.1);
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, "2");
-//
-//     a = 0;
-//     b.clear();
-//     L->CompileFile("./jit/test_do_block.lua", {.debug_mode = false});
-//     L->call("test", std::tie(a, b), true, 1.1);
-//     ASSERT_EQ(a, 1);
-//     ASSERT_EQ(b, "2");
-// }
+TEST(jitter, test_do_block) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_do_block.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, true, 1.1);
+        ASSERT_EQ(ret, 1);
+    });
+}
 //
 // TEST(jitter, test_while) {
 //     auto L = FakeluaNewState();
