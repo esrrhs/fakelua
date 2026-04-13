@@ -565,8 +565,8 @@ static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
         case VAR_BOOL: if (v.data_.b) { memcpy(buf, "true", 4); buf[4] = '\0'; return 4; } else { memcpy(buf, "false", 5); buf[5] = '\0'; return 5; }
         case VAR_INT: return snprintf(buf, buf_size, "%lld", (long long)v.data_.i);
         case VAR_FLOAT: return snprintf(buf, buf_size, "%.14g", v.data_.f);
-        case VAR_STRING: { int len = STR_SIZE(v.data_.s); if (len > buf_size - 1) len = buf_size - 1; memcpy(buf, STR_DATA(v.data_.s), len); buf[len] = '\0'; return len; }
-        case VAR_STRINGID: { VarString *vs = (VarString *)v.data_.i; int len = STR_SIZE(vs); if (len > buf_size - 1) len = buf_size - 1; memcpy(buf, STR_DATA(vs), len); buf[len] = '\0'; return len; }
+        case VAR_STRING:
+        case VAR_STRINGID: FakeluaThrowError(_S, "FlVarToStr: string type should be handled by caller"); return 0;
         default: memcpy(buf, "table", 5); buf[5] = '\0'; return 5;
     }
 }
