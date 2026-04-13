@@ -1091,7 +1091,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
     const auto var_name = std::format("flua_tbl_{}", tmp_var_counter_++);
 
-    func_temp_decls_ << "    CVar " << var_name << ";\n";
+    func_temp_decls_ << GenTab() << "CVar " << var_name << ";\n";
     *cur_output_ << GenTab() << "SET_TABLE(" << var_name << ");\n";
 
     const auto fieldlist = tc_ptr->Fieldlist();
@@ -1145,7 +1145,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     const auto right_str = CompileExp(right);
 
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    CVar " << tmp << ";\n";
+    func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
 
     if (op_name == "PLUS") {
         *cur_output_ << GenTab() << std::format("OpAdd({}, {}, {});\n", left_str, right_str, tmp);
@@ -1201,7 +1201,7 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxT
     const auto right_str = CompileExp(right);
 
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    CVar " << tmp << ";\n";
+    func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
 
     if (op_name == "NOT") {
         *cur_output_ << GenTab() << std::format("OpNot({}, {});\n", right_str, tmp);
