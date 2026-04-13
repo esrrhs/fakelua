@@ -1,5 +1,9 @@
-function test(a, b, c, d)
+function test1(a, b)
     local e = 2 + a and b
-    local f = c and d - 1
-    return e, f
+    return e
+end
+
+function test2(c, d)
+    local f = c and d
+    return f
 end
