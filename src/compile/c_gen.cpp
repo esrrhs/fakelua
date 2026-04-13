@@ -36,6 +36,7 @@ void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
 }
 
 std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
+    cur_output_ = &decls_;
     GenerateHeader();
     GenerateGlobal(cr);
     GenerateDecls(cr);
@@ -793,11 +794,19 @@ void CGen::GenerateImpl(CompileResult &cr) {
         }
         decls_ << ") {\n";
 
-        // 编译函数体
+        // 编译函数体：将语句输出缓冲到 body_ss，临时变量声明缓冲到 func_temp_decls_，
+        // 最终将声明提升到函数体顶部，确保 C89 兼容性。
         const auto func_block = funcbody_ptr->Block();
+        func_temp_decls_.str("");
+        func_temp_decls_.clear();
+        std::stringstream body_ss;
+        cur_output_ = &body_ss;
         cur_tab_++;
         CompileStmtBlock(func_block);
         cur_tab_--;
+        cur_output_ = &decls_;
+        decls_ << func_temp_decls_.str();
+        decls_ << body_ss.str();
 
         decls_ << "}\n";
     }
@@ -896,7 +905,7 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     const auto exp = explist_ptr->Exps()[0];
     const auto ret = CompileExp(exp);
 
-    decls_ << GenTab() << "return " << ret << ";\n";
+    *cur_output_ << GenTab() << "return " << ret << ";\n";
 }
 
 void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
@@ -927,7 +936,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
         }
 
         const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
-        decls_ << GenTab() << "CVar " << name << " = " << init << ";\n";
+        *cur_output_ << GenTab() << "CVar " << name << " = " << init << ";\n";
     }
 }
 
@@ -963,7 +972,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     // so only simple variable assignments can reach here.
     DEBUG_ASSERT(vtype == "simple");
     const auto &name = v_ptr->GetName();
-    decls_ << GenTab() << name << " = " << rhs << ";\n";
+    *cur_output_ << GenTab() << name << " = " << rhs << ";\n";
 }
 
 void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared) {
@@ -1082,8 +1091,8 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
     const auto var_name = std::format("flua_tbl_{}", tmp_var_counter_++);
 
-    decls_ << GenTab() << "CVar " << var_name << ";\n";
-    decls_ << GenTab() << "SET_TABLE(" << var_name << ");\n";
+    func_temp_decls_ << "    CVar " << var_name << ";\n";
+    *cur_output_ << GenTab() << "SET_TABLE(" << var_name << ");\n";
 
     const auto fieldlist = tc_ptr->Fieldlist();
     if (fieldlist) {
@@ -1117,7 +1126,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 }
             }
 
-            decls_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", var_name, key_str, value_str);
+            *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", var_name, key_str, value_str);
         }
     }
 
@@ -1136,44 +1145,44 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     const auto right_str = CompileExp(right);
 
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
-    decls_ << GenTab() << "CVar " << tmp << " = {0};\n";
+    func_temp_decls_ << "    CVar " << tmp << ";\n";
 
     if (op_name == "PLUS") {
-        decls_ << GenTab() << std::format("OpAdd({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpAdd({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "MINUS") {
-        decls_ << GenTab() << std::format("OpSub({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpSub({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "STAR") {
-        decls_ << GenTab() << std::format("OpMul({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpMul({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "SLASH") {
-        decls_ << GenTab() << std::format("OpDiv({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpDiv({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "DOUBLE_SLASH") {
-        decls_ << GenTab() << std::format("OpFloorDiv({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpFloorDiv({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "POW") {
-        decls_ << GenTab() << std::format("OpPow({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpPow({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "MOD") {
-        decls_ << GenTab() << std::format("OpMod({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpMod({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "BITAND") {
-        decls_ << GenTab() << std::format("OpBitAnd({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpBitAnd({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "XOR") {
-        decls_ << GenTab() << std::format("OpBitXor({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpBitXor({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "BITOR") {
-        decls_ << GenTab() << std::format("OpBitOr({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpBitOr({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "RIGHT_SHIFT") {
-        decls_ << GenTab() << std::format("OpRightShift({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpRightShift({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "LEFT_SHIFT") {
-        decls_ << GenTab() << std::format("OpLeftShift({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpLeftShift({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "LESS") {
-        decls_ << GenTab() << std::format("OpLt({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpLt({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "LESS_EQUAL") {
-        decls_ << GenTab() << std::format("OpLe({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpLe({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "MORE") {
-        decls_ << GenTab() << std::format("OpGt({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpGt({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "MORE_EQUAL") {
-        decls_ << GenTab() << std::format("OpGe({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpGe({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "EQUAL") {
-        decls_ << GenTab() << std::format("OpEq({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpEq({}, {}, {});\n", left_str, right_str, tmp);
     } else if (op_name == "NOT_EQUAL") {
-        decls_ << GenTab() << std::format("OpNe({}, {}, {});\n", left_str, right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpNe({}, {}, {});\n", left_str, right_str, tmp);
     } else {
         ThrowError("binary operator not supported: " + op_name, op);
     }
@@ -1192,16 +1201,16 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxT
     const auto right_str = CompileExp(right);
 
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
-    decls_ << GenTab() << "CVar " << tmp << " = {0};\n";
+    func_temp_decls_ << "    CVar " << tmp << ";\n";
 
     if (op_name == "NOT") {
-        decls_ << GenTab() << std::format("OpNot({}, {});\n", right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpNot({}, {});\n", right_str, tmp);
     } else if (op_name == "MINUS") {
-        decls_ << GenTab() << std::format("OpUnaryMinus({}, {});\n", right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpUnaryMinus({}, {});\n", right_str, tmp);
     } else if (op_name == "BITNOT") {
-        decls_ << GenTab() << std::format("OpBitNot({}, {});\n", right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpBitNot({}, {});\n", right_str, tmp);
     } else if (op_name == "NUMBER_SIGN") {
-        decls_ << GenTab() << std::format("OpLen({}, {});\n", right_str, tmp);
+        *cur_output_ << GenTab() << std::format("OpLen({}, {});\n", right_str, tmp);
     } else {
         ThrowError("unary operator not supported: " + op_name, op);
     }

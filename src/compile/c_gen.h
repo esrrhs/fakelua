@@ -88,6 +88,11 @@ private:
     bool in_global_init_ = false;
     std::unordered_set<std::string> global_const_vars_;
     int tmp_var_counter_ = 0;
+
+    // During function body compilation, statement output is redirected here
+    // so that all temp-var declarations can be hoisted above any statements.
+    std::ostream *cur_output_ = nullptr;
+    std::stringstream func_temp_decls_;
 };
 
 }// namespace fakelua
