@@ -17,7 +17,11 @@ include_directories(./platform)
 if (WIN32)
     include_directories(./platform/third_party/prebuilt/win_x64/tinycc/libtcc)
 endif ()
-add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
+if (WIN32)
+    add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
+else()
+    add_library(fakelua STATIC ${FAKELUA_SRC_LIST})
+endif()
 
 find_package(Threads REQUIRED)
 
