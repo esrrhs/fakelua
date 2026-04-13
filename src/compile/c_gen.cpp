@@ -1385,7 +1385,17 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue());
         if (var->GetType() == "simple") {
             const auto &func_name = var->GetName();
-            if (local_func_names_.count(func_name)) {
+            if (func_name == "FAKELUA_SET_TABLE") {
+                // Built-in table assignment: FAKELUA_SET_TABLE(t, k, v) -> FlSetTable(t, k, v)
+                if (compiled_args.size() != 3) {
+                    ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
+                }
+                const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+                func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
+                *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", compiled_args[0], compiled_args[1], compiled_args[2]);
+                *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
+                return tmp;
+            } else if (local_func_names_.count(func_name)) {
                 // Direct call to a function defined in the same C file
                 call_expr = func_name + "(";
                 for (size_t i = 0; i < compiled_args.size(); ++i) {
