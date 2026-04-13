@@ -42,7 +42,7 @@ std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
     GenerateGlobal(cr);
     cur_output_ = &decls_;
     GenerateDecls(cr);
-    local_func_names_ = &cr.function_names;
+    local_func_names_ = cr.function_names;
     cur_output_ = &impls_;
     GenerateImpl(cr);
     return headers_.str() + globals_.str() + decls_.str() + impls_.str();
@@ -144,7 +144,7 @@ enum {
 // External functions for allocation and error handling
 extern void* FakeluaAllocTemp(State *s, size_t size);
 extern void FakeluaThrowError(State *s, const char *msg);
-extern CVar FakeluaCallByName(State *s, const char *name, int arg_num, ...);
+extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
 
 static inline uint32_t FlHashString(const char *str, int len) {
     uint32_t hash = 5381;
@@ -1385,7 +1385,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue());
         if (var->GetType() == "simple") {
             const auto &func_name = var->GetName();
-            if (local_func_names_ && local_func_names_->count(func_name)) {
+            if (local_func_names_.count(func_name)) {
                 // Direct call to a function defined in the same C file
                 call_expr = func_name + "(";
                 for (size_t i = 0; i < compiled_args.size(); ++i) {
@@ -1396,8 +1396,9 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 }
                 call_expr += ")";
             } else {
-                // Dynamic lookup by name in the global function registry
-                call_expr = std::format("FakeluaCallByName(_S, \"{}\", {}", func_name, compiled_args.size());
+                // Dynamic lookup by name in the global function registry.
+                // The JIT type is hardcoded as JIT_TCC (0) since this code runs in TCC-compiled context.
+                call_expr = std::format("FakeluaCallByName(_S, {}, \"{}\", {}", static_cast<int>(JIT_TCC), func_name, compiled_args.size());
                 for (const auto &arg: compiled_args) {
                     call_expr += ", " + arg;
                 }

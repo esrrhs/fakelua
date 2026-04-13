@@ -47,7 +47,7 @@ extern "C" void *FakeluaAllocTemp(State *s, size_t size);
 
 extern "C" void FakeluaThrowError(State *s, const char *msg);
 
-extern "C" CVar FakeluaCallByName(State *s, const char *name, int arg_num, ...);
+extern "C" CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
 
 //
 // extern "C" __attribute__((used)) Var *NewVarTable(State *s, bool is_const, int n, ...);

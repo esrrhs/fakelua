@@ -17,15 +17,14 @@ extern "C" void FakeluaThrowError(State *s, const char *msg) {
     ThrowFakeluaException(msg);
 }
 
-extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, const char *name, int arg_num, ...) {
-    // Only JIT_TCC is currently active; GCC JIT backend is not supported.
+extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...) {
     const auto func = s->GetVM().GetFunction(std::string(name));
     if (func.Empty()) {
         ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' not found", name));
     }
-    void *addr = func.GetAddr(JIT_TCC);
+    void *addr = func.GetAddr(static_cast<JITType>(jit_type));
     if (!addr) {
-        ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' has no TCC address", name));
+        ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' has no address for jit_type {}", name, jit_type));
     }
 
     // Maximum 8 arguments supported (matches the switch below).
