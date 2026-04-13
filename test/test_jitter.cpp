@@ -704,526 +704,298 @@ TEST(jitter, test_const_binop_left_shift) {
             std::exception);
 }
 
-//
-// TEST(jitter, test_binop_concat) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     std::string ret;
-//     L->CompileFile("./jit/test_binop_concat.lua", {});
-//     L->call("test", std::tie(ret), 3, 1.2, true, "test");
-//     ASSERT_EQ(ret, "31.2truetest");
-//
-//     ret.clear();
-//     L->CompileFile("./jit/test_binop_concat.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret), 3, 1.2, true, "test");
-//     ASSERT_EQ(ret, "31.2truetest");
-// }
-//
-// TEST(jitter, test_const_binop_concat) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     std::string ret;
-//     L->CompileFile("./jit/test_const_binop_concat.lua", {});
-//     L->call("test", std::tie(ret));
-//     ASSERT_EQ(ret, "23.2trueabcnil");
-//
-//     ret.clear();
-//     L->CompileFile("./jit/test_const_binop_concat.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret));
-//     ASSERT_EQ(ret, "23.2trueabcnil");
-// }
-//
-// TEST(jitter, test_binop_less) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_binop_less.lua", {});
-//     L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_binop_less.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-// }
-//
-// TEST(jitter, test_const_binop_less) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_const_binop_less.lua", {});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_const_binop_less.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-// }
-//
-// TEST(jitter, test_binop_less_equal) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_binop_less_equal.lua", {});
-//     L->call("test", std::tie(ret1, ret2), 3, 1.2, 10, "10");
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_binop_less_equal.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2), 3, 1.2, 10, "10");
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-// }
-//
-// TEST(jitter, test_const_binop_less_equal) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_const_binop_less_equal.lua", {});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_const_binop_less_equal.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-// }
-//
-// TEST(jitter, test_binop_more) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_binop_more.lua", {});
-//     L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
-//     ASSERT_TRUE(ret1);
-//     ASSERT_FALSE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_binop_more.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2), 3, 1.2, 1, "10");
-//     ASSERT_TRUE(ret1);
-//     ASSERT_FALSE(ret2);
-// }
-//
-// TEST(jitter, test_const_binop_more) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_const_binop_more.lua", {});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_TRUE(ret1);
-//     ASSERT_FALSE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_const_binop_more.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_TRUE(ret1);
-//     ASSERT_FALSE(ret2);
-// }
-//
-// TEST(jitter, test_binop_more_equal) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_binop_more_equal.lua", {});
-//     L->call("test", std::tie(ret1, ret2), 1, 1.2, 10, "10");
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_binop_more_equal.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2), 1, 1.2, 10, "10");
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-// }
-//
-// TEST(jitter, test_const_binop_more_equal) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_const_binop_more_equal.lua", {});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_TRUE(ret1);
-//     ASSERT_TRUE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_const_binop_more_equal.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_TRUE(ret1);
-//     ASSERT_TRUE(ret2);
-// }
-//
-// TEST(jitter, test_binop_equal) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_binop_equal.lua", {});
-//     L->call("test", std::tie(ret1, ret2), 1, 1.2, "10", "10");
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_binop_equal.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2), 1, 1.2, "10", "10");
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-// }
-//
-// TEST(jitter, test_const_binop_equal) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_const_binop_equal.lua", {});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_const_binop_equal.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-// }
-//
-// TEST(jitter, test_binop_not_equal) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_binop_not_equal.lua", {});
-//     L->call("test", std::tie(ret1, ret2), 1, 1.2, "10", "10");
-//     ASSERT_TRUE(ret1);
-//     ASSERT_FALSE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_binop_not_equal.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2), 1, 1.2, "10", "10");
-//     ASSERT_TRUE(ret1);
-//     ASSERT_FALSE(ret2);
-// }
-//
-// TEST(jitter, test_const_binop_not_equal) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_const_binop_not_equal.lua", {});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_TRUE(ret1);
-//     ASSERT_FALSE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_const_binop_not_equal.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_TRUE(ret1);
-//     ASSERT_FALSE(ret2);
-// }
-//
-// TEST(jitter, test_binop_and) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     float ret1 = 0;
-//     CVar ret2 = {};
-//     auto v = (Var &) ret2;
-//     L->CompileFile("./jit/test_binop_and.lua", {});
-//     L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
-//     ASSERT_NEAR(ret1, 1.2, 0.001);
-//     ASSERT_EQ(v.Type(), VarType::Nil);
-//
-//     ret1 = 0;
-//     ret2 = {};
-//     L->CompileFile("./jit/test_binop_and.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
-//     ASSERT_NEAR(ret1, 1.2, 0.001);
-//     ASSERT_EQ(v.Type(), VarType::Nil);
-// }
-//
-// TEST(jitter, test_binop_and_bool) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_binop_and_bool.lua", {});
-//     L->call("test", std::tie(ret1, ret2), true, false);
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_binop_and_bool.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2), true, false);
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-// }
-//
-// TEST(jitter, test_binop_and_or) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret1 = 0;
-//     float ret2 = 0;
-//     L->CompileFile("./jit/test_binop_and_or.lua", {});
-//     L->call("test", std::tie(ret1, ret2), 1, 2, 3, nullptr);
-//     ASSERT_EQ(ret1, 3);
-//     ASSERT_EQ(ret2, 4);
-//
-//     ret1 = 0;
-//     ret2 = 0;
-//     L->CompileFile("./jit/test_binop_and_or.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2), 1, 2, 3, nullptr);
-//     ASSERT_EQ(ret1, 3);
-//     ASSERT_EQ(ret2, 4);
-// }
-//
-// TEST(jitter, test_const_binop_and) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret1 = 0;
-//     CVar ret2 = {};
-//     auto v = (Var &) ret2;
-//     L->CompileFile("./jit/test_const_binop_and.lua", {});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_EQ(ret1, 3);
-//     ASSERT_EQ(v.Type(), VarType::Bool);
-//     ASSERT_EQ(v.GetBool(), false);
-//
-//     ret1 = 0;
-//     ret2 = {};
-//     L->CompileFile("./jit/test_const_binop_and.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_EQ(ret1, 3);
-//     ASSERT_EQ(v.Type(), VarType::Bool);
-//     ASSERT_EQ(v.GetBool(), false);
-// }
-//
-// TEST(jitter, test_binop_or) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret1 = 0;
-//     int ret2 = 0;
-//     L->CompileFile("./jit/test_binop_or.lua", {});
-//     L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
-//     ASSERT_EQ(ret1, 3);
-//     ASSERT_EQ(ret2, 9);
-//
-//     ret1 = 0;
-//     ret2 = 0;
-//     L->CompileFile("./jit/test_binop_or.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2), 1, 1.2, nullptr, "10");
-//     ASSERT_EQ(ret1, 3);
-//     ASSERT_EQ(ret2, 9);
-// }
-//
-// TEST(jitter, test_const_binop_or) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret1 = 0;
-//     float ret2 = 0;
-//     L->CompileFile("./jit/test_const_binop_or.lua", {});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_EQ(ret1, 21);
-//     ASSERT_NEAR(ret2, 2.2, 0.001);
-//
-//     ret1 = 0;
-//     ret2 = 0;
-//     L->CompileFile("./jit/test_const_binop_or.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_EQ(ret1, 21);
-//     ASSERT_NEAR(ret2, 2.2, 0.001);
-// }
-//
-// TEST(jitter, test_unop_minus) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     float ret = 0;
-//     L->CompileFile("./jit/test_unop_minus.lua", {});
-//     L->call("test", std::tie(ret), 2, "2.2");
-//     ASSERT_NEAR(ret, -3.4, 0.001);
-//
-//     ret = 0;
-//     L->CompileFile("./jit/test_unop_minus.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret), 2, "2.2");
-//     ASSERT_NEAR(ret, -3.4, 0.001);
-// }
-//
-// TEST(jitter, test_const_unop_minus) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret = 0;
-//     L->CompileFile("./jit/test_const_unop_minus.lua", {});
-//     L->call("test", std::tie(ret));
-//     ASSERT_EQ(ret, 24);
-//
-//     ret = 0;
-//     L->CompileFile("./jit/test_const_unop_minus.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret));
-//     ASSERT_EQ(ret, 24);
-// }
-//
-// TEST(jitter, test_unop_not) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_unop_not.lua", {});
-//     L->call("test", std::tie(ret1, ret2), 2, nullptr);
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_unop_not.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2), 2, nullptr);
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-// }
-//
-// TEST(jitter, test_const_unop_not) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret1 = false;
-//     bool ret2 = false;
-//     L->CompileFile("./jit/test_const_unop_not.lua", {});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-//
-//     ret1 = false;
-//     ret2 = false;
-//     L->CompileFile("./jit/test_const_unop_not.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_FALSE(ret1);
-//     ASSERT_TRUE(ret2);
-// }
-//
-// TEST(jitter, test_unop_len) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret1 = 0;
-//     int ret2 = 0;
-//     L->CompileFile("./jit/test_unop_len.lua", {});
-//     L->call("test", std::tie(ret1, ret2), "abc", "123");
-//     ASSERT_EQ(ret1, 3);
-//     ASSERT_EQ(ret2, 3);
-//
-//     ret1 = 0;
-//     ret2 = 0;
-//     L->CompileFile("./jit/test_unop_len.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2), "abc", "123");
-//     ASSERT_EQ(ret1, 3);
-//     ASSERT_EQ(ret2, 3);
-// }
-//
-// TEST(jitter, test_const_unop_len) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret1 = 0;
-//     int ret2 = 0;
-//     L->CompileFile("./jit/test_const_unop_len.lua", {});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_EQ(ret1, 2);
-//     ASSERT_EQ(ret2, 3);
-//
-//     ret1 = 0;
-//     ret2 = 0;
-//     L->CompileFile("./jit/test_const_unop_len.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_EQ(ret1, 2);
-//     ASSERT_EQ(ret2, 3);
-// }
-//
-// TEST(jitter, test_unop_bitnot) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret1 = 0;
-//     int ret2 = 0;
-//     L->CompileFile("./jit/test_unop_bitnot.lua", {});
-//     L->call("test", std::tie(ret1, ret2), 123, -123);
-//     ASSERT_EQ(ret1, -124);
-//     ASSERT_EQ(ret2, 122);
-//
-//     ret1 = 0;
-//     ret2 = 0;
-//     L->CompileFile("./jit/test_unop_bitnot.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2), 123, -123);
-//     ASSERT_EQ(ret1, -124);
-//     ASSERT_EQ(ret2, 122);
-// }
-//
-// TEST(jitter, test_const_unop_bitnot) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret1 = 0;
-//     int ret2 = 0;
-//     L->CompileFile("./jit/test_const_unop_bitnot.lua", {});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_EQ(ret1, -124);
-//     ASSERT_EQ(ret2, 122);
-//
-//     ret1 = 0;
-//     ret2 = 0;
-//     L->CompileFile("./jit/test_const_unop_bitnot.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret1, ret2));
-//     ASSERT_EQ(ret1, -124);
-//     ASSERT_EQ(ret2, 122);
-// }
+TEST(jitter, test_binop_concat) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_concat.lua", {.debug_mode = debug_mode});
+        std::string ret;
+        Call(s, type, "test", ret, 3, 1.2, true, "test");
+        ASSERT_EQ(ret, "31.2truetest");
+    });
+}
+
+TEST(jitter, test_const_binop_concat) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_binop_concat.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_binop_less) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_less.lua", {.debug_mode = debug_mode});
+        bool ret1 = false;
+        bool ret2 = false;
+        Call(s, type, "test1", ret1, 3, 1.2);
+        Call(s, type, "test2", ret2, 1, 10);
+        ASSERT_FALSE(ret1);
+        ASSERT_TRUE(ret2);
+    });
+}
+
+TEST(jitter, test_const_binop_less) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_binop_less.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_binop_less_equal) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_less_equal.lua", {.debug_mode = debug_mode});
+        bool ret1 = false;
+        bool ret2 = false;
+        Call(s, type, "test1", ret1, 3, 1.2);
+        Call(s, type, "test2", ret2, 10, 10);
+        ASSERT_FALSE(ret1);
+        ASSERT_TRUE(ret2);
+    });
+}
+
+TEST(jitter, test_const_binop_less_equal) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_binop_less_equal.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_binop_more) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_more.lua", {.debug_mode = debug_mode});
+        bool ret1 = false;
+        bool ret2 = false;
+        Call(s, type, "test1", ret1, 3, 1.2);
+        Call(s, type, "test2", ret2, 1, 10);
+        ASSERT_TRUE(ret1);
+        ASSERT_FALSE(ret2);
+    });
+}
+
+TEST(jitter, test_const_binop_more) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_binop_more.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_binop_more_equal) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_more_equal.lua", {.debug_mode = debug_mode});
+        bool ret1 = false;
+        bool ret2 = false;
+        Call(s, type, "test1", ret1, 1, 1.2);
+        Call(s, type, "test2", ret2, 10, 10);
+        ASSERT_FALSE(ret1);
+        ASSERT_TRUE(ret2);
+    });
+}
+
+TEST(jitter, test_const_binop_more_equal) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_binop_more_equal.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_binop_equal) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_equal.lua", {.debug_mode = debug_mode});
+        bool ret1 = false;
+        bool ret2 = false;
+        Call(s, type, "test1", ret1, 1, 1.2);
+        Call(s, type, "test2", ret2, "10", "10");
+        ASSERT_FALSE(ret1);
+        ASSERT_TRUE(ret2);
+    });
+}
+
+TEST(jitter, test_const_binop_equal) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_binop_equal.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_binop_not_equal) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_not_equal.lua", {.debug_mode = debug_mode});
+        bool ret1 = false;
+        bool ret2 = false;
+        Call(s, type, "test1", ret1, 1, 1.2);
+        Call(s, type, "test2", ret2, "10", "10");
+        ASSERT_TRUE(ret1);
+        ASSERT_FALSE(ret2);
+    });
+}
+
+TEST(jitter, test_const_binop_not_equal) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_binop_not_equal.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_binop_and) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_and.lua", {.debug_mode = debug_mode});
+        float ret1 = 0;
+        CVar ret2 = {};
+        auto v = (Var &) ret2;
+        Call(s, type, "test1", ret1, 1, 1.2);
+        Call(s, type, "test2", ret2, nullptr, "10");
+        ASSERT_NEAR(ret1, 1.2, 0.001);
+        ASSERT_EQ(v.Type(), VarType::Nil);
+    });
+}
+
+TEST(jitter, test_binop_and_bool) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_and_bool.lua", {.debug_mode = debug_mode});
+        bool ret1 = false;
+        bool ret2 = false;
+        Call(s, type, "test1", ret1, true, false);
+        Call(s, type, "test2", ret2, true, false);
+        ASSERT_FALSE(ret1);
+        ASSERT_TRUE(ret2);
+    });
+}
+
+TEST(jitter, test_binop_and_or) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_and_or.lua", {.debug_mode = debug_mode});
+        int ret1 = 0;
+        float ret2 = 0;
+        Call(s, type, "test1", ret1, 1, 2, 3);
+        Call(s, type, "test2", ret2, nullptr, 2, 3);
+        ASSERT_EQ(ret1, 3);
+        ASSERT_EQ(ret2, 4);
+    });
+}
+
+TEST(jitter, test_const_binop_and) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_binop_and.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_binop_or) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_or.lua", {.debug_mode = debug_mode});
+        int ret1 = 0;
+        int ret2 = 0;
+        Call(s, type, "test1", ret1, 1, 1.2);
+        Call(s, type, "test2", ret2, nullptr, 10);
+        ASSERT_EQ(ret1, 3);
+        ASSERT_EQ(ret2, 9);
+    });
+}
+
+TEST(jitter, test_const_binop_or) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_binop_or.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_unop_minus) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_unop_minus.lua", {.debug_mode = debug_mode});
+        float ret = 0;
+        Call(s, type, "test", ret, 2, 2.2);
+        ASSERT_NEAR(ret, -3.4, 0.001);
+    });
+}
+
+TEST(jitter, test_const_unop_minus) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_unop_minus.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_unop_not) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_unop_not.lua", {.debug_mode = debug_mode});
+        bool ret1 = false;
+        bool ret2 = false;
+        Call(s, type, "test1", ret1, 2);
+        Call(s, type, "test2", ret2, nullptr);
+        ASSERT_FALSE(ret1);
+        ASSERT_TRUE(ret2);
+    });
+}
+
+TEST(jitter, test_const_unop_not) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_unop_not.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_unop_len) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_unop_len.lua", {.debug_mode = debug_mode});
+        int ret1 = 0;
+        int ret2 = 0;
+        Call(s, type, "test1", ret1, "abc");
+        Call(s, type, "test2", ret2, "123");
+        ASSERT_EQ(ret1, 3);
+        ASSERT_EQ(ret2, 3);
+    });
+}
+
+TEST(jitter, test_const_unop_len) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_unop_len.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_unop_bitnot) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_unop_bitnot.lua", {.debug_mode = debug_mode});
+        int ret1 = 0;
+        int ret2 = 0;
+        Call(s, type, "test1", ret1, 123);
+        Call(s, type, "test2", ret2, -123);
+        ASSERT_EQ(ret1, -124);
+        ASSERT_EQ(ret2, 122);
+    });
+}
+
+TEST(jitter, test_const_unop_bitnot) {
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_const_unop_bitnot.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
 //
 // TEST(jitter, test_local_func_call) {
 //     auto L = FakeluaNewState();

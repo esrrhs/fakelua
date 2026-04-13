@@ -55,6 +55,7 @@ void CGen::GenerateHeader() {
 #include <math.h>
 #include <assert.h>
 #include <stdlib.h>
+#include <stdio.h>
 
 )";
 
@@ -550,11 +551,49 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
 
 #define OpLen(a, res) do { \
     CVar _lv = (a); \
-    if (_lv.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to get length of a non-table value"); } \
-    SET_INT(res, _lv.data_.t->count_); \
+    if (_lv.type_ == VAR_STRING) { SET_INT(res, STR_SIZE(_lv.data_.s)); } \
+    else if (_lv.type_ == VAR_STRINGID) { SET_INT(res, STR_SIZE((VarString *)_lv.data_.i)); } \
+    else if (_lv.type_ == VAR_TABLE) { SET_INT(res, TABLE_SIZE(_lv.data_.t)); } \
+    else { FakeluaThrowError(_S, "attempt to get length of a non-string/table value"); } \
 } while(0)
 
-static inline CVar FlConcat(CVar a, CVar b) { return (CVar){VAR_NIL}; }
+static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
+    switch (v.type_) {
+        case VAR_NIL: memcpy(buf, "nil", 3); return 3;
+        case VAR_BOOL: if (v.data_.b) { memcpy(buf, "true", 4); return 4; } else { memcpy(buf, "false", 5); return 5; }
+        case VAR_INT: return snprintf(buf, buf_size, "%lld", (long long)v.data_.i);
+        case VAR_FLOAT: return snprintf(buf, buf_size, "%.14g", v.data_.f);
+        case VAR_STRING: { int len = STR_SIZE(v.data_.s); if (len > buf_size - 1) len = buf_size - 1; memcpy(buf, STR_DATA(v.data_.s), len); buf[len] = '\0'; return len; }
+        case VAR_STRINGID: { VarString *vs = (VarString *)v.data_.i; int len = STR_SIZE(vs); if (len > buf_size - 1) len = buf_size - 1; memcpy(buf, STR_DATA(vs), len); buf[len] = '\0'; return len; }
+        default: memcpy(buf, "table", 5); return 5;
+    }
+}
+
+static inline CVar FlConcat(CVar a, CVar b) {
+    char buf_a[256], buf_b[256];
+    const char *sa = buf_a; int la;
+    const char *sb = buf_b; int lb;
+    /* Convert a */
+    if (a.type_ == VAR_STRING) { sa = STR_DATA(a.data_.s); la = STR_SIZE(a.data_.s); }
+    else if (a.type_ == VAR_STRINGID) { VarString *vs = (VarString *)a.data_.i; sa = STR_DATA(vs); la = STR_SIZE(vs); }
+    else { la = FlVarToStr(a, buf_a, sizeof(buf_a)); }
+    /* Convert b */
+    if (b.type_ == VAR_STRING) { sb = STR_DATA(b.data_.s); lb = STR_SIZE(b.data_.s); }
+    else if (b.type_ == VAR_STRINGID) { VarString *vs = (VarString *)b.data_.i; sb = STR_DATA(vs); lb = STR_SIZE(vs); }
+    else { lb = FlVarToStr(b, buf_b, sizeof(buf_b)); }
+    /* Allocate result */
+    int total = la + lb;
+    VarString *vs = (VarString *)FakeluaAllocTemp(_S, sizeof(VarString) + total);
+    vs->size_ = total;
+    vs->hash_ = 0;
+    memcpy(vs->data_, sa, la);
+    memcpy(vs->data_ + la, sb, lb);
+    CVar result;
+    result.type_ = VAR_STRING;
+    result.flag_ = 0;
+    result.data_.s = vs;
+    return result;
+}
 
 )";
 }
@@ -1129,6 +1168,47 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeBinop>(op);
     const auto &op_name = op_ptr->GetOp();
 
+    // Short-circuit operators (AND/OR) need special handling:
+    // Right side must only be evaluated when needed.
+    if (op_name == "AND" || op_name == "OR") {
+        const auto left_str = CompileExp(left);
+
+        const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
+        func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
+        const auto tmp_bool = std::format("flua_bt_{}", tmp_var_counter_++);
+        func_temp_decls_ << GenTab() << "bool " << tmp_bool << ";\n";
+
+        *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", left_str, tmp_bool);
+
+        if (op_name == "AND") {
+            // AND: if left is falsy, return left; else evaluate and return right
+            *cur_output_ << GenTab() << std::format("if (!{}) {{\n", tmp_bool);
+            cur_tab_++;
+            *cur_output_ << GenTab() << std::format("{} = {};\n", tmp, left_str);
+            cur_tab_--;
+            *cur_output_ << GenTab() << "} else {\n";
+            cur_tab_++;
+            const auto right_str = CompileExp(right);
+            *cur_output_ << GenTab() << std::format("{} = {};\n", tmp, right_str);
+            cur_tab_--;
+            *cur_output_ << GenTab() << "}\n";
+        } else {
+            // OR: if left is truthy, return left; else evaluate and return right
+            *cur_output_ << GenTab() << std::format("if ({}) {{\n", tmp_bool);
+            cur_tab_++;
+            *cur_output_ << GenTab() << std::format("{} = {};\n", tmp, left_str);
+            cur_tab_--;
+            *cur_output_ << GenTab() << "} else {\n";
+            cur_tab_++;
+            const auto right_str = CompileExp(right);
+            *cur_output_ << GenTab() << std::format("{} = {};\n", tmp, right_str);
+            cur_tab_--;
+            *cur_output_ << GenTab() << "}\n";
+        }
+
+        return tmp;
+    }
+
     const auto left_str = CompileExp(left);
     const auto right_str = CompileExp(right);
 
@@ -1165,6 +1245,8 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
         *cur_output_ << GenTab() << std::format("OpRightShift({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "LEFT_SHIFT") {
         *cur_output_ << GenTab() << std::format("OpLeftShift({}, {}, {});\n", l, r, tmp);
+    } else if (op_name == "CONCAT") {
+        *cur_output_ << GenTab() << std::format("{} = FlConcat({}, {});\n", tmp, l, r);
     } else if (op_name == "LESS") {
         *cur_output_ << GenTab() << std::format("OpLt({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "LESS_EQUAL") {

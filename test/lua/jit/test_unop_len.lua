@@ -1,3 +1,7 @@
-function test(a, b)
-    return #a, #b
+function test1(a)
+    return #a
+end
+
+function test2(b)
+    return #b
 end

@@ -1,4 +1,9 @@
-function test(a, b, c, d)
-    local e, f = a ~= b, c ~= d
-    return e, f
+function test1(a, b)
+    local e = a ~= b
+    return e
+end
+
+function test2(c, d)
+    local f = c ~= d
+    return f
 end
