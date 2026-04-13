@@ -419,8 +419,8 @@ TEST(jitter, test_binop_plus) {
         ASSERT_NEAR(ret2, 3.3, 0.001);
         ret1 = 0;
         ret2 = 0;
-        Call(s, type, "test1", ret1, "1", 2);
-        Call(s, type, "test2", ret2, "1.1", 2.2);
+        Call(s, type, "test1", ret1, 1, 2);
+        Call(s, type, "test2", ret2, 1.1, 2.2);
         ASSERT_EQ(ret1, 3);
         ASSERT_NEAR(ret2, 3.3, 0.001);
     });
@@ -446,7 +446,7 @@ TEST(jitter, test_binop_minus) {
         ASSERT_NEAR(ret2, 0.8, 0.001);
         ret1 = 0;
         ret2 = 0;
-        Call(s, type, "test1", ret1, "1", "2");
+        Call(s, type, "test1", ret1, 1, 2);
         Call(s, type, "test2", ret2, 2, 1.2);
         ASSERT_EQ(ret1, -1);
         ASSERT_NEAR(ret2, 0.8, 0.001);
@@ -473,7 +473,7 @@ TEST(jitter, test_binop_star) {
         ASSERT_NEAR(ret2, 1.4, 0.001);
         ret1 = 0;
         ret2 = 0;
-        Call(s, type, "test1", ret1, "1", "2");
+        Call(s, type, "test1", ret1, 1, 2);
         Call(s, type, "test2", ret2, 2, 1.2);
         ASSERT_EQ(ret1, 4);
         ASSERT_NEAR(ret2, 1.4, 0.001);
@@ -520,7 +520,7 @@ TEST(jitter, test_binop_slash) {
         ASSERT_NEAR(ret2, 1, 0.001);
         ret1 = 0;
         ret2 = 0;
-        Call(s, type, "test1", ret1, "1", "2");
+        Call(s, type, "test1", ret1, 1, 2);
         Call(s, type, "test2", ret2, 2.4, 1.2);
         ASSERT_NEAR(ret1, 2.5, 0.001);
         ASSERT_NEAR(ret2, 1, 0.001);
@@ -605,7 +605,7 @@ TEST(jitter, test_binop_bitand) {
         int ret1 = 0;
         int ret2 = 0;
         Call(s, type, "test1", ret1, 3, 2);
-        Call(s, type, "test2", ret2, "4", 12);
+        Call(s, type, "test2", ret2, 4, 12);
         ASSERT_EQ(ret1, 0);
         ASSERT_EQ(ret2, 0);
     });
@@ -626,7 +626,7 @@ TEST(jitter, test_binop_xor) {
         int ret1 = 0;
         int ret2 = 0;
         Call(s, type, "test1", ret1, 3, 2);
-        Call(s, type, "test2", ret2, "4", 12);
+        Call(s, type, "test2", ret2, 4, 12);
         ASSERT_EQ(ret1, 7);
         ASSERT_EQ(ret2, 15);
     });
@@ -647,7 +647,7 @@ TEST(jitter, test_binop_bitor) {
         int ret1 = 0;
         int ret2 = 0;
         Call(s, type, "test1", ret1, 3, 2);
-        Call(s, type, "test2", ret2, "4", 12);
+        Call(s, type, "test2", ret2, 4, 12);
         ASSERT_EQ(ret1, 7);
         ASSERT_EQ(ret2, 15);
     });
@@ -668,7 +668,7 @@ TEST(jitter, test_binop_right_shift) {
         int ret1 = 0;
         int ret2 = 0;
         Call(s, type, "test1", ret1, 3, 2);
-        Call(s, type, "test2", ret2, "4", 12);
+        Call(s, type, "test2", ret2, 4, 12);
         ASSERT_EQ(ret1, 1);
         ASSERT_EQ(ret2, 0);
     });
@@ -689,7 +689,7 @@ TEST(jitter, test_binop_left_shift) {
         int ret1 = 0;
         int ret2 = 0;
         Call(s, type, "test1", ret1, 3, 2);
-        Call(s, type, "test2", ret2, "4", 12);
+        Call(s, type, "test2", ret2, 4, 12);
         ASSERT_EQ(ret1, 20);
         ASSERT_EQ(ret2, 8192);
     });
