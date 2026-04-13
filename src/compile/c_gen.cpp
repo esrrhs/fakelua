@@ -1013,15 +1013,100 @@ void CGen::CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt) {
 }
 
 void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
+    DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::While);
+    const auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
+
+    const auto tmp_bool = std::format("flua_wbt_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
+
+    *cur_output_ << GenTab() << "while (1) {\n";
+    cur_tab_++;
+
+    const auto cond = CompileExp(while_stmt->Exp());
+    *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
+    *cur_output_ << GenTab() << std::format("if (!{}) break;\n", tmp_bool);
+
+    CompileStmtBlock(while_stmt->Block());
+
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
 }
 
 void CGen::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
+    DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::Repeat);
+    const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
+
+    const auto tmp_bool = std::format("flua_rbt_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
+
+    *cur_output_ << GenTab() << "do {\n";
+    cur_tab_++;
+
+    CompileStmtBlock(repeat_stmt->Block());
+
+    const auto cond = CompileExp(repeat_stmt->Exp());
+    *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
+    *cur_output_ << GenTab() << std::format("if ({}) break;\n", tmp_bool);
+
+    cur_tab_--;
+    *cur_output_ << GenTab() << "} while (1);\n";
 }
 
 void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
+    DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::If);
+    const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+
+    const auto tmp_bool = std::format("flua_ibt_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
+
+    const auto cond = CompileExp(if_stmt->Exp());
+    *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
+    *cur_output_ << GenTab() << std::format("if ({}) {{\n", tmp_bool);
+    cur_tab_++;
+    CompileStmtBlock(if_stmt->Block());
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}";
+
+    int elseif_depth = 0;
+    if (const auto elseifs_node = if_stmt->ElseIfs()) {
+        const auto elseif_list = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(elseifs_node);
+        for (size_t i = 0; i < elseif_list->ElseifSize(); ++i) {
+            *cur_output_ << " else {\n";
+            cur_tab_++;
+            elseif_depth++;
+
+            const auto etmp_bool = std::format("flua_ibt_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    bool " << etmp_bool << ";\n";
+
+            const auto econd = CompileExp(elseif_list->ElseifExp(i));
+            *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", econd, etmp_bool);
+            *cur_output_ << GenTab() << std::format("if ({}) {{\n", etmp_bool);
+            cur_tab_++;
+            CompileStmtBlock(elseif_list->ElseifBlock(i));
+            cur_tab_--;
+            *cur_output_ << GenTab() << "}";
+        }
+    }
+
+    if (const auto else_block = if_stmt->ElseBlock()) {
+        *cur_output_ << " else {\n";
+        cur_tab_++;
+        CompileStmtBlock(else_block);
+        cur_tab_--;
+        *cur_output_ << GenTab() << "}";
+    }
+
+    for (int i = 0; i < elseif_depth; ++i) {
+        *cur_output_ << "\n";
+        cur_tab_--;
+        *cur_output_ << GenTab() << "}";
+    }
+
+    *cur_output_ << "\n";
 }
 
 void CGen::CompileStmtBreak(const SyntaxTreeInterfacePtr &stmt) {
+    *cur_output_ << GenTab() << "break;\n";
 }
 
 void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
