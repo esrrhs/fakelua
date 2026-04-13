@@ -997,39 +997,37 @@ TEST(jitter, test_const_unop_bitnot) {
 }
 
 //
-// TEST(jitter, test_local_func_call) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret = false;
-//     L->CompileFile("./jit/test_local_func_call.lua", {});
-//     L->call("test", std::tie(ret), 2, 1);
-//     ASSERT_TRUE(ret);
-//     L->call("test", std::tie(ret), 1, 2);
-//     ASSERT_FALSE(ret);
-//
-//     ret = false;
-//     L->CompileFile("./jit/test_local_func_call.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret), 2, 1);
-//     ASSERT_TRUE(ret);
-//     L->call("test", std::tie(ret), 1, 2);
-//     ASSERT_FALSE(ret);
-// }
-//
-// TEST(jitter, test_global_func_call) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret = false;
-//     L->CompileFile("./jit/test_global_func_call.lua", {});
-//     L->call("test", std::tie(ret), 2, 1);
-//     ASSERT_TRUE(ret);
-//
-//     ret = false;
-//     L->CompileFile("./jit/test_global_func_call.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret), 2, 1);
-//     ASSERT_TRUE(ret);
-// }
+TEST(jitter, test_local_func_call) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_local_func_call.lua", {.debug_mode = debug_mode});
+        bool ret = false;
+        Call(s, type, "test", ret, 2, 1);
+        ASSERT_TRUE(ret);
+        Call(s, type, "test", ret, 1, 2);
+        ASSERT_FALSE(ret);
+    });
+}
+
+TEST(jitter, test_global_func_call) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_global_func_call.lua", {.debug_mode = debug_mode});
+        bool ret = false;
+        Call(s, type, "test", ret, 2, 1);
+        ASSERT_TRUE(ret);
+    });
+}
+
+TEST(jitter, test_other_func_call) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_other_func_call_inner.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./jit/test_other_func_call.lua", {.debug_mode = debug_mode});
+        bool ret = false;
+        Call(s, type, "test", ret, 2, 1);
+        ASSERT_TRUE(ret);
+        Call(s, type, "test", ret, 1, 2);
+        ASSERT_FALSE(ret);
+    });
+}
 //
 // TEST(jitter, test_assign_table_var) {
 //     auto L = FakeluaNewState();

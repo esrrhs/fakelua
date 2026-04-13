@@ -26,6 +26,7 @@ TCCHandle::TCCHandle(State *s) {
     // Add symbols that the JIT code might call
     tcc_add_symbol(tcc_state_, "FakeluaAllocTemp", (void *) FakeluaAllocTemp);
     tcc_add_symbol(tcc_state_, "FakeluaThrowError", (void *) FakeluaThrowError);
+    tcc_add_symbol(tcc_state_, "FakeluaCallByName", (void *) FakeluaCallByName);
 }
 
 TCCHandle::~TCCHandle() {
