@@ -89,6 +89,8 @@ private:
     std::unordered_set<std::string> global_const_vars_;
     int tmp_var_counter_ = 0;
 
+    // local_func_names_ points to the current compilation unit's function registry (cr.function_names),
+    // populated during GenerateDecls and valid for the duration of GenerateImpl.
     const std::unordered_map<std::string, int> *local_func_names_ = nullptr;
     // cur_output_ points to the current target stream (headers_, globals_, decls_, impls_, body_ss_, etc.).
     // All code emission should go through *cur_output_ for consistency.

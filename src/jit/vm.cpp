@@ -18,6 +18,7 @@ extern "C" void FakeluaThrowError(State *s, const char *msg) {
 }
 
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, const char *name, int arg_num, ...) {
+    // Only JIT_TCC is currently active; GCC JIT backend is not supported.
     const auto func = s->GetVM().GetFunction(std::string(name));
     if (func.Empty()) {
         ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' not found", name));
@@ -27,14 +28,22 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, const char *na
         ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' has no TCC address", name));
     }
 
-    CVar arg_arr[32];
+    // Maximum 8 arguments supported (matches the switch below).
+    if (arg_num > 8) {
+        ThrowFakeluaException(
+                std::format("FakeluaCallByName: too many arguments ({}) for function '{}', max is 8", arg_num, name));
+    }
+
+    CVar arg_arr[8];
     va_list vl;
     va_start(vl, arg_num);
-    for (int i = 0; i < arg_num && i < 32; ++i) {
+    for (int i = 0; i < arg_num; ++i) {
         arg_arr[i] = va_arg(vl, CVar);
     }
     va_end(vl);
 
+    // Uses the same variadic function pointer cast pattern as Call() in fakelua.h.
+    // All JIT-compiled functions accept/return CVar, so the ABI is uniform.
     auto fn = reinterpret_cast<CVar (*)(...)>(addr);
     switch (arg_num) {
         case 0: return fn();
@@ -47,7 +56,8 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, const char *na
         case 7: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6]);
         case 8: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7]);
         default:
-            ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}) for function '{}'", arg_num, name));
+            ThrowFakeluaException(
+                    std::format("FakeluaCallByName: too many arguments ({}) for function '{}'", arg_num, name));
     }
 }
 
