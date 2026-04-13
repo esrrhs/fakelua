@@ -1028,22 +1028,18 @@ TEST(jitter, test_other_func_call) {
         ASSERT_FALSE(ret);
     });
 }
-//
-// TEST(jitter, test_assign_table_var) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int a = 0;
-//     L->CompileFile("./jit/test_assign_table_var.lua", {});
-//     L->call("test", std::tie(a), "test", 1);
-//     ASSERT_EQ(a, 1);
-//
-//     a = 0;
-//     L->CompileFile("./jit/test_assign_simple_var.lua", {.debug_mode = false});
-//     L->call("test", std::tie(a), "test", 1);
-//     ASSERT_EQ(a, 1);
-// }
-//
+
+TEST(jitter, test_assign_table_var) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_assign_table_var.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, std::string("key"), 42);
+        ASSERT_EQ(ret, 42);
+        Call(s, type, "test", ret, 1, 99);
+        ASSERT_EQ(ret, 99);
+    });
+}
+
 // TEST(jitter, test_do_block) {
 //     auto L = FakeluaNewState();
 //     ASSERT_NE(L.get(), nullptr);
