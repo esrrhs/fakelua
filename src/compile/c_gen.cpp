@@ -42,6 +42,7 @@ std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
     GenerateGlobal(cr);
     cur_output_ = &decls_;
     GenerateDecls(cr);
+    local_func_names_ = cr.function_names;
     cur_output_ = &impls_;
     GenerateImpl(cr);
     return headers_.str() + globals_.str() + decls_.str() + impls_.str();
@@ -143,6 +144,7 @@ enum {
 // External functions for allocation and error handling
 extern void* FakeluaAllocTemp(State *s, size_t size);
 extern void FakeluaThrowError(State *s, const char *msg);
+extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
 
 static inline uint32_t FlHashString(const char *str, int len) {
     uint32_t hash = 5381;
@@ -1004,6 +1006,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
 }
 
 void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared) {
+    CompileFunctioncall(shared);
 }
 
 void CGen::CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt) {
@@ -1343,6 +1346,77 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     if (in_global_init_) {
         ThrowError("function call is not allowed in global variable initialization", functioncall);
     }
+
+    DEBUG_ASSERT(functioncall->Type() == SyntaxTreeType::FunctionCall);
+    const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall);
+
+    if (!fc->Name().empty()) {
+        ThrowError("method calls (:) are not supported", functioncall);
+    }
+
+    // Compile arguments
+    const auto args_node = fc->Args();
+    DEBUG_ASSERT(args_node->Type() == SyntaxTreeType::Args);
+    const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
+
+    std::vector<std::string> compiled_args;
+    const auto &args_type = args_ptr->GetType();
+    if (args_type == "explist") {
+        const auto explist = args_ptr->Explist();
+        DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
+        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+        for (const auto &exp: explist_ptr->Exps()) {
+            compiled_args.push_back(CompileExp(exp));
+        }
+    } else if (args_type == "tableconstructor") {
+        compiled_args.push_back(CompileTableconstructor(args_ptr->Tableconstructor()));
+    } else if (args_type == "string") {
+        compiled_args.push_back(CompileExp(args_ptr->String()));
+    }
+    // "empty": no args
+
+    // Determine the function call expression
+    const auto pe = fc->prefixexp();
+    DEBUG_ASSERT(pe->Type() == SyntaxTreeType::PrefixExp);
+    const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
+
+    std::string call_expr;
+    if (pe_ptr->GetType() == "var") {
+        const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue());
+        if (var->GetType() == "simple") {
+            const auto &func_name = var->GetName();
+            if (local_func_names_.count(func_name)) {
+                // Direct call to a function defined in the same C file
+                call_expr = func_name + "(";
+                for (size_t i = 0; i < compiled_args.size(); ++i) {
+                    if (i > 0) {
+                        call_expr += ", ";
+                    }
+                    call_expr += compiled_args[i];
+                }
+                call_expr += ")";
+            } else {
+                // Dynamic lookup by name in the global function registry.
+                // The JIT type is hardcoded as JIT_TCC (0) since this code runs in TCC-compiled context.
+                call_expr = std::format("FakeluaCallByName(_S, {}, \"{}\", {}", static_cast<int>(JIT_TCC), func_name, compiled_args.size());
+                for (const auto &arg: compiled_args) {
+                    call_expr += ", " + arg;
+                }
+                call_expr += ")";
+            }
+        } else {
+            ThrowError("complex function call expression is not supported", functioncall);
+        }
+    } else {
+        ThrowError("complex function call expression is not supported", functioncall);
+    }
+
+    // Allocate a temp variable to hold the return value
+    const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+    func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
+    *cur_output_ << GenTab() << tmp << " = " << call_expr << ";\n";
+
+    return tmp;
 }
 
 }// namespace fakelua

@@ -89,10 +89,13 @@ private:
     std::unordered_set<std::string> global_const_vars_;
     int tmp_var_counter_ = 0;
 
+    // Function names (and arg counts) declared in the current compilation unit.
+    // Populated during GenerateDecls so that CompileFunctioncall can distinguish
+    // same-file direct calls from cross-file FakeluaCallByName calls.
+    std::unordered_map<std::string, int> local_func_names_;
     // cur_output_ points to the current target stream (headers_, globals_, decls_, impls_, body_ss_, etc.).
     // All code emission should go through *cur_output_ for consistency.
     std::ostream *cur_output_ = nullptr;
-    // During function body compilation, temp-var declarations are hoisted above statements.
     std::stringstream func_temp_decls_;
     // Buffers the function body during compilation (reused across functions, cleared each time).
     std::stringstream body_ss_;
