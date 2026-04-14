@@ -1391,26 +1391,24 @@ TEST(jitter, test_local_func_call_string) {
     });
 }
 
+// Dynamic function call via local variable (c(a,b) where c="func_name") is not supported.
 TEST(jitter, test_var_func_call) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_var_func_call.lua", {.debug_mode = debug_mode});
-        bool ret = false;
-        Call(s, type, "test", ret, 2, 2);
-        ASSERT_TRUE(ret);
-        Call(s, type, "test", ret, 1, 2);
-        ASSERT_FALSE(ret);
-    });
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_var_func_call.lua", {.debug_mode = true});
+            },
+            std::exception);
 }
 
+// Dynamic function call via table index (c[k](a,b)) is not supported.
 TEST(jitter, test_table_var_func_call) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_table_var_func_call.lua", {.debug_mode = debug_mode});
-        bool ret = false;
-        Call(s, type, "test", ret, 2, 2);
-        ASSERT_TRUE(ret);
-        Call(s, type, "test", ret, 1, 2);
-        ASSERT_FALSE(ret);
-    });
+    EXPECT_THROW(
+            {
+                const auto s = FakeluaNewState();
+                CompileFile(s, "./jit/test_table_var_func_call.lua", {.debug_mode = true});
+            },
+            std::exception);
 }
 
 TEST(jitter, test_empty_func_call) {

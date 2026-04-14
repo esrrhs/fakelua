@@ -1679,21 +1679,8 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 }
                 call_expr += ")";
             } else if (cur_func_local_vars_.count(func_name)) {
-                // Local variable holds a function name string at runtime.
-                // Inline the string extraction and call FakeluaCallByName directly.
-                const auto fn_tmp = std::format("flua_fn_{}", tmp_var_counter_++);
-                func_temp_decls_ << GenTab() << "VarString *" << fn_tmp << "_vs;\n";
-                func_temp_decls_ << GenTab() << "char " << fn_tmp << "[256];\n";
-                *cur_output_ << GenTab() << "if (" << func_name << ".type_ == VAR_STRING) { " << fn_tmp << "_vs = " << func_name << ".data_.s; }\n";
-                *cur_output_ << GenTab() << "else if (" << func_name << ".type_ == VAR_STRINGID) { " << fn_tmp << "_vs = (VarString *)" << func_name << ".data_.i; }\n";
-                *cur_output_ << GenTab() << "else { FakeluaThrowError(_S, \"call: expected string value for function name\"); }\n";
-                *cur_output_ << GenTab() << "memcpy(" << fn_tmp << ", " << fn_tmp << "_vs->data_, " << fn_tmp << "_vs->size_);\n";
-                *cur_output_ << GenTab() << fn_tmp << "[" << fn_tmp << "_vs->size_] = '\\0';\n";
-                call_expr = std::format("FakeluaCallByName(_S, {}, {}, {}", kJITType, fn_tmp, compiled_args.size());
-                for (const auto &arg: compiled_args) {
-                    call_expr += ", " + arg;
-                }
-                call_expr += ")";
+                // Calling a function through a local variable (CVar) is not supported.
+                ThrowError("dynamic function call via local variable is not supported", functioncall);
             } else {
                 // Dynamic lookup by name in the global function registry.
                 call_expr = std::format("FakeluaCallByName(_S, {}, \"{}\", {}", kJITType, func_name, compiled_args.size());
@@ -1703,22 +1690,8 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 call_expr += ")";
             }
         } else {
-            // Table-indexed function call: c[k](args) or c.f(args)
-            // Evaluate the table access, inline the string extraction, then call FakeluaCallByName directly.
-            const auto var_expr = CompileVar(pe_ptr->GetValue());
-            const auto fn_tmp = std::format("flua_fn_{}", tmp_var_counter_++);
-            func_temp_decls_ << GenTab() << "VarString *" << fn_tmp << "_vs;\n";
-            func_temp_decls_ << GenTab() << "char " << fn_tmp << "[256];\n";
-            *cur_output_ << GenTab() << "if (" << var_expr << ".type_ == VAR_STRING) { " << fn_tmp << "_vs = " << var_expr << ".data_.s; }\n";
-            *cur_output_ << GenTab() << "else if (" << var_expr << ".type_ == VAR_STRINGID) { " << fn_tmp << "_vs = (VarString *)" << var_expr << ".data_.i; }\n";
-            *cur_output_ << GenTab() << "else { FakeluaThrowError(_S, \"call: expected string value for function name\"); }\n";
-            *cur_output_ << GenTab() << "memcpy(" << fn_tmp << ", " << fn_tmp << "_vs->data_, " << fn_tmp << "_vs->size_);\n";
-            *cur_output_ << GenTab() << fn_tmp << "[" << fn_tmp << "_vs->size_] = '\\0';\n";
-            call_expr = std::format("FakeluaCallByName(_S, {}, {}, {}", kJITType, fn_tmp, compiled_args.size());
-            for (const auto &arg: compiled_args) {
-                call_expr += ", " + arg;
-            }
-            call_expr += ")";
+            // Table-indexed function call (e.g. c[k](args)) is not supported.
+            ThrowError("dynamic function call via table index is not supported", functioncall);
         }
     } else {
         ThrowError("complex function call expression is not supported", functioncall);
