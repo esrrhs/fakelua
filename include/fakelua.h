@@ -178,7 +178,7 @@ struct SimpleVarImpl final : public VarInterface {
     bool bool_ = false;
     int64_t int_ = 0;
     double float_ = 0;
-    std::string_view string_;
+    std::string string_;
     std::vector<std::pair<VarInterface *, VarInterface *>> table_;
 };
 
