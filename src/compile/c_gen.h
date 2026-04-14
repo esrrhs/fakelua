@@ -93,10 +93,6 @@ private:
     // Populated during GenerateDecls so that CompileFunctioncall can distinguish
     // same-file direct calls from cross-file FakeluaCallByName calls.
     std::unordered_map<std::string, int> local_func_names_;
-    // Local variable names declared in the current function body (parameters + local stmts).
-    // Used to distinguish a variable-based dynamic call (FakeluaCallByVar) from a
-    // name-based cross-file call (FakeluaCallByName).
-
     // cur_output_ points to the current target stream (headers_, globals_, decls_, impls_, body_ss_, etc.).
     // All code emission should go through *cur_output_ for consistency.
     std::ostream *cur_output_ = nullptr;
