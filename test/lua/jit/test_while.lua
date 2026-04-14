@@ -3,5 +3,5 @@ function test(a, b)
         a = a + 1
         b = b .. "2"
     end
-    return a, b
+    return a
 end
