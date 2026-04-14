@@ -1,6 +1,6 @@
 -- Sieve of Eratosthenes: count primes <= n.
--- Exercises: table construction with boolean values, nested for loops,
--- for-loop step, bitwise NOT (unary ~), logical NOT, integer division.
+-- Exercises: table construction with boolean values, nested while loops,
+-- for-loop with step, modulo (%), multiplication, comparison.
 function test(n)
     local is_prime = {}
     for i = 2, n do

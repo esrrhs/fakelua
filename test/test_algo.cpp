@@ -12,6 +12,7 @@ static void AlgoRunHelper(const std::string &lua_file, const std::function<void(
     f(s, JIT_TCC);
     CompileFile(s, lua_file, {.debug_mode = false});
     f(s, JIT_TCC);
+    FakeluaDeleteState(s);
 }
 
 TEST(algo, fibonacci) {
