@@ -1370,104 +1370,63 @@ TEST(jitter, test_for_in_return_fallback) {
     });
 }
 //
-// TEST(jitter, test_local_func_call_table_construct) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
 //
-//     bool ret = false;
-//     L->CompileFile("./jit/test_local_func_call_table_construct.lua", {});
-//     L->call("test", std::tie(ret), 2, 1);
-//     ASSERT_TRUE(ret);
-//     L->call("test", std::tie(ret), 1, 2);
-//     ASSERT_FALSE(ret);
-//
-//     ret = false;
-//     L->CompileFile("./jit/test_local_func_call_table_construct.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret), 2, 1);
-//     ASSERT_TRUE(ret);
-//     L->call("test", std::tie(ret), 1, 2);
-//     ASSERT_FALSE(ret);
-// }
-//
-// TEST(jitter, test_local_func_call_string) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     std::string ret;
-//     L->CompileFile("./jit/test_local_func_call_string.lua", {});
-//     L->call("test", std::tie(ret), 2, 1);
-//     ASSERT_EQ(ret, "test_test");
-//
-//     ret.clear();
-//     L->CompileFile("./jit/test_local_func_call_string.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret), 2, 1);
-//     ASSERT_EQ(ret, "test_test");
-// }
-//
-// TEST(jitter, test_var_func_call) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret = false;
-//     L->CompileFile("./jit/test_var_func_call.lua", {});
-//     L->call("test", std::tie(ret), 2, 2);
-//     ASSERT_TRUE(ret);
-//     L->call("test", std::tie(ret), 1, 2);
-//     ASSERT_FALSE(ret);
-//
-//     ret = false;
-//     L->CompileFile("./jit/test_var_func_call.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret), 2, 2);
-//     ASSERT_TRUE(ret);
-//     L->call("test", std::tie(ret), 1, 2);
-//     ASSERT_FALSE(ret);
-// }
-//
-// TEST(jitter, test_table_var_func_call) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     bool ret = false;
-//     L->CompileFile("./jit/test_table_var_func_call.lua", {});
-//     L->call("test", std::tie(ret), 2, 2);
-//     ASSERT_TRUE(ret);
-//     L->call("test", std::tie(ret), 1, 2);
-//     ASSERT_FALSE(ret);
-//
-//     ret = false;
-//     L->CompileFile("./jit/test_table_var_func_call.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret), 2, 2);
-//     ASSERT_TRUE(ret);
-//     L->call("test", std::tie(ret), 1, 2);
-//     ASSERT_FALSE(ret);
-// }
-//
-// TEST(jitter, test_empty_func_call) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret = 0;
-//     L->CompileFile("./jit/test_empty_func_call.lua", {});
-//     L->call("test", std::tie(ret), 2, 2);
-//     ASSERT_EQ(ret, 1);
-//
-//     ret = 0;
-//     L->CompileFile("./jit/test_empty_func_call.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret), 2, 2);
-//     ASSERT_EQ(ret, 1);
-// }
-//
-// TEST(jitter, test_table_get_set) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int ret = 0;
-//     L->CompileFile("./jit/test_table_get_set.lua", {});
-//     L->call("test", std::tie(ret), 1, 2);
-//     ASSERT_EQ(ret, 3);
-//
-//     ret = 0;
-//     L->CompileFile("./jit/test_table_get_set.lua", {.debug_mode = false});
-//     L->call("test", std::tie(ret), 1, 2);
-//     ASSERT_EQ(ret, 3);
-// }
+TEST(jitter, test_local_func_call_table_construct) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_local_func_call_table_construct.lua", {.debug_mode = debug_mode});
+        bool ret = false;
+        Call(s, type, "test", ret, 2, 1);
+        ASSERT_TRUE(ret);
+        Call(s, type, "test", ret, 1, 2);
+        ASSERT_FALSE(ret);
+    });
+}
+
+TEST(jitter, test_local_func_call_string) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_local_func_call_string.lua", {.debug_mode = debug_mode});
+        std::string ret;
+        Call(s, type, "test", ret, 2, 1);
+        ASSERT_EQ(ret, "test_test");
+    });
+}
+
+TEST(jitter, test_var_func_call) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_var_func_call.lua", {.debug_mode = debug_mode});
+        bool ret = false;
+        Call(s, type, "test", ret, 2, 2);
+        ASSERT_TRUE(ret);
+        Call(s, type, "test", ret, 1, 2);
+        ASSERT_FALSE(ret);
+    });
+}
+
+TEST(jitter, test_table_var_func_call) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_var_func_call.lua", {.debug_mode = debug_mode});
+        bool ret = false;
+        Call(s, type, "test", ret, 2, 2);
+        ASSERT_TRUE(ret);
+        Call(s, type, "test", ret, 1, 2);
+        ASSERT_FALSE(ret);
+    });
+}
+
+TEST(jitter, test_empty_func_call) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_empty_func_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 2, 2);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, test_table_get_set) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_get_set.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 1, 2);
+        ASSERT_EQ(ret, 3);
+    });
+}

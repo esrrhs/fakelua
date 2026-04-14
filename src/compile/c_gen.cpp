@@ -145,6 +145,7 @@ enum {
 extern void* FakeluaAllocTemp(State *s, size_t size);
 extern void FakeluaThrowError(State *s, const char *msg);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
+extern CVar FakeluaCallByVar(State *s, int jit_type, CVar name_var, int arg_num, ...);
 
 static inline uint32_t FlHashString(const char *str, int len) {
     uint32_t hash = 5381;
@@ -844,6 +845,10 @@ void CGen::GenerateImpl(CompileResult &cr) {
         func_temp_decls_.clear();
         body_ss_.str("");
         body_ss_.clear();
+        cur_func_local_vars_.clear();
+        for (const auto &param: func_params) {
+            cur_func_local_vars_.insert(param);
+        }
         cur_output_ = &body_ss_;
         cur_tab_++;
         CompileStmtBlock(func_block);
@@ -979,6 +984,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             ThrowError("local variable conflicts with global constant: " + name, stmt);
         }
 
+        cur_func_local_vars_.insert(name);
         const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
         *cur_output_ << GenTab() << "CVar " << name << " = " << init << ";\n";
     }
@@ -1671,6 +1677,14 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                     call_expr += compiled_args[i];
                 }
                 call_expr += ")";
+            } else if (cur_func_local_vars_.count(func_name)) {
+                // Local variable holds a function name string at runtime: call by its value.
+                // The JIT type is hardcoded as JIT_TCC (0) since this code runs in TCC-compiled context.
+                call_expr = std::format("FakeluaCallByVar(_S, {}, {}, {}", static_cast<int>(JIT_TCC), func_name, compiled_args.size());
+                for (const auto &arg: compiled_args) {
+                    call_expr += ", " + arg;
+                }
+                call_expr += ")";
             } else {
                 // Dynamic lookup by name in the global function registry.
                 // The JIT type is hardcoded as JIT_TCC (0) since this code runs in TCC-compiled context.
@@ -1681,7 +1695,14 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 call_expr += ")";
             }
         } else {
-            ThrowError("complex function call expression is not supported", functioncall);
+            // Table-indexed function call: c[k](args) or c.f(args)
+            // Evaluate the table access to get the function name string, then dispatch dynamically.
+            const auto var_expr = CompileVar(pe_ptr->GetValue());
+            call_expr = std::format("FakeluaCallByVar(_S, {}, {}, {}", static_cast<int>(JIT_TCC), var_expr, compiled_args.size());
+            for (const auto &arg: compiled_args) {
+                call_expr += ", " + arg;
+            }
+            call_expr += ")";
         }
     } else {
         ThrowError("complex function call expression is not supported", functioncall);
