@@ -844,10 +844,6 @@ void CGen::GenerateImpl(CompileResult &cr) {
         func_temp_decls_.clear();
         body_ss_.str("");
         body_ss_.clear();
-        cur_func_local_vars_.clear();
-        for (const auto &param: func_params) {
-            cur_func_local_vars_.insert(param);
-        }
         cur_output_ = &body_ss_;
         cur_tab_++;
         CompileStmtBlock(func_block);
@@ -983,7 +979,6 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             ThrowError("local variable conflicts with global constant: " + name, stmt);
         }
 
-        cur_func_local_vars_.insert(name);
         const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
         *cur_output_ << GenTab() << "CVar " << name << " = " << init << ";\n";
     }
@@ -1678,9 +1673,6 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                     call_expr += compiled_args[i];
                 }
                 call_expr += ")";
-            } else if (cur_func_local_vars_.count(func_name)) {
-                // Calling a function through a local variable (CVar) is not supported.
-                ThrowError("dynamic function call via local variable is not supported", functioncall);
             } else {
                 // Dynamic lookup by name in the global function registry.
                 call_expr = std::format("FakeluaCallByName(_S, {}, \"{}\", {}", kJITType, func_name, compiled_args.size());
