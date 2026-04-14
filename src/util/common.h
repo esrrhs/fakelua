@@ -63,7 +63,6 @@
 #include "exception.h"
 #include "logging.h"
 #include "string_util.h"
-#include "call_helper.h"
 #include "os.h"
 #include "file_util.h"
 #include "hash_func.h"

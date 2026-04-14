@@ -362,29 +362,6 @@ TEST(var, var_table_size) {
     ASSERT_EQ(vt.Size(), 2);
 }
 
-std::vector<int> TEST_CALL_VAR_CALL_SEQ;
-int TEST_CALL_VAR_SEQ = 0;
-Var *CALL_VAR_FUNC_TEST_FUNC(...) {
-    TEST_CALL_VAR_CALL_SEQ.push_back(TEST_CALL_VAR_SEQ);
-    TEST_CALL_VAR_SEQ++;
-    return nullptr;
-}
-
-TEST(var, call_var_func) {
-    TEST_CALL_VAR_CALL_SEQ.clear();
-    TEST_CALL_VAR_SEQ = 0;
-    std::vector<Var *> args;
-    for (int i = 0; i <= 32; i++) {
-        args.resize(i);
-        CallVarFunc(CALL_VAR_FUNC_TEST_FUNC, args);
-    }
-
-    ASSERT_EQ(TEST_CALL_VAR_CALL_SEQ.size(), 33);
-    for (int i = 0; i <= 32; i++) {
-        ASSERT_EQ(TEST_CALL_VAR_CALL_SEQ[i], i);
-    }
-}
-
 TEST(var, arithmetic) {
     Var v1(static_cast<int64_t>(10));
     Var v2(static_cast<int64_t>(3));
