@@ -1048,31 +1048,15 @@ TEST(jitter, test_do_block) {
         ASSERT_EQ(ret, 1);
     });
 }
-//
-// TEST(jitter, test_while) {
-//     auto L = FakeluaNewState();
-//     ASSERT_NE(L.get(), nullptr);
-//
-//     int a = 0;
-//     std::string b;
-//     L->CompileFile("./jit/test_while.lua", {});
-//     L->call("test", std::tie(a, b), 1, "a");
-//     ASSERT_EQ(a, 3);
-//     ASSERT_EQ(b, "a22");
-//
-//     a = 0;
-//     b.clear();
-//     L->CompileFile("./jit/test_while.lua", {.debug_mode = false});
-//     L->call("test", std::tie(a, b), 1, "a");
-//     ASSERT_EQ(a, 3);
-//     ASSERT_EQ(b, "a22");
-// }
 TEST(jitter, test_while) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_while.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 1, "a");
         ASSERT_EQ(ret, 3);
+        std::string ret2;
+        Call(s, type, "test2", ret2, 1, "a");
+        ASSERT_EQ(ret2, "a22");
     });
 }
 //
