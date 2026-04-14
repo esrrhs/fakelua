@@ -17,23 +17,6 @@ extern "C" void FakeluaThrowError(State *s, const char *msg) {
     ThrowFakeluaException(msg);
 }
 
-static CVar DoCall(void *addr, int arg_num, CVar *arg_arr) {
-    auto fn = reinterpret_cast<CVar (*)(...)>(addr);
-    switch (arg_num) {
-        case 0: return fn();
-        case 1: return fn(arg_arr[0]);
-        case 2: return fn(arg_arr[0], arg_arr[1]);
-        case 3: return fn(arg_arr[0], arg_arr[1], arg_arr[2]);
-        case 4: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3]);
-        case 5: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4]);
-        case 6: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5]);
-        case 7: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6]);
-        case 8: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7]);
-        default:
-            ThrowFakeluaException(std::format("DoCall: too many arguments ({}), max is 8", arg_num));
-    }
-}
-
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...) {
     const auto func = s->GetVM().GetFunction(std::string(name));
     if (func.Empty()) {
@@ -58,7 +41,23 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, 
     }
     va_end(vl);
 
-    return DoCall(addr, arg_num, arg_arr);
+    // Uses the same variadic function pointer cast pattern as Call() in fakelua.h.
+    // All JIT-compiled functions accept/return CVar, so the ABI is uniform.
+    auto fn = reinterpret_cast<CVar (*)(...)>(addr);
+    switch (arg_num) {
+        case 0: return fn();
+        case 1: return fn(arg_arr[0]);
+        case 2: return fn(arg_arr[0], arg_arr[1]);
+        case 3: return fn(arg_arr[0], arg_arr[1], arg_arr[2]);
+        case 4: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3]);
+        case 5: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4]);
+        case 6: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5]);
+        case 7: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6]);
+        case 8: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7]);
+        default:
+            ThrowFakeluaException(
+                    std::format("FakeluaCallByName: too many arguments ({}) for function '{}'", arg_num, name));
+    }
 }
 
 //

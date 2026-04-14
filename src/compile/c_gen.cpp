@@ -1642,8 +1642,6 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     // "empty": no args
 
     // Determine the function call expression
-    // The JIT type is hardcoded as JIT_TCC since generated C code always runs in TCC-compiled context.
-    const int kJITType = static_cast<int>(JIT_TCC);
     const auto pe = fc->prefixexp();
     DEBUG_ASSERT(pe->Type() == SyntaxTreeType::PrefixExp);
     const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
@@ -1675,15 +1673,15 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 call_expr += ")";
             } else {
                 // Dynamic lookup by name in the global function registry.
-                call_expr = std::format("FakeluaCallByName(_S, {}, \"{}\", {}", kJITType, func_name, compiled_args.size());
+                // The JIT type is hardcoded as JIT_TCC (0) since this code runs in TCC-compiled context.
+                call_expr = std::format("FakeluaCallByName(_S, {}, \"{}\", {}", static_cast<int>(JIT_TCC), func_name, compiled_args.size());
                 for (const auto &arg: compiled_args) {
                     call_expr += ", " + arg;
                 }
                 call_expr += ")";
             }
         } else {
-            // Table-indexed function call (e.g. c[k](args)) is not supported.
-            ThrowError("dynamic function call via table index is not supported", functioncall);
+            ThrowError("complex function call expression is not supported", functioncall);
         }
     } else {
         ThrowError("complex function call expression is not supported", functioncall);
