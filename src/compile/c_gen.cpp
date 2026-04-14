@@ -598,6 +598,20 @@ static inline CVar FlConcat(CVar a, CVar b) {
     return result;
 }
 
+// GET_TABLE_ENTRY(tbl, idx, k, v): fetch key and value at active index idx from a CVar table.
+// Works for both small-table mode (bucket_count_ == 0, uses quick_data_[]) and
+// hash-table mode (uses active_list_[] + nodes_[]).
+#define GET_TABLE_ENTRY(tbl, idx, k, v) do { \
+    if ((tbl).data_.t->bucket_count_ == 0) { \
+        (k) = (tbl).data_.t->quick_data_[(idx)].key; \
+        (v) = (tbl).data_.t->quick_data_[(idx)].val; \
+    } else { \
+        uint32_t __gti_node_idx = (tbl).data_.t->active_list_[(idx)]; \
+        (k) = (tbl).data_.t->nodes_[__gti_node_idx].entry.key; \
+        (v) = (tbl).data_.t->nodes_[__gti_node_idx].entry.val; \
+    } \
+} while(0)
+
 )";
 }
 
@@ -1246,15 +1260,13 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     const auto tbl_expr = CompileExp(args_explist_ptr->Exps()[0]);
 
     // Allocate generated C variable names for iteration state (hoisted to function top)
-    const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);       // table
-    const auto sz_var = std::format("flua_fi_sz_{}", tmp_var_counter_++);         // element count
-    const auto idx_var = std::format("flua_fi_idx_{}", tmp_var_counter_++);       // current index
-    const auto node_idx_var = std::format("flua_fi_node_idx_{}", tmp_var_counter_++); // hash node index
+    const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);  // table
+    const auto sz_var = std::format("flua_fi_sz_{}", tmp_var_counter_++);    // element count
+    const auto idx_var = std::format("flua_fi_idx_{}", tmp_var_counter_++);  // current index
 
     func_temp_decls_ << "    CVar " << tbl_var << ";\n";
     func_temp_decls_ << "    uint32_t " << sz_var << ";\n";
     func_temp_decls_ << "    uint32_t " << idx_var << ";\n";
-    func_temp_decls_ << "    uint32_t " << node_idx_var << ";\n";
 
     // Evaluate and validate the table
     *cur_output_ << GenTab() << tbl_var << " = " << tbl_expr << ";\n";
@@ -1264,35 +1276,17 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     *cur_output_ << GenTab() << "for (" << idx_var << " = 0; " << idx_var << " < " << sz_var << "; " << idx_var << "++) {\n";
     cur_tab_++;
 
-    // Get key (and optionally value) for this iteration
+    // Get key (and optionally value) for this iteration via GET_TABLE_ENTRY macro
     const auto &key_name = names[0];
     if (names.size() >= 2) {
         const auto &val_name = names[1];
         *cur_output_ << GenTab() << "CVar " << key_name << "; CVar " << val_name << ";\n";
-        *cur_output_ << GenTab() << "if (" << tbl_var << ".data_.t->bucket_count_ == 0) {\n";
-        cur_tab_++;
-        *cur_output_ << GenTab() << key_name << " = " << tbl_var << ".data_.t->quick_data_[" << idx_var << "].key;\n";
-        *cur_output_ << GenTab() << val_name << " = " << tbl_var << ".data_.t->quick_data_[" << idx_var << "].val;\n";
-        cur_tab_--;
-        *cur_output_ << GenTab() << "} else {\n";
-        cur_tab_++;
-        *cur_output_ << GenTab() << node_idx_var << " = " << tbl_var << ".data_.t->active_list_[" << idx_var << "];\n";
-        *cur_output_ << GenTab() << key_name << " = " << tbl_var << ".data_.t->nodes_[" << node_idx_var << "].entry.key;\n";
-        *cur_output_ << GenTab() << val_name << " = " << tbl_var << ".data_.t->nodes_[" << node_idx_var << "].entry.val;\n";
-        cur_tab_--;
-        *cur_output_ << GenTab() << "}\n";
+        *cur_output_ << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, key_name, val_name);
     } else {
+        const auto dummy_val = std::format("flua_fi_dummy_val_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << dummy_val << ";\n";
         *cur_output_ << GenTab() << "CVar " << key_name << ";\n";
-        *cur_output_ << GenTab() << "if (" << tbl_var << ".data_.t->bucket_count_ == 0) {\n";
-        cur_tab_++;
-        *cur_output_ << GenTab() << key_name << " = " << tbl_var << ".data_.t->quick_data_[" << idx_var << "].key;\n";
-        cur_tab_--;
-        *cur_output_ << GenTab() << "} else {\n";
-        cur_tab_++;
-        *cur_output_ << GenTab() << node_idx_var << " = " << tbl_var << ".data_.t->active_list_[" << idx_var << "];\n";
-        *cur_output_ << GenTab() << key_name << " = " << tbl_var << ".data_.t->nodes_[" << node_idx_var << "].entry.key;\n";
-        cur_tab_--;
-        *cur_output_ << GenTab() << "}\n";
+        *cur_output_ << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, key_name, dummy_val);
     }
 
     // Compile the loop body
