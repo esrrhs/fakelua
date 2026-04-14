@@ -57,6 +57,7 @@ void CGen::GenerateHeader() {
 #include <assert.h>
 #include <stdlib.h>
 #include <stdio.h>
+#include <stdarg.h>
 
 )";
 
@@ -145,7 +146,49 @@ enum {
 extern void* FakeluaAllocTemp(State *s, size_t size);
 extern void FakeluaThrowError(State *s, const char *msg);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
-extern CVar FakeluaCallByVar(State *s, int jit_type, CVar name_var, int arg_num, ...);
+
+// Call a function whose name is held at runtime in a CVar string value.
+// Extracts the null-terminated name, then delegates to FakeluaCallByName.
+static CVar FlCallByVar(State *s, int jit_type, CVar name_var, int arg_num, ...) {
+    VarString *__vs;
+    char __name_buf[256];
+    int __name_len;
+    CVar __arg_arr[8];
+    int __i;
+    va_list __vl;
+    if (name_var.type_ == VAR_STRING) {
+        __vs = name_var.data_.s;
+    } else if (name_var.type_ == VAR_STRINGID) {
+        __vs = (VarString *)name_var.data_.i;
+    } else {
+        FakeluaThrowError(s, "FlCallByVar: expected string value for function name");
+        return (CVar){.type_ = VAR_NIL};
+    }
+    __name_len = __vs->size_;
+    if (__name_len >= 256) {
+        FakeluaThrowError(s, "FlCallByVar: function name too long");
+        return (CVar){.type_ = VAR_NIL};
+    }
+    memcpy(__name_buf, __vs->data_, __name_len);
+    __name_buf[__name_len] = '\0';
+    va_start(__vl, arg_num);
+    for (__i = 0; __i < arg_num && __i < 8; __i++) {
+        __arg_arr[__i] = va_arg(__vl, CVar);
+    }
+    va_end(__vl);
+    switch (arg_num) {
+        case 0: return FakeluaCallByName(s, jit_type, __name_buf, 0);
+        case 1: return FakeluaCallByName(s, jit_type, __name_buf, 1, __arg_arr[0]);
+        case 2: return FakeluaCallByName(s, jit_type, __name_buf, 2, __arg_arr[0], __arg_arr[1]);
+        case 3: return FakeluaCallByName(s, jit_type, __name_buf, 3, __arg_arr[0], __arg_arr[1], __arg_arr[2]);
+        case 4: return FakeluaCallByName(s, jit_type, __name_buf, 4, __arg_arr[0], __arg_arr[1], __arg_arr[2], __arg_arr[3]);
+        case 5: return FakeluaCallByName(s, jit_type, __name_buf, 5, __arg_arr[0], __arg_arr[1], __arg_arr[2], __arg_arr[3], __arg_arr[4]);
+        case 6: return FakeluaCallByName(s, jit_type, __name_buf, 6, __arg_arr[0], __arg_arr[1], __arg_arr[2], __arg_arr[3], __arg_arr[4], __arg_arr[5]);
+        case 7: return FakeluaCallByName(s, jit_type, __name_buf, 7, __arg_arr[0], __arg_arr[1], __arg_arr[2], __arg_arr[3], __arg_arr[4], __arg_arr[5], __arg_arr[6]);
+        case 8: return FakeluaCallByName(s, jit_type, __name_buf, 8, __arg_arr[0], __arg_arr[1], __arg_arr[2], __arg_arr[3], __arg_arr[4], __arg_arr[5], __arg_arr[6], __arg_arr[7]);
+        default: FakeluaThrowError(s, "FlCallByVar: too many arguments, max is 8"); return (CVar){.type_ = VAR_NIL};
+    }
+}
 
 static inline uint32_t FlHashString(const char *str, int len) {
     uint32_t hash = 5381;
@@ -1681,7 +1724,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 call_expr += ")";
             } else if (cur_func_local_vars_.count(func_name)) {
                 // Local variable holds a function name string at runtime: call by its value.
-                call_expr = std::format("FakeluaCallByVar(_S, {}, {}, {}", kJITType, func_name, compiled_args.size());
+                call_expr = std::format("FlCallByVar(_S, {}, {}, {}", kJITType, func_name, compiled_args.size());
                 for (const auto &arg: compiled_args) {
                     call_expr += ", " + arg;
                 }
@@ -1698,7 +1741,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             // Table-indexed function call: c[k](args) or c.f(args)
             // Evaluate the table access to get the function name string, then dispatch dynamically.
             const auto var_expr = CompileVar(pe_ptr->GetValue());
-            call_expr = std::format("FakeluaCallByVar(_S, {}, {}, {}", kJITType, var_expr, compiled_args.size());
+            call_expr = std::format("FlCallByVar(_S, {}, {}, {}", kJITType, var_expr, compiled_args.size());
             for (const auto &arg: compiled_args) {
                 call_expr += ", " + arg;
             }

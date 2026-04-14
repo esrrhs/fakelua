@@ -5,7 +5,6 @@
 #include "var/var.h"
 #include "var/var_table.h"
 #include "var/var_string.h"
-#include "var/var_type.h"
 #include <stdarg.h>
 
 namespace fakelua {
@@ -49,36 +48,6 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, 
     if (arg_num > 8) {
         ThrowFakeluaException(
                 std::format("FakeluaCallByName: too many arguments ({}) for function '{}', max is 8", arg_num, name));
-    }
-
-    CVar arg_arr[8];
-    va_list vl;
-    va_start(vl, arg_num);
-    for (int i = 0; i < arg_num; ++i) {
-        arg_arr[i] = va_arg(vl, CVar);
-    }
-    va_end(vl);
-
-    return DoCall(addr, arg_num, arg_arr);
-}
-
-extern "C" __attribute__((used)) CVar FakeluaCallByVar(State *s, int jit_type, CVar name_var, int arg_num, ...) {
-    const auto &var = reinterpret_cast<const Var &>(name_var);
-    if (var.Type() != VarType::String && var.Type() != VarType::StringId) {
-        ThrowFakeluaException(std::format("FakeluaCallByVar: expected string value for function name, got type {}", VarTypeToString(var.Type())));
-    }
-    const auto func_name = var.GetString()->Str();
-
-    const auto func = s->GetVM().GetFunction(std::string(func_name));
-    if (func.Empty()) {
-        ThrowFakeluaException(std::format("FakeluaCallByVar: function '{}' not found", func_name));
-    }
-    void *addr = func.GetAddr(static_cast<JITType>(jit_type));
-    if (!addr) {
-        ThrowFakeluaException(std::format("FakeluaCallByVar: function '{}' has no address for jit_type {}", func_name, jit_type));
-    }
-    if (arg_num > 8) {
-        ThrowFakeluaException(std::format("FakeluaCallByVar: too many arguments ({}) for function '{}', max is 8", arg_num, func_name));
     }
 
     CVar arg_arr[8];

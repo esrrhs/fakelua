@@ -27,7 +27,6 @@ TCCHandle::TCCHandle(State *s) {
     tcc_add_symbol(tcc_state_, "FakeluaAllocTemp", (void *) FakeluaAllocTemp);
     tcc_add_symbol(tcc_state_, "FakeluaThrowError", (void *) FakeluaThrowError);
     tcc_add_symbol(tcc_state_, "FakeluaCallByName", (void *) FakeluaCallByName);
-    tcc_add_symbol(tcc_state_, "FakeluaCallByVar", (void *) FakeluaCallByVar);
 }
 
 TCCHandle::~TCCHandle() {
