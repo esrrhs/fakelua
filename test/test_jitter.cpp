@@ -1078,6 +1078,17 @@ TEST(jitter, test_while) {
 //     ASSERT_EQ(a, 3);
 //     ASSERT_EQ(b, "a22");
 // }
+TEST(jitter, test_repeat) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_repeat.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 1, std::string("a"));
+        ASSERT_EQ(ret, 3);
+        std::string ret2;
+        Call(s, type, "test2", ret2, 1, std::string("a"));
+        ASSERT_EQ(ret2, "a22");
+    });
+}
 //
 // TEST(jitter, test_while_double) {
 //     auto L = FakeluaNewState();
@@ -1116,6 +1127,14 @@ TEST(jitter, test_while_double) {
 //     L->call("test", std::tie(a), 4, 3);
 //     ASSERT_EQ(a, 18);
 // }
+TEST(jitter, test_repeat_double) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_repeat_double.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 4, 3);
+        ASSERT_EQ(ret, 18);
+    });
+}
 //
 // TEST(jitter, test_if) {
 //     auto L = FakeluaNewState();
@@ -1318,6 +1337,14 @@ TEST(jitter, test_while_return) {
 //     L->call("test", std::tie(a), 4, 4);
 //     ASSERT_EQ(a, 4);
 // }
+TEST(jitter, test_repeat_return) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_repeat_return.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 4, 4);
+        ASSERT_EQ(ret, 4);
+    });
+}
 //
 // TEST(jitter, test_while_break) {
 //     auto L = FakeluaNewState();
@@ -1356,6 +1383,14 @@ TEST(jitter, test_while_break) {
 //     L->call("test", std::tie(a), 4, 4);
 //     ASSERT_EQ(a, 11);
 // }
+TEST(jitter, test_repeat_break) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_repeat_break.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 4, 4);
+        ASSERT_EQ(ret, 11);
+    });
+}
 //
 // TEST(jitter, test_while_if_return) {
 //     auto L = FakeluaNewState();
@@ -1404,6 +1439,16 @@ TEST(jitter, test_while_if_return) {
 //     L->call("test", std::tie(a), 4, 4);
 //     ASSERT_EQ(a, 4);
 // }
+TEST(jitter, test_repeat_if_return) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_repeat_if_return.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3, 4);
+        ASSERT_EQ(ret, 3);
+        Call(s, type, "test", ret, 4, 4);
+        ASSERT_EQ(ret, 4);
+    });
+}
 //
 // TEST(jitter, test_for_loop) {
 //     auto L = FakeluaNewState();
@@ -1501,6 +1546,16 @@ TEST(jitter, test_while_just_break) {
 //     L->call("test", std::tie(a), 5, 4);
 //     ASSERT_EQ(a, 4);
 // }
+TEST(jitter, test_repeat_just_break) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_repeat_just_break.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3, 4);
+        ASSERT_EQ(ret, 4);
+        Call(s, type, "test", ret, 5, 4);
+        ASSERT_EQ(ret, 4);
+    });
+}
 //
 // TEST(jitter, test_for_loop_double) {
 //     auto L = FakeluaNewState();
