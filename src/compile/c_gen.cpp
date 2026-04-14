@@ -1648,6 +1648,8 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     // "empty": no args
 
     // Determine the function call expression
+    // The JIT type is hardcoded as JIT_TCC since generated C code always runs in TCC-compiled context.
+    const int kJITType = static_cast<int>(JIT_TCC);
     const auto pe = fc->prefixexp();
     DEBUG_ASSERT(pe->Type() == SyntaxTreeType::PrefixExp);
     const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
@@ -1679,16 +1681,14 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 call_expr += ")";
             } else if (cur_func_local_vars_.count(func_name)) {
                 // Local variable holds a function name string at runtime: call by its value.
-                // The JIT type is hardcoded as JIT_TCC (0) since this code runs in TCC-compiled context.
-                call_expr = std::format("FakeluaCallByVar(_S, {}, {}, {}", static_cast<int>(JIT_TCC), func_name, compiled_args.size());
+                call_expr = std::format("FakeluaCallByVar(_S, {}, {}, {}", kJITType, func_name, compiled_args.size());
                 for (const auto &arg: compiled_args) {
                     call_expr += ", " + arg;
                 }
                 call_expr += ")";
             } else {
                 // Dynamic lookup by name in the global function registry.
-                // The JIT type is hardcoded as JIT_TCC (0) since this code runs in TCC-compiled context.
-                call_expr = std::format("FakeluaCallByName(_S, {}, \"{}\", {}", static_cast<int>(JIT_TCC), func_name, compiled_args.size());
+                call_expr = std::format("FakeluaCallByName(_S, {}, \"{}\", {}", kJITType, func_name, compiled_args.size());
                 for (const auto &arg: compiled_args) {
                     call_expr += ", " + arg;
                 }
@@ -1698,7 +1698,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             // Table-indexed function call: c[k](args) or c.f(args)
             // Evaluate the table access to get the function name string, then dispatch dynamically.
             const auto var_expr = CompileVar(pe_ptr->GetValue());
-            call_expr = std::format("FakeluaCallByVar(_S, {}, {}, {}", static_cast<int>(JIT_TCC), var_expr, compiled_args.size());
+            call_expr = std::format("FakeluaCallByVar(_S, {}, {}, {}", kJITType, var_expr, compiled_args.size());
             for (const auto &arg: compiled_args) {
                 call_expr += ", " + arg;
             }

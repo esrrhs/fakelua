@@ -31,7 +31,7 @@ static CVar DoCall(void *addr, int arg_num, CVar *arg_arr) {
         case 7: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6]);
         case 8: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7]);
         default:
-            ThrowFakeluaException(std::format("FakeLua call: too many arguments ({}), max is 8", arg_num));
+            ThrowFakeluaException(std::format("DoCall: too many arguments ({}), max is 8", arg_num));
     }
 }
 
