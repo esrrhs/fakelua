@@ -1110,9 +1110,196 @@ void CGen::CompileStmtBreak(const SyntaxTreeInterfacePtr &stmt) {
 }
 
 void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
+    DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::ForLoop);
+    const auto for_stmt = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
+
+    // Allocate temp names for control variables (hoisted to function top)
+    const auto fc = std::format("flua_fc_{}", tmp_var_counter_++);   // current value
+    const auto fe = std::format("flua_fe_{}", tmp_var_counter_++);   // end value
+    const auto fs = std::format("flua_fs_{}", tmp_var_counter_++);   // step value
+    const auto fsp = std::format("flua_fsp_{}", tmp_var_counter_++); // step-is-positive flag
+    const auto fcond = std::format("flua_fcond_{}", tmp_var_counter_++); // loop condition
+    const auto fcmp = std::format("flua_fcmp_{}", tmp_var_counter_++);  // comparison temp
+
+    func_temp_decls_ << "    CVar " << fc << ";\n";
+    func_temp_decls_ << "    CVar " << fe << ";\n";
+    func_temp_decls_ << "    CVar " << fs << ";\n";
+    func_temp_decls_ << "    bool " << fsp << ";\n";
+    func_temp_decls_ << "    bool " << fcond << ";\n";
+    func_temp_decls_ << "    CVar " << fcmp << ";\n";
+
+    // Evaluate begin, end, step expressions
+    const auto begin_expr = CompileExp(for_stmt->ExpBegin());
+    *cur_output_ << GenTab() << fc << " = " << begin_expr << ";\n";
+
+    const auto end_expr = CompileExp(for_stmt->ExpEnd());
+    *cur_output_ << GenTab() << fe << " = " << end_expr << ";\n";
+
+    if (for_stmt->ExpStep()) {
+        const auto step_expr = CompileExp(for_stmt->ExpStep());
+        *cur_output_ << GenTab() << fs << " = " << step_expr << ";\n";
+    } else {
+        *cur_output_ << GenTab() << "SET_INT(" << fs << ", 1);\n";
+    }
+
+    // Determine step direction once before the loop
+    *cur_output_ << GenTab() << "if (" << fs << ".type_ == VAR_INT) { " << fsp << " = (" << fs << ".data_.i > 0); }\n";
+    *cur_output_ << GenTab() << "else if (" << fs << ".type_ == VAR_FLOAT) { " << fsp << " = (" << fs << ".data_.f > 0.0); }\n";
+    *cur_output_ << GenTab() << "else { FakeluaThrowError(_S, \"'for' step must be a number\"); " << fsp << " = 1; }\n";
+
+    *cur_output_ << GenTab() << "while (1) {\n";
+    cur_tab_++;
+
+    // Check loop condition: if step > 0: ctrl <= end; else: ctrl >= end
+    *cur_output_ << GenTab() << "if (" << fsp << ") {\n";
+    cur_tab_++;
+    *cur_output_ << GenTab() << std::format("OpLe(({0}), ({1}), {2});\n", fc, fe, fcmp);
+    cur_tab_--;
+    *cur_output_ << GenTab() << "} else {\n";
+    cur_tab_++;
+    *cur_output_ << GenTab() << std::format("OpGe(({0}), ({1}), {2});\n", fc, fe, fcmp);
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
+
+    *cur_output_ << GenTab() << std::format("IsTrue(({0}), {1});\n", fcmp, fcond);
+    *cur_output_ << GenTab() << std::format("if (!{}) break;\n", fcond);
+
+    // Declare the loop variable visible in the body
+    const auto &loop_var_name = for_stmt->Name();
+    *cur_output_ << GenTab() << "CVar " << loop_var_name << " = " << fc << ";\n";
+
+    // Compile the loop body
+    CompileStmtBlock(for_stmt->Block());
+
+    // Increment the control variable
+    *cur_output_ << GenTab() << std::format("OpAdd(({0}), ({1}), {2});\n", fc, fs, fc);
+
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
 }
 
 void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
+    DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::ForIn);
+    const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
+
+    // Get iteration variable names (k, v or just k)
+    const auto namelist = for_in->Namelist();
+    DEBUG_ASSERT(namelist->Type() == SyntaxTreeType::NameList);
+    const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
+    const auto &names = namelist_ptr->Names();
+    if (names.empty() || names.size() > 2) {
+        ThrowError(std::format("for in namelist size must be 1 or 2, but got {}", names.size()), namelist);
+    }
+
+    // Explist must contain exactly one expression: pairs(t) or ipairs(t)
+    const auto explist = for_in->Explist();
+    DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
+    const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+    if (explist_ptr->Exps().size() != 1) {
+        ThrowError(std::format("for in explist size must be 1, but got {}", explist_ptr->Exps().size()), explist);
+    }
+
+    // The expression must be a call to pairs() or ipairs()
+    const auto exp = explist_ptr->Exps()[0];
+    DEBUG_ASSERT(exp->Type() == SyntaxTreeType::Exp);
+    const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    if (exp_ptr->ExpType() != "prefixexp") {
+        ThrowError("for in expression must be a pairs() or ipairs() call", exp);
+    }
+    const auto prefixexp = exp_ptr->Right();
+    DEBUG_ASSERT(prefixexp->Type() == SyntaxTreeType::PrefixExp);
+    const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(prefixexp);
+    if (pe_ptr->GetType() != "functioncall") {
+        ThrowError("for in expression must be a function call", exp);
+    }
+    const auto functioncall = pe_ptr->GetValue();
+    DEBUG_ASSERT(functioncall->Type() == SyntaxTreeType::FunctionCall);
+    const auto fc_ptr = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall);
+
+    // Check that the function is pairs or ipairs
+    const auto func_pe = fc_ptr->prefixexp();
+    DEBUG_ASSERT(func_pe->Type() == SyntaxTreeType::PrefixExp);
+    const auto func_pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(func_pe);
+    if (func_pe_ptr->GetType() != "var") {
+        ThrowError("for in: only pairs() or ipairs() are supported", functioncall);
+    }
+    const auto func_var = std::dynamic_pointer_cast<SyntaxTreeVar>(func_pe_ptr->GetValue());
+    const auto &func_name = func_var->GetName();
+    if (func_name != "pairs" && func_name != "ipairs") {
+        ThrowError(std::format("for in: only pairs() or ipairs() are supported, got '{}'", func_name), functioncall);
+    }
+
+    // Extract the table argument from pairs(t) / ipairs(t)
+    const auto args_node = fc_ptr->Args();
+    DEBUG_ASSERT(args_node->Type() == SyntaxTreeType::Args);
+    const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
+    if (args_ptr->GetType() != "explist") {
+        ThrowError("for in: pairs/ipairs argument must be an expression list", args_node);
+    }
+    const auto args_explist = args_ptr->Explist();
+    const auto args_explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_explist);
+    if (args_explist_ptr->Exps().size() != 1) {
+        ThrowError(std::format("for in: pairs/ipairs must have exactly one argument, got {}", args_explist_ptr->Exps().size()), args_node);
+    }
+
+    // Compile the table expression
+    const auto tbl_expr = CompileExp(args_explist_ptr->Exps()[0]);
+
+    // Allocate temp names for iteration state (hoisted to function top)
+    const auto fit_tbl = std::format("flua_fit_tbl_{}", tmp_var_counter_++);
+    const auto fit_sz = std::format("flua_fit_sz_{}", tmp_var_counter_++);
+    const auto fit_i = std::format("flua_fit_i_{}", tmp_var_counter_++);
+    const auto fit_ni = std::format("flua_fit_ni_{}", tmp_var_counter_++);
+
+    func_temp_decls_ << "    CVar " << fit_tbl << ";\n";
+    func_temp_decls_ << "    uint32_t " << fit_sz << ";\n";
+    func_temp_decls_ << "    uint32_t " << fit_i << ";\n";
+    func_temp_decls_ << "    uint32_t " << fit_ni << ";\n";
+
+    // Evaluate and validate the table
+    *cur_output_ << GenTab() << fit_tbl << " = " << tbl_expr << ";\n";
+    *cur_output_ << GenTab() << "if (" << fit_tbl << ".type_ != VAR_TABLE) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
+    *cur_output_ << GenTab() << fit_sz << " = " << fit_tbl << ".data_.t->count_;\n";
+
+    *cur_output_ << GenTab() << "for (" << fit_i << " = 0; " << fit_i << " < " << fit_sz << "; " << fit_i << "++) {\n";
+    cur_tab_++;
+
+    // Get key (and optionally value) for this iteration
+    const auto &key_name = names[0];
+    if (names.size() >= 2) {
+        const auto &val_name = names[1];
+        *cur_output_ << GenTab() << "CVar " << key_name << "; CVar " << val_name << ";\n";
+        *cur_output_ << GenTab() << "if (" << fit_tbl << ".data_.t->bucket_count_ == 0) {\n";
+        cur_tab_++;
+        *cur_output_ << GenTab() << key_name << " = " << fit_tbl << ".data_.t->quick_data_[" << fit_i << "].key;\n";
+        *cur_output_ << GenTab() << val_name << " = " << fit_tbl << ".data_.t->quick_data_[" << fit_i << "].val;\n";
+        cur_tab_--;
+        *cur_output_ << GenTab() << "} else {\n";
+        cur_tab_++;
+        *cur_output_ << GenTab() << fit_ni << " = " << fit_tbl << ".data_.t->active_list_[" << fit_i << "];\n";
+        *cur_output_ << GenTab() << key_name << " = " << fit_tbl << ".data_.t->nodes_[" << fit_ni << "].entry.key;\n";
+        *cur_output_ << GenTab() << val_name << " = " << fit_tbl << ".data_.t->nodes_[" << fit_ni << "].entry.val;\n";
+        cur_tab_--;
+        *cur_output_ << GenTab() << "}\n";
+    } else {
+        *cur_output_ << GenTab() << "CVar " << key_name << ";\n";
+        *cur_output_ << GenTab() << "if (" << fit_tbl << ".data_.t->bucket_count_ == 0) {\n";
+        cur_tab_++;
+        *cur_output_ << GenTab() << key_name << " = " << fit_tbl << ".data_.t->quick_data_[" << fit_i << "].key;\n";
+        cur_tab_--;
+        *cur_output_ << GenTab() << "} else {\n";
+        cur_tab_++;
+        *cur_output_ << GenTab() << fit_ni << " = " << fit_tbl << ".data_.t->active_list_[" << fit_i << "];\n";
+        *cur_output_ << GenTab() << key_name << " = " << fit_tbl << ".data_.t->nodes_[" << fit_ni << "].entry.key;\n";
+        cur_tab_--;
+        *cur_output_ << GenTab() << "}\n";
+    }
+
+    // Compile the loop body
+    CompileStmtBlock(for_in->Block());
+
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
 }
 
 std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
