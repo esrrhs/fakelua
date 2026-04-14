@@ -1051,9 +1051,12 @@ TEST(jitter, test_do_block) {
 TEST(jitter, test_while) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_while.lua", {.debug_mode = debug_mode});
-        std::string ret;
+        int ret = 0;
         Call(s, type, "test", ret, 1, "a");
-        ASSERT_EQ(ret, "a22");
+        ASSERT_EQ(ret, 3);
+        std::string ret2;
+        Call(s, type, "test2", ret2, 1, "a");
+        ASSERT_EQ(ret2, "a22");
     });
 }
 //
