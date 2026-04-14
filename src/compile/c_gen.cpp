@@ -1113,66 +1113,66 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::ForLoop);
     const auto for_stmt = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
 
-    // Allocate temp names for control variables (hoisted to function top)
-    const auto fc = std::format("flua_fc_{}", tmp_var_counter_++);   // current value
-    const auto fe = std::format("flua_fe_{}", tmp_var_counter_++);   // end value
-    const auto fs = std::format("flua_fs_{}", tmp_var_counter_++);   // step value
-    const auto fsp = std::format("flua_fsp_{}", tmp_var_counter_++); // step-is-positive flag
-    const auto fcond = std::format("flua_fcond_{}", tmp_var_counter_++); // loop condition
-    const auto fcmp = std::format("flua_fcmp_{}", tmp_var_counter_++);  // comparison temp
+    // Allocate generated C variable names for loop control (hoisted to function top)
+    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);    // current value
+    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);      // end value
+    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);    // step value
+    const auto step_pos_var = std::format("flua_for_step_pos_{}", tmp_var_counter_++); // step > 0 flag
+    const auto cond_var = std::format("flua_for_cond_{}", tmp_var_counter_++);    // loop condition
+    const auto cmp_var = std::format("flua_for_cmp_{}", tmp_var_counter_++);      // comparison temp
 
-    func_temp_decls_ << "    CVar " << fc << ";\n";
-    func_temp_decls_ << "    CVar " << fe << ";\n";
-    func_temp_decls_ << "    CVar " << fs << ";\n";
-    func_temp_decls_ << "    bool " << fsp << ";\n";
-    func_temp_decls_ << "    bool " << fcond << ";\n";
-    func_temp_decls_ << "    CVar " << fcmp << ";\n";
+    func_temp_decls_ << "    CVar " << ctrl_var << ";\n";
+    func_temp_decls_ << "    CVar " << end_var << ";\n";
+    func_temp_decls_ << "    CVar " << step_var << ";\n";
+    func_temp_decls_ << "    bool " << step_pos_var << ";\n";
+    func_temp_decls_ << "    bool " << cond_var << ";\n";
+    func_temp_decls_ << "    CVar " << cmp_var << ";\n";
 
     // Evaluate begin, end, step expressions
     const auto begin_expr = CompileExp(for_stmt->ExpBegin());
-    *cur_output_ << GenTab() << fc << " = " << begin_expr << ";\n";
+    *cur_output_ << GenTab() << ctrl_var << " = " << begin_expr << ";\n";
 
     const auto end_expr = CompileExp(for_stmt->ExpEnd());
-    *cur_output_ << GenTab() << fe << " = " << end_expr << ";\n";
+    *cur_output_ << GenTab() << end_var << " = " << end_expr << ";\n";
 
     if (for_stmt->ExpStep()) {
         const auto step_expr = CompileExp(for_stmt->ExpStep());
-        *cur_output_ << GenTab() << fs << " = " << step_expr << ";\n";
+        *cur_output_ << GenTab() << step_var << " = " << step_expr << ";\n";
     } else {
-        *cur_output_ << GenTab() << "SET_INT(" << fs << ", 1);\n";
+        *cur_output_ << GenTab() << "SET_INT(" << step_var << ", 1);\n";
     }
 
     // Determine step direction once before the loop
-    *cur_output_ << GenTab() << "if (" << fs << ".type_ == VAR_INT) { " << fsp << " = (" << fs << ".data_.i > 0); }\n";
-    *cur_output_ << GenTab() << "else if (" << fs << ".type_ == VAR_FLOAT) { " << fsp << " = (" << fs << ".data_.f > 0.0); }\n";
-    *cur_output_ << GenTab() << "else { FakeluaThrowError(_S, \"'for' step must be a number\"); " << fsp << " = 1; }\n";
+    *cur_output_ << GenTab() << "if (" << step_var << ".type_ == VAR_INT) { " << step_pos_var << " = (" << step_var << ".data_.i > 0); }\n";
+    *cur_output_ << GenTab() << "else if (" << step_var << ".type_ == VAR_FLOAT) { " << step_pos_var << " = (" << step_var << ".data_.f > 0.0); }\n";
+    *cur_output_ << GenTab() << "else { FakeluaThrowError(_S, \"'for' step must be a number\"); " << step_pos_var << " = 1; }\n";
 
     *cur_output_ << GenTab() << "while (1) {\n";
     cur_tab_++;
 
     // Check loop condition: if step > 0: ctrl <= end; else: ctrl >= end
-    *cur_output_ << GenTab() << "if (" << fsp << ") {\n";
+    *cur_output_ << GenTab() << "if (" << step_pos_var << ") {\n";
     cur_tab_++;
-    *cur_output_ << GenTab() << std::format("OpLe(({0}), ({1}), {2});\n", fc, fe, fcmp);
+    *cur_output_ << GenTab() << std::format("OpLe(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
     cur_tab_--;
     *cur_output_ << GenTab() << "} else {\n";
     cur_tab_++;
-    *cur_output_ << GenTab() << std::format("OpGe(({0}), ({1}), {2});\n", fc, fe, fcmp);
+    *cur_output_ << GenTab() << std::format("OpGe(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
     cur_tab_--;
     *cur_output_ << GenTab() << "}\n";
 
-    *cur_output_ << GenTab() << std::format("IsTrue(({0}), {1});\n", fcmp, fcond);
-    *cur_output_ << GenTab() << std::format("if (!{}) break;\n", fcond);
+    *cur_output_ << GenTab() << std::format("IsTrue(({0}), {1});\n", cmp_var, cond_var);
+    *cur_output_ << GenTab() << std::format("if (!{}) break;\n", cond_var);
 
     // Declare the loop variable visible in the body
     const auto &loop_var_name = for_stmt->Name();
-    *cur_output_ << GenTab() << "CVar " << loop_var_name << " = " << fc << ";\n";
+    *cur_output_ << GenTab() << "CVar " << loop_var_name << " = " << ctrl_var << ";\n";
 
     // Compile the loop body
     CompileStmtBlock(for_stmt->Block());
 
     // Increment the control variable
-    *cur_output_ << GenTab() << std::format("OpAdd(({0}), ({1}), {2});\n", fc, fs, fc);
+    *cur_output_ << GenTab() << std::format("OpAdd(({0}), ({1}), {2});\n", ctrl_var, step_var, ctrl_var);
 
     cur_tab_--;
     *cur_output_ << GenTab() << "}\n";
@@ -1245,23 +1245,23 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     // Compile the table expression
     const auto tbl_expr = CompileExp(args_explist_ptr->Exps()[0]);
 
-    // Allocate temp names for iteration state (hoisted to function top)
-    const auto fit_tbl = std::format("flua_fit_tbl_{}", tmp_var_counter_++);
-    const auto fit_sz = std::format("flua_fit_sz_{}", tmp_var_counter_++);
-    const auto fit_i = std::format("flua_fit_i_{}", tmp_var_counter_++);
-    const auto fit_ni = std::format("flua_fit_ni_{}", tmp_var_counter_++);
+    // Allocate generated C variable names for iteration state (hoisted to function top)
+    const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);       // table
+    const auto sz_var = std::format("flua_fi_sz_{}", tmp_var_counter_++);         // element count
+    const auto idx_var = std::format("flua_fi_idx_{}", tmp_var_counter_++);       // current index
+    const auto node_idx_var = std::format("flua_fi_node_idx_{}", tmp_var_counter_++); // hash node index
 
-    func_temp_decls_ << "    CVar " << fit_tbl << ";\n";
-    func_temp_decls_ << "    uint32_t " << fit_sz << ";\n";
-    func_temp_decls_ << "    uint32_t " << fit_i << ";\n";
-    func_temp_decls_ << "    uint32_t " << fit_ni << ";\n";
+    func_temp_decls_ << "    CVar " << tbl_var << ";\n";
+    func_temp_decls_ << "    uint32_t " << sz_var << ";\n";
+    func_temp_decls_ << "    uint32_t " << idx_var << ";\n";
+    func_temp_decls_ << "    uint32_t " << node_idx_var << ";\n";
 
     // Evaluate and validate the table
-    *cur_output_ << GenTab() << fit_tbl << " = " << tbl_expr << ";\n";
-    *cur_output_ << GenTab() << "if (" << fit_tbl << ".type_ != VAR_TABLE) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
-    *cur_output_ << GenTab() << fit_sz << " = " << fit_tbl << ".data_.t->count_;\n";
+    *cur_output_ << GenTab() << tbl_var << " = " << tbl_expr << ";\n";
+    *cur_output_ << GenTab() << "if (" << tbl_var << ".type_ != VAR_TABLE) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
+    *cur_output_ << GenTab() << sz_var << " = " << tbl_var << ".data_.t->count_;\n";
 
-    *cur_output_ << GenTab() << "for (" << fit_i << " = 0; " << fit_i << " < " << fit_sz << "; " << fit_i << "++) {\n";
+    *cur_output_ << GenTab() << "for (" << idx_var << " = 0; " << idx_var << " < " << sz_var << "; " << idx_var << "++) {\n";
     cur_tab_++;
 
     // Get key (and optionally value) for this iteration
@@ -1269,28 +1269,28 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     if (names.size() >= 2) {
         const auto &val_name = names[1];
         *cur_output_ << GenTab() << "CVar " << key_name << "; CVar " << val_name << ";\n";
-        *cur_output_ << GenTab() << "if (" << fit_tbl << ".data_.t->bucket_count_ == 0) {\n";
+        *cur_output_ << GenTab() << "if (" << tbl_var << ".data_.t->bucket_count_ == 0) {\n";
         cur_tab_++;
-        *cur_output_ << GenTab() << key_name << " = " << fit_tbl << ".data_.t->quick_data_[" << fit_i << "].key;\n";
-        *cur_output_ << GenTab() << val_name << " = " << fit_tbl << ".data_.t->quick_data_[" << fit_i << "].val;\n";
+        *cur_output_ << GenTab() << key_name << " = " << tbl_var << ".data_.t->quick_data_[" << idx_var << "].key;\n";
+        *cur_output_ << GenTab() << val_name << " = " << tbl_var << ".data_.t->quick_data_[" << idx_var << "].val;\n";
         cur_tab_--;
         *cur_output_ << GenTab() << "} else {\n";
         cur_tab_++;
-        *cur_output_ << GenTab() << fit_ni << " = " << fit_tbl << ".data_.t->active_list_[" << fit_i << "];\n";
-        *cur_output_ << GenTab() << key_name << " = " << fit_tbl << ".data_.t->nodes_[" << fit_ni << "].entry.key;\n";
-        *cur_output_ << GenTab() << val_name << " = " << fit_tbl << ".data_.t->nodes_[" << fit_ni << "].entry.val;\n";
+        *cur_output_ << GenTab() << node_idx_var << " = " << tbl_var << ".data_.t->active_list_[" << idx_var << "];\n";
+        *cur_output_ << GenTab() << key_name << " = " << tbl_var << ".data_.t->nodes_[" << node_idx_var << "].entry.key;\n";
+        *cur_output_ << GenTab() << val_name << " = " << tbl_var << ".data_.t->nodes_[" << node_idx_var << "].entry.val;\n";
         cur_tab_--;
         *cur_output_ << GenTab() << "}\n";
     } else {
         *cur_output_ << GenTab() << "CVar " << key_name << ";\n";
-        *cur_output_ << GenTab() << "if (" << fit_tbl << ".data_.t->bucket_count_ == 0) {\n";
+        *cur_output_ << GenTab() << "if (" << tbl_var << ".data_.t->bucket_count_ == 0) {\n";
         cur_tab_++;
-        *cur_output_ << GenTab() << key_name << " = " << fit_tbl << ".data_.t->quick_data_[" << fit_i << "].key;\n";
+        *cur_output_ << GenTab() << key_name << " = " << tbl_var << ".data_.t->quick_data_[" << idx_var << "].key;\n";
         cur_tab_--;
         *cur_output_ << GenTab() << "} else {\n";
         cur_tab_++;
-        *cur_output_ << GenTab() << fit_ni << " = " << fit_tbl << ".data_.t->active_list_[" << fit_i << "];\n";
-        *cur_output_ << GenTab() << key_name << " = " << fit_tbl << ".data_.t->nodes_[" << fit_ni << "].entry.key;\n";
+        *cur_output_ << GenTab() << node_idx_var << " = " << tbl_var << ".data_.t->active_list_[" << idx_var << "];\n";
+        *cur_output_ << GenTab() << key_name << " = " << tbl_var << ".data_.t->nodes_[" << node_idx_var << "].entry.key;\n";
         cur_tab_--;
         *cur_output_ << GenTab() << "}\n";
     }
