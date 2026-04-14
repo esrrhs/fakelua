@@ -70,8 +70,8 @@ TEST(exception, function_call_exception) {
     CompileFile(s, "./exception/test_function_call_exception.lua", {});
 
     try {
-        CVar noop;
-        Call(s, JIT_TCC, "test", noop, 1, 2, 3);
+        CVar ret;
+        Call(s, JIT_TCC, "test", ret, 1, 2, 3);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -79,8 +79,8 @@ TEST(exception, function_call_exception) {
     }
 
     try {
-        CVar noop;
-        Call(s, JIT_TCC, "test1", noop, 1, 2, 3);
+        CVar ret;
+        Call(s, JIT_TCC, "test1", ret, 1, 2, 3);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
