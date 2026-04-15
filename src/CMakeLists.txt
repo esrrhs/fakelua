@@ -22,8 +22,18 @@ add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
 find_package(Threads REQUIRED)
 
 if (WIN32)
-    set(TCC_DLL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/platform/third_party/prebuilt/win_x64/tinycc/libtcc.dll")
-    set(TARGET_LIB ${TARGET_LIB} "${TCC_DLL_PATH}")
+    set(TCC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/platform/third_party/prebuilt/win_x64/tinycc")
+    set(TCC_IMPLIB "${CMAKE_CURRENT_BINARY_DIR}/libtcc.dll.a")
+    add_custom_command(
+        OUTPUT "${TCC_IMPLIB}"
+        COMMAND dlltool -D "${TCC_DIR}/libtcc.dll" -d "${TCC_DIR}/libtcc/libtcc.def" -l "${TCC_IMPLIB}"
+        DEPENDS "${TCC_DIR}/libtcc.dll" "${TCC_DIR}/libtcc/libtcc.def"
+        COMMENT "Generating libtcc import library"
+        VERBATIM
+    )
+    add_custom_target(tcc_implib DEPENDS "${TCC_IMPLIB}")
+    add_dependencies(fakelua tcc_implib)
+    set(TARGET_LIB ${TARGET_LIB} "${TCC_IMPLIB}")
 else()
     set(TARGET_LIB ${TARGET_LIB} tcc Threads::Threads)
     set(TARGET_LIB ${TARGET_LIB} dl m)
