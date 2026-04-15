@@ -1,9 +1,12 @@
 #include "fakelua.h"
 #include "jit/vm.h"
+#include "state/heap.h"
 #include "state/state.h"
+#include "util/file_util.h"
 #include "util/os.h"
 #include "var/var.h"
 #include "gtest/gtest.h"
+#include <filesystem>
 
 using namespace fakelua;
 
@@ -107,4 +110,27 @@ TEST(runtime, vm_helper_functions_throw_and_alloc) {
     State s;
     EXPECT_THROW(FakeluaThrowError(&s, "runtime_error"), std::exception);
     ASSERT_NE(FakeluaAllocTemp(&s, 32), nullptr);
+}
+
+TEST(runtime, heap_allocator_boundary_and_reset) {
+    HeapAllocator alloc;
+    ASSERT_NE(alloc.Alloc(1024 * 1024 - 64), nullptr);
+    ASSERT_NE(alloc.Alloc(128), nullptr);
+    ASSERT_GT(alloc.Size(), 1024U * 1024U);
+
+    alloc.Reset();
+    ASSERT_EQ(alloc.Size(), 0U);
+
+    EXPECT_THROW((void) alloc.Alloc(1024 * 1024 + 1), std::exception);
+}
+
+TEST(runtime, generate_tmp_filename_creates_dir) {
+    const auto tmpdir = std::filesystem::temp_directory_path() / "fakelua";
+    std::error_code ec;
+    std::filesystem::remove_all(tmpdir, ec);
+
+    const std::string filename = GenerateTmpFilename("runtime_cov_", ".tmp");
+    ASSERT_TRUE(std::filesystem::exists(tmpdir));
+    ASSERT_NE(filename.find("runtime_cov_"), std::string::npos);
+    ASSERT_TRUE(filename.ends_with(".tmp"));
 }
