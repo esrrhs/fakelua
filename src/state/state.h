@@ -5,7 +5,6 @@
 #include "jit/vm.h"
 #include "state/const_string.h"
 #include "state/heap.h"
-#include "state/stack.h"
 
 struct TCCState;
 
@@ -21,7 +20,6 @@ public:
     void Reset() {
         DEBUG_ASSERT(reentrant_count_ == 0);
         heap_.Reset();
-        stack_.reset();
     }
 
     const StateConfig &GetStateConfig() const {
@@ -56,10 +54,6 @@ public:
         --reentrant_count_;
     }
 
-    stack &get_stack() {
-        return stack_;
-    }
-
     void SetVarInterfaceNewFunc(const std::function<VarInterface *()> &func) {
         DEBUG_ASSERT(func != nullptr);
         var_interface_new_func_ = func;
@@ -77,7 +71,6 @@ private:
     Heap heap_;
     ConstString const_string_;
     Vm vm_;
-    stack stack_;
 };
 
 }// namespace fakelua
