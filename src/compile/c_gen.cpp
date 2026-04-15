@@ -84,6 +84,9 @@ typedef struct CVar {
     } data_;
 } CVar;
 
+// 编译期断言：确保 CVar 大小为 16 字节
+typedef char check_cvar_size[sizeof(CVar) == 16 ? 1 : -1];
+
 typedef struct VarEntry {
     CVar key;
     CVar val;
