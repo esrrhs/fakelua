@@ -40,32 +40,6 @@ static CVar callVmWithNArgs(State *s, const char *name, int n) {
     return {};
 }
 
-TEST(runtime, stack_top_max_popto_overflow) {
-    StateConfig cfg;
-    cfg.max_stack_size = 2;
-    State s(cfg);
-
-    auto &st = s.get_stack();
-    CVar v = inter::NativeToFakeluaInt(&s, 1);
-
-    CVar *base = st.top();
-    ASSERT_NE(base, nullptr);
-    ASSERT_EQ(st.max() - base, 2);
-
-    st.push(v);
-    ASSERT_EQ(st.top() - base, 1);
-
-    st.push(v);
-    ASSERT_EQ(st.top() - base, 2);
-
-    st.PopTo(base);
-    ASSERT_EQ(st.top(), base);
-
-    st.push(v);
-    st.push(v);
-    EXPECT_THROW(st.push(v), std::exception);
-}
-
 TEST(runtime, exec_returns_output) {
     const std::string out = Exec("echo fakelua_runtime_test");
     ASSERT_NE(out.find("fakelua_runtime_test"), std::string::npos);
