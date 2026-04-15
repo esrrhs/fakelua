@@ -6,6 +6,9 @@ on:
   pull_request:
     branches: [ "master" ]
 
+permissions:
+  contents: read
+
 jobs:
   build:
     runs-on: windows-latest
@@ -27,7 +30,7 @@ jobs:
       - name: Build and test
         shell: msys2 {0}
         run: |
-          set -euxo pipefail
+          set -eux
           rm -rf build
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel 4
