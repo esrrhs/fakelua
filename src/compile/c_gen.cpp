@@ -891,7 +891,7 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
             break;
         }
         case SyntaxTreeType::Label: {
-            CompileStmtLabel(stmt);
+            ThrowError("label is not supported", stmt);
             break;
         }
         case SyntaxTreeType::Goto: {
@@ -1032,10 +1032,6 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
 
 void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared) {
     CompileFunctioncall(shared);
-}
-
-void CGen::CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt) {
-    ThrowError("label is not supported", stmt);
 }
 
 void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
