@@ -27,19 +27,18 @@ jobs:
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-lua
 
-      - name: Build and Test
+      - name: Build
         shell: msys2 {0}
         run: |
           set -eux
           rm -rf build
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
-          # Copy MinGW runtime DLLs so the Windows loader can find them
-          # when unit_tests.exe and libfakelua.dll are loaded.
-          ldd build/bin/unit_tests.exe build/bin/libfakelua.dll \
-              build/bin/bench_mark.exe build/bin/flua.exe 2>/dev/null \
-            | grep '/mingw64/' | awk '{print $3}' | sort -u \
-            | xargs -I{} cp -f {} build/bin/ || true
           ls -la build/bin/
-          cd build/bin
-          ./unit_tests.exe
+
+      - name: Run Tests
+        shell: cmd
+        run: |
+          set PATH=%CD%\build\bin;C:\msys64\mingw64\bin;%PATH%
+          cd build\bin
+          unit_tests.exe
