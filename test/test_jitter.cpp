@@ -11,6 +11,7 @@ static void JitterRunHelper(const std::function<void(State *, JITType, bool)> &f
     ASSERT_NE(s, nullptr);
     f(s, JIT_TCC, true);
     f(s, JIT_TCC, false);
+    FakeluaDeleteState(s);
 }
 
 TEST(jitter, empty_file) {
@@ -42,8 +43,8 @@ TEST(jitter, empty_local_func) {
 TEST(jitter, multi_return) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_multi_return.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_multi_return.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -51,8 +52,8 @@ TEST(jitter, multi_return) {
 TEST(jitter, multi_return_call) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_multi_return_call.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_multi_return_call.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -60,8 +61,8 @@ TEST(jitter, multi_return_call) {
 TEST(jitter, multi_return_call_ex) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_multi_return_call_ex.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_multi_return_call_ex.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -69,8 +70,8 @@ TEST(jitter, multi_return_call_ex) {
 TEST(jitter, multi_return_sub) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_multi_return_sub.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_multi_return_sub.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -78,8 +79,8 @@ TEST(jitter, multi_return_sub) {
 TEST(jitter, multi_return_multi) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_multi_return_multi.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_multi_return_multi.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -87,8 +88,8 @@ TEST(jitter, multi_return_multi) {
 TEST(jitter, multi_return_multi_ex) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_multi_return_multi_ex.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_multi_return_multi_ex.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -96,8 +97,8 @@ TEST(jitter, multi_return_multi_ex) {
 TEST(jitter, multi_name) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_multi_name_func.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_multi_name_func.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -105,8 +106,8 @@ TEST(jitter, multi_name) {
 TEST(jitter, multi_col_name) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_multi_col_name_func.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_multi_col_name_func.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -171,8 +172,8 @@ TEST(jitter, empty_func_with_params) {
 TEST(jitter, variadic_func) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_variadic_func.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_variadic_func.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -180,8 +181,8 @@ TEST(jitter, variadic_func) {
 TEST(jitter, variadic_func_with_params) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_variadic_func_with_params.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_variadic_func_with_params.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -243,8 +244,8 @@ TEST(jitter, test_assign) {
 TEST(jitter, test_assign_not_match) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_assign_not_match.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_assign_not_match.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -253,8 +254,8 @@ TEST(jitter, test_assign_not_match) {
 TEST(jitter, test_assign_variadic_match) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_assign_variadic.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_assign_variadic.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -262,8 +263,8 @@ TEST(jitter, test_assign_variadic_match) {
 TEST(jitter, test_assign_variadic_no_match) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_assign_variadic_no_match.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_assign_variadic_no_match.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -271,8 +272,8 @@ TEST(jitter, test_assign_variadic_no_match) {
 TEST(jitter, test_assign_variadic_empty) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_assign_variadic_no_match.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_assign_variadic_no_match.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -281,8 +282,8 @@ TEST(jitter, test_assign_variadic_empty) {
 TEST(jitter, test_const_table) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_table.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_table.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -290,8 +291,8 @@ TEST(jitter, test_const_table) {
 TEST(jitter, test_const_nested_table) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_nested_table.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_nested_table.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -362,8 +363,8 @@ TEST(jitter, test_local_nested_table) {
 TEST(jitter, test_local_table_with_variadic) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_local_table_with_variadic.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_local_table_with_variadic.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -371,8 +372,8 @@ TEST(jitter, test_local_table_with_variadic) {
 TEST(jitter, test_local_table_with_variadic_no_end) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_local_table_with_variadic_no_end.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_local_table_with_variadic_no_end.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -380,8 +381,8 @@ TEST(jitter, test_local_table_with_variadic_no_end) {
 TEST(jitter, test_local_table_with_variadic_no_end_replace) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_local_table_with_variadic_no_end_replace.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_local_table_with_variadic_no_end_replace.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -402,8 +403,8 @@ TEST(jitter, test_assign_simple_var) {
 TEST(jitter, test_const_define_simple_var) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_define_simple_var.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_define_simple_var.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -429,8 +430,8 @@ TEST(jitter, test_binop_plus) {
 TEST(jitter, test_const_binop_plus) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_plus.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_plus.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -456,8 +457,8 @@ TEST(jitter, test_binop_minus) {
 TEST(jitter, test_const_binop_minus) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_minus.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_minus.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -483,8 +484,8 @@ TEST(jitter, test_binop_star) {
 TEST(jitter, test_const_binop_star) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_star.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_star.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -530,8 +531,8 @@ TEST(jitter, test_binop_slash) {
 TEST(jitter, test_const_binop_slash) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_slash.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_slash.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -551,8 +552,8 @@ TEST(jitter, test_binop_double_slash) {
 TEST(jitter, test_const_binop_double_slash) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_double_slash.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_double_slash.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -572,8 +573,8 @@ TEST(jitter, test_binop_pow) {
 TEST(jitter, test_const_binop_pow) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_pow.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_pow.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -593,8 +594,8 @@ TEST(jitter, test_binop_mod) {
 TEST(jitter, test_const_binop_mod) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_mod.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_mod.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -614,8 +615,8 @@ TEST(jitter, test_binop_bitand) {
 TEST(jitter, test_const_binop_bitand) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_bitand.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_bitand.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -635,8 +636,8 @@ TEST(jitter, test_binop_xor) {
 TEST(jitter, test_const_binop_xor) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_xor.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_xor.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -656,8 +657,8 @@ TEST(jitter, test_binop_bitor) {
 TEST(jitter, test_const_binop_bitor) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_bitor.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_bitor.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -677,8 +678,8 @@ TEST(jitter, test_binop_right_shift) {
 TEST(jitter, test_const_binop_right_shift) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_right_shift.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_right_shift.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -698,8 +699,8 @@ TEST(jitter, test_binop_left_shift) {
 TEST(jitter, test_const_binop_left_shift) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_left_shift.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_left_shift.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -716,8 +717,8 @@ TEST(jitter, test_binop_concat) {
 TEST(jitter, test_const_binop_concat) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_concat.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_concat.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -737,8 +738,8 @@ TEST(jitter, test_binop_less) {
 TEST(jitter, test_const_binop_less) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_less.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_less.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -758,8 +759,8 @@ TEST(jitter, test_binop_less_equal) {
 TEST(jitter, test_const_binop_less_equal) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_less_equal.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_less_equal.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -779,8 +780,8 @@ TEST(jitter, test_binop_more) {
 TEST(jitter, test_const_binop_more) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_more.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_more.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -800,8 +801,8 @@ TEST(jitter, test_binop_more_equal) {
 TEST(jitter, test_const_binop_more_equal) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_more_equal.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_more_equal.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -821,8 +822,8 @@ TEST(jitter, test_binop_equal) {
 TEST(jitter, test_const_binop_equal) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_equal.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_equal.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -842,8 +843,8 @@ TEST(jitter, test_binop_not_equal) {
 TEST(jitter, test_const_binop_not_equal) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_not_equal.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_not_equal.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -888,8 +889,8 @@ TEST(jitter, test_binop_and_or) {
 TEST(jitter, test_const_binop_and) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_and.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_and.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -909,8 +910,8 @@ TEST(jitter, test_binop_or) {
 TEST(jitter, test_const_binop_or) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_binop_or.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_binop_or.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -927,8 +928,8 @@ TEST(jitter, test_unop_minus) {
 TEST(jitter, test_const_unop_minus) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_unop_minus.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_unop_minus.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -948,8 +949,8 @@ TEST(jitter, test_unop_not) {
 TEST(jitter, test_const_unop_not) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_unop_not.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_unop_not.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -969,8 +970,8 @@ TEST(jitter, test_unop_len) {
 TEST(jitter, test_const_unop_len) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_unop_len.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_unop_len.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -990,8 +991,8 @@ TEST(jitter, test_unop_bitnot) {
 TEST(jitter, test_const_unop_bitnot) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_const_unop_bitnot.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_const_unop_bitnot.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -1403,8 +1404,8 @@ TEST(jitter, test_var_func_call) {
 TEST(jitter, test_table_var_func_call) {
     EXPECT_THROW(
             {
-                const auto s = FakeluaNewState();
-                CompileFile(s, "./jit/test_table_var_func_call.lua", {.debug_mode = true});
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_table_var_func_call.lua", {.debug_mode = true});
             },
             std::exception);
 }
