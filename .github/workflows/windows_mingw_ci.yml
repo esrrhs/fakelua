@@ -33,7 +33,7 @@ jobs:
           set -eux
           rm -rf build
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
-          cmake --build build --parallel 4
+          cmake --build build --parallel
           ctest --test-dir build -V
           ./build/bin/bench_mark.exe
           ./build/bin/flua.exe
