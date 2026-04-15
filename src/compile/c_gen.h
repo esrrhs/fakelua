@@ -47,7 +47,6 @@ private:
 
     void CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared);
 
-    void CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt);
 
     void CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt);
 

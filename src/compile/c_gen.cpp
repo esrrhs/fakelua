@@ -260,7 +260,7 @@ static inline CVar FlGetTable(CVar t, CVar k) {
         TableNode *curr = &tbl->nodes_[idx];
         if (curr->entry.key.type_ == VAR_NIL) { return (CVar){VAR_NIL}; }
         while (1) {
-            bool __eq; VarEqual(curr->entry.key, k, __eq); if (curr->entry.hash == h && __eq) { return curr->entry.val; }
+            if (curr->entry.hash == h) { bool __eq; VarEqual(curr->entry.key, k, __eq); if (__eq) { return curr->entry.val; } }
             uint32_t next = curr->next;
             if (next == 0xFFFFFFFF) { break; }
             curr = &tbl->nodes_[next];
@@ -319,9 +319,13 @@ static inline void FlTableRehash(VarTable *tbl) {
         for (uint32_t i = 0; i < total_nodes; ++i) { new_nodes[i].entry.key.type_ = VAR_NIL; new_nodes[i].next = 0xFFFFFFFF; new_nodes[i].active_pos = 0xFFFFFFFF; }
         TableNode *prev_nodes = tbl->nodes_; uint32_t *prev_active_list = tbl->active_list_; uint32_t prev_bucket_count = tbl->bucket_count_; uint32_t prev_count = tbl->count_; uint32_t prev_free_list_idx = tbl->free_list_idx_;
         tbl->nodes_ = new_nodes; tbl->active_list_ = new_active_list; tbl->bucket_count_ = new_bucket_count; tbl->count_ = 0;
-        for (uint32_t i = 0; i < overflow_count - 1; ++i) { tbl->nodes_[new_bucket_count + i].next = new_bucket_count + i + 1; }
-        if (overflow_count > 0) { tbl->nodes_[new_bucket_count + overflow_count - 1].next = 0xFFFFFFFF; }
-        tbl->free_list_idx_ = new_bucket_count;
+        if (overflow_count > 0) {
+            for (uint32_t i = 0; i < overflow_count - 1; ++i) { tbl->nodes_[new_bucket_count + i].next = new_bucket_count + i + 1; }
+            tbl->nodes_[new_bucket_count + overflow_count - 1].next = 0xFFFFFFFF;
+            tbl->free_list_idx_ = new_bucket_count;
+        } else {
+            tbl->free_list_idx_ = 0xFFFFFFFF;
+        }
         bool success = true;
         if (old_bucket_count == 0) {
             for (uint32_t i = 0; i < old_count; ++i) { if (!FlTableInsertRaw(tbl, tbl->quick_data_[i].key, tbl->quick_data_[i].val, tbl->quick_data_[i].hash)) { success = false; break; } }
@@ -887,7 +891,11 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
             break;
         }
         case SyntaxTreeType::Label: {
-            CompileStmtLabel(stmt);
+            ThrowError("label is not supported", stmt);
+            break;
+        }
+        case SyntaxTreeType::Goto: {
+            ThrowError("goto is not supported", stmt);
             break;
         }
         case SyntaxTreeType::Block: {
@@ -1024,9 +1032,6 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
 
 void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared) {
     CompileFunctioncall(shared);
-}
-
-void CGen::CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt) {
 }
 
 void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
