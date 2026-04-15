@@ -22,7 +22,7 @@ add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
 find_package(Threads REQUIRED)
 
 if (WIN32)
-    set(TCC_DLL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/platform/third_party/prebuilt/win_x64/tinycc/libtcc.dll")
+    set(TCC_DLL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/platform/third_party/prebuilt/win_x64/tinycc/libtcc.dll.a")
     set(TARGET_LIB ${TARGET_LIB} "${TCC_DLL_PATH}")
 else()
     set(TARGET_LIB ${TARGET_LIB} tcc Threads::Threads)
