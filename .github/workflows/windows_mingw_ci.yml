@@ -34,11 +34,28 @@ jobs:
           rm -rf build
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
-          ls -la build/bin/
+          echo "=== DLL listing before copy ==="
+          ls -la build/bin/*.dll 2>/dev/null || echo "(no dlls yet)"
+          echo "=== Copying MinGW runtime DLLs ==="
+          ldd build/bin/unit_tests.exe build/bin/libfakelua.dll 2>/dev/null \
+            | grep '/mingw64/' | awk '{print $3}' | sort -u \
+            | xargs -I{} cp -fv {} build/bin/ || true
+          echo "=== DLL listing after copy ==="
+          ls -la build/bin/*.dll
 
-      - name: Run Tests
+      - name: Diagnose and Run Tests
         shell: cmd
         run: |
+          echo === Current directory ===
+          cd
+          echo === Contents of build\bin ===
+          dir build\bin
+          echo === Setting PATH ===
           set PATH=%CD%\build\bin;C:\msys64\mingw64\bin;%PATH%
+          echo PATH=%PATH%
+          echo === Checking DLL deps with where ===
+          where libfakelua.dll || echo "libfakelua.dll not found in PATH"
+          where libtcc.dll || echo "libtcc.dll not found in PATH"
+          echo === Running unit_tests.exe ===
           cd build\bin
           unit_tests.exe
