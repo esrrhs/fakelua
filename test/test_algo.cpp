@@ -2,7 +2,7 @@
 #include "fakelua.h"
 #include "gtest/gtest.h"
 
-#include <cstdio>
+#include <lua.hpp>
 
 using namespace fakelua;
 
@@ -16,48 +16,47 @@ static void AlgoRunHelper(const std::function<void(State *, JITType, bool)> &f) 
     FakeluaDeleteState(s);
 }
 
-// Detect the available Lua 5.4 binary once and cache the result.
-static const char *GetLuaBin() {
-    static const char *lua_bin = []() -> const char * {
-        if (system("which lua5.4 > /dev/null 2>&1") == 0) return "lua5.4";
-        if (system("which lua > /dev/null 2>&1") == 0) return "lua";
-        return nullptr;
-    }();
-    return lua_bin;
-}
+// Push helpers for the Lua C API.
+static void LuaPush(lua_State *L, int v) { lua_pushinteger(L, v); }
+static void LuaPush(lua_State *L, double v) { lua_pushnumber(L, v); }
 
-// Execute a Lua expression by loading lua_file with dofile() then printing the result.
-// Returns the raw stdout output (no trailing newline).
-// lua_file and call_expr must be hardcoded test-only values (no user input).
-static std::string LuaEval(const std::string &lua_file, const std::string &call_expr) {
-    const char *lua_bin = GetLuaBin();
-    if (!lua_bin) return "";
-    const std::string cmd = std::string(lua_bin) + " -e 'dofile(\"" + lua_file +
-                            "\"); io.write(tostring(" + call_expr + "))' 2>/dev/null";
-    FILE *fp = popen(cmd.c_str(), "r");
-    if (!fp) return "";
-    char buf[512] = {};
-    const size_t n = fread(buf, 1, sizeof(buf) - 1, fp);
-    pclose(fp);
-    return std::string(buf, n);
-}
-
-static int LuaEvalInt(const std::string &lua_file, const std::string &call_expr) {
-    const auto s = LuaEval(lua_file, call_expr);
-    return s.empty() ? 0 : std::stoi(s);
-}
-
-static double LuaEvalDouble(const std::string &lua_file, const std::string &call_expr) {
-    const auto s = LuaEval(lua_file, call_expr);
-    return s.empty() ? 0.0 : std::stod(s);
-}
-
-// Cross-validate algo results against the reference Lua interpreter.
-// Skips silently if neither lua5.4 nor lua is available.
-static void LuaAlgoRunHelper(const std::function<void()> &f) {
-    if (GetLuaBin() != nullptr) {
-        f();
+// Call a global Lua function and return its single result.
+// Ret must be int or double; Args must be int or double.
+template<typename Ret, typename... Args>
+static Ret LuaCall(lua_State *L, const char *func, Args... args) {
+    lua_getglobal(L, func);
+    (LuaPush(L, args), ...);
+    const int rc = lua_pcall(L, static_cast<int>(sizeof...(args)), 1, 0);
+    if (rc != LUA_OK) {
+        ADD_FAILURE() << "LuaCall(" << func << ") failed: " << lua_tostring(L, -1);
+        lua_pop(L, 1);
+        return Ret{};
     }
+    Ret ret{};
+    if constexpr (std::is_same_v<Ret, double>) {
+        ret = static_cast<double>(lua_tonumber(L, -1));
+    } else {
+        ret = static_cast<Ret>(lua_tointeger(L, -1));
+    }
+    lua_pop(L, 1);
+    return ret;
+}
+
+// Cross-validate algo results against the embedded Lua interpreter.
+// Creates a fresh lua_State, loads lua_file, runs f(L), then closes the state.
+static void LuaAlgoRunHelper(const std::string &lua_file, const std::function<void(lua_State *)> &f) {
+    lua_State *L = luaL_newstate();
+    ASSERT_NE(L, nullptr);
+    luaL_openlibs(L);
+    const int err = luaL_dofile(L, lua_file.c_str());
+    if (err != LUA_OK) {
+        const std::string msg = lua_tostring(L, -1);
+        lua_close(L);
+        FAIL() << "luaL_dofile(" << lua_file << ") failed: " << msg;
+        return;
+    }
+    f(L);
+    lua_close(L);
 }
 
 TEST(algo, fibonacci) {
@@ -68,8 +67,8 @@ TEST(algo, fibonacci) {
         ASSERT_EQ(i, 832040);
     });
 
-    LuaAlgoRunHelper([]() {
-        ASSERT_EQ(LuaEvalInt("./algo/fibonacci.lua", "test(30)"), 832040);
+    LuaAlgoRunHelper("./algo/fibonacci.lua", [](lua_State *L) {
+        ASSERT_EQ(LuaCall<int>(L, "test", 30), 832040);
     });
 }
 
@@ -89,11 +88,11 @@ TEST(algo, bubble_sort) {
         ASSERT_EQ(r, 45);
     });
 
-    LuaAlgoRunHelper([]() {
-        ASSERT_EQ(LuaEvalInt("./algo/bubble_sort.lua", "test(1)"), 1);
-        ASSERT_EQ(LuaEvalInt("./algo/bubble_sort.lua", "test(5)"), 5);
-        ASSERT_EQ(LuaEvalInt("./algo/bubble_sort.lua", "test(9)"), 9);
-        ASSERT_EQ(LuaEvalInt("./algo/bubble_sort.lua", "test_sum()"), 45);
+    LuaAlgoRunHelper("./algo/bubble_sort.lua", [](lua_State *L) {
+        ASSERT_EQ(LuaCall<int>(L, "test", 1), 1);
+        ASSERT_EQ(LuaCall<int>(L, "test", 5), 5);
+        ASSERT_EQ(LuaCall<int>(L, "test", 9), 9);
+        ASSERT_EQ(LuaCall<int>(L, "test_sum"), 45);
     });
 }
 
@@ -119,13 +118,13 @@ TEST(algo, gcd) {
         ASSERT_EQ(r, 3);
     });
 
-    LuaAlgoRunHelper([]() {
-        ASSERT_EQ(LuaEvalInt("./algo/gcd.lua", "test_gcd(48,18)"), 6);
-        ASSERT_EQ(LuaEvalInt("./algo/gcd.lua", "test_gcd(100,75)"), 25);
-        ASSERT_EQ(LuaEvalInt("./algo/gcd.lua", "test_gcd(7,13)"), 1);
-        ASSERT_EQ(LuaEvalInt("./algo/gcd.lua", "test_lcm(12,18)"), 36);
-        ASSERT_EQ(LuaEvalInt("./algo/gcd.lua", "test_lcm(5,7)"), 35);
-        ASSERT_EQ(LuaEvalInt("./algo/gcd.lua", "test_gcd_steps(48,18)"), 3);
+    LuaAlgoRunHelper("./algo/gcd.lua", [](lua_State *L) {
+        ASSERT_EQ(LuaCall<int>(L, "test_gcd", 48, 18), 6);
+        ASSERT_EQ(LuaCall<int>(L, "test_gcd", 100, 75), 25);
+        ASSERT_EQ(LuaCall<int>(L, "test_gcd", 7, 13), 1);
+        ASSERT_EQ(LuaCall<int>(L, "test_lcm", 12, 18), 36);
+        ASSERT_EQ(LuaCall<int>(L, "test_lcm", 5, 7), 35);
+        ASSERT_EQ(LuaCall<int>(L, "test_gcd_steps", 48, 18), 3);
     });
 }
 
@@ -150,13 +149,13 @@ TEST(algo, sieve) {
         ASSERT_EQ(r, 29);
     });
 
-    LuaAlgoRunHelper([]() {
-        ASSERT_EQ(LuaEvalInt("./algo/sieve.lua", "test(10)"), 4);
-        ASSERT_EQ(LuaEvalInt("./algo/sieve.lua", "test(50)"), 15);
-        ASSERT_EQ(LuaEvalInt("./algo/sieve.lua", "test(2)"), 1);
-        ASSERT_EQ(LuaEvalInt("./algo/sieve.lua", "test_nth_prime(1)"), 2);
-        ASSERT_EQ(LuaEvalInt("./algo/sieve.lua", "test_nth_prime(5)"), 11);
-        ASSERT_EQ(LuaEvalInt("./algo/sieve.lua", "test_nth_prime(10)"), 29);
+    LuaAlgoRunHelper("./algo/sieve.lua", [](lua_State *L) {
+        ASSERT_EQ(LuaCall<int>(L, "test", 10), 4);
+        ASSERT_EQ(LuaCall<int>(L, "test", 50), 15);
+        ASSERT_EQ(LuaCall<int>(L, "test", 2), 1);
+        ASSERT_EQ(LuaCall<int>(L, "test_nth_prime", 1), 2);
+        ASSERT_EQ(LuaCall<int>(L, "test_nth_prime", 5), 11);
+        ASSERT_EQ(LuaCall<int>(L, "test_nth_prime", 10), 29);
     });
 }
 
@@ -179,12 +178,12 @@ TEST(algo, binary_search) {
         ASSERT_EQ(r, 4);
     });
 
-    LuaAlgoRunHelper([]() {
-        ASSERT_EQ(LuaEvalInt("./algo/binary_search.lua", "test(7)"), 4);
-        ASSERT_EQ(LuaEvalInt("./algo/binary_search.lua", "test(1)"), 1);
-        ASSERT_EQ(LuaEvalInt("./algo/binary_search.lua", "test(19)"), 10);
-        ASSERT_EQ(LuaEvalInt("./algo/binary_search.lua", "test(10)"), 0);
-        ASSERT_EQ(LuaEvalInt("./algo/binary_search.lua", "test_steps(7)"), 4);
+    LuaAlgoRunHelper("./algo/binary_search.lua", [](lua_State *L) {
+        ASSERT_EQ(LuaCall<int>(L, "test", 7), 4);
+        ASSERT_EQ(LuaCall<int>(L, "test", 1), 1);
+        ASSERT_EQ(LuaCall<int>(L, "test", 19), 10);
+        ASSERT_EQ(LuaCall<int>(L, "test", 10), 0);
+        ASSERT_EQ(LuaCall<int>(L, "test_steps", 7), 4);
     });
 }
 
@@ -217,16 +216,16 @@ TEST(algo, fast_pow) {
         ASSERT_EQ(r, 2);
     });
 
-    LuaAlgoRunHelper([]() {
-        ASSERT_EQ(LuaEvalInt("./algo/fast_pow.lua", "test(2,10,1000)"), 24);
-        ASSERT_EQ(LuaEvalInt("./algo/fast_pow.lua", "test(3,5,100)"), 43);
-        ASSERT_EQ(LuaEvalInt("./algo/fast_pow.lua", "test(7,1,1000000007)"), 7);
-        ASSERT_EQ(LuaEvalInt("./algo/fast_pow.lua", "test_is_pow2(8)"), 1);
-        ASSERT_EQ(LuaEvalInt("./algo/fast_pow.lua", "test_is_pow2(7)"), 0);
-        ASSERT_EQ(LuaEvalInt("./algo/fast_pow.lua", "test_is_pow2(0)"), 0);
-        ASSERT_EQ(LuaEvalInt("./algo/fast_pow.lua", "test_popcount(7)"), 3);
-        ASSERT_EQ(LuaEvalInt("./algo/fast_pow.lua", "test_popcount(255)"), 8);
-        ASSERT_EQ(LuaEvalInt("./algo/fast_pow.lua", "test_popcount(12)"), 2);
+    LuaAlgoRunHelper("./algo/fast_pow.lua", [](lua_State *L) {
+        ASSERT_EQ(LuaCall<int>(L, "test", 2, 10, 1000), 24);
+        ASSERT_EQ(LuaCall<int>(L, "test", 3, 5, 100), 43);
+        ASSERT_EQ(LuaCall<int>(L, "test", 7, 1, 1000000007), 7);
+        ASSERT_EQ(LuaCall<int>(L, "test_is_pow2", 8), 1);
+        ASSERT_EQ(LuaCall<int>(L, "test_is_pow2", 7), 0);
+        ASSERT_EQ(LuaCall<int>(L, "test_is_pow2", 0), 0);
+        ASSERT_EQ(LuaCall<int>(L, "test_popcount", 7), 3);
+        ASSERT_EQ(LuaCall<int>(L, "test_popcount", 255), 8);
+        ASSERT_EQ(LuaCall<int>(L, "test_popcount", 12), 2);
     });
 }
 
@@ -252,12 +251,12 @@ TEST(algo, insertion_sort) {
         ASSERT_NEAR(f, 11.6, 0.001);
     });
 
-    LuaAlgoRunHelper([]() {
-        ASSERT_EQ(LuaEvalInt("./algo/insertion_sort.lua", "test(1)"), 3);
-        ASSERT_EQ(LuaEvalInt("./algo/insertion_sort.lua", "test(4)"), 28);
-        ASSERT_EQ(LuaEvalInt("./algo/insertion_sort.lua", "test(8)"), 99);
-        ASSERT_EQ(LuaEvalInt("./algo/insertion_sort.lua", "test_median()"), 5);
-        ASSERT_NEAR(LuaEvalDouble("./algo/insertion_sort.lua", "test_float_sum()"), 11.6, 0.001);
+    LuaAlgoRunHelper("./algo/insertion_sort.lua", [](lua_State *L) {
+        ASSERT_EQ(LuaCall<int>(L, "test", 1), 3);
+        ASSERT_EQ(LuaCall<int>(L, "test", 4), 28);
+        ASSERT_EQ(LuaCall<int>(L, "test", 8), 99);
+        ASSERT_EQ(LuaCall<int>(L, "test_median"), 5);
+        ASSERT_NEAR(LuaCall<double>(L, "test_float_sum"), 11.6, 0.001);
     });
 }
 
@@ -278,10 +277,10 @@ TEST(algo, matrix) {
         ASSERT_EQ(r, 114);
     });
 
-    LuaAlgoRunHelper([]() {
-        ASSERT_EQ(LuaEvalInt("./algo/matrix.lua", "test_trace()"), 189);
-        ASSERT_EQ(LuaEvalInt("./algo/matrix.lua", "test_cell(1,1)"), 30);
-        ASSERT_EQ(LuaEvalInt("./algo/matrix.lua", "test_cell(2,3)"), 54);
-        ASSERT_EQ(LuaEvalInt("./algo/matrix.lua", "test_cell(3,2)"), 114);
+    LuaAlgoRunHelper("./algo/matrix.lua", [](lua_State *L) {
+        ASSERT_EQ(LuaCall<int>(L, "test_trace"), 189);
+        ASSERT_EQ(LuaCall<int>(L, "test_cell", 1, 1), 30);
+        ASSERT_EQ(LuaCall<int>(L, "test_cell", 2, 3), 54);
+        ASSERT_EQ(LuaCall<int>(L, "test_cell", 3, 2), 114);
     });
 }
