@@ -27,25 +27,29 @@ jobs:
             mingw-w64-x86_64-ninja
             mingw-w64-x86_64-lua
 
-      - name: Build and test
+      - name: Build
         shell: msys2 {0}
         run: |
           set -eux
           rm -rf build
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
-          # Show what's in build/bin before copying DLLs.
           ls -la build/bin/
-          # Copy all MinGW runtime DLL dependencies to build/bin so that
-          # the Windows loader can find them when spawning native processes.
+          # Copy all MinGW runtime DLL dependencies into build/bin so that
+          # the Windows loader can find them when running from that directory.
           ldd build/bin/unit_tests.exe build/bin/libfakelua.dll \
               build/bin/bench_mark.exe build/bin/flua.exe 2>/dev/null \
             | grep '/mingw64/' | awk '{print $3}' | sort -u \
-            | xargs -I{} cp -f {} build/bin/
-          # Show directory again after copying to confirm DLLs are present.
+            | xargs -I{} cp -f {} build/bin/ || true
           ls -la build/bin/
-          # Run tests from build/bin so the Windows DLL search path finds them.
-          cd build/bin
-          ./unit_tests.exe
-          ./bench_mark.exe
-          ./flua.exe
+          # Add the MinGW64 bin directory (in Windows format) to the runner's
+          # PATH so that subsequent steps' Windows processes can find the DLLs.
+          echo "$(cygpath -w /mingw64/bin)" >> "$GITHUB_PATH"
+
+      - name: Test
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-Location build/bin
+          Write-Host "=== Running unit tests ==="
+          & .\unit_tests.exe
