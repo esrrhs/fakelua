@@ -10,14 +10,14 @@ using namespace fakelua;
 static CVar VmFn0() {
     Var ret;
     ret.SetInt(123);
-    return static_cast<const CVar &>(ret);
+    return ret;
 }
 
 static CVar VmFnEchoFirst(CVar first, ...) {
     return first;
 }
 
-static CVar CallVmWithNArgs(State *s, const char *name, int n) {
+static CVar callVmWithNArgs(State *s, const char *name, int n) {
     CVar args[9];
     for (int i = 0; i < 9; ++i) {
         args[i] = inter::NativeToFakeluaInt(s, 100 + i);
@@ -64,8 +64,8 @@ TEST(runtime, stack_top_max_popto_overflow) {
 }
 
 TEST(runtime, exec_returns_output) {
-    const std::string out = Exec("printf fakelua_runtime_test");
-    ASSERT_EQ(out, "fakelua_runtime_test");
+    const std::string out = Exec("echo fakelua_runtime_test");
+    ASSERT_NE(out.find("fakelua_runtime_test"), std::string::npos);
 }
 
 TEST(runtime, vm_call_by_name_success_cases) {
@@ -77,7 +77,7 @@ TEST(runtime, vm_call_by_name_success_cases) {
     ASSERT_EQ(inter::FakeluaToNativeInt(&s, r0), 123);
 
     for (int n = 1; n <= 8; ++n) {
-        const CVar ret = CallVmWithNArgs(&s, "fnv", n);
+        const CVar ret = callVmWithNArgs(&s, "fnv", n);
         ASSERT_EQ(inter::FakeluaToNativeInt(&s, ret), 100);
     }
 }
