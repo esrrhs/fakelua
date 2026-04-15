@@ -346,11 +346,15 @@ void VarTable::Rehash(State *s) {
         active_list_ = new_active_list;
         bucket_count_ = new_bucket_count;
         count_ = 0;
-        for (uint32_t i = 0; i < overflow_count - 1; ++i) {
-            nodes_[new_bucket_count + i].next = new_bucket_count + i + 1;
+        if (overflow_count > 0) {
+            for (uint32_t i = 0; i < overflow_count - 1; ++i) {
+                nodes_[new_bucket_count + i].next = new_bucket_count + i + 1;
+            }
+            nodes_[new_bucket_count + overflow_count - 1].next = INVALID_INDEX;
+            free_list_idx_ = new_bucket_count;
+        } else {
+            free_list_idx_ = INVALID_INDEX;
         }
-        nodes_[new_bucket_count + overflow_count - 1].next = INVALID_INDEX;
-        free_list_idx_ = new_bucket_count;
 
         bool success = true;
         if (old_bucket_count == 0) {
