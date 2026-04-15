@@ -34,38 +34,14 @@ jobs:
           rm -rf build
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
-          echo "=== Architecture check (PE header) ==="
-          for f in build/bin/unit_tests.exe build/bin/libfakelua.dll build/bin/libtcc.dll; do
-            printf "%s: " "$f"
-            objdump -f "$f" 2>&1 | grep -E 'file format|architecture' || echo "(objdump failed)"
-          done
-          echo "=== ldd of all key binaries ==="
-          for f in build/bin/unit_tests.exe build/bin/libfakelua.dll build/bin/libtcc.dll; do
-            echo "--- ldd $f ---"
-            ldd "$f" 2>&1 || echo "(ldd failed)"
-          done
           echo "=== Copying MinGW runtime DLLs ==="
           ldd build/bin/unit_tests.exe build/bin/libfakelua.dll build/bin/libtcc.dll 2>/dev/null \
             | grep '/mingw64/' | awk '{print $3}' | sort -u \
             | xargs -I{} cp -fv {} build/bin/ || true
-          echo "=== DLL listing after copy ==="
-          ls -la build/bin/*.dll
-          echo "=== Architecture check of copied DLLs ==="
-          for f in build/bin/*.dll; do
-            printf "%s: " "$f"
-            objdump -f "$f" 2>&1 | grep 'file format' || echo "(unknown)"
-          done
 
-      - name: Diagnose and Run Tests
+      - name: Run Tests
         shell: cmd
         run: |
-          echo === Current directory ===
-          cd
-          echo === Setting PATH ===
           set PATH=%CD%\build\bin;C:\msys64\mingw64\bin;%PATH%
-          echo === Checking DLL deps with where ===
-          where libfakelua.dll || echo "libfakelua.dll not found in PATH"
-          where libtcc.dll || echo "libtcc.dll not found in PATH"
-          echo === Running unit_tests.exe ===
           cd build\bin
           unit_tests.exe
