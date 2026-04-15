@@ -758,7 +758,7 @@ TEST(exception, stmt_support_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not support stmt type") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("goto is not supported") != std::string::npos);
     }
 }
 
