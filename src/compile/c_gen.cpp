@@ -61,7 +61,7 @@ void CGen::GenerateHeader() {
 )";
 
     // 硬编码state指针
-    *cur_output_ << "static const void * _S = (void *) " << s_ << ";\n";
+    *cur_output_ << "static void * _S = (void *) " << s_ << ";\n";
 
     *cur_output_ << R"(
 typedef struct VarString {
@@ -151,7 +151,8 @@ extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_
 
 static inline uint32_t FlHashString(const char *str, int len) {
     uint32_t hash = 5381;
-    for (int i = 0; i < len; ++i) {
+    int i;
+    for (i = 0; i < len; ++i) {
         hash = ((hash << 5) + hash) + (uint8_t)str[i];
     }
     if (hash == 0) {
@@ -179,11 +180,11 @@ static inline uint32_t FlHashString(const char *str, int len) {
     __t->active_list_ = NULL; \
     __t->free_list_idx_ = 0xFFFFFFFF; \
     assert(sizeof(__t->quick_data_) == 8 * sizeof(VarEntry)); \
-    for (int __i = 0; __i < 8; ++__i) { \
+    { int __i; for (__i = 0; __i < 8; ++__i) { \
         __t->quick_data_[__i].key.type_ = VAR_NIL; \
         __t->quick_data_[__i].val.type_ = VAR_NIL; \
         __t->quick_data_[__i].hash = 0; \
-    } \
+    } } \
     (v).type_ = VAR_TABLE; \
     (v).data_.t = __t; \
 } while(0)
@@ -316,11 +317,11 @@ static inline void FlTableRehash(VarTable *tbl) {
         char *buffer = (char *)FakeluaAllocTemp(_S, nodes_size + active_list_size);
         TableNode *new_nodes = (TableNode *)buffer;
         uint32_t *new_active_list = (uint32_t *)(buffer + nodes_size);
-        for (uint32_t i = 0; i < total_nodes; ++i) { new_nodes[i].entry.key.type_ = VAR_NIL; new_nodes[i].next = 0xFFFFFFFF; new_nodes[i].active_pos = 0xFFFFFFFF; }
+        { uint32_t i; for (i = 0; i < total_nodes; ++i) { new_nodes[i].entry.key.type_ = VAR_NIL; new_nodes[i].next = 0xFFFFFFFF; new_nodes[i].active_pos = 0xFFFFFFFF; } }
         TableNode *prev_nodes = tbl->nodes_; uint32_t *prev_active_list = tbl->active_list_; uint32_t prev_bucket_count = tbl->bucket_count_; uint32_t prev_count = tbl->count_; uint32_t prev_free_list_idx = tbl->free_list_idx_;
         tbl->nodes_ = new_nodes; tbl->active_list_ = new_active_list; tbl->bucket_count_ = new_bucket_count; tbl->count_ = 0;
         if (overflow_count > 0) {
-            for (uint32_t i = 0; i < overflow_count - 1; ++i) { tbl->nodes_[new_bucket_count + i].next = new_bucket_count + i + 1; }
+            { uint32_t i; for (i = 0; i < overflow_count - 1; ++i) { tbl->nodes_[new_bucket_count + i].next = new_bucket_count + i + 1; } }
             tbl->nodes_[new_bucket_count + overflow_count - 1].next = 0xFFFFFFFF;
             tbl->free_list_idx_ = new_bucket_count;
         } else {
@@ -328,9 +329,9 @@ static inline void FlTableRehash(VarTable *tbl) {
         }
         bool success = true;
         if (old_bucket_count == 0) {
-            for (uint32_t i = 0; i < old_count; ++i) { if (!FlTableInsertRaw(tbl, tbl->quick_data_[i].key, tbl->quick_data_[i].val, tbl->quick_data_[i].hash)) { success = false; break; } }
+            { uint32_t i; for (i = 0; i < old_count; ++i) { if (!FlTableInsertRaw(tbl, tbl->quick_data_[i].key, tbl->quick_data_[i].val, tbl->quick_data_[i].hash)) { success = false; break; } } }
         } else {
-            for (uint32_t i = 0; i < old_bucket_count; ++i) {
+            { uint32_t i; for (i = 0; i < old_bucket_count; ++i) {
                 uint32_t curr_idx = i;
                 while (curr_idx != 0xFFFFFFFF) {
                     TableNode *old_node = &old_nodes[curr_idx];
@@ -338,7 +339,7 @@ static inline void FlTableRehash(VarTable *tbl) {
                     curr_idx = old_node->next;
                 }
                 if (!success) { break; }
-            }
+            } }
         }
         if (success) { break; } else { tbl->nodes_ = prev_nodes; tbl->active_list_ = prev_active_list; tbl->bucket_count_ = prev_bucket_count; tbl->count_ = prev_count; tbl->free_list_idx_ = prev_free_list_idx; new_bucket_count *= 2; }
     }
