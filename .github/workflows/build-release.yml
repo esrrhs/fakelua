@@ -26,13 +26,6 @@ jobs:
           make linux
           sudo make install
           cd ..
-
-      - name: Prepare
-        run: |
-          sudo apt-get -y install libgccjit-13-dev
-          dpkg -L libgccjit-13-dev
-          sudo mv /usr/lib/gcc/x86_64-linux-gnu/13/include/libgccjit* /usr/include/
-          sudo ln -s /usr/lib/gcc/x86_64-linux-gnu/13/libgccjit.so /usr/lib/libgccjit.so
           
       - name: Build
         run: |
