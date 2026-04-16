@@ -77,8 +77,16 @@ typedef unsigned int size_t;
 #define NULL ((void*)0)
 #endif
 
+// Pointer-sized integer (stdint.h)
+#if defined(__x86_64__) || defined(__aarch64__) || defined(_WIN64)
+typedef unsigned long long uintptr_t;
+#else
+typedef unsigned int uintptr_t;
+#endif
+
 // String functions (string.h)
 extern void *memcpy(void *dest, const void *src, size_t n);
+extern int memcmp(const void *s1, const void *s2, size_t n);
 
 // Math functions (math.h)
 extern double pow(double x, double y);
