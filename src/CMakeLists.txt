@@ -3,6 +3,8 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 project(libfakelua)
 
 include(ExternalProject)
+include(GNUInstallDirs)
+include(ProcessorCount)
 
 aux_source_directory(compile/bison FAKELUA_SRC_LIST)
 aux_source_directory(compile/flex FAKELUA_SRC_LIST)
@@ -19,8 +21,13 @@ include_directories(./platform)
 if (WIN32)
     include_directories(./platform/third_party/prebuilt/win_x64/tinycc/libtcc)
 else ()
-    set(FAKELUA_TINYCC_GIT_URL "https://github.com/TinyCC/tinycc.git" CACHE STRING "TinyCC git repository URL")
-    set(FAKELUA_TINYCC_GIT_TAG "mob" CACHE STRING "TinyCC git branch/tag")
+    ProcessorCount(FAKELUA_TINYCC_BUILD_JOBS)
+    if (NOT FAKELUA_TINYCC_BUILD_JOBS GREATER 0)
+        set(FAKELUA_TINYCC_BUILD_JOBS 1)
+    endif ()
+    set(FAKELUA_TINYCC_GIT_URL "https://repo.or.cz/tinycc.git" CACHE STRING "TinyCC git repository URL")
+    # Pinned to TinyCC mob commit validated by this project's Linux fakelua/flua builds.
+    set(FAKELUA_TINYCC_GIT_TAG "98765e5ebc04ea464195fa80ea5e4bbdc70a29cc" CACHE STRING "TinyCC git branch/tag/commit")
     CPMAddPackage(
             NAME tinycc_src
             GIT_REPOSITORY ${FAKELUA_TINYCC_GIT_URL}
@@ -47,7 +54,7 @@ else()
             SOURCE_DIR ${tinycc_src_SOURCE_DIR}
             BINARY_DIR ${TINYCC_BUILD_DIR}
             CONFIGURE_COMMAND ${tinycc_src_SOURCE_DIR}/configure --prefix=${TINYCC_PREFIX_DIR} --extra-cflags=-fPIC
-            BUILD_COMMAND make -j8
+            BUILD_COMMAND make -j${FAKELUA_TINYCC_BUILD_JOBS}
             INSTALL_COMMAND make install
             BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
     )
