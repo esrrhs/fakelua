@@ -61,9 +61,13 @@ typedef int int32_t;
 typedef unsigned int uint32_t;
 typedef long long int64_t;
 typedef unsigned long long uint64_t;
+#if defined(__x86_64__) || defined(__aarch64__) || defined(_WIN64)
 typedef unsigned long long size_t;
+#else
+typedef unsigned int size_t;
+#endif
 
-// Boolean (stdbool.h)
+// Boolean (stdbool.h) - requires C99 _Bool builtin, supported by TCC and GCC
 #define bool _Bool
 #define true 1
 #define false 0
@@ -85,7 +89,8 @@ extern double floor(double x);
 // I/O (stdio.h)
 extern int snprintf(char *str, size_t size, const char *format, ...);
 
-// Assert (assert.h) - no-op for JIT safety
+// Assert (assert.h) - disabled: assertions in JIT-compiled code cannot safely
+// call abort() since there are no C++ exception unwind tables in TCC frames
 #define assert(x) ((void)(x))
 
 )";
