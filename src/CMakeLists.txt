@@ -79,6 +79,16 @@ if (WIN32)
                 ${TINYCC_DLL}
                 $<TARGET_FILE_DIR:fakelua>
     )
+    # Copy TCC internal include files (tccdefs.h, etc.) so that libtcc.dll can find
+    # them at runtime. On Windows, TCC derives its lib-path from the location of
+    # libtcc.dll (via GetModuleFileName) and looks for tccdefs.h in <lib_path>/include/.
+    add_custom_command(TARGET fakelua POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E make_directory
+                $<TARGET_FILE_DIR:fakelua>/include
+            COMMAND ${CMAKE_COMMAND} -E copy_directory
+                ${tinycc_src_SOURCE_DIR}/include
+                $<TARGET_FILE_DIR:fakelua>/include
+    )
 else()
     set(TINYCC_PREFIX_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc")
     set(TINYCC_STATIC_LIB "${TINYCC_PREFIX_DIR}/${CMAKE_INSTALL_LIBDIR}/libtcc.a")
