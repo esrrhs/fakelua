@@ -2,6 +2,8 @@ cmake_minimum_required(VERSION 3.5 FATAL_ERROR)
 
 project(libfakelua)
 
+include(ExternalProject)
+
 aux_source_directory(compile/bison FAKELUA_SRC_LIST)
 aux_source_directory(compile/flex FAKELUA_SRC_LIST)
 aux_source_directory(./compile FAKELUA_SRC_LIST)
@@ -16,6 +18,17 @@ include_directories(../include)
 include_directories(./platform)
 if (WIN32)
     include_directories(./platform/third_party/prebuilt/win_x64/tinycc/libtcc)
+else ()
+    CPMAddPackage(
+            NAME tinycc_src
+            GIT_REPOSITORY https://repo.or.cz/tinycc.git
+            GIT_TAG mob
+            DOWNLOAD_ONLY YES
+    )
+    if (NOT tinycc_src_ADDED)
+        message(FATAL_ERROR "Failed to fetch TinyCC source from https://repo.or.cz/tinycc.git")
+    endif ()
+    include_directories(${tinycc_src_SOURCE_DIR})
 endif ()
 add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
 
@@ -25,7 +38,22 @@ if (WIN32)
     set(TCC_DLL_PATH "${CMAKE_CURRENT_SOURCE_DIR}/platform/third_party/prebuilt/win_x64/tinycc/libtcc.dll.a")
     set(TARGET_LIB ${TARGET_LIB} "${TCC_DLL_PATH}")
 else()
-    set(TARGET_LIB ${TARGET_LIB} tcc Threads::Threads)
+    set(TINYCC_PREFIX_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc")
+    set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
+    set(TINYCC_SHARED_LIB "${TINYCC_PREFIX_DIR}/${CMAKE_INSTALL_LIBDIR}/libtcc.so")
+    ExternalProject_Add(tinycc_external
+            SOURCE_DIR ${tinycc_src_SOURCE_DIR}
+            BINARY_DIR ${TINYCC_BUILD_DIR}
+            CONFIGURE_COMMAND ${tinycc_src_SOURCE_DIR}/configure --prefix=${TINYCC_PREFIX_DIR} --extra-cflags=-fPIC
+            BUILD_COMMAND make -j8
+            INSTALL_COMMAND make install
+            BUILD_BYPRODUCTS ${TINYCC_SHARED_LIB}
+    )
+    add_library(tinycc_embedded SHARED IMPORTED GLOBAL)
+    set_target_properties(tinycc_embedded PROPERTIES IMPORTED_LOCATION ${TINYCC_SHARED_LIB})
+    add_dependencies(tinycc_embedded tinycc_external)
+    add_dependencies(fakelua tinycc_external)
+    set(TARGET_LIB ${TARGET_LIB} tinycc_embedded Threads::Threads)
     set(TARGET_LIB ${TARGET_LIB} dl m)
 endif ()
 
