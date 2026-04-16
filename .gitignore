@@ -34,6 +34,7 @@
 .idea
 build
 build_*
+!.github/workflows/build_with_windows.yml
 cmake-build-debug
 cmake_install.cmake
 CMakeFiles
