@@ -21,7 +21,7 @@ jobs:
       # C:\msys64 on the windows-2022 runner rather than letting
       # msys2/setup-msys2 install into $RUNNER_TEMP\msys64.
       - name: Install MSYS2 packages
-        run: C:\msys64\usr\bin\pacman -Sy --noconfirm --needed git make mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc mingw-w64-x86_64-lua mingw-w64-x86_64-ninja
+        run: C:\msys64\usr\bin\pacman -Syu --noconfirm --needed git make mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc mingw-w64-x86_64-lua mingw-w64-x86_64-ninja
         shell: cmd
 
       - name: Build
