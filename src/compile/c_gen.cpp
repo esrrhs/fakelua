@@ -77,8 +77,10 @@ extern void *memcpy(void *dest, const void *src, size_t n);
 extern int memcmp(const void *s1, const void *s2, size_t n);
 extern double pow(double x, double y);
 extern double floor(double x);
-#define isnan(x) __builtin_isnan(x)
-#define isinf(x) __builtin_isinf(x)
+static inline int flua_isnan(double x) { return x != x; }
+static inline int flua_isinf(double x) { return !flua_isnan(x) && flua_isnan(x - x); }
+#define isnan(x) flua_isnan(x)
+#define isinf(x) flua_isinf(x)
 extern int snprintf(char *str, size_t size, const char *format, ...);
 #else
 // Linux/Unix TCC: use system headers (TCC finds them via configured sysinclude paths)
