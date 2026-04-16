@@ -44,15 +44,26 @@ find_package(Threads REQUIRED)
 set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
 
 if (WIN32)
-    # Follow the official TinyCC Win32 guide: build libtcc.dll with MinGW.
-    # TinyCC does not support out-of-tree builds, so SOURCE_DIR == BINARY_DIR.
-    # Linking is done directly against the DLL (no import lib needed with MinGW).
-    set(TINYCC_DLL "${tinycc_src_SOURCE_DIR}/libtcc.dll")
+    # Build libtcc.dll using the official win32/build-tcc.bat approach for MinGW:
+    # directly compile libtcc.c with gcc (no configure step needed).
+    # The configure script exits with code 1 when run in-tree on Windows because
+    # it tries to ln/cp Makefiles to themselves, so we skip it entirely.
+    set(TINYCC_WIN32_DIR "${tinycc_src_SOURCE_DIR}/win32")
+    set(TINYCC_DLL "${TINYCC_WIN32_DIR}/libtcc.dll")
+    # Create a minimal config.h at CMake configure time (mirrors what build-tcc.bat does)
+    file(READ "${tinycc_src_SOURCE_DIR}/VERSION" TINYCC_VERSION_RAW)
+    string(STRIP "${TINYCC_VERSION_RAW}" TINYCC_VERSION)
+    file(WRITE "${tinycc_src_SOURCE_DIR}/config.h"
+         "#define TCC_VERSION \"${TINYCC_VERSION}\"\n")
     ExternalProject_Add(tinycc_external
             SOURCE_DIR ${tinycc_src_SOURCE_DIR}
-            BINARY_DIR ${tinycc_src_SOURCE_DIR}
-            CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env CC=gcc AR=ar bash <SOURCE_DIR>/configure
-            BUILD_COMMAND make -j${FAKELUA_TINYCC_BUILD_JOBS} libtcc.dll
+            BINARY_DIR ${TINYCC_WIN32_DIR}
+            CONFIGURE_COMMAND ""
+            BUILD_COMMAND gcc -O2 -s -static -shared
+                -DTCC_TARGET_PE -DTCC_TARGET_X86_64 -DLIBTCC_AS_DLL
+                -I${tinycc_src_SOURCE_DIR}
+                -o ${TINYCC_DLL}
+                ${tinycc_src_SOURCE_DIR}/libtcc.c
             INSTALL_COMMAND ""
             BUILD_BYPRODUCTS ${TINYCC_DLL}
     )
