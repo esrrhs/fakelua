@@ -44,22 +44,30 @@ find_package(Threads REQUIRED)
 set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
 
 if (WIN32)
-    # TinyCC does not support out-of-tree builds; configure and make must run
-    # from the source directory so that libtcc.c and other sources are found.
-    set(TINYCC_STATIC_LIB "${tinycc_src_SOURCE_DIR}/libtcc.a")
+    # Follow the official TinyCC Win32 guide: build libtcc.dll with MinGW.
+    # TinyCC does not support out-of-tree builds, so SOURCE_DIR == BINARY_DIR.
+    # Linking is done directly against the DLL (no import lib needed with MinGW).
+    set(TINYCC_DLL "${tinycc_src_SOURCE_DIR}/libtcc.dll")
     ExternalProject_Add(tinycc_external
             SOURCE_DIR ${tinycc_src_SOURCE_DIR}
             BINARY_DIR ${tinycc_src_SOURCE_DIR}
-            CONFIGURE_COMMAND bash <SOURCE_DIR>/configure --enable-static CC=gcc AR=ar
-            BUILD_COMMAND make -j${FAKELUA_TINYCC_BUILD_JOBS} libtcc.a
+            CONFIGURE_COMMAND bash <SOURCE_DIR>/configure CC=gcc AR=ar
+            BUILD_COMMAND make -j${FAKELUA_TINYCC_BUILD_JOBS} libtcc.dll
             INSTALL_COMMAND ""
-            BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
+            BUILD_BYPRODUCTS ${TINYCC_DLL}
     )
-    add_library(tinycc_embedded STATIC IMPORTED GLOBAL)
-    set_target_properties(tinycc_embedded PROPERTIES IMPORTED_LOCATION ${TINYCC_STATIC_LIB})
+    add_library(tinycc_embedded SHARED IMPORTED GLOBAL)
+    set_target_properties(tinycc_embedded PROPERTIES IMPORTED_LOCATION ${TINYCC_DLL})
     add_dependencies(tinycc_embedded tinycc_external)
     add_dependencies(fakelua tinycc_external)
-    set(TARGET_LIB ${TARGET_LIB} tinycc_embedded)
+    # Link directly against libtcc.dll (MinGW supports this without an import lib)
+    set(TARGET_LIB ${TARGET_LIB} ${TINYCC_DLL})
+    # Copy libtcc.dll next to libfakelua.dll so it is found at runtime
+    add_custom_command(TARGET fakelua POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+                ${TINYCC_DLL}
+                $<TARGET_FILE_DIR:fakelua>
+    )
 else()
     set(TINYCC_PREFIX_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc")
     set(TINYCC_STATIC_LIB "${TINYCC_PREFIX_DIR}/${CMAKE_INSTALL_LIBDIR}/libtcc.a")
