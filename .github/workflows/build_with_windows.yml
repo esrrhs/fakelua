@@ -46,5 +46,6 @@ jobs:
         shell: 'C:\msys64\usr\bin\bash.exe -l {0}'
         run: |
           set -eux
-          ./build/bin/bench_mark.exe
-          ./build/bin/flua.exe
+          cd build/bin
+          ./bench_mark.exe
+          ./flua.exe
