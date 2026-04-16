@@ -17,7 +17,7 @@ FakeLua 是一个高性能、可嵌入的脚本执行引擎，实现了 Lua 5.4 
 # 构建 (Build)
 ### Linux
 * 依赖: `cmake`, `flex`, `bison`
-* TinyCC 会在 CMake 配置阶段自动从源码拉取并在构建目录内编译，无需系统安装。
+* TinyCC 会在 CMake 配置阶段自动从源码拉取并在构建目录内编译，无需系统安装（默认使用 TinyCC/tinycc 镜像仓库，可通过 `-DFAKELUA_TINYCC_GIT_URL=https://repo.or.cz/tinycc.git` 切换到官方仓库）。
 * 编译
 ```shell
 mkdir build
