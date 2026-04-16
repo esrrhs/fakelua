@@ -55,12 +55,6 @@ if (NOT WIN32)
 endif ()
 target_link_libraries(bench_mark PRIVATE fakelua benchmark lua)
 
-add_custom_command(
-        TARGET bench_mark
-        POST_BUILD
-        COMMAND ${CMAKE_COMMAND} -E copy_directory ${CMAKE_CURRENT_SOURCE_DIR}/lua/ ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/
-)
-
 IF (WIN32)
     add_custom_command(
             TARGET bench_mark
