@@ -37,7 +37,7 @@ jobs:
           cmake -S . -B build -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build --parallel
           echo "=== Copying MinGW runtime DLLs ==="
-          ldd build/bin/unit_tests.exe build/bin/libfakelua.dll 2>/dev/null \
+          ldd build/bin/unit_tests.exe build/bin/libfakelua.dll build/bin/libtcc.dll 2>/dev/null \
             | grep '/mingw64/' | awk '{print $3}' | sort -u \
             | xargs -I{} cp -fv {} build/bin/ || true
 

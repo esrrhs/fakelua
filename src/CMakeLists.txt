@@ -51,7 +51,7 @@ if (WIN32)
     ExternalProject_Add(tinycc_external
             SOURCE_DIR ${tinycc_src_SOURCE_DIR}
             BINARY_DIR ${tinycc_src_SOURCE_DIR}
-            CONFIGURE_COMMAND bash <SOURCE_DIR>/configure CC=gcc AR=ar
+            CONFIGURE_COMMAND ${CMAKE_COMMAND} -E env CC=gcc AR=ar bash <SOURCE_DIR>/configure
             BUILD_COMMAND make -j${FAKELUA_TINYCC_BUILD_JOBS} libtcc.dll
             INSTALL_COMMAND ""
             BUILD_BYPRODUCTS ${TINYCC_DLL}
