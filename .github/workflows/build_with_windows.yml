@@ -12,26 +12,40 @@ permissions:
 jobs:
   build:
     runs-on: windows-2022
+    env:
+      MSYSTEM: MINGW64
+      CHERE_INVOKING: "1"
 
     steps:
       - uses: actions/checkout@v4
 
-      # CMakeLists.txt searches for bash only at C:/msys64 (NO_DEFAULT_PATH),
-      # so we must install all required tools into the pre-installed MSYS2 at
-      # C:\msys64 on the windows-2022 runner rather than letting
-      # msys2/setup-msys2 install into $RUNNER_TEMP\msys64.
       - name: Install MSYS2 packages
         run: C:\msys64\usr\bin\pacman -Syu --noconfirm --needed git make mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc mingw-w64-x86_64-lua mingw-w64-x86_64-ninja
         shell: cmd
 
-      - name: Build
+      - name: Configure
         shell: 'C:\msys64\usr\bin\bash.exe -l {0}'
-        env:
-          MSYSTEM: MINGW64
-          CHERE_INVOKING: '1'
         run: |
           set -eux
           rm -rf build
           cmake -S . -B build -G Ninja -DFAKELUA_TINYCC_GIT_URL=https://github.com/TinyCC/tinycc.git
+
+      - name: Build
+        shell: 'C:\msys64\usr\bin\bash.exe -l {0}'
+        run: |
+          set -eux
           cmake --build build --parallel
+
+      - name: Test
+        shell: 'C:\msys64\usr\bin\bash.exe -l {0}'
+        run: |
+          set -eux
           ctest --test-dir build -V
+
+      - name: Run benchmarks and flua
+        shell: 'C:\msys64\usr\bin\bash.exe -l {0}'
+        run: |
+          set -eux
+          cd build/bin
+          ./bench_mark.exe
+          ./flua.exe
