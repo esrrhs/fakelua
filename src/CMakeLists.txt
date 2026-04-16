@@ -44,10 +44,12 @@ find_package(Threads REQUIRED)
 set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
 
 if (WIN32)
-    set(TINYCC_STATIC_LIB "${TINYCC_BUILD_DIR}/libtcc.a")
+    # TinyCC does not support out-of-tree builds; configure and make must run
+    # from the source directory so that libtcc.c and other sources are found.
+    set(TINYCC_STATIC_LIB "${tinycc_src_SOURCE_DIR}/libtcc.a")
     ExternalProject_Add(tinycc_external
             SOURCE_DIR ${tinycc_src_SOURCE_DIR}
-            BINARY_DIR ${TINYCC_BUILD_DIR}
+            BINARY_DIR ${tinycc_src_SOURCE_DIR}
             CONFIGURE_COMMAND bash <SOURCE_DIR>/configure --enable-static CC=gcc AR=ar
             BUILD_COMMAND make -j${FAKELUA_TINYCC_BUILD_JOBS} libtcc.a
             INSTALL_COMMAND ""
