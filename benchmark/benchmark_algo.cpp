@@ -178,7 +178,9 @@ static void BM_CPP_Fibonacci(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppFib(n);
     for (auto _: state) {
-        const int64_t ret = CppFib(n);
+        int64_t input = n;
+        benchmark::DoNotOptimize(input);
+        int64_t ret = CppFib(input);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "C++ fib");
     }
@@ -188,7 +190,7 @@ static void BM_Lua_Fibonacci(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppFib(n);
     for (auto _: state) {
-        const int64_t ret = CallLuaInt(g_ctx.lua, "bench_fib", n);
+        int64_t ret = CallLuaInt(g_ctx.lua, "bench_fib", n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "Lua fib");
     }
@@ -210,7 +212,11 @@ static void BM_CPP_GCD(benchmark::State &state) {
     const int64_t b = state.range(1);
     const int64_t expected = CppGcd(a, b);
     for (auto _: state) {
-        const int64_t ret = CppGcd(a, b);
+        int64_t aa = a;
+        int64_t bb = b;
+        benchmark::DoNotOptimize(aa);
+        benchmark::DoNotOptimize(bb);
+        int64_t ret = CppGcd(aa, bb);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "C++ gcd");
     }
@@ -221,7 +227,7 @@ static void BM_Lua_GCD(benchmark::State &state) {
     const int64_t b = state.range(1);
     const int64_t expected = CppGcd(a, b);
     for (auto _: state) {
-        const int64_t ret = CallLuaInt(g_ctx.lua, "bench_gcd", a, b);
+        int64_t ret = CallLuaInt(g_ctx.lua, "bench_gcd", a, b);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "Lua gcd");
     }
@@ -245,7 +251,13 @@ static void BM_CPP_PowMod(benchmark::State &state) {
     const int64_t mod = state.range(2);
     const int64_t expected = CppPowMod(base, exp, mod);
     for (auto _: state) {
-        const int64_t ret = CppPowMod(base, exp, mod);
+        int64_t bb = base;
+        int64_t ee = exp;
+        int64_t mm = mod;
+        benchmark::DoNotOptimize(bb);
+        benchmark::DoNotOptimize(ee);
+        benchmark::DoNotOptimize(mm);
+        int64_t ret = CppPowMod(bb, ee, mm);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "C++ powmod");
     }
@@ -257,7 +269,7 @@ static void BM_Lua_PowMod(benchmark::State &state) {
     const int64_t mod = state.range(2);
     const int64_t expected = CppPowMod(base, exp, mod);
     for (auto _: state) {
-        const int64_t ret = CallLuaInt(g_ctx.lua, "bench_powmod", base, exp, mod);
+        int64_t ret = CallLuaInt(g_ctx.lua, "bench_powmod", base, exp, mod);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "Lua powmod");
     }
@@ -280,7 +292,9 @@ static void BM_CPP_Sum(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSum(n);
     for (auto _: state) {
-        const int64_t ret = CppSum(n);
+        int64_t input = n;
+        benchmark::DoNotOptimize(input);
+        int64_t ret = CppSum(input);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "C++ sum");
     }
@@ -290,7 +304,7 @@ static void BM_Lua_Sum(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSum(n);
     for (auto _: state) {
-        const int64_t ret = CallLuaInt(g_ctx.lua, "bench_sum", n);
+        int64_t ret = CallLuaInt(g_ctx.lua, "bench_sum", n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "Lua sum");
     }
