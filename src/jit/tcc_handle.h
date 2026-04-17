@@ -1,6 +1,7 @@
 #pragma once
 
 #include "jit/jit_common.h"
+#include "fakelua.h"
 
 struct TCCState;
 
@@ -12,7 +13,7 @@ class TCCHandle : public JITHandle {
 public:
     explicit TCCHandle() = default;
 
-    explicit TCCHandle(State *s);
+    explicit TCCHandle(State *s, const CompileConfig &cfg);
 
     ~TCCHandle() override;
 
