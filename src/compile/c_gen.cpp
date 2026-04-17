@@ -1051,9 +1051,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     // so only simple variable assignments can reach here.
     DEBUG_ASSERT(vtype == "simple");
     const auto &name = v_ptr->GetName();
-    if (v_ptr->EvalType() == T_INT) {
-        *cur_output_ << GenTab() << name << " = " << CompileNumericExp(exps[0]) << ";\n";
-    } else if (v_ptr->EvalType() == T_FLOAT) {
+    if (v_ptr->EvalType() == T_INT || v_ptr->EvalType() == T_FLOAT) {
         *cur_output_ << GenTab() << name << " = " << CompileNumericExp(exps[0]) << ";\n";
     } else {
         const std::string rhs = CompileExp(exps[0]);
