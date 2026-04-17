@@ -800,14 +800,16 @@ TEST(var, doubleslash_float_result) {
     Var res;
 
     v1.DoubleSlash(v2, res);
-    // floor(7.5 / 2.0) = 3.0, but 3.0 is stored as integer
-    ASSERT_EQ(res.GetInt(), 3);
+    // floor(7.5 / 2.0) = 3.0, float operands keep float result in Lua
+    ASSERT_EQ(res.Type(), VarType::Float);
+    ASSERT_EQ(res.GetFloat(), 3.0);
 
     Var v3(-7.5);
     Var v4(2.0);
     v3.DoubleSlash(v4, res);
-    // floor(-7.5 / 2.0) = -4.0, but -4.0 is stored as integer
-    ASSERT_EQ(res.GetInt(), -4);
+    // floor(-7.5 / 2.0) = -4.0, float operands keep float result in Lua
+    ASSERT_EQ(res.Type(), VarType::Float);
+    ASSERT_EQ(res.GetFloat(), -4.0);
 }
 
 TEST(var, hash_nil) {
