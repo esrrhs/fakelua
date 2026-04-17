@@ -5,10 +5,36 @@
 #include "util/common.h"
 #include "var_string.h"
 #include "var_table.h"
+#include <limits>
 
 namespace fakelua {
 
 Var const_null_var;
+
+static bool TryConvertNumberToInteger(const Var &v, int64_t &out) {
+    if (v.Type() == VarType::Int) {
+        out = v.GetInt();
+        return true;
+    }
+    if (v.Type() != VarType::Float) {
+        return false;
+    }
+
+    const double d = v.GetFloat();
+    if (!std::isfinite(d)) {
+        return false;
+    }
+    double int_part = 0;
+    if (std::modf(d, &int_part) != 0.0) {
+        return false;
+    }
+    if (int_part < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
+        int_part > static_cast<double>(std::numeric_limits<int64_t>::max())) {
+        return false;
+    }
+    out = static_cast<int64_t>(int_part);
+    return true;
+}
 
 VarString *Var::GetString() const {
     DEBUG_ASSERT(type_ == static_cast<int>(VarType::String) || type_ == static_cast<int>(VarType::StringId));
@@ -252,52 +278,62 @@ void Var::Mod(const Var &rhs, Var &result) const {
 }
 
 void Var::Bitand(const Var &rhs, Var &result) const {
-    if (!IsCalculableInteger() || !rhs.IsCalculableInteger()) {
+    int64_t lhs_int = 0;
+    int64_t rhs_int = 0;
+    if (!TryConvertNumberToInteger(*this, lhs_int) || !TryConvertNumberToInteger(rhs, rhs_int)) {
         ThrowFakeluaException(std::format("Var op failed, operand of '&' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
-    result.SetInt(GetCalculableInt() & rhs.GetCalculableInt());
+    result.SetInt(lhs_int & rhs_int);
 }
 
 void Var::Xor(const Var &rhs, Var &result) const {
-    if (!IsCalculableInteger() || !rhs.IsCalculableInteger()) {
+    int64_t lhs_int = 0;
+    int64_t rhs_int = 0;
+    if (!TryConvertNumberToInteger(*this, lhs_int) || !TryConvertNumberToInteger(rhs, rhs_int)) {
         ThrowFakeluaException(std::format("Var op failed, operand of '~' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
-    result.SetInt(GetCalculableInt() ^ rhs.GetCalculableInt());
+    result.SetInt(lhs_int ^ rhs_int);
 }
 
 void Var::Bitor(const Var &rhs, Var &result) const {
-    if (!IsCalculableInteger() || !rhs.IsCalculableInteger()) {
+    int64_t lhs_int = 0;
+    int64_t rhs_int = 0;
+    if (!TryConvertNumberToInteger(*this, lhs_int) || !TryConvertNumberToInteger(rhs, rhs_int)) {
         ThrowFakeluaException(std::format("Var op failed, operand of '|' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
-    result.SetInt(GetCalculableInt() | rhs.GetCalculableInt());
+    result.SetInt(lhs_int | rhs_int);
 }
 
 void Var::RightShift(const Var &rhs, Var &result) const {
-    if (!IsCalculableInteger() || !rhs.IsCalculableInteger()) {
+    int64_t lhs_int = 0;
+    int64_t rhs_int = 0;
+    if (!TryConvertNumberToInteger(*this, lhs_int) || !TryConvertNumberToInteger(rhs, rhs_int)) {
         ThrowFakeluaException(std::format("Var op failed, operand of '>>' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
-    auto shift = rhs.GetCalculableInt();
+    auto shift = rhs_int;
     if (shift >= 0) {
-        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(GetCalculableInt()) >> shift));
+        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(lhs_int) >> shift));
     } else {
-        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(GetCalculableInt()) << (-shift)));
+        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(lhs_int) << (-shift)));
     }
 }
 
 void Var::LeftShift(const Var &rhs, Var &result) const {
-    if (!IsCalculableInteger() || !rhs.IsCalculableInteger()) {
+    int64_t lhs_int = 0;
+    int64_t rhs_int = 0;
+    if (!TryConvertNumberToInteger(*this, lhs_int) || !TryConvertNumberToInteger(rhs, rhs_int)) {
         ThrowFakeluaException(std::format("Var op failed, operand of '<<' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
-    auto shift = rhs.GetCalculableInt();
+    auto shift = rhs_int;
     if (shift >= 0) {
-        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(GetCalculableInt()) << shift));
+        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(lhs_int) << shift));
     } else {
-        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(GetCalculableInt()) >> (-shift)));
+        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(lhs_int) >> (-shift)));
     }
 }
 
@@ -406,11 +442,12 @@ void Var::UnopNumberSign(Var &result) const {
 }
 
 void Var::UnopBitnot(Var &result) const {
-    if (Type() != VarType::Int) {
+    int64_t int_value = 0;
+    if (!TryConvertNumberToInteger(*this, int_value)) {
         ThrowFakeluaException(std::format("Var op failed, operand of '~' must be integer, got {} {}", VarTypeToString(Type()), ToString()));
     }
 
-    result.SetInt(~GetInt());
+    result.SetInt(~int_value);
 }
 
 void Var::TableSet(State *s, const Var &key, const Var &val, bool can_be_nil) const {
