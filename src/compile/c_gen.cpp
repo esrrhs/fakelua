@@ -605,7 +605,6 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
 #define BoolGeI(a, iv) ({ CVar _bra=(a); CheckNum(_bra); \
     _bra.type_==VAR_INT ? (_bra.data_.i>=(int64_t)(iv)) : (_bra.data_.f>=(double)(iv)); })
 #define BoolEqI(a, iv) ({ CVar _bra=(a); \
-    /* No CheckNum: Lua == is valid for any type; non-numeric simply returns false. */ \
     _bra.type_==VAR_INT ? (_bra.data_.i==(int64_t)(iv)) : \
     (_bra.type_==VAR_FLOAT ? (_bra.data_.f==(double)(iv)) : 0); })
 #define BoolNeI(a, iv) (!BoolEqI((a), (iv)))
@@ -1567,7 +1566,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
 
     // Detect integer literal on the right side for specialized macros
     const auto right_e_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(right);
-    const bool right_is_int_lit = (right_e_ptr && right_e_ptr->ExpType() == "number" && IsInteger(right_e_ptr->ExpValue()));
+    const bool right_is_int_lit = (right_e_ptr->ExpType() == "number" && IsInteger(right_e_ptr->ExpValue()));
     const int64_t right_iv = right_is_int_lit ? ToInteger(right_e_ptr->ExpValue()) : 0;
 
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
@@ -1842,7 +1841,7 @@ std::string CGen::CompileCondExp(const SyntaxTreeInterfacePtr &exp) {
 
             // If the right operand is an integer literal, use the specialized
             // macro that avoids copying and type-checking the right CVar.
-            if (right_e && right_e->ExpType() == "number" && IsInteger(right_e->ExpValue())) {
+            if (right_e->ExpType() == "number" && IsInteger(right_e->ExpValue())) {
                 const auto iv = ToInteger(right_e->ExpValue());
                 const std::string l = std::format("({})", left_str);
                 if (op_name == "LESS_EQUAL")  return std::format("BoolLeI({}, {}LL)", l, iv);
