@@ -205,7 +205,9 @@ protected:
 enum JITType {
     // TinyCC 是一个小型的 C 语言编译器，支持即时编译（JIT）。它的特点是编译速度快，适合于需要快速生成和执行代码的场景
     JIT_TCC = 0,
-    JIT_MAX = 1,
+    // GCC 后端：将生成 C 代码通过系统 gcc 编译为动态库并加载执行
+    JIT_GCC,
+    JIT_MAX,
 };
 
 // 控制编译器的配置项
@@ -224,11 +226,19 @@ struct StateTCCConfig {
     std::vector<std::string> libraries;
 };
 
+struct StateGCCConfig {
+    std::vector<std::string> include_paths;
+    std::vector<std::string> library_paths;
+    std::vector<std::string> libraries;
+};
+
 struct StateConfig {
     // 最大栈深，超过该深度将抛出异常。默认为 65536。
     size_t max_stack_size = 65536;
     // tcc编译配置
     StateTCCConfig tcc_config;
+    // gcc编译配置
+    StateGCCConfig gcc_config;
 };
 
 class State;

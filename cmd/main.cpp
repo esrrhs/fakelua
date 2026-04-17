@@ -8,7 +8,7 @@ using namespace fakelua;
 DEFINE_bool(debug, false, "enable debug mode");
 DEFINE_string(entry, "main", "entry function name, entry must return code(int) and has no parameter");
 DEFINE_int32(repeat, 1, "the repeat run main function times");
-DEFINE_int32(jit_type, 0, "jit type, 0 for tcc");
+DEFINE_int32(jit_type, 0, "jit type, 0 for tcc, 1 for gcc");
 
 int main(int argc, char **argv) {
     gflags::SetUsageMessage("usage: ./flua --help\n"

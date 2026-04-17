@@ -2,6 +2,7 @@
 #include "bison/parser.h"
 #include "compile/c_gen.h"
 #include "compile/preprocessor.h"
+#include "jit/gcc_jit.h"
 #include "jit/tcc_jit.h"
 #include "state/state.h"
 
@@ -66,6 +67,12 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     if (!cfg.disable_jit[JIT_TCC]) {
         TccJitter jitter(s_);
         jitter.Compile(ret, cfg);
+    }
+    if (!cfg.disable_jit[JIT_GCC]) {
+#if !defined(_WIN32)
+        GccJitter jitter(s_);
+        jitter.Compile(ret, cfg);
+#endif
     }
 
     return ret;

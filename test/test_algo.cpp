@@ -11,8 +11,15 @@ using namespace fakelua;
 static void AlgoRunHelper(const std::function<void(State *, JITType, bool)> &f) {
     const auto s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
-    f(s, JIT_TCC, true);
-    f(s, JIT_TCC, false);
+    for (const auto type: {JIT_TCC, JIT_GCC}) {
+#if defined(_WIN32)
+        if (type == JIT_GCC) {
+            continue;
+        }
+#endif
+        f(s, type, true);
+        f(s, type, false);
+    }
     FakeluaDeleteState(s);
 }
 
