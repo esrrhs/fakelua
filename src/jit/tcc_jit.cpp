@@ -8,7 +8,7 @@ TccJitter::TccJitter(State *s) : s_(s) {
 }
 
 void TccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
-    const auto handle = std::make_shared<TCCHandle>(s_);
+    const auto handle = std::make_shared<TCCHandle>(s_, cfg);
     ::TCCState *s = handle->GetTCCState();
 
     if (tcc_compile_string(s, cr.c_code.c_str()) == -1) {

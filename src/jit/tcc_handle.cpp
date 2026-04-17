@@ -5,11 +5,14 @@
 
 namespace fakelua {
 
-TCCHandle::TCCHandle(State *s) {
+TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) {
     const auto &config = s->GetStateConfig();
     tcc_state_ = tcc_new();
     if (!tcc_state_) {
         ThrowFakeluaException("tcc_new() failed to create TCC state");
+    }
+    if (!cfg.debug_mode) {
+        tcc_set_options(tcc_state_, "-O2");
     }
     for (const auto &path: config.tcc_config.include_paths) {
         tcc_add_sysinclude_path(tcc_state_, path.c_str());
