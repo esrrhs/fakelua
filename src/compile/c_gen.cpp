@@ -1397,7 +1397,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
     const auto var_name = std::format("flua_tbl_{}", tmp_var_counter_++);
 
-    func_temp_decls_ << GenTab() << "CVar " << var_name << ";\n";
+    func_temp_decls_ << "    " << "CVar " << var_name << ";\n";
     *cur_output_ << GenTab() << "SET_TABLE(" << var_name << ");\n";
 
     const auto fieldlist = tc_ptr->Fieldlist();
@@ -1453,9 +1453,9 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
         const auto left_str = CompileExp(left);
 
         const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
-        func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
+        func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
         const auto tmp_bool = std::format("flua_bt_{}", tmp_var_counter_++);
-        func_temp_decls_ << GenTab() << "bool " << tmp_bool << ";\n";
+        func_temp_decls_ << "    " << "bool " << tmp_bool << ";\n";
 
         *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", left_str, tmp_bool);
 
@@ -1492,7 +1492,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     const auto right_str = CompileExp(right);
 
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
-    func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
+    func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
 
     // Wrap arguments in parentheses to prevent commas in C compound literals
     // (e.g. (CVar){.type_ = VAR_INT, .data_.i = 2}) from being misinterpreted
@@ -1556,7 +1556,7 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxT
     const auto right_str = CompileExp(right);
 
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
-    func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
+    func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
 
     // Wrap argument in parentheses to protect commas in compound literals from macro parsing
     const auto r = std::format("({})", right_str);
@@ -1666,7 +1666,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                     ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
                 }
                 const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
-                func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
+                func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
                 *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", compiled_args[0], compiled_args[1], compiled_args[2]);
                 *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
                 return tmp;
@@ -1698,7 +1698,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
 
     // Allocate a temp variable to hold the return value
     const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
-    func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
+    func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
     *cur_output_ << GenTab() << tmp << " = " << call_expr << ";\n";
 
     return tmp;
