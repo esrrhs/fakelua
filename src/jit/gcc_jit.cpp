@@ -3,6 +3,8 @@
 #include "state/state.h"
 #include "util/file_util.h"
 #include "util/logging.h"
+#include <cerrno>
+#include <cstring>
 #include <filesystem>
 #include <fstream>
 #include <iterator>
@@ -135,26 +137,31 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     }
     argv.emplace_back(nullptr);
 
-    const int status = _spawnvp(_P_WAIT, "gcc", argv.data());
-    if (status != 0) {
+    const int compile_status = _spawnvp(_P_WAIT, "gcc", argv.data());
+    if (compile_status == -1) {
         ThrowFakeluaException(std::format(
-                "GCC compile failed for {} with exit code {}. cmd: {}", cr.file_name, status, JoinCommand(args)));
+                "GCC compile failed for {}: cannot execute gcc (errno {}: {}). cmd: {}",
+                cr.file_name, errno, std::strerror(errno), JoinCommand(args)));
+    }
+    if (compile_status != 0) {
+        ThrowFakeluaException(std::format(
+                "GCC compile failed for {} with exit code {}. cmd: {}", cr.file_name, compile_status, JoinCommand(args)));
     }
 
-    HMODULE dl_handle = LoadLibraryA(so_file.c_str());
-    if (!dl_handle) {
+    HMODULE module_handle = LoadLibraryA(so_file.c_str());
+    if (!module_handle) {
         ThrowFakeluaException(
                 std::format("GCC compile failed, LoadLibrary failed for {}: {}", so_file, WinErrToString(GetLastError())));
     }
-    const auto handle = std::make_shared<GCCHandle>(c_file, so_file, dl_handle);
+    const auto handle = std::make_shared<GCCHandle>(c_file, so_file, module_handle);
 
     for (const auto &[name, params_count]: cr.function_names) {
-        FARPROC proc = GetProcAddress(dl_handle, name.c_str());
-        if (!proc) {
+        FARPROC symbol_address = GetProcAddress(module_handle, name.c_str());
+        if (!symbol_address) {
             ThrowFakeluaException(
                     std::format("GCC compile failed, GetProcAddress failed for symbol {} in {}", name, so_file));
         }
-        void *func_ptr = reinterpret_cast<void *>(proc);
+        void *func_ptr = reinterpret_cast<void *>(symbol_address);
         s_->GetVM().RegisterFunction(VmFunction(name, params_count, JIT_GCC, func_ptr, handle));
         LOG_INFO("Registered gcc function {} with {} params at address {}", name, params_count, func_ptr);
     }
