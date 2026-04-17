@@ -102,6 +102,11 @@ private:
     std::stringstream func_temp_decls_;
     // Buffers the function body during compilation (reused across functions, cleared each time).
     std::stringstream body_ss_;
+    // Tracks variable names that are actually declared as a native type (int64_t / double) in
+    // the current function.  Only variables in this set may be wrapped with a boxing cast when
+    // they appear in a CVar context.  Variables absent from this set are CVar and must be used
+    // as-is.  Cleared at the start of each function compilation.
+    std::unordered_set<std::string> typed_native_vars_;
 };
 
 }// namespace fakelua

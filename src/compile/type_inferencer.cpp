@@ -137,8 +137,18 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             InferNode(for_loop->ExpEnd());
             InferNode(for_loop->ExpStep());
 
+            // Only mark the loop variable as T_INT when all bounds are T_INT, which
+            // matches the typed-int specialization path used by CGen.  When any bound
+            // is T_DYNAMIC the CGen emits a CVar loop-control variable, so the loop
+            // variable must also be T_DYNAMIC to keep the types consistent.
+            const bool all_int = for_loop->ExpBegin() && for_loop->ExpEnd() &&
+                                 for_loop->ExpBegin()->EvalType() == T_INT &&
+                                 for_loop->ExpEnd()->EvalType() == T_INT &&
+                                 (!for_loop->ExpStep() || for_loop->ExpStep()->EvalType() == T_INT);
+            const InferredType loop_var_type = all_int ? T_INT : T_DYNAMIC;
+
             env_.EnterScope();
-            env_.Define(for_loop->Name(), T_INT);
+            env_.Define(for_loop->Name(), loop_var_type);
             InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_loop->Block()), false);
             env_.ExitScope();
 
@@ -369,6 +379,33 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
 
     for (const auto &stmt: block->Stmts()) {
         InferNode(stmt);
+    }
+
+    // Post-pass: a variable can be initialised with a typed expression (e.g. an
+    // integer literal gives T_INT) but later mutated to T_DYNAMIC by an assignment
+    // that involves a function-call or a parameter.  In that case the LocalVar
+    // declaration must use the variable's *final* type so that the C emitter
+    // produces a compatible storage declaration for all subsequent assignments.
+    for (const auto &stmt: block->Stmts()) {
+        if (stmt->Type() != SyntaxTreeType::LocalVar) {
+            continue;
+        }
+        const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+        const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(local_var->Namelist());
+        if (!namelist) {
+            continue;
+        }
+        std::vector<SyntaxTreeInterfacePtr> exps;
+        if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(local_var->Explist())) {
+            exps = explist->Exps();
+        }
+        const auto &names = namelist->Names();
+        for (size_t i = 0; i < names.size(); ++i) {
+            if (i < exps.size()) {
+                const auto final_type = env_.Lookup(names[i]);
+                exps[i]->SetEvalType(final_type);
+            }
+        }
     }
 
     block->SetEvalType(T_UNKNOWN);

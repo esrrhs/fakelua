@@ -1429,3 +1429,71 @@ TEST(jitter, test_table_get_set) {
         ASSERT_EQ(ret, 3);
     });
 }
+
+// ── Type-inference tests ────────────────────────────────────────────────────
+
+// Full inference success: constant integer bounds keep i and sum as T_INT.
+// The generated C must use int64_t for both and produce no CVar arithmetic.
+TEST(jitter, test_infer_typed_int_for) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_infer_typed_int_for.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 55);
+    });
+}
+
+// Full inference success: float literal propagates as T_FLOAT through addition.
+TEST(jitter, test_infer_typed_float_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_infer_typed_float_local.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 1.5, 0.001);
+    });
+}
+
+// Full inference success: INT + FLOAT promotes the result to T_FLOAT.
+TEST(jitter, test_infer_int_float_promotion) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_infer_int_float_promotion.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 4.5, 0.001);
+    });
+}
+
+// Mid-way degradation: a function-call result is T_DYNAMIC, so the binop
+// and the local variable degrade to T_DYNAMIC and use CVar arithmetic.
+TEST(jitter, test_infer_degrade_func_call) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_infer_degrade_func_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 3);
+    });
+}
+
+// Mid-way degradation: a parameter-bound for loop makes i T_DYNAMIC, which
+// causes sum to degrade from T_INT to T_DYNAMIC during the loop body.
+// The compiler must still produce correct CVar arithmetic for the fallback path.
+TEST(jitter, test_infer_degrade_param) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_infer_degrade_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 55);
+    });
+}
+
+// Stable inference: reassigning an int variable with another int expression
+// keeps MergeType(T_INT, T_INT) == T_INT; the declaration stays int64_t.
+TEST(jitter, test_infer_reassign_stable) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_infer_reassign_stable.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 3);
+    });
+}
+

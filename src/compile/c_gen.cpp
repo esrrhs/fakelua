@@ -866,6 +866,7 @@ void CGen::GenerateImpl(CompileResult &cr) {
         func_temp_decls_.clear();
         body_ss_.str("");
         body_ss_.clear();
+        typed_native_vars_.clear();
         cur_output_ = &body_ss_;
         cur_tab_++;
         CompileStmtBlock(func_block);
@@ -1012,8 +1013,10 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
 
         if (i < exps.size() && exps[i]->EvalType() == T_INT) {
             *cur_output_ << GenTab() << "int64_t " << name << " = " << CompileNumericExp(exps[i]) << ";\n";
+            typed_native_vars_.insert(name);
         } else if (i < exps.size() && exps[i]->EvalType() == T_FLOAT) {
             *cur_output_ << GenTab() << "double " << name << " = " << CompileNumericExp(exps[i]) << ";\n";
+            typed_native_vars_.insert(name);
         } else {
             const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
             *cur_output_ << GenTab() << "CVar " << name << " = " << init << ";\n";
@@ -1189,7 +1192,9 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
                 end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
         cur_tab_++;
         *cur_output_ << GenTab() << "int64_t " << for_stmt->Name() << " = " << ctrl_var << ";\n";
+        typed_native_vars_.insert(for_stmt->Name());
         CompileStmtBlock(for_stmt->Block());
+        typed_native_vars_.erase(for_stmt->Name());
         cur_tab_--;
         *cur_output_ << GenTab() << "}\n";
         return;
@@ -1646,10 +1651,10 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         if (in_global_init_) {
             ThrowError("variable reference is not allowed in global variable initialization", v);
         }
-        if (v_ptr->EvalType() == T_INT) {
+        if (v_ptr->EvalType() == T_INT && typed_native_vars_.count(name)) {
             return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
         }
-        if (v_ptr->EvalType() == T_FLOAT) {
+        if (v_ptr->EvalType() == T_FLOAT && typed_native_vars_.count(name)) {
             return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
         }
         return name;
