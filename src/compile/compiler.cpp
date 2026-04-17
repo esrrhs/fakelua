@@ -69,8 +69,10 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
         jitter.Compile(ret, cfg);
     }
     if (!cfg.disable_jit[JIT_GCC]) {
+#if !defined(_WIN32)
         GccJitter jitter(s_);
         jitter.Compile(ret, cfg);
+#endif
     }
 
     return ret;

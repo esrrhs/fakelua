@@ -45,15 +45,15 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     args.emplace_back("c");
     args.emplace_back("-shared");
     args.emplace_back("-fPIC");
-    args.emplace_back(cfg.debug_mode ? "-O0" : "-O2");
+    args.emplace_back(cfg.debug_mode ? "-O0" : "-O3");
     args.emplace_back("-DFAKELUA_JIT_TYPE=" + std::to_string(static_cast<int>(JIT_GCC)));
-    for (const auto &path: s_->GetStateConfig().tcc_config.include_paths) {
+    for (const auto &path: s_->GetStateConfig().gcc_config.include_paths) {
         args.emplace_back("-I" + path);
     }
-    for (const auto &path: s_->GetStateConfig().tcc_config.library_paths) {
+    for (const auto &path: s_->GetStateConfig().gcc_config.library_paths) {
         args.emplace_back("-L" + path);
     }
-    for (const auto &lib: s_->GetStateConfig().tcc_config.libraries) {
+    for (const auto &lib: s_->GetStateConfig().gcc_config.libraries) {
         args.emplace_back("-l" + lib);
     }
     args.emplace_back("-o");

@@ -12,6 +12,11 @@ static void AlgoRunHelper(const std::function<void(State *, JITType, bool)> &f) 
     const auto s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
     for (const auto type: {JIT_TCC, JIT_GCC}) {
+#if defined(_WIN32)
+        if (type == JIT_GCC) {
+            continue;
+        }
+#endif
         f(s, type, true);
         f(s, type, false);
     }

@@ -226,11 +226,19 @@ struct StateTCCConfig {
     std::vector<std::string> libraries;
 };
 
+struct StateGCCConfig {
+    std::vector<std::string> include_paths;
+    std::vector<std::string> library_paths;
+    std::vector<std::string> libraries;
+};
+
 struct StateConfig {
     // 最大栈深，超过该深度将抛出异常。默认为 65536。
     size_t max_stack_size = 65536;
     // tcc编译配置
     StateTCCConfig tcc_config;
+    // gcc编译配置
+    StateGCCConfig gcc_config;
 };
 
 class State;

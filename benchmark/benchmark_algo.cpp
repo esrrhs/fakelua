@@ -207,6 +207,7 @@ static void BM_FakeLua_Fibonacci_TCC(benchmark::State &state) {
     }
 }
 
+#if !defined(_WIN32)
 static void BM_FakeLua_Fibonacci_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppFib(n);
@@ -217,6 +218,7 @@ static void BM_FakeLua_Fibonacci_GCC(benchmark::State &state) {
         VerifyEqual(ret, expected, "FakeLua fib");
     }
 }
+#endif // !_WIN32
 
 static void BM_CPP_GCD(benchmark::State &state) {
     const int64_t a = state.range(0);
@@ -256,6 +258,7 @@ static void BM_FakeLua_GCD_TCC(benchmark::State &state) {
     }
 }
 
+#if !defined(_WIN32)
 static void BM_FakeLua_GCD_GCC(benchmark::State &state) {
     const int64_t a = state.range(0);
     const int64_t b = state.range(1);
@@ -267,6 +270,7 @@ static void BM_FakeLua_GCD_GCC(benchmark::State &state) {
         VerifyEqual(ret, expected, "FakeLua gcd");
     }
 }
+#endif // !_WIN32
 
 static void BM_CPP_PowMod(benchmark::State &state) {
     const int64_t base = state.range(0);
@@ -311,6 +315,7 @@ static void BM_FakeLua_PowMod_TCC(benchmark::State &state) {
     }
 }
 
+#if !defined(_WIN32)
 static void BM_FakeLua_PowMod_GCC(benchmark::State &state) {
     const int64_t base = state.range(0);
     const int64_t exp = state.range(1);
@@ -323,6 +328,7 @@ static void BM_FakeLua_PowMod_GCC(benchmark::State &state) {
         VerifyEqual(ret, expected, "FakeLua powmod");
     }
 }
+#endif // !_WIN32
 
 static void BM_CPP_Sum(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -357,6 +363,7 @@ static void BM_FakeLua_Sum_TCC(benchmark::State &state) {
     }
 }
 
+#if !defined(_WIN32)
 static void BM_FakeLua_Sum_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSum(n);
@@ -367,6 +374,7 @@ static void BM_FakeLua_Sum_GCC(benchmark::State &state) {
         VerifyEqual(ret, expected, "FakeLua sum");
     }
 }
+#endif // !_WIN32
 
 }// namespace
 
@@ -379,19 +387,27 @@ static void BM_FakeLua_Sum_GCC(benchmark::State &state) {
 BENCHMARK(BM_CPP_Fibonacci) FIB_ARGS;
 BENCHMARK(BM_Lua_Fibonacci) FIB_ARGS;
 BENCHMARK(BM_FakeLua_Fibonacci_TCC) FIB_ARGS;
+#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_Fibonacci_GCC) FIB_ARGS;
+#endif
 
 BENCHMARK(BM_CPP_GCD) GCD_ARGS;
 BENCHMARK(BM_Lua_GCD) GCD_ARGS;
 BENCHMARK(BM_FakeLua_GCD_TCC) GCD_ARGS;
+#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_GCD_GCC) GCD_ARGS;
+#endif
 
 BENCHMARK(BM_CPP_PowMod) POWMOD_ARGS;
 BENCHMARK(BM_Lua_PowMod) POWMOD_ARGS;
 BENCHMARK(BM_FakeLua_PowMod_TCC) POWMOD_ARGS;
+#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_PowMod_GCC) POWMOD_ARGS;
+#endif
 
 BENCHMARK(BM_CPP_Sum) SUM_ARGS;
 BENCHMARK(BM_Lua_Sum) SUM_ARGS;
 BENCHMARK(BM_FakeLua_Sum_TCC) SUM_ARGS;
+#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_Sum_GCC) SUM_ARGS;
+#endif
