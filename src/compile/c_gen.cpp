@@ -1043,8 +1043,6 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
         ThrowError(std::format("CompileStmtAssign: expected 1 expression, got {}", exps.size()), assign);
     }
 
-    const std::string rhs = CompileExp(exps[0]);
-
     DEBUG_ASSERT(vars[0]->Type() == SyntaxTreeType::Var);
     const auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[0]);
     const auto &vtype = v_ptr->GetType();
@@ -1058,6 +1056,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     } else if (v_ptr->EvalType() == T_FLOAT) {
         *cur_output_ << GenTab() << name << " = " << CompileNumericExp(exps[0]) << ";\n";
     } else {
+        const std::string rhs = CompileExp(exps[0]);
         *cur_output_ << GenTab() << name << " = " << rhs << ";\n";
     }
 }

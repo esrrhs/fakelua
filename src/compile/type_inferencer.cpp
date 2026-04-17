@@ -145,6 +145,39 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             node->SetEvalType(T_UNKNOWN);
             return T_UNKNOWN;
         }
+        case SyntaxTreeType::Function: {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
+            InferNode(func->Funcbody());
+            node->SetEvalType(T_UNKNOWN);
+            return T_UNKNOWN;
+        }
+        case SyntaxTreeType::LocalFunction: {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
+            InferNode(func->Funcbody());
+            node->SetEvalType(T_UNKNOWN);
+            return T_UNKNOWN;
+        }
+        case SyntaxTreeType::FunctionDef: {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node);
+            InferNode(func->Funcbody());
+            node->SetEvalType(T_UNKNOWN);
+            return T_UNKNOWN;
+        }
+        case SyntaxTreeType::FuncBody: {
+            const auto funcbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
+            env_.EnterScope();
+            if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(funcbody->Parlist())) {
+                if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
+                    for (const auto &name: namelist->Names()) {
+                        env_.Define(name, T_DYNAMIC);
+                    }
+                }
+            }
+            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(funcbody->Block()), false);
+            env_.ExitScope();
+            node->SetEvalType(T_UNKNOWN);
+            return T_UNKNOWN;
+        }
         case SyntaxTreeType::Return: {
             const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
             InferNode(ret->Explist());
@@ -174,6 +207,37 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
         }
         case SyntaxTreeType::FunctionCall:
         case SyntaxTreeType::TableConstructor: {
+            if (node->Type() == SyntaxTreeType::FunctionCall) {
+                const auto functioncall = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+                InferNode(functioncall->prefixexp());
+                InferNode(functioncall->Args());
+            } else {
+                const auto tableconstructor = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
+                InferNode(tableconstructor->Fieldlist());
+            }
+            node->SetEvalType(T_DYNAMIC);
+            return T_DYNAMIC;
+        }
+        case SyntaxTreeType::Args: {
+            const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
+            InferNode(args->Explist());
+            InferNode(args->Tableconstructor());
+            InferNode(args->String());
+            node->SetEvalType(T_DYNAMIC);
+            return T_DYNAMIC;
+        }
+        case SyntaxTreeType::FieldList: {
+            const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
+            for (const auto &field: fieldlist->Fields()) {
+                InferNode(field);
+            }
+            node->SetEvalType(T_DYNAMIC);
+            return T_DYNAMIC;
+        }
+        case SyntaxTreeType::Field: {
+            const auto field = std::dynamic_pointer_cast<SyntaxTreeField>(node);
+            InferNode(field->Key());
+            InferNode(field->Value());
             node->SetEvalType(T_DYNAMIC);
             return T_DYNAMIC;
         }
@@ -202,6 +266,14 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
             InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(repeat_stmt->Block()), true);
             InferNode(repeat_stmt->Exp());
+            node->SetEvalType(T_UNKNOWN);
+            return T_UNKNOWN;
+        }
+        case SyntaxTreeType::ForIn: {
+            const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
+            InferNode(for_in->Namelist());
+            InferNode(for_in->Explist());
+            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_in->Block()), true);
             node->SetEvalType(T_UNKNOWN);
             return T_UNKNOWN;
         }
