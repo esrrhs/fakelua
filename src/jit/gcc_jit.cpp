@@ -3,11 +3,17 @@
 #include "state/state.h"
 #include "util/file_util.h"
 #include "util/logging.h"
+#include <filesystem>
 #include <fstream>
 #include <iterator>
+#include <sstream>
 #include <vector>
 
-#if !defined(_WIN32)
+#if defined(_WIN32)
+#define NOMINMAX
+#include <process.h>
+#include <windows.h>
+#else
 #include <dlfcn.h>
 #include <fcntl.h>
 #include <sys/wait.h>
@@ -19,17 +25,70 @@ namespace fakelua {
 namespace {
 constexpr size_t kCExtLen = 2;// ".c"
 constexpr int kExecFailedStatus = 127;
+
+std::string JoinCommand(const std::vector<std::string> &args) {
+    std::ostringstream oss;
+    for (size_t i = 0; i < args.size(); ++i) {
+        if (i) {
+            oss << ' ';
+        }
+        oss << args[i];
+    }
+    return oss.str();
+}
+
+#if defined(_WIN32)
+std::string WinErrToString(const DWORD err) {
+    if (err == 0) {
+        return "unknown error";
+    }
+    LPSTR msg = nullptr;
+    const DWORD len = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+            nullptr, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPSTR>(&msg), 0, nullptr);
+    if (len == 0 || !msg) {
+        return std::format("error code {}", err);
+    }
+    std::string ret(msg, len);
+    LocalFree(msg);
+    return ret;
+}
+
+std::vector<std::string> GetWindowsDefaultLibraryPaths() {
+    std::vector<std::string> ret;
+    HMODULE module = nullptr;
+    if (!GetModuleHandleExA(
+                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                reinterpret_cast<LPCSTR>(&GetWindowsDefaultLibraryPaths), &module) ||
+            !module) {
+        return ret;
+    }
+    char module_path[MAX_PATH] = {0};
+    const DWORD len = GetModuleFileNameA(module, module_path, MAX_PATH);
+    if (len == 0 || len >= MAX_PATH) {
+        return ret;
+    }
+    const std::filesystem::path dll_path(module_path);
+    const auto dll_dir = dll_path.parent_path();
+    ret.emplace_back(dll_dir.string());
+    if (dll_dir.has_parent_path()) {
+        ret.emplace_back((dll_dir.parent_path() / "lib").string());
+    }
+    return ret;
+}
+#endif
 }
 
 GccJitter::GccJitter(State *s) : s_(s) {
 }
 
 void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
-#if defined(_WIN32)
-    ThrowFakeluaException(std::format("GCC JIT is not supported on Windows for {}", cr.file_name));
-#else
     const std::string c_file = GenerateTmpFilename("fakelua_jit_", ".c");
-    const std::string so_file = c_file.substr(0, c_file.size() - kCExtLen) + ".so";
+    const std::string so_file = c_file.substr(0, c_file.size() - kCExtLen) +
+#if defined(_WIN32)
+            ".dll";
+#else
+            ".so";
+#endif
     const std::string log_file = c_file.substr(0, c_file.size() - kCExtLen) + ".gcc.log";
 
     if (std::ofstream ofs(c_file); !ofs.is_open()) {
@@ -44,12 +103,20 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     args.emplace_back("-x");
     args.emplace_back("c");
     args.emplace_back("-shared");
+#if !defined(_WIN32)
     args.emplace_back("-fPIC");
+#endif
     args.emplace_back(cfg.debug_mode ? "-O0" : "-O3");
     args.emplace_back("-DFAKELUA_JIT_TYPE=" + std::to_string(static_cast<int>(JIT_GCC)));
     for (const auto &path: s_->GetStateConfig().gcc_config.include_paths) {
         args.emplace_back("-I" + path);
     }
+#if defined(_WIN32)
+    for (const auto &path: GetWindowsDefaultLibraryPaths()) {
+        args.emplace_back("-L" + path);
+    }
+    args.emplace_back("-lfakelua");
+#endif
     for (const auto &path: s_->GetStateConfig().gcc_config.library_paths) {
         args.emplace_back("-L" + path);
     }
@@ -60,6 +127,38 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     args.emplace_back(so_file);
     args.emplace_back(c_file);
 
+#if defined(_WIN32)
+    std::vector<char *> argv;
+    argv.reserve(args.size() + 1);
+    for (auto &arg: args) {
+        argv.emplace_back(arg.data());
+    }
+    argv.emplace_back(nullptr);
+
+    const int status = _spawnvp(_P_WAIT, "gcc", argv.data());
+    if (status != 0) {
+        ThrowFakeluaException(std::format(
+                "GCC compile failed for {} with exit code {}. cmd: {}", cr.file_name, status, JoinCommand(args)));
+    }
+
+    HMODULE dl_handle = LoadLibraryA(so_file.c_str());
+    if (!dl_handle) {
+        ThrowFakeluaException(
+                std::format("GCC compile failed, LoadLibrary failed for {}: {}", so_file, WinErrToString(GetLastError())));
+    }
+    const auto handle = std::make_shared<GCCHandle>(c_file, so_file, dl_handle);
+
+    for (const auto &[name, params_count]: cr.function_names) {
+        FARPROC proc = GetProcAddress(dl_handle, name.c_str());
+        if (!proc) {
+            ThrowFakeluaException(
+                    std::format("GCC compile failed, GetProcAddress failed for symbol {} in {}", name, so_file));
+        }
+        void *func_ptr = reinterpret_cast<void *>(proc);
+        s_->GetVM().RegisterFunction(VmFunction(name, params_count, JIT_GCC, func_ptr, handle));
+        LOG_INFO("Registered gcc function {} with {} params at address {}", name, params_count, func_ptr);
+    }
+#else
     std::vector<char *> argv;
     argv.reserve(args.size() + 1);
     for (auto &arg: args) {
