@@ -1429,3 +1429,76 @@ TEST(jitter, test_table_get_set) {
         ASSERT_EQ(ret, 3);
     });
 }
+
+TEST(jitter, test_table_stringid_dynamic_get) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_stringid_dynamic_get.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, std::string("abc"));
+        ASSERT_EQ(ret, 11);
+    });
+}
+
+TEST(jitter, test_table_stringid_dynamic_set) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_stringid_dynamic_set.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, std::string("abc"), 99);
+        ASSERT_EQ(ret, 99);
+    });
+}
+
+TEST(jitter, test_table_float_int_key_alias_set) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_float_int_key_alias_set.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 5);
+    });
+}
+
+TEST(jitter, test_table_float_int_key_alias_get) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_float_int_key_alias_get.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 7);
+    });
+}
+
+TEST(jitter, test_table_empty_get) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_empty_get.lua", {.debug_mode = debug_mode});
+        CVar ret = {};
+        const auto v = static_cast<Var &>(ret);
+        Call(s, type, "test", ret);
+        ASSERT_EQ(v.Type(), VarType::Nil);
+    });
+}
+
+TEST(jitter, test_table_quick_delete) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_quick_delete.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 3);
+    });
+}
+
+TEST(jitter, test_table_hash_delete_head) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_hash_delete_head.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 170);
+    });
+}
+
+TEST(jitter, test_table_hash_delete_chain) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_hash_delete_chain.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 10);
+    });
+}
