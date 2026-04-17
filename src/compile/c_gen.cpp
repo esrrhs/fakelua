@@ -133,6 +133,8 @@ enum {
     (v).data_.f = __f; \
 } while(0)
 
+// Normalize table keys to match Lua behavior:
+// integral float keys are treated as integer keys (e.g. t[2.0] == t[2]).
 #define NORMALIZE_TABLE_KEY(key) ({ \
     CVar __k = (key); \
     if (__k.type_ == VAR_FLOAT) { \

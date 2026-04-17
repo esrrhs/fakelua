@@ -37,8 +37,7 @@ Var VarTable::Get(const Var &key) const {
     if (key.Type() == VarType::Nil) {
         ThrowFakeluaException("VarTable Get failed, table index is nil");
     }
-    const Var normalized_key = NormalizeTableKey(key);
-    const auto &lookup_key = normalized_key.Type() == VarType::Nil ? key : normalized_key;
+    const Var lookup_key = NormalizeTableKey(key);
 
     if (count_ == 0) {
         return const_null_var;
@@ -100,8 +99,7 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
     if (key.Type() == VarType::Nil) {
         ThrowFakeluaException("VarTable Set failed, table index is nil");
     }
-    const Var normalized_key = NormalizeTableKey(key);
-    const auto &store_key = normalized_key.Type() == VarType::Nil ? key : normalized_key;
+    const Var store_key = NormalizeTableKey(key);
     const auto h = static_cast<uint32_t>(store_key.Hash());
 
     if (val.Type() == VarType::Nil && !can_be_nil) {

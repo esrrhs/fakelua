@@ -392,7 +392,7 @@ TEST(var, arithmetic) {
     v1.Slash(v2, res);
     ASSERT_EQ(res.Type(), VarType::Float);
     ASSERT_NEAR(res.GetCalculableNumber(), 3.333333, 0.000001);
-    Var((int64_t) 4LL).Slash(Var((int64_t) 2LL), res);
+    Var(int64_t{4}).Slash(Var(int64_t{2}), res);
     ASSERT_EQ(res.Type(), VarType::Float);
     ASSERT_EQ(res.GetFloat(), 2.0);
 
@@ -407,7 +407,7 @@ TEST(var, arithmetic) {
     ASSERT_EQ(res.GetInt(), -4);
     Var((int64_t) -10LL).DoubleSlash(Var((int64_t) -3LL), res);
     ASSERT_EQ(res.GetInt(), 3);
-    Var(5.0).DoubleSlash(Var((int64_t) 2LL), res);
+    Var(5.0).DoubleSlash(Var(int64_t{2}), res);
     ASSERT_EQ(res.Type(), VarType::Float);
     ASSERT_EQ(res.GetFloat(), 2.0);
 
@@ -438,10 +438,10 @@ TEST(var, bitwise) {
     v1.Bitand(v2, res);
     ASSERT_EQ(res.GetInt(), 0b1000);
     // Integral float should be accepted in bitwise ops
-    Var(2.0).Bitand(Var((int64_t) 3LL), res);
+    Var(2.0).Bitand(Var(int64_t{3}), res);
     ASSERT_EQ(res.GetInt(), 2);
     // Non-integral float should fail
-    ASSERT_ANY_THROW(Var(2.1).Bitand(Var((int64_t) 1LL), res));
+    ASSERT_ANY_THROW(Var(2.1).Bitand(Var(int64_t{1}), res));
 
     // Bitor
     v1.Bitor(v2, res);
