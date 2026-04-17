@@ -1429,3 +1429,37 @@ TEST(jitter, test_table_get_set) {
         ASSERT_EQ(ret, 3);
     });
 }
+
+TEST(jitter, test_table_var_header_coverage) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_var_header_coverage.lua", {.debug_mode = debug_mode});
+
+        int ret_int = 0;
+        CVar ret_var = {};
+        auto ret = (Var &) ret_var;
+
+        Call(s, type, "test_stringid_dynamic_get", ret_int, std::string("abc"));
+        ASSERT_EQ(ret_int, 11);
+
+        Call(s, type, "test_stringid_dynamic_set", ret_int, std::string("abc"), 99);
+        ASSERT_EQ(ret_int, 99);
+
+        Call(s, type, "test_float_int_key_alias_set", ret_int);
+        ASSERT_EQ(ret_int, 5);
+
+        Call(s, type, "test_float_int_key_alias_get", ret_int);
+        ASSERT_EQ(ret_int, 7);
+
+        Call(s, type, "test_empty_table_get", ret_var);
+        ASSERT_EQ(ret.Type(), VarType::Nil);
+
+        Call(s, type, "test_quick_delete_and_preserve", ret_int);
+        ASSERT_EQ(ret_int, 3);
+
+        Call(s, type, "test_hash_delete_head_chain", ret_int);
+        ASSERT_EQ(ret_int, 170);
+
+        Call(s, type, "test_hash_delete_chain_node", ret_int);
+        ASSERT_EQ(ret_int, 10);
+    });
+}
