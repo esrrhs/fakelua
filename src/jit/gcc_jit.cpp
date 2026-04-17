@@ -16,6 +16,11 @@
 
 namespace fakelua {
 
+namespace {
+constexpr size_t kCExtLen = 2;// ".c"
+constexpr int kExecFailedStatus = 127;
+}
+
 GccJitter::GccJitter(State *s) : s_(s) {
 }
 
@@ -24,8 +29,8 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     ThrowFakeluaException(std::format("GCC JIT is not supported on Windows for {}", cr.file_name));
 #else
     const std::string c_file = GenerateTmpFilename("fakelua_jit_", ".c");
-    const std::string so_file = c_file.substr(0, c_file.size() - 2) + ".so";
-    const std::string log_file = c_file.substr(0, c_file.size() - 2) + ".gcc.log";
+    const std::string so_file = c_file.substr(0, c_file.size() - kCExtLen) + ".so";
+    const std::string log_file = c_file.substr(0, c_file.size() - kCExtLen) + ".gcc.log";
 
     if (std::ofstream ofs(c_file); !ofs.is_open()) {
         ThrowFakeluaException(std::format("GCC compile failed, cannot open c file {}", c_file));
@@ -78,7 +83,7 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
         dup2(log_fd, STDERR_FILENO);
         close(log_fd);
         execvp("gcc", argv.data());
-        _exit(127);
+        _exit(kExecFailedStatus);
     }
     close(log_fd);
 
