@@ -1430,36 +1430,75 @@ TEST(jitter, test_table_get_set) {
     });
 }
 
-TEST(jitter, test_table_var_header_coverage) {
+TEST(jitter, test_table_stringid_dynamic_get) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_table_var_header_coverage.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./jit/test_table_stringid_dynamic_get.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, std::string("abc"));
+        ASSERT_EQ(ret, 11);
+    });
+}
 
-        int ret_int = 0;
-        CVar ret_var = {};
-        auto ret_var_ref = (Var &) ret_var;
+TEST(jitter, test_table_stringid_dynamic_set) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_stringid_dynamic_set.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, std::string("abc"), 99);
+        ASSERT_EQ(ret, 99);
+    });
+}
 
-        Call(s, type, "test_stringid_dynamic_get", ret_int, std::string("abc"));
-        ASSERT_EQ(ret_int, 11);
+TEST(jitter, test_table_float_int_key_alias_set) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_float_int_key_alias_set.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 5);
+    });
+}
 
-        Call(s, type, "test_stringid_dynamic_set", ret_int, std::string("abc"), 99);
-        ASSERT_EQ(ret_int, 99);
+TEST(jitter, test_table_float_int_key_alias_get) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_float_int_key_alias_get.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 7);
+    });
+}
 
-        Call(s, type, "test_float_int_key_alias_set", ret_int);
-        ASSERT_EQ(ret_int, 5);
+TEST(jitter, test_table_empty_get) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_empty_get.lua", {.debug_mode = debug_mode});
+        CVar ret = {};
+        const auto v = static_cast<Var &>(ret);
+        Call(s, type, "test", ret);
+        ASSERT_EQ(v.Type(), VarType::Nil);
+    });
+}
 
-        Call(s, type, "test_float_int_key_alias_get", ret_int);
-        ASSERT_EQ(ret_int, 7);
+TEST(jitter, test_table_quick_delete) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_quick_delete.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 3);
+    });
+}
 
-        Call(s, type, "test_empty_table_get", ret_var);
-        ASSERT_EQ(ret_var_ref.Type(), VarType::Nil);
+TEST(jitter, test_table_hash_delete_head) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_hash_delete_head.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 170);
+    });
+}
 
-        Call(s, type, "test_quick_delete_and_preserve", ret_int);
-        ASSERT_EQ(ret_int, 3);
-
-        Call(s, type, "test_hash_delete_head_chain", ret_int);
-        ASSERT_EQ(ret_int, 170);
-
-        Call(s, type, "test_hash_delete_chain_node", ret_int);
-        ASSERT_EQ(ret_int, 10);
+TEST(jitter, test_table_hash_delete_chain) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_hash_delete_chain.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 10);
     });
 }
