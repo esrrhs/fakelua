@@ -1436,7 +1436,7 @@ TEST(jitter, test_table_var_header_coverage) {
 
         int ret_int = 0;
         CVar ret_var = {};
-        auto ret = (Var &) ret_var;
+        auto ret_var_ref = (Var &) ret_var;
 
         Call(s, type, "test_stringid_dynamic_get", ret_int, std::string("abc"));
         ASSERT_EQ(ret_int, 11);
@@ -1451,7 +1451,7 @@ TEST(jitter, test_table_var_header_coverage) {
         ASSERT_EQ(ret_int, 7);
 
         Call(s, type, "test_empty_table_get", ret_var);
-        ASSERT_EQ(ret.Type(), VarType::Nil);
+        ASSERT_EQ(ret_var_ref.Type(), VarType::Nil);
 
         Call(s, type, "test_quick_delete_and_preserve", ret_int);
         ASSERT_EQ(ret_int, 3);
