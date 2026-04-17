@@ -567,6 +567,61 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
     else { FakeluaThrowError(_S, "attempt to get length of a non-string/table value"); } \
 } while(0)
 
+// Bool-valued comparison ops.  Used when the comparison result is consumed
+// directly by an if/while/repeat condition, avoiding an intermediate CVar temp
+// and an IsTrue call.  Implemented as GNU statement expressions so they can be
+// used inline inside if (...) without a surrounding statement.
+#define BoolLe(a, b) ({ CVar _bra=(a); CVar _brb=(b); CheckNum(_bra); CheckNum(_brb); \
+    int _bres; if (_bra.type_==VAR_INT && _brb.type_==VAR_INT) { _bres=(_bra.data_.i<=_brb.data_.i); } \
+    else { double _bf1=(_bra.type_==VAR_INT)?(double)_bra.data_.i:_bra.data_.f; \
+           double _bf2=(_brb.type_==VAR_INT)?(double)_brb.data_.i:_brb.data_.f; \
+           _bres=(_bf1<=_bf2); } _bres; })
+#define BoolLt(a, b) ({ CVar _bra=(a); CVar _brb=(b); CheckNum(_bra); CheckNum(_brb); \
+    int _bres; if (_bra.type_==VAR_INT && _brb.type_==VAR_INT) { _bres=(_bra.data_.i<_brb.data_.i); } \
+    else { double _bf1=(_bra.type_==VAR_INT)?(double)_bra.data_.i:_bra.data_.f; \
+           double _bf2=(_brb.type_==VAR_INT)?(double)_brb.data_.i:_brb.data_.f; \
+           _bres=(_bf1<_bf2); } _bres; })
+#define BoolGt(a, b) ({ CVar _bra=(a); CVar _brb=(b); CheckNum(_bra); CheckNum(_brb); \
+    int _bres; if (_bra.type_==VAR_INT && _brb.type_==VAR_INT) { _bres=(_bra.data_.i>_brb.data_.i); } \
+    else { double _bf1=(_bra.type_==VAR_INT)?(double)_bra.data_.i:_bra.data_.f; \
+           double _bf2=(_brb.type_==VAR_INT)?(double)_brb.data_.i:_brb.data_.f; \
+           _bres=(_bf1>_bf2); } _bres; })
+#define BoolGe(a, b) ({ CVar _bra=(a); CVar _brb=(b); CheckNum(_bra); CheckNum(_brb); \
+    int _bres; if (_bra.type_==VAR_INT && _brb.type_==VAR_INT) { _bres=(_bra.data_.i>=_brb.data_.i); } \
+    else { double _bf1=(_bra.type_==VAR_INT)?(double)_bra.data_.i:_bra.data_.f; \
+           double _bf2=(_brb.type_==VAR_INT)?(double)_brb.data_.i:_brb.data_.f; \
+           _bres=(_bf1>=_bf2); } _bres; })
+#define BoolEq(a, b) ({ bool _beq; VarEqual((a), (b), _beq); _beq; })
+#define BoolNe(a, b) ({ bool _beq; VarEqual((a), (b), _beq); !_beq; })
+
+// Bool-valued comparisons where the right operand is a known integer literal.
+// Avoids copying/type-checking the right CVar entirely.
+#define BoolLeI(a, iv) ({ CVar _bra=(a); CheckNum(_bra); \
+    _bra.type_==VAR_INT ? (_bra.data_.i<=(int64_t)(iv)) : (_bra.data_.f<=(double)(iv)); })
+#define BoolLtI(a, iv) ({ CVar _bra=(a); CheckNum(_bra); \
+    _bra.type_==VAR_INT ? (_bra.data_.i<(int64_t)(iv)) : (_bra.data_.f<(double)(iv)); })
+#define BoolGtI(a, iv) ({ CVar _bra=(a); CheckNum(_bra); \
+    _bra.type_==VAR_INT ? (_bra.data_.i>(int64_t)(iv)) : (_bra.data_.f>(double)(iv)); })
+#define BoolGeI(a, iv) ({ CVar _bra=(a); CheckNum(_bra); \
+    _bra.type_==VAR_INT ? (_bra.data_.i>=(int64_t)(iv)) : (_bra.data_.f>=(double)(iv)); })
+#define BoolEqI(a, iv) ({ CVar _bra=(a); \
+    _bra.type_==VAR_INT ? (_bra.data_.i==(int64_t)(iv)) : \
+    (_bra.type_==VAR_FLOAT ? (_bra.data_.f==(double)(iv)) : 0); })
+#define BoolNeI(a, iv) (!BoolEqI((a), (iv)))
+
+// Integer-specialized arithmetic: right operand is a known integer literal.
+// Avoids copying and type-checking the right CVar, saving one 16-byte struct
+// copy and one CheckNum branch per operation.
+#define OpAddI(a, iv, res) do { CVar _ra=(a); CheckNum(_ra); \
+    if (_ra.type_==VAR_INT) { SET_INT(res, _ra.data_.i+(int64_t)(iv)); } \
+    else { SET_FLOAT(res, _ra.data_.f+(double)(iv)); } } while(0)
+#define OpSubI(a, iv, res) do { CVar _ra=(a); CheckNum(_ra); \
+    if (_ra.type_==VAR_INT) { SET_INT(res, _ra.data_.i-(int64_t)(iv)); } \
+    else { SET_FLOAT(res, _ra.data_.f-(double)(iv)); } } while(0)
+#define OpMulI(a, iv, res) do { CVar _ra=(a); CheckNum(_ra); \
+    if (_ra.type_==VAR_INT) { SET_INT(res, _ra.data_.i*(int64_t)(iv)); } \
+    else { SET_FLOAT(res, _ra.data_.f*(double)(iv)); } } while(0)
+
 static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
     switch (v.type_) {
         case VAR_NIL: memcpy(buf, "nil", 3); buf[3] = '\0'; return 3;
@@ -959,8 +1014,42 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     const auto exp = explist_ptr->Exps()[0];
-    const auto ret = CompileExp(exp);
 
+    // Optimization: for 'return f(args)' where f is a simple (non-FAKELUA_SET_TABLE)
+    // function call, emit 'return call_expr;' directly, skipping the temporary
+    // variable that CompileFunctioncall would otherwise allocate.
+    if (exp->Type() == SyntaxTreeType::Exp) {
+        const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+        if (e->ExpType() == "prefixexp") {
+            const auto pe = e->Right();
+            if (pe && pe->Type() == SyntaxTreeType::PrefixExp) {
+                const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
+                if (pe_ptr->GetType() == "functioncall") {
+                    const auto fc_node = pe_ptr->GetValue();
+                    if (fc_node && fc_node->Type() == SyntaxTreeType::FunctionCall) {
+                        const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(fc_node);
+                        // Only simple-var calls; skip method calls and FAKELUA_SET_TABLE
+                        if (fc->Name().empty()) {
+                            const auto fc_pe = fc->prefixexp();
+                            if (fc_pe && fc_pe->Type() == SyntaxTreeType::PrefixExp) {
+                                const auto fc_pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc_pe);
+                                if (fc_pe_ptr->GetType() == "var") {
+                                    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(fc_pe_ptr->GetValue());
+                                    if (var->GetType() == "simple" && var->GetName() != "FAKELUA_SET_TABLE") {
+                                        const auto call_expr = BuildFunctionCallExpr(fc_node);
+                                        *cur_output_ << GenTab() << "return " << call_expr << ";\n";
+                                        return;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    const auto ret = CompileExp(exp);
     *cur_output_ << GenTab() << "return " << ret << ";\n";
 }
 
@@ -1039,15 +1128,11 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::While);
     const auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
 
-    const auto tmp_bool = std::format("flua_wbt_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
-
     *cur_output_ << GenTab() << "while (1) {\n";
     cur_tab_++;
 
-    const auto cond = CompileExp(while_stmt->Exp());
-    *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
-    *cur_output_ << GenTab() << std::format("if (!{}) break;\n", tmp_bool);
+    const auto cond = CompileCondExp(while_stmt->Exp());
+    *cur_output_ << GenTab() << std::format("if (!({})) break;\n", cond);
 
     CompileStmtBlock(while_stmt->Block());
 
@@ -1059,17 +1144,13 @@ void CGen::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::Repeat);
     const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
 
-    const auto tmp_bool = std::format("flua_rbt_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
-
     *cur_output_ << GenTab() << "do {\n";
     cur_tab_++;
 
     CompileStmtBlock(repeat_stmt->Block());
 
-    const auto cond = CompileExp(repeat_stmt->Exp());
-    *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
-    *cur_output_ << GenTab() << std::format("if ({}) break;\n", tmp_bool);
+    const auto cond = CompileCondExp(repeat_stmt->Exp());
+    *cur_output_ << GenTab() << std::format("if ({}) break;\n", cond);
 
     cur_tab_--;
     *cur_output_ << GenTab() << "} while (1);\n";
@@ -1079,12 +1160,8 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::If);
     const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
 
-    const auto tmp_bool = std::format("flua_ibt_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
-
-    const auto cond = CompileExp(if_stmt->Exp());
-    *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
-    *cur_output_ << GenTab() << std::format("if ({}) {{\n", tmp_bool);
+    const auto cond = CompileCondExp(if_stmt->Exp());
+    *cur_output_ << GenTab() << std::format("if ({}) {{\n", cond);
     cur_tab_++;
     CompileStmtBlock(if_stmt->Block());
     cur_tab_--;
@@ -1098,12 +1175,8 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
             cur_tab_++;
             elseif_depth++;
 
-            const auto etmp_bool = std::format("flua_ibt_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    bool " << etmp_bool << ";\n";
-
-            const auto econd = CompileExp(elseif_list->ElseifExp(i));
-            *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", econd, etmp_bool);
-            *cur_output_ << GenTab() << std::format("if ({}) {{\n", etmp_bool);
+            const auto econd = CompileCondExp(elseif_list->ElseifExp(i));
+            *cur_output_ << GenTab() << std::format("if ({}) {{\n", econd);
             cur_tab_++;
             CompileStmtBlock(elseif_list->ElseifBlock(i));
             cur_tab_--;
@@ -1491,6 +1564,11 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     const auto left_str = CompileExp(left);
     const auto right_str = CompileExp(right);
 
+    // Detect integer literal on the right side for specialized macros
+    const auto right_e_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(right);
+    const bool right_is_int_lit = (right_e_ptr->ExpType() == "number" && IsInteger(right_e_ptr->ExpValue()));
+    const int64_t right_iv = right_is_int_lit ? ToInteger(right_e_ptr->ExpValue()) : 0;
+
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
     func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
 
@@ -1501,11 +1579,20 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     const auto r = std::format("({})", right_str);
 
     if (op_name == "PLUS") {
-        *cur_output_ << GenTab() << std::format("OpAdd({}, {}, {});\n", l, r, tmp);
+        if (right_is_int_lit)
+            *cur_output_ << GenTab() << std::format("OpAddI({}, {}LL, {});\n", l, right_iv, tmp);
+        else
+            *cur_output_ << GenTab() << std::format("OpAdd({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "MINUS") {
-        *cur_output_ << GenTab() << std::format("OpSub({}, {}, {});\n", l, r, tmp);
+        if (right_is_int_lit)
+            *cur_output_ << GenTab() << std::format("OpSubI({}, {}LL, {});\n", l, right_iv, tmp);
+        else
+            *cur_output_ << GenTab() << std::format("OpSub({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "STAR") {
-        *cur_output_ << GenTab() << std::format("OpMul({}, {}, {});\n", l, r, tmp);
+        if (right_is_int_lit)
+            *cur_output_ << GenTab() << std::format("OpMulI({}, {}LL, {});\n", l, right_iv, tmp);
+        else
+            *cur_output_ << GenTab() << std::format("OpMul({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "SLASH") {
         *cur_output_ << GenTab() << std::format("OpDiv({}, {}, {});\n", l, r, tmp);
     } else if (op_name == "DOUBLE_SLASH") {
@@ -1629,6 +1716,61 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         ThrowError("method calls (:) are not supported", functioncall);
     }
 
+    // Validate the prefixexp before potentially compiling expensive arguments.
+    const auto pe = fc->prefixexp();
+    DEBUG_ASSERT(pe->Type() == SyntaxTreeType::PrefixExp);
+    const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
+
+    if (pe_ptr->GetType() != "var") {
+        ThrowError("complex function call expression is not supported", functioncall);
+    }
+    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue());
+    if (var->GetType() != "simple") {
+        ThrowError("complex function call expression is not supported", functioncall);
+    }
+
+    if (var->GetName() == "FAKELUA_SET_TABLE") {
+        // Built-in table assignment: FAKELUA_SET_TABLE(t, k, v) -> FlSetTable(t, k, v)
+        // Compile arguments only for this special case.
+        const auto args_node = fc->Args();
+        DEBUG_ASSERT(args_node->Type() == SyntaxTreeType::Args);
+        const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
+        std::vector<std::string> compiled_args;
+        const auto &args_type = args_ptr->GetType();
+        if (args_type == "explist") {
+            const auto explist = args_ptr->Explist();
+            DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
+            const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+            for (const auto &exp: explist_ptr->Exps()) {
+                compiled_args.push_back(CompileExp(exp));
+            }
+        }
+        if (compiled_args.size() != 3) {
+            ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
+        }
+        const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+        func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
+        *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", compiled_args[0], compiled_args[1], compiled_args[2]);
+        *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
+        return tmp;
+    }
+
+    // Normal function call: BuildFunctionCallExpr handles argument compilation.
+    const auto call_expr = BuildFunctionCallExpr(functioncall);
+    const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+    func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
+    *cur_output_ << GenTab() << tmp << " = " << call_expr << ";\n";
+    return tmp;
+}
+
+// Build the C call expression string (e.g. "fibonacci(n)" or
+// "FakeluaCallByName(_S, 0, \"foo\", 1, arg)") for a function call node
+// without allocating a temp variable.  Argument side-effects are emitted into
+// cur_output_ as usual.  FAKELUA_SET_TABLE must be handled before this call.
+std::string CGen::BuildFunctionCallExpr(const SyntaxTreeInterfacePtr &functioncall) {
+    DEBUG_ASSERT(functioncall->Type() == SyntaxTreeType::FunctionCall);
+    const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall);
+
     // Compile arguments
     const auto args_node = fc->Args();
     DEBUG_ASSERT(args_node->Type() == SyntaxTreeType::Args);
@@ -1648,60 +1790,87 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     } else if (args_type == "string") {
         compiled_args.push_back(CompileExp(args_ptr->String()));
     }
-    // "empty": no args
 
-    // Determine the function call expression
     const auto pe = fc->prefixexp();
     DEBUG_ASSERT(pe->Type() == SyntaxTreeType::PrefixExp);
     const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
+    DEBUG_ASSERT(pe_ptr->GetType() == "var");
+    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue());
+    DEBUG_ASSERT(var->GetType() == "simple");
+    const auto &func_name = var->GetName();
 
     std::string call_expr;
-    if (pe_ptr->GetType() == "var") {
-        const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue());
-        if (var->GetType() == "simple") {
-            const auto &func_name = var->GetName();
-            if (func_name == "FAKELUA_SET_TABLE") {
-                // Built-in table assignment: FAKELUA_SET_TABLE(t, k, v) -> FlSetTable(t, k, v)
-                if (compiled_args.size() != 3) {
-                    ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
-                }
-                const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
-                func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
-                *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", compiled_args[0], compiled_args[1], compiled_args[2]);
-                *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
-                return tmp;
-            } else if (local_func_names_.count(func_name)) {
-                // Direct call to a function defined in the same C file
-                call_expr = func_name + "(";
-                for (size_t i = 0; i < compiled_args.size(); ++i) {
-                    if (i > 0) {
-                        call_expr += ", ";
-                    }
-                    call_expr += compiled_args[i];
-                }
-                call_expr += ")";
-            } else {
-                // Dynamic lookup by name in the global function registry.
-                // The JIT type is hardcoded as JIT_TCC (0) since this code runs in TCC-compiled context.
-                call_expr = std::format("FakeluaCallByName(_S, {}, \"{}\", {}", static_cast<int>(JIT_TCC), func_name, compiled_args.size());
-                for (const auto &arg: compiled_args) {
-                    call_expr += ", " + arg;
-                }
-                call_expr += ")";
-            }
-        } else {
-            ThrowError("complex function call expression is not supported", functioncall);
+    if (local_func_names_.count(func_name)) {
+        // Direct call to a function defined in the same C file
+        call_expr = func_name + "(";
+        for (size_t i = 0; i < compiled_args.size(); ++i) {
+            if (i > 0) call_expr += ", ";
+            call_expr += compiled_args[i];
         }
+        call_expr += ")";
     } else {
-        ThrowError("complex function call expression is not supported", functioncall);
+        // Dynamic lookup by name in the global function registry.
+        // The JIT type is hardcoded as JIT_TCC (0) since this code runs in TCC-compiled context.
+        call_expr = std::format("FakeluaCallByName(_S, {}, \"{}\", {}", static_cast<int>(JIT_TCC), func_name, compiled_args.size());
+        for (const auto &arg: compiled_args) {
+            call_expr += ", " + arg;
+        }
+        call_expr += ")";
+    }
+    return call_expr;
+}
+
+// Compile a condition expression directly to a C boolean expression string.
+// For comparison binops (<=, <, >, >=, ==, ~=) the result is a GNU statement
+// expression like BoolLeI((n), 1LL) that avoids an intermediate CVar temp and
+// an IsTrue call.  All other expression types fall back to CompileExp + IsTrue
+// (which still emits a bool temp variable and returns its name).
+std::string CGen::CompileCondExp(const SyntaxTreeInterfacePtr &exp) {
+    DEBUG_ASSERT(exp->Type() == SyntaxTreeType::Exp);
+    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+
+    if (e->ExpType() == "binop") {
+        const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
+        const auto &op_name = op_ptr->GetOp();
+
+        if (op_name == "LESS" || op_name == "LESS_EQUAL" || op_name == "MORE" ||
+            op_name == "MORE_EQUAL" || op_name == "EQUAL" || op_name == "NOT_EQUAL") {
+            const auto left_str = CompileExp(e->Left());
+            const auto right = e->Right();
+            const auto right_e = std::dynamic_pointer_cast<SyntaxTreeExp>(right);
+
+            // If the right operand is an integer literal, use the specialized
+            // macro that avoids copying and type-checking the right CVar.
+            if (right_e->ExpType() == "number" && IsInteger(right_e->ExpValue())) {
+                const auto iv = ToInteger(right_e->ExpValue());
+                const std::string l = std::format("({})", left_str);
+                if (op_name == "LESS_EQUAL")  return std::format("BoolLeI({}, {}LL)", l, iv);
+                if (op_name == "LESS")        return std::format("BoolLtI({}, {}LL)", l, iv);
+                if (op_name == "MORE")        return std::format("BoolGtI({}, {}LL)", l, iv);
+                if (op_name == "MORE_EQUAL")  return std::format("BoolGeI({}, {}LL)", l, iv);
+                if (op_name == "EQUAL")       return std::format("BoolEqI({}, {}LL)", l, iv);
+                /* NOT_EQUAL */               return std::format("BoolNeI({}, {}LL)", l, iv);
+            }
+
+            // General case: both operands are CVars
+            const auto right_str = CompileExp(right);
+            const std::string l = std::format("({})", left_str);
+            const std::string r = std::format("({})", right_str);
+            if (op_name == "LESS_EQUAL")  return std::format("BoolLe({}, {})", l, r);
+            if (op_name == "LESS")        return std::format("BoolLt({}, {})", l, r);
+            if (op_name == "MORE")        return std::format("BoolGt({}, {})", l, r);
+            if (op_name == "MORE_EQUAL")  return std::format("BoolGe({}, {})", l, r);
+            if (op_name == "EQUAL")       return std::format("BoolEq({}, {})", l, r);
+            /* NOT_EQUAL */               return std::format("BoolNe({}, {})", l, r);
+        }
     }
 
-    // Allocate a temp variable to hold the return value
-    const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
-    func_temp_decls_ << GenTab() << "CVar " << tmp << ";\n";
-    *cur_output_ << GenTab() << tmp << " = " << call_expr << ";\n";
-
-    return tmp;
+    // Fallback: evaluate to a CVar, then convert with IsTrue into a bool temp.
+    const auto cvar_name = CompileExp(exp);
+    const auto tmp_bool = std::format("flua_ibt_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
+    *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cvar_name, tmp_bool);
+    return tmp_bool;
 }
 
 }// namespace fakelua
