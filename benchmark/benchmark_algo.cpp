@@ -196,12 +196,23 @@ static void BM_Lua_Fibonacci(benchmark::State &state) {
     }
 }
 
-static void BM_FakeLua_Fibonacci(benchmark::State &state) {
+static void BM_FakeLua_Fibonacci_TCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppFib(n);
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_fib", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua fib");
+    }
+}
+
+static void BM_FakeLua_Fibonacci_GCC(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    const int64_t expected = CppFib(n);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_GCC, "bench_fib", ret, n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "FakeLua fib");
     }
@@ -233,13 +244,25 @@ static void BM_Lua_GCD(benchmark::State &state) {
     }
 }
 
-static void BM_FakeLua_GCD(benchmark::State &state) {
+static void BM_FakeLua_GCD_TCC(benchmark::State &state) {
     const int64_t a = state.range(0);
     const int64_t b = state.range(1);
     const int64_t expected = CppGcd(a, b);
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_gcd", ret, a, b);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua gcd");
+    }
+}
+
+static void BM_FakeLua_GCD_GCC(benchmark::State &state) {
+    const int64_t a = state.range(0);
+    const int64_t b = state.range(1);
+    const int64_t expected = CppGcd(a, b);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_GCC, "bench_gcd", ret, a, b);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "FakeLua gcd");
     }
@@ -275,7 +298,7 @@ static void BM_Lua_PowMod(benchmark::State &state) {
     }
 }
 
-static void BM_FakeLua_PowMod(benchmark::State &state) {
+static void BM_FakeLua_PowMod_TCC(benchmark::State &state) {
     const int64_t base = state.range(0);
     const int64_t exp = state.range(1);
     const int64_t mod = state.range(2);
@@ -283,6 +306,19 @@ static void BM_FakeLua_PowMod(benchmark::State &state) {
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_powmod", ret, base, exp, mod);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua powmod");
+    }
+}
+
+static void BM_FakeLua_PowMod_GCC(benchmark::State &state) {
+    const int64_t base = state.range(0);
+    const int64_t exp = state.range(1);
+    const int64_t mod = state.range(2);
+    const int64_t expected = CppPowMod(base, exp, mod);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_GCC, "bench_powmod", ret, base, exp, mod);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "FakeLua powmod");
     }
@@ -310,12 +346,23 @@ static void BM_Lua_Sum(benchmark::State &state) {
     }
 }
 
-static void BM_FakeLua_Sum(benchmark::State &state) {
+static void BM_FakeLua_Sum_TCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSum(n);
     for (auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_sum", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua sum");
+    }
+}
+
+static void BM_FakeLua_Sum_GCC(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    const int64_t expected = CppSum(n);
+    for (auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_GCC, "bench_sum", ret, n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "FakeLua sum");
     }
@@ -331,16 +378,20 @@ static void BM_FakeLua_Sum(benchmark::State &state) {
 
 BENCHMARK(BM_CPP_Fibonacci) FIB_ARGS;
 BENCHMARK(BM_Lua_Fibonacci) FIB_ARGS;
-BENCHMARK(BM_FakeLua_Fibonacci) FIB_ARGS;
+BENCHMARK(BM_FakeLua_Fibonacci_TCC) FIB_ARGS;
+BENCHMARK(BM_FakeLua_Fibonacci_GCC) FIB_ARGS;
 
 BENCHMARK(BM_CPP_GCD) GCD_ARGS;
 BENCHMARK(BM_Lua_GCD) GCD_ARGS;
-BENCHMARK(BM_FakeLua_GCD) GCD_ARGS;
+BENCHMARK(BM_FakeLua_GCD_TCC) GCD_ARGS;
+BENCHMARK(BM_FakeLua_GCD_GCC) GCD_ARGS;
 
 BENCHMARK(BM_CPP_PowMod) POWMOD_ARGS;
 BENCHMARK(BM_Lua_PowMod) POWMOD_ARGS;
-BENCHMARK(BM_FakeLua_PowMod) POWMOD_ARGS;
+BENCHMARK(BM_FakeLua_PowMod_TCC) POWMOD_ARGS;
+BENCHMARK(BM_FakeLua_PowMod_GCC) POWMOD_ARGS;
 
 BENCHMARK(BM_CPP_Sum) SUM_ARGS;
 BENCHMARK(BM_Lua_Sum) SUM_ARGS;
-BENCHMARK(BM_FakeLua_Sum) SUM_ARGS;
+BENCHMARK(BM_FakeLua_Sum_TCC) SUM_ARGS;
+BENCHMARK(BM_FakeLua_Sum_GCC) SUM_ARGS;

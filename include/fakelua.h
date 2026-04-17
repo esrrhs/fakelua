@@ -205,7 +205,9 @@ protected:
 enum JITType {
     // TinyCC 是一个小型的 C 语言编译器，支持即时编译（JIT）。它的特点是编译速度快，适合于需要快速生成和执行代码的场景
     JIT_TCC = 0,
-    JIT_MAX = 1,
+    // GCC 后端：将生成 C 代码通过系统 gcc 编译为动态库并加载执行
+    JIT_GCC,
+    JIT_MAX,
 };
 
 // 控制编译器的配置项

@@ -149,6 +149,10 @@ extern void* FakeluaAllocTemp(State *s, size_t size);
 extern void FakeluaThrowError(State *s, const char *msg);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
 
+#ifndef FAKELUA_JIT_TYPE
+#define FAKELUA_JIT_TYPE 0
+#endif
+
 static inline uint32_t FlHashString(const char *str, int len) {
     uint32_t hash = 5381;
     int i;
@@ -1682,8 +1686,8 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 call_expr += ")";
             } else {
                 // Dynamic lookup by name in the global function registry.
-                // The JIT type is hardcoded as JIT_TCC (0) since this code runs in TCC-compiled context.
-                call_expr = std::format("FakeluaCallByName(_S, {}, \"{}\", {}", static_cast<int>(JIT_TCC), func_name, compiled_args.size());
+                // JIT type comes from backend compile-time macro FAKELUA_JIT_TYPE.
+                call_expr = std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"{}\", {}", func_name, compiled_args.size());
                 for (const auto &arg: compiled_args) {
                     call_expr += ", " + arg;
                 }

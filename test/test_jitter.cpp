@@ -9,8 +9,10 @@ using namespace fakelua;
 static void JitterRunHelper(const std::function<void(State *, JITType, bool)> &f) {
     const auto s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
-    f(s, JIT_TCC, true);
-    f(s, JIT_TCC, false);
+    for (const auto type: {JIT_TCC, JIT_GCC}) {
+        f(s, type, true);
+        f(s, type, false);
+    }
     FakeluaDeleteState(s);
 }
 

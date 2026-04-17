@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fakelua.h"
+#include "jit/jit_common.h"
 #include "jit/tcc_handle.h"
 #include "util/debug.h"
 
@@ -14,6 +15,13 @@ public:
         : name_(name), arg_count_(arg_count) {
         func_addr_[JIT_TCC] = tcc_func_addr;
         handle_[JIT_TCC] = tcc_handle;
+    }
+
+    VmFunction(const std::string &name, int arg_count, JITType jit_type, void *func_addr, const JITHandlePtr &jit_handle)
+        : name_(name), arg_count_(arg_count) {
+        DEBUG_ASSERT(jit_type >= 0 && jit_type < JIT_MAX);
+        func_addr_[jit_type] = func_addr;
+        handle_[jit_type] = jit_handle;
     }
 
     ~VmFunction() = default;
