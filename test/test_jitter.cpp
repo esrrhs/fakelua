@@ -1505,7 +1505,7 @@ TEST(jitter, test_infer_for_step_int) {
         CompileFile(s, "./jit/test_infer_for_step_int.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 25);// 1+3+5+7+9
+        ASSERT_EQ(ret, 25); // 1+3+5+7+9
     });
 }
 
@@ -1517,7 +1517,7 @@ TEST(jitter, test_infer_for_step_dynamic) {
         CompileFile(s, "./jit/test_infer_for_step_dynamic.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 2);
-        ASSERT_EQ(ret, 25);// 1+3+5+7+9 with step=2
+        ASSERT_EQ(ret, 25); // 1+3+5+7+9 with step=2
     });
 }
 
@@ -1553,9 +1553,9 @@ TEST(jitter, test_infer_while_scope_degrade) {
         CompileFile(s, "./jit/test_infer_while_scope_degrade.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 0);
-        ASSERT_EQ(ret, 1);// loop ran: n=0→x=0, n=1→x=1, n=2 exits
+        ASSERT_EQ(ret, 1); // loop ran: n=0→x=0, n=1→x=1, n=2 exits
         Call(s, type, "test", ret, 3);
-        ASSERT_EQ(ret, 5);// loop skipped: x unchanged
+        ASSERT_EQ(ret, 5); // loop skipped: x unchanged
     });
 }
 
