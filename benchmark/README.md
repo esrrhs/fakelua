@@ -6,7 +6,7 @@
 
 ### 算法对比（benchmark_algo.cpp）
 
-将 C++、Lua 5.4、FakeLua（JIT_TCC）在同一文件中进行横向性能对比，覆盖四类算法：
+将 C++、Lua 5.4、FakeLua（JIT_TCC / JIT_GCC）在同一文件中进行横向性能对比，覆盖四类算法：
 
 | 算法 | 说明 | 参数规模 |
 |------|------|---------|
@@ -288,12 +288,18 @@ BM_LuaTable_Del/1024                              18114 ns        18125 ns      
 
 1. **C++ 最快**：在全部算法上领先，受益于 `-O3` 内联/展开/向量化。
 2. **Lua 稳定在 C++ 的 4–32x 慢**：对于简单的迭代算法倍数相对低；递归密集时倍数随调用深度指数上升。
-3. **FakeLua（JIT_TCC） 目前慢于 Lua**：根本原因是每次 Lua 函数调用都要走 `FakeluaCallByName` 符号查找 + 参数 CVar 打包/解包，这在高频调用（递归 Fib、Sum 循环）中成本显著。启用 TCC `-O2`（`debug_mode=false`）后，对循环密集型算法有小幅改善，但瓶颈在运行时桥接路径而非 TCC 生成指令。FakeLua 的设计目标是"可嵌入的脚本引擎"而非替代 Lua 的通用解释器，其优势在于：
-   - 自定义数据结构（如 VarTable Iterate 极快）
-   - 编译期类型安全、无 GC 压力
-   - 可与 C++ 零开销边界集成（通过模板 `Call<Ret, Args...>()`）
-4. 如需提升 FakeLua 算法性能，可考虑：
-   - 在生成的 C 代码中对 int 路径直接用 `int64_t` 操作，跳过 CVar 装箱
-   - 对 Fibonacci 这类自调用函数，在 TCC 内部做内联
+3. **FakeLua（JIT_TCC）慢于 Lua，但 FakeLua（JIT_GCC）明显提升**：同一套脚本在 GCC 后端下，算法类 benchmark 相比 TCC 提升约 **6.8x ~ 47.4x**。典型样本：
+   - Fib(32): TCC 325.07ms → GCC 17.61ms（**18.46x**，且比 Lua 140.71ms 更快）
+   - GCD(832040,514229): TCC 1003ns → GCC 148ns（**6.78x**，快于 Lua 353ns）
+   - PowMod(1234567,7654321,1e9+7): TCC 2577ns → GCC 198ns（**13.02x**，快于 Lua 552ns）
+   - Sum(5e6): TCC 147.70ms → GCC 3.12ms（**47.37x**，约为 C++ 的 2.0x）
+4. **瓶颈分析更新**：TCC 路径的主要成本仍是 `FakeluaCallByName` + CVar 装箱/拆箱；GCC 后端通过更强优化显著降低脚本内算术/循环开销，使总开销从“桥接主导”转向“桥接 + 计算混合”。这说明后端编译器优化级别对 FakeLua 运行时表现影响非常大。
+5. FakeLua 的设计目标仍是"可嵌入的脚本引擎"而非替代 Lua 的通用解释器，其优势在于：
+    - 自定义数据结构（如 VarTable Iterate 极快）
+    - 编译期类型安全、无 GC 压力
+    - 可与 C++ 零开销边界集成（通过模板 `Call<Ret, Args...>()`）
+6. 如需继续提升 FakeLua 算法性能，可考虑：
+    - 在生成的 C 代码中对 int 路径直接用 `int64_t` 操作，跳过 CVar 装箱
+    - 对高频小函数做更激进的内联/去桥接（特别是递归和循环中的内部调用）
 
 > 注：ASLR 开启，结果有一定随机噪声；建议在 `--cpu-scaling-enabled=false` 环境下多重复（`--benchmark_repetitions=5`）后取均值。
