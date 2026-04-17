@@ -74,17 +74,6 @@ private:
 
     std::string CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op);
 
-    // Compile a condition expression directly to a C bool expression.
-    // For comparison binops (<=, <, >, >=, ==, ~=), returns a statement-expression
-    // like BoolLeI((n), 1LL) that avoids a CVar temp and an IsTrue call.
-    // Falls back to CompileExp + IsTrue for other expression types.
-    std::string CompileCondExp(const SyntaxTreeInterfacePtr &exp);
-
-    // Build the C call expression string for a function call node without
-    // allocating a temp variable.  Used by both CompileFunctioncall and the
-    // tail-return optimisation in CompileStmtReturn.
-    std::string BuildFunctionCallExpr(const SyntaxTreeInterfacePtr &functioncall);
-
 private:
     State *s_;
     std::string file_name_;
