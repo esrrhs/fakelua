@@ -251,7 +251,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
 
 static inline CVar FlGetTable(CVar t, CVar k) {
     k = NORMALIZE_TABLE_KEY(k);
-    if (t.type_ != VAR_TABLE) { return (CVar){VAR_NIL}; }
+    if (t.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     if (k.type_ == VAR_NIL) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t;
     if (tbl->count_ == 0) { return (CVar){VAR_NIL}; }
@@ -358,7 +358,7 @@ static inline void FlTableRehash(VarTable *tbl) {
 
 static inline void FlSetTable(CVar t, CVar k, CVar v) {
     k = NORMALIZE_TABLE_KEY(k);
-    if (t.type_ != VAR_TABLE) { return; }
+    if (t.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     if (k.type_ == VAR_NIL) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t; uint32_t h; VarHash(k, h);
     if (v.type_ == VAR_NIL) {
@@ -432,9 +432,11 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
     if ((v).type_ == VAR_INT) { (result) = (v).data_.i; } \
     else if ((v).type_ == VAR_FLOAT) { \
         double __d = (v).data_.f; \
-        int64_t __i = (int64_t)__d; \
-        if ((double)__i != __d) { FakeluaThrowError(_S, "number has no integer representation"); } \
-        (result) = __i; \
+        if (!isfinite(__d)) { FakeluaThrowError(_S, "number has no integer representation"); } \
+        double __ip; \
+        if (modf(__d, &__ip) != 0.0) { FakeluaThrowError(_S, "number has no integer representation"); } \
+        if (__ip < (double)INT64_MIN || __ip > (double)INT64_MAX) { FakeluaThrowError(_S, "number has no integer representation"); } \
+        (result) = (int64_t)__ip; \
     } else { \
         FakeluaThrowError(_S, "attempt to perform bitwise operation on non-numeric value"); \
         (result) = 0; \
@@ -584,10 +586,10 @@ static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
         case VAR_NIL: memcpy(buf, "nil", 3); buf[3] = '\0'; return 3;
         case VAR_BOOL: if (v.data_.b) { memcpy(buf, "true", 4); buf[4] = '\0'; return 4; } else { memcpy(buf, "false", 5); buf[5] = '\0'; return 5; }
         case VAR_INT: return snprintf(buf, buf_size, "%lld", (long long)v.data_.i);
-        case VAR_FLOAT: return snprintf(buf, buf_size, "%.14g", v.data_.f);
+        case VAR_FLOAT: return snprintf(buf, buf_size, "%.17g", v.data_.f);
         case VAR_STRING:
         case VAR_STRINGID: FakeluaThrowError(_S, "FlVarToStr: string type should be handled by caller"); return 0;
-        default: memcpy(buf, "table", 5); buf[5] = '\0'; return 5;
+        default: { int __n = snprintf(buf, buf_size - 1, "table(0x%llx", (unsigned long long)(uintptr_t)v.data_.t); if (__n > 0 && __n < buf_size - 1) { buf[__n] = ')'; buf[__n + 1] = '\0'; return __n + 1; } return __n; }
     }
 }
 
