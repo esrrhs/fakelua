@@ -129,20 +129,26 @@ enum {
 #define SET_INT(v, val) do { (v).type_ = VAR_INT; (v).data_.i = (val); } while(0)
 #define SET_FLOAT(v, val) do { \
     double __f = (val); \
-    if (isnan(__f) || isinf(__f)) { \
-        (v).type_ = VAR_FLOAT; \
-        (v).data_.f = __f; \
-    } else { \
-        int64_t __i = (int64_t)__f; \
-        if ((double)__i == __f) { \
-            (v).type_ = VAR_INT; \
-            (v).data_.i = __i; \
-        } else { \
-            (v).type_ = VAR_FLOAT; \
-            (v).data_.f = __f; \
+    (v).type_ = VAR_FLOAT; \
+    (v).data_.f = __f; \
+} while(0)
+
+// Normalize table keys to match Lua behavior:
+// integral float keys are treated as integer keys (e.g. t[2.0] == t[2]).
+#define NORMALIZE_TABLE_KEY(key) ({ \
+    CVar __k = (key); \
+    if (__k.type_ == VAR_FLOAT) { \
+        double __d = __k.data_.f; \
+        if (isfinite(__d)) { \
+            double __ip; \
+            if (modf(__d, &__ip) == 0.0 && __ip >= (double)INT64_MIN && __ip <= (double)INT64_MAX) { \
+                __k.type_ = VAR_INT; \
+                __k.data_.i = (int64_t)__ip; \
+            } \
         } \
     } \
-} while(0)
+    __k; \
+})
 
 // External functions for allocation and error handling
 extern void* FakeluaAllocTemp(State *s, size_t size);
@@ -244,6 +250,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
 } while(0)
 
 static inline CVar FlGetTable(CVar t, CVar k) {
+    k = NORMALIZE_TABLE_KEY(k);
     if (t.type_ != VAR_TABLE) { return (CVar){VAR_NIL}; }
     if (k.type_ == VAR_NIL) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t;
@@ -350,6 +357,7 @@ static inline void FlTableRehash(VarTable *tbl) {
 }
 
 static inline void FlSetTable(CVar t, CVar k, CVar v) {
+    k = NORMALIZE_TABLE_KEY(k);
     if (t.type_ != VAR_TABLE) { return; }
     if (k.type_ == VAR_NIL) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t; uint32_t h; VarHash(k, h);

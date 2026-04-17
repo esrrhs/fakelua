@@ -27,7 +27,7 @@ TEST(var, construct) {
     ASSERT_EQ(v4.Type(), VarType::Float);
 
     Var v4_1(1.00);
-    ASSERT_EQ(v4_1.Type(), VarType::Int);
+    ASSERT_EQ(v4_1.Type(), VarType::Float);
 
     Var v5;
     v5.SetTempString(s, "hello");
@@ -81,8 +81,8 @@ TEST(var, set_get) {
     ASSERT_EQ(v.GetFloat(), 1.1);
 
     v.SetFloat(1.0);
-    ASSERT_EQ(v.Type(), VarType::Int);
-    ASSERT_EQ(v.GetInt(), 1);
+    ASSERT_EQ(v.Type(), VarType::Float);
+    ASSERT_EQ(v.GetFloat(), 1.0);
 
     v.SetTempString(s, "hello");
     ASSERT_EQ(v.Type(), VarType::String);
@@ -371,23 +371,30 @@ TEST(var, arithmetic) {
     v1.Plus(v2, res);
     ASSERT_EQ(res.GetInt(), 13);
     v1.Plus(Var(2.5), res);
+    ASSERT_EQ(res.Type(), VarType::Float);
     ASSERT_EQ(res.GetCalculableNumber(), 12.5);
 
     // Minus
     v1.Minus(v2, res);
     ASSERT_EQ(res.GetInt(), 7);
     v1.Minus(Var(0.5), res);
+    ASSERT_EQ(res.Type(), VarType::Float);
     ASSERT_EQ(res.GetCalculableNumber(), 9.5);
 
     // Star
     v1.Star(v2, res);
     ASSERT_EQ(res.GetInt(), 30);
     v1.Star(Var(1.5), res);
+    ASSERT_EQ(res.Type(), VarType::Float);
     ASSERT_EQ(res.GetCalculableNumber(), 15.0);
 
     // Slash (always float)
     v1.Slash(v2, res);
+    ASSERT_EQ(res.Type(), VarType::Float);
     ASSERT_NEAR(res.GetCalculableNumber(), 3.333333, 0.000001);
+    Var(int64_t{4}).Slash(Var(int64_t{2}), res);
+    ASSERT_EQ(res.Type(), VarType::Float);
+    ASSERT_EQ(res.GetFloat(), 2.0);
 
     // DoubleSlash (floor division - Lua semantics: rounds toward negative infinity)
     v1.DoubleSlash(v2, res);
@@ -400,6 +407,9 @@ TEST(var, arithmetic) {
     ASSERT_EQ(res.GetInt(), -4);
     Var((int64_t) -10LL).DoubleSlash(Var((int64_t) -3LL), res);
     ASSERT_EQ(res.GetInt(), 3);
+    Var(5.0).DoubleSlash(Var(int64_t{2}), res);
+    ASSERT_EQ(res.Type(), VarType::Float);
+    ASSERT_EQ(res.GetFloat(), 2.0);
 
     // Mod (Lua semantics: a % b = a - b * floor(a / b))
     v1.Mod(v2, res);
@@ -427,6 +437,11 @@ TEST(var, bitwise) {
     // Bitand
     v1.Bitand(v2, res);
     ASSERT_EQ(res.GetInt(), 0b1000);
+    // Integral float should be accepted in bitwise ops
+    Var(2.0).Bitand(Var(int64_t{3}), res);
+    ASSERT_EQ(res.GetInt(), 2);
+    // Non-integral float should fail
+    ASSERT_ANY_THROW(Var(2.1).Bitand(Var(int64_t{1}), res));
 
     // Bitor
     v1.Bitor(v2, res);
@@ -445,6 +460,9 @@ TEST(var, bitwise) {
     // UnopBitnot
     v1.UnopBitnot(res);
     ASSERT_EQ(res.GetInt(), ~0b1010LL);
+    Var(2.0).UnopBitnot(res);
+    ASSERT_EQ(res.GetInt(), ~2LL);
+    ASSERT_ANY_THROW(Var(2.1).UnopBitnot(res));
 }
 
 TEST(var, comparison) {
@@ -782,14 +800,16 @@ TEST(var, doubleslash_float_result) {
     Var res;
 
     v1.DoubleSlash(v2, res);
-    // floor(7.5 / 2.0) = 3.0, but 3.0 is stored as integer
-    ASSERT_EQ(res.GetInt(), 3);
+    // floor(7.5 / 2.0) = 3.0, float operands keep float result in Lua
+    ASSERT_EQ(res.Type(), VarType::Float);
+    ASSERT_EQ(res.GetFloat(), 3.0);
 
     Var v3(-7.5);
     Var v4(2.0);
     v3.DoubleSlash(v4, res);
-    // floor(-7.5 / 2.0) = -4.0, but -4.0 is stored as integer
-    ASSERT_EQ(res.GetInt(), -4);
+    // floor(-7.5 / 2.0) = -4.0, float operands keep float result in Lua
+    ASSERT_EQ(res.Type(), VarType::Float);
+    ASSERT_EQ(res.GetFloat(), -4.0);
 }
 
 TEST(var, hash_nil) {

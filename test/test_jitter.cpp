@@ -543,11 +543,11 @@ TEST(jitter, test_binop_double_slash) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_double_slash.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
-        int ret2 = 0;
+        double ret2 = 0;
         Call(s, type, "test1", ret1, 3, 2);
         Call(s, type, "test2", ret2, 2.4, 1.2);
         ASSERT_EQ(ret1, 3);
-        ASSERT_EQ(ret2, 1);
+        ASSERT_NEAR(ret2, 1.0, 0.001);
     });
 }
 
@@ -585,11 +585,11 @@ TEST(jitter, test_binop_mod) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_mod.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
-        int ret2 = 0;
+        double ret2 = 0;
         Call(s, type, "test1", ret1, 3, 2);
         Call(s, type, "test2", ret2, 2.4, 1.2);
         ASSERT_EQ(ret1, 3);
-        ASSERT_EQ(ret2, -1);
+        ASSERT_NEAR(ret2, -1.0, 0.001);
     });
 }
 

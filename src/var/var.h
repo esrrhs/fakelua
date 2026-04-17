@@ -86,20 +86,10 @@ public:
         data_.i = val;
     }
 
-    // 设置浮点数值，如果数值没有小数部分，则会自动转为整数存储
+    // 设置浮点数值，始终按浮点存储
     void SetFloat(double val) {
-        if (std::isnan(val) || std::isinf(val)) {
-            type_ = static_cast<int>(VarType::Float);
-            data_.f = val;
-        } else {
-            if (const auto i = static_cast<int64_t>(val); static_cast<double>(i) == val) {
-                type_ = static_cast<int>(VarType::Int);
-                data_.i = i;
-            } else {
-                type_ = static_cast<int>(VarType::Float);
-                data_.f = val;
-            }
-        }
+        type_ = static_cast<int>(VarType::Float);
+        data_.f = val;
     }
 
     // 设置临时字符串值

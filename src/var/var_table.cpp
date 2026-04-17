@@ -3,47 +3,72 @@
 #include "util/common.h"
 #include "var.h"
 #include <bit>
+#include <limits>
 
 namespace fakelua {
 
 // QUICK_DATA_SIZE must be 8 for the manually unrolled code in this file
 static_assert(VarTable::QUICK_DATA_SIZE == 8, "QUICK_DATA_SIZE must be 8 for manually unrolled code");
 
+static Var NormalizeTableKey(const Var &key) {
+    if (key.Type() != VarType::Float) {
+        return key;
+    }
+
+    const double d = key.GetFloat();
+    if (!std::isfinite(d)) {
+        return key;
+    }
+    double int_part = 0;
+    if (std::modf(d, &int_part) != 0.0) {
+        return key;
+    }
+    if (int_part < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
+        int_part > static_cast<double>(std::numeric_limits<int64_t>::max())) {
+        return key;
+    }
+
+    Var normalized;
+    normalized.SetInt(static_cast<int64_t>(int_part));
+    return normalized;
+}
+
 Var VarTable::Get(const Var &key) const {
     if (key.Type() == VarType::Nil) {
         ThrowFakeluaException("VarTable Get failed, table index is nil");
     }
+    const Var lookup_key = NormalizeTableKey(key);
 
     if (count_ == 0) {
         return const_null_var;
     }
 
-    const auto h = static_cast<uint32_t>(key.Hash());
+    const auto h = static_cast<uint32_t>(lookup_key.Hash());
 
     if (bucket_count_ == 0) {
         // 快速模式：手动展开以提升性能
-        if (count_ > 0 && quick_data_[0].hash == h && quick_data_[0].key.Equal(key)) {
+        if (count_ > 0 && quick_data_[0].hash == h && quick_data_[0].key.Equal(lookup_key)) {
             return quick_data_[0].val;
         }
-        if (count_ > 1 && quick_data_[1].hash == h && quick_data_[1].key.Equal(key)) {
+        if (count_ > 1 && quick_data_[1].hash == h && quick_data_[1].key.Equal(lookup_key)) {
             return quick_data_[1].val;
         }
-        if (count_ > 2 && quick_data_[2].hash == h && quick_data_[2].key.Equal(key)) {
+        if (count_ > 2 && quick_data_[2].hash == h && quick_data_[2].key.Equal(lookup_key)) {
             return quick_data_[2].val;
         }
-        if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(key)) {
+        if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(lookup_key)) {
             return quick_data_[3].val;
         }
-        if (count_ > 4 && quick_data_[4].hash == h && quick_data_[4].key.Equal(key)) {
+        if (count_ > 4 && quick_data_[4].hash == h && quick_data_[4].key.Equal(lookup_key)) {
             return quick_data_[4].val;
         }
-        if (count_ > 5 && quick_data_[5].hash == h && quick_data_[5].key.Equal(key)) {
+        if (count_ > 5 && quick_data_[5].hash == h && quick_data_[5].key.Equal(lookup_key)) {
             return quick_data_[5].val;
         }
-        if (count_ > 6 && quick_data_[6].hash == h && quick_data_[6].key.Equal(key)) {
+        if (count_ > 6 && quick_data_[6].hash == h && quick_data_[6].key.Equal(lookup_key)) {
             return quick_data_[6].val;
         }
-        if (count_ > 7 && quick_data_[7].hash == h && quick_data_[7].key.Equal(key)) {
+        if (count_ > 7 && quick_data_[7].hash == h && quick_data_[7].key.Equal(lookup_key)) {
             return quick_data_[7].val;
         }
         return const_null_var;
@@ -57,7 +82,7 @@ Var VarTable::Get(const Var &key) const {
         }
 
         for (;;) {
-            if (curr->entry.hash == h && curr->entry.key.Equal(key)) {
+            if (curr->entry.hash == h && curr->entry.key.Equal(lookup_key)) {
                 return curr->entry.val;
             }
             curr_idx = curr->next;
@@ -74,7 +99,8 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
     if (key.Type() == VarType::Nil) {
         ThrowFakeluaException("VarTable Set failed, table index is nil");
     }
-    const auto h = static_cast<uint32_t>(key.Hash());
+    const Var store_key = NormalizeTableKey(key);
+    const auto h = static_cast<uint32_t>(store_key.Hash());
 
     if (val.Type() == VarType::Nil && !can_be_nil) {
         if (count_ == 0) {
@@ -83,56 +109,56 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
 
         if (bucket_count_ == 0) {
             // 快速模式删除：手动展开
-            if (count_ > 0 && quick_data_[0].hash == h && quick_data_[0].key.Equal(key)) {
+            if (count_ > 0 && quick_data_[0].hash == h && quick_data_[0].key.Equal(store_key)) {
                 if (count_ > 1) {
                     quick_data_[0] = quick_data_[count_ - 1];
                 }
                 count_--;
                 return;
             }
-            if (count_ > 1 && quick_data_[1].hash == h && quick_data_[1].key.Equal(key)) {
+            if (count_ > 1 && quick_data_[1].hash == h && quick_data_[1].key.Equal(store_key)) {
                 if (count_ > 2) {
                     quick_data_[1] = quick_data_[count_ - 1];
                 }
                 count_--;
                 return;
             }
-            if (count_ > 2 && quick_data_[2].hash == h && quick_data_[2].key.Equal(key)) {
+            if (count_ > 2 && quick_data_[2].hash == h && quick_data_[2].key.Equal(store_key)) {
                 if (count_ > 3) {
                     quick_data_[2] = quick_data_[count_ - 1];
                 }
                 count_--;
                 return;
             }
-            if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(key)) {
+            if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(store_key)) {
                 if (count_ > 4) {
                     quick_data_[3] = quick_data_[count_ - 1];
                 }
                 count_--;
                 return;
             }
-            if (count_ > 4 && quick_data_[4].hash == h && quick_data_[4].key.Equal(key)) {
+            if (count_ > 4 && quick_data_[4].hash == h && quick_data_[4].key.Equal(store_key)) {
                 if (count_ > 5) {
                     quick_data_[4] = quick_data_[count_ - 1];
                 }
                 count_--;
                 return;
             }
-            if (count_ > 5 && quick_data_[5].hash == h && quick_data_[5].key.Equal(key)) {
+            if (count_ > 5 && quick_data_[5].hash == h && quick_data_[5].key.Equal(store_key)) {
                 if (count_ > 6) {
                     quick_data_[5] = quick_data_[count_ - 1];
                 }
                 count_--;
                 return;
             }
-            if (count_ > 6 && quick_data_[6].hash == h && quick_data_[6].key.Equal(key)) {
+            if (count_ > 6 && quick_data_[6].hash == h && quick_data_[6].key.Equal(store_key)) {
                 if (count_ > 7) {
                     quick_data_[6] = quick_data_[count_ - 1];
                 }
                 count_--;
                 return;
             }
-            if (count_ > 7 && quick_data_[7].hash == h && quick_data_[7].key.Equal(key)) {
+            if (count_ > 7 && quick_data_[7].hash == h && quick_data_[7].key.Equal(store_key)) {
                 count_--;
                 return;
             }
@@ -145,7 +171,7 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
                 return;
             }
 
-            if (curr->entry.hash == h && curr->entry.key.Equal(key)) {
+            if (curr->entry.hash == h && curr->entry.key.Equal(store_key)) {
                 if (curr->next != INVALID_INDEX) {
                     const uint32_t next_idx = curr->next;
                     TableNode *next_node = &nodes_[next_idx];
@@ -180,7 +206,7 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
             uint32_t curr_idx = curr->next;
             while (curr_idx != INVALID_INDEX) {
                 TableNode *node = &nodes_[curr_idx];
-                if (node->entry.hash == h && node->entry.key.Equal(key)) {
+                if (node->entry.hash == h && node->entry.key.Equal(store_key)) {
                     // AIA 移除逻辑：node 物理移除
                     const uint32_t pos = node->active_pos;
                     if (const uint32_t last_node_idx = active_list_[count_ - 1]; curr_idx != last_node_idx) {
@@ -204,41 +230,41 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
 
     if (bucket_count_ == 0) {
         // 快速模式更新/插入：手动展开
-        if (count_ > 0 && quick_data_[0].hash == h && quick_data_[0].key.Equal(key)) {
+        if (count_ > 0 && quick_data_[0].hash == h && quick_data_[0].key.Equal(store_key)) {
             quick_data_[0].val = val;
             return;
         }
-        if (count_ > 1 && quick_data_[1].hash == h && quick_data_[1].key.Equal(key)) {
+        if (count_ > 1 && quick_data_[1].hash == h && quick_data_[1].key.Equal(store_key)) {
             quick_data_[1].val = val;
             return;
         }
-        if (count_ > 2 && quick_data_[2].hash == h && quick_data_[2].key.Equal(key)) {
+        if (count_ > 2 && quick_data_[2].hash == h && quick_data_[2].key.Equal(store_key)) {
             quick_data_[2].val = val;
             return;
         }
-        if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(key)) {
+        if (count_ > 3 && quick_data_[3].hash == h && quick_data_[3].key.Equal(store_key)) {
             quick_data_[3].val = val;
             return;
         }
-        if (count_ > 4 && quick_data_[4].hash == h && quick_data_[4].key.Equal(key)) {
+        if (count_ > 4 && quick_data_[4].hash == h && quick_data_[4].key.Equal(store_key)) {
             quick_data_[4].val = val;
             return;
         }
-        if (count_ > 5 && quick_data_[5].hash == h && quick_data_[5].key.Equal(key)) {
+        if (count_ > 5 && quick_data_[5].hash == h && quick_data_[5].key.Equal(store_key)) {
             quick_data_[5].val = val;
             return;
         }
-        if (count_ > 6 && quick_data_[6].hash == h && quick_data_[6].key.Equal(key)) {
+        if (count_ > 6 && quick_data_[6].hash == h && quick_data_[6].key.Equal(store_key)) {
             quick_data_[6].val = val;
             return;
         }
-        if (count_ > 7 && quick_data_[7].hash == h && quick_data_[7].key.Equal(key)) {
+        if (count_ > 7 && quick_data_[7].hash == h && quick_data_[7].key.Equal(store_key)) {
             quick_data_[7].val = val;
             return;
         }
 
         if (count_ < QUICK_DATA_SIZE) {
-            quick_data_[count_].key = key;
+            quick_data_[count_].key = store_key;
             quick_data_[count_].val = val;
             quick_data_[count_].hash = h;
             count_++;
@@ -251,7 +277,7 @@ void VarTable::Set(State *s, const Var &key, const Var &val, bool can_be_nil) {
         Rehash(s);
     }
 
-    [[maybe_unused]] bool success = InsertRaw(key, val, h);
+    [[maybe_unused]] bool success = InsertRaw(store_key, val, h);
     DEBUG_ASSERT(success);
 }
 
