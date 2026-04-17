@@ -74,6 +74,10 @@ private:
 
     std::string CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op);
 
+    std::string CompileNumericExp(const SyntaxTreeInterfacePtr &exp);
+
+    std::string BoxNativeValue(const std::string &expr, InferredType type) const;
+
 private:
     State *s_;
     std::string file_name_;
