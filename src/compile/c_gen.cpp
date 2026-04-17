@@ -589,7 +589,7 @@ static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
         case VAR_FLOAT: return snprintf(buf, buf_size, "%.17g", v.data_.f);
         case VAR_STRING:
         case VAR_STRINGID: FakeluaThrowError(_S, "FlVarToStr: string type should be handled by caller"); return 0;
-        default: { int __n = snprintf(buf, buf_size, "table(0x%llx", (unsigned long long)(uintptr_t)v.data_.t); buf[__n] = ')'; buf[__n + 1] = '\0'; return __n + 1; }
+        default: { int __n = snprintf(buf, buf_size - 1, "table(0x%llx", (unsigned long long)(uintptr_t)v.data_.t); if (__n > 0 && __n < buf_size - 1) { buf[__n] = ')'; buf[__n + 1] = '\0'; return __n + 1; } return __n; }
     }
 }
 
