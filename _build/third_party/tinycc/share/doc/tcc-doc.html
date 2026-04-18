@@ -1,0 +1,1951 @@
+<!DOCTYPE html>
+<html>
+<!-- Created by GNU Texinfo 7.1, https://www.gnu.org/software/texinfo/ -->
+<head>
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>Tiny C Compiler Reference Documentation</title>
+
+<meta name="description" content="Tiny C Compiler Reference Documentation">
+<meta name="keywords" content="Tiny C Compiler Reference Documentation">
+<meta name="resource-type" content="document">
+<meta name="distribution" content="global">
+<meta name="Generator" content="makeinfo">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+
+<link href="#Top" rel="start" title="Top">
+<link href="#devel" rel="index" title="devel">
+<link href="#SEC_Contents" rel="contents" title="Table of Contents">
+<link href="dir.html#Top" rel="up" title="(dir)">
+<link href="#Introduction" rel="next" title="Introduction">
+<link href="dir.html#Top" rel="prev" title="(dir)">
+<style type="text/css">
+<!--
+a.copiable-link {visibility: hidden; text-decoration: none; line-height: 0em}
+a.summary-letter-printindex {text-decoration: none}
+div.example {margin-left: 3.2em}
+span:hover a.copiable-link {visibility: visible}
+td.printindex-index-entry {vertical-align: top}
+td.printindex-index-section {vertical-align: top; padding-left: 1em}
+th.entries-header-printindex {text-align:left}
+th.sections-header-printindex {text-align:left; padding-left: 1em}
+ul.mark-bullet {list-style-type: disc}
+ul.toc-numbered-mark {list-style: none}
+-->
+</style>
+
+
+</head>
+
+<body lang="en">
+
+
+
+
+<div class="top-level-extent" id="Top">
+<div class="nav-panel">
+<p>
+Next: <a href="#Introduction" accesskey="n" rel="next">Introduction</a>, Previous: <a href="dir.html#Top" accesskey="p" rel="prev">(dir)</a>, Up: <a href="dir.html#Top" accesskey="u" rel="up">(dir)</a> &nbsp; [<a href="#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="#devel" title="Index" rel="index">Index</a>]</p>
+</div>
+<h1 class="top" id="Tiny-C-Compiler-Reference-Documentation"><span>Tiny C Compiler Reference Documentation<a class="copiable-link" href="#Tiny-C-Compiler-Reference-Documentation"> &para;</a></span></h1>
+
+<p>This manual documents version 0.9.28rc of the Tiny C Compiler.
+</p>
+
+
+<div class="element-contents" id="SEC_Contents">
+<h2 class="contents-heading">Table of Contents</h2>
+
+<div class="contents">
+
+<ul class="toc-numbered-mark">
+  <li><a id="toc-Introduction-1" href="#Introduction">1 Introduction</a></li>
+  <li><a id="toc-Command-line-invocation" href="#Invoke">2 Command line invocation</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-Quick-start" href="#Quick-start">2.1 Quick start</a></li>
+    <li><a id="toc-Option-summary" href="#Option-summary">2.2 Option summary</a></li>
+  </ul></li>
+  <li><a id="toc-C-language-support" href="#Clang">3 C language support</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-ANSI-C" href="#ANSI-C">3.1 ANSI C</a></li>
+    <li><a id="toc-ISOC99-extensions" href="#ISOC99-extensions">3.2 ISOC99 extensions</a></li>
+    <li><a id="toc-GNU-C-extensions" href="#GNU-C-extensions">3.3 GNU C extensions</a></li>
+    <li><a id="toc-TinyCC-extensions" href="#TinyCC-extensions">3.4 TinyCC extensions</a></li>
+  </ul></li>
+  <li><a id="toc-TinyCC-Assembler" href="#asm">4 TinyCC Assembler</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-Syntax" href="#Syntax">4.1 Syntax</a></li>
+    <li><a id="toc-Expressions" href="#Expressions">4.2 Expressions</a></li>
+    <li><a id="toc-Labels" href="#Labels">4.3 Labels</a></li>
+    <li><a id="toc-Directives" href="#Directives">4.4 Directives</a></li>
+    <li><a id="toc-X86-Assembler" href="#X86-Assembler">4.5 X86 Assembler</a></li>
+  </ul></li>
+  <li><a id="toc-TinyCC-Linker" href="#linker">5 TinyCC Linker</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-ELF-file-generation" href="#ELF-file-generation">5.1 ELF file generation</a></li>
+    <li><a id="toc-ELF-file-loader" href="#ELF-file-loader">5.2 ELF file loader</a></li>
+    <li><a id="toc-PE_002di386-file-generation" href="#PE_002di386-file-generation">5.3 PE-i386 file generation</a></li>
+    <li><a id="toc-GNU-Linker-Scripts" href="#GNU-Linker-Scripts">5.4 GNU Linker Scripts</a></li>
+  </ul></li>
+  <li><a id="toc-TinyCC-Memory-and-Bound-checks" href="#Bounds">6 TinyCC Memory and Bound checks</a></li>
+  <li><a id="toc-The-libtcc-library" href="#Libtcc">7 The <code class="code">libtcc</code> library</a></li>
+  <li><a id="toc-Developer_0027s-guide" href="#devel" rel="index">8 Developer&rsquo;s guide</a>
+  <ul class="toc-numbered-mark">
+    <li><a id="toc-File-reading" href="#File-reading">8.1 File reading</a></li>
+    <li><a id="toc-Lexer" href="#Lexer">8.2 Lexer</a></li>
+    <li><a id="toc-Parser" href="#Parser">8.3 Parser</a></li>
+    <li><a id="toc-Types" href="#Types">8.4 Types</a></li>
+    <li><a id="toc-Symbols" href="#Symbols">8.5 Symbols</a></li>
+    <li><a id="toc-Sections" href="#Sections">8.6 Sections</a></li>
+    <li><a id="toc-Code-generation" href="#Code-generation">8.7 Code generation</a>
+    <ul class="toc-numbered-mark">
+      <li><a id="toc-Introduction-2" href="#Introduction-2">8.7.1 Introduction</a></li>
+      <li><a id="toc-The-value-stack" href="#The-value-stack">8.7.2 The value stack</a></li>
+      <li><a id="toc-Manipulating-the-value-stack" href="#Manipulating-the-value-stack">8.7.3 Manipulating the value stack</a></li>
+      <li><a id="toc-CPU-dependent-code-generation" href="#CPU-dependent-code-generation">8.7.4 CPU dependent code generation</a></li>
+    </ul></li>
+    <li><a id="toc-Optimizations-done" href="#Optimizations-done">8.8 Optimizations done</a></li>
+  </ul></li>
+  <li><a id="toc-Concept-Index" href="#Concept-Index">Concept Index</a></li>
+</ul>
+</div>
+</div>
+<hr>
+<div class="chapter-level-extent" id="Introduction">
+<div class="nav-panel">
+<p>
+Next: <a href="#Invoke" accesskey="n" rel="next">Command line invocation</a>, Up: <a href="#Top" accesskey="u" rel="up">Tiny C Compiler Reference Documentation</a> &nbsp; [<a href="#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="#devel" title="Index" rel="index">Index</a>]</p>
+</div>
+<h2 class="chapter" id="Introduction-1"><span>1 Introduction<a class="copiable-link" href="#Introduction-1"> &para;</a></span></h2>
+
+<p>TinyCC (aka TCC) is a small but hyper fast C compiler. Unlike other C
+compilers, it is meant to be self-relying: you do not need an
+external assembler or linker because TCC does that for you.
+</p>
+<p>TCC compiles so <em class="emph">fast</em> that even for big projects <code class="code">Makefile</code>s may
+not be necessary.
+</p>
+<p>TCC not only supports ANSI C, but also most of the new ISO C99
+standard and many GNUC extensions including inline assembly.
+</p>
+<p>TCC can also be used to make <em class="emph">C scripts</em>, i.e. pieces of C source
+that you run as a Perl or Python script. Compilation is so fast that
+your script will be as fast as if it was an executable.
+</p>
+<p>TCC can also automatically generate memory and bound checks
+(see <a class="pxref" href="#Bounds">TinyCC Memory and Bound checks</a>) while allowing all C pointers operations. TCC can do
+these checks even if non patched libraries are used.
+</p>
+<p>With <code class="code">libtcc</code>, you can use TCC as a backend for dynamic code
+generation (see <a class="pxref" href="#Libtcc">The <code class="code">libtcc</code> library</a>).
+</p>
+<p>TCC mainly supports the i386 target on Linux and Windows. There are alpha
+ports for the ARM (<code class="code">arm-tcc</code>) and the TMS320C67xx targets
+(<code class="code">c67-tcc</code>). More information about the ARM port is available at
+<a class="url" href="http://lists.gnu.org/archive/html/tinycc-devel/2003-10/msg00044.html">http://lists.gnu.org/archive/html/tinycc-devel/2003-10/msg00044.html</a>.
+</p>
+<p>For usage on Windows, see also <a class="url" href="tcc-win32.txt">tcc-win32.txt</a>.
+</p>
+<hr>
+</div>
+<div class="chapter-level-extent" id="Invoke">
+<div class="nav-panel">
+<p>
+Next: <a href="#Clang" accesskey="n" rel="next">C language support</a>, Previous: <a href="#Introduction" accesskey="p" rel="prev">Introduction</a>, Up: <a href="#Top" accesskey="u" rel="up">Tiny C Compiler Reference Documentation</a> &nbsp; [<a href="#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="#devel" title="Index" rel="index">Index</a>]</p>
+</div>
+<h2 class="chapter" id="Command-line-invocation"><span>2 Command line invocation<a class="copiable-link" href="#Command-line-invocation"> &para;</a></span></h2>
+
+<ul class="mini-toc">
+<li><a href="#Quick-start" accesskey="1">Quick start</a></li>
+<li><a href="#Option-summary" accesskey="2">Option summary</a></li>
+</ul>
+<div class="section-level-extent" id="Quick-start">
+<h3 class="section"><span>2.1 Quick start<a class="copiable-link" href="#Quick-start"> &para;</a></span></h3>
+
+<div class="example">
+<pre class="example-preformatted">usage: tcc [options] [<var class="var">infile1</var> <var class="var">infile2</var>...] [<samp class="option">-run</samp> <var class="var">infile</var> <var class="var">args</var>...]
+</pre></div>
+
+<p>TCC options are very much like gcc options. The main difference is that TCC
+can also execute directly the resulting program and give it runtime
+arguments.
+</p>
+<p>Here are some examples to understand the logic:
+</p>
+<dl class="table">
+<dt><code class="code">&lsquo;<samp class="samp">tcc -run a.c</samp>&rsquo;</code></dt>
+<dd><p>Compile <samp class="file">a.c</samp> and execute it directly
+</p>
+</dd>
+<dt><code class="code">&lsquo;<samp class="samp">tcc -run a.c arg1</samp>&rsquo;</code></dt>
+<dd><p>Compile a.c and execute it directly. arg1 is given as first argument to
+the <code class="code">main()</code> of a.c.
+</p>
+</dd>
+<dt><code class="code">&lsquo;<samp class="samp">tcc a.c -run b.c arg1</samp>&rsquo;</code></dt>
+<dd><p>Compile <samp class="file">a.c</samp> and <samp class="file">b.c</samp>, link them together and execute them. arg1 is given
+as first argument to the <code class="code">main()</code> of the resulting program. 
+</p>
+</dd>
+<dt><code class="code">&lsquo;<samp class="samp">tcc -o myprog a.c b.c</samp>&rsquo;</code></dt>
+<dd><p>Compile <samp class="file">a.c</samp> and <samp class="file">b.c</samp>, link them and generate the executable <samp class="file">myprog</samp>.
+</p>
+</dd>
+<dt><code class="code">&lsquo;<samp class="samp">tcc -o myprog a.o b.o</samp>&rsquo;</code></dt>
+<dd><p>link <samp class="file">a.o</samp> and <samp class="file">b.o</samp> together and generate the executable <samp class="file">myprog</samp>.
+</p>
+</dd>
+<dt><code class="code">&lsquo;<samp class="samp">tcc -c a.c</samp>&rsquo;</code></dt>
+<dd><p>Compile <samp class="file">a.c</samp> and generate object file <samp class="file">a.o</samp>.
+</p>
+</dd>
+<dt><code class="code">&lsquo;<samp class="samp">tcc -c asmfile.S</samp>&rsquo;</code></dt>
+<dd><p>Preprocess with C preprocess and assemble <samp class="file">asmfile.S</samp> and generate
+object file <samp class="file">asmfile.o</samp>.
+</p>
+</dd>
+<dt><code class="code">&lsquo;<samp class="samp">tcc -c asmfile.s</samp>&rsquo;</code></dt>
+<dd><p>Assemble (but not preprocess) <samp class="file">asmfile.s</samp> and generate object file
+<samp class="file">asmfile.o</samp>.
+</p>
+</dd>
+<dt><code class="code">&lsquo;<samp class="samp">tcc -r -o ab.o a.c b.c</samp>&rsquo;</code></dt>
+<dd><p>Compile <samp class="file">a.c</samp> and <samp class="file">b.c</samp>, link them together and generate the object file <samp class="file">ab.o</samp>.
+</p>
+</dd>
+</dl>
+
+<p>Scripting:
+</p>
+<p>TCC can be invoked from <em class="emph">scripts</em>, just as shell scripts. You just
+need to add <code class="code">#!/usr/local/bin/tcc -run</code> at the start of your C source:
+</p>
+<div class="example">
+<pre class="example-preformatted">#!/usr/local/bin/tcc -run
+#include &lt;stdio.h&gt;
+
+int main() 
+{
+    printf(&quot;Hello World\n&quot;);
+    return 0;
+}
+</pre></div>
+
+<p>TCC can read C source code from <em class="emph">standard input</em> when <samp class="option">-</samp> is used in 
+place of <samp class="option">infile</samp>. Example:
+</p>
+<div class="example">
+<pre class="example-preformatted">echo 'main(){puts(&quot;hello&quot;);}' | tcc -run -
+</pre></div>
+
+</div>
+<div class="section-level-extent" id="Option-summary">
+<h3 class="section"><span>2.2 Option summary<a class="copiable-link" href="#Option-summary"> &para;</a></span></h3>
+
+<p>General Options:
+</p>
+<dl class="table">
+<dt><samp class="option">-c</samp></dt>
+<dd><p>Generate an object file.
+</p>
+</dd>
+<dt><samp class="option">-o outfile</samp></dt>
+<dd><p>Put object file, executable, or dll into output file <samp class="file">outfile</samp>.
+</p>
+</dd>
+<dt><samp class="option">-run source [args...]</samp></dt>
+<dd><p>Compile file <var class="var">source</var> and run it with the command line arguments
+<var class="var">args</var>. In order to be able to give more than one argument to a
+script, several TCC options can be given <em class="emph">after</em> the
+<samp class="option">-run</samp> option, separated by spaces:
+</p><div class="example">
+<pre class="example-preformatted">tcc &quot;-run -L/usr/X11R6/lib -lX11&quot; ex4.c
+</pre></div>
+<p>In a script, it gives the following header:
+</p><div class="example">
+<pre class="example-preformatted">#!/usr/local/bin/tcc -run -L/usr/X11R6/lib -lX11
+</pre></div>
+
+</dd>
+<dt><samp class="option">-v</samp></dt>
+<dd><p>Display TCC version.
+</p>
+</dd>
+<dt><samp class="option">-vv</samp></dt>
+<dd><p>Show included files.  As sole argument, print search dirs.  -vvv shows tries too.
+</p>
+</dd>
+<dt><samp class="option">-bench</samp></dt>
+<dd><p>Display compilation statistics.
+</p>
+</dd>
+</dl>
+
+<p>Preprocessor options:
+</p>
+<dl class="table">
+<dt><samp class="option">-Idir</samp></dt>
+<dd><p>Specify an additional include path. Include paths are searched in the
+order they are specified.
+</p>
+<p>System include paths are always searched after. The default system
+include paths are: <samp class="file">/usr/local/include</samp>, <samp class="file">/usr/include</samp>
+and <samp class="file">PREFIX/lib/tcc/include</samp>. (<samp class="file">PREFIX</samp> is usually
+<samp class="file">/usr</samp> or <samp class="file">/usr/local</samp>).
+</p>
+</dd>
+<dt><samp class="option">-isystem dir</samp></dt>
+<dd><p>Specify a system include path to be added to the defaults.
+</p>
+</dd>
+<dt><samp class="option">-nostdinc</samp></dt>
+<dd><p>Do not search the default system include paths; only search include paths
+provided on the command line.
+</p>
+</dd>
+<dt><samp class="option">-include file</samp></dt>
+<dd><p>Include <samp class="option">file</samp> above each input file.
+</p>
+</dd>
+<dt><samp class="option">-Dsym[=val]</samp></dt>
+<dd><p>Define preprocessor symbol &lsquo;<samp class="samp">sym</samp>&rsquo; to
+val. If val is not present, its value is &lsquo;<samp class="samp">1</samp>&rsquo;. Function-like macros can
+also be defined: <samp class="option">-DF(a)=a+1</samp>
+</p>
+</dd>
+<dt><samp class="option">-Usym</samp></dt>
+<dd><p>Undefine preprocessor symbol &lsquo;<samp class="samp">sym</samp>&rsquo;.
+</p>
+</dd>
+<dt><samp class="option">-E</samp></dt>
+<dd><p>Preprocess only, to stdout or file (with -o).
+</p>
+</dd>
+<dt><samp class="option">-P</samp></dt>
+<dd><p>Do not output <code class="code">#line</code> directives.
+</p>
+</dd>
+<dt><samp class="option">-P1</samp></dt>
+<dd><p>Output alternative <code class="code">#line</code> directives.
+</p>
+</dd>
+<dt><samp class="option">-dD, -dM</samp></dt>
+<dd><p>Output <code class="code">#define</code> directives.
+</p>
+</dd>
+<dt><samp class="option">-Wp,-opt</samp></dt>
+<dd><p>Same as <samp class="option">-opt</samp>.
+</p>
+</dd>
+</dl>
+
+<p>Compilation flags:
+</p>
+<p>Note: each of the following options has a negative form beginning with
+<samp class="option">-fno-</samp>.
+</p>
+<dl class="table">
+<dt><samp class="option">-funsigned-char</samp></dt>
+<dd><p>Let the <code class="code">char</code> type be unsigned.
+</p>
+</dd>
+<dt><samp class="option">-fsigned-char</samp></dt>
+<dd><p>Let the <code class="code">char</code> type be signed.
+</p>
+</dd>
+<dt><samp class="option">-fno-common</samp></dt>
+<dd><p>Do not generate common symbols for uninitialized data.
+</p>
+</dd>
+<dt><samp class="option">-fleading-underscore</samp></dt>
+<dd><p>Add a leading underscore at the beginning of each C symbol.
+</p>
+</dd>
+<dt><samp class="option">-fms-extensions</samp></dt>
+<dd><p>Allow a MS C compiler extensions to the language. Currently this
+assumes a nested named structure declaration without an identifier
+behaves like an unnamed one.
+</p>
+</dd>
+<dt><samp class="option">-fdollars-in-identifiers</samp></dt>
+<dd><p>Allow dollar signs in identifiers
+</p>
+</dd>
+<dt><samp class="option">-freverse-funcargs</samp></dt>
+<dd><p>Evaluate function arguments right to left.
+</p>
+</dd>
+<dt><samp class="option">-fgnu89-inline</samp></dt>
+<dd><p><code class="code">extern inline</code> is like <code class="code">static inline</code>.
+</p>
+</dd>
+<dt><samp class="option">-fasynchronous-unwind-tables</samp></dt>
+<dd><p>Create eh_frame section [on]
+</p>
+</dd>
+<dt><samp class="option">-ftest-coverage</samp></dt>
+<dd><p>Create code coverage code. After running the resulting code an executable.tcov
+or sofile.tcov file is generated with code coverage.
+</p>
+</dd>
+</dl>
+
+<p>Warning options:
+</p>
+<dl class="table">
+<dt><samp class="option">-w</samp></dt>
+<dd><p>Disable all warnings.
+</p>
+</dd>
+</dl>
+
+<p>Note: each of the following warning options has a negative form beginning with
+<samp class="option">-Wno-</samp>.
+</p>
+<dl class="table">
+<dt><samp class="option">-Wimplicit-function-declaration</samp></dt>
+<dd><p>Warn about implicit function declaration (missing prototype).
+</p>
+</dd>
+<dt><samp class="option">-Wdiscarded-qualifiers</samp></dt>
+<dd><p>Warn when const is dropped.
+</p>
+</dd>
+<dt><samp class="option">-Wunsupported</samp></dt>
+<dd><p>Warn about unsupported GCC features that are ignored by TCC.
+</p>
+</dd>
+<dt><samp class="option">-Wwrite-strings</samp></dt>
+<dd><p>Make string constants be of type <code class="code">const char *</code> instead of <code class="code">char
+*</code>.
+</p>
+</dd>
+<dt><samp class="option">-Werror</samp></dt>
+<dd><p>Abort compilation if a warning is issued. Can be given an option to enable
+the specified warning and turn it into an error, for example
+<samp class="option">-Werror=unsupported</samp>.
+</p>
+</dd>
+<dt><samp class="option">-Wall</samp></dt>
+<dd><p>Activate some useful warnings (<samp class="option">-Wimplicit-function-declaration</samp>,
+<samp class="option">-Wdiscard-qualifiers</samp>).
+</p>
+</dd>
+</dl>
+
+<p>Linker options:
+</p>
+<dl class="table">
+<dt><samp class="option">-Ldir</samp></dt>
+<dd><p>Specify an additional static library path for the <samp class="option">-l</samp> option. The
+default library paths are <samp class="file">/usr/local/lib</samp>, <samp class="file">/usr/lib</samp> and <samp class="file">/lib</samp>.
+</p>
+</dd>
+<dt><samp class="option">-lxxx</samp></dt>
+<dd><p>Link your program with dynamic library libxxx.so or static library
+libxxx.a. The library is searched in the paths specified by the
+<samp class="option">-L</samp> option and <code class="env">LIBRARY_PATH</code> variable.
+</p>
+</dd>
+<dt><samp class="option">-Bdir</samp></dt>
+<dd><p>Set the path where the tcc internal libraries (and include files) can be
+found (default is <samp class="file">PREFIX/lib/tcc</samp>).
+</p>
+</dd>
+<dt><samp class="option">-shared</samp></dt>
+<dd><p>Generate a shared library instead of an executable.
+</p>
+</dd>
+<dt><samp class="option">-soname name</samp></dt>
+<dd><p>set name for shared library to be used at runtime
+</p>
+</dd>
+<dt><samp class="option">-static</samp></dt>
+<dd><p>Generate a statically linked executable (default is a shared linked
+executable).
+</p>
+</dd>
+<dt><samp class="option">-rdynamic</samp></dt>
+<dd><p>Export global symbols to the dynamic linker. It is useful when a library
+opened with <code class="code">dlopen()</code> needs to access executable symbols.
+</p>
+</dd>
+<dt><samp class="option">-r</samp></dt>
+<dd><p>Generate an object file combining all input files.
+</p>
+</dd>
+<dt><samp class="option">-nostdlib</samp></dt>
+<dd><p>Don&rsquo;t implicitly link with libc, the C runtime files, and libtcc1.
+</p>
+</dd>
+<dt><samp class="option">-Wl,-nostdlib</samp></dt>
+<dd><p>Don&rsquo;t search the default paths for libraries (<samp class="file">/usr/local/lib</samp>,
+<samp class="file">/usr/lib</samp> and <samp class="file">/lib</samp>). Only the paths specified with <samp class="option">-L</samp>
+and <code class="env">LIBRARY_PATH</code> are searched.
+</p>
+</dd>
+<dt><samp class="option">-Wl,-rpath=path</samp></dt>
+<dd><p>Put custom search path for dynamic libraries into executable.
+</p>
+</dd>
+<dt><samp class="option">-Wl,-Ipath</samp></dt>
+<dt><samp class="option">-Wl,--dynamic-linker=path</samp></dt>
+<dd><p>Set the ELF interpreter (dynamic linker). This defaults to the value of the
+environment variable <code class="env">LD_SO</code> if set, or a compiled-in default.
+</p>
+</dd>
+<dt><samp class="option">-Wl,--enable-new-dtags</samp></dt>
+<dd><p>When putting a custom search path for dynamic libraries into the executable,
+create the new ELF dynamic tag DT_RUNPATH instead of the old legacy DT_RPATH.
+</p>
+</dd>
+<dt><samp class="option">-Wl,--oformat=fmt</samp></dt>
+<dd><p>Use <var class="var">fmt</var> as output format. The supported output formats are:
+</p><dl class="table">
+<dt><code class="code">elf32-i386</code></dt>
+<dd><p>ELF output format (default)
+</p></dd>
+<dt><code class="code">binary</code></dt>
+<dd><p>Binary image (only for executable output)
+</p></dd>
+<dt><code class="code">coff</code></dt>
+<dd><p>COFF output format (only for executable output for TMS320C67xx target)
+</p></dd>
+</dl>
+
+</dd>
+<dt><samp class="option">-Wl,--export-all-symbols</samp></dt>
+<dt><samp class="option">-Wl,--export-dynamic</samp></dt>
+<dd><p>Export global symbols to the dynamic linker. It is useful when a library
+opened with <code class="code">dlopen()</code> needs to access executable symbols.
+</p>
+</dd>
+<dt><samp class="option">-Wl,-subsystem=console/gui/wince/...</samp></dt>
+<dd><p>Set type for PE (Windows) executables.
+</p>
+</dd>
+<dt><samp class="option">-Wl,-[Ttext=# | section-alignment=# | file-alignment=# | image-base=# | stack=#]</samp></dt>
+<dd><p>Modify executable layout.
+</p>
+</dd>
+<dt><samp class="option">-Wl,-Bsymbolic</samp></dt>
+<dd><p>Set DT_SYMBOLIC tag.
+</p>
+</dd>
+<dt><samp class="option">-Wl,-(no-)whole-archive</samp></dt>
+<dd><p>Turn on/off linking of all objects in archives.
+</p>
+</dd>
+</dl>
+
+<p>Debugger options:
+</p>
+<dl class="table">
+<dt><samp class="option">-g</samp></dt>
+<dd><p>Generate run time stab debug information so that you get clear run time
+error messages: <code class="code"> test.c:68: in function 'test5()': dereferencing
+invalid pointer</code> instead of the laconic <code class="code">Segmentation
+fault</code>.
+</p>
+</dd>
+<dt><samp class="option">-gdwarf[-x]</samp></dt>
+<dd><p>Generate run time dwarf debug information instead of stab debug information.
+</p>
+</dd>
+<dt><samp class="option">-b</samp></dt>
+<dd><p>Generate additional support code to check memory allocations and array/pointer
+bounds (see <a class="pxref" href="#Bounds">TinyCC Memory and Bound checks</a>). <samp class="option">-g</samp> is implied.
+</p>
+</dd>
+<dt><samp class="option">-bt[N]</samp></dt>
+<dd><p>Display N callers in stack traces. This is useful with <samp class="option">-g</samp> or <samp class="option">-b</samp>.
+When activated, <code class="code">__TCC_BACKTRACE__</code> is defined.
+</p>
+<p>With executables, additional support for stack traces is included. A function
+    <code class="code"> int tcc_backtrace(const char *fmt, ...); </code>
+is provided to trigger a stack trace with a message on demand.
+</p>
+</dd>
+</dl>
+
+<p>Misc options:
+</p>
+<dl class="table">
+<dt><samp class="option">-std=version</samp></dt>
+<dd><p>Define <code class="code">__STDC_VERSION__</code>: <code class="code">201112</code> if <samp class="option">version</samp> is c11 or
+gnu11; <code class="code">199901</code> otherwise.
+</p>
+</dd>
+<dt><samp class="option">-x[c|a|b|n]</samp></dt>
+<dd><p>Specify content of next input file: respectively C, assembly, binary, or none.
+</p>
+</dd>
+<dt><samp class="option">-O[n]</samp></dt>
+<dd><p>Same as <samp class="option">-D__OPTIMIZE__</samp> except for -O0.
+</p>
+</dd>
+<dt><samp class="option">-pthread</samp></dt>
+<dd><p>Preprocess with <samp class="option">-D_REENTRANT</samp>, link with <samp class="option">-lpthread</samp>.
+</p>
+</dd>
+<dt><samp class="option">-M</samp></dt>
+<dd><p>Just output makefile fragment with dependencies
+</p>
+</dd>
+<dt><samp class="option">-MM</samp></dt>
+<dd><p>Like -M except mention only user header files, not system header files.
+</p>
+</dd>
+<dt><samp class="option">-MD</samp></dt>
+<dd><p>Generate makefile fragment with dependencies.
+</p>
+</dd>
+<dt><samp class="option">-MMD</samp></dt>
+<dd><p>Like -MD except mention only user header files, not system header files.
+</p>
+</dd>
+<dt><samp class="option">-MF depfile</samp></dt>
+<dd><p>Use <samp class="file">depfile</samp> as output for -MD.
+</p>
+</dd>
+<dt><samp class="option">-MP</samp></dt>
+<dd><p>Mention all dependencies as targets too.
+</p>
+</dd>
+<dt><samp class="option">-print-search-dirs</samp></dt>
+<dd><p>Print the configured installation directory and a list of library
+and include directories tcc will search.
+</p>
+</dd>
+<dt><samp class="option">-dumpversion</samp></dt>
+<dd><p>Print version.
+</p>
+</dd>
+<dt><samp class="option">-dt</samp></dt>
+<dd><p>With <samp class="option">-run</samp>/<samp class="option">-E</samp>: auto-define &rsquo;test_...&rsquo; macros
+</p>
+</dd>
+</dl>
+
+<p>Target specific options:
+</p>
+<dl class="table">
+<dt><samp class="option">-mms-bitfields</samp></dt>
+<dd><p>Use an algorithm for bitfield alignment consistent with MSVC. Default is
+gcc&rsquo;s algorithm.
+</p>
+</dd>
+<dt><samp class="option">-mfloat-abi (ARM only)</samp></dt>
+<dd><p>Select the float ABI. Possible values: <code class="code">softfp</code> and <code class="code">hard</code>
+</p>
+</dd>
+<dt><samp class="option">-mno-sse</samp></dt>
+<dd><p>Do not use sse registers on x86_64
+</p>
+</dd>
+<dt><samp class="option">-m32, -m64</samp></dt>
+<dd><p>Pass command line to the i386/x86_64 cross compiler.
+</p>
+</dd>
+</dl>
+
+<p>Note: GCC options <samp class="option">-fx</samp> and <samp class="option">-mx</samp> are ignored.
+</p>
+<p>Environment variables that affect how tcc operates.
+</p>
+<dl class="table">
+<dt><samp class="option">CPATH</samp></dt>
+<dt><samp class="option">C_INCLUDE_PATH</samp></dt>
+<dd><p>A colon-separated list of directories searched for include files,
+directories given with <samp class="option">-I</samp> are searched first.
+</p>
+</dd>
+<dt><samp class="option">LIBRARY_PATH</samp></dt>
+<dd><p>A colon-separated list of directories searched for libraries for the
+<samp class="option">-l</samp> option, directories given with <samp class="option">-L</samp> are searched first.
+</p>
+</dd>
+</dl>
+
+
+
+<hr>
+</div>
+</div>
+<div class="chapter-level-extent" id="Clang">
+<div class="nav-panel">
+<p>
+Next: <a href="#asm" accesskey="n" rel="next">TinyCC Assembler</a>, Previous: <a href="#Invoke" accesskey="p" rel="prev">Command line invocation</a>, Up: <a href="#Top" accesskey="u" rel="up">Tiny C Compiler Reference Documentation</a> &nbsp; [<a href="#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="#devel" title="Index" rel="index">Index</a>]</p>
+</div>
+<h2 class="chapter" id="C-language-support"><span>3 C language support<a class="copiable-link" href="#C-language-support"> &para;</a></span></h2>
+
+<ul class="mini-toc">
+<li><a href="#ANSI-C" accesskey="1">ANSI C</a></li>
+<li><a href="#ISOC99-extensions" accesskey="2">ISOC99 extensions</a></li>
+<li><a href="#GNU-C-extensions" accesskey="3">GNU C extensions</a></li>
+<li><a href="#TinyCC-extensions" accesskey="4">TinyCC extensions</a></li>
+</ul>
+<div class="section-level-extent" id="ANSI-C">
+<h3 class="section"><span>3.1 ANSI C<a class="copiable-link" href="#ANSI-C"> &para;</a></span></h3>
+
+<p>TCC implements all the ANSI C standard, including structure bit fields
+and floating point numbers (<code class="code">long double</code>, <code class="code">double</code>, and
+<code class="code">float</code> fully supported).
+</p>
+</div>
+<div class="section-level-extent" id="ISOC99-extensions">
+<h3 class="section"><span>3.2 ISOC99 extensions<a class="copiable-link" href="#ISOC99-extensions"> &para;</a></span></h3>
+
+<p>TCC implements many features of the new C standard: ISO C99. Currently
+missing items are: complex and imaginary numbers.
+</p>
+<p>Currently implemented ISOC99 features:
+</p>
+<ul class="itemize mark-bullet">
+<li>variable length arrays.
+
+</li><li>64 bit <code class="code">long long</code> types are fully supported.
+
+</li><li>The boolean type <code class="code">_Bool</code> is supported.
+
+</li><li><code class="code">__func__</code> is a string variable containing the current
+function name.
+
+</li><li>Variadic macros: <code class="code">__VA_ARGS__</code> can be used for
+   function-like macros:
+<div class="example">
+<pre class="example-preformatted">    #define dprintf(level, __VA_ARGS__) printf(__VA_ARGS__)
+</pre></div>
+
+<p><code class="code">dprintf</code> can then be used with a variable number of parameters.
+</p>
+</li><li>Declarations can appear anywhere in a block (as in C++).
+
+</li><li>Array and struct/union elements can be initialized in any order by
+  using designators:
+<div class="example">
+<pre class="example-preformatted">    struct { int x, y; } st[10] = { [0].x = 1, [0].y = 2 };
+
+    int tab[10] = { 1, 2, [5] = 5, [9] = 9};
+</pre></div>
+    
+</li><li>Compound initializers are supported:
+<div class="example">
+<pre class="example-preformatted">    int *p = (int []){ 1, 2, 3 };
+</pre></div>
+<p>to initialize a pointer pointing to an initialized array. The same
+works for structures and strings.
+</p>
+</li><li>Hexadecimal floating point constants are supported:
+<div class="example">
+<pre class="example-preformatted">          double d = 0x1234p10;
+</pre></div>
+
+<p>is the same as writing 
+</p><div class="example">
+<pre class="example-preformatted">          double d = 4771840.0;
+</pre></div>
+
+</li><li><code class="code">inline</code> keyword is ignored.
+
+</li><li><code class="code">restrict</code> keyword is ignored.
+</li></ul>
+
+</div>
+<div class="section-level-extent" id="GNU-C-extensions">
+<h3 class="section"><span>3.3 GNU C extensions<a class="copiable-link" href="#GNU-C-extensions"> &para;</a></span></h3>
+
+<p>TCC implements some GNU C extensions:
+</p>
+<ul class="itemize mark-bullet">
+<li>array designators can be used without &rsquo;=&rsquo;: 
+<div class="example">
+<pre class="example-preformatted">    int a[10] = { [0] 1, [5] 2, 3, 4 };
+</pre></div>
+
+</li><li>Structure field designators can be a label: 
+<div class="example">
+<pre class="example-preformatted">    struct { int x, y; } st = { x: 1, y: 1};
+</pre></div>
+<p>instead of
+</p><div class="example">
+<pre class="example-preformatted">    struct { int x, y; } st = { .x = 1, .y = 1};
+</pre></div>
+
+</li><li><code class="code">\e</code> is ASCII character 27.
+
+</li><li>case ranges : ranges can be used in <code class="code">case</code>s:
+<div class="example">
+<pre class="example-preformatted">    switch(a) {
+    case 1 ... 9:
+          printf(&quot;range 1 to 9\n&quot;);
+          break;
+    default:
+          printf(&quot;unexpected\n&quot;);
+          break;
+    }
+</pre></div>
+
+<a class="index-entry-id" id="index-aligned-attribute"></a>
+<a class="index-entry-id" id="index-packed-attribute"></a>
+<a class="index-entry-id" id="index-section-attribute"></a>
+<a class="index-entry-id" id="index-unused-attribute"></a>
+<a class="index-entry-id" id="index-cdecl-attribute"></a>
+<a class="index-entry-id" id="index-stdcall-attribute"></a>
+<a class="index-entry-id" id="index-regparm-attribute"></a>
+<a class="index-entry-id" id="index-dllexport-attribute"></a>
+<a class="index-entry-id" id="index-nodecorate-attribute"></a>
+
+</li><li>The keyword <code class="code">__attribute__</code> is handled to specify variable or
+function attributes. The following attributes are supported:
+  <ul class="itemize mark-bullet">
+<li><code class="code">aligned(n)</code>: align a variable or a structure field to n bytes
+(must be a power of two).
+
+</li><li><code class="code">packed</code>: force alignment of a variable or a structure field to
+  1.
+
+</li><li><code class="code">section(name)</code>: generate function or data in assembly section
+name (name is a string containing the section name) instead of the default
+section.
+
+</li><li><code class="code">unused</code>: specify that the variable or the function is unused.
+
+</li><li><code class="code">cdecl</code>: use standard C calling convention (default).
+
+</li><li><code class="code">stdcall</code>: use Pascal-like calling convention.
+
+</li><li><code class="code">regparm(n)</code>: use fast i386 calling convention. <var class="var">n</var> must be
+between 1 and 3. The first <var class="var">n</var> function parameters are respectively put in
+registers <code class="code">%eax</code>, <code class="code">%edx</code> and <code class="code">%ecx</code>.
+
+</li><li><code class="code">dllexport</code>: export function from dll/executable (win32 only)
+
+</li><li><code class="code">nodecorate</code>: do not apply any decorations that would otherwise be applied when exporting function from dll/executable (win32 only)
+
+</li></ul>
+
+<p>Here are some examples:
+</p><div class="example">
+<pre class="example-preformatted">    int a __attribute__ ((aligned(8), section(&quot;.mysection&quot;)));
+</pre></div>
+
+<p>align variable <code class="code">a</code> to 8 bytes and put it in section <code class="code">.mysection</code>.
+</p>
+<div class="example">
+<pre class="example-preformatted">    int my_add(int a, int b) __attribute__ ((section(&quot;.mycodesection&quot;))) 
+    {
+        return a + b;
+    }
+</pre></div>
+
+<p>generate function <code class="code">my_add</code> in section <code class="code">.mycodesection</code>.
+</p>
+</li><li>GNU style variadic macros:
+<div class="example">
+<pre class="example-preformatted">    #define dprintf(fmt, args...) printf(fmt, ## args)
+
+    dprintf(&quot;no arg\n&quot;);
+    dprintf(&quot;one arg %d\n&quot;, 1);
+</pre></div>
+
+</li><li><code class="code">__FUNCTION__</code> is interpreted as C99 <code class="code">__func__</code> 
+(so it has not exactly the same semantics as string literal GNUC
+where it is a string literal).
+
+</li><li>The <code class="code">__alignof__</code> keyword can be used as <code class="code">sizeof</code> 
+to get the alignment of a type or an expression.
+
+</li><li>The <code class="code">typeof(x)</code> returns the type of <code class="code">x</code>. 
+<code class="code">x</code> is an expression or a type.
+
+</li><li>Computed gotos: <code class="code">&amp;&amp;label</code> returns a pointer of type 
+<code class="code">void *</code> on the goto label <code class="code">label</code>. <code class="code">goto *expr</code> can be
+used to jump on the pointer resulting from <code class="code">expr</code>.
+
+</li><li>Inline assembly with asm instruction:
+<a class="index-entry-id" id="index-inline-assembly"></a>
+<a class="index-entry-id" id="index-assembly_002c-inline"></a>
+<a class="index-entry-id" id="index-_005f_005fasm_005f_005f"></a>
+<div class="example">
+<pre class="example-preformatted">static inline void * my_memcpy(void * to, const void * from, size_t n)
+{
+int d0, d1, d2;
+__asm__ __volatile__(
+        &quot;rep ; movsl\n\t&quot;
+        &quot;testb $2,%b4\n\t&quot;
+        &quot;je 1f\n\t&quot;
+        &quot;movsw\n&quot;
+        &quot;1:\ttestb $1,%b4\n\t&quot;
+        &quot;je 2f\n\t&quot;
+        &quot;movsb\n&quot;
+        &quot;2:&quot;
+        : &quot;=&amp;c&quot; (d0), &quot;=&amp;D&quot; (d1), &quot;=&amp;S&quot; (d2)
+        :&quot;0&quot; (n/4), &quot;q&quot; (n),&quot;1&quot; ((long) to),&quot;2&quot; ((long) from)
+        : &quot;memory&quot;);
+return (to);
+}
+</pre></div>
+
+<a class="index-entry-id" id="index-gas"></a>
+<p>TCC includes its own x86 inline assembler with a <code class="code">gas</code>-like (GNU
+assembler) syntax. No intermediate files are generated. GCC 3.x named
+operands are supported.
+</p>
+</li><li><code class="code">__builtin_types_compatible_p()</code> and <code class="code">__builtin_constant_p()</code> 
+are supported.
+
+</li><li><code class="code">#pragma pack</code> is supported for win32 compatibility.
+
+</li></ul>
+
+</div>
+<div class="section-level-extent" id="TinyCC-extensions">
+<h3 class="section"><span>3.4 TinyCC extensions<a class="copiable-link" href="#TinyCC-extensions"> &para;</a></span></h3>
+
+<ul class="itemize mark-bullet">
+<li><code class="code">__TINYC__</code> is a predefined macro to indicate that you use TCC.
+
+</li><li><code class="code">#!</code> at the start of a line is ignored to allow scripting.
+
+</li><li>Binary digits can be entered (<code class="code">0b101</code> instead of
+<code class="code">5</code>).
+
+</li></ul>
+
+<hr>
+</div>
+</div>
+<div class="chapter-level-extent" id="asm">
+<div class="nav-panel">
+<p>
+Next: <a href="#linker" accesskey="n" rel="next">TinyCC Linker</a>, Previous: <a href="#Clang" accesskey="p" rel="prev">C language support</a>, Up: <a href="#Top" accesskey="u" rel="up">Tiny C Compiler Reference Documentation</a> &nbsp; [<a href="#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="#devel" title="Index" rel="index">Index</a>]</p>
+</div>
+<h2 class="chapter" id="TinyCC-Assembler"><span>4 TinyCC Assembler<a class="copiable-link" href="#TinyCC-Assembler"> &para;</a></span></h2>
+
+<p>Since version 0.9.16, TinyCC integrates its own assembler. TinyCC
+assembler supports a gas-like syntax (GNU assembler). You can
+deactivate assembler support if you want a smaller TinyCC executable
+(the C compiler does not rely on the assembler).
+</p>
+<p>TinyCC Assembler is used to handle files with <samp class="file">.S</samp> (C
+preprocessed assembler) and <samp class="file">.s</samp> extensions. It is also used to
+handle the GNU inline assembler with the <code class="code">asm</code> keyword.
+</p>
+<ul class="mini-toc">
+<li><a href="#Syntax" accesskey="1">Syntax</a></li>
+<li><a href="#Expressions" accesskey="2">Expressions</a></li>
+<li><a href="#Labels" accesskey="3">Labels</a></li>
+<li><a href="#Directives" accesskey="4">Directives</a></li>
+<li><a href="#X86-Assembler" accesskey="5">X86 Assembler</a></li>
+</ul>
+<div class="section-level-extent" id="Syntax">
+<h3 class="section"><span>4.1 Syntax<a class="copiable-link" href="#Syntax"> &para;</a></span></h3>
+
+<p>TinyCC Assembler supports most of the gas syntax. The tokens are the
+same as C.
+</p>
+<ul class="itemize mark-bullet">
+<li>C and C++ comments are supported.
+
+</li><li>Identifiers are the same as C, so you cannot use &rsquo;.&rsquo; or &rsquo;$&rsquo;.
+
+</li><li>Only 32 bit integer numbers are supported.
+
+</li></ul>
+
+</div>
+<div class="section-level-extent" id="Expressions">
+<h3 class="section"><span>4.2 Expressions<a class="copiable-link" href="#Expressions"> &para;</a></span></h3>
+
+<ul class="itemize mark-bullet">
+<li>Integers in decimal, octal and hexa are supported.
+
+</li><li>Unary operators: +, -, ~.
+
+</li><li>Binary operators in decreasing priority order:
+
+<ol class="enumerate">
+<li> *, /, %
+</li><li> &amp;, |, ^
+</li><li> +, -
+</li></ol>
+
+</li><li>A value is either an absolute number or a label plus an offset. 
+All operators accept absolute values except &rsquo;+&rsquo; and &rsquo;-&rsquo;. &rsquo;+&rsquo; or &rsquo;-&rsquo; can be
+used to add an offset to a label. &rsquo;-&rsquo; supports two labels only if they
+are the same or if they are both defined and in the same section.
+
+</li></ul>
+
+</div>
+<div class="section-level-extent" id="Labels">
+<h3 class="section"><span>4.3 Labels<a class="copiable-link" href="#Labels"> &para;</a></span></h3>
+
+<ul class="itemize mark-bullet">
+<li>All labels are considered as local, except undefined ones.
+
+</li><li>Numeric labels can be used as local <code class="code">gas</code>-like labels. 
+They can be defined several times in the same source. Use &rsquo;b&rsquo;
+(backward) or &rsquo;f&rsquo; (forward) as suffix to reference them:
+
+<div class="example">
+<pre class="example-preformatted"> 1:
+      jmp 1b /* jump to '1' label before */
+      jmp 1f /* jump to '1' label after */
+ 1:
+</pre></div>
+
+</li></ul>
+
+</div>
+<div class="section-level-extent" id="Directives">
+<h3 class="section"><span>4.4 Directives<a class="copiable-link" href="#Directives"> &para;</a></span></h3>
+<a class="index-entry-id" id="index-assembler-directives"></a>
+<a class="index-entry-id" id="index-directives_002c-assembler"></a>
+<a class="index-entry-id" id="index-align-directive"></a>
+<a class="index-entry-id" id="index-skip-directive"></a>
+<a class="index-entry-id" id="index-space-directive"></a>
+<a class="index-entry-id" id="index-byte-directive"></a>
+<a class="index-entry-id" id="index-word-directive"></a>
+<a class="index-entry-id" id="index-short-directive"></a>
+<a class="index-entry-id" id="index-int-directive"></a>
+<a class="index-entry-id" id="index-long-directive"></a>
+<a class="index-entry-id" id="index-quad-directive"></a>
+<a class="index-entry-id" id="index-globl-directive"></a>
+<a class="index-entry-id" id="index-global-directive"></a>
+<a class="index-entry-id" id="index-section-directive"></a>
+<a class="index-entry-id" id="index-text-directive"></a>
+<a class="index-entry-id" id="index-data-directive"></a>
+<a class="index-entry-id" id="index-bss-directive"></a>
+<a class="index-entry-id" id="index-fill-directive"></a>
+<a class="index-entry-id" id="index-org-directive"></a>
+<a class="index-entry-id" id="index-previous-directive"></a>
+<a class="index-entry-id" id="index-string-directive"></a>
+<a class="index-entry-id" id="index-asciz-directive"></a>
+<a class="index-entry-id" id="index-ascii-directive"></a>
+
+<p>All directives are preceded by a &rsquo;.&rsquo;. The following directives are
+supported:
+</p>
+<ul class="itemize mark-bullet">
+<li>.align n[,value]
+</li><li>.skip n[,value]
+</li><li>.space n[,value]
+</li><li>.byte value1[,...]
+</li><li>.word value1[,...]
+</li><li>.short value1[,...]
+</li><li>.int value1[,...]
+</li><li>.long value1[,...]
+</li><li>.quad immediate_value1[,...]
+</li><li>.globl symbol
+</li><li>.global symbol
+</li><li>.section section
+</li><li>.text
+</li><li>.data
+</li><li>.bss
+</li><li>.fill repeat[,size[,value]]
+</li><li>.org n
+</li><li>.previous
+</li><li>.string string[,...]
+</li><li>.asciz string[,...]
+</li><li>.ascii string[,...]
+</li></ul>
+
+</div>
+<div class="section-level-extent" id="X86-Assembler">
+<h3 class="section"><span>4.5 X86 Assembler<a class="copiable-link" href="#X86-Assembler"> &para;</a></span></h3>
+<a class="index-entry-id" id="index-assembler"></a>
+
+<p>All X86 opcodes are supported. Only ATT syntax is supported (source
+then destination operand order). If no size suffix is given, TinyCC
+tries to guess it from the operand sizes.
+</p>
+<p>Currently, MMX opcodes are supported but not SSE ones.
+</p>
+<hr>
+</div>
+</div>
+<div class="chapter-level-extent" id="linker">
+<div class="nav-panel">
+<p>
+Next: <a href="#Bounds" accesskey="n" rel="next">TinyCC Memory and Bound checks</a>, Previous: <a href="#asm" accesskey="p" rel="prev">TinyCC Assembler</a>, Up: <a href="#Top" accesskey="u" rel="up">Tiny C Compiler Reference Documentation</a> &nbsp; [<a href="#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="#devel" title="Index" rel="index">Index</a>]</p>
+</div>
+<h2 class="chapter" id="TinyCC-Linker"><span>5 TinyCC Linker<a class="copiable-link" href="#TinyCC-Linker"> &para;</a></span></h2>
+<a class="index-entry-id" id="index-linker"></a>
+
+<ul class="mini-toc">
+<li><a href="#ELF-file-generation" accesskey="1">ELF file generation</a></li>
+<li><a href="#ELF-file-loader" accesskey="2">ELF file loader</a></li>
+<li><a href="#PE_002di386-file-generation" accesskey="3">PE-i386 file generation</a></li>
+<li><a href="#GNU-Linker-Scripts" accesskey="4">GNU Linker Scripts</a></li>
+</ul>
+<div class="section-level-extent" id="ELF-file-generation">
+<h3 class="section"><span>5.1 ELF file generation<a class="copiable-link" href="#ELF-file-generation"> &para;</a></span></h3>
+<a class="index-entry-id" id="index-ELF"></a>
+
+<p>TCC can directly output relocatable ELF files (object files),
+executable ELF files and dynamic ELF libraries without relying on an
+external linker.
+</p>
+<p>Dynamic ELF libraries can be output but the C compiler does not generate
+position independent code (PIC). It means that the dynamic library
+code generated by TCC cannot be factorized among processes yet.
+</p>
+<p>TCC linker eliminates unreferenced object code in libraries. A single pass is
+done on the object and library list, so the order in which object files and
+libraries are specified is important (same constraint as GNU ld). No grouping
+options (<samp class="option">--start-group</samp> and <samp class="option">--end-group</samp>) are supported.
+</p>
+</div>
+<div class="section-level-extent" id="ELF-file-loader">
+<h3 class="section"><span>5.2 ELF file loader<a class="copiable-link" href="#ELF-file-loader"> &para;</a></span></h3>
+
+<p>TCC can load ELF object files, archives (.a files) and dynamic
+libraries (.so).
+</p>
+</div>
+<div class="section-level-extent" id="PE_002di386-file-generation">
+<h3 class="section"><span>5.3 PE-i386 file generation<a class="copiable-link" href="#PE_002di386-file-generation"> &para;</a></span></h3>
+<a class="index-entry-id" id="index-PE_002di386"></a>
+
+<p>TCC for Windows supports the native Win32 executable file format (PE-i386).  It
+generates EXE files (console and gui) and DLL files.
+</p>
+<p>For usage on Windows, see also tcc-win32.txt.
+</p>
+</div>
+<div class="section-level-extent" id="GNU-Linker-Scripts">
+<h3 class="section"><span>5.4 GNU Linker Scripts<a class="copiable-link" href="#GNU-Linker-Scripts"> &para;</a></span></h3>
+<a class="index-entry-id" id="index-scripts_002c-linker"></a>
+<a class="index-entry-id" id="index-linker-scripts"></a>
+<a class="index-entry-id" id="index-GROUP_002c-linker-command"></a>
+<a class="index-entry-id" id="index-FILE_002c-linker-command"></a>
+<a class="index-entry-id" id="index-OUTPUT_005fFORMAT_002c-linker-command"></a>
+<a class="index-entry-id" id="index-TARGET_002c-linker-command"></a>
+
+<p>Because on many Linux systems some dynamic libraries (such as
+<samp class="file">/usr/lib/libc.so</samp>) are in fact GNU ld link scripts (horrible!),
+the TCC linker also supports a subset of GNU ld scripts.
+</p>
+<p>The <code class="code">GROUP</code> and <code class="code">FILE</code> commands are supported. <code class="code">OUTPUT_FORMAT</code>
+and <code class="code">TARGET</code> are ignored.
+</p>
+<p>Example from <samp class="file">/usr/lib/libc.so</samp>:
+</p><div class="example">
+<pre class="example-preformatted">/* GNU ld script
+   Use the shared library, but some functions are only in
+   the static library, so try that secondarily.  */
+GROUP ( /lib/libc.so.6 /usr/lib/libc_nonshared.a )
+</pre></div>
+
+<hr>
+</div>
+</div>
+<div class="chapter-level-extent" id="Bounds">
+<div class="nav-panel">
+<p>
+Next: <a href="#Libtcc" accesskey="n" rel="next">The <code class="code">libtcc</code> library</a>, Previous: <a href="#linker" accesskey="p" rel="prev">TinyCC Linker</a>, Up: <a href="#Top" accesskey="u" rel="up">Tiny C Compiler Reference Documentation</a> &nbsp; [<a href="#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="#devel" title="Index" rel="index">Index</a>]</p>
+</div>
+<h2 class="chapter" id="TinyCC-Memory-and-Bound-checks"><span>6 TinyCC Memory and Bound checks<a class="copiable-link" href="#TinyCC-Memory-and-Bound-checks"> &para;</a></span></h2>
+<a class="index-entry-id" id="index-bound-checks"></a>
+<a class="index-entry-id" id="index-memory-checks"></a>
+
+<p>This feature is activated with the <samp class="option">-b</samp> option (see <a class="pxref" href="#Invoke">Command line invocation</a>).
+Here are some examples of caught errors:
+</p>
+<dl class="table">
+<dt>Invalid range with standard string function:</dt>
+<dd><div class="example">
+<pre class="example-preformatted">{
+    char tab[10];
+    memset(tab, 0, 11);
+}
+</pre></div>
+
+</dd>
+<dt>Out of bounds-error in global or local arrays:</dt>
+<dd><div class="example">
+<pre class="example-preformatted">{
+    int tab[10];
+    for(i=0;i&lt;11;i++) {
+        sum += tab[i];
+    }
+}
+</pre></div>
+
+</dd>
+<dt>Out of bounds-error in malloc&rsquo;ed data:</dt>
+<dd><div class="example">
+<pre class="example-preformatted">{
+    int *tab;
+    tab = malloc(20 * sizeof(int));
+    for(i=0;i&lt;21;i++) {
+        sum += tab[i];
+    }
+    free(tab);
+}
+</pre></div>
+
+</dd>
+<dt>Access of freed memory:</dt>
+<dd><div class="example">
+<pre class="example-preformatted">{
+    int *tab;
+    tab = malloc(20 * sizeof(int));
+    free(tab);
+    for(i=0;i&lt;20;i++) {
+        sum += tab[i];
+    }
+}
+</pre></div>
+
+</dd>
+<dt>Double free:</dt>
+<dd><div class="example">
+<pre class="example-preformatted">{
+    int *tab;
+    tab = malloc(20 * sizeof(int));
+    free(tab);
+    free(tab);
+}
+</pre></div>
+</dd>
+</dl>
+
+<p>TCC defines <code class="code">__TCC_BCHECK__</code> if activated.
+</p>
+<p>There are five environment variables that can be used to control the behavior:
+</p><ul class="itemize mark-bullet">
+<li>TCC_BOUNDS_WARN_POINTER_ADD
+- Print warning when pointer add creates an illegal pointer.
+</li><li>TCC_BOUNDS_PRINT_CALLS
+- Print bound checking calls. Can be used for debugging.
+</li><li>TCC_BOUNDS_PRINT_HEAP
+- Print heap objects that are not freed at exit of program.
+</li><li>TCC_BOUNDS_PRINT_STATISTIC
+- Print statistic information at exit of program.
+</li><li>TCC_BOUNDS_NEVER_FATAL
+- Try to continue in case of a bound checking error.
+</li></ul>
+
+<p>Also, a function <code class="code">__bounds_checking(x)</code> can be used to turn off/on bounds
+checking from usercode (see below).
+</p>
+<p>Notes:
+</p><ul class="itemize mark-bullet">
+<li>Only available on i386 (linux and windows), x86_64 (linux and windows),
+arm, arm64 and riscv64 for the moment.
+</li><li>The generated code is slower and bigger.
+</li><li>The bound checking code is not included in shared libraries. The main
+executable should always be compiled with the <samp class="option">-b</samp>.
+</li><li>Pointer size is <em class="emph">unchanged</em> and code generated with bound checks is
+<em class="emph">fully compatible</em> with unchecked code. When a pointer comes from
+unchecked code, it is assumed to be valid. Even very obscure C code with
+casts should work correctly.
+</li><li>Signal handlers are not compatible with bounds checking. The
+bounds checking code disables checking in signal/sigaction handlers.
+The fork() function call in a multi threaded application is also a problem.
+The bound checking code fixes this for the child process.
+</li><li>The reason that signals and fork have problems is that we use locking
+inside the bounds checking code.
+Inside a signal handler we can not use locks. Also in a multi threaded
+application after a fork the child process can have the lock set
+by another thread.
+</li><li>The BOUNDS_CHECKING_OFF and BOUNDS_CHECKING_ON can also be used to
+disable bounds checking for some code.
+</li><li>The __bounds_checking call adds a value to a thread local value.
+The value starts at 0. If the value is not 0 the code is not checked
+for bounds checking errors.
+</li></ul>
+
+<div class="example">
+<pre class="example-preformatted">#ifdef __TCC_BCHECK__
+extern void __bounds_checking (int x);
+# define BOUNDS_CHECKING_OFF __bounds_checking(1)
+# define BOUNDS_CHECKING_ON  __bounds_checking(-1)
+#else
+# define BOUNDS_CHECKING_OFF
+# define BOUNDS_CHECKING_ON
+#endif
+</pre></div>
+
+<p>For more information about the ideas behind this method, see
+<a class="url" href="http://www.doc.ic.ac.uk/~phjk/BoundsChecking.html">http://www.doc.ic.ac.uk/~phjk/BoundsChecking.html</a>.
+</p>
+<hr>
+</div>
+<div class="chapter-level-extent" id="Libtcc">
+<div class="nav-panel">
+<p>
+Next: <a href="#devel" accesskey="n" rel="next">Developer&rsquo;s guide</a>, Previous: <a href="#Bounds" accesskey="p" rel="prev">TinyCC Memory and Bound checks</a>, Up: <a href="#Top" accesskey="u" rel="up">Tiny C Compiler Reference Documentation</a> &nbsp; [<a href="#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="#devel" title="Index" rel="index">Index</a>]</p>
+</div>
+<h2 class="chapter" id="The-libtcc-library"><span>7 The <code class="code">libtcc</code> library<a class="copiable-link" href="#The-libtcc-library"> &para;</a></span></h2>
+
+<p>The <code class="code">libtcc</code> library enables you to use TCC as a backend for
+dynamic code generation. 
+</p>
+<p>Read the <samp class="file">libtcc.h</samp> to have an overview of the API. Read
+<samp class="file">libtcc_test.c</samp> to have a very simple example.
+</p>
+<p>The idea consists in giving a C string containing the program you want
+to compile directly to <code class="code">libtcc</code>. Then you can access to any global
+symbol (function or variable) defined.
+</p>
+<hr>
+</div>
+<div class="chapter-level-extent" id="devel">
+<div class="nav-panel">
+<p>
+Previous: <a href="#Libtcc" accesskey="p" rel="prev">The <code class="code">libtcc</code> library</a>, Up: <a href="#Top" accesskey="u" rel="up">Tiny C Compiler Reference Documentation</a> &nbsp; [<a href="#SEC_Contents" title="Table of contents" rel="contents">Contents</a>][<a href="#devel" title="Index" rel="index">Index</a>]</p>
+</div>
+<h2 class="chapter" id="Developer_0027s-guide"><span>8 Developer&rsquo;s guide<a class="copiable-link" href="#Developer_0027s-guide"> &para;</a></span></h2>
+
+<p>This chapter gives some hints to understand how TCC works. You can skip
+it if you do not intend to modify the TCC code.
+</p>
+<ul class="mini-toc">
+<li><a href="#File-reading" accesskey="1">File reading</a></li>
+<li><a href="#Lexer" accesskey="2">Lexer</a></li>
+<li><a href="#Parser" accesskey="3">Parser</a></li>
+<li><a href="#Types" accesskey="4">Types</a></li>
+<li><a href="#Symbols" accesskey="5">Symbols</a></li>
+<li><a href="#Sections" accesskey="6">Sections</a></li>
+<li><a href="#Code-generation" accesskey="7">Code generation</a></li>
+<li><a href="#Optimizations-done" accesskey="8">Optimizations done</a></li>
+</ul>
+<div class="section-level-extent" id="File-reading">
+<h3 class="section"><span>8.1 File reading<a class="copiable-link" href="#File-reading"> &para;</a></span></h3>
+
+<p>The <code class="code">BufferedFile</code> structure contains the context needed to read a
+file, including the current line number. <code class="code">tcc_open()</code> opens a new
+file and <code class="code">tcc_close()</code> closes it. <code class="code">inp()</code> returns the next
+character.
+</p>
+</div>
+<div class="section-level-extent" id="Lexer">
+<h3 class="section"><span>8.2 Lexer<a class="copiable-link" href="#Lexer"> &para;</a></span></h3>
+
+<p><code class="code">next()</code> reads the next token in the current
+file. <code class="code">next_nomacro()</code> reads the next token without macro
+expansion.
+</p>
+<p><code class="code">tok</code> contains the current token (see <code class="code">TOK_xxx</code>)
+constants. Identifiers and keywords are also keywords. <code class="code">tokc</code>
+contains additional infos about the token (for example a constant value
+if number or string token).
+</p>
+</div>
+<div class="section-level-extent" id="Parser">
+<h3 class="section"><span>8.3 Parser<a class="copiable-link" href="#Parser"> &para;</a></span></h3>
+
+<p>The parser is hardcoded (yacc is not necessary). It does only one pass,
+except:
+</p>
+<ul class="itemize mark-bullet">
+<li>For initialized arrays with unknown size, a first pass 
+is done to count the number of elements.
+
+</li><li>For architectures where arguments are evaluated in 
+reverse order, a first pass is done to reverse the argument order.
+
+</li></ul>
+
+</div>
+<div class="section-level-extent" id="Types">
+<h3 class="section"><span>8.4 Types<a class="copiable-link" href="#Types"> &para;</a></span></h3>
+
+<p>The types are stored in a single &rsquo;int&rsquo; variable. It was chosen in the
+first stages of development when tcc was much simpler. Now, it may not
+be the best solution.
+</p>
+<div class="example">
+<pre class="example-preformatted">#define VT_INT        0  /* integer type */
+#define VT_BYTE       1  /* signed byte type */
+#define VT_SHORT      2  /* short type */
+#define VT_VOID       3  /* void type */
+#define VT_PTR        4  /* pointer */
+#define VT_ENUM       5  /* enum definition */
+#define VT_FUNC       6  /* function type */
+#define VT_STRUCT     7  /* struct/union definition */
+#define VT_FLOAT      8  /* IEEE float */
+#define VT_DOUBLE     9  /* IEEE double */
+#define VT_LDOUBLE   10  /* IEEE long double */
+#define VT_BOOL      11  /* ISOC99 boolean type */
+#define VT_LLONG     12  /* 64 bit integer */
+#define VT_LONG      13  /* long integer (NEVER USED as type, only
+                            during parsing) */
+#define VT_BTYPE      0x000f /* mask for basic type */
+#define VT_UNSIGNED   0x0010  /* unsigned type */
+#define VT_ARRAY      0x0020  /* array type (also has VT_PTR) */
+#define VT_VLA        0x20000 /* VLA type (also has VT_PTR and VT_ARRAY) */
+#define VT_BITFIELD   0x0040  /* bitfield modifier */
+#define VT_CONSTANT   0x0800  /* const modifier */
+#define VT_VOLATILE   0x1000  /* volatile modifier */
+#define VT_DEFSIGN    0x2000  /* signed type */
+
+#define VT_STRUCT_SHIFT 18   /* structure/enum name shift (14 bits left) */
+</pre></div>
+
+<p>When a reference to another type is needed (for pointers, functions and
+structures), the <code class="code">32 - VT_STRUCT_SHIFT</code> high order bits are used to
+store an identifier reference.
+</p>
+<p>The <code class="code">VT_UNSIGNED</code> flag can be set for chars, shorts, ints and long
+longs.
+</p>
+<p>Arrays are considered as pointers <code class="code">VT_PTR</code> with the flag
+<code class="code">VT_ARRAY</code> set. Variable length arrays are considered as special
+arrays and have flag <code class="code">VT_VLA</code> set instead of <code class="code">VT_ARRAY</code>.
+</p>
+<p>The <code class="code">VT_BITFIELD</code> flag can be set for chars, shorts, ints and long
+longs. If it is set, then the bitfield position is stored from bits
+VT_STRUCT_SHIFT to VT_STRUCT_SHIFT + 5 and the bit field size is stored
+from bits VT_STRUCT_SHIFT + 6 to VT_STRUCT_SHIFT + 11.
+</p>
+<p><code class="code">VT_LONG</code> is never used except during parsing.
+</p>
+<p>During parsing, the storage of an object is also stored in the type
+integer:
+</p>
+<div class="example">
+<pre class="example-preformatted">#define VT_EXTERN  0x00000080  /* extern definition */
+#define VT_STATIC  0x00000100  /* static variable */
+#define VT_TYPEDEF 0x00000200  /* typedef definition */
+#define VT_INLINE  0x00000400  /* inline definition */
+#define VT_IMPORT  0x00004000  /* win32: extern data imported from dll */
+#define VT_EXPORT  0x00008000  /* win32: data exported from dll */
+#define VT_WEAK    0x00010000  /* win32: data exported from dll */
+</pre></div>
+
+</div>
+<div class="section-level-extent" id="Symbols">
+<h3 class="section"><span>8.5 Symbols<a class="copiable-link" href="#Symbols"> &para;</a></span></h3>
+
+<p>All symbols are stored in hashed symbol stacks. Each symbol stack
+contains <code class="code">Sym</code> structures.
+</p>
+<p><code class="code">Sym.v</code> contains the symbol name (remember
+an identifier is also a token, so a string is never necessary to store
+it). <code class="code">Sym.t</code> gives the type of the symbol. <code class="code">Sym.r</code> is usually
+the register in which the corresponding variable is stored. <code class="code">Sym.c</code> is
+usually a constant associated to the symbol like its address for normal
+symbols, and the number of entries for symbols representing arrays.
+Variable length array types use <code class="code">Sym.c</code> as a location on the stack
+which holds the runtime sizeof for the type.
+</p>
+<p>Four main symbol stacks are defined:
+</p>
+<dl class="table">
+<dt><code class="code">define_stack</code></dt>
+<dd><p>for the macros (<code class="code">#define</code>s).
+</p>
+</dd>
+<dt><code class="code">global_stack</code></dt>
+<dd><p>for the global variables, functions and types.
+</p>
+</dd>
+<dt><code class="code">local_stack</code></dt>
+<dd><p>for the local variables, functions and types.
+</p>
+</dd>
+<dt><code class="code">global_label_stack</code></dt>
+<dd><p>for the local labels (for <code class="code">goto</code>).
+</p>
+</dd>
+<dt><code class="code">label_stack</code></dt>
+<dd><p>for GCC block local labels (see the <code class="code">__label__</code> keyword).
+</p>
+</dd>
+</dl>
+
+<p><code class="code">sym_push()</code> is used to add a new symbol in the local symbol
+stack. If no local symbol stack is active, it is added in the global
+symbol stack.
+</p>
+<p><code class="code">sym_pop(st,b)</code> pops symbols from the symbol stack <var class="var">st</var> until
+the symbol <var class="var">b</var> is on the top of stack. If <var class="var">b</var> is NULL, the stack
+is emptied.
+</p>
+<p><code class="code">sym_find(v)</code> return the symbol associated to the identifier
+<var class="var">v</var>. The local stack is searched first from top to bottom, then the
+global stack.
+</p>
+</div>
+<div class="section-level-extent" id="Sections">
+<h3 class="section"><span>8.6 Sections<a class="copiable-link" href="#Sections"> &para;</a></span></h3>
+
+<p>The generated code and data are written in sections. The structure
+<code class="code">Section</code> contains all the necessary information for a given
+section. <code class="code">new_section()</code> creates a new section. ELF file semantics
+is assumed for each section.
+</p>
+<p>The following sections are predefined:
+</p>
+<dl class="table">
+<dt><code class="code">text_section</code></dt>
+<dd><p>is the section containing the generated code. <var class="var">ind</var> contains the
+current position in the code section.
+</p>
+</dd>
+<dt><code class="code">data_section</code></dt>
+<dd><p>contains initialized data
+</p>
+</dd>
+<dt><code class="code">bss_section</code></dt>
+<dd><p>contains uninitialized data
+</p>
+</dd>
+<dt><code class="code">bounds_section</code></dt>
+<dt><code class="code">lbounds_section</code></dt>
+<dd><p>are used when bound checking is activated
+</p>
+</dd>
+<dt><code class="code">stab_section</code></dt>
+<dt><code class="code">stabstr_section</code></dt>
+<dd><p>are used when debugging is active to store debug information
+</p>
+</dd>
+<dt><code class="code">symtab_section</code></dt>
+<dt><code class="code">strtab_section</code></dt>
+<dd><p>contain the exported symbols (currently only used for debugging).
+</p>
+</dd>
+</dl>
+
+</div>
+<div class="section-level-extent" id="Code-generation">
+<h3 class="section"><span>8.7 Code generation<a class="copiable-link" href="#Code-generation"> &para;</a></span></h3>
+<a class="index-entry-id" id="index-code-generation"></a>
+
+<ul class="mini-toc">
+<li><a href="#Introduction-2" accesskey="1">Introduction</a></li>
+<li><a href="#The-value-stack" accesskey="2">The value stack</a></li>
+<li><a href="#Manipulating-the-value-stack" accesskey="3">Manipulating the value stack</a></li>
+<li><a href="#CPU-dependent-code-generation" accesskey="4">CPU dependent code generation</a></li>
+</ul>
+<div class="subsection-level-extent" id="Introduction-2">
+<h4 class="subsection"><span>8.7.1 Introduction<a class="copiable-link" href="#Introduction-2"> &para;</a></span></h4>
+
+<p>The TCC code generator directly generates linked binary code in one
+pass. It is rather unusual these days (see gcc for example which
+generates text assembly), but it can be very fast and surprisingly
+little complicated.
+</p>
+<p>The TCC code generator is register based. Optimization is only done at
+the expression level. No intermediate representation of expression is
+kept except the current values stored in the <em class="emph">value stack</em>.
+</p>
+<p>On x86, three temporary registers are used. When more registers are
+needed, one register is spilled into a new temporary variable on the stack.
+</p>
+</div>
+<div class="subsection-level-extent" id="The-value-stack">
+<h4 class="subsection"><span>8.7.2 The value stack<a class="copiable-link" href="#The-value-stack"> &para;</a></span></h4>
+<a class="index-entry-id" id="index-value-stack_002c-introduction"></a>
+
+<p>When an expression is parsed, its value is pushed on the value stack
+(<var class="var">vstack</var>). The top of the value stack is <var class="var">vtop</var>. Each value
+stack entry is the structure <code class="code">SValue</code>.
+</p>
+<p><code class="code">SValue.t</code> is the type. <code class="code">SValue.r</code> indicates how the value is
+currently stored in the generated code. It is usually a CPU register
+index (<code class="code">REG_xxx</code> constants), but additional values and flags are
+defined:
+</p>
+<div class="example">
+<pre class="example-preformatted">#define VT_CONST     0x00f0
+#define VT_LLOCAL    0x00f1
+#define VT_LOCAL     0x00f2
+#define VT_CMP       0x00f3
+#define VT_JMP       0x00f4
+#define VT_JMPI      0x00f5
+#define VT_LVAL      0x0100
+#define VT_SYM       0x0200
+#define VT_MUSTCAST  0x0400
+#define VT_MUSTBOUND 0x0800
+#define VT_BOUNDED   0x8000
+#define VT_LVAL_BYTE     0x1000
+#define VT_LVAL_SHORT    0x2000
+#define VT_LVAL_UNSIGNED 0x4000
+#define VT_LVAL_TYPE     (VT_LVAL_BYTE | VT_LVAL_SHORT | VT_LVAL_UNSIGNED)
+</pre></div>
+
+<dl class="table">
+<dt><code class="code">VT_CONST</code></dt>
+<dd><p>indicates that the value is a constant. It is stored in the union
+<code class="code">SValue.c</code>, depending on its type.
+</p>
+</dd>
+<dt><code class="code">VT_LOCAL</code></dt>
+<dd><p>indicates a local variable pointer at offset <code class="code">SValue.c.i</code> in the
+stack.
+</p>
+</dd>
+<dt><code class="code">VT_CMP</code></dt>
+<dd><p>indicates that the value is actually stored in the CPU flags (i.e. the
+value is the consequence of a test). The value is either 0 or 1. The
+actual CPU flags used is indicated in <code class="code">SValue.c.i</code>. 
+</p>
+<p>If any code is generated which destroys the CPU flags, this value MUST be
+put in a normal register.
+</p>
+</dd>
+<dt><code class="code">VT_JMP</code></dt>
+<dt><code class="code">VT_JMPI</code></dt>
+<dd><p>indicates that the value is the consequence of a conditional jump. For VT_JMP,
+it is 1 if the jump is taken, 0 otherwise. For VT_JMPI it is inverted.
+</p>
+<p>These values are used to compile the <code class="code">||</code> and <code class="code">&amp;&amp;</code> logical
+operators.
+</p>
+<p>If any code is generated, this value MUST be put in a normal
+register. Otherwise, the generated code won&rsquo;t be executed if the jump is
+taken.
+</p>
+</dd>
+<dt><code class="code">VT_LVAL</code></dt>
+<dd><p>is a flag indicating that the value is actually an lvalue (left value of
+an assignment). It means that the value stored is actually a pointer to
+the wanted value. 
+</p>
+<p>Understanding the use <code class="code">VT_LVAL</code> is very important if you want to
+understand how TCC works.
+</p>
+</dd>
+<dt><code class="code">VT_LVAL_BYTE</code></dt>
+<dt><code class="code">VT_LVAL_SHORT</code></dt>
+<dt><code class="code">VT_LVAL_UNSIGNED</code></dt>
+<dd><p>if the lvalue has an integer type, then these flags give its real
+type. The type alone is not enough in case of cast optimisations.
+</p>
+</dd>
+<dt><code class="code">VT_LLOCAL</code></dt>
+<dd><p>is a saved lvalue on the stack. <code class="code">VT_LVAL</code> must also be set with
+<code class="code">VT_LLOCAL</code>. <code class="code">VT_LLOCAL</code> can arise when a <code class="code">VT_LVAL</code> in
+a register has to be saved to the stack, or it can come from an
+architecture-specific calling convention.
+</p>
+</dd>
+<dt><code class="code">VT_MUSTCAST</code></dt>
+<dd><p>indicates that a cast to the value type must be performed if the value
+is used (lazy casting).
+</p>
+</dd>
+<dt><code class="code">VT_SYM</code></dt>
+<dd><p>indicates that the symbol <code class="code">SValue.sym</code> must be added to the constant.
+</p>
+</dd>
+<dt><code class="code">VT_MUSTBOUND</code></dt>
+<dt><code class="code">VT_BOUNDED</code></dt>
+<dd><p>are only used for optional bound checking.
+</p>
+</dd>
+</dl>
+
+</div>
+<div class="subsection-level-extent" id="Manipulating-the-value-stack">
+<h4 class="subsection"><span>8.7.3 Manipulating the value stack<a class="copiable-link" href="#Manipulating-the-value-stack"> &para;</a></span></h4>
+<a class="index-entry-id" id="index-value-stack"></a>
+
+<p><code class="code">vsetc()</code> and <code class="code">vset()</code> pushes a new value on the value
+stack. If the previous <var class="var">vtop</var> was stored in a very unsafe place(for
+example in the CPU flags), then some code is generated to put the
+previous <var class="var">vtop</var> in a safe storage.
+</p>
+<p><code class="code">vpop()</code> pops <var class="var">vtop</var>. In some cases, it also generates cleanup
+code (for example if stacked floating point registers are used as on
+x86).
+</p>
+<p>The <code class="code">gv(rc)</code> function generates code to evaluate <var class="var">vtop</var> (the
+top value of the stack) into registers. <var class="var">rc</var> selects in which
+register class the value should be put. <code class="code">gv()</code> is the <em class="emph">most
+important function</em> of the code generator.
+</p>
+<p><code class="code">gv2()</code> is the same as <code class="code">gv()</code> but for the top two stack
+entries.
+</p>
+</div>
+<div class="subsection-level-extent" id="CPU-dependent-code-generation">
+<h4 class="subsection"><span>8.7.4 CPU dependent code generation<a class="copiable-link" href="#CPU-dependent-code-generation"> &para;</a></span></h4>
+<a class="index-entry-id" id="index-CPU-dependent"></a>
+<p>See the <samp class="file">i386-gen.c</samp> file to have an example.
+</p>
+<dl class="table">
+<dt><code class="code">load()</code></dt>
+<dd><p>must generate the code needed to load a stack value into a register.
+</p>
+</dd>
+<dt><code class="code">store()</code></dt>
+<dd><p>must generate the code needed to store a register into a stack value
+lvalue.
+</p>
+</dd>
+<dt><code class="code">gfunc_start()</code></dt>
+<dt><code class="code">gfunc_param()</code></dt>
+<dt><code class="code">gfunc_call()</code></dt>
+<dd><p>should generate a function call
+</p>
+</dd>
+<dt><code class="code">gfunc_prolog()</code></dt>
+<dt><code class="code">gfunc_epilog()</code></dt>
+<dd><p>should generate a function prolog/epilog.
+</p>
+</dd>
+<dt><code class="code">gen_opi(op)</code></dt>
+<dd><p>must generate the binary integer operation <var class="var">op</var> on the two top
+entries of the stack which are guaranteed to contain integer types.
+</p>
+<p>The result value should be put on the stack.
+</p>
+</dd>
+<dt><code class="code">gen_opf(op)</code></dt>
+<dd><p>same as <code class="code">gen_opi()</code> for floating point operations. The two top
+entries of the stack are guaranteed to contain floating point values of
+same types.
+</p>
+</dd>
+<dt><code class="code">gen_cvt_itof()</code></dt>
+<dd><p>integer to floating point conversion.
+</p>
+</dd>
+<dt><code class="code">gen_cvt_ftoi()</code></dt>
+<dd><p>floating point to integer conversion.
+</p>
+</dd>
+<dt><code class="code">gen_cvt_ftof()</code></dt>
+<dd><p>floating point to floating point of different size conversion.
+</p>
+</dd>
+</dl>
+
+</div>
+</div>
+<div class="section-level-extent" id="Optimizations-done">
+<h3 class="section"><span>8.8 Optimizations done<a class="copiable-link" href="#Optimizations-done"> &para;</a></span></h3>
+<a class="index-entry-id" id="index-optimizations"></a>
+<a class="index-entry-id" id="index-constant-propagation"></a>
+<a class="index-entry-id" id="index-strength-reduction"></a>
+<a class="index-entry-id" id="index-comparison-operators"></a>
+<a class="index-entry-id" id="index-caching-processor-flags"></a>
+<a class="index-entry-id" id="index-flags_002c-caching"></a>
+<a class="index-entry-id" id="index-jump-optimization"></a>
+<p>Constant propagation is done for all operations. Multiplications and
+divisions are optimized to shifts when appropriate. Comparison
+operators are optimized by maintaining a special cache for the
+processor flags. &amp;&amp;, || and ! are optimized by maintaining a special
+&rsquo;jump target&rsquo; value. No other jump optimization is currently performed
+because it would require to store the code in a more abstract fashion.
+</p>
+</div>
+</div>
+<div class="unnumbered-level-extent" id="Concept-Index">
+<h2 class="unnumbered"><span>Concept Index<a class="copiable-link" href="#Concept-Index"> &para;</a></span></h2>
+<div class="printindex cp-printindex">
+<table class="cp-letters-header-printindex"><tr><th>Jump to: &nbsp; </th><td><a class="summary-letter-printindex" href="#devel_cp_symbol-1"><b>_</b></a>
+ &nbsp; 
+<br>
+<a class="summary-letter-printindex" href="#devel_cp_letter-A"><b>A</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-B"><b>B</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-C"><b>C</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-D"><b>D</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-E"><b>E</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-F"><b>F</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-G"><b>G</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-I"><b>I</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-J"><b>J</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-L"><b>L</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-M"><b>M</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-N"><b>N</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-O"><b>O</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-P"><b>P</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-Q"><b>Q</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-R"><b>R</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-S"><b>S</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-T"><b>T</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-U"><b>U</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-V"><b>V</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-W"><b>W</b></a>
+ &nbsp; 
+</td></tr></table>
+<table class="cp-entries-printindex" border="0">
+<tr><td></td><th class="entries-header-printindex">Index Entry</th><th class="sections-header-printindex">Section</th></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_symbol-1">_</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-_005f_005fasm_005f_005f">__asm__</a></td><td class="printindex-index-section"><a href="#Clang">Clang</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-A">A</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-align-directive">align directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-aligned-attribute">aligned attribute</a></td><td class="printindex-index-section"><a href="#Clang">Clang</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-ascii-directive">ascii directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-asciz-directive">asciz directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-assembler">assembler</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-assembler-directives">assembler directives</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-assembly_002c-inline">assembly, inline</a></td><td class="printindex-index-section"><a href="#Clang">Clang</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-B">B</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-bound-checks">bound checks</a></td><td class="printindex-index-section"><a href="#Bounds">Bounds</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-bss-directive">bss directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-byte-directive">byte directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-C">C</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-caching-processor-flags">caching processor flags</a></td><td class="printindex-index-section"><a href="#devel">devel</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-cdecl-attribute">cdecl attribute</a></td><td class="printindex-index-section"><a href="#Clang">Clang</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-code-generation">code generation</a></td><td class="printindex-index-section"><a href="#devel">devel</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-comparison-operators">comparison operators</a></td><td class="printindex-index-section"><a href="#devel">devel</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-constant-propagation">constant propagation</a></td><td class="printindex-index-section"><a href="#devel">devel</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-CPU-dependent">CPU dependent</a></td><td class="printindex-index-section"><a href="#devel">devel</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-D">D</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-data-directive">data directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-directives_002c-assembler">directives, assembler</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-dllexport-attribute">dllexport attribute</a></td><td class="printindex-index-section"><a href="#Clang">Clang</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-E">E</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-ELF">ELF</a></td><td class="printindex-index-section"><a href="#linker">linker</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-F">F</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-FILE_002c-linker-command">FILE, linker command</a></td><td class="printindex-index-section"><a href="#linker">linker</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-fill-directive">fill directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-flags_002c-caching">flags, caching</a></td><td class="printindex-index-section"><a href="#devel">devel</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-G">G</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-gas">gas</a></td><td class="printindex-index-section"><a href="#Clang">Clang</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-global-directive">global directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-globl-directive">globl directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-GROUP_002c-linker-command">GROUP, linker command</a></td><td class="printindex-index-section"><a href="#linker">linker</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-I">I</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-inline-assembly">inline assembly</a></td><td class="printindex-index-section"><a href="#Clang">Clang</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-int-directive">int directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-J">J</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-jump-optimization">jump optimization</a></td><td class="printindex-index-section"><a href="#devel">devel</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-L">L</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-linker">linker</a></td><td class="printindex-index-section"><a href="#linker">linker</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-linker-scripts">linker scripts</a></td><td class="printindex-index-section"><a href="#linker">linker</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-long-directive">long directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-M">M</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-memory-checks">memory checks</a></td><td class="printindex-index-section"><a href="#Bounds">Bounds</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-N">N</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-nodecorate-attribute">nodecorate attribute</a></td><td class="printindex-index-section"><a href="#Clang">Clang</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-O">O</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-optimizations">optimizations</a></td><td class="printindex-index-section"><a href="#devel">devel</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-org-directive">org directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-OUTPUT_005fFORMAT_002c-linker-command">OUTPUT_FORMAT, linker command</a></td><td class="printindex-index-section"><a href="#linker">linker</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-P">P</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-packed-attribute">packed attribute</a></td><td class="printindex-index-section"><a href="#Clang">Clang</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-PE_002di386">PE-i386</a></td><td class="printindex-index-section"><a href="#linker">linker</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-previous-directive">previous directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-Q">Q</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-quad-directive">quad directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-R">R</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-regparm-attribute">regparm attribute</a></td><td class="printindex-index-section"><a href="#Clang">Clang</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-S">S</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-scripts_002c-linker">scripts, linker</a></td><td class="printindex-index-section"><a href="#linker">linker</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-section-attribute">section attribute</a></td><td class="printindex-index-section"><a href="#Clang">Clang</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-section-directive">section directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-short-directive">short directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-skip-directive">skip directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-space-directive">space directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-stdcall-attribute">stdcall attribute</a></td><td class="printindex-index-section"><a href="#Clang">Clang</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-strength-reduction">strength reduction</a></td><td class="printindex-index-section"><a href="#devel">devel</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-string-directive">string directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-T">T</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-TARGET_002c-linker-command">TARGET, linker command</a></td><td class="printindex-index-section"><a href="#linker">linker</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-text-directive">text directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-U">U</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-unused-attribute">unused attribute</a></td><td class="printindex-index-section"><a href="#Clang">Clang</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-V">V</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-value-stack">value stack</a></td><td class="printindex-index-section"><a href="#devel">devel</a></td></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-value-stack_002c-introduction">value stack, introduction</a></td><td class="printindex-index-section"><a href="#devel">devel</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+<tr><th id="devel_cp_letter-W">W</th></tr>
+<tr><td></td><td class="printindex-index-entry"><a href="#index-word-directive">word directive</a></td><td class="printindex-index-section"><a href="#asm">asm</a></td></tr>
+<tr><td colspan="3"><hr></td></tr>
+</table>
+<table class="cp-letters-footer-printindex"><tr><th>Jump to: &nbsp; </th><td><a class="summary-letter-printindex" href="#devel_cp_symbol-1"><b>_</b></a>
+ &nbsp; 
+<br>
+<a class="summary-letter-printindex" href="#devel_cp_letter-A"><b>A</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-B"><b>B</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-C"><b>C</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-D"><b>D</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-E"><b>E</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-F"><b>F</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-G"><b>G</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-I"><b>I</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-J"><b>J</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-L"><b>L</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-M"><b>M</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-N"><b>N</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-O"><b>O</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-P"><b>P</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-Q"><b>Q</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-R"><b>R</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-S"><b>S</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-T"><b>T</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-U"><b>U</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-V"><b>V</b></a>
+ &nbsp; 
+<a class="summary-letter-printindex" href="#devel_cp_letter-W"><b>W</b></a>
+ &nbsp; 
+</td></tr></table>
+</div>
+
+</div>
+</div>
+
+
+
+</body>
+</html>

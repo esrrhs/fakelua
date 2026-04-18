@@ -191,6 +191,36 @@ TEST(infer, test_infer_mutation) {
     });
 }
 
+// Assign-to-CVar via stale T_INT EvalType: sum is initialised as T_INT but
+// degraded to T_DYNAMIC by  sum = "done"  in an else branch that the
+// single-pass walk sees AFTER recording EvalType = T_INT on the assign node
+// for  sum = sum + i  in the then branch.  Without the fix CGen emits
+//   CVar sum = (int64_t expression)  -- a C type error.
+// With the fix typed_native_vars_ is consulted instead of EvalType.
+TEST(infer, test_infer_assign_degraded_var) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_assign_degraded_var.lua", {.debug_mode = debug_mode});
+        std::string ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, "done");
+    });
+}
+
+// Return with stale T_INT EvalType: the return expression has EvalType = T_INT
+// (set by the single-pass walk before a later T_DYNAMIC mutation appears in
+// source), but the variable is declared as CVar.  In subsequent loop
+// iterations where the variable already holds a string, the old code emitted
+//   return (CVar){VAR_INT, x.data_.i}  -- returning a garbage integer.
+// With the fix CompileExp is always used so the CVar is returned directly.
+TEST(infer, test_infer_return_stale_type) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_return_stale_type.lua", {.debug_mode = debug_mode});
+        std::string ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, "modified");
+    });
+}
+
 // InferPrefixExp "exp" branch: (a + 2) is a PrefixExp of type "exp" inside an
 // Exp of type "prefixexp".  InferPrefixExp delegates to InferNode on the inner
 // expression, yielding T_INT + T_INT = T_INT, so b is specialised as int64_t.

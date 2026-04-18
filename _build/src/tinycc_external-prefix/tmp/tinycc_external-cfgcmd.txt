@@ -1,0 +1,1 @@
+cmd='/home/runner/work/fakelua/fakelua/_build/_deps/tinycc_src-src/configure;--prefix=/home/runner/work/fakelua/fakelua/_build/third_party/tinycc;--extra-cflags=-fPIC'
