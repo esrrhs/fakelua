@@ -986,10 +986,11 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     const auto exp = explist_ptr->Exps()[0];
-    // Always compile the return expression through CompileExp.  For variables
-    // declared as native (int64_t / double) CompileVar boxes them into a CVar
-    // automatically.  For CVar-declared variables CompileVar returns the CVar
-    // directly.  Using exp->EvalType() here is unsafe: in a single-pass walk of
+    // Always compile the return expression through CompileExp.  CompileExp
+    // delegates to CompileVar for variable references: for variables declared
+    // as native (int64_t / double) CompileVar boxes them into a CVar
+    // automatically; for CVar-declared variables it returns the CVar directly.
+    // Using exp->EvalType() here is unsafe: in a single-pass walk of
     // a loop body, EvalType may be stamped T_INT before a later T_DYNAMIC
     // mutation in the same loop, causing CompileNumericExp to access
     // cvar.data_.i on a variable that holds a non-integer type at runtime.

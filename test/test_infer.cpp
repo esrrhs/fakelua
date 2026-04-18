@@ -350,10 +350,11 @@ TEST(infer, test_infer_return_stale_type) {
     // x must be CVar.
     ASSERT_NE(code.find("CVar x = "), std::string::npos);
     // The return statement must pass the CVar directly ("return x;"), NOT box it
-    // with VAR_INT which would silently corrupt a string payload.
+    // with a VAR_INT wrapper which would silently corrupt a string payload.
     ASSERT_NE(code.find("return x;"), std::string::npos);
-    // No boxing via VAR_INT in the return statement.
-    ASSERT_EQ(code.find("return (CVar){.type_ = VAR_INT"), std::string::npos);
+    // No return statement that boxes with VAR_INT (checks for the pattern that
+    // would be emitted if the stale-EvalType bug were present).
+    ASSERT_EQ(code.find("return (CVar){.type_ = VAR_INT, .data_.i = (int64_t)(x)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_return_stale_type.lua", {.debug_mode = debug_mode});
