@@ -42,6 +42,7 @@ private:
 
 private:
     TypeEnvironment env_;
+    int funcbody_depth_ = 0;
 };
 
 }// namespace fakelua

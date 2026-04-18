@@ -92,7 +92,13 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             for (size_t i = 0; i < names.size(); ++i) {
                 InferredType type = T_DYNAMIC;
                 if (i < exps.size()) {
-                    type = InferNode(exps[i]);
+                    const auto inferred = InferNode(exps[i]);
+                    // File-level locals are stored as static const CVar, not int64_t/double,
+                    // so they must always be T_DYNAMIC in the env to prevent functions from
+                    // treating them as typed native vars.
+                    if (funcbody_depth_ > 0) {
+                        type = inferred;
+                    }
                 }
                 env_.Define(names[i], type);
             }
@@ -175,6 +181,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
         }
         case SyntaxTreeType::FuncBody: {
             const auto funcbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
+            funcbody_depth_++;
             env_.EnterScope();
             if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(funcbody->Parlist())) {
                 if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
@@ -185,6 +192,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             }
             InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(funcbody->Block()), false);
             env_.ExitScope();
+            funcbody_depth_--;
             node->SetEvalType(T_UNKNOWN);
             return T_UNKNOWN;
         }
@@ -362,6 +370,18 @@ InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var)
         const auto ret = env_.Lookup(var->GetName());
         var->SetEvalType(ret);
         return ret;
+    }
+
+    // For "square" and "dot" vars, process sub-expressions so that inner variables
+    // (e.g., typed-int loop vars used as table indices) have their EvalType set.
+    // Without this, CGen would emit the raw int64_t name where a CVar is required.
+    if (const auto pe = var->GetPrefixexp()) {
+        InferNode(pe);
+    }
+    if (var->GetType() == "square") {
+        if (const auto exp = var->GetExp()) {
+            InferNode(exp);
+        }
     }
 
     var->SetEvalType(T_DYNAMIC);
