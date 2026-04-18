@@ -74,6 +74,10 @@ private:
 
     std::string CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op);
 
+    std::string CompileNumericExp(const SyntaxTreeInterfacePtr &exp);
+
+    std::string BoxNativeValue(const std::string &expr, InferredType type) const;
+
 private:
     State *s_;
     std::string file_name_;
@@ -98,6 +102,11 @@ private:
     std::stringstream func_temp_decls_;
     // Buffers the function body during compilation (reused across functions, cleared each time).
     std::stringstream body_ss_;
+    // Tracks variable names that are actually declared as a native type (int64_t / double) in
+    // the current function.  Only variables in this set may be wrapped with a boxing cast when
+    // they appear in a CVar context.  Variables absent from this set are CVar and must be used
+    // as-is.  Cleared at the start of each function compilation.
+    std::unordered_set<std::string> typed_native_vars_;
 };
 
 }// namespace fakelua

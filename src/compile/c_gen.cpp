@@ -866,6 +866,7 @@ void CGen::GenerateImpl(CompileResult &cr) {
         func_temp_decls_.clear();
         body_ss_.str("");
         body_ss_.clear();
+        typed_native_vars_.clear();
         cur_output_ = &body_ss_;
         cur_tab_++;
         CompileStmtBlock(func_block);
@@ -914,7 +915,13 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
             break;
         }
         case SyntaxTreeType::Block: {
+            // do...end block: emit a C compound-statement so that inner `local`
+            // declarations shadow outer variables instead of redeclaring them.
+            *cur_output_ << GenTab() << "{\n";
+            cur_tab_++;
             CompileStmtBlock(stmt);
+            cur_tab_--;
+            *cur_output_ << GenTab() << "}\n";
             break;
         }
         case SyntaxTreeType::While: {
@@ -973,7 +980,12 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     const auto exp = explist_ptr->Exps()[0];
-    const auto ret = CompileExp(exp);
+    std::string ret;
+    if (exp->EvalType() == T_INT || exp->EvalType() == T_FLOAT) {
+        ret = BoxNativeValue(CompileNumericExp(exp), exp->EvalType());
+    } else {
+        ret = CompileExp(exp);
+    }
 
     *cur_output_ << GenTab() << "return " << ret << ";\n";
 }
@@ -1005,8 +1017,16 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             ThrowError("local variable conflicts with global constant: " + name, stmt);
         }
 
-        const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
-        *cur_output_ << GenTab() << "CVar " << name << " = " << init << ";\n";
+        if (i < exps.size() && exps[i]->EvalType() == T_INT) {
+            *cur_output_ << GenTab() << "int64_t " << name << " = " << CompileNumericExp(exps[i]) << ";\n";
+            typed_native_vars_.insert(name);
+        } else if (i < exps.size() && exps[i]->EvalType() == T_FLOAT) {
+            *cur_output_ << GenTab() << "double " << name << " = " << CompileNumericExp(exps[i]) << ";\n";
+            typed_native_vars_.insert(name);
+        } else {
+            const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
+            *cur_output_ << GenTab() << "CVar " << name << " = " << init << ";\n";
+        }
     }
 }
 
@@ -1032,8 +1052,6 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
         ThrowError(std::format("CompileStmtAssign: expected 1 expression, got {}", exps.size()), assign);
     }
 
-    const std::string rhs = CompileExp(exps[0]);
-
     DEBUG_ASSERT(vars[0]->Type() == SyntaxTreeType::Var);
     const auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[0]);
     const auto &vtype = v_ptr->GetType();
@@ -1042,7 +1060,12 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     // so only simple variable assignments can reach here.
     DEBUG_ASSERT(vtype == "simple");
     const auto &name = v_ptr->GetName();
-    *cur_output_ << GenTab() << name << " = " << rhs << ";\n";
+    if (v_ptr->EvalType() == T_INT || v_ptr->EvalType() == T_FLOAT) {
+        *cur_output_ << GenTab() << name << " = " << CompileNumericExp(exps[0]) << ";\n";
+    } else {
+        const std::string rhs = CompileExp(exps[0]);
+        *cur_output_ << GenTab() << name << " = " << rhs << ";\n";
+    }
 }
 
 void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared) {
@@ -1149,6 +1172,39 @@ void CGen::CompileStmtBreak(const SyntaxTreeInterfacePtr &stmt) {
 void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::ForLoop);
     const auto for_stmt = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
+
+    const bool typed_int_for = for_stmt->ExpBegin() && for_stmt->ExpEnd() &&
+                               for_stmt->ExpBegin()->EvalType() == T_INT &&
+                               for_stmt->ExpEnd()->EvalType() == T_INT &&
+                               (!for_stmt->ExpStep() || for_stmt->ExpStep()->EvalType() == T_INT);
+    if (typed_int_for) {
+        const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
+        const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
+        const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
+
+        func_temp_decls_ << "    int64_t " << ctrl_var << ";\n";
+        func_temp_decls_ << "    int64_t " << end_var << ";\n";
+        func_temp_decls_ << "    int64_t " << step_var << ";\n";
+
+        *cur_output_ << GenTab() << ctrl_var << " = " << CompileNumericExp(for_stmt->ExpBegin()) << ";\n";
+        *cur_output_ << GenTab() << end_var << " = " << CompileNumericExp(for_stmt->ExpEnd()) << ";\n";
+        if (for_stmt->ExpStep()) {
+            *cur_output_ << GenTab() << step_var << " = " << CompileNumericExp(for_stmt->ExpStep()) << ";\n";
+        } else {
+            *cur_output_ << GenTab() << step_var << " = 1;\n";
+        }
+
+        *cur_output_ << GenTab() << "for (; (" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " <<
+                end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
+        cur_tab_++;
+        *cur_output_ << GenTab() << "int64_t " << for_stmt->Name() << " = " << ctrl_var << ";\n";
+        typed_native_vars_.insert(for_stmt->Name());
+        CompileStmtBlock(for_stmt->Block());
+        typed_native_vars_.erase(for_stmt->Name());
+        cur_tab_--;
+        *cur_output_ << GenTab() << "}\n";
+        return;
+    }
 
     // Allocate generated C variable names for loop control (hoisted to function top)
     const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);    // current value
@@ -1601,6 +1657,12 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         if (in_global_init_) {
             ThrowError("variable reference is not allowed in global variable initialization", v);
         }
+        if (v_ptr->EvalType() == T_INT && typed_native_vars_.count(name)) {
+            return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
+        }
+        if (v_ptr->EvalType() == T_FLOAT && typed_native_vars_.count(name)) {
+            return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
+        }
         return name;
     } else if (type == "square") {
         if (in_global_init_) {
@@ -1629,6 +1691,74 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         // 调用table的get函数
         return std::format("FlGetTable({}, {})", pe_ret, exp_ret);
     }
+}
+
+std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
+    if (!exp) {
+        ThrowFakeluaException("Code generate failed, expected expression for numeric specialization");
+    }
+    if (exp->Type() != SyntaxTreeType::Exp) {
+        ThrowError("expected expression for numeric specialization", exp);
+    }
+
+    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    const auto &exp_type = e->ExpType();
+
+    if (exp_type == "number") {
+        if (e->EvalType() == T_INT) {
+            return std::to_string(ToInteger(e->ExpValue()));
+        }
+        if (e->EvalType() == T_FLOAT) {
+            return std::format("{}", ToFloat(e->ExpValue()));
+        }
+        ThrowError("number node is not inferred as numeric", exp);
+    } else if (exp_type == "prefixexp") {
+        const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
+        if (!pe) {
+            ThrowError("invalid prefix expression", exp);
+        }
+        if (pe->GetType() == "var") {
+            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+            if (!var || var->GetType() != "simple") {
+                ThrowError("only simple variable is supported in numeric specialization", exp);
+            }
+            const auto &vname = var->GetName();
+            if (typed_native_vars_.count(vname)) {
+                // Variable is typed native (int64_t/double): use the name directly.
+                return vname;
+            }
+            // Variable is CVar (declared as CVar because it was later mutated to
+            // T_DYNAMIC).  Extract the stored numeric field to obtain a native value.
+            if (e->EvalType() == T_FLOAT) {
+                return std::format("{}.data_.f", vname);
+            }
+            return std::format("{}.data_.i", vname);
+        }
+        if (pe->GetType() == "exp") {
+            return CompileNumericExp(pe->GetValue());
+        }
+        ThrowError("function call cannot be specialized as numeric", exp);
+    } else if (exp_type == "binop") {
+        const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
+        if (!op || op->GetOp() != "PLUS") {
+            ThrowError("only PLUS is supported in numeric specialization", exp);
+        }
+        const auto left = CompileNumericExp(e->Left());
+        const auto right = CompileNumericExp(e->Right());
+        return std::format("(({}) + ({}))", left, right);
+    }
+
+    ThrowError("unsupported numeric-specialized expression", exp);
+}
+
+std::string CGen::BoxNativeValue(const std::string &expr, const InferredType type) const {
+    if (type == T_INT) {
+        return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", expr);
+    }
+    if (type == T_FLOAT) {
+        return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", expr);
+    }
+    return expr;
 }
 
 std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall) {

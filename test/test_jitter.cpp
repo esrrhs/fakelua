@@ -1430,6 +1430,7 @@ TEST(jitter, test_table_get_set) {
     });
 }
 
+
 TEST(jitter, test_table_stringid_dynamic_get) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_stringid_dynamic_get.lua", {.debug_mode = debug_mode});
@@ -1502,3 +1503,4 @@ TEST(jitter, test_table_hash_delete_chain) {
         ASSERT_EQ(ret, 10);
     });
 }
+

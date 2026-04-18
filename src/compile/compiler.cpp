@@ -2,6 +2,7 @@
 #include "bison/parser.h"
 #include "compile/c_gen.h"
 #include "compile/preprocessor.h"
+#include "compile/type_inferencer.h"
 #include "jit/gcc_jit.h"
 #include "jit/tcc_jit.h"
 #include "state/state.h"
@@ -59,11 +60,15 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     PreProcessor pp(s_);
     pp.Process(ret, cfg);
 
-    // 3. 转译为C
+    // 3. 类型推导
+    TypeInferencer inferencer;
+    inferencer.Process(ret, cfg);
+
+    // 4. 转译为C
     CGen cgen(s_);
     cgen.Generate(ret, cfg);
 
-    // 4. JIT编译
+    // 5. JIT编译
     if (!cfg.disable_jit[JIT_TCC]) {
         TccJitter jitter(s_);
         jitter.Compile(ret, cfg);
