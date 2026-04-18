@@ -41,3 +41,4 @@ CMakeFiles
 CTestTestfile.cmake
 Makefile
 googletest
+_build/

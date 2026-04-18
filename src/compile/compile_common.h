@@ -14,6 +14,9 @@ struct CompileResult {
     SyntaxTreeInterfacePtr chunk;
     // 生成的C代码字符串
     std::string c_code;
+    // 记录的C代码（全局变量、函数声明、函数实现，不含公共头部）。
+    // 仅当 CompileConfig::record_c_code 为 true 时由 CGen 填充。
+    std::string recorded_c_code;
     // 入口函数名->参数个数
     std::unordered_map<std::string, int> function_names;
 };

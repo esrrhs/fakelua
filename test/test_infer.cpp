@@ -16,9 +16,38 @@ static void InferRunHelper(const std::function<void(State *, JITType, bool)> &f)
     FakeluaDeleteState(s);
 }
 
+// Compile a Lua file with record_c_code=true (both JIT backends disabled so the
+// step is cheap) and return the recorded globals+decls+impls portion.  The
+// returned string is also printed to stdout so that CI logs show the actual C
+// output for every infer test case.
+static std::string InferGetCCode(const std::string &lua_file) {
+    const auto s = FakeluaNewState();
+    EXPECT_NE(s, nullptr);
+    CompileConfig cfg;
+    cfg.debug_mode = false;
+    cfg.record_c_code = true;
+    cfg.disable_jit[JIT_TCC] = true;
+    cfg.disable_jit[JIT_GCC] = true;
+    CompileFile(s, lua_file, cfg);
+    const auto code = GetLastRecordedCCode(s);
+    FakeluaDeleteState(s);
+    // Print so CI logs can be inspected even without a debugger.
+    std::cout << "\n=== C code for " << lua_file << " ===\n" << code << "=== end ===\n";
+    return code;
+}
+
 // Full inference success: all ints, constant for-loop bounds give T_INT loop var.
 // sum(1..10) = 55; i and sum must stay T_INT throughout.
 TEST(infer, test_infer_typed_int_for) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_for.lua");
+    // Both the accumulator and the loop variable must be declared as int64_t.
+    ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
+    // Native integer addition — no OpAdd macro.
+    ASSERT_NE(code.find("sum = ((sum) + (i));"), std::string::npos);
+    // No dynamic (CVar) accumulator declaration.
+    ASSERT_EQ(code.find("CVar sum"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_typed_int_for.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -29,6 +58,14 @@ TEST(infer, test_infer_typed_int_for) {
 
 // Full inference success: float literal propagates as T_FLOAT through addition.
 TEST(infer, test_infer_typed_float_local) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_local.lua");
+    // Both locals must be typed as double.
+    ASSERT_NE(code.find("double x = 1;"), std::string::npos);
+    ASSERT_NE(code.find("double y = ((x) + (0.5));"), std::string::npos);
+    // No CVar declarations for x or y.
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    ASSERT_EQ(code.find("CVar y"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_typed_float_local.lua", {.debug_mode = debug_mode});
         double ret = 0;
@@ -39,6 +76,13 @@ TEST(infer, test_infer_typed_float_local) {
 
 // Full inference success: INT + FLOAT promotes the result to T_FLOAT.
 TEST(infer, test_infer_int_float_promotion) {
+    const auto code = InferGetCCode("./infer/test_infer_int_float_promotion.lua");
+    // a is T_INT, b is T_FLOAT (promoted from int + float literal).
+    ASSERT_NE(code.find("int64_t a = 3;"), std::string::npos);
+    ASSERT_NE(code.find("double b = ((a) + (1.5));"), std::string::npos);
+    ASSERT_EQ(code.find("CVar a"), std::string::npos);
+    ASSERT_EQ(code.find("CVar b"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_int_float_promotion.lua", {.debug_mode = debug_mode});
         double ret = 0;
@@ -50,6 +94,12 @@ TEST(infer, test_infer_int_float_promotion) {
 // Mid-way degradation: a function-call result is T_DYNAMIC, so the binop
 // and the local variable degrade to T_DYNAMIC and use CVar arithmetic.
 TEST(infer, test_infer_degrade_func_call) {
+    const auto code = InferGetCCode("./infer/test_infer_degrade_func_call.lua");
+    // x must be CVar (helper() is T_DYNAMIC).
+    ASSERT_NE(code.find("CVar x = "), std::string::npos);
+    // Dynamic arithmetic macro must be used.
+    ASSERT_NE(code.find("OpAdd("), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_degrade_func_call.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -62,6 +112,13 @@ TEST(infer, test_infer_degrade_func_call) {
 // causes sum to degrade from T_INT to T_DYNAMIC during the loop body.
 // The compiler must still produce correct CVar arithmetic for the fallback path.
 TEST(infer, test_infer_degrade_param) {
+    const auto code = InferGetCCode("./infer/test_infer_degrade_param.lua");
+    // Both sum and the loop variable i must be CVar.
+    ASSERT_NE(code.find("CVar sum = "), std::string::npos);
+    ASSERT_NE(code.find("CVar i = "), std::string::npos);
+    // Dynamic for-loop path must be used (CVar control variables).
+    ASSERT_NE(code.find("CVar flua_for_ctrl_"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_degrade_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -73,6 +130,12 @@ TEST(infer, test_infer_degrade_param) {
 // Stable inference: reassigning an int variable with another int expression
 // keeps MergeType(T_INT, T_INT) == T_INT; the declaration stays int64_t.
 TEST(infer, test_infer_reassign_stable) {
+    const auto code = InferGetCCode("./infer/test_infer_reassign_stable.lua");
+    // x must stay int64_t throughout.
+    ASSERT_NE(code.find("int64_t x = 1;"), std::string::npos);
+    ASSERT_NE(code.find("x = ((x) + (2));"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_reassign_stable.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -85,6 +148,14 @@ TEST(infer, test_infer_reassign_stable) {
 // so the loop variable stays T_INT and the typed int64_t for-loop path is used.
 // Exercises the  !ExpStep() || ExpStep()->EvalType() == T_INT  branch.
 TEST(infer, test_infer_for_step_int) {
+    const auto code = InferGetCCode("./infer/test_infer_for_step_int.lua");
+    // Typed int64_t for-loop path.
+    ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_for_step_"), std::string::npos);
+    ASSERT_EQ(code.find("CVar sum"), std::string::npos);
+    ASSERT_EQ(code.find("CVar i"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_step_int.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -97,6 +168,15 @@ TEST(infer, test_infer_for_step_int) {
 // the step is T_DYNAMIC so all_int=false, the loop variable is T_DYNAMIC, and the
 // CVar for-loop path is taken.  The accumulator degrades mid-way.
 TEST(infer, test_infer_for_step_dynamic) {
+    const auto code = InferGetCCode("./infer/test_infer_for_step_dynamic.lua");
+    // CVar for-loop path (dynamic step).
+    ASSERT_NE(code.find("CVar sum = "), std::string::npos);
+    ASSERT_NE(code.find("CVar i = "), std::string::npos);
+    ASSERT_NE(code.find("CVar flua_for_ctrl_"), std::string::npos);
+    // No native int64_t for the accumulator or loop var.
+    ASSERT_EQ(code.find("int64_t sum"), std::string::npos);
+    ASSERT_EQ(code.find("int64_t i"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_step_dynamic.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -109,6 +189,12 @@ TEST(infer, test_infer_for_step_dynamic) {
 // float literal, which hits the different-non-unknown-types branch and degrades
 // x to T_DYNAMIC.  The post-pass updates the declaration.
 TEST(infer, test_infer_reassign_int_to_float) {
+    const auto code = InferGetCCode("./infer/test_infer_reassign_int_to_float.lua");
+    // x must be CVar because int→float crosses a type boundary.
+    ASSERT_NE(code.find("CVar x = "), std::string::npos);
+    ASSERT_EQ(code.find("int64_t x"), std::string::npos);
+    ASSERT_EQ(code.find("double x"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_reassign_int_to_float.lua", {.debug_mode = debug_mode});
         double ret = 0;
@@ -120,6 +206,11 @@ TEST(infer, test_infer_reassign_int_to_float) {
 // If body processed with new_scope=true: the assignment x = n inside the if block
 // calls env_.Update, which walks outer scopes and degrades x from T_INT to T_DYNAMIC.
 TEST(infer, test_infer_if_scope_degrade) {
+    const auto code = InferGetCCode("./infer/test_infer_if_scope_degrade.lua");
+    // x degraded to CVar because x = n (T_DYNAMIC param) inside the if body.
+    ASSERT_NE(code.find("CVar x = "), std::string::npos);
+    ASSERT_EQ(code.find("int64_t x"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_if_scope_degrade.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -133,6 +224,11 @@ TEST(infer, test_infer_if_scope_degrade) {
 // While body processed with new_scope=true: the assignment x = n inside the while
 // loop body degrades x from T_INT to T_DYNAMIC across the scope boundary.
 TEST(infer, test_infer_while_scope_degrade) {
+    const auto code = InferGetCCode("./infer/test_infer_while_scope_degrade.lua");
+    // x degraded to CVar because x = n (T_DYNAMIC param) inside the while body.
+    ASSERT_NE(code.find("CVar x = "), std::string::npos);
+    ASSERT_EQ(code.find("int64_t x"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_while_scope_degrade.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -147,6 +243,13 @@ TEST(infer, test_infer_while_scope_degrade) {
 // b = a + 5 captures a's current value (10) at declaration time; the compiler
 // must still emit valid C even though a becomes a CVar.  b == 15.
 TEST(infer, test_infer_type_pollution) {
+    const auto code = InferGetCCode("./infer/test_infer_type_pollution.lua");
+    // a is mutated to a string later, so it must be CVar.
+    ASSERT_NE(code.find("CVar a = "), std::string::npos);
+    // b = a + 5 is computed while a is still numeric; b stays T_INT.
+    ASSERT_NE(code.find("int64_t b = "), std::string::npos);
+    ASSERT_EQ(code.find("CVar b"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_type_pollution.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -159,6 +262,14 @@ TEST(infer, test_infer_type_pollution) {
 // forces T_DYNAMIC, as does a call to unknown_func().  Both are compiled via
 // CVar arithmetic.  dynamic_res = 100 + unknown_func() * 2 = 110.
 TEST(infer, test_infer_bottom_up) {
+    const auto code = InferGetCCode("./infer/test_infer_bottom_up.lua");
+    // Both locals must be CVar (non-PLUS ops and function calls force T_DYNAMIC).
+    ASSERT_NE(code.find("CVar math_res = "), std::string::npos);
+    ASSERT_NE(code.find("CVar dynamic_res = "), std::string::npos);
+    // Dynamic arithmetic macros must be used.
+    ASSERT_NE(code.find("OpMul("), std::string::npos);
+    ASSERT_NE(code.find("OpAdd("), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_bottom_up.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -171,6 +282,13 @@ TEST(infer, test_infer_bottom_up) {
 // therefore creates a brand-new variable scoped to the do...end block; it does
 // NOT mutate the outer val = 100.  After the block res = val + 1 = 101.
 TEST(infer, test_infer_shadowing) {
+    const auto code = InferGetCCode("./infer/test_infer_shadowing.lua");
+    // Outer val and res must be int64_t (int literal, never mutated).
+    ASSERT_NE(code.find("int64_t val = 100;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t res = "), std::string::npos);
+    // Inner val (inside do...end block) is a string → CVar.
+    ASSERT_NE(code.find("CVar val = "), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_shadowing.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -183,6 +301,13 @@ TEST(infer, test_infer_shadowing) {
 // inside a for loop mutates the outer state, degrading it from T_INT to
 // T_DYNAMIC.  After the loop state holds the string "error".
 TEST(infer, test_infer_mutation) {
+    const auto code = InferGetCCode("./infer/test_infer_mutation.lua");
+    // state must be CVar (mutated to a string inside the for loop).
+    ASSERT_NE(code.find("CVar state = "), std::string::npos);
+    // The for loop bounds are all int, so the loop variable stays int64_t.
+    ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
+    ASSERT_EQ(code.find("int64_t state"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_mutation.lua", {.debug_mode = debug_mode});
         std::string ret;
@@ -191,10 +316,65 @@ TEST(infer, test_infer_mutation) {
     });
 }
 
+// Assign-to-CVar via stale T_INT EvalType: sum is initialised as T_INT but
+// degraded to T_DYNAMIC by  sum = "done"  in an else branch that the
+// single-pass walk sees AFTER recording EvalType = T_INT on the assign node
+// for  sum = sum + i  in the then branch.  Without the fix CGen emits
+//   CVar sum = (int64_t expression)  -- a C type error.
+// With the fix typed_native_vars_ is consulted instead of EvalType.
+TEST(infer, test_infer_assign_degraded_var) {
+    const auto code = InferGetCCode("./infer/test_infer_assign_degraded_var.lua");
+    // sum must be CVar (degraded by the "done" assignment).
+    ASSERT_NE(code.find("CVar sum = "), std::string::npos);
+    // The assignment in the then-branch must use OpAdd (CVar arithmetic), NOT
+    // the native  sum = ((sum) + (i))  form that would be a C type error.
+    ASSERT_NE(code.find("OpAdd("), std::string::npos);
+    ASSERT_EQ(code.find("int64_t sum"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_assign_degraded_var.lua", {.debug_mode = debug_mode});
+        std::string ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, "done");
+    });
+}
+
+// Return with stale T_INT EvalType: the return expression has EvalType = T_INT
+// (set by the single-pass walk before a later T_DYNAMIC mutation appears in
+// source), but the variable is declared as CVar.  In subsequent loop
+// iterations where the variable already holds a string, the old code emitted
+//   return (CVar){VAR_INT, x.data_.i}  -- returning a garbage integer.
+// With the fix CompileExp is always used so the CVar is returned directly.
+TEST(infer, test_infer_return_stale_type) {
+    const auto code = InferGetCCode("./infer/test_infer_return_stale_type.lua");
+    // x must be CVar.
+    ASSERT_NE(code.find("CVar x = "), std::string::npos);
+    // The return statement must pass the CVar directly ("return x;"), NOT box it
+    // with a VAR_INT wrapper which would silently corrupt a string payload.
+    ASSERT_NE(code.find("return x;"), std::string::npos);
+    // No return statement that boxes with VAR_INT (checks for the pattern that
+    // would be emitted if the stale-EvalType bug were present).
+    ASSERT_EQ(code.find("return (CVar){.type_ = VAR_INT, .data_.i = (int64_t)(x)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_return_stale_type.lua", {.debug_mode = debug_mode});
+        std::string ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, "modified");
+    });
+}
+
 // InferPrefixExp "exp" branch: (a + 2) is a PrefixExp of type "exp" inside an
 // Exp of type "prefixexp".  InferPrefixExp delegates to InferNode on the inner
 // expression, yielding T_INT + T_INT = T_INT, so b is specialised as int64_t.
 TEST(infer, test_infer_paren_exp) {
+    const auto code = InferGetCCode("./infer/test_infer_paren_exp.lua");
+    // Both a and b must be int64_t.
+    ASSERT_NE(code.find("int64_t a = 3;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t b = ((a) + (2));"), std::string::npos);
+    ASSERT_EQ(code.find("CVar a"), std::string::npos);
+    ASSERT_EQ(code.find("CVar b"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_paren_exp.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -202,3 +382,4 @@ TEST(infer, test_infer_paren_exp) {
         ASSERT_EQ(ret, 5);
     });
 }
+

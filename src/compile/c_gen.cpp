@@ -45,6 +45,12 @@ std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
     local_func_names_ = cr.function_names;
     cur_output_ = &impls_;
     GenerateImpl(cr);
+    if (cfg.record_c_code) {
+        // Record only the non-header sections (globals + decls + impls).
+        // The header is a fixed boilerplate identical for every compilation unit
+        // and is not useful for type-inference assertions.
+        cr.recorded_c_code = globals_.str() + decls_.str() + impls_.str();
+    }
     return headers_.str() + globals_.str() + decls_.str() + impls_.str();
 }
 
@@ -980,12 +986,15 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     const auto exp = explist_ptr->Exps()[0];
-    std::string ret;
-    if (exp->EvalType() == T_INT || exp->EvalType() == T_FLOAT) {
-        ret = BoxNativeValue(CompileNumericExp(exp), exp->EvalType());
-    } else {
-        ret = CompileExp(exp);
-    }
+    // Always compile the return expression through CompileExp.  CompileExp
+    // delegates to CompileVar for variable references: for variables declared
+    // as native (int64_t / double) CompileVar boxes them into a CVar
+    // automatically; for CVar-declared variables it returns the CVar directly.
+    // Using exp->EvalType() here is unsafe: in a single-pass walk of
+    // a loop body, EvalType may be stamped T_INT before a later T_DYNAMIC
+    // mutation in the same loop, causing CompileNumericExp to access
+    // cvar.data_.i on a variable that holds a non-integer type at runtime.
+    const std::string ret = CompileExp(exp);
 
     *cur_output_ << GenTab() << "return " << ret << ";\n";
 }
@@ -1060,7 +1069,11 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     // so only simple variable assignments can reach here.
     DEBUG_ASSERT(vtype == "simple");
     const auto &name = v_ptr->GetName();
-    if (v_ptr->EvalType() == T_INT || v_ptr->EvalType() == T_FLOAT) {
+    // Guard on typed_native_vars_ (how the variable was *declared*), not on
+    // v_ptr->EvalType() (which may be stale when a single-pass walk processes
+    // this assignment before a later T_DYNAMIC mutation in the same loop body).
+    // Using a stale T_INT EvalType would emit  CVar = int64_t  — a C type error.
+    if (typed_native_vars_.count(name)) {
         *cur_output_ << GenTab() << name << " = " << CompileNumericExp(exps[0]) << ";\n";
     } else {
         const std::string rhs = CompileExp(exps[0]);

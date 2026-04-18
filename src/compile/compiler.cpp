@@ -78,6 +78,10 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
         jitter.Compile(ret, cfg);
     }
 
+    if (cfg.record_c_code) {
+        last_recorded_c_code_ = ret.recorded_c_code;
+    }
+
     return ret;
 }
 

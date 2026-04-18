@@ -22,7 +22,7 @@ ProcessorCount(FAKELUA_TINYCC_BUILD_JOBS)
 if (NOT FAKELUA_TINYCC_BUILD_JOBS GREATER 0)
     set(FAKELUA_TINYCC_BUILD_JOBS 1)
 endif ()
-set(FAKELUA_TINYCC_GIT_URL "https://repo.or.cz/tinycc.git" CACHE STRING "TinyCC git repository URL")
+set(FAKELUA_TINYCC_GIT_URL "https://github.com/TinyCC/tinycc.git" CACHE STRING "TinyCC git repository URL")
 set(FAKELUA_TINYCC_GIT_TAG "mob" CACHE STRING "TinyCC git branch/tag/commit")
 CPMAddPackage(
         NAME tinycc_src
