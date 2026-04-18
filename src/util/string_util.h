@@ -2,7 +2,7 @@
 
 namespace fakelua {
 
-// define the StrContainerPtr
+// 定义 StrContainerPtr
 typedef std::shared_ptr<std::string> StrContainerPtr;
 
 static const auto g_number_regex =
@@ -30,10 +30,10 @@ inline std::string JoinString(const std::vector<std::string> &strs, const std::s
 std::string ReplaceEscapeChars(const std::string &str);
 
 inline void TrimInplace(std::string &s) {
-    // Left trim
+    // 左侧去空格
     s.erase(s.begin(), std::find_if(s.begin(), s.end(), [](unsigned char ch) { return !std::isspace(ch); }));
 
-    // Right trim
+    // 右侧去空格
     s.erase(std::find_if(s.rbegin(), s.rend(), [](unsigned char ch) { return !std::isspace(ch); }).base(), s.end());
 }
 

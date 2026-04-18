@@ -24,7 +24,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, 
         ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' has no address for jit_type {}", name, jit_type));
     }
 
-    // Maximum 8 arguments supported (matches the switch below).
+    // 最多支持 8 个参数（与下面的 switch 匹配）。
     if (arg_num > 8) {
         ThrowFakeluaException(
                 std::format("FakeluaCallByName: too many arguments ({}) for function '{}', max is 8", arg_num, name));
@@ -38,8 +38,8 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, 
     }
     va_end(vl);
 
-    // Uses the same variadic function pointer cast pattern as Call() in fakelua.h.
-    // All JIT-compiled functions accept/return CVar, so the ABI is uniform.
+    // 使用与 fakelua.h 中 Call() 相同的可变参数函数指针转换模式。
+    // 所有 JIT 编译的函数都接受/返回 CVar，因此 ABI 是统一的。
     auto fn = reinterpret_cast<CVar (*)(...)>(addr);
     switch (arg_num) {
         case 0: return fn();

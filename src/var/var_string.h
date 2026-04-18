@@ -17,7 +17,7 @@ public:
         memcpy(&data_[0], str.data(), size_);
     }
 
-    // return string view
+    // 返回字符串视图
     [[nodiscard]] std::string_view Str() const {
         return {data_, static_cast<std::string_view::size_type>(size_)};
     }

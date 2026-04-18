@@ -71,8 +71,8 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
     switch (node->Type()) {
         case SyntaxTreeType::Block: {
             const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
-            // A standalone do...end block must introduce its own scope so that inner
-            // local declarations don't pollute (or overwrite) the enclosing scope.
+            // 独立的 do...end 块必须引入自己的作用域，使内部的
+            // 局部声明不会污染（或覆盖）外围作用域。
             InferBlock(block, true);
             block->SetEvalType(T_UNKNOWN);
             return T_UNKNOWN;
@@ -95,9 +95,9 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
                 InferredType type = T_DYNAMIC;
                 if (i < exps.size()) {
                     const auto inferred = InferNode(exps[i]);
-                    // File-level locals are stored as static const CVar, not int64_t/double,
-                    // so they must always be T_DYNAMIC in the env to prevent functions from
-                    // treating them as typed native vars.
+                    // 文件级局部变量存储为 static const CVar，而非 int64_t/double，
+                    // 因此在环境中必须始终为 T_DYNAMIC，以防止函数将它们
+                    // 视为原生类型变量。
                     if (funcbody_depth_ > 0) {
                         type = inferred;
                     }
@@ -145,10 +145,10 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             InferNode(for_loop->ExpEnd());
             InferNode(for_loop->ExpStep());
 
-            // Only mark the loop variable as T_INT when all bounds are T_INT, which
-            // matches the typed-int specialization path used by CGen.  When any bound
-            // is T_DYNAMIC the CGen emits a CVar loop-control variable, so the loop
-            // variable must also be T_DYNAMIC to keep the types consistent.
+            // 仅当所有边界都是 T_INT 时才将循环变量标记为 T_INT，
+            // 这与 CGen 使用的整型特化路径相匹配。当任何边界为 T_DYNAMIC 时，
+            // CGen 会生成 CVar 循环控制变量，因此循环变量也必须是 T_DYNAMIC
+            // 以保持类型一致。
             const bool all_int = for_loop->ExpBegin() && for_loop->ExpEnd() &&
                                  for_loop->ExpBegin()->EvalType() == T_INT &&
                                  for_loop->ExpEnd()->EvalType() == T_INT &&
@@ -374,9 +374,9 @@ InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var)
         return ret;
     }
 
-    // For "square" and "dot" vars, process sub-expressions so that inner variables
-    // (e.g., typed-int loop vars used as table indices) have their EvalType set.
-    // Without this, CGen would emit the raw int64_t name where a CVar is required.
+    // 对于"方括号"和"点号"变量，处理子表达式以便内部变量
+    //（例如用作表索引的整型循环变量）设置其 EvalType。
+    // 如果不这样做，CGen 会在需要 CVar 的地方发出原始 int64_t 变量名。
     if (const auto pe = var->GetPrefixexp()) {
         InferNode(pe);
     }
@@ -403,11 +403,10 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
         InferNode(stmt);
     }
 
-    // Post-pass: a variable can be initialised with a typed expression (e.g. an
-    // integer literal gives T_INT) but later mutated to T_DYNAMIC by an assignment
-    // that involves a function-call or a parameter.  In that case the LocalVar
-    // declaration must use the variable's *final* type so that the C emitter
-    // produces a compatible storage declaration for all subsequent assignments.
+    // 后处理：变量可能被初始化为类型化表达式（例如整数字面量给出 T_INT），
+    // 但随后被涉及函数调用或参数的赋值修改为 T_DYNAMIC。在这种情况下，
+    // LocalVar 声明必须使用变量的*最终*类型，以便 C 代码生成器
+    // 为所有后续赋值生成兼容的存储声明。
     for (const auto &stmt: block->Stmts()) {
         if (stmt->Type() != SyntaxTreeType::LocalVar) {
             continue;

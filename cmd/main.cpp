@@ -4,7 +4,7 @@
 
 using namespace fakelua;
 
-// register some global flags
+// 注册一些全局标志
 DEFINE_bool(debug, false, "enable debug mode");
 DEFINE_string(entry, "main", "entry function name, entry must return code(int) and has no parameter");
 DEFINE_int32(repeat, 1, "the repeat run main function times");

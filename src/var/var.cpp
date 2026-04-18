@@ -227,12 +227,12 @@ void Var::DoubleSlash(const Var &rhs, Var &result) const {
         if (rhs.GetCalculableInt() == 0) {
             ThrowFakeluaException("Var op failed, division by zero in '//'");
         }
-        // Lua // is floor division, which rounds toward negative infinity
-        // C++ / truncates toward zero, so we need to adjust for negative results
+        // Lua 的 // 是向下取整除法，向负无穷方向舍入
+        // C++ 的 / 向零截断，因此需要针对负数结果进行调整
         int64_t a = GetCalculableInt();
         int64_t b = rhs.GetCalculableInt();
         int64_t q = a / b;
-        // If signs differ and there's a remainder, adjust toward negative infinity
+        // 如果符号不同且有余数，则向负无穷方向调整
         if ((a ^ b) < 0 && a % b != 0) {
             q -= 1;
         }
@@ -259,18 +259,18 @@ void Var::Mod(const Var &rhs, Var &result) const {
         if (rhs.GetCalculableInt() == 0) {
             ThrowFakeluaException("Var op failed, division by zero in '%'");
         }
-        // Lua % follows floor division semantics: a % b = a - b * floor(a / b)
-        // This is different from C++ % which truncates toward zero
+        // Lua 的 % 遵循向下取整除法语义：a % b = a - b * floor(a / b)
+        // 这与 C++ 的 % 不同，C++ 向零截断
         int64_t a = GetCalculableInt();
         int64_t b = rhs.GetCalculableInt();
         int64_t q = a / b;
-        // If signs differ and there's a remainder, adjust toward negative infinity
+        // 如果符号不同且有余数，则向负无穷方向调整
         if ((a ^ b) < 0 && a % b != 0) {
             q -= 1;
         }
         result.SetInt(a - b * q);
     } else {
-        // For floats, use fmod which already gives correct remainder, but we need to adjust for Lua semantics
+        // 对于浮点数，使用 fmod 已经可以得到正确的余数，但需要调整为 Lua 语义
         double a = GetCalculableNumber();
         double b = rhs.GetCalculableNumber();
         result.SetFloat(a - b * std::floor(a / b));

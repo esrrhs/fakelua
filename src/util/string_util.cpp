@@ -3,17 +3,17 @@
 namespace fakelua {
 
 /*
-    \a: This displays an alarm bell symbol.
-    \b or \\: These print a backslash in our string.
-    \f: This is an escape sequence literal that is used to create a form feed. A form feed causes the cursor to move down to the next line without returning to the start of the line.
-    \n: This is a very popular and commonly used sequence that creates new print lines.
-    \r: This is a carriage return escape sequence. It moves the cursor to the beginning of the line without moving to the next line.
-    \t: This creates a horizontal tab space.
-    \v: This creates a vertical tab space.
-    \": This allows us to insert double quotes in our string without special interpretation.
-    \': This allows us to insert single quotes in our string without special interpretation.
-    \z: zap following span of spaces
-    \digit: read digits from buffer
+    \a: 显示警报铃声符号。
+    \b 或 \\: 在字符串中打印反斜杠。
+    \f: 换页符，使光标移到下一行开头而不回到行首。
+    \n: 常用的换行符，创建新的打印行。
+    \r: 回车符，将光标移到当前行开头而不换行。
+    \t: 水平制表符。
+    \v: 垂直制表符。
+    \": 在字符串中插入双引号而不被特殊解释。
+    \': 在字符串中插入单引号而不被特殊解释。
+    \z: 跳过后续的空格序列
+    \digit: 从缓冲区读取数字
  */
 
 std::string ReplaceEscapeChars(const std::string &str) {
@@ -66,7 +66,7 @@ std::string ReplaceEscapeChars(const std::string &str) {
                     ++it;
                     break;
                 case 'z':
-                    // zap following span of spaces
+                    // 跳过后续的空格序列
                     ++it;
                     while (it != str.end() && *it == ' ') {
                         ++it;
@@ -76,8 +76,8 @@ std::string ReplaceEscapeChars(const std::string &str) {
                     if (!isdigit(*it)) {
                         ThrowFakeluaException(std::format("ReplaceEscapeChars failed, invalid escape sequence \\{}", *it));
                     }
-                    // read up to 3 digits
-                    int r = 0; /* result accumulator */
+                    // 最多读取3位数字
+                    int r = 0; /* 结果累加器 */
                     for (int i = 0; i < 3; ++i) {
                         if (it == str.end() || !isdigit(*it)) {
                             break;

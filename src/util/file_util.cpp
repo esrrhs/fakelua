@@ -15,7 +15,7 @@ std::string GenerateTmpFilename(const std::string &head, const std::string &tail
     static std::mt19937 rng(static_cast<unsigned int>(std::chrono::steady_clock::now().time_since_epoch().count()));
     std::uniform_int_distribution<int> dist(100000, 999999);
 
-    // create tmp file in system temp dir
+    // 在系统临时目录中创建临时文件
     std::string fileName;
     do {
         fileName = tmpdir.string() + std::to_string(dist(rng)) + tail;

@@ -46,9 +46,8 @@ std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
     cur_output_ = &impls_;
     GenerateImpl(cr);
     if (cfg.record_c_code) {
-        // Record only the non-header sections (globals + decls + impls).
-        // The header is a fixed boilerplate identical for every compilation unit
-        // and is not useful for type-inference assertions.
+        // 仅记录非头部部分（全局变量 + 声明 + 实现）。
+        // 头部是每个编译单元相同的固定样板代码，对类型推断断言没有用处。
         cr.recorded_c_code = globals_.str() + decls_.str() + impls_.str();
     }
     return headers_.str() + globals_.str() + decls_.str() + impls_.str();
@@ -139,8 +138,8 @@ enum {
     (v).data_.f = __f; \
 } while(0)
 
-// Normalize table keys to match Lua behavior:
-// integral float keys are treated as integer keys (e.g. t[2.0] == t[2]).
+// 规范化表键以匹配 Lua 行为：
+// 整数浮点键被视为整数键（例如 t[2.0] == t[2]）。
 #define NORMALIZE_TABLE_KEY(key) ({ \
     CVar __k = (key); \
     if (__k.type_ == VAR_FLOAT) { \
@@ -156,7 +155,7 @@ enum {
     __k; \
 })
 
-// External functions for allocation and error handling
+// 用于内存分配和错误处理的外部函数
 extern void* FakeluaAllocTemp(State *s, size_t size);
 extern void FakeluaThrowError(State *s, const char *msg);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
@@ -205,7 +204,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
     (v).data_.t = __t; \
 } while(0)
 
-// Logical and Equality macros
+// 逻辑和相等性宏
 #define IsTrue(v, result) do { \
     CVar __tv = (v); \
     (result) = (__tv.type_ != VAR_NIL && (__tv.type_ != VAR_BOOL || __tv.data_.b)); \
@@ -425,8 +424,8 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
     FlTableInsertRaw(tbl, k, v, h);
 }
 
-// Arithmetic and Comparison Macros (Expression-style)
-// For performance, only int and float types are supported in arithmetic operations.
+// 算术和比较宏（表达式风格）
+// 为提高性能，算术运算仅支持整数和浮点类型。
 
 #define CheckNum(v) do { \
     if ((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT) { \
@@ -603,15 +602,15 @@ static inline CVar FlConcat(CVar a, CVar b) {
     char buf_a[256], buf_b[256];
     const char *sa = buf_a; int la;
     const char *sb = buf_b; int lb;
-    /* Convert a */
+    /* 转换 a */
     if (a.type_ == VAR_STRING) { sa = STR_DATA(a.data_.s); la = STR_SIZE(a.data_.s); }
     else if (a.type_ == VAR_STRINGID) { VarString *vs = (VarString *)a.data_.i; sa = STR_DATA(vs); la = STR_SIZE(vs); }
     else { la = FlVarToStr(a, buf_a, sizeof(buf_a)); }
-    /* Convert b */
+    /* 转换 b */
     if (b.type_ == VAR_STRING) { sb = STR_DATA(b.data_.s); lb = STR_SIZE(b.data_.s); }
     else if (b.type_ == VAR_STRINGID) { VarString *vs = (VarString *)b.data_.i; sb = STR_DATA(vs); lb = STR_SIZE(vs); }
     else { lb = FlVarToStr(b, buf_b, sizeof(buf_b)); }
-    /* Allocate result */
+    /* 分配结果 */
     int total = la + lb;
     if (total < la || total < lb) { FakeluaThrowError(_S, "string concatenation result too long"); }
     VarString *vs = (VarString *)FakeluaAllocTemp(_S, sizeof(VarString) + total);
@@ -626,9 +625,9 @@ static inline CVar FlConcat(CVar a, CVar b) {
     return result;
 }
 
-// GET_TABLE_ENTRY(tbl, idx, k, v): fetch key and value at active index idx from a CVar table.
-// Works for both small-table mode (bucket_count_ == 0, uses quick_data_[]) and
-// hash-table mode (uses active_list_[] + nodes_[]).
+// GET_TABLE_ENTRY(tbl, idx, k, v): 从 CVar 表中获取活跃索引 idx 处的键和值。
+// 适用于小表模式（bucket_count_ == 0，使用 quick_data_[]）和
+// 哈希表模式（使用 active_list_[] + nodes_[]）。
 #define GET_TABLE_ENTRY(tbl, idx, k, v) do { \
     if ((tbl).data_.t->bucket_count_ == 0) { \
         (k) = (tbl).data_.t->quick_data_[(idx)].key; \
@@ -921,8 +920,8 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
             break;
         }
         case SyntaxTreeType::Block: {
-            // do...end block: emit a C compound-statement so that inner `local`
-            // declarations shadow outer variables instead of redeclaring them.
+            // do...end 块：发出一个 C 复合语句，使内部的 `local`
+            // 声明遮蔽外部变量而不是重新声明它们。
             *cur_output_ << GenTab() << "{\n";
             cur_tab_++;
             CompileStmtBlock(stmt);
@@ -986,14 +985,12 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     const auto exp = explist_ptr->Exps()[0];
-    // Always compile the return expression through CompileExp.  CompileExp
-    // delegates to CompileVar for variable references: for variables declared
-    // as native (int64_t / double) CompileVar boxes them into a CVar
-    // automatically; for CVar-declared variables it returns the CVar directly.
-    // Using exp->EvalType() here is unsafe: in a single-pass walk of
-    // a loop body, EvalType may be stamped T_INT before a later T_DYNAMIC
-    // mutation in the same loop, causing CompileNumericExp to access
-    // cvar.data_.i on a variable that holds a non-integer type at runtime.
+    // 始终通过 CompileExp 编译返回表达式。CompileExp
+    // 将变量引用委托给 CompileVar：对于声明为原生类型（int64_t / double）的变量，
+    // CompileVar 会自动将其装箱为 CVar；对于声明为 CVar 的变量，则直接返回 CVar。
+    // 在此处使用 exp->EvalType() 是不安全的：在循环体的单次遍历中，
+    // EvalType 可能被标记为 T_INT，但在同一循环中的后续 T_DYNAMIC 变化之前，
+    // 导致 CompileNumericExp 在运行时访问持有非整数类型的变量的 cvar.data_.i。
     const std::string ret = CompileExp(exp);
 
     *cur_output_ << GenTab() << "return " << ret << ";\n";
@@ -1055,7 +1052,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
         exps = explist_ptr->Exps();
     }
 
-    // PreprocessSplitAssign guarantees exactly 1 var and 1 exp at this point
+    // PreprocessSplitAssign 保证此时恰好有 1 个变量和 1 个表达式
     DEBUG_ASSERT(vars.size() == 1);
     if (exps.size() != 1) {
         ThrowError(std::format("CompileStmtAssign: expected 1 expression, got {}", exps.size()), assign);
@@ -1065,14 +1062,14 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     const auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[0]);
     const auto &vtype = v_ptr->GetType();
 
-    // PreprocessTableAssign rewrites square/dot assignments to FAKELUA_SET_TABLE calls,
-    // so only simple variable assignments can reach here.
+    // PreprocessTableAssign 将方括号/点号赋值重写为 FAKELUA_SET_TABLE 调用，
+    // 所以只有简单变量赋值能到达此处。
     DEBUG_ASSERT(vtype == "simple");
     const auto &name = v_ptr->GetName();
-    // Guard on typed_native_vars_ (how the variable was *declared*), not on
-    // v_ptr->EvalType() (which may be stale when a single-pass walk processes
-    // this assignment before a later T_DYNAMIC mutation in the same loop body).
-    // Using a stale T_INT EvalType would emit  CVar = int64_t  — a C type error.
+    // 基于 typed_native_vars_（变量的*声明*方式）进行判断，而不是
+    // v_ptr->EvalType()（在单次遍历中，当此赋值在同一个循环体中
+    // 后续的 T_DYNAMIC 变化之前被处理时，EvalType 可能已过时）。
+    // 使用过时的 T_INT EvalType 会发出 CVar = int64_t —— C 类型错误。
     if (typed_native_vars_.count(name)) {
         *cur_output_ << GenTab() << name << " = " << CompileNumericExp(exps[0]) << ";\n";
     } else {
@@ -1219,13 +1216,13 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
         return;
     }
 
-    // Allocate generated C variable names for loop control (hoisted to function top)
-    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);    // current value
-    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);      // end value
-    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);    // step value
-    const auto step_pos_var = std::format("flua_for_step_pos_{}", tmp_var_counter_++); // step > 0 flag
-    const auto cond_var = std::format("flua_for_cond_{}", tmp_var_counter_++);    // loop condition
-    const auto cmp_var = std::format("flua_for_cmp_{}", tmp_var_counter_++);      // comparison temp
+    // 为循环控制分配生成的 C 变量名（提升到函数顶部）
+    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);    // 当前值
+    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);      // 结束值
+    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);    // 步长值
+    const auto step_pos_var = std::format("flua_for_step_pos_{}", tmp_var_counter_++); // 步长 > 0 标志
+    const auto cond_var = std::format("flua_for_cond_{}", tmp_var_counter_++);    // 循环条件
+    const auto cmp_var = std::format("flua_for_cmp_{}", tmp_var_counter_++);      // 比较临时变量
 
     func_temp_decls_ << "    CVar " << ctrl_var << ";\n";
     func_temp_decls_ << "    CVar " << end_var << ";\n";
@@ -1234,7 +1231,7 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     func_temp_decls_ << "    bool " << cond_var << ";\n";
     func_temp_decls_ << "    CVar " << cmp_var << ";\n";
 
-    // Evaluate begin, end, step expressions
+    // 计算 begin、end、step 表达式
     const auto begin_expr = CompileExp(for_stmt->ExpBegin());
     *cur_output_ << GenTab() << ctrl_var << " = " << begin_expr << ";\n";
 
@@ -1248,7 +1245,7 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
         *cur_output_ << GenTab() << "SET_INT(" << step_var << ", 1);\n";
     }
 
-    // Determine step direction once before the loop
+    // 在循环前一次性确定步长方向
     *cur_output_ << GenTab() << "if (" << step_var << ".type_ == VAR_INT) { " << step_pos_var << " = (" << step_var << ".data_.i > 0); }\n";
     *cur_output_ << GenTab() << "else if (" << step_var << ".type_ == VAR_FLOAT) { " << step_pos_var << " = (" << step_var << ".data_.f > 0.0); }\n";
     *cur_output_ << GenTab() << "else { FakeluaThrowError(_S, \"'for' step must be a number\"); " << step_pos_var << " = 1; }\n";
@@ -1256,7 +1253,7 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     *cur_output_ << GenTab() << "while (1) {\n";
     cur_tab_++;
 
-    // Check loop condition: if step > 0: ctrl <= end; else: ctrl >= end
+    // 检查循环条件：若步长 > 0: ctrl <= end；否则: ctrl >= end
     *cur_output_ << GenTab() << "if (" << step_pos_var << ") {\n";
     cur_tab_++;
     *cur_output_ << GenTab() << std::format("OpLe(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
@@ -1270,14 +1267,14 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     *cur_output_ << GenTab() << std::format("IsTrue(({0}), {1});\n", cmp_var, cond_var);
     *cur_output_ << GenTab() << std::format("if (!{}) break;\n", cond_var);
 
-    // Declare the loop variable visible in the body
+    // 声明循环体中可见的循环变量
     const auto &loop_var_name = for_stmt->Name();
     *cur_output_ << GenTab() << "CVar " << loop_var_name << " = " << ctrl_var << ";\n";
 
-    // Compile the loop body
+    // 编译循环体
     CompileStmtBlock(for_stmt->Block());
 
-    // Increment the control variable
+    // 递增控制变量
     *cur_output_ << GenTab() << std::format("OpAdd(({0}), ({1}), {2});\n", ctrl_var, step_var, ctrl_var);
 
     cur_tab_--;
@@ -1288,7 +1285,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::ForIn);
     const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
 
-    // Get iteration variable names (k, v or just k)
+    // 获取迭代变量名（k、v 或仅 k）
     const auto namelist = for_in->Namelist();
     DEBUG_ASSERT(namelist->Type() == SyntaxTreeType::NameList);
     const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
@@ -1297,7 +1294,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         ThrowError(std::format("for in namelist size must be 1 or 2, but got {}", names.size()), namelist);
     }
 
-    // Explist must contain exactly one expression: pairs(t) or ipairs(t)
+    // Explist 必须恰好包含一个表达式：pairs(t) 或 ipairs(t)
     const auto explist = for_in->Explist();
     DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
     const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
@@ -1305,7 +1302,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         ThrowError(std::format("for in explist size must be 1, but got {}", explist_ptr->Exps().size()), explist);
     }
 
-    // The expression must be a call to pairs() or ipairs()
+    // 该表达式必须是对 pairs() 或 ipairs() 的调用
     const auto exp = explist_ptr->Exps()[0];
     DEBUG_ASSERT(exp->Type() == SyntaxTreeType::Exp);
     const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
@@ -1322,7 +1319,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(functioncall->Type() == SyntaxTreeType::FunctionCall);
     const auto fc_ptr = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall);
 
-    // Check that the function is pairs or ipairs
+    // 检查函数是否为 pairs 或 ipairs
     const auto func_pe = fc_ptr->prefixexp();
     DEBUG_ASSERT(func_pe->Type() == SyntaxTreeType::PrefixExp);
     const auto func_pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(func_pe);
@@ -1335,7 +1332,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         ThrowError(std::format("for in: only pairs() or ipairs() are supported, got '{}'", func_name), functioncall);
     }
 
-    // Extract the table argument from pairs(t) / ipairs(t)
+    // 从 pairs(t) / ipairs(t) 中提取表参数
     const auto args_node = fc_ptr->Args();
     DEBUG_ASSERT(args_node->Type() == SyntaxTreeType::Args);
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
@@ -1348,19 +1345,19 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         ThrowError(std::format("for in: pairs/ipairs must have exactly one argument, got {}", args_explist_ptr->Exps().size()), args_node);
     }
 
-    // Compile the table expression
+    // 编译表表达式
     const auto tbl_expr = CompileExp(args_explist_ptr->Exps()[0]);
 
-    // Allocate generated C variable names for iteration state (hoisted to function top)
-    const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);  // table
-    const auto sz_var = std::format("flua_fi_sz_{}", tmp_var_counter_++);    // element count
-    const auto idx_var = std::format("flua_fi_idx_{}", tmp_var_counter_++);  // current index
+    // 为迭代状态分配生成的 C 变量名（提升到函数顶部）
+    const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);  // 表
+    const auto sz_var = std::format("flua_fi_sz_{}", tmp_var_counter_++);    // 元素数量
+    const auto idx_var = std::format("flua_fi_idx_{}", tmp_var_counter_++);  // 当前索引
 
     func_temp_decls_ << "    CVar " << tbl_var << ";\n";
     func_temp_decls_ << "    uint32_t " << sz_var << ";\n";
     func_temp_decls_ << "    uint32_t " << idx_var << ";\n";
 
-    // Evaluate and validate the table
+    // 计算并验证表
     *cur_output_ << GenTab() << tbl_var << " = " << tbl_expr << ";\n";
     *cur_output_ << GenTab() << "if (" << tbl_var << ".type_ != VAR_TABLE) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
     *cur_output_ << GenTab() << sz_var << " = " << tbl_var << ".data_.t->count_;\n";
@@ -1368,7 +1365,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     *cur_output_ << GenTab() << "for (" << idx_var << " = 0; " << idx_var << " < " << sz_var << "; " << idx_var << "++) {\n";
     cur_tab_++;
 
-    // Get key (and optionally value) for this iteration via GET_TABLE_ENTRY macro
+    // 通过 GET_TABLE_ENTRY 宏获取本次迭代的键（和可选的值）
     const auto &key_name = names[0];
     if (names.size() >= 2) {
         const auto &val_name = names[1];
@@ -1381,7 +1378,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         *cur_output_ << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, key_name, dummy_val);
     }
 
-    // Compile the loop body
+    // 编译循环体
     CompileStmtBlock(for_in->Block());
 
     cur_tab_--;
@@ -1390,7 +1387,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
 
 std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
     DEBUG_ASSERT(exp->Type() == SyntaxTreeType::Exp);
-    // start to compile the expression
+    // 开始编译表达式
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
     const auto &ExpType = e->ExpType();
     const auto &value = e->ExpValue();
@@ -1499,12 +1496,12 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
             std::string key_str;
             if (ftype == "object") {
-                // name = value: key is a string identifier
+                // name = value: 键是字符串标识符
                 const auto name = field_ptr->Name();
                 const auto id = s_->GetConstString().Alloc(name);
                 key_str = std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", id);
             } else {
-                // array: either [exp] = value (explicit key) or just exp (sequential index)
+                // 数组：要么是 [exp] = value（显式键），要么只有 exp（顺序索引）
                 DEBUG_ASSERT(ftype == "array");
                 const auto key = field_ptr->Key();
                 if (key) {
@@ -1530,8 +1527,8 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeBinop>(op);
     const auto &op_name = op_ptr->GetOp();
 
-    // Short-circuit operators (AND/OR) need special handling:
-    // Right side must only be evaluated when needed.
+    // 短路运算符（AND/OR）需要特殊处理：
+    // 右侧仅在需要时才计算。
     if (op_name == "AND" || op_name == "OR") {
         const auto left_str = CompileExp(left);
 
@@ -1543,7 +1540,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
         *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", left_str, tmp_bool);
 
         if (op_name == "AND") {
-            // AND: if left is falsy, return left; else evaluate and return right
+            // AND: 若左侧为假，返回左侧；否则计算并返回右侧
             *cur_output_ << GenTab() << std::format("if (!{}) {{\n", tmp_bool);
             cur_tab_++;
             *cur_output_ << GenTab() << std::format("{} = {};\n", tmp, left_str);
@@ -1555,7 +1552,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
             cur_tab_--;
             *cur_output_ << GenTab() << "}\n";
         } else {
-            // OR: if left is truthy, return left; else evaluate and return right
+            // OR: 若左侧为真，返回左侧；否则计算并返回右侧
             *cur_output_ << GenTab() << std::format("if ({}) {{\n", tmp_bool);
             cur_tab_++;
             *cur_output_ << GenTab() << std::format("{} = {};\n", tmp, left_str);
@@ -1577,9 +1574,9 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
 
-    // Wrap arguments in parentheses to prevent commas in C compound literals
-    // (e.g. (CVar){.type_ = VAR_INT, .data_.i = 2}) from being misinterpreted
-    // as macro argument separators by the C preprocessor.
+    // 将参数用括号括起，防止 C 复合字面量中的逗号
+    // （例如 (CVar){.type_ = VAR_INT, .data_.i = 2}）被 C 预处理器
+    // 误解为宏参数分隔符。
     const auto l = std::format("({})", left_str);
     const auto r = std::format("({})", right_str);
 
@@ -1641,7 +1638,7 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxT
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
 
-    // Wrap argument in parentheses to protect commas in compound literals from macro parsing
+    // 将参数用括号括起，防止复合字面量中的逗号被宏解析器误解
     const auto r = std::format("({})", right_str);
 
     if (op_name == "NOT") {
@@ -1737,11 +1734,11 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             }
             const auto &vname = var->GetName();
             if (typed_native_vars_.count(vname)) {
-                // Variable is typed native (int64_t/double): use the name directly.
+                // 变量是原生类型（int64_t/double）：直接使用变量名。
                 return vname;
             }
-            // Variable is CVar (declared as CVar because it was later mutated to
-            // T_DYNAMIC).  Extract the stored numeric field to obtain a native value.
+            // 变量是 CVar（因后续被修改为 T_DYNAMIC 而声明为 CVar）。
+            // 提取存储的数值字段以获取原生值。
             if (e->EvalType() == T_FLOAT) {
                 return std::format("{}.data_.f", vname);
             }
@@ -1786,7 +1783,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         ThrowError("method calls (:) are not supported", functioncall);
     }
 
-    // Compile arguments
+    // 编译参数
     const auto args_node = fc->Args();
     DEBUG_ASSERT(args_node->Type() == SyntaxTreeType::Args);
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
@@ -1805,9 +1802,9 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     } else if (args_type == "string") {
         compiled_args.push_back(CompileExp(args_ptr->String()));
     }
-    // "empty": no args
+    // "empty": 无参数
 
-    // Determine the function call expression
+    // 确定函数调用表达式
     const auto pe = fc->prefixexp();
     DEBUG_ASSERT(pe->Type() == SyntaxTreeType::PrefixExp);
     const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
@@ -1818,7 +1815,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         if (var->GetType() == "simple") {
             const auto &func_name = var->GetName();
             if (func_name == "FAKELUA_SET_TABLE") {
-                // Built-in table assignment: FAKELUA_SET_TABLE(t, k, v) -> FlSetTable(t, k, v)
+                // 内置表赋值：FAKELUA_SET_TABLE(t, k, v) -> FlSetTable(t, k, v)
                 if (compiled_args.size() != 3) {
                     ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
                 }
@@ -1828,7 +1825,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
                 return tmp;
             } else if (local_func_names_.count(func_name)) {
-                // Direct call to a function defined in the same C file
+                // 直接调用同一 C 文件中定义的函数
                 call_expr = func_name + "(";
                 for (size_t i = 0; i < compiled_args.size(); ++i) {
                     if (i > 0) {
@@ -1838,8 +1835,8 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 }
                 call_expr += ")";
             } else {
-                // Dynamic lookup by name in the global function registry.
-                // JIT type comes from backend compile-time macro FAKELUA_JIT_TYPE.
+                // 在全局函数注册表中按名称动态查找。
+                // JIT 类型来自后端编译时宏 FAKELUA_JIT_TYPE。
                 call_expr = std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"{}\", {}", func_name, compiled_args.size());
                 for (const auto &arg: compiled_args) {
                     call_expr += ", " + arg;
@@ -1853,7 +1850,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         ThrowError("complex function call expression is not supported", functioncall);
     }
 
-    // Allocate a temp variable to hold the return value
+    // 分配临时变量来保存返回值
     const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
     *cur_output_ << GenTab() << tmp << " = " << call_expr << ";\n";

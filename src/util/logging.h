@@ -2,19 +2,19 @@
 
 namespace fakelua {
 
-// a simple logging system, just use to debug
+// 一个简单的日志系统，仅用于调试
 
-// log level
+// 日志级别
 enum class LogLevel {
     Off = 0,
     Error = 1,
     Info = 2,
 };
 
-// set the log level, default is Error
+// 设置日志级别，默认为 Error
 void SetLogLevel(const LogLevel &level);
 
-// check the log level, return true if the level is enabled
+// 检查日志级别，如果该级别已启用则返回 true
 bool CheckLogLevel(const LogLevel &level);
 
 void Log(const LogLevel &level, const std::string_view &message, const std::source_location &source = std::source_location::current());

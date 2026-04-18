@@ -2,7 +2,7 @@
 
 namespace fakelua {
 
-// Execute a command and return the output as a string
+// 执行命令并将输出作为字符串返回
 std::string Exec(const char *cmd);
 
 }// namespace fakelua

@@ -2,7 +2,7 @@
 
 namespace fakelua {
 
-// std::stacktrace::current() is not implemented in libstdc++ yet, so we have to use a fake one.
+// std::stacktrace::current() 在 libstdc++ 中尚未实现，因此我们使用一个替代方案。
 std::string StacktraceCurrent() {
     std::string ret;
 #ifndef _WIN32

@@ -92,20 +92,20 @@ private:
     std::unordered_set<std::string> global_const_vars_;
     int tmp_var_counter_ = 0;
 
-    // Function names (and arg counts) declared in the current compilation unit.
-    // Populated during GenerateDecls so that CompileFunctioncall can distinguish
-    // same-file direct calls from cross-file FakeluaCallByName calls.
+    // 当前编译单元中声明的函数名（及参数数量）。
+    // 在 GenerateDecls 期间填充，以便 CompileFunctioncall 能够区分
+    // 同文件的直接调用和跨文件的 FakeluaCallByName 调用。
     std::unordered_map<std::string, int> local_func_names_;
-    // cur_output_ points to the current target stream (headers_, globals_, decls_, impls_, body_ss_, etc.).
-    // All code emission should go through *cur_output_ for consistency.
+    // cur_output_ 指向当前目标流（headers_、globals_、decls_、impls_、body_ss_ 等）。
+    // 所有代码生成应通过 *cur_output_ 进行以保持一致性。
     std::ostream *cur_output_ = nullptr;
     std::stringstream func_temp_decls_;
-    // Buffers the function body during compilation (reused across functions, cleared each time).
+    // 在编译期间缓冲函数体（跨函数重用，每次清空）。
     std::stringstream body_ss_;
-    // Tracks variable names that are actually declared as a native type (int64_t / double) in
-    // the current function.  Only variables in this set may be wrapped with a boxing cast when
-    // they appear in a CVar context.  Variables absent from this set are CVar and must be used
-    // as-is.  Cleared at the start of each function compilation.
+    // 跟踪当前函数中实际声明为原生类型（int64_t / double）的变量名。
+    // 只有在此集合中的变量在 CVar 上下文中出现时才能进行装箱转换。
+    // 不在此集合中的变量是 CVar，必须按原样使用。
+    // 在每个函数编译开始时清空。
     std::unordered_set<std::string> typed_native_vars_;
 };
 

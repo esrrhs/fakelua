@@ -26,7 +26,7 @@ TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) {
 
     tcc_set_output_type(tcc_state_, TCC_OUTPUT_MEMORY);
 
-    // Add symbols that the JIT code might call
+    // 添加 JIT 代码可能调用的符号
     tcc_add_symbol(tcc_state_, "FakeluaAllocTemp", (void *) FakeluaAllocTemp);
     tcc_add_symbol(tcc_state_, "FakeluaThrowError", (void *) FakeluaThrowError);
     tcc_add_symbol(tcc_state_, "FakeluaCallByName", (void *) FakeluaCallByName);

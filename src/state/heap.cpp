@@ -27,7 +27,7 @@ void *HeapAllocator::Alloc(size_t size) {
     }
 
     if (current_block_index_ >= blocks_.size()) {
-        // allocate a new block
+        // 分配一个新的内存块
         void *new_block = malloc(BLOCK_SIZE);
         if (!new_block) {
             throw std::runtime_error("failed to allocate memory");
