@@ -915,7 +915,13 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
             break;
         }
         case SyntaxTreeType::Block: {
+            // do...end block: emit a C compound-statement so that inner `local`
+            // declarations shadow outer variables instead of redeclaring them.
+            *cur_output_ << GenTab() << "{\n";
+            cur_tab_++;
             CompileStmtBlock(stmt);
+            cur_tab_--;
+            *cur_output_ << GenTab() << "}\n";
             break;
         }
         case SyntaxTreeType::While: {
@@ -1716,7 +1722,17 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             if (!var || var->GetType() != "simple") {
                 ThrowError("only simple variable is supported in numeric specialization", exp);
             }
-            return var->GetName();
+            const auto &vname = var->GetName();
+            if (typed_native_vars_.count(vname)) {
+                // Variable is typed native (int64_t/double): use the name directly.
+                return vname;
+            }
+            // Variable is CVar (declared as CVar because it was later mutated to
+            // T_DYNAMIC).  Extract the stored numeric field to obtain a native value.
+            if (e->EvalType() == T_FLOAT) {
+                return std::format("{}.data_.f", vname);
+            }
+            return std::format("{}.data_.i", vname);
         }
         if (pe->GetType() == "exp") {
             return CompileNumericExp(pe->GetValue());

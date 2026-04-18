@@ -71,7 +71,9 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
     switch (node->Type()) {
         case SyntaxTreeType::Block: {
             const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
-            InferBlock(block, false);
+            // A standalone do...end block must introduce its own scope so that inner
+            // local declarations don't pollute (or overwrite) the enclosing scope.
+            InferBlock(block, true);
             block->SetEvalType(T_UNKNOWN);
             return T_UNKNOWN;
         }

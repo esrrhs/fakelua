@@ -143,6 +143,54 @@ TEST(infer, test_infer_while_scope_degrade) {
     });
 }
 
+// Type pollution: a is initially T_INT but later mutated to "hello" (T_DYNAMIC).
+// b = a + 5 captures a's current value (10) at declaration time; the compiler
+// must still emit valid C even though a becomes a CVar.  b == 15.
+TEST(infer, test_infer_type_pollution) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_type_pollution.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 15);
+    });
+}
+
+// Bottom-up / mixed-type: pure numeric expression using *, - and // (not PLUS)
+// forces T_DYNAMIC, as does a call to unknown_func().  Both are compiled via
+// CVar arithmetic.  dynamic_res = 100 + unknown_func() * 2 = 110.
+TEST(infer, test_infer_bottom_up) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_bottom_up.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 110);
+    });
+}
+
+// do...end shadowing: inner `local val = "inner"` uses the `local` keyword and
+// therefore creates a brand-new variable scoped to the do...end block; it does
+// NOT mutate the outer val = 100.  After the block res = val + 1 = 101.
+TEST(infer, test_infer_shadowing) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_shadowing.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 101);
+    });
+}
+
+// Cross-scope mutation: `state = "error"` (no local!) inside an if block deep
+// inside a for loop mutates the outer state, degrading it from T_INT to
+// T_DYNAMIC.  After the loop state holds the string "error".
+TEST(infer, test_infer_mutation) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_mutation.lua", {.debug_mode = debug_mode});
+        std::string ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, "error");
+    });
+}
+
 // InferPrefixExp "exp" branch: (a + 2) is a PrefixExp of type "exp" inside an
 // Exp of type "prefixexp".  InferPrefixExp delegates to InferNode on the inner
 // expression, yielding T_INT + T_INT = T_INT, so b is specialised as int64_t.
