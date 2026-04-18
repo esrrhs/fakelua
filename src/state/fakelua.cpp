@@ -404,6 +404,10 @@ void CompileString(State *s, const std::string &str, const CompileConfig &cfg) {
     s->GetCompiler().CompileString(str, cfg);
 }
 
+std::string GetLastRecordedCCode(State *s) {
+    return s->GetCompiler().GetLastRecordedCCode();
+}
+
 void SetVarInterfaceNewFunc(State *s, const std::function<VarInterface *()> &func) {
     s->SetVarInterfaceNewFunc(func);
 }

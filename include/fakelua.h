@@ -218,6 +218,9 @@ struct CompileConfig {
     bool debug_mode = true;
     // 是否使用 JIT 编译，默认都开启
     bool disable_jit[JIT_MAX] = {false};
+    // 记录生成的 C 代码（全局变量、函数声明、函数实现，不含公共头部）。
+    // 开启后可通过 GetLastRecordedCCode(State*) 获取最近一次编译产生的代码片段。
+    bool record_c_code = false;
 };
 
 struct StateTCCConfig {
@@ -272,6 +275,10 @@ void CompileFile(State *s, const std::string &filename, const CompileConfig &cfg
 
 // 编译字符串
 void CompileString(State *s, const std::string &str, const CompileConfig &cfg);
+
+// 获取最近一次编译时记录的 C 代码（仅在 CompileConfig::record_c_code 为 true 时有效）。
+// 返回全局变量、函数声明和函数实现部分，不含公共头部。
+std::string GetLastRecordedCCode(State *s);
 
 // 调用某个脚本函数，出于性能考虑，不支持变参，也只允许返回一个值，多返回值可使用Table来实现
 template<typename Ret, typename... Args>

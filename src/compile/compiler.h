@@ -24,12 +24,18 @@ public:
     // 编译 Lua 源代码字符串
     CompileResult CompileString(const std::string &str, const CompileConfig &cfg);
 
+    // 返回最近一次编译时记录的 C 代码（仅当 CompileConfig::record_c_code 为 true 时非空）
+    const std::string &GetLastRecordedCCode() const {
+        return last_recorded_c_code_;
+    }
+
 private:
     // 核心编译流程实现，由 CompileFile 和 CompileString 调用
     CompileResult Compile(MyFlexer &f, const CompileConfig &cfg);
 
 private:
     State *s_;// FakeLua 状态指针
+    std::string last_recorded_c_code_;
 };
 
 }// namespace fakelua

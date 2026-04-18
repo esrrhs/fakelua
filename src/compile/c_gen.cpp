@@ -45,6 +45,12 @@ std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
     local_func_names_ = cr.function_names;
     cur_output_ = &impls_;
     GenerateImpl(cr);
+    if (cfg.record_c_code) {
+        // Record only the non-header sections (globals + decls + impls).
+        // The header is a fixed boilerplate identical for every compilation unit
+        // and is not useful for type-inference assertions.
+        cr.recorded_c_code = globals_.str() + decls_.str() + impls_.str();
+    }
     return headers_.str() + globals_.str() + decls_.str() + impls_.str();
 }
 
