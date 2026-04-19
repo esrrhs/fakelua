@@ -1,3 +1,5 @@
+#include <ranges>
+
 #include "compile/type_inferencer.h"
 
 #include "util/common.h"
@@ -23,8 +25,8 @@ void TypeEnvironment::Define(const std::string &name, const InferredType type) {
 }
 
 bool TypeEnvironment::Update(const std::string &name, const InferredType type) {
-    for (auto it = scopes_.rbegin(); it != scopes_.rend(); ++it) {
-        if (const auto found = it->find(name); found != it->end()) {
+    for (auto &scope: std::views::reverse(scopes_)) {
+        if (const auto found = scope.find(name); found != scope.end()) {
             found->second = MergeType(found->second, type);
             return true;
         }
@@ -33,8 +35,8 @@ bool TypeEnvironment::Update(const std::string &name, const InferredType type) {
 }
 
 InferredType TypeEnvironment::Lookup(const std::string &name) const {
-    for (auto it = scopes_.rbegin(); it != scopes_.rend(); ++it) {
-        if (const auto found = it->find(name); found != it->end()) {
+    for (const auto &scope: std::views::reverse(scopes_)) {
+        if (const auto found = scope.find(name); found != scope.end()) {
             return found->second;
         }
     }
@@ -58,7 +60,6 @@ InferredType TypeEnvironment::MergeType(const InferredType old_type, const Infer
 }
 
 void TypeInferencer::Process(const CompileResult &cr, const CompileConfig &cfg) {
-    (void)cfg;
     WalkSyntaxTree(cr.chunk, [](const SyntaxTreeInterfacePtr &ptr) { ptr->SetEvalType(T_UNKNOWN); });
     InferNode(cr.chunk);
 }
@@ -117,6 +118,8 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
                 return T_DYNAMIC;
             }
 
+            DEBUG_ASSERT(varlist->Vars().size() == 1 && explist->Exps().size() == 1);// 预处理阶段已将多赋值拆分成单赋值
+
             const InferredType rhs_type = InferNode(explist->Exps()[0]);
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
             if (!var || var->GetType() != "simple") {
@@ -149,8 +152,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             // 这与 CGen 使用的整型特化路径相匹配。当任何边界为 T_DYNAMIC 时，
             // CGen 会生成 CVar 循环控制变量，因此循环变量也必须是 T_DYNAMIC
             // 以保持类型一致。
-            const bool all_int = for_loop->ExpBegin() && for_loop->ExpEnd() &&
-                                 for_loop->ExpBegin()->EvalType() == T_INT &&
+            const bool all_int = for_loop->ExpBegin() && for_loop->ExpEnd() && for_loop->ExpBegin()->EvalType() == T_INT &&
                                  for_loop->ExpEnd()->EvalType() == T_INT &&
                                  (!for_loop->ExpStep() || for_loop->ExpStep()->EvalType() == T_INT);
             const InferredType loop_var_type = all_int ? T_INT : T_DYNAMIC;
@@ -225,16 +227,16 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
             return InferVar(var);
         }
-        case SyntaxTreeType::FunctionCall:
+        case SyntaxTreeType::FunctionCall: {
+            const auto functioncall = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+            InferNode(functioncall->prefixexp());
+            InferNode(functioncall->Args());
+            node->SetEvalType(T_DYNAMIC);
+            return T_DYNAMIC;
+        }
         case SyntaxTreeType::TableConstructor: {
-            if (node->Type() == SyntaxTreeType::FunctionCall) {
-                const auto functioncall = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
-                InferNode(functioncall->prefixexp());
-                InferNode(functioncall->Args());
-            } else {
-                const auto tableconstructor = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
-                InferNode(tableconstructor->Fieldlist());
-            }
+            const auto tableconstructor = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
+            InferNode(tableconstructor->Fieldlist());
             node->SetEvalType(T_DYNAMIC);
             return T_DYNAMIC;
         }

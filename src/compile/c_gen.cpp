@@ -1060,17 +1060,15 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
 
     DEBUG_ASSERT(vars[0]->Type() == SyntaxTreeType::Var);
     const auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[0]);
-    const auto &vtype = v_ptr->GetType();
 
     // PreprocessTableAssign 将方括号/点号赋值重写为 FAKELUA_SET_TABLE 调用，
     // 所以只有简单变量赋值能到达此处。
     DEBUG_ASSERT(vtype == "simple");
-    const auto &name = v_ptr->GetName();
     // 基于 typed_native_vars_（变量的*声明*方式）进行判断，而不是
     // v_ptr->EvalType()（在单次遍历中，当此赋值在同一个循环体中
     // 后续的 T_DYNAMIC 变化之前被处理时，EvalType 可能已过时）。
     // 使用过时的 T_INT EvalType 会发出 CVar = int64_t —— C 类型错误。
-    if (typed_native_vars_.count(name)) {
+    if (const auto &name = v_ptr->GetName(); typed_native_vars_.contains(name)) {
         *cur_output_ << GenTab() << name << " = " << CompileNumericExp(exps[0]) << ";\n";
     } else {
         const std::string rhs = CompileExp(exps[0]);
@@ -1480,8 +1478,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
     func_temp_decls_ << "    " << "CVar " << var_name << ";\n";
     *cur_output_ << GenTab() << "SET_TABLE(" << var_name << ");\n";
 
-    const auto fieldlist = tc_ptr->Fieldlist();
-    if (fieldlist) {
+    if (const auto fieldlist = tc_ptr->Fieldlist()) {
         DEBUG_ASSERT(fieldlist->Type() == SyntaxTreeType::FieldList);
         const auto fieldlist_ptr = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(fieldlist);
 
@@ -1503,8 +1500,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             } else {
                 // 数组：要么是 [exp] = value（显式键），要么只有 exp（顺序索引）
                 DEBUG_ASSERT(ftype == "array");
-                const auto key = field_ptr->Key();
-                if (key) {
+                if (const auto key = field_ptr->Key()) {
                     key_str = CompileExp(key);
                 } else {
                     key_str = std::format("(CVar){{.type_ = VAR_INT, .data_.i = {}}}", array_idx);
@@ -1667,10 +1663,10 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         if (in_global_init_) {
             ThrowError("variable reference is not allowed in global variable initialization", v);
         }
-        if (v_ptr->EvalType() == T_INT && typed_native_vars_.count(name)) {
+        if (v_ptr->EvalType() == T_INT && typed_native_vars_.contains(name)) {
             return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
         }
-        if (v_ptr->EvalType() == T_FLOAT && typed_native_vars_.count(name)) {
+        if (v_ptr->EvalType() == T_FLOAT && typed_native_vars_.contains(name)) {
             return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
         }
         return name;
@@ -1712,9 +1708,8 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
     }
 
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-    const auto &exp_type = e->ExpType();
 
-    if (exp_type == "number") {
+    if (const auto &exp_type = e->ExpType(); exp_type == "number") {
         if (e->EvalType() == T_INT) {
             return std::to_string(ToInteger(e->ExpValue()));
         }
@@ -1733,7 +1728,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
                 ThrowError("only simple variable is supported in numeric specialization", exp);
             }
             const auto &vname = var->GetName();
-            if (typed_native_vars_.count(vname)) {
+            if (typed_native_vars_.contains(vname)) {
                 // 变量是原生类型（int64_t/double）：直接使用变量名。
                 return vname;
             }
@@ -1749,8 +1744,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         }
         ThrowError("function call cannot be specialized as numeric", exp);
     } else if (exp_type == "binop") {
-        const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
-        if (!op || op->GetOp() != "PLUS") {
+        if (const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op()); !op || op->GetOp() != "PLUS") {
             ThrowError("only PLUS is supported in numeric specialization", exp);
         }
         const auto left = CompileNumericExp(e->Left());
@@ -1811,10 +1805,8 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
 
     std::string call_expr;
     if (pe_ptr->GetType() == "var") {
-        const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue());
-        if (var->GetType() == "simple") {
-            const auto &func_name = var->GetName();
-            if (func_name == "FAKELUA_SET_TABLE") {
+        if (const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue()); var->GetType() == "simple") {
+            if (const auto &func_name = var->GetName(); func_name == "FAKELUA_SET_TABLE") {
                 // 内置表赋值：FAKELUA_SET_TABLE(t, k, v) -> FlSetTable(t, k, v)
                 if (compiled_args.size() != 3) {
                     ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
@@ -1824,7 +1816,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", compiled_args[0], compiled_args[1], compiled_args[2]);
                 *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
                 return tmp;
-            } else if (local_func_names_.count(func_name)) {
+            } else if (local_func_names_.contains(func_name)) {
                 // 直接调用同一 C 文件中定义的函数
                 call_expr = func_name + "(";
                 for (size_t i = 0; i < compiled_args.size(); ++i) {
