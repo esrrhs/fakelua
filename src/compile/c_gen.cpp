@@ -10,6 +10,32 @@ namespace fakelua {
 CGen::CGen(State *s) : s_(s) {
 }
 
+void CGen::EnterNativeVarScope() {
+    native_var_scopes_.emplace_back();
+}
+
+void CGen::ExitNativeVarScope() {
+    if (!native_var_scopes_.empty()) {
+        native_var_scopes_.pop_back();
+    }
+}
+
+void CGen::DeclareNativeVar(const std::string &name, const bool typed_native) {
+    if (native_var_scopes_.empty()) {
+        EnterNativeVarScope();
+    }
+    native_var_scopes_.back()[name] = typed_native;
+}
+
+bool CGen::IsTypedNativeVar(const std::string &name) const {
+    for (auto it = native_var_scopes_.rbegin(); it != native_var_scopes_.rend(); ++it) {
+        if (const auto found = it->find(name); found != it->end()) {
+            return found->second;
+        }
+    }
+    return false;
+}
+
 void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
     LOG_INFO("start CGen::Generate {}", cr.file_name);
 
@@ -871,11 +897,17 @@ void CGen::GenerateImpl(CompileResult &cr) {
         func_temp_decls_.clear();
         body_ss_.str("");
         body_ss_.clear();
-        typed_native_vars_.clear();
+        native_var_scopes_.clear();
+        EnterNativeVarScope();
+        for (const auto &param_name: func_params) {
+            // 形参在 C 签名中恒为 CVar。
+            DeclareNativeVar(param_name, false);
+        }
         cur_output_ = &body_ss_;
         cur_tab_++;
         CompileStmtBlock(func_block);
         cur_tab_--;
+        ExitNativeVarScope();
         cur_output_ = &impls_;
         *cur_output_ << func_temp_decls_.str();
         *cur_output_ << body_ss_.str();
@@ -924,7 +956,9 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
             // 声明遮蔽外部变量而不是重新声明它们。
             *cur_output_ << GenTab() << "{\n";
             cur_tab_++;
+            EnterNativeVarScope();
             CompileStmtBlock(stmt);
+            ExitNativeVarScope();
             cur_tab_--;
             *cur_output_ << GenTab() << "}\n";
             break;
@@ -1025,13 +1059,14 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
 
         if (i < exps.size() && exps[i]->EvalType() == T_INT) {
             *cur_output_ << GenTab() << "int64_t " << name << " = " << CompileNumericExp(exps[i]) << ";\n";
-            typed_native_vars_.insert(name);
+            DeclareNativeVar(name, true);
         } else if (i < exps.size() && exps[i]->EvalType() == T_FLOAT) {
             *cur_output_ << GenTab() << "double " << name << " = " << CompileNumericExp(exps[i]) << ";\n";
-            typed_native_vars_.insert(name);
+            DeclareNativeVar(name, true);
         } else {
             const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
             *cur_output_ << GenTab() << "CVar " << name << " = " << init << ";\n";
+            DeclareNativeVar(name, false);
         }
     }
 }
@@ -1064,11 +1099,11 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     // PreprocessTableAssign 将方括号/点号赋值重写为 FAKELUA_SET_TABLE 调用，
     // 所以只有简单变量赋值能到达此处。
     DEBUG_ASSERT(vtype == "simple");
-    // 基于 typed_native_vars_（变量的*声明*方式）进行判断，而不是
+    // 基于声明作用域中的原生类型标记进行判断，而不是
     // v_ptr->EvalType()（在单次遍历中，当此赋值在同一个循环体中
     // 后续的 T_DYNAMIC 变化之前被处理时，EvalType 可能已过时）。
     // 使用过时的 T_INT EvalType 会发出 CVar = int64_t —— C 类型错误。
-    if (const auto &name = v_ptr->GetName(); typed_native_vars_.contains(name)) {
+    if (const auto &name = v_ptr->GetName(); IsTypedNativeVar(name)) {
         *cur_output_ << GenTab() << name << " = " << CompileNumericExp(exps[0]) << ";\n";
     } else {
         const std::string rhs = CompileExp(exps[0]);
@@ -1094,7 +1129,9 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
     *cur_output_ << GenTab() << std::format("if (!{}) break;\n", tmp_bool);
 
+    EnterNativeVarScope();
     CompileStmtBlock(while_stmt->Block());
+    ExitNativeVarScope();
 
     cur_tab_--;
     *cur_output_ << GenTab() << "}\n";
@@ -1110,9 +1147,10 @@ void CGen::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
     *cur_output_ << GenTab() << "do {\n";
     cur_tab_++;
 
+    EnterNativeVarScope();
     CompileStmtBlock(repeat_stmt->Block());
-
     const auto cond = CompileExp(repeat_stmt->Exp());
+    ExitNativeVarScope();
     *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
     *cur_output_ << GenTab() << std::format("if ({}) break;\n", tmp_bool);
 
@@ -1131,7 +1169,9 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
     *cur_output_ << GenTab() << std::format("if ({}) {{\n", tmp_bool);
     cur_tab_++;
+    EnterNativeVarScope();
     CompileStmtBlock(if_stmt->Block());
+    ExitNativeVarScope();
     cur_tab_--;
     *cur_output_ << GenTab() << "}";
 
@@ -1150,7 +1190,9 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
             *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", econd, etmp_bool);
             *cur_output_ << GenTab() << std::format("if ({}) {{\n", etmp_bool);
             cur_tab_++;
+            EnterNativeVarScope();
             CompileStmtBlock(elseif_list->ElseifBlock(i));
+            ExitNativeVarScope();
             cur_tab_--;
             *cur_output_ << GenTab() << "}";
         }
@@ -1159,7 +1201,9 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     if (const auto else_block = if_stmt->ElseBlock()) {
         *cur_output_ << " else {\n";
         cur_tab_++;
+        EnterNativeVarScope();
         CompileStmtBlock(else_block);
+        ExitNativeVarScope();
         cur_tab_--;
         *cur_output_ << GenTab() << "}";
     }
@@ -1205,10 +1249,16 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
         *cur_output_ << GenTab() << "for (; (" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " <<
                 end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
         cur_tab_++;
-        *cur_output_ << GenTab() << "int64_t " << for_stmt->Name() << " = " << ctrl_var << ";\n";
-        typed_native_vars_.insert(for_stmt->Name());
+        EnterNativeVarScope();
+        if (for_stmt->EvalType() == T_INT) {
+            *cur_output_ << GenTab() << "int64_t " << for_stmt->Name() << " = " << ctrl_var << ";\n";
+            DeclareNativeVar(for_stmt->Name(), true);
+        } else {
+            *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_INT) << ";\n";
+            DeclareNativeVar(for_stmt->Name(), false);
+        }
         CompileStmtBlock(for_stmt->Block());
-        typed_native_vars_.erase(for_stmt->Name());
+        ExitNativeVarScope();
         cur_tab_--;
         *cur_output_ << GenTab() << "}\n";
         return;
@@ -1268,9 +1318,12 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     // 声明循环体中可见的循环变量
     const auto &loop_var_name = for_stmt->Name();
     *cur_output_ << GenTab() << "CVar " << loop_var_name << " = " << ctrl_var << ";\n";
+    EnterNativeVarScope();
+    DeclareNativeVar(loop_var_name, false);
 
     // 编译循环体
     CompileStmtBlock(for_stmt->Block());
+    ExitNativeVarScope();
 
     // 递增控制变量
     *cur_output_ << GenTab() << std::format("OpAdd(({0}), ({1}), {2});\n", ctrl_var, step_var, ctrl_var);
@@ -1377,7 +1430,13 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     // 编译循环体
+    EnterNativeVarScope();
+    DeclareNativeVar(key_name, false);
+    if (names.size() >= 2) {
+        DeclareNativeVar(names[1], false);
+    }
     CompileStmtBlock(for_in->Block());
+    ExitNativeVarScope();
 
     cur_tab_--;
     *cur_output_ << GenTab() << "}\n";
@@ -1663,10 +1722,10 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         if (in_global_init_) {
             ThrowError("variable reference is not allowed in global variable initialization", v);
         }
-        if (v_ptr->EvalType() == T_INT && typed_native_vars_.contains(name)) {
+        if (v_ptr->EvalType() == T_INT && IsTypedNativeVar(name)) {
             return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
         }
-        if (v_ptr->EvalType() == T_FLOAT && typed_native_vars_.contains(name)) {
+        if (v_ptr->EvalType() == T_FLOAT && IsTypedNativeVar(name)) {
             return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
         }
         return name;
@@ -1728,7 +1787,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
                 ThrowError("only simple variable is supported in numeric specialization", exp);
             }
             const auto &vname = var->GetName();
-            if (typed_native_vars_.contains(vname)) {
+            if (IsTypedNativeVar(vname)) {
                 // 变量是原生类型（int64_t/double）：直接使用变量名。
                 return vname;
             }

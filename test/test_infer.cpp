@@ -383,3 +383,80 @@ TEST(infer, test_infer_paren_exp) {
     });
 }
 
+// For-loop cursor/outer local same name (case1): outer a degrades to CVar after
+// loop while cursor a remains native int in loop body.
+TEST(infer, test_infer_for_shadow_case1) {
+    const auto code = InferGetCCode("./infer/test_infer_for_shadow_case1.lua");
+    ASSERT_NE(code.find("CVar a = "), std::string::npos); // outer a
+    ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t a = flua_for_ctrl_"), std::string::npos); // loop cursor
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_for_shadow_case1.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 55);
+    });
+}
+
+// For-loop cursor assigned string in body (case2): cursor must be CVar even
+// when bounds are integer-specialized, and outer a remains independently mutable.
+TEST(infer, test_infer_for_shadow_case2) {
+    const auto code = InferGetCCode("./infer/test_infer_for_shadow_case2.lua");
+    ASSERT_NE(code.find("CVar a = "), std::string::npos);
+    ASSERT_EQ(code.find("int64_t a = flua_for_ctrl_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_for_shadow_case2.lua", {.debug_mode = debug_mode});
+        std::string ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, "test");
+    });
+}
+
+// For-loop cursor/outer local same name (case3): outer numeric a must stay
+// typed after loop and support native numeric assignment.
+TEST(infer, test_infer_for_shadow_case3) {
+    const auto code = InferGetCCode("./infer/test_infer_for_shadow_case3.lua");
+    ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos); // outer a
+    ASSERT_NE(code.find("int64_t a = flua_for_ctrl_"), std::string::npos); // cursor a
+    ASSERT_NE(code.find("a = ((a) + (1));"), std::string::npos); // outer post-loop assign
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_for_shadow_case3.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 3);
+    });
+}
+
+// For-loop cursor assigned string in body (case4): inner cursor a is CVar while
+// outer a remains int64_t and is still used natively after loop.
+TEST(infer, test_infer_for_shadow_case4) {
+    const auto code = InferGetCCode("./infer/test_infer_for_shadow_case4.lua");
+    ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos); // outer a
+    ASSERT_NE(code.find("CVar a = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)(flua_for_ctrl_"), std::string::npos); // cursor a
+    ASSERT_NE(code.find("a = ((a) + (1));"), std::string::npos); // outer post-loop assign
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_for_shadow_case4.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 3);
+    });
+}
+
+// Extra uncovered scenario: inner typed local `a` must not leak and pollute the
+// outer dynamic `a` declaration/assignments after leaving do...end scope.
+TEST(infer, test_infer_do_shadow_typed_over_dynamic) {
+    const auto code = InferGetCCode("./infer/test_infer_do_shadow_typed_over_dynamic.lua");
+    ASSERT_NE(code.find("CVar a = "), std::string::npos); // outer a
+    ASSERT_NE(code.find("int64_t a = 1;"), std::string::npos); // inner a
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_do_shadow_typed_over_dynamic.lua", {.debug_mode = debug_mode});
+        std::string ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, "after");
+    });
+}
