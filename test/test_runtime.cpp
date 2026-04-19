@@ -10,6 +10,29 @@
 
 using namespace fakelua;
 
+namespace {
+
+constexpr int kInvalidVarInterfaceType = 999;
+
+struct InvalidVarImpl final : public VarInterface {
+    [[nodiscard]] Type ViGetType() const override { return static_cast<Type>(kInvalidVarInterfaceType); }
+    void ViSetNil() override {}
+    void ViSetBool(bool) override {}
+    void ViSetInt(int64_t) override {}
+    void ViSetFloat(double) override {}
+    void ViSetString(const std::string_view &) override {}
+    void ViSetTable(const std::vector<std::pair<VarInterface *, VarInterface *>> &) override {}
+    [[nodiscard]] bool ViGetBool() const override { return false; }
+    [[nodiscard]] int64_t ViGetInt() const override { return 0; }
+    [[nodiscard]] double ViGetFloat() const override { return 0; }
+    [[nodiscard]] std::string_view ViGetString() const override { return {}; }
+    [[nodiscard]] size_t ViGetTableSize() const override { return 0; }
+    [[nodiscard]] std::pair<VarInterface *, VarInterface *> ViGetTableKv(int) const override { return {}; }
+    [[nodiscard]] std::string ViToString(int) const override { return "invalid"; }
+};
+
+} // namespace
+
 static CVar VmFn0() {
     Var ret;
     ret.SetInt(123);
@@ -107,4 +130,114 @@ TEST(runtime, generate_tmp_filename_creates_dir) {
     ASSERT_TRUE(std::filesystem::exists(tmpdir));
     ASSERT_NE(filename.find("runtime_cov_"), std::string::npos);
     ASSERT_TRUE(filename.ends_with(".tmp"));
+}
+
+TEST(runtime, inter_native_scalar_roundtrip) {
+    State s;
+
+    ASSERT_TRUE(inter::FakeluaToNativeBool(&s, inter::NativeToFakeluaBool(&s, true)));
+    ASSERT_EQ(inter::FakeluaToNativeChar(&s, inter::NativeToFakeluaChar(&s, -12)), -12);
+    ASSERT_EQ(inter::FakeluaToNativeUchar(&s, inter::NativeToFakeluaUchar(&s, 250)), 250);
+    ASSERT_EQ(inter::FakeluaToNativeShort(&s, inter::NativeToFakeluaShort(&s, -1234)), -1234);
+    ASSERT_EQ(inter::FakeluaToNativeUshort(&s, inter::NativeToFakeluaUshort(&s, 54321)), 54321);
+    ASSERT_EQ(inter::FakeluaToNativeInt(&s, inter::NativeToFakeluaInt(&s, -1234567)), -1234567);
+    ASSERT_EQ(inter::FakeluaToNativeUint(&s, inter::NativeToFakeluaUint(&s, 3456789012u)), 3456789012u);
+    ASSERT_EQ(inter::FakeluaToNativeLong(&s, inter::NativeToFakeluaLong(&s, -99887766L)), -99887766L);
+    ASSERT_EQ(inter::FakeluaToNativeUlong(&s, inter::NativeToFakeluaUlong(&s, 99887766UL)), 99887766UL);
+    ASSERT_EQ(inter::FakeluaToNativeLonglong(&s, inter::NativeToFakeluaLonglong(&s, -1234567890123LL)), -1234567890123LL);
+    ASSERT_EQ(inter::FakeluaToNativeUlonglong(&s, inter::NativeToFakeluaUlonglong(&s, 1234567890123ULL)), 1234567890123ULL);
+    ASSERT_FLOAT_EQ(inter::FakeluaToNativeFloat(&s, inter::NativeToFakeluaFloat(&s, 1.25f)), 1.25f);
+    ASSERT_DOUBLE_EQ(inter::FakeluaToNativeDouble(&s, inter::NativeToFakeluaDouble(&s, 2.75)), 2.75);
+    ASSERT_FLOAT_EQ(inter::FakeluaToNativeFloat(&s, inter::NativeToFakeluaInt(&s, 9)), 9.0f);
+    ASSERT_DOUBLE_EQ(inter::FakeluaToNativeDouble(&s, inter::NativeToFakeluaInt(&s, 11)), 11.0);
+
+    char mutable_str[] = "mutable";
+    ASSERT_EQ(std::string_view(inter::FakeluaToNativeCstr(&s, inter::NativeToFakeluaCstr(&s, "hello")), 5), "hello");
+    ASSERT_EQ(std::string_view(inter::FakeluaToNativeStr(&s, inter::NativeToFakeluaStr(&s, mutable_str)), 7), "mutable");
+    ASSERT_EQ(inter::FakeluaToNativeString(&s, inter::NativeToFakeluaString(&s, std::string("world"))), "world");
+    const std::string sv = "view";
+    ASSERT_EQ(inter::FakeluaToNativeStringView(&s, inter::NativeToFakeluaStringView(&s, std::string_view(sv))), "view");
+}
+
+TEST(runtime, inter_object_conversion_and_errors) {
+    State s;
+    std::vector<VarInterface *> allocated;
+    SetVarInterfaceNewFunc(&s, [&]() {
+        auto *p = new SimpleVarImpl();
+        allocated.push_back(p);
+        return p;
+    });
+
+    auto *vi_nil = inter::FakeluaToNativeObj(&s, inter::NativeToFakeluaNil(&s));
+    ASSERT_EQ(vi_nil->ViGetType(), VarInterface::Type::NIL);
+
+    auto *vi_bool = inter::FakeluaToNativeObj(&s, inter::NativeToFakeluaBool(&s, false));
+    ASSERT_EQ(vi_bool->ViGetType(), VarInterface::Type::BOOL);
+    ASSERT_FALSE(vi_bool->ViGetBool());
+
+    auto *vi_float = inter::FakeluaToNativeObj(&s, inter::NativeToFakeluaDouble(&s, 3.5));
+    ASSERT_EQ(vi_float->ViGetType(), VarInterface::Type::FLOAT);
+    ASSERT_DOUBLE_EQ(vi_float->ViGetFloat(), 3.5);
+
+    Var sid;
+    sid.SetConstString(&s, "const_sid");
+    auto *vi_sid = inter::FakeluaToNativeObj(&s, sid);
+    ASSERT_EQ(vi_sid->ViGetType(), VarInterface::Type::STRING);
+    ASSERT_EQ(vi_sid->ViGetString(), "const_sid");
+    ASSERT_EQ(inter::FakeluaToNativeString(&s, sid), "const_sid");
+
+    Var table_quick;
+    table_quick.SetTable(&s);
+    table_quick.TableSet(&s, Var(int64_t(1)), Var(int64_t(11)), true);
+    table_quick.TableSet(&s, Var(int64_t(2)), Var(int64_t(22)), true);
+    auto *vi_quick = inter::FakeluaToNativeObj(&s, table_quick);
+    ASSERT_EQ(vi_quick->ViGetType(), VarInterface::Type::TABLE);
+    ASSERT_EQ(vi_quick->ViGetTableSize(), 2U);
+
+    Var table_hash;
+    table_hash.SetTable(&s);
+    Var k;
+    k.SetTempString(&s, "k");
+    table_hash.TableSet(&s, k, Var(int64_t(7)), true);
+    auto *vi_hash = inter::FakeluaToNativeObj(&s, table_hash);
+    ASSERT_EQ(vi_hash->ViGetType(), VarInterface::Type::TABLE);
+    ASSERT_EQ(vi_hash->ViGetTableSize(), 1U);
+    ASSERT_EQ(vi_hash->ViGetTableKv(0).first->ViGetType(), VarInterface::Type::STRING);
+
+    SimpleVarImpl nested_k;
+    nested_k.ViSetString("nk");
+    SimpleVarImpl nested_v;
+    nested_v.ViSetInt(42);
+    SimpleVarImpl scalar_nil;
+    scalar_nil.ViSetNil();
+    auto *roundtrip_nil = inter::FakeluaToNativeObj(&s, inter::NativeToFakeluaObj(&s, &scalar_nil));
+    ASSERT_EQ(roundtrip_nil->ViGetType(), VarInterface::Type::NIL);
+    SimpleVarImpl scalar_bool;
+    scalar_bool.ViSetBool(true);
+    auto *roundtrip_bool = inter::FakeluaToNativeObj(&s, inter::NativeToFakeluaObj(&s, &scalar_bool));
+    ASSERT_EQ(roundtrip_bool->ViGetType(), VarInterface::Type::BOOL);
+    ASSERT_TRUE(roundtrip_bool->ViGetBool());
+    SimpleVarImpl scalar_float;
+    scalar_float.ViSetFloat(6.25);
+    auto *roundtrip_float = inter::FakeluaToNativeObj(&s, inter::NativeToFakeluaObj(&s, &scalar_float));
+    ASSERT_EQ(roundtrip_float->ViGetType(), VarInterface::Type::FLOAT);
+    ASSERT_DOUBLE_EQ(roundtrip_float->ViGetFloat(), 6.25);
+    SimpleVarImpl table_key;
+    table_key.ViSetString("outer");
+    SimpleVarImpl table_val;
+    table_val.ViSetTable({{&nested_k, &nested_v}});
+    SimpleVarImpl root;
+    root.ViSetTable({{&table_key, &table_val}});
+    CVar root_var = inter::NativeToFakeluaObj(&s, &root);
+    auto *roundtrip = inter::FakeluaToNativeObj(&s, root_var);
+    ASSERT_EQ(roundtrip->ViGetType(), VarInterface::Type::TABLE);
+    ASSERT_EQ(roundtrip->ViGetTableSize(), 1U);
+    ASSERT_EQ(roundtrip->ViGetTableKv(0).second->ViGetType(), VarInterface::Type::TABLE);
+
+    InvalidVarImpl invalid;
+    EXPECT_THROW((void) inter::NativeToFakeluaObj(&s, &invalid), std::exception);
+
+    for (auto *p: allocated) {
+        delete p;
+    }
 }
