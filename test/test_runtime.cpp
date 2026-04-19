@@ -12,8 +12,10 @@ using namespace fakelua;
 
 namespace {
 
+constexpr int kInvalidVarInterfaceType = 999;
+
 struct InvalidVarImpl final : public VarInterface {
-    [[nodiscard]] Type ViGetType() const override { return static_cast<Type>(999); }
+    [[nodiscard]] Type ViGetType() const override { return static_cast<Type>(kInvalidVarInterfaceType); }
     void ViSetNil() override {}
     void ViSetBool(bool) override {}
     void ViSetInt(int64_t) override {}
