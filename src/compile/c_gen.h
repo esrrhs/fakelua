@@ -78,6 +78,14 @@ private:
 
     std::string BoxNativeValue(const std::string &expr, InferredType type) const;
 
+    void EnterNativeVarScope();
+
+    void ExitNativeVarScope();
+
+    void DeclareNativeVar(const std::string &name, bool typed_native);
+
+    [[nodiscard]] bool IsTypedNativeVar(const std::string &name) const;
+
 private:
     State *s_;
     std::string file_name_;
@@ -102,11 +110,11 @@ private:
     std::stringstream func_temp_decls_;
     // 在编译期间缓冲函数体（跨函数重用，每次清空）。
     std::stringstream body_ss_;
-    // 跟踪当前函数中实际声明为原生类型（int64_t / double）的变量名。
-    // 只有在此集合中的变量在 CVar 上下文中出现时才能进行装箱转换。
-    // 不在此集合中的变量是 CVar，必须按原样使用。
-    // 在每个函数编译开始时清空。
-    std::unordered_set<std::string> typed_native_vars_;
+    // 作用域化的本地变量声明信息：name -> 是否声明为原生数值类型
+    // (int64_t/double)。反向查找首个命中的声明即可处理遮蔽关系：
+    // - true  : 当前可见绑定是原生类型变量
+    // - false : 当前可见绑定是 CVar（即使外层同名变量是原生类型）
+    std::vector<std::unordered_map<std::string, bool>> native_var_scopes_;
 };
 
 }// namespace fakelua

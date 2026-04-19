@@ -160,10 +160,11 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             env_.EnterScope();
             env_.Define(for_loop->Name(), loop_var_type);
             InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_loop->Block()), false);
+            const InferredType final_loop_var_type = env_.Lookup(for_loop->Name());
             env_.ExitScope();
 
-            node->SetEvalType(T_UNKNOWN);
-            return T_UNKNOWN;
+            node->SetEvalType(final_loop_var_type);
+            return final_loop_var_type;
         }
         case SyntaxTreeType::Function: {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
