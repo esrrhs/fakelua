@@ -92,13 +92,15 @@ CVar NativeToFakeluaDouble(State *s, double v) {
 
 CVar NativeToFakeluaCstr(State *s, const char *v) {
     Var ret;
-    ret.SetTempString(s, v);
+    // 防御性处理：外部传入 nullptr 时视为空字符串，避免 string_view 构造崩溃
+    ret.SetTempString(s, v ? v : "");
     return ret;
 }
 
 CVar NativeToFakeluaStr(State *s, char *v) {
     Var ret;
-    ret.SetTempString(s, v);
+    // 防御性处理：外部传入 nullptr 时视为空字符串，避免 string_view 构造崩溃
+    ret.SetTempString(s, v ? v : "");
     return ret;
 }
 

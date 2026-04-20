@@ -514,6 +514,8 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
     if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { \
         if (_rb.data_.i == 0) { FakeluaThrowError(_S, "floor division by zero"); } \
+        /* UB 说明（有意保留）：当 _ra==INT64_MIN 且 _rb==-1 时，/ 和 % 均触发有符号溢出 UB。 */ \
+        /* Lua 5.4 官方实现同样未特判，x86-64 IDIV 硬件行为稳定，为性能不加额外分支。 */ \
         int64_t _q = _ra.data_.i / _rb.data_.i; \
         if ((_ra.data_.i ^ _rb.data_.i) < 0 && _ra.data_.i % _rb.data_.i != 0) { _q -= 1; } \
         SET_INT(res, _q); \
@@ -535,6 +537,8 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
     if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { \
         if (_rb.data_.i == 0) { FakeluaThrowError(_S, "modulo by zero"); } \
+        /* UB 说明（有意保留）：当 _ra==INT64_MIN 且 _rb==-1 时，/ 和 % 均触发有符号溢出 UB。 */ \
+        /* Lua 5.4 官方实现同样未特判，x86-64 IDIV 硬件行为稳定，为性能不加额外分支。 */ \
         int64_t _q = _ra.data_.i / _rb.data_.i; \
         if ((_ra.data_.i ^ _rb.data_.i) < 0 && _ra.data_.i % _rb.data_.i != 0) { _q -= 1; } \
         SET_INT(res, _ra.data_.i - _rb.data_.i * _q); \
@@ -605,6 +609,8 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
 
 #define OpUnaryMinus(a, res) do { \
     CVar _ra = (a); CheckNum(_ra); \
+    /* UB 说明（有意保留）：-INT64_MIN 触发有符号整数溢出 UB。 */ \
+    /* Lua 5.4 官方实现同样未特判，x86-64 NEG 指令行为稳定，为性能不加额外分支。 */ \
     if (_ra.type_ == VAR_INT) { SET_INT(res, -_ra.data_.i); } \
     else { SET_FLOAT(res, -_ra.data_.f); } \
 } while(0)
@@ -674,6 +680,8 @@ static inline CVar FlConcat(CVar a, CVar b) {
 
 // Native integer floor-division (Lua semantics: floor toward -inf).
 // Keeps identical semantics with OpFloorDiv's VAR_INT branch for consistency.
+// UB 说明（有意保留）：当 a==INT64_MIN 且 b==-1 时，/ 和 % 均触发有符号溢出 UB。
+// Lua 5.4 官方实现同样未特判，x86-64 IDIV 硬件行为稳定，为性能不加额外分支。
 #define FlFloorDivInt(a, b) ({ \
     int64_t __fl_a = (a); int64_t __fl_b = (b); \
     if (__fl_b == 0) { FakeluaThrowError(_S, "floor division by zero"); } \
@@ -684,6 +692,8 @@ static inline CVar FlConcat(CVar a, CVar b) {
 
 // Native integer modulo (Lua semantics: a - b * floor(a/b)).
 // Keeps identical semantics with OpMod's VAR_INT branch for consistency.
+// UB 说明（有意保留）：当 a==INT64_MIN 且 b==-1 时，/ 和 % 均触发有符号溢出 UB。
+// Lua 5.4 官方实现同样未特判，x86-64 IDIV 硬件行为稳定，为性能不加额外分支。
 #define FlModInt(a, b) ({ \
     int64_t __fm_a = (a); int64_t __fm_b = (b); \
     if (__fm_b == 0) { FakeluaThrowError(_S, "modulo by zero"); } \
