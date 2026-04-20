@@ -1306,6 +1306,49 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
         return;
     }
 
+    // T_FLOAT 快路径：所有边界为数值（T_INT 或 T_FLOAT）但并非全为 T_INT。
+    // 使用 double 控制变量，避免走 CVar 动态路径的额外开销。
+    const bool step_is_numeric = !for_stmt->ExpStep() || for_stmt->ExpStep()->EvalType() == T_INT ||
+                                 for_stmt->ExpStep()->EvalType() == T_FLOAT;
+    const bool typed_float_for =
+            !typed_int_for && for_stmt->ExpBegin() && for_stmt->ExpEnd() &&
+            (for_stmt->ExpBegin()->EvalType() == T_INT || for_stmt->ExpBegin()->EvalType() == T_FLOAT) &&
+            (for_stmt->ExpEnd()->EvalType() == T_INT || for_stmt->ExpEnd()->EvalType() == T_FLOAT) && step_is_numeric;
+    if (typed_float_for) {
+        const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
+        const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
+        const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
+
+        func_temp_decls_ << "    double " << ctrl_var << ";\n";
+        func_temp_decls_ << "    double " << end_var << ";\n";
+        func_temp_decls_ << "    double " << step_var << ";\n";
+
+        *cur_output_ << GenTab() << ctrl_var << " = (double)(" << CompileNumericExp(for_stmt->ExpBegin()) << ");\n";
+        *cur_output_ << GenTab() << end_var << " = (double)(" << CompileNumericExp(for_stmt->ExpEnd()) << ");\n";
+        if (for_stmt->ExpStep()) {
+            *cur_output_ << GenTab() << step_var << " = (double)(" << CompileNumericExp(for_stmt->ExpStep()) << ");\n";
+        } else {
+            *cur_output_ << GenTab() << step_var << " = 1.0;\n";
+        }
+
+        *cur_output_ << GenTab() << "for (; (" << step_var << " > 0.0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
+                     << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
+        cur_tab_++;
+        EnterNativeVarScope();
+        if (for_stmt->EvalType() == T_FLOAT) {
+            *cur_output_ << GenTab() << "double " << for_stmt->Name() << " = " << ctrl_var << ";\n";
+            DeclareNativeVar(for_stmt->Name(), true);
+        } else {
+            *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_FLOAT) << ";\n";
+            DeclareNativeVar(for_stmt->Name(), false);
+        }
+        CompileStmtBlock(for_stmt->Block());
+        ExitNativeVarScope();
+        cur_tab_--;
+        *cur_output_ << GenTab() << "}\n";
+        return;
+    }
+
     // 为循环控制分配生成的 C 变量名（提升到函数顶部）
     const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);        // 当前值
     const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);          // 结束值
@@ -1891,7 +1934,38 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return std::format("FlModFloat((double)({}), (double)({}))", left, right);
         }
 
+        // Bitwise ops: both operands are T_INT, result is T_INT
+        if (op_name == "BITAND") {
+            return std::format("((int64_t)({}) & (int64_t)({}))", left, right);
+        }
+        if (op_name == "BITOR") {
+            return std::format("((int64_t)({}) | (int64_t)({}))", left, right);
+        }
+        if (op_name == "XOR") {
+            return std::format("((int64_t)({}) ^ (int64_t)({}))", left, right);
+        }
+        if (op_name == "LEFT_SHIFT") {
+            return std::format("((int64_t)({}) << (int64_t)({}))", left, right);
+        }
+        if (op_name == "RIGHT_SHIFT") {
+            return std::format("((int64_t)({}) >> (int64_t)({}))", left, right);
+        }
+
         ThrowError("operator " + op_name + " is not supported in numeric specialization", exp);
+    } else if (exp_type == "unop") {
+        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
+        if (!op) {
+            ThrowError("missing operator in numeric specialization", exp);
+        }
+        const auto &op_name = op->GetOp();
+        const auto operand = CompileNumericExp(e->Right());
+        if (op_name == "MINUS") {
+            return std::format("(-({}))", operand);
+        }
+        if (op_name == "BITNOT") {
+            return std::format("(~((int64_t)({})))", operand);
+        }
+        ThrowError("unary operator " + op_name + " is not supported in numeric specialization", exp);
     }
 
     ThrowError("unsupported numeric-specialized expression", exp);
