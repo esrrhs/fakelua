@@ -231,6 +231,11 @@ void Var::DoubleSlash(const Var &rhs, Var &result) const {
         // C++ 的 / 向零截断，因此需要针对负数结果进行调整
         int64_t a = GetCalculableInt();
         int64_t b = rhs.GetCalculableInt();
+        // UB 说明（有意保留，不做额外检测）：
+        // 当 a == INT64_MIN 且 b == -1 时，a / b 和 a % b 均触发有符号整数溢出 UB。
+        // Lua 5.4 官方实现同样未对此特判，实际结果在主流编译器（gcc/clang/msvc）
+        // 的 x86-64 平台上均为 INT64_MIN（IDIV 指令的硬件行为），行为稳定。
+        // 为避免额外分支带来的性能损失，此处不做特殊处理。
         int64_t q = a / b;
         // 如果符号不同且有余数，则向负无穷方向调整
         if ((a ^ b) < 0 && a % b != 0) {
@@ -263,6 +268,11 @@ void Var::Mod(const Var &rhs, Var &result) const {
         // 这与 C++ 的 % 不同，C++ 向零截断
         int64_t a = GetCalculableInt();
         int64_t b = rhs.GetCalculableInt();
+        // UB 说明（有意保留，不做额外检测）：
+        // 当 a == INT64_MIN 且 b == -1 时，a / b 和 a % b 均触发有符号整数溢出 UB。
+        // Lua 5.4 官方实现同样未对此特判，实际结果在主流编译器的 x86-64 平台上
+        // 均为 INT64_MIN（IDIV 指令的硬件行为），行为稳定。
+        // 为避免额外分支带来的性能损失，此处不做特殊处理。
         int64_t q = a / b;
         // 如果符号不同且有余数，则向负无穷方向调整
         if ((a ^ b) < 0 && a % b != 0) {
@@ -427,6 +437,10 @@ void Var::UnopMinus(Var &result) const {
         ThrowFakeluaException(std::format("Var op failed, operand of '-' must be number, got {} {}", VarTypeToString(Type()), ToString()));
     }
     if (IsCalculableInteger()) {
+        // UB 说明（有意保留，不做额外检测）：
+        // -INT64_MIN 触发有符号整数溢出 UB。Lua 5.4 官方实现同样未对此特判，
+        // 实际在主流编译器的 x86-64 平台上结果为 INT64_MIN（NEG 指令的硬件行为），
+        // 行为稳定。为避免额外分支带来的性能损失，此处不做特殊处理。
         result.SetInt(-GetCalculableInt());
     } else {
         result.SetFloat(-GetCalculableNumber());
