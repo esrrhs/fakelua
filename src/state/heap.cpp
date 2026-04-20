@@ -14,11 +14,14 @@ HeapAllocator::~HeapAllocator() {
 
 void *HeapAllocator::Alloc(size_t size) {
     constexpr size_t alignment = alignof(std::max_align_t);
-    size_t padding = (alignment - (current_block_offset_ % alignment)) % alignment;
 
-    if (size + padding > BLOCK_SIZE) {
-        ThrowFakeluaException(std::format("Alloc failed, requested size {} with padding {} exceeds block size {}", size, padding, BLOCK_SIZE));
+    // 仅检查 size 本身是否超出块容量。padding 在同一块内才有意义，
+    // 跨块时 offset 会重置为 0 导致 padding 为 0，因此不参与上限判断。
+    if (size > BLOCK_SIZE) {
+        ThrowFakeluaException(std::format("Alloc failed, requested size {} exceeds block size {}", size, BLOCK_SIZE));
     }
+
+    size_t padding = (alignment - (current_block_offset_ % alignment)) % alignment;
 
     if (current_block_offset_ + padding + size > BLOCK_SIZE) {
         current_block_offset_ = 0;

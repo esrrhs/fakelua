@@ -236,8 +236,6 @@ struct StateGCCConfig {
 };
 
 struct StateConfig {
-    // 最大栈深，超过该深度将抛出异常。默认为 65536。
-    size_t max_stack_size = 65536;
     // tcc编译配置
     StateTCCConfig tcc_config;
     // gcc编译配置
@@ -416,8 +414,6 @@ long long FakeluaToNativeLonglong(State *s, CVar v);
 unsigned long long FakeluaToNativeUlonglong(State *s, CVar v);
 float FakeluaToNativeFloat(State *s, CVar v);
 double FakeluaToNativeDouble(State *s, CVar v);
-const char *FakeluaToNativeCstr(State *s, CVar v);
-const char *FakeluaToNativeStr(State *s, CVar v);
 std::string FakeluaToNativeString(State *s, CVar v);
 std::string_view FakeluaToNativeStringView(State *s, CVar v);
 VarInterface *FakeluaToNativeObj(State *s, CVar v);
@@ -450,10 +446,6 @@ T FakeluaToNative(State *s, const CVar v) {
         return FakeluaToNativeFloat(s, v);
     } else if constexpr (std::is_same_v<T, double>) {
         return FakeluaToNativeDouble(s, v);
-    } else if constexpr (std::is_same_v<T, const char *>) {
-        return FakeluaToNativeCstr(s, v);
-    } else if constexpr (std::is_same_v<T, char *>) {
-        return const_cast<char *>(FakeluaToNativeStr(s, v));
     } else if constexpr (std::is_same_v<T, std::string>) {
         return FakeluaToNativeString(s, v);
     } else if constexpr (std::is_same_v<T, std::string_view>) {

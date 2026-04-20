@@ -548,13 +548,15 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
 
 #define OpRightShift(a, b, res) do { \
     int64_t _ai; int64_t _bi; CheckInt(a, _ai); CheckInt(b, _bi); \
-    if (_bi >= 0) { SET_INT(res, (int64_t)((uint64_t)_ai >> _bi)); } \
+    if (_bi >= 64 || _bi <= -64) { SET_INT(res, 0); } \
+    else if (_bi >= 0) { SET_INT(res, (int64_t)((uint64_t)_ai >> _bi)); } \
     else { SET_INT(res, (int64_t)((uint64_t)_ai << (-(int64_t)_bi))); } \
 } while(0)
 
 #define OpLeftShift(a, b, res) do { \
     int64_t _ai; int64_t _bi; CheckInt(a, _ai); CheckInt(b, _bi); \
-    if (_bi >= 0) { SET_INT(res, (int64_t)((uint64_t)_ai << _bi)); } \
+    if (_bi >= 64 || _bi <= -64) { SET_INT(res, 0); } \
+    else if (_bi >= 0) { SET_INT(res, (int64_t)((uint64_t)_ai << _bi)); } \
     else { SET_INT(res, (int64_t)((uint64_t)_ai >> (-(int64_t)_bi))); } \
 } while(0)
 
@@ -664,6 +666,33 @@ static inline CVar FlConcat(CVar a, CVar b) {
         (v) = (tbl).data_.t->nodes_[__gti_node_idx].entry.val; \
     } \
 } while(0)
+
+// Native integer floor-division (Lua semantics: floor toward -inf).
+// Keeps identical semantics with OpFloorDiv's VAR_INT branch for consistency.
+#define FlFloorDivInt(a, b) ({ \
+    int64_t __fl_a = (a); int64_t __fl_b = (b); \
+    if (__fl_b == 0) { FakeluaThrowError(_S, "floor division by zero"); } \
+    int64_t __fl_q = __fl_a / __fl_b; \
+    if ((__fl_a ^ __fl_b) < 0 && __fl_a % __fl_b != 0) { __fl_q -= 1; } \
+    __fl_q; \
+})
+
+// Native integer modulo (Lua semantics: a - b * floor(a/b)).
+// Keeps identical semantics with OpMod's VAR_INT branch for consistency.
+#define FlModInt(a, b) ({ \
+    int64_t __fm_a = (a); int64_t __fm_b = (b); \
+    if (__fm_b == 0) { FakeluaThrowError(_S, "modulo by zero"); } \
+    int64_t __fm_q = __fm_a / __fm_b; \
+    if ((__fm_a ^ __fm_b) < 0 && __fm_a % __fm_b != 0) { __fm_q -= 1; } \
+    __fm_a - __fm_b * __fm_q; \
+})
+
+// Native float modulo (Lua semantics: a - b * floor(a/b)).
+// Matches OpMod's VAR_FLOAT branch.
+#define FlModFloat(a, b) ({ \
+    double __fmf_a = (a); double __fmf_b = (b); \
+    __fmf_a - __fmf_b * floor(__fmf_a / __fmf_b); \
+})
 
 )";
 }
@@ -1007,7 +1036,6 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
-    DEBUG_ASSERT(!explist_ptr->Exps().empty());
     if (explist_ptr->Exps().empty()) {
         // 默认返回 nil
         const auto exp = std::make_shared<SyntaxTreeExp>(return_stmt->Loc());
@@ -1098,7 +1126,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
 
     // PreprocessTableAssign 将方括号/点号赋值重写为 FAKELUA_SET_TABLE 调用，
     // 所以只有简单变量赋值能到达此处。
-    DEBUG_ASSERT(vtype == "simple");
+    DEBUG_ASSERT(v_ptr->GetType() == "simple");
     // 基于声明作用域中的原生类型标记进行判断，而不是
     // v_ptr->EvalType()（在单次遍历中，当此赋值在同一个循环体中
     // 后续的 T_DYNAMIC 变化之前被处理时，EvalType 可能已过时）。
@@ -1225,8 +1253,7 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::ForLoop);
     const auto for_stmt = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
 
-    const bool typed_int_for = for_stmt->ExpBegin() && for_stmt->ExpEnd() &&
-                               for_stmt->ExpBegin()->EvalType() == T_INT &&
+    const bool typed_int_for = for_stmt->ExpBegin() && for_stmt->ExpEnd() && for_stmt->ExpBegin()->EvalType() == T_INT &&
                                for_stmt->ExpEnd()->EvalType() == T_INT &&
                                (!for_stmt->ExpStep() || for_stmt->ExpStep()->EvalType() == T_INT);
     if (typed_int_for) {
@@ -1246,8 +1273,8 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
             *cur_output_ << GenTab() << step_var << " = 1;\n";
         }
 
-        *cur_output_ << GenTab() << "for (; (" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " <<
-                end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
+        *cur_output_ << GenTab() << "for (; (" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
+                     << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
         cur_tab_++;
         EnterNativeVarScope();
         if (for_stmt->EvalType() == T_INT) {
@@ -1265,12 +1292,12 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     // 为循环控制分配生成的 C 变量名（提升到函数顶部）
-    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);    // 当前值
-    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);      // 结束值
-    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);    // 步长值
-    const auto step_pos_var = std::format("flua_for_step_pos_{}", tmp_var_counter_++); // 步长 > 0 标志
-    const auto cond_var = std::format("flua_for_cond_{}", tmp_var_counter_++);    // 循环条件
-    const auto cmp_var = std::format("flua_for_cmp_{}", tmp_var_counter_++);      // 比较临时变量
+    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);        // 当前值
+    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);          // 结束值
+    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);        // 步长值
+    const auto step_pos_var = std::format("flua_for_step_pos_{}", tmp_var_counter_++);// 步长 > 0 标志
+    const auto cond_var = std::format("flua_for_cond_{}", tmp_var_counter_++);        // 循环条件
+    const auto cmp_var = std::format("flua_for_cmp_{}", tmp_var_counter_++);          // 比较临时变量
 
     func_temp_decls_ << "    CVar " << ctrl_var << ";\n";
     func_temp_decls_ << "    CVar " << end_var << ";\n";
@@ -1295,7 +1322,8 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
 
     // 在循环前一次性确定步长方向
     *cur_output_ << GenTab() << "if (" << step_var << ".type_ == VAR_INT) { " << step_pos_var << " = (" << step_var << ".data_.i > 0); }\n";
-    *cur_output_ << GenTab() << "else if (" << step_var << ".type_ == VAR_FLOAT) { " << step_pos_var << " = (" << step_var << ".data_.f > 0.0); }\n";
+    *cur_output_ << GenTab() << "else if (" << step_var << ".type_ == VAR_FLOAT) { " << step_pos_var << " = (" << step_var
+                 << ".data_.f > 0.0); }\n";
     *cur_output_ << GenTab() << "else { FakeluaThrowError(_S, \"'for' step must be a number\"); " << step_pos_var << " = 1; }\n";
 
     *cur_output_ << GenTab() << "while (1) {\n";
@@ -1400,9 +1428,9 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     const auto tbl_expr = CompileExp(args_explist_ptr->Exps()[0]);
 
     // 为迭代状态分配生成的 C 变量名（提升到函数顶部）
-    const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);  // 表
-    const auto sz_var = std::format("flua_fi_sz_{}", tmp_var_counter_++);    // 元素数量
-    const auto idx_var = std::format("flua_fi_idx_{}", tmp_var_counter_++);  // 当前索引
+    const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);// 表
+    const auto sz_var = std::format("flua_fi_sz_{}", tmp_var_counter_++);  // 元素数量
+    const auto idx_var = std::format("flua_fi_idx_{}", tmp_var_counter_++);// 当前索引
 
     func_temp_decls_ << "    CVar " << tbl_var << ";\n";
     func_temp_decls_ << "    uint32_t " << sz_var << ";\n";
@@ -1803,12 +1831,52 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         }
         ThrowError("function call cannot be specialized as numeric", exp);
     } else if (exp_type == "binop") {
-        if (const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op()); !op || op->GetOp() != "PLUS") {
-            ThrowError("only PLUS is supported in numeric specialization", exp);
+        const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
+        if (!op) {
+            ThrowError("missing operator in numeric specialization", exp);
         }
+        const auto &op_name = op->GetOp();
         const auto left = CompileNumericExp(e->Left());
         const auto right = CompileNumericExp(e->Right());
-        return std::format("(({}) + ({}))", left, right);
+
+        // Simple ops that map directly to a C operator
+        if (op_name == "PLUS") {
+            return std::format("(({}) + ({}))", left, right);
+        }
+        if (op_name == "MINUS") {
+            return std::format("(({}) - ({}))", left, right);
+        }
+        if (op_name == "STAR") {
+            return std::format("(({}) * ({}))", left, right);
+        }
+
+        // Division always produces float in Lua
+        if (op_name == "SLASH") {
+            return std::format("((double)({}) / (double)({}))", left, right);
+        }
+
+        // Power always produces float in Lua
+        if (op_name == "POW") {
+            return std::format("pow((double)({}), (double)({}))", left, right);
+        }
+
+        // Floor division: int→FlFloorDivInt helper, float→floor(a/b)
+        if (op_name == "DOUBLE_SLASH") {
+            if (e->EvalType() == T_INT) {
+                return std::format("FlFloorDivInt(({}), ({}))", left, right);
+            }
+            return std::format("floor((double)({}) / (double)({}))", left, right);
+        }
+
+        // Modulo: int→FlModInt helper, float→FlModFloat helper
+        if (op_name == "MOD") {
+            if (e->EvalType() == T_INT) {
+                return std::format("FlModInt(({}), ({}))", left, right);
+            }
+            return std::format("FlModFloat((double)({}), (double)({}))", left, right);
+        }
+
+        ThrowError("operator " + op_name + " is not supported in numeric specialization", exp);
     }
 
     ThrowError("unsupported numeric-specialized expression", exp);

@@ -34,6 +34,23 @@ TEST(common, escapse_string) {
     dst = ReplaceEscapeChars(src);
     ASSERT_EQ(dst, "");
 
+    // \z should skip all whitespace characters (tabs, newlines, carriage returns, etc.)
+    src = "a\\z\t\n\r b";
+    dst = ReplaceEscapeChars(src);
+    ASSERT_EQ(dst, "ab");
+
+    src = "hello\\z\n\t\t  world";
+    dst = ReplaceEscapeChars(src);
+    ASSERT_EQ(dst, "helloworld");
+
+    src = "x\\z\r\n\v\fy";
+    dst = ReplaceEscapeChars(src);
+    ASSERT_EQ(dst, "xy");
+
+    src = "a\\z\n";
+    dst = ReplaceEscapeChars(src);
+    ASSERT_EQ(dst, "a");
+
     src = "a\\97b";
     dst = ReplaceEscapeChars(src);
     ASSERT_EQ(dst, "aab");

@@ -4,7 +4,7 @@
 
 namespace fakelua {
 
-State::State(const StateConfig &config) : compiler_(this), const_string_(this) {
+State::State(const StateConfig &config) : config_(config), compiler_(this), const_string_(this) {
 }
 
 }// namespace fakelua

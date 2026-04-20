@@ -5,10 +5,10 @@ namespace fakelua {
 // 定义 StrContainerPtr
 typedef std::shared_ptr<std::string> StrContainerPtr;
 
-static const auto g_number_regex =
+inline const auto g_number_regex =
         std::regex("^[+-]?[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$|^[+-]?0[xX][0-9a-fA-F]+(\\.[0-9a-fA-F]+)?([pP][+-]?[0-9]+)?$");
 
-static const auto g_integer_regex = std::regex("^[+-]?[0-9]+$|^[+-]?0[xX][0-9a-fA-F]+$");
+inline const auto g_integer_regex = std::regex("^[+-]?[0-9]+$|^[+-]?0[xX][0-9a-fA-F]+$");
 
 inline bool IsNumber(const std::string_view &s) {
     return std::regex_match(s.begin(), s.end(), g_number_regex);

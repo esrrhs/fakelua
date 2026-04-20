@@ -71,13 +71,22 @@ TEST(runtime, exec_returns_output) {
 TEST(runtime, vm_call_by_name_success_cases) {
     State s;
     s.GetVM().RegisterFunction(VmFunction("fn0", 0, reinterpret_cast<void *>(&VmFn0), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv", 8, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    // 为每个 arity 注册一个匹配 arg_count 的函数（Bug M：FakeluaCallByName 严格校验）。
+    s.GetVM().RegisterFunction(VmFunction("fnv1", 1, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv2", 2, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv3", 3, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv4", 4, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv5", 5, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv6", 6, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv7", 7, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv8", 8, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
 
     const CVar r0 = FakeluaCallByName(&s, JIT_TCC, "fn0", 0);
     ASSERT_EQ(inter::FakeluaToNativeInt(&s, r0), 123);
 
+    const char *names[] = {"fnv1", "fnv2", "fnv3", "fnv4", "fnv5", "fnv6", "fnv7", "fnv8"};
     for (int n = 1; n <= 8; ++n) {
-        const CVar ret = callVmWithNArgs(&s, "fnv", n);
+        const CVar ret = callVmWithNArgs(&s, names[n - 1], n);
         ASSERT_EQ(inter::FakeluaToNativeInt(&s, ret), 100);
     }
 }
@@ -101,6 +110,11 @@ TEST(runtime, vm_call_by_name_error_cases) {
 
     s.GetVM().RegisterFunction(VmFunction("fnv", 8, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
     EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "fnv", 9, a0, a1, a2, a3, a4, a5, a6, a7, a8), std::exception);
+
+    // Bug M: 参数个数与函数签名不匹配时必须抛异常（否则会读取未初始化栈内存）。
+    // 这里 fnv 要求 8 个参数，分别传 3 个 / 0 个都应抛异常。
+    EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "fnv", 3, a0, a1, a2), std::exception);
+    EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "fnv", 0), std::exception);
 }
 
 TEST(runtime, vm_helper_functions_throw_and_alloc) {
@@ -119,6 +133,17 @@ TEST(runtime, heap_allocator_boundary_and_reset) {
     ASSERT_EQ(alloc.Size(), 0U);
 
     EXPECT_THROW((void) alloc.Alloc(1024 * 1024 + 1), std::exception);
+}
+
+// Bug H 回归测试：当当前块已经被 padding 偏移时，一个仅略小于块大小的分配
+// 不应被错误地拒绝（旧代码用 size + padding > BLOCK_SIZE 过于保守）。
+TEST(runtime, heap_allocator_large_alloc_after_small) {
+    HeapAllocator alloc;
+    // 先分配一个小的非对齐大小，使 current_block_offset_ 不是 alignment 的整数倍。
+    ASSERT_NE(alloc.Alloc(5), nullptr);
+    // 随后分配接近块大小的内存。旧代码会拒绝（因为 BLOCK_SIZE + padding > BLOCK_SIZE），
+    // 修复后应该成功切到新块。
+    ASSERT_NE(alloc.Alloc(1024 * 1024), nullptr);
 }
 
 TEST(runtime, generate_tmp_filename_creates_dir) {
@@ -152,8 +177,8 @@ TEST(runtime, inter_native_scalar_roundtrip) {
     ASSERT_DOUBLE_EQ(inter::FakeluaToNativeDouble(&s, inter::NativeToFakeluaInt(&s, 11)), 11.0);
 
     char mutable_str[] = "mutable";
-    ASSERT_EQ(std::string_view(inter::FakeluaToNativeCstr(&s, inter::NativeToFakeluaCstr(&s, "hello")), 5), "hello");
-    ASSERT_EQ(std::string_view(inter::FakeluaToNativeStr(&s, inter::NativeToFakeluaStr(&s, mutable_str)), 7), "mutable");
+    ASSERT_EQ(inter::FakeluaToNativeString(&s, inter::NativeToFakeluaCstr(&s, "hello")), "hello");
+    ASSERT_EQ(inter::FakeluaToNativeString(&s, inter::NativeToFakeluaStr(&s, mutable_str)), "mutable");
     ASSERT_EQ(inter::FakeluaToNativeString(&s, inter::NativeToFakeluaString(&s, std::string("world"))), "world");
     const std::string sv = "view";
     ASSERT_EQ(inter::FakeluaToNativeStringView(&s, inter::NativeToFakeluaStringView(&s, std::string_view(sv))), "view");
@@ -240,4 +265,18 @@ TEST(runtime, inter_object_conversion_and_errors) {
     for (auto *p: allocated) {
         delete p;
     }
+}
+
+// 验证 StateConfig 中 TCC include_paths 能被正确传递到 State
+TEST(runtime, state_config_is_stored) {
+    StateConfig cfg;
+    cfg.tcc_config.include_paths = {"/tmp/custom_include"};
+    cfg.gcc_config.libraries = {"customlib"};
+    FakeluaStateGuard sg(cfg);
+    auto s = sg.GetState();
+
+    ASSERT_EQ(s->GetStateConfig().tcc_config.include_paths.size(), 1u);
+    ASSERT_EQ(s->GetStateConfig().tcc_config.include_paths[0], "/tmp/custom_include");
+    ASSERT_EQ(s->GetStateConfig().gcc_config.libraries.size(), 1u);
+    ASSERT_EQ(s->GetStateConfig().gcc_config.libraries[0], "customlib");
 }

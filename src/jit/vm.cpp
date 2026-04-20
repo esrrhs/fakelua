@@ -30,6 +30,12 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, 
                 std::format("FakeluaCallByName: too many arguments ({}) for function '{}', max is 8", arg_num, name));
     }
 
+    // 严格校验参数个数：必须与目标函数签名匹配，否则会读取未初始化栈内存（UB）。
+    if (arg_num != func.GetArgCount()) {
+        ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}",
+                                          name, func.GetArgCount(), arg_num));
+    }
+
     CVar arg_arr[8];
     va_list vl;
     va_start(vl, arg_num);

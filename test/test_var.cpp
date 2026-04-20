@@ -926,6 +926,37 @@ TEST(var, leftshift_negative_shift) {
     ASSERT_EQ(res.GetInt(), 2);
 }
 
+// Lua 5.4: 移位量 >= 64 时结果为 0（逻辑移位到超过宽度视为清零）
+TEST(var, rightshift_over_width) {
+    Var v1(static_cast<int64_t>(-1));
+    Var res;
+
+    v1.RightShift(Var(static_cast<int64_t>(64)), res);
+    ASSERT_EQ(res.GetInt(), 0);
+
+    v1.RightShift(Var(static_cast<int64_t>(100)), res);
+    ASSERT_EQ(res.GetInt(), 0);
+
+    // 负数大位移也是 0（相当于大左移）
+    v1.RightShift(Var(static_cast<int64_t>(-64)), res);
+    ASSERT_EQ(res.GetInt(), 0);
+}
+
+TEST(var, leftshift_over_width) {
+    Var v1(static_cast<int64_t>(-1));
+    Var res;
+
+    v1.LeftShift(Var(static_cast<int64_t>(64)), res);
+    ASSERT_EQ(res.GetInt(), 0);
+
+    v1.LeftShift(Var(static_cast<int64_t>(100)), res);
+    ASSERT_EQ(res.GetInt(), 0);
+
+    // 负数大位移也是 0（相当于大右移）
+    v1.LeftShift(Var(static_cast<int64_t>(-64)), res);
+    ASSERT_EQ(res.GetInt(), 0);
+}
+
 TEST(var, less_type_error) {
     const FakeluaStateGuard guard;
     const auto s = guard.GetState();

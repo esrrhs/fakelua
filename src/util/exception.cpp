@@ -21,8 +21,9 @@ std::string StacktraceCurrent() {
 }
 
 [[noreturn]] void ThrowFakeluaException(const std::string &msg) {
-    LOG_ERROR("fakelua error: {}\n{}", msg, StacktraceCurrent());
-    throw FakeluaException(std::format("fakelua error: {}\n{}", msg, StacktraceCurrent()));
+    const auto stack = StacktraceCurrent();
+    LOG_ERROR("fakelua error: {}\n{}", msg, stack);
+    throw FakeluaException(std::format("fakelua error: {}\n{}", msg, stack));
 }
 
 }// namespace fakelua

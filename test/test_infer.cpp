@@ -258,16 +258,17 @@ TEST(infer, test_infer_type_pollution) {
     });
 }
 
-// Bottom-up / mixed-type: pure numeric expression using *, - and // (not PLUS)
-// forces T_DYNAMIC, as does a call to unknown_func().  Both are compiled via
-// CVar arithmetic.  dynamic_res = 100 + unknown_func() * 2 = 110.
+// Bottom-up / mixed-type: pure numeric expression using *, - and // are all
+// typed now: (10+20)*3.14-(50//2) → T_FLOAT.  dynamic_res uses unknown_func()
+// which is T_DYNAMIC.  dynamic_res = 100 + unknown_func() * 2 = 110.
 TEST(infer, test_infer_bottom_up) {
     const auto code = InferGetCCode("./infer/test_infer_bottom_up.lua");
-    // Both locals must be CVar (non-PLUS ops and function calls force T_DYNAMIC).
-    ASSERT_NE(code.find("CVar math_res = "), std::string::npos);
+    // math_res is now T_FLOAT (all arithmetic ops are typed).
+    ASSERT_NE(code.find("double math_res = "), std::string::npos);
+    ASSERT_EQ(code.find("CVar math_res"), std::string::npos);
+    // dynamic_res must still be CVar (function call forces T_DYNAMIC).
     ASSERT_NE(code.find("CVar dynamic_res = "), std::string::npos);
-    // Dynamic arithmetic macros must be used.
-    ASSERT_NE(code.find("OpMul("), std::string::npos);
+    // Dynamic arithmetic macros must be used for dynamic_res.
     ASSERT_NE(code.find("OpAdd("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -458,5 +459,201 @@ TEST(infer, test_infer_do_shadow_typed_over_dynamic) {
         std::string ret;
         Call(s, type, "test", ret);
         ASSERT_EQ(ret, "after");
+    });
+}
+
+// INT - INT = INT specialization: x=10, x=x-3 stays T_INT.
+TEST(infer, test_infer_typed_int_minus) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_minus.lua");
+    ASSERT_NE(code.find("int64_t x = 10;"), std::string::npos);
+    ASSERT_NE(code.find("x = ((x) - (3));"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_minus.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 7);
+    });
+}
+
+// INT * INT = INT specialization: x=3, y=x*4 stays T_INT.
+TEST(infer, test_infer_typed_int_star) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_star.lua");
+    ASSERT_NE(code.find("int64_t x = 3;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y = ((x) * (4));"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    ASSERT_EQ(code.find("CVar y"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_star.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 12);
+    });
+}
+
+// INT - FLOAT promotes to T_FLOAT: x=3 (T_INT), y=x-1.5 → T_FLOAT.
+TEST(infer, test_infer_typed_float_minus) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_minus.lua");
+    ASSERT_NE(code.find("int64_t x = 3;"), std::string::npos);
+    ASSERT_NE(code.find("double y = ((x) - (1.5));"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    ASSERT_EQ(code.find("CVar y"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_minus.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 1.5, 0.001);
+    });
+}
+
+// FLOAT * INT promotes to T_FLOAT: x=2.5 (T_FLOAT), y=x*2 → T_FLOAT.
+TEST(infer, test_infer_typed_float_star) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_star.lua");
+    ASSERT_NE(code.find("double x = 2.5;"), std::string::npos);
+    ASSERT_NE(code.find("double y = ((x) * (2));"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    ASSERT_EQ(code.find("CVar y"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_star.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 5.0, 0.001);
+    });
+}
+
+// For-loop with STAR: sum = sum + i*2 uses PLUS and STAR, both T_INT.
+// sum(2*(1..5)) = 30.
+TEST(infer, test_infer_typed_int_for_star) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_for_star.lua");
+    ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("sum = ((sum) + (((i) * (2))));"), std::string::npos);
+    ASSERT_EQ(code.find("CVar sum"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_for_star.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 30);
+    });
+}
+
+// SLASH always produces T_FLOAT: 7/2 = 3.5.
+TEST(infer, test_infer_typed_float_slash) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_slash.lua");
+    ASSERT_NE(code.find("double x = "), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_slash.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 3.5, 0.001);
+    });
+}
+
+// POW always produces T_FLOAT: 2^10 = 1024.0.
+TEST(infer, test_infer_typed_float_pow) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_pow.lua");
+    ASSERT_NE(code.find("double x = "), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_pow.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 1024.0, 0.001);
+    });
+}
+
+// INT // INT = T_INT: 7//2 = 3 (floor division).
+TEST(infer, test_infer_typed_int_double_slash) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_double_slash.lua");
+    ASSERT_NE(code.find("int64_t x = "), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    // Must use the FlFloorDivInt helper.
+    ASSERT_NE(code.find("FlFloorDivInt("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_double_slash.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 3);
+    });
+}
+
+// INT % INT = T_INT: 7%3 = 1 (modulo).
+TEST(infer, test_infer_typed_int_mod) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_mod.lua");
+    ASSERT_NE(code.find("int64_t x = "), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    // Must use the FlModInt helper.
+    ASSERT_NE(code.find("FlModInt("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_mod.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+// FLOAT // INT = T_FLOAT: 7.0//2 = 3.0 (floor division with float).
+TEST(infer, test_infer_typed_float_double_slash) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_double_slash.lua");
+    ASSERT_NE(code.find("double x = "), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_double_slash.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 3.0, 0.001);
+    });
+}
+
+// FLOAT % INT = T_FLOAT: 7.5%2 = 1.5 (modulo with float).
+TEST(infer, test_infer_typed_float_mod) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_mod.lua");
+    ASSERT_NE(code.find("double x = "), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_mod.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 1.5, 0.001);
+    });
+}
+
+// Negative floor division with Lua semantics: -7//2 = -4 (NOT -3).
+TEST(infer, test_infer_typed_int_negative_floor_div) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_negative_floor_div.lua");
+    ASSERT_NE(code.find("int64_t x = "), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_negative_floor_div.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, -4);
+    });
+}
+
+// Negative modulo with Lua semantics: -7%2 = 1 (NOT -1).
+TEST(infer, test_infer_typed_int_negative_mod) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_negative_mod.lua");
+    ASSERT_NE(code.find("int64_t x = "), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_negative_mod.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 1);
     });
 }

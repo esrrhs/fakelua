@@ -153,7 +153,7 @@ CVar NativeToFakeluaObj(State *s, const VarInterface *v) {
 }
 
 bool FakeluaToNativeBool(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::Bool) {
         return vv.GetBool();
     }
@@ -161,7 +161,7 @@ bool FakeluaToNativeBool(State *s, CVar v) {
 }
 
 char FakeluaToNativeChar(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::Int) {
         return static_cast<char>(vv.GetInt());
     }
@@ -169,7 +169,7 @@ char FakeluaToNativeChar(State *s, CVar v) {
 }
 
 unsigned char FakeluaToNativeUchar(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::Int) {
         return static_cast<unsigned char>(vv.GetInt());
     }
@@ -177,7 +177,7 @@ unsigned char FakeluaToNativeUchar(State *s, CVar v) {
 }
 
 short FakeluaToNativeShort(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::Int) {
         return static_cast<short>(vv.GetInt());
     }
@@ -185,7 +185,7 @@ short FakeluaToNativeShort(State *s, CVar v) {
 }
 
 unsigned short FakeluaToNativeUshort(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::Int) {
         return static_cast<unsigned short>(vv.GetInt());
     }
@@ -193,7 +193,7 @@ unsigned short FakeluaToNativeUshort(State *s, CVar v) {
 }
 
 int FakeluaToNativeInt(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::Int) {
         return static_cast<int>(vv.GetInt());
     }
@@ -201,7 +201,7 @@ int FakeluaToNativeInt(State *s, CVar v) {
 }
 
 unsigned int FakeluaToNativeUint(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::Int) {
         return static_cast<unsigned int>(vv.GetInt());
     }
@@ -209,7 +209,7 @@ unsigned int FakeluaToNativeUint(State *s, CVar v) {
 }
 
 long FakeluaToNativeLong(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::Int) {
         return vv.GetInt();
     }
@@ -217,7 +217,7 @@ long FakeluaToNativeLong(State *s, CVar v) {
 }
 
 unsigned long FakeluaToNativeUlong(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::Int) {
         return vv.GetInt();
     }
@@ -225,7 +225,7 @@ unsigned long FakeluaToNativeUlong(State *s, CVar v) {
 }
 
 long long FakeluaToNativeLonglong(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::Int) {
         return vv.GetInt();
     }
@@ -233,7 +233,7 @@ long long FakeluaToNativeLonglong(State *s, CVar v) {
 }
 
 unsigned long long FakeluaToNativeUlonglong(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::Int) {
         return static_cast<unsigned long long>(vv.GetInt());
     }
@@ -241,7 +241,7 @@ unsigned long long FakeluaToNativeUlonglong(State *s, CVar v) {
 }
 
 float FakeluaToNativeFloat(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::Float) {
         return static_cast<float>(vv.GetFloat());
     }
@@ -252,7 +252,7 @@ float FakeluaToNativeFloat(State *s, CVar v) {
 }
 
 double FakeluaToNativeDouble(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::Float) {
         return vv.GetFloat();
     }
@@ -262,24 +262,8 @@ double FakeluaToNativeDouble(State *s, CVar v) {
     ThrowFakeluaException(std::format("FakeluaToNativeDouble failed, type is {}", VarTypeToString(vv.Type())));
 }
 
-const char *FakeluaToNativeCstr(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
-    if (vv.Type() == VarType::String || vv.Type() == VarType::StringId) {
-        return vv.GetString()->Str().data();
-    }
-    ThrowFakeluaException(std::format("FakeluaToNativeCstr failed, type is {}", VarTypeToString(vv.Type())));
-}
-
-const char *FakeluaToNativeStr(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
-    if (vv.Type() == VarType::String || vv.Type() == VarType::StringId) {
-        return vv.GetString()->Str().data();
-    }
-    ThrowFakeluaException(std::format("FakeluaToNativeStr failed, type is {}", VarTypeToString(vv.Type())));
-}
-
 std::string FakeluaToNativeString(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::String || vv.Type() == VarType::StringId) {
         return std::string(vv.GetString()->Str());
     }
@@ -287,7 +271,7 @@ std::string FakeluaToNativeString(State *s, CVar v) {
 }
 
 std::string_view FakeluaToNativeStringView(State *s, CVar v) {
-    const auto vv = static_cast<Var &>(v);
+    const auto vv = reinterpret_cast<Var &>(v);
     if (vv.Type() == VarType::String || vv.Type() == VarType::StringId) {
         return vv.GetString()->Str();
     }
@@ -295,7 +279,7 @@ std::string_view FakeluaToNativeStringView(State *s, CVar v) {
 }
 
 void VarToVi(State *s, CVar src, VarInterface *dst) {
-    const auto vv = static_cast<Var &>(src);
+    const auto vv = reinterpret_cast<Var &>(src);
     DEBUG_ASSERT(vv.Type() >= VarType::Min && vv.Type() <= VarType::Max);
     switch (vv.Type()) {
         case VarType::Nil:

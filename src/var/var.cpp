@@ -315,6 +315,11 @@ void Var::RightShift(const Var &rhs, Var &result) const {
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
     auto shift = rhs_int;
+    // Lua 5.4: 移位量绝对值 >= 64 时结果为 0（逻辑移位到超过宽度视为清零）
+    if (shift >= 64 || shift <= -64) {
+        result.SetInt(0);
+        return;
+    }
     if (shift >= 0) {
         result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(lhs_int) >> shift));
     } else {
@@ -330,6 +335,11 @@ void Var::LeftShift(const Var &rhs, Var &result) const {
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
     auto shift = rhs_int;
+    // Lua 5.4: 移位量绝对值 >= 64 时结果为 0（逻辑移位到超过宽度视为清零）
+    if (shift >= 64 || shift <= -64) {
+        result.SetInt(0);
+        return;
+    }
     if (shift >= 0) {
         result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(lhs_int) << shift));
     } else {

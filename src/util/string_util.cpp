@@ -66,20 +66,20 @@ std::string ReplaceEscapeChars(const std::string &str) {
                     ++it;
                     break;
                 case 'z':
-                    // 跳过后续的空格序列
+                    // 跳过后续的空白字符序列（包括空格、换行、制表符等）
                     ++it;
-                    while (it != str.end() && *it == ' ') {
+                    while (it != str.end() && std::isspace(static_cast<unsigned char>(*it))) {
                         ++it;
                     }
                     break;
                 default:
-                    if (!isdigit(*it)) {
+                    if (!isdigit(static_cast<unsigned char>(*it))) {
                         ThrowFakeluaException(std::format("ReplaceEscapeChars failed, invalid escape sequence \\{}", *it));
                     }
                     // 最多读取3位数字
                     int r = 0; /* 结果累加器 */
                     for (int i = 0; i < 3; ++i) {
-                        if (it == str.end() || !isdigit(*it)) {
+                        if (it == str.end() || !isdigit(static_cast<unsigned char>(*it))) {
                             break;
                         }
                         r = 10 * r + *it - '0';

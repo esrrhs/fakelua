@@ -25,7 +25,7 @@ TEST(jitter, empty_func) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_func.lua", {.debug_mode = debug_mode});
         CVar ret;
-        const auto v = static_cast<Var &>(ret);
+        const auto v = reinterpret_cast<Var &>(ret);
         Call(s, type, "test", ret);
         ASSERT_EQ(v.Type(), VarType::Nil);
     });
@@ -35,7 +35,7 @@ TEST(jitter, empty_local_func) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_local_func.lua", {.debug_mode = debug_mode});
         CVar ret;
-        const auto v = static_cast<Var &>(ret);
+        const auto v = reinterpret_cast<Var &>(ret);
         Call(s, type, "test", ret);
         ASSERT_EQ(v.Type(), VarType::Nil);
     });
@@ -129,7 +129,7 @@ TEST(jitter, multi_const_define) {
         CompileFile(s, "./jit/test_multi_const_define.lua", {.debug_mode = debug_mode});
 
         CVar ret0 = {};
-        auto v = (Var &) ret0;
+        auto v = reinterpret_cast<Var &>(ret0);
         int ret1 = 0;
         bool ret2 = false;
         bool ret3 = false;
@@ -202,7 +202,7 @@ TEST(jitter, local_define) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_local_define.lua", {.debug_mode = debug_mode});
         CVar ret;
-        const auto v = static_cast<Var &>(ret);
+        const auto v = reinterpret_cast<Var &>(ret);
         Call(s, type, "test", ret);
         ASSERT_EQ(v.Type(), VarType::Nil);
     });
@@ -216,7 +216,7 @@ TEST(jitter, local_define_with_values) {
         int ret3 = 0;
         std::string ret4;
         CVar ret5;
-        const auto v5 = static_cast<Var &>(ret5);
+        const auto v5 = reinterpret_cast<Var &>(ret5);
         Call(s, type, "test1", ret1, true, 2);
         Call(s, type, "test2", ret2, true, 2);
         Call(s, type, "test3", ret3, true, 2);
@@ -496,7 +496,7 @@ TEST(jitter, test_empty_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_return.lua", {.debug_mode = debug_mode});
         CVar ret;
-        const auto v = static_cast<Var &>(ret);
+        const auto v = reinterpret_cast<Var &>(ret);
         Call(s, type, "test", ret);
         ASSERT_EQ(v.Type(), VarType::Nil);
     });
@@ -506,7 +506,7 @@ TEST(jitter, test_empty_func_no_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_func_no_return.lua", {.debug_mode = debug_mode});
         CVar ret;
-        const auto v = static_cast<Var &>(ret);
+        const auto v = reinterpret_cast<Var &>(ret);
         Call(s, type, "test", ret);
         ASSERT_EQ(v.Type(), VarType::Nil);
     });
@@ -707,6 +707,36 @@ TEST(jitter, test_const_binop_left_shift) {
             std::exception);
 }
 
+// Lua 5.4: 移位量 >= 64 时结果为 0
+TEST(jitter, test_binop_left_shift_overflow) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_left_shift_overflow.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, -1, 64);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, -1, 100);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, -1, -64);
+        ASSERT_EQ(ret, 0);
+        // 位移 63 不是溢出，仍应正常工作
+        Call(s, type, "test", ret, 1, 63);
+        ASSERT_EQ(ret, static_cast<int>(static_cast<int64_t>(1LL << 63)));
+    });
+}
+
+TEST(jitter, test_binop_right_shift_overflow) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_right_shift_overflow.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, -1, 64);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, -1, 100);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, -1, -64);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
 TEST(jitter, test_binop_concat) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_concat.lua", {.debug_mode = debug_mode});
@@ -856,7 +886,7 @@ TEST(jitter, test_binop_and) {
         CompileFile(s, "./jit/test_binop_and.lua", {.debug_mode = debug_mode});
         float ret1 = 0;
         CVar ret2 = {};
-        auto v = (Var &) ret2;
+        auto v = reinterpret_cast<Var &>(ret2);
         Call(s, type, "test1", ret1, 1, 1.2);
         Call(s, type, "test2", ret2, nullptr, "10");
         ASSERT_NEAR(ret1, 1.2, 0.001);
@@ -1471,7 +1501,7 @@ TEST(jitter, test_table_empty_get) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_empty_get.lua", {.debug_mode = debug_mode});
         CVar ret = {};
-        const auto v = static_cast<Var &>(ret);
+        const auto v = reinterpret_cast<Var &>(ret);
         Call(s, type, "test", ret);
         ASSERT_EQ(v.Type(), VarType::Nil);
     });

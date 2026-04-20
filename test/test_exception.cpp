@@ -383,40 +383,6 @@ TEST(exception, return_type_error_double) {
     }
 }
 
-TEST(exception, return_type_error_cstr) {
-    FakeluaStateGuard sg;
-    auto s = sg.GetState();
-    ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
-    CompileFile(s, "./exception/test_return_type_error.lua", {});
-
-    try {
-        const char *ret = 0;
-        Call(s, JIT_TCC, "test", ret, 123);
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeCstr failed") != std::string::npos);
-    }
-}
-
-TEST(exception, return_type_error_str) {
-    FakeluaStateGuard sg;
-    auto s = sg.GetState();
-    ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
-    CompileFile(s, "./exception/test_return_type_error.lua", {});
-
-    try {
-        char *ret = 0;
-        Call(s, JIT_TCC, "test", ret, 123);
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("FakeluaToNativeStr failed") != std::string::npos);
-    }
-}
-
 TEST(exception, return_type_error_string) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
