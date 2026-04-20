@@ -1,4 +1,4 @@
-# FakeLua（开发中）
+# FakeLua (开发中)
 [<img src="https://img.shields.io/github/license/esrrhs/fakelua">](https://github.com/esrrhs/fakelua)
 [<img src="https://img.shields.io/github/languages/top/esrrhs/fakelua">](https://github.com/esrrhs/fakelua)
 [<img src="https://img.shields.io/github/actions/workflow/status/esrrhs/fakelua/build.yml?branch=master">](https://github.com/esrrhs/fakelua/actions)
@@ -72,7 +72,7 @@ ctest --test-dir build -V
 ./build/bin/bench_mark
 ```
 
-> 单元测试与 benchmark 依赖 Lua 开发头文件（`lua.hpp`）及 `lua` 库。  
+> 单元测试与 benchmark 依赖 Lua 开发头文件（`lua.hpp`）及 `lua` 库。<br>
 > 若本机未安装 Lua 开发包，可先仅构建 `fakelua` 与 `flua` 目标。
 
 ## 命令行工具 `flua`
