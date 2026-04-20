@@ -91,7 +91,12 @@ void CGen::GenerateHeader() {
 
 )";
 
-    // 硬编码state指针
+    // 硬编码 state 指针到生成的 C 代码中。
+    // 生命周期保证：生成的代码最终由 TCCState/GCC 产物承载，这些产物通过 TCCHandle/JITHandle
+    // 被 VmFunction 以 shared_ptr 持有，而 VmFunction 注册在本 State 的 Vm 中（见
+    // src/jit/tcc_jit.cpp 与 src/jit/vm_function.h）。因此生成代码里的 _S 永远不会
+    // 比其宿主 State 活得更久——State 析构即销毁 Vm，进而释放 handle 和代码页。
+    // 同一份代码也不会被跨 State 复用（每次编译都会重新生成）。
     *cur_output_ << "static void * _S = (void *) " << s_ << ";\n";
 
     *cur_output_ << R"(

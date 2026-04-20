@@ -62,6 +62,9 @@ private:
     std::string name_;
     int arg_count_ = 0;
     void *func_addr_[JIT_MAX] = {nullptr};
+    // handle_ 负责延长 JIT 产物（TCCState / GCC so 等）的生命周期。
+    // func_addr_[i] 指向 handle_[i] 所持资源内部的代码页；两者必须同生共死，
+    // 因此 VmFunction 拷贝/合并时务必一并带走对应的 handle（见 Merge()）。
     JITHandlePtr handle_[JIT_MAX];
 };
 

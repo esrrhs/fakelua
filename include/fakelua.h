@@ -257,7 +257,28 @@ public:
     }
 
     ~FakeluaStateGuard() {
-        FakeluaDeleteState(state_);
+        if (state_ != nullptr) {
+            FakeluaDeleteState(state_);
+        }
+    }
+
+    // 独占所有权语义：不允许拷贝，避免同一个 State 被 double-free。
+    FakeluaStateGuard(const FakeluaStateGuard &) = delete;
+    FakeluaStateGuard &operator=(const FakeluaStateGuard &) = delete;
+
+    // 允许移动：移动后源对象不再持有 state，析构时不会重复释放。
+    FakeluaStateGuard(FakeluaStateGuard &&other) noexcept : state_(other.state_) {
+        other.state_ = nullptr;
+    }
+    FakeluaStateGuard &operator=(FakeluaStateGuard &&other) noexcept {
+        if (this != &other) {
+            if (state_ != nullptr) {
+                FakeluaDeleteState(state_);
+            }
+            state_ = other.state_;
+            other.state_ = nullptr;
+        }
+        return *this;
     }
 
     State *GetState() const {

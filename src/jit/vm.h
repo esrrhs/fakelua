@@ -7,13 +7,18 @@
 namespace fakelua {
 
 // 负责运行时
+//
+// 线程模型：整个 fakelua 运行时假定单线程使用——一个 State 同一时刻只会被一个线程持有，
+// 注册/查找 VmFunction、分配全局名都发生在编译或初始化阶段，不会与执行期读者并发。
+// 因此本类所有成员（vm_functions_ 的 find+emplace、global_name_ 的自增）都没有加锁。
+// 若将来需要支持多线程共享同一 State，需要在此处补同步；否则请保持调用侧线程亲和性。
 class Vm {
 public:
     Vm() = default;
 
     ~Vm() = default;
 
-    // 注册函数
+    // 注册函数（单线程调用，见类注释）
     void RegisterFunction(const VmFunction &func) {
         const auto &name = func.GetName();
         const auto it = vm_functions_.find(name);
