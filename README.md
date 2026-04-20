@@ -1,32 +1,107 @@
-# FakeLua (开发中)
+# FakeLua（开发中）
 [<img src="https://img.shields.io/github/license/esrrhs/fakelua">](https://github.com/esrrhs/fakelua)
 [<img src="https://img.shields.io/github/languages/top/esrrhs/fakelua">](https://github.com/esrrhs/fakelua)
 [<img src="https://img.shields.io/github/actions/workflow/status/esrrhs/fakelua/build.yml?branch=master">](https://github.com/esrrhs/fakelua/actions)
 [![codecov](https://codecov.io/gh/esrrhs/fakelua/graph/badge.svg?token=9ZCUH1Q632)](https://codecov.io/gh/esrrhs/fakelua)
 
-FakeLua 是一个高性能、可嵌入的脚本执行引擎，实现了 Lua 5.4 语法的子集。其核心目标是将 Lua 脚本转译为 C 代码，并利用现有的 C 编译器（如 TCC、GCC 或 Clang）将其编译为原生机器码，从而提供极致的运行速度。
+FakeLua 是一个可嵌入的 Lua 子集执行引擎：将脚本编译为 C 代码，再由本地编译器生成动态库并加载执行。
 
-# 特性 (Features):
-* **极致性能**: 将 Lua 脚本转译为 C 代码，通过原生编译器编译为动态库（.so/.dll）加载执行。
-* **灵活的后端**: 支持多种 C 编译器后端，包括轻量级的 TCC 以及高性能的 GCC 和 Clang。
-* **双 JIT 运行类型**: 当前已支持 `JIT_TCC` 与 `JIT_GCC` 两种运行类型，可在同一脚本函数上按类型调用。
-* **Lua 5.4 兼容性**: 支持 Lua 5.4 核心语法和语义的精简子集。
-* **现代 C++**: 基于 C++23 构建，充分利用现代语言特性。
-* **易于嵌入**: 专为 C++ 应用程序集成而设计，提供简洁的交互接口。
-* **轻量化**: 极简的执行模型，无繁重的垃圾回收（GC）负担。
+## 当前特性
 
-# 构建 (Build)
+- 支持双 JIT 运行类型：`JIT_TCC`、`JIT_GCC`
+- 可通过同一套 API 在不同 JIT 后端调用同名函数
+- 提供 C++ 嵌入接口（`CompileFile` / `CompileString` / `Call`）
+- 支持将 Lua table 与原生侧对象通过 `VarInterface` 互转
+- 支持记录最近一次编译生成的 C 代码（`CompileConfig::record_c_code`）
+
+## 当前已知限制（以测试与代码实现为准）
+
+- 不支持多返回值
+- 不支持 varargs（`...`）
+- 不支持 `label` / `goto`
+- 泛型 `for in` 仅支持 `pairs()` / `ipairs()`
+- 全局变量初始化有约束（如不支持 table constructor、部分复杂表达式）
+- 脚本侧函数调用目前仅支持简单函数名调用（不支持复杂前缀表达式调用形式）
+
+## 构建
+
 ### Linux
-* 依赖: `cmake`, `flex`, `bison`
-* TinyCC 会在 CMake 配置阶段自动拉取源码，并在构建阶段于构建目录内完成编译，无需系统安装。
-* 编译
-```shell
-mkdir build
-cd build
-cmake ..
-make
+
+依赖（最小）：
+
+- `cmake`
+- C/C++ 编译工具链（如 gcc/g++）
+- `make` 或 `ninja`
+
+> TinyCC 源码会在 CMake 配置阶段自动拉取并在构建目录编译，无需系统预装 tinycc。
+
+```bash
+cmake -S . -B build
+cmake --build build --parallel
 ```
 
-### Windows (MinGW)
-* 安装 [MSYS2](https://www.msys2.org)。安装[mingw-w64-x86_64-gcc](https://packages.msys2.org/packages/mingw-w64-x86_64-gcc), [mingw-w64-x86_64-lua](https://packages.msys2.org/package/mingw-w64-x86_64-lua)
-* 使用 CLion 打开项目编译
+仅构建核心库与命令行工具（不含测试/基准）：
+
+```bash
+cmake --build build --target fakelua flua --parallel
+```
+
+### Windows（MSYS2 + MinGW）
+
+参考 CI 使用以下核心包：
+
+- `git`
+- `make`
+- `mingw-w64-x86_64-gcc`
+- `mingw-w64-x86_64-cmake`
+- `mingw-w64-x86_64-ninja`
+- `mingw-w64-x86_64-lua`
+
+示例：
+
+```bash
+cmake -S . -B build -G Ninja
+cmake --build build --parallel
+ctest --test-dir build -V
+```
+
+## 测试与基准
+
+```bash
+ctest --test-dir build -V
+./build/bin/bench_mark
+```
+
+> 单元测试与 benchmark 依赖 Lua 开发头文件（`lua.hpp`）及 `lua` 库。  
+> 若本机未安装 Lua 开发包，可先仅构建 `fakelua` 与 `flua` 目标。
+
+## 命令行工具 `flua`
+
+构建后可执行文件在 `build/bin/flua`（Windows 为 `flua.exe`）。
+
+```bash
+./build/bin/flua <script.lua> --entry=<func> --jit_type=<0|1> --repeat=<N> [--debug]
+```
+
+- `--entry`：入口函数名（默认 `main`）
+- `--jit_type`：`0`=`JIT_TCC`，`1`=`JIT_GCC`
+- `--repeat`：重复调用次数
+- `--debug`：开启调试模式（传递到 `CompileConfig::debug_mode`）
+
+## C++ 嵌入示例
+
+```cpp
+#include "fakelua.h"
+using namespace fakelua;
+
+int main() {
+    FakeluaStateGuard guard;
+    State* s = guard.GetState();
+
+    CompileFile(s, "script.lua", CompileConfig{.debug_mode = false});
+
+    int ret = 0;
+    Call(s, JIT_TCC, "test", ret, 123);
+    // 或：Call(s, JIT_GCC, "test", ret, 123);
+}
+```
