@@ -705,8 +705,8 @@ TEST(infer, test_spec_multi_param) {
     // Entry function with CVar params.
     ASSERT_NE(code.find("CVar test(CVar a, CVar b, CVar c, CVar d, CVar e)"), std::string::npos);
     // int/int case: both b and e are int64_t in test_0_0.
-    ASSERT_NE(code.find("test_0_0(int64_t b"), std::string::npos);
-    ASSERT_NE(code.find("test_1_1(double b"), std::string::npos);
+    ASSERT_NE(code.find("test_0_0(CVar a, int64_t b"), std::string::npos);
+    ASSERT_NE(code.find("test_1_1(CVar a, double b"), std::string::npos);
 
     // Functional verification: test(0, 3, 0, 0, 4) == 7.
     InferRunHelper([](State *s, JITType type, bool debug_mode) {

@@ -145,7 +145,7 @@ private:
     // - false : 当前可见绑定是 CVar（即使外层同名变量是原生类型）
     std::vector<std::unordered_map<std::string, bool>> native_var_scopes_;
 
-    // Math-param analysis results from ParamNumericAnalyzer.
+    // Math-param analysis results from TypeInferencer::DiscoverMathParams.
     // func_name -> sorted list of parameter indices that are math params.
     std::unordered_map<std::string, std::vector<int>> math_param_positions_;
 
