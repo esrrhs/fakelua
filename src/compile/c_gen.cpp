@@ -841,7 +841,7 @@ void CGen::GenerateDecls(CompileResult &cr) {
                     const auto mp_it = std::find(math_params.begin(), math_params.end(), static_cast<int>(i));
                     if (mp_it != math_params.end()) {
                         const int mp_idx = static_cast<int>(mp_it - math_params.begin());
-                        *cur_output_ << ((bitmask >> mp_idx) & 1 ? "double" : "int64_t") << " " << params[i];
+                        *cur_output_ << MathParamCTypeName(MathParamKindOf(bitmask, mp_idx)) << " " << params[i];
                     } else {
                         *cur_output_ << "CVar " << params[i];
                     }
@@ -969,7 +969,7 @@ void CGen::GenerateImpl(CompileResult &cr) {
                     const auto mp_it = std::find(math_params.begin(), math_params.end(), static_cast<int>(i));
                     if (mp_it != math_params.end()) {
                         const int mp_idx = static_cast<int>(mp_it - math_params.begin());
-                        *cur_output_ << ((bitmask >> mp_idx) & 1 ? "double" : "int64_t") << " " << func_params[i];
+                        *cur_output_ << MathParamCTypeName(MathParamKindOf(bitmask, mp_idx)) << " " << func_params[i];
                     } else {
                         *cur_output_ << "CVar " << func_params[i];
                     }
@@ -1007,8 +1007,8 @@ void CGen::CompileFuncBody(const std::string &func_name,
         const auto &math_params = math_param_positions_.at(func_name);
         for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
             const auto &param_name = func_params[static_cast<size_t>(math_params[i])];
-            const bool is_float = (spec_bitmask >> i) & 1;
-            spec_param_types_[param_name] = is_float ? T_FLOAT : T_INT;
+            spec_param_types_[param_name] =
+                    (MathParamKindOf(spec_bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
         }
     }
 
@@ -1060,9 +1060,11 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
         if (i > 0) *cur_output_ << " | ";
         const auto &mp_name = func_params[static_cast<size_t>(math_param_indices[i])];
         if (i == 0) {
-            *cur_output_ << std::format("({}.type_ == VAR_FLOAT ? 1 : 0)", mp_name);
+            *cur_output_ << std::format("({}.type_ == VAR_FLOAT ? {} : {})", mp_name,
+                                        static_cast<int>(kMathParamFloat), static_cast<int>(kMathParamInt));
         } else {
-            *cur_output_ << std::format("(({}.type_ == VAR_FLOAT ? 1 : 0) << {})", mp_name, i);
+            *cur_output_ << std::format("(({}.type_ == VAR_FLOAT ? {} : {}) << {})", mp_name,
+                                        static_cast<int>(kMathParamFloat), static_cast<int>(kMathParamInt), i);
         }
     }
     *cur_output_ << ";\n";
@@ -1078,8 +1080,8 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
                     std::find(math_param_indices.begin(), math_param_indices.end(), static_cast<int>(i));
             if (mp_it != math_param_indices.end()) {
                 const int mp_idx = static_cast<int>(mp_it - math_param_indices.begin());
-                const bool is_float = (bitmask >> mp_idx) & 1;
-                *cur_output_ << func_params[i] << (is_float ? ".data_.f" : ".data_.i");
+                const auto kind = MathParamKindOf(bitmask, mp_idx);
+                *cur_output_ << func_params[i] << (kind == kMathParamFloat ? ".data_.f" : ".data_.i");
             } else {
                 *cur_output_ << func_params[i];
             }
@@ -1096,7 +1098,7 @@ std::string CGen::SpecFuncName(const std::string &base_name,
     std::string name = base_name;
     for (int i = 0; i < static_cast<int>(math_param_indices.size()); ++i) {
         name += '_';
-        name += ((bitmask >> i) & 1) ? '1' : '0';
+        name += MathParamSuffix(MathParamKindOf(bitmask, i));
     }
     return name;
 }

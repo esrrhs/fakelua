@@ -37,8 +37,10 @@ private:
     void GenerateImpl(CompileResult &cr);
 
     // Compile a function body into the current output stream.
-    // `spec_bitmask` >= 0 enables specialization mode: math params with bit i=0
-    // become int64_t, bit i=1 become double; `spec_bitmask` < 0 means normal mode.
+    // `spec_bitmask` >= 0 enables specialization mode: for math param i,
+    // MathParamKindOf(spec_bitmask, i) == kMathParamInt → int64_t,
+    //                                    == kMathParamFloat → double.
+    // `spec_bitmask` < 0 means normal (non-specialized) mode.
     void CompileFuncBody(const std::string &func_name,
                           const std::vector<std::string> &func_params,
                           const SyntaxTreeInterfacePtr &func_block,
