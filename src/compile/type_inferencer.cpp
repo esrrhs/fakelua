@@ -798,7 +798,7 @@ void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
                 std::unordered_map<std::string, InferredType> assumed;
                 for (const auto &p: params) {
-                    assumed[p] = T_DYNAMIC;// 非数学参数默认 T_DYNAMIC
+                    assumed[p] = T_DYNAMIC; // 非数学参数默认 T_DYNAMIC
                 }
                 for (int i = 0; i < static_cast<int>(math_indices.size()); ++i) {
                     assumed[params[static_cast<size_t>(math_indices[i])]] =
