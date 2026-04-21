@@ -650,14 +650,8 @@ void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
         if (stmt->Type() == SyntaxTreeType::Function) {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
             const auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
-            if (!funcname) {
-                continue;
-            }
+            // PreProcessor 已保证 funcname 合法（简单单段名，无冒号）
             const auto fnlist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcname->FuncNameList());
-            // 只处理简单函数名（不处理 a.b.c 或 a:b 形式）。
-            if (!fnlist || fnlist->Funcnames().size() != 1 || !funcname->ColonName().empty()) {
-                continue;
-            }
             name = fnlist->Funcnames()[0];
             funcbody = func->Funcbody();
         } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
@@ -676,9 +670,7 @@ void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
             continue;
         }
         const auto parlist_ptr = std::dynamic_pointer_cast<SyntaxTreeParlist>(parlist_node);
-        if (parlist_ptr->VarParams()) {
-            continue; // 变长参数函数不做特化。
-        }
+        // PreProcessor 已保证不存在变长参数函数
         const auto namelist_node = parlist_ptr->Namelist();
         if (!namelist_node) {
             continue;
