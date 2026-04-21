@@ -736,3 +736,231 @@ TEST(infer, test_spec_wrapper_var) {
         ASSERT_EQ(ret, 25);
     });
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Optimization 1: bitwise operators propagate T_INT when both operands are T_INT
+// ────────────────────────────────────────────────────────────────────────────
+
+// INT & INT = T_INT: 10 & 3 = 2.
+TEST(infer, test_infer_typed_int_bitand) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_bitand.lua");
+    ASSERT_NE(code.find("int64_t x = 10;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y = ((int64_t)(x) & (int64_t)(3));"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    ASSERT_EQ(code.find("CVar y"), std::string::npos);
+    // Must NOT fall back to the dynamic OpBitAnd macro.
+    ASSERT_EQ(code.find("OpBitAnd("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_bitand.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 2); // 10 & 3 = 2
+    });
+}
+
+// INT | INT = T_INT: 12 | 3 = 15.
+TEST(infer, test_infer_typed_int_bitor) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_bitor.lua");
+    ASSERT_NE(code.find("int64_t x = 12;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y = ((int64_t)(x) | (int64_t)(3));"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    ASSERT_EQ(code.find("CVar y"), std::string::npos);
+    ASSERT_EQ(code.find("OpBitOr("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_bitor.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 15); // 12 | 3 = 15
+    });
+}
+
+// INT ~ INT = T_INT (XOR): 5 ~ 3 = 6.
+TEST(infer, test_infer_typed_int_bitxor) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_bitxor.lua");
+    ASSERT_NE(code.find("int64_t x = 5;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y = ((int64_t)(x) ^ (int64_t)(3));"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    ASSERT_EQ(code.find("CVar y"), std::string::npos);
+    ASSERT_EQ(code.find("OpBitXor("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_bitxor.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 6); // 5 ^ 3 = 6
+    });
+}
+
+// INT << INT = T_INT: 1 << 4 = 16.
+TEST(infer, test_infer_typed_int_leftshift) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_leftshift.lua");
+    ASSERT_NE(code.find("int64_t x = 1;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y = ((int64_t)(x) << (int64_t)(4));"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    ASSERT_EQ(code.find("CVar y"), std::string::npos);
+    ASSERT_EQ(code.find("OpLeftShift("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_leftshift.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 16); // 1 << 4 = 16
+    });
+}
+
+// INT >> INT = T_INT: 256 >> 3 = 32.
+TEST(infer, test_infer_typed_int_rightshift) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_rightshift.lua");
+    ASSERT_NE(code.find("int64_t x = 256;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y = ((int64_t)(x) >> (int64_t)(3));"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    ASSERT_EQ(code.find("CVar y"), std::string::npos);
+    ASSERT_EQ(code.find("OpRightShift("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_rightshift.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 32); // 256 >> 3 = 32
+    });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Optimization 2: unary operators propagate T_INT / T_FLOAT
+// ────────────────────────────────────────────────────────────────────────────
+
+// Unary minus on an integer variable yields T_INT → int64_t.
+TEST(infer, test_infer_typed_int_unary_minus) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_unary_minus.lua");
+    ASSERT_NE(code.find("int64_t n = 5;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t x = "), std::string::npos);
+    // Must use the native negation form -(n), not the dynamic OpUnaryMinus macro.
+    ASSERT_NE(code.find("(-(n))"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    ASSERT_EQ(code.find("OpUnaryMinus("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_unary_minus.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, -5);
+    });
+}
+
+// Unary minus on a float variable yields T_FLOAT → double.
+TEST(infer, test_infer_typed_float_unary_minus) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_unary_minus.lua");
+    ASSERT_NE(code.find("double x = "), std::string::npos);
+    ASSERT_NE(code.find("(-(n))"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    ASSERT_EQ(code.find("OpUnaryMinus("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_unary_minus.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, -3.14, 0.001);
+    });
+}
+
+// Bitwise NOT on an integer literal yields T_INT → int64_t. ~7 = -8.
+TEST(infer, test_infer_typed_int_bitnot) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_bitnot.lua");
+    ASSERT_NE(code.find("int64_t x = "), std::string::npos);
+    ASSERT_NE(code.find("(~((int64_t)(7)))"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    ASSERT_EQ(code.find("OpBitNot("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_bitnot.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, -8); // ~7 == -8 in two's complement
+    });
+}
+
+// Unary minus on integer variable for-loop bounds enables the T_INT fast path.
+// bound = 5; for i = -bound, bound: sum = -5+...+5 = 0.
+TEST(infer, test_infer_unary_minus_for_bound) {
+    const auto code = InferGetCCode("./infer/test_infer_unary_minus_for_bound.lua");
+    ASSERT_NE(code.find("int64_t bound = 5;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
+    // The lower bound must use native negation form via unop inference.
+    ASSERT_NE(code.find("(-(bound))"), std::string::npos);
+    ASSERT_EQ(code.find("CVar sum"), std::string::npos);
+    ASSERT_EQ(code.find("CVar i"), std::string::npos);
+    ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_unary_minus_for_bound.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 0); // -5+...+5 = 0
+    });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Optimization 3: T_FLOAT for-loop fast path (double control variables)
+// ────────────────────────────────────────────────────────────────────────────
+
+// All-float bounds: for i = 1.0, 3.0 → double fast path.
+// sum = 1.0 + 2.0 + 3.0 = 6.0.
+TEST(infer, test_infer_typed_float_for) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_for.lua");
+    ASSERT_NE(code.find("double sum = "), std::string::npos);
+    ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("double i = flua_for_ctrl_"), std::string::npos);
+    ASSERT_EQ(code.find("CVar sum"), std::string::npos);
+    ASSERT_EQ(code.find("CVar i"), std::string::npos);
+    // Must NOT use the CVar for-loop path (step_pos_var / cond_var).
+    ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_for.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 6.0, 0.001); // 1.0+2.0+3.0
+    });
+}
+
+// Float bounds with explicit float step: for i = 0.0, 1.0, 0.5.
+// sum = 0.0 + 0.5 + 1.0 = 1.5.
+TEST(infer, test_infer_typed_float_for_step) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_for_step.lua");
+    ASSERT_NE(code.find("double sum = "), std::string::npos);
+    ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("double i = flua_for_ctrl_"), std::string::npos);
+    ASSERT_EQ(code.find("CVar sum"), std::string::npos);
+    ASSERT_EQ(code.find("CVar i"), std::string::npos);
+    ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_for_step.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 1.5, 0.001); // 0.0+0.5+1.0
+    });
+}
+
+// Mixed int/float bounds (begin=int, end=float): for i = 1, 5.0 → double fast path.
+// sum = 1.0+2.0+3.0+4.0+5.0 = 15.0.
+TEST(infer, test_infer_typed_float_for_mixed) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_for_mixed.lua");
+    ASSERT_NE(code.find("double sum = "), std::string::npos);
+    ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("double i = flua_for_ctrl_"), std::string::npos);
+    ASSERT_EQ(code.find("CVar sum"), std::string::npos);
+    ASSERT_EQ(code.find("CVar i"), std::string::npos);
+    ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_for_mixed.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 15.0, 0.001); // 1+2+3+4+5
+    });
+}

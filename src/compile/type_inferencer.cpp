@@ -155,13 +155,22 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             InferNode(for_loop->ExpStep());
 
             // 仅当所有边界都是 T_INT 时才将循环变量标记为 T_INT，
-            // 这与 CGen 使用的整型特化路径相匹配。当任何边界为 T_DYNAMIC 时，
-            // CGen 会生成 CVar 循环控制变量，因此循环变量也必须是 T_DYNAMIC
-            // 以保持类型一致。
-            const bool all_int = for_loop->ExpBegin() && for_loop->ExpEnd() && for_loop->ExpBegin()->EvalType() == T_INT &&
+            // 这与 CGen 使用的整型特化路径相匹配。当所有边界均为数值（T_INT 或 T_FLOAT）
+            // 但并非全为 T_INT 时，标记为 T_FLOAT 以启用 double 快路径。
+            // 当任何边界为 T_DYNAMIC 时，CGen 会生成 CVar 循环控制变量，
+            // 因此循环变量也必须是 T_DYNAMIC 以保持类型一致。
+            const bool begin_valid = for_loop->ExpBegin() != nullptr;
+            const bool end_valid = for_loop->ExpEnd() != nullptr;
+            const bool step_numeric = !for_loop->ExpStep() || for_loop->ExpStep()->EvalType() == T_INT ||
+                                      for_loop->ExpStep()->EvalType() == T_FLOAT;
+            const bool all_int = begin_valid && end_valid && for_loop->ExpBegin()->EvalType() == T_INT &&
                                  for_loop->ExpEnd()->EvalType() == T_INT &&
                                  (!for_loop->ExpStep() || for_loop->ExpStep()->EvalType() == T_INT);
-            const InferredType loop_var_type = all_int ? T_INT : T_DYNAMIC;
+            const bool all_numeric =
+                    !all_int && begin_valid && end_valid &&
+                    (for_loop->ExpBegin()->EvalType() == T_INT || for_loop->ExpBegin()->EvalType() == T_FLOAT) &&
+                    (for_loop->ExpEnd()->EvalType() == T_INT || for_loop->ExpEnd()->EvalType() == T_FLOAT) && step_numeric;
+            const InferredType loop_var_type = all_int ? T_INT : (all_numeric ? T_FLOAT : T_DYNAMIC);
 
             env_.EnterScope();
             env_.Define(for_loop->Name(), loop_var_type);
@@ -364,6 +373,42 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
             }
         }
 
+        // Bitwise ops: always T_INT when both operands are T_INT
+        if (op_name == "BITAND" || op_name == "BITOR" || op_name == "XOR" || op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
+            if (left_type == T_INT && right_type == T_INT) {
+                exp->SetEvalType(T_INT);
+                return T_INT;
+            }
+        }
+
+        exp->SetEvalType(T_DYNAMIC);
+        return T_DYNAMIC;
+    }
+
+    if (exp_type == "unop") {
+        const auto operand_type = InferNode(exp->Right());
+        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
+        if (!op) {
+            exp->SetEvalType(T_DYNAMIC);
+            return T_DYNAMIC;
+        }
+        const auto &op_name = op->GetOp();
+        if (op_name == "MINUS") {
+            if (operand_type == T_INT) {
+                exp->SetEvalType(T_INT);
+                return T_INT;
+            }
+            if (operand_type == T_FLOAT) {
+                exp->SetEvalType(T_FLOAT);
+                return T_FLOAT;
+            }
+        }
+        if (op_name == "BITNOT") {
+            if (operand_type == T_INT) {
+                exp->SetEvalType(T_INT);
+                return T_INT;
+            }
+        }
         exp->SetEvalType(T_DYNAMIC);
         return T_DYNAMIC;
     }
