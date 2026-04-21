@@ -460,7 +460,7 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
 // ---------------------------------------------------------------------------
 
 // 判断 exp 节点是否为算术二元运算（结果可为 T_INT/T_FLOAT 的运算符）。
-static bool IsArithmeticBinop(const SyntaxTreeInterfacePtr &node) {
+bool TypeInferencer::IsArithmeticBinop(const SyntaxTreeInterfacePtr &node) const {
     if (node->Type() != SyntaxTreeType::Exp) {
         return false;
     }
@@ -480,8 +480,8 @@ static bool IsArithmeticBinop(const SyntaxTreeInterfacePtr &node) {
 
 // 收集函数体中所有出现在赋值语句 LHS 的简单变量名（不含 local 声明）。
 // 只遍历当前函数体层，不进入嵌套函数定义。
-static void CollectReassignedVars(const SyntaxTreeInterfacePtr &node,
-                                   std::unordered_set<std::string> &reassigned) {
+void TypeInferencer::CollectReassignedVars(const SyntaxTreeInterfacePtr &node,
+                                           std::unordered_set<std::string> &reassigned) const {
     if (!node) {
         return;
     }
@@ -553,7 +553,7 @@ static void CollectReassignedVars(const SyntaxTreeInterfacePtr &node,
     }
 }
 
-EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func_block,
+TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func_block,
                                                const std::vector<std::string> &params,
                                                const std::unordered_map<std::string, InferredType> &assumed_types) {
     // 保存当前推断器状态，trial 结束后恢复。
@@ -596,7 +596,7 @@ EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func
 }
 
 bool TypeInferencer::HasArithmeticImprovement(const EvalTypeMap &all_int, const EvalTypeMap &baseline,
-                                               const SyntaxTreeInterfacePtr &func_block) {
+                                               const SyntaxTreeInterfacePtr &func_block) const {
     bool found = false;
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
         if (found || !IsArithmeticBinop(node)) {
@@ -616,7 +616,7 @@ bool TypeInferencer::HasArithmeticImprovement(const EvalTypeMap &all_int, const 
 }
 
 bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const EvalTypeMap &without_p,
-                                             const SyntaxTreeInterfacePtr &func_block) {
+                                             const SyntaxTreeInterfacePtr &func_block) const {
     bool found = false;
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
         if (found || !IsArithmeticBinop(node)) {

@@ -204,6 +204,10 @@ public:
 
     // 获取表大小
     [[nodiscard]] size_t TableSize() const;
+
+private:
+    // 尝试将数值类型变量转换为整数；仅对 Int 和整数值的 Float 成功。
+    bool TryConvertNumberToInteger(int64_t &out) const;
 };
 
 // 确保 Var 的大小为 16 字节，与 gccjit 中定义的 CVar 一致

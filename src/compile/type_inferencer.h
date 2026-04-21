@@ -25,15 +25,15 @@ private:
     std::vector<std::unordered_map<std::string, InferredType>> scopes_;
 };
 
-// node指针 → 推断类型的快照映射，用于特化发现的不动点迭代。
-using EvalTypeMap = std::unordered_map<SyntaxTreeInterface *, InferredType>;
-
 class TypeInferencer {
 public:
     // 运行全局类型推断，并在 cr.math_param_positions 中填充数学参数特化信息。
     void Process(CompileResult &cr, const CompileConfig &cfg);
 
 private:
+    // node指针 → 推断类型的快照映射，用于特化发现的不动点迭代。
+    using EvalTypeMap = std::unordered_map<SyntaxTreeInterface *, InferredType>;
+
     InferredType InferNode(const SyntaxTreeInterfacePtr &node);
 
     InferredType InferExp(const std::shared_ptr<SyntaxTreeExp> &exp);
@@ -57,13 +57,20 @@ private:
                                   const std::vector<std::string> &params,
                                   const std::unordered_map<std::string, InferredType> &assumed_types);
 
+    // 判断 exp 节点是否为算术二元运算（结果可为 T_INT/T_FLOAT 的运算符）。
+    bool IsArithmeticBinop(const SyntaxTreeInterfacePtr &node) const;
+
+    // 收集函数体中所有出现在赋值语句 LHS 的简单变量名（不含 local 声明）。
+    void CollectReassignedVars(const SyntaxTreeInterfacePtr &node,
+                               std::unordered_set<std::string> &reassigned) const;
+
     // 判断 all_int（全参数=T_INT）相对于 baseline（全参数=T_DYNAMIC）是否有算术表达式改善。
-    static bool HasArithmeticImprovement(const EvalTypeMap &all_int, const EvalTypeMap &baseline,
-                                          const SyntaxTreeInterfacePtr &func_block);
+    bool HasArithmeticImprovement(const EvalTypeMap &all_int, const EvalTypeMap &baseline,
+                                  const SyntaxTreeInterfacePtr &func_block) const;
 
     // 判断 all_int 中某个参数被置回 T_DYNAMIC 后（without_p），是否有算术表达式退化。
-    static bool ParamAffectsArithmetic(const EvalTypeMap &all_int, const EvalTypeMap &without_p,
-                                        const SyntaxTreeInterfacePtr &func_block);
+    bool ParamAffectsArithmetic(const EvalTypeMap &all_int, const EvalTypeMap &without_p,
+                                const SyntaxTreeInterfacePtr &func_block) const;
 
 private:
     TypeEnvironment env_;
