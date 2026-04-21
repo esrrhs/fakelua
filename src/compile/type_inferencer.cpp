@@ -677,8 +677,7 @@ void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
         }
         const auto parlist_ptr = std::dynamic_pointer_cast<SyntaxTreeParlist>(parlist_node);
         if (parlist_ptr->VarParams()) {
-            continue;// 变长参数函数不做特化。
-        }
+            continue; // 变长参数函数不做特化。        }
         const auto namelist_node = parlist_ptr->Namelist();
         if (!namelist_node) {
             continue;
