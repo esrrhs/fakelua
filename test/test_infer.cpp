@@ -657,3 +657,82 @@ TEST(infer, test_infer_typed_int_negative_mod) {
         ASSERT_EQ(ret, 1);
     });
 }
+
+// ===== Numeric Specialization Tests =====
+
+// fib(n) has one math param (n).  The compiler must generate fib_0 (int) and
+// fib_1 (double) specializations, and the recursive calls inside fib_0 must
+// be direct calls to fib_0 (not back through the entry dispatcher).
+TEST(infer, test_spec_fib) {
+    const auto code = InferGetCCode("./infer/test_spec_fib.lua");
+    // Entry dispatcher must exist (original CVar signature).
+    ASSERT_NE(code.find("CVar fib(CVar n)"), std::string::npos);
+    // Two specialization declarations.
+    ASSERT_NE(code.find("CVar fib_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar fib_1(double n)"), std::string::npos);
+    // Dispatcher must check type and call the right specialization.
+    ASSERT_NE(code.find("fib_0(n.data_.i)"), std::string::npos);
+    ASSERT_NE(code.find("fib_1(n.data_.f)"), std::string::npos);
+    // Inside fib_0, recursive calls must go directly to fib_0 (not fib).
+    // The pattern looks like: fib_0(((n) - (1)))
+    ASSERT_NE(code.find("fib_0(((n) - (1)))"), std::string::npos);
+    ASSERT_NE(code.find("fib_0(((n) - (2)))"), std::string::npos);
+    // Inside fib_1, recursive calls must go directly to fib_1.
+    ASSERT_NE(code.find("fib_1(((n) - (1)))"), std::string::npos);
+    ASSERT_NE(code.find("fib_1(((n) - (2)))"), std::string::npos);
+    // The entry dispatcher must NOT be called recursively from fib_0/fib_1.
+    // Check: no FakeluaCallByName("fib") in the generated code.
+    ASSERT_EQ(code.find("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"fib\""), std::string::npos);
+
+    // Functional verification: fib(10) == 55.
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_fib.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "fib", ret, 10);
+        ASSERT_EQ(ret, 55);
+    });
+}
+
+// test(a,b,c,d,e) has two math params: b (idx 1) and e (idx 4).
+// The compiler must generate 4 specializations (b/e each int or float).
+TEST(infer, test_spec_multi_param) {
+    const auto code = InferGetCCode("./infer/test_spec_multi_param.lua");
+    // All 4 specializations should be declared.
+    ASSERT_NE(code.find("test_0_0"), std::string::npos);
+    ASSERT_NE(code.find("test_1_0"), std::string::npos);
+    ASSERT_NE(code.find("test_0_1"), std::string::npos);
+    ASSERT_NE(code.find("test_1_1"), std::string::npos);
+    // Entry function with CVar params.
+    ASSERT_NE(code.find("CVar test(CVar a, CVar b, CVar c, CVar d, CVar e)"), std::string::npos);
+    // int/int case: both b and e are int64_t in test_0_0.
+    ASSERT_NE(code.find("test_0_0(int64_t b"), std::string::npos);
+    ASSERT_NE(code.find("test_1_1(double b"), std::string::npos);
+
+    // Functional verification: test(0, 3, 0, 0, 4) == 7.
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_multi_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 0, 3, 0, 0, 4);
+        ASSERT_EQ(ret, 7);
+    });
+}
+
+// test(n): n is accessed through a local alias x = n, and x * x is the
+// arithmetic expression.  The analyzer must trace n → x and mark n as a
+// math param.
+TEST(infer, test_spec_wrapper_var) {
+    const auto code = InferGetCCode("./infer/test_spec_wrapper_var.lua");
+    // Specializations must be generated.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // Entry dispatcher must check type.
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+
+    // Functional verification: test(5) == 25.
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_wrapper_var.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 25);
+    });
+}

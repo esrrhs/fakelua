@@ -1,6 +1,7 @@
 #include "compile/compiler.h"
 #include "bison/parser.h"
 #include "compile/c_gen.h"
+#include "compile/param_numeric_analyzer.h"
 #include "compile/preprocessor.h"
 #include "compile/type_inferencer.h"
 #include "jit/gcc_jit.h"
@@ -64,11 +65,15 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     TypeInferencer inferencer;
     inferencer.Process(ret, cfg);
 
-    // 4. 转译为C
+    // 4. 数学参数分析（识别哪些函数参数参与算术运算）
+    ParamNumericAnalyzer param_analyzer;
+    param_analyzer.Process(ret, cfg);
+
+    // 5. 转译为C
     CGen cgen(s_);
     cgen.Generate(ret, cfg);
 
-    // 5. JIT编译
+    // 6. JIT编译
     if (!cfg.disable_jit[JIT_TCC]) {
         TccJitter jitter(s_);
         jitter.Compile(ret, cfg);

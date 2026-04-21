@@ -2,6 +2,7 @@
 
 #include "compile/compile_common.h"
 #include "compile/syntax_tree.h"
+#include "compile/type_inferencer.h"
 #include "fakelua.h"
 
 namespace fakelua {
@@ -34,6 +35,34 @@ private:
     std::vector<std::string> CompileParList(const SyntaxTreeInterfacePtr &parlist);
 
     void GenerateImpl(CompileResult &cr);
+
+    // Compile a function body into the current output stream.
+    // `spec_bitmask` >= 0 enables specialization mode: math params with bit i=0
+    // become int64_t, bit i=1 become double; `spec_bitmask` < 0 means normal mode.
+    void CompileFuncBody(const std::string &func_name,
+                          const std::vector<std::string> &func_params,
+                          const SyntaxTreeInterfacePtr &func_block,
+                          int spec_bitmask);
+
+    // Generate the entry dispatcher for a function that has math params.
+    void GenerateEntryDispatcher(const std::string &func_name,
+                                  const std::vector<std::string> &func_params,
+                                  const std::vector<int> &math_param_indices);
+
+    // Return the specialization function name for the given base name and bitmask.
+    // E.g. SpecFuncName("fib", {0}, 0) -> "fib_0"
+    //       SpecFuncName("test", {1,4}, 2) -> "test_0_1"
+    static std::string SpecFuncName(const std::string &base_name,
+                                     const std::vector<int> &math_param_indices, int bitmask);
+
+    // Infer the native type of an expression in the current specialization context.
+    // Returns T_INT, T_FLOAT, or T_DYNAMIC.
+    [[nodiscard]] InferredType InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const;
+
+    // Try to compile an expression as a raw native value (int64_t / double expression).
+    // Returns the C expression string, or empty string on failure.
+    // This is purely functional — it emits no code to cur_output_.
+    std::string TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp);
 
     void CompileStmtBlock(const SyntaxTreeInterfacePtr &block);
 
@@ -115,6 +144,22 @@ private:
     // - true  : 当前可见绑定是原生类型变量
     // - false : 当前可见绑定是 CVar（即使外层同名变量是原生类型）
     std::vector<std::unordered_map<std::string, bool>> native_var_scopes_;
+
+    // Math-param analysis results from ParamNumericAnalyzer.
+    // func_name -> sorted list of parameter indices that are math params.
+    std::unordered_map<std::string, std::vector<int>> math_param_positions_;
+
+    // Specialization context — populated during specialization body compilation.
+    // Maps math-param names to their native type (T_INT or T_FLOAT).
+    // Empty when not in a specialization.
+    std::unordered_map<std::string, InferredType> spec_param_types_;
+
+    // Base name of the function currently being specialized (empty = none).
+    std::string cur_spec_func_name_;
+
+    // Bitmask of the current specialization (-1 = not in a specialization).
+    // Bit i = 0 → math_param[i] is int64_t; bit i = 1 → double.
+    int cur_spec_bitmask_ = -1;
 };
 
 }// namespace fakelua

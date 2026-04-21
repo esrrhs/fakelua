@@ -62,6 +62,10 @@ void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
 }
 
 std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
+    // Load math-param analysis results so that GenerateDecls and GenerateImpl
+    // can use them.
+    math_param_positions_ = cr.math_param_positions;
+
     cur_output_ = &headers_;
     GenerateHeader();
     cur_output_ = &globals_;
@@ -823,6 +827,31 @@ void CGen::GenerateDecls(CompileResult &cr) {
 
         // 记录函数参数数量
         cr.function_names[name] = static_cast<int>(params.size());
+
+        // If the function has math params, also declare 2^k specialization variants.
+        const auto math_it = math_param_positions_.find(name);
+        if (math_it != math_param_positions_.end()) {
+            const auto &math_params = math_it->second;
+            const int num_specs = 1 << static_cast<int>(math_params.size());
+            for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+                const auto spec_name = SpecFuncName(name, math_params, bitmask);
+                *cur_output_ << "CVar " << spec_name << "(";
+                for (size_t i = 0; i < params.size(); ++i) {
+                    if (i > 0) *cur_output_ << ", ";
+                    const auto mp_it = std::find(math_params.begin(), math_params.end(), static_cast<int>(i));
+                    if (mp_it != math_params.end()) {
+                        const int mp_idx = static_cast<int>(mp_it - math_params.begin());
+                        *cur_output_ << ((bitmask >> mp_idx) & 1 ? "double" : "int64_t") << " " << params[i];
+                    } else {
+                        *cur_output_ << "CVar " << params[i];
+                    }
+                }
+                *cur_output_ << ");\n";
+                // Register specialization names so CompileFunctioncall recognises them
+                // as local calls (same-file direct invocation).
+                cr.function_names[spec_name] = static_cast<int>(params.size());
+            }
+        }
     }
 
     *cur_output_ << "\n";
@@ -924,39 +953,228 @@ void CGen::GenerateImpl(CompileResult &cr) {
             func_params = CompileParList(parlist);
         }
 
-        // 生成函数定义头部
-        *cur_output_ << "CVar " << name << "(";
-        for (size_t i = 0; i < func_params.size(); ++i) {
-            if (i > 0) {
-                *cur_output_ << ", ";
-            }
-            *cur_output_ << "CVar " << func_params[i];
-        }
-        *cur_output_ << ") {\n";
-
-        // 编译函数体：将语句输出缓冲到 body_ss_，临时变量声明缓冲到 func_temp_decls_，
-        // 最终将声明提升到函数体顶部，确保 C89 兼容性。
         const auto func_block = funcbody_ptr->Block();
-        func_temp_decls_.str("");
-        func_temp_decls_.clear();
-        body_ss_.str("");
-        body_ss_.clear();
-        native_var_scopes_.clear();
-        EnterNativeVarScope();
-        for (const auto &param_name: func_params) {
-            // 形参在 C 签名中恒为 CVar。
-            DeclareNativeVar(param_name, false);
+        const auto math_it = math_param_positions_.find(name);
+        if (math_it != math_param_positions_.end()) {
+            // Function has math params: generate 2^k specialization bodies, then
+            // the entry dispatcher.
+            const auto &math_params = math_it->second;
+            const int num_specs = 1 << static_cast<int>(math_params.size());
+            for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+                const auto spec_name = SpecFuncName(name, math_params, bitmask);
+                // Emit spec function signature.
+                *cur_output_ << "CVar " << spec_name << "(";
+                for (size_t i = 0; i < func_params.size(); ++i) {
+                    if (i > 0) *cur_output_ << ", ";
+                    const auto mp_it = std::find(math_params.begin(), math_params.end(), static_cast<int>(i));
+                    if (mp_it != math_params.end()) {
+                        const int mp_idx = static_cast<int>(mp_it - math_params.begin());
+                        *cur_output_ << ((bitmask >> mp_idx) & 1 ? "double" : "int64_t") << " " << func_params[i];
+                    } else {
+                        *cur_output_ << "CVar " << func_params[i];
+                    }
+                }
+                *cur_output_ << ") {\n";
+                CompileFuncBody(name, func_params, func_block, bitmask);
+                *cur_output_ << "}\n";
+            }
+            // Emit the entry dispatcher (original CVar signature).
+            GenerateEntryDispatcher(name, func_params, math_params);
+        } else {
+            // No math params: compile normally (unchanged behaviour).
+            *cur_output_ << "CVar " << name << "(";
+            for (size_t i = 0; i < func_params.size(); ++i) {
+                if (i > 0) *cur_output_ << ", ";
+                *cur_output_ << "CVar " << func_params[i];
+            }
+            *cur_output_ << ") {\n";
+            CompileFuncBody(name, func_params, func_block, -1);
+            *cur_output_ << "}\n";
         }
-        cur_output_ = &body_ss_;
-        cur_tab_++;
-        CompileStmtBlock(func_block);
-        cur_tab_--;
-        ExitNativeVarScope();
-        cur_output_ = &impls_;
-        *cur_output_ << func_temp_decls_.str();
-        *cur_output_ << body_ss_.str();
+    }
+}
 
-        *cur_output_ << "}\n";
+void CGen::CompileFuncBody(const std::string &func_name,
+                             const std::vector<std::string> &func_params,
+                             const SyntaxTreeInterfacePtr &func_block,
+                             int spec_bitmask) {
+    // Set up specialization context.
+    spec_param_types_.clear();
+    cur_spec_bitmask_ = spec_bitmask;
+    cur_spec_func_name_ = (spec_bitmask >= 0) ? func_name : "";
+
+    if (spec_bitmask >= 0) {
+        const auto &math_params = math_param_positions_.at(func_name);
+        for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+            const auto &param_name = func_params[static_cast<size_t>(math_params[i])];
+            const bool is_float = (spec_bitmask >> i) & 1;
+            spec_param_types_[param_name] = is_float ? T_FLOAT : T_INT;
+        }
+    }
+
+    // Compile the function body into the body buffer.
+    func_temp_decls_.str("");
+    func_temp_decls_.clear();
+    body_ss_.str("");
+    body_ss_.clear();
+    native_var_scopes_.clear();
+    EnterNativeVarScope();
+    for (const auto &param_name: func_params) {
+        // Math params in spec mode are tracked via spec_param_types_, not as
+        // typed native vars (to avoid interaction with CompileStmtAssign's
+        // CompileNumericExp path on CVar RHS).
+        DeclareNativeVar(param_name, false);
+    }
+    cur_output_ = &body_ss_;
+    cur_tab_++;
+    CompileStmtBlock(func_block);
+    cur_tab_--;
+    ExitNativeVarScope();
+    cur_output_ = &impls_;
+    *cur_output_ << func_temp_decls_.str();
+    *cur_output_ << body_ss_.str();
+
+    // Clear specialization context.
+    spec_param_types_.clear();
+    cur_spec_bitmask_ = -1;
+    cur_spec_func_name_ = "";
+}
+
+void CGen::GenerateEntryDispatcher(const std::string &func_name,
+                                    const std::vector<std::string> &func_params,
+                                    const std::vector<int> &math_param_indices) {
+    const int k = static_cast<int>(math_param_indices.size());
+    const int num_specs = 1 << k;
+
+    // Entry function: always uses CVar signature.
+    *cur_output_ << "CVar " << func_name << "(";
+    for (size_t i = 0; i < func_params.size(); ++i) {
+        if (i > 0) *cur_output_ << ", ";
+        *cur_output_ << "CVar " << func_params[i];
+    }
+    *cur_output_ << ") {\n";
+
+    // Compute dispatch index.
+    *cur_output_ << "    int flua_spec_idx = ";
+    for (int i = 0; i < k; ++i) {
+        if (i > 0) *cur_output_ << " | ";
+        const auto &mp_name = func_params[static_cast<size_t>(math_param_indices[i])];
+        if (i == 0) {
+            *cur_output_ << std::format("({}.type_ == VAR_FLOAT ? 1 : 0)", mp_name);
+        } else {
+            *cur_output_ << std::format("(({}.type_ == VAR_FLOAT ? 1 : 0) << {})", mp_name, i);
+        }
+    }
+    *cur_output_ << ";\n";
+
+    // Dispatch table (switch).
+    *cur_output_ << "    switch (flua_spec_idx) {\n";
+    for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+        const auto spec_name = SpecFuncName(func_name, math_param_indices, bitmask);
+        *cur_output_ << std::format("        case {}: return {}(", bitmask, spec_name);
+        for (size_t i = 0; i < func_params.size(); ++i) {
+            if (i > 0) *cur_output_ << ", ";
+            const auto mp_it =
+                    std::find(math_param_indices.begin(), math_param_indices.end(), static_cast<int>(i));
+            if (mp_it != math_param_indices.end()) {
+                const int mp_idx = static_cast<int>(mp_it - math_param_indices.begin());
+                const bool is_float = (bitmask >> mp_idx) & 1;
+                *cur_output_ << func_params[i] << (is_float ? ".data_.f" : ".data_.i");
+            } else {
+                *cur_output_ << func_params[i];
+            }
+        }
+        *cur_output_ << ");\n";
+    }
+    *cur_output_ << "    }\n";
+    *cur_output_ << "    return kNil;\n";
+    *cur_output_ << "}\n";
+}
+
+std::string CGen::SpecFuncName(const std::string &base_name,
+                                 const std::vector<int> &math_param_indices, int bitmask) {
+    std::string name = base_name;
+    for (int i = 0; i < static_cast<int>(math_param_indices.size()); ++i) {
+        name += '_';
+        name += ((bitmask >> i) & 1) ? '1' : '0';
+    }
+    return name;
+}
+
+InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const {
+    if (!exp || exp->Type() != SyntaxTreeType::Exp) return T_DYNAMIC;
+    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    const auto &exp_type = e->ExpType();
+
+    if (exp_type == "number") {
+        // Use EvalType set by TypeInferencer.
+        if (e->EvalType() == T_INT) return T_INT;
+        if (e->EvalType() == T_FLOAT) return T_FLOAT;
+        // Fallback: probe the string value.
+        const auto &val = e->ExpValue();
+        if (val.find('.') == std::string::npos && val.find('e') == std::string::npos &&
+            val.find('E') == std::string::npos) {
+            return T_INT;
+        }
+        return T_FLOAT;
+    }
+
+    if (exp_type == "prefixexp") {
+        const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
+        if (!pe) return T_DYNAMIC;
+        if (pe->GetType() == "var") {
+            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+            if (!var || var->GetType() != "simple") return T_DYNAMIC;
+            const auto &vname = var->GetName();
+            // Specialization context takes priority.
+            if (const auto it = spec_param_types_.find(vname); it != spec_param_types_.end()) {
+                return it->second;
+            }
+            // Fall back to TypeInferencer's EvalType (works for typed local vars).
+            const auto t = e->EvalType();
+            if (t == T_INT || t == T_FLOAT) return t;
+            return T_DYNAMIC;
+        }
+        if (pe->GetType() == "exp") {
+            return InferArgTypeForSpec(pe->GetValue());
+        }
+        return T_DYNAMIC;// functioncall
+    }
+
+    if (exp_type == "binop") {
+        const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
+        if (!op) return T_DYNAMIC;
+        const auto lt = InferArgTypeForSpec(e->Left());
+        const auto rt = InferArgTypeForSpec(e->Right());
+        if (lt == T_DYNAMIC || rt == T_DYNAMIC) return T_DYNAMIC;
+        const auto &op_name = op->GetOp();
+        if (op_name == "SLASH" || op_name == "POW") return T_FLOAT;
+        if (op_name == "PLUS" || op_name == "MINUS" || op_name == "STAR" || op_name == "MOD" ||
+            op_name == "DOUBLE_SLASH") {
+            return (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
+        }
+        if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR" ||
+            op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
+            return T_INT;
+        }
+        return T_DYNAMIC;
+    }
+
+    if (exp_type == "unop") {
+        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
+        if (!op) return T_DYNAMIC;
+        if (op->GetOp() == "MINUS") return InferArgTypeForSpec(e->Right());
+        return T_DYNAMIC;
+    }
+
+    return T_DYNAMIC;
+}
+
+std::string CGen::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
+    try {
+        return CompileNumericExp(exp);
+    } catch (...) {
+        return {};
     }
 }
 
@@ -1765,6 +1983,14 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         if (in_global_init_) {
             ThrowError("variable reference is not allowed in global variable initialization", v);
         }
+        // In a specialization, math params have a known native type.  Box them
+        // to CVar so that the rest of the expression machinery remains uniform.
+        if (const auto spec_it = spec_param_types_.find(name); spec_it != spec_param_types_.end()) {
+            if (spec_it->second == T_INT) {
+                return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
+            }
+            return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
+        }
         if (v_ptr->EvalType() == T_INT && IsTypedNativeVar(name)) {
             return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
         }
@@ -1830,6 +2056,10 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
                 ThrowError("only simple variable is supported in numeric specialization", exp);
             }
             const auto &vname = var->GetName();
+            // Specialization context: math params are native types — use directly.
+            if (spec_param_types_.count(vname)) {
+                return vname;
+            }
             if (IsTypedNativeVar(vname)) {
                 // 变量是原生类型（int64_t/double）：直接使用变量名。
                 return vname;
@@ -1923,9 +2153,84 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     const auto args_node = fc->Args();
     DEBUG_ASSERT(args_node->Type() == SyntaxTreeType::Args);
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
-
-    std::vector<std::string> compiled_args;
     const auto &args_type = args_ptr->GetType();
+
+    // Determine function name before compiling args (needed for spec-call check).
+    const auto pe_pre = fc->prefixexp();
+    DEBUG_ASSERT(pe_pre->Type() == SyntaxTreeType::PrefixExp);
+    const auto pe_pre_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe_pre);
+
+    // Attempt direct-call optimisation: if the callee is a local function with
+    // math params and all math-param arguments have a known native type, emit a
+    // specialization call directly, bypassing the entry dispatcher.
+    if (!in_global_init_ && pe_pre_ptr->GetType() == "var" && args_type == "explist") {
+        const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+        if (callee_var && callee_var->GetType() == "simple") {
+            const auto &callee_name = callee_var->GetName();
+            const auto math_it = math_param_positions_.find(callee_name);
+            if (math_it != math_param_positions_.end()) {
+                const auto &math_params = math_it->second;
+                const auto explist_arg = args_ptr->Explist();
+                DEBUG_ASSERT(explist_arg->Type() == SyntaxTreeType::ExpList);
+                const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
+                const auto &raw_args = explist_arg_ptr->Exps();
+
+                // Step 1: infer types for all math-param arguments (pure — no side effects).
+                bool can_spec = true;
+                int bitmask = 0;
+                for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+                    const int param_pos = math_params[i];
+                    if (param_pos >= static_cast<int>(raw_args.size())) {
+                        can_spec = false;
+                        break;
+                    }
+                    const auto t = InferArgTypeForSpec(raw_args[param_pos]);
+                    if (t == T_DYNAMIC) {
+                        can_spec = false;
+                        break;
+                    }
+                    if (t == T_FLOAT) bitmask |= (1 << i);
+                }
+
+                if (can_spec) {
+                    // Step 2: pre-compile native expressions for math params (pure).
+                    std::unordered_map<int, std::string> native_exprs;// param_pos -> expr
+                    for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+                        const int param_pos = math_params[i];
+                        const auto native_expr = TryCompileNativeExpr(raw_args[param_pos]);
+                        if (native_expr.empty()) {
+                            can_spec = false;
+                            break;
+                        }
+                        native_exprs[param_pos] = native_expr;
+                    }
+
+                    if (can_spec) {
+                        // Step 3: compile the call.
+                        const auto spec_name = SpecFuncName(callee_name, math_params, bitmask);
+                        std::string call = spec_name + "(";
+                        for (int i = 0; i < static_cast<int>(raw_args.size()); ++i) {
+                            if (i > 0) call += ", ";
+                            const auto ne_it = native_exprs.find(i);
+                            if (ne_it != native_exprs.end()) {
+                                call += ne_it->second;
+                            } else {
+                                call += CompileExp(raw_args[i]);
+                            }
+                        }
+                        call += ")";
+                        const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+                        func_temp_decls_ << "    CVar " << tmp << ";\n";
+                        *cur_output_ << GenTab() << tmp << " = " << call << ";\n";
+                        return tmp;
+                    }
+                }
+            }
+        }
+    }
+
+    // Normal path: compile all arguments as CVar.
+    std::vector<std::string> compiled_args;
     if (args_type == "explist") {
         const auto explist = args_ptr->Explist();
         DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
@@ -1938,16 +2243,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     } else if (args_type == "string") {
         compiled_args.push_back(CompileExp(args_ptr->String()));
     }
-    // "empty": 无参数
-
-    // 确定函数调用表达式
-    const auto pe = fc->prefixexp();
-    DEBUG_ASSERT(pe->Type() == SyntaxTreeType::PrefixExp);
-    const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
-
+    // "empty": no args
     std::string call_expr;
-    if (pe_ptr->GetType() == "var") {
-        if (const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue()); var->GetType() == "simple") {
+    if (pe_pre_ptr->GetType() == "var") {
+        if (const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue()); var->GetType() == "simple") {
             if (const auto &func_name = var->GetName(); func_name == "FAKELUA_SET_TABLE") {
                 // 内置表赋值：FAKELUA_SET_TABLE(t, k, v) -> FlSetTable(t, k, v)
                 if (compiled_args.size() != 3) {
@@ -1983,8 +2282,6 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     } else {
         ThrowError("complex function call expression is not supported", functioncall);
     }
-
-    // 分配临时变量来保存返回值
     const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
     *cur_output_ << GenTab() << tmp << " = " << call_expr << ";\n";
