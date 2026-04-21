@@ -874,13 +874,11 @@ std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
 
     if (namelist.size() != 1) {
         // PreProcessor 已确保函数名为单段
-        DEBUG_ASSERT(false && "multi-part function name should have been rejected by PreProcessor");
         ThrowError(std::format("Unsupported function name with {} parts", namelist.size()), ptr);
     }
 
     if (!name->ColonName().empty()) {
         // PreProcessor 已确保无冒号函数名
-        DEBUG_ASSERT(false && "colon function name should have been rejected by PreProcessor");
         ThrowError("Unsupported function name with method definition", ptr);
     }
 
@@ -902,7 +900,6 @@ std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parl
 
     if (parlist_ptr->VarParams()) {
         // PreProcessor 已确保不存在变长参数
-        DEBUG_ASSERT(false && "varargs should have been rejected by PreProcessor");
         ThrowError("varargs (...) is not supported", parlist_ptr);
     }
 
@@ -1215,13 +1212,11 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
         }
         case SyntaxTreeType::Label: {
             // PreProcessor 已确保不存在 label
-            DEBUG_ASSERT(false && "label should have been rejected by PreProcessor");
             ThrowError("label is not supported", stmt);
             break;
         }
         case SyntaxTreeType::Goto: {
             // PreProcessor 已确保不存在 goto
-            DEBUG_ASSERT(false && "goto should have been rejected by PreProcessor");
             ThrowError("goto is not supported", stmt);
             break;
         }
@@ -1288,7 +1283,6 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
         explist_ptr->AddExp(exp);
     } else if (explist_ptr->Exps().size() > 1) {
         // PreProcessor 已确保不存在多返回值
-        DEBUG_ASSERT(false && "multiple return values should have been rejected by PreProcessor");
         ThrowError("multiple return values is not supported", explist_ptr);
     }
 
@@ -1752,7 +1746,6 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
         return CompilePrefixexp(pe);
     } else if (ExpType == "VarParams") {
         // PreProcessor 已确保不存在 ...
-        DEBUG_ASSERT(false && "VarParams should have been rejected by PreProcessor");
         ThrowError("... is not supported", e);
     } else if (ExpType == "tableconstructor") {
         const auto tc = e->Right();
@@ -1793,7 +1786,6 @@ std::string CGen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe) {
 std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
     if (in_global_init_) {
         // PreProcessor 已确保全局初始化中不存在 table constructor
-        DEBUG_ASSERT(false && "table constructor in global init should have been rejected by PreProcessor");
         ThrowError("table constructor is not supported in global variable initialization", tc);
     }
 
@@ -1845,7 +1837,6 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op) {
     if (in_global_init_) {
         // PreProcessor 已确保全局初始化中不存在二元运算
-        DEBUG_ASSERT(false && "binary operator in global init should have been rejected by PreProcessor");
         ThrowError("binary operator is not supported in global variable initialization", op);
     }
 
@@ -1953,7 +1944,6 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
 std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op) {
     if (in_global_init_) {
         // PreProcessor 已确保全局初始化中不存在一元运算
-        DEBUG_ASSERT(false && "unary operator in global init should have been rejected by PreProcessor");
         ThrowError("unary operator is not supported in global variable initialization", op);
     }
 
@@ -1993,7 +1983,6 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto &name = v_ptr->GetName();
         if (in_global_init_) {
             // PreProcessor 已确保全局初始化中不存在变量引用
-            DEBUG_ASSERT(false && "variable reference in global init should have been rejected by PreProcessor");
             ThrowError("variable reference is not allowed in global variable initialization", v);
         }
         // In a specialization, math params have a known native type.  Box them
@@ -2013,7 +2002,6 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         return name;
     } else if (type == "square") {
         if (in_global_init_) {
-            DEBUG_ASSERT(false && "table access in global init should have been rejected by PreProcessor");
             ThrowError("table access is not allowed in global variable initialization", v);
         }
         const auto pe = v_ptr->GetPrefixexp();
@@ -2025,7 +2013,6 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         return std::format("FlGetTable({}, {})", pe_ret, exp_ret);
     } else /*if (type == "dot")*/ {
         if (in_global_init_) {
-            DEBUG_ASSERT(false && "table access in global init should have been rejected by PreProcessor");
             ThrowError("table access is not allowed in global variable initialization", v);
         }
         const auto pe = v_ptr->GetPrefixexp();
@@ -2155,7 +2142,6 @@ std::string CGen::BoxNativeValue(const std::string &expr, const InferredType typ
 std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall) {
     if (in_global_init_) {
         // PreProcessor 已确保全局初始化中不存在函数调用
-        DEBUG_ASSERT(false && "function call in global init should have been rejected by PreProcessor");
         ThrowError("function call is not allowed in global variable initialization", functioncall);
     }
 
@@ -2164,7 +2150,6 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
 
     if (!fc->Name().empty()) {
         // PreProcessor 已确保不存在方法调用
-        DEBUG_ASSERT(false && "method calls should have been rejected by PreProcessor");
         ThrowError("method calls (:) are not supported", functioncall);
     }
 
