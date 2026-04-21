@@ -32,7 +32,7 @@ public:
 
 private:
     // node指针 → 推断类型的快照映射，用于特化发现的不动点迭代。
-    using EvalTypeMap = std::unordered_map<SyntaxTreeInterface *, InferredType>;
+    using EvalTypeMap = EvalTypeSnapshot;
 
     InferredType InferNode(const SyntaxTreeInterfacePtr &node);
 

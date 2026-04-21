@@ -151,6 +151,10 @@ private:
     // func_name -> sorted list of parameter indices that are math params.
     std::unordered_map<std::string, std::vector<int>> math_param_positions_;
 
+    // Per-bitmask AST type snapshots for all functions with math params.
+    // Pointer into the CompileResult that is alive for the duration of Build().
+    const std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> *specialization_snapshots_ = nullptr;
+
     // Specialization context — populated during specialization body compilation.
     // Maps math-param names to their native type (T_INT or T_FLOAT).
     // Empty when not in a specialization.
@@ -162,6 +166,10 @@ private:
     // Bitmask of the current specialization (-1 = not in a specialization).
     // Bit i = 0 → math_param[i] is int64_t; bit i = 1 → double.
     int cur_spec_bitmask_ = -1;
+
+    // Snapshot for the current specialization bitmask, or nullptr when not in
+    // a specialization.  Points into specialization_snapshots_.
+    const EvalTypeSnapshot *cur_spec_snapshot_ = nullptr;
 };
 
 }// namespace fakelua

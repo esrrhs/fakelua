@@ -788,6 +788,24 @@ void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
         if (!math_indices.empty()) {
             cr.math_param_positions[name] = math_indices;
             LOG_INFO("TypeInferencer: {} math params for {}", math_indices.size(), name);
+
+            // 为该函数的每个 bitmask 组合运行一次 trial 推断并存储快照，
+            // 使 CGen 能够在生成特化体时直接查询每个 AST 节点的正确类型，
+            // 而无需在代码生成阶段重新推断。
+            const int num_specs = 1 << static_cast<int>(math_indices.size());
+            auto &snapshots = cr.specialization_snapshots[name];
+            snapshots.resize(num_specs);
+            for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+                std::unordered_map<std::string, InferredType> assumed;
+                for (const auto &p: params) {
+                    assumed[p] = T_DYNAMIC;// 非数学参数默认 T_DYNAMIC
+                }
+                for (int i = 0; i < static_cast<int>(math_indices.size()); ++i) {
+                    assumed[params[static_cast<size_t>(math_indices[i])]] =
+                            (MathParamKindOf(bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
+                }
+                snapshots[bitmask] = RunTrialInference(func_block, params, assumed);
+            }
         }
     }
 }

@@ -6,6 +6,11 @@
 
 namespace fakelua {
 
+// AST 节点类型快照：节点原始指针 → 推断类型。
+// 每个特化 bitmask 对应一份快照，由 TypeInferencer::DiscoverMathParams 生成，
+// 供 CGen 在生成特化体时查询任意节点的类型。
+using EvalTypeSnapshot = std::unordered_map<SyntaxTreeInterface *, InferredType>;
+
 // 特化参数类型位掩码编码：bitmask 的第 i 位为 0 表示第 i 个数学参数为 int64_t，
 // 为 1 表示为 double。
 enum MathParamKind : int {
@@ -44,6 +49,11 @@ struct CompileResult {
     // 数学参数位置：函数名 → 参数列表中参与算术运算的参数下标列表（最多8个）。
     // 由 TypeInferencer::DiscoverMathParams 填充，供 CGen 生成特化版本时使用。
     std::unordered_map<std::string, std::vector<int>> math_param_positions;
+    // 特化快照：函数名 → 按 bitmask 索引的 EvalTypeSnapshot 数组（共 2^k 个）。
+    // 每个快照记录在对应参数类型假设下整个函数体所有 AST 节点的推断类型，
+    // 由 TypeInferencer::DiscoverMathParams 生成，供 CGen 在不依赖 EvalType()
+    // 字段的情况下直接查询特化版本中任意节点的类型。
+    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots;
 };
 
 }// namespace fakelua

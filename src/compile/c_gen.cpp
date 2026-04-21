@@ -65,6 +65,7 @@ std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
     // Load math-param analysis results so that GenerateDecls and GenerateImpl
     // can use them.
     math_param_positions_ = cr.math_param_positions;
+    specialization_snapshots_ = &cr.specialization_snapshots;
 
     cur_output_ = &headers_;
     GenerateHeader();
@@ -1005,6 +1006,7 @@ void CGen::CompileFuncBody(const std::string &func_name,
     spec_param_types_.clear();
     cur_spec_bitmask_ = spec_bitmask;
     cur_spec_func_name_ = (spec_bitmask >= 0) ? func_name : "";
+    cur_spec_snapshot_ = nullptr;
 
     if (spec_bitmask >= 0) {
         const auto &math_params = math_param_positions_.at(func_name);
@@ -1013,9 +1015,36 @@ void CGen::CompileFuncBody(const std::string &func_name,
             spec_param_types_[param_name] =
                     (MathParamKindOf(spec_bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
         }
+        // Look up the per-bitmask snapshot so that CompileStmtLocalVar / CompileVar
+        // can query any AST node's type under this specific parameter-type combination.
+        if (specialization_snapshots_) {
+            if (const auto snap_it = specialization_snapshots_->find(func_name);
+                snap_it != specialization_snapshots_->end()) {
+                const auto &snaps = snap_it->second;
+                if (spec_bitmask < static_cast<int>(snaps.size())) {
+                    cur_spec_snapshot_ = &snaps[static_cast<size_t>(spec_bitmask)];
+                }
+            }
+        }
     }
 
     // Compile the function body into the body buffer.
+    //
+    // If this is a specialization, temporarily apply the snapshot's EvalTypes
+    // to every AST node in the function block so that all existing EvalType()
+    // calls throughout the compiler see the correct per-bitmask types.
+    // Save the current EvalTypes first so we can restore them afterwards,
+    // keeping the AST clean for subsequent bitmask and non-spec compilations.
+    EvalTypeSnapshot saved_eval_types;
+    if (cur_spec_snapshot_ != nullptr) {
+        WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &n) {
+            saved_eval_types[n.get()] = n->EvalType();
+        });
+        for (const auto &[ptr, type]: *cur_spec_snapshot_) {
+            ptr->SetEvalType(type);
+        }
+    }
+
     func_temp_decls_.str("");
     func_temp_decls_.clear();
     body_ss_.str("");
@@ -1037,10 +1066,18 @@ void CGen::CompileFuncBody(const std::string &func_name,
     *cur_output_ << func_temp_decls_.str();
     *cur_output_ << body_ss_.str();
 
+    // Restore EvalTypes that were overridden for this specialization.
+    if (cur_spec_snapshot_ != nullptr) {
+        for (const auto &[ptr, type]: saved_eval_types) {
+            ptr->SetEvalType(type);
+        }
+    }
+
     // Clear specialization context.
     spec_param_types_.clear();
     cur_spec_bitmask_ = -1;
     cur_spec_func_name_ = "";
+    cur_spec_snapshot_ = nullptr;
 }
 
 void CGen::GenerateEntryDispatcher(const std::string &func_name,
