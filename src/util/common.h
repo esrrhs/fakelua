@@ -58,7 +58,6 @@
 #endif
 
 #include "macro.h"
-#include "const_define.h"
 #include "debug.h"
 #include "exception.h"
 #include "logging.h"
