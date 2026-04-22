@@ -28,13 +28,13 @@ private:
 class TypeInferencer {
 public:
     // 运行全局类型推断，并在 cr.math_param_positions 中填充数学参数特化信息。
-    void Process(CompileResult &cr, const CompileConfig &cfg);
+    void Process(CompileResult &cr);
 
 private:
     // node指针 → 推断类型的快照映射，用于特化发现的不动点迭代。
     using EvalTypeMap = EvalTypeSnapshot;
 
-    InferredType InferNode(const SyntaxTreeInterfacePtr &node);
+    InferredType InferAndSetEvalType(const SyntaxTreeInterfacePtr &node);
 
     InferredType InferExp(const std::shared_ptr<SyntaxTreeExp> &exp);
 
