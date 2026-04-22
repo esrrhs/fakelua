@@ -76,8 +76,6 @@ private:
     TypeEnvironment env_;
     int funcbody_depth_ = 0;
 
-    // 函数输入参数上限（与 PreProcessor 校验保持一致）。
-    static constexpr int kMaxMathParams = 8;
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
     static constexpr int kMaxSpecIterations = 16;
 };
