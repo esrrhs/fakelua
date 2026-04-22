@@ -117,22 +117,13 @@ InferredType TypeInferencer::InferAndSetEvalType(const SyntaxTreeInterfacePtr &n
             const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
             const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
             const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
-            if (!varlist || !explist || explist->Exps().empty() || varlist->Vars().empty()) {
-                node->SetEvalType(T_DYNAMIC);
-                return T_DYNAMIC;
-            }
+            DEBUG_ASSERT(varlist && explist && !varlist->Vars().empty() && !explist->Exps().empty());
 
             DEBUG_ASSERT(varlist->Vars().size() == 1 && explist->Exps().size() == 1);// 预处理阶段已将多赋值拆分成单赋值
 
             const InferredType rhs_type = InferAndSetEvalType(explist->Exps()[0]);
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
-            if (!var || var->GetType() != "simple") {
-                if (var) {
-                    var->SetEvalType(T_DYNAMIC);
-                }
-                node->SetEvalType(T_DYNAMIC);
-                return T_DYNAMIC;
-            }
+            DEBUG_ASSERT(var && var->GetType() == "simple");
 
             const std::string name = var->GetName();
             if (!env_.Update(name, rhs_type)) {
@@ -344,10 +335,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
         }
 
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
-        if (!op) {
-            exp->SetEvalType(T_DYNAMIC);
-            return T_DYNAMIC;
-        }
+        DEBUG_ASSERT(op);
 
         const auto &op_name = op->GetOp();
 
@@ -386,10 +374,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
     if (exp_type == "unop") {
         const auto operand_type = InferAndSetEvalType(exp->Right());
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
-        if (!op) {
-            exp->SetEvalType(T_DYNAMIC);
-            return T_DYNAMIC;
-        }
+        DEBUG_ASSERT(op);
         const auto &op_name = op->GetOp();
         if (op_name == "MINUS") {
             if (operand_type == T_INT) {

@@ -1144,7 +1144,7 @@ std::string CGen::SpecFuncName(const std::string &base_name,
 }
 
 InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const {
-    if (!exp || exp->Type() != SyntaxTreeType::Exp) return T_DYNAMIC;
+    DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
     const auto &exp_type = e->ExpType();
 
@@ -1163,7 +1163,7 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
 
     if (exp_type == "prefixexp") {
         const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
-        if (!pe) return T_DYNAMIC;
+        DEBUG_ASSERT(pe);
         if (pe->GetType() == "var") {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
             if (!var || var->GetType() != "simple") return T_DYNAMIC;
@@ -1185,7 +1185,7 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
 
     if (exp_type == "binop") {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
-        if (!op) return T_DYNAMIC;
+        DEBUG_ASSERT(op);
         const auto lt = InferArgTypeForSpec(e->Left());
         const auto rt = InferArgTypeForSpec(e->Right());
         if (lt == T_DYNAMIC || rt == T_DYNAMIC) return T_DYNAMIC;
@@ -1204,7 +1204,7 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
 
     if (exp_type == "unop") {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
-        if (!op) return T_DYNAMIC;
+        DEBUG_ASSERT(op);
         if (op->GetOp() == "MINUS") return InferArgTypeForSpec(e->Right());
         return T_DYNAMIC;
     }
@@ -2110,12 +2110,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
 }
 
 std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
-    if (!exp) {
-        ThrowFakeluaException("Code generate failed, expected expression for numeric specialization");
-    }
-    if (exp->Type() != SyntaxTreeType::Exp) {
-        ThrowError("expected expression for numeric specialization", exp);
-    }
+    DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
 
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
 
@@ -2129,9 +2124,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         ThrowError("number node is not inferred as numeric", exp);
     } else if (exp_type == "prefixexp") {
         const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
-        if (!pe) {
-            ThrowError("invalid prefix expression", exp);
-        }
+        DEBUG_ASSERT(pe);
         if (pe->GetType() == "var") {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
             if (!var || var->GetType() != "simple") {
@@ -2159,9 +2152,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         ThrowError("function call cannot be specialized as numeric", exp);
     } else if (exp_type == "binop") {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
-        if (!op) {
-            ThrowError("missing operator in numeric specialization", exp);
-        }
+        DEBUG_ASSERT(op);
         const auto &op_name = op->GetOp();
         const auto left = CompileNumericExp(e->Left());
         const auto right = CompileNumericExp(e->Right());
@@ -2223,9 +2214,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         ThrowError("operator " + op_name + " is not supported in numeric specialization", exp);
     } else if (exp_type == "unop") {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
-        if (!op) {
-            ThrowError("missing operator in numeric specialization", exp);
-        }
+        DEBUG_ASSERT(op);
         const auto &op_name = op->GetOp();
         const auto operand = CompileNumericExp(e->Right());
         if (op_name == "MINUS") {

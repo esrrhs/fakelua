@@ -373,9 +373,7 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
 }
 
 void PreProcessor::CheckGlobalConstExp(const SyntaxTreeInterfacePtr &exp) {
-    if (!exp || exp->Type() != SyntaxTreeType::Exp) {
-        return;
-    }
+    DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
     const auto &exp_type = e->ExpType();
 
