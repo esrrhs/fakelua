@@ -765,9 +765,7 @@ void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
         CollectReassignedVars(func_block, reassigned_params);
 
         std::vector<int> math_indices;
-        for (int i = 0; i < static_cast<int>(params.size()) &&
-                         static_cast<int>(math_indices.size()) < kMaxMathParams;
-             ++i) {
+        for (int i = 0; i < static_cast<int>(params.size()); ++i) {
             // 被重新赋值的参数跳过：特化 CGen 无法安全处理对原生类型参数的 CVar 回写。
             if (reassigned_params.count(params[i])) {
                 continue;

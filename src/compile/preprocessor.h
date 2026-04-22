@@ -31,6 +31,8 @@ private:
     void PreprocessTableAssign(const SyntaxTreeInterfacePtr &node);
 
 private:
+    static constexpr size_t kMaxFunctionInputParams = 8;
+
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
 
     std::string LocationStr(const SyntaxTreeInterfacePtr &ptr);
