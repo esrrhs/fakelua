@@ -25,7 +25,7 @@
 namespace fakelua {
 
 namespace {
-constexpr size_t kCExtLen = 2;// ".c"
+constexpr size_t kCExtLen = 2;// 文件扩展名 ".c" 的长度
 constexpr int kExecFailedStatus = 127;
 
 std::string JoinCommand(const std::vector<std::string> &args) {

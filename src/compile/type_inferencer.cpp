@@ -339,7 +339,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
 
         const auto &op_name = op->GetOp();
 
-        // Arithmetic ops that preserve INT+INT=INT, mixed→FLOAT
+        // 保持 INT+INT=INT、混合→FLOAT 语义的算术运算
         if (op_name == "PLUS" || op_name == "MINUS" || op_name == "STAR" || op_name == "DOUBLE_SLASH" || op_name == "MOD") {
             if (left_type == T_INT && right_type == T_INT) {
                 exp->SetEvalType(T_INT);
@@ -351,7 +351,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
             }
         }
 
-        // Ops that always produce FLOAT
+        // 结果始终为 FLOAT 的运算
         if (op_name == "SLASH" || op_name == "POW") {
             if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
                 exp->SetEvalType(T_FLOAT);
@@ -359,7 +359,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
             }
         }
 
-        // Bitwise ops: always T_INT when both operands are T_INT
+        // 位运算：两个操作数均为 T_INT 时结果为 T_INT
         if (op_name == "BITAND" || op_name == "BITOR" || op_name == "XOR" || op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
             if (left_type == T_INT && right_type == T_INT) {
                 exp->SetEvalType(T_INT);

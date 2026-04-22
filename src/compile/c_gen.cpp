@@ -62,8 +62,7 @@ void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
 }
 
 std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
-    // Load math-param analysis results so that GenerateDecls and GenerateImpl
-    // can use them.
+    // 加载数学参数分析结果，供 GenerateDecls 和 GenerateImpl 使用。
     math_param_positions_ = cr.math_param_positions;
     specialization_snapshots_ = &cr.specialization_snapshots;
 
@@ -683,8 +682,8 @@ static inline CVar FlConcat(CVar a, CVar b) {
     } \
 } while(0)
 
-// Native integer floor-division (Lua semantics: floor toward -inf).
-// Keeps identical semantics with OpFloorDiv's VAR_INT branch for consistency.
+// 原生整数向下取整除法（Lua 语义：向负无穷方向取整）。
+// 与 OpFloorDiv 的 VAR_INT 分支保持完全一致的语义。
 // UB 说明（有意保留）：当 a==INT64_MIN 且 b==-1 时，/ 和 % 均触发有符号溢出 UB。
 // Lua 5.4 官方实现同样未特判，x86-64 IDIV 硬件行为稳定，为性能不加额外分支。
 #define FlFloorDivInt(a, b) ({ \
@@ -695,8 +694,8 @@ static inline CVar FlConcat(CVar a, CVar b) {
     __fl_q; \
 })
 
-// Native integer modulo (Lua semantics: a - b * floor(a/b)).
-// Keeps identical semantics with OpMod's VAR_INT branch for consistency.
+// 原生整数取模（Lua 语义：a - b * floor(a/b)）。
+// 与 OpMod 的 VAR_INT 分支保持完全一致的语义。
 // UB 说明（有意保留）：当 a==INT64_MIN 且 b==-1 时，/ 和 % 均触发有符号溢出 UB。
 // Lua 5.4 官方实现同样未特判，x86-64 IDIV 硬件行为稳定，为性能不加额外分支。
 #define FlModInt(a, b) ({ \
@@ -707,8 +706,8 @@ static inline CVar FlConcat(CVar a, CVar b) {
     __fm_a - __fm_b * __fm_q; \
 })
 
-// Native float modulo (Lua semantics: a - b * floor(a/b)).
-// Matches OpMod's VAR_FLOAT branch.
+// 原生浮点取模（Lua 语义：a - b * floor(a/b)）。
+// 与 OpMod 的 VAR_FLOAT 分支保持一致。
 #define FlModFloat(a, b) ({ \
     double __fmf_a = (a); double __fmf_b = (b); \
     __fmf_a - __fmf_b * floor(__fmf_a / __fmf_b); \
@@ -784,7 +783,7 @@ void CGen::GenerateGlobal(CompileResult &cr) {
 void CGen::GenerateDecls(CompileResult &cr) {
     *cur_output_ << "\n// ===== Function Declarations =====\n\n";
 
-    std::unordered_map<std::string, std::vector<std::string>> func_decls;// func name -> list of parameter types (for overloads)
+    std::unordered_map<std::string, std::vector<std::string>> func_decls;// 函数名 -> 参数类型列表（用于重载）
 
     const auto chunk = cr.chunk;
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
@@ -829,7 +828,7 @@ void CGen::GenerateDecls(CompileResult &cr) {
         // 记录函数参数数量
         cr.function_names[name] = static_cast<int>(params.size());
 
-        // If the function has math params, also declare 2^k specialization variants.
+        // 如果函数含有数学参数，还需声明 2^k 个特化变体。
         const auto math_it = math_param_positions_.find(name);
         if (math_it != math_param_positions_.end()) {
             const auto &math_params = math_it->second;
@@ -848,8 +847,8 @@ void CGen::GenerateDecls(CompileResult &cr) {
                     }
                 }
                 *cur_output_ << ");\n";
-                // Register specialization names so CompileFunctioncall recognises them
-                // as local calls (same-file direct invocation).
+                // 注册特化函数名，使 CompileFunctioncall 能将其识别为
+                // 本地调用（同文件直接调用）。
                 cr.function_names[spec_name] = static_cast<int>(params.size());
             }
         }
@@ -960,13 +959,12 @@ void CGen::GenerateImpl(CompileResult &cr) {
         const auto func_block = funcbody_ptr->Block();
         const auto math_it = math_param_positions_.find(name);
         if (math_it != math_param_positions_.end()) {
-            // Function has math params: generate 2^k specialization bodies, then
-            // the entry dispatcher.
+            // 函数含有数学参数：生成 2^k 个特化函数体，然后生成入口分发器。
             const auto &math_params = math_it->second;
             const int num_specs = 1 << static_cast<int>(math_params.size());
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
                 const auto spec_name = SpecFuncName(name, math_params, bitmask);
-                // Emit spec function signature.
+                // 输出特化函数签名。
                 *cur_output_ << "CVar " << spec_name << "(";
                 for (size_t i = 0; i < func_params.size(); ++i) {
                     if (i > 0) *cur_output_ << ", ";
@@ -982,10 +980,10 @@ void CGen::GenerateImpl(CompileResult &cr) {
                 CompileFuncBody(name, func_params, func_block, bitmask);
                 *cur_output_ << "}\n";
             }
-            // Emit the entry dispatcher (original CVar signature).
+            // 输出入口分发器（原始 CVar 签名）。
             GenerateEntryDispatcher(name, func_params, math_params);
         } else {
-            // No math params: compile normally (unchanged behaviour).
+            // 无数学参数：正常编译（行为不变）。
             *cur_output_ << "CVar " << name << "(";
             for (size_t i = 0; i < func_params.size(); ++i) {
                 if (i > 0) *cur_output_ << ", ";
@@ -1002,7 +1000,7 @@ void CGen::CompileFuncBody(const std::string &func_name,
                              const std::vector<std::string> &func_params,
                              const SyntaxTreeInterfacePtr &func_block,
                              int spec_bitmask) {
-    // Set up specialization context.
+    // 初始化特化上下文。
     spec_param_types_.clear();
     cur_spec_bitmask_ = spec_bitmask;
     cur_spec_func_name_ = (spec_bitmask >= 0) ? func_name : "";
@@ -1015,8 +1013,8 @@ void CGen::CompileFuncBody(const std::string &func_name,
             spec_param_types_[param_name] =
                     (MathParamKindOf(spec_bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
         }
-        // Look up the per-bitmask snapshot so that CompileStmtLocalVar / CompileVar
-        // can query any AST node's type under this specific parameter-type combination.
+        // 查找当前位掩码对应的快照，以便 CompileStmtLocalVar / CompileVar
+        // 在此参数类型组合下能查询到每个 AST 节点的正确类型。
         if (specialization_snapshots_) {
             if (const auto snap_it = specialization_snapshots_->find(func_name);
                 snap_it != specialization_snapshots_->end()) {
@@ -1028,13 +1026,12 @@ void CGen::CompileFuncBody(const std::string &func_name,
         }
     }
 
-    // Compile the function body into the body buffer.
+    // 将函数体编译到 body 缓冲区。
     //
-    // If this is a specialization, temporarily apply the snapshot's EvalTypes
-    // to every AST node in the function block so that all existing EvalType()
-    // calls throughout the compiler see the correct per-bitmask types.
-    // Save the current EvalTypes first so we can restore them afterwards,
-    // keeping the AST clean for subsequent bitmask and non-spec compilations.
+    // 若处于特化模式，临时将快照中的 EvalType 应用到函数块的每个 AST 节点，
+    // 使整个编译器中所有 EvalType() 调用都能看到当前位掩码对应的正确类型。
+    // 先保存当前的 EvalType，以便后续恢复，保持 AST 对后续位掩码
+    // 及非特化编译的干净状态。
     EvalTypeSnapshot saved_eval_types;
     if (cur_spec_snapshot_ != nullptr) {
         WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &n) {
@@ -1052,9 +1049,9 @@ void CGen::CompileFuncBody(const std::string &func_name,
     native_var_scopes_.clear();
     EnterNativeVarScope();
     for (const auto &param_name: func_params) {
-        // Math params in spec mode are tracked via spec_param_types_, not as
-        // typed native vars (to avoid interaction with CompileStmtAssign's
-        // CompileNumericExp path on CVar RHS).
+        // 特化模式中，数学参数通过 spec_param_types_ 跟踪，而不作为
+        // 带类型的原生变量（以避免 CompileStmtAssign 的
+        // CompileNumericExp 路径在 CVar 右值时出现交互问题）。
         DeclareNativeVar(param_name, false);
     }
     cur_output_ = &body_ss_;
@@ -1066,14 +1063,14 @@ void CGen::CompileFuncBody(const std::string &func_name,
     *cur_output_ << func_temp_decls_.str();
     *cur_output_ << body_ss_.str();
 
-    // Restore EvalTypes that were overridden for this specialization.
+    // 恢复本次特化中被覆盖的 EvalType。
     if (cur_spec_snapshot_ != nullptr) {
         for (const auto &[ptr, type]: saved_eval_types) {
             ptr->SetEvalType(type);
         }
     }
 
-    // Clear specialization context.
+    // 清除特化上下文。
     spec_param_types_.clear();
     cur_spec_bitmask_ = -1;
     cur_spec_func_name_ = "";
@@ -1086,7 +1083,7 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
     const int k = static_cast<int>(math_param_indices.size());
     const int num_specs = 1 << k;
 
-    // Entry function: always uses CVar signature.
+    // 入口函数：始终使用 CVar 签名。
     *cur_output_ << "CVar " << func_name << "(";
     for (size_t i = 0; i < func_params.size(); ++i) {
         if (i > 0) *cur_output_ << ", ";
@@ -1094,7 +1091,7 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
     }
     *cur_output_ << ") {\n";
 
-    // Compute dispatch index.
+    // 计算分发索引。
     *cur_output_ << "    int flua_spec_idx = ";
     for (int i = 0; i < k; ++i) {
         if (i > 0) *cur_output_ << " | ";
@@ -1109,7 +1106,7 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
     }
     *cur_output_ << ";\n";
 
-    // Dispatch table (switch).
+    // 分发表（switch）。
     *cur_output_ << "    switch (flua_spec_idx) {\n";
     for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
         const auto spec_name = SpecFuncName(func_name, math_param_indices, bitmask);
@@ -1149,10 +1146,10 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
     const auto &exp_type = e->ExpType();
 
     if (exp_type == "number") {
-        // Use EvalType set by TypeInferencer.
+        // 使用 TypeInferencer 设置的 EvalType。
         if (e->EvalType() == T_INT) return T_INT;
         if (e->EvalType() == T_FLOAT) return T_FLOAT;
-        // Fallback: probe the string value.
+        // 回退：探查字符串值。
         const auto &val = e->ExpValue();
         if (val.find('.') == std::string::npos && val.find('e') == std::string::npos &&
             val.find('E') == std::string::npos) {
@@ -1168,11 +1165,11 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
             if (!var || var->GetType() != "simple") return T_DYNAMIC;
             const auto &vname = var->GetName();
-            // Specialization context takes priority.
+            // 特化上下文优先。
             if (const auto it = spec_param_types_.find(vname); it != spec_param_types_.end()) {
                 return it->second;
             }
-            // Fall back to TypeInferencer's EvalType (works for typed local vars).
+            // 回退到 TypeInferencer 的 EvalType（适用于带类型的局部变量）。
             const auto t = e->EvalType();
             if (t == T_INT || t == T_FLOAT) return t;
             return T_DYNAMIC;
@@ -1180,7 +1177,7 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
         if (pe->GetType() == "exp") {
             return InferArgTypeForSpec(pe->GetValue());
         }
-        return T_DYNAMIC;// functioncall
+        return T_DYNAMIC;// 函数调用
     }
 
     if (exp_type == "binop") {
@@ -1811,7 +1808,7 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
         }
     } else if (ExpType == "number") {
         if (IsInteger(value)) {
-            // eg: (CVar){.type_ = VAR_INT, .data_.i = 42}
+            // 例：(CVar){.type_ = VAR_INT, .data_.i = 42}
             auto i = ToInteger(value);
             return std::format("(CVar){{.type_ = VAR_INT, .data_.i = {}}}", i);
         } else {
@@ -2065,8 +2062,8 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
             // PreProcessor 已确保全局初始化中不存在变量引用
             ThrowError("variable reference is not allowed in global variable initialization", v);
         }
-        // In a specialization, math params have a known native type.  Box them
-        // to CVar so that the rest of the expression machinery remains uniform.
+        // 在特化中，数学参数具有已知的原生类型，将其装箱为 CVar，
+        // 使后续的表达式处理机制保持统一。
         if (const auto spec_it = spec_param_types_.find(name); spec_it != spec_param_types_.end()) {
             if (spec_it->second == T_INT) {
                 return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
@@ -2131,7 +2128,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
                 ThrowError("only simple variable is supported in numeric specialization", exp);
             }
             const auto &vname = var->GetName();
-            // Specialization context: math params are native types — use directly.
+            // 特化上下文：数学参数为原生类型——直接使用。
             if (spec_param_types_.count(vname)) {
                 return vname;
             }
@@ -2157,7 +2154,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         const auto left = CompileNumericExp(e->Left());
         const auto right = CompileNumericExp(e->Right());
 
-        // Simple ops that map directly to a C operator
+        // 可直接映射为 C 运算符的简单运算
         if (op_name == "PLUS") {
             return std::format("(({}) + ({}))", left, right);
         }
@@ -2168,17 +2165,17 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return std::format("(({}) * ({}))", left, right);
         }
 
-        // Division always produces float in Lua
+        // Lua 中除法结果始终为浮点数
         if (op_name == "SLASH") {
             return std::format("((double)({}) / (double)({}))", left, right);
         }
 
-        // Power always produces float in Lua
+        // Lua 中幂运算结果始终为浮点数
         if (op_name == "POW") {
             return std::format("pow((double)({}), (double)({}))", left, right);
         }
 
-        // Floor division: int→FlFloorDivInt helper, float→floor(a/b)
+        // 向下取整除法：整数 → FlFloorDivInt，浮点 → floor(a/b)
         if (op_name == "DOUBLE_SLASH") {
             if (e->EvalType() == T_INT) {
                 return std::format("FlFloorDivInt(({}), ({}))", left, right);
@@ -2186,7 +2183,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return std::format("floor((double)({}) / (double)({}))", left, right);
         }
 
-        // Modulo: int→FlModInt helper, float→FlModFloat helper
+        // 取模：整数 → FlModInt，浮点 → FlModFloat
         if (op_name == "MOD") {
             if (e->EvalType() == T_INT) {
                 return std::format("FlModInt(({}), ({}))", left, right);
@@ -2194,7 +2191,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return std::format("FlModFloat((double)({}), (double)({}))", left, right);
         }
 
-        // Bitwise ops: both operands are T_INT, result is T_INT
+        // 位运算：两个操作数均为 T_INT 时结果为 T_INT
         if (op_name == "BITAND") {
             return std::format("((int64_t)({}) & (int64_t)({}))", left, right);
         }
@@ -2259,14 +2256,14 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
     const auto &args_type = args_ptr->GetType();
 
-    // Determine function name before compiling args (needed for spec-call check).
+    // 在编译参数之前先确定函数名（特化调用检查需要）。
     const auto pe_pre = fc->prefixexp();
     DEBUG_ASSERT(pe_pre->Type() == SyntaxTreeType::PrefixExp);
     const auto pe_pre_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe_pre);
 
-    // Attempt direct-call optimisation: if the callee is a local function with
-    // math params and all math-param arguments have a known native type, emit a
-    // specialization call directly, bypassing the entry dispatcher.
+    // 尝试直接调用优化：若被调函数是含有数学参数的本地函数，
+    // 且所有数学参数的实参类型均已知，则直接发出特化调用，
+    // 跳过入口分发器。
     if (!in_global_init_ && pe_pre_ptr->GetType() == "var" && args_type == "explist") {
         const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
         if (callee_var && callee_var->GetType() == "simple") {
@@ -2279,7 +2276,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
                 const auto &raw_args = explist_arg_ptr->Exps();
 
-                // Step 1: infer types for all math-param arguments (pure — no side effects).
+                // 步骤一：推断所有数学参数实参的类型（纯函数，无副作用）。
                 bool can_spec = true;
                 int bitmask = 0;
                 for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
@@ -2297,8 +2294,8 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 }
 
                 if (can_spec) {
-                    // Step 2: pre-compile native expressions for math params (pure).
-                    std::unordered_map<int, std::string> native_exprs;// param_pos -> expr
+                    // 步骤二：预编译数学参数的原生表达式（纯函数）。
+                    std::unordered_map<int, std::string> native_exprs;// param_pos -> 表达式字符串
                     for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
                         const int param_pos = math_params[i];
                         const auto native_expr = TryCompileNativeExpr(raw_args[param_pos]);
@@ -2310,7 +2307,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                     }
 
                     if (can_spec) {
-                        // Step 3: compile the call.
+                        // 步骤三：编译调用。
                         const auto spec_name = SpecFuncName(callee_name, math_params, bitmask);
                         std::string call = spec_name + "(";
                         for (int i = 0; i < static_cast<int>(raw_args.size()); ++i) {
@@ -2333,7 +2330,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         }
     }
 
-    // Normal path: compile all arguments as CVar.
+    // 普通路径：将所有参数编译为 CVar。
     std::vector<std::string> compiled_args;
     if (args_type == "explist") {
         const auto explist = args_ptr->Explist();

@@ -36,34 +36,34 @@ private:
 
     void GenerateImpl(CompileResult &cr);
 
-    // Compile a function body into the current output stream.
-    // `spec_bitmask` >= 0 enables specialization mode: for math param i,
-    // MathParamKindOf(spec_bitmask, i) == kMathParamInt → int64_t,
-    //                                    == kMathParamFloat → double.
-    // `spec_bitmask` < 0 means normal (non-specialized) mode.
+    // 将函数体编译到当前输出流。
+    // `spec_bitmask` >= 0 时启用特化模式：对数学参数 i，
+    // MathParamKindOf(spec_bitmask, i) == kMathParamInt → int64_t，
+    //                                    == kMathParamFloat → double。
+    // `spec_bitmask` < 0 表示普通（非特化）模式。
     void CompileFuncBody(const std::string &func_name,
                           const std::vector<std::string> &func_params,
                           const SyntaxTreeInterfacePtr &func_block,
                           int spec_bitmask);
 
-    // Generate the entry dispatcher for a function that has math params.
+    // 为含有数学参数的函数生成入口分发器。
     void GenerateEntryDispatcher(const std::string &func_name,
                                   const std::vector<std::string> &func_params,
                                   const std::vector<int> &math_param_indices);
 
-    // Return the specialization function name for the given base name and bitmask.
-    // E.g. SpecFuncName("fib", {0}, 0) -> "fib_0"
+    // 根据基础名称和位掩码返回特化函数名。
+    // 例如 SpecFuncName("fib", {0}, 0) -> "fib_0"
     //       SpecFuncName("test", {1,4}, 2) -> "test_0_1"
     static std::string SpecFuncName(const std::string &base_name,
                                      const std::vector<int> &math_param_indices, int bitmask);
 
-    // Infer the native type of an expression in the current specialization context.
-    // Returns T_INT, T_FLOAT, or T_DYNAMIC.
+    // 在当前特化上下文中推断表达式的原生类型。
+    // 返回 T_INT、T_FLOAT 或 T_DYNAMIC。
     [[nodiscard]] InferredType InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const;
 
-    // Try to compile an expression as a raw native value (int64_t / double expression).
-    // Returns the C expression string, or empty string on failure.
-    // This is purely functional — it emits no code to cur_output_.
+    // 尝试将表达式编译为原始数值（int64_t / double 表达式）。
+    // 返回 C 表达式字符串，失败时返回空字符串。
+    // 该函数是纯函数式的——不向 cur_output_ 写入任何代码。
     std::string TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp);
 
     void CompileStmtBlock(const SyntaxTreeInterfacePtr &block);
@@ -147,28 +147,28 @@ private:
     // - false : 当前可见绑定是 CVar（即使外层同名变量是原生类型）
     std::vector<std::unordered_map<std::string, bool>> native_var_scopes_;
 
-    // Math-param analysis results from TypeInferencer::DiscoverMathParams.
-    // func_name -> sorted list of parameter indices that are math params.
+    // 来自 TypeInferencer::DiscoverMathParams 的数学参数分析结果。
+    // func_name -> 按升序排列的数学参数索引列表。
     std::unordered_map<std::string, std::vector<int>> math_param_positions_;
 
-    // Per-bitmask AST type snapshots for all functions with math params.
-    // Pointer into the CompileResult that is alive for the duration of Build().
+    // 所有含数学参数的函数的按位掩码分组的 AST 类型快照。
+    // 指向 CompileResult 中在 Build() 调用期间始终有效的数据。
     const std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> *specialization_snapshots_ = nullptr;
 
-    // Specialization context — populated during specialization body compilation.
-    // Maps math-param names to their native type (T_INT or T_FLOAT).
-    // Empty when not in a specialization.
+    // 特化上下文——在特化函数体编译期间填充。
+    // 将数学参数名称映射到其原生类型（T_INT 或 T_FLOAT）。
+    // 不在特化中时为空。
     std::unordered_map<std::string, InferredType> spec_param_types_;
 
-    // Base name of the function currently being specialized (empty = none).
+    // 当前正在特化的函数基础名称（不在特化中时为空）。
     std::string cur_spec_func_name_;
 
-    // Bitmask of the current specialization (-1 = not in a specialization).
-    // Bit i = 0 → math_param[i] is int64_t; bit i = 1 → double.
+    // 当前特化的位掩码（-1 表示不在特化中）。
+    // 第 i 位为 0 → math_param[i] 为 int64_t；第 i 位为 1 → double。
     int cur_spec_bitmask_ = -1;
 
-    // Snapshot for the current specialization bitmask, or nullptr when not in
-    // a specialization.  Points into specialization_snapshots_.
+    // 当前特化位掩码对应的快照，不在特化中时为 nullptr。
+    // 指向 specialization_snapshots_ 中的数据。
     const EvalTypeSnapshot *cur_spec_snapshot_ = nullptr;
 };
 

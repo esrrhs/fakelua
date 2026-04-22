@@ -308,7 +308,7 @@ void VarToVi(State *s, CVar src, VarInterface *dst) {
             const uint32_t count = static_cast<uint32_t>(table->Size());
             const VarTable::VarEntry *quick_data = table->GetQuickData();
             const auto *nodes = table->GetNodes();
-            if (const uint32_t *active_list = table->GetActiveList(); active_list == nullptr) {// Quick Path
+            if (const uint32_t *active_list = table->GetActiveList(); active_list == nullptr) {// 快速路径
                 for (uint32_t i = 0; i < count; ++i) {
                     const auto &entry = quick_data[i];
                     const auto k = entry.key;
@@ -319,7 +319,7 @@ void VarToVi(State *s, CVar src, VarInterface *dst) {
                     VarToVi(s, v, vi);
                     kvs.emplace_back(ki, vi);
                 }
-            } else {// Hash Table Path
+            } else {// 哈希表路径
                 for (uint32_t i = 0; i < count; ++i) {
                     const auto &entry = nodes[active_list[i]].entry;
                     const auto k = entry.key;
