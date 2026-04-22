@@ -60,17 +60,15 @@ InferredType TypeEnvironment::MergeType(const InferredType old_type, const Infer
     return T_DYNAMIC;
 }
 
-void TypeInferencer::Process(CompileResult &cr, const CompileConfig &cfg) {
+void TypeInferencer::Process(CompileResult &cr) {
     WalkSyntaxTree(cr.chunk, [](const SyntaxTreeInterfacePtr &ptr) { ptr->SetEvalType(T_UNKNOWN); });
-    InferNode(cr.chunk);
+    InferAndSetEvalType(cr.chunk);
 
     // 在正常推断之后，通过迭代不动点试推断发现数学参数，写入 cr.math_param_positions。
-    if (!cfg.skip_jit) {
-        DiscoverMathParams(cr);
-    }
+    DiscoverMathParams(cr);
 }
 
-InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
+InferredType TypeInferencer::InferAndSetEvalType(const SyntaxTreeInterfacePtr &node) {
     if (!node) {
         return T_UNKNOWN;
     }
@@ -101,7 +99,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             for (size_t i = 0; i < names.size(); ++i) {
                 InferredType type = T_DYNAMIC;
                 if (i < exps.size()) {
-                    const auto inferred = InferNode(exps[i]);
+                    const auto inferred = InferAndSetEvalType(exps[i]);
                     // 文件级局部变量存储为 static const CVar，而非 int64_t/double，
                     // 因此在环境中必须始终为 T_DYNAMIC，以防止函数将它们
                     // 视为原生类型变量。
@@ -119,22 +117,13 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
             const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
             const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
-            if (!varlist || !explist || explist->Exps().empty() || varlist->Vars().empty()) {
-                node->SetEvalType(T_DYNAMIC);
-                return T_DYNAMIC;
-            }
+            DEBUG_ASSERT(varlist && explist && !varlist->Vars().empty() && !explist->Exps().empty());
 
             DEBUG_ASSERT(varlist->Vars().size() == 1 && explist->Exps().size() == 1);// 预处理阶段已将多赋值拆分成单赋值
 
-            const InferredType rhs_type = InferNode(explist->Exps()[0]);
+            const InferredType rhs_type = InferAndSetEvalType(explist->Exps()[0]);
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
-            if (!var || var->GetType() != "simple") {
-                if (var) {
-                    var->SetEvalType(T_DYNAMIC);
-                }
-                node->SetEvalType(T_DYNAMIC);
-                return T_DYNAMIC;
-            }
+            DEBUG_ASSERT(var && var->GetType() == "simple");
 
             const std::string name = var->GetName();
             if (!env_.Update(name, rhs_type)) {
@@ -150,9 +139,9 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
         }
         case SyntaxTreeType::ForLoop: {
             const auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
-            InferNode(for_loop->ExpBegin());
-            InferNode(for_loop->ExpEnd());
-            InferNode(for_loop->ExpStep());
+            InferAndSetEvalType(for_loop->ExpBegin());
+            InferAndSetEvalType(for_loop->ExpEnd());
+            InferAndSetEvalType(for_loop->ExpStep());
 
             // 仅当所有边界都是 T_INT 时才将循环变量标记为 T_INT，
             // 这与 CGen 使用的整型特化路径相匹配。当所有边界均为数值（T_INT 或 T_FLOAT）
@@ -183,19 +172,19 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
         }
         case SyntaxTreeType::Function: {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
-            InferNode(func->Funcbody());
+            InferAndSetEvalType(func->Funcbody());
             node->SetEvalType(T_UNKNOWN);
             return T_UNKNOWN;
         }
         case SyntaxTreeType::LocalFunction: {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
-            InferNode(func->Funcbody());
+            InferAndSetEvalType(func->Funcbody());
             node->SetEvalType(T_UNKNOWN);
             return T_UNKNOWN;
         }
         case SyntaxTreeType::FunctionDef: {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node);
-            InferNode(func->Funcbody());
+            InferAndSetEvalType(func->Funcbody());
             node->SetEvalType(T_UNKNOWN);
             return T_UNKNOWN;
         }
@@ -218,7 +207,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
         }
         case SyntaxTreeType::Return: {
             const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
-            InferNode(ret->Explist());
+            InferAndSetEvalType(ret->Explist());
             node->SetEvalType(T_UNKNOWN);
             return T_UNKNOWN;
         }
@@ -226,7 +215,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             const auto exp_list = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
             InferredType last = T_UNKNOWN;
             for (const auto &exp: exp_list->Exps()) {
-                last = InferNode(exp);
+                last = InferAndSetEvalType(exp);
             }
             node->SetEvalType(last);
             return last;
@@ -245,47 +234,47 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
         }
         case SyntaxTreeType::FunctionCall: {
             const auto functioncall = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
-            InferNode(functioncall->prefixexp());
-            InferNode(functioncall->Args());
+            InferAndSetEvalType(functioncall->prefixexp());
+            InferAndSetEvalType(functioncall->Args());
             node->SetEvalType(T_DYNAMIC);
             return T_DYNAMIC;
         }
         case SyntaxTreeType::TableConstructor: {
             const auto tableconstructor = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
-            InferNode(tableconstructor->Fieldlist());
+            InferAndSetEvalType(tableconstructor->Fieldlist());
             node->SetEvalType(T_DYNAMIC);
             return T_DYNAMIC;
         }
         case SyntaxTreeType::Args: {
             const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
-            InferNode(args->Explist());
-            InferNode(args->Tableconstructor());
-            InferNode(args->String());
+            InferAndSetEvalType(args->Explist());
+            InferAndSetEvalType(args->Tableconstructor());
+            InferAndSetEvalType(args->String());
             node->SetEvalType(T_DYNAMIC);
             return T_DYNAMIC;
         }
         case SyntaxTreeType::FieldList: {
             const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
             for (const auto &field: fieldlist->Fields()) {
-                InferNode(field);
+                InferAndSetEvalType(field);
             }
             node->SetEvalType(T_DYNAMIC);
             return T_DYNAMIC;
         }
         case SyntaxTreeType::Field: {
             const auto field = std::dynamic_pointer_cast<SyntaxTreeField>(node);
-            InferNode(field->Key());
-            InferNode(field->Value());
+            InferAndSetEvalType(field->Key());
+            InferAndSetEvalType(field->Value());
             node->SetEvalType(T_DYNAMIC);
             return T_DYNAMIC;
         }
         case SyntaxTreeType::If: {
             const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
-            InferNode(if_stmt->Exp());
+            InferAndSetEvalType(if_stmt->Exp());
             InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(if_stmt->Block()), true);
             if (const auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs())) {
                 for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
-                    InferNode(elseifs->ElseifExp(i));
+                    InferAndSetEvalType(elseifs->ElseifExp(i));
                     InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(elseifs->ElseifBlock(i)), true);
                 }
             }
@@ -295,7 +284,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
         }
         case SyntaxTreeType::While: {
             const auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
-            InferNode(while_stmt->Exp());
+            InferAndSetEvalType(while_stmt->Exp());
             InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(while_stmt->Block()), true);
             node->SetEvalType(T_UNKNOWN);
             return T_UNKNOWN;
@@ -303,14 +292,14 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
         case SyntaxTreeType::Repeat: {
             const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
             InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(repeat_stmt->Block()), true);
-            InferNode(repeat_stmt->Exp());
+            InferAndSetEvalType(repeat_stmt->Exp());
             node->SetEvalType(T_UNKNOWN);
             return T_UNKNOWN;
         }
         case SyntaxTreeType::ForIn: {
             const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
-            InferNode(for_in->Namelist());
-            InferNode(for_in->Explist());
+            InferAndSetEvalType(for_in->Namelist());
+            InferAndSetEvalType(for_in->Explist());
             InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_in->Block()), true);
             node->SetEvalType(T_UNKNOWN);
             return T_UNKNOWN;
@@ -332,13 +321,13 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
         return ret;
     }
     if (exp_type == "prefixexp") {
-        const auto ret = InferNode(exp->Right());
+        const auto ret = InferAndSetEvalType(exp->Right());
         exp->SetEvalType(ret);
         return ret;
     }
     if (exp_type == "binop") {
-        const auto left_type = InferNode(exp->Left());
-        const auto right_type = InferNode(exp->Right());
+        const auto left_type = InferAndSetEvalType(exp->Left());
+        const auto right_type = InferAndSetEvalType(exp->Right());
 
         if (left_type == T_DYNAMIC || right_type == T_DYNAMIC) {
             exp->SetEvalType(T_DYNAMIC);
@@ -346,14 +335,11 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
         }
 
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
-        if (!op) {
-            exp->SetEvalType(T_DYNAMIC);
-            return T_DYNAMIC;
-        }
+        DEBUG_ASSERT(op);
 
         const auto &op_name = op->GetOp();
 
-        // Arithmetic ops that preserve INT+INT=INT, mixed→FLOAT
+        // 保持 INT+INT=INT、混合→FLOAT 语义的算术运算
         if (op_name == "PLUS" || op_name == "MINUS" || op_name == "STAR" || op_name == "DOUBLE_SLASH" || op_name == "MOD") {
             if (left_type == T_INT && right_type == T_INT) {
                 exp->SetEvalType(T_INT);
@@ -365,7 +351,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
             }
         }
 
-        // Ops that always produce FLOAT
+        // 结果始终为 FLOAT 的运算
         if (op_name == "SLASH" || op_name == "POW") {
             if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
                 exp->SetEvalType(T_FLOAT);
@@ -373,7 +359,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
             }
         }
 
-        // Bitwise ops: always T_INT when both operands are T_INT
+        // 位运算：两个操作数均为 T_INT 时结果为 T_INT
         if (op_name == "BITAND" || op_name == "BITOR" || op_name == "XOR" || op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
             if (left_type == T_INT && right_type == T_INT) {
                 exp->SetEvalType(T_INT);
@@ -386,12 +372,9 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
     }
 
     if (exp_type == "unop") {
-        const auto operand_type = InferNode(exp->Right());
+        const auto operand_type = InferAndSetEvalType(exp->Right());
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
-        if (!op) {
-            exp->SetEvalType(T_DYNAMIC);
-            return T_DYNAMIC;
-        }
+        DEBUG_ASSERT(op);
         const auto &op_name = op->GetOp();
         if (op_name == "MINUS") {
             if (operand_type == T_INT) {
@@ -422,10 +405,10 @@ InferredType TypeInferencer::InferPrefixExp(const std::shared_ptr<SyntaxTreePref
     InferredType ret = T_DYNAMIC;
 
     if (prefix_type == "var" || prefix_type == "exp") {
-        ret = InferNode(prefix_exp->GetValue());
+        ret = InferAndSetEvalType(prefix_exp->GetValue());
     } else if (prefix_type == "functioncall") {
         ret = T_DYNAMIC;
-        InferNode(prefix_exp->GetValue());
+        InferAndSetEvalType(prefix_exp->GetValue());
     }
 
     prefix_exp->SetEvalType(ret);
@@ -443,11 +426,11 @@ InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var)
     //（例如用作表索引的整型循环变量）设置其 EvalType。
     // 如果不这样做，CGen 会在需要 CVar 的地方发出原始 int64_t 变量名。
     if (const auto pe = var->GetPrefixexp()) {
-        InferNode(pe);
+        InferAndSetEvalType(pe);
     }
     if (var->GetType() == "square") {
         if (const auto exp = var->GetExp()) {
-            InferNode(exp);
+            InferAndSetEvalType(exp);
         }
     }
 
@@ -465,7 +448,7 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
     }
 
     for (const auto &stmt: block->Stmts()) {
-        InferNode(stmt);
+        InferAndSetEvalType(stmt);
     }
 
     // 后处理：变量可能被初始化为类型化表达式（例如整数字面量给出 T_INT），

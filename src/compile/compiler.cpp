@@ -62,7 +62,7 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
 
     // 3. 类型推导（同时识别数学参数，写入 ret.math_param_positions）
     TypeInferencer inferencer;
-    inferencer.Process(ret, cfg);
+    inferencer.Process(ret);
 
     // 4. 转译为C
     CGen cgen(s_);
