@@ -41,20 +41,36 @@ include_directories(./)
 include_directories(../include)
 include_directories(../src)
 include_directories(../src/platform)
-include_directories(/usr/include/lua5.4)
+
+find_path(FAKELUA_LUA_INCLUDE_DIR
+        NAMES lua.hpp
+        PATH_SUFFIXES lua5.4 lua
+)
+if (FAKELUA_LUA_INCLUDE_DIR)
+    include_directories(${FAKELUA_LUA_INCLUDE_DIR})
+else ()
+    include_directories(/usr/include/lua5.4)
+endif ()
+
+find_library(FAKELUA_LUA_LIBRARY
+        NAMES lua lua5.4
+)
+if (NOT FAKELUA_LUA_LIBRARY)
+    message(FATAL_ERROR "Lua library not found. Please install Lua development package.")
+endif ()
 
 IF (WIN32)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--export-all-symbols")
-ELSE ()
+ELSEIF (UNIX AND NOT APPLE)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-E")
 ENDIF ()
 
 add_executable(bench_mark ${BENCHMARK_SRC_LIST})
 
-if (NOT WIN32)
-    target_link_libraries(bench_mark PRIVATE dl)
+if (CMAKE_DL_LIBS)
+    target_link_libraries(bench_mark PRIVATE ${CMAKE_DL_LIBS})
 endif ()
-target_link_libraries(bench_mark PRIVATE fakelua benchmark lua)
+target_link_libraries(bench_mark PRIVATE fakelua benchmark ${FAKELUA_LUA_LIBRARY})
 
 IF (WIN32)
     add_custom_command(

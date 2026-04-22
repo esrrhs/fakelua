@@ -65,6 +65,22 @@ cmake --build build --parallel
 ctest --test-dir build -V
 ```
 
+### macOS
+
+依赖（最小）：
+
+- `cmake`
+- Xcode Command Line Tools（`clang`/`make`）
+- Lua 开发包（例如：`brew install lua`）
+
+示例：
+
+```bash
+cmake -S . -B build
+cmake --build build --parallel
+ctest --test-dir build -V
+```
+
 ## 测试与基准
 
 ```bash

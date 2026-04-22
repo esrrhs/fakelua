@@ -18,17 +18,33 @@ include_directories(./)
 include_directories(../include)
 include_directories(../src)
 include_directories(../src/platform)
-include_directories(/usr/include/lua5.4)
+
+find_path(FAKELUA_LUA_INCLUDE_DIR
+        NAMES lua.hpp
+        PATH_SUFFIXES lua5.4 lua
+)
+if (FAKELUA_LUA_INCLUDE_DIR)
+    include_directories(${FAKELUA_LUA_INCLUDE_DIR})
+else ()
+    include_directories(/usr/include/lua5.4)
+endif ()
+
+find_library(FAKELUA_LUA_LIBRARY
+        NAMES lua lua5.4
+)
+if (NOT FAKELUA_LUA_LIBRARY)
+    message(FATAL_ERROR "Lua library not found. Please install Lua development package.")
+endif ()
 
 IF (WIN32)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--export-all-symbols")
-ELSE ()
+ELSEIF (UNIX AND NOT APPLE)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-E")
 ENDIF ()
 
 add_executable(unit_tests ${TEST_SRC_LIST})
 
-target_link_libraries(unit_tests PRIVATE fakelua gtest_main lua)
+target_link_libraries(unit_tests PRIVATE fakelua gtest_main ${FAKELUA_LUA_LIBRARY})
 
 add_test(NAME unit COMMAND ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/unit_tests
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})

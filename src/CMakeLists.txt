@@ -80,7 +80,7 @@ else ()
             INSTALL_COMMAND make install
             BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
     )
-    set(TARGET_LIB ${TARGET_LIB} Threads::Threads dl m)
+    set(TARGET_LIB ${TARGET_LIB} Threads::Threads ${CMAKE_DL_LIBS} m)
 endif ()
 
 add_library(tinycc_embedded STATIC IMPORTED GLOBAL)

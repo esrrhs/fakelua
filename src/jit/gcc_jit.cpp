@@ -88,6 +88,8 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     const std::string so_file = c_file.substr(0, c_file.size() - kCExtLen) +
 #if defined(_WIN32)
             ".dll";
+#elif defined(__APPLE__)
+            ".dylib";
 #else
             ".so";
 #endif
@@ -104,8 +106,14 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     args.emplace_back("gcc");
     args.emplace_back("-x");
     args.emplace_back("c");
+#if defined(__APPLE__)
+    args.emplace_back("-dynamiclib");
+    args.emplace_back("-undefined");
+    args.emplace_back("dynamic_lookup");
+#else
     args.emplace_back("-shared");
-#if !defined(_WIN32)
+#endif
+#if !defined(_WIN32) && !defined(__APPLE__)
     args.emplace_back("-fPIC");
 #endif
     args.emplace_back(cfg.debug_mode ? "-O0" : "-O3");
