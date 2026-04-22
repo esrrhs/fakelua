@@ -285,6 +285,11 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
             if (parlist->VarParams()) {
                 ThrowError("varargs (...) is not supported", node);
             }
+            const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist());
+            const size_t param_size = namelist ? namelist->Names().size() : 0;
+            if (param_size > kMaxFunctionInputParams) {
+                ThrowError(std::format("function input params exceed limit {}, got {}", kMaxFunctionInputParams, param_size), node);
+            }
             break;
         }
         case SyntaxTreeType::Return: {
