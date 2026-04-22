@@ -252,8 +252,17 @@ void PreProcessor::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk) {
 
         if (stmt->Type() == SyntaxTreeType::LocalVar) {
             const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+            const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
+            if (!namelist) {
+                ThrowError("local variable namelist is missing", stmt);
+            }
             if (const auto explist = lv->Explist()) {
                 const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+                if (namelist->Names().size() != el->Exps().size()) {
+                    ThrowError(std::format("local variable count {} not match expression count {}", namelist->Names().size(),
+                                           el->Exps().size()),
+                               stmt);
+                }
                 for (const auto &exp: el->Exps()) {
                     CheckGlobalConstExp(exp);
                 }
@@ -277,6 +286,18 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
             const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
             if (!fc->Name().empty()) {
                 ThrowError("method calls (:) are not supported", node);
+            }
+            const auto callee_prefixexp = fc->prefixexp();
+            if (!callee_prefixexp || callee_prefixexp->Type() != SyntaxTreeType::PrefixExp) {
+                ThrowError("function call callee must be a prefix expression", node);
+            }
+            const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(callee_prefixexp);
+            if (callee_pe->GetType() != "var") {
+                ThrowError("function call callee must be a variable", node);
+            }
+            const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+            if (!callee_var || callee_var->GetType() != "simple") {
+                ThrowError("function call callee must be a simple variable", node);
             }
             break;
         }
