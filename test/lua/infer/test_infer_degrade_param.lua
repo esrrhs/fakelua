@@ -1,6 +1,7 @@
--- Type inference mid-way degradation: loop bound n is a parameter (T_DYNAMIC),
--- so the loop variable i degrades to T_DYNAMIC, which in turn causes sum to
--- degrade from T_INT to T_DYNAMIC.  Result must still be correct.
+-- ForLoop where the end bound n is a math parameter (int64_t or double).
+-- int specialization: all bounds T_INT → int64_t loop vars, int64_t sum.
+-- float specialization: end bound becomes T_FLOAT → double loop ctrl vars,
+-- sum degrades to CVar because MergeType(T_INT, T_FLOAT) = T_DYNAMIC.
 -- test(10) -> sum(1..10) = 55.
 function test(n)
     local sum = 0

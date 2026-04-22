@@ -6,6 +6,33 @@
 
 namespace fakelua {
 
+// AST 节点类型快照：节点原始指针 → 推断类型。
+// 每个特化 bitmask 对应一份快照，由 TypeInferencer::DiscoverMathParams 生成，
+// 供 CGen 在生成特化体时查询任意节点的类型。
+using EvalTypeSnapshot = std::unordered_map<SyntaxTreeInterface *, InferredType>;
+
+// 特化参数类型位掩码编码：bitmask 的第 i 位为 0 表示第 i 个数学参数为 int64_t，
+// 为 1 表示为 double。
+enum MathParamKind : int {
+    kMathParamInt = 0,   // 对应 int64_t
+    kMathParamFloat = 1, // 对应 double
+};
+
+// 根据 bitmask 和参数位索引返回该参数的类型。
+inline MathParamKind MathParamKindOf(int bitmask, int bit_index) {
+    return ((bitmask >> bit_index) & 1) ? kMathParamFloat : kMathParamInt;
+}
+
+// 返回 MathParamKind 对应的 C 类型名称字符串。
+inline const char *MathParamCTypeName(MathParamKind kind) {
+    return kind == kMathParamFloat ? "double" : "int64_t";
+}
+
+// 返回 MathParamKind 对应的 bitmask 后缀字符（'0' 或 '1'）。
+inline char MathParamSuffix(MathParamKind kind) {
+    return kind == kMathParamFloat ? '1' : '0';
+}
+
 // 编译结果，包含文件名和生成的语法树
 struct CompileResult {
     // 源代码文件名
@@ -19,6 +46,14 @@ struct CompileResult {
     std::string recorded_c_code;
     // 入口函数名->参数个数
     std::unordered_map<std::string, int> function_names;
+    // 数学参数位置：函数名 → 参数列表中参与算术运算的参数下标列表（最多8个）。
+    // 由 TypeInferencer::DiscoverMathParams 填充，供 CGen 生成特化版本时使用。
+    std::unordered_map<std::string, std::vector<int>> math_param_positions;
+    // 特化快照：函数名 → 按 bitmask 索引的 EvalTypeSnapshot 数组（共 2^k 个）。
+    // 每个快照记录在对应参数类型假设下整个函数体所有 AST 节点的推断类型，
+    // 由 TypeInferencer::DiscoverMathParams 生成，供 CGen 在不依赖 EvalType()
+    // 字段的情况下直接查询特化版本中任意节点的类型。
+    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots;
 };
 
 }// namespace fakelua

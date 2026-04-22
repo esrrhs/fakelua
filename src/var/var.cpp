@@ -11,16 +11,16 @@ namespace fakelua {
 
 Var const_null_var;
 
-static bool TryConvertNumberToInteger(const Var &v, int64_t &out) {
-    if (v.Type() == VarType::Int) {
-        out = v.GetInt();
+bool Var::TryConvertNumberToInteger(int64_t &out) const {
+    if (Type() == VarType::Int) {
+        out = GetInt();
         return true;
     }
-    if (v.Type() != VarType::Float) {
+    if (Type() != VarType::Float) {
         return false;
     }
 
-    const double d = v.GetFloat();
+    const double d = GetFloat();
     if (!std::isfinite(d)) {
         return false;
     }
@@ -290,7 +290,7 @@ void Var::Mod(const Var &rhs, Var &result) const {
 void Var::Bitand(const Var &rhs, Var &result) const {
     int64_t lhs_int = 0;
     int64_t rhs_int = 0;
-    if (!TryConvertNumberToInteger(*this, lhs_int) || !TryConvertNumberToInteger(rhs, rhs_int)) {
+    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
         ThrowFakeluaException(std::format("Var op failed, operand of '&' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
@@ -300,7 +300,7 @@ void Var::Bitand(const Var &rhs, Var &result) const {
 void Var::Xor(const Var &rhs, Var &result) const {
     int64_t lhs_int = 0;
     int64_t rhs_int = 0;
-    if (!TryConvertNumberToInteger(*this, lhs_int) || !TryConvertNumberToInteger(rhs, rhs_int)) {
+    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
         ThrowFakeluaException(std::format("Var op failed, operand of '~' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
@@ -310,7 +310,7 @@ void Var::Xor(const Var &rhs, Var &result) const {
 void Var::Bitor(const Var &rhs, Var &result) const {
     int64_t lhs_int = 0;
     int64_t rhs_int = 0;
-    if (!TryConvertNumberToInteger(*this, lhs_int) || !TryConvertNumberToInteger(rhs, rhs_int)) {
+    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
         ThrowFakeluaException(std::format("Var op failed, operand of '|' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
@@ -320,7 +320,7 @@ void Var::Bitor(const Var &rhs, Var &result) const {
 void Var::RightShift(const Var &rhs, Var &result) const {
     int64_t lhs_int = 0;
     int64_t rhs_int = 0;
-    if (!TryConvertNumberToInteger(*this, lhs_int) || !TryConvertNumberToInteger(rhs, rhs_int)) {
+    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
         ThrowFakeluaException(std::format("Var op failed, operand of '>>' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
@@ -340,7 +340,7 @@ void Var::RightShift(const Var &rhs, Var &result) const {
 void Var::LeftShift(const Var &rhs, Var &result) const {
     int64_t lhs_int = 0;
     int64_t rhs_int = 0;
-    if (!TryConvertNumberToInteger(*this, lhs_int) || !TryConvertNumberToInteger(rhs, rhs_int)) {
+    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
         ThrowFakeluaException(std::format("Var op failed, operand of '<<' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
     }
@@ -467,7 +467,7 @@ void Var::UnopNumberSign(Var &result) const {
 
 void Var::UnopBitnot(Var &result) const {
     int64_t int_value = 0;
-    if (!TryConvertNumberToInteger(*this, int_value)) {
+    if (!TryConvertNumberToInteger(int_value)) {
         ThrowFakeluaException(std::format("Var op failed, operand of '~' must be integer, got {} {}", VarTypeToString(Type()), ToString()));
     }
 

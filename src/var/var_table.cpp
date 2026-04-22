@@ -10,7 +10,7 @@ namespace fakelua {
 // QUICK_DATA_SIZE 必须为 8，因为本文件中有手动展开的代码
 static_assert(VarTable::QUICK_DATA_SIZE == 8, "QUICK_DATA_SIZE must be 8 for manually unrolled code");
 
-static Var NormalizeTableKey(const Var &key) {
+Var VarTable::NormalizeTableKey(const Var &key) const {
     if (key.Type() != VarType::Float) {
         return key;
     }

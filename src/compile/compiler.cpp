@@ -60,7 +60,7 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     PreProcessor pp(s_);
     pp.Process(ret, cfg);
 
-    // 3. 类型推导
+    // 3. 类型推导（同时识别数学参数，写入 ret.math_param_positions）
     TypeInferencer inferencer;
     inferencer.Process(ret, cfg);
 

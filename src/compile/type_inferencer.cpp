@@ -2,6 +2,7 @@
 
 #include "compile/type_inferencer.h"
 
+#include "compile/syntax_tree.h"
 #include "util/common.h"
 
 namespace fakelua {
@@ -59,9 +60,14 @@ InferredType TypeEnvironment::MergeType(const InferredType old_type, const Infer
     return T_DYNAMIC;
 }
 
-void TypeInferencer::Process(const CompileResult &cr, const CompileConfig &cfg) {
+void TypeInferencer::Process(CompileResult &cr, const CompileConfig &cfg) {
     WalkSyntaxTree(cr.chunk, [](const SyntaxTreeInterfacePtr &ptr) { ptr->SetEvalType(T_UNKNOWN); });
     InferNode(cr.chunk);
+
+    // 在正常推断之后，通过迭代不动点试推断发现数学参数，写入 cr.math_param_positions。
+    if (!cfg.skip_jit) {
+        DiscoverMathParams(cr);
+    }
 }
 
 InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
@@ -491,6 +497,316 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
     block->SetEvalType(T_UNKNOWN);
     if (new_scope) {
         env_.ExitScope();
+    }
+}
+
+// ---------------------------------------------------------------------------
+// 数学参数特化发现：迭代不动点推断
+// ---------------------------------------------------------------------------
+
+// 判断 exp 节点是否为算术二元运算（结果可为 T_INT/T_FLOAT 的运算符）。
+bool TypeInferencer::IsArithmeticBinop(const SyntaxTreeInterfacePtr &node) const {
+    if (node->Type() != SyntaxTreeType::Exp) {
+        return false;
+    }
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+    if (exp->ExpType() != "binop") {
+        return false;
+    }
+    const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
+    if (!op) {
+        return false;
+    }
+    const auto &op_name = op->GetOp();
+    return op_name == "PLUS" || op_name == "MINUS" || op_name == "STAR" || op_name == "SLASH" ||
+           op_name == "DOUBLE_SLASH" || op_name == "POW" || op_name == "MOD" || op_name == "BITAND" ||
+           op_name == "XOR" || op_name == "BITOR" || op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT";
+}
+
+// 收集函数体中所有出现在赋值语句 LHS 的简单变量名（不含 local 声明）。
+// 只遍历当前函数体层，不进入嵌套函数定义。
+void TypeInferencer::CollectReassignedVars(const SyntaxTreeInterfacePtr &node,
+                                           std::unordered_set<std::string> &reassigned) const {
+    if (!node) {
+        return;
+    }
+    switch (node->Type()) {
+        case SyntaxTreeType::Block: {
+            const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+            for (const auto &stmt: block->Stmts()) {
+                CollectReassignedVars(stmt, reassigned);
+            }
+            break;
+        }
+        // 不进入嵌套函数定义。
+        case SyntaxTreeType::Function:
+        case SyntaxTreeType::LocalFunction:
+        case SyntaxTreeType::FuncBody:
+        case SyntaxTreeType::FunctionDef:
+            break;
+        case SyntaxTreeType::Assign: {
+            const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
+            if (const auto varlist = assign->Varlist()) {
+                const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(varlist);
+                for (const auto &v: vl->Vars()) {
+                    if (v->Type() == SyntaxTreeType::Var) {
+                        const auto sv = std::dynamic_pointer_cast<SyntaxTreeVar>(v);
+                        if (sv->GetType() == "simple") {
+                            reassigned.insert(sv->GetName());
+                        }
+                    }
+                }
+            }
+            if (assign->Explist()) {
+                CollectReassignedVars(assign->Explist(), reassigned);
+            }
+            break;
+        }
+        case SyntaxTreeType::If: {
+            const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+            CollectReassignedVars(if_stmt->Block(), reassigned);
+            if (const auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs())) {
+                for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
+                    CollectReassignedVars(elseifs->ElseifBlock(i), reassigned);
+                }
+            }
+            CollectReassignedVars(if_stmt->ElseBlock(), reassigned);
+            break;
+        }
+        case SyntaxTreeType::While: {
+            const auto w = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
+            CollectReassignedVars(w->Block(), reassigned);
+            break;
+        }
+        case SyntaxTreeType::Repeat: {
+            const auto r = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
+            CollectReassignedVars(r->Block(), reassigned);
+            break;
+        }
+        case SyntaxTreeType::ForLoop: {
+            const auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
+            CollectReassignedVars(fl->Block(), reassigned);
+            break;
+        }
+        case SyntaxTreeType::ForIn: {
+            const auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
+            CollectReassignedVars(fi->Block(), reassigned);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func_block,
+                                               const std::vector<std::string> &params,
+                                               const std::unordered_map<std::string, InferredType> &assumed_types) {
+    // 保存当前推断器状态，trial 结束后恢复。
+    TypeEnvironment saved_env = env_;
+    const int saved_depth = funcbody_depth_;
+
+    EvalTypeMap prev_map;
+
+    for (int round = 0; round < kMaxSpecIterations; ++round) {
+        // 每轮重置函数体内所有节点的 EvalType，保证推断从干净状态开始。
+        WalkSyntaxTree(func_block, [](const SyntaxTreeInterfacePtr &n) { n->SetEvalType(T_UNKNOWN); });
+
+        // 以假定的参数类型初始化 trial 环境。
+        env_ = TypeEnvironment{};
+        funcbody_depth_ = 1;
+        for (const auto &p: params) {
+            const auto it = assumed_types.find(p);
+            env_.Define(p, it != assumed_types.end() ? it->second : T_DYNAMIC);
+        }
+
+        // 运行函数体类型推断（不新开作用域，参数已在当前作用域中定义）。
+        InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block), false);
+
+        // 快照本轮推断结果。
+        EvalTypeMap curr_map;
+        WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &n) { curr_map[n.get()] = n->EvalType(); });
+
+        if (curr_map == prev_map) {
+            // 已达到不动点，提前退出。
+            break;
+        }
+        prev_map = std::move(curr_map);
+    }
+
+    // 恢复推断器状态（EvalType 保持本轮 trial 推断结果，由调用方负责恢复）。
+    env_ = std::move(saved_env);
+    funcbody_depth_ = saved_depth;
+
+    return prev_map;
+}
+
+bool TypeInferencer::HasArithmeticImprovement(const EvalTypeMap &all_int, const EvalTypeMap &baseline,
+                                               const SyntaxTreeInterfacePtr &func_block) const {
+    bool found = false;
+    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+        if (found || !IsArithmeticBinop(node)) {
+            return;
+        }
+        const auto it_all = all_int.find(node.get());
+        const auto it_base = baseline.find(node.get());
+        if (it_all == all_int.end() || it_base == baseline.end()) {
+            return;
+        }
+        // 全参数为 T_INT 时，该算术节点相对 baseline（全 T_DYNAMIC）变为有类型。
+        if ((it_all->second == T_INT || it_all->second == T_FLOAT) && it_base->second == T_DYNAMIC) {
+            found = true;
+        }
+    });
+    return found;
+}
+
+bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const EvalTypeMap &without_p,
+                                             const SyntaxTreeInterfacePtr &func_block) const {
+    bool found = false;
+    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+        if (found || !IsArithmeticBinop(node)) {
+            return;
+        }
+        const auto it_all = all_int.find(node.get());
+        const auto it_wo = without_p.find(node.get());
+        if (it_all == all_int.end() || it_wo == without_p.end()) {
+            return;
+        }
+        // all_int 中有类型，但去掉该参数（without_p）后退化：说明此参数参与了算术推断。
+        if ((it_all->second == T_INT || it_all->second == T_FLOAT) && it_wo->second != it_all->second) {
+            found = true;
+        }
+    });
+    return found;
+}
+
+void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
+    const auto chunk = cr.chunk;
+    if (!chunk || chunk->Type() != SyntaxTreeType::Block) {
+        return;
+    }
+
+    const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+    for (const auto &stmt: top_block->Stmts()) {
+        // 解析顶层函数名和函数体。
+        std::string name;
+        SyntaxTreeInterfacePtr funcbody;
+
+        if (stmt->Type() == SyntaxTreeType::Function) {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
+            const auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
+            // PreProcessor 已保证 funcname 合法（简单单段名，无冒号）
+            const auto fnlist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcname->FuncNameList());
+            name = fnlist->Funcnames()[0];
+            funcbody = func->Funcbody();
+        } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
+            name = func->Name();
+            funcbody = func->Funcbody();
+        }
+
+        if (name.empty() || !funcbody) {
+            continue;
+        }
+
+        const auto funcbody_ptr = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
+        const auto parlist_node = funcbody_ptr->Parlist();
+        if (!parlist_node) {
+            continue;
+        }
+        const auto parlist_ptr = std::dynamic_pointer_cast<SyntaxTreeParlist>(parlist_node);
+        // PreProcessor 已保证不存在变长参数函数
+        const auto namelist_node = parlist_ptr->Namelist();
+        if (!namelist_node) {
+            continue;
+        }
+        const auto params = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist_node)->Names();
+        if (params.empty()) {
+            continue;
+        }
+
+        const auto func_block = funcbody_ptr->Block();
+
+        // 快照当前正常推断产生的 EvalType，trial 结束后恢复。
+        std::vector<std::pair<SyntaxTreeInterface *, InferredType>> original_snapshot;
+        WalkSyntaxTree(func_block,
+                       [&](const SyntaxTreeInterfacePtr &n) { original_snapshot.emplace_back(n.get(), n->EvalType()); });
+
+        // 构建参数类型假设映射：将 all_params 中所有参数设为 default_type，
+        // 然后将 special_param（若非空）覆盖为 special_type。
+        const auto make_assumed = [&](const std::string &special_param, InferredType special_type,
+                                      InferredType default_type) {
+            std::unordered_map<std::string, InferredType> m;
+            for (const auto &p: params) {
+                m[p] = (!special_param.empty() && p == special_param) ? special_type : default_type;
+            }
+            return m;
+        };
+
+        // 基准推断：所有参数 = T_DYNAMIC（与正常推断一致）。
+        const auto baseline = RunTrialInference(func_block, params, make_assumed("", T_DYNAMIC, T_DYNAMIC));
+
+        // 全参数为 T_INT 的推断，用于快速检验是否存在可被特化的算术表达式。
+        const auto all_int = RunTrialInference(func_block, params, make_assumed("", T_INT, T_INT));
+
+        // 若全参数 T_INT 相对 baseline 没有算术改善，则跳过此函数。
+        if (!HasArithmeticImprovement(all_int, baseline, func_block)) {
+            for (const auto &[ptr, type]: original_snapshot) {
+                ptr->SetEvalType(type);
+            }
+            continue;
+        }
+
+        // leave-one-out 检验：逐一将某参数置回 T_DYNAMIC（其余仍为 T_INT），
+        // 若出现算术退化则该参数为数学参数。
+        // 注意：被函数体重新赋值的参数（如 n = n + 1）不能特化，
+        // 否则 CGen 在特化签名（int64_t n）中会产生 CVar=int64_t 的类型错误。
+        std::unordered_set<std::string> reassigned_params;
+        CollectReassignedVars(func_block, reassigned_params);
+
+        std::vector<int> math_indices;
+        for (int i = 0; i < static_cast<int>(params.size()) &&
+                         static_cast<int>(math_indices.size()) < kMaxMathParams;
+             ++i) {
+            // 被重新赋值的参数跳过：特化 CGen 无法安全处理对原生类型参数的 CVar 回写。
+            if (reassigned_params.count(params[i])) {
+                continue;
+            }
+            // without_p：params[i] = T_DYNAMIC，其余 = T_INT。
+            const auto without_p_assumed = make_assumed(params[i], T_DYNAMIC, T_INT);
+            const auto without_p_map = RunTrialInference(func_block, params, without_p_assumed);
+            if (ParamAffectsArithmetic(all_int, without_p_map, func_block)) {
+                math_indices.push_back(i);
+            }
+        }
+
+        // 恢复正常推断的 EvalType。
+        for (const auto &[ptr, type]: original_snapshot) {
+            ptr->SetEvalType(type);
+        }
+
+        if (!math_indices.empty()) {
+            cr.math_param_positions[name] = math_indices;
+            LOG_INFO("TypeInferencer: {} math params for {}", math_indices.size(), name);
+
+            // 为该函数的每个 bitmask 组合运行一次 trial 推断并存储快照，
+            // 使 CGen 能够在生成特化体时直接查询每个 AST 节点的正确类型，
+            // 而无需在代码生成阶段重新推断。
+            const int num_specs = 1 << static_cast<int>(math_indices.size());
+            auto &snapshots = cr.specialization_snapshots[name];
+            snapshots.resize(num_specs);
+            for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+                std::unordered_map<std::string, InferredType> assumed;
+                for (const auto &p: params) {
+                    assumed[p] = T_DYNAMIC; // 非数学参数默认 T_DYNAMIC
+                }
+                for (int i = 0; i < static_cast<int>(math_indices.size()); ++i) {
+                    assumed[params[static_cast<size_t>(math_indices[i])]] =
+                            (MathParamKindOf(bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
+                }
+                snapshots[bitmask] = RunTrialInference(func_block, params, assumed);
+            }
+        }
     }
 }
 

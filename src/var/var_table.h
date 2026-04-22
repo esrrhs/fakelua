@@ -68,6 +68,9 @@ private:
     // 原始插入逻辑，不检查扩容，返回是否成功（溢出池是否够用）
     bool InsertRaw(const Var &key, const Var &val, uint32_t hash);
 
+    // 将浮点 key 转换为对应整数 key（若为整数值），用于统一键的存储格式。
+    [[nodiscard]] Var NormalizeTableKey(const Var &key) const;
+
 private:
     uint32_t count_ = 0;                       // 当前元素数量
     uint32_t bucket_count_ = 0;                // 桶的数量（必须是 2 的幂）
