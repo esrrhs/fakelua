@@ -113,11 +113,14 @@ TEST(infer, test_infer_degrade_func_call) {
 // The compiler must still produce correct CVar arithmetic for the fallback path.
 TEST(infer, test_infer_degrade_param) {
     const auto code = InferGetCCode("./infer/test_infer_degrade_param.lua");
-    // Both sum and the loop variable i must be CVar.
+    // With snapshot-based specialization n becomes a math param (int64_t / double).
+    // int specialization: sum and i are fully typed as int64_t.
+    ASSERT_NE(code.find("int64_t sum = 0"), std::string::npos);
+    ASSERT_NE(code.find("int64_t i = "), std::string::npos);
+    // float specialization: loop control vars become double, sum degrades to CVar.
     ASSERT_NE(code.find("CVar sum = "), std::string::npos);
-    ASSERT_NE(code.find("CVar i = "), std::string::npos);
-    // Dynamic for-loop path must be used (CVar control variables).
-    ASSERT_NE(code.find("CVar flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("double i = "), std::string::npos);
+    ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_degrade_param.lua", {.debug_mode = debug_mode});
@@ -164,18 +167,19 @@ TEST(infer, test_infer_for_step_int) {
     });
 }
 
-// ForLoop with a T_DYNAMIC step (parameter): even though begin and end are T_INT,
-// the step is T_DYNAMIC so all_int=false, the loop variable is T_DYNAMIC, and the
-// CVar for-loop path is taken.  The accumulator degrades mid-way.
+// ForLoop with a math param step: snapshot-based specialization generates two
+// specializations.  int specialization: all loop vars are int64_t, sum is int64_t.
+// float specialization: loop ctrl vars become double, sum degrades to CVar because
+// MergeType(T_INT, T_FLOAT) = T_DYNAMIC.
 TEST(infer, test_infer_for_step_dynamic) {
     const auto code = InferGetCCode("./infer/test_infer_for_step_dynamic.lua");
-    // CVar for-loop path (dynamic step).
+    // int specialization: all typed.
+    ASSERT_NE(code.find("int64_t sum = 0"), std::string::npos);
+    ASSERT_NE(code.find("int64_t i = "), std::string::npos);
+    // float specialization: loop ctrl vars become double, sum degrades to CVar.
     ASSERT_NE(code.find("CVar sum = "), std::string::npos);
-    ASSERT_NE(code.find("CVar i = "), std::string::npos);
-    ASSERT_NE(code.find("CVar flua_for_ctrl_"), std::string::npos);
-    // No native int64_t for the accumulator or loop var.
-    ASSERT_EQ(code.find("int64_t sum"), std::string::npos);
-    ASSERT_EQ(code.find("int64_t i"), std::string::npos);
+    ASSERT_NE(code.find("double i = "), std::string::npos);
+    ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_step_dynamic.lua", {.debug_mode = debug_mode});
