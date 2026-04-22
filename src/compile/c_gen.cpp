@@ -749,11 +749,6 @@ void CGen::GenerateGlobal(CompileResult &cr) {
             const auto &names = namelist_ptr->Names();
             auto &exps = explist_ptr->Exps();
 
-            // 变量名和表达式数量必须匹配
-            if (names.size() != exps.size()) {
-                ThrowError(std::format("local variable count {} not match expression count {}", names.size(), exps.size()), stmt);
-            }
-
             for (size_t i = 0; i < names.size(); ++i) {
                 const auto &name = names[i];
                 const auto &exp = exps[i];
@@ -2246,8 +2241,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall);
 
     if (!fc->Name().empty()) {
-        // PreProcessor 已确保不存在方法调用
-        ThrowError("method calls (:) are not supported", functioncall);
+        ThrowError("invalid function call after preprocessing: method calls (:) are not supported", functioncall);
     }
 
     // 编译参数
@@ -2378,10 +2372,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 call_expr += ")";
             }
         } else {
-            ThrowError("complex function call expression is not supported", functioncall);
+            ThrowError("invalid function call after preprocessing: callee must be simple variable", functioncall);
         }
     } else {
-        ThrowError("complex function call expression is not supported", functioncall);
+        ThrowError("invalid function call after preprocessing: callee must be variable prefixexp", functioncall);
     }
     const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
