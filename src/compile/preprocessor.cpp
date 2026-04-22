@@ -288,7 +288,7 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
             const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist());
             const size_t param_size = namelist ? namelist->Names().size() : 0;
             if (param_size > kMaxFunctionInputParams) {
-                ThrowError(std::format("function input params exceed limit {}, got {}", kMaxFunctionInputParams, param_size), node);
+                ThrowError(std::format("function input parameters exceed limit {}, got {}", kMaxFunctionInputParams, param_size), node);
             }
             break;
         }

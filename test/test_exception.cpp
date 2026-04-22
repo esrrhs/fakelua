@@ -934,6 +934,6 @@ TEST(exception, function_too_many_params) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("function input params exceed limit 8") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("function input parameters exceed limit 8") != std::string::npos);
     }
 }
