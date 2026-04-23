@@ -19,6 +19,11 @@ jobs:
       - name: Setup dependencies
         run: |
           brew install lua pkg-config
+          # Ensure Homebrew pkg-config path is available
+          export PKG_CONFIG_PATH="$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:${PKG_CONFIG_PATH:-}"
+          echo "PKG_CONFIG_PATH=$PKG_CONFIG_PATH" >> $GITHUB_ENV
+          # Check lua pkg-config
+          pkg-config --cflags --libs lua5.4 || pkg-config --cflags --libs lua-5.4 || echo "Warning: lua pkg-config not found"
 
       - name: Build
         run: |
@@ -26,7 +31,7 @@ jobs:
           rm -rf build
           mkdir build
           cd build
-          cmake ..
+          cmake -DCMAKE_PREFIX_PATH="$(brew --prefix)" ..
           make -j$(sysctl -n hw.ncpu)
           ctest -V
           ./bin/bench_mark
