@@ -69,10 +69,14 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     cgen.Generate(ret, cfg);
 
     // 5. JIT编译
+    // Note: TCC JIT is disabled on macOS because the generated code may not work
+    // correctly on arm64 architecture. Use GCC JIT instead.
+#if !defined(__APPLE__)
     if (!cfg.disable_jit[JIT_TCC]) {
         TccJitter jitter(s_);
         jitter.Compile(ret, cfg);
     }
+#endif
     if (!cfg.disable_jit[JIT_GCC]) {
         GccJitter jitter(s_);
         jitter.Compile(ret, cfg);
