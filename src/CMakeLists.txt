@@ -36,10 +36,14 @@ endif ()
 
 set(TINYCC_PREFIX_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc")
 set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
-# After TinyCC is built and installed, libtcc.h is available from the install prefix.
-# We add it as a SYSTEM include to avoid picking up stray files (e.g. the 'version'
-# file in tinycc source root) that conflict with standard headers like <version>.
-include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
+if (APPLE)
+    # On macOS, adding tinycc source directory to include path causes conflicts
+    # with standard headers (e.g. the 'version' file conflicts with <version>).
+    # Use the installed header path as a SYSTEM include instead.
+    include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
+else ()
+    include_directories(${tinycc_src_SOURCE_DIR})
+endif ()
 
 add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
 

@@ -124,10 +124,15 @@ int64_t ToInteger(const std::string_view &s) {
         }
     }
 
-    auto [ptr, ec] = std::from_chars(begin, s.data() + s.size(), result, base);
-    if (ec == std::errc::invalid_argument) {
+    // Use strtoll for cross-platform compatibility.
+    // std::from_chars may not be available on all platforms (e.g., older macOS).
+    std::string str(begin, s.end());
+    char *end_ptr = nullptr;
+    errno = 0;
+    result = strtoll(str.c_str(), &end_ptr, base);
+    if (end_ptr == str.c_str() || *end_ptr != '\0') {
         ThrowFakeluaException(std::format("ToInteger failed, invalid argument: {}", s));
-    } else if (ec == std::errc::result_out_of_range) {
+    } else if (errno == ERANGE) {
         ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", s));
     }
 
