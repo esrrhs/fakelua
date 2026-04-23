@@ -6,12 +6,7 @@
 
 using namespace fakelua;
 
-// On macOS, use GCC JIT since TCC JIT has arm64 codegen issues
-#ifdef __APPLE__
-#define TEST_JIT_TYPE JIT_GCC
-#else
 #define TEST_JIT_TYPE JIT_TCC
-#endif
 
 TEST(exception, function_param_duplicate) {
     FakeluaStateGuard sg;
