@@ -13,7 +13,7 @@ jobs:
   build:
     runs-on: windows-2022
     env:
-      MSYSTEM: MINGW64
+      MSYSTEM: UCRT64
       CHERE_INVOKING: "1"
 
     steps:
@@ -24,7 +24,7 @@ jobs:
         shell: cmd
 
       - name: Install MSYS2 packages
-        run: C:\msys64\usr\bin\pacman -S --noconfirm --needed git make mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc mingw-w64-x86_64-lua mingw-w64-x86_64-ninja
+        run: C:\msys64\usr\bin\pacman -S --noconfirm --needed git make mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-lua mingw-w64-ucrt-x86_64-ninja
         shell: cmd
 
       - name: Configure

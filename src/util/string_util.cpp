@@ -162,12 +162,25 @@ double ToFloat(const std::string_view &s) {
             }
         }
     }
+#ifdef __APPLE__
+    // Apple Clang libc++ does not support std::from_chars for floating-point
+    std::string tmp(begin, s.data() + s.size());
+    char *end_ptr = nullptr;
+    errno = 0;
+    result = std::strtod(tmp.c_str(), &end_ptr);
+    if (end_ptr == tmp.c_str()) {
+        ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", s));
+    } else if (errno == ERANGE) {
+        ThrowFakeluaException(std::format("ToFloat failed, result out of range: {}", s));
+    }
+#else
     auto [ptr, ec] = std::from_chars(begin, s.data() + s.size(), result, fmt);
     if (ec == std::errc::invalid_argument) {
         ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", s));
     } else if (ec == std::errc::result_out_of_range) {
         ThrowFakeluaException(std::format("ToFloat failed, result out of range: {}", s));
     }
+#endif
 
     if (negative) {
         result = -result;
