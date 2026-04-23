@@ -39,9 +39,18 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, 
     CVar arg_arr[8];
     va_list vl;
     va_start(vl, arg_num);
+#ifdef __clang__
+// Apple Clang rejects va_arg with non-POD types (-Wnon-pod-varargs), but CVar
+// is trivially copyable in practice so the va_arg call is safe at the ABI level.
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnon-pod-varargs"
+#endif
     for (int i = 0; i < arg_num; ++i) {
         arg_arr[i] = va_arg(vl, CVar);
     }
+#ifdef __clang__
+#pragma clang diagnostic pop
+#endif
     va_end(vl);
 
     // 使用与 fakelua.h 中 Call() 相同的可变参数函数指针转换模式。
