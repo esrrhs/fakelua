@@ -57,25 +57,17 @@ if (WIN32)
     if (NOT BASH_EXECUTABLE)
         message(FATAL_ERROR "bash not found. MSYS2 bash is required to build TinyCC on Windows.")
     endif ()
-    # Find the mingw64/bin directory from the gcc executable location.
-    # This works regardless of where MSYS2 is installed (C:/msys64, D:/a/_temp/msys64, etc.)
-    find_program(GCC_EXECUTABLE gcc)
-    if (GCC_EXECUTABLE)
-        get_filename_component(MINGW64_BIN "${GCC_EXECUTABLE}" DIRECTORY)
-    else()
-        message(WARNING "gcc not found, TinyCC build may fail due to missing MINGW64 PATH")
-    endif()
     # MSYSTEM=MINGW64 ensures bash login shell loads MinGW64 PATH (where gcc lives),
     # not the MSYS2 native environment which lacks gcc.
-    # Also explicitly prepend mingw64/bin to PATH in case profile isn't fully initialized.
-    set(MSYS2_BASH ${CMAKE_COMMAND} -E env MSYSTEM=MINGW64 PATH="${MINGW64_BIN}:$ENV{PATH}" ${BASH_EXECUTABLE} -l)
+    # Inside bash, we explicitly prepend /mingw64/bin to PATH to ensure gcc/make are found.
+    set(MSYS2_BASH ${CMAKE_COMMAND} -E env MSYSTEM=MINGW64 ${BASH_EXECUTABLE} -l)
     ExternalProject_Add(tinycc_external
             SOURCE_DIR ${tinycc_src_SOURCE_DIR}
             BINARY_DIR ${TINYCC_BUILD_DIR}
             CONFIGURE_COMMAND ${CMAKE_COMMAND} -E copy_directory ${tinycc_src_SOURCE_DIR} ${TINYCC_BUILD_DIR}
-                COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && ./configure --prefix=${TINYCC_PREFIX_DIR} --enable-static --extra-cflags=-fPIC"
-            BUILD_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && make -j${FAKELUA_TINYCC_BUILD_JOBS}"
-            INSTALL_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && make install"
+                COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/mingw64/bin:$PATH' && ./configure --prefix=${TINYCC_PREFIX_DIR} --enable-static --extra-cflags=-fPIC"
+            BUILD_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/mingw64/bin:$PATH' && make -j${FAKELUA_TINYCC_BUILD_JOBS}"
+            INSTALL_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/mingw64/bin:$PATH' && make install"
             BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
     )
 else ()
