@@ -6,13 +6,8 @@
 
 using namespace fakelua;
 
-// TCC JIT has issues on macOS arm64, so we skip TCC tests on Apple platforms.
 static std::vector<JITType> GetSupportedJitTypes() {
-#ifdef __APPLE__
-    return {JIT_GCC};
-#else
     return {JIT_TCC, JIT_GCC};
-#endif
 }
 
 static void JitterRunHelper(const std::function<void(State *, JITType, bool)> &f) {

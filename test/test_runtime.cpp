@@ -48,12 +48,7 @@ static CVar VmFnEcho6(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6) { re
 static CVar VmFnEcho7(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6, CVar a7) { return a1; }
 static CVar VmFnEcho8(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6, CVar a7, CVar a8) { return a1; }
 
-// On macOS, use GCC JIT since TCC JIT has arm64 codegen issues
-#ifdef __APPLE__
-#define TEST_JIT_TYPE JIT_GCC
-#else
 #define TEST_JIT_TYPE JIT_TCC
-#endif
 
 static CVar callVmWithNArgs(State *s, const char *name, int n) {
     CVar args[9];
