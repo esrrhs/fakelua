@@ -39,9 +39,14 @@ static CVar VmFn0() {
     return ret;
 }
 
-static CVar VmFnEchoFirst(CVar first, ...) {
-    return first;
-}
+static CVar VmFnEcho1(CVar a1) { return a1; }
+static CVar VmFnEcho2(CVar a1, CVar a2) { return a1; }
+static CVar VmFnEcho3(CVar a1, CVar a2, CVar a3) { return a1; }
+static CVar VmFnEcho4(CVar a1, CVar a2, CVar a3, CVar a4) { return a1; }
+static CVar VmFnEcho5(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5) { return a1; }
+static CVar VmFnEcho6(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6) { return a1; }
+static CVar VmFnEcho7(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6, CVar a7) { return a1; }
+static CVar VmFnEcho8(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6, CVar a7, CVar a8) { return a1; }
 
 // On macOS, use GCC JIT since TCC JIT has arm64 codegen issues
 #ifdef __APPLE__
@@ -79,14 +84,14 @@ TEST(runtime, vm_call_by_name_success_cases) {
     State s;
     s.GetVM().RegisterFunction(VmFunction("fn0", 0, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFn0), {}));
     // 为每个 arity 注册一个匹配 arg_count 的函数（Bug M：FakeluaCallByName 严格校验）。
-    s.GetVM().RegisterFunction(VmFunction("fnv1", 1, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv2", 2, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv3", 3, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv4", 4, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv5", 5, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv6", 6, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv7", 7, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv8", 8, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv1", 1, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEcho1), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv2", 2, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEcho2), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv3", 3, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEcho3), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv4", 4, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEcho4), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv5", 5, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEcho5), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv6", 6, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEcho6), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv7", 7, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEcho7), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv8", 8, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEcho8), {}));
 
     const CVar r0 = FakeluaCallByName(&s, TEST_JIT_TYPE, "fn0", 0);
     ASSERT_EQ(inter::FakeluaToNativeInt(&s, r0), 123);
@@ -115,7 +120,7 @@ TEST(runtime, vm_call_by_name_error_cases) {
     s.GetVM().RegisterFunction(VmFunction("nulladdr", 0, nullptr, {}));
     EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "nulladdr", 0), std::exception);
 
-    s.GetVM().RegisterFunction(VmFunction("fnv", 8, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv", 8, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEcho8), {}));
     EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "fnv", 9, a0, a1, a2, a3, a4, a5, a6, a7, a8), std::exception);
 
     // Bug M: 参数个数与函数签名不匹配时必须抛异常（否则会读取未初始化栈内存）。

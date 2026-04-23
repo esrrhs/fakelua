@@ -535,7 +535,28 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &
     }
     inter::ReentryCounter rc(s);
 
-    const CVar ret_var = reinterpret_cast<CVar (*)(...)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    CVar ret_var;
+    if constexpr (sizeof...(Args) == 0) {
+        ret_var = reinterpret_cast<CVar (*)()>(addr)();
+    } else if constexpr (sizeof...(Args) == 1) {
+        ret_var = reinterpret_cast<CVar (*)(CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 2) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 3) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 4) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 5) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 6) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 7) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 8) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else {
+        static_assert(sizeof...(Args) <= 8, "Too many arguments for Call()");
+    }
 
     ret = inter::FakeluaToNative<Ret>(s, ret_var);
 }
