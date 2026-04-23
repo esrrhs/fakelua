@@ -6,10 +6,19 @@
 
 using namespace fakelua;
 
+// TCC JIT has issues on macOS arm64, so we skip TCC tests on Apple platforms.
+static std::vector<JITType> GetSupportedJitTypes() {
+#ifdef __APPLE__
+    return {JIT_GCC};
+#else
+    return {JIT_TCC, JIT_GCC};
+#endif
+}
+
 static void InferRunHelper(const std::function<void(State *, JITType, bool)> &f) {
     const auto s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
-    for (const auto type: {JIT_TCC, JIT_GCC}) {
+    for (const auto type: GetSupportedJitTypes()) {
         f(s, type, true);
         f(s, type, false);
     }

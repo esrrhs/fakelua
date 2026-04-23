@@ -6,12 +6,21 @@
 
 using namespace fakelua;
 
+// TCC JIT has issues on macOS arm64, so we skip TCC tests on Apple platforms.
+static std::vector<JITType> GetSupportedJitTypes() {
+#ifdef __APPLE__
+    return {JIT_GCC};
+#else
+    return {JIT_TCC, JIT_GCC};
+#endif
+}
+
 // Helper: compile the given file in both debug and non-debug mode and run f each time.
 // Matches the JitterRunHelper pattern: the lambda is responsible for calling CompileFile.
 static void AlgoRunHelper(const std::function<void(State *, JITType, bool)> &f) {
     const auto s = FakeluaNewState();
     ASSERT_NE(s, nullptr);
-    for (const auto type: {JIT_TCC, JIT_GCC}) {
+    for (const auto type: GetSupportedJitTypes()) {
         f(s, type, true);
         f(s, type, false);
     }

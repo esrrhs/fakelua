@@ -43,6 +43,13 @@ static CVar VmFnEchoFirst(CVar first, ...) {
     return first;
 }
 
+// On macOS, use GCC JIT since TCC JIT has arm64 codegen issues
+#ifdef __APPLE__
+#define TEST_JIT_TYPE JIT_GCC
+#else
+#define TEST_JIT_TYPE JIT_TCC
+#endif
+
 static CVar callVmWithNArgs(State *s, const char *name, int n) {
     CVar args[9];
     for (int i = 0; i < 9; ++i) {
@@ -50,14 +57,14 @@ static CVar callVmWithNArgs(State *s, const char *name, int n) {
     }
 
     switch (n) {
-        case 1: return FakeluaCallByName(s, JIT_TCC, name, 1, args[0]);
-        case 2: return FakeluaCallByName(s, JIT_TCC, name, 2, args[0], args[1]);
-        case 3: return FakeluaCallByName(s, JIT_TCC, name, 3, args[0], args[1], args[2]);
-        case 4: return FakeluaCallByName(s, JIT_TCC, name, 4, args[0], args[1], args[2], args[3]);
-        case 5: return FakeluaCallByName(s, JIT_TCC, name, 5, args[0], args[1], args[2], args[3], args[4]);
-        case 6: return FakeluaCallByName(s, JIT_TCC, name, 6, args[0], args[1], args[2], args[3], args[4], args[5]);
-        case 7: return FakeluaCallByName(s, JIT_TCC, name, 7, args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
-        case 8: return FakeluaCallByName(s, JIT_TCC, name, 8, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
+        case 1: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 1, args[0]);
+        case 2: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 2, args[0], args[1]);
+        case 3: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 3, args[0], args[1], args[2]);
+        case 4: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 4, args[0], args[1], args[2], args[3]);
+        case 5: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 5, args[0], args[1], args[2], args[3], args[4]);
+        case 6: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 6, args[0], args[1], args[2], args[3], args[4], args[5]);
+        case 7: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 7, args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+        case 8: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 8, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
         default: break;
     }
     return {};
@@ -81,7 +88,7 @@ TEST(runtime, vm_call_by_name_success_cases) {
     s.GetVM().RegisterFunction(VmFunction("fnv7", 7, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
     s.GetVM().RegisterFunction(VmFunction("fnv8", 8, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
 
-    const CVar r0 = FakeluaCallByName(&s, JIT_TCC, "fn0", 0);
+    const CVar r0 = FakeluaCallByName(&s, TEST_JIT_TYPE, "fn0", 0);
     ASSERT_EQ(inter::FakeluaToNativeInt(&s, r0), 123);
 
     const char *names[] = {"fnv1", "fnv2", "fnv3", "fnv4", "fnv5", "fnv6", "fnv7", "fnv8"};

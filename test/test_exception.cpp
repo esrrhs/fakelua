@@ -6,6 +6,13 @@
 
 using namespace fakelua;
 
+// On macOS, use GCC JIT since TCC JIT has arm64 codegen issues
+#ifdef __APPLE__
+#define TEST_JIT_TYPE JIT_GCC
+#else
+#define TEST_JIT_TYPE TEST_JIT_TYPE
+#endif
+
 TEST(exception, function_param_duplicate) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
@@ -76,7 +83,7 @@ TEST(exception, function_call_exception) {
 
     try {
         CVar ret;
-        Call(s, JIT_TCC, "test", ret, 1, 2, 3);
+        Call(s, TEST_JIT_TYPE, "test", ret, 1, 2, 3);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -85,7 +92,7 @@ TEST(exception, function_call_exception) {
 
     try {
         CVar ret;
-        Call(s, JIT_TCC, "test1", ret, 1, 2, 3);
+        Call(s, TEST_JIT_TYPE, "test1", ret, 1, 2, 3);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -171,7 +178,7 @@ TEST(exception, return_type_error_bool) {
 
     try {
         bool ret = 0;
-        Call(s, JIT_TCC, "test", ret, 1);
+        Call(s, TEST_JIT_TYPE, "test", ret, 1);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -188,7 +195,7 @@ TEST(exception, return_type_error_char) {
 
     try {
         char ret = 0;
-        Call(s, JIT_TCC, "test", ret, "1");
+        Call(s, TEST_JIT_TYPE, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -205,7 +212,7 @@ TEST(exception, return_type_error_uchar) {
 
     try {
         unsigned char ret = 0;
-        Call(s, JIT_TCC, "test", ret, "1");
+        Call(s, TEST_JIT_TYPE, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -222,7 +229,7 @@ TEST(exception, return_type_error_short) {
 
     try {
         short ret = 0;
-        Call(s, JIT_TCC, "test", ret, "1");
+        Call(s, TEST_JIT_TYPE, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -239,7 +246,7 @@ TEST(exception, return_type_error_ushort) {
 
     try {
         unsigned short ret = 0;
-        Call(s, JIT_TCC, "test", ret, "1");
+        Call(s, TEST_JIT_TYPE, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -256,7 +263,7 @@ TEST(exception, return_type_error_int) {
 
     try {
         int ret = 0;
-        Call(s, JIT_TCC, "test", ret, "1");
+        Call(s, TEST_JIT_TYPE, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -273,7 +280,7 @@ TEST(exception, return_type_error_uint) {
 
     try {
         unsigned int ret = 0;
-        Call(s, JIT_TCC, "test", ret, "1");
+        Call(s, TEST_JIT_TYPE, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -290,7 +297,7 @@ TEST(exception, return_type_error_long) {
 
     try {
         long ret = 0;
-        Call(s, JIT_TCC, "test", ret, "1");
+        Call(s, TEST_JIT_TYPE, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -307,7 +314,7 @@ TEST(exception, return_type_error_ulong) {
 
     try {
         unsigned long ret = 0;
-        Call(s, JIT_TCC, "test", ret, "1");
+        Call(s, TEST_JIT_TYPE, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -324,7 +331,7 @@ TEST(exception, return_type_error_long_long) {
 
     try {
         long long ret = 0;
-        Call(s, JIT_TCC, "test", ret, "1");
+        Call(s, TEST_JIT_TYPE, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -341,7 +348,7 @@ TEST(exception, return_type_error_ulong_long) {
 
     try {
         unsigned long long ret = 0;
-        Call(s, JIT_TCC, "test", ret, "1");
+        Call(s, TEST_JIT_TYPE, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -358,7 +365,7 @@ TEST(exception, return_type_error_float) {
 
     try {
         float ret = 0;
-        Call(s, JIT_TCC, "test", ret, "1");
+        Call(s, TEST_JIT_TYPE, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -375,7 +382,7 @@ TEST(exception, return_type_error_double) {
 
     try {
         double ret = 0;
-        Call(s, JIT_TCC, "test", ret, "1");
+        Call(s, TEST_JIT_TYPE, "test", ret, "1");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -392,7 +399,7 @@ TEST(exception, return_type_error_string) {
 
     try {
         std::string ret;
-        Call(s, JIT_TCC, "test", ret, 123);
+        Call(s, TEST_JIT_TYPE, "test", ret, 123);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -409,7 +416,7 @@ TEST(exception, return_type_error_stringview) {
 
     try {
         std::string_view ret;
-        Call(s, JIT_TCC, "test", ret, 123);
+        Call(s, TEST_JIT_TYPE, "test", ret, 123);
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
