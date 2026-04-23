@@ -1,0 +1,33 @@
+name: BuildWithMacOS
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup dependencies
+        run: |
+          brew install lua pkg-config
+
+      - name: Build
+        run: |
+          set -x
+          rm -rf build
+          mkdir build
+          cd build
+          cmake ..
+          make -j$(sysctl -n hw.ncpu)
+          ctest -V
+          ./bin/bench_mark
+          ./bin/flua

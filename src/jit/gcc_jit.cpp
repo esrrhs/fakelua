@@ -88,6 +88,8 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     const std::string so_file = c_file.substr(0, c_file.size() - kCExtLen) +
 #if defined(_WIN32)
             ".dll";
+#elif defined(__APPLE__)
+            ".dylib";
 #else
             ".so";
 #endif

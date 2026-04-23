@@ -80,7 +80,10 @@ else ()
             INSTALL_COMMAND make install
             BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
     )
-    set(TARGET_LIB ${TARGET_LIB} Threads::Threads dl m)
+    set(TARGET_LIB ${TARGET_LIB} Threads::Threads)
+    if (NOT APPLE)
+        set(TARGET_LIB ${TARGET_LIB} dl m)
+    endif ()
 endif ()
 
 add_library(tinycc_embedded STATIC IMPORTED GLOBAL)

@@ -18,17 +18,22 @@ include_directories(./)
 include_directories(../include)
 include_directories(../src)
 include_directories(../src/platform)
-include_directories(/usr/include/lua5.4)
+
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(LUA REQUIRED lua5.4)
+include_directories(${LUA_INCLUDE_DIRS})
 
 IF (WIN32)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--export-all-symbols")
+ELSEIF (APPLE)
+    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-export_dynamic")
 ELSE ()
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,-E")
 ENDIF ()
 
 add_executable(unit_tests ${TEST_SRC_LIST})
 
-target_link_libraries(unit_tests PRIVATE fakelua gtest_main lua)
+target_link_libraries(unit_tests PRIVATE fakelua gtest_main ${LUA_LIBRARIES})
 
 add_test(NAME unit COMMAND ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR}/unit_tests
         WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/${CMAKE_INSTALL_BINDIR})
