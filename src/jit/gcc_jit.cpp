@@ -110,6 +110,12 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
 #if !defined(_WIN32)
     args.emplace_back("-fPIC");
 #endif
+#if defined(__APPLE__)
+    // macOS .dylib requires -undefined dynamic_lookup to allow unresolved
+    // symbols that will be provided by the host process at runtime.
+    args.emplace_back("-undefined");
+    args.emplace_back("dynamic_lookup");
+#endif
     args.emplace_back(cfg.debug_mode ? "-O0" : "-O3");
     args.emplace_back("-DFAKELUA_JIT_TYPE=" + std::to_string(static_cast<int>(JIT_GCC)));
     for (const auto &path: s_->GetStateConfig().gcc_config.include_paths) {
