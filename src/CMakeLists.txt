@@ -60,9 +60,9 @@ if (WIN32)
     if (NOT BASH_EXECUTABLE)
         message(FATAL_ERROR "bash not found. MSYS2 bash is required to build TinyCC on Windows.")
     endif ()
-    # MSYSTEM=MINGW64 ensures bash login shell loads MinGW64 PATH (where gcc lives),
-    # not the MSYS2 native environment which lacks gcc.
-    set(MSYS2_BASH ${CMAKE_COMMAND} -E env MSYSTEM=MINGW64 ${BASH_EXECUTABLE} -l)
+    # MSYSTEM=UCRT64 ensures bash login shell loads UCRT64 PATH (where gcc lives).
+    set(FAKELUA_MSYS2_MSYSTEM "UCRT64" CACHE STRING "MSYS2 MSYSTEM environment for TCC build (e.g. UCRT64 or MINGW64)")
+    set(MSYS2_BASH ${CMAKE_COMMAND} -E env MSYSTEM=${FAKELUA_MSYS2_MSYSTEM} ${BASH_EXECUTABLE} -l)
     ExternalProject_Add(tinycc_external
             SOURCE_DIR ${tinycc_src_SOURCE_DIR}
             BINARY_DIR ${TINYCC_BUILD_DIR}

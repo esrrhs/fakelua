@@ -51,6 +51,7 @@
 #include <utility>
 #include <variant>
 #include <vector>
+#include <charconv>
 #include <ranges>
 #include <cctype>
 #ifndef _WIN32
