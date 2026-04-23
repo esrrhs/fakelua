@@ -1,0 +1,29 @@
+name: BuildWithMacOS
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Lua
+        run: brew install lua
+
+      - name: Build
+        run: |
+          set -eux
+          rm -rf build
+          mkdir build
+          cd build
+          cmake ..
+          make -j8
+          ctest -V
+          ./bin/bench_mark
+          ./bin/flua
