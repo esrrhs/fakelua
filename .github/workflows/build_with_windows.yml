@@ -19,12 +19,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Update MSYS2 core
-        run: C:\msys64\usr\bin\pacman -Syuu --noconfirm
-        shell: cmd
-
       - name: Install MSYS2 packages
-        run: C:\msys64\usr\bin\pacman -S --noconfirm --needed git make mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc mingw-w64-x86_64-lua mingw-w64-x86_64-ninja
+        run: C:\msys64\usr\bin\pacman -Syu --noconfirm --needed git make mingw-w64-x86_64-cmake mingw-w64-x86_64-gcc mingw-w64-x86_64-lua mingw-w64-x86_64-ninja
         shell: cmd
 
       - name: Configure
