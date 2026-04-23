@@ -59,15 +59,16 @@ if (WIN32)
     endif ()
     # MSYSTEM=MINGW64 ensures bash login shell loads MinGW64 PATH (where gcc lives),
     # not the MSYS2 native environment which lacks gcc.
-    # Inside bash, we explicitly prepend /mingw64/bin to PATH to ensure gcc/make are found.
+    # Inside bash, we explicitly prepend /usr/bin and /mingw64/bin to PATH to ensure
+    # uname, gcc, make etc are found. /usr/bin contains uname and other MSYS2 utilities.
     set(MSYS2_BASH ${CMAKE_COMMAND} -E env MSYSTEM=MINGW64 ${BASH_EXECUTABLE} -l)
     ExternalProject_Add(tinycc_external
             SOURCE_DIR ${tinycc_src_SOURCE_DIR}
             BINARY_DIR ${TINYCC_BUILD_DIR}
             CONFIGURE_COMMAND ${CMAKE_COMMAND} -E copy_directory ${tinycc_src_SOURCE_DIR} ${TINYCC_BUILD_DIR}
-                COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/mingw64/bin:$PATH' && ./configure --prefix=${TINYCC_PREFIX_DIR} --enable-static --extra-cflags=-fPIC"
-            BUILD_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/mingw64/bin:$PATH' && make -j${FAKELUA_TINYCC_BUILD_JOBS}"
-            INSTALL_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/mingw64/bin:$PATH' && make install"
+                COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && ./configure --prefix=${TINYCC_PREFIX_DIR} --enable-static --extra-cflags=-fPIC"
+            BUILD_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && make -j${FAKELUA_TINYCC_BUILD_JOBS}"
+            INSTALL_COMMAND ${MSYS2_BASH} -c "cd ${TINYCC_BUILD_DIR} && export PATH='/usr/bin:/mingw64/bin:$PATH' && make install"
             BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
     )
 else ()
