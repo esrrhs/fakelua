@@ -7,7 +7,11 @@ namespace fakelua {
 HeapAllocator::~HeapAllocator() {
     Reset();
     for (const auto &block: blocks_) {
+#if defined(_WIN32)
+        _aligned_free(block);
+#else
         free(block);
+#endif
     }
     blocks_.clear();
 }
@@ -30,8 +34,14 @@ void *HeapAllocator::Alloc(size_t size) {
     }
 
     if (current_block_index_ >= blocks_.size()) {
-        // 分配一个新的内存块
-        void *new_block = malloc(BLOCK_SIZE);
+        // 分配一个新的内存块，确保块起始地址按 alignment 对齐，
+        // 这样当 current_block_offset_=0 时返回的地址天然满足对齐要求。
+        // BLOCK_SIZE 是 alignment 的整数倍（1MB 是 16 的倍数），满足 aligned_alloc 的要求。
+#if defined(_WIN32)
+        void *new_block = _aligned_malloc(BLOCK_SIZE, alignment);
+#else
+        void *new_block = std::aligned_alloc(alignment, BLOCK_SIZE);
+#endif
         if (!new_block) {
             throw std::runtime_error("failed to allocate memory");
         }
