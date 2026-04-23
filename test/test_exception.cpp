@@ -10,7 +10,7 @@ using namespace fakelua;
 #ifdef __APPLE__
 #define TEST_JIT_TYPE JIT_GCC
 #else
-#define TEST_JIT_TYPE TEST_JIT_TYPE
+#define TEST_JIT_TYPE JIT_TCC
 #endif
 
 TEST(exception, function_param_duplicate) {

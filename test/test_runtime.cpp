@@ -77,16 +77,16 @@ TEST(runtime, exec_returns_output) {
 
 TEST(runtime, vm_call_by_name_success_cases) {
     State s;
-    s.GetVM().RegisterFunction(VmFunction("fn0", 0, reinterpret_cast<void *>(&VmFn0), {}));
+    s.GetVM().RegisterFunction(VmFunction("fn0", 0, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFn0), {}));
     // 为每个 arity 注册一个匹配 arg_count 的函数（Bug M：FakeluaCallByName 严格校验）。
-    s.GetVM().RegisterFunction(VmFunction("fnv1", 1, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv2", 2, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv3", 3, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv4", 4, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv5", 5, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv6", 6, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv7", 7, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
-    s.GetVM().RegisterFunction(VmFunction("fnv8", 8, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv1", 1, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv2", 2, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv3", 3, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv4", 4, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv5", 5, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv6", 6, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv7", 7, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
+    s.GetVM().RegisterFunction(VmFunction("fnv8", 8, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEchoFirst), {}));
 
     const CVar r0 = FakeluaCallByName(&s, TEST_JIT_TYPE, "fn0", 0);
     ASSERT_EQ(inter::FakeluaToNativeInt(&s, r0), 123);

@@ -146,41 +146,62 @@ int64_t ToInteger(const std::string_view &s) {
 double ToFloat(const std::string_view &s) {
     double result = 0;
 
-    auto begin = s.begin();
+    // Check for hex format prefix (0x or 0X)
     bool hex_format = false;
     bool negative = false;
-    if (s.length() > 1) {
-        if (s[0] == '+') {//+123
-            begin += 1;
-            if (s.length() > 3 && s[1] == '0' && (s[2] == 'x' || s[2] == 'X')) {// +0x123
-                begin += 2;
-                hex_format = true;
-            }
-        } else if (s.length() > 2) {
-            if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {// 0x123
-                begin += 2;
-                hex_format = true;
-            } else if (s.length() > 3 && s[0] == '-' && s[1] == '0' && (s[2] == 'x' || s[2] == 'X')) {// -0x123
-                begin += 3;
-                hex_format = true;
-                negative = true;
-            }
+    size_t prefix_len = 0;
+
+    if (s.length() > 2) {
+        if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+            hex_format = true;
+            prefix_len = 2;
+        } else if (s[0] == '+' && s.length() > 3 && s[1] == '0' && (s[2] == 'x' || s[2] == 'X')) {
+            hex_format = true;
+            prefix_len = 3;  // +0x prefix
+        } else if (s[0] == '-' && s.length() > 3 && s[1] == '0' && (s[2] == 'x' || s[2] == 'X')) {
+            hex_format = true;
+            negative = true;
+            prefix_len = 3;  // -0x prefix
         }
     }
 
     // libc++ (macOS) doesn't support std::from_chars for floating point types.
     // Use strtod/strtof as fallback for cross-platform compatibility.
-    std::string str(begin, s.end());
     char *end_ptr = nullptr;
     errno = 0;
+
     if (hex_format) {
-        result = strtod(str.c_str(), &end_ptr);
+        // Check if it's a hex float (contains '.' or 'p'/'P')
+        bool is_hex_float = s.find('.') != std::string_view::npos ||
+                            s.find('p') != std::string_view::npos ||
+                            s.find('P') != std::string_view::npos;
+
+        if (is_hex_float) {
+            // Hex float: pass full string to strtod (it handles sign and 0x prefix)
+            // Don't apply negative separately since strtod already handles it.
+            std::string str(s.begin(), s.end());
+            result = strtod(str.c_str(), &end_ptr);
+            negative = false;  // strtod already handled the sign
+            if (end_ptr == str.c_str() || *end_ptr != '\0') {
+                ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", s));
+            }
+        } else {
+            // Hex integer: strip prefix and parse with strtoll base 16
+            std::string str(s.begin() + prefix_len, s.end());
+            result = static_cast<double>(strtoll(str.c_str(), &end_ptr, 16));
+            if (end_ptr == str.c_str() || *end_ptr != '\0') {
+                ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", s));
+            }
+        }
     } else {
+        std::string str(s.begin(), s.end());
         result = strtod(str.c_str(), &end_ptr);
+        if (end_ptr == str.c_str() || *end_ptr != '\0') {
+            ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", s));
+        }
     }
-    if (end_ptr == str.c_str() || *end_ptr != '\0') {
-        ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", s));
-    } else if (errno == ERANGE) {
+
+    if (errno == ERANGE) {
         ThrowFakeluaException(std::format("ToFloat failed, result out of range: {}", s));
     }
 

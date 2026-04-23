@@ -6,6 +6,7 @@
 #include <memory>
 #include <ranges>
 #include <string>
+#include <type_traits>
 
 namespace fakelua {
 
@@ -188,8 +189,9 @@ class VarString;
 class Var;
 
 // 基本变量类型，包含类型标识和数据。数据使用 union 存储，根据类型标识来访问。
+// 必须保持为 POD 类型，以确保 C JIT 代码和 C++ 宿主代码之间的 ABI 兼容性。
+// 特别是 arm64 平台的非 POD 结构体返回值调用约定与 POD 不同。
 struct CVar {
-protected:
     int type_ = 0;
     int flag_ = 0;
     union cvar_data {
@@ -201,6 +203,10 @@ protected:
     };
     cvar_data data_{};
 };
+
+// 确保 CVar 是标准布局类型（POD），以匹配 C 代码中的定义
+static_assert(std::is_standard_layout_v<CVar>, "CVar must be standard-layout for ABI compatibility");
+static_assert(std::is_trivially_copyable_v<CVar>, "CVar must be trivially copyable for ABI compatibility");
 
 // JIT类型
 enum JITType {
