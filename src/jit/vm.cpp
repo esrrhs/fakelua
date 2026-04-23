@@ -2,7 +2,6 @@
 #include "fakelua.h"
 #include "state/state.h"
 #include "util/common.h"
-#include <stdarg.h>
 
 namespace fakelua {
 
@@ -14,7 +13,7 @@ extern "C" void FakeluaThrowError(State *s, const char *msg) {
     ThrowFakeluaException(msg);
 }
 
-extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...) {
+extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, CVar *args) {
     const auto func = s->GetVM().GetFunction(std::string(name));
     if (func.Empty()) {
         ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' not found", name));
@@ -36,36 +35,19 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, 
                                           name, func.GetArgCount(), arg_num));
     }
 
-    CVar arg_arr[8];
-    va_list vl;
-    va_start(vl, arg_num);
-#ifdef __clang__
-// Apple Clang rejects va_arg with non-POD types (-Wnon-pod-varargs), but CVar
-// is trivially copyable in practice so the va_arg call is safe at the ABI level.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wnon-pod-varargs"
-#endif
-    for (int i = 0; i < arg_num; ++i) {
-        arg_arr[i] = va_arg(vl, CVar);
-    }
-#ifdef __clang__
-#pragma clang diagnostic pop
-#endif
-    va_end(vl);
-
     // 使用与 fakelua.h 中 Call() 相同的可变参数函数指针转换模式。
     // 所有 JIT 编译的函数都接受/返回 CVar，因此 ABI 是统一的。
     auto fn = reinterpret_cast<CVar (*)(...)>(addr);
     switch (arg_num) {
         case 0: return fn();
-        case 1: return fn(arg_arr[0]);
-        case 2: return fn(arg_arr[0], arg_arr[1]);
-        case 3: return fn(arg_arr[0], arg_arr[1], arg_arr[2]);
-        case 4: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3]);
-        case 5: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4]);
-        case 6: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5]);
-        case 7: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6]);
-        case 8: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7]);
+        case 1: return fn(args[0]);
+        case 2: return fn(args[0], args[1]);
+        case 3: return fn(args[0], args[1], args[2]);
+        case 4: return fn(args[0], args[1], args[2], args[3]);
+        case 5: return fn(args[0], args[1], args[2], args[3], args[4]);
+        case 6: return fn(args[0], args[1], args[2], args[3], args[4], args[5]);
+        case 7: return fn(args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+        case 8: return fn(args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
         default:
             ThrowFakeluaException(
                     std::format("FakeluaCallByName: too many arguments ({}) for function '{}'", arg_num, name));

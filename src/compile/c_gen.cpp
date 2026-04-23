@@ -193,7 +193,7 @@ enum {
 // 用于内存分配和错误处理的外部函数
 extern void* FakeluaAllocTemp(State *s, size_t size);
 extern void FakeluaThrowError(State *s, const char *msg);
-extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
+extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, CVar *args);
 
 #ifndef FAKELUA_JIT_TYPE
 #define FAKELUA_JIT_TYPE 0
@@ -2344,11 +2344,18 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             } else {
                 // 在全局函数注册表中按名称动态查找。
                 // JIT 类型来自后端编译时宏 FAKELUA_JIT_TYPE。
-                call_expr = std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"{}\", {}", func_name, compiled_args.size());
-                for (const auto &arg: compiled_args) {
-                    call_expr += ", " + arg;
+                // 使用 CVar 数组（C99 复合字面量）代替 varargs，避免 non-POD 类型的 UB。
+                if (compiled_args.empty()) {
+                    call_expr = "FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"" + func_name + "\", 0, NULL)";
+                } else {
+                    call_expr = "FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"" + func_name + "\", " +
+                                std::to_string(compiled_args.size()) + ", (CVar[]){";
+                    for (size_t i = 0; i < compiled_args.size(); ++i) {
+                        if (i > 0) call_expr += ", ";
+                        call_expr += compiled_args[i];
+                    }
+                    call_expr += "})";
                 }
-                call_expr += ")";
             }
         } else {
             // PreProcessor 已确保 callee 为简单变量名

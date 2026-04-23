@@ -1,5 +1,10 @@
 #pragma once
 
+// Must be first: on UCRT+GCC 15, standard-library headers (e.g. <string>, <thread>)
+// use errno internally without including <errno.h> themselves. UCRT defines errno as
+// (*_errno()), so _errno() must be declared before those headers are parsed.
+#include <cerrno>
+
 #include <algorithm>
 #include <assert.h>
 #include <cassert>

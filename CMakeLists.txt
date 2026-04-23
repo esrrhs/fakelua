@@ -33,10 +33,7 @@ if (USE_COV)
 endif ()
 
 IF (WIN32)
-    # GCC 15 on UCRT64 uses errno in its own standard-library headers (<string>, <thread>)
-    # without including <errno.h> itself; UCRT defines errno as (*_errno()) so _errno must
-    # be declared first.  Force-include <cerrno> before every C++ translation unit to fix this.
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0 -include cerrno")
+    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O0")
     set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O0")
 ELSE ()
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3")
