@@ -44,19 +44,16 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, 
     }
     va_end(vl);
 
-    // 使用与 fakelua.h 中 Call() 相同的可变参数函数指针转换模式。
-    // 所有 JIT 编译的函数都接受/返回 CVar，因此 ABI 是统一的。
-    auto fn = reinterpret_cast<CVar (*)(...)>(addr);
     switch (arg_num) {
-        case 0: return fn();
-        case 1: return fn(arg_arr[0]);
-        case 2: return fn(arg_arr[0], arg_arr[1]);
-        case 3: return fn(arg_arr[0], arg_arr[1], arg_arr[2]);
-        case 4: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3]);
-        case 5: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4]);
-        case 6: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5]);
-        case 7: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6]);
-        case 8: return fn(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7]);
+        case 0: return reinterpret_cast<CVar (*)()>(addr)();
+        case 1: return reinterpret_cast<CVar (*)(CVar)>(addr)(arg_arr[0]);
+        case 2: return reinterpret_cast<CVar (*)(CVar, CVar)>(addr)(arg_arr[0], arg_arr[1]);
+        case 3: return reinterpret_cast<CVar (*)(CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2]);
+        case 4: return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3]);
+        case 5: return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4]);
+        case 6: return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5]);
+        case 7: return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6]);
+        case 8: return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7]);
         default:
             ThrowFakeluaException(
                     std::format("FakeluaCallByName: too many arguments ({}) for function '{}'", arg_num, name));

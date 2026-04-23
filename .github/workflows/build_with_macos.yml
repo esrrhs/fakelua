@@ -1,0 +1,41 @@
+name: BuildWithMacOS
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    branches: [ "master" ]
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: macos-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup dependencies
+        run: |
+          brew install lua
+          # Find Lua include and lib paths
+          LUA_INC_DIR="$(brew --prefix)/include"
+          echo "LUA_INC_DIR=$LUA_INC_DIR"
+          ls "$LUA_INC_DIR"
+          # Find the actual lua.h location
+          find "$(brew --prefix)" -name "lua.h" -type f 2>/dev/null || true
+          # Set pkg-config path
+          echo "PKG_CONFIG_PATH=$(brew --prefix)/lib/pkgconfig:$(brew --prefix)/share/pkgconfig:${PKG_CONFIG_PATH:-}" >> $GITHUB_ENV
+
+      - name: Build
+        run: |
+          set -x
+          rm -rf build
+          mkdir build
+          cd build
+          cmake -DCMAKE_PREFIX_PATH="$(brew --prefix)" ..
+          make -j$(sysctl -n hw.ncpu)
+          ctest -V
+          ./bin/bench_mark
+          ./bin/flua

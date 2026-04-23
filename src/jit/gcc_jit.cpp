@@ -88,6 +88,8 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     const std::string so_file = c_file.substr(0, c_file.size() - kCExtLen) +
 #if defined(_WIN32)
             ".dll";
+#elif defined(__APPLE__)
+            ".dylib";
 #else
             ".so";
 #endif
@@ -107,6 +109,12 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     args.emplace_back("-shared");
 #if !defined(_WIN32)
     args.emplace_back("-fPIC");
+#endif
+#if defined(__APPLE__)
+    // macOS .dylib requires -undefined dynamic_lookup to allow unresolved
+    // symbols that will be provided by the host process at runtime.
+    args.emplace_back("-undefined");
+    args.emplace_back("dynamic_lookup");
 #endif
     args.emplace_back(cfg.debug_mode ? "-O0" : "-O3");
     args.emplace_back("-DFAKELUA_JIT_TYPE=" + std::to_string(static_cast<int>(JIT_GCC)));

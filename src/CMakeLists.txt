@@ -33,14 +33,22 @@ CPMAddPackage(
 if (NOT tinycc_src_ADDED)
     message(FATAL_ERROR "Failed to fetch TinyCC source from ${FAKELUA_TINYCC_GIT_URL}")
 endif ()
-include_directories(${tinycc_src_SOURCE_DIR})
+
+set(TINYCC_PREFIX_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc")
+set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
+if (APPLE)
+    # On macOS, adding tinycc source directory to include path causes conflicts
+    # with standard headers (e.g. the 'version' file conflicts with <version>).
+    # Use the installed header path as a SYSTEM include instead.
+    include_directories(SYSTEM ${TINYCC_PREFIX_DIR}/include)
+else ()
+    include_directories(${tinycc_src_SOURCE_DIR})
+endif ()
 
 add_library(fakelua SHARED ${FAKELUA_SRC_LIST})
 
 find_package(Threads REQUIRED)
 
-set(TINYCC_PREFIX_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc")
-set(TINYCC_BUILD_DIR "${CMAKE_BINARY_DIR}/third_party/tinycc_build")
 if (WIN32)
     # On Windows, TCC installs libtcc.a to PREFIX/libtcc/ instead of PREFIX/lib/
     set(TINYCC_STATIC_LIB "${TINYCC_PREFIX_DIR}/libtcc/libtcc.a")
@@ -80,7 +88,10 @@ else ()
             INSTALL_COMMAND make install
             BUILD_BYPRODUCTS ${TINYCC_STATIC_LIB}
     )
-    set(TARGET_LIB ${TARGET_LIB} Threads::Threads dl m)
+    set(TARGET_LIB ${TARGET_LIB} Threads::Threads)
+    if (NOT APPLE)
+        set(TARGET_LIB ${TARGET_LIB} dl m)
+    endif ()
 endif ()
 
 add_library(tinycc_embedded STATIC IMPORTED GLOBAL)
