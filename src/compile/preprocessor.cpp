@@ -91,7 +91,7 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
                 std::vector<std::string> tmp_names;
 
                 for (size_t i = 0; i < vars.size(); ++i) {
-                    // 使用全局递增计数器（而非行号）生成唯一的临时变量名，
+                    // 使用实例递增计数器（而非行号）生成唯一的临时变量名，
                     // 避免同一行多条多重赋值语句产生名称冲突。
                     std::string tmp_name = std::format("__fakelua_tmp_{}_{}", tmp_var_counter_, i);
                     tmp_namelist->AddName(tmp_name);
