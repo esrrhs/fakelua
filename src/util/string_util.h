@@ -23,6 +23,9 @@ int64_t ToInteger(const std::string_view &s);
 double ToFloat(const std::string_view &s);
 
 inline std::string JoinString(const std::vector<std::string> &strs, const std::string &sep) {
+    if (strs.empty()) {
+        return {};
+    }
     return std::accumulate(std::next(strs.begin()), strs.end(), strs[0],
                            [&](std::string a, const std::string &b) { return std::move(a) + sep + b; });
 }

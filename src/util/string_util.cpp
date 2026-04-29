@@ -124,20 +124,33 @@ int64_t ToInteger(const std::string_view &s) {
         }
     }
 
-    // Use strtoll for cross-platform compatibility.
+    // Use strtoll/strtoull for cross-platform compatibility.
     // std::from_chars may not be available on all platforms (e.g., older macOS).
     std::string str(begin, s.end());
     char *end_ptr = nullptr;
     errno = 0;
-    result = strtoll(str.c_str(), &end_ptr, base);
-    if (end_ptr == str.c_str() || *end_ptr != '\0') {
-        ThrowFakeluaException(std::format("ToInteger failed, invalid argument: {}", s));
-    } else if (errno == ERANGE) {
-        ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", s));
-    }
 
-    if (negative) {
-        result = -result;
+    if (negative && base == 16) {
+        // For negative hex, use strtoull so that the magnitude 0x8000000000000000
+        // (which is INT64_MIN) does not cause ERANGE on strtoll.
+        const uint64_t uval = strtoull(str.c_str(), &end_ptr, base);
+        if (end_ptr == str.c_str() || *end_ptr != '\0') {
+            ThrowFakeluaException(std::format("ToInteger failed, invalid argument: {}", s));
+        } else if (errno == ERANGE || uval > static_cast<uint64_t>(INT64_MAX) + 1ULL) {
+            ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", s));
+        }
+        // Reinterpret as signed: -0x8000000000000000 == INT64_MIN is valid.
+        result = -static_cast<int64_t>(uval);
+    } else {
+        result = strtoll(str.c_str(), &end_ptr, base);
+        if (end_ptr == str.c_str() || *end_ptr != '\0') {
+            ThrowFakeluaException(std::format("ToInteger failed, invalid argument: {}", s));
+        } else if (errno == ERANGE) {
+            ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", s));
+        }
+        if (negative) {
+            result = -result;
+        }
     }
 
     return result;
@@ -186,9 +199,11 @@ double ToFloat(const std::string_view &s) {
                 ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", s));
             }
         } else {
-            // Hex integer: strip prefix and parse with strtoll base 16
+            // Hex integer without fractional part: strip prefix and parse as unsigned
+            // to correctly handle values >= 0x8000000000000000 (e.g. 0xFFFFFFFFFFFFFFFF).
             std::string str(s.begin() + prefix_len, s.end());
-            result = static_cast<double>(strtoll(str.c_str(), &end_ptr, 16));
+            const uint64_t uval = strtoull(str.c_str(), &end_ptr, 16);
+            result = static_cast<double>(uval);
             if (end_ptr == str.c_str() || *end_ptr != '\0') {
                 ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", s));
             }

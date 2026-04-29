@@ -131,6 +131,13 @@ bool Var::Equal(const Var &rhs) const {
         if (Type() == VarType::StringId && rhs.Type() == VarType::String) {
             return GetString()->Str() == rhs.GetString()->Str();
         }
+        // Int and Float with the same mathematical value are equal (Lua semantics).
+        if (Type() == VarType::Int && rhs.Type() == VarType::Float) {
+            return static_cast<double>(data_.i) == rhs.data_.f;
+        }
+        if (Type() == VarType::Float && rhs.Type() == VarType::Int) {
+            return data_.f == static_cast<double>(rhs.data_.i);
+        }
         return false;
     }
 
