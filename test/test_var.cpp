@@ -1927,3 +1927,34 @@ TEST(var, VarTypeToString_all_types) {
     auto invalid_type = static_cast<VarType>(999);
     EXPECT_EQ(VarTypeToString(invalid_type), "UNKNOWN");
 }
+
+// Bug 4: Var::Equal must return true when Int and Float hold the same mathematical value.
+TEST(var, equal_int_float_cross_type) {
+    // 1 == 1.0 should be true (Lua semantics)
+    Var int1(static_cast<int64_t>(1));
+    Var float1(1.0);
+    ASSERT_TRUE(int1.Equal(float1));
+    ASSERT_TRUE(float1.Equal(int1));
+
+    // 0 == 0.0
+    Var int0(static_cast<int64_t>(0));
+    Var float0(0.0);
+    ASSERT_TRUE(int0.Equal(float0));
+    ASSERT_TRUE(float0.Equal(int0));
+
+    // -5 == -5.0
+    Var intneg(static_cast<int64_t>(-5));
+    Var floatneg(-5.0);
+    ASSERT_TRUE(intneg.Equal(floatneg));
+    ASSERT_TRUE(floatneg.Equal(intneg));
+
+    // 1 != 1.5 (different mathematical values)
+    Var float1_5(1.5);
+    ASSERT_FALSE(int1.Equal(float1_5));
+    ASSERT_FALSE(float1_5.Equal(int1));
+
+    // Int vs non-numeric: always false
+    Var b(true);
+    ASSERT_FALSE(int1.Equal(b));
+}
+

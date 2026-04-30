@@ -1,5 +1,6 @@
 #include "fakelua.h"
 #include "util/common.h"
+#include "util/macro.h"
 #include "util/string_util.h"
 #include "gtest/gtest.h"
 
@@ -252,4 +253,56 @@ TEST(common, ToFloat) {
     ASSERT_EQ(ToFloat("0x0.1E"), 0.1171875);
     ASSERT_EQ(ToFloat("0xA23p-4"), 0xA23p-4);
     ASSERT_EQ(ToFloat("0X1.921FB54442D18P+1"), 0X1.921FB54442D18P+1);
+}
+
+// Bug 1: ToInteger must parse INT64_MIN in hex form without throwing.
+TEST(common, ToInteger_hex_int64_min) {
+    ASSERT_EQ(ToInteger("-0x8000000000000000"), INT64_MIN);
+    ASSERT_EQ(ToInteger("-0X8000000000000000"), INT64_MIN);
+    // Largest positive hex value (INT64_MAX)
+    ASSERT_EQ(ToInteger("0x7FFFFFFFFFFFFFFF"), INT64_MAX);
+    ASSERT_EQ(ToInteger("-0x7FFFFFFFFFFFFFFF"), -INT64_MAX);
+}
+
+// Bug 2: ToFloat must handle hex integers >= 0x8000000000000000 without overflowing.
+TEST(common, ToFloat_hex_large) {
+    // 0x8000000000000000 == 9223372036854775808.0
+    ASSERT_EQ(ToFloat("0x8000000000000000"), static_cast<double>(0x8000000000000000ULL));
+    // All-ones: 0xFFFFFFFFFFFFFFFF == 18446744073709551615.0
+    ASSERT_EQ(ToFloat("0xFFFFFFFFFFFFFFFF"), static_cast<double>(0xFFFFFFFFFFFFFFFFULL));
+    // Negative large hex
+    ASSERT_EQ(ToFloat("-0x8000000000000000"), -static_cast<double>(0x8000000000000000ULL));
+}
+
+// Bug 3: JoinString must not crash / UB on an empty vector.
+TEST(common, JoinString_empty) {
+    ASSERT_EQ(JoinString({}, ","), "");
+    ASSERT_EQ(JoinString({"a"}, ","), "a");
+    ASSERT_EQ(JoinString({"a", "b", "c"}, ","), "a,b,c");
+    ASSERT_EQ(JoinString({"x", "y"}, ""), "xy");
+}
+
+// Bug 7: SET_FLAG_BIT / GET_FLAG_BIT must not invoke UB for any valid bit position.
+TEST(common, flag_bit_macros) {
+    // Basic set / clear / get
+    uint32_t f = 0U;
+    SET_FLAG_BIT(f, 0, true);
+    ASSERT_EQ(GET_FLAG_BIT(f, 0), 1U);
+    SET_FLAG_BIT(f, 0, false);
+    ASSERT_EQ(GET_FLAG_BIT(f, 0), 0U);
+
+    // High bit positions (would overflow with signed int)
+    SET_FLAG_BIT(f, 31, true);
+    ASSERT_EQ(GET_FLAG_BIT(f, 31), 1U);
+    SET_FLAG_BIT(f, 31, false);
+    ASSERT_EQ(GET_FLAG_BIT(f, 31), 0U);
+
+    // Multiple bits
+    SET_FLAG_BIT(f, 7, true);
+    SET_FLAG_BIT(f, 15, true);
+    SET_FLAG_BIT(f, 23, true);
+    ASSERT_EQ(GET_FLAG_BIT(f, 7), 1U);
+    ASSERT_EQ(GET_FLAG_BIT(f, 15), 1U);
+    ASSERT_EQ(GET_FLAG_BIT(f, 23), 1U);
+    ASSERT_EQ(GET_FLAG_BIT(f, 8), 0U);
 }

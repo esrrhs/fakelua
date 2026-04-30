@@ -91,12 +91,14 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
                 std::vector<std::string> tmp_names;
 
                 for (size_t i = 0; i < vars.size(); ++i) {
-                    // 使用行号和索引生成唯一的临时变量名
-                    std::string tmp_name = std::format("__fakelua_tmp_{}_{}", stmt->Loc().begin.line, i);
+                    // 使用实例递增计数器（而非行号）生成唯一的临时变量名，
+                    // 避免同一行多条多重赋值语句产生名称冲突。
+                    std::string tmp_name = std::format("__fakelua_tmp_{}_{}", tmp_var_counter_, i);
                     tmp_namelist->AddName(tmp_name);
                     tmp_explist->AddExp(exps[i]);
                     tmp_names.push_back(tmp_name);
                 }
+                ++tmp_var_counter_;
 
                 // 2. 创建局部变量定义语句：local tmp1, tmp2, ... = exp1, exp2, ...
                 const auto local_var_stmt = std::make_shared<SyntaxTreeLocalVar>(stmt->Loc());

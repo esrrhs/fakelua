@@ -254,6 +254,10 @@ static inline uint32_t FlHashString(const char *str, int len) {
             VarString *__sb = (__b.type_ == VAR_STRING) ? __b.data_.s : (VarString *)__b.data_.i; \
             if (__sa == __sb) { (result) = true; break; } \
             (result) = (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0); \
+        } else if (__a.type_ == VAR_INT && __b.type_ == VAR_FLOAT) { \
+            (result) = ((double)__a.data_.i == __b.data_.f); \
+        } else if (__a.type_ == VAR_FLOAT && __b.type_ == VAR_INT) { \
+            (result) = (__a.data_.f == (double)__b.data_.i); \
         } else { \
             (result) = false; \
         } \
@@ -1277,6 +1281,10 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
         }
         case SyntaxTreeType::ForIn: {
             CompileStmtForIn(stmt);
+            break;
+        }
+        case SyntaxTreeType::Empty: {
+            // Semicolons produce empty statements; they are no-ops in Lua.
             break;
         }
         default: {

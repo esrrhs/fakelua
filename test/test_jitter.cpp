@@ -1538,3 +1538,33 @@ TEST(jitter, test_table_hash_delete_chain) {
     });
 }
 
+// Bug 4: Int and Float with equal mathematical value must compare as equal in JIT code.
+TEST(jitter, test_binop_equal_int_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_equal_int_float.lua", {.debug_mode = debug_mode});
+        bool eq = false;
+        // 1 (int) == 1.0 (float) -> true
+        Call(s, type, "test_int_eq_float", eq, 1, 1.0);
+        ASSERT_TRUE(eq);
+        // 1.0 (float) == 1 (int) -> true
+        eq = false;
+        Call(s, type, "test_float_eq_int", eq, 1.0, 1);
+        ASSERT_TRUE(eq);
+        // 1 (int) == 1.5 (float) -> false
+        eq = true;
+        Call(s, type, "test_int_neq_float", eq, 1, 1.5);
+        ASSERT_FALSE(eq);
+    });
+}
+
+// Bug 5: Two multi-assign statements on the same source line must not generate
+// duplicate temp variable names, causing compile errors.
+TEST(jitter, test_assign_same_line_multi) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_assign_same_line_multi.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 10); // 1 + 2 + 3 + 4 = 10
+    });
+}
+
