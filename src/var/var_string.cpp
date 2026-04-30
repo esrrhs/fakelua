@@ -3,8 +3,8 @@
 
 namespace fakelua {
 
-VarString *VarString::AllocTemp(State *s, const std::string_view &str) {
-    auto ret = static_cast<VarString *>(s->GetHeap().GetTempAllocator().Alloc(sizeof(VarString) + str.size()));
+VarString *VarString::AllocTemp(State *state, const std::string_view &str) {
+    auto ret = static_cast<VarString *>(state->GetHeap().GetTempAllocator().Alloc(sizeof(VarString) + str.size()));
     new (ret) VarString(str);
     return ret;
 }

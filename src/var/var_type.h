@@ -18,8 +18,8 @@ enum class VarType {
     Max = Table,
 };
 
-inline std::string VarTypeToString(VarType t) {
-    switch (t) {
+inline std::string VarTypeToString(VarType var_type) {
+    switch (var_type) {
         case VarType::Nil:
             return "Nil";
         case VarType::Bool:

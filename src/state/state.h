@@ -28,7 +28,7 @@ public:
         heap_.Reset();
     }
 
-    const StateConfig &GetStateConfig() const {
+    [[nodiscard]] const StateConfig &GetStateConfig() const {
         return config_;
     }
 
@@ -48,7 +48,7 @@ public:
         return vm_;
     }
 
-    int GetReentrantCount() const {
+    [[nodiscard]] int GetReentrantCount() const {
         return reentrant_count_;
     }
 

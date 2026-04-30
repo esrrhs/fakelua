@@ -20,12 +20,12 @@ bool Var::TryConvertNumberToInteger(int64_t &out) const {
         return false;
     }
 
-    const double d = GetFloat();
-    if (!std::isfinite(d)) {
+    const double double_val = GetFloat();
+    if (!std::isfinite(double_val)) {
         return false;
     }
     double int_part = 0;
-    if (std::modf(d, &int_part) != 0.0) {
+    if (std::modf(double_val, &int_part) != 0.0) {
         return false;
     }
     if (int_part < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
@@ -45,19 +45,19 @@ VarString *Var::GetString() const {
     }
 }
 
-void Var::SetTempString(State *s, const std::string_view &val) {
+void Var::SetTempString(State *state, const std::string_view &val) {
     type_ = static_cast<int>(VarType::String);
-    data_.s = VarString::AllocTemp(s, val);
+    data_.s = VarString::AllocTemp(state, val);
 }
 
-void Var::SetConstString(State *s, const std::string_view &val) {
+void Var::SetConstString(State *state, const std::string_view &val) {
     type_ = static_cast<int>(VarType::StringId);
-    data_.i = s->GetConstString().Alloc(val);
+    data_.i = state->GetConstString().Alloc(val);
 }
 
-void Var::SetTable(State *s) {
+void Var::SetTable(State *state) {
     type_ = static_cast<int>(VarType::Table);
-    data_.t = s->GetHeap().GetTempAllocator().New<VarTable>();
+    data_.t = state->GetHeap().GetTempAllocator().New<VarTable>();
 }
 
 std::string Var::ToString(bool has_quote, bool has_postfix) const {
@@ -106,9 +106,9 @@ size_t Var::Hash() const {
             union {
                 double d;
                 uint64_t u;
-            } u;
-            u.d = data_.f;
-            return static_cast<uint32_t>(u.u ^ (u.u >> 32));
+            } bits;
+            bits.d = data_.f;
+            return static_cast<uint32_t>(bits.u ^ (bits.u >> 32));
         }
         case VarType::String:
         case VarType::StringId: {
@@ -236,19 +236,19 @@ void Var::DoubleSlash(const Var &rhs, Var &result) const {
         }
         // Lua 的 // 是向下取整除法，向负无穷方向舍入
         // C++ 的 / 向零截断，因此需要针对负数结果进行调整
-        int64_t a = GetCalculableInt();
-        int64_t b = rhs.GetCalculableInt();
+        int64_t lhs_val = GetCalculableInt();
+        int64_t rhs_val = rhs.GetCalculableInt();
         // UB 说明（有意保留，不做额外检测）：
         // 当 a == INT64_MIN 且 b == -1 时，a / b 和 a % b 均触发有符号整数溢出 UB。
         // Lua 5.4 官方实现同样未对此特判，实际结果在主流编译器（gcc/clang/msvc）
         // 的 x86-64 平台上均为 INT64_MIN（IDIV 指令的硬件行为），行为稳定。
         // 为避免额外分支带来的性能损失，此处不做特殊处理。
-        int64_t q = a / b;
+        int64_t quotient = lhs_val / rhs_val;
         // 如果符号不同且有余数，则向负无穷方向调整
-        if ((a ^ b) < 0 && a % b != 0) {
-            q -= 1;
+        if ((lhs_val ^ rhs_val) < 0 && lhs_val % rhs_val != 0) {
+            quotient -= 1;
         }
-        result.SetInt(q);
+        result.SetInt(quotient);
     } else {
         result.SetFloat(std::floor(GetCalculableNumber() / rhs.GetCalculableNumber()));
     }
@@ -273,24 +273,24 @@ void Var::Mod(const Var &rhs, Var &result) const {
         }
         // Lua 的 % 遵循向下取整除法语义：a % b = a - b * floor(a / b)
         // 这与 C++ 的 % 不同，C++ 向零截断
-        int64_t a = GetCalculableInt();
-        int64_t b = rhs.GetCalculableInt();
+        int64_t lhs_val = GetCalculableInt();
+        int64_t rhs_val = rhs.GetCalculableInt();
         // UB 说明（有意保留，不做额外检测）：
         // 当 a == INT64_MIN 且 b == -1 时，a / b 和 a % b 均触发有符号整数溢出 UB。
         // Lua 5.4 官方实现同样未对此特判，实际结果在主流编译器的 x86-64 平台上
         // 均为 INT64_MIN（IDIV 指令的硬件行为），行为稳定。
         // 为避免额外分支带来的性能损失，此处不做特殊处理。
-        int64_t q = a / b;
+        int64_t quotient = lhs_val / rhs_val;
         // 如果符号不同且有余数，则向负无穷方向调整
-        if ((a ^ b) < 0 && a % b != 0) {
-            q -= 1;
+        if ((lhs_val ^ rhs_val) < 0 && lhs_val % rhs_val != 0) {
+            quotient -= 1;
         }
-        result.SetInt(a - b * q);
+        result.SetInt(lhs_val - rhs_val * quotient);
     } else {
         // 对于浮点数，使用 fmod 已经可以得到正确的余数，但需要调整为 Lua 语义
-        double a = GetCalculableNumber();
-        double b = rhs.GetCalculableNumber();
-        result.SetFloat(a - b * std::floor(a / b));
+        double lhs_val = GetCalculableNumber();
+        double rhs_val = rhs.GetCalculableNumber();
+        result.SetFloat(lhs_val - rhs_val * std::floor(lhs_val / rhs_val));
     }
 }
 
@@ -364,8 +364,8 @@ void Var::LeftShift(const Var &rhs, Var &result) const {
     }
 }
 
-void Var::Concat(State *s, const Var &rhs, Var &result) const {
-    result.SetTempString(s, std::format("{}{}", ToString(false, false), rhs.ToString(false, false)));
+void Var::Concat(State *state, const Var &rhs, Var &result) const {
+    result.SetTempString(state, std::format("{}{}", ToString(false, false), rhs.ToString(false, false)));
 }
 
 void Var::Less(const Var &rhs, Var &result) const {
@@ -481,12 +481,12 @@ void Var::UnopBitnot(Var &result) const {
     result.SetInt(~int_value);
 }
 
-void Var::TableSet(State *s, const Var &key, const Var &val, bool can_be_nil) const {
+void Var::TableSet(State *state, const Var &key, const Var &val, bool can_be_nil) const {
     if (Type() != VarType::Table) {
         ThrowFakeluaException(std::format("Var op failed, operand of 'TableSet' must be table, got {} {}", VarTypeToString(Type()), ToString()));
     }
 
-    GetTable()->Set(s, key, val, can_be_nil);
+    GetTable()->Set(state, key, val, can_be_nil);
 }
 
 Var Var::TableGet(const Var &key) const {

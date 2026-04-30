@@ -32,8 +32,8 @@ public:
     }
 
     // 重载等于操作符
-    bool operator==(const Var &r) const {
-        return Equal(r);
+    bool operator==(const Var &rhs_var) const {
+        return Equal(rhs_var);
     }
 
     // 获取变量类型
@@ -93,13 +93,13 @@ public:
     }
 
     // 设置临时字符串值
-    void SetTempString(State *s, const std::string_view &val);
+    void SetTempString(State *state, const std::string_view &val);
 
     // 设置常量字符串值
-    void SetConstString(State *s, const std::string_view &val);
+    void SetConstString(State *state, const std::string_view &val);
 
     // 创建并设置新表
-    void SetTable(State *s);
+    void SetTable(State *state);
 
 public:
     // 转换为字符串显示
@@ -161,7 +161,7 @@ public:
     void LeftShift(const Var &rhs, Var &result) const;
 
     // 字符串连接运算
-    void Concat(State *s, const Var &rhs, Var &result) const;
+    void Concat(State *state, const Var &rhs, Var &result) const;
 
     // 小于判断
     void Less(const Var &rhs, Var &result) const;
@@ -197,7 +197,7 @@ public:
     void UnopBitnot(Var &result) const;
 
     // 表元素设置
-    void TableSet(State *s, const Var &key, const Var &val, bool can_be_nil) const;
+    void TableSet(State *state, const Var &key, const Var &val, bool can_be_nil) const;
 
     // 获取表元素
     [[nodiscard]] Var TableGet(const Var &key) const;
