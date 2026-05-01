@@ -35,7 +35,7 @@ private:
         void *ptr;
     };
 
-    static constexpr size_t BLOCK_SIZE = 1024 * 1024;// 每块内存的大小，默认1MB
+    static constexpr size_t BLOCK_SIZE = 1024UL * 1024UL;// 每块内存的大小，默认1MB
     static_assert(BLOCK_SIZE % alignof(std::max_align_t) == 0, "BLOCK_SIZE must be a multiple of max alignment");
     std::vector<void *> blocks_;                     // 大块内存的地址
     size_t current_block_index_ = 0;                 // 当前使用的大块内存索引

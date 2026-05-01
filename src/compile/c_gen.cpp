@@ -859,8 +859,6 @@ void CGen::GenerateDecls(CompileResult &cr) {
 std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
     DEBUG_ASSERT(ptr->Type() == SyntaxTreeType::FuncName);
 
-    std::string ret;
-
     const auto name = std::dynamic_pointer_cast<SyntaxTreeFuncname>(ptr);
     const auto funcnamelistptr = name->FuncNameList();
 
@@ -886,7 +884,7 @@ std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
 }
 
 std::string CGen::GenTab() const {
-    return std::string(cur_tab_ * 4, ' ');
+    return std::string(static_cast<size_t>(cur_tab_) * 4, ' ');
 }
 
 std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parlist) {
@@ -920,8 +918,6 @@ std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parl
 }
 
 void CGen::GenerateImpl(CompileResult &cr) {
-    std::stringstream impl;
-
     const auto chunk = cr.chunk;
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
     for (const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk); auto &stmt: block->Stmts()) {

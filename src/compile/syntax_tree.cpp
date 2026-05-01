@@ -467,15 +467,15 @@ void WalkSyntaxTree(const SyntaxTreeInterfacePtr &node, const WalkSyntaxTreeFunc
             break;
         }
         case SyntaxTreeType::Goto: {
-            auto go = std::dynamic_pointer_cast<SyntaxTreeGoto>(node);
-            func(go);
+            auto goto_node = std::dynamic_pointer_cast<SyntaxTreeGoto>(node);
+            func(goto_node);
             break;
         }
         case SyntaxTreeType::While: {
-            auto wh = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
-            func(wh);
-            WalkSyntaxTree(wh->Exp(), func);
-            WalkSyntaxTree(wh->Block(), func);
+            auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
+            func(while_node);
+            WalkSyntaxTree(while_node->Exp(), func);
+            WalkSyntaxTree(while_node->Block(), func);
             break;
         }
         case SyntaxTreeType::Repeat: {
@@ -486,12 +486,12 @@ void WalkSyntaxTree(const SyntaxTreeInterfacePtr &node, const WalkSyntaxTreeFunc
             break;
         }
         case SyntaxTreeType::If: {
-            auto i = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
-            func(i);
-            WalkSyntaxTree(i->Exp(), func);
-            WalkSyntaxTree(i->Block(), func);
-            WalkSyntaxTree(i->ElseIfs(), func);
-            WalkSyntaxTree(i->ElseBlock(), func);
+            auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+            func(if_node);
+            WalkSyntaxTree(if_node->Exp(), func);
+            WalkSyntaxTree(if_node->Block(), func);
+            WalkSyntaxTree(if_node->ElseIfs(), func);
+            WalkSyntaxTree(if_node->ElseBlock(), func);
             break;
         }
         case SyntaxTreeType::ElseIfList: {
@@ -528,10 +528,10 @@ void WalkSyntaxTree(const SyntaxTreeInterfacePtr &node, const WalkSyntaxTreeFunc
             break;
         }
         case SyntaxTreeType::Function: {
-            auto f = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
-            func(f);
-            WalkSyntaxTree(f->Funcname(), func);
-            WalkSyntaxTree(f->Funcbody(), func);
+            auto func_node = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
+            func(func_node);
+            WalkSyntaxTree(func_node->Funcname(), func);
+            WalkSyntaxTree(func_node->Funcbody(), func);
             break;
         }
         case SyntaxTreeType::FuncNameList: {

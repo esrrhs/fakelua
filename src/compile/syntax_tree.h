@@ -52,8 +52,8 @@ enum class SyntaxTreeType {
 };
 
 // 将语法树类型转换为字符串描述
-inline std::string SyntaxTreeTypeToString(SyntaxTreeType t) {
-    switch (t) {
+inline std::string SyntaxTreeTypeToString(SyntaxTreeType type) {
+    switch (type) {
         case SyntaxTreeType::None:
             return "None";
         case SyntaxTreeType::Empty:
@@ -130,7 +130,7 @@ inline std::string SyntaxTreeTypeToString(SyntaxTreeType t) {
 }
 
 // 语法树节点位置类型
-typedef yy::location SyntaxTreeLocation;
+using SyntaxTreeLocation = yy::location;
 
 // 语法树节点基类接口
 class SyntaxTreeInterface {
@@ -185,7 +185,7 @@ private:
 };
 
 // 语法树智能指针类型
-typedef std::shared_ptr<SyntaxTreeInterface> SyntaxTreeInterfacePtr;
+using SyntaxTreeInterfacePtr = std::shared_ptr<SyntaxTreeInterface>;
 
 // 空节点
 class SyntaxTreeEmpty final : public SyntaxTreeInterface {
@@ -1384,8 +1384,8 @@ public:
     }
 
     // 设置运算符（一元或二元）
-    void SetOp(const SyntaxTreeInterfacePtr &op) {
-        op_ = op;
+    void SetOp(const SyntaxTreeInterfacePtr &oper) {
+        op_ = oper;
     }
 
     // 设置二元运算右操作数
@@ -1443,8 +1443,8 @@ public:
     [[nodiscard]] std::string Dump(int tab) const override;
 
     // 设置二元运算符名
-    void SetOp(const std::string &op) {
-        op_ = op;
+    void SetOp(const std::string &oper) {
+        op_ = oper;
     }
 
     // 获取二元运算符名
@@ -1473,8 +1473,8 @@ public:
     [[nodiscard]] std::string Dump(int tab) const override;
 
     // 设置一元运算符名
-    void SetOp(const std::string &op) {
-        op_ = op;
+    void SetOp(const std::string &oper) {
+        op_ = oper;
     }
 
     // 获取一元运算符名
@@ -1591,7 +1591,7 @@ private:
 };
 
 // 语法树遍历函数定义
-typedef std::function<void(const SyntaxTreeInterfacePtr &)> WalkSyntaxTreeFunc;
+using WalkSyntaxTreeFunc = std::function<void(const SyntaxTreeInterfacePtr &)>;
 
 // 深度优先遍历语法树
 void WalkSyntaxTree(const SyntaxTreeInterfacePtr &node, const WalkSyntaxTreeFunc &func);

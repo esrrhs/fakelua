@@ -77,18 +77,18 @@ std::string ReplaceEscapeChars(const std::string &str) {
                         ThrowFakeluaException(std::format("ReplaceEscapeChars failed, invalid escape sequence \\{}", *it));
                     }
                     // 最多读取3位数字
-                    int r = 0; /* 结果累加器 */
+                    int dec_val = 0; /* 结果累加器 */
                     for (int i = 0; i < 3; ++i) {
                         if (it == str.end() || !isdigit(static_cast<unsigned char>(*it))) {
                             break;
                         }
-                        r = 10 * r + *it - '0';
+                        dec_val = 10 * dec_val + *it - '0';
                         ++it;
                     }
-                    if (r > 0xFF) {
-                        ThrowFakeluaException("ReplaceEscapeChars failed, decimal escape too large \\" + std::to_string(r));
+                    if (dec_val > 0xFF) {
+                        ThrowFakeluaException("ReplaceEscapeChars failed, decimal escape too large \\" + std::to_string(dec_val));
                     }
-                    result += static_cast<char>(r);
+                    result += static_cast<char>(dec_val);
                     break;
             }
         } else {
@@ -99,24 +99,24 @@ std::string ReplaceEscapeChars(const std::string &str) {
     return result;
 }
 
-int64_t ToInteger(const std::string_view &s) {
+int64_t ToInteger(const std::string_view &input) {
     int64_t result = 0;
 
-    auto begin = s.begin();
+    auto begin = input.begin();
     auto base = 10;
     bool negative = false;
-    if (s.length() > 1) {
-        if (s[0] == '+') {//+123
+    if (input.length() > 1) {
+        if (input[0] == '+') {//+123
             begin += 1;
-            if (s.length() > 3 && s[1] == '0' && (s[2] == 'x' || s[2] == 'X')) {// +0x123
+            if (input.length() > 3 && input[1] == '0' && (input[2] == 'x' || input[2] == 'X')) {// +0x123
                 begin += 2;
                 base = 16;
             }
-        } else if (s.length() > 2) {
-            if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {// 0x123
+        } else if (input.length() > 2) {
+            if (input[0] == '0' && (input[1] == 'x' || input[1] == 'X')) {// 0x123
                 begin += 2;
                 base = 16;
-            } else if (s.length() > 3 && s[0] == '-' && s[1] == '0' && (s[2] == 'x' || s[2] == 'X')) {// -0x123
+            } else if (input.length() > 3 && input[0] == '-' && input[1] == '0' && (input[2] == 'x' || input[2] == 'X')) {// -0x123
                 begin += 3;
                 base = 16;
                 negative = true;
@@ -126,7 +126,7 @@ int64_t ToInteger(const std::string_view &s) {
 
     // Use strtoll/strtoull for cross-platform compatibility.
     // std::from_chars may not be available on all platforms (e.g., older macOS).
-    std::string str(begin, s.end());
+    std::string str(begin, input.end());
     char *end_ptr = nullptr;
     errno = 0;
 
@@ -135,18 +135,18 @@ int64_t ToInteger(const std::string_view &s) {
         // (which is INT64_MIN) does not cause ERANGE on strtoll.
         const uint64_t uval = strtoull(str.c_str(), &end_ptr, base);
         if (end_ptr == str.c_str() || *end_ptr != '\0') {
-            ThrowFakeluaException(std::format("ToInteger failed, invalid argument: {}", s));
+            ThrowFakeluaException(std::format("ToInteger failed, invalid argument: {}", input));
         } else if (errno == ERANGE || uval > static_cast<uint64_t>(INT64_MAX) + 1ULL) {
-            ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", s));
+            ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", input));
         }
         // Reinterpret as signed: -0x8000000000000000 == INT64_MIN is valid.
         result = -static_cast<int64_t>(uval);
     } else {
         result = strtoll(str.c_str(), &end_ptr, base);
         if (end_ptr == str.c_str() || *end_ptr != '\0') {
-            ThrowFakeluaException(std::format("ToInteger failed, invalid argument: {}", s));
+            ThrowFakeluaException(std::format("ToInteger failed, invalid argument: {}", input));
         } else if (errno == ERANGE) {
-            ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", s));
+            ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", input));
         }
         if (negative) {
             result = -result;
@@ -156,7 +156,7 @@ int64_t ToInteger(const std::string_view &s) {
     return result;
 }
 
-double ToFloat(const std::string_view &s) {
+double ToFloat(const std::string_view &input) {
     double result = 0;
 
     // Check for hex format prefix (0x or 0X)
@@ -164,14 +164,14 @@ double ToFloat(const std::string_view &s) {
     bool negative = false;
     size_t prefix_len = 0;
 
-    if (s.length() > 2) {
-        if (s[0] == '0' && (s[1] == 'x' || s[1] == 'X')) {
+    if (input.length() > 2) {
+        if (input[0] == '0' && (input[1] == 'x' || input[1] == 'X')) {
             hex_format = true;
             prefix_len = 2;
-        } else if (s[0] == '+' && s.length() > 3 && s[1] == '0' && (s[2] == 'x' || s[2] == 'X')) {
+        } else if (input[0] == '+' && input.length() > 3 && input[1] == '0' && (input[2] == 'x' || input[2] == 'X')) {
             hex_format = true;
             prefix_len = 3;  // +0x prefix
-        } else if (s[0] == '-' && s.length() > 3 && s[1] == '0' && (s[2] == 'x' || s[2] == 'X')) {
+        } else if (input[0] == '-' && input.length() > 3 && input[1] == '0' && (input[2] == 'x' || input[2] == 'X')) {
             hex_format = true;
             negative = true;
             prefix_len = 3;  // -0x prefix
@@ -185,39 +185,39 @@ double ToFloat(const std::string_view &s) {
 
     if (hex_format) {
         // Check if it's a hex float (contains '.' or 'p'/'P')
-        bool is_hex_float = s.find('.') != std::string_view::npos ||
-                            s.find('p') != std::string_view::npos ||
-                            s.find('P') != std::string_view::npos;
+        bool is_hex_float = input.find('.') != std::string_view::npos ||
+                            input.find('p') != std::string_view::npos ||
+                            input.find('P') != std::string_view::npos;
 
         if (is_hex_float) {
             // Hex float: pass full string to strtod (it handles sign and 0x prefix)
             // Don't apply negative separately since strtod already handles it.
-            std::string str(s.begin(), s.end());
+            std::string str(input.begin(), input.end());
             result = strtod(str.c_str(), &end_ptr);
             negative = false;  // strtod already handled the sign
             if (end_ptr == str.c_str() || *end_ptr != '\0') {
-                ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", s));
+                ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", input));
             }
         } else {
             // Hex integer without fractional part: strip prefix and parse as unsigned
             // to correctly handle values >= 0x8000000000000000 (e.g. 0xFFFFFFFFFFFFFFFF).
-            std::string str(s.begin() + prefix_len, s.end());
+            std::string str(input.begin() + prefix_len, input.end());
             const uint64_t uval = strtoull(str.c_str(), &end_ptr, 16);
             result = static_cast<double>(uval);
             if (end_ptr == str.c_str() || *end_ptr != '\0') {
-                ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", s));
+                ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", input));
             }
         }
     } else {
-        std::string str(s.begin(), s.end());
+        std::string str(input.begin(), input.end());
         result = strtod(str.c_str(), &end_ptr);
         if (end_ptr == str.c_str() || *end_ptr != '\0') {
-            ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", s));
+            ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", input));
         }
     }
 
     if (errno == ERANGE) {
-        ThrowFakeluaException(std::format("ToFloat failed, result out of range: {}", s));
+        ThrowFakeluaException(std::format("ToFloat failed, result out of range: {}", input));
     }
 
     if (negative) {

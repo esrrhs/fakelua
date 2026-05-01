@@ -6,16 +6,16 @@
 
 namespace fakelua {
 
-extern "C" void *FakeluaAllocTemp(State *s, size_t size) {
-    return s->GetHeap().GetTempAllocator().Alloc(size);
+extern "C" void *FakeluaAllocTemp(State *state, size_t size) {
+    return state->GetHeap().GetTempAllocator().Alloc(size);
 }
 
-extern "C" void FakeluaThrowError(State *s, const char *msg) {
+extern "C" void FakeluaThrowError(State *state, const char *msg) {
     ThrowFakeluaException(msg);
 }
 
-extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...) {
-    const auto func = s->GetVM().GetFunction(std::string(name));
+extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {
+    const auto func = state->GetVM().GetFunction(std::string(name));
     if (func.Empty()) {
         ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' not found", name));
     }
@@ -37,12 +37,12 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, 
     }
 
     CVar arg_arr[8];
-    va_list vl;
-    va_start(vl, arg_num);
+    va_list args_list;
+    va_start(args_list, arg_num);
     for (int i = 0; i < arg_num; ++i) {
-        arg_arr[i] = va_arg(vl, CVar);
+        arg_arr[i] = va_arg(args_list, CVar);
     }
-    va_end(vl);
+    va_end(args_list);
 
     switch (arg_num) {
         case 0: return reinterpret_cast<CVar (*)()>(addr)();
