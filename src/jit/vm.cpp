@@ -54,9 +54,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
         case 6: return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5]);
         case 7: return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6]);
         case 8: return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7]);
-        default:
-            ThrowFakeluaException(
-                    std::format("FakeluaCallByName: too many arguments ({}) for function '{}'", arg_num, name));
+        default: __builtin_unreachable();
     }
 }
 

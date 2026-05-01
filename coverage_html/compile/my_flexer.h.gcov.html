@@ -1,0 +1,130 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - coverage_src.info - compile/my_flexer.h</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">compile</a> - my_flexer.h<span style="font-size: 80%;"> (source / <a href="my_flexer.h.func-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">coverage_src.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">4</td>
+            <td class="headerCovTableEntry">4</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-05-01 13:48:32</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryLo">66.7&nbsp;%</td>
+            <td class="headerCovTableEntry">3</td>
+            <td class="headerCovTableEntry">2</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : #pragma once</span>
+<span id="L2"><span class="lineNum">       2</span>              : </span>
+<span id="L3"><span class="lineNum">       3</span>              : #include &quot;bison/location.hh&quot;</span>
+<span id="L4"><span class="lineNum">       4</span>              : #include &quot;bison/parser.h&quot;</span>
+<span id="L5"><span class="lineNum">       5</span>              : #include &quot;compile/syntax_tree.h&quot;</span>
+<span id="L6"><span class="lineNum">       6</span>              : #include &lt;FlexLexer.h&gt;</span>
+<span id="L7"><span class="lineNum">       7</span>              : #include &lt;fstream&gt;</span>
+<span id="L8"><span class="lineNum">       8</span>              : #include &lt;sstream&gt;</span>
+<span id="L9"><span class="lineNum">       9</span>              : </span>
+<span id="L10"><span class="lineNum">      10</span>              : namespace fakelua {</span>
+<span id="L11"><span class="lineNum">      11</span>              : </span>
+<span id="L12"><span class="lineNum">      12</span>              : // 自定义词法分析器，集成 Flex 与语法树构建功能</span>
+<span id="L13"><span class="lineNum">      13</span>              : class MyFlexer : public yyFlexLexer {</span>
+<span id="L14"><span class="lineNum">      14</span>              : public:</span>
+<span id="L15"><span class="lineNum">      15</span> <span class="tlaGNC tlaBgGNC">         810 :     MyFlexer() = default;</span></span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span> <span class="tlaGNC">        1618 :     ~MyFlexer() override = default;</span></span>
+<span id="L18"><span class="lineNum">      18</span>              : </span>
+<span id="L19"><span class="lineNum">      19</span>              :     // Bison 调用的词法分析接口，实现在 scanner.cpp 中</span>
+<span id="L20"><span class="lineNum">      20</span>              :     virtual yy::parser::symbol_type MyYylex();</span>
+<span id="L21"><span class="lineNum">      21</span>              : </span>
+<span id="L22"><span class="lineNum">      22</span>              :     // 设置输入为 Lua 源代码文件</span>
+<span id="L23"><span class="lineNum">      23</span>              :     void InputFile(const std::string &amp;file);</span>
+<span id="L24"><span class="lineNum">      24</span>              : </span>
+<span id="L25"><span class="lineNum">      25</span>              :     // 设置输入为 Lua 源代码字符串</span>
+<span id="L26"><span class="lineNum">      26</span>              :     void InputString(const std::string &amp;str);</span>
+<span id="L27"><span class="lineNum">      27</span>              : </span>
+<span id="L28"><span class="lineNum">      28</span>              :     // 设置解析生成的主语法树根节点</span>
+<span id="L29"><span class="lineNum">      29</span>              :     void SetChunk(const SyntaxTreeInterfacePtr &amp;chunk);</span>
+<span id="L30"><span class="lineNum">      30</span>              : </span>
+<span id="L31"><span class="lineNum">      31</span>              :     // 获取当前生成的语法树</span>
+<span id="L32"><span class="lineNum">      32</span>              :     [[nodiscard]] SyntaxTreeInterfacePtr GetChunk() const;</span>
+<span id="L33"><span class="lineNum">      33</span>              : </span>
+<span id="L34"><span class="lineNum">      34</span>              :     // 移除字符串两侧的引号并处理转义字符</span>
+<span id="L35"><span class="lineNum">      35</span>              :     std::string RemoveQuotes(const std::string &amp;str);</span>
+<span id="L36"><span class="lineNum">      36</span>              : </span>
+<span id="L37"><span class="lineNum">      37</span>              :     // 获取当前正在解析的文件名</span>
+<span id="L38"><span class="lineNum">      38</span> <span class="tlaGNC">         809 :     std::string GetFilename() const {</span></span>
+<span id="L39"><span class="lineNum">      39</span> <span class="tlaGNC">        1618 :         return filename_;</span></span>
+<span id="L40"><span class="lineNum">      40</span>              :     }</span>
+<span id="L41"><span class="lineNum">      41</span>              : </span>
+<span id="L42"><span class="lineNum">      42</span>              : private:</span>
+<span id="L43"><span class="lineNum">      43</span>              :     // 生成临时文件以供词法分析使用</span>
+<span id="L44"><span class="lineNum">      44</span>              :     std::string GenerateTmpFile(const std::string &amp;str);</span>
+<span id="L45"><span class="lineNum">      45</span>              : </span>
+<span id="L46"><span class="lineNum">      46</span>              : private:</span>
+<span id="L47"><span class="lineNum">      47</span>              :     yy::location location_;       // 记录当前 token 的行列位置</span>
+<span id="L48"><span class="lineNum">      48</span>              :     std::string filename_;        // 当前解析的文件名或源标识</span>
+<span id="L49"><span class="lineNum">      49</span>              :     std::ifstream file_;          // 文件输入流</span>
+<span id="L50"><span class="lineNum">      50</span>              :     std::istringstream string_;   // 字符串输入流</span>
+<span id="L51"><span class="lineNum">      51</span>              :     SyntaxTreeInterfacePtr chunk_;// 语法树根节点</span>
+<span id="L52"><span class="lineNum">      52</span>              : };</span>
+<span id="L53"><span class="lineNum">      53</span>              : </span>
+<span id="L54"><span class="lineNum">      54</span>              : }// namespace fakelua</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

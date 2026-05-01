@@ -1813,3 +1813,43 @@ TEST(syntax_tree, test_empty) {
 
     ASSERT_EQ(dumpstr, wantstr);
 }
+
+// compiler.cpp line 46: parse failure throws when the Lua source is syntactically invalid.
+TEST(syntax_tree, parse_failure_throws) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    Compiler c(s);
+    EXPECT_THROW(c.CompileString("function @invalid", {}), std::exception);
+}
+
+// preprocessor.cpp line 81: var count != exp count in assignment.
+TEST(syntax_tree, preprocess_assign_count_mismatch) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    Compiler c(s);
+    EXPECT_THROW(c.CompileString("a, b = 1", {}), std::exception);
+}
+
+// preprocessor.cpp line 246: colon method definition is not supported.
+TEST(syntax_tree, preprocess_colon_method_unsupported) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    Compiler c(s);
+    EXPECT_THROW(c.CompileString("function a:b() end", {}), std::exception);
+}
+
+// preprocessor.cpp line 250: multi-part function name is not supported.
+TEST(syntax_tree, preprocess_multipart_funcname_unsupported) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    Compiler c(s);
+    EXPECT_THROW(c.CompileString("function a.b.c() end", {}), std::exception);
+}

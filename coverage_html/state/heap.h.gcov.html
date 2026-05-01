@@ -1,0 +1,143 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.01 Transitional//EN">
+
+<html lang="en">
+
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <title>LCOV - coverage_src.info - state/heap.h</title>
+  <link rel="stylesheet" type="text/css" href="../gcov.css">
+</head>
+
+<body>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="title">LCOV - code coverage report</td></tr>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+
+            <tr>
+              <td width="100%">
+                <table cellpadding=1 border=0 width="100%">
+          <tr>
+            <td width="10%" class="headerItem">Current view:</td>
+            <td width="10%" class="headerValue"><a href="../index.html">top level</a> - <a href="index.html">state</a> - heap.h<span style="font-size: 80%;"> (source / <a href="heap.h.func-c.html">functions</a>)</span></td>
+            <td width="5%"></td>
+            <td width="5%"></td>
+            <td width="5%" class="headerCovTableHead">Coverage</td>
+            <td width="5%" class="headerCovTableHead" title="Covered + Uncovered code">Total</td>
+            <td width="5%" class="headerCovTableHead" title="Exercised code only">Hit</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test:</td>
+            <td class="headerValue">coverage_src.info</td>
+            <td></td>
+            <td class="headerItem">Lines:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">13</td>
+            <td class="headerCovTableEntry">13</td>
+          </tr>
+          <tr>
+            <td class="headerItem">Test Date:</td>
+            <td class="headerValue">2026-05-01 13:48:32</td>
+            <td></td>
+            <td class="headerItem">Functions:</td>
+            <td class="headerCovTableEntryHi">100.0&nbsp;%</td>
+            <td class="headerCovTableEntry">1</td>
+            <td class="headerCovTableEntry">1</td>
+          </tr>
+                  <tr><td><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+                </table>
+              </td>
+            </tr>
+
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+          </table>
+
+          <table cellpadding=0 cellspacing=0 border=0>
+            <tr>
+              <td><br></td>
+            </tr>
+            <tr>
+              <td>
+<pre class="sourceHeading">            Line data    Source code</pre>
+<pre class="source">
+<span id="L1"><span class="lineNum">       1</span>              : #pragma once</span>
+<span id="L2"><span class="lineNum">       2</span>              : </span>
+<span id="L3"><span class="lineNum">       3</span>              : #include &quot;fakelua.h&quot;</span>
+<span id="L4"><span class="lineNum">       4</span>              : #include &lt;new&gt;</span>
+<span id="L5"><span class="lineNum">       5</span>              : #include &lt;utility&gt;</span>
+<span id="L6"><span class="lineNum">       6</span>              : #include &lt;vector&gt;</span>
+<span id="L7"><span class="lineNum">       7</span>              : </span>
+<span id="L8"><span class="lineNum">       8</span>              : namespace fakelua {</span>
+<span id="L9"><span class="lineNum">       9</span>              : </span>
+<span id="L10"><span class="lineNum">      10</span> <span class="tlaGNC tlaBgGNC">         407 : class HeapAllocator {</span></span>
+<span id="L11"><span class="lineNum">      11</span>              : public:</span>
+<span id="L12"><span class="lineNum">      12</span>              :     ~HeapAllocator();</span>
+<span id="L13"><span class="lineNum">      13</span>              : </span>
+<span id="L14"><span class="lineNum">      14</span>              :     // 分配一块连续的临时内存，分配后的指针地址不会变化</span>
+<span id="L15"><span class="lineNum">      15</span>              :     [[nodiscard]] void *Alloc(size_t size);</span>
+<span id="L16"><span class="lineNum">      16</span>              : </span>
+<span id="L17"><span class="lineNum">      17</span>              :     // 分配对象并记录析构函数</span>
+<span id="L18"><span class="lineNum">      18</span>              :     template&lt;typename T, typename... Args&gt;</span>
+<span id="L19"><span class="lineNum">      19</span> <span class="tlaGNC">          13 :     T *New(Args &amp;&amp;...args) {</span></span>
+<span id="L20"><span class="lineNum">      20</span> <span class="tlaGNC">          13 :         void *ptr = Alloc(sizeof(T));</span></span>
+<span id="L21"><span class="lineNum">      21</span> <span class="tlaGNC">          13 :         T *obj = new (ptr) T(std::forward&lt;Args&gt;(args)...);</span></span>
+<span id="L22"><span class="lineNum">      22</span> <span class="tlaGNC">          13 :         destructors_.push_back({[](void *p) { static_cast&lt;T *&gt;(p)-&gt;~T(); }, obj});</span></span>
+<span id="L23"><span class="lineNum">      23</span> <span class="tlaGNC">          13 :         return obj;</span></span>
+<span id="L24"><span class="lineNum">      24</span>              :     }</span>
+<span id="L25"><span class="lineNum">      25</span>              : </span>
+<span id="L26"><span class="lineNum">      26</span>              :     // 重置下标，内存保留</span>
+<span id="L27"><span class="lineNum">      27</span>              :     void Reset();</span>
+<span id="L28"><span class="lineNum">      28</span>              : </span>
+<span id="L29"><span class="lineNum">      29</span>              :     // 当前临时内存使用</span>
+<span id="L30"><span class="lineNum">      30</span>              :     [[nodiscard]] size_t Size() const;</span>
+<span id="L31"><span class="lineNum">      31</span>              : </span>
+<span id="L32"><span class="lineNum">      32</span>              : private:</span>
+<span id="L33"><span class="lineNum">      33</span>              :     struct DestructorInfo {</span>
+<span id="L34"><span class="lineNum">      34</span>              :         void (*destroyer)(void *);</span>
+<span id="L35"><span class="lineNum">      35</span>              :         void *ptr;</span>
+<span id="L36"><span class="lineNum">      36</span>              :     };</span>
+<span id="L37"><span class="lineNum">      37</span>              : </span>
+<span id="L38"><span class="lineNum">      38</span>              :     static constexpr size_t BLOCK_SIZE = 1024UL * 1024UL;// 每块内存的大小，默认1MB</span>
+<span id="L39"><span class="lineNum">      39</span>              :     static_assert(BLOCK_SIZE % alignof(std::max_align_t) == 0, &quot;BLOCK_SIZE must be a multiple of max alignment&quot;);</span>
+<span id="L40"><span class="lineNum">      40</span>              :     std::vector&lt;void *&gt; blocks_;                     // 大块内存的地址</span>
+<span id="L41"><span class="lineNum">      41</span>              :     size_t current_block_index_ = 0;                 // 当前使用的大块内存索引</span>
+<span id="L42"><span class="lineNum">      42</span>              :     size_t current_block_offset_ = 0;                // 当前使用的大块内存偏移</span>
+<span id="L43"><span class="lineNum">      43</span>              :     std::vector&lt;DestructorInfo&gt; destructors_;        // 记录的析构函数</span>
+<span id="L44"><span class="lineNum">      44</span>              : };</span>
+<span id="L45"><span class="lineNum">      45</span>              : </span>
+<span id="L46"><span class="lineNum">      46</span>              : // 从大块内存中切出一小块内存使用，释放的时候一口气全释放</span>
+<span id="L47"><span class="lineNum">      47</span> <span class="tlaGNC">         814 : class Heap {</span></span>
+<span id="L48"><span class="lineNum">      48</span>              : public:</span>
+<span id="L49"><span class="lineNum">      49</span> <span class="tlaGNC">         603 :     HeapAllocator &amp;GetTempAllocator() {</span></span>
+<span id="L50"><span class="lineNum">      50</span> <span class="tlaGNC">         603 :         return temp_allocator_;</span></span>
+<span id="L51"><span class="lineNum">      51</span>              :     }</span>
+<span id="L52"><span class="lineNum">      52</span>              : </span>
+<span id="L53"><span class="lineNum">      53</span> <span class="tlaGNC">          54 :     HeapAllocator &amp;GetConstAllocator() {</span></span>
+<span id="L54"><span class="lineNum">      54</span> <span class="tlaGNC">          54 :         return const_allocator_;</span></span>
+<span id="L55"><span class="lineNum">      55</span>              :     }</span>
+<span id="L56"><span class="lineNum">      56</span>              : </span>
+<span id="L57"><span class="lineNum">      57</span> <span class="tlaGNC">        1111 :     void Reset() {</span></span>
+<span id="L58"><span class="lineNum">      58</span> <span class="tlaGNC">        1111 :         temp_allocator_.Reset();</span></span>
+<span id="L59"><span class="lineNum">      59</span>              :         // const_allocator_不重置，常量内存一直保留</span>
+<span id="L60"><span class="lineNum">      60</span>              :     }</span>
+<span id="L61"><span class="lineNum">      61</span>              : </span>
+<span id="L62"><span class="lineNum">      62</span>              : private:</span>
+<span id="L63"><span class="lineNum">      63</span>              :     HeapAllocator temp_allocator_; // 临时内存分配器，编译过程中使用，编译结束后重置</span>
+<span id="L64"><span class="lineNum">      64</span>              :     HeapAllocator const_allocator_;// 常量内存分配器，编译过程中使用，编译结束后不重置</span>
+<span id="L65"><span class="lineNum">      65</span>              : };</span>
+<span id="L66"><span class="lineNum">      66</span>              : </span>
+<span id="L67"><span class="lineNum">      67</span>              : }// namespace fakelua</span>
+        </pre>
+              </td>
+            </tr>
+          </table>
+          <br>
+
+          <table width="100%" border=0 cellspacing=0 cellpadding=0>
+            <tr><td class="ruler"><img src="../glass.png" width=3 height=3 alt=""></td></tr>
+            <tr><td class="versionInfo">Generated by: <a href="https://github.com//linux-test-project/lcov" target="_parent">LCOV version 2.0-1</a></td></tr>
+          </table>
+          <br>
+
+</body>
+</html>

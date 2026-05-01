@@ -972,3 +972,25 @@ TEST(infer, test_infer_typed_float_for_mixed) {
         ASSERT_NEAR(ret, 15.0, 0.001); // 1+2+3+4+5
     });
 }
+
+// CollectReassignedVars must descend into elseif blocks (type_inferencer.cpp lines 553-555).
+// n is a math param; the function body has an if/elseif structure.
+TEST(infer, test_spec_elseif_param) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_elseif_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 8);
+        ASSERT_EQ(ret, 11); // n=8: r = 8+1=9, elseif branch: r = 9+2=11
+    });
+}
+
+// CollectReassignedVars must descend into ForIn blocks (type_inferencer.cpp lines 574-578).
+// n is a math param; the function body has a for-in loop that reassigns sum.
+TEST(infer, test_spec_forin_param) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_forin_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 16); // sum = 10+0 + 1+2+3 = 16
+    });
+}
