@@ -43,3 +43,7 @@ CTestTestfile.cmake
 Makefile
 googletest
 _build/
+coverage.info
+coverage_filtered.info
+coverage_src.info
+coverage_html/
