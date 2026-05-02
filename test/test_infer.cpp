@@ -230,12 +230,16 @@ TEST(infer, test_infer_if_scope_degrade) {
 }
 
 // While body processed with new_scope=true: the assignment x = n inside the while
-// loop body degrades x from T_INT to T_DYNAMIC across the scope boundary.
+// loop body degrades x across the scope boundary.
+// With numeric specialization, n is now a typed math param:
+// - test_0(int64_t n): x = n keeps x as T_INT → int64_t x (no degradation in int path)
+// - test_1(double n): x = n makes x T_FLOAT, merged with T_INT initial → T_DYNAMIC → CVar x
 TEST(infer, test_infer_while_scope_degrade) {
     const auto code = InferGetCCode("./infer/test_infer_while_scope_degrade.lua");
-    // x degraded to CVar because x = n (T_DYNAMIC param) inside the while body.
+    // In the float specialization (test_1), x degrades to CVar because x = n (T_FLOAT param).
     ASSERT_NE(code.find("CVar x = "), std::string::npos);
-    ASSERT_EQ(code.find("int64_t x"), std::string::npos);
+    // In the int specialization (test_0), x is correctly int64_t because x = n is T_INT throughout.
+    ASSERT_NE(code.find("int64_t x"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_while_scope_degrade.lua", {.debug_mode = debug_mode});

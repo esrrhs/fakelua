@@ -1038,10 +1038,12 @@ void CGen::CompileFuncBody(const std::string &func_name,
     native_var_scopes_.clear();
     EnterNativeVarScope();
     for (const auto &param_name: func_params) {
-        // 特化模式中，数学参数通过 spec_param_types_ 跟踪，而不作为
-        // 带类型的原生变量（以避免 CompileStmtAssign 的
-        // CompileNumericExp 路径在 CVar 右值时出现交互问题）。
-        DeclareNativeVar(param_name, false);
+        // 在特化模式中，数学参数已在函数签名中声明为原生类型（int64_t/double），
+        // 因此将其注册为 typed_native，以便 CompileStmtAssign 能对赋值使用
+        // TryCompileNativeExpr 路径，而非产生类型错误的 CVar 赋值。
+        // 非特化或非数学参数仍注册为非类型化（CVar）。
+        const bool is_typed_math = (spec_bitmask >= 0) && (spec_param_types_.count(param_name) > 0);
+        DeclareNativeVar(param_name, is_typed_math);
     }
     cur_output_ = &body_ss_;
     cur_tab_++;
@@ -1204,6 +1206,46 @@ std::string CGen::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
     } catch (...) {
         return {};
     }
+}
+
+// 将比较运算符名称映射到对应的 C 操作符。
+// 仅处理纯数值比较（不包括 AND/OR/NOT 等逻辑操作）。
+static const std::unordered_map<std::string, std::string> kCmpOpMap = {
+        {"LESS", "<"}, {"LESS_EQUAL", "<="}, {"MORE", ">"}, {"MORE_EQUAL", ">="},
+        {"EQUAL", "=="}, {"NOT_EQUAL", "!="}
+};
+
+std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
+    // 只处理 Exp 节点中的 binop 比较表达式。
+    if (!exp || exp->Type() != SyntaxTreeType::Exp) {
+        return {};
+    }
+    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    if (e->ExpType() != "binop") {
+        return {};
+    }
+    const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
+    if (!op) {
+        return {};
+    }
+    const auto op_it = kCmpOpMap.find(op->GetOp());
+    if (op_it == kCmpOpMap.end()) {
+        return {};
+    }
+    // 在调用 CompileNumericExp（失败时会记录错误日志）之前，先检查两个操作数
+    // 是否都具有静态已知的数值类型。对于表访问等 T_DYNAMIC 表达式，直接跳过。
+    const auto left_type = e->Left() ? e->Left()->EvalType() : T_DYNAMIC;
+    const auto right_type = e->Right() ? e->Right()->EvalType() : T_DYNAMIC;
+    if ((left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
+        return {};
+    }
+    // 尝试将两侧编译为原生数值表达式。
+    const auto left_native = TryCompileNativeExpr(e->Left());
+    const auto right_native = TryCompileNativeExpr(e->Right());
+    if (left_native.empty() || right_native.empty()) {
+        return {};
+    }
+    return std::format("({}) {} ({})", left_native, op_it->second, right_native);
 }
 
 void CGen::CompileStmtBlock(const SyntaxTreeInterfacePtr &block) {
@@ -1397,7 +1439,25 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     // 后续的 T_DYNAMIC 变化之前被处理时，EvalType 可能已过时）。
     // 使用过时的 T_INT EvalType 会发出 CVar = int64_t —— C 类型错误。
     if (const auto &name = v_ptr->GetName(); IsTypedNativeVar(name)) {
-        *cur_output_ << GenTab() << name << " = " << CompileNumericExp(exps[0]) << ";\n";
+        // 优先尝试将右值编译为原生数值表达式（不经过 CVar）。
+        // 这对特化中被重新赋值的数学参数尤为重要：参数已声明为 int64_t/double，
+        // 若直接用 CompileExp 会产生 int64_t = CVar 的类型错误。
+        const auto native_rhs = TryCompileNativeExpr(exps[0]);
+        if (!native_rhs.empty()) {
+            *cur_output_ << GenTab() << name << " = " << native_rhs << ";\n";
+        } else {
+            // 右值无法表达为原生数值（例如函数调用返回 CVar）。
+            // 从 CVar 中提取对应字段以赋给原生类型变量。
+            // 仅在特化中（spec_param_types_ 含该名称）才走此路径，
+            // 且类型保证与特化签名一致。
+            const std::string rhs = CompileExp(exps[0]);
+            const auto it = spec_param_types_.find(name);
+            if (it != spec_param_types_.end() && it->second == T_FLOAT) {
+                *cur_output_ << GenTab() << name << " = (" << rhs << ").data_.f;\n";
+            } else {
+                *cur_output_ << GenTab() << name << " = (" << rhs << ").data_.i;\n";
+            }
+        }
     } else {
         const std::string rhs = CompileExp(exps[0]);
         *cur_output_ << GenTab() << name << " = " << rhs << ";\n";
@@ -1411,6 +1471,19 @@ void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared) {
 void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::While);
     const auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
+
+    // 当条件是纯数值比较时，直接生成 while (native_cond)，跳过 CVar boxing。
+    const auto native_cond = TryCompileNativeBoolExpr(while_stmt->Exp());
+    if (!native_cond.empty()) {
+        *cur_output_ << GenTab() << "while (" << native_cond << ") {\n";
+        cur_tab_++;
+        EnterNativeVarScope();
+        CompileStmtBlock(while_stmt->Block());
+        ExitNativeVarScope();
+        cur_tab_--;
+        *cur_output_ << GenTab() << "}\n";
+        return;
+    }
 
     const auto tmp_bool = std::format("flua_wbt_{}", tmp_var_counter_++);
     func_temp_decls_ << "    bool " << tmp_bool << ";\n";
@@ -1434,18 +1507,23 @@ void CGen::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::Repeat);
     const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
 
-    const auto tmp_bool = std::format("flua_rbt_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
-
     *cur_output_ << GenTab() << "do {\n";
     cur_tab_++;
 
     EnterNativeVarScope();
     CompileStmtBlock(repeat_stmt->Block());
-    const auto cond = CompileExp(repeat_stmt->Exp());
-    ExitNativeVarScope();
-    *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
-    *cur_output_ << GenTab() << std::format("if ({}) break;\n", tmp_bool);
+    const auto native_cond = TryCompileNativeBoolExpr(repeat_stmt->Exp());
+    if (!native_cond.empty()) {
+        ExitNativeVarScope();
+        *cur_output_ << GenTab() << std::format("if ({}) break;\n", native_cond);
+    } else {
+        const auto cond = CompileExp(repeat_stmt->Exp());
+        ExitNativeVarScope();
+        const auto tmp_bool = std::format("flua_rbt_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    bool " << tmp_bool << ";\n";
+        *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
+        *cur_output_ << GenTab() << std::format("if ({}) break;\n", tmp_bool);
+    }
 
     cur_tab_--;
     *cur_output_ << GenTab() << "} while (1);\n";
@@ -1455,12 +1533,19 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::If);
     const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
 
-    const auto tmp_bool = std::format("flua_ibt_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
-
-    const auto cond = CompileExp(if_stmt->Exp());
-    *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
-    *cur_output_ << GenTab() << std::format("if ({}) {{\n", tmp_bool);
+    // 尝试将条件编译为原生 C bool 表达式（跳过 CVar boxing 和 IsTrue）。
+    std::string cond_bool;
+    const auto native_cond = TryCompileNativeBoolExpr(if_stmt->Exp());
+    if (!native_cond.empty()) {
+        cond_bool = native_cond;
+    } else {
+        const auto tmp_bool = std::format("flua_ibt_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    bool " << tmp_bool << ";\n";
+        const auto cond = CompileExp(if_stmt->Exp());
+        *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
+        cond_bool = tmp_bool;
+    }
+    *cur_output_ << GenTab() << std::format("if ({}) {{\n", cond_bool);
     cur_tab_++;
     EnterNativeVarScope();
     CompileStmtBlock(if_stmt->Block());
@@ -1476,12 +1561,18 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
             cur_tab_++;
             elseif_depth++;
 
-            const auto etmp_bool = std::format("flua_ibt_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    bool " << etmp_bool << ";\n";
-
-            const auto econd = CompileExp(elseif_list->ElseifExp(i));
-            *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", econd, etmp_bool);
-            *cur_output_ << GenTab() << std::format("if ({}) {{\n", etmp_bool);
+            std::string econd_bool;
+            const auto enative = TryCompileNativeBoolExpr(elseif_list->ElseifExp(i));
+            if (!enative.empty()) {
+                econd_bool = enative;
+            } else {
+                const auto etmp_bool = std::format("flua_ibt_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    bool " << etmp_bool << ";\n";
+                const auto econd = CompileExp(elseif_list->ElseifExp(i));
+                *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", econd, etmp_bool);
+                econd_bool = etmp_bool;
+            }
+            *cur_output_ << GenTab() << std::format("if ({}) {{\n", econd_bool);
             cur_tab_++;
             EnterNativeVarScope();
             CompileStmtBlock(elseif_list->ElseifBlock(i));
