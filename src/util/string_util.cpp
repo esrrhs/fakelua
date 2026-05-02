@@ -148,9 +148,6 @@ int64_t ToInteger(const std::string_view &input) {
         } else if (errno == ERANGE) {
             ThrowFakeluaException(std::format("ToInteger failed, result out of range: {}", input));
         }
-        if (negative) {
-            result = -result;
-        }
     }
 
     return result;

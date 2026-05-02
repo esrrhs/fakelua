@@ -306,3 +306,19 @@ TEST(common, flag_bit_macros) {
     ASSERT_EQ(GET_FLAG_BIT(f, 23), 1U);
     ASSERT_EQ(GET_FLAG_BIT(f, 8), 0U);
 }
+
+// ToInteger error paths: invalid chars and out-of-range for negative hex.
+TEST(common, ToInteger_neg_hex_errors) {
+    // Invalid hex digits after stripping the -0x prefix.
+    EXPECT_THROW(ToInteger("-0xGGG"), std::exception);
+    // Value exceeds INT64_MAX + 1, cannot be represented as negative int64.
+    EXPECT_THROW(ToInteger("-0x9000000000000000"), std::exception);
+}
+
+// ToFloat error paths: invalid hex float and invalid hex integer.
+TEST(common, ToFloat_hex_errors) {
+    // Hex float with trailing invalid chars after the exponent.
+    EXPECT_THROW(ToFloat("0x1.2P3xyz"), std::exception);
+    // Hex integer with invalid digits.
+    EXPECT_THROW(ToFloat("0xGGG"), std::exception);
+}

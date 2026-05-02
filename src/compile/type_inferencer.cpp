@@ -182,12 +182,6 @@ InferredType TypeInferencer::InferAndSetEvalType(const SyntaxTreeInterfacePtr &n
             node->SetEvalType(T_UNKNOWN);
             return T_UNKNOWN;
         }
-        case SyntaxTreeType::FunctionDef: {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node);
-            InferAndSetEvalType(func->Funcbody());
-            node->SetEvalType(T_UNKNOWN);
-            return T_UNKNOWN;
-        }
         case SyntaxTreeType::FuncBody: {
             const auto funcbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
             funcbody_depth_++;

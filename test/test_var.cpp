@@ -1958,3 +1958,57 @@ TEST(var, equal_int_float_cross_type) {
     ASSERT_FALSE(int1.Equal(b));
 }
 
+// UnopNumberSign on a StringId (interned) string.
+TEST(var, unop_number_sign_stringid) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v;
+    v.SetConstString(s, "hello");
+    ASSERT_EQ(v.Type(), VarType::StringId);
+
+    Var res;
+    v.UnopNumberSign(res);
+    ASSERT_EQ(res.GetInt(), 5);
+}
+
+// NormalizeTableKey: float key whose integer part exceeds int64 range stays float.
+TEST(var, table_float_key_out_of_int64_range) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    // 1e20 is well beyond INT64_MAX; the key must not be converted to int.
+    Var key(1e20);
+    vt.Set(s, key, Var(static_cast<int64_t>(42)), false);
+
+    Var result = vt.Get(key);
+    ASSERT_EQ(result.GetInt(), 42);
+}
+
+// Hash-collision chain traversal in hash-table mode (var_table.cpp Get line 92).
+// After triggering rehash (inserting 9 items) with bucket_count=16, key 16 maps
+// to bucket 0 (same as key 0) and is chained after it.  Get(16) must follow the
+// chain and cover the curr = &nodes_[curr_idx] path.
+TEST(var, table_hash_collision_chain) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    // Fill quick_data_ (8 slots) with keys 0..7.
+    for (int i = 0; i < 8; ++i) {
+        vt.Set(s, Var(static_cast<int64_t>(i)), Var(static_cast<int64_t>(i * 10)), false);
+    }
+    // Insert key 8: triggers rehash to bucket_count=16, then key 8 lands in bucket 8.
+    vt.Set(s, Var(static_cast<int64_t>(8)), Var(static_cast<int64_t>(80)), false);
+    // Insert key 16: hash(16)=16, bucket = 16&15 = 0, collides with key 0.
+    // count(9) < bucket_count(16) so no second rehash; key 16 is chained after key 0.
+    vt.Set(s, Var(static_cast<int64_t>(16)), Var(static_cast<int64_t>(160)), false);
+
+    // Get(16) must traverse the chain and hit the line: curr = &nodes_[curr_idx].
+    ASSERT_EQ(vt.Get(Var(static_cast<int64_t>(16))).GetInt(), 160);
+    // Verify other keys are intact.
+    ASSERT_EQ(vt.Get(Var(static_cast<int64_t>(0))).GetInt(), 0);
+    ASSERT_EQ(vt.Get(Var(static_cast<int64_t>(8))).GetInt(), 80);
+}
+
