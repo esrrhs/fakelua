@@ -2012,3 +2012,127 @@ TEST(var, table_hash_collision_chain) {
     ASSERT_EQ(vt.Get(Var(static_cast<int64_t>(8))).GetInt(), 80);
 }
 
+// ---------------------------------------------------------------------------
+// TestTrue: cover float, string, and table branches.
+// (bool/nil/int branches are already exercised in the logical_unary test.)
+// ---------------------------------------------------------------------------
+
+TEST(var, test_true_float) {
+    // Non-zero float is truthy.
+    ASSERT_TRUE(Var(1.5).TestTrue());
+    ASSERT_TRUE(Var(-0.5).TestTrue());
+    // Zero float is also truthy in Lua (only nil and false are falsy).
+    ASSERT_TRUE(Var(0.0).TestTrue());
+}
+
+TEST(var, test_true_string) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v;
+    v.SetTempString(s, "hello");
+    ASSERT_TRUE(v.TestTrue());
+
+    Var empty_str;
+    empty_str.SetTempString(s, "");
+    ASSERT_TRUE(empty_str.TestTrue()); // empty string is still truthy in Lua
+}
+
+TEST(var, test_true_table) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var t;
+    t.SetTable(s);
+    ASSERT_TRUE(t.TestTrue()); // table (even empty) is truthy
+}
+
+// ---------------------------------------------------------------------------
+// UnopMinus on float: the float branch of Var::UnopMinus.
+// ---------------------------------------------------------------------------
+
+TEST(var, unop_minus_float) {
+    Var v(2.5);
+    Var result;
+    v.UnopMinus(result);
+    ASSERT_EQ(result.Type(), VarType::Float);
+    ASSERT_DOUBLE_EQ(result.GetFloat(), -2.5);
+
+    Var v2(-7.0);
+    v2.UnopMinus(result);
+    ASSERT_EQ(result.Type(), VarType::Float);
+    ASSERT_DOUBLE_EQ(result.GetFloat(), 7.0);
+}
+
+// ---------------------------------------------------------------------------
+// Var::TableSize on empty, quick-data, and hash-mode tables.
+// ---------------------------------------------------------------------------
+
+TEST(var, table_size_empty) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var t;
+    t.SetTable(s);
+    ASSERT_EQ(t.TableSize(), 0u);
+}
+
+TEST(var, table_size_quick_data) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var t;
+    t.SetTable(s);
+    for (int i = 1; i <= 5; ++i) {
+        t.TableSet(s, Var(static_cast<int64_t>(i)), Var(static_cast<int64_t>(i * 10)), false);
+    }
+    ASSERT_EQ(t.TableSize(), 5u);
+}
+
+TEST(var, table_size_hash_mode) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var t;
+    t.SetTable(s);
+    // Insert more than QUICK_DATA_SIZE (8) elements to force hash mode.
+    for (int i = 1; i <= 12; ++i) {
+        t.TableSet(s, Var(static_cast<int64_t>(i)), Var(static_cast<int64_t>(i)), false);
+    }
+    ASSERT_EQ(t.TableSize(), 12u);
+}
+
+// ---------------------------------------------------------------------------
+// TableSet on non-table Var must throw.
+// ---------------------------------------------------------------------------
+
+TEST(var, table_set_on_non_table_throws) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v(static_cast<int64_t>(42));
+    Var key(static_cast<int64_t>(1));
+    Var val(static_cast<int64_t>(99));
+    EXPECT_THROW(v.TableSet(s, key, val, false), std::exception);
+}
+
+// ---------------------------------------------------------------------------
+// TableGet on non-table Var must throw.
+// ---------------------------------------------------------------------------
+
+TEST(var, table_get_on_non_table_throws) {
+    Var v(static_cast<int64_t>(42));
+    Var key(static_cast<int64_t>(1));
+    EXPECT_THROW((void) v.TableGet(key), std::exception);
+}
+
+// ---------------------------------------------------------------------------
+// TableSize on non-table Var must throw.
+// ---------------------------------------------------------------------------
+
+TEST(var, table_size_on_non_table_throws) {
+    Var v(true);
+    EXPECT_THROW((void) v.TableSize(), std::exception);
+}
+
+
