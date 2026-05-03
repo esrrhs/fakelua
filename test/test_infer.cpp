@@ -1168,3 +1168,99 @@ TEST(infer, test_native_bool_float) {
         ASSERT_EQ(ret, 0);
     });
 }
+
+// AND of two native comparisons in if: (x == 1) and (y > 0) must produce
+// a direct C &&-expression without IsTrue or temp bool variables.
+TEST(infer, test_native_bool_and) {
+    const auto code = InferGetCCode("./infer/test_native_bool_and.lua");
+    // Both sub-comparisons and the && combiner must appear in the generated code.
+    ASSERT_NE(code.find("((x) == (1))"), std::string::npos);
+    ASSERT_NE(code.find("((y) > (0))"), std::string::npos);
+    ASSERT_NE(code.find("&&"), std::string::npos);
+    // No IsTrue or temp bool variables.
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_bool_and.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 1, 5);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, 1, 0);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 2, 5);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
+// OR of two native comparisons in if: (x < 0) or (x > 10) must produce
+// a direct C ||-expression without IsTrue or temp bool variables.
+TEST(infer, test_native_bool_or) {
+    const auto code = InferGetCCode("./infer/test_native_bool_or.lua");
+    // Both sub-comparisons and the || combiner must appear in the generated code.
+    ASSERT_NE(code.find("((x) < (0))"), std::string::npos);
+    ASSERT_NE(code.find("((x) > (10))"), std::string::npos);
+    ASSERT_NE(code.find("||"), std::string::npos);
+    // No IsTrue or temp bool variables.
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_bool_or.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, -1);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, 11);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
+// NOT of a native comparison in if: not (x > 5) must produce !(...)
+// without IsTrue or temp bool variables.
+TEST(infer, test_native_bool_not) {
+    const auto code = InferGetCCode("./infer/test_native_bool_not.lua");
+    // The negated comparison must appear in the generated code.
+    ASSERT_NE(code.find("!(("), std::string::npos);
+    ASSERT_NE(code.find("((x) > (5))"), std::string::npos);
+    // No IsTrue or temp bool variables.
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_bool_not.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
+// Deeply nested AND chain: (x > 0) and (y > 0) and (z > 0) must produce
+// a direct C &&-chain without IsTrue or temp bool variables.
+TEST(infer, test_native_bool_nested) {
+    const auto code = InferGetCCode("./infer/test_native_bool_nested.lua");
+    // All three sub-comparisons and the && combiners must appear.
+    ASSERT_NE(code.find("((x) > (0))"), std::string::npos);
+    ASSERT_NE(code.find("((y) > (0))"), std::string::npos);
+    ASSERT_NE(code.find("((z) > (0))"), std::string::npos);
+    ASSERT_NE(code.find("&&"), std::string::npos);
+    // No IsTrue or temp bool variables.
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_bool_nested.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 1, 2, 3);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, 1, 0, 3);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 0, 2, 3);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 1, 2, 0);
+        ASSERT_EQ(ret, 0);
+    });
+}
