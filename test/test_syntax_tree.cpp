@@ -540,7 +540,7 @@ TEST(syntax_tree, if) {
                          "                              (var)[3:25]\n"
                          "                                type: simple\n"
                          "                                name: arg\n"
-                         "        (elseif)[3:9]\n"
+                         "        (elseif)[2:54]\n"
                          "        (block)[5:9]\n"
                          "          (assign)[5:31]\n"
                          "            (varlist)[5:9]\n"

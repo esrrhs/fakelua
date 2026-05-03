@@ -151,6 +151,10 @@ public:
         return loc_;
     }
 
+    void SetLoc(const SyntaxTreeLocation &loc) {
+        loc_ = loc;
+    }
+
     void SetEvalType(const InferredType type) {
         eval_type_ = type;
     }
