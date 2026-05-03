@@ -118,6 +118,14 @@ int yyFlexLexer::yylex() { return -1; }
 %precedence UNARY
 %right "^"
 
+// Remaining 5 known conflicts inherent to the Lua grammar (all resolved correctly
+// by default LALR conflict resolution - bison shift/reduce and reduce/reduce rules):
+//   4 S/R: (1) 'return' optional explist ambiguity on '(', 'function', 'identifier'
+//           (2) 'prefixexp' as exp vs start-of-functioncall-args on '('
+//           (3) 'if/elseif/else' elseif clause start vs stmt-in-block ambiguity on 'elseif'
+//   1 R/R: 'functioncall' as stmt vs as prefixexp-base when followed by '('
+//          (resolved in favour of stmt; chained calls like foo()() are not supported)
+
 %token <std::string> IDENTIFIER "identifier"
 %token <std::string> STRING "string"
 %token <std::string> NUMBER "number"
@@ -166,18 +174,6 @@ block:
         $$ = std::make_shared<fakelua::SyntaxTreeBlock>(@0);
     }
     |
-    stmt
-    {
-        LOG_INFO("[bison]: block: stmt");
-        auto block = std::make_shared<fakelua::SyntaxTreeBlock>(@1);
-        auto stmt = std::dynamic_pointer_cast<fakelua::SyntaxTreeInterface>($1);
-        if (stmt == nullptr) {
-            LOG_ERROR("[bison]: block: stmt is nullptr");
-        }
-        block->AddStmt(stmt);
-        $$ = block;
-    }
-    |
     block stmt
     {
         LOG_INFO("[bison]: block: block stmt");
@@ -190,6 +186,9 @@ block:
         if (stmt == nullptr) {
             LOG_ERROR("[bison]: block: stmt is not a stmt");
             fakelua::ThrowFakeluaException("stmt is not a stmt");
+        }
+        if (block->Stmts().empty()) {
+            block->SetLoc(@2);
         }
         block->AddStmt(stmt);
         $$ = block;
