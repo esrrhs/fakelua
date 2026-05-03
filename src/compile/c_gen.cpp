@@ -1216,11 +1216,34 @@ static const std::unordered_map<std::string, std::string> kCmpOpMap = {
 };
 
 std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
-    // 只处理 Exp 节点中的 binop 比较表达式。
+    // 只处理 Exp 节点。
     if (!exp || exp->Type() != SyntaxTreeType::Exp) {
         return {};
     }
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+
+    // 透明地解包括括号表达式：(expr) → expr。
+    if (e->ExpType() == "prefixexp") {
+        const auto pexp = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
+        if (!pexp || pexp->GetType() != "exp") {
+            return {};
+        }
+        return TryCompileNativeBoolExpr(pexp->GetValue());
+    }
+
+    // 处理 not 一元逻辑取反：将 not <bool_expr> 编译为 !(<bool_expr>)。
+    if (e->ExpType() == "unop") {
+        const auto unop = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
+        if (!unop || unop->GetOp() != "NOT") {
+            return {};
+        }
+        const auto inner = TryCompileNativeBoolExpr(e->Right());
+        if (inner.empty()) {
+            return {};
+        }
+        return std::format("!({})", inner);
+    }
+
     if (e->ExpType() != "binop") {
         return {};
     }
@@ -1228,7 +1251,20 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
     if (!op) {
         return {};
     }
-    const auto op_it = kCmpOpMap.find(op->GetOp());
+    const auto op_str = op->GetOp();
+
+    // 处理 and/or 逻辑运算符：递归将两侧编译为原生布尔表达式。
+    if (op_str == "AND" || op_str == "OR") {
+        const auto left_bool = TryCompileNativeBoolExpr(e->Left());
+        const auto right_bool = TryCompileNativeBoolExpr(e->Right());
+        if (left_bool.empty() || right_bool.empty()) {
+            return {};
+        }
+        const auto c_op = (op_str == "AND") ? "&&" : "||";
+        return std::format("({}) {} ({})", left_bool, c_op, right_bool);
+    }
+
+    const auto op_it = kCmpOpMap.find(op_str);
     if (op_it == kCmpOpMap.end()) {
         return {};
     }
