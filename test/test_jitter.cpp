@@ -1568,3 +1568,25 @@ TEST(jitter, test_assign_same_line_multi) {
     });
 }
 
+// Float for-loop: exercises the typed_float_for code path in CompileStmtForLoop.
+// begin=1.0, end=2.0, step=0.5 => iterations at 1.0, 1.5, 2.0 => sum = 4.5
+TEST(jitter, test_for_loop_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_loop_float.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret);
+        ASSERT_DOUBLE_EQ(ret, 4.5);
+    });
+}
+
+// Unary minus applied to a float parameter: exercises the float branch of
+// CompileExp for unary minus (UnopMinus on a float Var).
+TEST(jitter, test_unop_minus_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_unop_minus_float.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret, 3.5);
+        ASSERT_DOUBLE_EQ(ret, -3.5);
+    });
+}
+
