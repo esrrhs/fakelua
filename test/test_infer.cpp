@@ -230,12 +230,16 @@ TEST(infer, test_infer_if_scope_degrade) {
 }
 
 // While body processed with new_scope=true: the assignment x = n inside the while
-// loop body degrades x from T_INT to T_DYNAMIC across the scope boundary.
+// loop body degrades x across the scope boundary.
+// With numeric specialization, n is now a typed math param:
+// - test_0(int64_t n): x = n keeps x as T_INT → int64_t x (no degradation in int path)
+// - test_1(double n): x = n makes x T_FLOAT, merged with T_INT initial → T_DYNAMIC → CVar x
 TEST(infer, test_infer_while_scope_degrade) {
     const auto code = InferGetCCode("./infer/test_infer_while_scope_degrade.lua");
-    // x degraded to CVar because x = n (T_DYNAMIC param) inside the while body.
+    // In the float specialization (test_1), x degrades to CVar because x = n (T_FLOAT param).
     ASSERT_NE(code.find("CVar x = "), std::string::npos);
-    ASSERT_EQ(code.find("int64_t x"), std::string::npos);
+    // In the int specialization (test_0), x is correctly int64_t because x = n is T_INT throughout.
+    ASSERT_NE(code.find("int64_t x"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_while_scope_degrade.lua", {.debug_mode = debug_mode});
@@ -992,5 +996,175 @@ TEST(infer, test_spec_forin_param) {
         int ret = 0;
         Call(s, type, "test", ret, 10);
         ASSERT_EQ(ret, 16); // sum = 10+0 + 1+2+3 = 16
+    });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Optimization: reassigned math params are still specialized
+// ────────────────────────────────────────────────────────────────────────────
+
+// GCD-style: both a and b are reassigned inside the while loop body
+// (a = tmp; b = a % b). The compiler must still mark them as math params
+// and generate int/float specializations.
+TEST(infer, test_spec_reassign_gcd) {
+    const auto code = InferGetCCode("./infer/test_spec_reassign_gcd.lua");
+    // With two math params the suffixes are _0_0, _1_0, _0_1, _1_1.
+    ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
+    ASSERT_NE(code.find("test_1_1(double a, double b)"), std::string::npos);
+    // Entry dispatcher must check type and route.
+    ASSERT_NE(code.find("CVar test(CVar a, CVar b)"), std::string::npos);
+    // In the all-int specialization, the reassignment of b must use native int64_t modulo.
+    ASSERT_NE(code.find("FlModInt("), std::string::npos);
+    // In the all-int specialization, while condition b != 0 must be a direct C comparison.
+    ASSERT_NE(code.find("(b) != (0)"), std::string::npos);
+    // No dynamic IsTrue for the while condition in the int specialization.
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_reassign_gcd.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 48, 18);
+        ASSERT_EQ(ret, 6);
+        Call(s, type, "test", ret, 100, 75);
+        ASSERT_EQ(ret, 25);
+        Call(s, type, "test", ret, 7, 13);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+// PowMod-style: base and exp are both reassigned inside the while loop body.
+// The compiler must still specialize them as math params.
+TEST(infer, test_spec_reassign_powmod) {
+    const auto code = InferGetCCode("./infer/test_spec_reassign_powmod.lua");
+    // With three math params the all-int suffix is _0_0_0.
+    ASSERT_NE(code.find("test_0_0_0(int64_t base, int64_t exp, int64_t mod)"), std::string::npos);
+    // Entry dispatcher must exist with CVar params.
+    ASSERT_NE(code.find("CVar test(CVar base, CVar exp, CVar mod)"), std::string::npos);
+    // In the int specialization, loop body arithmetic must use native int64_t.
+    ASSERT_NE(code.find("FlModInt("), std::string::npos);
+    ASSERT_NE(code.find("FlFloorDivInt("), std::string::npos);
+    // The while condition in the int specialization must be a direct C comparison.
+    ASSERT_NE(code.find("(exp) > (0)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_reassign_powmod.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 2, 10, 1000);
+        ASSERT_EQ(ret, 24); // 2^10 mod 1000 = 1024 mod 1000 = 24
+        Call(s, type, "test", ret, 3, 5, 100);
+        ASSERT_EQ(ret, 43); // 3^5 mod 100 = 243 mod 100 = 43
+        Call(s, type, "test", ret, 7, 1, 1000000007);
+        ASSERT_EQ(ret, 7);
+    });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Optimization: native C comparisons in if/while/repeat/elseif conditions
+// ────────────────────────────────────────────────────────────────────────────
+
+// if condition with T_INT operands: TryCompileNativeBoolExpr must emit
+// if ((x) > (5)) directly, without IsTrue or a bool temp variable.
+TEST(infer, test_native_bool_if) {
+    const auto code = InferGetCCode("./infer/test_native_bool_if.lua");
+    // int specialization: condition must be a direct C comparison.
+    ASSERT_NE(code.find("((x) > (5))"), std::string::npos);
+    // No dynamic IsTrue call for the if condition.
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+    // No flua_ibt_ temp bool variable.
+    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_bool_if.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
+// while condition with T_INT operands: TryCompileNativeBoolExpr must emit
+// while ((x) > (0)) directly, without the fallback while(1)+IsTrue pattern.
+TEST(infer, test_native_bool_while) {
+    const auto code = InferGetCCode("./infer/test_native_bool_while.lua");
+    // int specialization: direct C comparison in while.
+    ASSERT_NE(code.find("while ((x) > (0))"), std::string::npos);
+    // No IsTrue or flua_wbt_ temp bool variable for the while condition.
+    ASSERT_EQ(code.find("flua_wbt_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_bool_while.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 15); // 5+4+3+2+1
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 6); // 3+2+1
+    });
+}
+
+// repeat..until condition with T_INT operands: TryCompileNativeBoolExpr must emit
+// if ((i) > (...)) break; directly, without IsTrue or a bool temp variable.
+TEST(infer, test_native_bool_repeat) {
+    const auto code = InferGetCCode("./infer/test_native_bool_repeat.lua");
+    // int specialization: direct C comparison as the repeat..until exit check.
+    ASSERT_NE(code.find("(i) > ("), std::string::npos);
+    // No IsTrue or flua_rbt_ temp bool variable for the repeat condition.
+    ASSERT_EQ(code.find("flua_rbt_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_bool_repeat.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 15); // 1+2+3+4+5
+        Call(s, type, "test", ret, 1);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 55);
+    });
+}
+
+// elseif condition with T_INT operands: both the if and elseif conditions must
+// use direct C comparisons (no IsTrue, no flua_ibt_ temp bools).
+TEST(infer, test_native_bool_elseif) {
+    const auto code = InferGetCCode("./infer/test_native_bool_elseif.lua");
+    // Both the if and the elseif must produce native comparisons.
+    ASSERT_NE(code.find("((x) < (0))"), std::string::npos);
+    ASSERT_NE(code.find("((x) == (0))"), std::string::npos);
+    // No IsTrue or temp bool variables for the conditions.
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_bool_elseif.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, -3);
+        ASSERT_EQ(ret, -1);
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 7);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+// Float comparison in if: x is T_FLOAT (after n + 0.0) and the comparison
+// x >= 0.0 must also produce a direct C comparison (not IsTrue).
+TEST(infer, test_native_bool_float) {
+    const auto code = InferGetCCode("./infer/test_native_bool_float.lua");
+    // float specialization: direct C comparison with >= and float literal.
+    ASSERT_NE(code.find("((x) >= (0)"), std::string::npos);
+    // No IsTrue or flua_ibt_ for the if condition.
+    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_bool_float.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        double x = 1.5;
+        Call(s, type, "test", ret, x);
+        ASSERT_EQ(ret, 1);
+        x = -0.5;
+        Call(s, type, "test", ret, x);
+        ASSERT_EQ(ret, 0);
     });
 }

@@ -736,17 +736,10 @@ void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
 
         // leave-one-out 检验：逐一将某参数置回 T_DYNAMIC（其余仍为 T_INT），
         // 若出现算术退化则该参数为数学参数。
-        // 注意：被函数体重新赋值的参数（如 n = n + 1）不能特化，
-        // 否则 CGen 在特化签名（int64_t n）中会产生 CVar=int64_t 的类型错误。
-        std::unordered_set<std::string> reassigned_params;
-        CollectReassignedVars(func_block, reassigned_params);
-
+        // 注意：被函数体重新赋值的参数（如 base = base % mod）同样可以特化，
+        // 因为 CGen 现在通过 TryCompileNativeExpr 来处理对原生类型参数的赋值。
         std::vector<int> math_indices;
         for (int i = 0; i < static_cast<int>(params.size()); ++i) {
-            // 被重新赋值的参数跳过：特化 CGen 无法安全处理对原生类型参数的 CVar 回写。
-            if (reassigned_params.count(params[i])) {
-                continue;
-            }
             // without_p：params[i] = T_DYNAMIC，其余 = T_INT。
             const auto without_p_assumed = make_assumed(params[i], T_DYNAMIC, T_INT);
             const auto without_p_map = RunTrialInference(func_block, params, without_p_assumed);

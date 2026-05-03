@@ -107,6 +107,11 @@ private:
 
     std::string CompileNumericExp(const SyntaxTreeInterfacePtr &exp);
 
+    // 尝试将比较表达式编译为原生 C bool 表达式（不经过 CVar/OpXx/IsTrue 机制）。
+    // 当两个操作数均为静态已知的数值类型时返回非空字符串，否则返回空字符串。
+    // 该方法是纯函数（不写入 cur_output_）。
+    std::string TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp);
+
     std::string BoxNativeValue(const std::string &expr, InferredType type) const;
 
     void EnterNativeVarScope();
