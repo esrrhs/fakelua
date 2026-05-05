@@ -1160,15 +1160,48 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
             if (const auto it = spec_param_types_.find(vname); it != spec_param_types_.end()) {
                 return it->second;
             }
-            // 回退到 TypeInferencer 的 EvalType（适用于带类型的局部变量）。
-            const auto t = e->EvalType();
-            if (t == T_INT || t == T_FLOAT) return t;
+            // 仅当变量实际声明为原生类型（int64_t/double）时才根据 EvalType 推断类型。
+            // CVar 变量即使 EvalType 节点因单遍推断而显示为 T_INT 也不能当作原生类型处理，
+            // 因为它可能在稍后的代码路径中持有非数值。
+            if (IsTypedNativeVar(vname)) {
+                const auto t = e->EvalType();
+                if (t == T_INT || t == T_FLOAT) return t;
+            }
             return T_DYNAMIC;
         }
         if (pe->GetType() == "exp") {
             return InferArgTypeForSpec(pe->GetValue());
         }
-        return T_DYNAMIC;// 函数调用
+        if (pe->GetType() == "functioncall") {
+            // Check whether the callee is a local function with math params.
+            // If so, infer its return type from the specialization bitmask of the call.
+            const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
+            if (!fc) return T_DYNAMIC;
+            const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+            if (!callee_pe || callee_pe->GetType() != "var") return T_DYNAMIC;
+            const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+            if (!callee_var || callee_var->GetType() != "simple") return T_DYNAMIC;
+            const auto &callee_name = callee_var->GetName();
+            const auto math_it = math_param_positions_.find(callee_name);
+            if (math_it == math_param_positions_.end()) return T_DYNAMIC;
+            const auto &math_params = math_it->second;
+            const auto args_node = fc->Args();
+            const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
+            if (!args_ptr || args_ptr->GetType() != "explist") return T_DYNAMIC;
+            const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+            if (!explist_ptr) return T_DYNAMIC;
+            const auto &raw_args = explist_ptr->Exps();
+            bool any_float = false;
+            for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+                const int param_pos = math_params[i];
+                if (param_pos >= static_cast<int>(raw_args.size())) return T_DYNAMIC;
+                const auto t = InferArgTypeForSpec(raw_args[param_pos]);
+                if (t == T_DYNAMIC) return T_DYNAMIC;
+                if (t == T_FLOAT) any_float = true;
+            }
+            return any_float ? T_FLOAT : T_INT;
+        }
+        return T_DYNAMIC;
     }
 
     if (exp_type == "binop") {
@@ -2075,6 +2108,68 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
         return tmp;
     }
 
+    // Native arithmetic fast path: when both operands have a statically-known
+    // numeric type (per the current specialization context), emit direct C
+    // arithmetic wrapped in BoxNativeValue instead of boxing both operands and
+    // calling OpAdd/OpSub/etc.  This eliminates CVar round-trips for cases like
+    //   fibonacci_0(n-1) + fibonacci_0(n-2)
+    // where the recursive specialized calls return CVar but we know the type.
+    // InferArgTypeForSpec is called first as a pure (side-effect-free) guard;
+    // only if it returns non-T_DYNAMIC do we proceed to CompileNumericExp which
+    // may emit function-call assignment statements as a side effect.
+    static const std::unordered_set<std::string> kNativeArithOps = {
+            "PLUS", "MINUS", "STAR", "SLASH", "DOUBLE_SLASH", "POW", "MOD",
+            "BITAND", "XOR", "BITOR"};
+    if (kNativeArithOps.count(op_name)) {
+        const auto lt = InferArgTypeForSpec(left);
+        const auto rt = InferArgTypeForSpec(right);
+        if (lt != T_DYNAMIC && rt != T_DYNAMIC) {
+            InferredType result_type;
+            if (op_name == "SLASH" || op_name == "POW") {
+                result_type = T_FLOAT;
+            } else if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR" ||
+                       op_name == "RIGHT_SHIFT" || op_name == "LEFT_SHIFT") {
+                result_type = T_INT;
+            } else {
+                result_type = (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
+            }
+            const auto left_native = CompileNumericExp(left);
+            const auto right_native = CompileNumericExp(right);
+            std::string native_expr;
+            if (op_name == "PLUS") {
+                native_expr = std::format("(({}) + ({}))", left_native, right_native);
+            } else if (op_name == "MINUS") {
+                native_expr = std::format("(({}) - ({}))", left_native, right_native);
+            } else if (op_name == "STAR") {
+                native_expr = std::format("(({}) * ({}))", left_native, right_native);
+            } else if (op_name == "SLASH") {
+                native_expr = std::format("((double)({}) / (double)({}))", left_native, right_native);
+            } else if (op_name == "POW") {
+                native_expr = std::format("pow((double)({}), (double)({}))", left_native, right_native);
+            } else if (op_name == "DOUBLE_SLASH") {
+                native_expr = result_type == T_INT
+                                      ? std::format("FlFloorDivInt(({}), ({}))", left_native, right_native)
+                                      : std::format("floor((double)({}) / (double)({}))", left_native, right_native);
+            } else if (op_name == "MOD") {
+                native_expr = result_type == T_INT
+                                      ? std::format("FlModInt(({}), ({}))", left_native, right_native)
+                                      : std::format("FlModFloat((double)({}), (double)({}))", left_native, right_native);
+            } else if (op_name == "BITAND") {
+                native_expr = std::format("((int64_t)({}) & (int64_t)({}))", left_native, right_native);
+            } else if (op_name == "BITOR") {
+                native_expr = std::format("((int64_t)({}) | (int64_t)({}))", left_native, right_native);
+            } else if (op_name == "XOR") {
+                native_expr = std::format("((int64_t)({}) ^ (int64_t)({}))", left_native, right_native);
+            }
+            if (!native_expr.empty()) {
+                const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    CVar " << tmp << ";\n";
+                *cur_output_ << GenTab() << tmp << " = " << BoxNativeValue(native_expr, result_type) << ";\n";
+                return tmp;
+            }
+        }
+    }
+
     const auto left_str = CompileExp(left);
     const auto right_str = CompileExp(right);
 
@@ -2253,6 +2348,18 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         }
         if (pe->GetType() == "exp") {
             return CompileNumericExp(pe->GetValue());
+        }
+        if (pe->GetType() == "functioncall") {
+            // Use InferArgTypeForSpec as a pure pre-check (no code emission) before
+            // committing to the native path; this guarantees that CompileFunctioncall
+            // will not be called speculatively and then abandoned.
+            const auto inferred = InferArgTypeForSpec(exp);
+            if (inferred == T_DYNAMIC) {
+                ThrowError("function call cannot be specialized as numeric", exp);
+            }
+            // Emit the specialized call and extract the native field from the CVar result.
+            const auto call_str = CompileFunctioncall(pe->GetValue());
+            return inferred == T_INT ? std::format("({}.data_.i)", call_str) : std::format("({}.data_.f)", call_str);
         }
         ThrowError("function call cannot be specialized as numeric", exp);
     } else if (exp_type == "binop") {
