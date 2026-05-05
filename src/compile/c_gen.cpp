@@ -967,6 +967,7 @@ void CGen::GenerateImpl(CompileResult &cr) {
                 }
                 *cur_output_ << ") {\n";
                 CompileFuncBody(name, func_params, func_block, bitmask);
+                *cur_output_ << "    return kNil;\n";
                 *cur_output_ << "}\n";
             }
             // 输出入口分发器（原始 CVar 签名）。
@@ -980,6 +981,7 @@ void CGen::GenerateImpl(CompileResult &cr) {
             }
             *cur_output_ << ") {\n";
             CompileFuncBody(name, func_params, func_block, -1);
+            *cur_output_ << "    return kNil;\n";
             *cur_output_ << "}\n";
         }
     }
