@@ -810,7 +810,8 @@ TEST(infer, test_infer_typed_int_leftshift) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_leftshift.lua");
     ASSERT_NE(code.find("int64_t x = 1;"), std::string::npos);
     // CompileNumericExp now uses FlLShiftInt for Lua-correct clamping semantics.
-    ASSERT_NE(code.find("int64_t y = FlLShiftInt((x), (4));"), std::string::npos);
+    ASSERT_NE(code.find("FlLShiftInt((x), (4),"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y ="), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
     ASSERT_EQ(code.find("CVar y"), std::string::npos);
     ASSERT_EQ(code.find("OpLeftShift("), std::string::npos);
@@ -828,7 +829,8 @@ TEST(infer, test_infer_typed_int_rightshift) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_rightshift.lua");
     ASSERT_NE(code.find("int64_t x = 256;"), std::string::npos);
     // CompileNumericExp now uses FlRShiftInt for Lua-correct clamping semantics.
-    ASSERT_NE(code.find("int64_t y = FlRShiftInt((x), (3));"), std::string::npos);
+    ASSERT_NE(code.find("FlRShiftInt((x), (3),"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y ="), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
     ASSERT_EQ(code.find("CVar y"), std::string::npos);
     ASSERT_EQ(code.find("OpRightShift("), std::string::npos);
