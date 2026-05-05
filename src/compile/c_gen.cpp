@@ -887,6 +887,15 @@ std::string CGen::GenTab() const {
     return std::string(static_cast<size_t>(cur_tab_) * 4, ' ');
 }
 
+static bool BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block) {
+    const auto block_ptr = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
+    const auto &stmts = block_ptr->Stmts();
+    if (stmts.empty()) {
+        return false;
+    }
+    return stmts.back()->Type() == SyntaxTreeType::Return;
+}
+
 std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parlist) {
     DEBUG_ASSERT(parlist->Type() == SyntaxTreeType::ParList);
     const auto parlist_ptr = std::dynamic_pointer_cast<SyntaxTreeParlist>(parlist);
@@ -967,6 +976,9 @@ void CGen::GenerateImpl(CompileResult &cr) {
                 }
                 *cur_output_ << ") {\n";
                 CompileFuncBody(name, func_params, func_block, bitmask);
+                if (!BlockEndsWithReturn(func_block)) {
+                    *cur_output_ << "    return kNil;\n";
+                }
                 *cur_output_ << "}\n";
             }
             // 输出入口分发器（原始 CVar 签名）。
@@ -980,6 +992,9 @@ void CGen::GenerateImpl(CompileResult &cr) {
             }
             *cur_output_ << ") {\n";
             CompileFuncBody(name, func_params, func_block, -1);
+            if (!BlockEndsWithReturn(func_block)) {
+                *cur_output_ << "    return kNil;\n";
+            }
             *cur_output_ << "}\n";
         }
     }
