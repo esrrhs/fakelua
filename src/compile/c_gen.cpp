@@ -1208,8 +1208,7 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
             }
             const auto &raw_args = explist_ptr->Exps();
             bool any_float = false;
-            for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-                const int param_pos = math_params[i];
+            for (int param_pos : math_params) {
                 if (param_pos >= static_cast<int>(raw_args.size())) {
                     return T_DYNAMIC;
                 }
@@ -2528,8 +2527,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 if (can_spec) {
                     // 步骤二：预编译数学参数的原生表达式（纯函数）。
                     std::unordered_map<int, std::string> native_exprs;// param_pos -> 表达式字符串
-                    for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-                        const int param_pos = math_params[i];
+                    for (int param_pos : math_params) {
                         const auto native_expr = TryCompileNativeExpr(raw_args[param_pos]);
                         if (native_expr.empty()) {
                             can_spec = false;
