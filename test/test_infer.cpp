@@ -916,6 +916,30 @@ TEST(infer, test_infer_unary_minus_for_bound) {
 }
 
 // ────────────────────────────────────────────────────────────────────────────
+// Specialization: BITNOT (~) of a math param in arithmetic uses native fast path
+// ────────────────────────────────────────────────────────────────────────────
+
+// InferArgTypeForSpec handles BITNOT: when the operand is T_INT the result is
+// T_INT, so (~n) + 1 uses the native C arithmetic path in the int specialization.
+// For n=5: ~5 = -6 (int64_t bitwise NOT), -6 + 1 = -5.
+TEST(infer, test_spec_bitnot_param) {
+    const auto code = InferGetCCode("./infer/test_spec_bitnot_param.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // The int specialization must use the native BITNOT form (not OpBitNot).
+    // CompileNumericExp for BITNOT generates (~((int64_t)(n))).
+    ASSERT_NE(code.find("(~((int64_t)(n)))"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_bitnot_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, -5); // ~5 = -6, -6 + 1 = -5
+    });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
 // Optimization 3: T_FLOAT for-loop fast path (double control variables)
 // ────────────────────────────────────────────────────────────────────────────
 
