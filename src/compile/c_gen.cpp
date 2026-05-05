@@ -717,6 +717,34 @@ static inline CVar FlConcat(CVar a, CVar b) {
     __fmf_a - __fmf_b * floor(__fmf_a / __fmf_b); \
 })
 
+// 原生整数左移（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
+// 与 OpLeftShift 的逻辑完全一致，但接受原生 int64_t 参数以省去 CVar 打包/拆包。
+#define FlLShiftInt(a, b) ({ \
+    int64_t __ls_a = (a); int64_t __ls_b = (b); \
+    (__ls_b >= 64 || __ls_b <= -64) ? (int64_t)0 : \
+    (__ls_b >= 0) ? (int64_t)((uint64_t)__ls_a << __ls_b) : \
+    (int64_t)((uint64_t)__ls_a >> (-__ls_b)); \
+})
+
+// 原生整数右移（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
+// 与 OpRightShift 的逻辑完全一致，但接受原生 int64_t 参数。
+#define FlRShiftInt(a, b) ({ \
+    int64_t __rs_a = (a); int64_t __rs_b = (b); \
+    (__rs_b >= 64 || __rs_b <= -64) ? (int64_t)0 : \
+    (__rs_b >= 0) ? (int64_t)((uint64_t)__rs_a >> __rs_b) : \
+    (int64_t)((uint64_t)__rs_a << (-__rs_b)); \
+})
+
+// 原生取长度：从 CVar 中提取整数长度（字符串字节数或表元素数）。
+// 用于在数值特化路径中处理 # 运算符，替代 OpLen 宏以直接返回 int64_t。
+static inline int64_t FlLenInt(CVar v) {
+    if (v.type_ == VAR_STRING) { return (int64_t)STR_SIZE(v.data_.s); }
+    if (v.type_ == VAR_STRINGID) { return (int64_t)STR_SIZE((VarString *)v.data_.i); }
+    if (v.type_ == VAR_TABLE) { return (int64_t)TABLE_SIZE(v.data_.t); }
+    FakeluaThrowError(_S, "attempt to get length of a non-string/table value");
+    return 0;
+}
+
 )";
 }
 
@@ -1280,6 +1308,10 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
                 return T_INT;
             }
             return T_DYNAMIC;
+        }
+        if (op->GetOp() == "NUMBER_SIGN") {
+            // # 运算符始终返回整数（字符串长度或表大小）。
+            return T_INT;
         }
         return T_DYNAMIC;
     }
@@ -2173,7 +2205,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     // may emit function-call assignment statements as a side effect.
     static const std::unordered_set<std::string> kNativeArithOps = {
             "PLUS", "MINUS", "STAR", "SLASH", "DOUBLE_SLASH", "POW", "MOD",
-            "BITAND", "XOR", "BITOR"};
+            "BITAND", "XOR", "BITOR", "LEFT_SHIFT", "RIGHT_SHIFT"};
     if (kNativeArithOps.count(op_name)) {
         const auto lt = InferArgTypeForSpec(left);
         const auto rt = InferArgTypeForSpec(right);
@@ -2181,7 +2213,8 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
             InferredType result_type;
             if (op_name == "SLASH" || op_name == "POW") {
                 result_type = T_FLOAT;
-            } else if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR") {
+            } else if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR" ||
+                       op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
                 result_type = T_INT;
             } else {
                 result_type = (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
@@ -2213,6 +2246,10 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
                 native_expr = std::format("((int64_t)({}) | (int64_t)({}))", left_native, right_native);
             } else if (op_name == "XOR") {
                 native_expr = std::format("((int64_t)({}) ^ (int64_t)({}))", left_native, right_native);
+            } else if (op_name == "LEFT_SHIFT") {
+                native_expr = std::format("FlLShiftInt(({}), ({}))", left_native, right_native);
+            } else if (op_name == "RIGHT_SHIFT") {
+                native_expr = std::format("FlRShiftInt(({}), ({}))", left_native, right_native);
             }
             if (!native_expr.empty()) {
                 const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
@@ -2470,10 +2507,10 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return std::format("((int64_t)({}) ^ (int64_t)({}))", left, right);
         }
         if (op_name == "LEFT_SHIFT") {
-            return std::format("((int64_t)({}) << (int64_t)({}))", left, right);
+            return std::format("FlLShiftInt(({}), ({}))", left, right);
         }
         if (op_name == "RIGHT_SHIFT") {
-            return std::format("((int64_t)({}) >> (int64_t)({}))", left, right);
+            return std::format("FlRShiftInt(({}), ({}))", left, right);
         }
 
         ThrowError("operator " + op_name + " is not supported in numeric specialization", exp);
@@ -2481,6 +2518,13 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
         DEBUG_ASSERT(op);
         const auto &op_name = op->GetOp();
+        if (op_name == "NUMBER_SIGN") {
+            // # 运算符返回字符串字节数或表元素数（始终为整数）。
+            // 操作数本身不是数值类型，需通过 CompileExp 编译为 CVar，
+            // 再由 FlLenInt 提取原生 int64_t 长度。
+            const auto operand_cvar = CompileExp(e->Right());
+            return std::format("FlLenInt({})", operand_cvar);
+        }
         const auto operand = CompileNumericExp(e->Right());
         if (op_name == "MINUS") {
             return std::format("(-({}))", operand);

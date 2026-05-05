@@ -386,6 +386,12 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
                 return T_INT;
             }
         }
+        if (op_name == "NUMBER_SIGN") {
+            // # 运算符始终返回整数（字符串字节数或表元素数）。
+            // 无论操作数是字符串还是表（均为 T_DYNAMIC），结果类型始终为 T_INT。
+            exp->SetEvalType(T_INT);
+            return T_INT;
+        }
         exp->SetEvalType(T_DYNAMIC);
         return T_DYNAMIC;
     }
