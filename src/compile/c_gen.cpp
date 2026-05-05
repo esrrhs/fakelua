@@ -737,13 +737,15 @@ static inline CVar FlConcat(CVar a, CVar b) {
 
 // 原生取长度：从 CVar 中提取整数长度（字符串字节数或表元素数）。
 // 用于在数值特化路径中处理 # 运算符，替代 OpLen 宏以直接返回 int64_t。
-static inline int64_t FlLenInt(CVar v) {
-    if (v.type_ == VAR_STRING) { return (int64_t)STR_SIZE(v.data_.s); }
-    if (v.type_ == VAR_STRINGID) { return (int64_t)STR_SIZE((VarString *)v.data_.i); }
-    if (v.type_ == VAR_TABLE) { return (int64_t)TABLE_SIZE(v.data_.t); }
-    FakeluaThrowError(_S, "attempt to get length of a non-string/table value");
-    return 0;
-}
+#define FlLenInt(v) ({ \
+    CVar __fl_v = (v); \
+    int64_t __fl_len; \
+    if (__fl_v.type_ == VAR_STRING) { __fl_len = (int64_t)STR_SIZE(__fl_v.data_.s); } \
+    else if (__fl_v.type_ == VAR_STRINGID) { __fl_len = (int64_t)STR_SIZE((VarString *)__fl_v.data_.i); } \
+    else if (__fl_v.type_ == VAR_TABLE) { __fl_len = (int64_t)TABLE_SIZE(__fl_v.data_.t); } \
+    else { FakeluaThrowError(_S, "attempt to get length of a non-string/table value"); __fl_len = 0; } \
+    __fl_len; \
+})
 
 )";
 }
