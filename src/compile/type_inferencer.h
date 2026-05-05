@@ -60,10 +60,6 @@ private:
     // 判断 exp 节点是否为算术二元运算（结果可为 T_INT/T_FLOAT 的运算符）。
     bool IsArithmeticBinop(const SyntaxTreeInterfacePtr &node) const;
 
-    // 收集函数体中所有出现在赋值语句 LHS 的简单变量名（不含 local 声明）。
-    void CollectReassignedVars(const SyntaxTreeInterfacePtr &node,
-                               std::unordered_set<std::string> &reassigned) const;
-
     // 判断 all_int（全参数=T_INT）相对于 baseline（全参数=T_DYNAMIC）是否有算术表达式改善。
     bool HasArithmeticImprovement(const EvalTypeMap &all_int, const EvalTypeMap &baseline,
                                   const SyntaxTreeInterfacePtr &func_block) const;
