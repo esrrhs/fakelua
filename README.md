@@ -4,7 +4,6 @@
 [<img src="https://img.shields.io/github/actions/workflow/status/esrrhs/fakelua/build.yml?branch=master&label=Linux">](https://github.com/esrrhs/fakelua/actions/workflows/build.yml)
 [<img src="https://img.shields.io/github/actions/workflow/status/esrrhs/fakelua/build_with_macos.yml?branch=master&label=macOS">](https://github.com/esrrhs/fakelua/actions/workflows/build_with_macos.yml)
 [<img src="https://img.shields.io/github/actions/workflow/status/esrrhs/fakelua/build_with_windows.yml?branch=master&label=Windows">](https://github.com/esrrhs/fakelua/actions/workflows/build_with_windows.yml)
-[<img src="https://img.shields.io/github/actions/workflow/status/esrrhs/fakelua/build_with_asan.yml?branch=master&label=ASAN">](https://github.com/esrrhs/fakelua/actions/workflows/build_with_asan.yml)
 [![codecov](https://codecov.io/gh/esrrhs/fakelua/graph/badge.svg?token=9ZCUH1Q632)](https://codecov.io/gh/esrrhs/fakelua)
 
 FakeLua 是一个可嵌入的 Lua 子集执行引擎：将脚本编译为 C 代码，再由本地编译器生成动态库并加载执行。
