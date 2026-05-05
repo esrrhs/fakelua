@@ -1271,7 +1271,16 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
     if (exp_type == "unop") {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
         DEBUG_ASSERT(op);
-        if (op->GetOp() == "MINUS") return InferArgTypeForSpec(e->Right());
+        if (op->GetOp() == "MINUS") {
+            return InferArgTypeForSpec(e->Right());
+        }
+        if (op->GetOp() == "BITNOT") {
+            const auto t = InferArgTypeForSpec(e->Right());
+            if (t == T_INT) {
+                return T_INT;
+            }
+            return T_DYNAMIC;
+        }
         return T_DYNAMIC;
     }
 
