@@ -2127,8 +2127,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
             InferredType result_type;
             if (op_name == "SLASH" || op_name == "POW") {
                 result_type = T_FLOAT;
-            } else if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR" ||
-                       op_name == "RIGHT_SHIFT" || op_name == "LEFT_SHIFT") {
+            } else if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR") {
                 result_type = T_INT;
             } else {
                 result_type = (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
