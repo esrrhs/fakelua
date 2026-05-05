@@ -49,3 +49,4 @@ coverage_src.info
 coverage_html/
 src/compile/bison/parser.gv
 src/compile/bison/parser.xml
+test_results.log
