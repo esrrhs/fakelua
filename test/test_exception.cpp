@@ -953,6 +953,6 @@ TEST(exception, math_param_non_numeric_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic on non-numeric value") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("bad argument #1 (a): attempt to perform arithmetic on non-numeric value") != std::string::npos);
     }
 }

@@ -1097,12 +1097,13 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
     }
     *cur_output_ << ") {\n";
 
-    // 检查 math param 必须是数值类型，否则抛出运行时错误。
+    // 检查 math param 必须是数值类型，否则抛出运行时错误（含参数序号和参数名）。
     for (int i = 0; i < k; ++i) {
-        const auto &mp_name = func_params[static_cast<size_t>(math_param_indices[i])];
+        const int param_idx = math_param_indices[i];
+        const auto &mp_name = func_params[static_cast<size_t>(param_idx)];
         *cur_output_ << std::format(
-                "    if ({0}.type_ != VAR_INT && {0}.type_ != VAR_FLOAT) {{ FakeluaThrowError(_S, \"attempt to perform arithmetic on non-numeric value\"); }}\n",
-                mp_name);
+                "    if ({0}.type_ != VAR_INT && {0}.type_ != VAR_FLOAT) {{ FakeluaThrowError(_S, \"bad argument #{1} ({2}): attempt to perform arithmetic on non-numeric value\"); }}\n",
+                mp_name, param_idx + 1, mp_name);
     }
 
     // 计算分发索引。
