@@ -1154,7 +1154,9 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
         DEBUG_ASSERT(pe);
         if (pe->GetType() == "var") {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-            if (!var || var->GetType() != "simple") return T_DYNAMIC;
+            if (!var || var->GetType() != "simple") {
+                return T_DYNAMIC;
+            }
             const auto &vname = var->GetName();
             // 特化上下文优先。
             if (const auto it = spec_param_types_.find(vname); it != spec_param_types_.end()) {
@@ -1165,7 +1167,9 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
             // 因为它可能在稍后的代码路径中持有非数值。
             if (IsTypedNativeVar(vname)) {
                 const auto t = e->EvalType();
-                if (t == T_INT || t == T_FLOAT) return t;
+                if (t == T_INT || t == T_FLOAT) {
+                    return t;
+                }
             }
             return T_DYNAMIC;
         }
@@ -1176,28 +1180,46 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
             // Check whether the callee is a local function with math params.
             // If so, infer its return type from the specialization bitmask of the call.
             const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
-            if (!fc) return T_DYNAMIC;
+            if (!fc) {
+                return T_DYNAMIC;
+            }
             const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-            if (!callee_pe || callee_pe->GetType() != "var") return T_DYNAMIC;
+            if (!callee_pe || callee_pe->GetType() != "var") {
+                return T_DYNAMIC;
+            }
             const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-            if (!callee_var || callee_var->GetType() != "simple") return T_DYNAMIC;
+            if (!callee_var || callee_var->GetType() != "simple") {
+                return T_DYNAMIC;
+            }
             const auto &callee_name = callee_var->GetName();
             const auto math_it = math_param_positions_.find(callee_name);
-            if (math_it == math_param_positions_.end()) return T_DYNAMIC;
+            if (math_it == math_param_positions_.end()) {
+                return T_DYNAMIC;
+            }
             const auto &math_params = math_it->second;
             const auto args_node = fc->Args();
             const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
-            if (!args_ptr || args_ptr->GetType() != "explist") return T_DYNAMIC;
+            if (!args_ptr || args_ptr->GetType() != "explist") {
+                return T_DYNAMIC;
+            }
             const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
-            if (!explist_ptr) return T_DYNAMIC;
+            if (!explist_ptr) {
+                return T_DYNAMIC;
+            }
             const auto &raw_args = explist_ptr->Exps();
             bool any_float = false;
             for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
                 const int param_pos = math_params[i];
-                if (param_pos >= static_cast<int>(raw_args.size())) return T_DYNAMIC;
+                if (param_pos >= static_cast<int>(raw_args.size())) {
+                    return T_DYNAMIC;
+                }
                 const auto t = InferArgTypeForSpec(raw_args[param_pos]);
-                if (t == T_DYNAMIC) return T_DYNAMIC;
-                if (t == T_FLOAT) any_float = true;
+                if (t == T_DYNAMIC) {
+                    return T_DYNAMIC;
+                }
+                if (t == T_FLOAT) {
+                    any_float = true;
+                }
             }
             return any_float ? T_FLOAT : T_INT;
         }
