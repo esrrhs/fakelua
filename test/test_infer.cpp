@@ -1590,3 +1590,46 @@ TEST(infer, test_spec_nested_call) {
         ASSERT_DOUBLE_EQ(dret, 3.5);
     });
 }
+
+TEST(infer, test_spec_local_from_func_call) {
+    const auto code = InferGetCCode("./infer/test_spec_local_from_func_call.lua");
+    // func must be specialised (has direct arithmetic n+1).
+    ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
+    // wrapper must also be specialised because it passes n to func's math param.
+    ASSERT_NE(code.find("int64_t wrapper_0(int64_t n)"), std::string::npos);
+    // local x should be declared as int64_t (not CVar) inside wrapper_0.
+    ASSERT_NE(code.find("int64_t x ="), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_local_from_func_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "wrapper", ret, 10);
+        ASSERT_EQ(ret, 11);
+        double dret = 0.0;
+        Call(s, type, "wrapper", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 3.5);
+    });
+}
+
+TEST(infer, test_spec_local_chain_from_func_call) {
+    const auto code = InferGetCCode("./infer/test_spec_local_chain_from_func_call.lua");
+    // func must be specialised (direct arithmetic n*2).
+    ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
+    // chain must also be specialised.
+    ASSERT_NE(code.find("int64_t chain_0(int64_t n)"), std::string::npos);
+    // Both x and y should be int64_t inside chain_0.
+    ASSERT_NE(code.find("int64_t x ="), std::string::npos);
+    ASSERT_NE(code.find("int64_t y ="), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_local_chain_from_func_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "chain", ret, 5);
+        ASSERT_EQ(ret, 11);
+        Call(s, type, "chain", ret, 3);
+        ASSERT_EQ(ret, 7);
+        double dret = 0.0;
+        Call(s, type, "chain", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 6.0);
+    });
+}

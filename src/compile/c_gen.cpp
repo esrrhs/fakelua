@@ -2126,9 +2126,9 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
 
     // 编译循环体
     EnterNativeVarScope();
-    DeclareNativeVar(key_name, false);
+    DeclareNativeVar(key_name, T_DYNAMIC);
     if (names.size() >= 2) {
-        DeclareNativeVar(names[1], false);
+        DeclareNativeVar(names[1], T_DYNAMIC);
     }
     CompileStmtBlock(for_in->Block());
     ExitNativeVarScope();
