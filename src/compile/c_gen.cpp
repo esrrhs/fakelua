@@ -1401,10 +1401,11 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
     if (op_it == kCmpOpMap.end()) {
         return {};
     }
-    // 在调用 CompileNumericExp（失败时会记录错误日志）之前，先检查两个操作数
-    // 是否都具有静态已知的数值类型。对于表访问等 T_DYNAMIC 表达式，直接跳过。
-    const auto left_type = e->Left() ? e->Left()->EvalType() : T_DYNAMIC;
-    const auto right_type = e->Right() ? e->Right()->EvalType() : T_DYNAMIC;
+    // 使用 InferArgTypeForSpec 检查两个操作数是否具有静态已知的数值类型。
+    // 相比直接使用 EvalType()，InferArgTypeForSpec 在特化上下文中还能识别
+    // 数学参数函数调用的返回类型（如 f(n) > n，其中 f 是数学参数函数）。
+    const auto left_type = e->Left() ? InferArgTypeForSpec(e->Left()) : T_DYNAMIC;
+    const auto right_type = e->Right() ? InferArgTypeForSpec(e->Right()) : T_DYNAMIC;
     if ((left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
         return {};
     }

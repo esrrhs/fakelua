@@ -1361,3 +1361,75 @@ TEST(infer, test_spec_len_param) {
         ASSERT_EQ(ret, 15); // n=10, #"hello"=5, 10+5=15
     });
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Missing grammar cases: for-loop with math param as bound, and comparison
+// with a specialized function call result.
+// ────────────────────────────────────────────────────────────────────────────
+
+// Math param n used as the upper bound of a numeric for-loop.
+// TypeInferencer identifies n as a math param via the inner sum + i arithmetic
+// (n=T_INT → bound T_INT → loop var i T_INT → T_INT + T_INT = T_INT; vs
+// n=T_DYNAMIC → end T_DYNAMIC → i T_DYNAMIC → T_DYNAMIC).
+// In the int specialization, CompileStmtForLoop must detect all bounds as T_INT
+// (from the snapshot) and emit int64_t control variables.
+// test(10) == 55, test(5) == 15.
+TEST(infer, test_spec_for_bound_param) {
+    const auto code = InferGetCCode("./infer/test_spec_for_bound_param.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // Entry dispatcher must exist.
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+    // In the int specialization: native int64_t for-loop control variables.
+    ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
+    // The upper bound end variable is used (typed int path).
+    ASSERT_NE(code.find("int64_t flua_for_end_"), std::string::npos);
+    // No dynamic CVar control variables in the int specialization.
+    ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
+    ASSERT_EQ(code.find("CVar i"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_for_bound_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 55); // 1+2+...+10
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 15); // 1+2+3+4+5
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 0); // empty range
+    });
+}
+
+// Comparison where the left operand is the result of a call to a specialized
+// function f.  Without the TryCompileNativeBoolExpr fix, EvalType() would
+// return T_DYNAMIC for f(n) (function calls are always T_DYNAMIC) and the
+// condition would fall through to the IsTrue dynamic path.  With the fix,
+// InferArgTypeForSpec(f(n)) returns T_INT in the int specialization, so the
+// condition is emitted as a native C comparison.
+// For n > 0: f(n) = 2n > n is true, return x (= n); for n = 0: return 0.
+TEST(infer, test_spec_compare_func_result) {
+    const auto code = InferGetCCode("./infer/test_spec_compare_func_result.lua");
+    // Both f and test must be specialized.
+    ASSERT_NE(code.find("f_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    // The if condition must use a direct C comparison: f_0(n) is called and
+    // its integer result (.data_.i) is compared with n natively.
+    ASSERT_NE(code.find("f_0(n)"), std::string::npos);
+    ASSERT_NE(code.find(".data_.i)"), std::string::npos);
+    // No dynamic IsTrue or flua_ibt_ temp bool variables.
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_compare_func_result.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 5); // f(5)=10 > 5 → true → return x=5
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 0); // f(0)=0 > 0 → false → return 0
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 3); // f(3)=6 > 3 → true → return x=3
+    });
+}
