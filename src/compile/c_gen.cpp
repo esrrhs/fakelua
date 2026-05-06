@@ -1373,6 +1373,15 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
             op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
             return T_INT;
         }
+        // AND/OR：整数和浮点数在 Lua 中始终为真值（包括 0），因此：
+        //   a and b → 结果为 b（a 始终为真，返回 b），类型为 rt
+        //   a or  b → 结果为 a（a 始终为真，返回 a），类型为 lt
+        if (op_name == "AND") {
+            return rt;
+        }
+        if (op_name == "OR") {
+            return lt;
+        }
         return T_DYNAMIC;
     }
 
@@ -2616,6 +2625,26 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
         DEBUG_ASSERT(op);
         const auto &op_name = op->GetOp();
+
+        // AND/OR：需在 left/right 的通用编译之前处理，以保持短路求值语义。
+        // Lua 中整数和浮点数（包括 0）始终为真值，因此：
+        //   a and b → a 始终为真，结果为 b；a 仍需求值（可能有副作用）
+        //   a or  b → a 始终为真，结果为 a；b 不求值（短路）
+        if (op_name == "AND") {
+            // 求值 a（保留副作用），存入哑元变量，返回 b 的原生值。
+            const auto left_type = InferArgTypeForSpec(e->Left());
+            const auto dummy = std::format("flua_native_{}", tmp_var_counter_++);
+            const auto c_type_str = (left_type == T_FLOAT) ? "double" : "int64_t";
+            func_temp_decls_ << "    " << c_type_str << " " << dummy << ";\n";
+            const auto left_native = CompileNumericExp(e->Left());
+            *cur_output_ << GenTab() << dummy << " = " << left_native << ";\n";
+            return CompileNumericExp(e->Right());
+        }
+        if (op_name == "OR") {
+            // a 始终为真，返回 a；b 不求值（与 Lua 短路语义一致）。
+            return CompileNumericExp(e->Left());
+        }
+
         const auto left = CompileNumericExp(e->Left());
         const auto right = CompileNumericExp(e->Right());
 

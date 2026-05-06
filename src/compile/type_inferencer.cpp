@@ -361,6 +361,22 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
             }
         }
 
+        // AND/OR：Lua 中整数和浮点数始终为真值（包括 0），因此：
+        //   a and b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 b → 类型为 right_type
+        //   a or  b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 a → 类型为 left_type
+        if (op_name == "AND") {
+            if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
+                exp->SetEvalType(right_type);
+                return right_type;
+            }
+        }
+        if (op_name == "OR") {
+            if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
+                exp->SetEvalType(left_type);
+                return left_type;
+            }
+        }
+
         exp->SetEvalType(T_DYNAMIC);
         return T_DYNAMIC;
     }
@@ -901,6 +917,15 @@ InferredType TypeInferencer::EvalReturnExpType(
         if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR" ||
             op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
             return T_INT;
+        }
+        // AND/OR：整数和浮点数始终为真值（包括 0）。
+        //   a and b → 结果为 b（类型为 right）
+        //   a or  b → 结果为 a（类型为 left）
+        if (op_name == "AND") {
+            return right;
+        }
+        if (op_name == "OR") {
+            return left;
         }
         return T_DYNAMIC;
     }
