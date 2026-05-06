@@ -823,7 +823,7 @@ void CGen::GenerateGlobal(CompileResult &cr) {
 }
 
 // 返回特化函数返回值对应的 C 类型名称字符串。
-static const char *SpecReturnCTypeName(InferredType ret_type) {
+const char *CGen::SpecReturnCTypeName(InferredType ret_type) {
     if (ret_type == T_INT) {
         return "int64_t";
     }
@@ -942,7 +942,7 @@ std::string CGen::GenTab() const {
     return std::string(static_cast<size_t>(cur_tab_) * 4, ' ');
 }
 
-static bool BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block) {
+bool CGen::BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block) {
     const auto block_ptr = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
     const auto &stmts = block_ptr->Stmts();
     if (stmts.empty()) {

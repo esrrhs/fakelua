@@ -68,6 +68,23 @@ private:
     bool ParamAffectsArithmetic(const EvalTypeMap &all_int, const EvalTypeMap &without_p,
                                 const SyntaxTreeInterfacePtr &func_block) const;
 
+    // 检查 block_node 的所有执行路径是否均以 return 语句结束。
+    // 能识别 if-else（所有分支均返回）的情况，不递归进入嵌套函数体。
+    [[nodiscard]] bool AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) const;
+
+    // 从 block_node 中浅层收集每条 return 语句的第一个返回表达式。
+    // 返回 true 表示所有路径均以 return 结束（无隐式 nil 返回路径）。
+    bool CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
+                           std::vector<SyntaxTreeInterfacePtr> &ret_exps) const;
+
+    // 在特化上下文和假定返回类型表下，递归计算返回表达式的类型。
+    [[nodiscard]] InferredType EvalReturnExpType(
+            const SyntaxTreeInterfacePtr &exp,
+            const EvalTypeSnapshot &snapshot,
+            const std::unordered_map<std::string, InferredType> &spec_ctx,
+            const std::unordered_map<std::string, std::vector<int>> &math_param_positions,
+            const std::unordered_map<std::string, std::vector<InferredType>> &assumed_ret) const;
+
 private:
     TypeEnvironment env_;
     int funcbody_depth_ = 0;

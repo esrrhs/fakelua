@@ -114,6 +114,12 @@ private:
 
     std::string BoxNativeValue(const std::string &expr, InferredType type) const;
 
+    // 返回特化函数返回值对应的 C 类型名称字符串（"int64_t"、"double" 或 "CVar"）。
+    [[nodiscard]] static const char *SpecReturnCTypeName(InferredType ret_type);
+
+    // 检查 block 的最后一条语句是否为 return。
+    [[nodiscard]] static bool BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block);
+
     // 查询函数特化版本的实际返回类型（T_INT、T_FLOAT 或 T_DYNAMIC）。
     // 由 DiscoverMathParams 的不动点迭代填充，不存在时返回 T_DYNAMIC。
     [[nodiscard]] InferredType GetSpecReturnType(const std::string &func_name, int bitmask) const;

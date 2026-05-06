@@ -592,7 +592,7 @@ bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const Ev
 // 与简单的"最后一条语句是 return"不同，此函数还能识别 if-elseif-else 结构
 // 中所有分支均返回的情况（如 fibonacci），从而正确标记所有路径均返回数值。
 // 不递归进入嵌套函数体（Function / LocalFunction）。
-static bool AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) {
+bool TypeInferencer::AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) const {
     if (!block_node) {
         return false;
     }
@@ -632,8 +632,8 @@ static bool AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) {
 // 不递归进入嵌套函数体（Function / LocalFunction 节点）。
 // 返回值为 true 表示该 block 的所有路径均以 return 结束（无 nil 隐式返回路径）。
 // 对于 nil 返回（无表达式或空列表），在 ret_exps 中压入 nullptr 作为占位符。
-static bool CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
-                               std::vector<SyntaxTreeInterfacePtr> &ret_exps) {
+bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
+                               std::vector<SyntaxTreeInterfacePtr> &ret_exps) const {
     if (!block_node) {
         return false;
     }
@@ -690,12 +690,12 @@ static bool CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
 // 递归计算返回表达式 exp 的类型。
 // 对于指向数学参数函数的调用节点，使用 assumed_ret 中的假定返回类型，
 // 从而支持不动点迭代中的循环/递归推断。
-static InferredType EvalReturnExpType(
+InferredType TypeInferencer::EvalReturnExpType(
         const SyntaxTreeInterfacePtr &exp,
         const EvalTypeSnapshot &snapshot,
         const std::unordered_map<std::string, InferredType> &spec_ctx,
         const std::unordered_map<std::string, std::vector<int>> &math_param_positions,
-        const std::unordered_map<std::string, std::vector<InferredType>> &assumed_ret) {
+        const std::unordered_map<std::string, std::vector<InferredType>> &assumed_ret) const {
     if (!exp || exp->Type() != SyntaxTreeType::Exp) {
         return T_DYNAMIC;
     }
