@@ -690,32 +690,74 @@ static inline CVar FlConcat(CVar a, CVar b) {
 // 与 OpFloorDiv 的 VAR_INT 分支保持完全一致的语义。
 // UB 说明（有意保留）：当 a==INT64_MIN 且 b==-1 时，/ 和 % 均触发有符号溢出 UB。
 // Lua 5.4 官方实现同样未特判，x86-64 IDIV 硬件行为稳定，为性能不加额外分支。
-#define FlFloorDivInt(a, b) ({ \
+#define FlFloorDivInt(a, b, result) do { \
     int64_t __fl_a = (a); int64_t __fl_b = (b); \
     if (__fl_b == 0) { FakeluaThrowError(_S, "floor division by zero"); } \
     int64_t __fl_q = __fl_a / __fl_b; \
     if ((__fl_a ^ __fl_b) < 0 && __fl_a % __fl_b != 0) { __fl_q -= 1; } \
-    __fl_q; \
-})
+    (result) = __fl_q; \
+} while(0)
 
 // 原生整数取模（Lua 语义：a - b * floor(a/b)）。
 // 与 OpMod 的 VAR_INT 分支保持完全一致的语义。
 // UB 说明（有意保留）：当 a==INT64_MIN 且 b==-1 时，/ 和 % 均触发有符号溢出 UB。
 // Lua 5.4 官方实现同样未特判，x86-64 IDIV 硬件行为稳定，为性能不加额外分支。
-#define FlModInt(a, b) ({ \
+#define FlModInt(a, b, result) do { \
     int64_t __fm_a = (a); int64_t __fm_b = (b); \
     if (__fm_b == 0) { FakeluaThrowError(_S, "modulo by zero"); } \
     int64_t __fm_q = __fm_a / __fm_b; \
     if ((__fm_a ^ __fm_b) < 0 && __fm_a % __fm_b != 0) { __fm_q -= 1; } \
-    __fm_a - __fm_b * __fm_q; \
-})
+    (result) = __fm_a - __fm_b * __fm_q; \
+} while(0)
 
 // 原生浮点取模（Lua 语义：a - b * floor(a/b)）。
 // 与 OpMod 的 VAR_FLOAT 分支保持一致。
-#define FlModFloat(a, b) ({ \
+#define FlModFloat(a, b, result) do { \
     double __fmf_a = (a); double __fmf_b = (b); \
-    __fmf_a - __fmf_b * floor(__fmf_a / __fmf_b); \
-})
+    (result) = __fmf_a - __fmf_b * floor(__fmf_a / __fmf_b); \
+} while(0)
+
+// 原生整数左移（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
+// 与 OpLeftShift 的逻辑完全一致，但接受原生 int64_t 参数以省去 CVar 打包/拆包。
+#define FlLShiftInt(a, b, result) do { \
+    int64_t __ls_a = (a); int64_t __ls_b = (b); \
+    if (__ls_b >= 64 || __ls_b <= -64) { \
+        (result) = (int64_t)0; \
+    } else if (__ls_b >= 0) { \
+        (result) = (int64_t)((uint64_t)__ls_a << __ls_b); \
+    } else { \
+        (result) = (int64_t)((uint64_t)__ls_a >> (-__ls_b)); \
+    } \
+} while(0)
+
+// 原生整数右移（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
+// 与 OpRightShift 的逻辑完全一致，但接受原生 int64_t 参数。
+#define FlRShiftInt(a, b, result) do { \
+    int64_t __rs_a = (a); int64_t __rs_b = (b); \
+    if (__rs_b >= 64 || __rs_b <= -64) { \
+        (result) = (int64_t)0; \
+    } else if (__rs_b >= 0) { \
+        (result) = (int64_t)((uint64_t)__rs_a >> __rs_b); \
+    } else { \
+        (result) = (int64_t)((uint64_t)__rs_a << (-__rs_b)); \
+    } \
+} while(0)
+
+// 原生取长度：从 CVar 中提取整数长度（字符串字节数或表元素数）。
+// 用于在数值特化路径中处理 # 运算符，替代 OpLen 宏以直接返回 int64_t。
+#define FlLenInt(v, result) do { \
+    CVar __fl_v = (v); \
+    if (__fl_v.type_ == VAR_STRING) { \
+        (result) = (int64_t)STR_SIZE(__fl_v.data_.s); \
+    } else if (__fl_v.type_ == VAR_STRINGID) { \
+        (result) = (int64_t)STR_SIZE((VarString *)__fl_v.data_.i); \
+    } else if (__fl_v.type_ == VAR_TABLE) { \
+        (result) = (int64_t)TABLE_SIZE(__fl_v.data_.t); \
+    } else { \
+        FakeluaThrowError(_S, "attempt to get length of a non-string/table value"); \
+        (result) = 0; \
+    } \
+} while(0)
 
 )";
 }
@@ -1281,6 +1323,10 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
             }
             return T_DYNAMIC;
         }
+        if (op->GetOp() == "NUMBER_SIGN") {
+            // # 运算符始终返回整数（字符串长度或表大小）。
+            return T_INT;
+        }
         return T_DYNAMIC;
     }
 
@@ -1518,10 +1564,12 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
         }
 
         if (i < exps.size() && exps[i]->EvalType() == T_INT) {
-            *cur_output_ << GenTab() << "int64_t " << name << " = " << CompileNumericExp(exps[i]) << ";\n";
+            const auto native_expr = CompileNumericExp(exps[i]);
+            *cur_output_ << GenTab() << "int64_t " << name << " = " << native_expr << ";\n";
             DeclareNativeVar(name, true);
         } else if (i < exps.size() && exps[i]->EvalType() == T_FLOAT) {
-            *cur_output_ << GenTab() << "double " << name << " = " << CompileNumericExp(exps[i]) << ";\n";
+            const auto native_expr = CompileNumericExp(exps[i]);
+            *cur_output_ << GenTab() << "double " << name << " = " << native_expr << ";\n";
             DeclareNativeVar(name, true);
         } else {
             const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
@@ -1744,10 +1792,17 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
         func_temp_decls_ << "    int64_t " << end_var << ";\n";
         func_temp_decls_ << "    int64_t " << step_var << ";\n";
 
-        *cur_output_ << GenTab() << ctrl_var << " = " << CompileNumericExp(for_stmt->ExpBegin()) << ";\n";
-        *cur_output_ << GenTab() << end_var << " = " << CompileNumericExp(for_stmt->ExpEnd()) << ";\n";
+        {
+            const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
+            *cur_output_ << GenTab() << ctrl_var << " = " << native_begin << ";\n";
+        }
+        {
+            const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
+            *cur_output_ << GenTab() << end_var << " = " << native_end << ";\n";
+        }
         if (for_stmt->ExpStep()) {
-            *cur_output_ << GenTab() << step_var << " = " << CompileNumericExp(for_stmt->ExpStep()) << ";\n";
+            const auto native_step = CompileNumericExp(for_stmt->ExpStep());
+            *cur_output_ << GenTab() << step_var << " = " << native_step << ";\n";
         } else {
             *cur_output_ << GenTab() << step_var << " = 1;\n";
         }
@@ -1787,10 +1842,17 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
         func_temp_decls_ << "    double " << end_var << ";\n";
         func_temp_decls_ << "    double " << step_var << ";\n";
 
-        *cur_output_ << GenTab() << ctrl_var << " = (double)(" << CompileNumericExp(for_stmt->ExpBegin()) << ");\n";
-        *cur_output_ << GenTab() << end_var << " = (double)(" << CompileNumericExp(for_stmt->ExpEnd()) << ");\n";
+        {
+            const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
+            *cur_output_ << GenTab() << ctrl_var << " = (double)(" << native_begin << ");\n";
+        }
+        {
+            const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
+            *cur_output_ << GenTab() << end_var << " = (double)(" << native_end << ");\n";
+        }
         if (for_stmt->ExpStep()) {
-            *cur_output_ << GenTab() << step_var << " = (double)(" << CompileNumericExp(for_stmt->ExpStep()) << ");\n";
+            const auto native_step = CompileNumericExp(for_stmt->ExpStep());
+            *cur_output_ << GenTab() << step_var << " = (double)(" << native_step << ");\n";
         } else {
             *cur_output_ << GenTab() << step_var << " = 1.0;\n";
         }
@@ -2173,7 +2235,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     // may emit function-call assignment statements as a side effect.
     static const std::unordered_set<std::string> kNativeArithOps = {
             "PLUS", "MINUS", "STAR", "SLASH", "DOUBLE_SLASH", "POW", "MOD",
-            "BITAND", "XOR", "BITOR"};
+            "BITAND", "XOR", "BITOR", "LEFT_SHIFT", "RIGHT_SHIFT"};
     if (kNativeArithOps.count(op_name)) {
         const auto lt = InferArgTypeForSpec(left);
         const auto rt = InferArgTypeForSpec(right);
@@ -2181,7 +2243,8 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
             InferredType result_type;
             if (op_name == "SLASH" || op_name == "POW") {
                 result_type = T_FLOAT;
-            } else if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR") {
+            } else if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR" ||
+                       op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
                 result_type = T_INT;
             } else {
                 result_type = (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
@@ -2200,19 +2263,42 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
             } else if (op_name == "POW") {
                 native_expr = std::format("pow((double)({}), (double)({}))", left_native, right_native);
             } else if (op_name == "DOUBLE_SLASH") {
-                native_expr = result_type == T_INT
-                                      ? std::format("FlFloorDivInt(({}), ({}))", left_native, right_native)
-                                      : std::format("floor((double)({}) / (double)({}))", left_native, right_native);
+                if (result_type == T_INT) {
+                    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                    func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                    *cur_output_ << GenTab() << std::format("FlFloorDivInt(({}), ({}), {});\n", left_native, right_native, ntmp);
+                    native_expr = ntmp;
+                } else {
+                    native_expr = std::format("floor((double)({}) / (double)({}))", left_native, right_native);
+                }
             } else if (op_name == "MOD") {
-                native_expr = result_type == T_INT
-                                      ? std::format("FlModInt(({}), ({}))", left_native, right_native)
-                                      : std::format("FlModFloat((double)({}), (double)({}))", left_native, right_native);
+                if (result_type == T_INT) {
+                    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                    func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                    *cur_output_ << GenTab() << std::format("FlModInt(({}), ({}), {});\n", left_native, right_native, ntmp);
+                    native_expr = ntmp;
+                } else {
+                    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                    func_temp_decls_ << "    double " << ntmp << ";\n";
+                    *cur_output_ << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left_native, right_native, ntmp);
+                    native_expr = ntmp;
+                }
             } else if (op_name == "BITAND") {
                 native_expr = std::format("((int64_t)({}) & (int64_t)({}))", left_native, right_native);
             } else if (op_name == "BITOR") {
                 native_expr = std::format("((int64_t)({}) | (int64_t)({}))", left_native, right_native);
             } else if (op_name == "XOR") {
                 native_expr = std::format("((int64_t)({}) ^ (int64_t)({}))", left_native, right_native);
+            } else if (op_name == "LEFT_SHIFT") {
+                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
+                native_expr = ntmp;
+            } else if (op_name == "RIGHT_SHIFT") {
+                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
+                native_expr = ntmp;
             }
             if (!native_expr.empty()) {
                 const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
@@ -2446,7 +2532,10 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         // 向下取整除法：整数 → FlFloorDivInt，浮点 → floor(a/b)
         if (op_name == "DOUBLE_SLASH") {
             if (e->EvalType() == T_INT) {
-                return std::format("FlFloorDivInt(({}), ({}))", left, right);
+                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                *cur_output_ << GenTab() << std::format("FlFloorDivInt(({}), ({}), {});\n", left, right, ntmp);
+                return ntmp;
             }
             return std::format("floor((double)({}) / (double)({}))", left, right);
         }
@@ -2454,9 +2543,15 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         // 取模：整数 → FlModInt，浮点 → FlModFloat
         if (op_name == "MOD") {
             if (e->EvalType() == T_INT) {
-                return std::format("FlModInt(({}), ({}))", left, right);
+                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                *cur_output_ << GenTab() << std::format("FlModInt(({}), ({}), {});\n", left, right, ntmp);
+                return ntmp;
             }
-            return std::format("FlModFloat((double)({}), (double)({}))", left, right);
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    double " << ntmp << ";\n";
+            *cur_output_ << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left, right, ntmp);
+            return ntmp;
         }
 
         // 位运算：两个操作数均为 T_INT 时结果为 T_INT
@@ -2470,10 +2565,16 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return std::format("((int64_t)({}) ^ (int64_t)({}))", left, right);
         }
         if (op_name == "LEFT_SHIFT") {
-            return std::format("((int64_t)({}) << (int64_t)({}))", left, right);
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+            *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left, right, ntmp);
+            return ntmp;
         }
         if (op_name == "RIGHT_SHIFT") {
-            return std::format("((int64_t)({}) >> (int64_t)({}))", left, right);
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+            *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left, right, ntmp);
+            return ntmp;
         }
 
         ThrowError("operator " + op_name + " is not supported in numeric specialization", exp);
@@ -2481,6 +2582,16 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
         DEBUG_ASSERT(op);
         const auto &op_name = op->GetOp();
+        if (op_name == "NUMBER_SIGN") {
+            // # 运算符返回字符串字节数或表元素数（始终为整数）。
+            // 操作数本身不是数值类型，需通过 CompileExp 编译为 CVar，
+            // 再由 FlLenInt 提取原生 int64_t 长度。
+            const auto operand_cvar = CompileExp(e->Right());
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+            *cur_output_ << GenTab() << std::format("FlLenInt({}, {});\n", operand_cvar, ntmp);
+            return ntmp;
+        }
         const auto operand = CompileNumericExp(e->Right());
         if (op_name == "MINUS") {
             return std::format("(-({}))", operand);

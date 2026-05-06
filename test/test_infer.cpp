@@ -809,7 +809,9 @@ TEST(infer, test_infer_typed_int_bitxor) {
 TEST(infer, test_infer_typed_int_leftshift) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_leftshift.lua");
     ASSERT_NE(code.find("int64_t x = 1;"), std::string::npos);
-    ASSERT_NE(code.find("int64_t y = ((int64_t)(x) << (int64_t)(4));"), std::string::npos);
+    // CompileNumericExp now uses FlLShiftInt for Lua-correct clamping semantics.
+    ASSERT_NE(code.find("FlLShiftInt((x), (4),"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y ="), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
     ASSERT_EQ(code.find("CVar y"), std::string::npos);
     ASSERT_EQ(code.find("OpLeftShift("), std::string::npos);
@@ -826,7 +828,9 @@ TEST(infer, test_infer_typed_int_leftshift) {
 TEST(infer, test_infer_typed_int_rightshift) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_rightshift.lua");
     ASSERT_NE(code.find("int64_t x = 256;"), std::string::npos);
-    ASSERT_NE(code.find("int64_t y = ((int64_t)(x) >> (int64_t)(3));"), std::string::npos);
+    // CompileNumericExp now uses FlRShiftInt for Lua-correct clamping semantics.
+    ASSERT_NE(code.find("FlRShiftInt((x), (3),"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y ="), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
     ASSERT_EQ(code.find("CVar y"), std::string::npos);
     ASSERT_EQ(code.find("OpRightShift("), std::string::npos);
@@ -1286,5 +1290,74 @@ TEST(infer, test_native_bool_nested) {
         ASSERT_EQ(ret, 0);
         Call(s, type, "test", ret, 1, 2, 0);
         ASSERT_EQ(ret, 0);
+    });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Missing grammar cases: LEFT_SHIFT/RIGHT_SHIFT and NUMBER_SIGN (#) in
+// math param specialization context
+// ────────────────────────────────────────────────────────────────────────────
+
+// Math param n: n << 2 should use the native arithmetic fast path via
+// kNativeArithOps + FlLShiftInt.  InferArgTypeForSpec already returns T_INT
+// for LEFT_SHIFT; kNativeArithOps now includes LEFT_SHIFT.
+// For n=5: 5 << 2 = 20.
+TEST(infer, test_spec_leftshift_param) {
+    const auto code = InferGetCCode("./infer/test_spec_leftshift_param.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // The int specialization must use FlLShiftInt (not OpLeftShift).
+    ASSERT_NE(code.find("FlLShiftInt("), std::string::npos);
+    ASSERT_EQ(code.find("OpLeftShift("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_leftshift_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 20); // 5 << 2 = 20
+    });
+}
+
+// Math param n: n >> 1 should use the native arithmetic fast path via
+// kNativeArithOps + FlRShiftInt.  InferArgTypeForSpec already returns T_INT
+// for RIGHT_SHIFT; kNativeArithOps now includes RIGHT_SHIFT.
+// For n=16: 16 >> 1 = 8.
+TEST(infer, test_spec_rightshift_param) {
+    const auto code = InferGetCCode("./infer/test_spec_rightshift_param.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // The int specialization must use FlRShiftInt (not OpRightShift).
+    ASSERT_NE(code.find("FlRShiftInt("), std::string::npos);
+    ASSERT_EQ(code.find("OpRightShift("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_rightshift_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 16);
+        ASSERT_EQ(ret, 8); // 16 >> 1 = 8
+    });
+}
+
+// Math param n: n + #s should use the native arithmetic fast path because
+// InferArgTypeForSpec now returns T_INT for unop NUMBER_SIGN (# always
+// yields an integer), enabling CompileNumericExp to emit FlLenInt.
+// For n=10 and s="hello" (length 5): test(10) == 15.
+TEST(infer, test_spec_len_param) {
+    const auto code = InferGetCCode("./infer/test_spec_len_param.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // The int specialization must call FlLenInt to get the string length.
+    ASSERT_NE(code.find("FlLenInt("), std::string::npos);
+    // No dynamic OpLen call in the generated code.
+    ASSERT_EQ(code.find("OpLen("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_len_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 15); // n=10, #"hello"=5, 10+5=15
     });
 }
