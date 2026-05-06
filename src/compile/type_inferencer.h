@@ -61,12 +61,24 @@ private:
     bool IsArithmeticBinop(const SyntaxTreeInterfacePtr &node) const;
 
     // 判断 all_int（全参数=T_INT）相对于 baseline（全参数=T_DYNAMIC）是否有算术表达式改善。
+    // 同时检测对已知数学函数的调用：若某数学参数位置实参在 all_int 中有类型但 baseline 中为
+    // T_DYNAMIC，则视为算术改善。
     bool HasArithmeticImprovement(const EvalTypeMap &all_int, const EvalTypeMap &baseline,
-                                  const SyntaxTreeInterfacePtr &func_block) const;
+                                  const SyntaxTreeInterfacePtr &func_block,
+                                  const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
 
     // 判断 all_int 中某个参数被置回 T_DYNAMIC 后（without_p），是否有算术表达式退化。
+    // 同时检测对已知数学函数的调用：若去掉该参数导致某数学函数调用的实参失去类型，则视为退化。
     bool ParamAffectsArithmetic(const EvalTypeMap &all_int, const EvalTypeMap &without_p,
-                                const SyntaxTreeInterfacePtr &func_block) const;
+                                const SyntaxTreeInterfacePtr &func_block,
+                                const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
+
+    // 检查 func_block 中是否存在对已知数学函数的调用，其数学参数位置的实参在 typed_map 中有类型
+    // (T_INT/T_FLOAT) 但在 compare_map 中类型不同（即发生了改善或退化）。
+    bool HasMathCallImprovement(const SyntaxTreeInterfacePtr &func_block,
+                                const EvalTypeMap &typed_map,
+                                const EvalTypeMap &compare_map,
+                                const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
 
     // 检查 block_node 的所有执行路径是否均以 return 语句结束。
     // 能识别 if-else（所有分支均返回）的情况，不递归进入嵌套函数体。

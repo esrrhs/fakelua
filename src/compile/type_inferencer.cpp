@@ -549,7 +549,8 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
 }
 
 bool TypeInferencer::HasArithmeticImprovement(const EvalTypeMap &all_int, const EvalTypeMap &baseline,
-                                               const SyntaxTreeInterfacePtr &func_block) const {
+                                               const SyntaxTreeInterfacePtr &func_block,
+                                               const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
     bool found = false;
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
         if (found || !IsArithmeticBinop(node)) {
@@ -565,11 +566,17 @@ bool TypeInferencer::HasArithmeticImprovement(const EvalTypeMap &all_int, const 
             found = true;
         }
     });
-    return found;
+    if (found) {
+        return true;
+    }
+    // 同时检测对已知数学函数的嵌套调用：若某数学参数位置实参在 all_int 中有类型但
+    // baseline 中为 T_DYNAMIC，则该函数能通过子函数特化产生算术改善。
+    return HasMathCallImprovement(func_block, all_int, baseline, math_param_positions);
 }
 
 bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const EvalTypeMap &without_p,
-                                             const SyntaxTreeInterfacePtr &func_block) const {
+                                             const SyntaxTreeInterfacePtr &func_block,
+                                             const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
     bool found = false;
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
         if (found || !IsArithmeticBinop(node)) {
@@ -583,6 +590,69 @@ bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const Ev
         // all_int 中有类型，但去掉该参数（without_p）后退化：说明此参数参与了算术推断。
         if ((it_all->second == T_INT || it_all->second == T_FLOAT) && it_wo->second != it_all->second) {
             found = true;
+        }
+    });
+    if (found) {
+        return true;
+    }
+    // 同时检测对已知数学函数的嵌套调用：若去掉该参数导致某数学函数调用的实参失去类型，
+    // 则该参数通过子函数调用间接参与了算术推断。
+    return HasMathCallImprovement(func_block, all_int, without_p, math_param_positions);
+}
+
+bool TypeInferencer::HasMathCallImprovement(
+        const SyntaxTreeInterfacePtr &func_block,
+        const EvalTypeMap &typed_map,
+        const EvalTypeMap &compare_map,
+        const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
+    bool found = false;
+    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+        if (found || node->Type() != SyntaxTreeType::FunctionCall) {
+            return;
+        }
+        const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+        if (!fc) {
+            return;
+        }
+        const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+        if (!callee_pe || callee_pe->GetType() != "var") {
+            return;
+        }
+        const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+        if (!callee_var || callee_var->GetType() != "simple") {
+            return;
+        }
+        const auto &callee_name = callee_var->GetName();
+        const auto math_it = math_param_positions.find(callee_name);
+        if (math_it == math_param_positions.end()) {
+            return;
+        }
+        const auto args_node = fc->Args();
+        const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
+        if (!args_ptr || args_ptr->GetType() != "explist") {
+            return;
+        }
+        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+        if (!explist_ptr) {
+            return;
+        }
+        const auto &raw_args = explist_ptr->Exps();
+        for (const int param_pos : math_it->second) {
+            if (param_pos >= static_cast<int>(raw_args.size())) {
+                return;
+            }
+            const auto &arg = raw_args[static_cast<size_t>(param_pos)];
+            const auto it_typed = typed_map.find(arg.get());
+            const auto it_comp = compare_map.find(arg.get());
+            if (it_typed == typed_map.end() || it_comp == compare_map.end()) {
+                continue;
+            }
+            // typed_map 中该实参有类型但 compare_map 中没有：说明存在改善/退化。
+            if ((it_typed->second == T_INT || it_typed->second == T_FLOAT) &&
+                it_comp->second != it_typed->second) {
+                found = true;
+                return;
+            }
         }
     });
     return found;
@@ -912,7 +982,7 @@ void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
         const auto all_int = RunTrialInference(func_block, params, make_assumed("", T_INT, T_INT));
 
         // 若全参数 T_INT 相对 baseline 没有算术改善，则跳过此函数。
-        if (!HasArithmeticImprovement(all_int, baseline, func_block)) {
+        if (!HasArithmeticImprovement(all_int, baseline, func_block, cr.math_param_positions)) {
             for (const auto &[ptr, type]: original_snapshot) {
                 ptr->SetEvalType(type);
             }
@@ -928,7 +998,7 @@ void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
             // without_p：params[i] = T_DYNAMIC，其余 = T_INT。
             const auto without_p_assumed = make_assumed(params[i], T_DYNAMIC, T_INT);
             const auto without_p_map = RunTrialInference(func_block, params, without_p_assumed);
-            if (ParamAffectsArithmetic(all_int, without_p_map, func_block)) {
+            if (ParamAffectsArithmetic(all_int, without_p_map, func_block, cr.math_param_positions)) {
                 math_indices.push_back(i);
             }
         }

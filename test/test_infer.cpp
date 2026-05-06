@@ -1461,3 +1461,42 @@ TEST(infer, test_spec_non_numeric_return) {
         ASSERT_EQ(ret, "hello");
     });
 }
+
+// Three-level nested call chain: func2 has direct arithmetic (n+1), func1
+// only calls func2(n), and test only calls func1(n).  After the nested-call
+// fix, HasMathCallImprovement propagates the math-param recognition upward:
+// func1 and test are both specialised even though they contain no arithmetic
+// operators themselves.  All three specialisations must return native int64_t
+// so the whole call chain is free of CVar boxing/unboxing.
+// test(10) == 11, test(2.5) == 3.5.
+TEST(infer, test_spec_nested_call) {
+    const auto code = InferGetCCode("./infer/test_spec_nested_call.lua");
+    // All three functions must have an int64_t specialisation.
+    ASSERT_NE(code.find("func2_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("func1_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    // All three specialisations must return native int64_t (not CVar).
+    ASSERT_NE(code.find("int64_t func2_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t func1_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    // func1_0 must call func2_0 directly (native spec call, no boxing).
+    ASSERT_NE(code.find("func2_0(n)"), std::string::npos);
+    // test_0 must call func1_0 directly.
+    ASSERT_NE(code.find("func1_0(n)"), std::string::npos);
+    // CVar entry dispatchers must still exist for runtime polymorphism.
+    ASSERT_NE(code.find("CVar func2(CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar func1(CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_nested_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 11);
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 1);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 3.5);
+    });
+}
