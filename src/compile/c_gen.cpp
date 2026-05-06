@@ -65,6 +65,7 @@ std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
     // 加载数学参数分析结果，供 GenerateDecls 和 GenerateImpl 使用。
     math_param_positions_ = cr.math_param_positions;
     specialization_snapshots_ = &cr.specialization_snapshots;
+    specialization_return_types_ = &cr.specialization_return_types;
 
     cur_output_ = &headers_;
     GenerateHeader();
@@ -1273,8 +1274,11 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
                 return T_DYNAMIC;
             }
             const auto &raw_args = explist_ptr->Exps();
-            bool any_float = false;
-            for (int param_pos : math_params) {
+            // 按 math_params 的顺序（与 bitmask 的位序一致）计算每个数学参数对应实参的类型，
+            // 并组合出被调用特化版本的 bitmask。
+            int bitmask = 0;
+            for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+                const int param_pos = math_params[i];
                 if (param_pos >= static_cast<int>(raw_args.size())) {
                     return T_DYNAMIC;
                 }
@@ -1283,10 +1287,22 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
                     return T_DYNAMIC;
                 }
                 if (t == T_FLOAT) {
-                    any_float = true;
+                    bitmask |= (1 << i);
                 }
             }
-            return any_float ? T_FLOAT : T_INT;
+            // 查询不动点推断得出的实际返回类型，而非仅凭参数类型猜测。
+            if (specialization_return_types_ == nullptr) {
+                return T_DYNAMIC;
+            }
+            const auto ret_it = specialization_return_types_->find(callee_name);
+            if (ret_it == specialization_return_types_->end()) {
+                return T_DYNAMIC;
+            }
+            const auto &ret_types = ret_it->second;
+            if (bitmask >= static_cast<int>(ret_types.size())) {
+                return T_DYNAMIC;
+            }
+            return ret_types[static_cast<size_t>(bitmask)];
         }
         return T_DYNAMIC;
     }

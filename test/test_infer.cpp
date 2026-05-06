@@ -1433,3 +1433,27 @@ TEST(infer, test_spec_compare_func_result) {
         ASSERT_EQ(ret, 3); // f(3)=6 > 3 → true → return x=3
     });
 }
+
+// f uses n arithmetically (n+1) so it has a math param and gets specialised.
+// But f always returns the string "hello", not a numeric result.
+// InferArgTypeForSpec for f(n) must return T_DYNAMIC so the caller treats the
+// CVar as opaque (no .data_.i access), and the returned string is preserved.
+// This exercises the fixed-point return-type inference that was missing before.
+TEST(infer, test_spec_non_numeric_return) {
+    const auto code = InferGetCCode("./infer/test_spec_non_numeric_return.lua");
+    // f must still be specialised (n is a math param due to n+1 arithmetic).
+    ASSERT_NE(code.find("f_0(int64_t n)"), std::string::npos);
+    // But since f returns a string, f_0 result must NOT be accessed via .data_.i
+    // in test's body.  The call must go through the normal CVar path.
+    ASSERT_EQ(code.find("f_0(n).data_.i"), std::string::npos);
+    ASSERT_EQ(code.find("f_0(n).data_.f"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_non_numeric_return.lua", {.debug_mode = debug_mode});
+        std::string ret;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, "hello");
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, "hello");
+    });
+}

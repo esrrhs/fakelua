@@ -160,6 +160,11 @@ private:
     // 指向 CompileResult 中在 Build() 调用期间始终有效的数据。
     const std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> *specialization_snapshots_ = nullptr;
 
+    // 每个数学参数函数每个 bitmask 特化版本的实际返回类型。
+    // 由 TypeInferencer::DiscoverMathParams 通过不动点迭代填充；
+    // 指向 CompileResult 中在 Build() 调用期间始终有效的数据。
+    const std::unordered_map<std::string, std::vector<InferredType>> *specialization_return_types_ = nullptr;
+
     // 特化上下文——在特化函数体编译期间填充。
     // 将数学参数名称映射到其原生类型（T_INT 或 T_FLOAT）。
     // 不在特化中时为空。

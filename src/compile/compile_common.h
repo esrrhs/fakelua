@@ -54,6 +54,11 @@ struct CompileResult {
     // 由 TypeInferencer::DiscoverMathParams 生成，供 CGen 在不依赖 EvalType()
     // 字段的情况下直接查询特化版本中任意节点的类型。
     std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots;
+    // 特化返回类型：函数名 → 按 bitmask 索引的返回类型数组（共 2^k 个）。
+    // T_INT/T_FLOAT 表示该特化版本始终返回对应数值类型；T_DYNAMIC 表示未知或非数值。
+    // 由 TypeInferencer::DiscoverMathParams 通过不动点迭代填充，
+    // 供 CGen::InferArgTypeForSpec 在函数调用节点处查询被调用函数的实际返回类型。
+    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
 };
 
 }// namespace fakelua
