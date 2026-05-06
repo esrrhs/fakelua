@@ -97,6 +97,18 @@ private:
             const std::unordered_map<std::string, std::vector<int>> &math_param_positions,
             const std::unordered_map<std::string, std::vector<InferredType>> &assumed_ret) const;
 
+    // 扫描函数块顶层的 local 声明，将由数学函数调用初始化的局部变量
+    // 的类型（T_INT/T_FLOAT）追加到 spec_ctx 中，支持链式传播：
+    //   local x = f(n)  → x 的类型由 EvalReturnExpType(f(n)) 推出
+    //   local y = x + 1 → y 的类型由 x（已在 spec_ctx 中）推出
+    // 仅处理顶层 LocalVar 语句（不递归进入嵌套函数体）。
+    void BuildLocalVarExtensions(
+            const SyntaxTreeInterfacePtr &func_block,
+            const EvalTypeSnapshot &snapshot,
+            std::unordered_map<std::string, InferredType> &spec_ctx,
+            const std::unordered_map<std::string, std::vector<int>> &math_param_positions,
+            const std::unordered_map<std::string, std::vector<InferredType>> &assumed_ret) const;
+
 private:
     TypeEnvironment env_;
     int funcbody_depth_ = 0;

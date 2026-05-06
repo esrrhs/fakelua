@@ -928,6 +928,60 @@ InferredType TypeInferencer::EvalReturnExpType(
     return T_DYNAMIC;
 }
 
+// 扫描函数块顶层的 local 声明，将由数学函数调用（或其他能推断出数值类型的表达式）
+// 初始化的局部变量的类型追加到 spec_ctx 中。处理按声明顺序进行（单遍），
+// 从而支持链式传播（如 local y = x + 1，其中 x 已由前面的 local x = f(n) 加入 spec_ctx）。
+// 仅处理顶层 LocalVar 语句，不递归进入嵌套函数体（Function / LocalFunction）。
+void TypeInferencer::BuildLocalVarExtensions(
+        const SyntaxTreeInterfacePtr &func_block,
+        const EvalTypeSnapshot &snapshot,
+        std::unordered_map<std::string, InferredType> &spec_ctx,
+        const std::unordered_map<std::string, std::vector<int>> &math_param_positions,
+        const std::unordered_map<std::string, std::vector<InferredType>> &assumed_ret) const {
+    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block);
+    if (!block) {
+        return;
+    }
+    for (const auto &stmt : block->Stmts()) {
+        if (stmt->Type() != SyntaxTreeType::LocalVar) {
+            continue;
+        }
+        const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+        const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
+        if (!nl) {
+            continue;
+        }
+        const auto explist_node = lv->Explist();
+        if (!explist_node) {
+            continue;
+        }
+        const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_node);
+        if (!el) {
+            continue;
+        }
+        const auto &names = nl->Names();
+        const auto &exps = el->Exps();
+        for (size_t i = 0; i < names.size() && i < exps.size(); ++i) {
+            // 若该名称已在 spec_ctx 中（例如与数学参数同名），跳过以避免覆盖。
+            if (spec_ctx.count(names[i])) {
+                continue;
+            }
+            // 先查 snapshot：若推断阶段已正确得出数值类型（算术表达式等），直接跳过
+            // （EvalReturnExpType 会通过 snapshot 得到正确结果，无需手动插入）。
+            const auto snap_it = snapshot.find(exps[i].get());
+            if (snap_it != snapshot.end() && (snap_it->second == T_INT || snap_it->second == T_FLOAT)) {
+                continue;
+            }
+            // snapshot 中为 T_DYNAMIC：尝试通过 EvalReturnExpType（含当前 spec_ctx）
+            // 推断初始化表达式的类型，以捕获数学函数调用返回值（如 local x = f(n)）。
+            const auto t = EvalReturnExpType(exps[i], snapshot, spec_ctx, math_param_positions, assumed_ret);
+            if (t == T_INT || t == T_FLOAT) {
+                spec_ctx[names[i]] = t;
+            }
+        }
+    }
+}
+
 void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
     const auto chunk = cr.chunk;
     if (!chunk || chunk->Type() != SyntaxTreeType::Block) {
@@ -1098,6 +1152,10 @@ void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
                     spec_ctx[func_params[static_cast<size_t>(math_indices[i])]] =
                             (MathParamKindOf(bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
                 }
+
+                // 将函数体顶层局部变量中由数学函数调用初始化的变量加入 spec_ctx，
+                // 使 EvalReturnExpType 能通过局部变量追踪类型（如 local x = f(n); return x + 1）。
+                BuildLocalVarExtensions(func_block, snapshot, spec_ctx, cr.math_param_positions, assumed_ret);
 
                 // 若函数无 nil 隐式返回路径且至少有一条 return 语句，则逐一计算。
                 InferredType actual_ret = T_DYNAMIC;
