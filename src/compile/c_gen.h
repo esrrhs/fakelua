@@ -114,6 +114,22 @@ private:
 
     std::string BoxNativeValue(const std::string &expr, InferredType type) const;
 
+    // 返回特化函数返回值对应的 C 类型名称字符串（"int64_t"、"double" 或 "CVar"）。
+    [[nodiscard]] static const char *SpecReturnCTypeName(InferredType ret_type);
+
+    // 检查 block 的最后一条语句是否为 return。
+    [[nodiscard]] static bool BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block);
+
+    // 查询函数特化版本的实际返回类型（T_INT、T_FLOAT 或 T_DYNAMIC）。
+    // 由 DiscoverMathParams 的不动点迭代填充，不存在时返回 T_DYNAMIC。
+    [[nodiscard]] InferredType GetSpecReturnType(const std::string &func_name, int bitmask) const;
+
+    // 若 functioncall_node 指向一个返回原生数值类型的特化函数，
+    // 则直接将调用编译为原生表达式（int64_t / double 临时变量），并返回变量名。
+    // 避免调用方在 CompileNumericExp 中装箱再拆箱。
+    // 不适用时（被调函数 CVar 返回或无法推断）返回空字符串。
+    std::string TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node);
+
     void EnterNativeVarScope();
 
     void ExitNativeVarScope();
@@ -159,6 +175,11 @@ private:
     // 所有含数学参数的函数的按位掩码分组的 AST 类型快照。
     // 指向 CompileResult 中在 Build() 调用期间始终有效的数据。
     const std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> *specialization_snapshots_ = nullptr;
+
+    // 每个数学参数函数每个 bitmask 特化版本的实际返回类型。
+    // 由 TypeInferencer::DiscoverMathParams 通过不动点迭代填充；
+    // 指向 CompileResult 中在 Build() 调用期间始终有效的数据。
+    const std::unordered_map<std::string, std::vector<InferredType>> *specialization_return_types_ = nullptr;
 
     // 特化上下文——在特化函数体编译期间填充。
     // 将数学参数名称映射到其原生类型（T_INT 或 T_FLOAT）。

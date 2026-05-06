@@ -679,10 +679,10 @@ TEST(infer, test_spec_fib) {
     const auto code = InferGetCCode("./infer/test_spec_fib.lua");
     // Entry dispatcher must exist (original CVar signature).
     ASSERT_NE(code.find("CVar fib(CVar n)"), std::string::npos);
-    // Two specialization declarations.
-    ASSERT_NE(code.find("CVar fib_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("CVar fib_1(double n)"), std::string::npos);
-    // Dispatcher must check type and call the right specialization.
+    // Two specialization declarations — now return native types directly.
+    ASSERT_NE(code.find("int64_t fib_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("double fib_1(double n)"), std::string::npos);
+    // Dispatcher boxes the native result back into CVar.
     ASSERT_NE(code.find("fib_0(n.data_.i)"), std::string::npos);
     ASSERT_NE(code.find("fib_1(n.data_.f)"), std::string::npos);
     // Inside fib_0, recursive calls must go directly to fib_0 (not fib).
@@ -695,6 +695,10 @@ TEST(infer, test_spec_fib) {
     // The entry dispatcher must NOT be called recursively from fib_0/fib_1.
     // Check: no FakeluaCallByName("fib") in the generated code.
     ASSERT_EQ(code.find("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"fib\""), std::string::npos);
+    // No .data_.i extraction inside the spec bodies (no boxing/unboxing there).
+    // The dispatcher itself still has .data_.i/.data_.f for the entry call.
+    // Verify spec bodies use native add directly (no CVar wrapping of recursive results).
+    ASSERT_NE(code.find("return ((flua_native_"), std::string::npos);
 
     // Functional verification: fib(10) == 55.
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -1359,5 +1363,140 @@ TEST(infer, test_spec_len_param) {
         int ret = 0;
         Call(s, type, "test", ret, 10);
         ASSERT_EQ(ret, 15); // n=10, #"hello"=5, 10+5=15
+    });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Missing grammar cases: for-loop with math param as bound, and comparison
+// with a specialized function call result.
+// ────────────────────────────────────────────────────────────────────────────
+
+// Math param n used as the upper bound of a numeric for-loop.
+// TypeInferencer identifies n as a math param via the inner sum + i arithmetic
+// (n=T_INT → bound T_INT → loop var i T_INT → T_INT + T_INT = T_INT; vs
+// n=T_DYNAMIC → end T_DYNAMIC → i T_DYNAMIC → T_DYNAMIC).
+// In the int specialization, CompileStmtForLoop must detect all bounds as T_INT
+// (from the snapshot) and emit int64_t control variables.
+// test(10) == 55, test(5) == 15.
+TEST(infer, test_spec_for_bound_param) {
+    const auto code = InferGetCCode("./infer/test_spec_for_bound_param.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // Entry dispatcher must exist.
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+    // In the int specialization: native int64_t for-loop control variables.
+    ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
+    // The upper bound end variable is used (typed int path).
+    ASSERT_NE(code.find("int64_t flua_for_end_"), std::string::npos);
+    // No dynamic CVar control variables in the int specialization.
+    ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
+    ASSERT_EQ(code.find("CVar i"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_for_bound_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 55); // 1+2+...+10
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 15); // 1+2+3+4+5
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 0); // empty range
+    });
+}
+
+// Comparison where the left operand is the result of a call to a specialized
+// function f.  Without the TryCompileNativeBoolExpr fix, EvalType() would
+// return T_DYNAMIC for f(n) (function calls are always T_DYNAMIC) and the
+// condition would fall through to the IsTrue dynamic path.  With the fix,
+// InferArgTypeForSpec(f(n)) returns T_INT in the int specialization, so the
+// condition is emitted as a native C comparison.
+// For n > 0: f(n) = 2n > n is true, return x (= n); for n = 0: return 0.
+TEST(infer, test_spec_compare_func_result) {
+    const auto code = InferGetCCode("./infer/test_spec_compare_func_result.lua");
+    // Both f and test must be specialized and now return native int64_t directly.
+    ASSERT_NE(code.find("int64_t f_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    // The if condition must use a direct C comparison: f_0(n) is called natively.
+    ASSERT_NE(code.find("f_0(n)"), std::string::npos);
+    // With native returns, there is no .data_.i extraction for the spec call result.
+    ASSERT_EQ(code.find("f_0(n).data_.i"), std::string::npos);
+    // No dynamic IsTrue or flua_ibt_ temp bool variables.
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+    ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_compare_func_result.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 5); // f(5)=10 > 5 → true → return x=5
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 0); // f(0)=0 > 0 → false → return 0
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 3); // f(3)=6 > 3 → true → return x=3
+    });
+}
+
+// f uses n arithmetically (n+1) so it has a math param and gets specialised.
+// But f always returns the string "hello", not a numeric result.
+// InferArgTypeForSpec for f(n) must return T_DYNAMIC so the caller treats the
+// CVar as opaque (no .data_.i access), and the returned string is preserved.
+// This exercises the fixed-point return-type inference that was missing before.
+TEST(infer, test_spec_non_numeric_return) {
+    const auto code = InferGetCCode("./infer/test_spec_non_numeric_return.lua");
+    // f must still be specialised (n is a math param due to n+1 arithmetic).
+    ASSERT_NE(code.find("f_0(int64_t n)"), std::string::npos);
+    // But since f returns a string, f_0 result must NOT be accessed via .data_.i
+    // in test's body.  The call must go through the normal CVar path.
+    ASSERT_EQ(code.find("f_0(n).data_.i"), std::string::npos);
+    ASSERT_EQ(code.find("f_0(n).data_.f"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_non_numeric_return.lua", {.debug_mode = debug_mode});
+        std::string ret;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, "hello");
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, "hello");
+    });
+}
+
+// Three-level nested call chain: func2 has direct arithmetic (n+1), func1
+// only calls func2(n), and test only calls func1(n).  After the nested-call
+// fix, HasMathCallImprovement propagates the math-param recognition upward:
+// func1 and test are both specialised even though they contain no arithmetic
+// operators themselves.  All three specialisations must return native int64_t
+// so the whole call chain is free of CVar boxing/unboxing.
+// test(10) == 11, test(2.5) == 3.5.
+TEST(infer, test_spec_nested_call) {
+    const auto code = InferGetCCode("./infer/test_spec_nested_call.lua");
+    // All three functions must have an int64_t specialisation.
+    ASSERT_NE(code.find("func2_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("func1_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    // All three specialisations must return native int64_t (not CVar).
+    ASSERT_NE(code.find("int64_t func2_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t func1_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    // func1_0 must call func2_0 directly (native spec call, no boxing).
+    ASSERT_NE(code.find("func2_0(n)"), std::string::npos);
+    // test_0 must call func1_0 directly.
+    ASSERT_NE(code.find("func1_0(n)"), std::string::npos);
+    // CVar entry dispatchers must still exist for runtime polymorphism.
+    ASSERT_NE(code.find("CVar func2(CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar func1(CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_nested_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 11);
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 1);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 3.5);
     });
 }

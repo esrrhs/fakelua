@@ -65,6 +65,7 @@ std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
     // 加载数学参数分析结果，供 GenerateDecls 和 GenerateImpl 使用。
     math_param_positions_ = cr.math_param_positions;
     specialization_snapshots_ = &cr.specialization_snapshots;
+    specialization_return_types_ = &cr.specialization_return_types;
 
     cur_output_ = &headers_;
     GenerateHeader();
@@ -821,6 +822,17 @@ void CGen::GenerateGlobal(CompileResult &cr) {
     *cur_output_ << "\n";
 }
 
+// 返回特化函数返回值对应的 C 类型名称字符串。
+const char *CGen::SpecReturnCTypeName(InferredType ret_type) {
+    if (ret_type == T_INT) {
+        return "int64_t";
+    }
+    if (ret_type == T_FLOAT) {
+        return "double";
+    }
+    return "CVar";
+}
+
 void CGen::GenerateDecls(CompileResult &cr) {
     *cur_output_ << "\n// ===== Function Declarations =====\n\n";
 
@@ -876,7 +888,8 @@ void CGen::GenerateDecls(CompileResult &cr) {
             const int num_specs = 1 << static_cast<int>(math_params.size());
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
                 const auto spec_name = SpecFuncName(name, math_params, bitmask);
-                *cur_output_ << "CVar " << spec_name << "(";
+                const auto spec_ret = GetSpecReturnType(name, bitmask);
+                *cur_output_ << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < params.size(); ++i) {
                     if (i > 0) *cur_output_ << ", ";
                     const auto mp_it = std::find(math_params.begin(), math_params.end(), static_cast<int>(i));
@@ -929,7 +942,7 @@ std::string CGen::GenTab() const {
     return std::string(static_cast<size_t>(cur_tab_) * 4, ' ');
 }
 
-static bool BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block) {
+bool CGen::BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block) {
     const auto block_ptr = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
     const auto &stmts = block_ptr->Stmts();
     if (stmts.empty()) {
@@ -1004,8 +1017,9 @@ void CGen::GenerateImpl(CompileResult &cr) {
             const int num_specs = 1 << static_cast<int>(math_params.size());
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
                 const auto spec_name = SpecFuncName(name, math_params, bitmask);
+                const auto spec_ret = GetSpecReturnType(name, bitmask);
                 // 输出特化函数签名。
-                *cur_output_ << "CVar " << spec_name << "(";
+                *cur_output_ << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < func_params.size(); ++i) {
                     if (i > 0) *cur_output_ << ", ";
                     const auto mp_it = std::find(math_params.begin(), math_params.end(), static_cast<int>(i));
@@ -1019,7 +1033,15 @@ void CGen::GenerateImpl(CompileResult &cr) {
                 *cur_output_ << ") {\n";
                 CompileFuncBody(name, func_params, func_block, bitmask);
                 if (!BlockEndsWithReturn(func_block)) {
-                    *cur_output_ << "    return kNil;\n";
+                    // 回退：当函数不以 return 结束时补充默认返回值。
+                    // 对于原生返回类型，补 0/0.0；对于 CVar 类型，补 kNil。
+                    if (spec_ret == T_INT) {
+                        *cur_output_ << "    return 0;\n";
+                    } else if (spec_ret == T_FLOAT) {
+                        *cur_output_ << "    return 0.0;\n";
+                    } else {
+                        *cur_output_ << "    return kNil;\n";
+                    }
                 }
                 *cur_output_ << "}\n";
             }
@@ -1167,20 +1189,38 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
     *cur_output_ << "    switch (flua_spec_idx) {\n";
     for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
         const auto spec_name = SpecFuncName(func_name, math_param_indices, bitmask);
-        *cur_output_ << std::format("        case {}: return {}(", bitmask, spec_name);
+        const auto spec_ret = GetSpecReturnType(func_name, bitmask);
+
+        // 构建参数列表字符串（math 参数取 .data_.i / .data_.f，其余直接传 CVar）。
+        std::string args_str;
         for (size_t i = 0; i < func_params.size(); ++i) {
-            if (i > 0) *cur_output_ << ", ";
+            if (i > 0) {
+                args_str += ", ";
+            }
             const auto mp_it =
                     std::find(math_param_indices.begin(), math_param_indices.end(), static_cast<int>(i));
             if (mp_it != math_param_indices.end()) {
                 const int mp_idx = static_cast<int>(mp_it - math_param_indices.begin());
                 const auto kind = MathParamKindOf(bitmask, mp_idx);
-                *cur_output_ << func_params[i] << (kind == kMathParamFloat ? ".data_.f" : ".data_.i");
+                args_str += func_params[i] + (kind == kMathParamFloat ? ".data_.f" : ".data_.i");
             } else {
-                *cur_output_ << func_params[i];
+                args_str += func_params[i];
             }
         }
-        *cur_output_ << ");\n";
+
+        if (spec_ret == T_INT || spec_ret == T_FLOAT) {
+            // 特化函数返回原生数值类型：需要将结果装箱为 CVar 后再返回。
+            const auto native_tmp = std::format("flua_r_{}", bitmask);
+            *cur_output_ << std::format("        case {}: {{ {} {} = {}({}); return {}; }}\n",
+                                        bitmask,
+                                        SpecReturnCTypeName(spec_ret),
+                                        native_tmp,
+                                        spec_name,
+                                        args_str,
+                                        BoxNativeValue(native_tmp, spec_ret));
+        } else {
+            *cur_output_ << std::format("        case {}: return {}({});\n", bitmask, spec_name, args_str);
+        }
     }
     *cur_output_ << "    }\n";
     *cur_output_ << "    return kNil;\n";
@@ -1273,8 +1313,11 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
                 return T_DYNAMIC;
             }
             const auto &raw_args = explist_ptr->Exps();
-            bool any_float = false;
-            for (int param_pos : math_params) {
+            // 按 math_params 的顺序（与 bitmask 的位序一致）计算每个数学参数对应实参的类型，
+            // 并组合出被调用特化版本的 bitmask。
+            int bitmask = 0;
+            for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+                const int param_pos = math_params[i];
                 if (param_pos >= static_cast<int>(raw_args.size())) {
                     return T_DYNAMIC;
                 }
@@ -1283,10 +1326,22 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
                     return T_DYNAMIC;
                 }
                 if (t == T_FLOAT) {
-                    any_float = true;
+                    bitmask |= (1 << i);
                 }
             }
-            return any_float ? T_FLOAT : T_INT;
+            // 查询不动点推断得出的实际返回类型，而非仅凭参数类型猜测。
+            if (specialization_return_types_ == nullptr) {
+                return T_DYNAMIC;
+            }
+            const auto ret_it = specialization_return_types_->find(callee_name);
+            if (ret_it == specialization_return_types_->end()) {
+                return T_DYNAMIC;
+            }
+            const auto &ret_types = ret_it->second;
+            if (bitmask >= static_cast<int>(ret_types.size())) {
+                return T_DYNAMIC;
+            }
+            return ret_types[static_cast<size_t>(bitmask)];
         }
         return T_DYNAMIC;
     }
@@ -1401,10 +1456,11 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
     if (op_it == kCmpOpMap.end()) {
         return {};
     }
-    // 在调用 CompileNumericExp（失败时会记录错误日志）之前，先检查两个操作数
-    // 是否都具有静态已知的数值类型。对于表访问等 T_DYNAMIC 表达式，直接跳过。
-    const auto left_type = e->Left() ? e->Left()->EvalType() : T_DYNAMIC;
-    const auto right_type = e->Right() ? e->Right()->EvalType() : T_DYNAMIC;
+    // 使用 InferArgTypeForSpec 检查两个操作数是否具有静态已知的数值类型。
+    // 相比直接使用 EvalType()，InferArgTypeForSpec 在特化上下文中还能识别
+    // 数学参数函数调用的返回类型（如 f(n) > n，其中 f 是数学参数函数）。
+    const auto left_type = e->Left() ? InferArgTypeForSpec(e->Left()) : T_DYNAMIC;
+    const auto right_type = e->Right() ? InferArgTypeForSpec(e->Right()) : T_DYNAMIC;
     if ((left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
         return {};
     }
@@ -1525,6 +1581,16 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     const auto exp = explist_ptr->Exps()[0];
+    // 若当前处于原生返回类型的特化函数中，直接将返回表达式编译为原生数值并返回，
+    // 跳过 CompileExp 的装箱步骤，消除一次 CVar 封箱拆箱开销。
+    if (cur_spec_bitmask_ >= 0 && !cur_spec_func_name_.empty()) {
+        const auto spec_ret = GetSpecReturnType(cur_spec_func_name_, cur_spec_bitmask_);
+        if (spec_ret == T_INT || spec_ret == T_FLOAT) {
+            const auto native_ret = CompileNumericExp(exp);
+            *cur_output_ << GenTab() << "return " << native_ret << ";\n";
+            return;
+        }
+    }
     // 始终通过 CompileExp 编译返回表达式。CompileExp
     // 将变量引用委托给 CompileVar：对于声明为原生类型（int64_t / double）的变量，
     // CompileVar 会自动将其装箱为 CVar；对于声明为 CVar 的变量，则直接返回 CVar。
@@ -2496,7 +2562,13 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             if (inferred == T_DYNAMIC) {
                 ThrowError("function call cannot be specialized as numeric", exp);
             }
-            // Emit the specialized call and extract the native field from the CVar result.
+            // 优先走原生调用路径（spec 函数直接返回 int64_t/double），
+            // 避免装箱再拆箱的开销。
+            const auto native_result = TryCompileNativeSpecCallExpr(pe->GetValue());
+            if (!native_result.empty()) {
+                return native_result;
+            }
+            // 回退：CVar 调用后取字段。
             const auto call_str = CompileFunctioncall(pe->GetValue());
             return inferred == T_INT ? std::format("({}.data_.i)", call_str) : std::format("({}.data_.f)", call_str);
         }
@@ -2615,6 +2687,107 @@ std::string CGen::BoxNativeValue(const std::string &expr, const InferredType typ
     return expr;
 }
 
+InferredType CGen::GetSpecReturnType(const std::string &func_name, int bitmask) const {
+    if (!specialization_return_types_) {
+        return T_DYNAMIC;
+    }
+    const auto it = specialization_return_types_->find(func_name);
+    if (it == specialization_return_types_->end()) {
+        return T_DYNAMIC;
+    }
+    if (bitmask < 0 || bitmask >= static_cast<int>(it->second.size())) {
+        return T_DYNAMIC;
+    }
+    return it->second[static_cast<size_t>(bitmask)];
+}
+
+std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node) {
+    const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall_node);
+    if (!fc) {
+        return {};
+    }
+    const auto args_node = fc->Args();
+    if (!args_node) {
+        return {};
+    }
+    const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
+    if (!args_ptr || args_ptr->GetType() != "explist") {
+        return {};
+    }
+    const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+    if (!callee_pe || callee_pe->GetType() != "var") {
+        return {};
+    }
+    const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+    if (!callee_var || callee_var->GetType() != "simple") {
+        return {};
+    }
+    const auto &callee_name = callee_var->GetName();
+    const auto math_it = math_param_positions_.find(callee_name);
+    if (math_it == math_param_positions_.end()) {
+        return {};
+    }
+    const auto &math_params = math_it->second;
+    const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+    if (!explist_ptr) {
+        return {};
+    }
+    const auto &raw_args = explist_ptr->Exps();
+
+    // 推断数学参数的类型，计算 bitmask。
+    int bitmask = 0;
+    for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+        const int param_pos = math_params[i];
+        if (param_pos >= static_cast<int>(raw_args.size())) {
+            return {};
+        }
+        const auto t = InferArgTypeForSpec(raw_args[param_pos]);
+        if (t == T_DYNAMIC) {
+            return {};
+        }
+        if (t == T_FLOAT) {
+            bitmask |= (1 << i);
+        }
+    }
+
+    // 仅当该特化版本返回原生数值类型时走此路径。
+    const auto spec_ret = GetSpecReturnType(callee_name, bitmask);
+    if (spec_ret != T_INT && spec_ret != T_FLOAT) {
+        return {};
+    }
+
+    // 为所有数学参数预先编译原生表达式（无副作用检查通过后才发射代码）。
+    std::unordered_map<int, std::string> native_exprs;
+    for (int param_pos : math_params) {
+        const auto native_expr = TryCompileNativeExpr(raw_args[param_pos]);
+        if (native_expr.empty()) {
+            return {};
+        }
+        native_exprs[param_pos] = native_expr;
+    }
+
+    // 发射特化调用，结果存入原生临时变量。
+    const auto spec_name = SpecFuncName(callee_name, math_params, bitmask);
+    std::string call = spec_name + "(";
+    for (int i = 0; i < static_cast<int>(raw_args.size()); ++i) {
+        if (i > 0) {
+            call += ", ";
+        }
+        const auto ne_it = native_exprs.find(i);
+        if (ne_it != native_exprs.end()) {
+            call += ne_it->second;
+        } else {
+            call += CompileExp(raw_args[i]);
+        }
+    }
+    call += ")";
+
+    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    " << SpecReturnCTypeName(spec_ret) << " " << ntmp << ";\n";
+    *cur_output_ << GenTab() << ntmp << " = " << call << ";\n";
+    return ntmp;
+}
+
 std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall) {
     // PreProcessor 已确保全局初始化中不存在函数调用
     DEBUG_ASSERT(!in_global_init_);
@@ -2694,9 +2867,18 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                             }
                         }
                         call += ")";
+                        const auto spec_ret = GetSpecReturnType(callee_name, bitmask);
                         const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
                         func_temp_decls_ << "    CVar " << tmp << ";\n";
-                        *cur_output_ << GenTab() << tmp << " = " << call << ";\n";
+                        if (spec_ret == T_INT || spec_ret == T_FLOAT) {
+                            // 特化函数返回原生类型：先接收原生值，再装箱为 CVar。
+                            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                            func_temp_decls_ << "    " << SpecReturnCTypeName(spec_ret) << " " << ntmp << ";\n";
+                            *cur_output_ << GenTab() << ntmp << " = " << call << ";\n";
+                            *cur_output_ << GenTab() << tmp << " = " << BoxNativeValue(ntmp, spec_ret) << ";\n";
+                        } else {
+                            *cur_output_ << GenTab() << tmp << " = " << call << ";\n";
+                        }
                         return tmp;
                     }
                 }
