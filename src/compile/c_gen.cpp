@@ -2631,13 +2631,13 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         //   a and b → a 始终为真，结果为 b；a 仍需求值（可能有副作用）
         //   a or  b → a 始终为真，结果为 a；b 不求值（短路）
         if (op_name == "AND") {
-            // 求值 a（保留副作用），存入哑元变量，返回 b 的原生值。
+            // 求值左操作数（保留副作用），存入临时变量，返回右操作数的原生值。
             const auto left_type = InferArgTypeForSpec(e->Left());
-            const auto dummy = std::format("flua_native_{}", tmp_var_counter_++);
+            const auto left_eval_result = std::format("flua_native_{}", tmp_var_counter_++);
             const auto c_type_str = (left_type == T_FLOAT) ? "double" : "int64_t";
-            func_temp_decls_ << "    " << c_type_str << " " << dummy << ";\n";
+            func_temp_decls_ << "    " << c_type_str << " " << left_eval_result << ";\n";
             const auto left_native = CompileNumericExp(e->Left());
-            *cur_output_ << GenTab() << dummy << " = " << left_native << ";\n";
+            *cur_output_ << GenTab() << left_eval_result << " = " << left_native << ";\n";
             return CompileNumericExp(e->Right());
         }
         if (op_name == "OR") {
