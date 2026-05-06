@@ -1923,3 +1923,113 @@ TEST(infer, test_spec_clamp_param) {
         ASSERT_DOUBLE_EQ(dret, 10.0);
     });
 }
+
+// 缺失语法补全：and/or 运算符 + for 循环 begin 表达式
+// ────────────────────────────────────────────────────────────────────────────
+
+// n or 2 のような OR 式を含む特化：乗算 * 3 が数学パラメータ検出のトリガー。
+// Lua では整数（0 を含む）は常に真値なので n or 2 = n。
+// 整数特化：local y = n or 2 は int64_t y = n にコンパイルされる（CVar 装箱なし）。
+// 乗算 y * 3 は原生 int64_t 演算になる。
+// test(5) == 15, test(0) == 0（0 は Lua 真値）, test(3.5) == 10.5。
+TEST(infer, test_spec_or_param) {
+    const auto code = InferGetCCode("./infer/test_spec_or_param.lua");
+    // n must be specialised as math param (triggered by y * 3).
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // In the int spec, y should be declared as int64_t (OR returns left when left is truthy).
+    ASSERT_NE(code.find("int64_t y ="), std::string::npos);
+    // No CVar y in int specialization.
+    ASSERT_EQ(code.find("CVar y"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_or_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 15); // 5 or 2 = 5 (5 is truthy), 5 * 3 = 15
+        Call(s, type, "test", ret, 0); // 0 is truthy in Lua: 0 or 2 = 0, 0 * 3 = 0
+        ASSERT_EQ(ret, 0);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 3.5);
+        ASSERT_DOUBLE_EQ(dret, 10.5); // 3.5 or 2 = 3.5, 3.5 * 3 = 10.5
+    });
+}
+
+// n and (n+1): Lua では整数は常に真値なので結果は常に (n+1)。
+// n+1 という加算が数学パラメータ検出のトリガーとなる。
+// 整数特化：AND は n を評価（ダミー）して n+1 の原生値を返す。
+// test(5) == 6, test(0) == 1（0 は Lua 真値）, test(3.5) == 4.5。
+TEST(infer, test_spec_and_param) {
+    const auto code = InferGetCCode("./infer/test_spec_and_param.lua");
+    // n must be specialised as math param (triggered by n + 1 inside AND).
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // Entry dispatcher must exist.
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_and_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 6); // 5 and 6 = 6
+        Call(s, type, "test", ret, 0); // 0 is truthy in Lua: 0 and 1 = 1
+        ASSERT_EQ(ret, 1);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 3.5);
+        ASSERT_DOUBLE_EQ(dret, 4.5); // 3.5 and 4.5 = 4.5
+    });
+}
+
+// 数学参数 n 用作 for 循环的起始值（begin），而非上界。
+// 整数特化中，ExpBegin = n 被快照标注为 T_INT，
+// 使 CompileStmtForLoop 走 typed_int_for 路径，控制变量使用原生 int64_t。
+// test(3) == 3+4+...+10 = 52, test(8) == 8+9+10 = 27, test(11) == 0（空区间）。
+TEST(infer, test_spec_for_arith_begin) {
+    const auto code = InferGetCCode("./infer/test_spec_for_arith_begin.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // In the int specialization: native int64_t for-loop control variables.
+    ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_for_end_"), std::string::npos);
+    // No dynamic CVar control variables in the int specialization.
+    ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_for_arith_begin.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 52); // 3+4+...+10
+        Call(s, type, "test", ret, 8);
+        ASSERT_EQ(ret, 27); // 8+9+10
+        Call(s, type, "test", ret, 11);
+        ASSERT_EQ(ret, 0); // empty range
+    });
+}
+
+// 数学参数 n 作为 for 循环起始算术表达式（n + 1）。
+// 整数特化中，ExpBegin = n+1 被快照标注为 T_INT，
+// 使 CompileStmtForLoop 走 typed_int_for 路径（begin/end 全为 T_INT）。
+// test(10) == 11+12+...+20 = 155, test(0) == 1+2+...+20 = 210, test(19) == 20。
+TEST(infer, test_spec_for_arith_begin_expr) {
+    const auto code = InferGetCCode("./infer/test_spec_for_arith_begin_expr.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // In the int specialization: native int64_t for-loop control variables.
+    ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_for_end_"), std::string::npos);
+    // No dynamic CVar control variables in the int specialization.
+    ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_for_arith_begin_expr.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 155); // 11+12+...+20
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 210); // 1+2+...+20
+        Call(s, type, "test", ret, 19);
+        ASSERT_EQ(ret, 20); // just 20
+    });
+}
