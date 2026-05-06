@@ -1712,11 +1712,10 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
         } else {
             // 右值无法表达为原生数值（例如函数调用返回 CVar）。
             // 从 CVar 中提取对应字段以赋给原生类型变量。
-            // 仅在特化中（spec_param_types_ 含该名称）才走此路径，
-            // 且类型保证与特化签名一致。
+            // 使用 GetNativeVarType 获取变量的精确 C 类型（T_INT → .data_.i，T_FLOAT → .data_.f），
+            // 涵盖数学参数和局部 int64_t/double 变量两种情况。
             const std::string rhs = CompileExp(exps[0]);
-            const auto it = spec_param_types_.find(name);
-            if (it != spec_param_types_.end() && it->second == T_FLOAT) {
+            if (GetNativeVarType(name) == T_FLOAT) {
                 *cur_output_ << GenTab() << name << " = (" << rhs << ").data_.f;\n";
             } else {
                 *cur_output_ << GenTab() << name << " = (" << rhs << ").data_.i;\n";
