@@ -517,6 +517,28 @@ bool TypeInferencer::IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const 
     return false;
 }
 
+// 判断 exp 节点是否为有序比较运算符（<、<=、>、>=）。
+// 这类运算符在 Lua 中用于数值排序，当两侧操作数均为数值类型时，
+// CGen 可通过 TryCompileNativeBoolExpr 直接生成原生 C 比较，无需 OpXxx 宏 + IsTrue 调用。
+// 注意：EQUAL（==）和 NOT_EQUAL（~=）故意排除在外——Lua 的等价性比较对任意类型均有意义
+//（字符串、布尔值、表、nil 均可比较），将其用作数学参数发现条件会错误地要求参数为数值类型。
+bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) const {
+    if (node->Type() != SyntaxTreeType::Exp) {
+        return false;
+    }
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+    if (exp->ExpType() != "binop") {
+        return false;
+    }
+    const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
+    if (!op) {
+        return false;
+    }
+    const auto &op_name = op->GetOp();
+    return op_name == "LESS" || op_name == "LESS_EQUAL" || op_name == "MORE" ||
+           op_name == "MORE_EQUAL";
+}
+
 TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func_block,
                                                const std::vector<std::string> &params,
                                                const std::unordered_map<std::string, InferredType> &assumed_types) {
@@ -580,6 +602,38 @@ bool TypeInferencer::HasArithmeticImprovement(const EvalTypeMap &all_int, const 
     if (found) {
         return true;
     }
+    // 比较运算符改善检测：若全参数为 T_INT 时比较节点两侧操作数均为有类型，
+    // 而 baseline 中至少一侧为 T_DYNAMIC，则说明参数特化能启用原生 C 比较
+    // （TryCompileNativeBoolExpr 路径）。
+    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+        if (found || !IsNativeComparisonExpr(node)) {
+            return;
+        }
+        const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+        const auto left = exp->Left();
+        const auto right = exp->Right();
+        if (!left || !right) {
+            return;
+        }
+        const auto lt_all = all_int.find(left.get());
+        const auto rt_all = all_int.find(right.get());
+        const auto lt_base = baseline.find(left.get());
+        const auto rt_base = baseline.find(right.get());
+        if (lt_all == all_int.end() || rt_all == all_int.end() ||
+            lt_base == baseline.end() || rt_base == baseline.end()) {
+            return;
+        }
+        // all_int 时两侧均有类型，baseline 时至少一侧为 T_DYNAMIC。
+        const bool both_typed = (lt_all->second == T_INT || lt_all->second == T_FLOAT) &&
+                                (rt_all->second == T_INT || rt_all->second == T_FLOAT);
+        const bool has_dynamic = lt_base->second == T_DYNAMIC || rt_base->second == T_DYNAMIC;
+        if (both_typed && has_dynamic) {
+            found = true;
+        }
+    });
+    if (found) {
+        return true;
+    }
     // 同时检测对已知数学函数的嵌套调用：若某数学参数位置实参在 all_int 中有类型但
     // baseline 中为 T_DYNAMIC，则该函数能通过子函数特化产生算术改善。
     return HasMathCallImprovement(func_block, all_int, baseline, math_param_positions);
@@ -600,6 +654,37 @@ bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const Ev
         }
         // all_int 中有类型，但去掉该参数（without_p）后退化：说明此参数参与了算术推断。
         if ((it_all->second == T_INT || it_all->second == T_FLOAT) && it_wo->second != it_all->second) {
+            found = true;
+        }
+    });
+    if (found) {
+        return true;
+    }
+    // 比较运算符退化检测：all_int 时两侧均有类型，去掉参数后至少一侧退化为 T_DYNAMIC，
+    // 说明该参数参与了原生比较的类型推断。
+    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+        if (found || !IsNativeComparisonExpr(node)) {
+            return;
+        }
+        const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+        const auto left = exp->Left();
+        const auto right = exp->Right();
+        if (!left || !right) {
+            return;
+        }
+        const auto lt_all = all_int.find(left.get());
+        const auto rt_all = all_int.find(right.get());
+        const auto lt_wo = without_p.find(left.get());
+        const auto rt_wo = without_p.find(right.get());
+        if (lt_all == all_int.end() || rt_all == all_int.end() ||
+            lt_wo == without_p.end() || rt_wo == without_p.end()) {
+            return;
+        }
+        // all_int 时两侧均有类型，without_p 时至少一侧失去类型（退化）。
+        const bool all_both_typed = (lt_all->second == T_INT || lt_all->second == T_FLOAT) &&
+                                    (rt_all->second == T_INT || rt_all->second == T_FLOAT);
+        const bool wo_degraded = lt_wo->second == T_DYNAMIC || rt_wo->second == T_DYNAMIC;
+        if (all_both_typed && wo_degraded) {
             found = true;
         }
     });

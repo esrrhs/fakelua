@@ -212,12 +212,26 @@ TEST(infer, test_infer_reassign_int_to_float) {
 }
 
 // If body processed with new_scope=true: the assignment x = n inside the if block
-// calls env_.Update, which walks outer scopes and degrades x from T_INT to T_DYNAMIC.
+// calls env_.Update, which walks outer scopes and may degrade x depending on the
+// specialization bitmask.
+// After comparison-based math-param detection, n > 0 causes n to be identified as a
+// math param.  With numeric specialization:
+// - test_0(int64_t n): x = n keeps x as T_INT (MergeType(T_INT,T_INT)=T_INT) → int64_t x
+// - test_1(double n): x = n makes x T_DYNAMIC (MergeType(T_INT,T_FLOAT)=T_DYNAMIC) → CVar x
+// The if condition n > 0 uses TryCompileNativeBoolExpr → native C comparison in both specs.
 TEST(infer, test_infer_if_scope_degrade) {
     const auto code = InferGetCCode("./infer/test_infer_if_scope_degrade.lua");
-    // x degraded to CVar because x = n (T_DYNAMIC param) inside the if body.
+    // Both specializations must exist.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+    // In the int specialization (test_0), x = n with n=T_INT keeps x as T_INT.
+    ASSERT_NE(code.find("int64_t x"), std::string::npos);
+    // In the float specialization (test_1), MergeType(T_INT, T_FLOAT) = T_DYNAMIC
+    // so x degrades to CVar (is_degraded_literal path).
     ASSERT_NE(code.find("CVar x = "), std::string::npos);
-    ASSERT_EQ(code.find("int64_t x"), std::string::npos);
+    // Both specs must use native C comparison, not IsTrue.
+    ASSERT_NE(code.find("(n) > (0)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_if_scope_degrade.lua", {.debug_mode = debug_mode});
@@ -1795,5 +1809,117 @@ TEST(infer, test_spec_repeat_arith) {
         double dret = 0.0;
         Call(s, type, "test", dret, 1.5);
         ASSERT_DOUBLE_EQ(dret, 7.5); // 1.5*5
+    });
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Missing grammar cases: comparison-only math params (min/max/clamp patterns).
+// Previously, functions that used parameters ONLY in comparison expressions
+// (no arithmetic) were not detected as having math params.  After adding
+// IsNativeComparisonExpr detection in HasArithmeticImprovement /
+// ParamAffectsArithmetic, these functions are specialised and comparisons
+// use TryCompileNativeBoolExpr to emit native C comparisons.
+// ────────────────────────────────────────────────────────────────────────────
+
+// min(a, b): comparison-only math params.
+// Both a and b are detected as math params via the a < b comparison node.
+// In the all-int specialization, the if condition must use native C comparison.
+// test(3, 5) == 3, test(7, 2) == 2, test(4, 4) == 4.
+TEST(infer, test_spec_min_param) {
+    const auto code = InferGetCCode("./infer/test_spec_min_param.lua");
+    // Both min and test must be specialised (two math params each).
+    ASSERT_NE(code.find("min_0_0(int64_t a, int64_t b)"), std::string::npos);
+    ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
+    // Entry dispatchers must exist.
+    ASSERT_NE(code.find("CVar min(CVar a, CVar b)"), std::string::npos);
+    ASSERT_NE(code.find("CVar test(CVar a, CVar b)"), std::string::npos);
+    // The int specialization must use a native C comparison, not IsTrue.
+    ASSERT_NE(code.find("(a) < (b)"), std::string::npos);
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_min_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3, 5);
+        ASSERT_EQ(ret, 3);
+        Call(s, type, "test", ret, 7, 2);
+        ASSERT_EQ(ret, 2);
+        Call(s, type, "test", ret, 4, 4);
+        ASSERT_EQ(ret, 4);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 1.5, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 1.5);
+        Call(s, type, "test", dret, 3.7, 1.2);
+        ASSERT_DOUBLE_EQ(dret, 1.2);
+    });
+}
+
+// max(a, b): comparison-only math params.
+// Both a and b are detected as math params via the a > b comparison node.
+// In the all-int specialization, the if condition must use native C comparison.
+// test(3, 5) == 5, test(7, 2) == 7, test(4, 4) == 4.
+TEST(infer, test_spec_max_param) {
+    const auto code = InferGetCCode("./infer/test_spec_max_param.lua");
+    // Both max and test must be specialised (two math params each).
+    ASSERT_NE(code.find("max_0_0(int64_t a, int64_t b)"), std::string::npos);
+    ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
+    // Entry dispatchers must exist.
+    ASSERT_NE(code.find("CVar max(CVar a, CVar b)"), std::string::npos);
+    ASSERT_NE(code.find("CVar test(CVar a, CVar b)"), std::string::npos);
+    // The int specialization must use a native C comparison, not IsTrue.
+    ASSERT_NE(code.find("(a) > (b)"), std::string::npos);
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_max_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3, 5);
+        ASSERT_EQ(ret, 5);
+        Call(s, type, "test", ret, 7, 2);
+        ASSERT_EQ(ret, 7);
+        Call(s, type, "test", ret, 4, 4);
+        ASSERT_EQ(ret, 4);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 1.5, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 2.5);
+        Call(s, type, "test", dret, 3.7, 1.2);
+        ASSERT_DOUBLE_EQ(dret, 3.7);
+    });
+}
+
+// clamp(x, lo, hi): three comparison-only math params.
+// x, lo, hi are all detected as math params via x < lo and x > hi comparisons.
+// 3 math params → 8 specializations (2^3).
+// In the all-int specialization, both if conditions use native C comparisons.
+// test(5,1,10)==5, test(0,1,10)==1, test(15,1,10)==10.
+TEST(infer, test_spec_clamp_param) {
+    const auto code = InferGetCCode("./infer/test_spec_clamp_param.lua");
+    // All-int specialization (bitmask 0_0_0) must exist for clamp and test.
+    ASSERT_NE(code.find("clamp_0_0_0(int64_t x, int64_t lo, int64_t hi)"), std::string::npos);
+    ASSERT_NE(code.find("test_0_0_0(int64_t x, int64_t lo, int64_t hi)"), std::string::npos);
+    // Entry dispatchers must exist.
+    ASSERT_NE(code.find("CVar clamp(CVar x, CVar lo, CVar hi)"), std::string::npos);
+    ASSERT_NE(code.find("CVar test(CVar x, CVar lo, CVar hi)"), std::string::npos);
+    // Both if conditions must be emitted as native C comparisons.
+    ASSERT_NE(code.find("(x) < (lo)"), std::string::npos);
+    ASSERT_NE(code.find("(x) > (hi)"), std::string::npos);
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_clamp_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5, 1, 10);
+        ASSERT_EQ(ret, 5); // in range
+        Call(s, type, "test", ret, 0, 1, 10);
+        ASSERT_EQ(ret, 1); // below lo
+        Call(s, type, "test", ret, 15, 1, 10);
+        ASSERT_EQ(ret, 10); // above hi
+        double dret = 0.0;
+        Call(s, type, "test", dret, 5.5, 1.0, 10.0);
+        ASSERT_DOUBLE_EQ(dret, 5.5);
+        Call(s, type, "test", dret, 0.5, 1.0, 10.0);
+        ASSERT_DOUBLE_EQ(dret, 1.0);
+        Call(s, type, "test", dret, 15.5, 1.0, 10.0);
+        ASSERT_DOUBLE_EQ(dret, 10.0);
     });
 }
