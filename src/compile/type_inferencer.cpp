@@ -588,9 +588,49 @@ bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const Ev
     return found;
 }
 
+// 检查 block_node 的所有执行路径是否均以 return 语句结束。
+// 与简单的"最后一条语句是 return"不同，此函数还能识别 if-elseif-else 结构
+// 中所有分支均返回的情况（如 fibonacci），从而正确标记所有路径均返回数值。
+// 不递归进入嵌套函数体（Function / LocalFunction）。
+static bool AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) {
+    if (!block_node) {
+        return false;
+    }
+    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(block_node);
+    if (!block || block->Stmts().empty()) {
+        return false;
+    }
+    const auto &last = block->Stmts().back();
+    if (last->Type() == SyntaxTreeType::Return) {
+        return true;
+    }
+    if (last->Type() == SyntaxTreeType::If) {
+        const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(last);
+        // if 分支必须返回。
+        if (!AllPathsReturn(if_node->Block())) {
+            return false;
+        }
+        // 所有 elseif 分支必须返回。
+        if (const auto elseifs = if_node->ElseIfs()) {
+            const auto el = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(elseifs);
+            for (const auto &blk : el->ElseifBlocks()) {
+                if (!AllPathsReturn(blk)) {
+                    return false;
+                }
+            }
+        }
+        // 必须有 else 分支且它也返回，否则无法保证所有路径均返回。
+        if (!if_node->ElseBlock()) {
+            return false;
+        }
+        return AllPathsReturn(if_node->ElseBlock());
+    }
+    return false;
+}
+
 // 从 block_node 中浅层收集每条顶层 return 语句的第一个返回表达式，
 // 不递归进入嵌套函数体（Function / LocalFunction 节点）。
-// 返回值为 true 表示该 block 的最后一条语句是 return（无 nil 隐式返回路径）。
+// 返回值为 true 表示该 block 的所有路径均以 return 结束（无 nil 隐式返回路径）。
 // 对于 nil 返回（无表达式或空列表），在 ret_exps 中压入 nullptr 作为占位符。
 static bool CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
                                std::vector<SyntaxTreeInterfacePtr> &ret_exps) {
@@ -605,7 +645,7 @@ static bool CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
     if (stmts.empty()) {
         return false;
     }
-    const bool ends_with_return = (stmts.back()->Type() == SyntaxTreeType::Return);
+    const bool ends_with_return = AllPathsReturn(block_node);
     for (const auto &stmt : stmts) {
         if (stmt->Type() == SyntaxTreeType::Return) {
             const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt);

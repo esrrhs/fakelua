@@ -679,10 +679,10 @@ TEST(infer, test_spec_fib) {
     const auto code = InferGetCCode("./infer/test_spec_fib.lua");
     // Entry dispatcher must exist (original CVar signature).
     ASSERT_NE(code.find("CVar fib(CVar n)"), std::string::npos);
-    // Two specialization declarations.
-    ASSERT_NE(code.find("CVar fib_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("CVar fib_1(double n)"), std::string::npos);
-    // Dispatcher must check type and call the right specialization.
+    // Two specialization declarations — now return native types directly.
+    ASSERT_NE(code.find("int64_t fib_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("double fib_1(double n)"), std::string::npos);
+    // Dispatcher boxes the native result back into CVar.
     ASSERT_NE(code.find("fib_0(n.data_.i)"), std::string::npos);
     ASSERT_NE(code.find("fib_1(n.data_.f)"), std::string::npos);
     // Inside fib_0, recursive calls must go directly to fib_0 (not fib).
@@ -695,6 +695,10 @@ TEST(infer, test_spec_fib) {
     // The entry dispatcher must NOT be called recursively from fib_0/fib_1.
     // Check: no FakeluaCallByName("fib") in the generated code.
     ASSERT_EQ(code.find("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"fib\""), std::string::npos);
+    // No .data_.i extraction inside the spec bodies (no boxing/unboxing there).
+    // The dispatcher itself still has .data_.i/.data_.f for the entry call.
+    // Verify spec bodies use native add directly (no CVar wrapping of recursive results).
+    ASSERT_NE(code.find("return ((flua_native_"), std::string::npos);
 
     // Functional verification: fib(10) == 55.
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -1411,13 +1415,13 @@ TEST(infer, test_spec_for_bound_param) {
 // For n > 0: f(n) = 2n > n is true, return x (= n); for n = 0: return 0.
 TEST(infer, test_spec_compare_func_result) {
     const auto code = InferGetCCode("./infer/test_spec_compare_func_result.lua");
-    // Both f and test must be specialized.
-    ASSERT_NE(code.find("f_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
-    // The if condition must use a direct C comparison: f_0(n) is called and
-    // its integer result (.data_.i) is compared with n natively.
+    // Both f and test must be specialized and now return native int64_t directly.
+    ASSERT_NE(code.find("int64_t f_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    // The if condition must use a direct C comparison: f_0(n) is called natively.
     ASSERT_NE(code.find("f_0(n)"), std::string::npos);
-    ASSERT_NE(code.find(".data_.i)"), std::string::npos);
+    // With native returns, there is no .data_.i extraction for the spec call result.
+    ASSERT_EQ(code.find("f_0(n).data_.i"), std::string::npos);
     // No dynamic IsTrue or flua_ibt_ temp bool variables.
     ASSERT_EQ(code.find("IsTrue"), std::string::npos);
     ASSERT_EQ(code.find("flua_ibt_"), std::string::npos);

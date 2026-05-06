@@ -114,6 +114,16 @@ private:
 
     std::string BoxNativeValue(const std::string &expr, InferredType type) const;
 
+    // 查询函数特化版本的实际返回类型（T_INT、T_FLOAT 或 T_DYNAMIC）。
+    // 由 DiscoverMathParams 的不动点迭代填充，不存在时返回 T_DYNAMIC。
+    [[nodiscard]] InferredType GetSpecReturnType(const std::string &func_name, int bitmask) const;
+
+    // 若 functioncall_node 指向一个返回原生数值类型的特化函数，
+    // 则直接将调用编译为原生表达式（int64_t / double 临时变量），并返回变量名。
+    // 避免调用方在 CompileNumericExp 中装箱再拆箱。
+    // 不适用时（被调函数 CVar 返回或无法推断）返回空字符串。
+    std::string TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node);
+
     void EnterNativeVarScope();
 
     void ExitNativeVarScope();
