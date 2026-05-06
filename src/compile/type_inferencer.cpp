@@ -686,7 +686,8 @@ bool TypeInferencer::AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) co
         return true;
     }
     if (last->Type() == SyntaxTreeType::Block) {
-        // do...end 块：不含控制流，始终执行。若其内部所有路径均以 return 结束，则外层视为已返回。
+        // do...end 块：无条件执行（不同于 if/while 可能跳过），内部可含任意控制流。
+        // 若其所有路径均以 return 结束，则外层函数视为已返回。
         return AllPathsReturn(last);
     }
     if (last->Type() == SyntaxTreeType::If) {
