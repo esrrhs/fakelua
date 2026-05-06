@@ -1357,6 +1357,9 @@ TEST(infer, test_spec_len_param) {
     ASSERT_NE(code.find("FlLenInt("), std::string::npos);
     // No dynamic OpLen call in the generated code.
     ASSERT_EQ(code.find("OpLen("), std::string::npos);
+    // Fix: NUMBER_SIGN in EvalReturnExpType now returns T_INT, so n+#s yields
+    // a T_INT return and the int specialization returns int64_t natively.
+    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_len_param.lua", {.debug_mode = debug_mode});
@@ -1438,6 +1441,93 @@ TEST(infer, test_spec_compare_func_result) {
     });
 }
 
+// ────────────────────────────────────────────────────────────────────────────
+// Missing grammar cases: pure unary ops as math params, and do...end blocks.
+// ────────────────────────────────────────────────────────────────────────────
+
+// Pure unary negation: function f(n) return -n end.
+// Previously IsArithmeticBinop would skip this because there is no binary
+// operator; n was not detected as a math param.
+// With IsArithmeticExpr now handling unop MINUS, both specialisations are
+// generated and the int spec returns int64_t natively.
+// test(5) == -5, test(-3) == 3.
+TEST(infer, test_spec_unary_minus_param) {
+    const auto code = InferGetCCode("./infer/test_spec_unary_minus_param.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // Specializations must use native negation (no OpUnaryMinus macro).
+    ASSERT_NE(code.find("(-(n))"), std::string::npos);
+    ASSERT_EQ(code.find("OpUnaryMinus("), std::string::npos);
+    // Both specializations must return natively (int64_t / double).
+    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("double test_1(double n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_unary_minus_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, -5);
+        Call(s, type, "test", ret, -3);
+        ASSERT_EQ(ret, 3);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, -2.5);
+    });
+}
+
+// Pure bitwise NOT: function f(n) return ~n end.
+// Like unary minus, previously no binary operator means n was not detected as
+// a math param.  With the IsArithmeticExpr fix, both specialisations are
+// generated.  Int spec uses native ~((int64_t)(n)) and returns int64_t.
+// Float spec: ~T_FLOAT = T_DYNAMIC, so float spec returns CVar.
+// test(5) == -6 (~5 = -6 in two's complement).
+TEST(infer, test_spec_bitnot_standalone_param) {
+    const auto code = InferGetCCode("./infer/test_spec_bitnot_standalone_param.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // Int specialization: native BITNOT (~((int64_t)(n))).
+    ASSERT_NE(code.find("(~((int64_t)(n)))"), std::string::npos);
+    // Int specialization must return int64_t natively.
+    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_bitnot_standalone_param.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, -6); // ~5 = -6
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, -1); // ~0 = -1
+    });
+}
+
+// Return inside do...end block.
+// Previously AllPathsReturn and CollectReturnExps did not recurse into
+// SyntaxTreeType::Block (do...end) statements, so the return type was inferred
+// as T_DYNAMIC (CVar) even when n+1 is clearly T_INT.
+// With the fix, the int specialization returns int64_t natively.
+// test(10) == 11.
+TEST(infer, test_spec_do_return) {
+    const auto code = InferGetCCode("./infer/test_spec_do_return.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // Fix: return inside do...end is now detected, so int spec returns int64_t.
+    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_do_return.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 11);
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 1);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 3.5);
+    });
+}
 // f uses n arithmetically (n+1) so it has a math param and gets specialised.
 // But f always returns the string "hello", not a numeric result.
 // InferArgTypeForSpec for f(n) must return T_DYNAMIC so the caller treats the
@@ -1498,5 +1588,48 @@ TEST(infer, test_spec_nested_call) {
         double dret = 0.0;
         Call(s, type, "test", dret, 2.5);
         ASSERT_DOUBLE_EQ(dret, 3.5);
+    });
+}
+
+TEST(infer, test_spec_local_from_func_call) {
+    const auto code = InferGetCCode("./infer/test_spec_local_from_func_call.lua");
+    // func must be specialised (has direct arithmetic n+1).
+    ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
+    // wrapper must also be specialised because it passes n to func's math param.
+    ASSERT_NE(code.find("int64_t wrapper_0(int64_t n)"), std::string::npos);
+    // local x should be declared as int64_t (not CVar) inside wrapper_0.
+    ASSERT_NE(code.find("int64_t x ="), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_local_from_func_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "wrapper", ret, 10);
+        ASSERT_EQ(ret, 11);
+        double dret = 0.0;
+        Call(s, type, "wrapper", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 3.5);
+    });
+}
+
+TEST(infer, test_spec_local_chain_from_func_call) {
+    const auto code = InferGetCCode("./infer/test_spec_local_chain_from_func_call.lua");
+    // func must be specialised (direct arithmetic n*2).
+    ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
+    // chain must also be specialised.
+    ASSERT_NE(code.find("int64_t chain_0(int64_t n)"), std::string::npos);
+    // Both x and y should be int64_t inside chain_0.
+    ASSERT_NE(code.find("int64_t x ="), std::string::npos);
+    ASSERT_NE(code.find("int64_t y ="), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_local_chain_from_func_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "chain", ret, 5);
+        ASSERT_EQ(ret, 11);
+        Call(s, type, "chain", ret, 3);
+        ASSERT_EQ(ret, 7);
+        double dret = 0.0;
+        Call(s, type, "chain", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 6.0);
     });
 }

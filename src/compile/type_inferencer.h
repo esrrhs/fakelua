@@ -57,8 +57,9 @@ private:
                                   const std::vector<std::string> &params,
                                   const std::unordered_map<std::string, InferredType> &assumed_types);
 
-    // 判断 exp 节点是否为算术二元运算（结果可为 T_INT/T_FLOAT 的运算符）。
-    bool IsArithmeticBinop(const SyntaxTreeInterfacePtr &node) const;
+    // 判断 exp 节点是否为算术表达式（结果可为 T_INT/T_FLOAT 的运算符）。
+    // 包括算术/位运算二元运算符，以及一元负号和按位取反。
+    bool IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const;
 
     // 判断 all_int（全参数=T_INT）相对于 baseline（全参数=T_DYNAMIC）是否有算术表达式改善。
     // 同时检测对已知数学函数的调用：若某数学参数位置实参在 all_int 中有类型但 baseline 中为
@@ -72,7 +73,6 @@ private:
     bool ParamAffectsArithmetic(const EvalTypeMap &all_int, const EvalTypeMap &without_p,
                                 const SyntaxTreeInterfacePtr &func_block,
                                 const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
-
     // 检查 func_block 中是否存在对已知数学函数的调用，其数学参数位置的实参在 typed_map 中有类型
     // (T_INT/T_FLOAT) 但在 compare_map 中类型不同（即发生了改善或退化）。
     bool HasMathCallImprovement(const SyntaxTreeInterfacePtr &func_block,
@@ -94,6 +94,18 @@ private:
             const SyntaxTreeInterfacePtr &exp,
             const EvalTypeSnapshot &snapshot,
             const std::unordered_map<std::string, InferredType> &spec_ctx,
+            const std::unordered_map<std::string, std::vector<int>> &math_param_positions,
+            const std::unordered_map<std::string, std::vector<InferredType>> &assumed_ret) const;
+
+    // 扫描函数块顶层的 local 声明，将由数学函数调用初始化的局部变量
+    // 的类型（T_INT/T_FLOAT）追加到 spec_ctx 中，支持链式传播：
+    //   local x = f(n)  → x 的类型由 EvalReturnExpType(f(n)) 推出
+    //   local y = x + 1 → y 的类型由 x（已在 spec_ctx 中）推出
+    // 仅处理顶层 LocalVar 语句（不递归进入嵌套函数体）。
+    void BuildLocalVarExtensions(
+            const SyntaxTreeInterfacePtr &func_block,
+            const EvalTypeSnapshot &snapshot,
+            std::unordered_map<std::string, InferredType> &spec_ctx,
             const std::unordered_map<std::string, std::vector<int>> &math_param_positions,
             const std::unordered_map<std::string, std::vector<InferredType>> &assumed_ret) const;
 

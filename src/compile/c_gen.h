@@ -134,9 +134,15 @@ private:
 
     void ExitNativeVarScope();
 
-    void DeclareNativeVar(const std::string &name, bool typed_native);
+    void DeclareNativeVar(const std::string &name, InferredType native_type);
 
     [[nodiscard]] bool IsTypedNativeVar(const std::string &name) const;
+
+    // 返回变量在当前作用域中声明的原生 C 类型：
+    //   T_INT   → int64_t
+    //   T_FLOAT → double
+    //   T_DYNAMIC → CVar（或不在当前作用域中）
+    [[nodiscard]] InferredType GetNativeVarType(const std::string &name) const;
 
 private:
     State *s_;
@@ -162,11 +168,11 @@ private:
     std::stringstream func_temp_decls_;
     // 在编译期间缓冲函数体（跨函数重用，每次清空）。
     std::stringstream body_ss_;
-    // 作用域化的本地变量声明信息：name -> 是否声明为原生数值类型
-    // (int64_t/double)。反向查找首个命中的声明即可处理遮蔽关系：
-    // - true  : 当前可见绑定是原生类型变量
-    // - false : 当前可见绑定是 CVar（即使外层同名变量是原生类型）
-    std::vector<std::unordered_map<std::string, bool>> native_var_scopes_;
+    // 作用域化的本地变量声明信息：name -> 声明的原生 C 类型。
+    //   T_INT    : int64_t 变量
+    //   T_FLOAT  : double 变量
+    //   T_DYNAMIC: CVar（即使外层同名变量是原生类型，遮蔽后仍为 CVar）
+    std::vector<std::unordered_map<std::string, InferredType>> native_var_scopes_;
 
     // 来自 TypeInferencer::DiscoverMathParams 的数学参数分析结果。
     // func_name -> 按升序排列的数学参数索引列表。

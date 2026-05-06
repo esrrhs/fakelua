@@ -20,20 +20,29 @@ void CGen::ExitNativeVarScope() {
     }
 }
 
-void CGen::DeclareNativeVar(const std::string &name, const bool typed_native) {
+void CGen::DeclareNativeVar(const std::string &name, const InferredType native_type) {
     if (native_var_scopes_.empty()) {
         EnterNativeVarScope();
     }
-    native_var_scopes_.back()[name] = typed_native;
+    native_var_scopes_.back()[name] = native_type;
 }
 
 bool CGen::IsTypedNativeVar(const std::string &name) const {
     for (auto it = native_var_scopes_.rbegin(); it != native_var_scopes_.rend(); ++it) {
         if (const auto found = it->find(name); found != it->end()) {
-            return found->second;
+            return found->second != T_DYNAMIC;
         }
     }
     return false;
+}
+
+InferredType CGen::GetNativeVarType(const std::string &name) const {
+    for (auto it = native_var_scopes_.rbegin(); it != native_var_scopes_.rend(); ++it) {
+        if (const auto found = it->find(name); found != it->end()) {
+            return found->second;
+        }
+    }
+    return T_DYNAMIC;
 }
 
 void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
@@ -1118,11 +1127,14 @@ void CGen::CompileFuncBody(const std::string &func_name,
     EnterNativeVarScope();
     for (const auto &param_name: func_params) {
         // 在特化模式中，数学参数已在函数签名中声明为原生类型（int64_t/double），
-        // 因此将其注册为 typed_native，以便 CompileStmtAssign 能对赋值使用
-        // TryCompileNativeExpr 路径，而非产生类型错误的 CVar 赋值。
-        // 非特化或非数学参数仍注册为非类型化（CVar）。
-        const bool is_typed_math = (spec_bitmask >= 0) && (spec_param_types_.count(param_name) > 0);
-        DeclareNativeVar(param_name, is_typed_math);
+        // 因此将其注册为对应的原生类型，以便 CompileStmtAssign / InferArgTypeForSpec
+        // 能正确处理对这些参数的引用和赋值。
+        // 非特化或非数学参数仍注册为 T_DYNAMIC（CVar）。
+        const InferredType param_native_type =
+                (spec_bitmask >= 0 && spec_param_types_.count(param_name) > 0)
+                        ? spec_param_types_.at(param_name)
+                        : T_DYNAMIC;
+        DeclareNativeVar(param_name, param_native_type);
     }
     cur_output_ = &body_ss_;
     cur_tab_++;
@@ -1268,14 +1280,13 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
             if (const auto it = spec_param_types_.find(vname); it != spec_param_types_.end()) {
                 return it->second;
             }
-            // 仅当变量实际声明为原生类型（int64_t/double）时才根据 EvalType 推断类型。
-            // CVar 变量即使 EvalType 节点因单遍推断而显示为 T_INT 也不能当作原生类型处理，
-            // 因为它可能在稍后的代码路径中持有非数值。
-            if (IsTypedNativeVar(vname)) {
-                const auto t = e->EvalType();
-                if (t == T_INT || t == T_FLOAT) {
-                    return t;
-                }
+            // 使用 GetNativeVarType 获取变量声明时的实际 C 类型，而不依赖 EvalType。
+            // EvalType 来自快照，对于由数学函数调用初始化的局部变量（如 local x = f(n)），
+            // RunTrialInference 会将其标记为 T_DYNAMIC，导致 EvalType 不准确。
+            // GetNativeVarType 使用 DeclareNativeVar 记录的精确类型，可正确处理此类情况。
+            const auto native_type = GetNativeVarType(vname);
+            if (native_type == T_INT || native_type == T_FLOAT) {
+                return native_type;
             }
             return T_DYNAMIC;
         }
@@ -1632,15 +1643,31 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
         if (i < exps.size() && exps[i]->EvalType() == T_INT) {
             const auto native_expr = CompileNumericExp(exps[i]);
             *cur_output_ << GenTab() << "int64_t " << name << " = " << native_expr << ";\n";
-            DeclareNativeVar(name, true);
+            DeclareNativeVar(name, T_INT);
         } else if (i < exps.size() && exps[i]->EvalType() == T_FLOAT) {
             const auto native_expr = CompileNumericExp(exps[i]);
             *cur_output_ << GenTab() << "double " << name << " = " << native_expr << ";\n";
-            DeclareNativeVar(name, true);
-        } else {
-            const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
+            DeclareNativeVar(name, T_FLOAT);
+        } else if (i < exps.size()) {
+            // EvalType 为 T_DYNAMIC：尝试通过 InferArgTypeForSpec 捕获数学函数调用返回值。
+            // RunTrialInference 始终将函数调用标记为 T_DYNAMIC，因此仅凭 EvalType
+            // 无法识别 "local x = f(n)" 中 f 返回 T_INT/T_FLOAT 的情况。
+            const auto spec_type = InferArgTypeForSpec(exps[i]);
+            if (spec_type == T_INT || spec_type == T_FLOAT) {
+                const auto native_expr = TryCompileNativeExpr(exps[i]);
+                if (!native_expr.empty()) {
+                    const auto c_type = (spec_type == T_INT) ? "int64_t" : "double";
+                    *cur_output_ << GenTab() << c_type << " " << name << " = " << native_expr << ";\n";
+                    DeclareNativeVar(name, spec_type);
+                    continue;
+                }
+            }
+            const std::string init = CompileExp(exps[i]);
             *cur_output_ << GenTab() << "CVar " << name << " = " << init << ";\n";
-            DeclareNativeVar(name, false);
+            DeclareNativeVar(name, T_DYNAMIC);
+        } else {
+            *cur_output_ << GenTab() << "CVar " << name << " = kNil;\n";
+            DeclareNativeVar(name, T_DYNAMIC);
         }
     }
 }
@@ -1685,11 +1712,10 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
         } else {
             // 右值无法表达为原生数值（例如函数调用返回 CVar）。
             // 从 CVar 中提取对应字段以赋给原生类型变量。
-            // 仅在特化中（spec_param_types_ 含该名称）才走此路径，
-            // 且类型保证与特化签名一致。
+            // 使用 GetNativeVarType 获取变量的精确 C 类型（T_INT → .data_.i，T_FLOAT → .data_.f），
+            // 涵盖数学参数和局部 int64_t/double 变量两种情况。
             const std::string rhs = CompileExp(exps[0]);
-            const auto it = spec_param_types_.find(name);
-            if (it != spec_param_types_.end() && it->second == T_FLOAT) {
+            if (GetNativeVarType(name) == T_FLOAT) {
                 *cur_output_ << GenTab() << name << " = (" << rhs << ").data_.f;\n";
             } else {
                 *cur_output_ << GenTab() << name << " = (" << rhs << ").data_.i;\n";
@@ -1879,10 +1905,10 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
         EnterNativeVarScope();
         if (for_stmt->EvalType() == T_INT) {
             *cur_output_ << GenTab() << "int64_t " << for_stmt->Name() << " = " << ctrl_var << ";\n";
-            DeclareNativeVar(for_stmt->Name(), true);
+            DeclareNativeVar(for_stmt->Name(), T_INT);
         } else {
             *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_INT) << ";\n";
-            DeclareNativeVar(for_stmt->Name(), false);
+            DeclareNativeVar(for_stmt->Name(), T_DYNAMIC);
         }
         CompileStmtBlock(for_stmt->Block());
         ExitNativeVarScope();
@@ -1929,10 +1955,10 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
         EnterNativeVarScope();
         if (for_stmt->EvalType() == T_FLOAT) {
             *cur_output_ << GenTab() << "double " << for_stmt->Name() << " = " << ctrl_var << ";\n";
-            DeclareNativeVar(for_stmt->Name(), true);
+            DeclareNativeVar(for_stmt->Name(), T_FLOAT);
         } else {
             *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_FLOAT) << ";\n";
-            DeclareNativeVar(for_stmt->Name(), false);
+            DeclareNativeVar(for_stmt->Name(), T_DYNAMIC);
         }
         CompileStmtBlock(for_stmt->Block());
         ExitNativeVarScope();
@@ -1997,7 +2023,7 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     const auto &loop_var_name = for_stmt->Name();
     *cur_output_ << GenTab() << "CVar " << loop_var_name << " = " << ctrl_var << ";\n";
     EnterNativeVarScope();
-    DeclareNativeVar(loop_var_name, false);
+    DeclareNativeVar(loop_var_name, T_DYNAMIC);
 
     // 编译循环体
     CompileStmtBlock(for_stmt->Block());
@@ -2099,9 +2125,9 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
 
     // 编译循环体
     EnterNativeVarScope();
-    DeclareNativeVar(key_name, false);
+    DeclareNativeVar(key_name, T_DYNAMIC);
     if (names.size() >= 2) {
-        DeclareNativeVar(names[1], false);
+        DeclareNativeVar(names[1], T_DYNAMIC);
     }
     CompileStmtBlock(for_in->Block());
     ExitNativeVarScope();
@@ -2480,10 +2506,14 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
             }
             return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
         }
-        if (v_ptr->EvalType() == T_INT && IsTypedNativeVar(name)) {
+        // 使用 GetNativeVarType 取得变量的精确 C 类型并装箱为 CVar。
+        // 这比 EvalType + IsTypedNativeVar 更准确：对于由数学函数调用初始化的局部变量
+        // （如 local x = f(n)），EvalType 为 T_DYNAMIC，但变量实际声明为 int64_t。
+        const auto native_type = GetNativeVarType(name);
+        if (native_type == T_INT) {
             return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
         }
-        if (v_ptr->EvalType() == T_FLOAT && IsTypedNativeVar(name)) {
+        if (native_type == T_FLOAT) {
             return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
         }
         return name;
