@@ -487,23 +487,34 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
 // 数学参数特化发现：迭代不动点推断
 // ---------------------------------------------------------------------------
 
-// 判断 exp 节点是否为算术二元运算（结果可为 T_INT/T_FLOAT 的运算符）。
-bool TypeInferencer::IsArithmeticBinop(const SyntaxTreeInterfacePtr &node) const {
+// 判断 exp 节点是否为算术表达式（结果可为 T_INT/T_FLOAT 的运算符）。
+// 包括算术/位运算二元运算符，以及一元负号（MINUS）和按位取反（BITNOT）。
+bool TypeInferencer::IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const {
     if (node->Type() != SyntaxTreeType::Exp) {
         return false;
     }
     const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-    if (exp->ExpType() != "binop") {
-        return false;
+    if (exp->ExpType() == "binop") {
+        const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
+        if (!op) {
+            return false;
+        }
+        const auto &op_name = op->GetOp();
+        return op_name == "PLUS" || op_name == "MINUS" || op_name == "STAR" || op_name == "SLASH" ||
+               op_name == "DOUBLE_SLASH" || op_name == "POW" || op_name == "MOD" || op_name == "BITAND" ||
+               op_name == "XOR" || op_name == "BITOR" || op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT";
     }
-    const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
-    if (!op) {
-        return false;
+    if (exp->ExpType() == "unop") {
+        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
+        if (!op) {
+            return false;
+        }
+        const auto &op_name = op->GetOp();
+        // 一元负号：-T_INT=T_INT，-T_FLOAT=T_FLOAT，随参数类型改变。
+        // 按位取反：~T_INT=T_INT，仅对整数参数有意义。
+        return op_name == "MINUS" || op_name == "BITNOT";
     }
-    const auto &op_name = op->GetOp();
-    return op_name == "PLUS" || op_name == "MINUS" || op_name == "STAR" || op_name == "SLASH" ||
-           op_name == "DOUBLE_SLASH" || op_name == "POW" || op_name == "MOD" || op_name == "BITAND" ||
-           op_name == "XOR" || op_name == "BITOR" || op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT";
+    return false;
 }
 
 TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func_block,
@@ -553,7 +564,7 @@ bool TypeInferencer::HasArithmeticImprovement(const EvalTypeMap &all_int, const 
                                                const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
     bool found = false;
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
-        if (found || !IsArithmeticBinop(node)) {
+        if (found || !IsArithmeticExpr(node)) {
             return;
         }
         const auto it_all = all_int.find(node.get());
@@ -579,7 +590,7 @@ bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const Ev
                                              const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
     bool found = false;
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
-        if (found || !IsArithmeticBinop(node)) {
+        if (found || !IsArithmeticExpr(node)) {
             return;
         }
         const auto it_all = all_int.find(node.get());
@@ -674,6 +685,10 @@ bool TypeInferencer::AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) co
     if (last->Type() == SyntaxTreeType::Return) {
         return true;
     }
+    if (last->Type() == SyntaxTreeType::Block) {
+        // do...end 块：不含控制流，始终执行。若其内部所有路径均以 return 结束，则外层视为已返回。
+        return AllPathsReturn(last);
+    }
     if (last->Type() == SyntaxTreeType::If) {
         const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(last);
         // if 分支必须返回。
@@ -750,6 +765,9 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
         } else if (stmt->Type() == SyntaxTreeType::ForIn) {
             const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
             CollectReturnExps(for_in->Block(), ret_exps);
+        } else if (stmt->Type() == SyntaxTreeType::Block) {
+            // do...end 块：递归收集其内部的 return 表达式。
+            CollectReturnExps(stmt, ret_exps);
         }
         // Function / LocalFunction: 不递归进入嵌套函数体。
     }
@@ -899,6 +917,10 @@ InferredType TypeInferencer::EvalReturnExpType(
             if (t == T_INT) {
                 return T_INT;
             }
+        }
+        if (op->GetOp() == "NUMBER_SIGN") {
+            // # 运算符始终返回整数（字符串字节数或表元素数），与操作数类型无关。
+            return T_INT;
         }
         return T_DYNAMIC;
     }
