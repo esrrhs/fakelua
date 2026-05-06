@@ -1528,6 +1528,7 @@ TEST(infer, test_spec_do_return) {
         ASSERT_DOUBLE_EQ(dret, 3.5);
     });
 }
+// f uses n arithmetically (n+1) so it has a math param and gets specialised.
 // But f always returns the string "hello", not a numeric result.
 // InferArgTypeForSpec for f(n) must return T_DYNAMIC so the caller treats the
 // CVar as opaque (no .data_.i access), and the returned string is preserved.
