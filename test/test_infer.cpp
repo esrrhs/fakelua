@@ -1633,3 +1633,167 @@ TEST(infer, test_spec_local_chain_from_func_call) {
         ASSERT_DOUBLE_EQ(dret, 6.0);
     });
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Missing grammar cases: local function, for-loop with arithmetic bounds/step,
+// break inside specialized loop, arithmetic local var chain, repeat...until.
+// ────────────────────────────────────────────────────────────────────────────
+
+// local function 形式的数学参数特化。
+// square 通过 local function 定义，n 是数学参数（n*n 有算术改善）。
+// DiscoverMathParams 对 LocalFunction 和 Function 均适用。
+// test 通过嵌套调用推断也被特化（square(n)+1 触发改善）。
+TEST(infer, test_spec_local_func) {
+    const auto code = InferGetCCode("./infer/test_spec_local_func.lua");
+    // local function square must be specialised.
+    ASSERT_NE(code.find("int64_t square_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("double square_1(double n)"), std::string::npos);
+    // Entry dispatcher must exist for square.
+    ASSERT_NE(code.find("CVar square(CVar n)"), std::string::npos);
+    // test must also be specialised via the nested-call improvement.
+    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_local_func.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 26); // 5*5+1
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 10); // 3*3+1
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.0);
+        ASSERT_DOUBLE_EQ(dret, 5.0); // 2.0*2.0+1
+    });
+}
+
+// 数学参数 n 作为 for 循环上界的算术表达式（n * 2）。
+// 整数特化中，ExpEnd = n*2 被快照标注为 T_INT，
+// 使 CompileStmtForLoop 走 typed_int_for 路径，上界使用原生 int64_t 表达式。
+TEST(infer, test_spec_for_arith_end) {
+    const auto code = InferGetCCode("./infer/test_spec_for_arith_end.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // In the int specialization: native int64_t for-loop control variables.
+    ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_for_end_"), std::string::npos);
+    // No dynamic CVar control variables in the int specialization.
+    ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_for_arith_end.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 55); // 1+2+...+10
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 21); // 1+2+...+6
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 0); // empty range
+    });
+}
+
+// 数学参数 n 作为 for 循环步长的算术表达式（n + 1）。
+// 整数特化中，ExpStep = n+1 被快照标注为 T_INT，
+// 使 CompileStmtForLoop 走 typed_int_for 路径（begin/end/step 全为 T_INT）。
+TEST(infer, test_spec_for_arith_step) {
+    const auto code = InferGetCCode("./infer/test_spec_for_arith_step.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // In the int specialization: native int64_t for-loop control variables.
+    ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_for_step_"), std::string::npos);
+    ASSERT_NE(code.find("int64_t flua_for_end_"), std::string::npos);
+    // No dynamic CVar control variables in the int specialization.
+    ASSERT_EQ(code.find("CVar flua_for_ctrl_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_for_arith_step.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        // step = n+1 = 3: i = 1, 4, 7, 10  -> sum = 22
+        Call(s, type, "test", ret, 2);
+        ASSERT_EQ(ret, 22);
+        // step = n+1 = 4: i = 1, 5, 9  -> sum = 15
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 15);
+    });
+}
+
+// for 循环中 break 在数学参数特化函数里的正确性。
+// n 为数学参数（sum + i 是整数算术），循环在 i > 3 时提前退出。
+TEST(infer, test_spec_for_break) {
+    const auto code = InferGetCCode("./infer/test_spec_for_break.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // In the int specialization: native int64_t for-loop control variables.
+    ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
+    // break must be emitted.
+    ASSERT_NE(code.find("break;"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_for_break.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 6); // 1+2+3 (stops at i=4)
+        Call(s, type, "test", ret, 2);
+        ASSERT_EQ(ret, 3); // 1+2 (n < 4, no break needed)
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 0); // empty range
+    });
+}
+
+// 纯算术局部变量链：local x = n + 1; local y = x * 2; return y。
+// 整数特化中，快照将 n+1 和 x*2 均标注为 T_INT，
+// x 和 y 均声明为 int64_t，return 直接返回 int64_t。
+TEST(infer, test_spec_arith_chain) {
+    const auto code = InferGetCCode("./infer/test_spec_arith_chain.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("double test_1(double n)"), std::string::npos);
+    // x and y must be declared as native types (int64_t) in the int spec.
+    ASSERT_NE(code.find("int64_t x ="), std::string::npos);
+    ASSERT_NE(code.find("int64_t y ="), std::string::npos);
+    // No CVar for x or y in the int specialization.
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
+    ASSERT_EQ(code.find("CVar y"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_arith_chain.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 12); // (5+1)*2
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 8); // (3+1)*2
+        double dret = 0.0;
+        Call(s, type, "test", dret, 1.5);
+        ASSERT_DOUBLE_EQ(dret, 5.0); // (1.5+1)*2
+    });
+}
+
+// repeat...until 循环内数学参数参与循环体算术运算。
+// n 被用于 sum = sum + n（整数算术），使 n 成为数学参数。
+// until 条件 i > 5 使用 TryCompileNativeBoolExpr 编译为原生布尔表达式。
+TEST(infer, test_spec_repeat_arith) {
+    const auto code = InferGetCCode("./infer/test_spec_repeat_arith.lua");
+    // Both int and float specializations must be declared.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // Entry dispatcher must exist.
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+    // The do...while loop must be emitted.
+    ASSERT_NE(code.find("do {"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_repeat_arith.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 15); // 3*5
+        Call(s, type, "test", ret, 2);
+        ASSERT_EQ(ret, 10); // 2*5
+        double dret = 0.0;
+        Call(s, type, "test", dret, 1.5);
+        ASSERT_DOUBLE_EQ(dret, 7.5); // 1.5*5
+    });
+}

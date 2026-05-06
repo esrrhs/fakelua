@@ -1652,14 +1652,23 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             // EvalType 为 T_DYNAMIC：尝试通过 InferArgTypeForSpec 捕获数学函数调用返回值。
             // RunTrialInference 始终将函数调用标记为 T_DYNAMIC，因此仅凭 EvalType
             // 无法识别 "local x = f(n)" 中 f 返回 T_INT/T_FLOAT 的情况。
-            const auto spec_type = InferArgTypeForSpec(exps[i]);
-            if (spec_type == T_INT || spec_type == T_FLOAT) {
-                const auto native_expr = TryCompileNativeExpr(exps[i]);
-                if (!native_expr.empty()) {
-                    const auto c_type = (spec_type == T_INT) ? "int64_t" : "double";
-                    *cur_output_ << GenTab() << c_type << " " << name << " = " << native_expr << ";\n";
-                    DeclareNativeVar(name, spec_type);
-                    continue;
+            // 对数值字面量跳过此回退：若字面量的 EvalType 已被 InferBlock 后处理退化为
+            // T_DYNAMIC，说明该变量后续会接收不兼容的类型赋值，应声明为 CVar。
+            // RunTrialInference 对函数调用始终返回 T_DYNAMIC（与后处理退化无关），
+            // 因此函数调用初始化的变量仍可通过 InferArgTypeForSpec 正确推断。
+            const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exps[i]);
+            const bool is_degraded_literal =
+                    init_exp && init_exp->ExpType() == "number" && exps[i]->EvalType() == T_DYNAMIC;
+            if (!is_degraded_literal) {
+                const auto spec_type = InferArgTypeForSpec(exps[i]);
+                if (spec_type == T_INT || spec_type == T_FLOAT) {
+                    const auto native_expr = TryCompileNativeExpr(exps[i]);
+                    if (!native_expr.empty()) {
+                        const auto c_type = (spec_type == T_INT) ? "int64_t" : "double";
+                        *cur_output_ << GenTab() << c_type << " " << name << " = " << native_expr << ";\n";
+                        DeclareNativeVar(name, spec_type);
+                        continue;
+                    }
                 }
             }
             const std::string init = CompileExp(exps[i]);
