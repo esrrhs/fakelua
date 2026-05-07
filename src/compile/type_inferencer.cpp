@@ -650,6 +650,26 @@ bool TypeInferencer::HasArithmeticImprovement(const EvalTypeMap &all_int, const 
     if (found) {
         return true;
     }
+    // for 循环改善检测：若某 ForLoop 节点的 EvalType（即循环控制变量的最终类型）
+    // 在全参数为 T_INT 时变为有类型，而 baseline 中为 T_DYNAMIC，
+    // 则说明参数特化能将 CVar 循环升级为原生 int64_t/double 循环。
+    // 这涵盖了循环变量未在循环体算术中使用的情况（如 for i = 1, n do c = c + 1 end）。
+    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+        if (found || node->Type() != SyntaxTreeType::ForLoop) {
+            return;
+        }
+        const auto it_all = all_int.find(node.get());
+        const auto it_base = baseline.find(node.get());
+        if (it_all == all_int.end() || it_base == baseline.end()) {
+            return;
+        }
+        if ((it_all->second == T_INT || it_all->second == T_FLOAT) && it_base->second == T_DYNAMIC) {
+            found = true;
+        }
+    });
+    if (found) {
+        return true;
+    }
     // 同时检测对已知数学函数的嵌套调用：若某数学参数位置实参在 all_int 中有类型但
     // baseline 中为 T_DYNAMIC，则该函数能通过子函数特化产生算术改善。
     return HasMathCallImprovement(func_block, all_int, baseline, math_param_positions);
@@ -701,6 +721,24 @@ bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const Ev
                                     (rt_all->second == T_INT || rt_all->second == T_FLOAT);
         const bool wo_degraded = lt_wo->second == T_DYNAMIC || rt_wo->second == T_DYNAMIC;
         if (all_both_typed && wo_degraded) {
+            found = true;
+        }
+    });
+    if (found) {
+        return true;
+    }
+    // for 循环退化检测：all_int 时 ForLoop 的 EvalType 为有类型，
+    // 去掉该参数后退化为 T_DYNAMIC，说明该参数决定了循环是否能使用原生类型。
+    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+        if (found || node->Type() != SyntaxTreeType::ForLoop) {
+            return;
+        }
+        const auto it_all = all_int.find(node.get());
+        const auto it_wo = without_p.find(node.get());
+        if (it_all == all_int.end() || it_wo == without_p.end()) {
+            return;
+        }
+        if ((it_all->second == T_INT || it_all->second == T_FLOAT) && it_wo->second != it_all->second) {
             found = true;
         }
     });
