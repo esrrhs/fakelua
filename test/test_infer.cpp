@@ -2260,6 +2260,11 @@ TEST(infer, test_infer_native_binop_mod_float) {
 // n is a math param (used in sum + n); the for-in traverses {1,2,3}.
 // test(10) = 1+2+3 + 10 = 16.
 TEST(infer, test_spec_for_in_body) {
+    const auto code = InferGetCCode("./infer/test_spec_for_in_body.lua");
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_for_in_body.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2275,6 +2280,11 @@ TEST(infer, test_spec_for_in_body) {
 // when an elseif block itself does not return, preventing over-eager specialization).
 // test(15) = 30, test(8) = 9, test(3) = 3.
 TEST(infer, test_spec_elseif_no_all_return) {
+    const auto code = InferGetCCode("./infer/test_spec_elseif_no_all_return.lua");
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_elseif_no_all_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2292,10 +2302,55 @@ TEST(infer, test_spec_elseif_no_all_return) {
 // when the return statement has no expression list.
 // test(5) = 10, test(-1) = nil (from bare return).
 TEST(infer, test_spec_bare_return) {
+    const auto code = InferGetCCode("./infer/test_spec_bare_return.lua");
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("((n) * (2))"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_bare_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
         ASSERT_EQ(ret, 10);
+    });
+}
+
+// For-loop with math param used only as loop bound or step; loop body does NOT use
+// the loop variable in arithmetic expressions.
+TEST(infer, test_count_loop) {
+    const auto code = InferGetCCode("./infer/test_count_loop.lua");
+    ASSERT_NE(code.find("count_to_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("count_to_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("count_from_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("count_from_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("count_step_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("count_step_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_count_loop.lua", {.debug_mode = debug_mode});
+        int r = 0;
+
+        Call(s, type, "test_count_to", r, 5);
+        ASSERT_EQ(r, 5);
+        Call(s, type, "test_count_to", r, 0);
+        ASSERT_EQ(r, 0);
+        Call(s, type, "test_count_to", r, 100);
+        ASSERT_EQ(r, 100);
+
+        Call(s, type, "test_count_from", r, 5);
+        ASSERT_EQ(r, 5);
+        Call(s, type, "test_count_from", r, 1);
+        ASSERT_EQ(r, 1);
+        Call(s, type, "test_count_from", r, 10);
+        ASSERT_EQ(r, 10);
+
+        Call(s, type, "test_count_step", r, 5);
+        ASSERT_EQ(r, 21);
+        Call(s, type, "test_count_step", r, 10);
+        ASSERT_EQ(r, 11);
+        Call(s, type, "test_count_step", r, 1);
+        ASSERT_EQ(r, 101);
     });
 }
