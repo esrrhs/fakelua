@@ -2033,3 +2033,140 @@ TEST(infer, test_spec_for_arith_begin_expr) {
         ASSERT_EQ(ret, 20); // just 20
     });
 }
+
+// Native STAR in CompileBinop: return expression with both operands typed T_INT.
+// local x = 3 (T_INT), 4 = T_INT literal => native (x * 4) via CompileBinop fast path.
+TEST(infer, test_infer_native_binop_star) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_star.lua");
+    // Native multiplication must appear in the generated C code.
+    ASSERT_NE(code.find("((x) * (4))"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_star.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 12);
+    });
+}
+
+// Native SLASH in CompileBinop: return expression with T_INT operand.
+// local x = 3 (T_INT), x / 2 promotes both operands to double.
+TEST(infer, test_infer_native_binop_slash) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_slash.lua");
+    // Division must cast operands to double in the generated C code.
+    ASSERT_NE(code.find("(double)(x)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_slash.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 1.5, 0.001);
+    });
+}
+
+// Native POW in CompileBinop: return expression with T_INT operand.
+// local x = 2 (T_INT), x ^ 10 uses pow() with double casts.
+TEST(infer, test_infer_native_binop_pow) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_pow.lua");
+    // pow() call must appear in the generated C code.
+    ASSERT_NE(code.find("pow("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_pow.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 1024.0, 0.001);
+    });
+}
+
+// Native DOUBLE_SLASH int in CompileBinop: return expression with T_INT operands.
+// local x = 7 (T_INT), x // 2 uses FlFloorDivInt.
+TEST(infer, test_infer_native_binop_floor_div_int) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_floor_div_int.lua");
+    // FlFloorDivInt must be emitted for integer floor division.
+    ASSERT_NE(code.find("FlFloorDivInt("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_floor_div_int.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 3);
+    });
+}
+
+// Native DOUBLE_SLASH float in CompileBinop: return expression with T_FLOAT operand.
+// local x = 7.0 (T_FLOAT), x // 2 uses floor(double/double).
+TEST(infer, test_infer_native_binop_floor_div_float) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_floor_div_float.lua");
+    // floor() call must appear in the generated C code.
+    ASSERT_NE(code.find("floor("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_floor_div_float.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 3.0, 0.001);
+    });
+}
+
+// Native MOD int in CompileBinop: return expression with T_INT operands.
+// local x = 7 (T_INT), x % 3 uses FlModInt.
+TEST(infer, test_infer_native_binop_mod_int) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_mod_int.lua");
+    // FlModInt must be emitted for integer modulo.
+    ASSERT_NE(code.find("FlModInt("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_mod_int.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+// Native MOD float in CompileBinop: return expression with T_FLOAT operand.
+// local x = 7.5 (T_FLOAT), x % 3 uses FlModFloat.
+TEST(infer, test_infer_native_binop_mod_float) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_mod_float.lua");
+    // FlModFloat must be emitted for float modulo.
+    ASSERT_NE(code.find("FlModFloat("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_mod_float.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 1.5, 0.001);
+    });
+}
+
+// Specializable function with for-in loop inside the body.
+// Exercises type_inferencer.cpp CollectReturnExps for ForIn (lines 868-869).
+// n is a math param (used in sum + n); the for-in traverses {1,2,3}.
+// test(10) = 1+2+3 + 10 = 16.
+TEST(infer, test_spec_for_in_body) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_for_in_body.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 16);
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+// Specializable function with elseif where not all paths return via AllPathsReturn.
+// Exercises type_inferencer.cpp lines 804-805 (elseif AllPathsReturn returns false
+// when an elseif block itself does not return, preventing over-eager specialization).
+// test(15) = 30, test(8) = 9, test(3) = 3.
+TEST(infer, test_spec_elseif_no_all_return) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_elseif_no_all_return.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 15);
+        ASSERT_EQ(ret, 30);
+        Call(s, type, "test", ret, 8);
+        ASSERT_EQ(ret, 9);
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 3);
+    });
+}
