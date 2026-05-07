@@ -33,8 +33,8 @@ inline char MathParamSuffix(MathParamKind kind) {
     return kind == kMathParamFloat ? '1' : '0';
 }
 
-// 将函数调用 args 节点统一展开为“原始参数节点”数组，覆盖
-// args ::= (explist) | tableconstructor | LiteralString 三种语法形态。
+// Extracts a function-call args node into a raw argument node array, covering
+// the three syntax forms: args ::= (explist) | tableconstructor | LiteralString.
 inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr) {
     std::vector<SyntaxTreeInterfacePtr> raw_args;
     if (!args_ptr) {

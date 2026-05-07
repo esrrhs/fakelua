@@ -1322,8 +1322,8 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
             if (raw_args.empty()) {
                 return T_DYNAMIC;
             }
-            // 按 math_params 的顺序（与 bitmask 的位序一致）计算每个数学参数对应实参的类型，
-            // 并组合出被调用特化版本的 bitmask。
+            // Compute each math argument type in math_params order (matching the
+            // bit order in the specialization bitmask), then compose that bitmask.
             int bitmask = 0;
             for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
                 const int param_pos = math_params[i];
