@@ -1590,3 +1590,149 @@ TEST(jitter, test_unop_minus_float) {
     });
 }
 
+// T_DYNAMIC subtraction: operands from table lookups are T_DYNAMIC,
+// exercises OpSub in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_sub) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_sub.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10, 3);
+        ASSERT_EQ(ret, 7);
+    });
+}
+
+// T_DYNAMIC division: operands from table lookups are T_DYNAMIC,
+// exercises OpDiv in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_div) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_div.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret, 8.0, 2.0);
+        ASSERT_DOUBLE_EQ(ret, 4.0);
+    });
+}
+
+// T_DYNAMIC floor division: operands from table lookups are T_DYNAMIC,
+// exercises OpFloorDiv in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_floor_div) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_floor_div.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 8, 3);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
+// T_DYNAMIC power: operands from table lookups are T_DYNAMIC,
+// exercises OpPow in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_pow) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_pow.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret, 2.0, 3.0);
+        ASSERT_DOUBLE_EQ(ret, 8.0);
+    });
+}
+
+// T_DYNAMIC bitwise AND: operands from table lookups are T_DYNAMIC,
+// exercises OpBitAnd in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_bitand) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_bitand.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 12, 10);
+        ASSERT_EQ(ret, 8);
+    });
+}
+
+// T_DYNAMIC bitwise OR: operands from table lookups are T_DYNAMIC,
+// exercises OpBitOr in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_bitor) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_bitor.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 12, 10);
+        ASSERT_EQ(ret, 14);
+    });
+}
+
+// T_DYNAMIC bitwise XOR: operands from table lookups are T_DYNAMIC,
+// exercises OpBitXor in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_bitxor) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_bitxor.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 12, 10);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+// T_DYNAMIC right shift: operands from table lookups are T_DYNAMIC,
+// exercises OpRightShift in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_rshift) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_rshift.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 8, 1);
+        ASSERT_EQ(ret, 4);
+    });
+}
+
+// T_DYNAMIC left shift: operands from table lookups are T_DYNAMIC,
+// exercises OpLeftShift in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_lshift) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_lshift.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 2, 3);
+        ASSERT_EQ(ret, 16);
+    });
+}
+
+// Untyped for loop with explicit dynamic step: helper() returns T_DYNAMIC,
+// so the step expression is not typed. This exercises c_gen.cpp lines 2011-2012
+// (the ExpStep != nullptr path in the CVar for-loop). Iterations: 1,3,5,7,9 => 5.
+TEST(jitter, test_for_loop_dynamic_step) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_loop_dynamic_step.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 5);
+    });
+}
+
+// ForIn with only 1 loop variable (key only, no value variable).
+// Exercises c_gen.cpp CompileStmtForIn lines 2138-2142 (dummy val path).
+// Keys 1+2+3 = 6.
+TEST(jitter, test_for_in_key_only) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_in_key_only.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10, 20);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+// Top-level bare local variable (no initializer): exercises c_gen.cpp
+// BuildLocalVarExtensions line 797 (the continue that skips the bare local).
+TEST(jitter, test_top_level_bare_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_top_level_bare_local.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+// T_DYNAMIC unary minus: exercises OpUnaryMinus in CompileExp CVar path
+// (c_gen.cpp line 2497). x is a T_DYNAMIC table lookup; -x uses OpUnaryMinus.
+// -(10) = -10.
+TEST(jitter, test_dynamic_unop_minus) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_unop_minus.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, -10);
+    });
+}
+

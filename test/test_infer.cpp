@@ -2033,3 +2033,269 @@ TEST(infer, test_spec_for_arith_begin_expr) {
         ASSERT_EQ(ret, 20); // just 20
     });
 }
+
+// Native BITAND in CompileBinop via return expression: return x & 10 where x is T_INT.
+// Exercises the BITAND branch of the native arithmetic fast path (c_gen.cpp line 2396).
+// 12 & 10 = 8.
+TEST(infer, test_infer_native_binop_bitand) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_bitand.lua");
+    ASSERT_NE(code.find("(int64_t)(x)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_bitand.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 8);
+    });
+}
+
+// Native BITOR in CompileBinop via return expression: return x | 3 where x is T_INT.
+// Exercises the BITOR branch of the native arithmetic fast path (c_gen.cpp line 2398).
+// 12 | 3 = 15.
+TEST(infer, test_infer_native_binop_bitor) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_bitor.lua");
+    ASSERT_NE(code.find("(int64_t)(x)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_bitor.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 15);
+    });
+}
+
+// Native XOR in CompileBinop via return expression: return x ~ 3 where x is T_INT.
+// Exercises the XOR branch of the native arithmetic fast path (c_gen.cpp line 2400).
+// 5 ~ 3 = 6.
+TEST(infer, test_infer_native_binop_bitxor) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_bitxor.lua");
+    ASSERT_NE(code.find("(int64_t)(x)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_bitxor.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+// Native LEFT_SHIFT in CompileBinop via return expression: return x << 4 where x is T_INT.
+// Exercises the LEFT_SHIFT branch of the native arithmetic fast path using FlLShiftInt.
+// 1 << 4 = 16.
+TEST(infer, test_infer_native_binop_lshift) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_lshift.lua");
+    ASSERT_NE(code.find("FlLShiftInt("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_lshift.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 16);
+    });
+}
+
+// Native RIGHT_SHIFT in CompileBinop via return expression: return x >> 3 where x is T_INT.
+// Exercises the RIGHT_SHIFT branch of the native arithmetic fast path using FlRShiftInt.
+// 256 >> 3 = 32.
+TEST(infer, test_infer_native_binop_rshift) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_rshift.lua");
+    ASSERT_NE(code.find("FlRShiftInt("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_rshift.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 32);
+    });
+}
+
+// Unary MINUS in InferArgTypeForSpec: exercises c_gen.cpp line 1392.
+// In "-x + y", InferArgTypeForSpec is called on the -x unop operand, which
+// recursively calls InferArgTypeForSpec on x (T_INT) -> returns T_INT.
+// Both operands T_INT -> native fast path for PLUS. -3 + 7 = 4.
+TEST(infer, test_infer_native_unop_minus_in_binop) {
+    const auto code = InferGetCCode("./infer/test_infer_native_unop_minus_in_binop.lua");
+    ASSERT_NE(code.find("-(x)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_unop_minus_in_binop.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 4);
+    });
+}
+
+// NUMBER_SIGN unop in InferArgTypeForSpec: exercises c_gen.cpp line 1401.
+// In "#s + 0", InferArgTypeForSpec called on #s (NUMBER_SIGN) returns T_INT.
+// Both operands T_INT -> native fast path for PLUS. #"hello" + 0 = 5.
+TEST(infer, test_infer_native_unop_numsign_in_binop) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_unop_numsign_in_binop.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 5);
+    });
+}
+
+// Typed float native var assigned from a T_DYNAMIC function call: exercises
+// c_gen.cpp lines 1735-1741 (CVar extraction path for typed native vars).
+// local x = 1.0 -> double; x = helper() -> T_DYNAMIC; TryCompileNativeExpr
+// fails, so rhs is compiled as CVar and .data_.f is extracted into x.
+TEST(infer, test_infer_typed_float_var_cvar_assign) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_var_cvar_assign.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 3.0, 0.001);
+    });
+}
+
+// Native STAR in CompileBinop: return expression with both operands typed T_INT.
+// local x = 3 (T_INT), 4 = T_INT literal => native (x * 4) via CompileBinop fast path.
+TEST(infer, test_infer_native_binop_star) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_star.lua");
+    // Native multiplication must appear in the generated C code.
+    ASSERT_NE(code.find("((x) * (4))"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_star.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 12);
+    });
+}
+
+// Native SLASH in CompileBinop: return expression with T_INT operand.
+// local x = 3 (T_INT), x / 2 promotes both operands to double.
+TEST(infer, test_infer_native_binop_slash) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_slash.lua");
+    // Division must cast operands to double in the generated C code.
+    ASSERT_NE(code.find("(double)(x)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_slash.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 1.5, 0.001);
+    });
+}
+
+// Native POW in CompileBinop: return expression with T_INT operand.
+// local x = 2 (T_INT), x ^ 10 uses pow() with double casts.
+TEST(infer, test_infer_native_binop_pow) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_pow.lua");
+    // pow() call must appear in the generated C code.
+    ASSERT_NE(code.find("pow("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_pow.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 1024.0, 0.001);
+    });
+}
+
+// Native DOUBLE_SLASH int in CompileBinop: return expression with T_INT operands.
+// local x = 7 (T_INT), x // 2 uses FlFloorDivInt.
+TEST(infer, test_infer_native_binop_floor_div_int) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_floor_div_int.lua");
+    // FlFloorDivInt must be emitted for integer floor division.
+    ASSERT_NE(code.find("FlFloorDivInt("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_floor_div_int.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 3);
+    });
+}
+
+// Native DOUBLE_SLASH float in CompileBinop: return expression with T_FLOAT operand.
+// local x = 7.0 (T_FLOAT), x // 2 uses floor(double/double).
+TEST(infer, test_infer_native_binop_floor_div_float) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_floor_div_float.lua");
+    // floor() call must appear in the generated C code.
+    ASSERT_NE(code.find("floor("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_floor_div_float.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 3.0, 0.001);
+    });
+}
+
+// Native MOD int in CompileBinop: return expression with T_INT operands.
+// local x = 7 (T_INT), x % 3 uses FlModInt.
+TEST(infer, test_infer_native_binop_mod_int) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_mod_int.lua");
+    // FlModInt must be emitted for integer modulo.
+    ASSERT_NE(code.find("FlModInt("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_mod_int.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+// Native MOD float in CompileBinop: return expression with T_FLOAT operand.
+// local x = 7.5 (T_FLOAT), x % 3 uses FlModFloat.
+TEST(infer, test_infer_native_binop_mod_float) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_mod_float.lua");
+    // FlModFloat must be emitted for float modulo.
+    ASSERT_NE(code.find("FlModFloat("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_mod_float.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 1.5, 0.001);
+    });
+}
+
+// Specializable function with for-in loop inside the body.
+// Exercises type_inferencer.cpp CollectReturnExps for ForIn (lines 868-869).
+// n is a math param (used in sum + n); the for-in traverses {1,2,3}.
+// test(10) = 1+2+3 + 10 = 16.
+TEST(infer, test_spec_for_in_body) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_for_in_body.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 16);
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+// Specializable function with elseif where not all paths return via AllPathsReturn.
+// Exercises type_inferencer.cpp lines 804-805 (elseif AllPathsReturn returns false
+// when an elseif block itself does not return, preventing over-eager specialization).
+// test(15) = 30, test(8) = 9, test(3) = 3.
+TEST(infer, test_spec_elseif_no_all_return) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_elseif_no_all_return.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 15);
+        ASSERT_EQ(ret, 30);
+        Call(s, type, "test", ret, 8);
+        ASSERT_EQ(ret, 9);
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 3);
+    });
+}
+
+// Specializable function with a bare 'return' (no expression).
+// Exercises type_inferencer.cpp line 847: CollectReturnExps pushes nullptr
+// when the return statement has no expression list.
+// test(5) = 10, test(-1) = nil (from bare return).
+TEST(infer, test_spec_bare_return) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_bare_return.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 10);
+    });
+}
