@@ -33,6 +33,37 @@ inline char MathParamSuffix(MathParamKind kind) {
     return kind == kMathParamFloat ? '1' : '0';
 }
 
+// Extracts a function-call args node into a raw argument node array, covering
+// the three syntax forms: args ::= (explist) | tableconstructor | LiteralString.
+inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr) {
+    std::vector<SyntaxTreeInterfacePtr> raw_args;
+    if (!args_ptr) {
+        return raw_args;
+    }
+    const auto &args_type = args_ptr->GetType();
+    if (args_type == "explist") {
+        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+        if (!explist_ptr) {
+            return raw_args;
+        }
+        const auto &exps = explist_ptr->Exps();
+        raw_args.insert(raw_args.end(), exps.begin(), exps.end());
+        return raw_args;
+    }
+    if (args_type == "string") {
+        if (const auto str_exp = args_ptr->String()) {
+            raw_args.push_back(str_exp);
+        }
+        return raw_args;
+    }
+    if (args_type == "tableconstructor") {
+        if (const auto table_arg = args_ptr->Tableconstructor()) {
+            raw_args.push_back(table_arg);
+        }
+    }
+    return raw_args;
+}
+
 // 编译结果，包含文件名和生成的语法树
 struct CompileResult {
     // 源代码文件名

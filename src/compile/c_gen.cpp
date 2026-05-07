@@ -1314,25 +1314,27 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
                 return T_DYNAMIC;
             }
             const auto &math_params = math_it->second;
-            const auto args_node = fc->Args();
-            const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
-            if (!args_ptr || args_ptr->GetType() != "explist") {
+            const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+            if (!args_ptr) {
                 return T_DYNAMIC;
             }
-            const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
-            if (!explist_ptr) {
+            const auto raw_args = ExtractCallRawArgs(args_ptr);
+            if (raw_args.empty()) {
                 return T_DYNAMIC;
             }
-            const auto &raw_args = explist_ptr->Exps();
-            // 按 math_params 的顺序（与 bitmask 的位序一致）计算每个数学参数对应实参的类型，
-            // 并组合出被调用特化版本的 bitmask。
+            // Compute each math argument type in math_params order (matching the
+            // bit order in the specialization bitmask), then compose that bitmask.
             int bitmask = 0;
             for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
                 const int param_pos = math_params[i];
                 if (param_pos >= static_cast<int>(raw_args.size())) {
                     return T_DYNAMIC;
                 }
-                const auto t = InferArgTypeForSpec(raw_args[param_pos]);
+                const auto &arg = raw_args[param_pos];
+                if (!arg || arg->Type() != SyntaxTreeType::Exp) {
+                    return T_DYNAMIC;
+                }
+                const auto t = InferArgTypeForSpec(arg);
                 if (t == T_DYNAMIC) {
                     return T_DYNAMIC;
                 }

@@ -1605,6 +1605,27 @@ TEST(infer, test_spec_nested_call) {
     });
 }
 
+// args ::= (explist) | tableconstructor | LiteralString
+// Ensure math-param specialisation analysis walks all function-call args forms
+// without missing the normal explist-based specialisation path.
+TEST(infer, test_spec_args_syntax_mix) {
+    const auto code = InferGetCCode("./infer/test_spec_args_syntax_mix.lua");
+    ASSERT_NE(code.find("int64_t callee_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("double callee_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("double test_1(double n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_args_syntax_mix.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 11);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 3.5);
+    });
+}
+
 TEST(infer, test_spec_local_from_func_call) {
     const auto code = InferGetCCode("./infer/test_spec_local_from_func_call.lua");
     // func must be specialised (has direct arithmetic n+1).
