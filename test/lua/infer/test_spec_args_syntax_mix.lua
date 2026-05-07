@@ -1,5 +1,5 @@
 -- Function-call args syntax coverage for math-param specialisation analysis.
--- README grammar allows args as:
+-- src/compile/README.md grammar allows args as:
 --   (explist) | tableconstructor | LiteralString
 -- Keep tableconstructor/string calls in dead branches and use a normal
 -- numeric call on the live path, so behaviour is deterministic.
