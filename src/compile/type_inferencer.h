@@ -61,14 +61,24 @@ private:
     // 包括算术/位运算二元运算符，以及一元负号和按位取反。
     bool IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const;
 
-    // 判断 all_int（全参数=T_INT）相对于 baseline（全参数=T_DYNAMIC）是否有算术表达式改善。
+    // 判断 exp 节点是否为比较表达式（操作数可为数值，运算符为 </<=/>/>==/~=）。
+    // 比较运算符本身返回布尔值（T_DYNAMIC），但若两侧操作数均为数值类型，
+    // TryCompileNativeBoolExpr 能生成原生 C 比较，避免 CVar 装拆箱。
+    bool IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) const;
+
+    // 判断 all_int（全参数=T_INT）相对于 baseline（全参数=T_DYNAMIC）是否有算术/比较改善。
+    // 算术改善：算术节点从 T_DYNAMIC 变为 T_INT/T_FLOAT。
+    // 比较改善：比较节点（</<=/>/>==/~=）两侧操作数从含 T_DYNAMIC 变为全部 T_INT/T_FLOAT
+    //           （使 TryCompileNativeBoolExpr 能生成原生 C 比较）。
     // 同时检测对已知数学函数的调用：若某数学参数位置实参在 all_int 中有类型但 baseline 中为
     // T_DYNAMIC，则视为算术改善。
     bool HasArithmeticImprovement(const EvalTypeMap &all_int, const EvalTypeMap &baseline,
                                   const SyntaxTreeInterfacePtr &func_block,
                                   const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
 
-    // 判断 all_int 中某个参数被置回 T_DYNAMIC 后（without_p），是否有算术表达式退化。
+    // 判断 all_int 中某个参数被置回 T_DYNAMIC 后（without_p），是否有算术/比较退化。
+    // 算术退化：算术节点从 T_INT/T_FLOAT 变为 T_DYNAMIC。
+    // 比较退化：比较节点两侧操作数从全部 T_INT/T_FLOAT 变为含 T_DYNAMIC。
     // 同时检测对已知数学函数的调用：若去掉该参数导致某数学函数调用的实参失去类型，则视为退化。
     bool ParamAffectsArithmetic(const EvalTypeMap &all_int, const EvalTypeMap &without_p,
                                 const SyntaxTreeInterfacePtr &func_block,
