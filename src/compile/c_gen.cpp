@@ -2164,6 +2164,8 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
     DEBUG_ASSERT(ExpType == "nil" || ExpType == "false" || ExpType == "true" || ExpType == "number" || ExpType == "string" ||
                  ExpType == "prefixexp" || ExpType == "VarParams" || ExpType == "tableconstructor" || ExpType == "binop" ||
                  ExpType == "unop")
+    // PreProcessor 已确保不存在 VarParams
+    DEBUG_ASSERT(ExpType != "VarParams" && "VarParams should have been caught by PreProcessor");
 
     if (ExpType == "nil") {
         if (in_global_init_) {
@@ -2198,9 +2200,6 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
     } else if (ExpType == "prefixexp") {
         const auto pe = e->Right();
         return CompilePrefixexp(pe);
-    } else if (ExpType == "VarParams") {
-        // PreProcessor 已确保不存在 ...
-        DEBUG_ASSERT(false && "VarParams should have been caught by PreProcessor");
     } else if (ExpType == "tableconstructor") {
         const auto tc = e->Right();
         return CompileTableconstructor(tc);
@@ -2969,45 +2968,40 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         compiled_args.push_back(CompileExp(args_ptr->String()));
     }
     // "empty": no args
+    // PreProcessor 已确保 callee 为 var 类型的 prefixexp，且 var 为简单变量名
+    DEBUG_ASSERT(pe_pre_ptr->GetType() == "var" && "callee must be variable prefixexp (PreProcessor should have caught it)");
+    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+    DEBUG_ASSERT(var && var->GetType() == "simple" && "callee must be simple variable (PreProcessor should have caught it)");
     std::string call_expr;
-    if (pe_pre_ptr->GetType() == "var") {
-        if (const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue()); var->GetType() == "simple") {
-            if (const auto &func_name = var->GetName(); func_name == "FAKELUA_SET_TABLE") {
-                // 内置表赋值：FAKELUA_SET_TABLE(t, k, v) -> FlSetTable(t, k, v)
-                if (compiled_args.size() != 3) {
-                    ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
-                }
-                const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
-                *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", compiled_args[0], compiled_args[1], compiled_args[2]);
-                *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
-                return tmp;
-            } else if (local_func_names_.contains(func_name)) {
-                // 直接调用同一 C 文件中定义的函数
-                call_expr = func_name + "(";
-                for (size_t i = 0; i < compiled_args.size(); ++i) {
-                    if (i > 0) {
-                        call_expr += ", ";
-                    }
-                    call_expr += compiled_args[i];
-                }
-                call_expr += ")";
-            } else {
-                // 在全局函数注册表中按名称动态查找。
-                // JIT 类型来自后端编译时宏 FAKELUA_JIT_TYPE。
-                call_expr = std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"{}\", {}", func_name, compiled_args.size());
-                for (const auto &arg: compiled_args) {
-                    call_expr += ", " + arg;
-                }
-                call_expr += ")";
-            }
-        } else {
-            // PreProcessor 已确保 callee 为简单变量名
-            DEBUG_ASSERT(false && "callee must be simple variable (PreProcessor should have caught it)");
+    const auto &func_name = var->GetName();
+    if (func_name == "FAKELUA_SET_TABLE") {
+        // 内置表赋值：FAKELUA_SET_TABLE(t, k, v) -> FlSetTable(t, k, v)
+        if (compiled_args.size() != 3) {
+            ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
         }
+        const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
+        *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", compiled_args[0], compiled_args[1], compiled_args[2]);
+        *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
+        return tmp;
+    } else if (local_func_names_.contains(func_name)) {
+        // 直接调用同一 C 文件中定义的函数
+        call_expr = func_name + "(";
+        for (size_t i = 0; i < compiled_args.size(); ++i) {
+            if (i > 0) {
+                call_expr += ", ";
+            }
+            call_expr += compiled_args[i];
+        }
+        call_expr += ")";
     } else {
-        // PreProcessor 已确保 callee 为 var 类型的 prefixexp
-        DEBUG_ASSERT(false && "callee must be variable prefixexp (PreProcessor should have caught it)");
+        // 在全局函数注册表中按名称动态查找。
+        // JIT 类型来自后端编译时宏 FAKELUA_JIT_TYPE。
+        call_expr = std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"{}\", {}", func_name, compiled_args.size());
+        for (const auto &arg: compiled_args) {
+            call_expr += ", " + arg;
+        }
+        call_expr += ")";
     }
     const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
