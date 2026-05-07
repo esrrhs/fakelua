@@ -2261,9 +2261,9 @@ TEST(infer, test_infer_native_binop_mod_float) {
 // test(10) = 1+2+3 + 10 = 16.
 TEST(infer, test_spec_for_in_body) {
     const auto code = InferGetCCode("./infer/test_spec_for_in_body.lua");
-    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
-    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
     ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar sum = "), std::string::npos);
+    ASSERT_NE(code.find("OpAdd((sum), (n),"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_for_in_body.lua", {.debug_mode = debug_mode});
