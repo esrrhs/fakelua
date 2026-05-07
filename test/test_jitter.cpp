@@ -1724,3 +1724,15 @@ TEST(jitter, test_top_level_bare_local) {
     });
 }
 
+// T_DYNAMIC unary minus: exercises OpUnaryMinus in CompileExp CVar path
+// (c_gen.cpp line 2497). x is a T_DYNAMIC table lookup; -x uses OpUnaryMinus.
+// -(10) = -10.
+TEST(jitter, test_dynamic_unop_minus) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_unop_minus.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, -10);
+    });
+}
+
