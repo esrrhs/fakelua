@@ -7,6 +7,39 @@
 
 namespace fakelua {
 
+namespace {
+
+std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr) {
+    std::vector<SyntaxTreeInterfacePtr> raw_args;
+    if (!args_ptr) {
+        return raw_args;
+    }
+    const auto &args_type = args_ptr->GetType();
+    if (args_type == "explist") {
+        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+        if (!explist_ptr) {
+            return raw_args;
+        }
+        const auto &exps = explist_ptr->Exps();
+        raw_args.insert(raw_args.end(), exps.begin(), exps.end());
+        return raw_args;
+    }
+    if (args_type == "string") {
+        if (const auto str_exp = args_ptr->String()) {
+            raw_args.push_back(str_exp);
+        }
+        return raw_args;
+    }
+    if (args_type == "tableconstructor") {
+        if (const auto table_arg = args_ptr->Tableconstructor()) {
+            raw_args.push_back(table_arg);
+        }
+    }
+    return raw_args;
+}
+
+} // namespace
+
 TypeEnvironment::TypeEnvironment() {
     EnterScope();
 }
@@ -777,16 +810,14 @@ bool TypeInferencer::HasMathCallImprovement(
         if (math_it == math_param_positions.end()) {
             return;
         }
-        const auto args_node = fc->Args();
-        const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
-        if (!args_ptr || args_ptr->GetType() != "explist") {
+        const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+        if (!args_ptr) {
             return;
         }
-        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
-        if (!explist_ptr) {
+        const auto raw_args = ExtractCallRawArgs(args_ptr);
+        if (raw_args.empty()) {
             return;
         }
-        const auto &raw_args = explist_ptr->Exps();
         for (const int param_pos : math_it->second) {
             if (param_pos >= static_cast<int>(raw_args.size())) {
                 return;
@@ -981,24 +1012,25 @@ InferredType TypeInferencer::EvalReturnExpType(
                 return T_DYNAMIC;
             }
             const auto &math_params = math_it->second;
-            const auto args_node = fc->Args();
-            const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
-            if (!args_ptr || args_ptr->GetType() != "explist") {
+            const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+            if (!args_ptr) {
                 return T_DYNAMIC;
             }
-            const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
-            if (!explist_ptr) {
+            const auto raw_args = ExtractCallRawArgs(args_ptr);
+            if (raw_args.empty()) {
                 return T_DYNAMIC;
             }
-            const auto &raw_args = explist_ptr->Exps();
             int bitmask = 0;
             for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
                 const int param_pos = math_params[i];
                 if (param_pos >= static_cast<int>(raw_args.size())) {
                     return T_DYNAMIC;
                 }
-                const auto t = EvalReturnExpType(raw_args[param_pos], snapshot, spec_ctx,
-                                                  math_param_positions, assumed_ret);
+                const auto &arg = raw_args[param_pos];
+                if (!arg || arg->Type() != SyntaxTreeType::Exp) {
+                    return T_DYNAMIC;
+                }
+                const auto t = EvalReturnExpType(arg, snapshot, spec_ctx, math_param_positions, assumed_ret);
                 if (t == T_DYNAMIC) {
                     return T_DYNAMIC;
                 }
