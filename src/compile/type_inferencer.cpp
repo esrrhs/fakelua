@@ -738,7 +738,7 @@ bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const Ev
         if (it_all == all_int.end() || it_wo == without_p.end()) {
             return;
         }
-        if ((it_all->second == T_INT || it_all->second == T_FLOAT) && it_wo->second != it_all->second) {
+        if ((it_all->second == T_INT || it_all->second == T_FLOAT) && it_wo->second == T_DYNAMIC) {
             found = true;
         }
     });
