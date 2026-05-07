@@ -295,7 +295,7 @@ TEST(algo, matrix) {
 // when no arithmetic node changes type inside the body.
 TEST(algo, count_loop) {
     AlgoRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./algo/count_loop.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./infer/test_count_loop.lua", {.debug_mode = debug_mode});
         int r = 0;
 
         // count_to: n is the for-loop end bound; body does c = c + 1 (no i usage).
@@ -324,7 +324,7 @@ TEST(algo, count_loop) {
         ASSERT_EQ(r, 101);  // 0,1,2,...,100 = 101 steps
     });
 
-    LuaAlgoRunHelper("./algo/count_loop.lua", [](lua_State *L) {
+    LuaAlgoRunHelper("./infer/test_count_loop.lua", [](lua_State *L) {
         ASSERT_EQ(LuaCall<int>(L, "test_count_to", 5), 5);
         ASSERT_EQ(LuaCall<int>(L, "test_count_to", 0), 0);
         ASSERT_EQ(LuaCall<int>(L, "test_count_to", 100), 100);
