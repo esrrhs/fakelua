@@ -2163,7 +2163,7 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
 
     DEBUG_ASSERT(ExpType == "nil" || ExpType == "false" || ExpType == "true" || ExpType == "number" || ExpType == "string" ||
                  ExpType == "prefixexp" || ExpType == "VarParams" || ExpType == "tableconstructor" || ExpType == "binop" ||
-                 ExpType == "unop")
+                 ExpType == "unop");
     // PreProcessor 已确保不存在 VarParams
     DEBUG_ASSERT(ExpType != "VarParams" && "VarParams should have been caught by PreProcessor");
 
