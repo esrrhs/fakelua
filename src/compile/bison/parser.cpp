@@ -680,6 +680,7 @@ namespace yy {
     // Error handling.
     int yynerrs_ = 0;
     int yyerrstatus_ = 0;
+    (void) yynerrs_;
 
     /// The lookahead symbol.
     symbol_type yyla;

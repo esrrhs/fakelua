@@ -1131,7 +1131,7 @@ void CGen::CompileFuncBody(const std::string &func_name,
         // 能正确处理对这些参数的引用和赋值。
         // 非特化或非数学参数仍注册为 T_DYNAMIC（CVar）。
         const InferredType param_native_type =
-                (spec_bitmask >= 0 && spec_param_types_.count(param_name) > 0)
+                (spec_bitmask >= 0 && spec_param_types_.contains(param_name))
                         ? spec_param_types_.at(param_name)
                         : T_DYNAMIC;
         DeclareNativeVar(param_name, param_native_type);
@@ -2311,7 +2311,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     static const std::unordered_set<std::string> kNativeArithOps = {
             "PLUS", "MINUS", "STAR", "SLASH", "DOUBLE_SLASH", "POW", "MOD",
             "BITAND", "XOR", "BITOR", "LEFT_SHIFT", "RIGHT_SHIFT"};
-    if (kNativeArithOps.count(op_name)) {
+    if (kNativeArithOps.contains(op_name)) {
         const auto lt = InferArgTypeForSpec(left);
         const auto rt = InferArgTypeForSpec(right);
         if (lt != T_DYNAMIC && rt != T_DYNAMIC) {
@@ -2550,7 +2550,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             }
             const auto &vname = var->GetName();
             // 特化上下文：数学参数为原生类型——直接使用。
-            if (spec_param_types_.count(vname)) {
+            if (spec_param_types_.contains(vname)) {
                 return vname;
             }
             if (IsTypedNativeVar(vname)) {

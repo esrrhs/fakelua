@@ -240,8 +240,7 @@ void PreProcessor::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk) {
     for (const auto &stmt: top_block->Stmts()) {
         if (stmt->Type() == SyntaxTreeType::Function) {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
-            const auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
-            if (funcname) {
+            if (const auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname()); funcname) {
                 if (!funcname->ColonName().empty()) {
                     ThrowError("Unsupported function name with method definition", stmt);
                 }
@@ -350,8 +349,7 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
                     if (!pe || pe->GetType() != "functioncall") {
                         ThrowError("for in expression must be a function call", node);
                     } else {
-                        const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
-                        if (fc) {
+                        if (const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue()); fc) {
                             const auto func_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
                             if (!func_pe || func_pe->GetType() != "var") {
                                 ThrowError("for in: only pairs() or ipairs() are supported", node);
@@ -407,8 +405,7 @@ void PreProcessor::CheckGlobalConstExp(const SyntaxTreeInterfacePtr &exp) {
     } else if (exp_type == "unop") {
         ThrowError("unary operator is not supported in global variable initialization", exp);
     } else if (exp_type == "prefixexp") {
-        const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
-        if (pe) {
+        if (const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right()); pe) {
             if (pe->GetType() == "var") {
                 ThrowError("variable reference is not allowed in global variable initialization", exp);
             } else if (pe->GetType() == "functioncall") {

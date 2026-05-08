@@ -1065,7 +1065,7 @@ void TypeInferencer::BuildLocalVarExtensions(
         const auto &exps = el->Exps();
         for (size_t i = 0; i < names.size() && i < exps.size(); ++i) {
             // 若该名称已在 spec_ctx 中（例如与数学参数同名），跳过以避免覆盖。
-            if (spec_ctx.count(names[i])) {
+            if (spec_ctx.contains(names[i])) {
                 continue;
             }
             // 先查 snapshot：若推断阶段已正确得出数值类型（算术表达式等），直接跳过
