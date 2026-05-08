@@ -39,9 +39,17 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
     CVar arg_arr[8];
     va_list args_list;
     va_start(args_list, arg_num);
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnon-pod-varargs"
+#endif
     for (int i = 0; i < arg_num; ++i) {
+        // NOLINTNEXTLINE(clang-analyzer-valist.Uninitialized)
         arg_arr[i] = va_arg(args_list, CVar);
     }
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
     va_end(args_list);
 
     switch (arg_num) {

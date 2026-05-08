@@ -54,11 +54,12 @@ TEST(state, const_string_size) {
     auto &cs = s->GetConstString();
 
     const size_t before = cs.Size();
-    cs.Alloc("unique_key_abc");
+    const int64_t id = cs.Alloc("unique_key_abc");
     ASSERT_EQ(cs.Size(), before + 1u);
 
     // Reallocating same string must not increase size
-    cs.Alloc("unique_key_abc");
+    const int64_t id2 = cs.Alloc("unique_key_abc");
+    ASSERT_EQ(id2, id);
     ASSERT_EQ(cs.Size(), before + 1u);
 }
 

@@ -14,8 +14,16 @@ namespace {
 
 constexpr int kInvalidVarInterfaceType = 999;
 
+[[nodiscard]] int InvalidVarInterfaceTypeValue() {
+    volatile int value = kInvalidVarInterfaceType;
+    return value;
+}
+
 struct InvalidVarImpl final : public VarInterface {
-    [[nodiscard]] Type ViGetType() const override { return static_cast<Type>(kInvalidVarInterfaceType); }
+    [[nodiscard]] Type ViGetType() const override {
+        // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
+        return static_cast<Type>(InvalidVarInterfaceTypeValue());
+    }
     void ViSetNil() override {}
     void ViSetBool(bool) override {}
     void ViSetInt(int64_t) override {}

@@ -8,6 +8,11 @@
 #include <unordered_map>
 #include <vector>
 
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+#endif
+
 using namespace fakelua;
 
 // 生成不连续的 key 序列（使用质数步长来确保分散）
@@ -37,7 +42,7 @@ static void BM_VarTable_Set(benchmark::State &state) {
         var_vals.emplace_back(static_cast<int64_t>(keys[i] * 2));
     }
 
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         Var table_var;
         table_var.SetTable(s);
         auto *table = table_var.GetTable();
@@ -58,7 +63,7 @@ static void BM_StdUnorderedMap_Set(benchmark::State &state) {
         vals.emplace_back(keys[i] * 2);
     }
 
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         std::unordered_map<int64_t, int64_t> m;
         for (int i = 0; i < n; ++i) {
             m[keys[i]] = vals[i];
@@ -77,7 +82,7 @@ static void BM_LuaTable_Set(benchmark::State &state) {
     // 关闭 GC 避免干扰
     lua_gc(L, LUA_GCSTOP, 0);
 
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         state.PauseTiming();
         lua_newtable(L);// 创建一个新表，放在栈顶
         state.ResumeTiming();
@@ -115,7 +120,7 @@ static void BM_VarTable_Get(benchmark::State &state) {
         table->Set(s, key, Var(static_cast<int64_t>(keys[i] * 2)), false);
     }
 
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         for (int i = 0; i < n; ++i) {
             benchmark::DoNotOptimize(table->Get(var_keys[i]));
         }
@@ -133,7 +138,7 @@ static void BM_StdUnorderedMap_Get(benchmark::State &state) {
         m[keys[i]] = keys[i] * 2;
     }
 
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         for (int i = 0; i < n; ++i) {
             benchmark::DoNotOptimize(m[keys[i]]);
         }
@@ -155,7 +160,7 @@ static void BM_LuaTable_Get(benchmark::State &state) {
         lua_settable(L, -3);
     }
 
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         for (int i = 0; i < n; ++i) {
             lua_pushinteger(L, keys[i]);// 压入 key
             lua_gettable(L, -2);        // 获取 value
@@ -188,7 +193,7 @@ static void BM_VarTable_Iter(benchmark::State &state) {
     const auto *nodes = table->GetNodes();
     const uint32_t *active_list = table->GetActiveList();
 
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         if (active_list == nullptr) {// Quick Path
             for (uint32_t i = 0; i < count; ++i) {
                 const auto &entry = quick_data[i];
@@ -216,7 +221,7 @@ static void BM_StdUnorderedMap_Iter(benchmark::State &state) {
         m[keys[i]] = keys[i] * 2;
     }
 
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         for (auto &[fst, snd]: m) {
             benchmark::DoNotOptimize(fst);
             benchmark::DoNotOptimize(snd);
@@ -239,7 +244,7 @@ static void BM_LuaTable_Iter(benchmark::State &state) {
         lua_settable(L, -3);
     }
 
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         lua_pushnil(L);// 第一个 key
         while (lua_next(L, -2) != 0) {
             // key 在 -2，value 在 -1
@@ -267,7 +272,7 @@ static void BM_VarTable_Del(benchmark::State &state) {
         var_vals.emplace_back(static_cast<int64_t>(keys[i] * 2));
     }
 
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         state.PauseTiming();
         Var table_var;
         table_var.SetTable(s);
@@ -295,7 +300,7 @@ static void BM_StdUnorderedMap_Del(benchmark::State &state) {
         vals.emplace_back(keys[i] * 2);
     }
 
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         state.PauseTiming();
         std::unordered_map<int64_t, int64_t> m;
         for (int i = 0; i < n; ++i) {
@@ -319,7 +324,7 @@ static void BM_LuaTable_Del(benchmark::State &state) {
     lua_State *L = luaL_newstate();
     lua_gc(L, LUA_GCSTOP, 0);// 关闭 GC
 
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         state.PauseTiming();
         lua_newtable(L);
         for (int i = 0; i < n; ++i) {
@@ -367,3 +372,7 @@ BENCHMARK(BM_LuaTable_Iter) ARGS;
 BENCHMARK(BM_VarTable_Del) ARGS;
 BENCHMARK(BM_StdUnorderedMap_Del) ARGS;
 BENCHMARK(BM_LuaTable_Del) ARGS;
+
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif

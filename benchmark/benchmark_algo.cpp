@@ -433,7 +433,7 @@ void VerifyEqual(const int64_t got, const int64_t expected, const char *name) {
 static void BM_CPP_Fibonacci(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppFib(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t input = n;
         benchmark::DoNotOptimize(input);
         int64_t ret = CppFib(input);
@@ -445,7 +445,7 @@ static void BM_CPP_Fibonacci(benchmark::State &state) {
 static void BM_Lua_Fibonacci(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppFib(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_fib", n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "Lua fib");
@@ -455,7 +455,7 @@ static void BM_Lua_Fibonacci(benchmark::State &state) {
 static void BM_FakeLua_Fibonacci_TCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppFib(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_fib", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -467,7 +467,7 @@ static void BM_FakeLua_Fibonacci_TCC(benchmark::State &state) {
 static void BM_FakeLua_Fibonacci_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppFib(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_fib", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -480,7 +480,7 @@ static void BM_CPP_GCD(benchmark::State &state) {
     const int64_t a = state.range(0);
     const int64_t b = state.range(1);
     const int64_t expected = CppGcd(a, b);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t aa = a;
         int64_t bb = b;
         benchmark::DoNotOptimize(aa);
@@ -495,7 +495,7 @@ static void BM_Lua_GCD(benchmark::State &state) {
     const int64_t a = state.range(0);
     const int64_t b = state.range(1);
     const int64_t expected = CppGcd(a, b);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_gcd", a, b);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "Lua gcd");
@@ -506,7 +506,7 @@ static void BM_FakeLua_GCD_TCC(benchmark::State &state) {
     const int64_t a = state.range(0);
     const int64_t b = state.range(1);
     const int64_t expected = CppGcd(a, b);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_gcd", ret, a, b);
         benchmark::DoNotOptimize(ret);
@@ -519,7 +519,7 @@ static void BM_FakeLua_GCD_GCC(benchmark::State &state) {
     const int64_t a = state.range(0);
     const int64_t b = state.range(1);
     const int64_t expected = CppGcd(a, b);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_gcd", ret, a, b);
         benchmark::DoNotOptimize(ret);
@@ -533,7 +533,7 @@ static void BM_CPP_PowMod(benchmark::State &state) {
     const int64_t exp = state.range(1);
     const int64_t mod = state.range(2);
     const int64_t expected = CppPowMod(base, exp, mod);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t bb = base;
         int64_t ee = exp;
         int64_t mm = mod;
@@ -551,7 +551,7 @@ static void BM_Lua_PowMod(benchmark::State &state) {
     const int64_t exp = state.range(1);
     const int64_t mod = state.range(2);
     const int64_t expected = CppPowMod(base, exp, mod);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_powmod", base, exp, mod);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "Lua powmod");
@@ -563,7 +563,7 @@ static void BM_FakeLua_PowMod_TCC(benchmark::State &state) {
     const int64_t exp = state.range(1);
     const int64_t mod = state.range(2);
     const int64_t expected = CppPowMod(base, exp, mod);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_powmod", ret, base, exp, mod);
         benchmark::DoNotOptimize(ret);
@@ -577,7 +577,7 @@ static void BM_FakeLua_PowMod_GCC(benchmark::State &state) {
     const int64_t exp = state.range(1);
     const int64_t mod = state.range(2);
     const int64_t expected = CppPowMod(base, exp, mod);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_powmod", ret, base, exp, mod);
         benchmark::DoNotOptimize(ret);
@@ -589,7 +589,7 @@ static void BM_FakeLua_PowMod_GCC(benchmark::State &state) {
 static void BM_CPP_Sum(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSum(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t input = n;
         benchmark::DoNotOptimize(input);
         int64_t ret = CppSum(input);
@@ -601,7 +601,7 @@ static void BM_CPP_Sum(benchmark::State &state) {
 static void BM_Lua_Sum(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSum(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_sum", n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "Lua sum");
@@ -611,7 +611,7 @@ static void BM_Lua_Sum(benchmark::State &state) {
 static void BM_FakeLua_Sum_TCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSum(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_sum", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -623,7 +623,7 @@ static void BM_FakeLua_Sum_TCC(benchmark::State &state) {
 static void BM_FakeLua_Sum_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSum(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_sum", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -635,7 +635,7 @@ static void BM_FakeLua_Sum_GCC(benchmark::State &state) {
 static void BM_CPP_BubbleSort(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = 1;
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t input = n;
         benchmark::DoNotOptimize(input);
         int64_t ret = CppBubbleSort(input);
@@ -646,7 +646,7 @@ static void BM_CPP_BubbleSort(benchmark::State &state) {
 
 static void BM_Lua_BubbleSort(benchmark::State &state) {
     const int64_t n = state.range(0);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_bubble_sort", n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, 1, "Lua bubble_sort");
@@ -655,7 +655,7 @@ static void BM_Lua_BubbleSort(benchmark::State &state) {
 
 static void BM_FakeLua_BubbleSort_TCC(benchmark::State &state) {
     const int64_t n = state.range(0);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_bubble_sort", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -666,7 +666,7 @@ static void BM_FakeLua_BubbleSort_TCC(benchmark::State &state) {
 #if !defined(_WIN32)
 static void BM_FakeLua_BubbleSort_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_bubble_sort", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -678,7 +678,7 @@ static void BM_FakeLua_BubbleSort_GCC(benchmark::State &state) {
 static void BM_CPP_Sieve(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSieve(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t input = n;
         benchmark::DoNotOptimize(input);
         int64_t ret = CppSieve(input);
@@ -690,7 +690,7 @@ static void BM_CPP_Sieve(benchmark::State &state) {
 static void BM_Lua_Sieve(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSieve(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_sieve", n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "Lua sieve");
@@ -700,7 +700,7 @@ static void BM_Lua_Sieve(benchmark::State &state) {
 static void BM_FakeLua_Sieve_TCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSieve(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_sieve", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -712,7 +712,7 @@ static void BM_FakeLua_Sieve_TCC(benchmark::State &state) {
 static void BM_FakeLua_Sieve_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSieve(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_sieve", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -723,7 +723,7 @@ static void BM_FakeLua_Sieve_GCC(benchmark::State &state) {
 
 static void BM_CPP_BinarySearch(benchmark::State &state) {
     const int64_t n = state.range(0);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t input = n;
         benchmark::DoNotOptimize(input);
         int64_t ret = CppBinarySearch(input);
@@ -734,7 +734,7 @@ static void BM_CPP_BinarySearch(benchmark::State &state) {
 
 static void BM_Lua_BinarySearch(benchmark::State &state) {
     const int64_t n = state.range(0);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_binary_search", n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, n, "Lua binary_search");
@@ -743,7 +743,7 @@ static void BM_Lua_BinarySearch(benchmark::State &state) {
 
 static void BM_FakeLua_BinarySearch_TCC(benchmark::State &state) {
     const int64_t n = state.range(0);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_binary_search", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -754,7 +754,7 @@ static void BM_FakeLua_BinarySearch_TCC(benchmark::State &state) {
 #if !defined(_WIN32)
 static void BM_FakeLua_BinarySearch_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_binary_search", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -768,7 +768,7 @@ static void BM_CPP_FastPow(benchmark::State &state) {
     const int64_t exp = state.range(1);
     const int64_t mod = state.range(2);
     const int64_t expected = CppFastPow(base, exp, mod);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t bb = base;
         int64_t ee = exp;
         int64_t mm = mod;
@@ -786,7 +786,7 @@ static void BM_Lua_FastPow(benchmark::State &state) {
     const int64_t exp = state.range(1);
     const int64_t mod = state.range(2);
     const int64_t expected = CppFastPow(base, exp, mod);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_fast_pow", base, exp, mod);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "Lua fast_pow");
@@ -798,7 +798,7 @@ static void BM_FakeLua_FastPow_TCC(benchmark::State &state) {
     const int64_t exp = state.range(1);
     const int64_t mod = state.range(2);
     const int64_t expected = CppFastPow(base, exp, mod);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_fast_pow", ret, base, exp, mod);
         benchmark::DoNotOptimize(ret);
@@ -812,7 +812,7 @@ static void BM_FakeLua_FastPow_GCC(benchmark::State &state) {
     const int64_t exp = state.range(1);
     const int64_t mod = state.range(2);
     const int64_t expected = CppFastPow(base, exp, mod);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_fast_pow", ret, base, exp, mod);
         benchmark::DoNotOptimize(ret);
@@ -824,7 +824,7 @@ static void BM_FakeLua_FastPow_GCC(benchmark::State &state) {
 static void BM_CPP_Popcount(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppPopcount(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t input = n;
         benchmark::DoNotOptimize(input);
         int64_t ret = CppPopcount(input);
@@ -836,7 +836,7 @@ static void BM_CPP_Popcount(benchmark::State &state) {
 static void BM_Lua_Popcount(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppPopcount(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_popcount", n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "Lua popcount");
@@ -846,7 +846,7 @@ static void BM_Lua_Popcount(benchmark::State &state) {
 static void BM_FakeLua_Popcount_TCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppPopcount(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_popcount", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -858,7 +858,7 @@ static void BM_FakeLua_Popcount_TCC(benchmark::State &state) {
 static void BM_FakeLua_Popcount_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppPopcount(n);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_popcount", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -870,7 +870,7 @@ static void BM_FakeLua_Popcount_GCC(benchmark::State &state) {
 static void BM_CPP_InsertionSort(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = 1;
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t input = n;
         benchmark::DoNotOptimize(input);
         int64_t ret = CppInsertionSort(input);
@@ -881,7 +881,7 @@ static void BM_CPP_InsertionSort(benchmark::State &state) {
 
 static void BM_Lua_InsertionSort(benchmark::State &state) {
     const int64_t n = state.range(0);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_insertion_sort", n);
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, 1, "Lua insertion_sort");
@@ -890,7 +890,7 @@ static void BM_Lua_InsertionSort(benchmark::State &state) {
 
 static void BM_FakeLua_InsertionSort_TCC(benchmark::State &state) {
     const int64_t n = state.range(0);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_insertion_sort", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -901,7 +901,7 @@ static void BM_FakeLua_InsertionSort_TCC(benchmark::State &state) {
 #if !defined(_WIN32)
 static void BM_FakeLua_InsertionSort_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_insertion_sort", ret, n);
         benchmark::DoNotOptimize(ret);
@@ -912,7 +912,7 @@ static void BM_FakeLua_InsertionSort_GCC(benchmark::State &state) {
 
 static void BM_CPP_MatMul(benchmark::State &state) {
     const int64_t expected = CppMatMul();
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = CppMatMul();
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "C++ matmul");
@@ -921,7 +921,7 @@ static void BM_CPP_MatMul(benchmark::State &state) {
 
 static void BM_Lua_MatMul(benchmark::State &state) {
     const int64_t expected = CppMatMul();
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = CallLuaInt(g_ctx.lua, "bench_matmul");
         benchmark::DoNotOptimize(ret);
         VerifyEqual(ret, expected, "Lua matmul");
@@ -930,7 +930,7 @@ static void BM_Lua_MatMul(benchmark::State &state) {
 
 static void BM_FakeLua_MatMul_TCC(benchmark::State &state) {
     const int64_t expected = CppMatMul();
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_TCC, "bench_matmul", ret);
         benchmark::DoNotOptimize(ret);
@@ -941,7 +941,7 @@ static void BM_FakeLua_MatMul_TCC(benchmark::State &state) {
 #if !defined(_WIN32)
 static void BM_FakeLua_MatMul_GCC(benchmark::State &state) {
     const int64_t expected = CppMatMul();
-    for (auto _: state) {
+    for ([[maybe_unused]] auto _: state) {
         int64_t ret = 0;
         Call(g_ctx.flua, JIT_GCC, "bench_matmul", ret);
         benchmark::DoNotOptimize(ret);

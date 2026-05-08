@@ -7,6 +7,15 @@
 
 using namespace fakelua;
 
+namespace {
+
+[[nodiscard]] VarType MakeInvalidVarTypeForTest() {
+    volatile int invalid = 999;
+    return static_cast<VarType>(invalid);
+}
+
+} // namespace
+
 TEST(var, construct) {
     const FakeluaStateGuard guard;
     const auto s = guard.GetState();
@@ -1116,7 +1125,7 @@ TEST(var, table_get_type_error) {
     Var v1;
     Var key(static_cast<int64_t>(1));
 
-    EXPECT_THROW(v1.TableGet(key), std::exception);
+    EXPECT_THROW((void) v1.TableGet(key), std::exception);
 }
 
 TEST(var, table_size) {
@@ -1136,7 +1145,7 @@ TEST(var, table_size) {
 TEST(var, table_size_type_error) {
     Var v1;
 
-    EXPECT_THROW(v1.TableSize(), std::exception);
+    EXPECT_THROW((void) v1.TableSize(), std::exception);
 }
 
 TEST(var, hash_default_branch) {
@@ -1225,7 +1234,7 @@ TEST(var, vartable_get_nil_key_exception) {
     VarTable vt;
     Var key;
 
-    EXPECT_THROW(vt.Get(key), std::exception);
+    EXPECT_THROW((void) vt.Get(key), std::exception);
 }
 
 TEST(var, vartable_delete_empty) {
@@ -1924,7 +1933,7 @@ TEST(var, VarTypeToString_all_types) {
     EXPECT_EQ(VarTypeToString(VarType::Table), "Table");
 
     // Test default case with invalid value
-    auto invalid_type = static_cast<VarType>(999);
+    const auto invalid_type = MakeInvalidVarTypeForTest();
     EXPECT_EQ(VarTypeToString(invalid_type), "UNKNOWN");
 }
 
@@ -2134,5 +2143,4 @@ TEST(var, table_size_on_non_table_throws) {
     Var v(true);
     EXPECT_THROW((void) v.TableSize(), std::exception);
 }
-
 
