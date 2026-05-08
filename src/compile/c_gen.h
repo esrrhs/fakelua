@@ -89,6 +89,12 @@ private:
 
     void CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt);
 
+    void CompileTypedIntForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt);
+
+    void CompileTypedFloatForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt);
+
+    void CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt);
+
     void CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt);
 
     std::string CompileExp(const SyntaxTreeInterfacePtr &exp);
@@ -129,6 +135,19 @@ private:
     // 避免调用方在 CompileNumericExp 中装箱再拆箱。
     // 不适用时（被调函数 CVar 返回或无法推断）返回空字符串。
     std::string TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node);
+
+    std::string CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix);
+
+    void CompileScopedBlock(const SyntaxTreeInterfacePtr &block);
+
+    bool TryInferMathCallBitmask(const std::string &callee_name,
+                                 const std::vector<SyntaxTreeInterfacePtr> &raw_args,
+                                 int &bitmask) const;
+
+    bool TryInferMathCallSpec(const std::string &callee_name,
+                              const std::vector<SyntaxTreeInterfacePtr> &raw_args,
+                              int &bitmask,
+                              InferredType &spec_ret) const;
 
     void EnterNativeVarScope();
 
