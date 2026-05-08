@@ -25,7 +25,7 @@ public:
     CompileResult CompileString(const std::string &str, const CompileConfig &cfg);
 
     // 返回最近一次编译时记录的 C 代码（仅当 CompileConfig::record_c_code 为 true 时非空）
-    const std::string &GetLastRecordedCCode() const {
+    [[nodiscard]] const std::string &GetLastRecordedCCode() const {
         return last_recorded_c_code_;
     }
 
