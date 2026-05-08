@@ -1240,13 +1240,53 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
 }
 
 std::string CGen::SpecFuncName(const std::string &base_name,
-                                 const std::vector<int> &math_param_indices, int bitmask) {
+                                  const std::vector<int> &math_param_indices, int bitmask) {
     std::string name = base_name;
     for (int i = 0; i < static_cast<int>(math_param_indices.size()); ++i) {
         name += '_';
         name += MathParamSuffix(MathParamKindOf(bitmask, i));
     }
     return name;
+}
+
+bool CGen::TryInferMathCallBitmask(const std::string &callee_name,
+                                   const std::vector<SyntaxTreeInterfacePtr> &raw_args,
+                                   int &bitmask) const {
+    const auto math_it = math_param_positions_.find(callee_name);
+    if (math_it == math_param_positions_.end()) {
+        return false;
+    }
+    const auto &math_params = math_it->second;
+    bitmask = 0;
+    for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+        const int param_pos = math_params[i];
+        if (param_pos >= static_cast<int>(raw_args.size())) {
+            return false;
+        }
+        const auto &arg = raw_args[static_cast<size_t>(param_pos)];
+        if (!arg || arg->Type() != SyntaxTreeType::Exp) {
+            return false;
+        }
+        const auto arg_type = InferArgTypeForSpec(arg);
+        if (arg_type == T_DYNAMIC) {
+            return false;
+        }
+        if (arg_type == T_FLOAT) {
+            bitmask |= (1 << i);
+        }
+    }
+    return true;
+}
+
+bool CGen::TryInferMathCallSpec(const std::string &callee_name,
+                                const std::vector<SyntaxTreeInterfacePtr> &raw_args,
+                                int &bitmask,
+                                InferredType &spec_ret) const {
+    if (!TryInferMathCallBitmask(callee_name, raw_args, bitmask)) {
+        return false;
+    }
+    spec_ret = GetSpecReturnType(callee_name, bitmask);
+    return true;
 }
 
 InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const {
@@ -1256,8 +1296,12 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
 
     if (exp_type == "number") {
         // 使用 TypeInferencer 设置的 EvalType。
-        if (e->EvalType() == T_INT) return T_INT;
-        if (e->EvalType() == T_FLOAT) return T_FLOAT;
+        if (e->EvalType() == T_INT) {
+            return T_INT;
+        }
+        if (e->EvalType() == T_FLOAT) {
+            return T_FLOAT;
+        }
         // 回退：探查字符串值。
         const auto &val = e->ExpValue();
         if (val.find('.') == std::string::npos && val.find('e') == std::string::npos &&
@@ -1309,11 +1353,6 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
                 return T_DYNAMIC;
             }
             const auto &callee_name = callee_var->GetName();
-            const auto math_it = math_param_positions_.find(callee_name);
-            if (math_it == math_param_positions_.end()) {
-                return T_DYNAMIC;
-            }
-            const auto &math_params = math_it->second;
             const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
             if (!args_ptr) {
                 return T_DYNAMIC;
@@ -1322,39 +1361,12 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
             if (raw_args.empty()) {
                 return T_DYNAMIC;
             }
-            // Compute each math argument type in math_params order (matching the
-            // bit order in the specialization bitmask), then compose that bitmask.
             int bitmask = 0;
-            for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-                const int param_pos = math_params[i];
-                if (param_pos >= static_cast<int>(raw_args.size())) {
-                    return T_DYNAMIC;
-                }
-                const auto &arg = raw_args[param_pos];
-                if (!arg || arg->Type() != SyntaxTreeType::Exp) {
-                    return T_DYNAMIC;
-                }
-                const auto t = InferArgTypeForSpec(arg);
-                if (t == T_DYNAMIC) {
-                    return T_DYNAMIC;
-                }
-                if (t == T_FLOAT) {
-                    bitmask |= (1 << i);
-                }
-            }
-            // 查询不动点推断得出的实际返回类型，而非仅凭参数类型猜测。
-            if (specialization_return_types_ == nullptr) {
+            InferredType spec_ret = T_DYNAMIC;
+            if (!TryInferMathCallSpec(callee_name, raw_args, bitmask, spec_ret)) {
                 return T_DYNAMIC;
             }
-            const auto ret_it = specialization_return_types_->find(callee_name);
-            if (ret_it == specialization_return_types_->end()) {
-                return T_DYNAMIC;
-            }
-            const auto &ret_types = ret_it->second;
-            if (bitmask >= static_cast<int>(ret_types.size())) {
-                return T_DYNAMIC;
-            }
-            return ret_types[static_cast<size_t>(bitmask)];
+            return spec_ret;
         }
         return T_DYNAMIC;
     }
@@ -1364,27 +1376,7 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
         DEBUG_ASSERT(op);
         const auto lt = InferArgTypeForSpec(e->Left());
         const auto rt = InferArgTypeForSpec(e->Right());
-        if (lt == T_DYNAMIC || rt == T_DYNAMIC) return T_DYNAMIC;
-        const auto &op_name = op->GetOp();
-        if (op_name == "SLASH" || op_name == "POW") return T_FLOAT;
-        if (op_name == "PLUS" || op_name == "MINUS" || op_name == "STAR" || op_name == "MOD" ||
-            op_name == "DOUBLE_SLASH") {
-            return (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
-        }
-        if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR" ||
-            op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
-            return T_INT;
-        }
-        // AND/OR：整数和浮点数在 Lua 中始终为真值（包括 0），因此：
-        //   a and b → 结果为 b（a 始终为真，返回 b），类型为 rt
-        //   a or  b → 结果为 a（a 始终为真，返回 a），类型为 lt
-        if (op_name == "AND") {
-            return rt;
-        }
-        if (op_name == "OR") {
-            return lt;
-        }
-        return T_DYNAMIC;
+        return InferNumericBinopResultType(op->GetOp(), lt, rt);
     }
 
     if (exp_type == "unop") {
@@ -1537,9 +1529,7 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
             // 声明遮蔽外部变量而不是重新声明它们。
             *cur_output_ << GenTab() << "{\n";
             cur_tab_++;
-            EnterNativeVarScope();
-            CompileStmtBlock(stmt);
-            ExitNativeVarScope();
+            CompileScopedBlock(stmt);
             cur_tab_--;
             *cur_output_ << GenTab() << "}\n";
             break;
@@ -1751,18 +1741,33 @@ void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared) {
     CompileFunctioncall(shared);
 }
 
+void CGen::CompileScopedBlock(const SyntaxTreeInterfacePtr &block) {
+    EnterNativeVarScope();
+    CompileStmtBlock(block);
+    ExitNativeVarScope();
+}
+
+std::string CGen::CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix) {
+    const auto native_cond = TryCompileNativeBoolExpr(exp);
+    if (!native_cond.empty()) {
+        return native_cond;
+    }
+    const auto tmp_bool = std::format("{}_{}", tmp_prefix, tmp_var_counter_++);
+    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
+    const auto cond = CompileExp(exp);
+    *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
+    return tmp_bool;
+}
+
 void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::While);
     const auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
 
-    // 当条件是纯数值比较时，直接生成 while (native_cond)，跳过 CVar boxing。
     const auto native_cond = TryCompileNativeBoolExpr(while_stmt->Exp());
     if (!native_cond.empty()) {
         *cur_output_ << GenTab() << "while (" << native_cond << ") {\n";
         cur_tab_++;
-        EnterNativeVarScope();
-        CompileStmtBlock(while_stmt->Block());
-        ExitNativeVarScope();
+        CompileScopedBlock(while_stmt->Block());
         cur_tab_--;
         *cur_output_ << GenTab() << "}\n";
         return;
@@ -1770,18 +1775,12 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
 
     const auto tmp_bool = std::format("flua_wbt_{}", tmp_var_counter_++);
     func_temp_decls_ << "    bool " << tmp_bool << ";\n";
-
     *cur_output_ << GenTab() << "while (1) {\n";
     cur_tab_++;
-
     const auto cond = CompileExp(while_stmt->Exp());
     *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
     *cur_output_ << GenTab() << std::format("if (!{}) break;\n", tmp_bool);
-
-    EnterNativeVarScope();
-    CompileStmtBlock(while_stmt->Block());
-    ExitNativeVarScope();
-
+    CompileScopedBlock(while_stmt->Block());
     cur_tab_--;
     *cur_output_ << GenTab() << "}\n";
 }
@@ -1793,20 +1792,9 @@ void CGen::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
     *cur_output_ << GenTab() << "do {\n";
     cur_tab_++;
 
-    EnterNativeVarScope();
-    CompileStmtBlock(repeat_stmt->Block());
-    const auto native_cond = TryCompileNativeBoolExpr(repeat_stmt->Exp());
-    if (!native_cond.empty()) {
-        ExitNativeVarScope();
-        *cur_output_ << GenTab() << std::format("if ({}) break;\n", native_cond);
-    } else {
-        const auto cond = CompileExp(repeat_stmt->Exp());
-        ExitNativeVarScope();
-        const auto tmp_bool = std::format("flua_rbt_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    bool " << tmp_bool << ";\n";
-        *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
-        *cur_output_ << GenTab() << std::format("if ({}) break;\n", tmp_bool);
-    }
+    CompileScopedBlock(repeat_stmt->Block());
+    const auto cond_bool = CompileCondBoolExpr(repeat_stmt->Exp(), "flua_rbt");
+    *cur_output_ << GenTab() << std::format("if ({}) break;\n", cond_bool);
 
     cur_tab_--;
     *cur_output_ << GenTab() << "} while (1);\n";
@@ -1816,23 +1804,10 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::If);
     const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
 
-    // 尝试将条件编译为原生 C bool 表达式（跳过 CVar boxing 和 IsTrue）。
-    std::string cond_bool;
-    const auto native_cond = TryCompileNativeBoolExpr(if_stmt->Exp());
-    if (!native_cond.empty()) {
-        cond_bool = native_cond;
-    } else {
-        const auto tmp_bool = std::format("flua_ibt_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    bool " << tmp_bool << ";\n";
-        const auto cond = CompileExp(if_stmt->Exp());
-        *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
-        cond_bool = tmp_bool;
-    }
+    const auto cond_bool = CompileCondBoolExpr(if_stmt->Exp(), "flua_ibt");
     *cur_output_ << GenTab() << std::format("if ({}) {{\n", cond_bool);
     cur_tab_++;
-    EnterNativeVarScope();
-    CompileStmtBlock(if_stmt->Block());
-    ExitNativeVarScope();
+    CompileScopedBlock(if_stmt->Block());
     cur_tab_--;
     *cur_output_ << GenTab() << "}";
 
@@ -1844,22 +1819,10 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
             cur_tab_++;
             elseif_depth++;
 
-            std::string econd_bool;
-            const auto enative = TryCompileNativeBoolExpr(elseif_list->ElseifExp(i));
-            if (!enative.empty()) {
-                econd_bool = enative;
-            } else {
-                const auto etmp_bool = std::format("flua_ibt_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    bool " << etmp_bool << ";\n";
-                const auto econd = CompileExp(elseif_list->ElseifExp(i));
-                *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", econd, etmp_bool);
-                econd_bool = etmp_bool;
-            }
+            const auto econd_bool = CompileCondBoolExpr(elseif_list->ElseifExp(i), "flua_ibt");
             *cur_output_ << GenTab() << std::format("if ({}) {{\n", econd_bool);
             cur_tab_++;
-            EnterNativeVarScope();
-            CompileStmtBlock(elseif_list->ElseifBlock(i));
-            ExitNativeVarScope();
+            CompileScopedBlock(elseif_list->ElseifBlock(i));
             cur_tab_--;
             *cur_output_ << GenTab() << "}";
         }
@@ -1868,9 +1831,7 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     if (const auto else_block = if_stmt->ElseBlock()) {
         *cur_output_ << " else {\n";
         cur_tab_++;
-        EnterNativeVarScope();
-        CompileStmtBlock(else_block);
-        ExitNativeVarScope();
+        CompileScopedBlock(else_block);
         cur_tab_--;
         *cur_output_ << GenTab() << "}";
     }
@@ -1896,44 +1857,7 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
                                for_stmt->ExpEnd()->EvalType() == T_INT &&
                                (!for_stmt->ExpStep() || for_stmt->ExpStep()->EvalType() == T_INT);
     if (typed_int_for) {
-        const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
-        const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
-        const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
-
-        func_temp_decls_ << "    int64_t " << ctrl_var << ";\n";
-        func_temp_decls_ << "    int64_t " << end_var << ";\n";
-        func_temp_decls_ << "    int64_t " << step_var << ";\n";
-
-        {
-            const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
-            *cur_output_ << GenTab() << ctrl_var << " = " << native_begin << ";\n";
-        }
-        {
-            const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
-            *cur_output_ << GenTab() << end_var << " = " << native_end << ";\n";
-        }
-        if (for_stmt->ExpStep()) {
-            const auto native_step = CompileNumericExp(for_stmt->ExpStep());
-            *cur_output_ << GenTab() << step_var << " = " << native_step << ";\n";
-        } else {
-            *cur_output_ << GenTab() << step_var << " = 1;\n";
-        }
-
-        *cur_output_ << GenTab() << "for (; (" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
-                     << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
-        cur_tab_++;
-        EnterNativeVarScope();
-        if (for_stmt->EvalType() == T_INT) {
-            *cur_output_ << GenTab() << "int64_t " << for_stmt->Name() << " = " << ctrl_var << ";\n";
-            DeclareNativeVar(for_stmt->Name(), T_INT);
-        } else {
-            *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_INT) << ";\n";
-            DeclareNativeVar(for_stmt->Name(), T_DYNAMIC);
-        }
-        CompileStmtBlock(for_stmt->Block());
-        ExitNativeVarScope();
-        cur_tab_--;
-        *cur_output_ << GenTab() << "}\n";
+        CompileTypedIntForLoop(for_stmt);
         return;
     }
 
@@ -1946,48 +1870,88 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
             (for_stmt->ExpBegin()->EvalType() == T_INT || for_stmt->ExpBegin()->EvalType() == T_FLOAT) &&
             (for_stmt->ExpEnd()->EvalType() == T_INT || for_stmt->ExpEnd()->EvalType() == T_FLOAT) && step_is_numeric;
     if (typed_float_for) {
-        const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
-        const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
-        const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
-
-        func_temp_decls_ << "    double " << ctrl_var << ";\n";
-        func_temp_decls_ << "    double " << end_var << ";\n";
-        func_temp_decls_ << "    double " << step_var << ";\n";
-
-        {
-            const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
-            *cur_output_ << GenTab() << ctrl_var << " = (double)(" << native_begin << ");\n";
-        }
-        {
-            const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
-            *cur_output_ << GenTab() << end_var << " = (double)(" << native_end << ");\n";
-        }
-        if (for_stmt->ExpStep()) {
-            const auto native_step = CompileNumericExp(for_stmt->ExpStep());
-            *cur_output_ << GenTab() << step_var << " = (double)(" << native_step << ");\n";
-        } else {
-            *cur_output_ << GenTab() << step_var << " = 1.0;\n";
-        }
-
-        *cur_output_ << GenTab() << "for (; (" << step_var << " > 0.0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
-                     << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
-        cur_tab_++;
-        EnterNativeVarScope();
-        if (for_stmt->EvalType() == T_FLOAT) {
-            *cur_output_ << GenTab() << "double " << for_stmt->Name() << " = " << ctrl_var << ";\n";
-            DeclareNativeVar(for_stmt->Name(), T_FLOAT);
-        } else {
-            *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_FLOAT) << ";\n";
-            DeclareNativeVar(for_stmt->Name(), T_DYNAMIC);
-        }
-        CompileStmtBlock(for_stmt->Block());
-        ExitNativeVarScope();
-        cur_tab_--;
-        *cur_output_ << GenTab() << "}\n";
+        CompileTypedFloatForLoop(for_stmt);
         return;
     }
 
-    // 为循环控制分配生成的 C 变量名（提升到函数顶部）
+    CompileDynamicForLoop(for_stmt);
+}
+
+void CGen::CompileTypedIntForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt) {
+    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
+    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
+    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
+
+    func_temp_decls_ << "    int64_t " << ctrl_var << ";\n";
+    func_temp_decls_ << "    int64_t " << end_var << ";\n";
+    func_temp_decls_ << "    int64_t " << step_var << ";\n";
+
+    const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
+    *cur_output_ << GenTab() << ctrl_var << " = " << native_begin << ";\n";
+    const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
+    *cur_output_ << GenTab() << end_var << " = " << native_end << ";\n";
+    if (for_stmt->ExpStep()) {
+        const auto native_step = CompileNumericExp(for_stmt->ExpStep());
+        *cur_output_ << GenTab() << step_var << " = " << native_step << ";\n";
+    } else {
+        *cur_output_ << GenTab() << step_var << " = 1;\n";
+    }
+
+    *cur_output_ << GenTab() << "for (; (" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
+                 << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
+    cur_tab_++;
+    EnterNativeVarScope();
+    if (for_stmt->EvalType() == T_INT) {
+        *cur_output_ << GenTab() << "int64_t " << for_stmt->Name() << " = " << ctrl_var << ";\n";
+        DeclareNativeVar(for_stmt->Name(), T_INT);
+    } else {
+        *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_INT) << ";\n";
+        DeclareNativeVar(for_stmt->Name(), T_DYNAMIC);
+    }
+    CompileStmtBlock(for_stmt->Block());
+    ExitNativeVarScope();
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
+}
+
+void CGen::CompileTypedFloatForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt) {
+    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
+    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
+    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
+
+    func_temp_decls_ << "    double " << ctrl_var << ";\n";
+    func_temp_decls_ << "    double " << end_var << ";\n";
+    func_temp_decls_ << "    double " << step_var << ";\n";
+
+    const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
+    *cur_output_ << GenTab() << ctrl_var << " = (double)(" << native_begin << ");\n";
+    const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
+    *cur_output_ << GenTab() << end_var << " = (double)(" << native_end << ");\n";
+    if (for_stmt->ExpStep()) {
+        const auto native_step = CompileNumericExp(for_stmt->ExpStep());
+        *cur_output_ << GenTab() << step_var << " = (double)(" << native_step << ");\n";
+    } else {
+        *cur_output_ << GenTab() << step_var << " = 1.0;\n";
+    }
+
+    *cur_output_ << GenTab() << "for (; (" << step_var << " > 0.0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
+                 << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
+    cur_tab_++;
+    EnterNativeVarScope();
+    if (for_stmt->EvalType() == T_FLOAT) {
+        *cur_output_ << GenTab() << "double " << for_stmt->Name() << " = " << ctrl_var << ";\n";
+        DeclareNativeVar(for_stmt->Name(), T_FLOAT);
+    } else {
+        *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_FLOAT) << ";\n";
+        DeclareNativeVar(for_stmt->Name(), T_DYNAMIC);
+    }
+    CompileStmtBlock(for_stmt->Block());
+    ExitNativeVarScope();
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
+}
+
+void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt) {
     const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);        // 当前值
     const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);          // 结束值
     const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);        // 步长值
@@ -2792,38 +2756,22 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
         return {};
     }
     const auto &callee_name = callee_var->GetName();
-    const auto math_it = math_param_positions_.find(callee_name);
-    if (math_it == math_param_positions_.end()) {
-        return {};
-    }
-    const auto &math_params = math_it->second;
     const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
     if (!explist_ptr) {
         return {};
     }
     const auto &raw_args = explist_ptr->Exps();
 
-    // 推断数学参数的类型，计算 bitmask。
     int bitmask = 0;
-    for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-        const int param_pos = math_params[i];
-        if (param_pos >= static_cast<int>(raw_args.size())) {
-            return {};
-        }
-        const auto t = InferArgTypeForSpec(raw_args[param_pos]);
-        if (t == T_DYNAMIC) {
-            return {};
-        }
-        if (t == T_FLOAT) {
-            bitmask |= (1 << i);
-        }
+    InferredType spec_ret = T_DYNAMIC;
+    if (!TryInferMathCallSpec(callee_name, raw_args, bitmask, spec_ret)) {
+        return {};
     }
-
-    // 仅当该特化版本返回原生数值类型时走此路径。
-    const auto spec_ret = GetSpecReturnType(callee_name, bitmask);
     if (spec_ret != T_INT && spec_ret != T_FLOAT) {
         return {};
     }
+
+    const auto &math_params = math_param_positions_.at(callee_name);
 
     // 为所有数学参数预先编译原生表达式（无副作用检查通过后才发射代码）。
     std::unordered_map<int, std::string> native_exprs;
@@ -2893,26 +2841,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
                 const auto &raw_args = explist_arg_ptr->Exps();
 
-                // 步骤一：推断所有数学参数实参的类型（纯函数，无副作用）。
-                bool can_spec = true;
                 int bitmask = 0;
-                for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-                    const int param_pos = math_params[i];
-                    if (param_pos >= static_cast<int>(raw_args.size())) {
-                        can_spec = false;
-                        break;
-                    }
-                    const auto t = InferArgTypeForSpec(raw_args[param_pos]);
-                    if (t == T_DYNAMIC) {
-                        can_spec = false;
-                        break;
-                    }
-                    if (t == T_FLOAT) bitmask |= (1 << i);
-                }
-
-                if (can_spec) {
-                    // 步骤二：预编译数学参数的原生表达式（纯函数）。
+                if (TryInferMathCallBitmask(callee_name, raw_args, bitmask)) {
                     std::unordered_map<int, std::string> native_exprs;// param_pos -> 表达式字符串
+                    bool can_spec = true;
                     for (int param_pos : math_params) {
                         const auto native_expr = TryCompileNativeExpr(raw_args[param_pos]);
                         if (native_expr.empty()) {

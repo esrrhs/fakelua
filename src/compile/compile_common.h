@@ -33,6 +33,36 @@ inline char MathParamSuffix(MathParamKind kind) {
     return kind == kMathParamFloat ? '1' : '0';
 }
 
+inline bool IsNumericInferredType(const InferredType type) {
+    return type == T_INT || type == T_FLOAT;
+}
+
+inline InferredType InferNumericBinopResultType(const std::string &op_name,
+                                                const InferredType left_type,
+                                                const InferredType right_type) {
+    if (!IsNumericInferredType(left_type) || !IsNumericInferredType(right_type)) {
+        return T_DYNAMIC;
+    }
+    if (op_name == "SLASH" || op_name == "POW") {
+        return T_FLOAT;
+    }
+    if (op_name == "PLUS" || op_name == "MINUS" || op_name == "STAR" || op_name == "MOD" ||
+        op_name == "DOUBLE_SLASH") {
+        return (left_type == T_INT && right_type == T_INT) ? T_INT : T_FLOAT;
+    }
+    if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR" ||
+        op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
+        return T_INT;
+    }
+    if (op_name == "AND") {
+        return right_type;
+    }
+    if (op_name == "OR") {
+        return left_type;
+    }
+    return T_DYNAMIC;
+}
+
 // Extracts a function-call args node into a raw argument node array, covering
 // the three syntax forms: args ::= (explist) | tableconstructor | LiteralString.
 inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr) {

@@ -31,6 +31,18 @@ public:
     void Process(CompileResult &cr);
 
 private:
+    struct FunctionSpecInfo {
+        std::string name;
+        SyntaxTreeInterfacePtr block;
+        std::vector<std::string> params;
+        std::vector<std::pair<SyntaxTreeInterface *, InferredType>> original_snapshot;
+    };
+
+    struct FuncRetInfo {
+        std::vector<SyntaxTreeInterfacePtr> ret_exps;
+        bool ends_with_return = false;
+    };
+
     // node指针 → 推断类型的快照映射，用于特化发现的不动点迭代。
     using EvalTypeMap = EvalTypeSnapshot;
 
@@ -89,6 +101,40 @@ private:
                                 const EvalTypeMap &typed_map,
                                 const EvalTypeMap &compare_map,
                                 const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
+
+    bool HasArithmeticNodeTypeChange(const EvalTypeMap &typed_map,
+                                     const EvalTypeMap &compare_map,
+                                     const SyntaxTreeInterfacePtr &func_block,
+                                     bool require_compare_dynamic) const;
+
+    bool HasComparisonOperandTypeChange(const EvalTypeMap &typed_map,
+                                        const EvalTypeMap &compare_map,
+                                        const SyntaxTreeInterfacePtr &func_block,
+                                        bool require_compare_dynamic) const;
+
+    bool HasForLoopTypeChange(const EvalTypeMap &typed_map,
+                              const EvalTypeMap &compare_map,
+                              const SyntaxTreeInterfacePtr &func_block,
+                              bool require_compare_dynamic) const;
+
+    std::vector<FunctionSpecInfo> CollectFunctionSpecInfos(const CompileResult &cr) const;
+
+    std::vector<int> FindMathParamIndices(const FunctionSpecInfo &info,
+                                          const EvalTypeMap &baseline,
+                                          const EvalTypeMap &all_int,
+                                          const std::unordered_map<std::string, std::vector<int>> &known_math_positions);
+
+    void GenerateFunctionSpecializationSnapshots(CompileResult &cr,
+                                                 const FunctionSpecInfo &info,
+                                                 const std::vector<int> &math_indices);
+
+    std::unordered_map<std::string, FuncRetInfo> BuildFunctionReturnCache(
+            const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info) const;
+
+    std::unordered_map<std::string, std::vector<InferredType>> InferSpecializationReturnTypes(
+            const CompileResult &cr,
+            const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info,
+            const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache) const;
 
     // 检查 block_node 的所有执行路径是否均以 return 语句结束。
     // 能识别 if-else（所有分支均返回）的情况，不递归进入嵌套函数体。
