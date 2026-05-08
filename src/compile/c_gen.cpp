@@ -1240,7 +1240,7 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
 }
 
 std::string CGen::SpecFuncName(const std::string &base_name,
-                                  const std::vector<int> &math_param_indices, int bitmask) {
+                               const std::vector<int> &math_param_indices, int bitmask) {
     std::string name = base_name;
     for (int i = 0; i < static_cast<int>(math_param_indices.size()); ++i) {
         name += '_';

@@ -1155,7 +1155,7 @@ std::vector<int> TypeInferencer::FindMathParamIndices(
     };
 
     for (int i = 0; i < static_cast<int>(info.params.size()); ++i) {
-        const auto without_p_assumed = make_assumed(info.params[static_cast<size_t>(i)], T_DYNAMIC, T_INT);
+        const auto without_p_assumed = make_assumed(info.params[i], T_DYNAMIC, T_INT);
         const auto without_p_map = RunTrialInference(info.block, info.params, without_p_assumed);
         if (ParamAffectsArithmetic(all_int, without_p_map, info.block, known_math_positions)) {
             math_indices.push_back(i);
@@ -1176,7 +1176,7 @@ void TypeInferencer::GenerateFunctionSpecializationSnapshots(CompileResult &cr,
             assumed[param] = T_DYNAMIC;
         }
         for (int i = 0; i < static_cast<int>(math_indices.size()); ++i) {
-            const auto param_index = static_cast<size_t>(math_indices[static_cast<size_t>(i)]);
+            const auto param_index = static_cast<size_t>(math_indices[i]);
             assumed[info.params[param_index]] =
                     (MathParamKindOf(bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
         }
@@ -1217,7 +1217,7 @@ std::unordered_map<std::string, std::vector<InferredType>> TypeInferencer::Infer
                 const auto &snapshot = snapshots[static_cast<size_t>(bitmask)];
                 std::unordered_map<std::string, InferredType> spec_ctx;
                 for (int i = 0; i < static_cast<int>(math_indices.size()); ++i) {
-                    const auto param_index = static_cast<size_t>(math_indices[static_cast<size_t>(i)]);
+                    const auto param_index = static_cast<size_t>(math_indices[i]);
                     spec_ctx[func_params[param_index]] =
                             (MathParamKindOf(bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
                 }
