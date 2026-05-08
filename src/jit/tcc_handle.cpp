@@ -27,9 +27,9 @@ TCCHandle::TCCHandle(State *s, const CompileConfig &cfg) {
     tcc_set_output_type(tcc_state_, TCC_OUTPUT_MEMORY);
 
     // 添加 JIT 代码可能调用的符号
-    tcc_add_symbol(tcc_state_, "FakeluaAllocTemp", (void *) FakeluaAllocTemp);
-    tcc_add_symbol(tcc_state_, "FakeluaThrowError", (void *) FakeluaThrowError);
-    tcc_add_symbol(tcc_state_, "FakeluaCallByName", (void *) FakeluaCallByName);
+    tcc_add_symbol(tcc_state_, "FakeluaAllocTemp", reinterpret_cast<void *>(FakeluaAllocTemp));
+    tcc_add_symbol(tcc_state_, "FakeluaThrowError", reinterpret_cast<void *>(FakeluaThrowError));
+    tcc_add_symbol(tcc_state_, "FakeluaCallByName", reinterpret_cast<void *>(FakeluaCallByName));
     tcc_define_symbol(tcc_state_, "FAKELUA_JIT_TYPE", std::to_string(static_cast<int>(JIT_TCC)).c_str());
 }
 
