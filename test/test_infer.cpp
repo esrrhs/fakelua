@@ -1455,16 +1455,15 @@ TEST(infer, test_spec_compare_func_result) {
     });
 }
 
-// Equality comparison (==) is also eligible for native-bool specialization when
-// both operands are numeric in specialized snapshots.
-// Without IsNativeComparisonExpr coverage for EQUAL / NOT_EQUAL, parameter m is
-// missed and the condition falls back to dynamic comparison.
+// Equality comparison (==) cannot drive math-param specialization because == works
+// on any Lua type (strings, booleans, nil, tables). Specialising based on == alone
+// would force callers to pass numeric values, breaking e.g. string equality calls.
+// Here n is still specialised via arithmetic (n+1, n-1); m remains a CVar in
+// specialised bodies, and the == condition uses OpEq + IsTrue.
 TEST(infer, test_spec_compare_equal) {
     const auto code = InferGetCCode("./infer/test_spec_compare_equal.lua");
-    ASSERT_NE(code.find("int64_t test_0_0(int64_t n, int64_t m)"), std::string::npos);
-    ASSERT_NE(code.find("double test_1_1(double n, double m)"), std::string::npos);
-    ASSERT_NE(code.find("(n) == (m)"), std::string::npos);
-    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+    ASSERT_NE(code.find("int64_t test_0(int64_t n, CVar m)"), std::string::npos);
+    ASSERT_NE(code.find("double test_1(double n, CVar m)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_compare_equal.lua", {.debug_mode = debug_mode});
