@@ -533,11 +533,12 @@ bool TypeInferencer::IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const 
     return false;
 }
 
-// 判断 exp 节点是否为有序比较运算符（<、<=、>、>=）。
-// 这类运算符在 Lua 中用于数值排序，当两侧操作数均为数值类型时，
-// CGen 可通过 TryCompileNativeBoolExpr 直接生成原生 C 比较，无需 OpXxx 宏 + IsTrue 调用。
-// 注意：EQUAL（==）和 NOT_EQUAL（~=）故意排除在外——Lua 的等价性比较对任意类型均有意义
-//（字符串、布尔值、表、nil 均可比较），将其用作数学参数发现条件会错误地要求参数为数值类型。
+// 判断 exp 节点是否为可原生化的比较运算符（<、<=、>、>=、==、~=）。
+// 当两侧操作数均为数值类型时，CGen 可通过 TryCompileNativeBoolExpr
+// 直接生成原生 C 比较，无需 OpXxx 宏 + IsTrue 调用。
+// 注意：虽然 == / ~= 在 Lua 中可用于任意类型，但在本流程中仍会通过
+// HasComparisonOperandTypeChange 的 both_typed（两侧都为数值）门禁过滤，
+// 因而不会把非数值比较误判为数学参数特化机会。
 bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) const {
     if (node->Type() != SyntaxTreeType::Exp) {
         return false;
@@ -552,7 +553,7 @@ bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) 
     }
     const auto &op_name = op->GetOp();
     return op_name == "LESS" || op_name == "LESS_EQUAL" || op_name == "MORE" ||
-           op_name == "MORE_EQUAL";
+           op_name == "MORE_EQUAL" || op_name == "EQUAL" || op_name == "NOT_EQUAL";
 }
 
 TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func_block,
