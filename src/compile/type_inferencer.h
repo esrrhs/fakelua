@@ -108,14 +108,12 @@ private:
                                                    bool require_compare_dynamic) const;
 
     [[nodiscard]] bool HasComparisonOperandTypeChange(const EvalTypeMap &typed_map,
-                                                      const EvalTypeMap &compare_map,
-                                                      const SyntaxTreeInterfacePtr &func_block,
-                                                      bool require_compare_dynamic) const;
+                                                       const EvalTypeMap &compare_map,
+                                                       const SyntaxTreeInterfacePtr &func_block) const;
 
     [[nodiscard]] bool HasForLoopTypeChange(const EvalTypeMap &typed_map,
                                             const EvalTypeMap &compare_map,
-                                            const SyntaxTreeInterfacePtr &func_block,
-                                            bool require_compare_dynamic) const;
+                                            const SyntaxTreeInterfacePtr &func_block) const;
 
     [[nodiscard]] std::vector<FunctionSpecInfo> CollectFunctionSpecInfos(const CompileResult &cr) const;
 

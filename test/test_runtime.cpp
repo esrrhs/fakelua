@@ -154,11 +154,12 @@ TEST(runtime, heap_allocator_boundary_and_reset) {
 // 不应被错误地拒绝（旧代码用 size + padding > BLOCK_SIZE 过于保守）。
 TEST(runtime, heap_allocator_large_alloc_after_small) {
     HeapAllocator alloc;
+    constexpr size_t kOneMiB = 1024ULL * 1024ULL;
     // 先分配一个小的非对齐大小，使 current_block_offset_ 不是 alignment 的整数倍。
     ASSERT_NE(alloc.Alloc(5), nullptr);
     // 随后分配接近块大小的内存。旧代码会拒绝（因为 BLOCK_SIZE + padding > BLOCK_SIZE），
     // 修复后应该成功切到新块。
-    ASSERT_NE(alloc.Alloc(1024 * 1024), nullptr);
+    ASSERT_NE(alloc.Alloc(kOneMiB), nullptr);
 }
 
 TEST(runtime, generate_tmp_filename_creates_dir) {

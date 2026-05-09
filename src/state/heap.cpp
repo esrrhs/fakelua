@@ -1,4 +1,7 @@
 #include "heap.h"
+
+#include <ranges>
+
 #include "state.h"
 #include "util/common.h"
 
@@ -55,8 +58,8 @@ void *HeapAllocator::Alloc(size_t size) {
 }
 
 void HeapAllocator::Reset() {
-    for (auto it = destructors_.rbegin(); it != destructors_.rend(); ++it) {
-        it->destroyer(it->ptr);
+    for (const auto &destructor_info: std::views::reverse(destructors_)) {
+        destructor_info.destroyer(destructor_info.ptr);
     }
     destructors_.clear();
     current_block_index_ = 0;
