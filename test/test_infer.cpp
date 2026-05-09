@@ -2375,3 +2375,104 @@ TEST(infer, test_count_loop) {
         ASSERT_EQ(r, 101);
     });
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// 遗漏语法补全测试
+// ────────────────────────────────────────────────────────────────────────────
+
+// NOT_EQUAL (~=) 在 if 条件中生成原生 C 不等比较。
+// n 通过 n + 1 算术运算被识别为数学参数；if 条件 n ~= 0 应发出 (n) != (0)。
+// test(0) == 0, test(1) == 2, test(5) == 6, test(-1) == 0（-1+1=0）。
+TEST(infer, test_native_bool_not_equal_if) {
+    const auto code = InferGetCCode("./infer/test_native_bool_not_equal_if.lua");
+    // n is a math param (triggered by n + 1).
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    // The if condition must use a native != comparison, not IsTrue.
+    ASSERT_NE(code.find("((n) != (0))"), std::string::npos);
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_bool_not_equal_if.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 1);
+        ASSERT_EQ(ret, 2);
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 6);
+        Call(s, type, "test", ret, -1);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
+// LESS_EQUAL (<=) 和 MORE_EQUAL (>=) 作为唯一比较运算触发数学参数特化。
+// clamp_le 仅含 <= 和 >= 比较，不含算术运算，验证这两种运算符同样能被
+// IsNativeComparisonExpr 识别并触发 HasComparisonOperandTypeChange。
+// test(5, 1, 10) == 5, test(0, 1, 10) == 1, test(15, 1, 10) == 10.
+TEST(infer, test_spec_clamp_le) {
+    const auto code = InferGetCCode("./infer/test_spec_clamp_le.lua");
+    // clamp_le and test must both be specialised (three math params each).
+    ASSERT_NE(code.find("clamp_le_0_0_0(int64_t x, int64_t lo, int64_t hi)"), std::string::npos);
+    ASSERT_NE(code.find("test_0_0_0(int64_t x, int64_t lo, int64_t hi)"), std::string::npos);
+    // Entry dispatchers must exist.
+    ASSERT_NE(code.find("CVar clamp_le(CVar x, CVar lo, CVar hi)"), std::string::npos);
+    ASSERT_NE(code.find("CVar test(CVar x, CVar lo, CVar hi)"), std::string::npos);
+    // Both if conditions must use native C comparisons.
+    ASSERT_NE(code.find("(x) <= (lo)"), std::string::npos);
+    ASSERT_NE(code.find("(x) >= (hi)"), std::string::npos);
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_clamp_le.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5, 1, 10);
+        ASSERT_EQ(ret, 5); // in range
+        Call(s, type, "test", ret, 0, 1, 10);
+        ASSERT_EQ(ret, 1); // below lo (0 <= 1)
+        Call(s, type, "test", ret, 15, 1, 10);
+        ASSERT_EQ(ret, 10); // above hi (15 >= 10)
+        Call(s, type, "test", ret, 1, 1, 10);
+        ASSERT_EQ(ret, 1); // x == lo → x <= lo, returns lo
+        Call(s, type, "test", ret, 10, 1, 10);
+        ASSERT_EQ(ret, 10); // x == hi → x >= hi, returns hi
+        double dret = 0.0;
+        Call(s, type, "test", dret, 5.5, 1.0, 10.0);
+        ASSERT_DOUBLE_EQ(dret, 5.5);
+        Call(s, type, "test", dret, 0.5, 1.0, 10.0);
+        ASSERT_DOUBLE_EQ(dret, 1.0);
+        Call(s, type, "test", dret, 15.5, 1.0, 10.0);
+        ASSERT_DOUBLE_EQ(dret, 10.0);
+    });
+}
+
+// "local f = function(n) ... end" 在顶层与 "local function f(n) ... end" 等价，
+// 经预处理转换后应参与数学参数特化流程。
+// square(n) = n*n：n 是数学参数，int 特化返回 int64_t。
+// test(n) 调用 square(n)：通过 HasMathCallImprovement 传递特化。
+// test(3) == 9, test(4) == 16, test(2.0) == 4.0.
+TEST(infer, test_spec_funcdef_assignment) {
+    const auto code = InferGetCCode("./infer/test_spec_funcdef_assignment.lua");
+    // square must be specialised via the functiondef assignment conversion.
+    ASSERT_NE(code.find("square_0(int64_t n)"), std::string::npos);
+    // test must be specialised too (math call improvement via square).
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    // Entry dispatchers must exist.
+    ASSERT_NE(code.find("CVar square(CVar n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_funcdef_assignment.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 9);
+        Call(s, type, "test", ret, 4);
+        ASSERT_EQ(ret, 16);
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 0);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.0);
+        ASSERT_DOUBLE_EQ(dret, 4.0);
+        Call(s, type, "test", dret, 1.5);
+        ASSERT_DOUBLE_EQ(dret, 2.25);
+    });
+}

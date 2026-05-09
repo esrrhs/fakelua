@@ -30,6 +30,10 @@ private:
 
     void PreprocessTableAssign(const SyntaxTreeInterfacePtr &node);
 
+    // 将顶层 "local f = function(...) ... end" 转换为 "local function f(...) ... end"，
+    // 使其可被特化发现流程处理，行为与 LocalFunction 语句完全一致。
+    void PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &chunk);
+
 private:
     static constexpr size_t kMaxFunctionInputParams = 8;
 
