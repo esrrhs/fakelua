@@ -391,7 +391,7 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
                 ThrowError("... is not supported", node);
             }
             if (exp->ExpType() == "functiondef") {
-                ThrowError("anonymous function expression (functiondef) is only supported as a top-level local variable initializer", node);
+                ThrowError("anonymous function expression (functiondef) is not supported inside function bodies", node);
             }
             break;
         }
