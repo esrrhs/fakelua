@@ -18,6 +18,11 @@ void PreProcessor::Process(const CompileResult &cr, const CompileConfig &cfg) {
 
     int debug_step = 0;
 
+    // 将顶层 "local f = function(...) ... end" 转换为 "local function f(...) ... end"，
+    // 使其能被后续特化发现流程识别。必须在 CheckUnsupportedSyntax 之前执行，
+    // 否则 CheckNode 会因遇到 functiondef Exp 节点而报错。
+    PreprocessFunctiondefLocalVars(chunk);
+
     // 检测不支持的语法，提前抛出异常
     CheckUnsupportedSyntax(chunk);
 
@@ -385,6 +390,9 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
             if (exp->ExpType() == "VarParams") {
                 ThrowError("... is not supported", node);
             }
+            if (exp->ExpType() == "functiondef") {
+                ThrowError("anonymous function expression (functiondef) is only supported as a top-level local variable initializer", node);
+            }
             break;
         }
         default:
@@ -412,6 +420,49 @@ void PreProcessor::CheckGlobalConstExp(const SyntaxTreeInterfacePtr &exp) {
             }
         }
     }
+}
+
+void PreProcessor::PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &chunk) {
+    LOG_INFO("start PreprocessFunctiondefLocalVars");
+    DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
+    const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+
+    std::vector<SyntaxTreeInterfacePtr> new_stmts;
+    for (const auto &stmt : top_block->Stmts()) {
+        if (stmt->Type() != SyntaxTreeType::LocalVar) {
+            new_stmts.push_back(stmt);
+            continue;
+        }
+        const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+        const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
+        const auto el_node = lv->Explist();
+        if (!nl || !el_node) {
+            new_stmts.push_back(stmt);
+            continue;
+        }
+        const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(el_node);
+        if (!el || nl->Names().size() != 1 || el->Exps().size() != 1) {
+            new_stmts.push_back(stmt);
+            continue;
+        }
+        const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
+        if (!init_exp || init_exp->ExpType() != "functiondef") {
+            new_stmts.push_back(stmt);
+            continue;
+        }
+        const auto fdef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(init_exp->Right());
+        if (!fdef) {
+            new_stmts.push_back(stmt);
+            continue;
+        }
+        // 将 "local f = function(...) ... end" 转换为 "local function f(...) ... end"。
+        const auto local_func = std::make_shared<SyntaxTreeLocalFunction>(stmt->Loc());
+        local_func->SetName(nl->Names()[0]);
+        local_func->SetFuncbody(fdef->Funcbody());
+        new_stmts.push_back(local_func);
+        LOG_INFO("PreprocessFunctiondefLocalVars: converted local {} = function(...) to local function {}(...)", nl->Names()[0], nl->Names()[0]);
+    }
+    top_block->SetStmts(new_stmts);
 }
 
 }// namespace fakelua
