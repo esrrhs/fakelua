@@ -1,5 +1,7 @@
 #include "compile/c_gen.h"
 
+#include <ranges>
+
 #include "state/state.h"
 #include "util/common.h"
 #include "util/exception.h"
@@ -28,8 +30,8 @@ void CGen::DeclareNativeVar(const std::string &name, const InferredType native_t
 }
 
 bool CGen::IsTypedNativeVar(const std::string &name) const {
-    for (auto it = native_var_scopes_.rbegin(); it != native_var_scopes_.rend(); ++it) {
-        if (const auto found = it->find(name); found != it->end()) {
+    for (const auto &native_var_scope: std::views::reverse(native_var_scopes_)) {
+        if (const auto found = native_var_scope.find(name); found != native_var_scope.end()) {
             return found->second != T_DYNAMIC;
         }
     }
@@ -37,8 +39,8 @@ bool CGen::IsTypedNativeVar(const std::string &name) const {
 }
 
 InferredType CGen::GetNativeVarType(const std::string &name) const {
-    for (auto it = native_var_scopes_.rbegin(); it != native_var_scopes_.rend(); ++it) {
-        if (const auto found = it->find(name); found != it->end()) {
+    for (const auto &native_var_scope: std::views::reverse(native_var_scopes_)) {
+        if (const auto found = native_var_scope.find(name); found != native_var_scope.end()) {
             return found->second;
         }
     }
@@ -901,7 +903,7 @@ void CGen::GenerateDecls(CompileResult &cr) {
                 *cur_output_ << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < params.size(); ++i) {
                     if (i > 0) *cur_output_ << ", ";
-                    const auto mp_it = std::find(math_params.begin(), math_params.end(), static_cast<int>(i));
+                    const auto mp_it = std::ranges::find(math_params, static_cast<int>(i));
                     if (mp_it != math_params.end()) {
                         const int mp_idx = static_cast<int>(mp_it - math_params.begin());
                         *cur_output_ << MathParamCTypeName(MathParamKindOf(bitmask, mp_idx)) << " " << params[i];
@@ -948,7 +950,9 @@ std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
 }
 
 std::string CGen::GenTab() const {
-    return std::string(static_cast<size_t>(cur_tab_) * 4, ' ');
+    const auto tab_size = static_cast<size_t>(cur_tab_) * 4;
+    std::string tabs(tab_size, ' ');
+    return tabs;
 }
 
 bool CGen::BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block) {
@@ -1031,7 +1035,7 @@ void CGen::GenerateImpl(CompileResult &cr) {
                 *cur_output_ << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < func_params.size(); ++i) {
                     if (i > 0) *cur_output_ << ", ";
-                    const auto mp_it = std::find(math_params.begin(), math_params.end(), static_cast<int>(i));
+                    const auto mp_it = std::ranges::find(math_params, static_cast<int>(i));
                     if (mp_it != math_params.end()) {
                         const int mp_idx = static_cast<int>(mp_it - math_params.begin());
                         *cur_output_ << MathParamCTypeName(MathParamKindOf(bitmask, mp_idx)) << " " << func_params[i];
@@ -1209,8 +1213,7 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
             if (i > 0) {
                 args_str += ", ";
             }
-            const auto mp_it =
-                    std::find(math_param_indices.begin(), math_param_indices.end(), static_cast<int>(i));
+            const auto mp_it = std::ranges::find(math_param_indices, static_cast<int>(i));
             if (mp_it != math_param_indices.end()) {
                 const int mp_idx = static_cast<int>(mp_it - math_param_indices.begin());
                 const auto kind = MathParamKindOf(bitmask, mp_idx);
@@ -1748,7 +1751,7 @@ void CGen::CompileScopedBlock(const SyntaxTreeInterfacePtr &block) {
 }
 
 std::string CGen::CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix) {
-    const auto native_cond = TryCompileNativeBoolExpr(exp);
+    auto native_cond = TryCompileNativeBoolExpr(exp);
     if (!native_cond.empty()) {
         return native_cond;
     }

@@ -334,13 +334,12 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
             }
 
             // 迭代器表达式必须恰好一个
-            const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(for_in->Explist());
-            if (explist && explist->Exps().size() != 1) {
-                ThrowError(std::format("for in explist size must be 1, but got {}", explist->Exps().size()), node);
-            }
+            if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(for_in->Explist()); explist) {
+                if (explist->Exps().size() != 1) {
+                    ThrowError(std::format("for in explist size must be 1, but got {}", explist->Exps().size()), node);
+                }
 
-            // 迭代器表达式必须是 pairs(t) 或 ipairs(t) 调用
-            if (explist && explist->Exps().size() == 1) {
+                // 迭代器表达式必须是 pairs(t) 或 ipairs(t) 调用
                 const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(explist->Exps()[0]);
                 if (!exp || exp->ExpType() != "prefixexp") {
                     ThrowError("for in expression must be a pairs() or ipairs() call", node);
