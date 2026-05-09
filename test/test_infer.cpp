@@ -1455,6 +1455,31 @@ TEST(infer, test_spec_compare_func_result) {
     });
 }
 
+// Equality comparison (==) cannot drive math-param specialization because == works
+// on any Lua type (strings, booleans, nil, tables). Specialising based on == alone
+// would force callers to pass numeric values, breaking e.g. string equality calls.
+// Here n is still specialised via arithmetic (n+1, n-1); m remains a CVar in
+// specialised bodies, and the == condition uses OpEq + IsTrue.
+TEST(infer, test_spec_compare_equal) {
+    const auto code = InferGetCCode("./infer/test_spec_compare_equal.lua");
+    ASSERT_NE(code.find("int64_t test_0(int64_t n, CVar m)"), std::string::npos);
+    ASSERT_NE(code.find("double test_1(double n, CVar m)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_compare_equal.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5, 5);
+        ASSERT_EQ(ret, 6);
+        Call(s, type, "test", ret, 5, 3);
+        ASSERT_EQ(ret, 4);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.5, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 3.5);
+        Call(s, type, "test", dret, 2.5, 1.5);
+        ASSERT_DOUBLE_EQ(dret, 1.5);
+    });
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Missing grammar cases: pure unary ops as math params, and do...end blocks.
 // ────────────────────────────────────────────────────────────────────────────
