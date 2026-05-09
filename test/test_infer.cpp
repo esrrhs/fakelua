@@ -1480,6 +1480,40 @@ TEST(infer, test_spec_compare_equal) {
     });
 }
 
+// Pure equality comparison with no arithmetic: n and m are only compared via ==
+// and returned as-is.  Because neither parameter participates in any arithmetic
+// expression, HasArithmeticImprovement returns false and no numeric
+// specialisation should be generated for test.  Only the generic CVar entry
+// point must exist.  The function must also work correctly at runtime for
+// integers, floats, and strings.
+TEST(infer, test_spec_no_arith_compare_only) {
+    const auto code = InferGetCCode("./infer/test_spec_no_arith_compare_only.lua");
+    // No specialised variants must be emitted.
+    ASSERT_EQ(code.find("test_0"), std::string::npos);
+    ASSERT_EQ(code.find("test_1"), std::string::npos);
+    // The generic CVar entry point must exist.
+    ASSERT_NE(code.find("CVar test(CVar n, CVar m)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_no_arith_compare_only.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5, 5);
+        ASSERT_EQ(ret, 5); // n == m → return n
+        Call(s, type, "test", ret, 5, 3);
+        ASSERT_EQ(ret, 3); // n != m → return m
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.5, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 2.5); // n == m → return n
+        Call(s, type, "test", dret, 2.5, 1.5);
+        ASSERT_DOUBLE_EQ(dret, 1.5); // n != m → return m
+        std::string sret;
+        Call(s, type, "test", sret, std::string("hello"), std::string("hello"));
+        ASSERT_EQ(sret, "hello"); // string equality: return n
+        Call(s, type, "test", sret, std::string("hello"), std::string("world"));
+        ASSERT_EQ(sret, "world"); // string inequality: return m
+    });
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Missing grammar cases: pure unary ops as math params, and do...end blocks.
 // ────────────────────────────────────────────────────────────────────────────
