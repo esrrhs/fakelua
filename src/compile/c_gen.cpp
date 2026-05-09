@@ -950,7 +950,9 @@ std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
 }
 
 std::string CGen::GenTab() const {
-    return {static_cast<size_t>(cur_tab_) * 4, ' '};
+    const auto tab_size = static_cast<size_t>(cur_tab_) * 4;
+    std::string tabs(tab_size, ' ');
+    return tabs;
 }
 
 bool CGen::BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block) {
