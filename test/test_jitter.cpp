@@ -1701,6 +1701,26 @@ TEST(jitter, test_for_loop_dynamic_step) {
     });
 }
 
+// Typed-int for-loop with step=0 must throw "'for' step is zero" at compile time.
+TEST(jitter, test_for_loop_zero_step_int) {
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_for_loop_zero_step_int.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+// Typed-float for-loop with step=0.0 must throw "'for' step is zero" at compile time.
+TEST(jitter, test_for_loop_zero_step_float) {
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_for_loop_zero_step_float.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
 // ForIn with only 1 loop variable (key only, no value variable).
 // Exercises c_gen.cpp CompileStmtForIn lines 2138-2142 (dummy val path).
 // Keys 1+2+3 = 6.
