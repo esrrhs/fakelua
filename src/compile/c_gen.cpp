@@ -1651,7 +1651,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             if (IsTypedNativeVar(name)) {
                 // name is already in scope as a typed native variable.  In C, a new
                 // variable's scope begins at the end of its declarator (before the
-                // initialiser), so `int64_t name = ((name) * 2)` would read the
+                // initializer), so `int64_t name = ((name) * 2)` would read the
                 // uninitialized inner `name`, not the outer typed one.
                 // Pre-evaluate into a temp to avoid undefined behaviour.
                 const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
