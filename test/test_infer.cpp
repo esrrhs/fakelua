@@ -2535,3 +2535,192 @@ TEST(infer, test_spec_funcdef_assignment) {
         ASSERT_DOUBLE_EQ(dret, 2.25);
     });
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// 遗漏语法补全测试（二）
+// ────────────────────────────────────────────────────────────────────────────
+
+// not (comparison) 作为 if 条件，直接使用数学参数（无局部变量中间体）。
+// n 通过 n < 0（IsNativeComparisonExpr: LESS）和算术 n + 1 被识别为数学参数。
+// if 条件 not (n < 0) 应生成原生 C 布尔 !((n) < (0))，不使用 IsTrue。
+// test(5) == 6, test(0) == 1, test(-1) == 0.
+TEST(infer, test_spec_not_if_cond) {
+    const auto code = InferGetCCode("./infer/test_spec_not_if_cond.lua");
+    // n is a math param (triggered by both n < 0 comparison and n + 1 arithmetic).
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // The if condition must use a native negated comparison, not IsTrue.
+    ASSERT_NE(code.find("!((n) < (0))"), std::string::npos);
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_not_if_cond.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 6);
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, -1);
+        ASSERT_EQ(ret, 0);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 5.5);
+        ASSERT_DOUBLE_EQ(dret, 6.5);
+        Call(s, type, "test", dret, -0.5);
+        ASSERT_DOUBLE_EQ(dret, 0.0);
+    });
+}
+
+// 复合 and 条件：if a > 0 and b > 0 then。
+// a 和 b 均通过比较（IsNativeComparisonExpr: MORE）和算术 a + b 被识别为数学参数。
+// if 条件应生成原生 C 布尔 ((a) > (0)) && ((b) > (0))，不使用 IsTrue。
+// test(3, 4) == 7, test(-1, 4) == 0, test(3, -1) == 0, test(0, 0) == 0.
+TEST(infer, test_spec_and_cond) {
+    const auto code = InferGetCCode("./infer/test_spec_and_cond.lua");
+    // Both a and b are math params.
+    ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
+    ASSERT_NE(code.find("test_1_1(double a, double b)"), std::string::npos);
+    // Entry dispatcher must exist.
+    ASSERT_NE(code.find("CVar test(CVar a, CVar b)"), std::string::npos);
+    // The if condition must use native && comparison, not IsTrue.
+    ASSERT_NE(code.find("((a) > (0)) && ((b) > (0))"), std::string::npos);
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_and_cond.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3, 4);
+        ASSERT_EQ(ret, 7);
+        Call(s, type, "test", ret, -1, 4);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 3, -1);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 0, 0);
+        ASSERT_EQ(ret, 0);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 1.5, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 4.0);
+        Call(s, type, "test", dret, -1.0, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 0.0);
+    });
+}
+
+// 复合 or 条件：if n < 0 or n > 10 then。
+// n 通过比较（IsNativeComparisonExpr: LESS, MORE）和算术 n + 1 被识别为数学参数。
+// if 条件应生成原生 C 布尔 ((n) < (0)) || ((n) > (10))，不使用 IsTrue。
+// test(5) == 6, test(-1) == 0, test(11) == 0, test(0) == 1, test(10) == 11.
+TEST(infer, test_spec_or_cond) {
+    const auto code = InferGetCCode("./infer/test_spec_or_cond.lua");
+    // n is a math param.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // Entry dispatcher must exist.
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+    // The if condition must use native || comparison, not IsTrue.
+    ASSERT_NE(code.find("((n) < (0)) || ((n) > (10))"), std::string::npos);
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_or_cond.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 6);
+        Call(s, type, "test", ret, -1);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 11);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 11);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 5.5);
+        ASSERT_DOUBLE_EQ(dret, 6.5);
+        Call(s, type, "test", dret, -0.5);
+        ASSERT_DOUBLE_EQ(dret, 0.0);
+        Call(s, type, "test", dret, 10.5);
+        ASSERT_DOUBLE_EQ(dret, 0.0);
+    });
+}
+
+// while 循环条件 not (comparison)，直接使用数学参数（无局部变量中间体）。
+// n 通过比较（LESS）和算术（s + n, n - 1）被识别为数学参数。
+// while 条件 not (n < 0) 应生成原生 C 布尔 !((n) < (0))，不使用 IsTrue。
+// test(0) == 0, test(1) == 1, test(5) == 15 (= 5+4+3+2+1+0).
+TEST(infer, test_spec_while_not_cond) {
+    const auto code = InferGetCCode("./infer/test_spec_while_not_cond.lua");
+    // n is a math param (triggered by arithmetic and comparison).
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // The while condition must use a native negated comparison, not IsTrue.
+    ASSERT_NE(code.find("!((n) < (0))"), std::string::npos);
+    ASSERT_EQ(code.find("IsTrue"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_while_not_cond.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 1);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 15);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 3.0);
+        ASSERT_DOUBLE_EQ(dret, 6.0); // 3.0 + 2.0 + 1.0 + 0.0
+    });
+}
+
+// .. 拼接运算符与算术运算共存时，不应阻止 n 的数学参数特化。
+// n 通过算术 n + 1 被识别为数学参数；拼接结果为 T_DYNAMIC，
+// 不在 IsArithmeticExpr 中，因此不干扰特化发现流程。
+// test(5) == 6, test(0) == 1, test(-1) == 0, test(3) == 4.
+TEST(infer, test_spec_concat_no_interfere) {
+    const auto code = InferGetCCode("./infer/test_spec_concat_no_interfere.lua");
+    // n IS a math param (triggered by n + 1).
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // Entry dispatcher must exist.
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+    // The arithmetic n + 1 must use the native int fast path.
+    ASSERT_NE(code.find("((n) + (1))"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_concat_no_interfere.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 6);
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, -1);
+        ASSERT_EQ(ret, 0);
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 4);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 3.5);
+    });
+}
+
+// 仅含 and/or 运算符（无算术、无有序比较）的函数不应被特化。
+// a 和 b 仅用于 and 运算，可接受任意 Lua 类型（nil、字符串、数值等），
+// ParamAffectsArithmetic 对两者均返回 false，不会生成特化版本。
+TEST(infer, test_spec_and_or_only_no_spec) {
+    const auto code = InferGetCCode("./infer/test_spec_and_or_only_no_spec.lua");
+    // No specialization should be generated: no test_0 or test_1 variants.
+    ASSERT_EQ(code.find("test_0("), std::string::npos);
+    ASSERT_EQ(code.find("test_1("), std::string::npos);
+    // Only the generic CVar entry function should exist.
+    ASSERT_NE(code.find("CVar test(CVar a, CVar b)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_and_or_only_no_spec.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        // In Lua: 1 and 2 = 2, 0 and 2 = 2 (0 is truthy), 3 and 4 = 4.
+        Call(s, type, "test", ret, 1, 2);
+        ASSERT_EQ(ret, 2);
+        Call(s, type, "test", ret, 0, 2);
+        ASSERT_EQ(ret, 2);
+        Call(s, type, "test", ret, 3, 4);
+        ASSERT_EQ(ret, 4);
+    });
+}
