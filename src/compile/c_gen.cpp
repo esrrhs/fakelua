@@ -1645,12 +1645,33 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
         }
 
         if (i < exps.size() && exps[i]->EvalType() == T_INT) {
+            // CompileNumericExp may emit auxiliary statements before returning the expression
+            // string, so it must be called before the pre-eval assignment is emitted.
             const auto native_expr = CompileNumericExp(exps[i]);
-            *cur_output_ << GenTab() << "int64_t " << name << " = " << native_expr << ";\n";
+            if (IsTypedNativeVar(name)) {
+                // name is already in scope as a typed native variable.  In C, a new
+                // variable's scope begins at the end of its declarator (before the
+                // initializer), so `int64_t name = ((name) * 2)` would read the
+                // uninitialized inner `name`, not the outer typed one.
+                // Pre-evaluate into a temp to avoid undefined behaviour.
+                const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    int64_t " << tmp << ";\n";
+                *cur_output_ << GenTab() << tmp << " = " << native_expr << ";\n";
+                *cur_output_ << GenTab() << "int64_t " << name << " = " << tmp << ";\n";
+            } else {
+                *cur_output_ << GenTab() << "int64_t " << name << " = " << native_expr << ";\n";
+            }
             DeclareNativeVar(name, T_INT);
         } else if (i < exps.size() && exps[i]->EvalType() == T_FLOAT) {
             const auto native_expr = CompileNumericExp(exps[i]);
-            *cur_output_ << GenTab() << "double " << name << " = " << native_expr << ";\n";
+            if (IsTypedNativeVar(name)) {
+                const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    double " << tmp << ";\n";
+                *cur_output_ << GenTab() << tmp << " = " << native_expr << ";\n";
+                *cur_output_ << GenTab() << "double " << name << " = " << tmp << ";\n";
+            } else {
+                *cur_output_ << GenTab() << "double " << name << " = " << native_expr << ";\n";
+            }
             DeclareNativeVar(name, T_FLOAT);
         } else if (i < exps.size()) {
             // EvalType 为 T_DYNAMIC：尝试通过 InferArgTypeForSpec 捕获数学函数调用返回值。
@@ -1669,7 +1690,14 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                     const auto native_expr = TryCompileNativeExpr(exps[i]);
                     if (!native_expr.empty()) {
                         const auto c_type = (spec_type == T_INT) ? "int64_t" : "double";
-                        *cur_output_ << GenTab() << c_type << " " << name << " = " << native_expr << ";\n";
+                        if (IsTypedNativeVar(name)) {
+                            const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
+                            func_temp_decls_ << "    " << c_type << " " << tmp << ";\n";
+                            *cur_output_ << GenTab() << tmp << " = " << native_expr << ";\n";
+                            *cur_output_ << GenTab() << c_type << " " << name << " = " << tmp << ";\n";
+                        } else {
+                            *cur_output_ << GenTab() << c_type << " " << name << " = " << native_expr << ";\n";
+                        }
                         DeclareNativeVar(name, spec_type);
                         continue;
                     }
@@ -1911,7 +1939,14 @@ void CGen::CompileTypedIntForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_
         *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_INT) << ";\n";
         DeclareNativeVar(for_stmt->Name(), T_DYNAMIC);
     }
+    // 用内层作用域包裹循环体，避免 local 同名变量与循环变量在同一 C 作用域中重复声明。
+    *cur_output_ << GenTab() << "{\n";
+    cur_tab_++;
+    EnterNativeVarScope();
     CompileStmtBlock(for_stmt->Block());
+    ExitNativeVarScope();
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
     ExitNativeVarScope();
     cur_tab_--;
     *cur_output_ << GenTab() << "}\n";
@@ -1948,7 +1983,14 @@ void CGen::CompileTypedFloatForLoop(const std::shared_ptr<SyntaxTreeForLoop> &fo
         *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_FLOAT) << ";\n";
         DeclareNativeVar(for_stmt->Name(), T_DYNAMIC);
     }
+    // 用内层作用域包裹循环体，避免 local 同名变量与循环变量在同一 C 作用域中重复声明。
+    *cur_output_ << GenTab() << "{\n";
+    cur_tab_++;
+    EnterNativeVarScope();
     CompileStmtBlock(for_stmt->Block());
+    ExitNativeVarScope();
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
     ExitNativeVarScope();
     cur_tab_--;
     *cur_output_ << GenTab() << "}\n";
@@ -2012,8 +2054,14 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     EnterNativeVarScope();
     DeclareNativeVar(loop_var_name, T_DYNAMIC);
 
-    // 编译循环体
+    // 用内层作用域包裹循环体，避免 local 同名变量与循环变量在同一 C 作用域中重复声明。
+    *cur_output_ << GenTab() << "{\n";
+    cur_tab_++;
+    EnterNativeVarScope();
     CompileStmtBlock(for_stmt->Block());
+    ExitNativeVarScope();
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
     ExitNativeVarScope();
 
     // 递增控制变量
@@ -2110,13 +2158,19 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         *cur_output_ << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, key_name, dummy_val);
     }
 
-    // 编译循环体
+    // 编译循环体（用内层作用域包裹，避免 local 同名变量与迭代变量在同一 C 作用域中重复声明）
     EnterNativeVarScope();
     DeclareNativeVar(key_name, T_DYNAMIC);
     if (names.size() >= 2) {
         DeclareNativeVar(names[1], T_DYNAMIC);
     }
+    *cur_output_ << GenTab() << "{\n";
+    cur_tab_++;
+    EnterNativeVarScope();
     CompileStmtBlock(for_in->Block());
+    ExitNativeVarScope();
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
     ExitNativeVarScope();
 
     cur_tab_--;

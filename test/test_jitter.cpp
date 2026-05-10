@@ -1736,3 +1736,50 @@ TEST(jitter, test_dynamic_unop_minus) {
     });
 }
 
+// Typed-int for-loop: loop variable i shadowed by local i inside the body.
+// Without the fix, the generated C would have two declarations of i in the
+// same scope, causing a compilation error.
+// i=1: inner_i=2; i=2: inner_i=4; i=3: inner_i=6  => sum=12
+TEST(jitter, test_for_loop_shadow_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_loop_shadow_local.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 12);
+    });
+}
+
+// Typed-float for-loop: loop variable i shadowed by local i inside the body.
+// i=1.0: inner_i=1.5; i=2.0: inner_i=2.5; i=3.0: inner_i=3.5  => sum=7.5
+TEST(jitter, test_for_loop_float_shadow_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_loop_float_shadow_local.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret);
+        ASSERT_DOUBLE_EQ(ret, 7.5);
+    });
+}
+
+// Dynamic for-loop (step from helper() forces CVar path): loop variable i
+// shadowed by local i inside the body.
+// i=1,3,5 (step=2); inner_i=2,6,10  => sum=18
+TEST(jitter, test_for_loop_dynamic_shadow_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_loop_dynamic_shadow_local.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 18);
+    });
+}
+
+// For-in loop: loop variable k shadowed by local k inside the body.
+// t={10,20,30}; k=1,2,3; inner_k=2,4,6  => sum=12
+TEST(jitter, test_for_in_shadow_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_in_shadow_local.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 12);
+    });
+}
+
