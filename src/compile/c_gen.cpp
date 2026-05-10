@@ -1766,7 +1766,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
             // 从 CVar 中安全提取对应字段（先检查 type_ 再访问 data_），
             // 防止因读取错误联合成员而产生未定义行为。
             const std::string rhs = CompileExp(exps[0]);
-            const auto tmp = std::format("flua_ca_{}", tmp_var_counter_++);
+            const auto tmp = std::format("flua_assign_tmp_{}", tmp_var_counter_++);
             func_temp_decls_ << "    CVar " << tmp << ";\n";
             *cur_output_ << GenTab() << tmp << " = " << rhs << ";\n";
             if (var_type == T_FLOAT) {

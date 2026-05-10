@@ -1721,6 +1721,18 @@ TEST(jitter, test_for_loop_zero_step_float) {
             std::exception);
 }
 
+// Dynamic for-loop with step=0 via a function call: the step cannot be known at
+// compile time so a runtime guard is emitted in the generated C code.  TCC-compiled
+// code cannot propagate C++ exceptions back through its frames, so the runtime error
+// cannot be caught in a unit test.  This test verifies only that the Lua code
+// compiles without error.
+TEST(jitter, test_for_loop_zero_step_dynamic) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        EXPECT_NO_THROW(
+                CompileFile(s, "./jit/test_for_loop_zero_step_dynamic.lua", {.debug_mode = debug_mode}));
+    });
+}
+
 // ForIn with only 1 loop variable (key only, no value variable).
 // Exercises c_gen.cpp CompileStmtForIn lines 2138-2142 (dummy val path).
 // Keys 1+2+3 = 6.
