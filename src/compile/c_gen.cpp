@@ -1747,19 +1747,34 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
         // 优先尝试将右值编译为原生数值表达式（不经过 CVar）。
         // 这对特化中被重新赋值的数学参数尤为重要：参数已声明为 int64_t/double，
         // 若直接用 CompileExp 会产生 int64_t = CVar 的类型错误。
+        const auto var_type = GetNativeVarType(name);
         const auto native_rhs = TryCompileNativeExpr(exps[0]);
         if (!native_rhs.empty()) {
-            *cur_output_ << GenTab() << name << " = " << native_rhs << ";\n";
+            // 检查原生右值类型与变量声明类型是否匹配，避免隐式窄化转换。
+            const auto rhs_type = InferArgTypeForSpec(exps[0]);
+            if (rhs_type == T_FLOAT && var_type == T_INT) {
+                // 浮点表达式赋给整型变量：用显式转换代替隐式截断，语义更明确。
+                *cur_output_ << GenTab() << name << " = (int64_t)(" << native_rhs << ");\n";
+            } else if (rhs_type == T_INT && var_type == T_FLOAT) {
+                // 整型表达式赋给浮点变量：安全的扩展转换。
+                *cur_output_ << GenTab() << name << " = (double)(" << native_rhs << ");\n";
+            } else {
+                *cur_output_ << GenTab() << name << " = " << native_rhs << ";\n";
+            }
         } else {
             // 右值无法表达为原生数值（例如函数调用返回 CVar）。
-            // 从 CVar 中提取对应字段以赋给原生类型变量。
-            // 使用 GetNativeVarType 获取变量的精确 C 类型（T_INT → .data_.i，T_FLOAT → .data_.f），
-            // 涵盖数学参数和局部 int64_t/double 变量两种情况。
+            // 从 CVar 中安全提取对应字段（先检查 type_ 再访问 data_），
+            // 防止因读取错误联合成员而产生未定义行为。
             const std::string rhs = CompileExp(exps[0]);
-            if (GetNativeVarType(name) == T_FLOAT) {
-                *cur_output_ << GenTab() << name << " = (" << rhs << ").data_.f;\n";
+            const auto tmp = std::format("flua_assign_tmp_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar " << tmp << ";\n";
+            *cur_output_ << GenTab() << tmp << " = " << rhs << ";\n";
+            if (var_type == T_FLOAT) {
+                *cur_output_ << GenTab() << name << " = (" << tmp << ".type_ == VAR_FLOAT) ? " << tmp << ".data_.f : (double)" << tmp
+                             << ".data_.i;\n";
             } else {
-                *cur_output_ << GenTab() << name << " = (" << rhs << ").data_.i;\n";
+                *cur_output_ << GenTab() << name << " = (" << tmp << ".type_ == VAR_INT) ? " << tmp << ".data_.i : (int64_t)" << tmp
+                             << ".data_.f;\n";
             }
         }
     } else {
@@ -1922,11 +1937,18 @@ void CGen::CompileTypedIntForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_
     const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
     *cur_output_ << GenTab() << end_var << " = " << native_end << ";\n";
     if (for_stmt->ExpStep()) {
+        // 常量字面量步长为 0 时，在代码生成阶段即报错，避免后续生成死循环代码。
+        if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
+            step_exp && step_exp->ExpType() == "number" && step_exp->EvalType() == T_INT &&
+            ToInteger(step_exp->ExpValue()) == 0) {
+            ThrowError("'for' step is zero", for_stmt->ExpStep());
+        }
         const auto native_step = CompileNumericExp(for_stmt->ExpStep());
         *cur_output_ << GenTab() << step_var << " = " << native_step << ";\n";
     } else {
         *cur_output_ << GenTab() << step_var << " = 1;\n";
     }
+    *cur_output_ << GenTab() << "if (" << step_var << " == 0) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
 
     *cur_output_ << GenTab() << "for (; (" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
                  << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
@@ -1966,11 +1988,22 @@ void CGen::CompileTypedFloatForLoop(const std::shared_ptr<SyntaxTreeForLoop> &fo
     const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
     *cur_output_ << GenTab() << end_var << " = (double)(" << native_end << ");\n";
     if (for_stmt->ExpStep()) {
+        // 常量字面量步长为 0 时，在代码生成阶段即报错，避免后续生成死循环代码。
+        if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
+            step_exp && step_exp->ExpType() == "number") {
+            const double step_val = (step_exp->EvalType() == T_INT)
+                                            ? static_cast<double>(ToInteger(step_exp->ExpValue()))
+                                            : ToFloat(step_exp->ExpValue());
+            if (step_val == 0.0) {
+                ThrowError("'for' step is zero", for_stmt->ExpStep());
+            }
+        }
         const auto native_step = CompileNumericExp(for_stmt->ExpStep());
         *cur_output_ << GenTab() << step_var << " = (double)(" << native_step << ");\n";
     } else {
         *cur_output_ << GenTab() << step_var << " = 1.0;\n";
     }
+    *cur_output_ << GenTab() << "if (" << step_var << " == 0.0) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
 
     *cur_output_ << GenTab() << "for (; (" << step_var << " > 0.0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
                  << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
@@ -2026,10 +2059,13 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     }
 
     // 在循环前一次性确定步长方向
-    *cur_output_ << GenTab() << "if (" << step_var << ".type_ == VAR_INT) { " << step_pos_var << " = (" << step_var << ".data_.i > 0); }\n";
-    *cur_output_ << GenTab() << "else if (" << step_var << ".type_ == VAR_FLOAT) { " << step_pos_var << " = (" << step_var
-                 << ".data_.f > 0.0); }\n";
-    *cur_output_ << GenTab() << "else { FakeluaThrowError(_S, \"'for' step must be a number\"); " << step_pos_var << " = 1; }\n";
+    *cur_output_ << GenTab() << "if (" << step_var << ".type_ == VAR_INT) {\n";
+    *cur_output_ << GenTab() << "    if (" << step_var << ".data_.i == 0) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+    *cur_output_ << GenTab() << "    " << step_pos_var << " = (" << step_var << ".data_.i > 0);\n";
+    *cur_output_ << GenTab() << "} else if (" << step_var << ".type_ == VAR_FLOAT) {\n";
+    *cur_output_ << GenTab() << "    if (" << step_var << ".data_.f == 0.0) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+    *cur_output_ << GenTab() << "    " << step_pos_var << " = (" << step_var << ".data_.f > 0.0);\n";
+    *cur_output_ << GenTab() << "} else { FakeluaThrowError(_S, \"'for' step must be a number\"); " << step_pos_var << " = 1; }\n";
 
     *cur_output_ << GenTab() << "while (1) {\n";
     cur_tab_++;
