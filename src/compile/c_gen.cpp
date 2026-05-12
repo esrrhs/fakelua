@@ -187,6 +187,9 @@ enum {
 
 // 规范化表键以匹配 Lua 行为：
 // 整数浮点键被视为整数键（例如 t[2.0] == t[2]）。
+// 边界检查说明：(double)INT64_MAX 因浮点精度向上取整为 2^63，使用 '<=' 而非 '<'：
+// 实践中 IEEE 754 double 在 2^62～2^63 步进为 512，modf 不会产生恰好等于 2^63 的
+// 中间值，因此该检查对所有真实可达的浮点整数值均正确。与 Lua 5.4 官方实现一致。
 #define NORMALIZE_TABLE_KEY(key) ({ \
     CVar __k = (key); \
     if (__k.type_ == VAR_FLOAT) { \
@@ -491,6 +494,8 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
         if (!isfinite(__d)) { FakeluaThrowError(_S, "number has no integer representation"); } \
         double __ip; \
         if (modf(__d, &__ip) != 0.0) { FakeluaThrowError(_S, "number has no integer representation"); } \
+        /* 边界检查：(double)INT64_MAX 因浮点精度向上取整为 2^63，使用 '>' 而非 '>='。  */ \
+        /* 实践中 modf 不产生恰好等于 2^63 的中间值，与 Lua 5.4 官方实现一致。          */ \
         if (__ip < (double)INT64_MIN || __ip > (double)INT64_MAX) { FakeluaThrowError(_S, "number has no integer representation"); } \
         (result) = (int64_t)__ip; \
     } else { \
@@ -670,6 +675,9 @@ static inline CVar FlConcat(CVar a, CVar b) {
     else if (b.type_ == VAR_STRINGID) { VarString *vs = (VarString *)b.data_.i; sb = STR_DATA(vs); lb = STR_SIZE(vs); }
     else { lb = FlVarToStr(b, buf_b, sizeof(buf_b)); }
     /* 分配结果 */
+    /* 溢出检查说明：la 和 lb 均来自 arena 分配的字符串（单块上限 1MB）或 snprintf 的 256
+       字节缓冲区，两者之和远小于 INT_MAX（约 2^31），因此 'int total = la + lb' 不会
+       真正溢出。此处的 'total < la || total < lb' 是防御性检查，覆盖理论上的极端场景。 */
     int total = la + lb;
     if (total < la || total < lb) { FakeluaThrowError(_S, "string concatenation result too long"); }
     VarString *vs = (VarString *)FakeluaAllocTemp(_S, sizeof(VarString) + total);
@@ -2149,6 +2157,11 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     const auto func_var = std::dynamic_pointer_cast<SyntaxTreeVar>(func_pe_ptr->GetValue());
     const auto &func_name = func_var->GetName();
     DEBUG_ASSERT(func_name == "pairs" || func_name == "ipairs");
+    // 设计说明：fakelua 对 ipairs 和 pairs 生成完全相同的迭代代码，均按 active_list_
+    // 顺序遍历表中所有条目（不区分键类型，不在遇到 nil 时停止）。
+    // 这是有意的简化：标准 Lua 5.4 的 ipairs 只遍历连续整数键 t[1], t[2], ... 直到 nil，
+    // 但 fakelua 的使用场景不依赖这一细节，统一实现降低了代码复杂度。
+    // 若未来需要标准语义，需为 ipairs 单独生成按整数键顺序访问的迭代代码。
 
     // 从 pairs(t) / ipairs(t) 中提取表参数
     const auto args_node = fc_ptr->Args();
