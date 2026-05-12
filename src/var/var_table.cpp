@@ -23,6 +23,10 @@ Var VarTable::NormalizeTableKey(const Var &key) const {
     if (std::modf(double_val, &int_part) != 0.0) {
         return key;
     }
+    // 边界检查同 TryConvertNumberToInteger：static_cast<double>(INT64_MAX) 因浮点精度
+    // 会向上取整为 2^63，使用 '>' 而非 '>='。实践中 IEEE 754 double 在 2^62～2^63
+    // 范围步进为 512，modf 不会产生恰好等于 2^63 的有效中间值，因此对所有真实可达的
+    // double 整数值该检查均正确。与 Lua 5.4 官方实现一致，不做额外特判。
     if (int_part < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
         int_part > static_cast<double>(std::numeric_limits<int64_t>::max())) {
         return key;

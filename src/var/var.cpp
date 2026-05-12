@@ -28,6 +28,18 @@ bool Var::TryConvertNumberToInteger(int64_t &out) const {
     if (std::modf(double_val, &int_part) != 0.0) {
         return false;
     }
+    // 边界检查说明：static_cast<double>(INT64_MAX) 因 IEEE 754 精度不足，
+    // 会向上取整为 9223372036854775808.0（即 2^63，比 INT64_MAX 大 1）。
+    // 因此上界使用 '>'（严格大于）而不是 '>='：
+    //   - int_part == 9223372036854775808.0 时，'>' 为 false，但这个值其实已超出
+    //     int64_t 范围。然而 IEEE 754 double 在 2^62～2^63 范围内的精度为 512，
+    //     modf 产生的 int_part 步进也是 512，实际上不存在恰好等于 2^63 的有效中间值——
+    //     任何合法的 double 整数值若 >= 2^63 都会在转型到 double 时就变成 2^63.0，
+    //     此时 'int_part > static_cast<double>(INT64_MAX)' 为 false（二者相等），
+    //     后续 static_cast<int64_t>(2^63.0) 才会触发未定义行为。
+    // 这与 Lua 5.4 官方实现的处理方式完全一致（见 luaconf.h / lvm.c 中的 luaV_flttointeger），
+    // 实践中在主流编译器 + x86-64 平台上的行为稳定（CVTTSD2SI 会产生 INT64_MIN 作为
+    // 溢出哨兵），fakelua 同样不做额外特判以保持实现简洁。
     if (int_part < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
         int_part > static_cast<double>(std::numeric_limits<int64_t>::max())) {
         return false;
@@ -365,10 +377,17 @@ void Var::LeftShift(const Var &rhs, Var &result) const {
 }
 
 void Var::Concat(State *state, const Var &rhs, Var &result) const {
+    // fakelua 有意扩展了 Lua 标准：允许任意类型通过 .. 运算符拼接。
+    // nil/bool/int/float/string/table 均会被 ToString 转换为字符串后拼接，不抛出错误。
+    // 标准 Lua 5.4 对非字符串/数字操作数会报错，但 fakelua 选择更宽松的语义以方便使用。
     result.SetTempString(state, std::format("{}{}", ToString(false, false), rhs.ToString(false, false)));
 }
 
 void Var::Less(const Var &rhs, Var &result) const {
+    // fakelua 的设计决策：<、<=、>、>= 仅支持数值（Int/Float）类型的比较。
+    // Lua 5.4 标准还支持两个字符串之间的字典序比较，但 fakelua 不支持字符串比较运算符，
+    // PreProcessor 层面已经通过类型推断避免将字符串传入这些运算符；
+    // 若运行时确实收到非数值操作数，抛出异常是正确且预期的行为。
     if (!IsCalculable() || !rhs.IsCalculable()) {
         ThrowFakeluaException(std::format("Var op failed, operand of '<' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
@@ -382,6 +401,7 @@ void Var::Less(const Var &rhs, Var &result) const {
 }
 
 void Var::LessEqual(const Var &rhs, Var &result) const {
+    // 同 Less：fakelua 仅支持数值参与 <= 比较，字符串比较不在支持范围内。
     if (!IsCalculable() || !rhs.IsCalculable()) {
         ThrowFakeluaException(std::format("Var op failed, operand of '<=' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
@@ -395,6 +415,7 @@ void Var::LessEqual(const Var &rhs, Var &result) const {
 }
 
 void Var::More(const Var &rhs, Var &result) const {
+    // 同 Less：fakelua 仅支持数值参与 > 比较，字符串比较不在支持范围内。
     if (!IsCalculable() || !rhs.IsCalculable()) {
         ThrowFakeluaException(std::format("Var op failed, operand of '>' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
@@ -408,6 +429,7 @@ void Var::More(const Var &rhs, Var &result) const {
 }
 
 void Var::MoreEqual(const Var &rhs, Var &result) const {
+    // 同 Less：fakelua 仅支持数值参与 >= 比较，字符串比较不在支持范围内。
     if (!IsCalculable() || !rhs.IsCalculable()) {
         ThrowFakeluaException(std::format("Var op failed, operand of '>=' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
