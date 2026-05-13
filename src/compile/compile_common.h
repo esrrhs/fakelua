@@ -37,27 +37,27 @@ inline bool IsNumericInferredType(const InferredType type) {
     return type == T_INT || type == T_FLOAT;
 }
 
-inline InferredType InferNumericBinopResultType(const std::string &op_name,
+inline InferredType InferNumericBinopResultType(const BinOpKind op_kind,
                                                 const InferredType left_type,
                                                 const InferredType right_type) {
     if (!IsNumericInferredType(left_type) || !IsNumericInferredType(right_type)) {
         return T_DYNAMIC;
     }
-    if (op_name == "SLASH" || op_name == "POW") {
+    if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
         return T_FLOAT;
     }
-    if (op_name == "PLUS" || op_name == "MINUS" || op_name == "STAR" || op_name == "MOD" ||
-        op_name == "DOUBLE_SLASH") {
+    if (op_kind == BinOpKind::kPlus || op_kind == BinOpKind::kMinus || op_kind == BinOpKind::kStar ||
+        op_kind == BinOpKind::kMod || op_kind == BinOpKind::kDoubleSlash) {
         return (left_type == T_INT && right_type == T_INT) ? T_INT : T_FLOAT;
     }
-    if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR" ||
-        op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
+    if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr ||
+        op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
         return T_INT;
     }
-    if (op_name == "AND") {
+    if (op_kind == BinOpKind::kAnd) {
         return right_type;
     }
-    if (op_name == "OR") {
+    if (op_kind == BinOpKind::kOr) {
         return left_type;
     }
     return T_DYNAMIC;
@@ -70,8 +70,8 @@ inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_
     if (!args_ptr) {
         return raw_args;
     }
-    const auto &args_type = args_ptr->GetType();
-    if (args_type == "explist") {
+    const auto args_kind = args_ptr->GetArgsKind();
+    if (args_kind == ArgsKind::kExpList) {
         const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
         if (!explist_ptr) {
             return raw_args;
@@ -80,13 +80,13 @@ inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_
         raw_args.insert(raw_args.end(), exps.begin(), exps.end());
         return raw_args;
     }
-    if (args_type == "string") {
+    if (args_kind == ArgsKind::kString) {
         if (const auto str_exp = args_ptr->String()) {
             raw_args.push_back(str_exp);
         }
         return raw_args;
     }
-    if (args_type == "tableconstructor") {
+    if (args_kind == ArgsKind::kTableConstructor) {
         if (const auto table_arg = args_ptr->Tableconstructor()) {
             raw_args.push_back(table_arg);
         }

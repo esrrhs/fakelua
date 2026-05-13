@@ -12,6 +12,82 @@ enum InferredType {
     T_DYNAMIC
 };
 
+// 表达式子类型
+enum class ExpKind {
+    kNil,
+    kTrue,
+    kFalse,
+    kNumber,
+    kString,
+    kVarParams,
+    kFunctionDef,
+    kPrefixExp,
+    kTableConstructor,
+    kBinop,
+    kUnop,
+};
+
+// 变量访问类型
+enum class VarKind {
+    kSimple,
+    kSquare,
+    kDot,
+};
+
+// 前缀表达式子类型
+enum class PrefixExpKind {
+    kVar,
+    kFunctionCall,
+    kExp,
+};
+
+// 函数参数类型
+enum class ArgsKind {
+    kExpList,
+    kEmpty,
+    kTableConstructor,
+    kString,
+};
+
+// 表字段类型
+enum class FieldKind {
+    kArray,
+    kObject,
+};
+
+// 二元运算符
+enum class BinOpKind {
+    kPlus,
+    kMinus,
+    kStar,
+    kSlash,
+    kDoubleSlash,
+    kPow,
+    kMod,
+    kBitAnd,
+    kXor,
+    kBitOr,
+    kRightShift,
+    kLeftShift,
+    kConcat,
+    kLess,
+    kLessEqual,
+    kMore,
+    kMoreEqual,
+    kEqual,
+    kNotEqual,
+    kAnd,
+    kOr,
+};
+
+// 一元运算符
+enum class UnOpKind {
+    kMinus,
+    kNot,
+    kNumberSign,
+    kBitNot,
+};
+
 // 语法树节点类型
 enum class SyntaxTreeType {
     None = 0,
@@ -439,8 +515,8 @@ public:
     }
 
     // 设置变量访问类型
-    void SetType(const std::string &type) {
-        type_ = type;
+    void SetVarKind(const VarKind kind) {
+        var_kind_ = kind;
     }
 
     // 获取变量名
@@ -459,15 +535,15 @@ public:
     }
 
     // 获取变量访问类型
-    [[nodiscard]] std::string GetType() const {
-        return type_;
+    [[nodiscard]] VarKind GetVarKind() const {
+        return var_kind_;
     }
 
 private:
     std::string name_;
     SyntaxTreeInterfacePtr exp_;
     SyntaxTreeInterfacePtr prefixexp_;
-    std::string type_;
+    VarKind var_kind_ = VarKind::kSimple;
 };
 
 // 函数调用节点
@@ -614,8 +690,8 @@ public:
     }
 
     // 设置字段类型
-    void SetType(const std::string &type) {
-        type_ = type;
+    void SetFieldKind(const FieldKind kind) {
+        field_kind_ = kind;
     }
 
     // 获取字段键表达式
@@ -634,15 +710,15 @@ public:
     }
 
     // 获取字段类型
-    [[nodiscard]] std::string GetType() const {
-        return type_;
+    [[nodiscard]] FieldKind GetFieldKind() const {
+        return field_kind_;
     }
 
 private:
     SyntaxTreeInterfacePtr key_;
     SyntaxTreeInterfacePtr value_;
     std::string name_;
-    std::string type_;
+    FieldKind field_kind_ = FieldKind::kArray;
 };
 
 // break 语句节点
@@ -1373,8 +1449,8 @@ public:
     [[nodiscard]] std::string Dump(int tab) const override;
 
     // 设置表达式字面量类型
-    void SetType(const std::string &type) {
-        type_ = type;
+    void SetExpKind(const ExpKind kind) {
+        exp_kind_ = kind;
     }
 
     // 设置表达式字面量值
@@ -1398,8 +1474,8 @@ public:
     }
 
     // 获取表达式字面量类型
-    [[nodiscard]] std::string ExpType() const {
-        return type_;
+    [[nodiscard]] ExpKind GetExpKind() const {
+        return exp_kind_;
     }
 
     // 获取表达式字面量值
@@ -1423,7 +1499,7 @@ public:
     }
 
 private:
-    std::string type_;
+    ExpKind exp_kind_ = ExpKind::kNil;
     std::string value_;
     SyntaxTreeInterfacePtr left_;
     SyntaxTreeInterfacePtr op_;
@@ -1446,18 +1522,18 @@ public:
     // 转储节点信息
     [[nodiscard]] std::string Dump(int tab) const override;
 
-    // 设置二元运算符名
-    void SetOp(const std::string &oper) {
-        op_ = oper;
+    // 设置二元运算符
+    void SetOpKind(const BinOpKind kind) {
+        op_kind_ = kind;
     }
 
-    // 获取二元运算符名
-    [[nodiscard]] std::string GetOp() const {
-        return op_;
+    // 获取二元运算符
+    [[nodiscard]] BinOpKind GetOpKind() const {
+        return op_kind_;
     }
 
 private:
-    std::string op_;
+    BinOpKind op_kind_ = BinOpKind::kPlus;
 };
 
 // 一元运算符节点
@@ -1476,18 +1552,18 @@ public:
     // 转储节点信息
     [[nodiscard]] std::string Dump(int tab) const override;
 
-    // 设置一元运算符名
-    void SetOp(const std::string &oper) {
-        op_ = oper;
+    // 设置一元运算符
+    void SetOpKind(const UnOpKind kind) {
+        op_kind_ = kind;
     }
 
-    // 获取一元运算符名
-    [[nodiscard]] std::string GetOp() const {
-        return op_;
+    // 获取一元运算符
+    [[nodiscard]] UnOpKind GetOpKind() const {
+        return op_kind_;
     }
 
 private:
-    std::string op_;
+    UnOpKind op_kind_ = UnOpKind::kMinus;
 };
 
 // 函数参数节点
@@ -1522,13 +1598,13 @@ public:
     }
 
     // 设置参数类型分类
-    void SetType(const std::string &type) {
-        type_ = type;
+    void SetArgsKind(const ArgsKind kind) {
+        args_kind_ = kind;
     }
 
     // 获取参数类型分类
-    [[nodiscard]] std::string GetType() const {
-        return type_;
+    [[nodiscard]] ArgsKind GetArgsKind() const {
+        return args_kind_;
     }
 
     // 获取参数表达式列表
@@ -1550,7 +1626,7 @@ private:
     SyntaxTreeInterfacePtr explist_;
     SyntaxTreeInterfacePtr tableconstructor_;
     SyntaxTreeInterfacePtr string_;
-    std::string type_;
+    ArgsKind args_kind_ = ArgsKind::kEmpty;
 };
 
 // 前缀表达式节点
@@ -1575,8 +1651,8 @@ public:
     }
 
     // 设置前缀表达式类型分类
-    void SetType(const std::string &type) {
-        type_ = type;
+    void SetPrefixKind(const PrefixExpKind kind) {
+        prefix_kind_ = kind;
     }
 
     // 获取内部表达式值
@@ -1585,13 +1661,13 @@ public:
     }
 
     // 获取前缀表达式类型分类
-    [[nodiscard]] std::string GetType() const {
-        return type_;
+    [[nodiscard]] PrefixExpKind GetPrefixKind() const {
+        return prefix_kind_;
     }
 
 private:
     SyntaxTreeInterfacePtr value_;
-    std::string type_;
+    PrefixExpKind prefix_kind_ = PrefixExpKind::kVar;
 };
 
 // 语法树遍历函数定义

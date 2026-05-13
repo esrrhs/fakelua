@@ -123,7 +123,7 @@ InferredType TypeInferencer::InferAndSetEvalType(const SyntaxTreeInterfacePtr &n
 
             const InferredType rhs_type = InferAndSetEvalType(explist->Exps()[0]);
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
-            DEBUG_ASSERT(var && var->GetType() == "simple");
+            DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple);
 
             const std::string name = var->GetName();
             if (!env_.Update(name, rhs_type)) {
@@ -306,20 +306,20 @@ InferredType TypeInferencer::InferAndSetEvalType(const SyntaxTreeInterfacePtr &n
 }
 
 InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp) {
-    const auto &exp_type = exp->ExpType();
+    const auto exp_kind = exp->GetExpKind();
 
-    if (exp_type == "number") {
+    if (exp_kind == ExpKind::kNumber) {
         const auto &value = exp->ExpValue();
         const auto ret = IsInteger(value) ? T_INT : T_FLOAT;
         exp->SetEvalType(ret);
         return ret;
     }
-    if (exp_type == "prefixexp") {
+    if (exp_kind == ExpKind::kPrefixExp) {
         const auto ret = InferAndSetEvalType(exp->Right());
         exp->SetEvalType(ret);
         return ret;
     }
-    if (exp_type == "binop") {
+    if (exp_kind == ExpKind::kBinop) {
         const auto left_type = InferAndSetEvalType(exp->Left());
         const auto right_type = InferAndSetEvalType(exp->Right());
 
@@ -331,10 +331,11 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
         DEBUG_ASSERT(op);
 
-        const auto &op_name = op->GetOp();
+        const auto op_kind = op->GetOpKind();
 
         // 保持 INT+INT=INT、混合→FLOAT 语义的算术运算
-        if (op_name == "PLUS" || op_name == "MINUS" || op_name == "STAR" || op_name == "DOUBLE_SLASH" || op_name == "MOD") {
+        if (op_kind == BinOpKind::kPlus || op_kind == BinOpKind::kMinus || op_kind == BinOpKind::kStar ||
+            op_kind == BinOpKind::kDoubleSlash || op_kind == BinOpKind::kMod) {
             if (left_type == T_INT && right_type == T_INT) {
                 exp->SetEvalType(T_INT);
                 return T_INT;
@@ -346,7 +347,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
         }
 
         // 结果始终为 FLOAT 的运算
-        if (op_name == "SLASH" || op_name == "POW") {
+        if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
             if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
                 exp->SetEvalType(T_FLOAT);
                 return T_FLOAT;
@@ -354,7 +355,8 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
         }
 
         // 位运算：两个操作数均为 T_INT 时结果为 T_INT
-        if (op_name == "BITAND" || op_name == "BITOR" || op_name == "XOR" || op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
+        if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kXor ||
+            op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
             if (left_type == T_INT && right_type == T_INT) {
                 exp->SetEvalType(T_INT);
                 return T_INT;
@@ -364,13 +366,13 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
         // AND/OR：Lua 中整数和浮点数始终为真值（包括 0），因此：
         //   a and b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 b → 类型为 right_type
         //   a or  b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 a → 类型为 left_type
-        if (op_name == "AND") {
+        if (op_kind == BinOpKind::kAnd) {
             if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
                 exp->SetEvalType(right_type);
                 return right_type;
             }
         }
-        if (op_name == "OR") {
+        if (op_kind == BinOpKind::kOr) {
             if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
                 exp->SetEvalType(left_type);
                 return left_type;
@@ -381,12 +383,12 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
         return T_DYNAMIC;
     }
 
-    if (exp_type == "unop") {
+    if (exp_kind == ExpKind::kUnop) {
         const auto operand_type = InferAndSetEvalType(exp->Right());
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
         DEBUG_ASSERT(op);
-        const auto &op_name = op->GetOp();
-        if (op_name == "MINUS") {
+        const auto op_kind = op->GetOpKind();
+        if (op_kind == UnOpKind::kMinus) {
             if (operand_type == T_INT) {
                 exp->SetEvalType(T_INT);
                 return T_INT;
@@ -396,13 +398,13 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
                 return T_FLOAT;
             }
         }
-        if (op_name == "BITNOT") {
+        if (op_kind == UnOpKind::kBitNot) {
             if (operand_type == T_INT) {
                 exp->SetEvalType(T_INT);
                 return T_INT;
             }
         }
-        if (op_name == "NUMBER_SIGN") {
+        if (op_kind == UnOpKind::kNumberSign) {
             // # 运算符始终返回整数（字符串字节数或表元素数）。
             // 无论操作数是字符串还是表（均为 T_DYNAMIC），结果类型始终为 T_INT。
             exp->SetEvalType(T_INT);
@@ -417,12 +419,12 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
 }
 
 InferredType TypeInferencer::InferPrefixExp(const std::shared_ptr<SyntaxTreePrefixexp> &prefix_exp) {
-    const auto &prefix_type = prefix_exp->GetType();
+    const auto prefix_kind = prefix_exp->GetPrefixKind();
     InferredType ret = T_DYNAMIC;
 
-    if (prefix_type == "var" || prefix_type == "exp") {
+    if (prefix_kind == PrefixExpKind::kVar || prefix_kind == PrefixExpKind::kExp) {
         ret = InferAndSetEvalType(prefix_exp->GetValue());
-    } else if (prefix_type == "functioncall") {
+    } else if (prefix_kind == PrefixExpKind::kFunctionCall) {
         ret = T_DYNAMIC;
         InferAndSetEvalType(prefix_exp->GetValue());
     }
@@ -432,7 +434,7 @@ InferredType TypeInferencer::InferPrefixExp(const std::shared_ptr<SyntaxTreePref
 }
 
 InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var) {
-    if (var->GetType() == "simple") {
+    if (var->GetVarKind() == VarKind::kSimple) {
         const auto ret = env_.Lookup(var->GetName());
         var->SetEvalType(ret);
         return ret;
@@ -444,7 +446,7 @@ InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var)
     if (const auto pe = var->GetPrefixexp()) {
         InferAndSetEvalType(pe);
     }
-    if (var->GetType() == "square") {
+    if (var->GetVarKind() == VarKind::kSquare) {
         if (const auto exp = var->GetExp()) {
             InferAndSetEvalType(exp);
         }
@@ -510,25 +512,25 @@ bool TypeInferencer::IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const 
         return false;
     }
     const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-    if (exp->ExpType() == "binop") {
+    if (exp->GetExpKind() == ExpKind::kBinop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
         if (!op) {
             return false;
         }
-        const auto &op_name = op->GetOp();
-        return op_name == "PLUS" || op_name == "MINUS" || op_name == "STAR" || op_name == "SLASH" ||
-               op_name == "DOUBLE_SLASH" || op_name == "POW" || op_name == "MOD" || op_name == "BITAND" ||
-               op_name == "XOR" || op_name == "BITOR" || op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT";
+        const auto k = op->GetOpKind();
+        return k == BinOpKind::kPlus || k == BinOpKind::kMinus || k == BinOpKind::kStar ||
+               k == BinOpKind::kSlash || k == BinOpKind::kDoubleSlash || k == BinOpKind::kPow ||
+               k == BinOpKind::kMod || k == BinOpKind::kBitAnd || k == BinOpKind::kXor ||
+               k == BinOpKind::kBitOr || k == BinOpKind::kLeftShift || k == BinOpKind::kRightShift;
     }
-    if (exp->ExpType() == "unop") {
+    if (exp->GetExpKind() == ExpKind::kUnop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
         if (!op) {
             return false;
         }
-        const auto &op_name = op->GetOp();
         // 一元负号：-T_INT=T_INT，-T_FLOAT=T_FLOAT，随参数类型改变。
         // 按位取反：~T_INT=T_INT，仅对整数参数有意义。
-        return op_name == "MINUS" || op_name == "BITNOT";
+        return op->GetOpKind() == UnOpKind::kMinus || op->GetOpKind() == UnOpKind::kBitNot;
     }
     return false;
 }
@@ -544,16 +546,16 @@ bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) 
         return false;
     }
     const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-    if (exp->ExpType() != "binop") {
+    if (exp->GetExpKind() != ExpKind::kBinop) {
         return false;
     }
     const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
     if (!op) {
         return false;
     }
-    const auto &op_name = op->GetOp();
-    return op_name == "LESS" || op_name == "LESS_EQUAL" || op_name == "MORE" ||
-           op_name == "MORE_EQUAL";
+    const auto k = op->GetOpKind();
+    return k == BinOpKind::kLess || k == BinOpKind::kLessEqual || k == BinOpKind::kMore ||
+           k == BinOpKind::kMoreEqual;
 }
 
 TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func_block,
@@ -643,11 +645,11 @@ bool TypeInferencer::HasMathCallImprovement(
             return;
         }
         const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-        if (!callee_pe || callee_pe->GetType() != "var") {
+        if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
             return;
         }
         const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-        if (!callee_var || callee_var->GetType() != "simple") {
+        if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
             return;
         }
         const auto &callee_name = callee_var->GetName();
@@ -891,9 +893,9 @@ InferredType TypeInferencer::EvalReturnExpType(
         return T_DYNAMIC;
     }
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-    const auto &exp_type = e->ExpType();
+    const auto exp_kind = e->GetExpKind();
 
-    if (exp_type == "number") {
+    if (exp_kind == ExpKind::kNumber) {
         const auto it = snapshot.find(exp.get());
         if (it != snapshot.end() && (it->second == T_INT || it->second == T_FLOAT)) {
             return it->second;
@@ -901,14 +903,14 @@ InferredType TypeInferencer::EvalReturnExpType(
         return T_DYNAMIC;
     }
 
-    if (exp_type == "prefixexp") {
+    if (exp_kind == ExpKind::kPrefixExp) {
         const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
         if (!pe) {
             return T_DYNAMIC;
         }
-        if (pe->GetType() == "var") {
+        if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-            if (!var || var->GetType() != "simple") {
+            if (!var || var->GetVarKind() != VarKind::kSimple) {
                 return T_DYNAMIC;
             }
             const auto &vname = var->GetName();
@@ -922,20 +924,20 @@ InferredType TypeInferencer::EvalReturnExpType(
             }
             return T_DYNAMIC;
         }
-        if (pe->GetType() == "exp") {
+        if (pe->GetPrefixKind() == PrefixExpKind::kExp) {
             return EvalReturnExpType(pe->GetValue(), snapshot, spec_ctx, math_param_positions, assumed_ret);
         }
-        if (pe->GetType() == "functioncall") {
+        if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
             const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
             if (!fc) {
                 return T_DYNAMIC;
             }
             const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-            if (!callee_pe || callee_pe->GetType() != "var") {
+            if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
                 return T_DYNAMIC;
             }
             const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-            if (!callee_var || callee_var->GetType() != "simple") {
+            if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
                 return T_DYNAMIC;
             }
             const auto &callee_name = callee_var->GetName();
@@ -983,31 +985,31 @@ InferredType TypeInferencer::EvalReturnExpType(
         return T_DYNAMIC;
     }
 
-    if (exp_type == "binop") {
+    if (exp_kind == ExpKind::kBinop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
         if (!op) {
             return T_DYNAMIC;
         }
         const auto left = EvalReturnExpType(e->Left(), snapshot, spec_ctx, math_param_positions, assumed_ret);
         const auto right = EvalReturnExpType(e->Right(), snapshot, spec_ctx, math_param_positions, assumed_ret);
-        return InferNumericBinopResultType(op->GetOp(), left, right);
+        return InferNumericBinopResultType(op->GetOpKind(), left, right);
     }
 
-    if (exp_type == "unop") {
+    if (exp_kind == ExpKind::kUnop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
         if (!op) {
             return T_DYNAMIC;
         }
-        if (op->GetOp() == "MINUS") {
+        if (op->GetOpKind() == UnOpKind::kMinus) {
             return EvalReturnExpType(e->Right(), snapshot, spec_ctx, math_param_positions, assumed_ret);
         }
-        if (op->GetOp() == "BITNOT") {
+        if (op->GetOpKind() == UnOpKind::kBitNot) {
             const auto t = EvalReturnExpType(e->Right(), snapshot, spec_ctx, math_param_positions, assumed_ret);
             if (t == T_INT) {
                 return T_INT;
             }
         }
-        if (op->GetOp() == "NUMBER_SIGN") {
+        if (op->GetOpKind() == UnOpKind::kNumberSign) {
             // # 运算符始终返回整数（字符串字节数或表元素数），与操作数类型无关。
             return T_INT;
         }
