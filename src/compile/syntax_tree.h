@@ -231,13 +231,6 @@ public:
         loc_ = loc;
     }
 
-    void SetEvalType(const InferredType type) {
-        eval_type_ = type;
-    }
-
-    [[nodiscard]] InferredType EvalType() const {
-        return eval_type_;
-    }
 
 protected:
     // 生成缩进字符串
@@ -261,7 +254,6 @@ protected:
 private:
     // 节点位置信息
     SyntaxTreeLocation loc_;
-    InferredType eval_type_ = T_UNKNOWN;
 };
 
 // 语法树智能指针类型

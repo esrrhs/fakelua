@@ -120,6 +120,10 @@ struct CompileResult {
     // 由 TypeInferencer::DiscoverMathParams 通过不动点迭代填充，
     // 供 CGen::InferArgTypeForSpec 在函数调用节点处查询被调用函数的实际返回类型。
     std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
+    // 全局类型推断结果：节点指针 → 推断类型。
+    // 由 TypeInferencer::Process 在全局（非试推断）推断完成后填充，
+    // 供 CGen 在非特化编译路径中查询任意节点的类型，替代原先内嵌在 AST 节点的 eval_type_ 字段。
+    EvalTypeSnapshot main_eval_types;
 };
 
 }// namespace fakelua

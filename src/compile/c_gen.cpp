@@ -47,6 +47,20 @@ InferredType CGen::GetNativeVarType(const std::string &name) const {
     return T_DYNAMIC;
 }
 
+InferredType CGen::LookupNodeType(SyntaxTreeInterface *node) const {
+    if (cur_spec_snapshot_) {
+        if (const auto it = cur_spec_snapshot_->find(node); it != cur_spec_snapshot_->end()) {
+            return it->second;
+        }
+    }
+    if (main_eval_types_) {
+        if (const auto it = main_eval_types_->find(node); it != main_eval_types_->end()) {
+            return it->second;
+        }
+    }
+    return T_UNKNOWN;
+}
+
 void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
     LOG_INFO("start CGen::Generate {}", cr.file_name);
 
@@ -77,6 +91,7 @@ std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
     math_param_positions_ = cr.math_param_positions;
     specialization_snapshots_ = &cr.specialization_snapshots;
     specialization_return_types_ = &cr.specialization_return_types;
+    main_eval_types_ = &cr.main_eval_types;
 
     cur_output_ = &headers_;
     GenerateHeader();
@@ -1116,21 +1131,6 @@ void CGen::CompileFuncBody(const std::string &func_name,
     }
 
     // 将函数体编译到 body 缓冲区。
-    //
-    // 若处于特化模式，临时将快照中的 EvalType 应用到函数块的每个 AST 节点，
-    // 使整个编译器中所有 EvalType() 调用都能看到当前位掩码对应的正确类型。
-    // 先保存当前的 EvalType，以便后续恢复，保持 AST 对后续位掩码
-    // 及非特化编译的干净状态。
-    EvalTypeSnapshot saved_eval_types;
-    if (cur_spec_snapshot_ != nullptr) {
-        WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &n) {
-            saved_eval_types[n.get()] = n->EvalType();
-        });
-        for (const auto &[ptr, type]: *cur_spec_snapshot_) {
-            ptr->SetEvalType(type);
-        }
-    }
-
     func_temp_decls_.str("");
     func_temp_decls_.clear();
     body_ss_.str("");
@@ -1156,13 +1156,6 @@ void CGen::CompileFuncBody(const std::string &func_name,
     cur_output_ = &impls_;
     *cur_output_ << func_temp_decls_.str();
     *cur_output_ << body_ss_.str();
-
-    // 恢复本次特化中被覆盖的 EvalType。
-    if (cur_spec_snapshot_ != nullptr) {
-        for (const auto &[ptr, type]: saved_eval_types) {
-            ptr->SetEvalType(type);
-        }
-    }
 
     // 清除特化上下文。
     spec_param_types_.clear();
@@ -1306,11 +1299,12 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
     const auto exp_kind = e->GetExpKind();
 
     if (exp_kind == ExpKind::kNumber) {
-        // 使用 TypeInferencer 设置的 EvalType。
-        if (e->EvalType() == T_INT) {
+        // 使用 LookupNodeType 查询 TypeInferencer 的推断结果（特化快照或主推断）。
+        const auto node_type = LookupNodeType(e.get());
+        if (node_type == T_INT) {
             return T_INT;
         }
-        if (e->EvalType() == T_FLOAT) {
+        if (node_type == T_FLOAT) {
             return T_FLOAT;
         }
         // 回退：探查字符串值。
@@ -1652,7 +1646,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             ThrowError("local variable conflicts with global constant: " + name, stmt);
         }
 
-        if (i < exps.size() && exps[i]->EvalType() == T_INT) {
+        if (i < exps.size() && LookupNodeType(exps[i].get()) == T_INT) {
             // CompileNumericExp may emit auxiliary statements before returning the expression
             // string, so it must be called before the pre-eval assignment is emitted.
             const auto native_expr = CompileNumericExp(exps[i]);
@@ -1670,7 +1664,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 *cur_output_ << GenTab() << "int64_t " << name << " = " << native_expr << ";\n";
             }
             DeclareNativeVar(name, T_INT);
-        } else if (i < exps.size() && exps[i]->EvalType() == T_FLOAT) {
+        } else if (i < exps.size() && LookupNodeType(exps[i].get()) == T_FLOAT) {
             const auto native_expr = CompileNumericExp(exps[i]);
             if (IsTypedNativeVar(name)) {
                 const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
@@ -1691,7 +1685,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             // 因此函数调用初始化的变量仍可通过 InferArgTypeForSpec 正确推断。
             const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exps[i]);
             const bool is_degraded_literal =
-                    init_exp && init_exp->GetExpKind() == ExpKind::kNumber && exps[i]->EvalType() == T_DYNAMIC;
+                    init_exp && init_exp->GetExpKind() == ExpKind::kNumber && LookupNodeType(exps[i].get()) == T_DYNAMIC;
             if (!is_degraded_literal) {
                 const auto spec_type = InferArgTypeForSpec(exps[i]);
                 if (spec_type == T_INT || spec_type == T_FLOAT) {
@@ -1907,9 +1901,9 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::ForLoop);
     const auto for_stmt = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
 
-    const bool typed_int_for = for_stmt->ExpBegin() && for_stmt->ExpEnd() && for_stmt->ExpBegin()->EvalType() == T_INT &&
-                               for_stmt->ExpEnd()->EvalType() == T_INT &&
-                               (!for_stmt->ExpStep() || for_stmt->ExpStep()->EvalType() == T_INT);
+    const bool typed_int_for = for_stmt->ExpBegin() && for_stmt->ExpEnd() && LookupNodeType(for_stmt->ExpBegin().get()) == T_INT &&
+                               LookupNodeType(for_stmt->ExpEnd().get()) == T_INT &&
+                               (!for_stmt->ExpStep() || LookupNodeType(for_stmt->ExpStep().get()) == T_INT);
     if (typed_int_for) {
         CompileTypedIntForLoop(for_stmt);
         return;
@@ -1917,12 +1911,12 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
 
     // T_FLOAT 快路径：所有边界为数值（T_INT 或 T_FLOAT）但并非全为 T_INT。
     // 使用 double 控制变量，避免走 CVar 动态路径的额外开销。
-    const bool step_is_numeric = !for_stmt->ExpStep() || for_stmt->ExpStep()->EvalType() == T_INT ||
-                                 for_stmt->ExpStep()->EvalType() == T_FLOAT;
+    const bool step_is_numeric = !for_stmt->ExpStep() || LookupNodeType(for_stmt->ExpStep().get()) == T_INT ||
+                                 LookupNodeType(for_stmt->ExpStep().get()) == T_FLOAT;
     const bool typed_float_for =
             !typed_int_for && for_stmt->ExpBegin() && for_stmt->ExpEnd() &&
-            (for_stmt->ExpBegin()->EvalType() == T_INT || for_stmt->ExpBegin()->EvalType() == T_FLOAT) &&
-            (for_stmt->ExpEnd()->EvalType() == T_INT || for_stmt->ExpEnd()->EvalType() == T_FLOAT) && step_is_numeric;
+            (LookupNodeType(for_stmt->ExpBegin().get()) == T_INT || LookupNodeType(for_stmt->ExpBegin().get()) == T_FLOAT) &&
+            (LookupNodeType(for_stmt->ExpEnd().get()) == T_INT || LookupNodeType(for_stmt->ExpEnd().get()) == T_FLOAT) && step_is_numeric;
     if (typed_float_for) {
         CompileTypedFloatForLoop(for_stmt);
         return;
@@ -1947,7 +1941,7 @@ void CGen::CompileTypedIntForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_
     if (for_stmt->ExpStep()) {
         // 常量字面量步长为 0 时，在代码生成阶段即报错，避免后续生成死循环代码。
         if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
-            step_exp && step_exp->GetExpKind() == ExpKind::kNumber && step_exp->EvalType() == T_INT &&
+            step_exp && step_exp->GetExpKind() == ExpKind::kNumber && LookupNodeType(step_exp.get()) == T_INT &&
             ToInteger(step_exp->ExpValue()) == 0) {
             ThrowError("'for' step is zero", for_stmt->ExpStep());
         }
@@ -1962,7 +1956,7 @@ void CGen::CompileTypedIntForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_
                  << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
     cur_tab_++;
     EnterNativeVarScope();
-    if (for_stmt->EvalType() == T_INT) {
+    if (LookupNodeType(for_stmt.get()) == T_INT) {
         *cur_output_ << GenTab() << "int64_t " << for_stmt->Name() << " = " << ctrl_var << ";\n";
         DeclareNativeVar(for_stmt->Name(), T_INT);
     } else {
@@ -1999,7 +1993,7 @@ void CGen::CompileTypedFloatForLoop(const std::shared_ptr<SyntaxTreeForLoop> &fo
         // 常量字面量步长为 0 时，在代码生成阶段即报错，避免后续生成死循环代码。
         if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
             step_exp && step_exp->GetExpKind() == ExpKind::kNumber) {
-            const double step_val = (step_exp->EvalType() == T_INT)
+            const double step_val = (LookupNodeType(step_exp.get()) == T_INT)
                                             ? static_cast<double>(ToInteger(step_exp->ExpValue()))
                                             : ToFloat(step_exp->ExpValue());
             if (step_val == 0.0) {
@@ -2017,7 +2011,7 @@ void CGen::CompileTypedFloatForLoop(const std::shared_ptr<SyntaxTreeForLoop> &fo
                  << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
     cur_tab_++;
     EnterNativeVarScope();
-    if (for_stmt->EvalType() == T_FLOAT) {
+    if (LookupNodeType(for_stmt.get()) == T_FLOAT) {
         *cur_output_ << GenTab() << "double " << for_stmt->Name() << " = " << ctrl_var << ";\n";
         DeclareNativeVar(for_stmt->Name(), T_FLOAT);
     } else {
@@ -2641,10 +2635,10 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
     const auto exp_kind = e->GetExpKind();
 
     if (exp_kind == ExpKind::kNumber) {
-        if (e->EvalType() == T_INT) {
+        if (LookupNodeType(e.get()) == T_INT) {
             return std::to_string(ToInteger(e->ExpValue()));
         }
-        if (e->EvalType() == T_FLOAT) {
+        if (LookupNodeType(e.get()) == T_FLOAT) {
             return std::format("{}", ToFloat(e->ExpValue()));
         }
         ThrowError("number node is not inferred as numeric", exp);
@@ -2667,7 +2661,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             }
             // 变量是 CVar（因后续被修改为 T_DYNAMIC 而声明为 CVar）。
             // 提取存储的数值字段以获取原生值。
-            if (e->EvalType() == T_FLOAT) {
+            if (LookupNodeType(e.get()) == T_FLOAT) {
                 return std::format("{}.data_.f", vname);
             }
             return std::format("{}.data_.i", vname);
@@ -2744,7 +2738,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
 
         // 向下取整除法：整数 → FlFloorDivInt，浮点 → floor(a/b)
         if (op_kind == BinOpKind::kDoubleSlash) {
-            if (e->EvalType() == T_INT) {
+            if (LookupNodeType(e.get()) == T_INT) {
                 const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    int64_t " << ntmp << ";\n";
                 *cur_output_ << GenTab() << std::format("FlFloorDivInt(({}), ({}), {});\n", left, right, ntmp);
@@ -2755,7 +2749,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
 
         // 取模：整数 → FlModInt，浮点 → FlModFloat
         if (op_kind == BinOpKind::kMod) {
-            if (e->EvalType() == T_INT) {
+            if (LookupNodeType(e.get()) == T_INT) {
                 const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    int64_t " << ntmp << ";\n";
                 *cur_output_ << GenTab() << std::format("FlModInt(({}), ({}), {});\n", left, right, ntmp);
