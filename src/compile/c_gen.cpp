@@ -1303,9 +1303,9 @@ bool CGen::TryInferMathCallSpec(const std::string &callee_name,
 InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const {
     DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-    const auto &exp_type = e->ExpType();
+    const auto exp_kind = e->GetExpKind();
 
-    if (exp_type == "number") {
+    if (exp_kind == ExpKind::kNumber) {
         // 使用 TypeInferencer 设置的 EvalType。
         if (e->EvalType() == T_INT) {
             return T_INT;
@@ -1322,12 +1322,12 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
         return T_FLOAT;
     }
 
-    if (exp_type == "prefixexp") {
+    if (exp_kind == ExpKind::kPrefixExp) {
         const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
         DEBUG_ASSERT(pe);
-        if (pe->GetType() == "var") {
+        if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-            if (!var || var->GetType() != "simple") {
+            if (!var || var->GetVarKind() != VarKind::kSimple) {
                 return T_DYNAMIC;
             }
             const auto &vname = var->GetName();
@@ -1345,10 +1345,10 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
             }
             return T_DYNAMIC;
         }
-        if (pe->GetType() == "exp") {
+        if (pe->GetPrefixKind() == PrefixExpKind::kExp) {
             return InferArgTypeForSpec(pe->GetValue());
         }
-        if (pe->GetType() == "functioncall") {
+        if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
             // Check whether the callee is a local function with math params.
             // If so, infer its return type from the specialization bitmask of the call.
             const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
@@ -1356,11 +1356,11 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
                 return T_DYNAMIC;
             }
             const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-            if (!callee_pe || callee_pe->GetType() != "var") {
+            if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
                 return T_DYNAMIC;
             }
             const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-            if (!callee_var || callee_var->GetType() != "simple") {
+            if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
                 return T_DYNAMIC;
             }
             const auto &callee_name = callee_var->GetName();
@@ -1382,28 +1382,28 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
         return T_DYNAMIC;
     }
 
-    if (exp_type == "binop") {
+    if (exp_kind == ExpKind::kBinop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
         DEBUG_ASSERT(op);
         const auto lt = InferArgTypeForSpec(e->Left());
         const auto rt = InferArgTypeForSpec(e->Right());
-        return InferNumericBinopResultType(op->GetOp(), lt, rt);
+        return InferNumericBinopResultType(op->GetOpKind(), lt, rt);
     }
 
-    if (exp_type == "unop") {
+    if (exp_kind == ExpKind::kUnop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
         DEBUG_ASSERT(op);
-        if (op->GetOp() == "MINUS") {
+        if (op->GetOpKind() == UnOpKind::kMinus) {
             return InferArgTypeForSpec(e->Right());
         }
-        if (op->GetOp() == "BITNOT") {
+        if (op->GetOpKind() == UnOpKind::kBitNot) {
             const auto t = InferArgTypeForSpec(e->Right());
             if (t == T_INT) {
                 return T_INT;
             }
             return T_DYNAMIC;
         }
-        if (op->GetOp() == "NUMBER_SIGN") {
+        if (op->GetOpKind() == UnOpKind::kNumberSign) {
             // # 运算符始终返回整数（字符串长度或表大小）。
             return T_INT;
         }
@@ -1421,11 +1421,11 @@ std::string CGen::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
     }
 }
 
-// 将比较运算符名称映射到对应的 C 操作符。
+// 将比较运算符映射到对应的 C 操作符。
 // 仅处理纯数值比较（不包括 AND/OR/NOT 等逻辑操作）。
-static const std::unordered_map<std::string, std::string> kCmpOpMap = {
-        {"LESS", "<"}, {"LESS_EQUAL", "<="}, {"MORE", ">"}, {"MORE_EQUAL", ">="},
-        {"EQUAL", "=="}, {"NOT_EQUAL", "!="}
+static const std::unordered_map<BinOpKind, std::string_view> kCmpOpMap = {
+        {BinOpKind::kLess, "<"}, {BinOpKind::kLessEqual, "<="}, {BinOpKind::kMore, ">"},
+        {BinOpKind::kMoreEqual, ">="}, {BinOpKind::kEqual, "=="}, {BinOpKind::kNotEqual, "!="}
 };
 
 std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
@@ -1436,18 +1436,18 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
 
     // 透明地解包括括号表达式：(expr) → expr。
-    if (e->ExpType() == "prefixexp") {
+    if (e->GetExpKind() == ExpKind::kPrefixExp) {
         const auto pexp = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
-        if (!pexp || pexp->GetType() != "exp") {
+        if (!pexp || pexp->GetPrefixKind() != PrefixExpKind::kExp) {
             return {};
         }
         return TryCompileNativeBoolExpr(pexp->GetValue());
     }
 
     // 处理 not 一元逻辑取反：将 not <bool_expr> 编译为 !(<bool_expr>)。
-    if (e->ExpType() == "unop") {
+    if (e->GetExpKind() == ExpKind::kUnop) {
         const auto unop = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
-        if (!unop || unop->GetOp() != "NOT") {
+        if (!unop || unop->GetOpKind() != UnOpKind::kNot) {
             return {};
         }
         const auto inner = TryCompileNativeBoolExpr(e->Right());
@@ -1457,27 +1457,27 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
         return std::format("!({})", inner);
     }
 
-    if (e->ExpType() != "binop") {
+    if (e->GetExpKind() != ExpKind::kBinop) {
         return {};
     }
     const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
     if (!op) {
         return {};
     }
-    const auto op_str = op->GetOp();
+    const auto op_kind = op->GetOpKind();
 
     // 处理 and/or 逻辑运算符：递归将两侧编译为原生布尔表达式。
-    if (op_str == "AND" || op_str == "OR") {
+    if (op_kind == BinOpKind::kAnd || op_kind == BinOpKind::kOr) {
         const auto left_bool = TryCompileNativeBoolExpr(e->Left());
         const auto right_bool = TryCompileNativeBoolExpr(e->Right());
         if (left_bool.empty() || right_bool.empty()) {
             return {};
         }
-        const auto c_op = (op_str == "AND") ? "&&" : "||";
+        const auto c_op = (op_kind == BinOpKind::kAnd) ? "&&" : "||";
         return std::format("({}) {} ({})", left_bool, c_op, right_bool);
     }
 
-    const auto op_it = kCmpOpMap.find(op_str);
+    const auto op_it = kCmpOpMap.find(op_kind);
     if (op_it == kCmpOpMap.end()) {
         return {};
     }
@@ -1588,7 +1588,7 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
         // 默认返回 nil
         explist = std::make_shared<SyntaxTreeExplist>(return_stmt->Loc());
         const auto exp = std::make_shared<SyntaxTreeExp>(return_stmt->Loc());
-        exp->SetType("nil");
+        exp->SetExpKind(ExpKind::kNil);
         std::dynamic_pointer_cast<SyntaxTreeExplist>(explist)->AddExp(exp);
     }
 
@@ -1596,7 +1596,7 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     if (explist_ptr->Exps().empty()) {
         // 默认返回 nil
         const auto exp = std::make_shared<SyntaxTreeExp>(return_stmt->Loc());
-        exp->SetType("nil");
+        exp->SetExpKind(ExpKind::kNil);
         explist_ptr->AddExp(exp);
     } else {
         // PreProcessor 已确保不存在多返回值
@@ -1691,7 +1691,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             // 因此函数调用初始化的变量仍可通过 InferArgTypeForSpec 正确推断。
             const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exps[i]);
             const bool is_degraded_literal =
-                    init_exp && init_exp->ExpType() == "number" && exps[i]->EvalType() == T_DYNAMIC;
+                    init_exp && init_exp->GetExpKind() == ExpKind::kNumber && exps[i]->EvalType() == T_DYNAMIC;
             if (!is_degraded_literal) {
                 const auto spec_type = InferArgTypeForSpec(exps[i]);
                 if (spec_type == T_INT || spec_type == T_FLOAT) {
@@ -1746,7 +1746,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
 
     // PreprocessTableAssign 将方括号/点号赋值重写为 FAKELUA_SET_TABLE 调用，
     // 所以只有简单变量赋值能到达此处。
-    DEBUG_ASSERT(v_ptr->GetType() == "simple");
+    DEBUG_ASSERT(v_ptr->GetVarKind() == VarKind::kSimple);
     // 基于声明作用域中的原生类型标记进行判断，而不是
     // v_ptr->EvalType()（在单次遍历中，当此赋值在同一个循环体中
     // 后续的 T_DYNAMIC 变化之前被处理时，EvalType 可能已过时）。
@@ -1947,7 +1947,7 @@ void CGen::CompileTypedIntForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_
     if (for_stmt->ExpStep()) {
         // 常量字面量步长为 0 时，在代码生成阶段即报错，避免后续生成死循环代码。
         if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
-            step_exp && step_exp->ExpType() == "number" && step_exp->EvalType() == T_INT &&
+            step_exp && step_exp->GetExpKind() == ExpKind::kNumber && step_exp->EvalType() == T_INT &&
             ToInteger(step_exp->ExpValue()) == 0) {
             ThrowError("'for' step is zero", for_stmt->ExpStep());
         }
@@ -1998,7 +1998,7 @@ void CGen::CompileTypedFloatForLoop(const std::shared_ptr<SyntaxTreeForLoop> &fo
     if (for_stmt->ExpStep()) {
         // 常量字面量步长为 0 时，在代码生成阶段即报错，避免后续生成死循环代码。
         if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
-            step_exp && step_exp->ExpType() == "number") {
+            step_exp && step_exp->GetExpKind() == ExpKind::kNumber) {
             const double step_val = (step_exp->EvalType() == T_INT)
                                             ? static_cast<double>(ToInteger(step_exp->ExpValue()))
                                             : ToFloat(step_exp->ExpValue());
@@ -2139,12 +2139,12 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(exp->Type() == SyntaxTreeType::Exp);
     const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
     // PreProcessor 已确保是 prefixexp
-    DEBUG_ASSERT(exp_ptr->ExpType() == "prefixexp");
+    DEBUG_ASSERT(exp_ptr->GetExpKind() == ExpKind::kPrefixExp);
     const auto prefixexp = exp_ptr->Right();
     DEBUG_ASSERT(prefixexp->Type() == SyntaxTreeType::PrefixExp);
     const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(prefixexp);
     // PreProcessor 已确保是 functioncall
-    DEBUG_ASSERT(pe_ptr->GetType() == "functioncall");
+    DEBUG_ASSERT(pe_ptr->GetPrefixKind() == PrefixExpKind::kFunctionCall);
     const auto functioncall = pe_ptr->GetValue();
     DEBUG_ASSERT(functioncall->Type() == SyntaxTreeType::FunctionCall);
     const auto fc_ptr = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall);
@@ -2153,7 +2153,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     const auto func_pe = fc_ptr->prefixexp();
     DEBUG_ASSERT(func_pe->Type() == SyntaxTreeType::PrefixExp);
     const auto func_pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(func_pe);
-    DEBUG_ASSERT(func_pe_ptr->GetType() == "var");
+    DEBUG_ASSERT(func_pe_ptr->GetPrefixKind() == PrefixExpKind::kVar);
     const auto func_var = std::dynamic_pointer_cast<SyntaxTreeVar>(func_pe_ptr->GetValue());
     const auto &func_name = func_var->GetName();
     DEBUG_ASSERT(func_name == "pairs" || func_name == "ipairs");
@@ -2168,7 +2168,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(args_node->Type() == SyntaxTreeType::Args);
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
     // PreProcessor 已确保 args 是 explist 类型
-    DEBUG_ASSERT(args_ptr->GetType() == "explist");
+    DEBUG_ASSERT(args_ptr->GetArgsKind() == ArgsKind::kExpList);
     const auto args_explist = args_ptr->Explist();
     const auto args_explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_explist);
     // PreProcessor 已确保 pairs/ipairs 只有一个参数
@@ -2230,34 +2230,30 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
     DEBUG_ASSERT(exp->Type() == SyntaxTreeType::Exp);
     // 开始编译表达式
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-    const auto &ExpType = e->ExpType();
+    const auto exp_kind = e->GetExpKind();
     const auto &value = e->ExpValue();
 
-    DEBUG_ASSERT(ExpType == "nil" || ExpType == "false" || ExpType == "true" || ExpType == "number" || ExpType == "string" ||
-                 ExpType == "prefixexp" || ExpType == "VarParams" || ExpType == "tableconstructor" || ExpType == "binop" ||
-                 ExpType == "unop");
-    // PreProcessor 已确保不存在 VarParams
-    DEBUG_ASSERT(ExpType != "VarParams" && "VarParams should have been caught by PreProcessor");
+    DEBUG_ASSERT(exp_kind != ExpKind::kVarParams && "VarParams should have been caught by PreProcessor");
 
-    if (ExpType == "nil") {
+    if (exp_kind == ExpKind::kNil) {
         if (in_global_init_) {
             return "(CVar){.type_ = VAR_NIL}";
         } else {
             return "kNil";
         }
-    } else if (ExpType == "false") {
+    } else if (exp_kind == ExpKind::kFalse) {
         if (in_global_init_) {
             return "(CVar){.type_ = VAR_BOOL, .data_.b = false}";
         } else {
             return "kFalse";
         }
-    } else if (ExpType == "true") {
+    } else if (exp_kind == ExpKind::kTrue) {
         if (in_global_init_) {
             return "(CVar){.type_ = VAR_BOOL, .data_.b = true}";
         } else {
             return "kTrue";
         }
-    } else if (ExpType == "number") {
+    } else if (exp_kind == ExpKind::kNumber) {
         if (IsInteger(value)) {
             // 例：(CVar){.type_ = VAR_INT, .data_.i = 42}
             auto i = ToInteger(value);
@@ -2266,44 +2262,45 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
             auto f = ToFloat(value);
             return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}", f);
         }
-    } else if (ExpType == "string") {
+    } else if (exp_kind == ExpKind::kString) {
         auto id = s_->GetConstString().Alloc(value);
         return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", id);
-    } else if (ExpType == "prefixexp") {
+    } else if (exp_kind == ExpKind::kPrefixExp) {
         const auto pe = e->Right();
         return CompilePrefixexp(pe);
-    } else if (ExpType == "tableconstructor") {
+    } else if (exp_kind == ExpKind::kTableConstructor) {
         const auto tc = e->Right();
         return CompileTableconstructor(tc);
-    } else if (ExpType == "binop") {
+    } else if (exp_kind == ExpKind::kBinop) {
         const auto left = e->Left();
         const auto right = e->Right();
         const auto op = e->Op();
         return CompileBinop(left, right, op);
-    } else if (ExpType == "unop") {
+    } else if (exp_kind == ExpKind::kUnop) {
         const auto right = e->Right();
         const auto op = e->Op();
         return CompileUnop(right, op);
     }
 
     DEBUG_ASSERT(false && "unreachable");
-    ThrowError("unsupported expression type: " + ExpType, e);
+    ThrowError("unsupported expression kind", e);
 }
 
 std::string CGen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe) {
     DEBUG_ASSERT(pe->Type() == SyntaxTreeType::PrefixExp);
     const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
 
-    const auto &pe_type = pe_ptr->GetType();
+    const auto pe_kind = pe_ptr->GetPrefixKind();
     const auto value = pe_ptr->GetValue();
 
-    DEBUG_ASSERT(pe_type == "var" || pe_type == "functioncall" || pe_type == "exp");
+    DEBUG_ASSERT(pe_kind == PrefixExpKind::kVar || pe_kind == PrefixExpKind::kFunctionCall ||
+                 pe_kind == PrefixExpKind::kExp);
 
-    if (pe_type == "var") {
+    if (pe_kind == PrefixExpKind::kVar) {
         return CompileVar(value);
-    } else if (pe_type == "functioncall") {
+    } else if (pe_kind == PrefixExpKind::kFunctionCall) {
         return CompileFunctioncall(value);
-    } else /*if (pe_type == "exp")*/ {
+    } else /*if (pe_kind == PrefixExpKind::kExp)*/ {
         return CompileExp(value);
     }
 }
@@ -2328,20 +2325,20 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
         for (const auto &field: fieldlist_ptr->Fields()) {
             DEBUG_ASSERT(field->Type() == SyntaxTreeType::Field);
             const auto field_ptr = std::dynamic_pointer_cast<SyntaxTreeField>(field);
-            const auto &ftype = field_ptr->GetType();
+            const auto fkind = field_ptr->GetFieldKind();
 
             const auto value_exp = field_ptr->Value();
             const auto value_str = CompileExp(value_exp);
 
             std::string key_str;
-            if (ftype == "object") {
+            if (fkind == FieldKind::kObject) {
                 // name = value: 键是字符串标识符
                 const auto name = field_ptr->Name();
                 const auto id = s_->GetConstString().Alloc(name);
                 key_str = std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", id);
             } else {
                 // 数组：要么是 [exp] = value（显式键），要么只有 exp（顺序索引）
-                DEBUG_ASSERT(ftype == "array");
+                DEBUG_ASSERT(fkind == FieldKind::kArray);
                 if (const auto key = field_ptr->Key()) {
                     key_str = CompileExp(key);
                 } else {
@@ -2362,11 +2359,11 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     DEBUG_ASSERT(!in_global_init_);
 
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeBinop>(op);
-    const auto &op_name = op_ptr->GetOp();
+    const auto op_kind = op_ptr->GetOpKind();
 
     // 短路运算符（AND/OR）需要特殊处理：
     // 右侧仅在需要时才计算。
-    if (op_name == "AND" || op_name == "OR") {
+    if (op_kind == BinOpKind::kAnd || op_kind == BinOpKind::kOr) {
         const auto left_str = CompileExp(left);
 
         const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
@@ -2376,7 +2373,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
 
         *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", left_str, tmp_bool);
 
-        if (op_name == "AND") {
+        if (op_kind == BinOpKind::kAnd) {
             // AND: 若左侧为假，返回左侧；否则计算并返回右侧
             *cur_output_ << GenTab() << std::format("if (!{}) {{\n", tmp_bool);
             cur_tab_++;
@@ -2414,18 +2411,21 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     // InferArgTypeForSpec is called first as a pure (side-effect-free) guard;
     // only if it returns non-T_DYNAMIC do we proceed to CompileNumericExp which
     // may emit function-call assignment statements as a side effect.
-    static const std::unordered_set<std::string> kNativeArithOps = {
-            "PLUS", "MINUS", "STAR", "SLASH", "DOUBLE_SLASH", "POW", "MOD",
-            "BITAND", "XOR", "BITOR", "LEFT_SHIFT", "RIGHT_SHIFT"};
-    if (kNativeArithOps.contains(op_name)) {
+    static const std::unordered_set<BinOpKind> kNativeArithOps = {
+            BinOpKind::kPlus, BinOpKind::kMinus, BinOpKind::kStar,
+            BinOpKind::kSlash, BinOpKind::kDoubleSlash, BinOpKind::kPow, BinOpKind::kMod,
+            BinOpKind::kBitAnd, BinOpKind::kXor, BinOpKind::kBitOr,
+            BinOpKind::kLeftShift, BinOpKind::kRightShift};
+    if (kNativeArithOps.contains(op_kind)) {
         const auto lt = InferArgTypeForSpec(left);
         const auto rt = InferArgTypeForSpec(right);
         if (lt != T_DYNAMIC && rt != T_DYNAMIC) {
             InferredType result_type;
-            if (op_name == "SLASH" || op_name == "POW") {
+            if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
                 result_type = T_FLOAT;
-            } else if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR" ||
-                       op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
+            } else if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor ||
+                       op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kLeftShift ||
+                       op_kind == BinOpKind::kRightShift) {
                 result_type = T_INT;
             } else {
                 result_type = (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
@@ -2433,17 +2433,17 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
             const auto left_native = CompileNumericExp(left);
             const auto right_native = CompileNumericExp(right);
             std::string native_expr;
-            if (op_name == "PLUS") {
+            if (op_kind == BinOpKind::kPlus) {
                 native_expr = std::format("(({}) + ({}))", left_native, right_native);
-            } else if (op_name == "MINUS") {
+            } else if (op_kind == BinOpKind::kMinus) {
                 native_expr = std::format("(({}) - ({}))", left_native, right_native);
-            } else if (op_name == "STAR") {
+            } else if (op_kind == BinOpKind::kStar) {
                 native_expr = std::format("(({}) * ({}))", left_native, right_native);
-            } else if (op_name == "SLASH") {
+            } else if (op_kind == BinOpKind::kSlash) {
                 native_expr = std::format("((double)({}) / (double)({}))", left_native, right_native);
-            } else if (op_name == "POW") {
+            } else if (op_kind == BinOpKind::kPow) {
                 native_expr = std::format("pow((double)({}), (double)({}))", left_native, right_native);
-            } else if (op_name == "DOUBLE_SLASH") {
+            } else if (op_kind == BinOpKind::kDoubleSlash) {
                 if (result_type == T_INT) {
                     const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    int64_t " << ntmp << ";\n";
@@ -2452,7 +2452,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
                 } else {
                     native_expr = std::format("floor((double)({}) / (double)({}))", left_native, right_native);
                 }
-            } else if (op_name == "MOD") {
+            } else if (op_kind == BinOpKind::kMod) {
                 if (result_type == T_INT) {
                     const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    int64_t " << ntmp << ";\n";
@@ -2464,18 +2464,18 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
                     *cur_output_ << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left_native, right_native, ntmp);
                     native_expr = ntmp;
                 }
-            } else if (op_name == "BITAND") {
+            } else if (op_kind == BinOpKind::kBitAnd) {
                 native_expr = std::format("((int64_t)({}) & (int64_t)({}))", left_native, right_native);
-            } else if (op_name == "BITOR") {
+            } else if (op_kind == BinOpKind::kBitOr) {
                 native_expr = std::format("((int64_t)({}) | (int64_t)({}))", left_native, right_native);
-            } else if (op_name == "XOR") {
+            } else if (op_kind == BinOpKind::kXor) {
                 native_expr = std::format("((int64_t)({}) ^ (int64_t)({}))", left_native, right_native);
-            } else if (op_name == "LEFT_SHIFT") {
+            } else if (op_kind == BinOpKind::kLeftShift) {
                 const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    int64_t " << ntmp << ";\n";
                 *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
                 native_expr = ntmp;
-            } else if (op_name == "RIGHT_SHIFT") {
+            } else if (op_kind == BinOpKind::kRightShift) {
                 const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    int64_t " << ntmp << ";\n";
                 *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
@@ -2502,46 +2502,46 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     const auto l = std::format("({})", left_str);
     const auto r = std::format("({})", right_str);
 
-    if (op_name == "PLUS") {
+    if (op_kind == BinOpKind::kPlus) {
         *cur_output_ << GenTab() << std::format("OpAdd({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "MINUS") {
+    } else if (op_kind == BinOpKind::kMinus) {
         *cur_output_ << GenTab() << std::format("OpSub({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "STAR") {
+    } else if (op_kind == BinOpKind::kStar) {
         *cur_output_ << GenTab() << std::format("OpMul({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "SLASH") {
+    } else if (op_kind == BinOpKind::kSlash) {
         *cur_output_ << GenTab() << std::format("OpDiv({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "DOUBLE_SLASH") {
+    } else if (op_kind == BinOpKind::kDoubleSlash) {
         *cur_output_ << GenTab() << std::format("OpFloorDiv({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "POW") {
+    } else if (op_kind == BinOpKind::kPow) {
         *cur_output_ << GenTab() << std::format("OpPow({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "MOD") {
+    } else if (op_kind == BinOpKind::kMod) {
         *cur_output_ << GenTab() << std::format("OpMod({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "BITAND") {
+    } else if (op_kind == BinOpKind::kBitAnd) {
         *cur_output_ << GenTab() << std::format("OpBitAnd({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "XOR") {
+    } else if (op_kind == BinOpKind::kXor) {
         *cur_output_ << GenTab() << std::format("OpBitXor({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "BITOR") {
+    } else if (op_kind == BinOpKind::kBitOr) {
         *cur_output_ << GenTab() << std::format("OpBitOr({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "RIGHT_SHIFT") {
+    } else if (op_kind == BinOpKind::kRightShift) {
         *cur_output_ << GenTab() << std::format("OpRightShift({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "LEFT_SHIFT") {
+    } else if (op_kind == BinOpKind::kLeftShift) {
         *cur_output_ << GenTab() << std::format("OpLeftShift({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "CONCAT") {
+    } else if (op_kind == BinOpKind::kConcat) {
         *cur_output_ << GenTab() << std::format("{} = FlConcat({}, {});\n", tmp, l, r);
-    } else if (op_name == "LESS") {
+    } else if (op_kind == BinOpKind::kLess) {
         *cur_output_ << GenTab() << std::format("OpLt({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "LESS_EQUAL") {
+    } else if (op_kind == BinOpKind::kLessEqual) {
         *cur_output_ << GenTab() << std::format("OpLe({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "MORE") {
+    } else if (op_kind == BinOpKind::kMore) {
         *cur_output_ << GenTab() << std::format("OpGt({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "MORE_EQUAL") {
+    } else if (op_kind == BinOpKind::kMoreEqual) {
         *cur_output_ << GenTab() << std::format("OpGe({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "EQUAL") {
+    } else if (op_kind == BinOpKind::kEqual) {
         *cur_output_ << GenTab() << std::format("OpEq({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "NOT_EQUAL") {
+    } else if (op_kind == BinOpKind::kNotEqual) {
         *cur_output_ << GenTab() << std::format("OpNe({}, {}, {});\n", l, r, tmp);
     } else {
-        ThrowError("binary operator not supported: " + op_name, op);
+        ThrowError("binary operator not supported", op);
     }
 
     return tmp;
@@ -2552,7 +2552,7 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxT
     DEBUG_ASSERT(!in_global_init_);
 
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeUnop>(op);
-    const auto &op_name = op_ptr->GetOp();
+    const auto op_kind = op_ptr->GetOpKind();
 
     const auto right_str = CompileExp(right);
 
@@ -2562,16 +2562,16 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxT
     // 将参数用括号括起，防止复合字面量中的逗号被宏解析器误解
     const auto r = std::format("({})", right_str);
 
-    if (op_name == "NOT") {
+    if (op_kind == UnOpKind::kNot) {
         *cur_output_ << GenTab() << std::format("OpNot({}, {});\n", r, tmp);
-    } else if (op_name == "MINUS") {
+    } else if (op_kind == UnOpKind::kMinus) {
         *cur_output_ << GenTab() << std::format("OpUnaryMinus({}, {});\n", r, tmp);
-    } else if (op_name == "BITNOT") {
+    } else if (op_kind == UnOpKind::kBitNot) {
         *cur_output_ << GenTab() << std::format("OpBitNot({}, {});\n", r, tmp);
-    } else if (op_name == "NUMBER_SIGN") {
+    } else if (op_kind == UnOpKind::kNumberSign) {
         *cur_output_ << GenTab() << std::format("OpLen({}, {});\n", r, tmp);
     } else {
-        ThrowError("unary operator not supported: " + op_name, op);
+        ThrowError("unary operator not supported", op);
     }
 
     return tmp;
@@ -2581,9 +2581,10 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
     DEBUG_ASSERT(v->Type() == SyntaxTreeType::Var);
     auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(v);
 
-    DEBUG_ASSERT(v_ptr->GetType() == "simple" || v_ptr->GetType() == "square" || v_ptr->GetType() == "dot");
+    DEBUG_ASSERT(v_ptr->GetVarKind() == VarKind::kSimple || v_ptr->GetVarKind() == VarKind::kSquare ||
+                 v_ptr->GetVarKind() == VarKind::kDot);
 
-    if (const auto &type = v_ptr->GetType(); type == "simple") {
+    if (const auto var_kind = v_ptr->GetVarKind(); var_kind == VarKind::kSimple) {
         const auto &name = v_ptr->GetName();
         // PreProcessor 已确保全局初始化中不存在变量引用
         DEBUG_ASSERT(!in_global_init_);
@@ -2606,7 +2607,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
             return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
         }
         return name;
-    } else if (type == "square") {
+    } else if (var_kind == VarKind::kSquare) {
         // PreProcessor 已确保全局初始化中不存在 table 访问
         DEBUG_ASSERT(!in_global_init_);
         const auto pe = v_ptr->GetPrefixexp();
@@ -2616,7 +2617,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
 
         // 调用table的get函数
         return std::format("FlGetTable({}, {})", pe_ret, exp_ret);
-    } else /*if (type == "dot")*/ {
+    } else /*if (var_kind == VarKind::kDot)*/ {
         // PreProcessor 已确保全局初始化中不存在 table 访问
         DEBUG_ASSERT(!in_global_init_);
         const auto pe = v_ptr->GetPrefixexp();
@@ -2624,7 +2625,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         auto pe_ret = CompilePrefixexp(pe);
 
         const auto name_exp = std::make_shared<SyntaxTreeExp>(v_ptr->Loc());
-        name_exp->SetType("string");
+        name_exp->SetExpKind(ExpKind::kString);
         name_exp->SetValue(name);
         auto exp_ret = CompileExp(name_exp);
 
@@ -2637,8 +2638,9 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
     DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
 
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    const auto exp_kind = e->GetExpKind();
 
-    if (const auto &exp_type = e->ExpType(); exp_type == "number") {
+    if (exp_kind == ExpKind::kNumber) {
         if (e->EvalType() == T_INT) {
             return std::to_string(ToInteger(e->ExpValue()));
         }
@@ -2646,12 +2648,12 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return std::format("{}", ToFloat(e->ExpValue()));
         }
         ThrowError("number node is not inferred as numeric", exp);
-    } else if (exp_type == "prefixexp") {
+    } else if (exp_kind == ExpKind::kPrefixExp) {
         const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
         DEBUG_ASSERT(pe);
-        if (pe->GetType() == "var") {
+        if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-            if (!var || var->GetType() != "simple") {
+            if (!var || var->GetVarKind() != VarKind::kSimple) {
                 ThrowError("only simple variable is supported in numeric specialization", exp);
             }
             const auto &vname = var->GetName();
@@ -2670,10 +2672,10 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             }
             return std::format("{}.data_.i", vname);
         }
-        if (pe->GetType() == "exp") {
+        if (pe->GetPrefixKind() == PrefixExpKind::kExp) {
             return CompileNumericExp(pe->GetValue());
         }
-        if (pe->GetType() == "functioncall") {
+        if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
             // Use InferArgTypeForSpec as a pure pre-check (no code emission) before
             // committing to the native path; this guarantees that CompileFunctioncall
             // will not be called speculatively and then abandoned.
@@ -2692,16 +2694,16 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return inferred == T_INT ? std::format("({}.data_.i)", call_str) : std::format("({}.data_.f)", call_str);
         }
         ThrowError("function call cannot be specialized as numeric", exp);
-    } else if (exp_type == "binop") {
+    } else if (exp_kind == ExpKind::kBinop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
         DEBUG_ASSERT(op);
-        const auto &op_name = op->GetOp();
+        const auto op_kind = op->GetOpKind();
 
         // AND/OR：需在 left/right 的通用编译之前处理，以保持短路求值语义。
         // Lua 中整数和浮点数（包括 0）始终为真值，因此：
         //   a and b → a 始终为真，结果为 b；a 仍需求值（可能有副作用）
         //   a or  b → a 始终为真，结果为 a；b 不求值（短路）
-        if (op_name == "AND") {
+        if (op_kind == BinOpKind::kAnd) {
             // 求值左操作数（保留副作用），存入临时变量，返回右操作数的原生值。
             const auto left_type = InferArgTypeForSpec(e->Left());
             const auto left_eval_result = std::format("flua_native_{}", tmp_var_counter_++);
@@ -2711,7 +2713,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             *cur_output_ << GenTab() << left_eval_result << " = " << left_native << ";\n";
             return CompileNumericExp(e->Right());
         }
-        if (op_name == "OR") {
+        if (op_kind == BinOpKind::kOr) {
             // a 始终为真，返回 a；b 不求值（与 Lua 短路语义一致）。
             return CompileNumericExp(e->Left());
         }
@@ -2720,28 +2722,28 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         const auto right = CompileNumericExp(e->Right());
 
         // 可直接映射为 C 运算符的简单运算
-        if (op_name == "PLUS") {
+        if (op_kind == BinOpKind::kPlus) {
             return std::format("(({}) + ({}))", left, right);
         }
-        if (op_name == "MINUS") {
+        if (op_kind == BinOpKind::kMinus) {
             return std::format("(({}) - ({}))", left, right);
         }
-        if (op_name == "STAR") {
+        if (op_kind == BinOpKind::kStar) {
             return std::format("(({}) * ({}))", left, right);
         }
 
         // Lua 中除法结果始终为浮点数
-        if (op_name == "SLASH") {
+        if (op_kind == BinOpKind::kSlash) {
             return std::format("((double)({}) / (double)({}))", left, right);
         }
 
         // Lua 中幂运算结果始终为浮点数
-        if (op_name == "POW") {
+        if (op_kind == BinOpKind::kPow) {
             return std::format("pow((double)({}), (double)({}))", left, right);
         }
 
         // 向下取整除法：整数 → FlFloorDivInt，浮点 → floor(a/b)
-        if (op_name == "DOUBLE_SLASH") {
+        if (op_kind == BinOpKind::kDoubleSlash) {
             if (e->EvalType() == T_INT) {
                 const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    int64_t " << ntmp << ";\n";
@@ -2752,7 +2754,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         }
 
         // 取模：整数 → FlModInt，浮点 → FlModFloat
-        if (op_name == "MOD") {
+        if (op_kind == BinOpKind::kMod) {
             if (e->EvalType() == T_INT) {
                 const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    int64_t " << ntmp << ";\n";
@@ -2766,34 +2768,34 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         }
 
         // 位运算：两个操作数均为 T_INT 时结果为 T_INT
-        if (op_name == "BITAND") {
+        if (op_kind == BinOpKind::kBitAnd) {
             return std::format("((int64_t)({}) & (int64_t)({}))", left, right);
         }
-        if (op_name == "BITOR") {
+        if (op_kind == BinOpKind::kBitOr) {
             return std::format("((int64_t)({}) | (int64_t)({}))", left, right);
         }
-        if (op_name == "XOR") {
+        if (op_kind == BinOpKind::kXor) {
             return std::format("((int64_t)({}) ^ (int64_t)({}))", left, right);
         }
-        if (op_name == "LEFT_SHIFT") {
+        if (op_kind == BinOpKind::kLeftShift) {
             const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
             func_temp_decls_ << "    int64_t " << ntmp << ";\n";
             *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left, right, ntmp);
             return ntmp;
         }
-        if (op_name == "RIGHT_SHIFT") {
+        if (op_kind == BinOpKind::kRightShift) {
             const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
             func_temp_decls_ << "    int64_t " << ntmp << ";\n";
             *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left, right, ntmp);
             return ntmp;
         }
 
-        ThrowError("operator " + op_name + " is not supported in numeric specialization", exp);
-    } else if (exp_type == "unop") {
+        ThrowError("operator is not supported in numeric specialization", exp);
+    } else if (exp_kind == ExpKind::kUnop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
         DEBUG_ASSERT(op);
-        const auto &op_name = op->GetOp();
-        if (op_name == "NUMBER_SIGN") {
+        const auto op_kind = op->GetOpKind();
+        if (op_kind == UnOpKind::kNumberSign) {
             // # 运算符返回字符串字节数或表元素数（始终为整数）。
             // 操作数本身不是数值类型，需通过 CompileExp 编译为 CVar，
             // 再由 FlLenInt 提取原生 int64_t 长度。
@@ -2804,13 +2806,13 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return ntmp;
         }
         const auto operand = CompileNumericExp(e->Right());
-        if (op_name == "MINUS") {
+        if (op_kind == UnOpKind::kMinus) {
             return std::format("(-({}))", operand);
         }
-        if (op_name == "BITNOT") {
+        if (op_kind == UnOpKind::kBitNot) {
             return std::format("(~((int64_t)({})))", operand);
         }
-        ThrowError("unary operator " + op_name + " is not supported in numeric specialization", exp);
+        ThrowError("unary operator is not supported in numeric specialization", exp);
     }
 
     ThrowError("unsupported numeric-specialized expression", exp);
@@ -2850,15 +2852,15 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
         return {};
     }
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
-    if (!args_ptr || args_ptr->GetType() != "explist") {
+    if (!args_ptr || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
         return {};
     }
     const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-    if (!callee_pe || callee_pe->GetType() != "var") {
+    if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
         return {};
     }
     const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-    if (!callee_var || callee_var->GetType() != "simple") {
+    if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
         return {};
     }
     const auto &callee_name = callee_var->GetName();
@@ -2925,7 +2927,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     const auto args_node = fc->Args();
     DEBUG_ASSERT(args_node->Type() == SyntaxTreeType::Args);
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
-    const auto &args_type = args_ptr->GetType();
+    const auto args_kind = args_ptr->GetArgsKind();
 
     // 在编译参数之前先确定函数名（特化调用检查需要）。
     const auto pe_pre = fc->prefixexp();
@@ -2935,9 +2937,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     // 尝试直接调用优化：若被调函数是含有数学参数的本地函数，
     // 且所有数学参数的实参类型均已知，则直接发出特化调用，
     // 跳过入口分发器。
-    if (!in_global_init_ && pe_pre_ptr->GetType() == "var" && args_type == "explist") {
+    if (!in_global_init_ && pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar &&
+        args_kind == ArgsKind::kExpList) {
         const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
-        if (callee_var && callee_var->GetType() == "simple") {
+        if (callee_var && callee_var->GetVarKind() == VarKind::kSimple) {
             const auto &callee_name = callee_var->GetName();
             const auto math_it = math_param_positions_.find(callee_name);
             if (math_it != math_param_positions_.end()) {
@@ -2965,7 +2968,9 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                         const auto spec_name = SpecFuncName(callee_name, math_params, bitmask);
                         std::string call = spec_name + "(";
                         for (int i = 0; i < static_cast<int>(raw_args.size()); ++i) {
-                            if (i > 0) call += ", ";
+                            if (i > 0) {
+                                call += ", ";
+                            }
                             const auto ne_it = native_exprs.find(i);
                             if (ne_it != native_exprs.end()) {
                                 call += ne_it->second;
@@ -2995,23 +3000,25 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
 
     // 普通路径：将所有参数编译为 CVar。
     std::vector<std::string> compiled_args;
-    if (args_type == "explist") {
+    if (args_kind == ArgsKind::kExpList) {
         const auto explist = args_ptr->Explist();
         DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
         const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
         for (const auto &exp: explist_ptr->Exps()) {
             compiled_args.push_back(CompileExp(exp));
         }
-    } else if (args_type == "tableconstructor") {
+    } else if (args_kind == ArgsKind::kTableConstructor) {
         compiled_args.push_back(CompileTableconstructor(args_ptr->Tableconstructor()));
-    } else if (args_type == "string") {
+    } else if (args_kind == ArgsKind::kString) {
         compiled_args.push_back(CompileExp(args_ptr->String()));
     }
-    // "empty": no args
+    // kEmpty: no args
     // PreProcessor 已确保 callee 为 var 类型的 prefixexp，且 var 为简单变量名
-    DEBUG_ASSERT(pe_pre_ptr->GetType() == "var" && "callee must be variable prefixexp (PreProcessor should have caught it)");
+    DEBUG_ASSERT(pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar &&
+                 "callee must be variable prefixexp (PreProcessor should have caught it)");
     const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
-    DEBUG_ASSERT(var && var->GetType() == "simple" && "callee must be simple variable (PreProcessor should have caught it)");
+    DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple &&
+                 "callee must be simple variable (PreProcessor should have caught it)");
     std::string call_expr;
     const auto &func_name = var->GetName();
     if (func_name == "FAKELUA_SET_TABLE") {
