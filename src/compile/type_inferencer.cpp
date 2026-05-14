@@ -60,14 +60,16 @@ InferredType TypeEnvironment::MergeType(const InferredType old_type, const Infer
     return T_DYNAMIC;
 }
 
-void TypeInferencer::Process(CompileResult &cr) {
+InferResult TypeInferencer::Process(const ParseResult &pr) {
+    InferResult ir;
     current_map_.clear();
-    InferNode(cr.chunk);
+    InferNode(pr.chunk);
     // 将当前推断结果复制为全局主快照，供 CGen 在非特化路径下查询节点类型。
-    cr.main_eval_types = current_map_;
+    ir.main_eval_types = current_map_;
 
-    // 在正常推断之后，通过迭代不动点试推断发现数学参数，写入 cr.math_param_positions。
-    DiscoverMathParams(cr);
+    // 在正常推断之后，通过迭代不动点试推断发现数学参数，写入 ir.math_param_positions。
+    DiscoverMathParams(pr, ir);
+    return ir;
 }
 
 InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
@@ -1078,9 +1080,9 @@ void TypeInferencer::BuildLocalVarExtensions(
     }
 }
 
-std::vector<TypeInferencer::FunctionSpecInfo> TypeInferencer::CollectFunctionSpecInfos(const CompileResult &cr) const {
+std::vector<TypeInferencer::FunctionSpecInfo> TypeInferencer::CollectFunctionSpecInfos(const ParseResult &pr) const {
     std::vector<FunctionSpecInfo> infos;
-    const auto chunk = cr.chunk;
+    const auto chunk = pr.chunk;
     if (!chunk || chunk->Type() != SyntaxTreeType::Block) {
         return infos;
     }
@@ -1155,11 +1157,11 @@ std::vector<int> TypeInferencer::FindMathParamIndices(
     return math_indices;
 }
 
-void TypeInferencer::GenerateFunctionSpecializationSnapshots(CompileResult &cr,
+void TypeInferencer::GenerateFunctionSpecializationSnapshots(InferResult &ir,
                                                              const FunctionSpecInfo &info,
                                                              const std::vector<int> &math_indices) {
     const int num_specs = 1 << static_cast<int>(math_indices.size());
-    auto &snapshots = cr.specialization_snapshots[info.name];
+    auto &snapshots = ir.specialization_snapshots[info.name];
     snapshots.resize(num_specs);
     for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
         std::unordered_map<std::string, InferredType> assumed;
@@ -1187,11 +1189,11 @@ std::unordered_map<std::string, TypeInferencer::FuncRetInfo> TypeInferencer::Bui
 }
 
 std::unordered_map<std::string, std::vector<InferredType>> TypeInferencer::InferSpecializationReturnTypes(
-        const CompileResult &cr,
+        const InferResult &ir,
         const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info,
         const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache) const {
     std::unordered_map<std::string, std::vector<InferredType>> assumed_ret;
-    for (const auto &[func_name, math_params] : cr.math_param_positions) {
+    for (const auto &[func_name, math_params] : ir.math_param_positions) {
         assumed_ret[func_name].assign(static_cast<size_t>(1 << static_cast<int>(math_params.size())), T_INT);
     }
 
@@ -1199,8 +1201,8 @@ std::unordered_map<std::string, std::vector<InferredType>> TypeInferencer::Infer
         bool changed = false;
         for (const auto &[func_name, info] : math_func_info) {
             const auto &[func_block, func_params] = info;
-            const auto &math_indices = cr.math_param_positions.at(func_name);
-            const auto &snapshots = cr.specialization_snapshots.at(func_name);
+            const auto &math_indices = ir.math_param_positions.at(func_name);
+            const auto &snapshots = ir.specialization_snapshots.at(func_name);
             const auto &ret_info = func_ret_cache.at(func_name);
             const int num_specs = static_cast<int>(snapshots.size());
 
@@ -1213,7 +1215,7 @@ std::unordered_map<std::string, std::vector<InferredType>> TypeInferencer::Infer
                             (MathParamKindOf(bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
                 }
 
-                BuildLocalVarExtensions(func_block, snapshot, spec_ctx, cr.math_param_positions, assumed_ret);
+                BuildLocalVarExtensions(func_block, snapshot, spec_ctx, ir.math_param_positions, assumed_ret);
 
                 InferredType actual_ret = T_DYNAMIC;
                 if (ret_info.ends_with_return && !ret_info.ret_exps.empty()) {
@@ -1224,7 +1226,7 @@ std::unordered_map<std::string, std::vector<InferredType>> TypeInferencer::Infer
                             break;
                         }
                         const auto inferred = EvalReturnExpType(ret_exp, snapshot, spec_ctx,
-                                                                cr.math_param_positions, assumed_ret);
+                                                                ir.math_param_positions, assumed_ret);
                         if (inferred == T_FLOAT) {
                             if (actual_ret == T_INT) {
                                 actual_ret = T_FLOAT;
@@ -1250,9 +1252,9 @@ std::unordered_map<std::string, std::vector<InferredType>> TypeInferencer::Infer
     return assumed_ret;
 }
 
-void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
+void TypeInferencer::DiscoverMathParams(const ParseResult &pr, InferResult &ir) {
     std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> math_func_info;
-    const auto function_infos = CollectFunctionSpecInfos(cr);
+    const auto function_infos = CollectFunctionSpecInfos(pr);
     for (const auto &info : function_infos) {
         const auto make_assumed = [&](const std::string &special_param, const InferredType special_type,
                                       const InferredType default_type) {
@@ -1264,22 +1266,22 @@ void TypeInferencer::DiscoverMathParams(CompileResult &cr) {
         };
         const auto baseline = RunTrialInference(info.block, info.params, make_assumed("", T_DYNAMIC, T_DYNAMIC));
         const auto all_int = RunTrialInference(info.block, info.params, make_assumed("", T_INT, T_INT));
-        const auto math_indices = FindMathParamIndices(info, baseline, all_int, cr.math_param_positions);
+        const auto math_indices = FindMathParamIndices(info, baseline, all_int, ir.math_param_positions);
 
         if (math_indices.empty()) {
             continue;
         }
-        cr.math_param_positions[info.name] = math_indices;
+        ir.math_param_positions[info.name] = math_indices;
         math_func_info[info.name] = {info.block, info.params};
         LOG_INFO("TypeInferencer: {} math params for {}", math_indices.size(), info.name);
-        GenerateFunctionSpecializationSnapshots(cr, info, math_indices);
+        GenerateFunctionSpecializationSnapshots(ir, info, math_indices);
     }
 
     if (math_func_info.empty()) {
         return;
     }
     const auto func_ret_cache = BuildFunctionReturnCache(math_func_info);
-    cr.specialization_return_types = InferSpecializationReturnTypes(cr, math_func_info, func_ret_cache);
+    ir.specialization_return_types = InferSpecializationReturnTypes(ir, math_func_info, func_ret_cache);
 }
 
 }// namespace fakelua

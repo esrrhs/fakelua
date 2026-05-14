@@ -27,8 +27,8 @@ private:
 
 class TypeInferencer {
 public:
-    // 运行全局类型推断，并在 cr.math_param_positions 中填充数学参数特化信息。
-    void Process(CompileResult &cr);
+    // 运行全局类型推断，并在返回的 InferResult 中填充数学参数特化信息。
+    InferResult Process(const ParseResult &pr);
 
 private:
     struct FunctionSpecInfo {
@@ -59,8 +59,8 @@ private:
     // 数学参数特化发现（迭代不动点推断）
     // -----------------------------------------------------------------------
 
-    // 遍历顶层函数，识别数学参数并写入 cr.math_param_positions。
-    void DiscoverMathParams(CompileResult &cr);
+    // 遍历顶层函数，识别数学参数并写入 ir.math_param_positions。
+    void DiscoverMathParams(const ParseResult &pr, InferResult &ir);
 
     // 以 assumed_types 中给定的参数类型假设运行 InferBlock，迭代直到稳定（不动点），
     // 返回各 AST 节点 → InferredType 的快照。
@@ -114,14 +114,14 @@ private:
                                             const EvalTypeMap &compare_map,
                                             const SyntaxTreeInterfacePtr &func_block) const;
 
-    [[nodiscard]] std::vector<FunctionSpecInfo> CollectFunctionSpecInfos(const CompileResult &cr) const;
+    [[nodiscard]] std::vector<FunctionSpecInfo> CollectFunctionSpecInfos(const ParseResult &pr) const;
 
     std::vector<int> FindMathParamIndices(const FunctionSpecInfo &info,
                                           const EvalTypeMap &baseline,
                                           const EvalTypeMap &all_int,
                                           const std::unordered_map<std::string, std::vector<int>> &known_math_positions);
 
-    void GenerateFunctionSpecializationSnapshots(CompileResult &cr,
+    void GenerateFunctionSpecializationSnapshots(InferResult &ir,
                                                  const FunctionSpecInfo &info,
                                                  const std::vector<int> &math_indices);
 
@@ -129,7 +129,7 @@ private:
             const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info) const;
 
     [[nodiscard]] std::unordered_map<std::string, std::vector<InferredType>> InferSpecializationReturnTypes(
-            const CompileResult &cr,
+            const InferResult &ir,
             const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info,
             const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache) const;
 

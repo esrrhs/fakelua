@@ -94,19 +94,21 @@ inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_
     return raw_args;
 }
 
-// 编译结果，包含文件名和生成的语法树
-struct CompileResult {
+// ---- 阶段一：解析结果 -------------------------------------------------------
+// Parser 的输出：源文件名和语法树根节点。
+// 由 Compiler::Compile 在词法/语法解析阶段填充，
+// 后续各阶段均以此作为只读输入。
+struct ParseResult {
     // 源代码文件名
     std::string file_name;
     // 语法树根节点（代码块）
     SyntaxTreeInterfacePtr chunk;
-    // 生成的C代码字符串
-    std::string c_code;
-    // 记录的C代码（全局变量、函数声明、函数实现，不含公共头部）。
-    // 仅当 CompileConfig::record_c_code 为 true 时由 CGen 填充。
-    std::string recorded_c_code;
-    // 入口函数名->参数个数
-    std::unordered_map<std::string, int> function_names;
+};
+
+// ---- 阶段二：类型推断结果 ---------------------------------------------------
+// TypeInferencer 的输出。
+// 由 TypeInferencer::Process 填充，供 CGen 使用。
+struct InferResult {
     // 数学参数位置：函数名 → 参数列表中参与算术运算的参数下标列表（最多8个）。
     // 由 TypeInferencer::DiscoverMathParams 填充，供 CGen 生成特化版本时使用。
     std::unordered_map<std::string, std::vector<int>> math_param_positions;
@@ -124,6 +126,19 @@ struct CompileResult {
     // 由 TypeInferencer::Process 在全局（非试推断）推断完成后填充，
     // 供 CGen 在非特化编译路径中查询任意节点的类型，替代原先内嵌在 AST 节点的 eval_type_ 字段。
     EvalTypeSnapshot main_eval_types;
+};
+
+// ---- 阶段三：代码生成结果 ---------------------------------------------------
+// CGen 的输出。
+// 由 CGen::Generate 填充，供 JIT 编译器使用。
+struct GenResult {
+    // 生成的C代码字符串
+    std::string c_code;
+    // 记录的C代码（全局变量、函数声明、函数实现，不含公共头部）。
+    // 仅当 CompileConfig::record_c_code 为 true 时由 CGen 填充。
+    std::string recorded_c_code;
+    // 入口函数名->参数个数
+    std::unordered_map<std::string, int> function_names;
 };
 
 }// namespace fakelua

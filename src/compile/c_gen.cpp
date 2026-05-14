@@ -61,18 +61,18 @@ InferredType CGen::LookupNodeType(SyntaxTreeInterface *node) const {
     return T_UNKNOWN;
 }
 
-void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
-    LOG_INFO("start CGen::Generate {}", cr.file_name);
+GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg) {
+    LOG_INFO("start CGen::Generate {}", pr.file_name);
 
-    file_name_ = cr.file_name;
+    file_name_ = pr.file_name;
 
     // 生成代码
-    const std::string code = Build(cr, cfg);
+    GenResult gr = Build(pr, ir, cfg);
 
     if (cfg.debug_mode) {
         const auto dumpfile = GenerateTmpFilename("fakelua_jit_", ".c");
         if (std::ofstream ofs(dumpfile); ofs.is_open()) {
-            ofs << code;
+            ofs << gr.c_code;
             ofs.close();
             std::cerr << "CGen::Generate: C code dumped to " << dumpfile << std::endl;
             LOG_INFO("C code generated: {}", dumpfile);
@@ -81,33 +81,34 @@ void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
         }
     }
 
-    cr.c_code = code;
-
-    LOG_INFO("end CGen::Generate {}, functions: {}", cr.file_name, cr.function_names.size());
+    LOG_INFO("end CGen::Generate {}, functions: {}", pr.file_name, gr.function_names.size());
+    return gr;
 }
 
-std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
+GenResult CGen::Build(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg) {
     // 加载数学参数分析结果，供 GenerateDecls 和 GenerateImpl 使用。
-    math_param_positions_ = cr.math_param_positions;
-    specialization_snapshots_ = &cr.specialization_snapshots;
-    specialization_return_types_ = &cr.specialization_return_types;
-    main_eval_types_ = &cr.main_eval_types;
+    math_param_positions_ = ir.math_param_positions;
+    specialization_snapshots_ = &ir.specialization_snapshots;
+    specialization_return_types_ = &ir.specialization_return_types;
+    main_eval_types_ = &ir.main_eval_types;
 
+    GenResult gr;
     cur_output_ = &headers_;
     GenerateHeader();
     cur_output_ = &globals_;
-    GenerateGlobal(cr);
+    GenerateGlobal(pr.chunk);
     cur_output_ = &decls_;
-    GenerateDecls(cr);
-    local_func_names_ = cr.function_names;
+    GenerateDecls(pr.chunk, gr);
+    local_func_names_ = gr.function_names;
     cur_output_ = &impls_;
-    GenerateImpl(cr);
+    GenerateImpl(pr.chunk, gr);
     if (cfg.record_c_code) {
         // 仅记录非头部部分（全局变量 + 声明 + 实现）。
         // 头部是每个编译单元相同的固定样板代码，对类型推断断言没有用处。
-        cr.recorded_c_code = globals_.str() + decls_.str() + impls_.str();
+        gr.recorded_c_code = globals_.str() + decls_.str() + impls_.str();
     }
-    return headers_.str() + globals_.str() + decls_.str() + impls_.str();
+    gr.c_code = headers_.str() + globals_.str() + decls_.str() + impls_.str();
+    return gr;
 }
 
 void CGen::GenerateHeader() {
@@ -797,7 +798,7 @@ static inline CVar FlConcat(CVar a, CVar b) {
 )";
 }
 
-void CGen::GenerateGlobal(CompileResult &cr) {
+void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
     *cur_output_ << "// ===== Global Variables =====\n\n";
 
     in_global_init_ = true;
@@ -809,7 +810,6 @@ void CGen::GenerateGlobal(CompileResult &cr) {
     *cur_output_ << "static const CVar kFalse = (CVar){.type_ = VAR_BOOL, .data_.b = false};\n";
 
     // 遍历顶层的 local 变量定义，生成全局常量
-    const auto chunk = cr.chunk;
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
 
     for (const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk); const auto &stmt: block->Stmts()) {
@@ -867,12 +867,11 @@ const char *CGen::SpecReturnCTypeName(InferredType ret_type) {
     return "CVar";
 }
 
-void CGen::GenerateDecls(CompileResult &cr) {
+void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
     *cur_output_ << "\n// ===== Function Declarations =====\n\n";
 
     std::unordered_map<std::string, std::vector<std::string>> func_decls;// 函数名 -> 参数类型列表（用于重载）
 
-    const auto chunk = cr.chunk;
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
     for (const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk); auto &stmt: block->Stmts()) {
         std::string name;
@@ -913,7 +912,7 @@ void CGen::GenerateDecls(CompileResult &cr) {
         *cur_output_ << ");\n";
 
         // 记录函数参数数量
-        cr.function_names[name] = static_cast<int>(params.size());
+        gr.function_names[name] = static_cast<int>(params.size());
 
         // 如果函数含有数学参数，还需声明 2^k 个特化变体。
         const auto math_it = math_param_positions_.find(name);
@@ -937,7 +936,7 @@ void CGen::GenerateDecls(CompileResult &cr) {
                 *cur_output_ << ");\n";
                 // 注册特化函数名，使 CompileFunctioncall 能将其识别为
                 // 本地调用（同文件直接调用）。
-                cr.function_names[spec_name] = static_cast<int>(params.size());
+                gr.function_names[spec_name] = static_cast<int>(params.size());
             }
         }
     }
@@ -1017,8 +1016,7 @@ std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parl
     return {};
 }
 
-void CGen::GenerateImpl(CompileResult &cr) {
-    const auto chunk = cr.chunk;
+void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
     for (const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk); auto &stmt: block->Stmts()) {
         std::string name;
