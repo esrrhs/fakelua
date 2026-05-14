@@ -10,11 +10,11 @@ namespace fakelua {
 PreProcessor::PreProcessor(State *s) : s_(s) {
 }
 
-void PreProcessor::Process(const CompileResult &cr, const CompileConfig &cfg) {
-    LOG_INFO("start PreProcessor::process {}", cr.file_name);
+void PreProcessor::Process(const ParseResult &pr, const CompileConfig &cfg) {
+    LOG_INFO("start PreProcessor::process {}", pr.file_name);
 
-    const auto chunk = cr.chunk;
-    file_name_ = cr.file_name;
+    const auto chunk = pr.chunk;
+    file_name_ = pr.file_name;
 
     int debug_step = 0;
 
@@ -38,7 +38,7 @@ void PreProcessor::Process(const CompileResult &cr, const CompileConfig &cfg) {
         DumpDebugFile(chunk, debug_step);
     }
 
-    LOG_INFO("end PreProcessor::compile {}", cr.file_name);
+    LOG_INFO("end PreProcessor::compile {}", pr.file_name);
 }
 
 void PreProcessor::DumpDebugFile(const SyntaxTreeInterfacePtr &chunk, int step) {

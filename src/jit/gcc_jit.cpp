@@ -83,7 +83,7 @@ std::vector<std::string> GetWindowsDefaultLibraryPaths() {
 GccJitter::GccJitter(State *s) : s_(s) {
 }
 
-void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
+void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const CompileConfig &cfg) {
     const std::string c_file = GenerateTmpFilename("fakelua_jit_", ".c");
     const std::string so_file = c_file.substr(0, c_file.size() - kCExtLen) +
 #if defined(_WIN32)
@@ -98,7 +98,7 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     if (std::ofstream ofs(c_file); !ofs.is_open()) {
         ThrowFakeluaException(std::format("GCC compile failed, cannot open c file {}", c_file));
     } else {
-        ofs << cr.c_code;
+        ofs << gr.c_code;
         ofs.close();
     }
 
@@ -149,11 +149,11 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     if (compile_status == -1) {
         ThrowFakeluaException(std::format(
                 "GCC compile failed for {}: cannot execute gcc (errno {}: {}). cmd: {}",
-                cr.file_name, errno, std::strerror(errno), JoinCommand(args)));
+                pr.file_name, errno, std::strerror(errno), JoinCommand(args)));
     }
     if (compile_status != 0) {
         ThrowFakeluaException(std::format(
-                "GCC compile failed for {} with exit code {}. cmd: {}", cr.file_name, compile_status, JoinCommand(args)));
+                "GCC compile failed for {} with exit code {}. cmd: {}", pr.file_name, compile_status, JoinCommand(args)));
     }
 
     HMODULE module_handle = LoadLibraryA(so_file.c_str());
@@ -163,7 +163,7 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     }
     const auto handle = std::make_shared<GCCHandle>(c_file, so_file, module_handle);
 
-    for (const auto &[name, params_count]: cr.function_names) {
+    for (const auto &[name, params_count]: gr.function_names) {
         FARPROC symbol_address = GetProcAddress(module_handle, name.c_str());
         if (!symbol_address) {
             ThrowFakeluaException(
@@ -189,7 +189,7 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     const pid_t pid = fork();
     if (pid < 0) {
         close(log_fd);
-        ThrowFakeluaException(std::format("GCC compile failed, fork failed for {}", cr.file_name));
+        ThrowFakeluaException(std::format("GCC compile failed, fork failed for {}", pr.file_name));
     }
 
     if (pid == 0) {
@@ -203,7 +203,7 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
 
     int status = 0;
     if (waitpid(pid, &status, 0) < 0) {
-        ThrowFakeluaException(std::format("GCC compile failed, waitpid failed for {}", cr.file_name));
+        ThrowFakeluaException(std::format("GCC compile failed, waitpid failed for {}", pr.file_name));
     }
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
         std::string gcc_log;
@@ -211,7 +211,7 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
             gcc_log.assign(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
         }
         ThrowFakeluaException(
-                std::format("GCC compile failed for {} (log: {})\n{}", cr.file_name, log_file, gcc_log));
+                std::format("GCC compile failed for {} (log: {})\n{}", pr.file_name, log_file, gcc_log));
     }
 
     void *dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);
@@ -220,7 +220,7 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
     }
     const auto handle = std::make_shared<GCCHandle>(c_file, so_file, dl_handle);
 
-    for (const auto &[name, params_count]: cr.function_names) {
+    for (const auto &[name, params_count]: gr.function_names) {
         void *func_ptr = dlsym(dl_handle, name.c_str());
         if (!func_ptr) {
             ThrowFakeluaException(std::format("GCC compile failed, dlsym failed for symbol {} in {}", name, so_file));
@@ -229,7 +229,7 @@ void GccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
         LOG_INFO("Registered gcc function {} with {} params at address {}", name, params_count, func_ptr);
     }
 
-    LOG_INFO("GCC JIT compilation finished for {}", cr.file_name);
+    LOG_INFO("GCC JIT compilation finished for {}", pr.file_name);
 #endif
 }
 

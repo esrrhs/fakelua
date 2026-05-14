@@ -7,22 +7,22 @@ namespace fakelua {
 TccJitter::TccJitter(State *s) : s_(s) {
 }
 
-void TccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
+void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const CompileConfig &cfg) {
     const auto handle = std::make_shared<TCCHandle>(s_, cfg);
     ::TCCState *s = handle->GetTCCState();
 
-    if (tcc_compile_string(s, cr.c_code.c_str()) == -1) {
-        ThrowFakeluaException(std::format("TCC compile failed, tcc_compile_string failed for {}", cr.file_name));
+    if (tcc_compile_string(s, gr.c_code.c_str()) == -1) {
+        ThrowFakeluaException(std::format("TCC compile failed, tcc_compile_string failed for {}", pr.file_name));
     }
 
     if (tcc_relocate(s) == -1) {
-        ThrowFakeluaException(std::format("TCC compile failed, tcc_relocate failed for {}", cr.file_name));
+        ThrowFakeluaException(std::format("TCC compile failed, tcc_relocate failed for {}", pr.file_name));
     }
 
-    for (const auto &[name, params_count]: cr.function_names) {
+    for (const auto &[name, params_count]: gr.function_names) {
         void *func_ptr = tcc_get_symbol(s, name.c_str());
         if (!func_ptr) {
-            ThrowFakeluaException(std::format("TCC compile failed, tcc_get_symbol failed for symbol {} in {}", name, cr.file_name));
+            ThrowFakeluaException(std::format("TCC compile failed, tcc_get_symbol failed for symbol {} in {}", name, pr.file_name));
         }
         // 生命周期绑定：func_ptr 指向 TCCState 内部的代码页，一旦 TCCState 销毁即失效。
         // 这里把 handle (shared_ptr<TCCHandle>) 一并交给 VmFunction 持有，VmFunction 又
@@ -32,7 +32,7 @@ void TccJitter::Compile(CompileResult &cr, const CompileConfig &cfg) {
         LOG_INFO("Registered function {} with {} params at address {}", name, params_count, func_ptr);
     }
 
-    LOG_INFO("TCC JIT compilation finished for {}", cr.file_name);
+    LOG_INFO("TCC JIT compilation finished for {}", pr.file_name);
 }
 
 }// namespace fakelua

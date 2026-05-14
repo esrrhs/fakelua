@@ -15,10 +15,10 @@ public:
 
     ~CGen() = default;
 
-    void Generate(CompileResult &cr, const CompileConfig &cfg);
+    GenResult Generate(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg);
 
 private:
-    std::string Build(CompileResult &cr, const CompileConfig &cfg);
+    GenResult Build(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg);
 
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
 
@@ -26,15 +26,15 @@ private:
 
     void GenerateHeader();
 
-    void GenerateGlobal(CompileResult &cr);
+    void GenerateGlobal(const SyntaxTreeInterfacePtr &chunk);
 
-    void GenerateDecls(CompileResult &cr);
+    void GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr);
 
     std::string CompileFuncName(const SyntaxTreeInterfacePtr &ptr);
 
     std::vector<std::string> CompileParList(const SyntaxTreeInterfacePtr &parlist);
 
-    void GenerateImpl(CompileResult &cr);
+    void GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr);
 
     // 将函数体编译到当前输出流。
     // `spec_bitmask` >= 0 时启用特化模式：对数学参数 i，

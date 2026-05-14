@@ -13,7 +13,7 @@ public:
 
     ~PreProcessor() = default;
 
-    void Process(const CompileResult &cr, const CompileConfig &cfg);
+    void Process(const ParseResult &pr, const CompileConfig &cfg);
 
 private:
     void CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk);

@@ -14,7 +14,7 @@ Compiler::Compiler(State *s) : s_(s) {
 }
 
 // 编译文件接口
-CompileResult Compiler::CompileFile(const std::string &file, const CompileConfig &cfg) {
+ParseResult Compiler::CompileFile(const std::string &file, const CompileConfig &cfg) {
     LOG_INFO("start CompileFile {}", file);
     MyFlexer f;
     f.InputFile(file);
@@ -22,7 +22,7 @@ CompileResult Compiler::CompileFile(const std::string &file, const CompileConfig
 }
 
 // 编译字符串接口
-CompileResult Compiler::CompileString(const std::string &str, const CompileConfig &cfg) {
+ParseResult Compiler::CompileString(const std::string &str, const CompileConfig &cfg) {
     LOG_INFO("start CompileString");
     MyFlexer f;
     f.InputString(str);
@@ -30,11 +30,11 @@ CompileResult Compiler::CompileString(const std::string &str, const CompileConfi
 }
 
 // 核心编译逻辑
-CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
+ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     LOG_INFO("start compile {}", f.GetFilename());
 
-    CompileResult ret;
-    ret.file_name = f.GetFilename();
+    ParseResult pr;
+    pr.file_name = f.GetFilename();
 
     // 1. 生成语法树（AST）
     yy::parser parse(&f);
@@ -45,44 +45,44 @@ CompileResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     if (code != 0) {
         ThrowFakeluaException(std::format("Parse failed with code {}", code));
     }
-    ret.chunk = f.GetChunk();
+    pr.chunk = f.GetChunk();
 
     // 调试模式下遍历语法树，可用于语法树检查
     if (cfg.debug_mode) {
-        WalkSyntaxTree(ret.chunk, [](const SyntaxTreeInterfacePtr &ptr) {});
+        WalkSyntaxTree(pr.chunk, [](const SyntaxTreeInterfacePtr &ptr) {});
     }
 
     if (cfg.skip_jit) {
-        return ret;
+        return pr;
     }
 
     // 2. 预处理语法树
     PreProcessor pp(s_);
-    pp.Process(ret, cfg);
+    pp.Process(pr, cfg);
 
-    // 3. 类型推导（同时识别数学参数，写入 ret.math_param_positions）
+    // 3. 类型推导（同时识别数学参数）
     TypeInferencer inferencer;
-    inferencer.Process(ret);
+    InferResult ir = inferencer.Process(pr);
 
     // 4. 转译为C
     CGen cgen(s_);
-    cgen.Generate(ret, cfg);
+    GenResult gr = cgen.Generate(pr, ir, cfg);
 
     // 5. JIT编译
     if (!cfg.disable_jit[JIT_TCC]) {
         TccJitter jitter(s_);
-        jitter.Compile(ret, cfg);
+        jitter.Compile(pr, gr, cfg);
     }
     if (!cfg.disable_jit[JIT_GCC]) {
         GccJitter jitter(s_);
-        jitter.Compile(ret, cfg);
+        jitter.Compile(pr, gr, cfg);
     }
 
     if (cfg.record_c_code) {
-        last_recorded_c_code_ = ret.recorded_c_code;
+        last_recorded_c_code_ = gr.recorded_c_code;
     }
 
-    return ret;
+    return pr;
 }
 
 }// namespace fakelua
