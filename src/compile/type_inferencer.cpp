@@ -442,8 +442,9 @@ InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var)
     }
 
     // 对于"方括号"和"点号"变量，处理子表达式以便内部变量
-    //（例如用作表索引的整型循环变量）被记录到 current_map_。
-    // 如果不这样做，CGen 会在需要 CVar 的地方发出原始 int64_t 变量名。
+    //（例如用作表索引的整型循环变量）被记录到 current_map_，
+    // 从而使 CGen 在生成变量引用时能通过 LookupNodeType 查到其原生类型，
+    // 而不会在需要 CVar 的地方错误地发出原始 int64_t 变量名。
     if (const auto pe = var->GetPrefixexp()) {
         InferNode(pe);
     }

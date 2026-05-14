@@ -167,6 +167,9 @@ private:
     int funcbody_depth_ = 0;
     // 当前推断遍次中所有已推断节点的类型映射：节点指针 → 推断类型。
     // 替代原先内嵌在 AST 节点的 eval_type_ 字段，避免 AST 与推断过程耦合。
+    // 在 Process() 开头清空，随 InferNode 调用逐步填充，最终复制给 cr.main_eval_types。
+    // RunTrialInference 在每轮开始时清除 func_block 节点的条目，试推断结束后
+    // 该映射反映最后一轮的推断结果（直到下一次 Process() 或 RunTrialInference 覆盖）。
     EvalTypeMap current_map_;
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
