@@ -79,7 +79,8 @@ private:
     const std::unordered_map<std::string, std::vector<InferredType>> *specialization_return_types_ = nullptr;
     const EvalTypeSnapshot *main_eval_types_ = nullptr;
 
-    // 函数体与表达式编译器（委托处理所有语句/表达式代码生成）。
+    // func_compiler_ 在构造时只接收 State*；SetContext() 在 Build() 中调用。
+    // 在调用 Build() 前不应使用任何编译相关方法。
     FuncBodyCompiler func_compiler_;
 };
 

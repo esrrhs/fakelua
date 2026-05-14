@@ -27,10 +27,15 @@ class State;
 //   • InferResult 中的特化快照与数学参数信息
 class FuncBodyCompiler {
 public:
+    // 构造函数仅初始化 State 指针。
+    // 在调用任何编译方法前，**必须**先调用 SetContext() 注入所有上下文指针；
+    // 否则会导致空指针解引用。通常由 CGen::Build() 完成此初始化。
     explicit FuncBodyCompiler(State *s);
 
     // 在 CGen::Build() 中调用一次，注入所有外部上下文指针。
     // 所有指针必须在 FuncBodyCompiler 使用期间持续有效。
+    // 注意：该方法接受 9 个参数，对应 FuncBodyCompiler 需要从 CGen 借用的所有外部状态。
+    //       这是为了保持最小重构范围，同时使两个类的职责边界清晰可见。
     void SetContext(const std::string *file_name,
                     const std::unordered_map<std::string, int> *local_func_names,
                     const std::unordered_set<std::string> *global_const_vars,
