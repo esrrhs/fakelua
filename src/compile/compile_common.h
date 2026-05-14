@@ -2,7 +2,9 @@
 
 #include "jit/vm_function.h"
 #include "syntax_tree.h"
+#include <format>
 #include <string>
+#include <vector>
 
 namespace fakelua {
 
@@ -92,6 +94,45 @@ inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_
         }
     }
     return raw_args;
+}
+
+// ---- 无状态代码生成帮助函数 -------------------------------------------------
+// 这些函数不依赖任何实例状态，供 CGen 和 FuncBodyCompiler 共同使用。
+
+// 返回特化函数返回值对应的 C 类型名称字符串（"int64_t"、"double" 或 "CVar"）。
+inline const char *SpecReturnCTypeName(InferredType ret_type) {
+    if (ret_type == T_INT) {
+        return "int64_t";
+    }
+    if (ret_type == T_FLOAT) {
+        return "double";
+    }
+    return "CVar";
+}
+
+// 根据基础名称、数学参数下标列表和位掩码返回特化函数名。
+// 例如 SpecFuncName("fib", {0}, 0) -> "fib_0"
+//       SpecFuncName("test", {1,4}, 2) -> "test_0_1"
+inline std::string SpecFuncName(const std::string &base_name,
+                                const std::vector<int> &math_param_indices, int bitmask) {
+    std::string name = base_name;
+    for (int i = 0; i < static_cast<int>(math_param_indices.size()); ++i) {
+        name += '_';
+        name += MathParamSuffix(MathParamKindOf(bitmask, i));
+    }
+    return name;
+}
+
+// 将原生 C 数值表达式（int64_t / double）装箱为 CVar 字面量。
+// type 为 T_DYNAMIC 时直接返回 expr 本身（视为已是 CVar 表达式）。
+inline std::string BoxNativeValue(const std::string &expr, InferredType type) {
+    if (type == T_INT) {
+        return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", expr);
+    }
+    if (type == T_FLOAT) {
+        return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", expr);
+    }
+    return expr;
 }
 
 // ---- 阶段一：解析结果 -------------------------------------------------------
