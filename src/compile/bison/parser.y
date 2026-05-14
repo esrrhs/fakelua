@@ -34,6 +34,8 @@ namespace fakelua {
 %code {
 #include "compile/my_flexer.h"
 
+using namespace fakelua;
+
 yy::parser::symbol_type yylex(fakelua::MyFlexer* l) {
     auto ret = l->MyYylex();
     std::stringstream ss;
