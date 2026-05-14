@@ -163,6 +163,10 @@ private:
     //   T_DYNAMIC → CVar（或不在当前作用域中）
     [[nodiscard]] InferredType GetNativeVarType(const std::string &name) const;
 
+    // 查询 AST 节点的推断类型。特化模式下优先使用当前特化快照，
+    // 否则回退到全局主推断结果（main_eval_types_）。未找到时返回 T_UNKNOWN。
+    [[nodiscard]] InferredType LookupNodeType(SyntaxTreeInterface *node) const;
+
 private:
     State *s_;
     std::string file_name_;
@@ -205,6 +209,10 @@ private:
     // 由 TypeInferencer::DiscoverMathParams 通过不动点迭代填充；
     // 指向 CompileResult 中在 Build() 调用期间始终有效的数据。
     const std::unordered_map<std::string, std::vector<InferredType>> *specialization_return_types_ = nullptr;
+
+    // 全局主类型推断结果，由 TypeInferencer::Process 写入 CompileResult::main_eval_types。
+    // 在非特化路径下用于查询任意节点的推断类型（替代原先的 node->EvalType() 调用）。
+    const EvalTypeSnapshot *main_eval_types_ = nullptr;
 
     // 特化上下文——在特化函数体编译期间填充。
     // 将数学参数名称映射到其原生类型（T_INT 或 T_FLOAT）。
