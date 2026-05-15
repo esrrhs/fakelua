@@ -638,12 +638,42 @@ void FuncBodyCompiler::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
             const auto tmp = std::format("flua_assign_tmp_{}", (*tmp_var_counter_)++);
             func_temp_decls_ << "    CVar " << tmp << ";\n";
             *cur_output_ << GenTab() << tmp << " = " << rhs << ";\n";
+            // Bug 2 fix: remove the variable from spec_param_types_ so that
+            // subsequent InferArgTypeForSpec uses GetNativeVarType instead of
+            // the (now potentially stale) specialization entry.
+            spec_param_types_.erase(name);
             if (var_type == T_FLOAT) {
-                *cur_output_ << GenTab() << name << " = (" << tmp << ".type_ == VAR_FLOAT) ? " << tmp << ".data_.f : (double)" << tmp
-                             << ".data_.i;\n";
+                // Bug 1 fix: check that the CVar is actually numeric before
+                // extracting; throw a runtime error for non-numeric types.
+                *cur_output_ << GenTab() << "if (" << tmp << ".type_ == VAR_FLOAT) {\n";
+                cur_tab_++;
+                *cur_output_ << GenTab() << name << " = " << tmp << ".data_.f;\n";
+                cur_tab_--;
+                *cur_output_ << GenTab() << "} else if (" << tmp << ".type_ == VAR_INT) {\n";
+                cur_tab_++;
+                *cur_output_ << GenTab() << name << " = (double)" << tmp << ".data_.i;\n";
+                cur_tab_--;
+                *cur_output_ << GenTab() << "} else {\n";
+                cur_tab_++;
+                *cur_output_ << GenTab() << "FakeluaThrowError(_S, \"attempt to assign non-numeric value to typed float variable\");\n";
+                cur_tab_--;
+                *cur_output_ << GenTab() << "}\n";
             } else {
-                *cur_output_ << GenTab() << name << " = (" << tmp << ".type_ == VAR_INT) ? " << tmp << ".data_.i : (int64_t)" << tmp
-                             << ".data_.f;\n";
+                // Bug 1 fix: check that the CVar is actually numeric before
+                // extracting; throw a runtime error for non-numeric types.
+                *cur_output_ << GenTab() << "if (" << tmp << ".type_ == VAR_INT) {\n";
+                cur_tab_++;
+                *cur_output_ << GenTab() << name << " = " << tmp << ".data_.i;\n";
+                cur_tab_--;
+                *cur_output_ << GenTab() << "} else if (" << tmp << ".type_ == VAR_FLOAT) {\n";
+                cur_tab_++;
+                *cur_output_ << GenTab() << name << " = (int64_t)" << tmp << ".data_.f;\n";
+                cur_tab_--;
+                *cur_output_ << GenTab() << "} else {\n";
+                cur_tab_++;
+                *cur_output_ << GenTab() << "FakeluaThrowError(_S, \"attempt to assign non-numeric value to typed int variable\");\n";
+                cur_tab_--;
+                *cur_output_ << GenTab() << "}\n";
             }
         }
     } else {
@@ -1496,12 +1526,10 @@ std::string FuncBodyCompiler::CompileNumericExp(const SyntaxTreeInterfacePtr &ex
         const auto op_kind = op->GetOpKind();
 
         if (op_kind == BinOpKind::kAnd) {
-            const auto left_type = InferArgTypeForSpec(e->Left());
-            const auto left_eval_result = std::format("flua_native_{}", (*tmp_var_counter_)++);
-            const auto c_type_str = (left_type == T_FLOAT) ? "double" : "int64_t";
-            func_temp_decls_ << "    " << c_type_str << " " << left_eval_result << ";\n";
-            const auto left_native = CompileNumericExp(e->Left());
-            *cur_output_ << GenTab() << left_eval_result << " = " << left_native << ";\n";
+            // Numeric values are always truthy in Lua, so `a and b` = b.
+            // Evaluate a for side effects only (e.g. function-call statements
+            // already emitted by CompileNumericExp); the result is discarded.
+            CompileNumericExp(e->Left());
             return CompileNumericExp(e->Right());
         }
         if (op_kind == BinOpKind::kOr) {

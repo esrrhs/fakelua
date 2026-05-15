@@ -2803,3 +2803,158 @@ TEST(infer, test_spec_local_degraded_binop) {
         ASSERT_EQ(ret, 6);
     });
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Bug 1 fix: CVar fallback for typed-native-var assignment must check the CVar
+// type and throw FakeluaThrowError for non-numeric values instead of silently
+// reading a garbage int64_t/double from the wrong union field.
+// ────────────────────────────────────────────────────────────────────────────
+
+// Bug 1 fix – typed int path.
+// n is a math param (n + 1 triggers specialisation → test_0(int64_t n)).
+// Inside the spec, `n = make_int(n)` goes through the CVar fallback because
+// make_int() is not specialised.
+// The generated code must contain the numeric type guard that emits
+// FakeluaThrowError for non-int/float CVars (instead of the old ternary that
+// blindly read .data_.f and cast it).
+// Runtime: make_int returns the same integer, so test(5) = 5+6 = 11.
+TEST(infer, test_spec_assign_nonnumeric_typed_int) {
+    const auto code = InferGetCCode("./infer/test_spec_assign_nonnumeric_typed_int.lua");
+    // n must be a math param.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    // Bug 1 fix: the generated code must contain the error path for non-numeric
+    // CVar assignment to a typed int variable.
+    ASSERT_NE(code.find("attempt to assign non-numeric value to typed int variable"), std::string::npos);
+    // The old unconditional ternary must no longer appear.
+    ASSERT_EQ(code.find(".type_ == VAR_INT) ? "), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_assign_nonnumeric_typed_int.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 11); // x=6, n=make_int(5)=5, return 5+6
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 7); // x=4, n=make_int(3)=3, return 3+4
+    });
+}
+
+// Bug 1 fix – typed float path.
+// n is a math param (n + 1.0 triggers float specialisation → test_1(double n)).
+// Inside the float spec, `n = make_float(n)` goes through the CVar fallback.
+// The generated code must contain the numeric type guard that emits
+// FakeluaThrowError for non-float/int CVars.
+// Runtime: make_float returns the same value, so test(2.5) = 2.5 + 3.5 = 6.0.
+TEST(infer, test_spec_assign_nonnumeric_typed_float) {
+    const auto code = InferGetCCode("./infer/test_spec_assign_nonnumeric_typed_float.lua");
+    // n must be specialised as a math param (float spec).
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // Bug 1 fix: the generated code must contain the error path for non-numeric
+    // CVar assignment to a typed float variable.
+    ASSERT_NE(code.find("attempt to assign non-numeric value to typed float variable"), std::string::npos);
+    // The old unconditional ternary must no longer appear.
+    ASSERT_EQ(code.find(".type_ == VAR_FLOAT) ? "), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_assign_nonnumeric_typed_float.lua", {.debug_mode = debug_mode});
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 6.0); // x=3.5, n=make_float(2.5)=2.5, return 2.5+3.5
+        Call(s, type, "test", dret, 1.0);
+        ASSERT_DOUBLE_EQ(dret, 3.0); // x=2.0, n=make_float(1.0)=1.0, return 1.0+2.0
+    });
+}
+
+// Runtime exception – typed float path.
+// make_string_val() always returns a string, so the CVar fallback guard fires
+// FakeluaThrowError("attempt to assign non-numeric value to typed float
+// variable") and the call to test() must propagate a std::exception.
+// Only JIT_GCC is used here: TCC does not propagate C++ exceptions thrown from
+// inside JIT-compiled code (TCC generates no DWARF unwind tables).
+TEST(infer, test_spec_assign_nonnumeric_float_throws) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    CompileFile(s, "./infer/test_spec_assign_nonnumeric_float_throws.lua", {});
+    try {
+        double dret = 0.0;
+        Call(s, JIT_GCC, "test", dret, 2.5);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_NE(std::string(e.what()).find("attempt to assign non-numeric value to typed float variable"), std::string::npos);
+    }
+}
+
+// Runtime exception – typed int path.
+// make_string_val() always returns a string, so the CVar fallback guard fires
+// FakeluaThrowError("attempt to assign non-numeric value to typed int
+// variable") and the call to test() must propagate a std::exception.
+// Only JIT_GCC is used here: TCC does not propagate C++ exceptions thrown from
+// inside JIT-compiled code (TCC generates no DWARF unwind tables).
+//
+// Generated C code structure for test_0(int64_t n):
+//   int64_t x = ((n) + (1));
+//   flua_assign_tmp_N = make_string_val();
+//   if (flua_assign_tmp_N.type_ == VAR_INT) { n = flua_assign_tmp_N.data_.i; }
+//   else if (flua_assign_tmp_N.type_ == VAR_FLOAT) { n = (int64_t)flua_assign_tmp_N.data_.f; }
+//   else { FakeluaThrowError(_S, "attempt to assign non-numeric value to typed int variable"); }
+//   return ((n) + (x));
+TEST(infer, test_spec_assign_nonnumeric_int_throws) {
+    const auto code = InferGetCCode("./infer/test_spec_assign_nonnumeric_int_throws.lua");
+    // n is a math param: the int specialization must be generated.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    // x is a native int64_t accumulator initialized via native arithmetic.
+    ASSERT_NE(code.find("int64_t x = ((n) + (1))"), std::string::npos);
+    // CVar guard – int branch.
+    ASSERT_NE(code.find(".type_ == VAR_INT)"), std::string::npos);
+    // CVar guard – float branch casts to int64_t.
+    ASSERT_NE(code.find("(int64_t)"), std::string::npos);
+    // Error branch for non-numeric CVar.
+    ASSERT_NE(code.find("attempt to assign non-numeric value to typed int variable"), std::string::npos);
+    // Return uses native addition.
+    ASSERT_NE(code.find("return ((n) + (x))"), std::string::npos);
+
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    CompileFile(s, "./infer/test_spec_assign_nonnumeric_int_throws.lua", {});
+    try {
+        int ret = 0;
+        Call(s, JIT_GCC, "test", ret, 5);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_NE(std::string(e.what()).find("attempt to assign non-numeric value to typed int variable"), std::string::npos);
+    }
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Bug 2 fix: spec_param_types_ must be erased when a math param is reassigned
+// through the CVar fallback path, so that InferArgTypeForSpec falls through to
+// GetNativeVarType (which still returns T_INT since n is int64_t in the spec).
+// ────────────────────────────────────────────────────────────────────────────
+
+// n is a math param (n + 1 in the return triggers specialisation).
+// `n = cvar_helper(n)` reassigns n via the CVar fallback (cvar_helper is not
+// specialised).  After Bug 2 fix, spec_param_types_["n"] is erased; subsequent
+// InferArgTypeForSpec uses GetNativeVarType which returns T_INT, so
+// `return n + 1` is still compiled as native int64_t arithmetic.
+// test(5) = cvar_helper(5)+1 = 7+1 = 8.
+TEST(infer, test_spec_reassign_param_cvar_path) {
+    const auto code = InferGetCCode("./infer/test_spec_reassign_param_cvar_path.lua");
+    // n must be specialised as a math param.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    // The return expression must use native arithmetic after the CVar reassign.
+    ASSERT_NE(code.find("((n) + (1))"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_reassign_param_cvar_path.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 8); // n=cvar_helper(5)=7, return 7+1
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 13); // n=cvar_helper(10)=12, return 12+1
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 3); // n=cvar_helper(0)=2, return 2+1
+    });
+}
