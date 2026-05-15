@@ -2864,6 +2864,48 @@ TEST(infer, test_spec_assign_nonnumeric_typed_float) {
     });
 }
 
+// Runtime exception – typed float path.
+// make_string_val() always returns a string, so the CVar fallback guard fires
+// FakeluaThrowError("attempt to assign non-numeric value to typed float
+// variable") and the call to test() must propagate a std::exception.
+// Only JIT_GCC is used here: TCC does not propagate C++ exceptions thrown from
+// inside JIT-compiled code (TCC generates no DWARF unwind tables).
+TEST(infer, test_spec_assign_nonnumeric_float_throws) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    CompileFile(s, "./infer/test_spec_assign_nonnumeric_float_throws.lua", {});
+    try {
+        double dret = 0.0;
+        Call(s, JIT_GCC, "test", dret, 2.5);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_NE(std::string(e.what()).find("attempt to assign non-numeric value to typed float variable"), std::string::npos);
+    }
+}
+
+// Runtime exception – typed int path.
+// make_string_val() always returns a string, so the CVar fallback guard fires
+// FakeluaThrowError("attempt to assign non-numeric value to typed int
+// variable") and the call to test() must propagate a std::exception.
+// Only JIT_GCC is used here: TCC does not propagate C++ exceptions thrown from
+// inside JIT-compiled code (TCC generates no DWARF unwind tables).
+TEST(infer, test_spec_assign_nonnumeric_int_throws) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    CompileFile(s, "./infer/test_spec_assign_nonnumeric_int_throws.lua", {});
+    try {
+        int ret = 0;
+        Call(s, JIT_GCC, "test", ret, 5);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_NE(std::string(e.what()).find("attempt to assign non-numeric value to typed int variable"), std::string::npos);
+    }
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Bug 2 fix: spec_param_types_ must be erased when a math param is reassigned
 // through the CVar fallback path, so that InferArgTypeForSpec falls through to
