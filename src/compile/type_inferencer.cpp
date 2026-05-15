@@ -288,8 +288,12 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
         }
         case SyntaxTreeType::Repeat: {
             const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
-            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(repeat_stmt->Block()), true);
+            // Lua 语义：until 条件可以访问 repeat 块内声明的 local 变量。
+            // 因此必须在 until 条件推断完成之后再退出作用域，而不能在块结束时立即退出。
+            env_.EnterScope();
+            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(repeat_stmt->Block()), false);
             InferNode(repeat_stmt->Exp());
+            env_.ExitScope();
             current_map_[node.get()] = T_UNKNOWN;
             return T_UNKNOWN;
         }
@@ -1069,6 +1073,33 @@ void TypeInferencer::BuildLocalVarExtensions(
             const auto snap_it = snapshot.find(exps[i].get());
             if (snap_it != snapshot.end() && (snap_it->second == T_INT || snap_it->second == T_FLOAT)) {
                 continue;
+            }
+            // snapshot 中为 T_DYNAMIC：此状态可能来源于两种情况：
+            //   (a) 表达式本身自然产生 T_DYNAMIC（如函数调用），变量后续无重新赋值。
+            //       此时应通过 EvalReturnExpType 推断特化类型（如数学函数返回 T_INT）。
+            //   (b) 表达式初始为数值类型，但后处理因变量被重新赋值不同类型而将其降级为 T_DYNAMIC。
+            //       此时 EvalReturnExpType 会对操作数递归推断并给出数值结果，
+            //       但这是错误的——变量实际上不能被声明为原生类型。
+            // 判别方法：对于 kBinop 和 kUnop，若所有直接操作数在 snapshot 中均为数值类型，
+            // 但表达式本身为 T_DYNAMIC，则属于情况 (b)（后处理降级），应跳过。
+            const auto init_exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exps[i]);
+            if (init_exp_node) {
+                const auto kind = init_exp_node->GetExpKind();
+                if (kind == ExpKind::kBinop && init_exp_node->Left() && init_exp_node->Right()) {
+                    const auto lt_it = snapshot.find(init_exp_node->Left().get());
+                    const auto rt_it = snapshot.find(init_exp_node->Right().get());
+                    const auto lt = (lt_it != snapshot.end()) ? lt_it->second : T_DYNAMIC;
+                    const auto rt = (rt_it != snapshot.end()) ? rt_it->second : T_DYNAMIC;
+                    if (IsNumericInferredType(lt) && IsNumericInferredType(rt)) {
+                        continue;
+                    }
+                } else if (kind == ExpKind::kUnop && init_exp_node->Right()) {
+                    const auto ot_it = snapshot.find(init_exp_node->Right().get());
+                    const auto ot = (ot_it != snapshot.end()) ? ot_it->second : T_DYNAMIC;
+                    if (IsNumericInferredType(ot)) {
+                        continue;
+                    }
+                }
             }
             // snapshot 中为 T_DYNAMIC：尝试通过 EvalReturnExpType（含当前 spec_ctx）
             // 推断初始化表达式的类型，以捕获数学函数调用返回值（如 local x = f(n)）。

@@ -2724,3 +2724,82 @@ TEST(infer, test_spec_and_or_only_no_spec) {
         ASSERT_EQ(ret, 4);
     });
 }
+
+// ────────────────────────────────────────────────────────────────────────────
+// Bug fixes: repeat...until scope and local-var degraded-expression guard.
+// ────────────────────────────────────────────────────────────────────────────
+
+// Bug 1 & 3 fix: repeat...until where the until condition uses a local variable
+// declared inside the repeat block.
+//
+// Bug 3 (TypeInferencer): before the fix, InferNode(Repeat) called
+//   InferBlock(block, true) which exits the scope, so InferNode(until_exp)
+//   could not see `step` as T_INT — it fell back to T_DYNAMIC, preventing the
+//   native comparison from being emitted.
+//
+// Bug 1 (FuncBodyCompiler): before the fix, CompileScopedBlock exited
+//   NativeVarScope before CompileCondBoolExpr ran. GetNativeVarType("step")
+//   then returned T_DYNAMIC, so CompileVar emitted the raw `int64_t step`
+//   as if it were a CVar, causing a C compile error (struct/scalar mismatch).
+//
+// After both fixes the int specialisation declares step as int64_t and emits
+// `if ((step) >= (n)) break;` as a native C comparison.
+// test(5) == 5, test(3) == 3, test(10) == 10.
+TEST(infer, test_spec_repeat_local_until) {
+    const auto code = InferGetCCode("./infer/test_spec_repeat_local_until.lua");
+    // n is a math param (sum = sum + step where step = n involves arithmetic).
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // In the int specialization: step must be declared as int64_t (not CVar).
+    ASSERT_NE(code.find("int64_t step = n;"), std::string::npos);
+    // Bug 3 fix: the until condition uses a native C comparison, not IsTrue.
+    ASSERT_NE(code.find("(step) >= (n)"), std::string::npos);
+    // No temp bool variable for the until condition.
+    ASSERT_EQ(code.find("flua_rbt_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_repeat_local_until.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 5);
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 3);
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 10);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 2.5);
+    });
+}
+
+// Bug 2 fix: local variable initialised with a binop (n + 1) that is later
+// reassigned to a float literal (0.5).
+//
+// Post-processing in InferBlock sets the binop node's type to T_DYNAMIC
+// (MergeType(T_INT, T_FLOAT) == T_DYNAMIC).  Before the fix, the
+// is_degraded_literal guard only covered kNumber literals, so InferArgTypeForSpec
+// still returned T_INT for `n + 1` and x was incorrectly declared as int64_t.
+// Then `x = 0.5` was silently truncated to 0, making test(-1) return 0 instead
+// of 0.5.
+//
+// After the fix, is_degraded_expression covers kBinop (and kUnop), so x is
+// correctly declared as CVar throughout.
+// test(5) == 6 (n+1 path), test(-1) == 0.5 (0.5 path).
+TEST(infer, test_spec_local_degraded_binop) {
+    const auto code = InferGetCCode("./infer/test_spec_local_degraded_binop.lua");
+    // x must be CVar — the binop n+1 is degraded to T_DYNAMIC by post-processing.
+    ASSERT_NE(code.find("CVar x"), std::string::npos);
+    // No int64_t x declaration should exist.
+    ASSERT_EQ(code.find("int64_t x"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_local_degraded_binop.lua", {.debug_mode = debug_mode});
+        // Bug 2: before fix test(-1) returned 0 (silently truncated); must be 0.5.
+        double dret = 0.0;
+        Call(s, type, "test", dret, -1);
+        ASSERT_DOUBLE_EQ(dret, 0.5);
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 6);
+    });
+}

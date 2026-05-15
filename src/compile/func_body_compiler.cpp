@@ -540,10 +540,33 @@ void FuncBodyCompiler::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             DeclareNativeVar(name, T_FLOAT);
         } else if (i < exps.size()) {
             // EvalType 为 T_DYNAMIC：尝试通过 InferArgTypeForSpec 捕获数学函数调用返回值。
+            // 但若推断器的后处理阶段已将该表达式从数值类型降级为 T_DYNAMIC
+            //（意味着该变量后续会被赋予不同类型），则跳过特化路径，直接声明为 CVar。
+            //
+            // 降级判别标准：表达式本身在快照中为 T_DYNAMIC，但其所有直接操作数均为数值类型
+            //（T_INT/T_FLOAT）。这说明初始推断给出了数值类型，是后处理因变量被重新赋值
+            // 而将其改写为 T_DYNAMIC，而非操作数本身就是 T_DYNAMIC（自然产生的 T_DYNAMIC）。
+            // 对于 kPrefixExp（函数调用等），其类型在主推断中本就是 T_DYNAMIC，
+            // InferArgTypeForSpec 可进一步推断特化返回类型，仍允许特化。
             const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exps[i]);
-            const bool is_degraded_literal =
-                    init_exp && init_exp->GetExpKind() == ExpKind::kNumber && LookupNodeType(exps[i].get()) == T_DYNAMIC;
-            if (!is_degraded_literal) {
+            bool is_degraded_expression = false;
+            if (init_exp && LookupNodeType(exps[i].get()) == T_DYNAMIC) {
+                const auto kind = init_exp->GetExpKind();
+                if (kind == ExpKind::kNumber) {
+                    // 字面量始终产生数值类型；若快照中为 T_DYNAMIC，则必是后处理降级。
+                    is_degraded_expression = true;
+                } else if (kind == ExpKind::kBinop && init_exp->Left() && init_exp->Right()) {
+                    const auto lt = LookupNodeType(init_exp->Left().get());
+                    const auto rt = LookupNodeType(init_exp->Right().get());
+                    // 两个操作数均为数值类型，但 binop 本身是 T_DYNAMIC → 后处理降级。
+                    is_degraded_expression = IsNumericInferredType(lt) && IsNumericInferredType(rt);
+                } else if (kind == ExpKind::kUnop && init_exp->Right()) {
+                    const auto ot = LookupNodeType(init_exp->Right().get());
+                    // 操作数为数值类型，但 unop 本身是 T_DYNAMIC → 后处理降级。
+                    is_degraded_expression = IsNumericInferredType(ot);
+                }
+            }
+            if (!is_degraded_expression) {
                 const auto spec_type = InferArgTypeForSpec(exps[i]);
                 if (spec_type == T_INT || spec_type == T_FLOAT) {
                     const auto native_expr = TryCompileNativeExpr(exps[i]);
@@ -684,9 +707,15 @@ void FuncBodyCompiler::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
     *cur_output_ << GenTab() << "do {\n";
     cur_tab_++;
 
-    CompileScopedBlock(repeat_stmt->Block());
+    // Lua 语义：until 条件可以访问 repeat 块内声明的 local 变量。
+    // 因此必须在 until 条件编译完成之后再退出 NativeVarScope，
+    // 否则块内的原生类型变量（int64_t/double）在条件编译时会被视为 CVar，
+    // 导致生成的 C 代码类型不匹配（编译错误或静默错误结果）。
+    EnterNativeVarScope();
+    CompileStmtBlock(repeat_stmt->Block());
     const auto cond_bool = CompileCondBoolExpr(repeat_stmt->Exp(), "flua_rbt");
     *cur_output_ << GenTab() << std::format("if ({}) break;\n", cond_bool);
+    ExitNativeVarScope();
 
     cur_tab_--;
     *cur_output_ << GenTab() << "} while (1);\n";
