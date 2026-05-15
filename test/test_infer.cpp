@@ -2891,7 +2891,29 @@ TEST(infer, test_spec_assign_nonnumeric_float_throws) {
 // variable") and the call to test() must propagate a std::exception.
 // Only JIT_GCC is used here: TCC does not propagate C++ exceptions thrown from
 // inside JIT-compiled code (TCC generates no DWARF unwind tables).
+//
+// Generated C code structure for test_0(int64_t n):
+//   int64_t x = ((n) + (1));
+//   flua_assign_tmp_N = make_string_val();
+//   if (flua_assign_tmp_N.type_ == VAR_INT) { n = flua_assign_tmp_N.data_.i; }
+//   else if (flua_assign_tmp_N.type_ == VAR_FLOAT) { n = (int64_t)flua_assign_tmp_N.data_.f; }
+//   else { FakeluaThrowError(_S, "attempt to assign non-numeric value to typed int variable"); }
+//   return ((n) + (x));
 TEST(infer, test_spec_assign_nonnumeric_int_throws) {
+    const auto code = InferGetCCode("./infer/test_spec_assign_nonnumeric_int_throws.lua");
+    // n is a math param: the int specialization must be generated.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    // x is a native int64_t accumulator initialized via native arithmetic.
+    ASSERT_NE(code.find("int64_t x = ((n) + (1))"), std::string::npos);
+    // CVar guard – int branch.
+    ASSERT_NE(code.find(".type_ == VAR_INT)"), std::string::npos);
+    // CVar guard – float branch casts to int64_t.
+    ASSERT_NE(code.find("(int64_t)"), std::string::npos);
+    // Error branch for non-numeric CVar.
+    ASSERT_NE(code.find("attempt to assign non-numeric value to typed int variable"), std::string::npos);
+    // Return uses native addition.
+    ASSERT_NE(code.find("return ((n) + (x))"), std::string::npos);
+
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
