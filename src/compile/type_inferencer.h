@@ -172,6 +172,12 @@ private:
     // 该映射反映最后一轮的推断结果（直到下一次 Process() 或 RunTrialInference 覆盖）。
     EvalTypeMap current_map_;
 
+    // 文件级（funcbody_depth_ == 0）的数值类型局部变量映射：变量名 → T_INT/T_FLOAT。
+    // 在 InferNode LocalVar 阶段填充（仅记录数值字面量初始化的顶层 local 变量）。
+    // RunTrialInference 在重置 env_ 后用此表重新注入这些常量，
+    // 使函数体的试推断能看到正确的文件级常量类型，进而支持函数特化。
+    std::unordered_map<std::string, InferredType> file_level_types_;
+
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
     static constexpr int kMaxSpecIterations = 16;
 };

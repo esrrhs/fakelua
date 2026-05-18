@@ -102,15 +102,15 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             for (size_t i = 0; i < names.size(); ++i) {
                 InferredType type = T_DYNAMIC;
                 if (i < exps.size()) {
-                    const auto inferred = InferNode(exps[i]);
-                    // 文件级局部变量存储为 static const CVar，而非 int64_t/double，
-                    // 因此在环境中必须始终为 T_DYNAMIC，以防止函数将它们
-                    // 视为原生类型变量。
-                    if (funcbody_depth_ > 0) {
-                        type = inferred;
-                    }
+                    type = InferNode(exps[i]);
                 }
                 env_.Define(names[i], type);
+                // 文件级（funcbody_depth_ == 0）数值类型局部变量：
+                // 将其记录到 file_level_types_，供 RunTrialInference
+                // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
+                if (funcbody_depth_ == 0 && IsNumericInferredType(type)) {
+                    file_level_types_[names[i]] = type;
+                }
             }
 
             current_map_[node.get()] = T_UNKNOWN;
@@ -578,9 +578,13 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
         // 每轮清除 func_block 节点在 current_map_ 中的旧条目，保证推断从干净状态开始。
         WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &n) { current_map_.erase(n.get()); });
 
-        // 以假定的参数类型初始化 trial 环境。
+        // 以假定的参数类型初始化 trial 环境；同时注入文件级数值常量，
+        // 使函数体能看到正确的文件级局部变量类型（T_INT/T_FLOAT）。
         env_ = TypeEnvironment{};
         funcbody_depth_ = 1;
+        for (const auto &[fname, ftype]: file_level_types_) {
+            env_.Define(fname, ftype);
+        }
         for (const auto &p: params) {
             const auto it = assumed_types.find(p);
             env_.Define(p, it != assumed_types.end() ? it->second : T_DYNAMIC);

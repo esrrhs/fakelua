@@ -7,7 +7,6 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
-#include <unordered_set>
 
 namespace fakelua {
 
@@ -155,7 +154,7 @@ private:
     State *s_ = nullptr;
     const std::string *file_name_ = nullptr;
     const std::unordered_map<std::string, int> *local_func_names_ = nullptr;
-    const std::unordered_set<std::string> *global_const_vars_ = nullptr;
+    const std::unordered_map<std::string, InferredType> *global_const_vars_ = nullptr;
     bool *in_global_init_ = nullptr;
     int *tmp_var_counter_ = nullptr;
 

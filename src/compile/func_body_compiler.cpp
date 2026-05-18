@@ -178,6 +178,14 @@ InferredType FuncBodyCompiler::InferArgTypeForSpec(const SyntaxTreeInterfacePtr 
         if (native_type == T_INT || native_type == T_FLOAT) {
             return native_type;
         }
+        // 文件级数值常量（static const int64_t / double）：返回其记录的原生类型。
+        if (global_const_vars_) {
+            if (const auto git = global_const_vars_->find(name); git != global_const_vars_->end()) {
+                if (git->second == T_INT || git->second == T_FLOAT) {
+                    return git->second;
+                }
+            }
+        }
         return T_DYNAMIC;
     };
     ctx.lookup_node = [this](SyntaxTreeInterface *node) -> InferredType {
@@ -1366,6 +1374,17 @@ std::string FuncBodyCompiler::CompileVar(const SyntaxTreeInterfacePtr &v) {
         if (native_type == T_FLOAT) {
             return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
         }
+        // 文件级数值常量（static const int64_t / double）：装箱为 CVar 后返回。
+        if (global_const_vars_) {
+            if (const auto git = global_const_vars_->find(name); git != global_const_vars_->end()) {
+                if (git->second == T_INT) {
+                    return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
+                }
+                if (git->second == T_FLOAT) {
+                    return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
+                }
+            }
+        }
         return name;
     } else if (var_kind == VarKind::kSquare) {
         DEBUG_ASSERT(!(*in_global_init_));
@@ -1417,6 +1436,14 @@ std::string FuncBodyCompiler::CompileNumericExp(const SyntaxTreeInterfacePtr &ex
             }
             if (IsTypedNativeVar(vname)) {
                 return vname;
+            }
+            // 文件级数值常量（static const int64_t / double）：直接用名称。
+            if (global_const_vars_) {
+                if (const auto git = global_const_vars_->find(vname); git != global_const_vars_->end()) {
+                    if (git->second == T_INT || git->second == T_FLOAT) {
+                        return vname;
+                    }
+                }
             }
             if (LookupNodeType(e.get()) == T_FLOAT) {
                 return std::format("{}.data_.f", vname);
