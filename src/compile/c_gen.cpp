@@ -39,9 +39,6 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Com
 GenResult CGen::Build(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg) {
     // 加载数学参数分析结果，供 GenerateDecls 和 GenerateImpl 使用。
     math_param_positions_ = ir.math_param_positions;
-    specialization_snapshots_ = &ir.specialization_snapshots;
-    specialization_return_types_ = &ir.specialization_return_types;
-    main_eval_types_ = &ir.main_eval_types;
 
     // 构造 FuncBodyCompiler，一次性注入所有上下文（消除两阶段初始化）。
     func_compiler_ = std::make_unique<FuncBodyCompiler>(s_, FuncBodyContext{
@@ -51,9 +48,9 @@ GenResult CGen::Build(const ParseResult &pr, const InferResult &ir, const Compil
             &in_global_init_,
             &tmp_var_counter_,
             &math_param_positions_,
-            specialization_snapshots_,
-            specialization_return_types_,
-            main_eval_types_});
+            &ir.specialization_snapshots,
+            &ir.specialization_return_types,
+            &ir.main_eval_types});
 
     GenResult gr;
     cur_output_ = &headers_;

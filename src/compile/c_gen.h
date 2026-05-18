@@ -75,11 +75,6 @@ private:
     // 来自 TypeInferencer::DiscoverMathParams 的数学参数分析结果。
     std::unordered_map<std::string, std::vector<int>> math_param_positions_;
 
-    // 指向 CompileResult 中在 Build() 调用期间始终有效的数据。
-    const std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> *specialization_snapshots_ = nullptr;
-    const std::unordered_map<std::string, std::vector<InferredType>> *specialization_return_types_ = nullptr;
-    const EvalTypeSnapshot *main_eval_types_ = nullptr;
-
     // func_compiler_ 在 Build() 中构造，持有当前编译单元的上下文。
     // 使用 unique_ptr 以便在 Build() 开始时完整地一次性初始化，避免两阶段初始化。
     std::unique_ptr<FuncBodyCompiler> func_compiler_;
