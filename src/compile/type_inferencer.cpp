@@ -891,143 +891,65 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
 }
 
 // 在给定的特化上下文（spec_ctx：数学参数名 → 类型）和假定返回类型表（assumed_ret）下，
-// 递归计算返回表达式 exp 的类型。
-// 对于指向数学参数函数的调用节点，使用 assumed_ret 中的假定返回类型，
-// 从而支持不动点迭代中的循环/递归推断。
+// 委托 InferExpType 计算返回表达式 exp 的类型，共享与 FuncBodyCompiler::InferArgTypeForSpec
+// 完全相同的推断算法，消除两处类型推断逻辑之间的 DRY 违反。
 InferredType TypeInferencer::EvalReturnExpType(
         const SyntaxTreeInterfacePtr &exp,
         const EvalTypeSnapshot &snapshot,
         const std::unordered_map<std::string, InferredType> &spec_ctx,
         const std::unordered_map<std::string, std::vector<int>> &math_param_positions,
         const std::unordered_map<std::string, std::vector<InferredType>> &assumed_ret) const {
-    if (!exp || exp->Type() != SyntaxTreeType::Exp) {
+    InferExpContext ctx;
+    ctx.lookup_var = [&spec_ctx, &snapshot](
+                             const std::string &name,
+                             SyntaxTreeInterface *parent_exp_node) -> InferredType {
+        const auto ctx_it = spec_ctx.find(name);
+        if (ctx_it != spec_ctx.end()) {
+            fprintf(stderr, "DEBUG lookup_var '%s': found in spec_ctx = %d\n", name.c_str(), static_cast<int>(ctx_it->second));
+            return ctx_it->second;
+        }
+        // 在 spec_ctx 未命中时，从快照中查询外层 kPrefixExp 节点的类型。
+        const auto snap_it = snapshot.find(parent_exp_node);
+        const int snap_val = (snap_it != snapshot.end()) ? static_cast<int>(snap_it->second) : -1;
+        fprintf(stderr, "DEBUG lookup_var '%s': snap=%d (node=%p)\n", name.c_str(), snap_val, static_cast<void*>(parent_exp_node));
+        if (snap_it != snapshot.end() &&
+            (snap_it->second == T_INT || snap_it->second == T_FLOAT)) {
+            return snap_it->second;
+        }
         return T_DYNAMIC;
-    }
-    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-    const auto exp_kind = e->GetExpKind();
-
-    if (exp_kind == ExpKind::kNumber) {
-        const auto it = snapshot.find(exp.get());
+    };
+    ctx.lookup_node = [&snapshot](SyntaxTreeInterface *node) -> InferredType {
+        const auto it = snapshot.find(node);
         if (it != snapshot.end() && (it->second == T_INT || it->second == T_FLOAT)) {
             return it->second;
         }
         return T_DYNAMIC;
-    }
-
-    if (exp_kind == ExpKind::kPrefixExp) {
-        const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
-        if (!pe) {
+    };
+    ctx.lookup_math_params =
+            [&math_param_positions](const std::string &callee_name) -> const std::vector<int> * {
+        const auto it = math_param_positions.find(callee_name);
+        if (it == math_param_positions.end()) {
+            return nullptr;
+        }
+        return &it->second;
+    };
+    ctx.lookup_return = [&assumed_ret](const std::string &callee_name,
+                                       const int bitmask) -> InferredType {
+        const auto it = assumed_ret.find(callee_name);
+        if (it == assumed_ret.end()) {
             return T_DYNAMIC;
         }
-        if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
-            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-            if (!var || var->GetVarKind() != VarKind::kSimple) {
-                return T_DYNAMIC;
-            }
-            const auto &vname = var->GetName();
-            const auto ctx_it = spec_ctx.find(vname);
-            if (ctx_it != spec_ctx.end()) {
-                return ctx_it->second;
-            }
-            const auto snap_it = snapshot.find(exp.get());
-            if (snap_it != snapshot.end() && (snap_it->second == T_INT || snap_it->second == T_FLOAT)) {
-                return snap_it->second;
-            }
+        const auto &ret_types = it->second;
+        if (bitmask >= static_cast<int>(ret_types.size())) {
             return T_DYNAMIC;
         }
-        if (pe->GetPrefixKind() == PrefixExpKind::kExp) {
-            return EvalReturnExpType(pe->GetValue(), snapshot, spec_ctx, math_param_positions, assumed_ret);
-        }
-        if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
-            const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
-            if (!fc) {
-                return T_DYNAMIC;
-            }
-            const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-            if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
-                return T_DYNAMIC;
-            }
-            const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-            if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
-                return T_DYNAMIC;
-            }
-            const auto &callee_name = callee_var->GetName();
-            const auto math_it = math_param_positions.find(callee_name);
-            if (math_it == math_param_positions.end()) {
-                return T_DYNAMIC;
-            }
-            const auto &math_params = math_it->second;
-            const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-            if (!args_ptr) {
-                return T_DYNAMIC;
-            }
-            const auto raw_args = ExtractCallRawArgs(args_ptr);
-            if (raw_args.empty()) {
-                return T_DYNAMIC;
-            }
-            int bitmask = 0;
-            for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-                const int param_pos = math_params[i];
-                if (param_pos >= static_cast<int>(raw_args.size())) {
-                    return T_DYNAMIC;
-                }
-                const auto &arg = raw_args[param_pos];
-                if (!arg || arg->Type() != SyntaxTreeType::Exp) {
-                    return T_DYNAMIC;
-                }
-                const auto t = EvalReturnExpType(arg, snapshot, spec_ctx, math_param_positions, assumed_ret);
-                if (t == T_DYNAMIC) {
-                    return T_DYNAMIC;
-                }
-                if (t == T_FLOAT) {
-                    bitmask |= (1 << i);
-                }
-            }
-            const auto ret_it = assumed_ret.find(callee_name);
-            if (ret_it == assumed_ret.end()) {
-                return T_DYNAMIC;
-            }
-            const auto &ret_types = ret_it->second;
-            if (bitmask >= static_cast<int>(ret_types.size())) {
-                return T_DYNAMIC;
-            }
-            return ret_types[static_cast<size_t>(bitmask)];
-        }
-        return T_DYNAMIC;
-    }
-
-    if (exp_kind == ExpKind::kBinop) {
-        const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
-        if (!op) {
-            return T_DYNAMIC;
-        }
-        const auto left = EvalReturnExpType(e->Left(), snapshot, spec_ctx, math_param_positions, assumed_ret);
-        const auto right = EvalReturnExpType(e->Right(), snapshot, spec_ctx, math_param_positions, assumed_ret);
-        return InferNumericBinopResultType(op->GetOpKind(), left, right);
-    }
-
-    if (exp_kind == ExpKind::kUnop) {
-        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
-        if (!op) {
-            return T_DYNAMIC;
-        }
-        if (op->GetOpKind() == UnOpKind::kMinus) {
-            return EvalReturnExpType(e->Right(), snapshot, spec_ctx, math_param_positions, assumed_ret);
-        }
-        if (op->GetOpKind() == UnOpKind::kBitNot) {
-            const auto t = EvalReturnExpType(e->Right(), snapshot, spec_ctx, math_param_positions, assumed_ret);
-            if (t == T_INT) {
-                return T_INT;
-            }
-        }
-        if (op->GetOpKind() == UnOpKind::kNumberSign) {
-            // # 运算符始终返回整数（字符串字节数或表元素数），与操作数类型无关。
-            return T_INT;
-        }
-        return T_DYNAMIC;
-    }
-
-    return T_DYNAMIC;
+        return ret_types[static_cast<size_t>(bitmask)];
+    };
+    const auto result = InferExpType(exp, ctx);
+    fprintf(stderr, "DEBUG EvalReturnExpType: exp_type=%d result=%d\n",
+            exp ? static_cast<int>(exp->Type()) : -1,
+            static_cast<int>(result));
+    return result;
 }
 
 // 扫描函数块顶层的 local 声明，将由数学函数调用（或其他能推断出数值类型的表达式）

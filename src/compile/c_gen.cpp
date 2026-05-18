@@ -9,7 +9,7 @@
 
 namespace fakelua {
 
-CGen::CGen(State *s) : s_(s), func_compiler_(s) {
+CGen::CGen(State *s) : s_(s) {
 }
 
 GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg) {
@@ -43,8 +43,8 @@ GenResult CGen::Build(const ParseResult &pr, const InferResult &ir, const Compil
     specialization_return_types_ = &ir.specialization_return_types;
     main_eval_types_ = &ir.main_eval_types;
 
-    // 注入上下文指针，供 FuncBodyCompiler 在语句/表达式编译中使用。
-    func_compiler_.SetContext(
+    // 构造 FuncBodyCompiler，一次性注入所有上下文（消除两阶段初始化）。
+    func_compiler_ = std::make_unique<FuncBodyCompiler>(s_, FuncBodyContext{
             &file_name_,
             &local_func_names_,
             &global_const_vars_,
@@ -53,7 +53,7 @@ GenResult CGen::Build(const ParseResult &pr, const InferResult &ir, const Compil
             &math_param_positions_,
             specialization_snapshots_,
             specialization_return_types_,
-            main_eval_types_);
+            main_eval_types_});
 
     GenResult gr;
     cur_output_ = &headers_;
@@ -804,7 +804,7 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                 }
 
                 // 编译表达式为 CVar 初始化字符串
-                std::string cvar_init = func_compiler_.CompileExp(exp);
+                std::string cvar_init = func_compiler_->CompileExp(exp);
 
                 // 生成静态全局变量
                 *cur_output_ << "static const CVar " << name << " = " << cvar_init << ";\n";
@@ -874,7 +874,7 @@ void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
             const int num_specs = 1 << static_cast<int>(math_params.size());
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
                 const auto spec_name = SpecFuncName(name, math_params, bitmask);
-                const auto spec_ret = func_compiler_.GetSpecReturnType(name, bitmask);
+                const auto spec_ret = func_compiler_->GetSpecReturnType(name, bitmask);
                 *cur_output_ << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < params.size(); ++i) {
                     if (i > 0) *cur_output_ << ", ";
@@ -998,7 +998,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
             const int num_specs = 1 << static_cast<int>(math_params.size());
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
                 const auto spec_name = SpecFuncName(name, math_params, bitmask);
-                const auto spec_ret = func_compiler_.GetSpecReturnType(name, bitmask);
+                const auto spec_ret = func_compiler_->GetSpecReturnType(name, bitmask);
                 // 输出特化函数签名。
                 *cur_output_ << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < func_params.size(); ++i) {
@@ -1049,7 +1049,7 @@ void CGen::CompileFuncBody(const std::string &func_name,
                               const std::vector<std::string> &func_params,
                               const SyntaxTreeInterfacePtr &func_block,
                               int spec_bitmask) {
-    func_compiler_.CompileFuncBody(func_name, func_params, func_block, spec_bitmask, impls_);
+    func_compiler_->CompileFuncBody(func_name, func_params, func_block, spec_bitmask, impls_);
 }
 
 void CGen::GenerateEntryDispatcher(const std::string &func_name,
@@ -1094,7 +1094,7 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
     *cur_output_ << "    switch (flua_spec_idx) {\n";
     for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
         const auto spec_name = SpecFuncName(func_name, math_param_indices, bitmask);
-        const auto spec_ret = func_compiler_.GetSpecReturnType(func_name, bitmask);
+        const auto spec_ret = func_compiler_->GetSpecReturnType(func_name, bitmask);
 
         // 构建参数列表字符串（math 参数取 .data_.i / .data_.f，其余直接传 CVar）。
         std::string args_str;
