@@ -21,30 +21,16 @@ class State;
 //   • 特化上下文            —— 当前数学参数类型与快照
 //   • 每次函数体的输出缓冲区 —— func_temp_decls_ + body_ss_
 //
-// 对以下数据持非拥有指针（生命周期由调用方 CGen 保证）：
+// 对以下数据持非拥有指针（生命周期由调用方 CGen 保证），
+// 全部通过 FuncBodyContext 在构造时一次性注入：
 //   • file_name_, local_func_names_, global_const_vars_, in_global_init_
 //   • tmp_var_counter_ （跨函数持久累加）
 //   • InferResult 中的特化快照与数学参数信息
 class FuncBodyCompiler {
 public:
-    // 构造函数仅初始化 State 指针。
-    // 在调用任何编译方法前，**必须**先调用 SetContext() 注入所有上下文指针；
-    // 否则会导致空指针解引用。通常由 CGen::Build() 完成此初始化。
-    explicit FuncBodyCompiler(State *s);
-
-    // 在 CGen::Build() 中调用一次，注入所有外部上下文指针。
-    // 所有指针必须在 FuncBodyCompiler 使用期间持续有效。
-    // 注意：该方法接受 9 个参数，对应 FuncBodyCompiler 需要从 CGen 借用的所有外部状态。
-    //       这是为了保持最小重构范围，同时使两个类的职责边界清晰可见。
-    void SetContext(const std::string *file_name,
-                    const std::unordered_map<std::string, int> *local_func_names,
-                    const std::unordered_set<std::string> *global_const_vars,
-                    bool *in_global_init,
-                    int *tmp_var_counter,
-                    const std::unordered_map<std::string, std::vector<int>> *math_param_positions,
-                    const std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> *specialization_snapshots,
-                    const std::unordered_map<std::string, std::vector<InferredType>> *specialization_return_types,
-                    const EvalTypeSnapshot *main_eval_types);
+    // 构造函数：一次性注入 State 和所有外部上下文指针。
+    // ctx 中所有指针必须在 FuncBodyCompiler 使用期间持续有效（由 CGen 保证）。
+    explicit FuncBodyCompiler(State *s, const FuncBodyContext &ctx);
 
     // 编译一个表达式并返回其 C 表达式字符串。
     // 在 global-constant-init 上下文（*in_global_init_ == true）中，

@@ -3,6 +3,7 @@
 #include "compile/compile_common.h"
 #include "compile/func_body_compiler.h"
 #include "fakelua.h"
+#include <memory>
 
 namespace fakelua {
 
@@ -79,9 +80,9 @@ private:
     const std::unordered_map<std::string, std::vector<InferredType>> *specialization_return_types_ = nullptr;
     const EvalTypeSnapshot *main_eval_types_ = nullptr;
 
-    // func_compiler_ 在构造时只接收 State*；SetContext() 在 Build() 中调用。
-    // 在调用 Build() 前不应使用任何编译相关方法。
-    FuncBodyCompiler func_compiler_;
+    // func_compiler_ 在 Build() 中构造，持有当前编译单元的上下文。
+    // 使用 unique_ptr 以便在 Build() 开始时完整地一次性初始化，避免两阶段初始化。
+    std::unique_ptr<FuncBodyCompiler> func_compiler_;
 };
 
 }// namespace fakelua

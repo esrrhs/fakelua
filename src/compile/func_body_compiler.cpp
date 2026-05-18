@@ -8,28 +8,17 @@
 
 namespace fakelua {
 
-FuncBodyCompiler::FuncBodyCompiler(State *s) : s_(s) {
-}
-
-void FuncBodyCompiler::SetContext(
-        const std::string *file_name,
-        const std::unordered_map<std::string, int> *local_func_names,
-        const std::unordered_set<std::string> *global_const_vars,
-        bool *in_global_init,
-        int *tmp_var_counter,
-        const std::unordered_map<std::string, std::vector<int>> *math_param_positions,
-        const std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> *specialization_snapshots,
-        const std::unordered_map<std::string, std::vector<InferredType>> *specialization_return_types,
-        const EvalTypeSnapshot *main_eval_types) {
-    file_name_ = file_name;
-    local_func_names_ = local_func_names;
-    global_const_vars_ = global_const_vars;
-    in_global_init_ = in_global_init;
-    tmp_var_counter_ = tmp_var_counter;
-    math_param_positions_ = math_param_positions;
-    specialization_snapshots_ = specialization_snapshots;
-    specialization_return_types_ = specialization_return_types;
-    main_eval_types_ = main_eval_types;
+FuncBodyCompiler::FuncBodyCompiler(State *s, const FuncBodyContext &ctx)
+    : s_(s),
+      file_name_(ctx.file_name),
+      local_func_names_(ctx.local_func_names),
+      global_const_vars_(ctx.global_const_vars),
+      in_global_init_(ctx.in_global_init),
+      tmp_var_counter_(ctx.tmp_var_counter),
+      math_param_positions_(ctx.math_param_positions),
+      specialization_snapshots_(ctx.specialization_snapshots),
+      specialization_return_types_(ctx.specialization_return_types),
+      main_eval_types_(ctx.main_eval_types) {
 }
 
 [[noreturn]] void FuncBodyCompiler::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) const {
@@ -180,112 +169,42 @@ bool FuncBodyCompiler::TryInferMathCallSpec(const std::string &callee_name,
 
 InferredType FuncBodyCompiler::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const {
     DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
-    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-    const auto exp_kind = e->GetExpKind();
-
-    if (exp_kind == ExpKind::kNumber) {
-        // 使用 LookupNodeType 查询 TypeInferencer 的推断结果（特化快照或主推断）。
-        const auto node_type = LookupNodeType(e.get());
-        if (node_type == T_INT) {
-            return T_INT;
+    InferExpContext ctx;
+    ctx.lookup_var = [this](const std::string &name, SyntaxTreeInterface *) -> InferredType {
+        if (const auto it = spec_param_types_.find(name); it != spec_param_types_.end()) {
+            return it->second;
         }
-        if (node_type == T_FLOAT) {
-            return T_FLOAT;
+        const auto native_type = GetNativeVarType(name);
+        if (native_type == T_INT || native_type == T_FLOAT) {
+            return native_type;
         }
-        // 回退：探查字符串值。
-        const auto &val = e->ExpValue();
-        if (val.find('.') == std::string::npos && val.find('e') == std::string::npos &&
+        return T_DYNAMIC;
+    };
+    ctx.lookup_node = [this](SyntaxTreeInterface *node) -> InferredType {
+        return LookupNodeType(node);
+    };
+    ctx.lookup_math_params = [this](const std::string &callee_name) -> const std::vector<int> * {
+        if (!math_param_positions_) {
+            return nullptr;
+        }
+        const auto it = math_param_positions_->find(callee_name);
+        if (it == math_param_positions_->end()) {
+            return nullptr;
+        }
+        return &it->second;
+    };
+    ctx.lookup_return = [this](const std::string &func_name, const int bitmask) -> InferredType {
+        return GetSpecReturnType(func_name, bitmask);
+    };
+    ctx.lookup_number_literal = [](const std::string &val) -> InferredType {
+        if (val.find('.') == std::string::npos &&
+            val.find('e') == std::string::npos &&
             val.find('E') == std::string::npos) {
             return T_INT;
         }
         return T_FLOAT;
-    }
-
-    if (exp_kind == ExpKind::kPrefixExp) {
-        const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
-        DEBUG_ASSERT(pe);
-        if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
-            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-            if (!var || var->GetVarKind() != VarKind::kSimple) {
-                return T_DYNAMIC;
-            }
-            const auto &vname = var->GetName();
-            // 特化上下文优先。
-            if (const auto it = spec_param_types_.find(vname); it != spec_param_types_.end()) {
-                return it->second;
-            }
-            // 使用 GetNativeVarType 获取变量声明时的实际 C 类型，而不依赖 EvalType。
-            const auto native_type = GetNativeVarType(vname);
-            if (native_type == T_INT || native_type == T_FLOAT) {
-                return native_type;
-            }
-            return T_DYNAMIC;
-        }
-        if (pe->GetPrefixKind() == PrefixExpKind::kExp) {
-            return InferArgTypeForSpec(pe->GetValue());
-        }
-        if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
-            // Check whether the callee is a local function with math params.
-            const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
-            if (!fc) {
-                return T_DYNAMIC;
-            }
-            const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-            if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
-                return T_DYNAMIC;
-            }
-            const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-            if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
-                return T_DYNAMIC;
-            }
-            const auto &callee_name = callee_var->GetName();
-            const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-            if (!args_ptr) {
-                return T_DYNAMIC;
-            }
-            const auto raw_args = ExtractCallRawArgs(args_ptr);
-            if (raw_args.empty()) {
-                return T_DYNAMIC;
-            }
-            int bitmask = 0;
-            InferredType spec_ret = T_DYNAMIC;
-            if (!TryInferMathCallSpec(callee_name, raw_args, bitmask, spec_ret)) {
-                return T_DYNAMIC;
-            }
-            return spec_ret;
-        }
-        return T_DYNAMIC;
-    }
-
-    if (exp_kind == ExpKind::kBinop) {
-        const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
-        DEBUG_ASSERT(op);
-        const auto lt = InferArgTypeForSpec(e->Left());
-        const auto rt = InferArgTypeForSpec(e->Right());
-        return InferNumericBinopResultType(op->GetOpKind(), lt, rt);
-    }
-
-    if (exp_kind == ExpKind::kUnop) {
-        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
-        DEBUG_ASSERT(op);
-        if (op->GetOpKind() == UnOpKind::kMinus) {
-            return InferArgTypeForSpec(e->Right());
-        }
-        if (op->GetOpKind() == UnOpKind::kBitNot) {
-            const auto t = InferArgTypeForSpec(e->Right());
-            if (t == T_INT) {
-                return T_INT;
-            }
-            return T_DYNAMIC;
-        }
-        if (op->GetOpKind() == UnOpKind::kNumberSign) {
-            // # 运算符始终返回整数（字符串长度或表大小）。
-            return T_INT;
-        }
-        return T_DYNAMIC;
-    }
-
-    return T_DYNAMIC;
+    };
+    return InferExpType(exp, ctx);
 }
 
 std::string FuncBodyCompiler::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
