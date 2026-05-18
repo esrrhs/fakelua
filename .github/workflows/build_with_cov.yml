@@ -30,7 +30,7 @@ jobs:
 
       - name: Setup TCC
         run: |
-          git clone https://repo.or.cz/tinycc.git
+          git clone https://github.com/TinyCC/tinycc.git
           cd tinycc
           ./configure --extra-cflags="-fPIC"
           make -j8
