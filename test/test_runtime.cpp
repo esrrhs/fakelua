@@ -120,7 +120,7 @@ TEST(runtime, vm_call_by_name_error_cases) {
 
     EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "missing", 0), std::exception);
 
-    s.GetVM().RegisterFunction(VmFunction("nulladdr", 0, nullptr, {}));
+    s.GetVM().RegisterFunction(VmFunction("nulladdr", 0, JIT_TCC, nullptr, {}));
     EXPECT_THROW((void) FakeluaCallByName(&s, JIT_TCC, "nulladdr", 0), std::exception);
 
     s.GetVM().RegisterFunction(VmFunction("fnv", 8, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnEcho8), {}));
