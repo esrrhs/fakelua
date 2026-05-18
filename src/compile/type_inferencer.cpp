@@ -905,13 +905,10 @@ InferredType TypeInferencer::EvalReturnExpType(
                              SyntaxTreeInterface *parent_exp_node) -> InferredType {
         const auto ctx_it = spec_ctx.find(name);
         if (ctx_it != spec_ctx.end()) {
-            fprintf(stderr, "DEBUG lookup_var '%s': found in spec_ctx = %d\n", name.c_str(), static_cast<int>(ctx_it->second));
             return ctx_it->second;
         }
         // 在 spec_ctx 未命中时，从快照中查询外层 kPrefixExp 节点的类型。
         const auto snap_it = snapshot.find(parent_exp_node);
-        const int snap_val = (snap_it != snapshot.end()) ? static_cast<int>(snap_it->second) : -1;
-        fprintf(stderr, "DEBUG lookup_var '%s': snap=%d (node=%p)\n", name.c_str(), snap_val, static_cast<void*>(parent_exp_node));
         if (snap_it != snapshot.end() &&
             (snap_it->second == T_INT || snap_it->second == T_FLOAT)) {
             return snap_it->second;
@@ -945,11 +942,7 @@ InferredType TypeInferencer::EvalReturnExpType(
         }
         return ret_types[static_cast<size_t>(bitmask)];
     };
-    const auto result = InferExpType(exp, ctx);
-    fprintf(stderr, "DEBUG EvalReturnExpType: exp_type=%d result=%d\n",
-            exp ? static_cast<int>(exp->Type()) : -1,
-            static_cast<int>(result));
-    return result;
+    return InferExpType(exp, ctx);
 }
 
 // 扫描函数块顶层的 local 声明，将由数学函数调用（或其他能推断出数值类型的表达式）

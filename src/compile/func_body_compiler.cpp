@@ -196,6 +196,14 @@ InferredType FuncBodyCompiler::InferArgTypeForSpec(const SyntaxTreeInterfacePtr 
     ctx.lookup_return = [this](const std::string &func_name, const int bitmask) -> InferredType {
         return GetSpecReturnType(func_name, bitmask);
     };
+    ctx.lookup_number_literal = [](const std::string &val) -> InferredType {
+        if (val.find('.') == std::string::npos &&
+            val.find('e') == std::string::npos &&
+            val.find('E') == std::string::npos) {
+            return T_INT;
+        }
+        return T_FLOAT;
+    };
     return InferExpType(exp, ctx);
 }
 

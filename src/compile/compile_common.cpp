@@ -14,14 +14,13 @@ InferredType InferExpType(const SyntaxTreeInterfacePtr &exp, const InferExpConte
         if (node_type == T_INT || node_type == T_FLOAT) {
             return node_type;
         }
-        // 回退：解析字面量字符串以确定整数/浮点类型。
-        const auto &val = e->ExpValue();
-        if (val.find('.') == std::string::npos &&
-            val.find('e') == std::string::npos &&
-            val.find('E') == std::string::npos) {
-            return T_INT;
+        // 回退：若调用方提供了字面量解析回调（InferArgTypeForSpec 侧），
+        // 则通过字面量字符串确定整数/浮点类型；否则返回 T_DYNAMIC
+        // （与原始 EvalReturnExpType 行为一致：快照缺失 → T_DYNAMIC）。
+        if (ctx.lookup_number_literal) {
+            return ctx.lookup_number_literal(e->ExpValue());
         }
-        return T_FLOAT;
+        return T_DYNAMIC;
     }
 
     if (exp_kind == ExpKind::kPrefixExp) {

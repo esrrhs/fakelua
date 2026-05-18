@@ -217,6 +217,12 @@ struct InferExpContext {
 
     // 获取被调函数在给定 bitmask 下的特化返回类型。
     std::function<InferredType(const std::string &callee_name, int bitmask)> lookup_return;
+
+    // 可选：对 lookup_node 未命中的数字字面量节点，通过字面量字符串确定整数/浮点类型。
+    // 若未设置（nullptr），kNumber 未命中时返回 T_DYNAMIC。
+    // 代码生成侧（InferArgTypeForSpec）设置此回调；类型推断侧（EvalReturnExpType）不设置，
+    // 与原始 EvalReturnExpType 行为保持一致（快照缺失 → T_DYNAMIC）。
+    std::function<InferredType(const std::string &literal_value)> lookup_number_literal;
 };
 
 // 在给定上下文中推断表达式的原生类型（T_INT、T_FLOAT 或 T_DYNAMIC）。
