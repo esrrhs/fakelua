@@ -61,7 +61,9 @@ private:
     std::stringstream impls_;
 
     bool in_global_init_ = false;
-    std::unordered_set<std::string> global_const_vars_;
+    // 文件级局部变量名 → 其推断类型（T_INT/T_FLOAT/T_DYNAMIC）的映射。
+    // 数值类型的变量生成为 static const int64_t / double，其余为 static const CVar。
+    std::unordered_map<std::string, InferredType> global_const_vars_;
     int tmp_var_counter_ = 0;
 
     // 当前编译单元中声明的函数名（及参数数量）。

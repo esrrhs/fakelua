@@ -800,14 +800,29 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                     ThrowError("duplicate global const variable: " + name, stmt);
                 }
 
-                // 编译表达式为 CVar 初始化字符串
-                std::string cvar_init = func_compiler_->CompileExp(exp);
+                // 对数值字面量：生成 static const int64_t / double，
+                // 避免 CVar 装箱拆箱，允许函数体将其作为原生类型使用。
+                InferredType global_type = T_DYNAMIC;
+                const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+                if (exp_ptr && exp_ptr->GetExpKind() == ExpKind::kNumber) {
+                    const auto &val = exp_ptr->ExpValue();
+                    global_type = IsInteger(val) ? T_INT : T_FLOAT;
+                }
 
-                // 生成静态全局变量
-                *cur_output_ << "static const CVar " << name << " = " << cvar_init << ";\n";
+                if (global_type == T_INT) {
+                    *cur_output_ << "static const int64_t " << name << " = "
+                                 << ToInteger(exp_ptr->ExpValue()) << ";\n";
+                } else if (global_type == T_FLOAT) {
+                    *cur_output_ << "static const double " << name << " = "
+                                 << std::format("{}", ToFloat(exp_ptr->ExpValue())) << ";\n";
+                } else {
+                    // 非数值字面量：保留 static const CVar 形式。
+                    const std::string cvar_init = func_compiler_->CompileExp(exp);
+                    *cur_output_ << "static const CVar " << name << " = " << cvar_init << ";\n";
+                }
 
-                // 记录变量名
-                global_const_vars_.insert(name);
+                // 记录变量名及其类型
+                global_const_vars_[name] = global_type;
             }
         }
     }
@@ -943,7 +958,7 @@ std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parl
         auto &param_names = namelist_ptr->Names();
 
         std::set<std::string> param_names_set;
-        for (const auto &key: global_const_vars_) {
+        for (const auto &[key, _]: global_const_vars_) {
             param_names_set.insert(key);
         }
 

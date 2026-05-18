@@ -5,13 +5,6 @@
 
 namespace fakelua {
 
-enum InferredType {
-    T_UNKNOWN = 0,
-    T_INT,
-    T_FLOAT,
-    T_DYNAMIC
-};
-
 // 表达式子类型
 enum class ExpKind {
     kNil,

@@ -164,13 +164,21 @@ private:
 
 private:
     TypeEnvironment env_;
-    int funcbody_depth_ = 0;
+    // 是否正在推断函数体内部（true）还是文件顶层（false）。
+    // 用于区分文件级 local 变量和函数体内局部变量，以决定是否写入 file_level_types_。
+    bool in_funcbody_ = false;
     // 当前推断遍次中所有已推断节点的类型映射：节点指针 → 推断类型。
     // 替代原先内嵌在 AST 节点的 eval_type_ 字段，避免 AST 与推断过程耦合。
-    // 在 Process() 开头清空，随 InferNode 调用逐步填充，最终复制给 cr.main_eval_types。
+    // 随 InferNode 调用逐步填充，最终复制给 cr.main_eval_types。
     // RunTrialInference 在每轮开始时清除 func_block 节点的条目，试推断结束后
     // 该映射反映最后一轮的推断结果（直到下一次 Process() 或 RunTrialInference 覆盖）。
     EvalTypeMap current_map_;
+
+    // 文件顶层（!in_funcbody_）的数值类型局部变量映射：变量名 → T_INT/T_FLOAT。
+    // 在 InferNode LocalVar 阶段填充（仅记录数值字面量初始化的顶层 local 变量）。
+    // RunTrialInference 在重置 env_ 后用此表重新注入这些常量，
+    // 使函数体的试推断能看到正确的文件级常量类型，进而支持函数特化。
+    std::unordered_map<std::string, InferredType> file_level_types_;
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
     static constexpr int kMaxSpecIterations = 16;

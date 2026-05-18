@@ -62,7 +62,6 @@ InferredType TypeEnvironment::MergeType(const InferredType old_type, const Infer
 
 InferResult TypeInferencer::Process(const ParseResult &pr) {
     InferResult ir;
-    current_map_.clear();
     InferNode(pr.chunk);
     // 将当前推断结果复制为全局主快照，供 CGen 在非特化路径下查询节点类型。
     ir.main_eval_types = current_map_;
@@ -103,15 +102,15 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             for (size_t i = 0; i < names.size(); ++i) {
                 InferredType type = T_DYNAMIC;
                 if (i < exps.size()) {
-                    const auto inferred = InferNode(exps[i]);
-                    // 文件级局部变量存储为 static const CVar，而非 int64_t/double，
-                    // 因此在环境中必须始终为 T_DYNAMIC，以防止函数将它们
-                    // 视为原生类型变量。
-                    if (funcbody_depth_ > 0) {
-                        type = inferred;
-                    }
+                    type = InferNode(exps[i]);
                 }
                 env_.Define(names[i], type);
+                // 文件顶层（!in_funcbody_）数值类型局部变量：
+                // 将其记录到 file_level_types_，供 RunTrialInference
+                // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
+                if (!in_funcbody_ && IsNumericInferredType(type)) {
+                    file_level_types_[names[i]] = type;
+                }
             }
 
             current_map_[node.get()] = T_UNKNOWN;
@@ -187,7 +186,8 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
         }
         case SyntaxTreeType::FuncBody: {
             const auto funcbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
-            funcbody_depth_++;
+            const bool saved_in_funcbody = in_funcbody_;
+            in_funcbody_ = true;
             env_.EnterScope();
             if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(funcbody->Parlist())) {
                 if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
@@ -198,7 +198,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             }
             InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(funcbody->Block()), false);
             env_.ExitScope();
-            funcbody_depth_--;
+            in_funcbody_ = saved_in_funcbody;
             current_map_[node.get()] = T_UNKNOWN;
             return T_UNKNOWN;
         }
@@ -571,7 +571,7 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
                                                const std::unordered_map<std::string, InferredType> &assumed_types) {
     // 保存当前推断器状态，trial 结束后恢复。
     TypeEnvironment saved_env = env_;
-    const int saved_depth = funcbody_depth_;
+    const bool saved_in_funcbody = in_funcbody_;
 
     EvalTypeMap prev_map;
 
@@ -579,9 +579,13 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
         // 每轮清除 func_block 节点在 current_map_ 中的旧条目，保证推断从干净状态开始。
         WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &n) { current_map_.erase(n.get()); });
 
-        // 以假定的参数类型初始化 trial 环境。
+        // 以假定的参数类型初始化 trial 环境；同时注入文件级数值常量，
+        // 使函数体能看到正确的文件级局部变量类型（T_INT/T_FLOAT）。
         env_ = TypeEnvironment{};
-        funcbody_depth_ = 1;
+        in_funcbody_ = true;
+        for (const auto &[fname, ftype]: file_level_types_) {
+            env_.Define(fname, ftype);
+        }
         for (const auto &p: params) {
             const auto it = assumed_types.find(p);
             env_.Define(p, it != assumed_types.end() ? it->second : T_DYNAMIC);
@@ -606,7 +610,7 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
 
     // 恢复推断器状态。
     env_ = std::move(saved_env);
-    funcbody_depth_ = saved_depth;
+    in_funcbody_ = saved_in_funcbody;
 
     return prev_map;
 }

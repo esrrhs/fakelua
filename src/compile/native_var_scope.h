@@ -1,5 +1,6 @@
 #pragma once
 
+#include "compile/inferred_type.h"
 #include "jit/vm_function.h"
 #include <ranges>
 #include <string>

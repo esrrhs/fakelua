@@ -1,5 +1,6 @@
 #pragma once
 
+#include "compile/inferred_type.h"
 #include "jit/vm_function.h"
 #include "syntax_tree.h"
 #include <format>
@@ -189,7 +190,7 @@ struct GenResult {
 struct FuncBodyContext {
     const std::string *file_name;
     const std::unordered_map<std::string, int> *local_func_names;
-    const std::unordered_set<std::string> *global_const_vars;
+    const std::unordered_map<std::string, InferredType> *global_const_vars;
     bool *in_global_init;
     int *tmp_var_counter;
     const std::unordered_map<std::string, std::vector<int>> *math_param_positions;
