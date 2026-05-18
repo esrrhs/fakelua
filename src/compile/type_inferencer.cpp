@@ -62,7 +62,6 @@ InferredType TypeEnvironment::MergeType(const InferredType old_type, const Infer
 
 InferResult TypeInferencer::Process(const ParseResult &pr) {
     InferResult ir;
-    current_map_.clear();
     InferNode(pr.chunk);
     // 将当前推断结果复制为全局主快照，供 CGen 在非特化路径下查询节点类型。
     ir.main_eval_types = current_map_;
