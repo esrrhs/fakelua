@@ -105,10 +105,10 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
                     type = InferNode(exps[i]);
                 }
                 env_.Define(names[i], type);
-                // 文件级（funcbody_depth_ == 0）数值类型局部变量：
+                // 文件顶层（!in_funcbody_）数值类型局部变量：
                 // 将其记录到 file_level_types_，供 RunTrialInference
                 // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
-                if (funcbody_depth_ == 0 && IsNumericInferredType(type)) {
+                if (!in_funcbody_ && IsNumericInferredType(type)) {
                     file_level_types_[names[i]] = type;
                 }
             }
@@ -186,7 +186,8 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
         }
         case SyntaxTreeType::FuncBody: {
             const auto funcbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
-            funcbody_depth_++;
+            const bool saved_in_funcbody = in_funcbody_;
+            in_funcbody_ = true;
             env_.EnterScope();
             if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(funcbody->Parlist())) {
                 if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
@@ -197,7 +198,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             }
             InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(funcbody->Block()), false);
             env_.ExitScope();
-            funcbody_depth_--;
+            in_funcbody_ = saved_in_funcbody;
             current_map_[node.get()] = T_UNKNOWN;
             return T_UNKNOWN;
         }
@@ -570,7 +571,7 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
                                                const std::unordered_map<std::string, InferredType> &assumed_types) {
     // 保存当前推断器状态，trial 结束后恢复。
     TypeEnvironment saved_env = env_;
-    const int saved_depth = funcbody_depth_;
+    const bool saved_in_funcbody = in_funcbody_;
 
     EvalTypeMap prev_map;
 
@@ -581,7 +582,7 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
         // 以假定的参数类型初始化 trial 环境；同时注入文件级数值常量，
         // 使函数体能看到正确的文件级局部变量类型（T_INT/T_FLOAT）。
         env_ = TypeEnvironment{};
-        funcbody_depth_ = 1;
+        in_funcbody_ = true;
         for (const auto &[fname, ftype]: file_level_types_) {
             env_.Define(fname, ftype);
         }
@@ -609,7 +610,7 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
 
     // 恢复推断器状态。
     env_ = std::move(saved_env);
-    funcbody_depth_ = saved_depth;
+    in_funcbody_ = saved_in_funcbody;
 
     return prev_map;
 }
