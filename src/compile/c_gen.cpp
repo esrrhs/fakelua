@@ -803,19 +803,16 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                 // 对数值字面量：生成 static const int64_t / double，
                 // 避免 CVar 装箱拆箱，允许函数体将其作为原生类型使用。
                 InferredType global_type = T_DYNAMIC;
-                if (const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp)) {
-                    if (exp_ptr->GetExpKind() == ExpKind::kNumber) {
-                        const auto &val = exp_ptr->ExpValue();
-                        global_type = IsInteger(val) ? T_INT : T_FLOAT;
-                    }
+                const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+                if (exp_ptr && exp_ptr->GetExpKind() == ExpKind::kNumber) {
+                    const auto &val = exp_ptr->ExpValue();
+                    global_type = IsInteger(val) ? T_INT : T_FLOAT;
                 }
 
                 if (global_type == T_INT) {
-                    const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
                     *cur_output_ << "static const int64_t " << name << " = "
                                  << ToInteger(exp_ptr->ExpValue()) << ";\n";
                 } else if (global_type == T_FLOAT) {
-                    const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
                     *cur_output_ << "static const double " << name << " = "
                                  << std::format("{}", ToFloat(exp_ptr->ExpValue())) << ";\n";
                 } else {
