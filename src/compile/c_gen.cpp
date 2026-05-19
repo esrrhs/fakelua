@@ -1064,6 +1064,24 @@ void CGen::CompileFuncBody(const std::string &func_name,
     func_compiler_->CompileFuncBody(func_name, func_params, func_block, spec_bitmask, impls_);
 }
 
+// ---------------------------------------------------------------------------
+// GenerateEntryDispatcher —— 特化函数的 CVar 入口分发器
+//
+// 背景：
+//   每个含数学参数的函数 f(a, b, n) 最终对外暴露的仍是 CVar 签名的 f(a, b, n)，
+//   以保持与其他 Lua 代码（动态调用）兼容。但函数体本身被拆分为 2^k 个特化版本
+//   f_00, f_01, f_10, f_11（k = 数学参数个数），每种版本的数学参数类型为确定的
+//   int64_t / double，可生成高效的原生算术代码。
+//
+// 此函数生成的入口分发器负责：
+//   1. 参数类型检查：每个数学参数必须是 VAR_INT 或 VAR_FLOAT，否则运行时报错。
+//   2. 计算分发索引（bitmask）：
+//      对每个数学参数 p_i，若 p_i.type_ == VAR_FLOAT 则对应位置 1，否则置 0，
+//      通过 OR 组合生成 0 ~ 2^k-1 范围内的整数索引。
+//   3. switch 分发：按 bitmask 跳转到对应的特化函数，
+//      将数学参数从 CVar 中拆包（.data_.i / .data_.f）后直接传入。
+//      若特化函数返回原生类型（T_INT/T_FLOAT），则在返回前装箱为 CVar。
+// ---------------------------------------------------------------------------
 void CGen::GenerateEntryDispatcher(const std::string &func_name,
                                     const std::vector<std::string> &func_params,
                                     const std::vector<int> &math_param_indices) {

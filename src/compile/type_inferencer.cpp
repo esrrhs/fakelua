@@ -1087,12 +1087,28 @@ std::vector<TypeInferencer::FunctionSpecInfo> TypeInferencer::CollectFunctionSpe
     return infos;
 }
 
+// ---------------------------------------------------------------------------
+// FindMathParamIndices —— 逐参数敏感性测试
+//
+// 算法：
+//   (1) 先检查全参数 T_INT（all_int）相对于 baseline 是否有算术改善。
+//       若无改善，则没有任何参数是数学参数，直接返回空列表。
+//   (2) 对每个参数 p_i，构造"无 p_i"假设：其余参数均为 T_INT，p_i 为 T_DYNAMIC，
+//       运行 RunTrialInference 得到 without_p 快照。
+//   (3) 对比 all_int 与 without_p：若去掉 p_i 后算术表达式或比较/for-loop 退化，
+//       则 p_i 确实影响算术运算，将其记录为数学参数。
+//
+// 注意：此处使用"去掉一个参数后是否退化"而非"加上一个参数后是否改善"，
+// 目的是检测参数之间的耦合——若 p_i 仅在与 p_j 共同为 T_INT 时才能使算术
+// 节点特化，单独将 p_i 置回 T_DYNAMIC 也会触发退化，两者都会被记录。
+// ---------------------------------------------------------------------------
 std::vector<int> TypeInferencer::FindMathParamIndices(
         const FunctionSpecInfo &info,
         const EvalTypeMap &baseline,
         const EvalTypeMap &all_int,
         const std::unordered_map<std::string, std::vector<int>> &known_math_positions) {
     std::vector<int> math_indices;
+    // 快速剪枝：若全 T_INT 与 baseline 无改善，函数不具备特化价值。
     if (!HasArithmeticImprovement(all_int, baseline, info.block, known_math_positions)) {
         return math_indices;
     }
@@ -1107,8 +1123,10 @@ std::vector<int> TypeInferencer::FindMathParamIndices(
     };
 
     for (int i = 0; i < static_cast<int>(info.params.size()); ++i) {
+        // without_p：除 p_i 为 T_DYNAMIC 外，其余参数均为 T_INT。
         const auto without_p_assumed = make_assumed(info.params[i], T_DYNAMIC, T_INT);
         const auto without_p_map = RunTrialInference(info.block, info.params, without_p_assumed);
+        // 若去掉 p_i 后算术/比较/for-loop 退化，则 p_i 是数学参数。
         if (ParamAffectsArithmetic(all_int, without_p_map, info.block, known_math_positions)) {
             math_indices.push_back(i);
         }
@@ -1116,6 +1134,10 @@ std::vector<int> TypeInferencer::FindMathParamIndices(
     return math_indices;
 }
 
+// 为函数 info 的所有 2^k 个特化版本生成 AST 节点类型快照并存入 ir。
+// 对每个 bitmask（0 ~ 2^k-1），按各数学参数的 int/float 分配构造假设类型表，
+// 运行 RunTrialInference 得到该参数组合下整个函数体的节点类型快照。
+// 快照供 CGen::LookupNodeType 在编译特化函数体时查询任意节点的类型。
 void TypeInferencer::GenerateFunctionSpecializationSnapshots(InferResult &ir,
                                                              const FunctionSpecInfo &info,
                                                              const std::vector<int> &math_indices) {
@@ -1123,6 +1145,7 @@ void TypeInferencer::GenerateFunctionSpecializationSnapshots(InferResult &ir,
     auto &snapshots = ir.specialization_snapshots[info.name];
     snapshots.resize(num_specs);
     for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+        // 非数学参数统一设为 T_DYNAMIC；数学参数按 bitmask 位决定 T_INT 或 T_FLOAT。
         std::unordered_map<std::string, InferredType> assumed;
         for (const auto &param : info.params) {
             assumed[param] = T_DYNAMIC;
@@ -1147,10 +1170,37 @@ std::unordered_map<std::string, TypeInferencer::FuncRetInfo> TypeInferencer::Bui
     return func_ret_cache;
 }
 
+// ---------------------------------------------------------------------------
+// InferSpecializationReturnTypes —— 特化函数返回类型的不动点推断
+//
+// 问题背景：
+//   函数 A 可能调用函数 B（同样是数学函数），A 的返回类型依赖 B 的返回类型，
+//   而 B 的返回类型又依赖 A（递归/互递归情形）。因此不能单遍解决。
+//
+// 算法（最多 kMaxSpecIterations 轮）：
+//   (0) 初始假设：所有特化版本的返回类型均为 T_INT（乐观初始值）。
+//       优选 T_INT 而非 T_DYNAMIC，使得函数 A 在调用 B 时能先看到乐观类型，
+//       从而在没有循环依赖时一轮即可收敛。
+//   (1) 对每个数学函数的每个 bitmask 特化版本：
+//       (a) 从对应快照中取出函数体的节点类型信息（snapshot）；
+//       (b) 构造 spec_ctx：将数学参数名映射到对应的 T_INT/T_FLOAT；
+//       (c) 调用 BuildLocalVarExtensions 将函数内派生的局部变量类型补入 spec_ctx；
+//       (d) 收集所有 return 分支的第一个返回表达式（ret_exps），
+//           对每个表达式调用 EvalReturnExpType（以当前 assumed_ret 为返回类型表），
+//           取所有路径类型的"最宽"类型（T_INT < T_FLOAT < T_DYNAMIC）作为实际返回类型；
+//       (e) 若本轮推断与上轮不同则标记 changed，进入下一轮。
+//   (2) 若某轮 changed == false，则已收敛，提前退出。
+//
+// 互递归收敛分析：
+//   - 类型格（lattice）为 T_INT < T_FLOAT < T_DYNAMIC，单向向上演化。
+//   - 每轮至多一个函数从乐观值向真实值升格，轮次上界为函数数 × 2（T_INT→T_FLOAT→T_DYNAMIC）。
+//   - kMaxSpecIterations = 16 对实际代码已足够。
+// ---------------------------------------------------------------------------
 std::unordered_map<std::string, std::vector<InferredType>> TypeInferencer::InferSpecializationReturnTypes(
         const InferResult &ir,
         const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info,
         const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache) const {
+    // 乐观初始值：所有特化版本均假设返回 T_INT。
     std::unordered_map<std::string, std::vector<InferredType>> assumed_ret;
     for (const auto &[func_name, math_params] : ir.math_param_positions) {
         assumed_ret[func_name].assign(static_cast<size_t>(1 << static_cast<int>(math_params.size())), T_INT);
@@ -1167,6 +1217,7 @@ std::unordered_map<std::string, std::vector<InferredType>> TypeInferencer::Infer
 
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
                 const auto &snapshot = snapshots[static_cast<size_t>(bitmask)];
+                // spec_ctx：本特化版本中数学参数的已知类型（T_INT 或 T_FLOAT）。
                 std::unordered_map<std::string, InferredType> spec_ctx;
                 for (int i = 0; i < static_cast<int>(math_indices.size()); ++i) {
                     const auto param_index = static_cast<size_t>(math_indices[i]);
@@ -1174,13 +1225,21 @@ std::unordered_map<std::string, std::vector<InferredType>> TypeInferencer::Infer
                             (MathParamKindOf(bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
                 }
 
+                // 将函数内由数学函数调用派生的局部变量类型追加到 spec_ctx，
+                // 使 EvalReturnExpType 能沿链式传播正确推断返回类型。
                 BuildLocalVarExtensions(func_block, snapshot, spec_ctx, ir.math_param_positions, assumed_ret);
 
+                // 计算本轮实际返回类型：
+                //   - 无任何 return 或函数不保证所有路径均返回 → T_DYNAMIC（隐式 nil）
+                //   - 所有路径返回 T_INT → T_INT
+                //   - 存在 T_FLOAT 路径 → T_FLOAT
+                //   - 任意路径为 T_DYNAMIC → T_DYNAMIC（不可特化）
                 InferredType actual_ret = T_DYNAMIC;
                 if (ret_info.ends_with_return && !ret_info.ret_exps.empty()) {
                     actual_ret = T_INT;
                     for (const auto &ret_exp : ret_info.ret_exps) {
                         if (!ret_exp) {
+                            // nullptr 代表 nil 返回表达式。
                             actual_ret = T_DYNAMIC;
                             break;
                         }
@@ -1211,6 +1270,25 @@ std::unordered_map<std::string, std::vector<InferredType>> TypeInferencer::Infer
     return assumed_ret;
 }
 
+// ---------------------------------------------------------------------------
+// DiscoverMathParams —— 数学参数发现的顶层驱动
+//
+// 总体算法（三步）：
+//   1. 遍历每个顶层函数，通过 CollectFunctionSpecInfos 收集候选信息；
+//   2. 对每个候选函数：
+//      a. 以全 T_DYNAMIC 假设运行 baseline 推断，再以全 T_INT 假设运行 all_int 推断；
+//      b. 若两次推断在算术节点、比较操作数或 for-loop 类型上存在改善
+//         （HasArithmeticImprovement），则认为该函数值得特化；
+//      c. 逐参数测试：将某参数还原为 T_DYNAMIC（without_p），检查是否导致算术退化
+//         （ParamAffectsArithmetic）。若退化则确认该参数为数学参数；
+//      d. 记录数学参数下标列表，并调用 GenerateFunctionSpecializationSnapshots
+//         生成 2^k 组特化快照（k = 数学参数数量）。
+//   3. 对所有有数学参数的函数，通过 InferSpecializationReturnTypes 的不动点迭代
+//      推断每个特化版本的实际返回类型，写入 ir.specialization_return_types。
+//
+// 后向依赖处理：若函数 A 调用函数 B，而 B 的数学参数在处理 A 时尚未完成，
+// 则以下一轮循环补充处理（math_func_info 跨迭代共享已发现的数学函数信息）。
+// ---------------------------------------------------------------------------
 void TypeInferencer::DiscoverMathParams(const ParseResult &pr, InferResult &ir) {
     std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> math_func_info;
     const auto function_infos = CollectFunctionSpecInfos(pr);
@@ -1223,6 +1301,8 @@ void TypeInferencer::DiscoverMathParams(const ParseResult &pr, InferResult &ir) 
             }
             return assumed;
         };
+        // baseline：所有参数均假设为 T_DYNAMIC；all_int：所有参数均假设为 T_INT。
+        // 两次推断的对比用于判断该函数的算术表达式是否能因参数类型已知而改善。
         const auto baseline = RunTrialInference(info.block, info.params, make_assumed("", T_DYNAMIC, T_DYNAMIC));
         const auto all_int = RunTrialInference(info.block, info.params, make_assumed("", T_INT, T_INT));
         const auto math_indices = FindMathParamIndices(info, baseline, all_int, ir.math_param_positions);
