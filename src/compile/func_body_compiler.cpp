@@ -549,9 +549,12 @@ void FuncBodyCompiler::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     // 所以只有简单变量赋值能到达此处。
     DEBUG_ASSERT(v_ptr->GetVarKind() == VarKind::kSimple);
     if (const auto &name = v_ptr->GetName(); IsTypedNativeVar(name)) {
+        // 被赋值变量是原生类型（int64_t / double）变量：
         const auto var_type = GetNativeVarType(name);
         const auto native_rhs = TryCompileNativeExpr(exps[0]);
         if (!native_rhs.empty()) {
+            // RHS 可以直接编译为原生数值表达式——无需临时 CVar。
+            // 若 RHS 类型与目标变量类型不同（如 double → int64_t），插入显式强制转换。
             const auto rhs_type = InferArgTypeForSpec(exps[0]);
             if (rhs_type == T_FLOAT && var_type == T_INT) {
                 *cur_output_ << GenTab() << name << " = (int64_t)(" << native_rhs << ");\n";
@@ -561,17 +564,20 @@ void FuncBodyCompiler::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
                 *cur_output_ << GenTab() << name << " = " << native_rhs << ";\n";
             }
         } else {
+            // RHS 无法编译为原生数值（如调用返回 CVar 的函数）：
+            //   (1) 将 RHS 编译为 CVar 临时变量；
+            //   (2) 将 spec_param_types_ 中的旧类型条目移除，
+            //       使后续的 InferArgTypeForSpec 转向 GetNativeVarType 查询，
+            //       避免使用已失效的特化参数假设；
+            //   (3) 运行时检查 CVar 类型，拆包为原生类型赋值；非数值则抛出运行时错误。
             const std::string rhs = CompileExp(exps[0]);
             const auto tmp = std::format("flua_assign_tmp_{}", (*tmp_var_counter_)++);
             func_temp_decls_ << "    CVar " << tmp << ";\n";
             *cur_output_ << GenTab() << tmp << " = " << rhs << ";\n";
-            // Bug 2 fix: remove the variable from spec_param_types_ so that
-            // subsequent InferArgTypeForSpec uses GetNativeVarType instead of
-            // the (now potentially stale) specialization entry.
+            // 移除过时的特化参数类型，让后续推断走 GetNativeVarType 而非 spec_param_types_。
             spec_param_types_.erase(name);
             if (var_type == T_FLOAT) {
-                // Bug 1 fix: check that the CVar is actually numeric before
-                // extracting; throw a runtime error for non-numeric types.
+                // 运行时检查：CVar 必须是数值类型，否则报错。
                 *cur_output_ << GenTab() << "if (" << tmp << ".type_ == VAR_FLOAT) {\n";
                 cur_tab_++;
                 *cur_output_ << GenTab() << name << " = " << tmp << ".data_.f;\n";
@@ -586,8 +592,7 @@ void FuncBodyCompiler::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
                 cur_tab_--;
                 *cur_output_ << GenTab() << "}\n";
             } else {
-                // Bug 1 fix: check that the CVar is actually numeric before
-                // extracting; throw a runtime error for non-numeric types.
+                // 运行时检查：CVar 必须是数值类型，否则报错。
                 *cur_output_ << GenTab() << "if (" << tmp << ".type_ == VAR_INT) {\n";
                 cur_tab_++;
                 *cur_output_ << GenTab() << name << " = " << tmp << ".data_.i;\n";
@@ -1143,6 +1148,27 @@ std::string FuncBodyCompiler::CompileTableconstructor(const SyntaxTreeInterfaceP
     return var_name;
 }
 
+// ---------------------------------------------------------------------------
+// CompileBinop —— 二元运算符的代码生成
+//
+// 生成策略：
+//
+//   1. and / or（短路运算符）：
+//      Lua 的 and/or 不返回布尔值，而是返回某一操作数本身。
+//      必须先求左操作数并保存，再通过 IsTrue 判断真假，
+//      仅在必要时才求右操作数（保证短路语义）。
+//
+//   2. 原生算术快路径（native fast path）：
+//      若两侧操作数类型均已知（T_INT/T_FLOAT，通过 InferArgTypeForSpec 推断），
+//      则将两侧直接编译为原生数值（CompileNumericExp），
+//      生成 C 表达式（如 (a) + (b)），并通过 BoxNativeValue 装箱为 CVar 后返回。
+//      这条路径消除了 OpAdd/OpSub 等宏的运行时类型分支开销。
+//      注意：// 和 % 需要处理除零及 Lua 向下取整语义（FlFloorDivInt / FlModInt / FlModFloat）。
+//
+//   3. 通用慢速路径（slow path）：
+//      两侧均编译为 CVar，调用 OpXxx 宏（处理运行时类型判断和装拆箱）。
+//      适用于操作数类型未知或运算符不支持原生路径（如字符串连接 ..）的情形。
+// ---------------------------------------------------------------------------
 std::string FuncBodyCompiler::CompileBinop(const SyntaxTreeInterfacePtr &left,
                                             const SyntaxTreeInterfacePtr &right,
                                             const SyntaxTreeInterfacePtr &op) {
@@ -1151,6 +1177,7 @@ std::string FuncBodyCompiler::CompileBinop(const SyntaxTreeInterfacePtr &left,
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeBinop>(op);
     const auto op_kind = op_ptr->GetOpKind();
 
+    // --- and / or：短路运算，Lua 语义为返回决定性操作数的值 ---
     if (op_kind == BinOpKind::kAnd || op_kind == BinOpKind::kOr) {
         const auto left_str = CompileExp(left);
 
@@ -1351,6 +1378,21 @@ std::string FuncBodyCompiler::CompileUnop(const SyntaxTreeInterfacePtr &right,
     return tmp;
 }
 
+// ---------------------------------------------------------------------------
+// CompileVar —— 变量引用的代码生成
+//
+// 生成策略（kSimple 变量）：
+//   优先级：特化参数类型表（spec_param_types_）
+//           > 原生局部变量作用域（NativeVarScope / GetNativeVarType）
+//           > 文件级数值常量（global_const_vars_）
+//           > 普通 CVar 变量名
+//
+//   前三种情形均已知为原生类型（int64_t / double），需装箱为 CVar 字面量后返回，
+//   以保证所有调用方获得统一的 CVar 接口；普通 CVar 变量则直接返回变量名。
+//
+// kSquare（table[key]）：生成 FlGetTable(table, key) 调用。
+// kDot（table.key）：将 key 字符串化后同样生成 FlGetTable 调用。
+// ---------------------------------------------------------------------------
 std::string FuncBodyCompiler::CompileVar(const SyntaxTreeInterfacePtr &v) {
     DEBUG_ASSERT(v->Type() == SyntaxTreeType::Var);
     auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(v);
@@ -1408,6 +1450,19 @@ std::string FuncBodyCompiler::CompileVar(const SyntaxTreeInterfacePtr &v) {
     }
 }
 
+// ---------------------------------------------------------------------------
+// CompileNumericExp —— 将表达式编译为原生 C 数值字符串
+//
+// 与 CompileExp 的区别：
+//   CompileExp 始终返回 CVar 类型的表达式（装箱值），
+//   CompileNumericExp 返回 int64_t / double 的原生表达式，用于：
+//     1. 特化函数体内的算术运算，消除 CVar 装拆箱开销；
+//     2. 原生类型 for-loop 的边界/步长计算；
+//     3. TryCompileNativeBoolExpr 生成原生 C 比较运算的操作数。
+//
+// 失败策略：若无法将表达式编译为原生数值（例如操作数为 T_DYNAMIC 的 CVar），
+// 则直接抛出异常；调用方应通过 TryCompileNativeExpr 捕获并回退到 CompileExp。
+// ---------------------------------------------------------------------------
 std::string FuncBodyCompiler::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
     DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
 
@@ -1568,6 +1623,21 @@ std::string FuncBodyCompiler::CompileNumericExp(const SyntaxTreeInterfacePtr &ex
     ThrowError("unsupported numeric-specialized expression", exp);
 }
 
+// ---------------------------------------------------------------------------
+// TryCompileNativeSpecCallExpr —— 将调用特化函数的结果编译为原生数值临时变量
+//
+// 用途：在 CompileNumericExp 遇到函数调用（kPrefixExp → kFunctionCall）时，
+// 若被调函数有数学参数且该特化版本返回原生数值类型（T_INT/T_FLOAT），则：
+//   1. 计算 bitmask（通过 TryInferMathCallSpec）；
+//   2. 将每个数学参数实参编译为原生表达式；
+//   3. 发出对应特化函数的直接调用（避免 CVar 装拆箱），
+//      结果存入原生类型临时变量并返回其名称。
+//
+// 与 CompileFunctioncall 的区别：
+//   - CompileFunctioncall 返回 CVar 类型的结果（已装箱）；
+//   - TryCompileNativeSpecCallExpr 返回 int64_t/double 的原生结果，
+//     可直接参与后续原生算术运算。
+// ---------------------------------------------------------------------------
 std::string FuncBodyCompiler::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node) {
     const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall_node);
     if (!fc) {
@@ -1637,6 +1707,26 @@ std::string FuncBodyCompiler::TryCompileNativeSpecCallExpr(const SyntaxTreeInter
     return ntmp;
 }
 
+// ---------------------------------------------------------------------------
+// CompileFunctioncall —— 函数调用的代码生成
+//
+// 生成策略（按优先级）：
+//
+//   1. 特化直接调用（fast path）：
+//      若被调函数是同文件的数学函数（math_param_positions_ 中存在），
+//      且所有数学参数实参的类型均已知（TryInferMathCallBitmask 成功），
+//      则尝试将数学参数编译为原生表达式（TryCompileNativeExpr），
+//      并发出对应特化函数（SpecFuncName）的直接调用，避免走 CVar 入口分发器，
+//      消除运行时类型检查和分发开销。若特化函数返回原生类型，则装箱后存入 CVar tmp。
+//
+//   2. 普通路径（slow path）：
+//      将所有参数编译为 CVar，然后发出函数名(arg0, arg1, ...) 调用。
+//      - 同文件的普通函数：直接调用（local_func_names_ 中存在）。
+//      - 跨文件/内置函数：通过 FakeluaCallByName 动态分发（带字符串函数名）。
+//      - 特殊内置宏（FAKELUA_SET_TABLE）：生成 FlSetTable 调用。
+//
+// 返回值：CVar 类型的临时变量名，供调用方（CompileExp/CompileNumericExp）使用。
+// ---------------------------------------------------------------------------
 std::string FuncBodyCompiler::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall) {
     DEBUG_ASSERT(!(*in_global_init_));
 
