@@ -3008,8 +3008,10 @@ TEST(infer, test_global_const_float) {
 // ---------------------------------------------------------------------------
 // func() + func() and func(func()) — return expression contains function-call
 // results used in arithmetic or as arguments to another call.  These patterns
-// must be handled by EvalReturnExpType recursing into sub-expressions; they do
-// NOT rely on BuildLocalVarExtensions (no local vars involved).
+// are handled by the snapshot-regenerating fixpoint: RunTrialInference is
+// re-run with callee-return-type hints injected via ResolveCallReturnType,
+// so function-call nodes in the snapshot carry the callee's actual return type.
+// No local vars are involved, so no pinned_vars_ logic is needed here.
 // ---------------------------------------------------------------------------
 
 // caller returns func(n) + func(n): arithmetic of two function-call results.
@@ -3090,10 +3092,10 @@ TEST(infer, test_spec_return_call_arg_is_other_call) {
 }
 
 // local variable declared INSIDE a nested if-block, initialised from a math
-// function call.  Before the nested-block BuildLocalVarExtensions fix, the
-// variable was not added to spec_ctx, so "return x+1" evaluated to T_DYNAMIC
-// and outer's specialization return type remained T_DYNAMIC.
-// After the fix, outer correctly gets an int64_t return specialization.
+// function call.  With the snapshot-regenerating fixpoint, the call node gets
+// func's T_INT return type injected via ResolveCallReturnType, so x and
+// "return x+1" are T_INT in the snapshot and outer gets a native int64_t
+// return specialization.
 TEST(infer, test_spec_local_var_in_if) {
     const auto code = InferGetCCode("./infer/test_spec_local_var_in_if.lua");
     // func must be specialized (has direct arithmetic n*2).

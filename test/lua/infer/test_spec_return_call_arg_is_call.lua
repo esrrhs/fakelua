@@ -1,8 +1,9 @@
 -- f(n) = n + 1 is a math-param function.
 -- caller returns f(f(n)): the argument to the outer f is itself a function call.
--- The return-type inferencer must recurse into the inner call's result type (T_INT)
--- and use it as the argument type for the outer call, yielding a native int64_t
--- return type for caller.
+-- The snapshot-regenerating fixpoint re-runs RunTrialInference with
+-- ResolveCallReturnType injecting f's T_INT return type into the call nodes,
+-- so the inner f(n) node in the snapshot is T_INT, which is then passed as a
+-- T_INT argument to the outer f — yielding a native int64_t return for caller.
 -- caller(5) == 7, caller(3) == 5.
 function f(n)
     return n + 1
