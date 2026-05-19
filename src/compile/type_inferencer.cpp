@@ -627,31 +627,29 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
 bool TypeInferencer::HasArithmeticImprovement(const EvalTypeMap &all_int, const EvalTypeMap &baseline,
                                                const SyntaxTreeInterfacePtr &func_block,
                                                const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
-    if (HasArithmeticNodeTypeChange(all_int, baseline, func_block, true)) {
-        return true;
-    }
-    if (HasComparisonOperandTypeChange(all_int, baseline, func_block)) {
-        return true;
-    }
-    if (HasForLoopTypeChange(all_int, baseline, func_block)) {
-        return true;
-    }
-    return HasMathCallImprovement(func_block, all_int, baseline, math_param_positions);
+    return CheckArithmeticTypeChanges(all_int, baseline, func_block, true, math_param_positions);
 }
 
 bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const EvalTypeMap &without_p,
                                               const SyntaxTreeInterfacePtr &func_block,
                                               const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
-    if (HasArithmeticNodeTypeChange(all_int, without_p, func_block, false)) {
+    return CheckArithmeticTypeChanges(all_int, without_p, func_block, false, math_param_positions);
+}
+
+bool TypeInferencer::CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
+                                                 const SyntaxTreeInterfacePtr &func_block,
+                                                 bool require_compare_dynamic,
+                                                 const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
+    if (HasArithmeticNodeTypeChange(typed_map, compare_map, func_block, require_compare_dynamic)) {
         return true;
     }
-    if (HasComparisonOperandTypeChange(all_int, without_p, func_block)) {
+    if (HasComparisonOperandTypeChange(typed_map, compare_map, func_block)) {
         return true;
     }
-    if (HasForLoopTypeChange(all_int, without_p, func_block)) {
+    if (HasForLoopTypeChange(typed_map, compare_map, func_block)) {
         return true;
     }
-    return HasMathCallImprovement(func_block, all_int, without_p, math_param_positions);
+    return HasMathCallImprovement(func_block, typed_map, compare_map, math_param_positions);
 }
 
 bool TypeInferencer::HasMathCallImprovement(
