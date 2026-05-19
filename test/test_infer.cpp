@@ -3022,8 +3022,8 @@ TEST(infer, test_spec_return_arith_of_calls) {
     ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
     // caller must be specialized too (func(n) arg n improves in all_int).
     ASSERT_NE(code.find("int64_t caller_0(int64_t n)"), std::string::npos);
-    // caller_0 must return int64_t natively (not CVar).
-    ASSERT_NE(code.find("int64_t caller_0(int64_t n)"), std::string::npos);
+    // The CVar dispatcher for caller must also exist for runtime polymorphism.
+    ASSERT_NE(code.find("CVar caller(CVar n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_return_arith_of_calls.lua", {.debug_mode = debug_mode});
