@@ -1,6 +1,7 @@
 #pragma once
 
 #include "compile/compile_common.h"
+#include <unordered_set>
 
 namespace fakelua {
 
@@ -64,9 +65,14 @@ private:
 
     // 以 assumed_types 中给定的参数类型假设运行 InferBlock，迭代直到稳定（不动点），
     // 返回各 AST 节点 → InferredType 的快照。
+    // math_positions / assumed_ret 非 null 时，InferNode(FunctionCall) 会通过
+    // ResolveCallReturnType 将被调函数的特化返回类型注入推断结果，
+    // 使函数调用节点及其下游局部变量在快照中获得精确类型。
     EvalTypeMap RunTrialInference(const SyntaxTreeInterfacePtr &func_block,
                                   const std::vector<std::string> &params,
-                                  const std::unordered_map<std::string, InferredType> &assumed_types);
+                                  const std::unordered_map<std::string, InferredType> &assumed_types,
+                                  const std::unordered_map<std::string, std::vector<int>> *math_positions = nullptr,
+                                  const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret = nullptr);
 
     // 判断 exp 节点是否为算术表达式（结果可为 T_INT/T_FLOAT 的运算符）。
     // 包括算术/位运算二元运算符，以及一元负号和按位取反。
@@ -129,17 +135,13 @@ private:
                                           const EvalTypeMap &all_int,
                                           const std::unordered_map<std::string, std::vector<int>> &known_math_positions);
 
-    void GenerateFunctionSpecializationSnapshots(InferResult &ir,
-                                                 const FunctionSpecInfo &info,
-                                                 const std::vector<int> &math_indices);
-
     [[nodiscard]] std::unordered_map<std::string, FuncRetInfo> BuildFunctionReturnCache(
             const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info) const;
 
-    [[nodiscard]] std::unordered_map<std::string, std::vector<InferredType>> InferSpecializationReturnTypes(
-            const InferResult &ir,
+    void InferSpecializationReturnTypes(
+            InferResult &ir,
             const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info,
-            const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache) const;
+            const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache);
 
     // 检查 block_node 的所有执行路径是否均以 return 语句结束。
     // 能识别 if-else（所有分支均返回）的情况，不递归进入嵌套函数体。
@@ -150,28 +152,16 @@ private:
     bool CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
                            std::vector<SyntaxTreeInterfacePtr> &ret_exps) const;
 
-    // 在特化上下文和假定返回类型表下，递归计算返回表达式的类型。
-    [[nodiscard]] InferredType EvalReturnExpType(
-            const SyntaxTreeInterfacePtr &exp,
-            const EvalTypeSnapshot &snapshot,
-            const std::unordered_map<std::string, InferredType> &spec_ctx,
-            const std::unordered_map<std::string, std::vector<int>> &math_param_positions,
-            const std::unordered_map<std::string, std::vector<InferredType>> &assumed_ret) const;
+    // 试推断期间，根据 trial_math_positions_ / trial_assumed_ret_ 提示解析函数调用
+    // 的实际返回类型。提示为 null 时（主推断遍）始终返回 T_DYNAMIC。
+    [[nodiscard]] InferredType ResolveCallReturnType(
+            const std::shared_ptr<SyntaxTreeFunctioncall> &fc) const;
 
-    // 扫描函数体所有块（包括 if/elseif/else/while/repeat/for/do 等嵌套控制流块）中的
-    // local 声明，将由数学函数调用（或其他能推断出数值类型的表达式）初始化的局部变量
-    // 的类型（T_INT/T_FLOAT）追加到 spec_ctx 中，支持链式传播：
-    //   local x = f(n)  → x 的类型由 EvalReturnExpType(f(n)) 推出
-    //   local y = x + 1 → y 的类型由 x（已在 spec_ctx 中）推出
-    // 遮蔽保护：若同一名称在多个作用域中被声明（decl_counts > 1），则跳过该变量，
-    //   以防止内层 T_INT 错误地用于外层同名 T_DYNAMIC 变量的推断，进而避免生成错误代码。
-    // 不递归进入嵌套函数体（Function / LocalFunction）。
-    void BuildLocalVarExtensions(
-            const SyntaxTreeInterfacePtr &func_block,
+    // 从 RunTrialInference 生成的精确快照中直接读取 return 表达式节点的类型，
+    // 汇总得出该特化版本的函数返回类型（T_INT / T_FLOAT / T_DYNAMIC）。
+    [[nodiscard]] InferredType ComputeReturnTypeFromSnapshot(
             const EvalTypeSnapshot &snapshot,
-            std::unordered_map<std::string, InferredType> &spec_ctx,
-            const std::unordered_map<std::string, std::vector<int>> &math_param_positions,
-            const std::unordered_map<std::string, std::vector<InferredType>> &assumed_ret) const;
+            const FuncRetInfo &ret_info) const;
 
 private:
     TypeEnvironment env_;
@@ -190,6 +180,15 @@ private:
     // RunTrialInference 在重置 env_ 后用此表重新注入这些常量，
     // 使函数体的试推断能看到正确的文件级常量类型，进而支持函数特化。
     std::unordered_map<std::string, InferredType> file_level_types_;
+
+    // 当非 null 时，InferNode(FunctionCall) 会调用 ResolveCallReturnType 注入被调函数返回类型。
+    // 仅在 RunTrialInference 执行期间被临时设置，主推断遍（Process）中始终为 null。
+    const std::unordered_map<std::string, std::vector<int>> *trial_math_positions_ = nullptr;
+    const std::unordered_map<std::string, std::vector<InferredType>> *trial_assumed_ret_ = nullptr;
+
+    // 试推断期间被固定（pinned）的变量名集合：这些变量对应当前特化版本的数学参数，
+    // 其 env 类型在 InferNode(Assign) 中不可被降级（以模拟运行时类型检查的保证）。
+    std::unordered_set<std::string> pinned_vars_;
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
     static constexpr int kMaxSpecIterations = 16;

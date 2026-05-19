@@ -3118,6 +3118,39 @@ TEST(infer, test_spec_local_var_in_if) {
 }
 
 
+// 三层链：inner→middle→outer，验证快照再生成不动点正确传播被调函数返回类型。
+// inner(n) 返回 n*2（T_INT），middle(n) 在 if 块内将 inner(n) 赋给局部变量 r，
+// 返回 r+1；outer(n) 直接返回 middle(n)。
+// 关键：middle 的快照需要 inner 的返回类型（T_INT）注入才能把 r 和 r+1 识别为 T_INT；
+// outer 则需要 middle 的返回类型（T_INT）才能得到原生整数返回。
+// 若快照再生成不工作，inner/middle 的返回均为 T_DYNAMIC，outer_0 将返回 CVar。
+TEST(infer, test_spec_callee_return_propagates_in_local) {
+    const auto code = InferGetCCode("./infer/test_spec_callee_return_propagates_in_local.lua");
+    // inner 因直接算术而特化。
+    ASSERT_NE(code.find("int64_t inner_0(int64_t n)"), std::string::npos);
+    // middle 的返回类型因快照注入 inner 返回类型而得到 T_INT，生成原生整数返回。
+    ASSERT_NE(code.find("int64_t middle_0(int64_t n)"), std::string::npos);
+    // middle 中的 local r 应是 int64_t（由 inner_0 的 T_INT 返回值注入）。
+    ASSERT_NE(code.find("int64_t r ="), std::string::npos);
+    // outer 因 middle 返回 T_INT 而也生成原生整数返回。
+    ASSERT_NE(code.find("int64_t outer_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_callee_return_propagates_in_local.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "outer", ret, 5);
+        ASSERT_EQ(ret, 11); // inner(5)=10, middle(5)=11
+        Call(s, type, "outer", ret, 3);
+        ASSERT_EQ(ret, 7);  // inner(3)=6, middle(3)=7
+        Call(s, type, "outer", ret, -1);
+        ASSERT_EQ(ret, 0);  // n <= 0 path in middle
+        double dret = 0.0;
+        Call(s, type, "outer", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 6.0); // inner(2.5)=5.0, middle(2.5)=6.0
+    });
+}
+
+
 // 文件级整数常量 OFFSET = 10 与数学参数 n 共同参与 n + OFFSET。
 // RunTrialInference 注入 OFFSET=T_INT，使 n+OFFSET 从 T_DYNAMIC 提升为 T_INT，
 // 触发算术改善，n 被识别为数学参数。
