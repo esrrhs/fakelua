@@ -3005,6 +3005,154 @@ TEST(infer, test_global_const_float) {
     });
 }
 
+// ---------------------------------------------------------------------------
+// func() + func() and func(func()) — return expression contains function-call
+// results used in arithmetic or as arguments to another call.  These patterns
+// are handled by the snapshot-regenerating fixpoint: RunTrialInference is
+// re-run with callee-return-type hints injected via ResolveCallReturnType,
+// so function-call nodes in the snapshot carry the callee's actual return type.
+// No local vars are involved, so no pinned_vars_ logic is needed here.
+// ---------------------------------------------------------------------------
+
+// caller returns func(n) + func(n): arithmetic of two function-call results.
+// func is a math-param function (n*2).  The return-type inferencer must resolve
+// both func(n) calls to T_INT via assumed_ret and compute T_INT + T_INT = T_INT.
+// caller(5) == 20, caller(3) == 12.
+TEST(infer, test_spec_return_arith_of_calls) {
+    const auto code = InferGetCCode("./infer/test_spec_return_arith_of_calls.lua");
+    // func must be specialized.
+    ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
+    // caller must be specialized too (func(n) arg n improves in all_int).
+    ASSERT_NE(code.find("int64_t caller_0(int64_t n)"), std::string::npos);
+    // The CVar dispatcher for caller must also exist for runtime polymorphism.
+    ASSERT_NE(code.find("CVar caller(CVar n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_return_arith_of_calls.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "caller", ret, 5);
+        ASSERT_EQ(ret, 20);
+        Call(s, type, "caller", ret, 3);
+        ASSERT_EQ(ret, 12);
+        double dret = 0.0;
+        Call(s, type, "caller", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 10.0);
+    });
+}
+
+// caller returns f(f(n)): the inner f(n) result is passed as argument to the
+// outer f.  f is a math-param function (n+1).  EvalReturnExpType must recurse
+// into the inner call to determine its type (T_INT), then use that as the arg
+// type for the outer call, yielding a T_INT return for caller.
+// caller(5) == 7, caller(3) == 5.
+TEST(infer, test_spec_return_call_arg_is_call) {
+    const auto code = InferGetCCode("./infer/test_spec_return_call_arg_is_call.lua");
+    // f must be specialized.
+    ASSERT_NE(code.find("int64_t f_0(int64_t n)"), std::string::npos);
+    // caller must be specialized.
+    ASSERT_NE(code.find("int64_t caller_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_return_call_arg_is_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "caller", ret, 5);
+        ASSERT_EQ(ret, 7);
+        Call(s, type, "caller", ret, 3);
+        ASSERT_EQ(ret, 5);
+        double dret = 0.0;
+        Call(s, type, "caller", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 4.5);
+    });
+}
+
+// caller returns func1(func2(n)): func2's result is used as argument to func1.
+// Both func2 (n*2) and func1 (n+1) are math-param functions.  The inferencer
+// must resolve func2(n) -> T_INT, use that as func1's arg type (bitmask=0),
+// and return func1's T_INT result, giving caller a native int64_t return.
+// caller(5) == 11, caller(3) == 7.
+TEST(infer, test_spec_return_call_arg_is_other_call) {
+    const auto code = InferGetCCode("./infer/test_spec_return_call_arg_is_other_call.lua");
+    // Both func1 and func2 must be specialized.
+    ASSERT_NE(code.find("int64_t func2_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t func1_0(int64_t n)"), std::string::npos);
+    // caller must be specialized.
+    ASSERT_NE(code.find("int64_t caller_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_return_call_arg_is_other_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "caller", ret, 5);
+        ASSERT_EQ(ret, 11);
+        Call(s, type, "caller", ret, 3);
+        ASSERT_EQ(ret, 7);
+        double dret = 0.0;
+        Call(s, type, "caller", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 6.0);
+    });
+}
+
+// local variable declared INSIDE a nested if-block, initialised from a math
+// function call.  With the snapshot-regenerating fixpoint, the call node gets
+// func's T_INT return type injected via ResolveCallReturnType, so x and
+// "return x+1" are T_INT in the snapshot and outer gets a native int64_t
+// return specialization.
+TEST(infer, test_spec_local_var_in_if) {
+    const auto code = InferGetCCode("./infer/test_spec_local_var_in_if.lua");
+    // func must be specialized (has direct arithmetic n*2).
+    ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
+    // outer must also be specialized with int64_t return, not CVar.
+    // Without the fix this assertion would fail (outer_0 returns CVar).
+    ASSERT_NE(code.find("int64_t outer_0(int64_t n)"), std::string::npos);
+    // The local x inside the if block must be declared as int64_t.
+    ASSERT_NE(code.find("int64_t x ="), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_local_var_in_if.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "outer", ret, 5);
+        ASSERT_EQ(ret, 11); // 5*2 + 1
+        Call(s, type, "outer", ret, -1);
+        ASSERT_EQ(ret, 0);
+        double dret = 0.0;
+        Call(s, type, "outer", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 6.0); // 2.5*2 + 1
+    });
+}
+
+
+// 三层链：inner→middle→outer，验证快照再生成不动点正确传播被调函数返回类型。
+// inner(n) 返回 n*2（T_INT），middle(n) 在 if 块内将 inner(n) 赋给局部变量 r，
+// 返回 r+1；outer(n) 直接返回 middle(n)。
+// 关键：middle 的快照需要 inner 的返回类型（T_INT）注入才能把 r 和 r+1 识别为 T_INT；
+// outer 则需要 middle 的返回类型（T_INT）才能得到原生整数返回。
+// 若快照再生成不工作，inner/middle 的返回均为 T_DYNAMIC，outer_0 将返回 CVar。
+TEST(infer, test_spec_callee_return_propagates_in_local) {
+    const auto code = InferGetCCode("./infer/test_spec_callee_return_propagates_in_local.lua");
+    // inner 因直接算术而特化。
+    ASSERT_NE(code.find("int64_t inner_0(int64_t n)"), std::string::npos);
+    // middle 的返回类型因快照注入 inner 返回类型而得到 T_INT，生成原生整数返回。
+    ASSERT_NE(code.find("int64_t middle_0(int64_t n)"), std::string::npos);
+    // middle 中的 local r 应是 int64_t（由 inner_0 的 T_INT 返回值注入）。
+    ASSERT_NE(code.find("int64_t r ="), std::string::npos);
+    // outer 因 middle 返回 T_INT 而也生成原生整数返回。
+    ASSERT_NE(code.find("int64_t outer_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_callee_return_propagates_in_local.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "outer", ret, 5);
+        ASSERT_EQ(ret, 11); // inner(5)=10, middle(5)=11
+        Call(s, type, "outer", ret, 3);
+        ASSERT_EQ(ret, 7);  // inner(3)=6, middle(3)=7
+        Call(s, type, "outer", ret, -1);
+        ASSERT_EQ(ret, 0);  // n <= 0 path in middle
+        double dret = 0.0;
+        Call(s, type, "outer", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 6.0); // inner(2.5)=5.0, middle(2.5)=6.0
+    });
+}
+
+
 // 文件级整数常量 OFFSET = 10 与数学参数 n 共同参与 n + OFFSET。
 // RunTrialInference 注入 OFFSET=T_INT，使 n+OFFSET 从 T_DYNAMIC 提升为 T_INT，
 // 触发算术改善，n 被识别为数学参数。
