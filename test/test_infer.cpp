@@ -3005,6 +3005,90 @@ TEST(infer, test_global_const_float) {
     });
 }
 
+// ---------------------------------------------------------------------------
+// func() + func() and func(func()) — return expression contains function-call
+// results used in arithmetic or as arguments to another call.  These patterns
+// must be handled by EvalReturnExpType recursing into sub-expressions; they do
+// NOT rely on BuildLocalVarExtensions (no local vars involved).
+// ---------------------------------------------------------------------------
+
+// caller returns func(n) + func(n): arithmetic of two function-call results.
+// func is a math-param function (n*2).  The return-type inferencer must resolve
+// both func(n) calls to T_INT via assumed_ret and compute T_INT + T_INT = T_INT.
+// caller(5) == 20, caller(3) == 12.
+TEST(infer, test_spec_return_arith_of_calls) {
+    const auto code = InferGetCCode("./infer/test_spec_return_arith_of_calls.lua");
+    // func must be specialized.
+    ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
+    // caller must be specialized too (func(n) arg n improves in all_int).
+    ASSERT_NE(code.find("int64_t caller_0(int64_t n)"), std::string::npos);
+    // caller_0 must return int64_t natively (not CVar).
+    ASSERT_NE(code.find("int64_t caller_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_return_arith_of_calls.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "caller", ret, 5);
+        ASSERT_EQ(ret, 20);
+        Call(s, type, "caller", ret, 3);
+        ASSERT_EQ(ret, 12);
+        double dret = 0.0;
+        Call(s, type, "caller", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 10.0);
+    });
+}
+
+// caller returns f(f(n)): the inner f(n) result is passed as argument to the
+// outer f.  f is a math-param function (n+1).  EvalReturnExpType must recurse
+// into the inner call to determine its type (T_INT), then use that as the arg
+// type for the outer call, yielding a T_INT return for caller.
+// caller(5) == 7, caller(3) == 5.
+TEST(infer, test_spec_return_call_arg_is_call) {
+    const auto code = InferGetCCode("./infer/test_spec_return_call_arg_is_call.lua");
+    // f must be specialized.
+    ASSERT_NE(code.find("int64_t f_0(int64_t n)"), std::string::npos);
+    // caller must be specialized.
+    ASSERT_NE(code.find("int64_t caller_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_return_call_arg_is_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "caller", ret, 5);
+        ASSERT_EQ(ret, 7);
+        Call(s, type, "caller", ret, 3);
+        ASSERT_EQ(ret, 5);
+        double dret = 0.0;
+        Call(s, type, "caller", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 4.5);
+    });
+}
+
+// caller returns func1(func2(n)): func2's result is used as argument to func1.
+// Both func2 (n*2) and func1 (n+1) are math-param functions.  The inferencer
+// must resolve func2(n) -> T_INT, use that as func1's arg type (bitmask=0),
+// and return func1's T_INT result, giving caller a native int64_t return.
+// caller(5) == 11, caller(3) == 7.
+TEST(infer, test_spec_return_call_arg_is_other_call) {
+    const auto code = InferGetCCode("./infer/test_spec_return_call_arg_is_other_call.lua");
+    // Both func1 and func2 must be specialized.
+    ASSERT_NE(code.find("int64_t func2_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t func1_0(int64_t n)"), std::string::npos);
+    // caller must be specialized.
+    ASSERT_NE(code.find("int64_t caller_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_return_call_arg_is_other_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "caller", ret, 5);
+        ASSERT_EQ(ret, 11);
+        Call(s, type, "caller", ret, 3);
+        ASSERT_EQ(ret, 7);
+        double dret = 0.0;
+        Call(s, type, "caller", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 6.0);
+    });
+}
+
 // 文件级整数常量 OFFSET = 10 与数学参数 n 共同参与 n + OFFSET。
 // RunTrialInference 注入 OFFSET=T_INT，使 n+OFFSET 从 T_DYNAMIC 提升为 T_INT，
 // 触发算术改善，n 被识别为数学参数。
