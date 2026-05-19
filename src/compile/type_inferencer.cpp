@@ -305,9 +305,18 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             current_map_[node.get()] = T_UNKNOWN;
             return T_UNKNOWN;
         }
+        case SyntaxTreeType::Empty:
+        case SyntaxTreeType::Label:
+        case SyntaxTreeType::Break:
+        case SyntaxTreeType::Goto:
+        case SyntaxTreeType::NameList: {
+            // 这些节点是语句或辅助结构，没有表达式类型
+            current_map_[node.get()] = T_UNKNOWN;
+            return T_UNKNOWN;
+        }
         default: {
-            current_map_[node.get()] = T_DYNAMIC;
-            return T_DYNAMIC;
+            ThrowFakeluaException(
+                    std::format("InferNode: unexpected SyntaxTreeType: {}", SyntaxTreeTypeToString(node->Type())));
         }
     }
 }
