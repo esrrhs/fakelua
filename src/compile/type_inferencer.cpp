@@ -859,44 +859,60 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
     }
     const bool ends_with_return = AllPathsReturn(block_node);
     for (const auto &stmt : stmts) {
-        if (stmt->Type() == SyntaxTreeType::Return) {
-            const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt);
-            const auto explist = ret->Explist();
-            if (explist) {
-                const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
-                if (el && !el->Exps().empty()) {
-                    ret_exps.push_back(el->Exps()[0]);
-                    continue;
+        switch (stmt->Type()) {
+            case SyntaxTreeType::Return: {
+                const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt);
+                const auto explist = ret->Explist();
+                if (explist) {
+                    const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+                    if (el && !el->Exps().empty()) {
+                        ret_exps.push_back(el->Exps()[0]);
+                        break;
+                    }
                 }
+                ret_exps.push_back(nullptr);
+                break;
             }
-            ret_exps.push_back(nullptr);
-        } else if (stmt->Type() == SyntaxTreeType::If) {
-            const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
-            CollectReturnExps(if_node->Block(), ret_exps);
-            if (const auto elseifs = if_node->ElseIfs()) {
-                const auto el = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(elseifs);
-                for (const auto &blk : el->ElseifBlocks()) {
-                    CollectReturnExps(blk, ret_exps);
+            case SyntaxTreeType::If: {
+                const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+                CollectReturnExps(if_node->Block(), ret_exps);
+                if (const auto elseifs = if_node->ElseIfs()) {
+                    const auto el = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(elseifs);
+                    for (const auto &blk : el->ElseifBlocks()) {
+                        CollectReturnExps(blk, ret_exps);
+                    }
                 }
+                CollectReturnExps(if_node->ElseBlock(), ret_exps);
+                break;
             }
-            CollectReturnExps(if_node->ElseBlock(), ret_exps);
-        } else if (stmt->Type() == SyntaxTreeType::While) {
-            const auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
-            CollectReturnExps(while_node->Block(), ret_exps);
-        } else if (stmt->Type() == SyntaxTreeType::Repeat) {
-            const auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
-            CollectReturnExps(rep->Block(), ret_exps);
-        } else if (stmt->Type() == SyntaxTreeType::ForLoop) {
-            const auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
-            CollectReturnExps(for_loop->Block(), ret_exps);
-        } else if (stmt->Type() == SyntaxTreeType::ForIn) {
-            const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
-            CollectReturnExps(for_in->Block(), ret_exps);
-        } else if (stmt->Type() == SyntaxTreeType::Block) {
-            // do...end 块：递归收集其内部的 return 表达式。
-            CollectReturnExps(stmt, ret_exps);
+            case SyntaxTreeType::While: {
+                const auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
+                CollectReturnExps(while_node->Block(), ret_exps);
+                break;
+            }
+            case SyntaxTreeType::Repeat: {
+                const auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
+                CollectReturnExps(rep->Block(), ret_exps);
+                break;
+            }
+            case SyntaxTreeType::ForLoop: {
+                const auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
+                CollectReturnExps(for_loop->Block(), ret_exps);
+                break;
+            }
+            case SyntaxTreeType::ForIn: {
+                const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
+                CollectReturnExps(for_in->Block(), ret_exps);
+                break;
+            }
+            case SyntaxTreeType::Block:
+                // do...end 块：递归收集其内部的 return 表达式。
+                CollectReturnExps(stmt, ret_exps);
+                break;
+            default:
+                // Function / LocalFunction: 不递归进入嵌套函数体。
+                break;
         }
-        // Function / LocalFunction: 不递归进入嵌套函数体。
     }
     return ends_with_return;
 }
