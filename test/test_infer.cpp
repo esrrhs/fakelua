@@ -3089,6 +3089,35 @@ TEST(infer, test_spec_return_call_arg_is_other_call) {
     });
 }
 
+// local variable declared INSIDE a nested if-block, initialised from a math
+// function call.  Before the nested-block BuildLocalVarExtensions fix, the
+// variable was not added to spec_ctx, so "return x+1" evaluated to T_DYNAMIC
+// and outer's specialization return type remained T_DYNAMIC.
+// After the fix, outer correctly gets an int64_t return specialization.
+TEST(infer, test_spec_local_var_in_if) {
+    const auto code = InferGetCCode("./infer/test_spec_local_var_in_if.lua");
+    // func must be specialized (has direct arithmetic n*2).
+    ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
+    // outer must also be specialized with int64_t return, not CVar.
+    // Without the fix this assertion would fail (outer_0 returns CVar).
+    ASSERT_NE(code.find("int64_t outer_0(int64_t n)"), std::string::npos);
+    // The local x inside the if block must be declared as int64_t.
+    ASSERT_NE(code.find("int64_t x ="), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_local_var_in_if.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "outer", ret, 5);
+        ASSERT_EQ(ret, 11); // 5*2 + 1
+        Call(s, type, "outer", ret, -1);
+        ASSERT_EQ(ret, 0);
+        double dret = 0.0;
+        Call(s, type, "outer", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 6.0); // 2.5*2 + 1
+    });
+}
+
+
 // 文件级整数常量 OFFSET = 10 与数学参数 n 共同参与 n + OFFSET。
 // RunTrialInference 注入 OFFSET=T_INT，使 n+OFFSET 从 T_DYNAMIC 提升为 T_INT，
 // 触发算术改善，n 被识别为数学参数。

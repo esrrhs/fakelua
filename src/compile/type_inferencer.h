@@ -158,11 +158,14 @@ private:
             const std::unordered_map<std::string, std::vector<int>> &math_param_positions,
             const std::unordered_map<std::string, std::vector<InferredType>> &assumed_ret) const;
 
-    // 扫描函数块顶层的 local 声明，将由数学函数调用初始化的局部变量
+    // 扫描函数体所有块（包括 if/elseif/else/while/repeat/for/do 等嵌套控制流块）中的
+    // local 声明，将由数学函数调用（或其他能推断出数值类型的表达式）初始化的局部变量
     // 的类型（T_INT/T_FLOAT）追加到 spec_ctx 中，支持链式传播：
     //   local x = f(n)  → x 的类型由 EvalReturnExpType(f(n)) 推出
     //   local y = x + 1 → y 的类型由 x（已在 spec_ctx 中）推出
-    // 仅处理顶层 LocalVar 语句（不递归进入嵌套函数体）。
+    // 遮蔽保护：若同一名称在多个作用域中被声明（decl_counts > 1），则跳过该变量，
+    //   以防止内层 T_INT 错误地用于外层同名 T_DYNAMIC 变量的推断，进而避免生成错误代码。
+    // 不递归进入嵌套函数体（Function / LocalFunction）。
     void BuildLocalVarExtensions(
             const SyntaxTreeInterfacePtr &func_block,
             const EvalTypeSnapshot &snapshot,

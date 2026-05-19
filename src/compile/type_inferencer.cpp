@@ -956,42 +956,93 @@ InferredType TypeInferencer::EvalReturnExpType(
     return InferExpType(exp, ctx);
 }
 
-// 扫描函数块顶层的 local 声明，将由数学函数调用（或其他能推断出数值类型的表达式）
-// 初始化的局部变量的类型追加到 spec_ctx 中。处理按声明顺序进行（单遍），
-// 从而支持链式传播（如 local y = x + 1，其中 x 已由前面的 local x = f(n) 加入 spec_ctx）。
-// 仅处理顶层 LocalVar 语句，不递归进入嵌套函数体（Function / LocalFunction）。
+// 扫描函数体所有块（包括 if/while/for/repeat/do 等嵌套控制流块）中的 local 声明，
+// 将由数学函数调用（或其他能推断出数值类型的表达式）初始化的局部变量的类型追加到
+// spec_ctx 中，支持链式传播：
+//   local x = f(n)  → x 的类型由 EvalReturnExpType(f(n)) 推出
+//   local y = x + 1 → y 的类型由 x（已在 spec_ctx 中）推出
+//
+// 安全保证（防止作用域遮蔽导致类型混淆）：
+//   若同一变量名在函数体的多个作用域中被声明（即存在遮蔽），则不将内层声明的类型
+//   写入扁平 spec_ctx，以避免内层 T_INT 变量错误地影响外层同名 T_DYNAMIC 变量的推断，
+//   进而导致生成错误的 CompileNumericExp 代码。
+//
+// 不递归进入嵌套函数体（Function / LocalFunction）。
 void TypeInferencer::BuildLocalVarExtensions(
         const SyntaxTreeInterfacePtr &func_block,
         const EvalTypeSnapshot &snapshot,
         std::unordered_map<std::string, InferredType> &spec_ctx,
         const std::unordered_map<std::string, std::vector<int>> &math_param_positions,
         const std::unordered_map<std::string, std::vector<InferredType>> &assumed_ret) const {
-    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block);
-    if (!block) {
-        return;
-    }
-    for (const auto &stmt : block->Stmts()) {
-        if (stmt->Type() != SyntaxTreeType::LocalVar) {
-            continue;
-        }
+    // 第一步：统计函数体内所有嵌套块中 local 声明的名称出现次数。
+    // 若某名称在多个作用域中被声明（decl_counts > 1），则存在遮蔽风险，后续跳过。
+    std::unordered_map<std::string, int> decl_counts;
+    std::function<void(const SyntaxTreeInterfacePtr &)> count_decls =
+            [&](const SyntaxTreeInterfacePtr &blk) {
+                const auto b = std::dynamic_pointer_cast<SyntaxTreeBlock>(blk);
+                if (!b) {
+                    return;
+                }
+                for (const auto &s : b->Stmts()) {
+                    if (s->Type() == SyntaxTreeType::LocalVar) {
+                        const auto lv2 = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(s);
+                        const auto nl2 = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv2->Namelist());
+                        if (nl2) {
+                            for (const auto &nm : nl2->Names()) {
+                                decl_counts[nm]++;
+                            }
+                        }
+                    } else if (s->Type() == SyntaxTreeType::If) {
+                        const auto if2 = std::dynamic_pointer_cast<SyntaxTreeIf>(s);
+                        count_decls(if2->Block());
+                        if (const auto ei2 = if2->ElseIfs()) {
+                            const auto el2 = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(ei2);
+                            for (const auto &eb : el2->ElseifBlocks()) {
+                                count_decls(eb);
+                            }
+                        }
+                        count_decls(if2->ElseBlock());
+                    } else if (s->Type() == SyntaxTreeType::While) {
+                        count_decls(std::dynamic_pointer_cast<SyntaxTreeWhile>(s)->Block());
+                    } else if (s->Type() == SyntaxTreeType::Repeat) {
+                        count_decls(std::dynamic_pointer_cast<SyntaxTreeRepeat>(s)->Block());
+                    } else if (s->Type() == SyntaxTreeType::ForLoop) {
+                        count_decls(std::dynamic_pointer_cast<SyntaxTreeForLoop>(s)->Block());
+                    } else if (s->Type() == SyntaxTreeType::ForIn) {
+                        count_decls(std::dynamic_pointer_cast<SyntaxTreeForIn>(s)->Block());
+                    } else if (s->Type() == SyntaxTreeType::Block) {
+                        count_decls(s);
+                    }
+                    // Function / LocalFunction: 不递归进入嵌套函数体。
+                }
+            };
+    count_decls(func_block);
+
+    // 处理单条 LocalVar 语句的帮助函数（抽出以避免 scan lambda 过长）。
+    const auto process_local_var = [&](const SyntaxTreeInterfacePtr &stmt) {
         const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
         const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
         if (!nl) {
-            continue;
+            return;
         }
         const auto explist_node = lv->Explist();
         if (!explist_node) {
-            continue;
+            return;
         }
         const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_node);
         if (!el) {
-            continue;
+            return;
         }
         const auto &names = nl->Names();
         const auto &exps = el->Exps();
         for (size_t i = 0; i < names.size() && i < exps.size(); ++i) {
             // 若该名称已在 spec_ctx 中（例如与数学参数同名），跳过以避免覆盖。
             if (spec_ctx.contains(names[i])) {
+                continue;
+            }
+            // 若同名变量在多个作用域中被声明，存在遮蔽风险，跳过。
+            if (const auto cnt_it = decl_counts.find(names[i]);
+                cnt_it != decl_counts.end() && cnt_it->second > 1) {
                 continue;
             }
             // 先查 snapshot：若推断阶段已正确得出数值类型（算术表达式等），直接跳过
@@ -1034,7 +1085,43 @@ void TypeInferencer::BuildLocalVarExtensions(
                 spec_ctx[names[i]] = t;
             }
         }
-    }
+    };
+
+    // 第二步：递归扫描函数体所有块，将可推断为数值类型的局部变量写入 spec_ctx。
+    std::function<void(const SyntaxTreeInterfacePtr &)> scan =
+            [&](const SyntaxTreeInterfacePtr &blk) {
+                const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(blk);
+                if (!block) {
+                    return;
+                }
+                for (const auto &stmt : block->Stmts()) {
+                    if (stmt->Type() == SyntaxTreeType::LocalVar) {
+                        process_local_var(stmt);
+                    } else if (stmt->Type() == SyntaxTreeType::If) {
+                        const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+                        scan(if_node->Block());
+                        if (const auto elseifs = if_node->ElseIfs()) {
+                            const auto el = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(elseifs);
+                            for (const auto &eb : el->ElseifBlocks()) {
+                                scan(eb);
+                            }
+                        }
+                        scan(if_node->ElseBlock());
+                    } else if (stmt->Type() == SyntaxTreeType::While) {
+                        scan(std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt)->Block());
+                    } else if (stmt->Type() == SyntaxTreeType::Repeat) {
+                        scan(std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt)->Block());
+                    } else if (stmt->Type() == SyntaxTreeType::ForLoop) {
+                        scan(std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt)->Block());
+                    } else if (stmt->Type() == SyntaxTreeType::ForIn) {
+                        scan(std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt)->Block());
+                    } else if (stmt->Type() == SyntaxTreeType::Block) {
+                        scan(stmt);
+                    }
+                    // Function / LocalFunction: 不递归进入嵌套函数体。
+                }
+            };
+    scan(func_block);
 }
 
 std::vector<TypeInferencer::FunctionSpecInfo> TypeInferencer::CollectFunctionSpecInfos(const ParseResult &pr) const {
