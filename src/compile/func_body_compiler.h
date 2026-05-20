@@ -104,6 +104,9 @@ private:
 
     // ---- 类型推断帮助 -----------------------------------------------------
 
+    // 递归推断表达式的原生类型（T_INT、T_FLOAT 或 T_DYNAMIC），直接使用成员状态。
+    [[nodiscard]] InferredType InferExpType(const SyntaxTreeInterfacePtr &exp) const;
+
     // 在当前特化上下文中推断表达式的原生类型。
     [[nodiscard]] InferredType InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const;
 
