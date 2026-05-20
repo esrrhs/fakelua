@@ -3240,14 +3240,13 @@ TEST(infer, test_cov_allpaths_return) {
 }
 
 // HasMathCallImprovement line 720: 数学函数以零参数调用另一数学函数 → raw_args 为空 → 提前返回。
-// test(5) == 10.
+// 同时验证代码生成器对缺少参数的本地函数调用正确补充 kNil（修复：compute() → compute(kNil)）。
+// 注意：test(n) 调用 compute() 时 compute 会收到 kNil，运行时会抛出类型错误（nil 不可做算术），
+// 因此此处只验证生成的 C 代码，不运行 test()。
 TEST(infer, test_cov_no_arg_call) {
-    InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_cov_no_arg_call.lua", {.debug_mode = debug_mode});
-        int ret = 0;
-        Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 10);
-    });
+    const auto code = InferGetCCode("./infer/test_cov_no_arg_call.lua");
+    // compute() 以零参数调用，代码生成器应补充 kNil 以匹配 C 函数签名 CVar compute(CVar n)。
+    ASSERT_NE(code.find("compute(kNil)"), std::string::npos);
 }
 
 // HasForLoopTypeChange line 821: for 循环变量在 all_int 试推断中因函数调用赋值而变为 T_DYNAMIC。
