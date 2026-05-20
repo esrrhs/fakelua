@@ -89,10 +89,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
                 exps = explist->Exps();
             }
 
-            if (!namelist) {                        // GCOVR_EXCL_START
-                current_map_[node.get()] = T_UNKNOWN;// 防御性检查：语法解析器保证 LocalVar 始终有非空 namelist，此分支不可达。
-                return T_UNKNOWN;
-            }                                        // GCOVR_EXCL_STOP
+            DEBUG_ASSERT(namelist);
 
             const auto &names = namelist->Names();
             for (size_t i = 0; i < names.size(); ++i) {
