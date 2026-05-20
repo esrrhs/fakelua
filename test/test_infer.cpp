@@ -3184,9 +3184,16 @@ TEST(infer, test_global_const_spec) {
 // 表字段访问（kSquare var）作为右值表达式。
 // InferVar line 476: 对非简单 var（kSquare）调用 InferNode(pe)（prefixexp 非 null）。
 // test(5) == t[1] + 5 == 10 + 5 == 15.
-TEST(infer, test_cov_table_field_expr) {
+// Table subscript access t[1] is T_DYNAMIC → t[1]+n is T_DYNAMIC → n is not a math param.
+// test(5) == 15.
+TEST(infer, test_table_field_expr) {
+    const auto code = InferGetCCode("./infer/test_table_field_expr.lua");
+    // Table subscript is dynamic, so test is not specialized.
+    ASSERT_EQ(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_cov_table_field_expr.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./infer/test_table_field_expr.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
         ASSERT_EQ(ret, 15);
@@ -3194,11 +3201,17 @@ TEST(infer, test_cov_table_field_expr) {
 }
 
 // if-elseif 结构中 elseif 块不包含 return。
-// AllPathsReturn lines 860-861: 检查 elseif 块时发现无 return，立即返回 false。
+// AllPathsReturn: 检查 elseif 块时发现无 return，立即返回 false。
+// n * 2 使 n 成为数学参数，生成 int/double 特化版本。
 // test(15) == 30 (if 分支), test(3) == 3 (else 分支).
-TEST(infer, test_cov_elseif_no_return) {
+TEST(infer, test_elseif_no_return) {
+    const auto code = InferGetCCode("./infer/test_elseif_no_return.lua");
+    // n * 2 triggers math param specialization.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_cov_elseif_no_return.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./infer/test_elseif_no_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 15);
         ASSERT_EQ(ret, 30);
@@ -3208,27 +3221,34 @@ TEST(infer, test_cov_elseif_no_return) {
 }
 
 // 数学参数函数体中包含 for-in 循环。
-// CollectReturnExps lines 951-955: ForIn 语句由 switch 分支处理，递归进入循环体。
+// CollectReturnExps: ForIn 语句由 switch 分支处理，递归进入循环体。
 // test(10) == 20.
-TEST(infer, test_cov_for_in_math) {
-    const auto code = InferGetCCode("./infer/test_cov_for_in_math.lua");
+TEST(infer, test_for_in_math) {
+    const auto code = InferGetCCode("./infer/test_for_in_math.lua");
     // n * 2 触发数学参数特化。
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_cov_for_in_math.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./infer/test_for_in_math.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 10);
         ASSERT_EQ(ret, 20);
     });
 }
 
-// AllPathsReturn 边界路径覆盖：
-// line 836: if-elseif 结构无 else（ElseBlock()==null）→ AllPathsReturn(null) → false。
-// line 840: else 分支为空 block → block->Stmts().empty() → false。
-TEST(infer, test_cov_allpaths_return) {
+// AllPathsReturn 边界路径：
+// test_no_else: if-elseif 无 else（ElseBlock()==null）→ AllPathsReturn false。
+// test_empty_else: else 分支为空 block → block->Stmts().empty() → AllPathsReturn false。
+// 两个函数均有 n * 2，生成 int/double 特化版本。
+TEST(infer, test_allpaths_return) {
+    const auto code = InferGetCCode("./infer/test_allpaths_return.lua");
+    // Both functions have n * 2 → math param specialization.
+    ASSERT_NE(code.find("test_no_else_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_empty_else_0(int64_t n)"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_cov_allpaths_return.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./infer/test_allpaths_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
         // test_no_else: n=15 > 10 → returns 30; n=7 > 5 → returns 8; n=1 → returns nil (0 in C)
         Call(s, type, "test_no_else", ret, 15);
@@ -3239,22 +3259,28 @@ TEST(infer, test_cov_allpaths_return) {
     });
 }
 
-// HasMathCallImprovement line 720: 数学函数以零参数调用另一数学函数 → raw_args 为空 → 提前返回。
+// HasMathCallImprovement: 数学函数以零参数调用另一数学函数 → raw_args 为空 → 提前返回。
 // compute 有 1 个参数，test 体内调用 compute()（无参数），严格参数校验应在编译时报错。
-TEST(infer, test_cov_no_arg_call) {
+TEST(infer, test_no_arg_call) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./infer/test_cov_no_arg_call.lua", {});
+                CompileFile(sg.GetState(), "./infer/test_no_arg_call.lua", {});
             },
             std::exception);
 }
 
-// HasForLoopTypeChange line 821: for 循环变量在 all_int 试推断中因函数调用赋值而变为 T_DYNAMIC。
+// HasForLoopTypeChange: for 循环变量在 all_int 试推断中因函数调用赋值而变为 T_DYNAMIC。
+// n * 2 使 n 成为数学参数；循环变量 i 因 i = getVal() 退化为动态类型。
 // test(5) == 10.
-TEST(infer, test_cov_forloop_dynamic) {
+TEST(infer, test_forloop_dynamic) {
+    const auto code = InferGetCCode("./infer/test_forloop_dynamic.lua");
+    // n * 2 triggers math param specialization.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_cov_forloop_dynamic.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./infer/test_forloop_dynamic.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
         ASSERT_EQ(ret, 10);
