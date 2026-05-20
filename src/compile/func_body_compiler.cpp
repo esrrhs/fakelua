@@ -1935,21 +1935,18 @@ std::string FuncBodyCompiler::CompileFunctioncall(const SyntaxTreeInterfacePtr &
         *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
         return tmp;
     } else if (local_func_names_->contains(func_name)) {
-        // Lua 语义：调用时缺少的参数视为 nil。
-        // 若实参数量少于形参数量，补充 kNil 确保生成的 C 调用与函数签名匹配。
         const int expected_params = local_func_names_->at(func_name);
+        if (static_cast<int>(compiled_args.size()) != expected_params) {
+            ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, expected_params,
+                                   compiled_args.size()),
+                       functioncall);
+        }
         call_expr = func_name + "(";
         for (size_t i = 0; i < compiled_args.size(); ++i) {
             if (i > 0) {
                 call_expr += ", ";
             }
             call_expr += compiled_args[i];
-        }
-        for (size_t i = compiled_args.size(); i < static_cast<size_t>(expected_params); ++i) {
-            if (i > 0) {
-                call_expr += ", ";
-            }
-            call_expr += "kNil";
         }
         call_expr += ")";
     } else {
