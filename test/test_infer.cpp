@@ -3286,3 +3286,34 @@ TEST(infer, test_forloop_dynamic) {
         ASSERT_EQ(ret, 10);
     });
 }
+
+// HasForLoopTypeChange: for 循环上界为函数调用 mul2(n)，在不含返回类型提示的试推断中
+// 返回 T_DYNAMIC，导致循环变量在 typed_map 中为 T_DYNAMIC（非数值）。
+// HasForLoopTypeChange 的 !IsNumericInferredType 早返回路径（第 788 行）在此被命中。
+// HasMathCallImprovement 通过检测 mul2(n) 的实参类型改善，使 iter 被识别为数学函数。
+// 经 InferSpecializationReturnTypes 注入返回类型提示后，mul2_0 返回 int64_t，
+// 循环变量在精确快照中升格为 T_INT，整数特化路径使用原生 int64_t for 循环。
+// test(5) == 1+2+...+10 == 55, test(3) == 1+2+...+6 == 21.
+TEST(infer, test_spec_for_dynamic_bound) {
+    const auto code = InferGetCCode("./infer/test_spec_for_dynamic_bound.lua");
+    // mul2, iter, and test must all be specialised.
+    ASSERT_NE(code.find("int64_t mul2_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t iter_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    // With return-type hints, the for loop in iter_0 becomes native int.
+    ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
+    // sum must be declared as int64_t in the int specialisation.
+    ASSERT_NE(code.find("int64_t sum = 0"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_for_dynamic_bound.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 55); // 1+2+...+10
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 21); // 1+2+...+6
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 15.0); // mul2(2.5)=5.0, 1+2+3+4+5=15
+    });
+}
