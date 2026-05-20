@@ -693,9 +693,6 @@ bool TypeInferencer::HasMathCallImprovement(
         const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
         DEBUG_ASSERT(args_ptr);
         const auto raw_args = ExtractCallRawArgs(args_ptr);
-        if (raw_args.empty()) {
-            return;
-        }
         for (const int param_pos : math_it->second) {
             if (param_pos >= static_cast<int>(raw_args.size())) {
                 return;
@@ -799,9 +796,7 @@ bool TypeInferencer::HasForLoopTypeChange(const EvalTypeMap &typed_map,
 // 中所有分支均返回的情况（如 fibonacci），从而正确标记所有路径均返回数值。
 // 不递归进入嵌套函数体（Function / LocalFunction）。
 bool TypeInferencer::AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) const {
-    if (!block_node) {
-        return false;
-    }
+    DEBUG_ASSERT(block_node);
     const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(block_node);
     if (!block || block->Stmts().empty()) {
         return false;
