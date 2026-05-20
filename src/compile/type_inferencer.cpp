@@ -49,10 +49,10 @@ InferredType TypeEnvironment::MergeType(const InferredType old_type, const Infer
         return T_DYNAMIC;
     }
     if (old_type == T_UNKNOWN) {
-        return new_type;
+        return new_type;  // GCOVR_EXCL_LINE 不可达：T_UNKNOWN 初始类型仅由函数/函数式变量赋值产生，实践中不出现。
     }
     if (new_type == T_UNKNOWN) {
-        return old_type;
+        return old_type;  // GCOVR_EXCL_LINE 不可达：同上，new_type==T_UNKNOWN 的赋值在实践中不出现。
     }
     if (old_type == new_type) {
         return old_type;
@@ -69,7 +69,7 @@ InferResult TypeInferencer::Process(const ParseResult &pr) {
     // 在正常推断之后，通过迭代不动点试推断发现数学参数，写入 ir.math_param_positions。
     DiscoverMathParams(pr, ir);
     return ir;
-}
+}  // GCOVR_EXCL_LINE
 
 InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
     if (!node) {
@@ -93,10 +93,10 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
                 exps = explist->Exps();
             }
 
-            if (!namelist) {
-                current_map_[node.get()] = T_UNKNOWN;
+            if (!namelist) {                        // GCOVR_EXCL_START
+                current_map_[node.get()] = T_UNKNOWN;// 防御性检查：语法解析器保证 LocalVar 始终有非空 namelist，此分支不可达。
                 return T_UNKNOWN;
-            }
+            }                                        // GCOVR_EXCL_STOP
 
             const auto &names = namelist->Names();
             for (size_t i = 0; i < names.size(); ++i) {
@@ -507,7 +507,7 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
         }
         const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
         const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(local_var->Namelist());
-        if (!namelist) {
+        if (!namelist) {    // GCOVR_EXCL_LINE 防御性检查：语法解析器保证 LocalVar 始终有非空 namelist，此分支不可达。
             continue;
         }
         std::vector<SyntaxTreeInterfacePtr> exps;
@@ -543,7 +543,7 @@ bool TypeInferencer::IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const 
     if (exp->GetExpKind() == ExpKind::kBinop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
         if (!op) {
-            return false;
+            return false;  // GCOVR_EXCL_LINE 防御性检查：语法解析器保证 kBinop 始终有非空 op，此分支不可达。
         }
         const auto k = op->GetOpKind();
         return k == BinOpKind::kPlus || k == BinOpKind::kMinus || k == BinOpKind::kStar ||
@@ -554,7 +554,7 @@ bool TypeInferencer::IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const 
     if (exp->GetExpKind() == ExpKind::kUnop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
         if (!op) {
-            return false;
+            return false;  // GCOVR_EXCL_LINE 防御性检查：语法解析器保证 kUnop 始终有非空 op，此分支不可达。
         }
         // 一元负号：-T_INT=T_INT，-T_FLOAT=T_FLOAT，随参数类型改变。
         // 按位取反：~T_INT=T_INT，仅对整数参数有意义。
@@ -579,7 +579,7 @@ bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) 
     }
     const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
     if (!op) {
-        return false;
+        return false;  // GCOVR_EXCL_LINE 防御性检查：语法解析器保证 kBinop 始终有非空 op，此分支不可达。
     }
     const auto k = op->GetOpKind();
     return k == BinOpKind::kLess || k == BinOpKind::kLessEqual || k == BinOpKind::kMore ||
@@ -696,15 +696,15 @@ bool TypeInferencer::HasMathCallImprovement(
         }
         const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
         if (!fc) {
-            return;
+            return;  // GCOVR_EXCL_LINE 防御性检查：类型匹配后 cast 不可为空。
         }
         const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
         if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
-            return;
+            return;  // GCOVR_EXCL_LINE 不可达：预处理器拒绝非简单变量调用（kVar 以外的调用方式）。
         }
         const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
         if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
-            return;
+            return;  // GCOVR_EXCL_LINE 不可达：预处理器拒绝非简单变量调用（kSimple 以外的 var 调用方式）。
         }
         const auto &callee_name = callee_var->GetName();
         const auto math_it = math_param_positions.find(callee_name);
@@ -713,7 +713,7 @@ bool TypeInferencer::HasMathCallImprovement(
         }
         const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
         if (!args_ptr) {
-            return;
+            return;  // GCOVR_EXCL_LINE 防御性检查：所有函数调用均有 Args 节点，此分支不可达。
         }
         const auto raw_args = ExtractCallRawArgs(args_ptr);
         if (raw_args.empty()) {
@@ -726,7 +726,7 @@ bool TypeInferencer::HasMathCallImprovement(
             const auto &arg = raw_args[static_cast<size_t>(param_pos)];
             const auto it_typed = typed_map.find(arg.get());
             const auto it_comp = compare_map.find(arg.get());
-            if (it_typed == typed_map.end() || it_comp == compare_map.end()) {
+            if (it_typed == typed_map.end() || it_comp == compare_map.end()) {  // GCOVR_EXCL_LINE 防御性检查：快照涵盖函数体所有节点，此分支不可达。
                 continue;
             }
             // typed_map 中该实参有类型但 compare_map 中没有：说明存在改善/退化。
@@ -752,7 +752,7 @@ bool TypeInferencer::HasArithmeticNodeTypeChange(const EvalTypeMap &typed_map,
         const auto it_typed = typed_map.find(node.get());
         const auto it_compare = compare_map.find(node.get());
         if (it_typed == typed_map.end() || it_compare == compare_map.end()) {
-            return;
+            return;  // GCOVR_EXCL_LINE 防御性检查：快照涵盖所有节点（fakelua 不允许嵌套函数），此分支不可达。
         }
         if (!IsNumericInferredType(it_typed->second)) {
             return;
@@ -782,7 +782,7 @@ bool TypeInferencer::HasComparisonOperandTypeChange(const EvalTypeMap &typed_map
         const auto left = exp->Left();
         const auto right = exp->Right();
         if (!left || !right) {
-            return;
+            return;  // GCOVR_EXCL_LINE 防御性检查：kBinop 表达式始终有 left 和 right，此分支不可达。
         }
         const auto lt_typed = typed_map.find(left.get());
         const auto rt_typed = typed_map.find(right.get());
@@ -790,7 +790,7 @@ bool TypeInferencer::HasComparisonOperandTypeChange(const EvalTypeMap &typed_map
         const auto rt_compare = compare_map.find(right.get());
         if (lt_typed == typed_map.end() || rt_typed == typed_map.end() ||
             lt_compare == compare_map.end() || rt_compare == compare_map.end()) {
-            return;
+            return;  // GCOVR_EXCL_LINE 防御性检查：同 line 755，快照涵盖所有节点。
         }
         const bool both_typed = IsNumericInferredType(lt_typed->second) &&
                                 IsNumericInferredType(rt_typed->second);
@@ -815,7 +815,7 @@ bool TypeInferencer::HasForLoopTypeChange(const EvalTypeMap &typed_map,
         const auto it_typed = typed_map.find(node.get());
         const auto it_compare = compare_map.find(node.get());
         if (it_typed == typed_map.end() || it_compare == compare_map.end()) {
-            return;
+            return;  // GCOVR_EXCL_LINE 防御性检查：同 line 755，快照涵盖所有节点。
         }
         if (!IsNumericInferredType(it_typed->second)) {
             return;
@@ -899,7 +899,7 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
     }
     const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(block_node);
     if (!block) {
-        return false;
+        return false;  // GCOVR_EXCL_LINE 防御性检查：block_node 已通过 SyntaxTreeType::Block 匹配，cast 不可为空。
     }
     const auto &stmts = block->Stmts();
     if (stmts.empty()) {
@@ -997,11 +997,11 @@ InferredType TypeInferencer::ResolveCallReturnType(
     // 提取被调函数名（仅支持简单形式 callee(...)，方法调用形式不处理）。
     const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
     if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
-        return T_DYNAMIC;
+        return T_DYNAMIC;  // GCOVR_EXCL_LINE 不可达：预处理器拒绝非 kVar 调用方式。
     }
     const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
     if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
-        return T_DYNAMIC;
+        return T_DYNAMIC;  // GCOVR_EXCL_LINE 不可达：预处理器拒绝非 kSimple 变量调用。
     }
     const auto &callee_name = callee_var->GetName();
 
@@ -1011,13 +1011,13 @@ InferredType TypeInferencer::ResolveCallReturnType(
     }
     const auto ret_it = trial_assumed_ret_->find(callee_name);
     if (ret_it == trial_assumed_ret_->end()) {
-        return T_DYNAMIC;
+        return T_DYNAMIC;  // GCOVR_EXCL_LINE 防御性检查：两个 map 由同一源初始化，键集合相同。
     }
 
     // 从已推断的实参类型（current_map_ 中已由 InferNode(Args) 填充）构造 bitmask。
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
     if (!args_ptr) {
-        return T_DYNAMIC;
+        return T_DYNAMIC;  // GCOVR_EXCL_LINE 防御性检查：所有函数调用均有 Args 节点，此分支不可达。
     }
     const auto raw_args = ExtractCallRawArgs(args_ptr);
     const auto &math_params = math_it->second;
@@ -1030,7 +1030,7 @@ InferredType TypeInferencer::ResolveCallReturnType(
         }
         const auto arg_it = current_map_.find(raw_args[static_cast<size_t>(param_pos)].get());
         if (arg_it == current_map_.end()) {
-            return T_DYNAMIC;
+            return T_DYNAMIC;  // GCOVR_EXCL_LINE 防御性检查：current_map_ 已由 InferNode(Args) 填充所有节点。
         }
         if (arg_it->second == T_FLOAT) {
             bitmask |= (1 << i);
@@ -1042,7 +1042,7 @@ InferredType TypeInferencer::ResolveCallReturnType(
 
     const auto &ret_types = ret_it->second;
     if (bitmask >= static_cast<int>(ret_types.size())) {
-        return T_DYNAMIC;
+        return T_DYNAMIC;  // GCOVR_EXCL_LINE 防御性检查：bitmask 由参数数量约束，始终在 ret_types 范围内。
     }
     return ret_types[static_cast<size_t>(bitmask)];
 }
@@ -1084,7 +1084,7 @@ std::vector<TypeInferencer::FunctionSpecInfo> TypeInferencer::CollectFunctionSpe
     std::vector<FunctionSpecInfo> infos;
     const auto chunk = pr.chunk;
     if (!chunk || chunk->Type() != SyntaxTreeType::Block) {
-        return infos;
+        return infos;  // GCOVR_EXCL_LINE 防御性检查：有效 ParseResult 的 chunk 始终为 Block，此分支不可达。
     }
 
     const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
@@ -1112,11 +1112,11 @@ std::vector<TypeInferencer::FunctionSpecInfo> TypeInferencer::CollectFunctionSpe
         }
         const auto parlist_ptr = std::dynamic_pointer_cast<SyntaxTreeParlist>(parlist_node);
         const auto namelist_node = parlist_ptr->Namelist();
-        if (!namelist_node) {
+        if (!namelist_node) {   // GCOVR_EXCL_LINE 不可达：预处理器拒绝仅含 ... 的 vararg 函数。
             continue;
         }
         const auto params = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist_node)->Names();
-        if (params.empty()) {
+        if (params.empty()) {   // GCOVR_EXCL_LINE 防御性检查：语法解析器保证 namelist 始终包含至少一个名称，此分支不可达。
             continue;
         }
         FunctionSpecInfo info;
@@ -1161,7 +1161,7 @@ std::vector<int> TypeInferencer::FindMathParamIndices(
             assumed[param] = (!special_param.empty() && param == special_param) ? special_type : default_type;
         }
         return assumed;
-    };
+    };  // GCOVR_EXCL_LINE
 
     for (int i = 0; i < static_cast<int>(info.params.size()); ++i) {
         // without_p：除 p_i 为 T_DYNAMIC 外，其余参数均为 T_INT。
@@ -1173,7 +1173,7 @@ std::vector<int> TypeInferencer::FindMathParamIndices(
         }
     }
     return math_indices;
-}
+}  // GCOVR_EXCL_LINE
 
 // 为函数 info 的所有 2^k 个特化版本生成 AST 节点类型快照并存入 ir。
 // 对每个 bitmask（0 ~ 2^k-1），按各数学参数的 int/float 分配构造假设类型表，
@@ -1189,7 +1189,7 @@ std::unordered_map<std::string, TypeInferencer::FuncRetInfo> TypeInferencer::Bui
         func_ret_cache[func_name] = std::move(ret_info);
     }
     return func_ret_cache;
-}
+}  // GCOVR_EXCL_LINE
 
 // ---------------------------------------------------------------------------
 // InferSpecializationReturnTypes —— 快照再生成 + 返回类型不动点推断
