@@ -199,37 +199,5 @@ struct FuncBodyContext {
     const EvalTypeSnapshot *main_eval_types;
 };
 
-// ---- 表达式类型推断上下文 ---------------------------------------------------
-// 将"在特化上下文中推断表达式类型"所需的数据源抽象为回调，
-// 供 InferExpType 使用，从而在代码生成（InferArgTypeForSpec）
-// 和类型推断（EvalReturnExpType）两处共享同一套算法，消除 DRY 违反。
-struct InferExpContext {
-    // 查询简单变量名的类型。
-    // name: 变量名；
-    // parent_exp_node: 包含该变量引用的外层 kPrefixExp 节点
-    //   （供基于快照的实现回退到节点查找时使用）。
-    std::function<InferredType(const std::string &name, SyntaxTreeInterface *parent_exp_node)> lookup_var;
-
-    // 查询 AST 节点的推断类型（用于数字字面量等）。
-    std::function<InferredType(SyntaxTreeInterface *node)> lookup_node;
-
-    // 获取被调函数的数学参数下标列表；若非数学函数则返回 nullptr。
-    std::function<const std::vector<int> *(const std::string &callee_name)> lookup_math_params;
-
-    // 获取被调函数在给定 bitmask 下的特化返回类型。
-    std::function<InferredType(const std::string &callee_name, int bitmask)> lookup_return;
-
-    // 可选：对 lookup_node 未命中的数字字面量节点，通过字面量字符串确定整数/浮点类型。
-    // 若未设置（nullptr），kNumber 未命中时返回 T_DYNAMIC。
-    // 代码生成侧（InferArgTypeForSpec）设置此回调；类型推断侧（EvalReturnExpType）不设置，
-    // 与原始 EvalReturnExpType 行为保持一致（快照缺失 → T_DYNAMIC）。
-    std::function<InferredType(const std::string &literal_value)> lookup_number_literal;
-};
-
-// 在给定上下文中推断表达式的原生类型（T_INT、T_FLOAT 或 T_DYNAMIC）。
-// 共享算法：FuncBodyCompiler::InferArgTypeForSpec（代码生成阶段）和
-// TypeInferencer::EvalReturnExpType（类型推断阶段）均委托此函数。
-// 参数 exp 必须是类型为 SyntaxTreeType::Exp 的节点；否则返回 T_DYNAMIC。
-InferredType InferExpType(const SyntaxTreeInterfacePtr &exp, const InferExpContext &ctx);
 
 }// namespace fakelua
