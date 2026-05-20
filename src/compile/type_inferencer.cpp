@@ -48,12 +48,8 @@ InferredType TypeEnvironment::MergeType(const InferredType old_type, const Infer
     if (old_type == T_DYNAMIC || new_type == T_DYNAMIC) {
         return T_DYNAMIC;
     }
-    if (old_type == T_UNKNOWN) {
-        return new_type;
-    }
-    if (new_type == T_UNKNOWN) {
-        return old_type;
-    }
+    DEBUG_ASSERT(old_type != T_UNKNOWN);
+    DEBUG_ASSERT(new_type != T_UNKNOWN);
     if (old_type == new_type) {
         return old_type;
     }
@@ -93,10 +89,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
                 exps = explist->Exps();
             }
 
-            if (!namelist) {
-                current_map_[node.get()] = T_UNKNOWN;
-                return T_UNKNOWN;
-            }
+            DEBUG_ASSERT(namelist);
 
             const auto &names = namelist->Names();
             for (size_t i = 0; i < names.size(); ++i) {
@@ -507,9 +500,7 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
         }
         const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
         const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(local_var->Namelist());
-        if (!namelist) {
-            continue;
-        }
+        DEBUG_ASSERT(namelist);
         std::vector<SyntaxTreeInterfacePtr> exps;
         if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(local_var->Explist())) {
             exps = explist->Exps();
@@ -542,9 +533,7 @@ bool TypeInferencer::IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const 
     const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
     if (exp->GetExpKind() == ExpKind::kBinop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
-        if (!op) {
-            return false;
-        }
+        DEBUG_ASSERT(op);
         const auto k = op->GetOpKind();
         return k == BinOpKind::kPlus || k == BinOpKind::kMinus || k == BinOpKind::kStar ||
                k == BinOpKind::kSlash || k == BinOpKind::kDoubleSlash || k == BinOpKind::kPow ||
@@ -553,9 +542,7 @@ bool TypeInferencer::IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const 
     }
     if (exp->GetExpKind() == ExpKind::kUnop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
-        if (!op) {
-            return false;
-        }
+        DEBUG_ASSERT(op);
         // 一元负号：-T_INT=T_INT，-T_FLOAT=T_FLOAT，随参数类型改变。
         // 按位取反：~T_INT=T_INT，仅对整数参数有意义。
         return op->GetOpKind() == UnOpKind::kMinus || op->GetOpKind() == UnOpKind::kBitNot;
@@ -578,9 +565,7 @@ bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) 
         return false;
     }
     const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
-    if (!op) {
-        return false;
-    }
+    DEBUG_ASSERT(op);
     const auto k = op->GetOpKind();
     return k == BinOpKind::kLess || k == BinOpKind::kLessEqual || k == BinOpKind::kMore ||
            k == BinOpKind::kMoreEqual;
@@ -695,26 +680,18 @@ bool TypeInferencer::HasMathCallImprovement(
             return;
         }
         const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
-        if (!fc) {
-            return;
-        }
+        DEBUG_ASSERT(fc);
         const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-        if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
-            return;
-        }
+        DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
         const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-        if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
-            return;
-        }
+        DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
         const auto &callee_name = callee_var->GetName();
         const auto math_it = math_param_positions.find(callee_name);
         if (math_it == math_param_positions.end()) {
             return;
         }
         const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-        if (!args_ptr) {
-            return;
-        }
+        DEBUG_ASSERT(args_ptr);
         const auto raw_args = ExtractCallRawArgs(args_ptr);
         if (raw_args.empty()) {
             return;
@@ -726,9 +703,7 @@ bool TypeInferencer::HasMathCallImprovement(
             const auto &arg = raw_args[static_cast<size_t>(param_pos)];
             const auto it_typed = typed_map.find(arg.get());
             const auto it_comp = compare_map.find(arg.get());
-            if (it_typed == typed_map.end() || it_comp == compare_map.end()) {
-                continue;
-            }
+            DEBUG_ASSERT(it_typed != typed_map.end() && it_comp != compare_map.end());
             // typed_map 中该实参有类型但 compare_map 中没有：说明存在改善/退化。
             if ((it_typed->second == T_INT || it_typed->second == T_FLOAT) &&
                 it_comp->second != it_typed->second) {
@@ -751,9 +726,7 @@ bool TypeInferencer::HasArithmeticNodeTypeChange(const EvalTypeMap &typed_map,
         }
         const auto it_typed = typed_map.find(node.get());
         const auto it_compare = compare_map.find(node.get());
-        if (it_typed == typed_map.end() || it_compare == compare_map.end()) {
-            return;
-        }
+        DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
         if (!IsNumericInferredType(it_typed->second)) {
             return;
         }
@@ -781,17 +754,13 @@ bool TypeInferencer::HasComparisonOperandTypeChange(const EvalTypeMap &typed_map
         const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
         const auto left = exp->Left();
         const auto right = exp->Right();
-        if (!left || !right) {
-            return;
-        }
+        DEBUG_ASSERT(left && right);
         const auto lt_typed = typed_map.find(left.get());
         const auto rt_typed = typed_map.find(right.get());
         const auto lt_compare = compare_map.find(left.get());
         const auto rt_compare = compare_map.find(right.get());
-        if (lt_typed == typed_map.end() || rt_typed == typed_map.end() ||
-            lt_compare == compare_map.end() || rt_compare == compare_map.end()) {
-            return;
-        }
+        DEBUG_ASSERT(lt_typed != typed_map.end() && rt_typed != typed_map.end() &&
+                     lt_compare != compare_map.end() && rt_compare != compare_map.end());
         const bool both_typed = IsNumericInferredType(lt_typed->second) &&
                                 IsNumericInferredType(rt_typed->second);
         if (!both_typed) {
@@ -814,9 +783,7 @@ bool TypeInferencer::HasForLoopTypeChange(const EvalTypeMap &typed_map,
         }
         const auto it_typed = typed_map.find(node.get());
         const auto it_compare = compare_map.find(node.get());
-        if (it_typed == typed_map.end() || it_compare == compare_map.end()) {
-            return;
-        }
+        DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
         if (!IsNumericInferredType(it_typed->second)) {
             return;
         }
@@ -898,9 +865,7 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
         return false;
     }
     const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(block_node);
-    if (!block) {
-        return false;
-    }
+    DEBUG_ASSERT(block);
     const auto &stmts = block->Stmts();
     if (stmts.empty()) {
         return false;
@@ -996,13 +961,9 @@ InferredType TypeInferencer::ResolveCallReturnType(
     }
     // 提取被调函数名（仅支持简单形式 callee(...)，方法调用形式不处理）。
     const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-    if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
-        return T_DYNAMIC;
-    }
+    DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
     const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-    if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
-        return T_DYNAMIC;
-    }
+    DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
     const auto &callee_name = callee_var->GetName();
 
     const auto math_it = trial_math_positions_->find(callee_name);
@@ -1010,15 +971,11 @@ InferredType TypeInferencer::ResolveCallReturnType(
         return T_DYNAMIC;
     }
     const auto ret_it = trial_assumed_ret_->find(callee_name);
-    if (ret_it == trial_assumed_ret_->end()) {
-        return T_DYNAMIC;
-    }
+    DEBUG_ASSERT(ret_it != trial_assumed_ret_->end());
 
     // 从已推断的实参类型（current_map_ 中已由 InferNode(Args) 填充）构造 bitmask。
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-    if (!args_ptr) {
-        return T_DYNAMIC;
-    }
+    DEBUG_ASSERT(args_ptr);
     const auto raw_args = ExtractCallRawArgs(args_ptr);
     const auto &math_params = math_it->second;
 
@@ -1029,9 +986,7 @@ InferredType TypeInferencer::ResolveCallReturnType(
             return T_DYNAMIC;
         }
         const auto arg_it = current_map_.find(raw_args[static_cast<size_t>(param_pos)].get());
-        if (arg_it == current_map_.end()) {
-            return T_DYNAMIC;
-        }
+        DEBUG_ASSERT(arg_it != current_map_.end());
         if (arg_it->second == T_FLOAT) {
             bitmask |= (1 << i);
         } else if (arg_it->second != T_INT) {
@@ -1041,9 +996,7 @@ InferredType TypeInferencer::ResolveCallReturnType(
     }
 
     const auto &ret_types = ret_it->second;
-    if (bitmask >= static_cast<int>(ret_types.size())) {
-        return T_DYNAMIC;
-    }
+    DEBUG_ASSERT(bitmask < static_cast<int>(ret_types.size()));
     return ret_types[static_cast<size_t>(bitmask)];
 }
 
@@ -1083,9 +1036,7 @@ InferredType TypeInferencer::ComputeReturnTypeFromSnapshot(
 std::vector<TypeInferencer::FunctionSpecInfo> TypeInferencer::CollectFunctionSpecInfos(const ParseResult &pr) const {
     std::vector<FunctionSpecInfo> infos;
     const auto chunk = pr.chunk;
-    if (!chunk || chunk->Type() != SyntaxTreeType::Block) {
-        return infos;
-    }
+    DEBUG_ASSERT(chunk && chunk->Type() == SyntaxTreeType::Block);
 
     const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
     for (const auto &stmt : top_block->Stmts()) {
@@ -1112,13 +1063,9 @@ std::vector<TypeInferencer::FunctionSpecInfo> TypeInferencer::CollectFunctionSpe
         }
         const auto parlist_ptr = std::dynamic_pointer_cast<SyntaxTreeParlist>(parlist_node);
         const auto namelist_node = parlist_ptr->Namelist();
-        if (!namelist_node) {
-            continue;
-        }
+        DEBUG_ASSERT(namelist_node);
         const auto params = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist_node)->Names();
-        if (params.empty()) {
-            continue;
-        }
+        DEBUG_ASSERT(!params.empty());
         FunctionSpecInfo info;
         info.name = name;
         info.block = funcbody_ptr->Block();

@@ -1935,6 +1935,12 @@ std::string FuncBodyCompiler::CompileFunctioncall(const SyntaxTreeInterfacePtr &
         *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
         return tmp;
     } else if (local_func_names_->contains(func_name)) {
+        const int expected_params = local_func_names_->at(func_name);
+        if (static_cast<int>(compiled_args.size()) != expected_params) {
+            ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, expected_params,
+                                   compiled_args.size()),
+                       functioncall);
+        }
         call_expr = func_name + "(";
         for (size_t i = 0; i < compiled_args.size(); ++i) {
             if (i > 0) {
