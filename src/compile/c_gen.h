@@ -69,22 +69,22 @@ private:
     void CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt);
     void CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt);
     void CompileScopedBlock(const SyntaxTreeInterfacePtr &block);
-    [[nodiscard]] std::string CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix);
+    std::string CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix);
 
-    [[nodiscard]] std::string CompilePrefixexp(const SyntaxTreeInterfacePtr &pe);
-    [[nodiscard]] std::string CompileVar(const SyntaxTreeInterfacePtr &v);
-    [[nodiscard]] std::string CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall);
-    [[nodiscard]] std::string CompileTableconstructor(const SyntaxTreeInterfacePtr &tc);
-    [[nodiscard]] std::string CompileBinop(const SyntaxTreeInterfacePtr &left,
-                                           const SyntaxTreeInterfacePtr &right,
-                                           const SyntaxTreeInterfacePtr &op);
-    [[nodiscard]] std::string CompileUnop(const SyntaxTreeInterfacePtr &right,
-                                          const SyntaxTreeInterfacePtr &op);
+    std::string CompilePrefixexp(const SyntaxTreeInterfacePtr &pe);
+    std::string CompileVar(const SyntaxTreeInterfacePtr &v);
+    std::string CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall);
+    std::string CompileTableconstructor(const SyntaxTreeInterfacePtr &tc);
+    std::string CompileBinop(const SyntaxTreeInterfacePtr &left,
+                             const SyntaxTreeInterfacePtr &right,
+                             const SyntaxTreeInterfacePtr &op);
+    std::string CompileUnop(const SyntaxTreeInterfacePtr &right,
+                            const SyntaxTreeInterfacePtr &op);
 
-    [[nodiscard]] std::string CompileNumericExp(const SyntaxTreeInterfacePtr &exp);
-    [[nodiscard]] std::string TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp);
-    [[nodiscard]] std::string TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp);
-    [[nodiscard]] std::string TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node);
+    std::string CompileNumericExp(const SyntaxTreeInterfacePtr &exp);
+    std::string TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp);
+    std::string TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp);
+    std::string TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node);
 
     [[nodiscard]] InferredType InferExpType(const SyntaxTreeInterfacePtr &exp) const;
     [[nodiscard]] InferredType InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const;

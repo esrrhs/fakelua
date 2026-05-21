@@ -1653,7 +1653,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
         if (i < exps.size() && LookupNodeType(exps[i].get()) == T_INT) {
             const auto native_expr = CompileNumericExp(exps[i]);
             if (IsTypedNativeVar(name)) {
-                const auto tmp = std::format("flua_local_{}", (*tmp_var_counter_)++);
+                const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    int64_t " << tmp << ";\n";
                 *cur_output_ << GenTab() << tmp << " = " << native_expr << ";\n";
                 *cur_output_ << GenTab() << "int64_t " << name << " = " << tmp << ";\n";
@@ -1664,7 +1664,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
         } else if (i < exps.size() && LookupNodeType(exps[i].get()) == T_FLOAT) {
             const auto native_expr = CompileNumericExp(exps[i]);
             if (IsTypedNativeVar(name)) {
-                const auto tmp = std::format("flua_local_{}", (*tmp_var_counter_)++);
+                const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    double " << tmp << ";\n";
                 *cur_output_ << GenTab() << tmp << " = " << native_expr << ";\n";
                 *cur_output_ << GenTab() << "double " << name << " = " << tmp << ";\n";
@@ -1707,7 +1707,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                     if (!native_expr.empty()) {
                         const auto c_type = (spec_type == T_INT) ? "int64_t" : "double";
                         if (IsTypedNativeVar(name)) {
-                            const auto tmp = std::format("flua_local_{}", (*tmp_var_counter_)++);
+                            const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
                             func_temp_decls_ << "    " << c_type << " " << tmp << ";\n";
                             *cur_output_ << GenTab() << tmp << " = " << native_expr << ";\n";
                             *cur_output_ << GenTab() << c_type << " " << name << " = " << tmp << ";\n";
@@ -1778,7 +1778,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
             //       避免使用已失效的特化参数假设；
             //   (3) 运行时检查 CVar 类型，拆包为原生类型赋值；非数值则抛出运行时错误。
             const std::string rhs = CompileExp(exps[0]);
-            const auto tmp = std::format("flua_assign_tmp_{}", (*tmp_var_counter_)++);
+            const auto tmp = std::format("flua_assign_tmp_{}", tmp_var_counter_++);
             func_temp_decls_ << "    CVar " << tmp << ";\n";
             *cur_output_ << GenTab() << tmp << " = " << rhs << ";\n";
             // 移除过时的特化参数类型，让后续推断走 GetNativeVarType 而非 spec_param_types_。
@@ -1836,7 +1836,7 @@ std::string CGen::CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const s
     if (!native_cond.empty()) {
         return native_cond;
     }
-    const auto tmp_bool = std::format("{}_{}", tmp_prefix, (*tmp_var_counter_)++);
+    const auto tmp_bool = std::format("{}_{}", tmp_prefix, tmp_var_counter_++);
     func_temp_decls_ << "    bool " << tmp_bool << ";\n";
     const auto cond = CompileExp(exp);
     *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
@@ -1857,7 +1857,7 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
         return;
     }
 
-    const auto tmp_bool = std::format("flua_wbt_{}", (*tmp_var_counter_)++);
+    const auto tmp_bool = std::format("flua_wbt_{}", tmp_var_counter_++);
     func_temp_decls_ << "    bool " << tmp_bool << ";\n";
     *cur_output_ << GenTab() << "while (1) {\n";
     cur_tab_++;
@@ -1967,9 +1967,9 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
 }
 
 void CGen::CompileTypedIntForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt) {
-    const auto ctrl_var = std::format("flua_for_ctrl_{}", (*tmp_var_counter_)++);
-    const auto end_var = std::format("flua_for_end_{}", (*tmp_var_counter_)++);
-    const auto step_var = std::format("flua_for_step_{}", (*tmp_var_counter_)++);
+    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
+    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
+    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
 
     func_temp_decls_ << "    int64_t " << ctrl_var << ";\n";
     func_temp_decls_ << "    int64_t " << end_var << ";\n";
@@ -2017,9 +2017,9 @@ void CGen::CompileTypedIntForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_
 }
 
 void CGen::CompileTypedFloatForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt) {
-    const auto ctrl_var = std::format("flua_for_ctrl_{}", (*tmp_var_counter_)++);
-    const auto end_var = std::format("flua_for_end_{}", (*tmp_var_counter_)++);
-    const auto step_var = std::format("flua_for_step_{}", (*tmp_var_counter_)++);
+    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
+    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
+    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
 
     func_temp_decls_ << "    double " << ctrl_var << ";\n";
     func_temp_decls_ << "    double " << end_var << ";\n";
@@ -2071,12 +2071,12 @@ void CGen::CompileTypedFloatForLoop(const std::shared_ptr<SyntaxTreeForLoop> &fo
 }
 
 void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt) {
-    const auto ctrl_var = std::format("flua_for_ctrl_{}", (*tmp_var_counter_)++);
-    const auto end_var = std::format("flua_for_end_{}", (*tmp_var_counter_)++);
-    const auto step_var = std::format("flua_for_step_{}", (*tmp_var_counter_)++);
-    const auto step_pos_var = std::format("flua_for_step_pos_{}", (*tmp_var_counter_)++);
-    const auto cond_var = std::format("flua_for_cond_{}", (*tmp_var_counter_)++);
-    const auto cmp_var = std::format("flua_for_cmp_{}", (*tmp_var_counter_)++);
+    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
+    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
+    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
+    const auto step_pos_var = std::format("flua_for_step_pos_{}", tmp_var_counter_++);
+    const auto cond_var = std::format("flua_for_cond_{}", tmp_var_counter_++);
+    const auto cmp_var = std::format("flua_for_cmp_{}", tmp_var_counter_++);
 
     func_temp_decls_ << "    CVar " << ctrl_var << ";\n";
     func_temp_decls_ << "    CVar " << end_var << ";\n";
@@ -2187,9 +2187,9 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
 
     const auto tbl_expr = CompileExp(args_explist_ptr->Exps()[0]);
 
-    const auto tbl_var = std::format("flua_fi_tbl_{}", (*tmp_var_counter_)++);
-    const auto sz_var = std::format("flua_fi_sz_{}", (*tmp_var_counter_)++);
-    const auto idx_var = std::format("flua_fi_idx_{}", (*tmp_var_counter_)++);
+    const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);
+    const auto sz_var = std::format("flua_fi_sz_{}", tmp_var_counter_++);
+    const auto idx_var = std::format("flua_fi_idx_{}", tmp_var_counter_++);
 
     func_temp_decls_ << "    CVar " << tbl_var << ";\n";
     func_temp_decls_ << "    uint32_t " << sz_var << ";\n";
@@ -2208,7 +2208,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         *cur_output_ << GenTab() << "CVar " << key_name << "; CVar " << val_name << ";\n";
         *cur_output_ << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, key_name, val_name);
     } else {
-        const auto dummy_val = std::format("flua_fi_dummy_val_{}", (*tmp_var_counter_)++);
+        const auto dummy_val = std::format("flua_fi_dummy_val_{}", tmp_var_counter_++);
         func_temp_decls_ << "    CVar " << dummy_val << ";\n";
         *cur_output_ << GenTab() << "CVar " << key_name << ";\n";
         *cur_output_ << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, key_name, dummy_val);
@@ -2241,19 +2241,19 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
     DEBUG_ASSERT(exp_kind != ExpKind::kVarParams && "VarParams should have been caught by PreProcessor");
 
     if (exp_kind == ExpKind::kNil) {
-        if (*in_global_init_) {
+        if (in_global_init_) {
             return "(CVar){.type_ = VAR_NIL}";
         } else {
             return "kNil";
         }
     } else if (exp_kind == ExpKind::kFalse) {
-        if (*in_global_init_) {
+        if (in_global_init_) {
             return "(CVar){.type_ = VAR_BOOL, .data_.b = false}";
         } else {
             return "kFalse";
         }
     } else if (exp_kind == ExpKind::kTrue) {
-        if (*in_global_init_) {
+        if (in_global_init_) {
             return "(CVar){.type_ = VAR_BOOL, .data_.b = true}";
         } else {
             return "kTrue";
@@ -2310,12 +2310,12 @@ std::string CGen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe) {
 }
 
 std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
-    DEBUG_ASSERT(!(*in_global_init_));
+    DEBUG_ASSERT(!(in_global_init_));
 
     DEBUG_ASSERT(tc->Type() == SyntaxTreeType::TableConstructor);
     const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc);
 
-    const auto var_name = std::format("flua_tbl_{}", (*tmp_var_counter_)++);
+    const auto var_name = std::format("flua_tbl_{}", tmp_var_counter_++);
 
     func_temp_decls_ << "    " << "CVar " << var_name << ";\n";
     *cur_output_ << GenTab() << "SET_TABLE(" << var_name << ");\n";
@@ -2379,7 +2379,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left,
                                             const SyntaxTreeInterfacePtr &right,
                                             const SyntaxTreeInterfacePtr &op) {
-    DEBUG_ASSERT(!(*in_global_init_));
+    DEBUG_ASSERT(!(in_global_init_));
 
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeBinop>(op);
     const auto op_kind = op_ptr->GetOpKind();
@@ -2388,9 +2388,9 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left,
     if (op_kind == BinOpKind::kAnd || op_kind == BinOpKind::kOr) {
         const auto left_str = CompileExp(left);
 
-        const auto tmp = std::format("flua_op_{}", (*tmp_var_counter_)++);
+        const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
         func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
-        const auto tmp_bool = std::format("flua_bt_{}", (*tmp_var_counter_)++);
+        const auto tmp_bool = std::format("flua_bt_{}", tmp_var_counter_++);
         func_temp_decls_ << "    " << "bool " << tmp_bool << ";\n";
 
         *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", left_str, tmp_bool);
@@ -2457,7 +2457,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left,
                 native_expr = std::format("pow((double)({}), (double)({}))", left_native, right_native);
             } else if (op_kind == BinOpKind::kDoubleSlash) {
                 if (result_type == T_INT) {
-                    const auto ntmp = std::format("flua_native_{}", (*tmp_var_counter_)++);
+                    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    int64_t " << ntmp << ";\n";
                     *cur_output_ << GenTab() << std::format("FlFloorDivInt(({}), ({}), {});\n", left_native, right_native, ntmp);
                     native_expr = ntmp;
@@ -2466,12 +2466,12 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left,
                 }
             } else if (op_kind == BinOpKind::kMod) {
                 if (result_type == T_INT) {
-                    const auto ntmp = std::format("flua_native_{}", (*tmp_var_counter_)++);
+                    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    int64_t " << ntmp << ";\n";
                     *cur_output_ << GenTab() << std::format("FlModInt(({}), ({}), {});\n", left_native, right_native, ntmp);
                     native_expr = ntmp;
                 } else {
-                    const auto ntmp = std::format("flua_native_{}", (*tmp_var_counter_)++);
+                    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    double " << ntmp << ";\n";
                     *cur_output_ << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left_native, right_native, ntmp);
                     native_expr = ntmp;
@@ -2483,18 +2483,18 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left,
             } else if (op_kind == BinOpKind::kXor) {
                 native_expr = std::format("((int64_t)({}) ^ (int64_t)({}))", left_native, right_native);
             } else if (op_kind == BinOpKind::kLeftShift) {
-                const auto ntmp = std::format("flua_native_{}", (*tmp_var_counter_)++);
+                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    int64_t " << ntmp << ";\n";
                 *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
                 native_expr = ntmp;
             } else if (op_kind == BinOpKind::kRightShift) {
-                const auto ntmp = std::format("flua_native_{}", (*tmp_var_counter_)++);
+                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    int64_t " << ntmp << ";\n";
                 *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
                 native_expr = ntmp;
             }
             if (!native_expr.empty()) {
-                const auto tmp = std::format("flua_op_{}", (*tmp_var_counter_)++);
+                const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    CVar " << tmp << ";\n";
                 *cur_output_ << GenTab() << tmp << " = " << BoxNativeValue(native_expr, result_type) << ";\n";
                 return tmp;
@@ -2505,7 +2505,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left,
     const auto left_str = CompileExp(left);
     const auto right_str = CompileExp(right);
 
-    const auto tmp = std::format("flua_op_{}", (*tmp_var_counter_)++);
+    const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
 
     const auto l = std::format("({})", left_str);
@@ -2558,14 +2558,14 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left,
 
 std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right,
                                            const SyntaxTreeInterfacePtr &op) {
-    DEBUG_ASSERT(!(*in_global_init_));
+    DEBUG_ASSERT(!(in_global_init_));
 
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeUnop>(op);
     const auto op_kind = op_ptr->GetOpKind();
 
     const auto right_str = CompileExp(right);
 
-    const auto tmp = std::format("flua_op_{}", (*tmp_var_counter_)++);
+    const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
 
     const auto r = std::format("({})", right_str);
@@ -2609,7 +2609,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
 
     if (const auto var_kind = v_ptr->GetVarKind(); var_kind == VarKind::kSimple) {
         const auto &name = v_ptr->GetName();
-        DEBUG_ASSERT(!(*in_global_init_));
+        DEBUG_ASSERT(!(in_global_init_));
         if (const auto spec_it = spec_param_types_.find(name); spec_it != spec_param_types_.end()) {
             if (spec_it->second == T_INT) {
                 return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
@@ -2634,14 +2634,14 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         }
         return name;
     } else if (var_kind == VarKind::kSquare) {
-        DEBUG_ASSERT(!(*in_global_init_));
+        DEBUG_ASSERT(!(in_global_init_));
         const auto pe = v_ptr->GetPrefixexp();
         const auto exp = v_ptr->GetExp();
         auto pe_ret = CompilePrefixexp(pe);
         auto exp_ret = CompileExp(exp);
         return std::format("FlGetTable({}, {})", pe_ret, exp_ret);
     } else /*if (var_kind == VarKind::kDot)*/ {
-        DEBUG_ASSERT(!(*in_global_init_));
+        DEBUG_ASSERT(!(in_global_init_));
         const auto pe = v_ptr->GetPrefixexp();
         const auto name = v_ptr->GetName();
         auto pe_ret = CompilePrefixexp(pe);
@@ -2760,7 +2760,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         }
         if (op_kind == BinOpKind::kDoubleSlash) {
             if (LookupNodeType(e.get()) == T_INT) {
-                const auto ntmp = std::format("flua_native_{}", (*tmp_var_counter_)++);
+                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    int64_t " << ntmp << ";\n";
                 *cur_output_ << GenTab() << std::format("FlFloorDivInt(({}), ({}), {});\n", left, right, ntmp);
                 return ntmp;
@@ -2769,12 +2769,12 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         }
         if (op_kind == BinOpKind::kMod) {
             if (LookupNodeType(e.get()) == T_INT) {
-                const auto ntmp = std::format("flua_native_{}", (*tmp_var_counter_)++);
+                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    int64_t " << ntmp << ";\n";
                 *cur_output_ << GenTab() << std::format("FlModInt(({}), ({}), {});\n", left, right, ntmp);
                 return ntmp;
             }
-            const auto ntmp = std::format("flua_native_{}", (*tmp_var_counter_)++);
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
             func_temp_decls_ << "    double " << ntmp << ";\n";
             *cur_output_ << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left, right, ntmp);
             return ntmp;
@@ -2789,13 +2789,13 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return std::format("((int64_t)({}) ^ (int64_t)({}))", left, right);
         }
         if (op_kind == BinOpKind::kLeftShift) {
-            const auto ntmp = std::format("flua_native_{}", (*tmp_var_counter_)++);
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
             func_temp_decls_ << "    int64_t " << ntmp << ";\n";
             *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left, right, ntmp);
             return ntmp;
         }
         if (op_kind == BinOpKind::kRightShift) {
-            const auto ntmp = std::format("flua_native_{}", (*tmp_var_counter_)++);
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
             func_temp_decls_ << "    int64_t " << ntmp << ";\n";
             *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left, right, ntmp);
             return ntmp;
@@ -2808,7 +2808,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         const auto op_kind = op->GetOpKind();
         if (op_kind == UnOpKind::kNumberSign) {
             const auto operand_cvar = CompileExp(e->Right());
-            const auto ntmp = std::format("flua_native_{}", (*tmp_var_counter_)++);
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
             func_temp_decls_ << "    int64_t " << ntmp << ";\n";
             *cur_output_ << GenTab() << std::format("FlLenInt({}, {});\n", operand_cvar, ntmp);
             return ntmp;
@@ -2904,7 +2904,7 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
     }
     call += ")";
 
-    const auto ntmp = std::format("flua_native_{}", (*tmp_var_counter_)++);
+    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << SpecReturnCTypeName(spec_ret) << " " << ntmp << ";\n";
     *cur_output_ << GenTab() << ntmp << " = " << call << ";\n";
     return ntmp;
@@ -2931,7 +2931,7 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
 // 返回值：CVar 类型的临时变量名，供调用方（CompileExp/CompileNumericExp）使用。
 // ---------------------------------------------------------------------------
 std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall) {
-    DEBUG_ASSERT(!(*in_global_init_));
+    DEBUG_ASSERT(!(in_global_init_));
 
     DEBUG_ASSERT(functioncall->Type() == SyntaxTreeType::FunctionCall);
     const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall);
@@ -2991,10 +2991,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                         }
                         call += ")";
                         const auto spec_ret = GetSpecReturnType(callee_name, bitmask);
-                        const auto tmp = std::format("flua_call_{}", (*tmp_var_counter_)++);
+                        const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
                         func_temp_decls_ << "    CVar " << tmp << ";\n";
                         if (spec_ret == T_INT || spec_ret == T_FLOAT) {
-                            const auto ntmp = std::format("flua_native_{}", (*tmp_var_counter_)++);
+                            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                             func_temp_decls_ << "    " << SpecReturnCTypeName(spec_ret) << " " << ntmp << ";\n";
                             *cur_output_ << GenTab() << ntmp << " = " << call << ";\n";
                             *cur_output_ << GenTab() << tmp << " = " << BoxNativeValue(ntmp, spec_ret) << ";\n";
@@ -3033,7 +3033,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         if (compiled_args.size() != 3) {
             ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
         }
-        const auto tmp = std::format("flua_call_{}", (*tmp_var_counter_)++);
+        const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
         func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
         *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", compiled_args[0], compiled_args[1], compiled_args[2]);
         *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
@@ -3060,7 +3060,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         }
         call_expr += ")";
     }
-    const auto tmp = std::format("flua_call_{}", (*tmp_var_counter_)++);
+    const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
     *cur_output_ << GenTab() << tmp << " = " << call_expr << ";\n";
 
