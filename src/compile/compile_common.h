@@ -98,7 +98,7 @@ inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_
 }
 
 // ---- 无状态代码生成帮助函数 -------------------------------------------------
-// 这些函数不依赖任何实例状态，供 CGen 和 FuncBodyCompiler 共同使用。
+// 这些函数不依赖任何实例状态，供 CGen 使用。
 
 // 返回特化函数返回值对应的 C 类型名称字符串（"int64_t"、"double" 或 "CVar"）。
 inline const char *SpecReturnCTypeName(InferredType ret_type) {
@@ -183,22 +183,6 @@ struct GenResult {
     std::unordered_map<std::string, int> function_names;
 };
 
-// ---- 函数体编译上下文 -------------------------------------------------------
-// 将 FuncBodyCompiler 所需的所有外部上下文打包为一个结构体，
-// 供 FuncBodyCompiler 的构造函数使用（消除两阶段初始化）。
-// 非 map 字段（file_name、in_global_init、tmp_var_counter）仍以指针传递，
-// 因为它们是跨函数体共享的可变状态；map 字段以值拷贝传递，由 FuncBodyCompiler 独立持有。
-struct FuncBodyContext {
-    const std::string *file_name;
-    std::unordered_map<std::string, int> local_func_names;
-    std::unordered_map<std::string, InferredType> global_const_vars;
-    bool *in_global_init;
-    int *tmp_var_counter;
-    std::unordered_map<std::string, std::vector<int>> math_param_positions;
-    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots;
-    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
-    EvalTypeSnapshot main_eval_types;
-};
 
 
 }// namespace fakelua
