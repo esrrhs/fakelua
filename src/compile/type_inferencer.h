@@ -1,6 +1,7 @@
 #pragma once
 
 #include "compile/compile_common.h"
+#include <optional>
 #include <unordered_set>
 
 namespace fakelua {
@@ -181,10 +182,10 @@ private:
     // 使函数体的试推断能看到正确的文件级常量类型，进而支持函数特化。
     std::unordered_map<std::string, InferredType> file_level_types_;
 
-    // 当非 null 时，InferNode(FunctionCall) 会调用 ResolveCallReturnType 注入被调函数返回类型。
-    // 仅在 RunTrialInference 执行期间被临时设置，主推断遍（Process）中始终为 null。
-    const std::unordered_map<std::string, std::vector<int>> *trial_math_positions_ = nullptr;
-    const std::unordered_map<std::string, std::vector<InferredType>> *trial_assumed_ret_ = nullptr;
+    // 当非 nullopt 时，InferNode(FunctionCall) 会调用 ResolveCallReturnType 注入被调函数返回类型。
+    // 仅在 RunTrialInference 执行期间被临时设置，主推断遍（Process）中始终为 nullopt。
+    std::optional<std::unordered_map<std::string, std::vector<int>>> trial_math_positions_;
+    std::optional<std::unordered_map<std::string, std::vector<InferredType>>> trial_assumed_ret_;
 
     // 试推断期间被固定（pinned）的变量名集合：这些变量对应当前特化版本的数学参数，
     // 其 env 类型在 InferNode(Assign) 中不可被降级（以模拟运行时类型检查的保证）。

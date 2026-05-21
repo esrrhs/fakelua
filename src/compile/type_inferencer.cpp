@@ -235,7 +235,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             InferNode(functioncall->prefixexp());
             InferNode(functioncall->Args());
             // 当正在运行携带被调函数返回类型提示的试推断时，尝试解析该函数调用的实际返回类型。
-            // 主推断遍（trial_assumed_ret_ == nullptr）保持原有的 T_DYNAMIC 行为。
+            // 主推断遍（trial_assumed_ret_ 为 nullopt）保持原有的 T_DYNAMIC 行为。
             const auto ret_type = ResolveCallReturnType(functioncall);
             current_map_[node.get()] = ret_type;
             return ret_type;
@@ -580,10 +580,10 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
     TypeEnvironment saved_env = env_;
     const bool saved_in_funcbody = in_funcbody_;
     // 临时注入被调函数返回类型提示，供 ResolveCallReturnType 使用。
-    const auto saved_trial_math = trial_math_positions_;
-    const auto saved_trial_ret = trial_assumed_ret_;
-    trial_math_positions_ = math_positions;
-    trial_assumed_ret_ = assumed_ret;
+    auto saved_trial_math = std::move(trial_math_positions_);
+    auto saved_trial_ret = std::move(trial_assumed_ret_);
+    trial_math_positions_ = math_positions ? std::make_optional(*math_positions) : std::nullopt;
+    trial_assumed_ret_ = assumed_ret ? std::make_optional(*assumed_ret) : std::nullopt;
 
     // 收集被固定的变量名（数学参数，即被分配了 T_INT/T_FLOAT 的参数）。
     // 在 InferNode(Assign) 中，对这些变量的 env 更新将被跳过，以模拟运行时类型检查
@@ -940,7 +940,7 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
 // ---------------------------------------------------------------------------
 // ResolveCallReturnType —— 试推断期间查询被调函数的返回类型
 //
-// 仅在 trial_math_positions_ 和 trial_assumed_ret_ 均非 null 时生效（即携带被调函数
+// 仅在 trial_math_positions_ 和 trial_assumed_ret_ 均非 nullopt 时生效（即携带被调函数
 // 返回类型提示的试推断轮次中）。对于普通主推断遍，始终返回 T_DYNAMIC（行为与以前相同）。
 //
 // 算法：
@@ -951,7 +951,7 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
 // ---------------------------------------------------------------------------
 InferredType TypeInferencer::ResolveCallReturnType(
         const std::shared_ptr<SyntaxTreeFunctioncall> &fc) const {
-    if (!trial_math_positions_ || !trial_assumed_ret_) {
+    if (!trial_math_positions_.has_value() || !trial_assumed_ret_.has_value()) {
         return T_DYNAMIC;
     }
     // 提取被调函数名（仅支持简单形式 callee(...)，方法调用形式不处理）。

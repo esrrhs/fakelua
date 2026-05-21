@@ -20,11 +20,11 @@ class State;
 //   • 特化上下文            —— 当前数学参数类型与快照
 //   • 每次函数体的输出缓冲区 —— func_temp_decls_ + body_ss_
 //
-// 对以下数据持非拥有指针（生命周期由调用方 CGen 保证），
-// 全部通过 FuncBodyContext 在构造时一次性注入：
-//   • file_name_, local_func_names_, global_const_vars_, in_global_init_
-//   • tmp_var_counter_ （跨函数持久累加）
-//   • InferResult 中的特化快照与数学参数信息
+// 对以下数据持非拥有指针（生命周期由调用方 CGen 保证）：
+//   • file_name_、in_global_init_、tmp_var_counter_
+// 以下数据以值拷贝方式持有（编译阶段时间不值钱，安全优先）：
+//   • local_func_names_、global_const_vars_、math_param_positions_
+//   • specialization_snapshots_、specialization_return_types_、main_eval_types_
 class FuncBodyCompiler {
 public:
     // 构造函数：一次性注入 State 和所有外部上下文指针。
