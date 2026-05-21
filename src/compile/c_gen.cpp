@@ -1176,10 +1176,11 @@ InferredType CGen::GetSpecReturnType(const std::string &func_name, int bitmask) 
 }
 
 void CGen::CompileFuncBody(const std::string &func_name,
-                                        const std::vector<std::string> &func_params,
-                                        const SyntaxTreeInterfacePtr &func_block,
-                                        int spec_bitmask,
-                                        std::ostream &out) {
+                                         const std::vector<std::string> &func_params,
+                                         const SyntaxTreeInterfacePtr &func_block,
+                                         int spec_bitmask,
+                                         std::ostream &out) {
+    auto *prev_output = cur_output_;
     // 初始化特化上下文。
     spec_param_types_.clear();
     cur_spec_bitmask_ = spec_bitmask;
@@ -1237,7 +1238,7 @@ void CGen::CompileFuncBody(const std::string &func_name,
     cur_spec_bitmask_ = -1;
     cur_spec_func_name_ = "";
     cur_spec_snapshot_ = nullptr;
-    cur_output_ = nullptr;
+    cur_output_ = prev_output;
 }
 
 bool CGen::TryInferMathCallBitmask(const std::string &callee_name,
