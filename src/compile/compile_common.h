@@ -184,19 +184,20 @@ struct GenResult {
 };
 
 // ---- 函数体编译上下文 -------------------------------------------------------
-// 将 FuncBodyCompiler 所需的所有外部上下文指针打包为一个结构体，
+// 将 FuncBodyCompiler 所需的所有外部上下文打包为一个结构体，
 // 供 FuncBodyCompiler 的构造函数使用（消除两阶段初始化）。
-// 所有指针必须在 FuncBodyCompiler 的整个生命周期内保持有效（由 CGen 保证）。
+// 非 map 字段（file_name、in_global_init、tmp_var_counter）仍以指针传递，
+// 因为它们是跨函数体共享的可变状态；map 字段以值拷贝传递，由 FuncBodyCompiler 独立持有。
 struct FuncBodyContext {
     const std::string *file_name;
-    const std::unordered_map<std::string, int> *local_func_names;
-    const std::unordered_map<std::string, InferredType> *global_const_vars;
+    std::unordered_map<std::string, int> local_func_names;
+    std::unordered_map<std::string, InferredType> global_const_vars;
     bool *in_global_init;
     int *tmp_var_counter;
-    const std::unordered_map<std::string, std::vector<int>> *math_param_positions;
-    const std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> *specialization_snapshots;
-    const std::unordered_map<std::string, std::vector<InferredType>> *specialization_return_types;
-    const EvalTypeSnapshot *main_eval_types;
+    std::unordered_map<std::string, std::vector<int>> math_param_positions;
+    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots;
+    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
+    EvalTypeSnapshot main_eval_types;
 };
 
 

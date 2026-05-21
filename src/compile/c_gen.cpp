@@ -40,26 +40,31 @@ GenResult CGen::Build(const ParseResult &pr, const InferResult &ir, const Compil
     // 加载数学参数分析结果，供 GenerateDecls 和 GenerateImpl 使用。
     math_param_positions_ = ir.math_param_positions;
 
-    // 构造 FuncBodyCompiler，一次性注入所有上下文（消除两阶段初始化）。
+    // 构造 FuncBodyCompiler，注入 InferResult 的值拷贝和共享的可变状态指针。
+    // local_func_names 和 global_const_vars 在此时尚未填充，
+    // 须在 GenerateGlobal / GenerateDecls 之后通过 UpdateGlobalConstVars /
+    // UpdateLocalFuncNames 同步。
     func_compiler_ = std::make_unique<FuncBodyCompiler>(s_, FuncBodyContext{
             &file_name_,
-            &local_func_names_,
-            &global_const_vars_,
+            {},
+            {},
             &in_global_init_,
             &tmp_var_counter_,
-            &math_param_positions_,
-            &ir.specialization_snapshots,
-            &ir.specialization_return_types,
-            &ir.main_eval_types});
+            ir.math_param_positions,
+            ir.specialization_snapshots,
+            ir.specialization_return_types,
+            ir.main_eval_types});
 
     GenResult gr;
     cur_output_ = &headers_;
     GenerateHeader();
     cur_output_ = &globals_;
     GenerateGlobal(pr.chunk);
+    func_compiler_->UpdateGlobalConstVars(global_const_vars_);
     cur_output_ = &decls_;
     GenerateDecls(pr.chunk, gr);
     local_func_names_ = gr.function_names;
+    func_compiler_->UpdateLocalFuncNames(local_func_names_);
     cur_output_ = &impls_;
     GenerateImpl(pr.chunk, gr);
     if (cfg.record_c_code) {
