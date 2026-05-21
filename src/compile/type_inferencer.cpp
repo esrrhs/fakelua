@@ -631,11 +631,11 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
         prev_map = std::move(curr_map);
     }
 
-    // 恢复推断器状态（含被调函数提示指针和固定变量集合）。
+    // 恢复推断器状态（含被调函数提示和固定变量集合）。
     env_ = std::move(saved_env);
     in_funcbody_ = saved_in_funcbody;
-    trial_math_positions_ = saved_trial_math;
-    trial_assumed_ret_ = saved_trial_ret;
+    trial_math_positions_ = std::move(saved_trial_math);
+    trial_assumed_ret_ = std::move(saved_trial_ret);
     pinned_vars_ = std::move(saved_pinned);
 
     return prev_map;

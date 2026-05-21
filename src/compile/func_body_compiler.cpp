@@ -8,17 +8,17 @@
 
 namespace fakelua {
 
-FuncBodyCompiler::FuncBodyCompiler(State *s, const FuncBodyContext &ctx)
+FuncBodyCompiler::FuncBodyCompiler(State *s, FuncBodyContext ctx)
     : s_(s),
       file_name_(ctx.file_name),
-      local_func_names_(ctx.local_func_names),
-      global_const_vars_(ctx.global_const_vars),
       in_global_init_(ctx.in_global_init),
       tmp_var_counter_(ctx.tmp_var_counter),
-      math_param_positions_(ctx.math_param_positions),
-      specialization_snapshots_(ctx.specialization_snapshots),
-      specialization_return_types_(ctx.specialization_return_types),
-      main_eval_types_(ctx.main_eval_types) {
+      local_func_names_(std::move(ctx.local_func_names)),
+      global_const_vars_(std::move(ctx.global_const_vars)),
+      math_param_positions_(std::move(ctx.math_param_positions)),
+      specialization_snapshots_(std::move(ctx.specialization_snapshots)),
+      specialization_return_types_(std::move(ctx.specialization_return_types)),
+      main_eval_types_(std::move(ctx.main_eval_types)) {
 }
 
 [[noreturn]] void FuncBodyCompiler::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) const {
@@ -38,20 +38,15 @@ InferredType FuncBodyCompiler::LookupNodeType(SyntaxTreeInterface *node) const {
             return it->second;
         }
     }
-    if (main_eval_types_) {
-        if (const auto it = main_eval_types_->find(node); it != main_eval_types_->end()) {
-            return it->second;
-        }
+    if (const auto it = main_eval_types_.find(node); it != main_eval_types_.end()) {
+        return it->second;
     }
     return T_UNKNOWN;
 }
 
 InferredType FuncBodyCompiler::GetSpecReturnType(const std::string &func_name, int bitmask) const {
-    if (!specialization_return_types_) {
-        return T_DYNAMIC;
-    }
-    const auto it = specialization_return_types_->find(func_name);
-    if (it == specialization_return_types_->end()) {
+    const auto it = specialization_return_types_.find(func_name);
+    if (it == specialization_return_types_.end()) {
         return T_DYNAMIC;
     }
     if (bitmask < 0 || bitmask >= static_cast<int>(it->second.size())) {
@@ -72,7 +67,7 @@ void FuncBodyCompiler::CompileFuncBody(const std::string &func_name,
     cur_spec_snapshot_ = nullptr;
 
     if (spec_bitmask >= 0) {
-        const auto &math_params = math_param_positions_->at(func_name);
+        const auto &math_params = math_param_positions_.at(func_name);
         for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
             const auto &param_name = func_params[static_cast<size_t>(math_params[i])];
             spec_param_types_[param_name] =
@@ -80,13 +75,11 @@ void FuncBodyCompiler::CompileFuncBody(const std::string &func_name,
         }
         // 查找当前位掩码对应的快照，以便 CompileStmtLocalVar / CompileVar
         // 在此参数类型组合下能查询到每个 AST 节点的正确类型。
-        if (specialization_snapshots_) {
-            if (const auto snap_it = specialization_snapshots_->find(func_name);
-                snap_it != specialization_snapshots_->end()) {
-                const auto &snaps = snap_it->second;
-                if (spec_bitmask < static_cast<int>(snaps.size())) {
-                    cur_spec_snapshot_ = &snaps[static_cast<size_t>(spec_bitmask)];
-                }
+        if (const auto snap_it = specialization_snapshots_.find(func_name);
+            snap_it != specialization_snapshots_.end()) {
+            const auto &snaps = snap_it->second;
+            if (spec_bitmask < static_cast<int>(snaps.size())) {
+                cur_spec_snapshot_ = &snaps[static_cast<size_t>(spec_bitmask)];
             }
         }
     }
@@ -130,8 +123,8 @@ void FuncBodyCompiler::CompileFuncBody(const std::string &func_name,
 bool FuncBodyCompiler::TryInferMathCallBitmask(const std::string &callee_name,
                                                const std::vector<SyntaxTreeInterfacePtr> &raw_args,
                                                int &bitmask) const {
-    const auto math_it = math_param_positions_->find(callee_name);
-    if (math_it == math_param_positions_->end()) {
+    const auto math_it = math_param_positions_.find(callee_name);
+    if (math_it == math_param_positions_.end()) {
         return false;
     }
     const auto &math_params = math_it->second;
@@ -209,11 +202,9 @@ InferredType FuncBodyCompiler::InferExpType(const SyntaxTreeInterfacePtr &exp) c
                 return native_type;
             }
             // 文件级数值常量（static const int64_t / double）：返回其记录的原生类型。
-            if (global_const_vars_) {
-                if (const auto git = global_const_vars_->find(name); git != global_const_vars_->end()) {
-                    if (git->second == T_INT || git->second == T_FLOAT) {
-                        return git->second;
-                    }
+            if (const auto git = global_const_vars_.find(name); git != global_const_vars_.end()) {
+                if (git->second == T_INT || git->second == T_FLOAT) {
+                    return git->second;
                 }
             }
             return T_DYNAMIC;
@@ -237,11 +228,8 @@ InferredType FuncBodyCompiler::InferExpType(const SyntaxTreeInterfacePtr &exp) c
                 return T_DYNAMIC;
             }
             const auto &callee_name = callee_var->GetName();
-            if (!math_param_positions_) {
-                return T_DYNAMIC;
-            }
-            const auto math_it = math_param_positions_->find(callee_name);
-            if (math_it == math_param_positions_->end() || math_it->second.empty()) {
+            const auto math_it = math_param_positions_.find(callee_name);
+            if (math_it == math_param_positions_.end() || math_it->second.empty()) {
                 return T_DYNAMIC;
             }
             const auto &math_params = math_it->second;
@@ -538,7 +526,7 @@ void FuncBodyCompiler::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
     for (size_t i = 0; i < names.size(); ++i) {
         const auto &name = names[i];
 
-        if (global_const_vars_->contains(name)) {
+        if (global_const_vars_.contains(name)) {
             ThrowError("local variable conflicts with global constant: " + name, stmt);
         }
 
@@ -1516,14 +1504,12 @@ std::string FuncBodyCompiler::CompileVar(const SyntaxTreeInterfacePtr &v) {
             return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
         }
         // 文件级数值常量（static const int64_t / double）：装箱为 CVar 后返回。
-        if (global_const_vars_) {
-            if (const auto git = global_const_vars_->find(name); git != global_const_vars_->end()) {
-                if (git->second == T_INT) {
-                    return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
-                }
-                if (git->second == T_FLOAT) {
-                    return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
-                }
+        if (const auto git = global_const_vars_.find(name); git != global_const_vars_.end()) {
+            if (git->second == T_INT) {
+                return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
+            }
+            if (git->second == T_FLOAT) {
+                return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
             }
         }
         return name;
@@ -1592,11 +1578,9 @@ std::string FuncBodyCompiler::CompileNumericExp(const SyntaxTreeInterfacePtr &ex
                 return vname;
             }
             // 文件级数值常量（static const int64_t / double）：直接用名称。
-            if (global_const_vars_) {
-                if (const auto git = global_const_vars_->find(vname); git != global_const_vars_->end()) {
-                    if (git->second == T_INT || git->second == T_FLOAT) {
-                        return vname;
-                    }
+            if (const auto git = global_const_vars_.find(vname); git != global_const_vars_.end()) {
+                if (git->second == T_INT || git->second == T_FLOAT) {
+                    return vname;
                 }
             }
             if (LookupNodeType(e.get()) == T_FLOAT) {
@@ -1774,7 +1758,7 @@ std::string FuncBodyCompiler::TryCompileNativeSpecCallExpr(const SyntaxTreeInter
         return {};
     }
 
-    const auto &math_params = math_param_positions_->at(callee_name);
+    const auto &math_params = math_param_positions_.at(callee_name);
 
     std::unordered_map<int, std::string> native_exprs;
     for (int param_pos: math_params) {
@@ -1850,8 +1834,8 @@ std::string FuncBodyCompiler::CompileFunctioncall(const SyntaxTreeInterfacePtr &
         const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
         if (callee_var && callee_var->GetVarKind() == VarKind::kSimple) {
             const auto &callee_name = callee_var->GetName();
-            const auto math_it = math_param_positions_->find(callee_name);
-            if (math_it != math_param_positions_->end()) {
+            const auto math_it = math_param_positions_.find(callee_name);
+            if (math_it != math_param_positions_.end()) {
                 const auto &math_params = math_it->second;
                 const auto explist_arg = args_ptr->Explist();
                 DEBUG_ASSERT(explist_arg->Type() == SyntaxTreeType::ExpList);
@@ -1934,8 +1918,8 @@ std::string FuncBodyCompiler::CompileFunctioncall(const SyntaxTreeInterfacePtr &
         *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", compiled_args[0], compiled_args[1], compiled_args[2]);
         *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
         return tmp;
-    } else if (local_func_names_->contains(func_name)) {
-        const int expected_params = local_func_names_->at(func_name);
+    } else if (local_func_names_.contains(func_name)) {
+        const int expected_params = local_func_names_.at(func_name);
         if (static_cast<int>(compiled_args.size()) != expected_params) {
             ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, expected_params,
                                    compiled_args.size()),

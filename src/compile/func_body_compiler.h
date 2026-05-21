@@ -27,9 +27,12 @@ class State;
 //   • specialization_snapshots_、specialization_return_types_、main_eval_types_
 class FuncBodyCompiler {
 public:
-    // 构造函数：一次性注入 State 和所有外部上下文指针。
-    // ctx 中所有指针必须在 FuncBodyCompiler 使用期间持续有效（由 CGen 保证）。
-    explicit FuncBodyCompiler(State *s, const FuncBodyContext &ctx);
+    // 构造函数：一次性注入 State 和所有外部上下文。
+    // ctx 按值传递，map 字段被移入成员；指针字段（file_name、in_global_init、
+    // tmp_var_counter）仍以指针形式指向 CGen 拥有的可变状态（生命周期由 CGen 保证）。
+    // local_func_names 和 global_const_vars 在构造时允许为空，
+    // 须在使用前通过 UpdateLocalFuncNames / UpdateGlobalConstVars 补充。
+    explicit FuncBodyCompiler(State *s, FuncBodyContext ctx);
 
     // 编译一个表达式并返回其 C 表达式字符串。
     // 在 global-constant-init 上下文（*in_global_init_ == true）中，
@@ -51,6 +54,16 @@ public:
 
     // 以带有源码位置的错误信息抛出代码生成异常。
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) const;
+
+    // CGen 在 GenerateGlobal() 之后调用，将已填充的全局常量映射同步给 FuncBodyCompiler。
+    void UpdateGlobalConstVars(std::unordered_map<std::string, InferredType> vars) {
+        global_const_vars_ = std::move(vars);
+    }
+
+    // CGen 在 GenerateDecls() 之后调用，将已填充的本地函数名映射同步给 FuncBodyCompiler。
+    void UpdateLocalFuncNames(std::unordered_map<std::string, int> names) {
+        local_func_names_ = std::move(names);
+    }
 
 private:
     // ---- 语句编译 ---------------------------------------------------------
@@ -152,20 +165,23 @@ private:
     // 返回当前缩进字符串（每级 4 个空格）。
     [[nodiscard]] std::string GenTab() const;
 
-    // ---- 外部上下文（非拥有指针，生命周期由 CGen 保证）-------------------
+    // ---- 外部上下文（指针成员，生命周期由 CGen 保证）----------------------
 
     State *s_ = nullptr;
     const std::string *file_name_ = nullptr;
-    const std::unordered_map<std::string, int> *local_func_names_ = nullptr;
-    const std::unordered_map<std::string, InferredType> *global_const_vars_ = nullptr;
     bool *in_global_init_ = nullptr;
     int *tmp_var_counter_ = nullptr;
 
-    // InferResult 数据（非拥有）
-    const std::unordered_map<std::string, std::vector<int>> *math_param_positions_ = nullptr;
-    const std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> *specialization_snapshots_ = nullptr;
-    const std::unordered_map<std::string, std::vector<InferredType>> *specialization_return_types_ = nullptr;
-    const EvalTypeSnapshot *main_eval_types_ = nullptr;
+    // ---- 值拷贝上下文（编译阶段时间不值钱，安全优先）---------------------
+
+    std::unordered_map<std::string, int> local_func_names_;
+    std::unordered_map<std::string, InferredType> global_const_vars_;
+
+    // InferResult 数据（值拷贝）
+    std::unordered_map<std::string, std::vector<int>> math_param_positions_;
+    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots_;
+    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types_;
+    EvalTypeSnapshot main_eval_types_;
 
     // ---- 每次函数体编译的状态（拥有）--------------------------------------
 
