@@ -1,16 +1,18 @@
 #pragma once
 
 #include "compile/compile_common.h"
-#include "compile/func_body_compiler.h"
+#include "compile/native_var_scope.h"
 #include "fakelua.h"
-#include <memory>
+#include <sstream>
+#include <string>
+#include <unordered_map>
+#include <vector>
 
 namespace fakelua {
 
-// CGen —— 编译单元级别的 C 代码编排器。
-//
-// 单一职责：将整个编译单元（ParseResult + InferResult）组织为完整的 C 源文件。
-// 具体的语句和表达式编译工作委托给 FuncBodyCompiler。
+class State;
+
+// CGen —— 编译单元级别的 C 代码编排与函数体/表达式代码生成器。
 class CGen {
 public:
     explicit CGen(State *s);
@@ -36,20 +38,74 @@ private:
 
     void GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr);
 
-    // 将函数体编译并追加到 impls_ 流。
-    // spec_bitmask >= 0 → 数值特化模式；< 0 → 普通模式。
     void CompileFuncBody(const std::string &func_name,
-                          const std::vector<std::string> &func_params,
-                          const SyntaxTreeInterfacePtr &func_block,
-                          int spec_bitmask);
+                         const std::vector<std::string> &func_params,
+                         const SyntaxTreeInterfacePtr &func_block,
+                         int spec_bitmask,
+                         std::ostream &out);
 
-    // 为含有数学参数的函数生成入口分发器（CVar 签名）。
     void GenerateEntryDispatcher(const std::string &func_name,
-                                  const std::vector<std::string> &func_params,
-                                  const std::vector<int> &math_param_indices);
+                                 const std::vector<std::string> &func_params,
+                                 const std::vector<int> &math_param_indices);
 
-    // 检查 block 的最后一条语句是否为 return。
     [[nodiscard]] static bool BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block);
+
+    [[nodiscard]] std::string CompileExp(const SyntaxTreeInterfacePtr &exp);
+    [[nodiscard]] InferredType GetSpecReturnType(const std::string &func_name, int bitmask) const;
+
+    void CompileStmtBlock(const SyntaxTreeInterfacePtr &block);
+    void CompileStmt(const SyntaxTreeInterfacePtr &stmt);
+    void CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt);
+    void CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt);
+    void CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt);
+    void CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &stmt);
+    void CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt);
+    void CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt);
+    void CompileStmtIf(const SyntaxTreeInterfacePtr &stmt);
+    void CompileStmtBreak(const SyntaxTreeInterfacePtr &stmt);
+    void CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt);
+    void CompileTypedIntForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt);
+    void CompileTypedFloatForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt);
+    void CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt);
+    void CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt);
+    void CompileScopedBlock(const SyntaxTreeInterfacePtr &block);
+    std::string CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix);
+
+    std::string CompilePrefixexp(const SyntaxTreeInterfacePtr &pe);
+    std::string CompileVar(const SyntaxTreeInterfacePtr &v);
+    std::string CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall);
+    std::string CompileTableconstructor(const SyntaxTreeInterfacePtr &tc);
+    std::string CompileBinop(const SyntaxTreeInterfacePtr &left,
+                             const SyntaxTreeInterfacePtr &right,
+                             const SyntaxTreeInterfacePtr &op);
+    std::string CompileUnop(const SyntaxTreeInterfacePtr &right,
+                            const SyntaxTreeInterfacePtr &op);
+
+    std::string CompileNumericExp(const SyntaxTreeInterfacePtr &exp);
+    std::string TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp);
+    std::string TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp);
+    std::string TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node);
+
+    [[nodiscard]] InferredType InferExpType(const SyntaxTreeInterfacePtr &exp) const;
+    [[nodiscard]] InferredType InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const;
+    [[nodiscard]] bool TryInferMathCallBitmask(const std::string &callee_name,
+                                               const std::vector<SyntaxTreeInterfacePtr> &raw_args,
+                                               int &bitmask) const;
+    [[nodiscard]] bool TryInferMathCallSpec(const std::string &callee_name,
+                                            const std::vector<SyntaxTreeInterfacePtr> &raw_args,
+                                            int &bitmask,
+                                            InferredType &spec_ret) const;
+    [[nodiscard]] InferredType LookupNodeType(SyntaxTreeInterface *node) const;
+
+    void EnterNativeVarScope() { native_var_scope_.Enter(); }
+    void ExitNativeVarScope() { native_var_scope_.Exit(); }
+    void DeclareNativeVar(const std::string &name, InferredType native_type) {
+        native_var_scope_.Declare(name, native_type);
+    }
+    [[nodiscard]] bool IsTypedNativeVar(const std::string &name) const { return native_var_scope_.IsTyped(name); }
+    [[nodiscard]] InferredType GetNativeVarType(const std::string &name) const { return native_var_scope_.GetType(name); }
+
+    [[nodiscard]] std::string GenTab() const;
 
 private:
     State *s_;
@@ -61,25 +117,27 @@ private:
     std::stringstream impls_;
 
     bool in_global_init_ = false;
-    // 文件级局部变量名 → 其推断类型（T_INT/T_FLOAT/T_DYNAMIC）的映射。
-    // 数值类型的变量生成为 static const int64_t / double，其余为 static const CVar。
     std::unordered_map<std::string, InferredType> global_const_vars_;
     int tmp_var_counter_ = 0;
 
-    // 当前编译单元中声明的函数名（及参数数量）。
-    // 在 GenerateDecls 期间填充，以便 CompileFunctioncall 能够区分
-    // 同文件的直接调用和跨文件的 FakeluaCallByName 调用。
     std::unordered_map<std::string, int> local_func_names_;
 
-    // cur_output_ 指向当前目标流（headers_、globals_、decls_、impls_）。
     std::ostream *cur_output_ = nullptr;
 
-    // 来自 TypeInferencer::DiscoverMathParams 的数学参数分析结果。
     std::unordered_map<std::string, std::vector<int>> math_param_positions_;
+    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots_;
+    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types_;
+    EvalTypeSnapshot main_eval_types_;
 
-    // func_compiler_ 在 Build() 中构造，持有当前编译单元的上下文。
-    // 使用 unique_ptr 以便在 Build() 开始时完整地一次性初始化，避免两阶段初始化。
-    std::unique_ptr<FuncBodyCompiler> func_compiler_;
+    NativeVarScope native_var_scope_;
+    std::unordered_map<std::string, InferredType> spec_param_types_;
+    std::string cur_spec_func_name_;
+    int cur_spec_bitmask_ = -1;
+    const EvalTypeSnapshot *cur_spec_snapshot_ = nullptr;
+
+    std::stringstream func_temp_decls_;
+    std::stringstream body_ss_;
+    int cur_tab_ = 0;
 };
 
 }// namespace fakelua
