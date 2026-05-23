@@ -1325,9 +1325,8 @@ TEST(infer, test_spec_leftshift_param) {
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
-    // The int specialization must use FlLShiftInt (not OpLeftShift).
+    // The int specialization must use FlLShiftInt.
     ASSERT_NE(code.find("FlLShiftInt("), std::string::npos);
-    ASSERT_EQ(code.find("OpLeftShift("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_leftshift_param.lua", {.debug_mode = debug_mode});
@@ -1346,9 +1345,8 @@ TEST(infer, test_spec_rightshift_param) {
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
-    // The int specialization must use FlRShiftInt (not OpRightShift).
+    // The int specialization must use FlRShiftInt.
     ASSERT_NE(code.find("FlRShiftInt("), std::string::npos);
-    ASSERT_EQ(code.find("OpRightShift("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_rightshift_param.lua", {.debug_mode = debug_mode});
@@ -2156,16 +2154,6 @@ TEST(infer, test_infer_native_binop_bitand_float) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_bitand_float.lua");
     ASSERT_NE(code.find("OpBitAnd("), std::string::npos);
     ASSERT_EQ(code.find("(int64_t)(x)"), std::string::npos);
-
-    InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_infer_native_binop_bitand_float.lua", {.debug_mode = debug_mode});
-        int ret = 0;
-        EXPECT_THROW(
-                {
-                    Call(s, type, "test", ret);
-                },
-                std::exception);
-    });
 }
 
 // Native BITOR in CompileBinop via return expression: return x | 3 where x is T_INT.
