@@ -708,9 +708,12 @@ bool TypeInferencer::CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, co
             const auto rt_compare = compare_map.find(right.get());
             DEBUG_ASSERT(lt_typed != typed_map.end() && rt_typed != typed_map.end() &&
                          lt_compare != compare_map.end() && rt_compare != compare_map.end());
+            // IsNumericInferredType 卫语句保证：进入此分支时两侧操作数在 typed_map 中均为
+            // T_INT/T_FLOAT，排除了 T_DYNAMIC 的情形，因此 improvement 模式下
+            // compare_map 退回 T_DYNAMIC 即代表真正的类型改善。
             if (IsNumericInferredType(lt_typed->second) && IsNumericInferredType(rt_typed->second)) {
                 if (improvement_mode) {
-                    // 改善：compare_map 中任一操作数退回 T_DYNAMIC。
+                    // 改善：typed_map 中两侧均为数值，而 compare_map 中任一退回 T_DYNAMIC。
                     found = (lt_compare->second == T_DYNAMIC || rt_compare->second == T_DYNAMIC);
                 } else {
                     // 退化：任一操作数与 typed_map 不一致（含 INT/FLOAT 变化）。
@@ -758,7 +761,11 @@ bool TypeInferencer::CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, co
                 const auto it_typed = typed_map.find(arg.get());
                 const auto it_comp = compare_map.find(arg.get());
                 DEBUG_ASSERT(it_typed != typed_map.end() && it_comp != compare_map.end());
-                // typed_map 中该实参有具体数值类型但 compare_map 中不同：改善/退化均成立。
+                // typed_map 中该实参有具体数值类型（T_INT/T_FLOAT）但 compare_map 中不同，
+                // 说明该数学参数槽位发生了类型变化。
+                // 此条件对 improvement_mode 和 degradation_mode 均成立，故不需要额外分支：
+                // 改善时 typed_map=all_int 有值而 compare_map=baseline 为 T_DYNAMIC；
+                // 退化时 typed_map=all_int 有值而 compare_map=without_p 类型不同。
                 if ((it_typed->second == T_INT || it_typed->second == T_FLOAT) &&
                     it_comp->second != it_typed->second) {
                     found = true;
