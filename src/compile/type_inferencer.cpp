@@ -660,10 +660,10 @@ bool TypeInferencer::CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, co
     if (HasArithmeticNodeTypeChange(typed_map, compare_map, func_block, require_compare_dynamic)) {
         return true;
     }
-    if (HasComparisonOperandTypeChange(typed_map, compare_map, func_block)) {
+    if (HasComparisonOperandTypeChange(typed_map, compare_map, func_block, require_compare_dynamic)) {
         return true;
     }
-    if (HasForLoopTypeChange(typed_map, compare_map, func_block)) {
+    if (HasForLoopTypeChange(typed_map, compare_map, func_block, require_compare_dynamic)) {
         return true;
     }
     return HasMathCallImprovement(func_block, typed_map, compare_map, math_param_positions);
@@ -742,7 +742,8 @@ bool TypeInferencer::HasArithmeticNodeTypeChange(const EvalTypeMap &typed_map,
 
 bool TypeInferencer::HasComparisonOperandTypeChange(const EvalTypeMap &typed_map,
                                                     const EvalTypeMap &compare_map,
-                                                    const SyntaxTreeInterfacePtr &func_block) const {
+                                                    const SyntaxTreeInterfacePtr &func_block,
+                                                    const bool require_compare_dynamic) const {
     bool found = false;
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
         if (found || !IsNativeComparisonExpr(node)) {
@@ -763,7 +764,15 @@ bool TypeInferencer::HasComparisonOperandTypeChange(const EvalTypeMap &typed_map
         if (!both_typed) {
             return;
         }
-        if (lt_compare->second == T_DYNAMIC || rt_compare->second == T_DYNAMIC) {
+        if (require_compare_dynamic) {
+            // improvement 模式：仅关注 compare_map 是否退回到 T_DYNAMIC。
+            if (lt_compare->second == T_DYNAMIC || rt_compare->second == T_DYNAMIC) {
+                found = true;
+            }
+            return;
+        }
+        // degradation 模式：只要与 typed_map 不一致（含 INT/FLOAT 变化）即视为退化。
+        if (lt_compare->second != lt_typed->second || rt_compare->second != rt_typed->second) {
             found = true;
         }
     });
@@ -772,7 +781,8 @@ bool TypeInferencer::HasComparisonOperandTypeChange(const EvalTypeMap &typed_map
 
 bool TypeInferencer::HasForLoopTypeChange(const EvalTypeMap &typed_map,
                                           const EvalTypeMap &compare_map,
-                                          const SyntaxTreeInterfacePtr &func_block) const {
+                                          const SyntaxTreeInterfacePtr &func_block,
+                                          const bool require_compare_dynamic) const {
     bool found = false;
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
         if (found || node->Type() != SyntaxTreeType::ForLoop) {
@@ -784,7 +794,15 @@ bool TypeInferencer::HasForLoopTypeChange(const EvalTypeMap &typed_map,
         if (!IsNumericInferredType(it_typed->second)) {
             return;
         }
-        if (it_compare->second == T_DYNAMIC) {
+        if (require_compare_dynamic) {
+            // improvement 模式：仅关注 compare_map 是否退回到 T_DYNAMIC。
+            if (it_compare->second == T_DYNAMIC) {
+                found = true;
+            }
+            return;
+        }
+        // degradation 模式：只要与 typed_map 不一致（含 INT/FLOAT 变化）即视为退化。
+        if (it_compare->second != it_typed->second) {
             found = true;
         }
     });

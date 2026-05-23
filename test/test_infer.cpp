@@ -1514,6 +1514,27 @@ TEST(infer, test_spec_no_arith_compare_only) {
     });
 }
 
+// ParamAffectsArithmetic (degradation mode) must treat comparison operand type
+// mismatches as degradation, not only compare-to-T_DYNAMIC.
+// Here n changes from int (all_int, pinned) to float (without_n) via assignment,
+// while m + 0 provides arithmetic improvement to enter specialization discovery.
+TEST(infer, test_spec_compare_operand_int_float_degrade) {
+    const auto code = InferGetCCode("./infer/test_spec_compare_operand_int_float_degrade.lua");
+    // n and m must both be detected as math params.
+    ASSERT_NE(code.find("test_0_0(int64_t n, int64_t m)"), std::string::npos);
+    ASSERT_NE(code.find("test_1_1(double n, double m)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_compare_operand_int_float_degrade.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3, 7);
+        ASSERT_EQ(ret, 7);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 3.0, 7.5);
+        ASSERT_DOUBLE_EQ(dret, 7.5);
+    });
+}
+
 // ────────────────────────────────────────────────────────────────────────────
 // Missing grammar cases: pure unary ops as math params, and do...end blocks.
 // ────────────────────────────────────────────────────────────────────────────
@@ -3315,5 +3336,29 @@ TEST(infer, test_spec_for_dynamic_bound) {
         double dret = 0.0;
         Call(s, type, "test", dret, 2.5);
         ASSERT_DOUBLE_EQ(dret, 15.0); // mul2(2.5)=5.0, 1+2+3+4+5=15
+    });
+}
+
+// ParamAffectsArithmetic (degradation mode) must treat for-loop node type
+// mismatches as degradation, not only compare-to-T_DYNAMIC.
+// Here n changes from int (all_int, pinned) to float (without_n) via assignment,
+// so the loop node changes from typed-int to typed-float.
+TEST(infer, test_spec_forloop_int_float_degrade) {
+    const auto code = InferGetCCode("./infer/test_spec_forloop_int_float_degrade.lua");
+    // n and m must both be detected as math params.
+    ASSERT_NE(code.find("test_0_0(int64_t n, int64_t m)"), std::string::npos);
+    ASSERT_NE(code.find("test_1_1(double n, double m)"), std::string::npos);
+    // Both typed for-loop fast paths should be generated across specializations.
+    ASSERT_NE(code.find("int64_t flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_forloop_int_float_degrade.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3, 9);
+        ASSERT_EQ(ret, 9);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 3.0, 9.5);
+        ASSERT_DOUBLE_EQ(dret, 9.5);
     });
 }
