@@ -655,15 +655,15 @@ bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const Ev
 
 bool TypeInferencer::CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
                                                  const SyntaxTreeInterfacePtr &func_block,
-                                                 bool require_compare_dynamic,
+                                                 const bool improvement_mode,
                                                  const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
-    if (HasArithmeticNodeTypeChange(typed_map, compare_map, func_block, require_compare_dynamic)) {
+    if (HasArithmeticNodeTypeChange(typed_map, compare_map, func_block, improvement_mode)) {
         return true;
     }
-    if (HasComparisonOperandTypeChange(typed_map, compare_map, func_block, require_compare_dynamic)) {
+    if (HasComparisonOperandTypeChange(typed_map, compare_map, func_block, improvement_mode)) {
         return true;
     }
-    if (HasForLoopTypeChange(typed_map, compare_map, func_block, require_compare_dynamic)) {
+    if (HasForLoopTypeChange(typed_map, compare_map, func_block, improvement_mode)) {
         return true;
     }
     return HasMathCallImprovement(func_block, typed_map, compare_map, math_param_positions);
@@ -715,7 +715,7 @@ bool TypeInferencer::HasMathCallImprovement(
 bool TypeInferencer::HasArithmeticNodeTypeChange(const EvalTypeMap &typed_map,
                                                  const EvalTypeMap &compare_map,
                                                  const SyntaxTreeInterfacePtr &func_block,
-                                                 const bool require_compare_dynamic) const {
+                                                 const bool improvement_mode) const {
     bool found = false;
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
         if (found || !IsArithmeticExpr(node)) {
@@ -727,7 +727,7 @@ bool TypeInferencer::HasArithmeticNodeTypeChange(const EvalTypeMap &typed_map,
         if (!IsNumericInferredType(it_typed->second)) {
             return;
         }
-        if (require_compare_dynamic) {
+        if (improvement_mode) {
             if (it_compare->second == T_DYNAMIC) {
                 found = true;
             }
@@ -743,7 +743,7 @@ bool TypeInferencer::HasArithmeticNodeTypeChange(const EvalTypeMap &typed_map,
 bool TypeInferencer::HasComparisonOperandTypeChange(const EvalTypeMap &typed_map,
                                                     const EvalTypeMap &compare_map,
                                                     const SyntaxTreeInterfacePtr &func_block,
-                                                    const bool require_compare_dynamic) const {
+                                                    const bool improvement_mode) const {
     bool found = false;
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
         if (found || !IsNativeComparisonExpr(node)) {
@@ -764,7 +764,7 @@ bool TypeInferencer::HasComparisonOperandTypeChange(const EvalTypeMap &typed_map
         if (!both_typed) {
             return;
         }
-        if (require_compare_dynamic) {
+        if (improvement_mode) {
             // improvement 模式：仅关注 compare_map 是否退回到 T_DYNAMIC。
             if (lt_compare->second == T_DYNAMIC || rt_compare->second == T_DYNAMIC) {
                 found = true;
@@ -782,7 +782,7 @@ bool TypeInferencer::HasComparisonOperandTypeChange(const EvalTypeMap &typed_map
 bool TypeInferencer::HasForLoopTypeChange(const EvalTypeMap &typed_map,
                                           const EvalTypeMap &compare_map,
                                           const SyntaxTreeInterfacePtr &func_block,
-                                          const bool require_compare_dynamic) const {
+                                          const bool improvement_mode) const {
     bool found = false;
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
         if (found || node->Type() != SyntaxTreeType::ForLoop) {
@@ -794,7 +794,7 @@ bool TypeInferencer::HasForLoopTypeChange(const EvalTypeMap &typed_map,
         if (!IsNumericInferredType(it_typed->second)) {
             return;
         }
-        if (require_compare_dynamic) {
+        if (improvement_mode) {
             // improvement 模式：仅关注 compare_map 是否退回到 T_DYNAMIC。
             if (it_compare->second == T_DYNAMIC) {
                 found = true;
