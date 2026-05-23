@@ -711,7 +711,7 @@ static inline CVar FlConcat(CVar a, CVar b) {
     if (!isfinite(__fi_d)) { FakeluaThrowError(_S, "number has no integer representation"); } \
     double __fi_ip; \
     if (modf(__fi_d, &__fi_ip) != 0.0) { FakeluaThrowError(_S, "number has no integer representation"); } \
-    if (__fi_ip < (double)INT64_MIN || __fi_ip > (double)INT64_MAX) { FakeluaThrowError(_S, "number has no integer representation"); } \
+    if (__fi_ip < (double)INT64_MIN || __fi_ip >= 9223372036854775808.0) { FakeluaThrowError(_S, "number has no integer representation"); } \
     (result) = (int64_t)__fi_ip; \
 } while(0)
 
