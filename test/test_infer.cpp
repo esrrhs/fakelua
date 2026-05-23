@@ -793,6 +793,8 @@ TEST(infer, test_infer_bitand_integer_repr_float) {
     const auto code = InferGetCCode("./infer/test_infer_bitand_integer_repr_float.lua");
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
     ASSERT_NE(code.find("FlToIntChecked("), std::string::npos);
+    ASSERT_NE(code.find("CVar test_err()"), std::string::npos);
+    ASSERT_NE(code.find("test_1(1.5)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_bitand_integer_repr_float.lua", {.debug_mode = debug_mode});

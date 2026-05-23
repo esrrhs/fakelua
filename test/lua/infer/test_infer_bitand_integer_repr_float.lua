@@ -3,3 +3,7 @@
 function test(n)
     return n & 3
 end
+
+function test_err()
+    return test(1.5)
+end

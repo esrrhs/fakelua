@@ -455,16 +455,20 @@ TEST(var, bitwise) {
     // Bitor
     v1.Bitor(v2, res);
     ASSERT_EQ(res.GetInt(), 0b1110);
+    ASSERT_ANY_THROW(Var(1.5).Bitor(Var(int64_t{3}), res));
 
     // Xor
     v1.Xor(v2, res);
     ASSERT_EQ(res.GetInt(), 0b0110);
+    ASSERT_ANY_THROW(Var(1.5).Xor(Var(int64_t{3}), res));
 
     // Shift
     Var((int64_t) 1LL).LeftShift(Var((int64_t) 2LL), res);
     ASSERT_EQ(res.GetInt(), 4);
     Var((int64_t) 4LL).RightShift(Var((int64_t) 2LL), res);
     ASSERT_EQ(res.GetInt(), 1);
+    ASSERT_ANY_THROW(Var(1.5).LeftShift(Var(int64_t{1}), res));
+    ASSERT_ANY_THROW(Var(1.5).RightShift(Var(int64_t{1}), res));
 
     // UnopBitnot
     v1.UnopBitnot(res);
