@@ -885,6 +885,25 @@ TEST(var, bitand_type_error) {
     EXPECT_THROW(v1.Bitand(v2, res), std::exception);
 }
 
+TEST(var, bitwise_float_integer_representation_allowed) {
+    Var res;
+
+    Var(6.0).Bitand(Var(3.0), res);
+    ASSERT_EQ(res.GetInt(), 2);
+
+    Var(6.0).Bitor(Var(3.0), res);
+    ASSERT_EQ(res.GetInt(), 7);
+
+    Var(6.0).Xor(Var(3.0), res);
+    ASSERT_EQ(res.GetInt(), 5);
+
+    Var(8.0).LeftShift(Var(2.0), res);
+    ASSERT_EQ(res.GetInt(), 32);
+
+    Var(8.0).RightShift(Var(2.0), res);
+    ASSERT_EQ(res.GetInt(), 2);
+}
+
 TEST(var, xor_type_error) {
     Var v1(3.14);
     Var v2(static_cast<int64_t>(10));
@@ -2143,4 +2162,3 @@ TEST(var, table_size_on_non_table_throws) {
     Var v(true);
     EXPECT_THROW((void) v.TableSize(), std::exception);
 }
-

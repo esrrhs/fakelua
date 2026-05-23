@@ -2786,24 +2786,129 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return ntmp;
         }
         if (op_kind == BinOpKind::kBitAnd) {
-            return std::format("((int64_t)({}) & (int64_t)({}))", left, right);
+            const auto left_type = InferArgTypeForSpec(e->Left());
+            const auto right_type = InferArgTypeForSpec(e->Right());
+            if ((left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
+                ThrowError("bitwise operands must be numeric in numeric specialization", exp);
+            }
+            const auto left_int = std::format("flua_native_{}", tmp_var_counter_++);
+            const auto right_int = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << left_int << ";\n";
+            func_temp_decls_ << "    int64_t " << right_int << ";\n";
+            if (left_type == T_INT) {
+                *cur_output_ << GenTab() << std::format("{} = (int64_t)({});\n", left_int, left);
+            } else {
+                *cur_output_ << GenTab()
+                             << std::format("CheckInt(((CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}), {});\n", left, left_int);
+            }
+            if (right_type == T_INT) {
+                *cur_output_ << GenTab() << std::format("{} = (int64_t)({});\n", right_int, right);
+            } else {
+                *cur_output_ << GenTab()
+                             << std::format("CheckInt(((CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}), {});\n", right, right_int);
+            }
+            return std::format("(({}) & ({}))", left_int, right_int);
         }
         if (op_kind == BinOpKind::kBitOr) {
-            return std::format("((int64_t)({}) | (int64_t)({}))", left, right);
+            const auto left_type = InferArgTypeForSpec(e->Left());
+            const auto right_type = InferArgTypeForSpec(e->Right());
+            if ((left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
+                ThrowError("bitwise operands must be numeric in numeric specialization", exp);
+            }
+            const auto left_int = std::format("flua_native_{}", tmp_var_counter_++);
+            const auto right_int = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << left_int << ";\n";
+            func_temp_decls_ << "    int64_t " << right_int << ";\n";
+            if (left_type == T_INT) {
+                *cur_output_ << GenTab() << std::format("{} = (int64_t)({});\n", left_int, left);
+            } else {
+                *cur_output_ << GenTab()
+                             << std::format("CheckInt(((CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}), {});\n", left, left_int);
+            }
+            if (right_type == T_INT) {
+                *cur_output_ << GenTab() << std::format("{} = (int64_t)({});\n", right_int, right);
+            } else {
+                *cur_output_ << GenTab()
+                             << std::format("CheckInt(((CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}), {});\n", right, right_int);
+            }
+            return std::format("(({}) | ({}))", left_int, right_int);
         }
         if (op_kind == BinOpKind::kXor) {
-            return std::format("((int64_t)({}) ^ (int64_t)({}))", left, right);
+            const auto left_type = InferArgTypeForSpec(e->Left());
+            const auto right_type = InferArgTypeForSpec(e->Right());
+            if ((left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
+                ThrowError("bitwise operands must be numeric in numeric specialization", exp);
+            }
+            const auto left_int = std::format("flua_native_{}", tmp_var_counter_++);
+            const auto right_int = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << left_int << ";\n";
+            func_temp_decls_ << "    int64_t " << right_int << ";\n";
+            if (left_type == T_INT) {
+                *cur_output_ << GenTab() << std::format("{} = (int64_t)({});\n", left_int, left);
+            } else {
+                *cur_output_ << GenTab()
+                             << std::format("CheckInt(((CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}), {});\n", left, left_int);
+            }
+            if (right_type == T_INT) {
+                *cur_output_ << GenTab() << std::format("{} = (int64_t)({});\n", right_int, right);
+            } else {
+                *cur_output_ << GenTab()
+                             << std::format("CheckInt(((CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}), {});\n", right, right_int);
+            }
+            return std::format("(({}) ^ ({}))", left_int, right_int);
         }
         if (op_kind == BinOpKind::kLeftShift) {
+            const auto left_type = InferArgTypeForSpec(e->Left());
+            const auto right_type = InferArgTypeForSpec(e->Right());
+            if ((left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
+                ThrowError("bitwise operands must be numeric in numeric specialization", exp);
+            }
+            const auto left_int = std::format("flua_native_{}", tmp_var_counter_++);
+            const auto right_int = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << left_int << ";\n";
+            func_temp_decls_ << "    int64_t " << right_int << ";\n";
+            if (left_type == T_INT) {
+                *cur_output_ << GenTab() << std::format("{} = (int64_t)({});\n", left_int, left);
+            } else {
+                *cur_output_ << GenTab()
+                             << std::format("CheckInt(((CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}), {});\n", left, left_int);
+            }
+            if (right_type == T_INT) {
+                *cur_output_ << GenTab() << std::format("{} = (int64_t)({});\n", right_int, right);
+            } else {
+                *cur_output_ << GenTab()
+                             << std::format("CheckInt(((CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}), {});\n", right, right_int);
+            }
             const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
             func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-            *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left, right, ntmp);
+            *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left_int, right_int, ntmp);
             return ntmp;
         }
         if (op_kind == BinOpKind::kRightShift) {
+            const auto left_type = InferArgTypeForSpec(e->Left());
+            const auto right_type = InferArgTypeForSpec(e->Right());
+            if ((left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
+                ThrowError("bitwise operands must be numeric in numeric specialization", exp);
+            }
+            const auto left_int = std::format("flua_native_{}", tmp_var_counter_++);
+            const auto right_int = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << left_int << ";\n";
+            func_temp_decls_ << "    int64_t " << right_int << ";\n";
+            if (left_type == T_INT) {
+                *cur_output_ << GenTab() << std::format("{} = (int64_t)({});\n", left_int, left);
+            } else {
+                *cur_output_ << GenTab()
+                             << std::format("CheckInt(((CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}), {});\n", left, left_int);
+            }
+            if (right_type == T_INT) {
+                *cur_output_ << GenTab() << std::format("{} = (int64_t)({});\n", right_int, right);
+            } else {
+                *cur_output_ << GenTab()
+                             << std::format("CheckInt(((CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}), {});\n", right, right_int);
+            }
             const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
             func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-            *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left, right, ntmp);
+            *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left_int, right_int, ntmp);
             return ntmp;
         }
 
