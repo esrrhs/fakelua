@@ -789,6 +789,20 @@ TEST(infer, test_infer_typed_int_bitand) {
     });
 }
 
+TEST(infer, test_infer_bitand_integer_repr_float) {
+    const auto code = InferGetCCode("./infer/test_infer_bitand_integer_repr_float.lua");
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("FlToIntChecked("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_bitand_integer_repr_float.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 1.0);
+        ASSERT_EQ(ret, 1);
+        EXPECT_THROW((void) Call(s, type, "test", ret, 1.5), std::exception);
+    });
+}
+
 // INT | INT = T_INT: 12 | 3 = 15.
 TEST(infer, test_infer_typed_int_bitor) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_bitor.lua");
@@ -1042,6 +1056,18 @@ TEST(infer, test_spec_forin_param) {
         int ret = 0;
         Call(s, type, "test", ret, 10);
         ASSERT_EQ(ret, 16); // sum = 10+0 + 1+2+3 = 16
+    });
+}
+
+TEST(infer, test_infer_forin_scope_injection) {
+    const auto code = InferGetCCode("./infer/test_infer_forin_scope_injection.lua");
+    ASSERT_NE(code.find("int64_t k = 100;"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_forin_scope_injection.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 112);
     });
 }
 
