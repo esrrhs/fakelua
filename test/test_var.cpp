@@ -447,24 +447,30 @@ TEST(var, bitwise) {
     v1.Bitand(v2, res);
     ASSERT_EQ(res.GetInt(), 0b1000);
     // Integral float should be accepted in bitwise ops
-    Var(2.0).Bitand(Var(int64_t{3}), res);
-    ASSERT_EQ(res.GetInt(), 2);
+    Var(1.0).Bitand(Var(int64_t{3}), res);
+    ASSERT_EQ(res.GetInt(), 1);
     // Non-integral float should fail
-    ASSERT_ANY_THROW(Var(2.1).Bitand(Var(int64_t{1}), res));
+    ASSERT_ANY_THROW(Var(1.5).Bitand(Var(int64_t{3}), res));
+    // Out-of-range integral float (2^63) should fail integer-representation check
+    ASSERT_ANY_THROW(Var(9223372036854775808.0).Bitand(Var(int64_t{3}), res));
 
     // Bitor
     v1.Bitor(v2, res);
     ASSERT_EQ(res.GetInt(), 0b1110);
+    ASSERT_ANY_THROW(Var(1.5).Bitor(Var(int64_t{3}), res));
 
     // Xor
     v1.Xor(v2, res);
     ASSERT_EQ(res.GetInt(), 0b0110);
+    ASSERT_ANY_THROW(Var(1.5).Xor(Var(int64_t{3}), res));
 
     // Shift
     Var((int64_t) 1LL).LeftShift(Var((int64_t) 2LL), res);
     ASSERT_EQ(res.GetInt(), 4);
     Var((int64_t) 4LL).RightShift(Var((int64_t) 2LL), res);
     ASSERT_EQ(res.GetInt(), 1);
+    ASSERT_ANY_THROW(Var(1.5).LeftShift(Var(int64_t{1}), res));
+    ASSERT_ANY_THROW(Var(1.5).RightShift(Var(int64_t{1}), res));
 
     // UnopBitnot
     v1.UnopBitnot(res);
@@ -2143,4 +2149,3 @@ TEST(var, table_size_on_non_table_throws) {
     Var v(true);
     EXPECT_THROW((void) v.TableSize(), std::exception);
 }
-

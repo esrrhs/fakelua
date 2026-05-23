@@ -775,7 +775,7 @@ TEST(infer, test_spec_wrapper_var) {
 TEST(infer, test_infer_typed_int_bitand) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_bitand.lua");
     ASSERT_NE(code.find("int64_t x = 10;"), std::string::npos);
-    ASSERT_NE(code.find("int64_t y = ((int64_t)(x) & (int64_t)(3));"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y = (((int64_t)(x)) & ((int64_t)(3)));"), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
     ASSERT_EQ(code.find("CVar y"), std::string::npos);
     // Must NOT fall back to the dynamic OpBitAnd macro.
@@ -789,11 +789,26 @@ TEST(infer, test_infer_typed_int_bitand) {
     });
 }
 
+TEST(infer, test_infer_bitand_integer_repr_float) {
+    const auto code = InferGetCCode("./infer/test_infer_bitand_integer_repr_float.lua");
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    ASSERT_NE(code.find("FlToIntChecked("), std::string::npos);
+    ASSERT_NE(code.find("CVar test_err()"), std::string::npos);
+    ASSERT_NE(code.find("test_1(1.5)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_bitand_integer_repr_float.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 1.0);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
 // INT | INT = T_INT: 12 | 3 = 15.
 TEST(infer, test_infer_typed_int_bitor) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_bitor.lua");
     ASSERT_NE(code.find("int64_t x = 12;"), std::string::npos);
-    ASSERT_NE(code.find("int64_t y = ((int64_t)(x) | (int64_t)(3));"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y = (((int64_t)(x)) | ((int64_t)(3)));"), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
     ASSERT_EQ(code.find("CVar y"), std::string::npos);
     ASSERT_EQ(code.find("OpBitOr("), std::string::npos);
@@ -810,7 +825,7 @@ TEST(infer, test_infer_typed_int_bitor) {
 TEST(infer, test_infer_typed_int_bitxor) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_bitxor.lua");
     ASSERT_NE(code.find("int64_t x = 5;"), std::string::npos);
-    ASSERT_NE(code.find("int64_t y = ((int64_t)(x) ^ (int64_t)(3));"), std::string::npos);
+    ASSERT_NE(code.find("int64_t y = (((int64_t)(x)) ^ ((int64_t)(3)));"), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
     ASSERT_EQ(code.find("CVar y"), std::string::npos);
     ASSERT_EQ(code.find("OpBitXor("), std::string::npos);
@@ -828,7 +843,7 @@ TEST(infer, test_infer_typed_int_leftshift) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_leftshift.lua");
     ASSERT_NE(code.find("int64_t x = 1;"), std::string::npos);
     // CompileNumericExp now uses FlLShiftInt for Lua-correct clamping semantics.
-    ASSERT_NE(code.find("FlLShiftInt((x), (4),"), std::string::npos);
+    ASSERT_NE(code.find("FlLShiftInt(((int64_t)(x)), ((int64_t)(4)),"), std::string::npos);
     ASSERT_NE(code.find("int64_t y ="), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
     ASSERT_EQ(code.find("CVar y"), std::string::npos);
@@ -847,7 +862,7 @@ TEST(infer, test_infer_typed_int_rightshift) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_rightshift.lua");
     ASSERT_NE(code.find("int64_t x = 256;"), std::string::npos);
     // CompileNumericExp now uses FlRShiftInt for Lua-correct clamping semantics.
-    ASSERT_NE(code.find("FlRShiftInt((x), (3),"), std::string::npos);
+    ASSERT_NE(code.find("FlRShiftInt(((int64_t)(x)), ((int64_t)(3)),"), std::string::npos);
     ASSERT_NE(code.find("int64_t y ="), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
     ASSERT_EQ(code.find("CVar y"), std::string::npos);
@@ -1042,6 +1057,18 @@ TEST(infer, test_spec_forin_param) {
         int ret = 0;
         Call(s, type, "test", ret, 10);
         ASSERT_EQ(ret, 16); // sum = 10+0 + 1+2+3 = 16
+    });
+}
+
+TEST(infer, test_infer_forin_scope_injection) {
+    const auto code = InferGetCCode("./infer/test_infer_forin_scope_injection.lua");
+    ASSERT_NE(code.find("int64_t k = 100;"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_forin_scope_injection.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 112);
     });
 }
 

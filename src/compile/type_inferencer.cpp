@@ -303,9 +303,17 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
         }
         case SyntaxTreeType::ForIn: {
             const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
-            InferNode(for_in->Namelist());
             InferNode(for_in->Explist());
-            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_in->Block()), true);
+            const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(for_in->Namelist());
+            DEBUG_ASSERT(namelist);
+            // For-in 循环变量是循环体作用域内的局部变量，必须先注入作用域。
+            // 否则循环体中的赋值会错误地更新外层同名变量，导致类型污染。
+            env_.EnterScope();
+            for (const auto &name: namelist->Names()) {
+                env_.Define(name, T_DYNAMIC);
+            }
+            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_in->Block()), false);
+            env_.ExitScope();
             current_map_[node.get()] = T_UNKNOWN;
             return T_UNKNOWN;
         }

@@ -704,6 +704,17 @@ static inline CVar FlConcat(CVar a, CVar b) {
     (result) = __fmf_a - __fmf_b * floor(__fmf_a / __fmf_b); \
 } while(0)
 
+// 将原生数值（int64_t/double）按 Lua 位运算规则转换为 int64_t。
+// 允许可精确表示为整数的浮点数（如 1.0），拒绝非整数浮点数（如 1.5）。
+#define FlToIntChecked(v, result) do { \
+    double __fi_d = (double)(v); \
+    if (!isfinite(__fi_d)) { FakeluaThrowError(_S, "number has no integer representation"); } \
+    double __fi_ip; \
+    if (modf(__fi_d, &__fi_ip) != 0.0) { FakeluaThrowError(_S, "number has no integer representation"); } \
+    if (__fi_ip < (double)INT64_MIN || __fi_ip >= 9223372036854775808.0) { FakeluaThrowError(_S, "number has no integer representation"); } \
+    (result) = (int64_t)__fi_ip; \
+} while(0)
+
 // 原生整数左移（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
 // 与 OpLeftShift 的逻辑完全一致，但接受原生 int64_t 参数以省去 CVar 打包/拆包。
 #define FlLShiftInt(a, b, result) do { \
@@ -2477,22 +2488,42 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left,
                     *cur_output_ << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left_native, right_native, ntmp);
                     native_expr = ntmp;
                 }
-            } else if (op_kind == BinOpKind::kBitAnd) {
-                native_expr = std::format("((int64_t)({}) & (int64_t)({}))", left_native, right_native);
-            } else if (op_kind == BinOpKind::kBitOr) {
-                native_expr = std::format("((int64_t)({}) | (int64_t)({}))", left_native, right_native);
-            } else if (op_kind == BinOpKind::kXor) {
-                native_expr = std::format("((int64_t)({}) ^ (int64_t)({}))", left_native, right_native);
-            } else if (op_kind == BinOpKind::kLeftShift) {
-                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-                *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
-                native_expr = ntmp;
-            } else if (op_kind == BinOpKind::kRightShift) {
-                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-                *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
-                native_expr = ntmp;
+            } else if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kBitOr ||
+                       op_kind == BinOpKind::kXor || op_kind == BinOpKind::kLeftShift ||
+                       op_kind == BinOpKind::kRightShift) {
+                const auto to_int_operand = [&](const SyntaxTreeInterfacePtr &operand_node,
+                                                const std::string &native_operand) -> std::string {
+                    const auto operand_type = InferArgTypeForSpec(operand_node);
+                    if (operand_type == T_INT) {
+                        return std::format("(int64_t)({})", native_operand);
+                    }
+                    if (operand_type == T_FLOAT) {
+                        const auto itmp = std::format("flua_native_{}", tmp_var_counter_++);
+                        func_temp_decls_ << "    int64_t " << itmp << ";\n";
+                        *cur_output_ << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
+                        return itmp;
+                    }
+                    ThrowError("bitwise operand is not numeric", operand_node);
+                };
+                const auto left_int = to_int_operand(left, left_native);
+                const auto right_int = to_int_operand(right, right_native);
+                if (op_kind == BinOpKind::kBitAnd) {
+                    native_expr = std::format("(({}) & ({}))", left_int, right_int);
+                } else if (op_kind == BinOpKind::kBitOr) {
+                    native_expr = std::format("(({}) | ({}))", left_int, right_int);
+                } else if (op_kind == BinOpKind::kXor) {
+                    native_expr = std::format("(({}) ^ ({}))", left_int, right_int);
+                } else if (op_kind == BinOpKind::kLeftShift) {
+                    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                    func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                    *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left_int, right_int, ntmp);
+                    native_expr = ntmp;
+                } else if (op_kind == BinOpKind::kRightShift) {
+                    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                    func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                    *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left_int, right_int, ntmp);
+                    native_expr = ntmp;
+                }
             }
             if (!native_expr.empty()) {
                 const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
@@ -2744,6 +2775,21 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         const auto left = CompileNumericExp(e->Left());
         const auto right = CompileNumericExp(e->Right());
 
+        const auto to_int_operand = [&](const SyntaxTreeInterfacePtr &operand_node,
+                                        const std::string &native_operand) -> std::string {
+            const auto operand_type = InferArgTypeForSpec(operand_node);
+            if (operand_type == T_INT) {
+                return std::format("(int64_t)({})", native_operand);
+            }
+            if (operand_type == T_FLOAT) {
+                const auto itmp = std::format("flua_native_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    int64_t " << itmp << ";\n";
+                *cur_output_ << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
+                return itmp;
+            }
+            ThrowError("bitwise operand is not numeric", operand_node);
+        };
+
         if (op_kind == BinOpKind::kPlus) {
             return std::format("(({}) + ({}))", left, right);
         }
@@ -2781,24 +2827,34 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return ntmp;
         }
         if (op_kind == BinOpKind::kBitAnd) {
-            return std::format("((int64_t)({}) & (int64_t)({}))", left, right);
+            const auto left_int = to_int_operand(e->Left(), left);
+            const auto right_int = to_int_operand(e->Right(), right);
+            return std::format("(({}) & ({}))", left_int, right_int);
         }
         if (op_kind == BinOpKind::kBitOr) {
-            return std::format("((int64_t)({}) | (int64_t)({}))", left, right);
+            const auto left_int = to_int_operand(e->Left(), left);
+            const auto right_int = to_int_operand(e->Right(), right);
+            return std::format("(({}) | ({}))", left_int, right_int);
         }
         if (op_kind == BinOpKind::kXor) {
-            return std::format("((int64_t)({}) ^ (int64_t)({}))", left, right);
+            const auto left_int = to_int_operand(e->Left(), left);
+            const auto right_int = to_int_operand(e->Right(), right);
+            return std::format("(({}) ^ ({}))", left_int, right_int);
         }
         if (op_kind == BinOpKind::kLeftShift) {
+            const auto left_int = to_int_operand(e->Left(), left);
+            const auto right_int = to_int_operand(e->Right(), right);
             const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
             func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-            *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left, right, ntmp);
+            *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left_int, right_int, ntmp);
             return ntmp;
         }
         if (op_kind == BinOpKind::kRightShift) {
+            const auto left_int = to_int_operand(e->Left(), left);
+            const auto right_int = to_int_operand(e->Right(), right);
             const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
             func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-            *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left, right, ntmp);
+            *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left_int, right_int, ntmp);
             return ntmp;
         }
 
@@ -2819,7 +2875,17 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return std::format("(-({}))", operand);
         }
         if (op_kind == UnOpKind::kBitNot) {
-            return std::format("(~((int64_t)({})))", operand);
+            const auto operand_type = InferArgTypeForSpec(e->Right());
+            if (operand_type == T_INT) {
+                return std::format("(~((int64_t)({})))", operand);
+            }
+            if (operand_type == T_FLOAT) {
+                const auto itmp = std::format("flua_native_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    int64_t " << itmp << ";\n";
+                *cur_output_ << GenTab() << std::format("FlToIntChecked(({}), {});\n", operand, itmp);
+                return std::format("(~({}))", itmp);
+            }
+            ThrowError("bitwise operand is not numeric", e->Right());
         }
         ThrowError("unary operator is not supported in numeric specialization", exp);
     }
