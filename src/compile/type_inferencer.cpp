@@ -653,157 +653,118 @@ bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const Ev
     return CheckArithmeticTypeChanges(all_int, without_p, func_block, false, math_param_positions);
 }
 
+// ---------------------------------------------------------------------------
+// CheckArithmeticTypeChanges —— 数学参数发现的统一类型变化检测器
+//
+// 单次遍历 func_block，在同一回调中按节点类别分派四类检测规则，
+// 避免多次重复扫描同一函数体：
+//   规则1 — 算术表达式：检查节点自身类型（T_INT/T_FLOAT ↔ T_DYNAMIC）；
+//   规则2 — 有序比较（< <= > >=，不含 == / ~=）：检查左右操作数类型；
+//   规则3 — for-loop：检查循环节点自身类型；
+//   规则4 — 已知数学函数调用：检查数学参数位置实参类型。
+//
+// improvement_mode=true（改善检测）：
+//   typed_map 中节点/操作数/实参为 T_INT/T_FLOAT，compare_map 中为 T_DYNAMIC，
+//   说明增加参数类型假设后该槽位的类型得到改善。
+// improvement_mode=false（退化检测）：
+//   typed_map 中节点/操作数/实参有具体类型，compare_map 中与之不同，
+//   说明去掉某个参数后该槽位的类型发生了退化。
+//
+// 注意：仅关注数学参数发现相关槽位（算术节点、有序比较操作数、
+// for-loop 节点、已知数学函数的指定参数位置），不检测函数体内任意节点的类型变化。
+// ---------------------------------------------------------------------------
 bool TypeInferencer::CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
                                                  const SyntaxTreeInterfacePtr &func_block,
                                                  const bool improvement_mode,
                                                  const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
-    if (HasArithmeticNodeTypeChange(typed_map, compare_map, func_block, improvement_mode)) {
-        return true;
-    }
-    if (HasComparisonOperandTypeChange(typed_map, compare_map, func_block, improvement_mode)) {
-        return true;
-    }
-    if (HasForLoopTypeChange(typed_map, compare_map, func_block, improvement_mode)) {
-        return true;
-    }
-    return HasMathCallImprovement(func_block, typed_map, compare_map, math_param_positions);
-}
-
-bool TypeInferencer::HasMathCallImprovement(
-        const SyntaxTreeInterfacePtr &func_block,
-        const EvalTypeMap &typed_map,
-        const EvalTypeMap &compare_map,
-        const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
     bool found = false;
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
-        if (found || node->Type() != SyntaxTreeType::FunctionCall) {
+        if (found) {
             return;
         }
-        const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
-        DEBUG_ASSERT(fc);
-        const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-        DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
-        const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-        DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
-        const auto &callee_name = callee_var->GetName();
-        const auto math_it = math_param_positions.find(callee_name);
-        if (math_it == math_param_positions.end()) {
+
+        // 规则1：算术表达式节点自身类型变化。
+        if (IsArithmeticExpr(node)) {
+            const auto it_typed = typed_map.find(node.get());
+            const auto it_compare = compare_map.find(node.get());
+            DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
+            if (IsNumericInferredType(it_typed->second)) {
+                found = improvement_mode ? (it_compare->second == T_DYNAMIC)
+                                         : (it_compare->second != it_typed->second);
+            }
             return;
         }
-        const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-        DEBUG_ASSERT(args_ptr);
-        const auto raw_args = ExtractCallRawArgs(args_ptr);
-        for (const int param_pos : math_it->second) {
-            if (param_pos >= static_cast<int>(raw_args.size())) {
+
+        // 规则2：有序比较表达式（< <= > >=）左右操作数类型变化。
+        // == / ~= 可作用于任意 Lua 类型，不纳入此检测以避免误特化。
+        if (IsNativeComparisonExpr(node)) {
+            const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+            const auto left = exp->Left();
+            const auto right = exp->Right();
+            DEBUG_ASSERT(left && right);
+            const auto lt_typed = typed_map.find(left.get());
+            const auto rt_typed = typed_map.find(right.get());
+            const auto lt_compare = compare_map.find(left.get());
+            const auto rt_compare = compare_map.find(right.get());
+            DEBUG_ASSERT(lt_typed != typed_map.end() && rt_typed != typed_map.end() &&
+                         lt_compare != compare_map.end() && rt_compare != compare_map.end());
+            if (IsNumericInferredType(lt_typed->second) && IsNumericInferredType(rt_typed->second)) {
+                if (improvement_mode) {
+                    // 改善：compare_map 中任一操作数退回 T_DYNAMIC。
+                    found = (lt_compare->second == T_DYNAMIC || rt_compare->second == T_DYNAMIC);
+                } else {
+                    // 退化：任一操作数与 typed_map 不一致（含 INT/FLOAT 变化）。
+                    found = (lt_compare->second != lt_typed->second || rt_compare->second != rt_typed->second);
+                }
+            }
+            return;
+        }
+
+        // 规则3：for-loop 节点自身类型变化。
+        if (node->Type() == SyntaxTreeType::ForLoop) {
+            const auto it_typed = typed_map.find(node.get());
+            const auto it_compare = compare_map.find(node.get());
+            DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
+            if (IsNumericInferredType(it_typed->second)) {
+                found = improvement_mode ? (it_compare->second == T_DYNAMIC)
+                                         : (it_compare->second != it_typed->second);
+            }
+            return;
+        }
+
+        // 规则4：已知数学函数调用的数学参数位置实参类型变化。
+        // 仅关注 math_param_positions 中登记的简单函数调用（callee 为普通变量名），
+        // 不处理方法调用（obj:method(...)）或表达式调用形式。
+        if (node->Type() == SyntaxTreeType::FunctionCall) {
+            const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+            DEBUG_ASSERT(fc);
+            const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+            DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
+            const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+            DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
+            const auto &callee_name = callee_var->GetName();
+            const auto math_it = math_param_positions.find(callee_name);
+            if (math_it == math_param_positions.end()) {
                 return;
             }
-            const auto &arg = raw_args[static_cast<size_t>(param_pos)];
-            const auto it_typed = typed_map.find(arg.get());
-            const auto it_comp = compare_map.find(arg.get());
-            DEBUG_ASSERT(it_typed != typed_map.end() && it_comp != compare_map.end());
-            // typed_map 中该实参有类型但 compare_map 中没有：说明存在改善/退化。
-            if ((it_typed->second == T_INT || it_typed->second == T_FLOAT) &&
-                it_comp->second != it_typed->second) {
-                found = true;
-                return;
+            const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+            DEBUG_ASSERT(args_ptr);
+            const auto raw_args = ExtractCallRawArgs(args_ptr);
+            for (const int param_pos : math_it->second) {
+                if (param_pos >= static_cast<int>(raw_args.size())) {
+                    return;
+                }
+                const auto &arg = raw_args[static_cast<size_t>(param_pos)];
+                const auto it_typed = typed_map.find(arg.get());
+                const auto it_comp = compare_map.find(arg.get());
+                DEBUG_ASSERT(it_typed != typed_map.end() && it_comp != compare_map.end());
+                // typed_map 中该实参有具体数值类型但 compare_map 中不同：改善/退化均成立。
+                if ((it_typed->second == T_INT || it_typed->second == T_FLOAT) &&
+                    it_comp->second != it_typed->second) {
+                    found = true;
+                    return;
+                }
             }
-        }
-    });
-    return found;
-}
-
-bool TypeInferencer::HasArithmeticNodeTypeChange(const EvalTypeMap &typed_map,
-                                                 const EvalTypeMap &compare_map,
-                                                 const SyntaxTreeInterfacePtr &func_block,
-                                                 const bool improvement_mode) const {
-    bool found = false;
-    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
-        if (found || !IsArithmeticExpr(node)) {
-            return;
-        }
-        const auto it_typed = typed_map.find(node.get());
-        const auto it_compare = compare_map.find(node.get());
-        DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
-        if (!IsNumericInferredType(it_typed->second)) {
-            return;
-        }
-        if (improvement_mode) {
-            if (it_compare->second == T_DYNAMIC) {
-                found = true;
-            }
-            return;
-        }
-        if (it_compare->second != it_typed->second) {
-            found = true;
-        }
-    });
-    return found;
-}
-
-bool TypeInferencer::HasComparisonOperandTypeChange(const EvalTypeMap &typed_map,
-                                                    const EvalTypeMap &compare_map,
-                                                    const SyntaxTreeInterfacePtr &func_block,
-                                                    const bool improvement_mode) const {
-    bool found = false;
-    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
-        if (found || !IsNativeComparisonExpr(node)) {
-            return;
-        }
-        const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-        const auto left = exp->Left();
-        const auto right = exp->Right();
-        DEBUG_ASSERT(left && right);
-        const auto lt_typed = typed_map.find(left.get());
-        const auto rt_typed = typed_map.find(right.get());
-        const auto lt_compare = compare_map.find(left.get());
-        const auto rt_compare = compare_map.find(right.get());
-        DEBUG_ASSERT(lt_typed != typed_map.end() && rt_typed != typed_map.end() &&
-                     lt_compare != compare_map.end() && rt_compare != compare_map.end());
-        const bool both_typed = IsNumericInferredType(lt_typed->second) &&
-                                IsNumericInferredType(rt_typed->second);
-        if (!both_typed) {
-            return;
-        }
-        if (improvement_mode) {
-            // improvement 模式：仅关注 compare_map 是否退回到 T_DYNAMIC。
-            if (lt_compare->second == T_DYNAMIC || rt_compare->second == T_DYNAMIC) {
-                found = true;
-            }
-            return;
-        }
-        // degradation 模式：只要与 typed_map 不一致（含 INT/FLOAT 变化）即视为退化。
-        if (lt_compare->second != lt_typed->second || rt_compare->second != rt_typed->second) {
-            found = true;
-        }
-    });
-    return found;
-}
-
-bool TypeInferencer::HasForLoopTypeChange(const EvalTypeMap &typed_map,
-                                          const EvalTypeMap &compare_map,
-                                          const SyntaxTreeInterfacePtr &func_block,
-                                          const bool improvement_mode) const {
-    bool found = false;
-    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
-        if (found || node->Type() != SyntaxTreeType::ForLoop) {
-            return;
-        }
-        const auto it_typed = typed_map.find(node.get());
-        const auto it_compare = compare_map.find(node.get());
-        DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
-        if (!IsNumericInferredType(it_typed->second)) {
-            return;
-        }
-        if (improvement_mode) {
-            // improvement 模式：仅关注 compare_map 是否退回到 T_DYNAMIC。
-            if (it_compare->second == T_DYNAMIC) {
-                found = true;
-            }
-            return;
-        }
-        // degradation 模式：只要与 typed_map 不一致（含 INT/FLOAT 变化）即视为退化。
-        if (it_compare->second != it_typed->second) {
-            found = true;
         }
     });
     return found;

@@ -103,33 +103,18 @@ private:
                                               const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
 
     // HasArithmeticImprovement 与 ParamAffectsArithmetic 的公共实现。
+    // 仅做一次 WalkSyntaxTree 遍历，在同一回调中按节点类别分派四类检测规则：
+    //   1. 算术表达式：节点自身类型变化（T_INT/T_FLOAT ↔ T_DYNAMIC）；
+    //   2. 有序比较（< <= > >=）：左右操作数类型变化（均数值 ↔ 含 T_DYNAMIC）；
+    //   3. for-loop：循环节点自身类型变化；
+    //   4. 已知数学函数调用：数学参数位置实参类型变化。
     // improvement_mode=true 时检测"改善"（compare_map 节点为 T_DYNAMIC），
     // improvement_mode=false 时检测"退化"（compare_map 节点与 typed_map 不同）。
+    // 注意：仅关注数学参数发现相关槽位，不检测任意节点的类型变化。
     [[nodiscard]] bool CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
                                                   const SyntaxTreeInterfacePtr &func_block,
                                                   bool improvement_mode,
                                                   const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
-    // 检查 func_block 中是否存在对已知数学函数的调用，其数学参数位置的实参在 typed_map 中有类型
-    // (T_INT/T_FLOAT) 但在 compare_map 中类型不同（即发生了改善或退化）。
-    [[nodiscard]] bool HasMathCallImprovement(const SyntaxTreeInterfacePtr &func_block,
-                                              const EvalTypeMap &typed_map,
-                                              const EvalTypeMap &compare_map,
-                                              const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
-
-    [[nodiscard]] bool HasArithmeticNodeTypeChange(const EvalTypeMap &typed_map,
-                                                   const EvalTypeMap &compare_map,
-                                                   const SyntaxTreeInterfacePtr &func_block,
-                                                   bool improvement_mode) const;
-
-    [[nodiscard]] bool HasComparisonOperandTypeChange(const EvalTypeMap &typed_map,
-                                                      const EvalTypeMap &compare_map,
-                                                      const SyntaxTreeInterfacePtr &func_block,
-                                                      bool improvement_mode) const;
-
-    [[nodiscard]] bool HasForLoopTypeChange(const EvalTypeMap &typed_map,
-                                            const EvalTypeMap &compare_map,
-                                            const SyntaxTreeInterfacePtr &func_block,
-                                            bool improvement_mode) const;
 
     [[nodiscard]] std::vector<FunctionSpecInfo> CollectFunctionSpecInfos(const ParseResult &pr) const;
 
