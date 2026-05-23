@@ -451,6 +451,8 @@ TEST(var, bitwise) {
     ASSERT_EQ(res.GetInt(), 1);
     // Non-integral float should fail
     ASSERT_ANY_THROW(Var(1.5).Bitand(Var(int64_t{3}), res));
+    // Out-of-range integral float (2^63) should fail integer-representation check
+    ASSERT_ANY_THROW(Var(9223372036854775808.0).Bitand(Var(int64_t{3}), res));
 
     // Bitor
     v1.Bitor(v2, res);

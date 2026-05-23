@@ -28,20 +28,12 @@ bool Var::TryConvertNumberToInteger(int64_t &out) const {
     if (std::modf(double_val, &int_part) != 0.0) {
         return false;
     }
-    // 边界检查说明：static_cast<double>(INT64_MAX) 因 IEEE 754 精度不足，
-    // 会向上取整为 9223372036854775808.0（即 2^63，比 INT64_MAX 大 1）。
-    // 因此上界使用 '>'（严格大于）而不是 '>='：
-    //   - int_part == 9223372036854775808.0 时，'>' 为 false，但这个值其实已超出
-    //     int64_t 范围。然而 IEEE 754 double 在 2^62～2^63 范围内的精度为 512，
-    //     modf 产生的 int_part 步进也是 512，实际上不存在恰好等于 2^63 的有效中间值——
-    //     任何合法的 double 整数值若 >= 2^63 都会在转型到 double 时就变成 2^63.0，
-    //     此时 'int_part > static_cast<double>(INT64_MAX)' 为 false（二者相等），
-    //     后续 static_cast<int64_t>(2^63.0) 才会触发未定义行为。
-    // 这与 Lua 5.4 官方实现的处理方式完全一致（见 luaconf.h / lvm.c 中的 luaV_flttointeger），
-    // 实践中在主流编译器 + x86-64 平台上的行为稳定（CVTTSD2SI 会产生 INT64_MIN 作为
-    // 溢出哨兵），fakelua 同样不做额外特判以保持实现简洁。
+    // 上界必须按“< 2^63”检查，而不能用 static_cast<double>(INT64_MAX)。
+    // 因为 double 无法精确表示 INT64_MAX，转换后会变成 2^63，若仍按 INT64_MAX 比较，
+    // 会把 2^63 误判为可转换值，随后 static_cast<int64_t>(2^63) 触发 UB。
+    constexpr double kInt64UpperBoundExclusive = 9223372036854775808.0; // 2^63
     if (int_part < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
-        int_part > static_cast<double>(std::numeric_limits<int64_t>::max())) {
+        int_part >= kInt64UpperBoundExclusive) {
         return false;
     }
     out = static_cast<int64_t>(int_part);
