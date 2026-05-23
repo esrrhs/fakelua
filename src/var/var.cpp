@@ -11,17 +11,6 @@ namespace fakelua {
 
 Var const_null_var;
 
-namespace {
-
-void RequireBitwiseIntegerOperands(const Var &lhs, const Var &rhs, const std::string_view &op, int64_t &lhs_int, int64_t &rhs_int) {
-    if (!lhs.TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be integer, got {} {}, {} {}", op,
-                                          VarTypeToString(lhs.Type()), lhs.ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
-}
-
-}// namespace
-
 bool Var::TryConvertNumberToInteger(int64_t &out) const {
     if (Type() == VarType::Int) {
         out = GetInt();
@@ -320,28 +309,40 @@ void Var::Mod(const Var &rhs, Var &result) const {
 void Var::Bitand(const Var &rhs, Var &result) const {
     int64_t lhs_int = 0;
     int64_t rhs_int = 0;
-    RequireBitwiseIntegerOperands(*this, rhs, "&", lhs_int, rhs_int);
+    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
+        ThrowFakeluaException(std::format("Var op failed, operand of '&' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+    }
     result.SetInt(lhs_int & rhs_int);
 }
 
 void Var::Xor(const Var &rhs, Var &result) const {
     int64_t lhs_int = 0;
     int64_t rhs_int = 0;
-    RequireBitwiseIntegerOperands(*this, rhs, "~", lhs_int, rhs_int);
+    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
+        ThrowFakeluaException(std::format("Var op failed, operand of '~' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+    }
     result.SetInt(lhs_int ^ rhs_int);
 }
 
 void Var::Bitor(const Var &rhs, Var &result) const {
     int64_t lhs_int = 0;
     int64_t rhs_int = 0;
-    RequireBitwiseIntegerOperands(*this, rhs, "|", lhs_int, rhs_int);
+    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
+        ThrowFakeluaException(std::format("Var op failed, operand of '|' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+    }
     result.SetInt(lhs_int | rhs_int);
 }
 
 void Var::RightShift(const Var &rhs, Var &result) const {
     int64_t lhs_int = 0;
     int64_t rhs_int = 0;
-    RequireBitwiseIntegerOperands(*this, rhs, ">>", lhs_int, rhs_int);
+    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
+        ThrowFakeluaException(std::format("Var op failed, operand of '>>' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+    }
     auto shift = rhs_int;
     // Lua 5.4: 移位量绝对值 >= 64 时结果为 0（逻辑移位到超过宽度视为清零）
     if (shift >= 64 || shift <= -64) {
@@ -358,7 +359,10 @@ void Var::RightShift(const Var &rhs, Var &result) const {
 void Var::LeftShift(const Var &rhs, Var &result) const {
     int64_t lhs_int = 0;
     int64_t rhs_int = 0;
-    RequireBitwiseIntegerOperands(*this, rhs, "<<", lhs_int, rhs_int);
+    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
+        ThrowFakeluaException(std::format("Var op failed, operand of '<<' must be integer, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
+                                          VarTypeToString(rhs.Type()), rhs.ToString()));
+    }
     auto shift = rhs_int;
     // Lua 5.4: 移位量绝对值 >= 64 时结果为 0（逻辑移位到超过宽度视为清零）
     if (shift >= 64 || shift <= -64) {
