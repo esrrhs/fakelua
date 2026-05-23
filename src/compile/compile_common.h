@@ -55,6 +55,9 @@ inline InferredType InferNumericBinopResultType(const BinOpKind op_kind,
     }
     if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr ||
         op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
+        if (left_type != T_INT || right_type != T_INT) {
+            return T_DYNAMIC;
+        }
         return T_INT;
     }
     if (op_kind == BinOpKind::kAnd) {

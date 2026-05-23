@@ -2150,6 +2150,24 @@ TEST(infer, test_infer_native_binop_bitand) {
     });
 }
 
+// Bitwise op with a float operand must not use native fast path.
+// It should stay on OpBitAnd slow path and preserve runtime type checks.
+TEST(infer, test_infer_native_binop_bitand_float) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_bitand_float.lua");
+    ASSERT_NE(code.find("OpBitAnd("), std::string::npos);
+    ASSERT_EQ(code.find("(int64_t)(x)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_bitand_float.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        EXPECT_THROW(
+                {
+                    Call(s, type, "test", ret);
+                },
+                std::exception);
+    });
+}
+
 // Native BITOR in CompileBinop via return expression: return x | 3 where x is T_INT.
 // Exercises the BITOR branch of the native arithmetic fast path (c_gen.cpp line 2398).
 // 12 | 3 = 15.
@@ -2374,6 +2392,14 @@ TEST(infer, test_spec_for_in_body) {
         Call(s, type, "test", ret, 0);
         ASSERT_EQ(ret, 6);
     });
+}
+
+// For-in loop variables must be scoped locals in type inference and must not inherit
+// an outer same-name typed variable.
+TEST(infer, test_infer_forin_shadow_var) {
+    const auto code = InferGetCCode("./infer/test_infer_forin_shadow_var.lua");
+    ASSERT_NE(code.find("OpAdd((k),"), std::string::npos);
+    ASSERT_EQ(code.find("k.data_.i"), std::string::npos);
 }
 
 // Specializable function with elseif where not all paths return via AllPathsReturn.

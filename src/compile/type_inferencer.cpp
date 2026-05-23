@@ -305,7 +305,15 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
             InferNode(for_in->Namelist());
             InferNode(for_in->Explist());
-            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_in->Block()), true);
+            // for-in 循环变量在循环体内应为当前作用域的新变量，不能继承外层同名变量类型。
+            env_.EnterScope();
+            if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(for_in->Namelist())) {
+                for (const auto &name : namelist->Names()) {
+                    env_.Define(name, T_DYNAMIC);
+                }
+            }
+            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_in->Block()), false);
+            env_.ExitScope();
             current_map_[node.get()] = T_UNKNOWN;
             return T_UNKNOWN;
         }

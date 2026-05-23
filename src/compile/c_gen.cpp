@@ -2433,72 +2433,77 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left,
         const auto lt = InferArgTypeForSpec(left);
         const auto rt = InferArgTypeForSpec(right);
         if (lt != T_DYNAMIC && rt != T_DYNAMIC) {
-            InferredType result_type;
+            bool can_native = true;
+            InferredType result_type = T_DYNAMIC;
             if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
                 result_type = T_FLOAT;
             } else if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor ||
                        op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kLeftShift ||
                        op_kind == BinOpKind::kRightShift) {
+                // 位运算仅支持整数路径，遇到 float 必须走慢路径以保留运行时类型检查。
+                can_native = (lt == T_INT && rt == T_INT);
                 result_type = T_INT;
             } else {
                 result_type = (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
             }
-            const auto left_native = CompileNumericExp(left);
-            const auto right_native = CompileNumericExp(right);
-            std::string native_expr;
-            if (op_kind == BinOpKind::kPlus) {
-                native_expr = std::format("(({}) + ({}))", left_native, right_native);
-            } else if (op_kind == BinOpKind::kMinus) {
-                native_expr = std::format("(({}) - ({}))", left_native, right_native);
-            } else if (op_kind == BinOpKind::kStar) {
-                native_expr = std::format("(({}) * ({}))", left_native, right_native);
-            } else if (op_kind == BinOpKind::kSlash) {
-                native_expr = std::format("((double)({}) / (double)({}))", left_native, right_native);
-            } else if (op_kind == BinOpKind::kPow) {
-                native_expr = std::format("pow((double)({}), (double)({}))", left_native, right_native);
-            } else if (op_kind == BinOpKind::kDoubleSlash) {
-                if (result_type == T_INT) {
+            if (can_native) {
+                const auto left_native = CompileNumericExp(left);
+                const auto right_native = CompileNumericExp(right);
+                std::string native_expr;
+                if (op_kind == BinOpKind::kPlus) {
+                    native_expr = std::format("(({}) + ({}))", left_native, right_native);
+                } else if (op_kind == BinOpKind::kMinus) {
+                    native_expr = std::format("(({}) - ({}))", left_native, right_native);
+                } else if (op_kind == BinOpKind::kStar) {
+                    native_expr = std::format("(({}) * ({}))", left_native, right_native);
+                } else if (op_kind == BinOpKind::kSlash) {
+                    native_expr = std::format("((double)({}) / (double)({}))", left_native, right_native);
+                } else if (op_kind == BinOpKind::kPow) {
+                    native_expr = std::format("pow((double)({}), (double)({}))", left_native, right_native);
+                } else if (op_kind == BinOpKind::kDoubleSlash) {
+                    if (result_type == T_INT) {
+                        const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                        func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                        *cur_output_ << GenTab() << std::format("FlFloorDivInt(({}), ({}), {});\n", left_native, right_native, ntmp);
+                        native_expr = ntmp;
+                    } else {
+                        native_expr = std::format("floor((double)({}) / (double)({}))", left_native, right_native);
+                    }
+                } else if (op_kind == BinOpKind::kMod) {
+                    if (result_type == T_INT) {
+                        const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                        func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                        *cur_output_ << GenTab() << std::format("FlModInt(({}), ({}), {});\n", left_native, right_native, ntmp);
+                        native_expr = ntmp;
+                    } else {
+                        const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                        func_temp_decls_ << "    double " << ntmp << ";\n";
+                        *cur_output_ << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left_native, right_native, ntmp);
+                        native_expr = ntmp;
+                    }
+                } else if (op_kind == BinOpKind::kBitAnd) {
+                    native_expr = std::format("((int64_t)({}) & (int64_t)({}))", left_native, right_native);
+                } else if (op_kind == BinOpKind::kBitOr) {
+                    native_expr = std::format("((int64_t)({}) | (int64_t)({}))", left_native, right_native);
+                } else if (op_kind == BinOpKind::kXor) {
+                    native_expr = std::format("((int64_t)({}) ^ (int64_t)({}))", left_native, right_native);
+                } else if (op_kind == BinOpKind::kLeftShift) {
                     const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-                    *cur_output_ << GenTab() << std::format("FlFloorDivInt(({}), ({}), {});\n", left_native, right_native, ntmp);
+                    *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
                     native_expr = ntmp;
-                } else {
-                    native_expr = std::format("floor((double)({}) / (double)({}))", left_native, right_native);
-                }
-            } else if (op_kind == BinOpKind::kMod) {
-                if (result_type == T_INT) {
+                } else if (op_kind == BinOpKind::kRightShift) {
                     const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-                    *cur_output_ << GenTab() << std::format("FlModInt(({}), ({}), {});\n", left_native, right_native, ntmp);
-                    native_expr = ntmp;
-                } else {
-                    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-                    func_temp_decls_ << "    double " << ntmp << ";\n";
-                    *cur_output_ << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left_native, right_native, ntmp);
+                    *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
                     native_expr = ntmp;
                 }
-            } else if (op_kind == BinOpKind::kBitAnd) {
-                native_expr = std::format("((int64_t)({}) & (int64_t)({}))", left_native, right_native);
-            } else if (op_kind == BinOpKind::kBitOr) {
-                native_expr = std::format("((int64_t)({}) | (int64_t)({}))", left_native, right_native);
-            } else if (op_kind == BinOpKind::kXor) {
-                native_expr = std::format("((int64_t)({}) ^ (int64_t)({}))", left_native, right_native);
-            } else if (op_kind == BinOpKind::kLeftShift) {
-                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-                *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
-                native_expr = ntmp;
-            } else if (op_kind == BinOpKind::kRightShift) {
-                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-                *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
-                native_expr = ntmp;
-            }
-            if (!native_expr.empty()) {
-                const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    CVar " << tmp << ";\n";
-                *cur_output_ << GenTab() << tmp << " = " << BoxNativeValue(native_expr, result_type) << ";\n";
-                return tmp;
+                if (!native_expr.empty()) {
+                    const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
+                    func_temp_decls_ << "    CVar " << tmp << ";\n";
+                    *cur_output_ << GenTab() << tmp << " = " << BoxNativeValue(native_expr, result_type) << ";\n";
+                    return tmp;
+                }
             }
         }
     }
