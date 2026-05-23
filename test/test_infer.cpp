@@ -2157,6 +2157,26 @@ TEST(infer, test_infer_native_binop_bitand_float) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_bitand_float.lua");
     ASSERT_NE(code.find("OpBitAnd("), std::string::npos);
     ASSERT_EQ(code.find("(int64_t)(x)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_bitand_float.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        EXPECT_THROW(Call(s, type, "test", ret), std::exception);
+    });
+}
+
+// Integer-representable float operand (1.0) is valid for bitwise AND.
+TEST(infer, test_infer_native_binop_bitand_float_intrepr) {
+    const auto code = InferGetCCode("./infer/test_infer_native_binop_bitand_float_intrepr.lua");
+    ASSERT_NE(code.find("OpBitAnd("), std::string::npos);
+    ASSERT_EQ(code.find("(int64_t)(x)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_native_binop_bitand_float_intrepr.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 1);
+    });
 }
 
 // Native BITOR in CompileBinop via return expression: return x | 3 where x is T_INT.
