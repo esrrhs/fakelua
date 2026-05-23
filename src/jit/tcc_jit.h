@@ -14,7 +14,7 @@ public:
     explicit TccJitter(State *s);
     ~TccJitter() = default;
 
-    void Compile(CompileResult &cr, const CompileConfig &cfg);
+    void Compile(const ParseResult &pr, const GenResult &gr, const CompileConfig &cfg);
 
 private:
     State *s_;

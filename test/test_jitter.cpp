@@ -1538,3 +1538,280 @@ TEST(jitter, test_table_hash_delete_chain) {
     });
 }
 
+// Bug 4: Int and Float with equal mathematical value must compare as equal in JIT code.
+TEST(jitter, test_binop_equal_int_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_binop_equal_int_float.lua", {.debug_mode = debug_mode});
+        bool eq = false;
+        // 1 (int) == 1.0 (float) -> true
+        Call(s, type, "test_int_eq_float", eq, 1, 1.0);
+        ASSERT_TRUE(eq);
+        // 1.0 (float) == 1 (int) -> true
+        eq = false;
+        Call(s, type, "test_float_eq_int", eq, 1.0, 1);
+        ASSERT_TRUE(eq);
+        // 1 (int) == 1.5 (float) -> false
+        eq = true;
+        Call(s, type, "test_int_neq_float", eq, 1, 1.5);
+        ASSERT_FALSE(eq);
+    });
+}
+
+// Bug 5: Two multi-assign statements on the same source line must not generate
+// duplicate temp variable names, causing compile errors.
+TEST(jitter, test_assign_same_line_multi) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_assign_same_line_multi.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 10); // 1 + 2 + 3 + 4 = 10
+    });
+}
+
+// Float for-loop: exercises the typed_float_for code path in CompileStmtForLoop.
+// begin=1.0, end=2.0, step=0.5 => iterations at 1.0, 1.5, 2.0 => sum = 4.5
+TEST(jitter, test_for_loop_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_loop_float.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret);
+        ASSERT_DOUBLE_EQ(ret, 4.5);
+    });
+}
+
+// Unary minus applied to a float parameter: exercises the float branch of
+// CompileExp for unary minus (UnopMinus on a float Var).
+TEST(jitter, test_unop_minus_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_unop_minus_float.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret, 3.5);
+        ASSERT_DOUBLE_EQ(ret, -3.5);
+    });
+}
+
+// T_DYNAMIC subtraction: operands from table lookups are T_DYNAMIC,
+// exercises OpSub in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_sub) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_sub.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10, 3);
+        ASSERT_EQ(ret, 7);
+    });
+}
+
+// T_DYNAMIC division: operands from table lookups are T_DYNAMIC,
+// exercises OpDiv in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_div) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_div.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret, 8.0, 2.0);
+        ASSERT_DOUBLE_EQ(ret, 4.0);
+    });
+}
+
+// T_DYNAMIC floor division: operands from table lookups are T_DYNAMIC,
+// exercises OpFloorDiv in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_floor_div) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_floor_div.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 8, 3);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
+// T_DYNAMIC power: operands from table lookups are T_DYNAMIC,
+// exercises OpPow in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_pow) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_pow.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret, 2.0, 3.0);
+        ASSERT_DOUBLE_EQ(ret, 8.0);
+    });
+}
+
+// T_DYNAMIC bitwise AND: operands from table lookups are T_DYNAMIC,
+// exercises OpBitAnd in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_bitand) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_bitand.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 12, 10);
+        ASSERT_EQ(ret, 8);
+    });
+}
+
+// T_DYNAMIC bitwise OR: operands from table lookups are T_DYNAMIC,
+// exercises OpBitOr in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_bitor) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_bitor.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 12, 10);
+        ASSERT_EQ(ret, 14);
+    });
+}
+
+// T_DYNAMIC bitwise XOR: operands from table lookups are T_DYNAMIC,
+// exercises OpBitXor in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_bitxor) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_bitxor.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 12, 10);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+// T_DYNAMIC right shift: operands from table lookups are T_DYNAMIC,
+// exercises OpRightShift in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_rshift) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_rshift.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 8, 1);
+        ASSERT_EQ(ret, 4);
+    });
+}
+
+// T_DYNAMIC left shift: operands from table lookups are T_DYNAMIC,
+// exercises OpLeftShift in CompileBinop CVar path (c_gen.cpp).
+TEST(jitter, test_dynamic_arith_lshift) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_arith_lshift.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 2, 3);
+        ASSERT_EQ(ret, 16);
+    });
+}
+
+// Untyped for loop with explicit dynamic step: helper() returns T_DYNAMIC,
+// so the step expression is not typed. This exercises c_gen.cpp lines 2011-2012
+// (the ExpStep != nullptr path in the CVar for-loop). Iterations: 1,3,5,7,9 => 5.
+TEST(jitter, test_for_loop_dynamic_step) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_loop_dynamic_step.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 5);
+    });
+}
+
+// Typed-int for-loop with step=0 must throw "'for' step is zero" at compile time.
+TEST(jitter, test_for_loop_zero_step_int) {
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_for_loop_zero_step_int.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+// Typed-float for-loop with step=0.0 must throw "'for' step is zero" at compile time.
+TEST(jitter, test_for_loop_zero_step_float) {
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_for_loop_zero_step_float.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+// Dynamic for-loop with step=0 via a function call: the step cannot be known at
+// compile time so a runtime guard is emitted in the generated C code.  TCC-compiled
+// code cannot propagate C++ exceptions back through its frames, so the runtime error
+// cannot be caught in a unit test.  This test verifies only that the Lua code
+// compiles without error.
+TEST(jitter, test_for_loop_zero_step_dynamic) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        EXPECT_NO_THROW(
+                CompileFile(s, "./jit/test_for_loop_zero_step_dynamic.lua", {.debug_mode = debug_mode}));
+    });
+}
+
+// ForIn with only 1 loop variable (key only, no value variable).
+// Exercises c_gen.cpp CompileStmtForIn lines 2138-2142 (dummy val path).
+// Keys 1+2+3 = 6.
+TEST(jitter, test_for_in_key_only) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_in_key_only.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10, 20);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+// Top-level bare local variable (no initializer): exercises c_gen.cpp
+// BuildLocalVarExtensions line 797 (the continue that skips the bare local).
+TEST(jitter, test_top_level_bare_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_top_level_bare_local.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+// T_DYNAMIC unary minus: exercises OpUnaryMinus in CompileExp CVar path
+// (c_gen.cpp line 2497). x is a T_DYNAMIC table lookup; -x uses OpUnaryMinus.
+// -(10) = -10.
+TEST(jitter, test_dynamic_unop_minus) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_unop_minus.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, -10);
+    });
+}
+
+// Typed-int for-loop: loop variable i shadowed by local i inside the body.
+// Without the fix, the generated C would have two declarations of i in the
+// same scope, causing a compilation error.
+// i=1: inner_i=2; i=2: inner_i=4; i=3: inner_i=6  => sum=12
+TEST(jitter, test_for_loop_shadow_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_loop_shadow_local.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 12);
+    });
+}
+
+// Typed-float for-loop: loop variable i shadowed by local i inside the body.
+// i=1.0: inner_i=1.5; i=2.0: inner_i=2.5; i=3.0: inner_i=3.5  => sum=7.5
+TEST(jitter, test_for_loop_float_shadow_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_loop_float_shadow_local.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret);
+        ASSERT_DOUBLE_EQ(ret, 7.5);
+    });
+}
+
+// Dynamic for-loop (step from helper() forces CVar path): loop variable i
+// shadowed by local i inside the body.
+// i=1,3,5 (step=2); inner_i=2,6,10  => sum=18
+TEST(jitter, test_for_loop_dynamic_shadow_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_loop_dynamic_shadow_local.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 18);
+    });
+}
+
+// For-in loop: loop variable k shadowed by local k inside the body.
+// t={10,20,30}; k=1,2,3; inner_k=2,4,6  => sum=12
+TEST(jitter, test_for_in_shadow_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_in_shadow_local.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 12);
+    });
+}
+

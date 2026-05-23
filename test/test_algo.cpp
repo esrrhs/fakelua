@@ -32,8 +32,7 @@ template<typename Ret, typename... Args>
 static Ret LuaCall(lua_State *L, const char *func, Args... args) {
     lua_getglobal(L, func);
     (LuaPush(L, args), ...);
-    const int rc = lua_pcall(L, static_cast<int>(sizeof...(args)), 1, 0);
-    if (rc != LUA_OK) {
+    if (const int rc = lua_pcall(L, static_cast<int>(sizeof...(args)), 1, 0); rc != LUA_OK) {
         ADD_FAILURE() << "LuaCall(" << func << ") failed: " << lua_tostring(L, -1);
         lua_pop(L, 1);
         return Ret{};
@@ -54,8 +53,7 @@ static void LuaAlgoRunHelper(const std::string &lua_file, const std::function<vo
     lua_State *L = luaL_newstate();
     ASSERT_NE(L, nullptr);
     luaL_openlibs(L);
-    const int err = luaL_dofile(L, lua_file.c_str());
-    if (err != LUA_OK) {
+    if (const int err = luaL_dofile(L, lua_file.c_str()); err != LUA_OK) {
         const std::string msg = lua_tostring(L, -1);
         lua_close(L);
         FAIL() << "luaL_dofile(" << lua_file << ") failed: " << msg;

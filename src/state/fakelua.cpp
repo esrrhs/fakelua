@@ -8,115 +8,115 @@ namespace fakelua {
 
 namespace inter {
 
-CVar NativeToFakeluaNil(State *s) {
+CVar NativeToFakeluaNil(State *state) {
     return Var{};
 }
 
-CVar NativeToFakeluaBool(State *s, bool v) {
+CVar NativeToFakeluaBool(State *state, bool val) {
     Var ret;
-    ret.SetBool(v);
+    ret.SetBool(val);
     return ret;
 }
 
-CVar NativeToFakeluaChar(State *s, char v) {
+CVar NativeToFakeluaChar(State *state, char val) {
     Var ret;
-    ret.SetInt(v);
+    ret.SetInt(val);
     return ret;
 }
 
-CVar NativeToFakeluaUchar(State *s, unsigned char v) {
+CVar NativeToFakeluaUchar(State *state, unsigned char val) {
     Var ret;
-    ret.SetInt(v);
+    ret.SetInt(val);
     return ret;
 }
 
-CVar NativeToFakeluaShort(State *s, short v) {
+CVar NativeToFakeluaShort(State *state, short val) {
     Var ret;
-    ret.SetInt(v);
+    ret.SetInt(val);
     return ret;
 }
 
-CVar NativeToFakeluaUshort(State *s, unsigned short v) {
+CVar NativeToFakeluaUshort(State *state, unsigned short val) {
     Var ret;
-    ret.SetInt(v);
+    ret.SetInt(val);
     return ret;
 }
 
-CVar NativeToFakeluaInt(State *s, int v) {
+CVar NativeToFakeluaInt(State *state, int val) {
     Var ret;
-    ret.SetInt(v);
+    ret.SetInt(val);
     return ret;
 }
 
-CVar NativeToFakeluaUint(State *s, unsigned int v) {
+CVar NativeToFakeluaUint(State *state, unsigned int val) {
     Var ret;
-    ret.SetInt(v);
+    ret.SetInt(val);
     return ret;
 }
 
-CVar NativeToFakeluaLong(State *s, long v) {
+CVar NativeToFakeluaLong(State *state, long val) {
     Var ret;
-    ret.SetInt(v);
+    ret.SetInt(val);
     return ret;
 }
 
-CVar NativeToFakeluaUlong(State *s, unsigned long v) {
+CVar NativeToFakeluaUlong(State *state, unsigned long val) {
     Var ret;
-    ret.SetInt(v);
+    ret.SetInt(static_cast<int64_t>(val));
     return ret;
 }
 
-CVar NativeToFakeluaLonglong(State *s, long long v) {
+CVar NativeToFakeluaLonglong(State *state, long long val) {
     Var ret;
-    ret.SetInt(v);
+    ret.SetInt(val);
     return ret;
 }
 
-CVar NativeToFakeluaUlonglong(State *s, unsigned long long v) {
+CVar NativeToFakeluaUlonglong(State *state, unsigned long long val) {
     Var ret;
-    ret.SetInt(static_cast<int64_t>(v));
+    ret.SetInt(static_cast<int64_t>(val));
     return ret;
 }
 
-CVar NativeToFakeluaFloat(State *s, float v) {
+CVar NativeToFakeluaFloat(State *state, float val) {
     Var ret;
-    ret.SetFloat(v);
+    ret.SetFloat(val);
     return ret;
 }
 
-CVar NativeToFakeluaDouble(State *s, double v) {
+CVar NativeToFakeluaDouble(State *state, double val) {
     Var ret;
-    ret.SetFloat(v);
+    ret.SetFloat(val);
     return ret;
 }
 
-CVar NativeToFakeluaCstr(State *s, const char *v) {
-    Var ret;
-    // 防御性处理：外部传入 nullptr 时视为空字符串，避免 string_view 构造崩溃
-    ret.SetTempString(s, v ? v : "");
-    return ret;
-}
-
-CVar NativeToFakeluaStr(State *s, char *v) {
+CVar NativeToFakeluaCstr(State *state, const char *val) {
     Var ret;
     // 防御性处理：外部传入 nullptr 时视为空字符串，避免 string_view 构造崩溃
-    ret.SetTempString(s, v ? v : "");
+    ret.SetTempString(state, val ? val : "");
     return ret;
 }
 
-CVar NativeToFakeluaString(State *s, const std::string &v) {
+CVar NativeToFakeluaStr(State *state, char *val) {
     Var ret;
-    ret.SetTempString(s, v);
+    // 防御性处理：外部传入 nullptr 时视为空字符串，避免 string_view 构造崩溃
+    ret.SetTempString(state, val ? val : "");
     return ret;
 }
 
-CVar NativeToFakeluaStringView(State *s, const std::string_view &v) {
+CVar NativeToFakeluaString(State *state, const std::string &val) {
     Var ret;
-    ret.SetTempString(s, v);
+    ret.SetTempString(state, val);
     return ret;
 }
 
-Var ViToVar(State *s, const VarInterface *src) {
+CVar NativeToFakeluaStringView(State *state, const std::string_view &val) {
+    Var ret;
+    ret.SetTempString(state, val);
+    return ret;
+}
+
+Var ViToVar(State *state, const VarInterface *src) {
     DEBUG_ASSERT(src->ViGetType() >= VarInterface::Type::MIN && src->ViGetType() <= VarInterface::Type::MAX);
     Var ret;
     switch (src->ViGetType()) {
@@ -133,15 +133,15 @@ Var ViToVar(State *s, const VarInterface *src) {
             ret.SetFloat(src->ViGetFloat());
             break;
         case VarInterface::Type::STRING:
-            ret.SetTempString(s, src->ViGetString());
+            ret.SetTempString(state, src->ViGetString());
             break;
         case VarInterface::Type::TABLE:
-            ret.SetTable(s);
+            ret.SetTable(state);
             for (int i = 0; i < static_cast<int>(src->ViGetTableSize()); ++i) {
                 const auto [fst, snd] = src->ViGetTableKv(i);
-                auto k = ViToVar(s, fst);
-                auto v = ViToVar(s, snd);
-                ret.GetTable()->Set(s, k, v, true);
+                auto key = ViToVar(state, fst);
+                auto val = ViToVar(state, snd);
+                ret.GetTable()->Set(state, key, val, true);
             }
             break;
         default:
@@ -150,185 +150,185 @@ Var ViToVar(State *s, const VarInterface *src) {
     return ret;
 }
 
-CVar NativeToFakeluaObj(State *s, const VarInterface *v) {
-    return ViToVar(s, v);
+CVar NativeToFakeluaObj(State *state, const VarInterface *val) {
+    return ViToVar(state, val);
 }
 
-bool FakeluaToNativeBool(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::Bool) {
-        return vv.GetBool();
+bool FakeluaToNativeBool(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::Bool) {
+        return var_val.GetBool();
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeBool failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeBool failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-char FakeluaToNativeChar(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::Int) {
-        return static_cast<char>(vv.GetInt());
+char FakeluaToNativeChar(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::Int) {
+        return static_cast<char>(var_val.GetInt());
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeChar failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeChar failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-unsigned char FakeluaToNativeUchar(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::Int) {
-        return static_cast<unsigned char>(vv.GetInt());
+unsigned char FakeluaToNativeUchar(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::Int) {
+        return static_cast<unsigned char>(var_val.GetInt());
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeUchar failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeUchar failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-short FakeluaToNativeShort(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::Int) {
-        return static_cast<short>(vv.GetInt());
+short FakeluaToNativeShort(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::Int) {
+        return static_cast<short>(var_val.GetInt());
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeShort failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeShort failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-unsigned short FakeluaToNativeUshort(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::Int) {
-        return static_cast<unsigned short>(vv.GetInt());
+unsigned short FakeluaToNativeUshort(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::Int) {
+        return static_cast<unsigned short>(var_val.GetInt());
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeUshort failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeUshort failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-int FakeluaToNativeInt(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::Int) {
-        return static_cast<int>(vv.GetInt());
+int FakeluaToNativeInt(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::Int) {
+        return static_cast<int>(var_val.GetInt());
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeInt failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeInt failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-unsigned int FakeluaToNativeUint(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::Int) {
-        return static_cast<unsigned int>(vv.GetInt());
+unsigned int FakeluaToNativeUint(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::Int) {
+        return static_cast<unsigned int>(var_val.GetInt());
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeUint failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeUint failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-long FakeluaToNativeLong(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::Int) {
-        return vv.GetInt();
+long FakeluaToNativeLong(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::Int) {
+        return var_val.GetInt();
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeLong failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeLong failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-unsigned long FakeluaToNativeUlong(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::Int) {
-        return vv.GetInt();
+unsigned long FakeluaToNativeUlong(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::Int) {
+        return var_val.GetInt();
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeUlong failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeUlong failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-long long FakeluaToNativeLonglong(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::Int) {
-        return vv.GetInt();
+long long FakeluaToNativeLonglong(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::Int) {
+        return var_val.GetInt();
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeLonglong failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeLonglong failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-unsigned long long FakeluaToNativeUlonglong(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::Int) {
-        return static_cast<unsigned long long>(vv.GetInt());
+unsigned long long FakeluaToNativeUlonglong(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::Int) {
+        return static_cast<unsigned long long>(var_val.GetInt());
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeUlonglong failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeUlonglong failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-float FakeluaToNativeFloat(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::Float) {
-        return static_cast<float>(vv.GetFloat());
+float FakeluaToNativeFloat(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::Float) {
+        return static_cast<float>(var_val.GetFloat());
     }
-    if (vv.Type() == VarType::Int) {
-        return static_cast<float>(vv.GetInt());
+    if (var_val.Type() == VarType::Int) {
+        return static_cast<float>(var_val.GetInt());
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeFloat failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeFloat failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-double FakeluaToNativeDouble(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::Float) {
-        return vv.GetFloat();
+double FakeluaToNativeDouble(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::Float) {
+        return var_val.GetFloat();
     }
-    if (vv.Type() == VarType::Int) {
-        return static_cast<double>(vv.GetInt());
+    if (var_val.Type() == VarType::Int) {
+        return static_cast<double>(var_val.GetInt());
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeDouble failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeDouble failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-std::string FakeluaToNativeString(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::String || vv.Type() == VarType::StringId) {
-        return std::string(vv.GetString()->Str());
+std::string FakeluaToNativeString(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::String || var_val.Type() == VarType::StringId) {
+        return std::string(var_val.GetString()->Str());
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeString failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeString failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-std::string_view FakeluaToNativeStringView(State *s, CVar v) {
-    const auto vv = reinterpret_cast<Var &>(v);
-    if (vv.Type() == VarType::String || vv.Type() == VarType::StringId) {
-        return vv.GetString()->Str();
+std::string_view FakeluaToNativeStringView(State *state, CVar val) {
+    const auto var_val = reinterpret_cast<Var &>(val);
+    if (var_val.Type() == VarType::String || var_val.Type() == VarType::StringId) {
+        return var_val.GetString()->Str();
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeStringview failed, type is {}", VarTypeToString(vv.Type())));
+    ThrowFakeluaException(std::format("FakeluaToNativeStringview failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-void VarToVi(State *s, CVar src, VarInterface *dst) {
-    const auto vv = reinterpret_cast<Var &>(src);
-    DEBUG_ASSERT(vv.Type() >= VarType::Min && vv.Type() <= VarType::Max);
-    switch (vv.Type()) {
+void VarToVi(State *state, CVar src, VarInterface *dst) {
+    const auto var_val = reinterpret_cast<Var &>(src);
+    DEBUG_ASSERT(var_val.Type() >= VarType::Min && var_val.Type() <= VarType::Max);
+    switch (var_val.Type()) {
         case VarType::Nil:
             dst->ViSetNil();
             break;
         case VarType::Bool:
-            dst->ViSetBool(vv.GetBool());
+            dst->ViSetBool(var_val.GetBool());
             break;
         case VarType::Int:
-            dst->ViSetInt(vv.GetInt());
+            dst->ViSetInt(var_val.GetInt());
             break;
         case VarType::Float:
-            dst->ViSetFloat(vv.GetFloat());
+            dst->ViSetFloat(var_val.GetFloat());
             break;
         case VarType::String:
-            dst->ViSetString(vv.GetString()->Str());
+            dst->ViSetString(var_val.GetString()->Str());
             break;
         case VarType::StringId:
-            dst->ViSetString(vv.GetString()->Str());
+            dst->ViSetString(var_val.GetString()->Str());
             break;
         case VarType::Table: {
             std::vector<std::pair<VarInterface *, VarInterface *>> kvs;
-            const auto table = vv.GetTable();
+            const auto table = var_val.GetTable();
             const uint32_t count = static_cast<uint32_t>(table->Size());
             const VarTable::VarEntry *quick_data = table->GetQuickData();
             const auto *nodes = table->GetNodes();
             if (const uint32_t *active_list = table->GetActiveList(); active_list == nullptr) {// 快速路径
                 for (uint32_t i = 0; i < count; ++i) {
                     const auto &entry = quick_data[i];
-                    const auto k = entry.key;
-                    const auto v = entry.val;
-                    auto ki = GetVarInterfaceNewFunc(s)();
-                    auto vi = GetVarInterfaceNewFunc(s)();
-                    VarToVi(s, k, ki);
-                    VarToVi(s, v, vi);
-                    kvs.emplace_back(ki, vi);
+                    const auto key = entry.key;
+                    const auto val = entry.val;
+                    auto key_item = GetVarInterfaceNewFunc(state)();
+                    auto val_item = GetVarInterfaceNewFunc(state)();
+                    VarToVi(state, key, key_item);
+                    VarToVi(state, val, val_item);
+                    kvs.emplace_back(key_item, val_item);
                 }
             } else {// 哈希表路径
                 for (uint32_t i = 0; i < count; ++i) {
                     const auto &entry = nodes[active_list[i]].entry;
-                    const auto k = entry.key;
-                    const auto v = entry.val;
-                    auto ki = GetVarInterfaceNewFunc(s)();
-                    auto vi = GetVarInterfaceNewFunc(s)();
-                    VarToVi(s, k, ki);
-                    VarToVi(s, v, vi);
-                    kvs.emplace_back(ki, vi);
+                    const auto key = entry.key;
+                    const auto val = entry.val;
+                    auto key_item = GetVarInterfaceNewFunc(state)();
+                    auto val_item = GetVarInterfaceNewFunc(state)();
+                    VarToVi(state, key, key_item);
+                    VarToVi(state, val, val_item);
+                    kvs.emplace_back(key_item, val_item);
                 }
             }
             dst->ViSetTable(kvs);
@@ -337,14 +337,14 @@ void VarToVi(State *s, CVar src, VarInterface *dst) {
     }
 }
 
-VarInterface *FakeluaToNativeObj(State *s, CVar v) {
-    const auto ret = GetVarInterfaceNewFunc(s)();
-    VarToVi(s, v, ret);
+VarInterface *FakeluaToNativeObj(State *state, CVar val) {
+    const auto ret = GetVarInterfaceNewFunc(state)();
+    VarToVi(state, val, ret);
     return ret;
 }
 
-void *GetFuncAddr(State *s, JITType type, const std::string_view &name, int &arg_count) {
-    const auto ret = s->GetVM().GetFunction({name.data(), name.size()});
+void *GetFuncAddr(State *state, JITType type, const std::string_view &name, int &arg_count) {
+    const auto ret = state->GetVM().GetFunction({name.data(), name.size()});
     if (ret.Empty()) {
         return nullptr;
     }
@@ -356,20 +356,20 @@ void *GetFuncAddr(State *s, JITType type, const std::string_view &name, int &arg
     ThrowFakeluaException(msg);
 }
 
-int GetReentrantCount(State *s) {
-    return s->GetReentrantCount();
+int GetReentrantCount(State *state) {
+    return state->GetReentrantCount();
 }
 
-void AddReentrantCount(State *s) {
-    s->AddReentrantCount();
+void AddReentrantCount(State *state) {
+    state->AddReentrantCount();
 }
 
-void SubReentrantCount(State *s) {
-    s->SubReentrantCount();
+void SubReentrantCount(State *state) {
+    state->SubReentrantCount();
 }
 
-void Reset(State *s) {
-    s->Reset();
+void Reset(State *state) {
+    state->Reset();
 }
 
 }// namespace inter
@@ -378,28 +378,28 @@ State *FakeluaNewState(const StateConfig &cfg) {
     return new State(cfg);
 }
 
-void FakeluaDeleteState(State *s) {
-    delete s;
+void FakeluaDeleteState(State *state) {
+    delete state;
 }
 
-void CompileFile(State *s, const std::string &filename, const CompileConfig &cfg) {
-    s->GetCompiler().CompileFile(filename, cfg);
+void CompileFile(State *state, const std::string &filename, const CompileConfig &cfg) {
+    state->GetCompiler().CompileFile(filename, cfg);
 }
 
-void CompileString(State *s, const std::string &str, const CompileConfig &cfg) {
-    s->GetCompiler().CompileString(str, cfg);
+void CompileString(State *state, const std::string &str, const CompileConfig &cfg) {
+    state->GetCompiler().CompileString(str, cfg);
 }
 
-std::string GetLastRecordedCCode(State *s) {
-    return s->GetCompiler().GetLastRecordedCCode();
+std::string GetLastRecordedCCode(State *state) {
+    return state->GetCompiler().GetLastRecordedCCode();
 }
 
-void SetVarInterfaceNewFunc(State *s, const std::function<VarInterface *()> &func) {
-    s->SetVarInterfaceNewFunc(func);
+void SetVarInterfaceNewFunc(State *state, const std::function<VarInterface *()> &func) {
+    state->SetVarInterfaceNewFunc(func);
 }
 
-std::function<VarInterface *()> &GetVarInterfaceNewFunc(State *s) {
-    return s->GetVarInterfaceNewFunc();
+std::function<VarInterface *()> &GetVarInterfaceNewFunc(State *state) {
+    return state->GetVarInterfaceNewFunc();
 }
 
 void SetDebugLogLevel(int level) {

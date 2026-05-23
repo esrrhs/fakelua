@@ -13,7 +13,7 @@ public:
 
     ~PreProcessor() = default;
 
-    void Process(const CompileResult &cr, const CompileConfig &cfg);
+    void Process(const ParseResult &pr, const CompileConfig &cfg);
 
 private:
     void CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk);
@@ -30,6 +30,10 @@ private:
 
     void PreprocessTableAssign(const SyntaxTreeInterfacePtr &node);
 
+    // 将顶层 "local f = function(...) ... end" 转换为 "local function f(...) ... end"，
+    // 使其可被特化发现流程处理，行为与 LocalFunction 语句完全一致。
+    void PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &chunk);
+
 private:
     static constexpr size_t kMaxFunctionInputParams = 8;
 
@@ -42,6 +46,7 @@ private:
 private:
     State *s_;
     std::string file_name_;
+    int tmp_var_counter_ = 0;
 };
 
 }// namespace fakelua

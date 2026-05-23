@@ -7,6 +7,15 @@
 
 using namespace fakelua;
 
+namespace {
+
+[[nodiscard]] VarType MakeInvalidVarTypeForTest() {
+    volatile int invalid = 999;
+    return static_cast<VarType>(invalid);
+}
+
+} // namespace
+
 TEST(var, construct) {
     const FakeluaStateGuard guard;
     const auto s = guard.GetState();
@@ -1116,7 +1125,7 @@ TEST(var, table_get_type_error) {
     Var v1;
     Var key(static_cast<int64_t>(1));
 
-    EXPECT_THROW(v1.TableGet(key), std::exception);
+    EXPECT_THROW((void) v1.TableGet(key), std::exception);
 }
 
 TEST(var, table_size) {
@@ -1136,7 +1145,7 @@ TEST(var, table_size) {
 TEST(var, table_size_type_error) {
     Var v1;
 
-    EXPECT_THROW(v1.TableSize(), std::exception);
+    EXPECT_THROW((void) v1.TableSize(), std::exception);
 }
 
 TEST(var, hash_default_branch) {
@@ -1225,7 +1234,7 @@ TEST(var, vartable_get_nil_key_exception) {
     VarTable vt;
     Var key;
 
-    EXPECT_THROW(vt.Get(key), std::exception);
+    EXPECT_THROW((void) vt.Get(key), std::exception);
 }
 
 TEST(var, vartable_delete_empty) {
@@ -1924,6 +1933,214 @@ TEST(var, VarTypeToString_all_types) {
     EXPECT_EQ(VarTypeToString(VarType::Table), "Table");
 
     // Test default case with invalid value
-    auto invalid_type = static_cast<VarType>(999);
+    const auto invalid_type = MakeInvalidVarTypeForTest();
     EXPECT_EQ(VarTypeToString(invalid_type), "UNKNOWN");
 }
+
+// Bug 4: Var::Equal must return true when Int and Float hold the same mathematical value.
+TEST(var, equal_int_float_cross_type) {
+    // 1 == 1.0 should be true (Lua semantics)
+    Var int1(static_cast<int64_t>(1));
+    Var float1(1.0);
+    ASSERT_TRUE(int1.Equal(float1));
+    ASSERT_TRUE(float1.Equal(int1));
+
+    // 0 == 0.0
+    Var int0(static_cast<int64_t>(0));
+    Var float0(0.0);
+    ASSERT_TRUE(int0.Equal(float0));
+    ASSERT_TRUE(float0.Equal(int0));
+
+    // -5 == -5.0
+    Var intneg(static_cast<int64_t>(-5));
+    Var floatneg(-5.0);
+    ASSERT_TRUE(intneg.Equal(floatneg));
+    ASSERT_TRUE(floatneg.Equal(intneg));
+
+    // 1 != 1.5 (different mathematical values)
+    Var float1_5(1.5);
+    ASSERT_FALSE(int1.Equal(float1_5));
+    ASSERT_FALSE(float1_5.Equal(int1));
+
+    // Int vs non-numeric: always false
+    Var b(true);
+    ASSERT_FALSE(int1.Equal(b));
+}
+
+// UnopNumberSign on a StringId (interned) string.
+TEST(var, unop_number_sign_stringid) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v;
+    v.SetConstString(s, "hello");
+    ASSERT_EQ(v.Type(), VarType::StringId);
+
+    Var res;
+    v.UnopNumberSign(res);
+    ASSERT_EQ(res.GetInt(), 5);
+}
+
+// NormalizeTableKey: float key whose integer part exceeds int64 range stays float.
+TEST(var, table_float_key_out_of_int64_range) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    // 1e20 is well beyond INT64_MAX; the key must not be converted to int.
+    Var key(1e20);
+    vt.Set(s, key, Var(static_cast<int64_t>(42)), false);
+
+    Var result = vt.Get(key);
+    ASSERT_EQ(result.GetInt(), 42);
+}
+
+// Hash-collision chain traversal in hash-table mode (var_table.cpp Get line 92).
+// After triggering rehash (inserting 9 items) with bucket_count=16, key 16 maps
+// to bucket 0 (same as key 0) and is chained after it.  Get(16) must follow the
+// chain and cover the curr = &nodes_[curr_idx] path.
+TEST(var, table_hash_collision_chain) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt;
+    // Fill quick_data_ (8 slots) with keys 0..7.
+    for (int i = 0; i < 8; ++i) {
+        vt.Set(s, Var(static_cast<int64_t>(i)), Var(static_cast<int64_t>(i * 10)), false);
+    }
+    // Insert key 8: triggers rehash to bucket_count=16, then key 8 lands in bucket 8.
+    vt.Set(s, Var(static_cast<int64_t>(8)), Var(static_cast<int64_t>(80)), false);
+    // Insert key 16: hash(16)=16, bucket = 16&15 = 0, collides with key 0.
+    // count(9) < bucket_count(16) so no second rehash; key 16 is chained after key 0.
+    vt.Set(s, Var(static_cast<int64_t>(16)), Var(static_cast<int64_t>(160)), false);
+
+    // Get(16) must traverse the chain and hit the line: curr = &nodes_[curr_idx].
+    ASSERT_EQ(vt.Get(Var(static_cast<int64_t>(16))).GetInt(), 160);
+    // Verify other keys are intact.
+    ASSERT_EQ(vt.Get(Var(static_cast<int64_t>(0))).GetInt(), 0);
+    ASSERT_EQ(vt.Get(Var(static_cast<int64_t>(8))).GetInt(), 80);
+}
+
+// ---------------------------------------------------------------------------
+// TestTrue: cover float, string, and table branches.
+// (bool/nil/int branches are already exercised in the logical_unary test.)
+// ---------------------------------------------------------------------------
+
+TEST(var, test_true_float) {
+    // Non-zero float is truthy.
+    ASSERT_TRUE(Var(1.5).TestTrue());
+    ASSERT_TRUE(Var(-0.5).TestTrue());
+    // Zero float is also truthy in Lua (only nil and false are falsy).
+    ASSERT_TRUE(Var(0.0).TestTrue());
+}
+
+TEST(var, test_true_string) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v;
+    v.SetTempString(s, "hello");
+    ASSERT_TRUE(v.TestTrue());
+
+    Var empty_str;
+    empty_str.SetTempString(s, "");
+    ASSERT_TRUE(empty_str.TestTrue()); // empty string is still truthy in Lua
+}
+
+TEST(var, test_true_table) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var t;
+    t.SetTable(s);
+    ASSERT_TRUE(t.TestTrue()); // table (even empty) is truthy
+}
+
+// ---------------------------------------------------------------------------
+// UnopMinus on float: the float branch of Var::UnopMinus.
+// ---------------------------------------------------------------------------
+
+TEST(var, unop_minus_float) {
+    Var v(2.5);
+    Var result;
+    v.UnopMinus(result);
+    ASSERT_EQ(result.Type(), VarType::Float);
+    ASSERT_DOUBLE_EQ(result.GetFloat(), -2.5);
+
+    Var v2(-7.0);
+    v2.UnopMinus(result);
+    ASSERT_EQ(result.Type(), VarType::Float);
+    ASSERT_DOUBLE_EQ(result.GetFloat(), 7.0);
+}
+
+// ---------------------------------------------------------------------------
+// Var::TableSize on empty, quick-data, and hash-mode tables.
+// ---------------------------------------------------------------------------
+
+TEST(var, table_size_empty) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var t;
+    t.SetTable(s);
+    ASSERT_EQ(t.TableSize(), 0u);
+}
+
+TEST(var, table_size_quick_data) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var t;
+    t.SetTable(s);
+    for (int i = 1; i <= 5; ++i) {
+        t.TableSet(s, Var(static_cast<int64_t>(i)), Var(static_cast<int64_t>(i * 10)), false);
+    }
+    ASSERT_EQ(t.TableSize(), 5u);
+}
+
+TEST(var, table_size_hash_mode) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var t;
+    t.SetTable(s);
+    // Insert more than QUICK_DATA_SIZE (8) elements to force hash mode.
+    for (int i = 1; i <= 12; ++i) {
+        t.TableSet(s, Var(static_cast<int64_t>(i)), Var(static_cast<int64_t>(i)), false);
+    }
+    ASSERT_EQ(t.TableSize(), 12u);
+}
+
+// ---------------------------------------------------------------------------
+// TableSet on non-table Var must throw.
+// ---------------------------------------------------------------------------
+
+TEST(var, table_set_on_non_table_throws) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    Var v(static_cast<int64_t>(42));
+    Var key(static_cast<int64_t>(1));
+    Var val(static_cast<int64_t>(99));
+    EXPECT_THROW(v.TableSet(s, key, val, false), std::exception);
+}
+
+// ---------------------------------------------------------------------------
+// TableGet on non-table Var must throw.
+// ---------------------------------------------------------------------------
+
+TEST(var, table_get_on_non_table_throws) {
+    Var v(static_cast<int64_t>(42));
+    Var key(static_cast<int64_t>(1));
+    EXPECT_THROW((void) v.TableGet(key), std::exception);
+}
+
+// ---------------------------------------------------------------------------
+// TableSize on non-table Var must throw.
+// ---------------------------------------------------------------------------
+
+TEST(var, table_size_on_non_table_throws) {
+    Var v(true);
+    EXPECT_THROW((void) v.TableSize(), std::exception);
+}
+

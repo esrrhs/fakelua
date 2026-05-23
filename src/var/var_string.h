@@ -28,17 +28,17 @@ public:
 
     [[nodiscard]] uint32_t Hash() const {
         if (hash_ == 0) {
-            uint32_t h = 5381;
-            const char *p = data_;
+            uint32_t hash_val = 5381;
+            const char *ptr = data_;
             for (int i = 0; i < size_; ++i) {
-                h = ((h << 5) + h) + static_cast<uint8_t>(p[i]);
+                hash_val = ((hash_val << 5) + hash_val) + static_cast<uint8_t>(ptr[i]);
             }
-            hash_ = (h == 0) ? 1 : h;
+            hash_ = (hash_val == 0) ? 1 : hash_val;
         }
         return hash_;
     }
 
-    static VarString * AllocTemp(State *s, const std::string_view &str);
+    static VarString * AllocTemp(State *state, const std::string_view &str);
 
 private:
     int size_ = 0;

@@ -10,6 +10,6 @@ public:
     virtual ~JITHandle() = default;
 };
 
-typedef std::shared_ptr<JITHandle> JITHandlePtr;
+using JITHandlePtr = std::shared_ptr<JITHandle>;
 
 }// namespace fakelua

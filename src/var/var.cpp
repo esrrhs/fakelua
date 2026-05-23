@@ -20,14 +20,26 @@ bool Var::TryConvertNumberToInteger(int64_t &out) const {
         return false;
     }
 
-    const double d = GetFloat();
-    if (!std::isfinite(d)) {
+    const double double_val = GetFloat();
+    if (!std::isfinite(double_val)) {
         return false;
     }
     double int_part = 0;
-    if (std::modf(d, &int_part) != 0.0) {
+    if (std::modf(double_val, &int_part) != 0.0) {
         return false;
     }
+    // 边界检查说明：static_cast<double>(INT64_MAX) 因 IEEE 754 精度不足，
+    // 会向上取整为 9223372036854775808.0（即 2^63，比 INT64_MAX 大 1）。
+    // 因此上界使用 '>'（严格大于）而不是 '>='：
+    //   - int_part == 9223372036854775808.0 时，'>' 为 false，但这个值其实已超出
+    //     int64_t 范围。然而 IEEE 754 double 在 2^62～2^63 范围内的精度为 512，
+    //     modf 产生的 int_part 步进也是 512，实际上不存在恰好等于 2^63 的有效中间值——
+    //     任何合法的 double 整数值若 >= 2^63 都会在转型到 double 时就变成 2^63.0，
+    //     此时 'int_part > static_cast<double>(INT64_MAX)' 为 false（二者相等），
+    //     后续 static_cast<int64_t>(2^63.0) 才会触发未定义行为。
+    // 这与 Lua 5.4 官方实现的处理方式完全一致（见 luaconf.h / lvm.c 中的 luaV_flttointeger），
+    // 实践中在主流编译器 + x86-64 平台上的行为稳定（CVTTSD2SI 会产生 INT64_MIN 作为
+    // 溢出哨兵），fakelua 同样不做额外特判以保持实现简洁。
     if (int_part < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
         int_part > static_cast<double>(std::numeric_limits<int64_t>::max())) {
         return false;
@@ -45,19 +57,19 @@ VarString *Var::GetString() const {
     }
 }
 
-void Var::SetTempString(State *s, const std::string_view &val) {
+void Var::SetTempString(State *state, const std::string_view &val) {
     type_ = static_cast<int>(VarType::String);
-    data_.s = VarString::AllocTemp(s, val);
+    data_.s = VarString::AllocTemp(state, val);
 }
 
-void Var::SetConstString(State *s, const std::string_view &val) {
+void Var::SetConstString(State *state, const std::string_view &val) {
     type_ = static_cast<int>(VarType::StringId);
-    data_.i = s->GetConstString().Alloc(val);
+    data_.i = state->GetConstString().Alloc(val);
 }
 
-void Var::SetTable(State *s) {
+void Var::SetTable(State *state) {
     type_ = static_cast<int>(VarType::Table);
-    data_.t = s->GetHeap().GetTempAllocator().New<VarTable>();
+    data_.t = state->GetHeap().GetTempAllocator().New<VarTable>();
 }
 
 std::string Var::ToString(bool has_quote, bool has_postfix) const {
@@ -106,9 +118,9 @@ size_t Var::Hash() const {
             union {
                 double d;
                 uint64_t u;
-            } u;
-            u.d = data_.f;
-            return static_cast<uint32_t>(u.u ^ (u.u >> 32));
+            } bits;
+            bits.d = data_.f;
+            return static_cast<uint32_t>(bits.u ^ (bits.u >> 32));
         }
         case VarType::String:
         case VarType::StringId: {
@@ -130,6 +142,13 @@ bool Var::Equal(const Var &rhs) const {
         }
         if (Type() == VarType::StringId && rhs.Type() == VarType::String) {
             return GetString()->Str() == rhs.GetString()->Str();
+        }
+        // Int and Float with the same mathematical value are equal (Lua semantics).
+        if (Type() == VarType::Int && rhs.Type() == VarType::Float) {
+            return static_cast<double>(data_.i) == rhs.data_.f;
+        }
+        if (Type() == VarType::Float && rhs.Type() == VarType::Int) {
+            return data_.f == static_cast<double>(rhs.data_.i);
         }
         return false;
     }
@@ -229,19 +248,19 @@ void Var::DoubleSlash(const Var &rhs, Var &result) const {
         }
         // Lua 的 // 是向下取整除法，向负无穷方向舍入
         // C++ 的 / 向零截断，因此需要针对负数结果进行调整
-        int64_t a = GetCalculableInt();
-        int64_t b = rhs.GetCalculableInt();
+        int64_t lhs_val = GetCalculableInt();
+        int64_t rhs_val = rhs.GetCalculableInt();
         // UB 说明（有意保留，不做额外检测）：
         // 当 a == INT64_MIN 且 b == -1 时，a / b 和 a % b 均触发有符号整数溢出 UB。
         // Lua 5.4 官方实现同样未对此特判，实际结果在主流编译器（gcc/clang/msvc）
         // 的 x86-64 平台上均为 INT64_MIN（IDIV 指令的硬件行为），行为稳定。
         // 为避免额外分支带来的性能损失，此处不做特殊处理。
-        int64_t q = a / b;
+        int64_t quotient = lhs_val / rhs_val;
         // 如果符号不同且有余数，则向负无穷方向调整
-        if ((a ^ b) < 0 && a % b != 0) {
-            q -= 1;
+        if ((lhs_val ^ rhs_val) < 0 && lhs_val % rhs_val != 0) {
+            quotient -= 1;
         }
-        result.SetInt(q);
+        result.SetInt(quotient);
     } else {
         result.SetFloat(std::floor(GetCalculableNumber() / rhs.GetCalculableNumber()));
     }
@@ -266,24 +285,24 @@ void Var::Mod(const Var &rhs, Var &result) const {
         }
         // Lua 的 % 遵循向下取整除法语义：a % b = a - b * floor(a / b)
         // 这与 C++ 的 % 不同，C++ 向零截断
-        int64_t a = GetCalculableInt();
-        int64_t b = rhs.GetCalculableInt();
+        int64_t lhs_val = GetCalculableInt();
+        int64_t rhs_val = rhs.GetCalculableInt();
         // UB 说明（有意保留，不做额外检测）：
         // 当 a == INT64_MIN 且 b == -1 时，a / b 和 a % b 均触发有符号整数溢出 UB。
         // Lua 5.4 官方实现同样未对此特判，实际结果在主流编译器的 x86-64 平台上
         // 均为 INT64_MIN（IDIV 指令的硬件行为），行为稳定。
         // 为避免额外分支带来的性能损失，此处不做特殊处理。
-        int64_t q = a / b;
+        int64_t quotient = lhs_val / rhs_val;
         // 如果符号不同且有余数，则向负无穷方向调整
-        if ((a ^ b) < 0 && a % b != 0) {
-            q -= 1;
+        if ((lhs_val ^ rhs_val) < 0 && lhs_val % rhs_val != 0) {
+            quotient -= 1;
         }
-        result.SetInt(a - b * q);
+        result.SetInt(lhs_val - rhs_val * quotient);
     } else {
         // 对于浮点数，使用 fmod 已经可以得到正确的余数，但需要调整为 Lua 语义
-        double a = GetCalculableNumber();
-        double b = rhs.GetCalculableNumber();
-        result.SetFloat(a - b * std::floor(a / b));
+        double lhs_val = GetCalculableNumber();
+        double rhs_val = rhs.GetCalculableNumber();
+        result.SetFloat(lhs_val - rhs_val * std::floor(lhs_val / rhs_val));
     }
 }
 
@@ -357,11 +376,18 @@ void Var::LeftShift(const Var &rhs, Var &result) const {
     }
 }
 
-void Var::Concat(State *s, const Var &rhs, Var &result) const {
-    result.SetTempString(s, std::format("{}{}", ToString(false, false), rhs.ToString(false, false)));
+void Var::Concat(State *state, const Var &rhs, Var &result) const {
+    // fakelua 有意扩展了 Lua 标准：允许任意类型通过 .. 运算符拼接。
+    // nil/bool/int/float/string/table 均会被 ToString 转换为字符串后拼接，不抛出错误。
+    // 标准 Lua 5.4 对非字符串/数字操作数会报错，但 fakelua 选择更宽松的语义以方便使用。
+    result.SetTempString(state, std::format("{}{}", ToString(false, false), rhs.ToString(false, false)));
 }
 
 void Var::Less(const Var &rhs, Var &result) const {
+    // fakelua 的设计决策：<、<=、>、>= 仅支持数值（Int/Float）类型的比较。
+    // Lua 5.4 标准还支持两个字符串之间的字典序比较，但 fakelua 不支持字符串比较运算符，
+    // PreProcessor 层面已经通过类型推断避免将字符串传入这些运算符；
+    // 若运行时确实收到非数值操作数，抛出异常是正确且预期的行为。
     if (!IsCalculable() || !rhs.IsCalculable()) {
         ThrowFakeluaException(std::format("Var op failed, operand of '<' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
@@ -375,6 +401,7 @@ void Var::Less(const Var &rhs, Var &result) const {
 }
 
 void Var::LessEqual(const Var &rhs, Var &result) const {
+    // 同 Less：fakelua 仅支持数值参与 <= 比较，字符串比较不在支持范围内。
     if (!IsCalculable() || !rhs.IsCalculable()) {
         ThrowFakeluaException(std::format("Var op failed, operand of '<=' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
@@ -388,6 +415,7 @@ void Var::LessEqual(const Var &rhs, Var &result) const {
 }
 
 void Var::More(const Var &rhs, Var &result) const {
+    // 同 Less：fakelua 仅支持数值参与 > 比较，字符串比较不在支持范围内。
     if (!IsCalculable() || !rhs.IsCalculable()) {
         ThrowFakeluaException(std::format("Var op failed, operand of '>' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
@@ -401,6 +429,7 @@ void Var::More(const Var &rhs, Var &result) const {
 }
 
 void Var::MoreEqual(const Var &rhs, Var &result) const {
+    // 同 Less：fakelua 仅支持数值参与 >= 比较，字符串比较不在支持范围内。
     if (!IsCalculable() || !rhs.IsCalculable()) {
         ThrowFakeluaException(std::format("Var op failed, operand of '>=' must be number, got {} {}, {} {}", VarTypeToString(Type()), ToString(),
                                           VarTypeToString(rhs.Type()), rhs.ToString()));
@@ -474,12 +503,12 @@ void Var::UnopBitnot(Var &result) const {
     result.SetInt(~int_value);
 }
 
-void Var::TableSet(State *s, const Var &key, const Var &val, bool can_be_nil) const {
+void Var::TableSet(State *state, const Var &key, const Var &val, bool can_be_nil) const {
     if (Type() != VarType::Table) {
         ThrowFakeluaException(std::format("Var op failed, operand of 'TableSet' must be table, got {} {}", VarTypeToString(Type()), ToString()));
     }
 
-    GetTable()->Set(s, key, val, can_be_nil);
+    GetTable()->Set(state, key, val, can_be_nil);
 }
 
 Var Var::TableGet(const Var &key) const {

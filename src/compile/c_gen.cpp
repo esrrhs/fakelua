@@ -1,5 +1,7 @@
 #include "compile/c_gen.h"
 
+#include <ranges>
+
 #include "state/state.h"
 #include "util/common.h"
 #include "util/exception.h"
@@ -10,44 +12,18 @@ namespace fakelua {
 CGen::CGen(State *s) : s_(s) {
 }
 
-void CGen::EnterNativeVarScope() {
-    native_var_scopes_.emplace_back();
-}
+GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg) {
+    LOG_INFO("start CGen::Generate {}", pr.file_name);
 
-void CGen::ExitNativeVarScope() {
-    if (!native_var_scopes_.empty()) {
-        native_var_scopes_.pop_back();
-    }
-}
-
-void CGen::DeclareNativeVar(const std::string &name, const bool typed_native) {
-    if (native_var_scopes_.empty()) {
-        EnterNativeVarScope();
-    }
-    native_var_scopes_.back()[name] = typed_native;
-}
-
-bool CGen::IsTypedNativeVar(const std::string &name) const {
-    for (auto it = native_var_scopes_.rbegin(); it != native_var_scopes_.rend(); ++it) {
-        if (const auto found = it->find(name); found != it->end()) {
-            return found->second;
-        }
-    }
-    return false;
-}
-
-void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
-    LOG_INFO("start CGen::Generate {}", cr.file_name);
-
-    file_name_ = cr.file_name;
+    file_name_ = pr.file_name;
 
     // 生成代码
-    const std::string code = Build(cr, cfg);
+    GenResult gr = Build(pr, ir, cfg);
 
     if (cfg.debug_mode) {
         const auto dumpfile = GenerateTmpFilename("fakelua_jit_", ".c");
         if (std::ofstream ofs(dumpfile); ofs.is_open()) {
-            ofs << code;
+            ofs << gr.c_code;
             ofs.close();
             std::cerr << "CGen::Generate: C code dumped to " << dumpfile << std::endl;
             LOG_INFO("C code generated: {}", dumpfile);
@@ -56,31 +32,34 @@ void CGen::Generate(CompileResult &cr, const CompileConfig &cfg) {
         }
     }
 
-    cr.c_code = code;
-
-    LOG_INFO("end CGen::Generate {}, functions: {}", cr.file_name, cr.function_names.size());
+    LOG_INFO("end CGen::Generate {}, functions: {}", pr.file_name, gr.function_names.size());
+    return gr;
 }
 
-std::string CGen::Build(CompileResult &cr, const CompileConfig &cfg) {
-    // 加载数学参数分析结果，供 GenerateDecls 和 GenerateImpl 使用。
-    math_param_positions_ = cr.math_param_positions;
-    specialization_snapshots_ = &cr.specialization_snapshots;
+GenResult CGen::Build(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg) {
+    // 加载类型推断结果，供声明生成与函数体编译使用。
+    math_param_positions_ = ir.math_param_positions;
+    specialization_snapshots_ = ir.specialization_snapshots;
+    specialization_return_types_ = ir.specialization_return_types;
+    main_eval_types_ = ir.main_eval_types;
 
+    GenResult gr;
     cur_output_ = &headers_;
     GenerateHeader();
     cur_output_ = &globals_;
-    GenerateGlobal(cr);
+    GenerateGlobal(pr.chunk);
     cur_output_ = &decls_;
-    GenerateDecls(cr);
-    local_func_names_ = cr.function_names;
+    GenerateDecls(pr.chunk, gr);
+    local_func_names_ = gr.function_names;
     cur_output_ = &impls_;
-    GenerateImpl(cr);
+    GenerateImpl(pr.chunk, gr);
     if (cfg.record_c_code) {
         // 仅记录非头部部分（全局变量 + 声明 + 实现）。
         // 头部是每个编译单元相同的固定样板代码，对类型推断断言没有用处。
-        cr.recorded_c_code = globals_.str() + decls_.str() + impls_.str();
+        gr.recorded_c_code = globals_.str() + decls_.str() + impls_.str();
     }
-    return headers_.str() + globals_.str() + decls_.str() + impls_.str();
+    gr.c_code = headers_.str() + globals_.str() + decls_.str() + impls_.str();
+    return gr;
 }
 
 void CGen::GenerateHeader() {
@@ -175,6 +154,9 @@ enum {
 
 // 规范化表键以匹配 Lua 行为：
 // 整数浮点键被视为整数键（例如 t[2.0] == t[2]）。
+// 边界检查说明：(double)INT64_MAX 因浮点精度向上取整为 2^63，使用 '<=' 而非 '<'：
+// 实践中 IEEE 754 double 在 2^62～2^63 步进为 512，modf 不会产生恰好等于 2^63 的
+// 中间值，因此该检查对所有真实可达的浮点整数值均正确。与 Lua 5.4 官方实现一致。
 #define NORMALIZE_TABLE_KEY(key) ({ \
     CVar __k = (key); \
     if (__k.type_ == VAR_FLOAT) { \
@@ -254,6 +236,10 @@ static inline uint32_t FlHashString(const char *str, int len) {
             VarString *__sb = (__b.type_ == VAR_STRING) ? __b.data_.s : (VarString *)__b.data_.i; \
             if (__sa == __sb) { (result) = true; break; } \
             (result) = (__sa->size_ == __sb->size_ && memcmp(__sa->data_, __sb->data_, __sa->size_) == 0); \
+        } else if (__a.type_ == VAR_INT && __b.type_ == VAR_FLOAT) { \
+            (result) = ((double)__a.data_.i == __b.data_.f); \
+        } else if (__a.type_ == VAR_FLOAT && __b.type_ == VAR_INT) { \
+            (result) = (__a.data_.f == (double)__b.data_.i); \
         } else { \
             (result) = false; \
         } \
@@ -475,6 +461,8 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
         if (!isfinite(__d)) { FakeluaThrowError(_S, "number has no integer representation"); } \
         double __ip; \
         if (modf(__d, &__ip) != 0.0) { FakeluaThrowError(_S, "number has no integer representation"); } \
+        /* 边界检查：(double)INT64_MAX 因浮点精度向上取整为 2^63，使用 '>' 而非 '>='。  */ \
+        /* 实践中 modf 不产生恰好等于 2^63 的中间值，与 Lua 5.4 官方实现一致。          */ \
         if (__ip < (double)INT64_MIN || __ip > (double)INT64_MAX) { FakeluaThrowError(_S, "number has no integer representation"); } \
         (result) = (int64_t)__ip; \
     } else { \
@@ -654,6 +642,9 @@ static inline CVar FlConcat(CVar a, CVar b) {
     else if (b.type_ == VAR_STRINGID) { VarString *vs = (VarString *)b.data_.i; sb = STR_DATA(vs); lb = STR_SIZE(vs); }
     else { lb = FlVarToStr(b, buf_b, sizeof(buf_b)); }
     /* 分配结果 */
+    /* 溢出检查说明：la 和 lb 均来自 arena 分配的字符串（单块上限 1MB）或 snprintf 的 256
+       字节缓冲区，两者之和远小于 INT_MAX（约 2^31），因此 'int total = la + lb' 不会
+       真正溢出。此处的 'total < la || total < lb' 是防御性检查，覆盖理论上的极端场景。 */
     int total = la + lb;
     if (total < la || total < lb) { FakeluaThrowError(_S, "string concatenation result too long"); }
     VarString *vs = (VarString *)FakeluaAllocTemp(_S, sizeof(VarString) + total);
@@ -686,37 +677,80 @@ static inline CVar FlConcat(CVar a, CVar b) {
 // 与 OpFloorDiv 的 VAR_INT 分支保持完全一致的语义。
 // UB 说明（有意保留）：当 a==INT64_MIN 且 b==-1 时，/ 和 % 均触发有符号溢出 UB。
 // Lua 5.4 官方实现同样未特判，x86-64 IDIV 硬件行为稳定，为性能不加额外分支。
-#define FlFloorDivInt(a, b) ({ \
+#define FlFloorDivInt(a, b, result) do { \
     int64_t __fl_a = (a); int64_t __fl_b = (b); \
     if (__fl_b == 0) { FakeluaThrowError(_S, "floor division by zero"); } \
     int64_t __fl_q = __fl_a / __fl_b; \
     if ((__fl_a ^ __fl_b) < 0 && __fl_a % __fl_b != 0) { __fl_q -= 1; } \
-    __fl_q; \
-})
+    (result) = __fl_q; \
+} while(0)
 
 // 原生整数取模（Lua 语义：a - b * floor(a/b)）。
 // 与 OpMod 的 VAR_INT 分支保持完全一致的语义。
 // UB 说明（有意保留）：当 a==INT64_MIN 且 b==-1 时，/ 和 % 均触发有符号溢出 UB。
 // Lua 5.4 官方实现同样未特判，x86-64 IDIV 硬件行为稳定，为性能不加额外分支。
-#define FlModInt(a, b) ({ \
+#define FlModInt(a, b, result) do { \
     int64_t __fm_a = (a); int64_t __fm_b = (b); \
     if (__fm_b == 0) { FakeluaThrowError(_S, "modulo by zero"); } \
     int64_t __fm_q = __fm_a / __fm_b; \
     if ((__fm_a ^ __fm_b) < 0 && __fm_a % __fm_b != 0) { __fm_q -= 1; } \
-    __fm_a - __fm_b * __fm_q; \
-})
+    (result) = __fm_a - __fm_b * __fm_q; \
+} while(0)
 
 // 原生浮点取模（Lua 语义：a - b * floor(a/b)）。
 // 与 OpMod 的 VAR_FLOAT 分支保持一致。
-#define FlModFloat(a, b) ({ \
+#define FlModFloat(a, b, result) do { \
     double __fmf_a = (a); double __fmf_b = (b); \
-    __fmf_a - __fmf_b * floor(__fmf_a / __fmf_b); \
-})
+    (result) = __fmf_a - __fmf_b * floor(__fmf_a / __fmf_b); \
+} while(0)
+
+// 原生整数左移（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
+// 与 OpLeftShift 的逻辑完全一致，但接受原生 int64_t 参数以省去 CVar 打包/拆包。
+#define FlLShiftInt(a, b, result) do { \
+    int64_t __ls_a = (a); int64_t __ls_b = (b); \
+    if (__ls_b >= 64 || __ls_b <= -64) { \
+        (result) = (int64_t)0; \
+    } else if (__ls_b >= 0) { \
+        (result) = (int64_t)((uint64_t)__ls_a << __ls_b); \
+    } else { \
+        (result) = (int64_t)((uint64_t)__ls_a >> (-__ls_b)); \
+    } \
+} while(0)
+
+// 原生整数右移（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
+// 与 OpRightShift 的逻辑完全一致，但接受原生 int64_t 参数。
+#define FlRShiftInt(a, b, result) do { \
+    int64_t __rs_a = (a); int64_t __rs_b = (b); \
+    if (__rs_b >= 64 || __rs_b <= -64) { \
+        (result) = (int64_t)0; \
+    } else if (__rs_b >= 0) { \
+        (result) = (int64_t)((uint64_t)__rs_a >> __rs_b); \
+    } else { \
+        (result) = (int64_t)((uint64_t)__rs_a << (-__rs_b)); \
+    } \
+} while(0)
+
+// 原生取长度：从 CVar 中提取整数长度（字符串字节数或表元素数）。
+// 用于在数值特化路径中处理 # 运算符，替代 OpLen 宏以直接返回 int64_t。
+#define FlLenInt(v, result) do { \
+    CVar __fl_v = (v); \
+    if (__fl_v.type_ == VAR_STRING) { \
+        (result) = (int64_t)STR_SIZE(__fl_v.data_.s); \
+    } else if (__fl_v.type_ == VAR_STRINGID) { \
+        (result) = (int64_t)STR_SIZE((VarString *)__fl_v.data_.i); \
+    } else if (__fl_v.type_ == VAR_TABLE) { \
+        (result) = (int64_t)TABLE_SIZE(__fl_v.data_.t); \
+    } else { \
+        FakeluaThrowError(_S, "attempt to get length of a non-string/table value"); \
+        (result) = 0; \
+    } \
+} while(0)
 
 )";
 }
 
-void CGen::GenerateGlobal(CompileResult &cr) {
+
+void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
     *cur_output_ << "// ===== Global Variables =====\n\n";
 
     in_global_init_ = true;
@@ -728,7 +762,6 @@ void CGen::GenerateGlobal(CompileResult &cr) {
     *cur_output_ << "static const CVar kFalse = (CVar){.type_ = VAR_BOOL, .data_.b = false};\n";
 
     // 遍历顶层的 local 变量定义，生成全局常量
-    const auto chunk = cr.chunk;
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
 
     for (const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk); const auto &stmt: block->Stmts()) {
@@ -758,14 +791,29 @@ void CGen::GenerateGlobal(CompileResult &cr) {
                     ThrowError("duplicate global const variable: " + name, stmt);
                 }
 
-                // 编译表达式为 CVar 初始化字符串
-                std::string cvar_init = CompileExp(exp);
+                // 对数值字面量：生成 static const int64_t / double，
+                // 避免 CVar 装箱拆箱，允许函数体将其作为原生类型使用。
+                InferredType global_type = T_DYNAMIC;
+                const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+                if (exp_ptr && exp_ptr->GetExpKind() == ExpKind::kNumber) {
+                    const auto &val = exp_ptr->ExpValue();
+                    global_type = IsInteger(val) ? T_INT : T_FLOAT;
+                }
 
-                // 生成静态全局变量
-                *cur_output_ << "static const CVar " << name << " = " << cvar_init << ";\n";
+                if (global_type == T_INT) {
+                    *cur_output_ << "static const int64_t " << name << " = "
+                                 << ToInteger(exp_ptr->ExpValue()) << ";\n";
+                } else if (global_type == T_FLOAT) {
+                    *cur_output_ << "static const double " << name << " = "
+                                 << std::format("{}", ToFloat(exp_ptr->ExpValue())) << ";\n";
+                } else {
+                    // 非数值字面量：保留 static const CVar 形式。
+                    const std::string cvar_init = CompileExp(exp);
+                    *cur_output_ << "static const CVar " << name << " = " << cvar_init << ";\n";
+                }
 
-                // 记录变量名
-                global_const_vars_.insert(name);
+                // 记录变量名及其类型
+                global_const_vars_[name] = global_type;
             }
         }
     }
@@ -775,12 +823,11 @@ void CGen::GenerateGlobal(CompileResult &cr) {
     *cur_output_ << "\n";
 }
 
-void CGen::GenerateDecls(CompileResult &cr) {
+void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
     *cur_output_ << "\n// ===== Function Declarations =====\n\n";
 
     std::unordered_map<std::string, std::vector<std::string>> func_decls;// 函数名 -> 参数类型列表（用于重载）
 
-    const auto chunk = cr.chunk;
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
     for (const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk); auto &stmt: block->Stmts()) {
         std::string name;
@@ -821,7 +868,7 @@ void CGen::GenerateDecls(CompileResult &cr) {
         *cur_output_ << ");\n";
 
         // 记录函数参数数量
-        cr.function_names[name] = static_cast<int>(params.size());
+        gr.function_names[name] = static_cast<int>(params.size());
 
         // 如果函数含有数学参数，还需声明 2^k 个特化变体。
         const auto math_it = math_param_positions_.find(name);
@@ -830,10 +877,11 @@ void CGen::GenerateDecls(CompileResult &cr) {
             const int num_specs = 1 << static_cast<int>(math_params.size());
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
                 const auto spec_name = SpecFuncName(name, math_params, bitmask);
-                *cur_output_ << "CVar " << spec_name << "(";
+                const auto spec_ret = GetSpecReturnType(name, bitmask);
+                *cur_output_ << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < params.size(); ++i) {
                     if (i > 0) *cur_output_ << ", ";
-                    const auto mp_it = std::find(math_params.begin(), math_params.end(), static_cast<int>(i));
+                    const auto mp_it = std::ranges::find(math_params, static_cast<int>(i));
                     if (mp_it != math_params.end()) {
                         const int mp_idx = static_cast<int>(mp_it - math_params.begin());
                         *cur_output_ << MathParamCTypeName(MathParamKindOf(bitmask, mp_idx)) << " " << params[i];
@@ -844,7 +892,7 @@ void CGen::GenerateDecls(CompileResult &cr) {
                 *cur_output_ << ");\n";
                 // 注册特化函数名，使 CompileFunctioncall 能将其识别为
                 // 本地调用（同文件直接调用）。
-                cr.function_names[spec_name] = static_cast<int>(params.size());
+                gr.function_names[spec_name] = static_cast<int>(params.size());
             }
         }
     }
@@ -854,8 +902,6 @@ void CGen::GenerateDecls(CompileResult &cr) {
 
 std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
     DEBUG_ASSERT(ptr->Type() == SyntaxTreeType::FuncName);
-
-    std::string ret;
 
     const auto name = std::dynamic_pointer_cast<SyntaxTreeFuncname>(ptr);
     const auto funcnamelistptr = name->FuncNameList();
@@ -881,8 +927,13 @@ std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
             std::format("Code generate failed, {} at {}:{}:{}", msg, file_name_, ptr->Loc().begin.line, ptr->Loc().begin.column));
 }
 
-std::string CGen::GenTab() const {
-    return std::string(cur_tab_ * 4, ' ');
+bool CGen::BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block) {
+    const auto block_ptr = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
+    const auto &stmts = block_ptr->Stmts();
+    if (stmts.empty()) {
+        return false;
+    }
+    return stmts.back()->Type() == SyntaxTreeType::Return;
 }
 
 std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parlist) {
@@ -898,7 +949,7 @@ std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parl
         auto &param_names = namelist_ptr->Names();
 
         std::set<std::string> param_names_set;
-        for (const auto &key: global_const_vars_) {
+        for (const auto &[key, _]: global_const_vars_) {
             param_names_set.insert(key);
         }
 
@@ -915,10 +966,7 @@ std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parl
     return {};
 }
 
-void CGen::GenerateImpl(CompileResult &cr) {
-    std::stringstream impl;
-
-    const auto chunk = cr.chunk;
+void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
     for (const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk); auto &stmt: block->Stmts()) {
         std::string name;
@@ -953,11 +1001,12 @@ void CGen::GenerateImpl(CompileResult &cr) {
             const int num_specs = 1 << static_cast<int>(math_params.size());
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
                 const auto spec_name = SpecFuncName(name, math_params, bitmask);
+                const auto spec_ret = GetSpecReturnType(name, bitmask);
                 // 输出特化函数签名。
-                *cur_output_ << "CVar " << spec_name << "(";
+                *cur_output_ << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < func_params.size(); ++i) {
                     if (i > 0) *cur_output_ << ", ";
-                    const auto mp_it = std::find(math_params.begin(), math_params.end(), static_cast<int>(i));
+                    const auto mp_it = std::ranges::find(math_params, static_cast<int>(i));
                     if (mp_it != math_params.end()) {
                         const int mp_idx = static_cast<int>(mp_it - math_params.begin());
                         *cur_output_ << MathParamCTypeName(MathParamKindOf(bitmask, mp_idx)) << " " << func_params[i];
@@ -966,7 +1015,18 @@ void CGen::GenerateImpl(CompileResult &cr) {
                     }
                 }
                 *cur_output_ << ") {\n";
-                CompileFuncBody(name, func_params, func_block, bitmask);
+                CompileFuncBody(name, func_params, func_block, bitmask, impls_);
+                if (!BlockEndsWithReturn(func_block)) {
+                    // 回退：当函数不以 return 结束时补充默认返回值。
+                    // 对于原生返回类型，补 0/0.0；对于 CVar 类型，补 kNil。
+                    if (spec_ret == T_INT) {
+                        *cur_output_ << "    return 0;\n";
+                    } else if (spec_ret == T_FLOAT) {
+                        *cur_output_ << "    return 0.0;\n";
+                    } else {
+                        *cur_output_ << "    return kNil;\n";
+                    }
+                }
                 *cur_output_ << "}\n";
             }
             // 输出入口分发器（原始 CVar 签名）。
@@ -979,93 +1039,33 @@ void CGen::GenerateImpl(CompileResult &cr) {
                 *cur_output_ << "CVar " << func_params[i];
             }
             *cur_output_ << ") {\n";
-            CompileFuncBody(name, func_params, func_block, -1);
+            CompileFuncBody(name, func_params, func_block, -1, impls_);
+            if (!BlockEndsWithReturn(func_block)) {
+                *cur_output_ << "    return kNil;\n";
+            }
             *cur_output_ << "}\n";
         }
     }
 }
 
-void CGen::CompileFuncBody(const std::string &func_name,
-                             const std::vector<std::string> &func_params,
-                             const SyntaxTreeInterfacePtr &func_block,
-                             int spec_bitmask) {
-    // 初始化特化上下文。
-    spec_param_types_.clear();
-    cur_spec_bitmask_ = spec_bitmask;
-    cur_spec_func_name_ = (spec_bitmask >= 0) ? func_name : "";
-    cur_spec_snapshot_ = nullptr;
-
-    if (spec_bitmask >= 0) {
-        const auto &math_params = math_param_positions_.at(func_name);
-        for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-            const auto &param_name = func_params[static_cast<size_t>(math_params[i])];
-            spec_param_types_[param_name] =
-                    (MathParamKindOf(spec_bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
-        }
-        // 查找当前位掩码对应的快照，以便 CompileStmtLocalVar / CompileVar
-        // 在此参数类型组合下能查询到每个 AST 节点的正确类型。
-        if (specialization_snapshots_) {
-            if (const auto snap_it = specialization_snapshots_->find(func_name);
-                snap_it != specialization_snapshots_->end()) {
-                const auto &snaps = snap_it->second;
-                if (spec_bitmask < static_cast<int>(snaps.size())) {
-                    cur_spec_snapshot_ = &snaps[static_cast<size_t>(spec_bitmask)];
-                }
-            }
-        }
-    }
-
-    // 将函数体编译到 body 缓冲区。
-    //
-    // 若处于特化模式，临时将快照中的 EvalType 应用到函数块的每个 AST 节点，
-    // 使整个编译器中所有 EvalType() 调用都能看到当前位掩码对应的正确类型。
-    // 先保存当前的 EvalType，以便后续恢复，保持 AST 对后续位掩码
-    // 及非特化编译的干净状态。
-    EvalTypeSnapshot saved_eval_types;
-    if (cur_spec_snapshot_ != nullptr) {
-        WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &n) {
-            saved_eval_types[n.get()] = n->EvalType();
-        });
-        for (const auto &[ptr, type]: *cur_spec_snapshot_) {
-            ptr->SetEvalType(type);
-        }
-    }
-
-    func_temp_decls_.str("");
-    func_temp_decls_.clear();
-    body_ss_.str("");
-    body_ss_.clear();
-    native_var_scopes_.clear();
-    EnterNativeVarScope();
-    for (const auto &param_name: func_params) {
-        // 特化模式中，数学参数通过 spec_param_types_ 跟踪，而不作为
-        // 带类型的原生变量（以避免 CompileStmtAssign 的
-        // CompileNumericExp 路径在 CVar 右值时出现交互问题）。
-        DeclareNativeVar(param_name, false);
-    }
-    cur_output_ = &body_ss_;
-    cur_tab_++;
-    CompileStmtBlock(func_block);
-    cur_tab_--;
-    ExitNativeVarScope();
-    cur_output_ = &impls_;
-    *cur_output_ << func_temp_decls_.str();
-    *cur_output_ << body_ss_.str();
-
-    // 恢复本次特化中被覆盖的 EvalType。
-    if (cur_spec_snapshot_ != nullptr) {
-        for (const auto &[ptr, type]: saved_eval_types) {
-            ptr->SetEvalType(type);
-        }
-    }
-
-    // 清除特化上下文。
-    spec_param_types_.clear();
-    cur_spec_bitmask_ = -1;
-    cur_spec_func_name_ = "";
-    cur_spec_snapshot_ = nullptr;
-}
-
+// ---------------------------------------------------------------------------
+// GenerateEntryDispatcher —— 特化函数的 CVar 入口分发器
+//
+// 背景：
+//   每个含数学参数的函数 f(a, b, n) 最终对外暴露的仍是 CVar 签名的 f(a, b, n)，
+//   以保持与其他 Lua 代码（动态调用）兼容。但函数体本身被拆分为 2^k 个特化版本
+//   f_00, f_01, f_10, f_11（k = 数学参数个数），每种版本的数学参数类型为确定的
+//   int64_t / double，可生成高效的原生算术代码。
+//
+// 此函数生成的入口分发器负责：
+//   1. 参数类型检查：每个数学参数必须是 VAR_INT 或 VAR_FLOAT，否则运行时报错。
+//   2. 计算分发索引（bitmask）：
+//      对每个数学参数 p_i，若 p_i.type_ == VAR_FLOAT 则对应位置 1，否则置 0，
+//      通过 OR 组合生成 0 ~ 2^k-1 范围内的整数索引。
+//   3. switch 分发：按 bitmask 跳转到对应的特化函数，
+//      将数学参数从 CVar 中拆包（.data_.i / .data_.f）后直接传入。
+//      若特化函数返回原生类型（T_INT/T_FLOAT），则在返回前装箱为 CVar。
+// ---------------------------------------------------------------------------
 void CGen::GenerateEntryDispatcher(const std::string &func_name,
                                     const std::vector<std::string> &func_params,
                                     const std::vector<int> &math_param_indices) {
@@ -1079,6 +1079,15 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
         *cur_output_ << "CVar " << func_params[i];
     }
     *cur_output_ << ") {\n";
+
+    // 检查 math param 必须是数值类型，否则抛出运行时错误（含参数序号和参数名）。
+    for (int i = 0; i < k; ++i) {
+        const int param_idx = math_param_indices[i];
+        const auto &mp_name = func_params[static_cast<size_t>(param_idx)];
+        *cur_output_ << std::format(
+                "    if ({0}.type_ != VAR_INT && {0}.type_ != VAR_FLOAT) {{ FakeluaThrowError(_S, \"bad argument #{1} ({2}): attempt to perform arithmetic on non-numeric value\"); }}\n",
+                mp_name, param_idx + 1, mp_name);
+    }
 
     // 计算分发索引。
     *cur_output_ << "    int flua_spec_idx = ";
@@ -1099,104 +1108,320 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
     *cur_output_ << "    switch (flua_spec_idx) {\n";
     for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
         const auto spec_name = SpecFuncName(func_name, math_param_indices, bitmask);
-        *cur_output_ << std::format("        case {}: return {}(", bitmask, spec_name);
+        const auto spec_ret = GetSpecReturnType(func_name, bitmask);
+
+        // 构建参数列表字符串（math 参数取 .data_.i / .data_.f，其余直接传 CVar）。
+        std::string args_str;
         for (size_t i = 0; i < func_params.size(); ++i) {
-            if (i > 0) *cur_output_ << ", ";
-            const auto mp_it =
-                    std::find(math_param_indices.begin(), math_param_indices.end(), static_cast<int>(i));
+            if (i > 0) {
+                args_str += ", ";
+            }
+            const auto mp_it = std::ranges::find(math_param_indices, static_cast<int>(i));
             if (mp_it != math_param_indices.end()) {
                 const int mp_idx = static_cast<int>(mp_it - math_param_indices.begin());
                 const auto kind = MathParamKindOf(bitmask, mp_idx);
-                *cur_output_ << func_params[i] << (kind == kMathParamFloat ? ".data_.f" : ".data_.i");
+                args_str += func_params[i] + (kind == kMathParamFloat ? ".data_.f" : ".data_.i");
             } else {
-                *cur_output_ << func_params[i];
+                args_str += func_params[i];
             }
         }
-        *cur_output_ << ");\n";
+
+        if (spec_ret == T_INT || spec_ret == T_FLOAT) {
+            // 特化函数返回原生数值类型：需要将结果装箱为 CVar 后再返回。
+            const auto native_tmp = std::format("flua_r_{}", bitmask);
+            *cur_output_ << std::format("        case {}: {{ {} {} = {}({}); return {}; }}\n",
+                                        bitmask,
+                                        SpecReturnCTypeName(spec_ret),
+                                        native_tmp,
+                                        spec_name,
+                                        args_str,
+                                        BoxNativeValue(native_tmp, spec_ret));
+        } else {
+            *cur_output_ << std::format("        case {}: return {}({});\n", bitmask, spec_name, args_str);
+        }
     }
     *cur_output_ << "    }\n";
     *cur_output_ << "    return kNil;\n";
     *cur_output_ << "}\n";
 }
 
-std::string CGen::SpecFuncName(const std::string &base_name,
-                                 const std::vector<int> &math_param_indices, int bitmask) {
-    std::string name = base_name;
-    for (int i = 0; i < static_cast<int>(math_param_indices.size()); ++i) {
-        name += '_';
-        name += MathParamSuffix(MathParamKindOf(bitmask, i));
-    }
-    return name;
+
+std::string CGen::GenTab() const {
+    const auto tab_size = static_cast<size_t>(cur_tab_) * 4;
+    std::string tabs(tab_size, ' ');
+    return tabs;
 }
 
-InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const {
-    DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
-    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-    const auto &exp_type = e->ExpType();
+InferredType CGen::LookupNodeType(SyntaxTreeInterface *node) const {
+    if (cur_spec_snapshot_) {
+        if (const auto it = cur_spec_snapshot_->find(node); it != cur_spec_snapshot_->end()) {
+            return it->second;
+        }
+    }
+    if (const auto it = main_eval_types_.find(node); it != main_eval_types_.end()) {
+        return it->second;
+    }
+    return T_UNKNOWN;
+}
 
-    if (exp_type == "number") {
-        // 使用 TypeInferencer 设置的 EvalType。
-        if (e->EvalType() == T_INT) return T_INT;
-        if (e->EvalType() == T_FLOAT) return T_FLOAT;
-        // 回退：探查字符串值。
+InferredType CGen::GetSpecReturnType(const std::string &func_name, int bitmask) const {
+    const auto it = specialization_return_types_.find(func_name);
+    if (it == specialization_return_types_.end()) {
+        return T_DYNAMIC;
+    }
+    if (bitmask < 0 || bitmask >= static_cast<int>(it->second.size())) {
+        return T_DYNAMIC;
+    }
+    return it->second[static_cast<size_t>(bitmask)];
+}
+
+void CGen::CompileFuncBody(const std::string &func_name,
+                                         const std::vector<std::string> &func_params,
+                                         const SyntaxTreeInterfacePtr &func_block,
+                                         int spec_bitmask,
+                                         std::ostream &out) {
+    auto *prev_output = cur_output_;
+    // 初始化特化上下文。
+    spec_param_types_.clear();
+    cur_spec_bitmask_ = spec_bitmask;
+    cur_spec_func_name_ = (spec_bitmask >= 0) ? func_name : "";
+    cur_spec_snapshot_ = nullptr;
+
+    if (spec_bitmask >= 0) {
+        const auto &math_params = math_param_positions_.at(func_name);
+        for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+            const auto &param_name = func_params[static_cast<size_t>(math_params[i])];
+            spec_param_types_[param_name] =
+                    (MathParamKindOf(spec_bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
+        }
+        // 查找当前位掩码对应的快照，以便 CompileStmtLocalVar / CompileVar
+        // 在此参数类型组合下能查询到每个 AST 节点的正确类型。
+        if (const auto snap_it = specialization_snapshots_.find(func_name);
+            snap_it != specialization_snapshots_.end()) {
+            const auto &snaps = snap_it->second;
+            if (spec_bitmask < static_cast<int>(snaps.size())) {
+                cur_spec_snapshot_ = &snaps[static_cast<size_t>(spec_bitmask)];
+            }
+        }
+    }
+
+    // 将函数体编译到 body 缓冲区。
+    func_temp_decls_.str("");
+    func_temp_decls_.clear();
+    body_ss_.str("");
+    body_ss_.clear();
+    native_var_scope_.Clear();
+    EnterNativeVarScope();
+    for (const auto &param_name: func_params) {
+        // 在特化模式中，数学参数已在函数签名中声明为原生类型（int64_t/double），
+        // 因此将其注册为对应的原生类型，以便 CompileStmtAssign / InferArgTypeForSpec
+        // 能正确处理对这些参数的引用和赋值。
+        // 非特化或非数学参数仍注册为 T_DYNAMIC（CVar）。
+        const InferredType param_native_type =
+                (spec_bitmask >= 0 && spec_param_types_.contains(param_name))
+                        ? spec_param_types_.at(param_name)
+                        : T_DYNAMIC;
+        DeclareNativeVar(param_name, param_native_type);
+    }
+    cur_output_ = &body_ss_;
+    cur_tab_++;
+    CompileStmtBlock(func_block);
+    cur_tab_--;
+    ExitNativeVarScope();
+
+    // 写入调用方提供的输出流。
+    out << func_temp_decls_.str();
+    out << body_ss_.str();
+
+    // 清除特化上下文。
+    spec_param_types_.clear();
+    cur_spec_bitmask_ = -1;
+    cur_spec_func_name_ = "";
+    cur_spec_snapshot_ = nullptr;
+    cur_output_ = prev_output;
+}
+
+bool CGen::TryInferMathCallBitmask(const std::string &callee_name,
+                                               const std::vector<SyntaxTreeInterfacePtr> &raw_args,
+                                               int &bitmask) const {
+    const auto math_it = math_param_positions_.find(callee_name);
+    if (math_it == math_param_positions_.end()) {
+        return false;
+    }
+    const auto &math_params = math_it->second;
+    bitmask = 0;
+    for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+        const int param_pos = math_params[i];
+        if (param_pos >= static_cast<int>(raw_args.size())) {
+            return false;
+        }
+        const auto &arg = raw_args[static_cast<size_t>(param_pos)];
+        if (!arg || arg->Type() != SyntaxTreeType::Exp) {
+            return false;
+        }
+        const auto arg_type = InferArgTypeForSpec(arg);
+        if (arg_type == T_DYNAMIC) {
+            return false;
+        }
+        if (arg_type == T_FLOAT) {
+            bitmask |= (1 << i);
+        }
+    }
+    return true;
+}
+
+bool CGen::TryInferMathCallSpec(const std::string &callee_name,
+                                            const std::vector<SyntaxTreeInterfacePtr> &raw_args,
+                                            int &bitmask,
+                                            InferredType &spec_ret) const {
+    if (!TryInferMathCallBitmask(callee_name, raw_args, bitmask)) {
+        return false;
+    }
+    spec_ret = GetSpecReturnType(callee_name, bitmask);
+    return true;
+}
+
+InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
+    if (!exp || exp->Type() != SyntaxTreeType::Exp) {
+        return T_DYNAMIC;
+    }
+    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    const auto exp_kind = e->GetExpKind();
+
+    if (exp_kind == ExpKind::kNumber) {
+        const auto node_type = LookupNodeType(e.get());
+        if (node_type == T_INT || node_type == T_FLOAT) {
+            return node_type;
+        }
+        // 通过字面量字符串判断整数/浮点类型。
         const auto &val = e->ExpValue();
-        if (val.find('.') == std::string::npos && val.find('e') == std::string::npos &&
+        if (val.find('.') == std::string::npos &&
+            val.find('e') == std::string::npos &&
             val.find('E') == std::string::npos) {
             return T_INT;
         }
         return T_FLOAT;
     }
 
-    if (exp_type == "prefixexp") {
+    if (exp_kind == ExpKind::kPrefixExp) {
         const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
-        DEBUG_ASSERT(pe);
-        if (pe->GetType() == "var") {
-            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-            if (!var || var->GetType() != "simple") return T_DYNAMIC;
-            const auto &vname = var->GetName();
-            // 特化上下文优先。
-            if (const auto it = spec_param_types_.find(vname); it != spec_param_types_.end()) {
-                return it->second;
-            }
-            // 回退到 TypeInferencer 的 EvalType（适用于带类型的局部变量）。
-            const auto t = e->EvalType();
-            if (t == T_INT || t == T_FLOAT) return t;
+        if (!pe) {
             return T_DYNAMIC;
         }
-        if (pe->GetType() == "exp") {
-            return InferArgTypeForSpec(pe->GetValue());
+
+        if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
+            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+            if (!var || var->GetVarKind() != VarKind::kSimple) {
+                return T_DYNAMIC;
+            }
+            const auto &name = var->GetName();
+            if (const auto it = spec_param_types_.find(name); it != spec_param_types_.end()) {
+                return it->second;
+            }
+            const auto native_type = GetNativeVarType(name);
+            if (native_type == T_INT || native_type == T_FLOAT) {
+                return native_type;
+            }
+            // 文件级数值常量（static const int64_t / double）：返回其记录的原生类型。
+            if (const auto git = global_const_vars_.find(name); git != global_const_vars_.end()) {
+                if (git->second == T_INT || git->second == T_FLOAT) {
+                    return git->second;
+                }
+            }
+            return T_DYNAMIC;
         }
-        return T_DYNAMIC;// 函数调用
+
+        if (pe->GetPrefixKind() == PrefixExpKind::kExp) {
+            return InferExpType(pe->GetValue());
+        }
+
+        if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
+            const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
+            if (!fc) {
+                return T_DYNAMIC;
+            }
+            const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+            if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
+                return T_DYNAMIC;
+            }
+            const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+            if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
+                return T_DYNAMIC;
+            }
+            const auto &callee_name = callee_var->GetName();
+            const auto math_it = math_param_positions_.find(callee_name);
+            if (math_it == math_param_positions_.end() || math_it->second.empty()) {
+                return T_DYNAMIC;
+            }
+            const auto &math_params = math_it->second;
+            const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+            if (!args_ptr) {
+                return T_DYNAMIC;
+            }
+            const auto raw_args = ExtractCallRawArgs(args_ptr);
+            int bitmask = 0;
+            for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+                const int param_pos = math_params[static_cast<size_t>(i)];
+                if (param_pos >= static_cast<int>(raw_args.size())) {
+                    return T_DYNAMIC;
+                }
+                const auto &arg = raw_args[static_cast<size_t>(param_pos)];
+                if (!arg || arg->Type() != SyntaxTreeType::Exp) {
+                    return T_DYNAMIC;
+                }
+                const auto t = InferExpType(arg);
+                if (t == T_DYNAMIC) {
+                    return T_DYNAMIC;
+                }
+                if (t == T_FLOAT) {
+                    bitmask |= (1 << i);
+                }
+            }
+            return GetSpecReturnType(callee_name, bitmask);
+        }
+
+        return T_DYNAMIC;
     }
 
-    if (exp_type == "binop") {
+    if (exp_kind == ExpKind::kBinop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
-        DEBUG_ASSERT(op);
-        const auto lt = InferArgTypeForSpec(e->Left());
-        const auto rt = InferArgTypeForSpec(e->Right());
-        if (lt == T_DYNAMIC || rt == T_DYNAMIC) return T_DYNAMIC;
-        const auto &op_name = op->GetOp();
-        if (op_name == "SLASH" || op_name == "POW") return T_FLOAT;
-        if (op_name == "PLUS" || op_name == "MINUS" || op_name == "STAR" || op_name == "MOD" ||
-            op_name == "DOUBLE_SLASH") {
-            return (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
+        if (!op) {
+            return T_DYNAMIC;
         }
-        if (op_name == "BITAND" || op_name == "XOR" || op_name == "BITOR" ||
-            op_name == "LEFT_SHIFT" || op_name == "RIGHT_SHIFT") {
+        const auto lt = InferExpType(e->Left());
+        const auto rt = InferExpType(e->Right());
+        return InferNumericBinopResultType(op->GetOpKind(), lt, rt);
+    }
+
+    if (exp_kind == ExpKind::kUnop) {
+        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
+        if (!op) {
+            return T_DYNAMIC;
+        }
+        if (op->GetOpKind() == UnOpKind::kMinus) {
+            return InferExpType(e->Right());
+        }
+        if (op->GetOpKind() == UnOpKind::kBitNot) {
+            const auto t = InferExpType(e->Right());
+            if (t == T_INT) {
+                return T_INT;
+            }
+            return T_DYNAMIC;
+        }
+        if (op->GetOpKind() == UnOpKind::kNumberSign) {
             return T_INT;
         }
         return T_DYNAMIC;
     }
 
-    if (exp_type == "unop") {
-        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
-        DEBUG_ASSERT(op);
-        if (op->GetOp() == "MINUS") return InferArgTypeForSpec(e->Right());
-        return T_DYNAMIC;
-    }
-
     return T_DYNAMIC;
 }
+
+InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const {
+    DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
+    return InferExpType(exp);
+}
+
 
 std::string CGen::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
     try {
@@ -1204,6 +1429,78 @@ std::string CGen::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
     } catch (...) {
         return {};
     }
+}
+
+// 将比较运算符映射到对应的 C 操作符。
+static const std::unordered_map<BinOpKind, std::string_view> kCmpOpMap = {
+        {BinOpKind::kLess, "<"}, {BinOpKind::kLessEqual, "<="}, {BinOpKind::kMore, ">"},
+        {BinOpKind::kMoreEqual, ">="}, {BinOpKind::kEqual, "=="}, {BinOpKind::kNotEqual, "!="}
+};
+
+std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
+    // 只处理 Exp 节点。
+    if (!exp || exp->Type() != SyntaxTreeType::Exp) {
+        return {};
+    }
+    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+
+    // 透明地解包括括号表达式：(expr) → expr。
+    if (e->GetExpKind() == ExpKind::kPrefixExp) {
+        const auto pexp = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
+        if (!pexp || pexp->GetPrefixKind() != PrefixExpKind::kExp) {
+            return {};
+        }
+        return TryCompileNativeBoolExpr(pexp->GetValue());
+    }
+
+    // 处理 not 一元逻辑取反：将 not <bool_expr> 编译为 !(<bool_expr>)。
+    if (e->GetExpKind() == ExpKind::kUnop) {
+        const auto unop = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
+        if (!unop || unop->GetOpKind() != UnOpKind::kNot) {
+            return {};
+        }
+        const auto inner = TryCompileNativeBoolExpr(e->Right());
+        if (inner.empty()) {
+            return {};
+        }
+        return std::format("!({})", inner);
+    }
+
+    if (e->GetExpKind() != ExpKind::kBinop) {
+        return {};
+    }
+    const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
+    if (!op) {
+        return {};
+    }
+    const auto op_kind = op->GetOpKind();
+
+    // 处理 and/or 逻辑运算符：递归将两侧编译为原生布尔表达式。
+    if (op_kind == BinOpKind::kAnd || op_kind == BinOpKind::kOr) {
+        const auto left_bool = TryCompileNativeBoolExpr(e->Left());
+        const auto right_bool = TryCompileNativeBoolExpr(e->Right());
+        if (left_bool.empty() || right_bool.empty()) {
+            return {};
+        }
+        const auto c_op = (op_kind == BinOpKind::kAnd) ? "&&" : "||";
+        return std::format("({}) {} ({})", left_bool, c_op, right_bool);
+    }
+
+    const auto op_it = kCmpOpMap.find(op_kind);
+    if (op_it == kCmpOpMap.end()) {
+        return {};
+    }
+    const auto left_type = e->Left() ? InferArgTypeForSpec(e->Left()) : T_DYNAMIC;
+    const auto right_type = e->Right() ? InferArgTypeForSpec(e->Right()) : T_DYNAMIC;
+    if ((left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
+        return {};
+    }
+    const auto left_native = TryCompileNativeExpr(e->Left());
+    const auto right_native = TryCompileNativeExpr(e->Right());
+    if (left_native.empty() || right_native.empty()) {
+        return {};
+    }
+    return std::format("({}) {} ({})", left_native, op_it->second, right_native);
 }
 
 void CGen::CompileStmtBlock(const SyntaxTreeInterfacePtr &block) {
@@ -1248,9 +1545,7 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
             // 声明遮蔽外部变量而不是重新声明它们。
             *cur_output_ << GenTab() << "{\n";
             cur_tab_++;
-            EnterNativeVarScope();
-            CompileStmtBlock(stmt);
-            ExitNativeVarScope();
+            CompileScopedBlock(stmt);
             cur_tab_--;
             *cur_output_ << GenTab() << "}\n";
             break;
@@ -1279,6 +1574,10 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
             CompileStmtForIn(stmt);
             break;
         }
+        case SyntaxTreeType::Empty: {
+            // Semicolons produce empty statements; they are no-ops in Lua.
+            break;
+        }
         default: {
             ThrowError(std::format("not support stmt type: {}", SyntaxTreeTypeToString(stmt->Type())), stmt);
         }
@@ -1294,7 +1593,7 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
         // 默认返回 nil
         explist = std::make_shared<SyntaxTreeExplist>(return_stmt->Loc());
         const auto exp = std::make_shared<SyntaxTreeExp>(return_stmt->Loc());
-        exp->SetType("nil");
+        exp->SetExpKind(ExpKind::kNil);
         std::dynamic_pointer_cast<SyntaxTreeExplist>(explist)->AddExp(exp);
     }
 
@@ -1302,7 +1601,7 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     if (explist_ptr->Exps().empty()) {
         // 默认返回 nil
         const auto exp = std::make_shared<SyntaxTreeExp>(return_stmt->Loc());
-        exp->SetType("nil");
+        exp->SetExpKind(ExpKind::kNil);
         explist_ptr->AddExp(exp);
     } else {
         // PreProcessor 已确保不存在多返回值
@@ -1310,14 +1609,18 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     const auto exp = explist_ptr->Exps()[0];
-    // 始终通过 CompileExp 编译返回表达式。CompileExp
-    // 将变量引用委托给 CompileVar：对于声明为原生类型（int64_t / double）的变量，
-    // CompileVar 会自动将其装箱为 CVar；对于声明为 CVar 的变量，则直接返回 CVar。
-    // 在此处使用 exp->EvalType() 是不安全的：在循环体的单次遍历中，
-    // EvalType 可能被标记为 T_INT，但在同一循环中的后续 T_DYNAMIC 变化之前，
-    // 导致 CompileNumericExp 在运行时访问持有非整数类型的变量的 cvar.data_.i。
+    // 若当前处于原生返回类型的特化函数中，直接将返回表达式编译为原生数值并返回，
+    // 跳过 CompileExp 的装箱步骤，消除一次 CVar 封箱拆箱开销。
+    if (cur_spec_bitmask_ >= 0 && !cur_spec_func_name_.empty()) {
+        const auto spec_ret = GetSpecReturnType(cur_spec_func_name_, cur_spec_bitmask_);
+        if (spec_ret == T_INT || spec_ret == T_FLOAT) {
+            const auto native_ret = CompileNumericExp(exp);
+            *cur_output_ << GenTab() << "return " << native_ret << ";\n";
+            return;
+        }
+    }
+    // 始终通过 CompileExp 编译返回表达式。
     const std::string ret = CompileExp(exp);
-
     *cur_output_ << GenTab() << "return " << ret << ";\n";
 }
 
@@ -1348,16 +1651,81 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             ThrowError("local variable conflicts with global constant: " + name, stmt);
         }
 
-        if (i < exps.size() && exps[i]->EvalType() == T_INT) {
-            *cur_output_ << GenTab() << "int64_t " << name << " = " << CompileNumericExp(exps[i]) << ";\n";
-            DeclareNativeVar(name, true);
-        } else if (i < exps.size() && exps[i]->EvalType() == T_FLOAT) {
-            *cur_output_ << GenTab() << "double " << name << " = " << CompileNumericExp(exps[i]) << ";\n";
-            DeclareNativeVar(name, true);
-        } else {
-            const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
+        if (i < exps.size() && LookupNodeType(exps[i].get()) == T_INT) {
+            const auto native_expr = CompileNumericExp(exps[i]);
+            if (IsTypedNativeVar(name)) {
+                const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    int64_t " << tmp << ";\n";
+                *cur_output_ << GenTab() << tmp << " = " << native_expr << ";\n";
+                *cur_output_ << GenTab() << "int64_t " << name << " = " << tmp << ";\n";
+            } else {
+                *cur_output_ << GenTab() << "int64_t " << name << " = " << native_expr << ";\n";
+            }
+            DeclareNativeVar(name, T_INT);
+        } else if (i < exps.size() && LookupNodeType(exps[i].get()) == T_FLOAT) {
+            const auto native_expr = CompileNumericExp(exps[i]);
+            if (IsTypedNativeVar(name)) {
+                const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    double " << tmp << ";\n";
+                *cur_output_ << GenTab() << tmp << " = " << native_expr << ";\n";
+                *cur_output_ << GenTab() << "double " << name << " = " << tmp << ";\n";
+            } else {
+                *cur_output_ << GenTab() << "double " << name << " = " << native_expr << ";\n";
+            }
+            DeclareNativeVar(name, T_FLOAT);
+        } else if (i < exps.size()) {
+            // EvalType 为 T_DYNAMIC：尝试通过 InferArgTypeForSpec 捕获数学函数调用返回值。
+            // 但若推断器的后处理阶段已将该表达式从数值类型降级为 T_DYNAMIC
+            //（意味着该变量后续会被赋予不同类型），则跳过特化路径，直接声明为 CVar。
+            //
+            // 降级判别标准：表达式本身在快照中为 T_DYNAMIC，但其所有直接操作数均为数值类型
+            //（T_INT/T_FLOAT）。这说明初始推断给出了数值类型，是后处理因变量被重新赋值
+            // 而将其改写为 T_DYNAMIC，而非操作数本身就是 T_DYNAMIC（自然产生的 T_DYNAMIC）。
+            // 对于 kPrefixExp（函数调用等），其类型在主推断中本就是 T_DYNAMIC，
+            // InferArgTypeForSpec 可进一步推断特化返回类型，仍允许特化。
+            const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exps[i]);
+            bool is_degraded_expression = false;
+            if (init_exp && LookupNodeType(exps[i].get()) == T_DYNAMIC) {
+                const auto kind = init_exp->GetExpKind();
+                if (kind == ExpKind::kNumber) {
+                    // 字面量始终产生数值类型；若快照中为 T_DYNAMIC，则必是后处理降级。
+                    is_degraded_expression = true;
+                } else if (kind == ExpKind::kBinop && init_exp->Left() && init_exp->Right()) {
+                    const auto lt = LookupNodeType(init_exp->Left().get());
+                    const auto rt = LookupNodeType(init_exp->Right().get());
+                    // 两个操作数均为数值类型，但 binop 本身是 T_DYNAMIC → 后处理降级。
+                    is_degraded_expression = IsNumericInferredType(lt) && IsNumericInferredType(rt);
+                } else if (kind == ExpKind::kUnop && init_exp->Right()) {
+                    const auto ot = LookupNodeType(init_exp->Right().get());
+                    // 操作数为数值类型，但 unop 本身是 T_DYNAMIC → 后处理降级。
+                    is_degraded_expression = IsNumericInferredType(ot);
+                }
+            }
+            if (!is_degraded_expression) {
+                const auto spec_type = InferArgTypeForSpec(exps[i]);
+                if (spec_type == T_INT || spec_type == T_FLOAT) {
+                    const auto native_expr = TryCompileNativeExpr(exps[i]);
+                    if (!native_expr.empty()) {
+                        const auto c_type = (spec_type == T_INT) ? "int64_t" : "double";
+                        if (IsTypedNativeVar(name)) {
+                            const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
+                            func_temp_decls_ << "    " << c_type << " " << tmp << ";\n";
+                            *cur_output_ << GenTab() << tmp << " = " << native_expr << ";\n";
+                            *cur_output_ << GenTab() << c_type << " " << name << " = " << tmp << ";\n";
+                        } else {
+                            *cur_output_ << GenTab() << c_type << " " << name << " = " << native_expr << ";\n";
+                        }
+                        DeclareNativeVar(name, spec_type);
+                        continue;
+                    }
+                }
+            }
+            const std::string init = CompileExp(exps[i]);
             *cur_output_ << GenTab() << "CVar " << name << " = " << init << ";\n";
-            DeclareNativeVar(name, false);
+            DeclareNativeVar(name, T_DYNAMIC);
+        } else {
+            *cur_output_ << GenTab() << "CVar " << name << " = kNil;\n";
+            DeclareNativeVar(name, T_DYNAMIC);
         }
     }
 }
@@ -1387,41 +1755,117 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
 
     // PreprocessTableAssign 将方括号/点号赋值重写为 FAKELUA_SET_TABLE 调用，
     // 所以只有简单变量赋值能到达此处。
-    DEBUG_ASSERT(v_ptr->GetType() == "simple");
-    // 基于声明作用域中的原生类型标记进行判断，而不是
-    // v_ptr->EvalType()（在单次遍历中，当此赋值在同一个循环体中
-    // 后续的 T_DYNAMIC 变化之前被处理时，EvalType 可能已过时）。
-    // 使用过时的 T_INT EvalType 会发出 CVar = int64_t —— C 类型错误。
+    DEBUG_ASSERT(v_ptr->GetVarKind() == VarKind::kSimple);
     if (const auto &name = v_ptr->GetName(); IsTypedNativeVar(name)) {
-        *cur_output_ << GenTab() << name << " = " << CompileNumericExp(exps[0]) << ";\n";
+        // 被赋值变量是原生类型（int64_t / double）变量：
+        const auto var_type = GetNativeVarType(name);
+        const auto native_rhs = TryCompileNativeExpr(exps[0]);
+        if (!native_rhs.empty()) {
+            // RHS 可以直接编译为原生数值表达式——无需临时 CVar。
+            // 若 RHS 类型与目标变量类型不同（如 double → int64_t），插入显式强制转换。
+            const auto rhs_type = InferArgTypeForSpec(exps[0]);
+            if (rhs_type == T_FLOAT && var_type == T_INT) {
+                *cur_output_ << GenTab() << name << " = (int64_t)(" << native_rhs << ");\n";
+            } else if (rhs_type == T_INT && var_type == T_FLOAT) {
+                *cur_output_ << GenTab() << name << " = (double)(" << native_rhs << ");\n";
+            } else {
+                *cur_output_ << GenTab() << name << " = " << native_rhs << ";\n";
+            }
+        } else {
+            // RHS 无法编译为原生数值（如调用返回 CVar 的函数）：
+            //   (1) 将 RHS 编译为 CVar 临时变量；
+            //   (2) 将 spec_param_types_ 中的旧类型条目移除，
+            //       使后续的 InferArgTypeForSpec 转向 GetNativeVarType 查询，
+            //       避免使用已失效的特化参数假设；
+            //   (3) 运行时检查 CVar 类型，拆包为原生类型赋值；非数值则抛出运行时错误。
+            const std::string rhs = CompileExp(exps[0]);
+            const auto tmp = std::format("flua_assign_tmp_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar " << tmp << ";\n";
+            *cur_output_ << GenTab() << tmp << " = " << rhs << ";\n";
+            // 移除过时的特化参数类型，让后续推断走 GetNativeVarType 而非 spec_param_types_。
+            spec_param_types_.erase(name);
+            if (var_type == T_FLOAT) {
+                // 运行时检查：CVar 必须是数值类型，否则报错。
+                *cur_output_ << GenTab() << "if (" << tmp << ".type_ == VAR_FLOAT) {\n";
+                cur_tab_++;
+                *cur_output_ << GenTab() << name << " = " << tmp << ".data_.f;\n";
+                cur_tab_--;
+                *cur_output_ << GenTab() << "} else if (" << tmp << ".type_ == VAR_INT) {\n";
+                cur_tab_++;
+                *cur_output_ << GenTab() << name << " = (double)" << tmp << ".data_.i;\n";
+                cur_tab_--;
+                *cur_output_ << GenTab() << "} else {\n";
+                cur_tab_++;
+                *cur_output_ << GenTab() << "FakeluaThrowError(_S, \"attempt to assign non-numeric value to typed float variable\");\n";
+                cur_tab_--;
+                *cur_output_ << GenTab() << "}\n";
+            } else {
+                // 运行时检查：CVar 必须是数值类型，否则报错。
+                *cur_output_ << GenTab() << "if (" << tmp << ".type_ == VAR_INT) {\n";
+                cur_tab_++;
+                *cur_output_ << GenTab() << name << " = " << tmp << ".data_.i;\n";
+                cur_tab_--;
+                *cur_output_ << GenTab() << "} else if (" << tmp << ".type_ == VAR_FLOAT) {\n";
+                cur_tab_++;
+                *cur_output_ << GenTab() << name << " = (int64_t)" << tmp << ".data_.f;\n";
+                cur_tab_--;
+                *cur_output_ << GenTab() << "} else {\n";
+                cur_tab_++;
+                *cur_output_ << GenTab() << "FakeluaThrowError(_S, \"attempt to assign non-numeric value to typed int variable\");\n";
+                cur_tab_--;
+                *cur_output_ << GenTab() << "}\n";
+            }
+        }
     } else {
         const std::string rhs = CompileExp(exps[0]);
         *cur_output_ << GenTab() << name << " = " << rhs << ";\n";
     }
 }
 
-void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &shared) {
-    CompileFunctioncall(shared);
+void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &stmt) {
+    CompileFunctioncall(stmt);
+}
+
+void CGen::CompileScopedBlock(const SyntaxTreeInterfacePtr &block) {
+    EnterNativeVarScope();
+    CompileStmtBlock(block);
+    ExitNativeVarScope();
+}
+
+std::string CGen::CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix) {
+    auto native_cond = TryCompileNativeBoolExpr(exp);
+    if (!native_cond.empty()) {
+        return native_cond;
+    }
+    const auto tmp_bool = std::format("{}_{}", tmp_prefix, tmp_var_counter_++);
+    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
+    const auto cond = CompileExp(exp);
+    *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
+    return tmp_bool;
 }
 
 void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::While);
     const auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
 
+    const auto native_cond = TryCompileNativeBoolExpr(while_stmt->Exp());
+    if (!native_cond.empty()) {
+        *cur_output_ << GenTab() << "while (" << native_cond << ") {\n";
+        cur_tab_++;
+        CompileScopedBlock(while_stmt->Block());
+        cur_tab_--;
+        *cur_output_ << GenTab() << "}\n";
+        return;
+    }
+
     const auto tmp_bool = std::format("flua_wbt_{}", tmp_var_counter_++);
     func_temp_decls_ << "    bool " << tmp_bool << ";\n";
-
     *cur_output_ << GenTab() << "while (1) {\n";
     cur_tab_++;
-
     const auto cond = CompileExp(while_stmt->Exp());
     *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
     *cur_output_ << GenTab() << std::format("if (!{}) break;\n", tmp_bool);
-
-    EnterNativeVarScope();
-    CompileStmtBlock(while_stmt->Block());
-    ExitNativeVarScope();
-
+    CompileScopedBlock(while_stmt->Block());
     cur_tab_--;
     *cur_output_ << GenTab() << "}\n";
 }
@@ -1430,18 +1874,18 @@ void CGen::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::Repeat);
     const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
 
-    const auto tmp_bool = std::format("flua_rbt_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
-
     *cur_output_ << GenTab() << "do {\n";
     cur_tab_++;
 
+    // Lua 语义：until 条件可以访问 repeat 块内声明的 local 变量。
+    // 因此必须在 until 条件编译完成之后再退出 NativeVarScope，
+    // 否则块内的原生类型变量（int64_t/double）在条件编译时会被视为 CVar，
+    // 导致生成的 C 代码类型不匹配（编译错误或静默错误结果）。
     EnterNativeVarScope();
     CompileStmtBlock(repeat_stmt->Block());
-    const auto cond = CompileExp(repeat_stmt->Exp());
+    const auto cond_bool = CompileCondBoolExpr(repeat_stmt->Exp(), "flua_rbt");
+    *cur_output_ << GenTab() << std::format("if ({}) break;\n", cond_bool);
     ExitNativeVarScope();
-    *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
-    *cur_output_ << GenTab() << std::format("if ({}) break;\n", tmp_bool);
 
     cur_tab_--;
     *cur_output_ << GenTab() << "} while (1);\n";
@@ -1451,16 +1895,10 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::If);
     const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
 
-    const auto tmp_bool = std::format("flua_ibt_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    bool " << tmp_bool << ";\n";
-
-    const auto cond = CompileExp(if_stmt->Exp());
-    *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
-    *cur_output_ << GenTab() << std::format("if ({}) {{\n", tmp_bool);
+    const auto cond_bool = CompileCondBoolExpr(if_stmt->Exp(), "flua_ibt");
+    *cur_output_ << GenTab() << std::format("if ({}) {{\n", cond_bool);
     cur_tab_++;
-    EnterNativeVarScope();
-    CompileStmtBlock(if_stmt->Block());
-    ExitNativeVarScope();
+    CompileScopedBlock(if_stmt->Block());
     cur_tab_--;
     *cur_output_ << GenTab() << "}";
 
@@ -1472,16 +1910,10 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
             cur_tab_++;
             elseif_depth++;
 
-            const auto etmp_bool = std::format("flua_ibt_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    bool " << etmp_bool << ";\n";
-
-            const auto econd = CompileExp(elseif_list->ElseifExp(i));
-            *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", econd, etmp_bool);
-            *cur_output_ << GenTab() << std::format("if ({}) {{\n", etmp_bool);
+            const auto econd_bool = CompileCondBoolExpr(elseif_list->ElseifExp(i), "flua_ibt");
+            *cur_output_ << GenTab() << std::format("if ({}) {{\n", econd_bool);
             cur_tab_++;
-            EnterNativeVarScope();
-            CompileStmtBlock(elseif_list->ElseifBlock(i));
-            ExitNativeVarScope();
+            CompileScopedBlock(elseif_list->ElseifBlock(i));
             cur_tab_--;
             *cur_output_ << GenTab() << "}";
         }
@@ -1490,9 +1922,7 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     if (const auto else_block = if_stmt->ElseBlock()) {
         *cur_output_ << " else {\n";
         cur_tab_++;
-        EnterNativeVarScope();
-        CompileStmtBlock(else_block);
-        ExitNativeVarScope();
+        CompileScopedBlock(else_block);
         cur_tab_--;
         *cur_output_ << GenTab() << "}";
     }
@@ -1514,94 +1944,140 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::ForLoop);
     const auto for_stmt = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
 
-    const bool typed_int_for = for_stmt->ExpBegin() && for_stmt->ExpEnd() && for_stmt->ExpBegin()->EvalType() == T_INT &&
-                               for_stmt->ExpEnd()->EvalType() == T_INT &&
-                               (!for_stmt->ExpStep() || for_stmt->ExpStep()->EvalType() == T_INT);
+    const bool typed_int_for = for_stmt->ExpBegin() && for_stmt->ExpEnd() && LookupNodeType(for_stmt->ExpBegin().get()) == T_INT &&
+                               LookupNodeType(for_stmt->ExpEnd().get()) == T_INT &&
+                               (!for_stmt->ExpStep() || LookupNodeType(for_stmt->ExpStep().get()) == T_INT);
     if (typed_int_for) {
-        const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
-        const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
-        const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
-
-        func_temp_decls_ << "    int64_t " << ctrl_var << ";\n";
-        func_temp_decls_ << "    int64_t " << end_var << ";\n";
-        func_temp_decls_ << "    int64_t " << step_var << ";\n";
-
-        *cur_output_ << GenTab() << ctrl_var << " = " << CompileNumericExp(for_stmt->ExpBegin()) << ";\n";
-        *cur_output_ << GenTab() << end_var << " = " << CompileNumericExp(for_stmt->ExpEnd()) << ";\n";
-        if (for_stmt->ExpStep()) {
-            *cur_output_ << GenTab() << step_var << " = " << CompileNumericExp(for_stmt->ExpStep()) << ";\n";
-        } else {
-            *cur_output_ << GenTab() << step_var << " = 1;\n";
-        }
-
-        *cur_output_ << GenTab() << "for (; (" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
-                     << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
-        cur_tab_++;
-        EnterNativeVarScope();
-        if (for_stmt->EvalType() == T_INT) {
-            *cur_output_ << GenTab() << "int64_t " << for_stmt->Name() << " = " << ctrl_var << ";\n";
-            DeclareNativeVar(for_stmt->Name(), true);
-        } else {
-            *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_INT) << ";\n";
-            DeclareNativeVar(for_stmt->Name(), false);
-        }
-        CompileStmtBlock(for_stmt->Block());
-        ExitNativeVarScope();
-        cur_tab_--;
-        *cur_output_ << GenTab() << "}\n";
+        CompileTypedIntForLoop(for_stmt);
         return;
     }
 
     // T_FLOAT 快路径：所有边界为数值（T_INT 或 T_FLOAT）但并非全为 T_INT。
-    // 使用 double 控制变量，避免走 CVar 动态路径的额外开销。
-    const bool step_is_numeric = !for_stmt->ExpStep() || for_stmt->ExpStep()->EvalType() == T_INT ||
-                                 for_stmt->ExpStep()->EvalType() == T_FLOAT;
+    const bool step_is_numeric = !for_stmt->ExpStep() || LookupNodeType(for_stmt->ExpStep().get()) == T_INT ||
+                                 LookupNodeType(for_stmt->ExpStep().get()) == T_FLOAT;
     const bool typed_float_for =
             !typed_int_for && for_stmt->ExpBegin() && for_stmt->ExpEnd() &&
-            (for_stmt->ExpBegin()->EvalType() == T_INT || for_stmt->ExpBegin()->EvalType() == T_FLOAT) &&
-            (for_stmt->ExpEnd()->EvalType() == T_INT || for_stmt->ExpEnd()->EvalType() == T_FLOAT) && step_is_numeric;
+            (LookupNodeType(for_stmt->ExpBegin().get()) == T_INT || LookupNodeType(for_stmt->ExpBegin().get()) == T_FLOAT) &&
+            (LookupNodeType(for_stmt->ExpEnd().get()) == T_INT || LookupNodeType(for_stmt->ExpEnd().get()) == T_FLOAT) && step_is_numeric;
     if (typed_float_for) {
-        const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
-        const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
-        const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
-
-        func_temp_decls_ << "    double " << ctrl_var << ";\n";
-        func_temp_decls_ << "    double " << end_var << ";\n";
-        func_temp_decls_ << "    double " << step_var << ";\n";
-
-        *cur_output_ << GenTab() << ctrl_var << " = (double)(" << CompileNumericExp(for_stmt->ExpBegin()) << ");\n";
-        *cur_output_ << GenTab() << end_var << " = (double)(" << CompileNumericExp(for_stmt->ExpEnd()) << ");\n";
-        if (for_stmt->ExpStep()) {
-            *cur_output_ << GenTab() << step_var << " = (double)(" << CompileNumericExp(for_stmt->ExpStep()) << ");\n";
-        } else {
-            *cur_output_ << GenTab() << step_var << " = 1.0;\n";
-        }
-
-        *cur_output_ << GenTab() << "for (; (" << step_var << " > 0.0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
-                     << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
-        cur_tab_++;
-        EnterNativeVarScope();
-        if (for_stmt->EvalType() == T_FLOAT) {
-            *cur_output_ << GenTab() << "double " << for_stmt->Name() << " = " << ctrl_var << ";\n";
-            DeclareNativeVar(for_stmt->Name(), true);
-        } else {
-            *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_FLOAT) << ";\n";
-            DeclareNativeVar(for_stmt->Name(), false);
-        }
-        CompileStmtBlock(for_stmt->Block());
-        ExitNativeVarScope();
-        cur_tab_--;
-        *cur_output_ << GenTab() << "}\n";
+        CompileTypedFloatForLoop(for_stmt);
         return;
     }
 
-    // 为循环控制分配生成的 C 变量名（提升到函数顶部）
-    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);        // 当前值
-    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);          // 结束值
-    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);        // 步长值
-    const auto step_pos_var = std::format("flua_for_step_pos_{}", tmp_var_counter_++);// 步长 > 0 标志
-    const auto cond_var = std::format("flua_for_cond_{}", tmp_var_counter_++);        // 循环条件
-    const auto cmp_var = std::format("flua_for_cmp_{}", tmp_var_counter_++);          // 比较临时变量
+    CompileDynamicForLoop(for_stmt);
+}
+
+void CGen::CompileTypedIntForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt) {
+    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
+    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
+    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
+
+    func_temp_decls_ << "    int64_t " << ctrl_var << ";\n";
+    func_temp_decls_ << "    int64_t " << end_var << ";\n";
+    func_temp_decls_ << "    int64_t " << step_var << ";\n";
+
+    const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
+    *cur_output_ << GenTab() << ctrl_var << " = " << native_begin << ";\n";
+    const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
+    *cur_output_ << GenTab() << end_var << " = " << native_end << ";\n";
+    if (for_stmt->ExpStep()) {
+        if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
+            step_exp && step_exp->GetExpKind() == ExpKind::kNumber && LookupNodeType(step_exp.get()) == T_INT &&
+            ToInteger(step_exp->ExpValue()) == 0) {
+            ThrowError("'for' step is zero", for_stmt->ExpStep());
+        }
+        const auto native_step = CompileNumericExp(for_stmt->ExpStep());
+        *cur_output_ << GenTab() << step_var << " = " << native_step << ";\n";
+    } else {
+        *cur_output_ << GenTab() << step_var << " = 1;\n";
+    }
+    *cur_output_ << GenTab() << "if (" << step_var << " == 0) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+
+    *cur_output_ << GenTab() << "for (; (" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
+                 << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
+    cur_tab_++;
+    EnterNativeVarScope();
+    if (LookupNodeType(for_stmt.get()) == T_INT) {
+        *cur_output_ << GenTab() << "int64_t " << for_stmt->Name() << " = " << ctrl_var << ";\n";
+        DeclareNativeVar(for_stmt->Name(), T_INT);
+    } else {
+        *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_INT) << ";\n";
+        DeclareNativeVar(for_stmt->Name(), T_DYNAMIC);
+    }
+    // 用内层作用域包裹循环体，避免 local 同名变量与循环变量在同一 C 作用域中重复声明。
+    *cur_output_ << GenTab() << "{\n";
+    cur_tab_++;
+    EnterNativeVarScope();
+    CompileStmtBlock(for_stmt->Block());
+    ExitNativeVarScope();
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
+    ExitNativeVarScope();
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
+}
+
+void CGen::CompileTypedFloatForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt) {
+    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
+    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
+    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
+
+    func_temp_decls_ << "    double " << ctrl_var << ";\n";
+    func_temp_decls_ << "    double " << end_var << ";\n";
+    func_temp_decls_ << "    double " << step_var << ";\n";
+
+    const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
+    *cur_output_ << GenTab() << ctrl_var << " = (double)(" << native_begin << ");\n";
+    const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
+    *cur_output_ << GenTab() << end_var << " = (double)(" << native_end << ");\n";
+    if (for_stmt->ExpStep()) {
+        if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
+            step_exp && step_exp->GetExpKind() == ExpKind::kNumber) {
+            const double step_val = (LookupNodeType(step_exp.get()) == T_INT)
+                                            ? static_cast<double>(ToInteger(step_exp->ExpValue()))
+                                            : ToFloat(step_exp->ExpValue());
+            if (step_val == 0.0) {
+                ThrowError("'for' step is zero", for_stmt->ExpStep());
+            }
+        }
+        const auto native_step = CompileNumericExp(for_stmt->ExpStep());
+        *cur_output_ << GenTab() << step_var << " = (double)(" << native_step << ");\n";
+    } else {
+        *cur_output_ << GenTab() << step_var << " = 1.0;\n";
+    }
+    *cur_output_ << GenTab() << "if (" << step_var << " == 0.0) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+
+    *cur_output_ << GenTab() << "for (; (" << step_var << " > 0.0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
+                 << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
+    cur_tab_++;
+    EnterNativeVarScope();
+    if (LookupNodeType(for_stmt.get()) == T_FLOAT) {
+        *cur_output_ << GenTab() << "double " << for_stmt->Name() << " = " << ctrl_var << ";\n";
+        DeclareNativeVar(for_stmt->Name(), T_FLOAT);
+    } else {
+        *cur_output_ << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_FLOAT) << ";\n";
+        DeclareNativeVar(for_stmt->Name(), T_DYNAMIC);
+    }
+    // 用内层作用域包裹循环体，避免 local 同名变量与循环变量在同一 C 作用域中重复声明。
+    *cur_output_ << GenTab() << "{\n";
+    cur_tab_++;
+    EnterNativeVarScope();
+    CompileStmtBlock(for_stmt->Block());
+    ExitNativeVarScope();
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
+    ExitNativeVarScope();
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
+}
+
+void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt) {
+    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
+    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
+    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
+    const auto step_pos_var = std::format("flua_for_step_pos_{}", tmp_var_counter_++);
+    const auto cond_var = std::format("flua_for_cond_{}", tmp_var_counter_++);
+    const auto cmp_var = std::format("flua_for_cmp_{}", tmp_var_counter_++);
 
     func_temp_decls_ << "    CVar " << ctrl_var << ";\n";
     func_temp_decls_ << "    CVar " << end_var << ";\n";
@@ -1610,7 +2086,6 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     func_temp_decls_ << "    bool " << cond_var << ";\n";
     func_temp_decls_ << "    CVar " << cmp_var << ";\n";
 
-    // 计算 begin、end、step 表达式
     const auto begin_expr = CompileExp(for_stmt->ExpBegin());
     *cur_output_ << GenTab() << ctrl_var << " = " << begin_expr << ";\n";
 
@@ -1624,16 +2099,17 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
         *cur_output_ << GenTab() << "SET_INT(" << step_var << ", 1);\n";
     }
 
-    // 在循环前一次性确定步长方向
-    *cur_output_ << GenTab() << "if (" << step_var << ".type_ == VAR_INT) { " << step_pos_var << " = (" << step_var << ".data_.i > 0); }\n";
-    *cur_output_ << GenTab() << "else if (" << step_var << ".type_ == VAR_FLOAT) { " << step_pos_var << " = (" << step_var
-                 << ".data_.f > 0.0); }\n";
-    *cur_output_ << GenTab() << "else { FakeluaThrowError(_S, \"'for' step must be a number\"); " << step_pos_var << " = 1; }\n";
+    *cur_output_ << GenTab() << "if (" << step_var << ".type_ == VAR_INT) {\n";
+    *cur_output_ << GenTab() << "    if (" << step_var << ".data_.i == 0) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+    *cur_output_ << GenTab() << "    " << step_pos_var << " = (" << step_var << ".data_.i > 0);\n";
+    *cur_output_ << GenTab() << "} else if (" << step_var << ".type_ == VAR_FLOAT) {\n";
+    *cur_output_ << GenTab() << "    if (" << step_var << ".data_.f == 0.0) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+    *cur_output_ << GenTab() << "    " << step_pos_var << " = (" << step_var << ".data_.f > 0.0);\n";
+    *cur_output_ << GenTab() << "} else { FakeluaThrowError(_S, \"'for' step must be a number\"); " << step_pos_var << " = 1; }\n";
 
     *cur_output_ << GenTab() << "while (1) {\n";
     cur_tab_++;
 
-    // 检查循环条件：若步长 > 0: ctrl <= end；否则: ctrl >= end
     *cur_output_ << GenTab() << "if (" << step_pos_var << ") {\n";
     cur_tab_++;
     *cur_output_ << GenTab() << std::format("OpLe(({0}), ({1}), {2});\n", ctrl_var, end_var, cmp_var);
@@ -1647,17 +2123,20 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     *cur_output_ << GenTab() << std::format("IsTrue(({0}), {1});\n", cmp_var, cond_var);
     *cur_output_ << GenTab() << std::format("if (!{}) break;\n", cond_var);
 
-    // 声明循环体中可见的循环变量
     const auto &loop_var_name = for_stmt->Name();
     *cur_output_ << GenTab() << "CVar " << loop_var_name << " = " << ctrl_var << ";\n";
     EnterNativeVarScope();
-    DeclareNativeVar(loop_var_name, false);
+    DeclareNativeVar(loop_var_name, T_DYNAMIC);
 
-    // 编译循环体
+    *cur_output_ << GenTab() << "{\n";
+    cur_tab_++;
+    EnterNativeVarScope();
     CompileStmtBlock(for_stmt->Block());
     ExitNativeVarScope();
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
+    ExitNativeVarScope();
 
-    // 递增控制变量
     *cur_output_ << GenTab() << std::format("OpAdd(({0}), ({1}), {2});\n", ctrl_var, step_var, ctrl_var);
 
     cur_tab_--;
@@ -1668,69 +2147,55 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::ForIn);
     const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
 
-    // 获取迭代变量名（k、v 或仅 k）
     const auto namelist = for_in->Namelist();
     DEBUG_ASSERT(namelist->Type() == SyntaxTreeType::NameList);
     const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
     const auto &names = namelist_ptr->Names();
-    // PreProcessor 已确保 namelist 大小为 1 或 2
     DEBUG_ASSERT(!names.empty() && names.size() <= 2);
 
-    // Explist 必须恰好包含一个表达式：pairs(t) 或 ipairs(t)
     const auto explist = for_in->Explist();
     DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
     const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
-    // PreProcessor 已确保 explist 大小为 1
     DEBUG_ASSERT(explist_ptr->Exps().size() == 1);
 
-    // 该表达式必须是对 pairs() 或 ipairs() 的调用
     const auto exp = explist_ptr->Exps()[0];
     DEBUG_ASSERT(exp->Type() == SyntaxTreeType::Exp);
     const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-    // PreProcessor 已确保是 prefixexp
-    DEBUG_ASSERT(exp_ptr->ExpType() == "prefixexp");
+    DEBUG_ASSERT(exp_ptr->GetExpKind() == ExpKind::kPrefixExp);
     const auto prefixexp = exp_ptr->Right();
     DEBUG_ASSERT(prefixexp->Type() == SyntaxTreeType::PrefixExp);
     const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(prefixexp);
-    // PreProcessor 已确保是 functioncall
-    DEBUG_ASSERT(pe_ptr->GetType() == "functioncall");
+    DEBUG_ASSERT(pe_ptr->GetPrefixKind() == PrefixExpKind::kFunctionCall);
     const auto functioncall = pe_ptr->GetValue();
     DEBUG_ASSERT(functioncall->Type() == SyntaxTreeType::FunctionCall);
     const auto fc_ptr = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall);
 
-    // 检查函数是否为 pairs 或 ipairs（PreProcessor 已保证）
     const auto func_pe = fc_ptr->prefixexp();
     DEBUG_ASSERT(func_pe->Type() == SyntaxTreeType::PrefixExp);
     const auto func_pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(func_pe);
-    DEBUG_ASSERT(func_pe_ptr->GetType() == "var");
+    DEBUG_ASSERT(func_pe_ptr->GetPrefixKind() == PrefixExpKind::kVar);
     const auto func_var = std::dynamic_pointer_cast<SyntaxTreeVar>(func_pe_ptr->GetValue());
     const auto &func_name = func_var->GetName();
     DEBUG_ASSERT(func_name == "pairs" || func_name == "ipairs");
 
-    // 从 pairs(t) / ipairs(t) 中提取表参数
     const auto args_node = fc_ptr->Args();
     DEBUG_ASSERT(args_node->Type() == SyntaxTreeType::Args);
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
-    // PreProcessor 已确保 args 是 explist 类型
-    DEBUG_ASSERT(args_ptr->GetType() == "explist");
+    DEBUG_ASSERT(args_ptr->GetArgsKind() == ArgsKind::kExpList);
     const auto args_explist = args_ptr->Explist();
     const auto args_explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_explist);
-    // PreProcessor 已确保 pairs/ipairs 只有一个参数
     DEBUG_ASSERT(args_explist_ptr->Exps().size() == 1);
 
-    // 编译表表达式
     const auto tbl_expr = CompileExp(args_explist_ptr->Exps()[0]);
 
-    // 为迭代状态分配生成的 C 变量名（提升到函数顶部）
-    const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);// 表
-    const auto sz_var = std::format("flua_fi_sz_{}", tmp_var_counter_++);  // 元素数量
-    const auto idx_var = std::format("flua_fi_idx_{}", tmp_var_counter_++);// 当前索引
+    const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);
+    const auto sz_var = std::format("flua_fi_sz_{}", tmp_var_counter_++);
+    const auto idx_var = std::format("flua_fi_idx_{}", tmp_var_counter_++);
 
     func_temp_decls_ << "    CVar " << tbl_var << ";\n";
     func_temp_decls_ << "    uint32_t " << sz_var << ";\n";
     func_temp_decls_ << "    uint32_t " << idx_var << ";\n";
 
-    // 计算并验证表
     *cur_output_ << GenTab() << tbl_var << " = " << tbl_expr << ";\n";
     *cur_output_ << GenTab() << "if (" << tbl_var << ".type_ != VAR_TABLE) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
     *cur_output_ << GenTab() << sz_var << " = " << tbl_var << ".data_.t->count_;\n";
@@ -1738,7 +2203,6 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     *cur_output_ << GenTab() << "for (" << idx_var << " = 0; " << idx_var << " < " << sz_var << "; " << idx_var << "++) {\n";
     cur_tab_++;
 
-    // 通过 GET_TABLE_ENTRY 宏获取本次迭代的键（和可选的值）
     const auto &key_name = names[0];
     if (names.size() >= 2) {
         const auto &val_name = names[1];
@@ -1751,13 +2215,18 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         *cur_output_ << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, key_name, dummy_val);
     }
 
-    // 编译循环体
     EnterNativeVarScope();
-    DeclareNativeVar(key_name, false);
+    DeclareNativeVar(key_name, T_DYNAMIC);
     if (names.size() >= 2) {
-        DeclareNativeVar(names[1], false);
+        DeclareNativeVar(names[1], T_DYNAMIC);
     }
+    *cur_output_ << GenTab() << "{\n";
+    cur_tab_++;
+    EnterNativeVarScope();
     CompileStmtBlock(for_in->Block());
+    ExitNativeVarScope();
+    cur_tab_--;
+    *cur_output_ << GenTab() << "}\n";
     ExitNativeVarScope();
 
     cur_tab_--;
@@ -1766,90 +2235,83 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
 
 std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
     DEBUG_ASSERT(exp->Type() == SyntaxTreeType::Exp);
-    // 开始编译表达式
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-    const auto &ExpType = e->ExpType();
+    const auto exp_kind = e->GetExpKind();
     const auto &value = e->ExpValue();
 
-    DEBUG_ASSERT(ExpType == "nil" || ExpType == "false" || ExpType == "true" || ExpType == "number" || ExpType == "string" ||
-                 ExpType == "prefixexp" || ExpType == "VarParams" || ExpType == "tableconstructor" || ExpType == "binop" ||
-                 ExpType == "unop")
+    DEBUG_ASSERT(exp_kind != ExpKind::kVarParams && "VarParams should have been caught by PreProcessor");
 
-    if (ExpType == "nil") {
+    if (exp_kind == ExpKind::kNil) {
         if (in_global_init_) {
             return "(CVar){.type_ = VAR_NIL}";
         } else {
             return "kNil";
         }
-    } else if (ExpType == "false") {
+    } else if (exp_kind == ExpKind::kFalse) {
         if (in_global_init_) {
             return "(CVar){.type_ = VAR_BOOL, .data_.b = false}";
         } else {
             return "kFalse";
         }
-    } else if (ExpType == "true") {
+    } else if (exp_kind == ExpKind::kTrue) {
         if (in_global_init_) {
             return "(CVar){.type_ = VAR_BOOL, .data_.b = true}";
         } else {
             return "kTrue";
         }
-    } else if (ExpType == "number") {
+    } else if (exp_kind == ExpKind::kNumber) {
         if (IsInteger(value)) {
-            // 例：(CVar){.type_ = VAR_INT, .data_.i = 42}
             auto i = ToInteger(value);
             return std::format("(CVar){{.type_ = VAR_INT, .data_.i = {}}}", i);
         } else {
             auto f = ToFloat(value);
             return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}", f);
         }
-    } else if (ExpType == "string") {
+    } else if (exp_kind == ExpKind::kString) {
         auto id = s_->GetConstString().Alloc(value);
         return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", id);
-    } else if (ExpType == "prefixexp") {
+    } else if (exp_kind == ExpKind::kPrefixExp) {
         const auto pe = e->Right();
         return CompilePrefixexp(pe);
-    } else if (ExpType == "VarParams") {
-        // PreProcessor 已确保不存在 ...
-        DEBUG_ASSERT(false && "VarParams should have been caught by PreProcessor");
-    } else if (ExpType == "tableconstructor") {
+    } else if (exp_kind == ExpKind::kTableConstructor) {
         const auto tc = e->Right();
         return CompileTableconstructor(tc);
-    } else if (ExpType == "binop") {
+    } else if (exp_kind == ExpKind::kBinop) {
         const auto left = e->Left();
         const auto right = e->Right();
         const auto op = e->Op();
         return CompileBinop(left, right, op);
-    } else if (ExpType == "unop") {
+    } else if (exp_kind == ExpKind::kUnop) {
         const auto right = e->Right();
         const auto op = e->Op();
         return CompileUnop(right, op);
     }
 
     DEBUG_ASSERT(false && "unreachable");
-    ThrowError("unsupported expression type: " + ExpType, e);
+    ThrowError("unsupported expression kind", e);
 }
 
 std::string CGen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe) {
     DEBUG_ASSERT(pe->Type() == SyntaxTreeType::PrefixExp);
     const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
 
-    const auto &pe_type = pe_ptr->GetType();
+    const auto pe_kind = pe_ptr->GetPrefixKind();
     const auto value = pe_ptr->GetValue();
 
-    DEBUG_ASSERT(pe_type == "var" || pe_type == "functioncall" || pe_type == "exp");
+    DEBUG_ASSERT(pe_kind == PrefixExpKind::kVar || pe_kind == PrefixExpKind::kFunctionCall ||
+                 pe_kind == PrefixExpKind::kExp);
 
-    if (pe_type == "var") {
+    if (pe_kind == PrefixExpKind::kVar) {
         return CompileVar(value);
-    } else if (pe_type == "functioncall") {
+    } else if (pe_kind == PrefixExpKind::kFunctionCall) {
         return CompileFunctioncall(value);
-    } else /*if (pe_type == "exp")*/ {
+    } else /*if (pe_kind == PrefixExpKind::kExp)*/ {
         return CompileExp(value);
     }
 }
 
 std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
-    // PreProcessor 已确保全局初始化中不存在 table constructor
-    DEBUG_ASSERT(!in_global_init_);
+    DEBUG_ASSERT(!(in_global_init_));
 
     DEBUG_ASSERT(tc->Type() == SyntaxTreeType::TableConstructor);
     const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc);
@@ -1867,20 +2329,18 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
         for (const auto &field: fieldlist_ptr->Fields()) {
             DEBUG_ASSERT(field->Type() == SyntaxTreeType::Field);
             const auto field_ptr = std::dynamic_pointer_cast<SyntaxTreeField>(field);
-            const auto &ftype = field_ptr->GetType();
+            const auto fkind = field_ptr->GetFieldKind();
 
             const auto value_exp = field_ptr->Value();
             const auto value_str = CompileExp(value_exp);
 
             std::string key_str;
-            if (ftype == "object") {
-                // name = value: 键是字符串标识符
+            if (fkind == FieldKind::kObject) {
                 const auto name = field_ptr->Name();
                 const auto id = s_->GetConstString().Alloc(name);
                 key_str = std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", id);
             } else {
-                // 数组：要么是 [exp] = value（显式键），要么只有 exp（顺序索引）
-                DEBUG_ASSERT(ftype == "array");
+                DEBUG_ASSERT(fkind == FieldKind::kArray);
                 if (const auto key = field_ptr->Key()) {
                     key_str = CompileExp(key);
                 } else {
@@ -1896,16 +2356,37 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
     return var_name;
 }
 
-std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op) {
-    // PreProcessor 已确保全局初始化中不存在二元运算
-    DEBUG_ASSERT(!in_global_init_);
+// ---------------------------------------------------------------------------
+// CompileBinop —— 二元运算符的代码生成
+//
+// 生成策略：
+//
+//   1. and / or（短路运算符）：
+//      Lua 的 and/or 不返回布尔值，而是返回某一操作数本身。
+//      必须先求左操作数并保存，再通过 IsTrue 判断真假，
+//      仅在必要时才求右操作数（保证短路语义）。
+//
+//   2. 原生算术快路径（native fast path）：
+//      若两侧操作数类型均已知（T_INT/T_FLOAT，通过 InferArgTypeForSpec 推断），
+//      则将两侧直接编译为原生数值（CompileNumericExp），
+//      生成 C 表达式（如 (a) + (b)），并通过 BoxNativeValue 装箱为 CVar 后返回。
+//      这条路径消除了 OpAdd/OpSub 等宏的运行时类型分支开销。
+//      注意：// 和 % 需要处理除零及 Lua 向下取整语义（FlFloorDivInt / FlModInt / FlModFloat）。
+//
+//   3. 通用慢速路径（slow path）：
+//      两侧均编译为 CVar，调用 OpXxx 宏（处理运行时类型判断和装拆箱）。
+//      适用于操作数类型未知或运算符不支持原生路径（如字符串连接 ..）的情形。
+// ---------------------------------------------------------------------------
+std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left,
+                                            const SyntaxTreeInterfacePtr &right,
+                                            const SyntaxTreeInterfacePtr &op) {
+    DEBUG_ASSERT(!(in_global_init_));
 
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeBinop>(op);
-    const auto &op_name = op_ptr->GetOp();
+    const auto op_kind = op_ptr->GetOpKind();
 
-    // 短路运算符（AND/OR）需要特殊处理：
-    // 右侧仅在需要时才计算。
-    if (op_name == "AND" || op_name == "OR") {
+    // --- and / or：短路运算，Lua 语义为返回决定性操作数的值 ---
+    if (op_kind == BinOpKind::kAnd || op_kind == BinOpKind::kOr) {
         const auto left_str = CompileExp(left);
 
         const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
@@ -1915,8 +2396,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
 
         *cur_output_ << GenTab() << std::format("IsTrue(({}), {});\n", left_str, tmp_bool);
 
-        if (op_name == "AND") {
-            // AND: 若左侧为假，返回左侧；否则计算并返回右侧
+        if (op_kind == BinOpKind::kAnd) {
             *cur_output_ << GenTab() << std::format("if (!{}) {{\n", tmp_bool);
             cur_tab_++;
             *cur_output_ << GenTab() << std::format("{} = {};\n", tmp, left_str);
@@ -1928,7 +2408,6 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
             cur_tab_--;
             *cur_output_ << GenTab() << "}\n";
         } else {
-            // OR: 若左侧为真，返回左侧；否则计算并返回右侧
             *cur_output_ << GenTab() << std::format("if ({}) {{\n", tmp_bool);
             cur_tab_++;
             *cur_output_ << GenTab() << std::format("{} = {};\n", tmp, left_str);
@@ -1944,302 +2423,537 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
         return tmp;
     }
 
+    // Native arithmetic fast path
+    static const std::unordered_set<BinOpKind> kNativeArithOps = {
+            BinOpKind::kPlus, BinOpKind::kMinus, BinOpKind::kStar,
+            BinOpKind::kSlash, BinOpKind::kDoubleSlash, BinOpKind::kPow, BinOpKind::kMod,
+            BinOpKind::kBitAnd, BinOpKind::kXor, BinOpKind::kBitOr,
+            BinOpKind::kLeftShift, BinOpKind::kRightShift};
+    if (kNativeArithOps.contains(op_kind)) {
+        const auto lt = InferArgTypeForSpec(left);
+        const auto rt = InferArgTypeForSpec(right);
+        if (lt != T_DYNAMIC && rt != T_DYNAMIC) {
+            InferredType result_type;
+            if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
+                result_type = T_FLOAT;
+            } else if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor ||
+                       op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kLeftShift ||
+                       op_kind == BinOpKind::kRightShift) {
+                result_type = T_INT;
+            } else {
+                result_type = (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
+            }
+            const auto left_native = CompileNumericExp(left);
+            const auto right_native = CompileNumericExp(right);
+            std::string native_expr;
+            if (op_kind == BinOpKind::kPlus) {
+                native_expr = std::format("(({}) + ({}))", left_native, right_native);
+            } else if (op_kind == BinOpKind::kMinus) {
+                native_expr = std::format("(({}) - ({}))", left_native, right_native);
+            } else if (op_kind == BinOpKind::kStar) {
+                native_expr = std::format("(({}) * ({}))", left_native, right_native);
+            } else if (op_kind == BinOpKind::kSlash) {
+                native_expr = std::format("((double)({}) / (double)({}))", left_native, right_native);
+            } else if (op_kind == BinOpKind::kPow) {
+                native_expr = std::format("pow((double)({}), (double)({}))", left_native, right_native);
+            } else if (op_kind == BinOpKind::kDoubleSlash) {
+                if (result_type == T_INT) {
+                    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                    func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                    *cur_output_ << GenTab() << std::format("FlFloorDivInt(({}), ({}), {});\n", left_native, right_native, ntmp);
+                    native_expr = ntmp;
+                } else {
+                    native_expr = std::format("floor((double)({}) / (double)({}))", left_native, right_native);
+                }
+            } else if (op_kind == BinOpKind::kMod) {
+                if (result_type == T_INT) {
+                    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                    func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                    *cur_output_ << GenTab() << std::format("FlModInt(({}), ({}), {});\n", left_native, right_native, ntmp);
+                    native_expr = ntmp;
+                } else {
+                    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                    func_temp_decls_ << "    double " << ntmp << ";\n";
+                    *cur_output_ << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left_native, right_native, ntmp);
+                    native_expr = ntmp;
+                }
+            } else if (op_kind == BinOpKind::kBitAnd) {
+                native_expr = std::format("((int64_t)({}) & (int64_t)({}))", left_native, right_native);
+            } else if (op_kind == BinOpKind::kBitOr) {
+                native_expr = std::format("((int64_t)({}) | (int64_t)({}))", left_native, right_native);
+            } else if (op_kind == BinOpKind::kXor) {
+                native_expr = std::format("((int64_t)({}) ^ (int64_t)({}))", left_native, right_native);
+            } else if (op_kind == BinOpKind::kLeftShift) {
+                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
+                native_expr = ntmp;
+            } else if (op_kind == BinOpKind::kRightShift) {
+                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left_native, right_native, ntmp);
+                native_expr = ntmp;
+            }
+            if (!native_expr.empty()) {
+                const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    CVar " << tmp << ";\n";
+                *cur_output_ << GenTab() << tmp << " = " << BoxNativeValue(native_expr, result_type) << ";\n";
+                return tmp;
+            }
+        }
+    }
+
     const auto left_str = CompileExp(left);
     const auto right_str = CompileExp(right);
 
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
 
-    // 将参数用括号括起，防止 C 复合字面量中的逗号
-    // （例如 (CVar){.type_ = VAR_INT, .data_.i = 2}）被 C 预处理器
-    // 误解为宏参数分隔符。
     const auto l = std::format("({})", left_str);
     const auto r = std::format("({})", right_str);
 
-    if (op_name == "PLUS") {
+    if (op_kind == BinOpKind::kPlus) {
         *cur_output_ << GenTab() << std::format("OpAdd({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "MINUS") {
+    } else if (op_kind == BinOpKind::kMinus) {
         *cur_output_ << GenTab() << std::format("OpSub({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "STAR") {
+    } else if (op_kind == BinOpKind::kStar) {
         *cur_output_ << GenTab() << std::format("OpMul({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "SLASH") {
+    } else if (op_kind == BinOpKind::kSlash) {
         *cur_output_ << GenTab() << std::format("OpDiv({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "DOUBLE_SLASH") {
+    } else if (op_kind == BinOpKind::kDoubleSlash) {
         *cur_output_ << GenTab() << std::format("OpFloorDiv({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "POW") {
+    } else if (op_kind == BinOpKind::kPow) {
         *cur_output_ << GenTab() << std::format("OpPow({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "MOD") {
+    } else if (op_kind == BinOpKind::kMod) {
         *cur_output_ << GenTab() << std::format("OpMod({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "BITAND") {
+    } else if (op_kind == BinOpKind::kBitAnd) {
         *cur_output_ << GenTab() << std::format("OpBitAnd({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "XOR") {
+    } else if (op_kind == BinOpKind::kXor) {
         *cur_output_ << GenTab() << std::format("OpBitXor({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "BITOR") {
+    } else if (op_kind == BinOpKind::kBitOr) {
         *cur_output_ << GenTab() << std::format("OpBitOr({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "RIGHT_SHIFT") {
+    } else if (op_kind == BinOpKind::kRightShift) {
         *cur_output_ << GenTab() << std::format("OpRightShift({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "LEFT_SHIFT") {
+    } else if (op_kind == BinOpKind::kLeftShift) {
         *cur_output_ << GenTab() << std::format("OpLeftShift({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "CONCAT") {
+    } else if (op_kind == BinOpKind::kConcat) {
         *cur_output_ << GenTab() << std::format("{} = FlConcat({}, {});\n", tmp, l, r);
-    } else if (op_name == "LESS") {
+    } else if (op_kind == BinOpKind::kLess) {
         *cur_output_ << GenTab() << std::format("OpLt({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "LESS_EQUAL") {
+    } else if (op_kind == BinOpKind::kLessEqual) {
         *cur_output_ << GenTab() << std::format("OpLe({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "MORE") {
+    } else if (op_kind == BinOpKind::kMore) {
         *cur_output_ << GenTab() << std::format("OpGt({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "MORE_EQUAL") {
+    } else if (op_kind == BinOpKind::kMoreEqual) {
         *cur_output_ << GenTab() << std::format("OpGe({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "EQUAL") {
+    } else if (op_kind == BinOpKind::kEqual) {
         *cur_output_ << GenTab() << std::format("OpEq({}, {}, {});\n", l, r, tmp);
-    } else if (op_name == "NOT_EQUAL") {
+    } else if (op_kind == BinOpKind::kNotEqual) {
         *cur_output_ << GenTab() << std::format("OpNe({}, {}, {});\n", l, r, tmp);
     } else {
-        ThrowError("binary operator not supported: " + op_name, op);
+        ThrowError("binary operator not supported", op);
     }
 
     return tmp;
 }
 
-std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op) {
-    // PreProcessor 已确保全局初始化中不存在一元运算
-    DEBUG_ASSERT(!in_global_init_);
+std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right,
+                                           const SyntaxTreeInterfacePtr &op) {
+    DEBUG_ASSERT(!(in_global_init_));
 
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeUnop>(op);
-    const auto &op_name = op_ptr->GetOp();
+    const auto op_kind = op_ptr->GetOpKind();
 
     const auto right_str = CompileExp(right);
 
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
 
-    // 将参数用括号括起，防止复合字面量中的逗号被宏解析器误解
     const auto r = std::format("({})", right_str);
 
-    if (op_name == "NOT") {
+    if (op_kind == UnOpKind::kNot) {
         *cur_output_ << GenTab() << std::format("OpNot({}, {});\n", r, tmp);
-    } else if (op_name == "MINUS") {
+    } else if (op_kind == UnOpKind::kMinus) {
         *cur_output_ << GenTab() << std::format("OpUnaryMinus({}, {});\n", r, tmp);
-    } else if (op_name == "BITNOT") {
+    } else if (op_kind == UnOpKind::kBitNot) {
         *cur_output_ << GenTab() << std::format("OpBitNot({}, {});\n", r, tmp);
-    } else if (op_name == "NUMBER_SIGN") {
+    } else if (op_kind == UnOpKind::kNumberSign) {
         *cur_output_ << GenTab() << std::format("OpLen({}, {});\n", r, tmp);
     } else {
-        ThrowError("unary operator not supported: " + op_name, op);
+        ThrowError("unary operator not supported", op);
     }
 
     return tmp;
 }
 
+// ---------------------------------------------------------------------------
+// CompileVar —— 变量引用的代码生成
+//
+// 生成策略（kSimple 变量）：
+//   优先级：特化参数类型表（spec_param_types_）
+//           > 原生局部变量作用域（NativeVarScope / GetNativeVarType）
+//           > 文件级数值常量（global_const_vars_）
+//           > 普通 CVar 变量名
+//
+//   前三种情形均已知为原生类型（int64_t / double），需装箱为 CVar 字面量后返回，
+//   以保证所有调用方获得统一的 CVar 接口；普通 CVar 变量则直接返回变量名。
+//
+// kSquare（table[key]）：生成 FlGetTable(table, key) 调用。
+// kDot（table.key）：将 key 字符串化后同样生成 FlGetTable 调用。
+// ---------------------------------------------------------------------------
 std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
     DEBUG_ASSERT(v->Type() == SyntaxTreeType::Var);
     auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(v);
 
-    DEBUG_ASSERT(v_ptr->GetType() == "simple" || v_ptr->GetType() == "square" || v_ptr->GetType() == "dot");
+    DEBUG_ASSERT(v_ptr->GetVarKind() == VarKind::kSimple || v_ptr->GetVarKind() == VarKind::kSquare ||
+                 v_ptr->GetVarKind() == VarKind::kDot);
 
-    if (const auto &type = v_ptr->GetType(); type == "simple") {
+    if (const auto var_kind = v_ptr->GetVarKind(); var_kind == VarKind::kSimple) {
         const auto &name = v_ptr->GetName();
-        // PreProcessor 已确保全局初始化中不存在变量引用
-        DEBUG_ASSERT(!in_global_init_);
-        // 在特化中，数学参数具有已知的原生类型，将其装箱为 CVar，
-        // 使后续的表达式处理机制保持统一。
+        DEBUG_ASSERT(!(in_global_init_));
         if (const auto spec_it = spec_param_types_.find(name); spec_it != spec_param_types_.end()) {
             if (spec_it->second == T_INT) {
                 return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
             }
             return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
         }
-        if (v_ptr->EvalType() == T_INT && IsTypedNativeVar(name)) {
+        const auto native_type = GetNativeVarType(name);
+        if (native_type == T_INT) {
             return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
         }
-        if (v_ptr->EvalType() == T_FLOAT && IsTypedNativeVar(name)) {
+        if (native_type == T_FLOAT) {
             return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
         }
+        // 文件级数值常量（static const int64_t / double）：装箱为 CVar 后返回。
+        if (const auto git = global_const_vars_.find(name); git != global_const_vars_.end()) {
+            if (git->second == T_INT) {
+                return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
+            }
+            if (git->second == T_FLOAT) {
+                return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
+            }
+        }
         return name;
-    } else if (type == "square") {
-        // PreProcessor 已确保全局初始化中不存在 table 访问
-        DEBUG_ASSERT(!in_global_init_);
+    } else if (var_kind == VarKind::kSquare) {
+        DEBUG_ASSERT(!(in_global_init_));
         const auto pe = v_ptr->GetPrefixexp();
         const auto exp = v_ptr->GetExp();
         auto pe_ret = CompilePrefixexp(pe);
         auto exp_ret = CompileExp(exp);
-
-        // 调用table的get函数
         return std::format("FlGetTable({}, {})", pe_ret, exp_ret);
-    } else /*if (type == "dot")*/ {
-        // PreProcessor 已确保全局初始化中不存在 table 访问
-        DEBUG_ASSERT(!in_global_init_);
+    } else /*if (var_kind == VarKind::kDot)*/ {
+        DEBUG_ASSERT(!(in_global_init_));
         const auto pe = v_ptr->GetPrefixexp();
         const auto name = v_ptr->GetName();
         auto pe_ret = CompilePrefixexp(pe);
 
         const auto name_exp = std::make_shared<SyntaxTreeExp>(v_ptr->Loc());
-        name_exp->SetType("string");
+        name_exp->SetExpKind(ExpKind::kString);
         name_exp->SetValue(name);
         auto exp_ret = CompileExp(name_exp);
 
-        // 调用table的get函数
         return std::format("FlGetTable({}, {})", pe_ret, exp_ret);
     }
 }
 
+// ---------------------------------------------------------------------------
+// CompileNumericExp —— 将表达式编译为原生 C 数值字符串
+//
+// 与 CompileExp 的区别：
+//   CompileExp 始终返回 CVar 类型的表达式（装箱值），
+//   CompileNumericExp 返回 int64_t / double 的原生表达式，用于：
+//     1. 特化函数体内的算术运算，消除 CVar 装拆箱开销；
+//     2. 原生类型 for-loop 的边界/步长计算；
+//     3. TryCompileNativeBoolExpr 生成原生 C 比较运算的操作数。
+//
+// 失败策略：若无法将表达式编译为原生数值（例如操作数为 T_DYNAMIC 的 CVar），
+// 则直接抛出异常；调用方应通过 TryCompileNativeExpr 捕获并回退到 CompileExp。
+// ---------------------------------------------------------------------------
 std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
     DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
 
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    const auto exp_kind = e->GetExpKind();
 
-    if (const auto &exp_type = e->ExpType(); exp_type == "number") {
-        if (e->EvalType() == T_INT) {
+    if (exp_kind == ExpKind::kNumber) {
+        if (LookupNodeType(e.get()) == T_INT) {
             return std::to_string(ToInteger(e->ExpValue()));
         }
-        if (e->EvalType() == T_FLOAT) {
+        if (LookupNodeType(e.get()) == T_FLOAT) {
             return std::format("{}", ToFloat(e->ExpValue()));
         }
         ThrowError("number node is not inferred as numeric", exp);
-    } else if (exp_type == "prefixexp") {
+    } else if (exp_kind == ExpKind::kPrefixExp) {
         const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
         DEBUG_ASSERT(pe);
-        if (pe->GetType() == "var") {
+        if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-            if (!var || var->GetType() != "simple") {
+            if (!var || var->GetVarKind() != VarKind::kSimple) {
                 ThrowError("only simple variable is supported in numeric specialization", exp);
             }
             const auto &vname = var->GetName();
-            // 特化上下文：数学参数为原生类型——直接使用。
-            if (spec_param_types_.count(vname)) {
+            if (spec_param_types_.contains(vname)) {
                 return vname;
             }
             if (IsTypedNativeVar(vname)) {
-                // 变量是原生类型（int64_t/double）：直接使用变量名。
                 return vname;
             }
-            // 变量是 CVar（因后续被修改为 T_DYNAMIC 而声明为 CVar）。
-            // 提取存储的数值字段以获取原生值。
-            if (e->EvalType() == T_FLOAT) {
+            // 文件级数值常量（static const int64_t / double）：直接用名称。
+            if (const auto git = global_const_vars_.find(vname); git != global_const_vars_.end()) {
+                if (git->second == T_INT || git->second == T_FLOAT) {
+                    return vname;
+                }
+            }
+            if (LookupNodeType(e.get()) == T_FLOAT) {
                 return std::format("{}.data_.f", vname);
             }
             return std::format("{}.data_.i", vname);
         }
-        if (pe->GetType() == "exp") {
+        if (pe->GetPrefixKind() == PrefixExpKind::kExp) {
             return CompileNumericExp(pe->GetValue());
         }
+        if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
+            const auto inferred = InferArgTypeForSpec(exp);
+            if (inferred == T_DYNAMIC) {
+                ThrowError("function call cannot be specialized as numeric", exp);
+            }
+            const auto native_result = TryCompileNativeSpecCallExpr(pe->GetValue());
+            if (!native_result.empty()) {
+                return native_result;
+            }
+            const auto call_str = CompileFunctioncall(pe->GetValue());
+            return inferred == T_INT ? std::format("({}.data_.i)", call_str) : std::format("({}.data_.f)", call_str);
+        }
         ThrowError("function call cannot be specialized as numeric", exp);
-    } else if (exp_type == "binop") {
+    } else if (exp_kind == ExpKind::kBinop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
         DEBUG_ASSERT(op);
-        const auto &op_name = op->GetOp();
+        const auto op_kind = op->GetOpKind();
+
+        if (op_kind == BinOpKind::kAnd) {
+            // Numeric values are always truthy in Lua, so `a and b` = b.
+            // Evaluate a for side effects only (e.g. function-call statements
+            // already emitted by CompileNumericExp); the result is discarded.
+            CompileNumericExp(e->Left());
+            return CompileNumericExp(e->Right());
+        }
+        if (op_kind == BinOpKind::kOr) {
+            return CompileNumericExp(e->Left());
+        }
+
         const auto left = CompileNumericExp(e->Left());
         const auto right = CompileNumericExp(e->Right());
 
-        // 可直接映射为 C 运算符的简单运算
-        if (op_name == "PLUS") {
+        if (op_kind == BinOpKind::kPlus) {
             return std::format("(({}) + ({}))", left, right);
         }
-        if (op_name == "MINUS") {
+        if (op_kind == BinOpKind::kMinus) {
             return std::format("(({}) - ({}))", left, right);
         }
-        if (op_name == "STAR") {
+        if (op_kind == BinOpKind::kStar) {
             return std::format("(({}) * ({}))", left, right);
         }
-
-        // Lua 中除法结果始终为浮点数
-        if (op_name == "SLASH") {
+        if (op_kind == BinOpKind::kSlash) {
             return std::format("((double)({}) / (double)({}))", left, right);
         }
-
-        // Lua 中幂运算结果始终为浮点数
-        if (op_name == "POW") {
+        if (op_kind == BinOpKind::kPow) {
             return std::format("pow((double)({}), (double)({}))", left, right);
         }
-
-        // 向下取整除法：整数 → FlFloorDivInt，浮点 → floor(a/b)
-        if (op_name == "DOUBLE_SLASH") {
-            if (e->EvalType() == T_INT) {
-                return std::format("FlFloorDivInt(({}), ({}))", left, right);
+        if (op_kind == BinOpKind::kDoubleSlash) {
+            if (LookupNodeType(e.get()) == T_INT) {
+                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                *cur_output_ << GenTab() << std::format("FlFloorDivInt(({}), ({}), {});\n", left, right, ntmp);
+                return ntmp;
             }
             return std::format("floor((double)({}) / (double)({}))", left, right);
         }
-
-        // 取模：整数 → FlModInt，浮点 → FlModFloat
-        if (op_name == "MOD") {
-            if (e->EvalType() == T_INT) {
-                return std::format("FlModInt(({}), ({}))", left, right);
+        if (op_kind == BinOpKind::kMod) {
+            if (LookupNodeType(e.get()) == T_INT) {
+                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+                *cur_output_ << GenTab() << std::format("FlModInt(({}), ({}), {});\n", left, right, ntmp);
+                return ntmp;
             }
-            return std::format("FlModFloat((double)({}), (double)({}))", left, right);
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    double " << ntmp << ";\n";
+            *cur_output_ << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left, right, ntmp);
+            return ntmp;
         }
-
-        // 位运算：两个操作数均为 T_INT 时结果为 T_INT
-        if (op_name == "BITAND") {
+        if (op_kind == BinOpKind::kBitAnd) {
             return std::format("((int64_t)({}) & (int64_t)({}))", left, right);
         }
-        if (op_name == "BITOR") {
+        if (op_kind == BinOpKind::kBitOr) {
             return std::format("((int64_t)({}) | (int64_t)({}))", left, right);
         }
-        if (op_name == "XOR") {
+        if (op_kind == BinOpKind::kXor) {
             return std::format("((int64_t)({}) ^ (int64_t)({}))", left, right);
         }
-        if (op_name == "LEFT_SHIFT") {
-            return std::format("((int64_t)({}) << (int64_t)({}))", left, right);
+        if (op_kind == BinOpKind::kLeftShift) {
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+            *cur_output_ << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left, right, ntmp);
+            return ntmp;
         }
-        if (op_name == "RIGHT_SHIFT") {
-            return std::format("((int64_t)({}) >> (int64_t)({}))", left, right);
+        if (op_kind == BinOpKind::kRightShift) {
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+            *cur_output_ << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left, right, ntmp);
+            return ntmp;
         }
 
-        ThrowError("operator " + op_name + " is not supported in numeric specialization", exp);
-    } else if (exp_type == "unop") {
+        ThrowError("operator is not supported in numeric specialization", exp);
+    } else if (exp_kind == ExpKind::kUnop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
         DEBUG_ASSERT(op);
-        const auto &op_name = op->GetOp();
+        const auto op_kind = op->GetOpKind();
+        if (op_kind == UnOpKind::kNumberSign) {
+            const auto operand_cvar = CompileExp(e->Right());
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+            *cur_output_ << GenTab() << std::format("FlLenInt({}, {});\n", operand_cvar, ntmp);
+            return ntmp;
+        }
         const auto operand = CompileNumericExp(e->Right());
-        if (op_name == "MINUS") {
+        if (op_kind == UnOpKind::kMinus) {
             return std::format("(-({}))", operand);
         }
-        if (op_name == "BITNOT") {
+        if (op_kind == UnOpKind::kBitNot) {
             return std::format("(~((int64_t)({})))", operand);
         }
-        ThrowError("unary operator " + op_name + " is not supported in numeric specialization", exp);
+        ThrowError("unary operator is not supported in numeric specialization", exp);
     }
 
     ThrowError("unsupported numeric-specialized expression", exp);
 }
 
-std::string CGen::BoxNativeValue(const std::string &expr, const InferredType type) const {
-    if (type == T_INT) {
-        return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", expr);
+// ---------------------------------------------------------------------------
+// TryCompileNativeSpecCallExpr —— 将调用特化函数的结果编译为原生数值临时变量
+//
+// 用途：在 CompileNumericExp 遇到函数调用（kPrefixExp → kFunctionCall）时，
+// 若被调函数有数学参数且该特化版本返回原生数值类型（T_INT/T_FLOAT），则：
+//   1. 计算 bitmask（通过 TryInferMathCallSpec）；
+//   2. 将每个数学参数实参编译为原生表达式；
+//   3. 发出对应特化函数的直接调用（避免 CVar 装拆箱），
+//      结果存入原生类型临时变量并返回其名称。
+//
+// 与 CompileFunctioncall 的区别：
+//   - CompileFunctioncall 返回 CVar 类型的结果（已装箱）；
+//   - TryCompileNativeSpecCallExpr 返回 int64_t/double 的原生结果，
+//     可直接参与后续原生算术运算。
+// ---------------------------------------------------------------------------
+std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node) {
+    const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall_node);
+    if (!fc) {
+        return {};
     }
-    if (type == T_FLOAT) {
-        return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", expr);
+    const auto args_node = fc->Args();
+    if (!args_node) {
+        return {};
     }
-    return expr;
+    const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
+    if (!args_ptr || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
+        return {};
+    }
+    const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+    if (!callee_pe || callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
+        return {};
+    }
+    const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+    if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
+        return {};
+    }
+    const auto &callee_name = callee_var->GetName();
+    const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+    if (!explist_ptr) {
+        return {};
+    }
+    const auto &raw_args = explist_ptr->Exps();
+
+    int bitmask = 0;
+    InferredType spec_ret = T_DYNAMIC;
+    if (!TryInferMathCallSpec(callee_name, raw_args, bitmask, spec_ret)) {
+        return {};
+    }
+    if (spec_ret != T_INT && spec_ret != T_FLOAT) {
+        return {};
+    }
+
+    const auto &math_params = math_param_positions_.at(callee_name);
+
+    std::unordered_map<int, std::string> native_exprs;
+    for (int param_pos: math_params) {
+        const auto native_expr = TryCompileNativeExpr(raw_args[param_pos]);
+        if (native_expr.empty()) {
+            return {};
+        }
+        native_exprs[param_pos] = native_expr;
+    }
+
+    const auto spec_name = SpecFuncName(callee_name, math_params, bitmask);
+    std::string call = spec_name + "(";
+    for (int i = 0; i < static_cast<int>(raw_args.size()); ++i) {
+        if (i > 0) {
+            call += ", ";
+        }
+        const auto ne_it = native_exprs.find(i);
+        if (ne_it != native_exprs.end()) {
+            call += ne_it->second;
+        } else {
+            call += CompileExp(raw_args[i]);
+        }
+    }
+    call += ")";
+
+    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    " << SpecReturnCTypeName(spec_ret) << " " << ntmp << ";\n";
+    *cur_output_ << GenTab() << ntmp << " = " << call << ";\n";
+    return ntmp;
 }
 
+// ---------------------------------------------------------------------------
+// CompileFunctioncall —— 函数调用的代码生成
+//
+// 生成策略（按优先级）：
+//
+//   1. 特化直接调用（fast path）：
+//      若被调函数是同文件的数学函数（math_param_positions_ 中存在），
+//      且所有数学参数实参的类型均已知（TryInferMathCallBitmask 成功），
+//      则尝试将数学参数编译为原生表达式（TryCompileNativeExpr），
+//      并发出对应特化函数（SpecFuncName）的直接调用，避免走 CVar 入口分发器，
+//      消除运行时类型检查和分发开销。若特化函数返回原生类型，则装箱后存入 CVar tmp。
+//
+//   2. 普通路径（slow path）：
+//      将所有参数编译为 CVar，然后发出函数名(arg0, arg1, ...) 调用。
+//      - 同文件的普通函数：直接调用（local_func_names_ 中存在）。
+//      - 跨文件/内置函数：通过 FakeluaCallByName 动态分发（带字符串函数名）。
+//      - 特殊内置宏（FAKELUA_SET_TABLE）：生成 FlSetTable 调用。
+//
+// 返回值：CVar 类型的临时变量名，供调用方（CompileExp/CompileNumericExp）使用。
+// ---------------------------------------------------------------------------
 std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall) {
-    // PreProcessor 已确保全局初始化中不存在函数调用
-    DEBUG_ASSERT(!in_global_init_);
+    DEBUG_ASSERT(!(in_global_init_));
 
     DEBUG_ASSERT(functioncall->Type() == SyntaxTreeType::FunctionCall);
     const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall);
 
-    // PreProcessor 已确保不存在方法调用
     DEBUG_ASSERT(fc->Name().empty());
 
-    // 编译参数
     const auto args_node = fc->Args();
     DEBUG_ASSERT(args_node->Type() == SyntaxTreeType::Args);
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
-    const auto &args_type = args_ptr->GetType();
+    const auto args_kind = args_ptr->GetArgsKind();
 
-    // 在编译参数之前先确定函数名（特化调用检查需要）。
     const auto pe_pre = fc->prefixexp();
     DEBUG_ASSERT(pe_pre->Type() == SyntaxTreeType::PrefixExp);
     const auto pe_pre_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe_pre);
 
     // 尝试直接调用优化：若被调函数是含有数学参数的本地函数，
-    // 且所有数学参数的实参类型均已知，则直接发出特化调用，
-    // 跳过入口分发器。
-    if (!in_global_init_ && pe_pre_ptr->GetType() == "var" && args_type == "explist") {
+    // 且所有数学参数的实参类型均已知，则直接发出特化调用。
+    if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar &&
+        args_kind == ArgsKind::kExpList) {
         const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
-        if (callee_var && callee_var->GetType() == "simple") {
+        if (callee_var && callee_var->GetVarKind() == VarKind::kSimple) {
             const auto &callee_name = callee_var->GetName();
             const auto math_it = math_param_positions_.find(callee_name);
             if (math_it != math_param_positions_.end()) {
@@ -2249,28 +2963,11 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
                 const auto &raw_args = explist_arg_ptr->Exps();
 
-                // 步骤一：推断所有数学参数实参的类型（纯函数，无副作用）。
-                bool can_spec = true;
                 int bitmask = 0;
-                for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-                    const int param_pos = math_params[i];
-                    if (param_pos >= static_cast<int>(raw_args.size())) {
-                        can_spec = false;
-                        break;
-                    }
-                    const auto t = InferArgTypeForSpec(raw_args[param_pos]);
-                    if (t == T_DYNAMIC) {
-                        can_spec = false;
-                        break;
-                    }
-                    if (t == T_FLOAT) bitmask |= (1 << i);
-                }
-
-                if (can_spec) {
-                    // 步骤二：预编译数学参数的原生表达式（纯函数）。
-                    std::unordered_map<int, std::string> native_exprs;// param_pos -> 表达式字符串
-                    for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-                        const int param_pos = math_params[i];
+                if (TryInferMathCallBitmask(callee_name, raw_args, bitmask)) {
+                    std::unordered_map<int, std::string> native_exprs;
+                    bool can_spec = true;
+                    for (int param_pos: math_params) {
                         const auto native_expr = TryCompileNativeExpr(raw_args[param_pos]);
                         if (native_expr.empty()) {
                             can_spec = false;
@@ -2280,11 +2977,12 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                     }
 
                     if (can_spec) {
-                        // 步骤三：编译调用。
                         const auto spec_name = SpecFuncName(callee_name, math_params, bitmask);
                         std::string call = spec_name + "(";
                         for (int i = 0; i < static_cast<int>(raw_args.size()); ++i) {
-                            if (i > 0) call += ", ";
+                            if (i > 0) {
+                                call += ", ";
+                            }
                             const auto ne_it = native_exprs.find(i);
                             if (ne_it != native_exprs.end()) {
                                 call += ne_it->second;
@@ -2293,9 +2991,17 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                             }
                         }
                         call += ")";
+                        const auto spec_ret = GetSpecReturnType(callee_name, bitmask);
                         const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
                         func_temp_decls_ << "    CVar " << tmp << ";\n";
-                        *cur_output_ << GenTab() << tmp << " = " << call << ";\n";
+                        if (spec_ret == T_INT || spec_ret == T_FLOAT) {
+                            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                            func_temp_decls_ << "    " << SpecReturnCTypeName(spec_ret) << " " << ntmp << ";\n";
+                            *cur_output_ << GenTab() << ntmp << " = " << call << ";\n";
+                            *cur_output_ << GenTab() << tmp << " = " << BoxNativeValue(ntmp, spec_ret) << ";\n";
+                        } else {
+                            *cur_output_ << GenTab() << tmp << " = " << call << ";\n";
+                        }
                         return tmp;
                     }
                 }
@@ -2305,58 +3011,55 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
 
     // 普通路径：将所有参数编译为 CVar。
     std::vector<std::string> compiled_args;
-    if (args_type == "explist") {
+    if (args_kind == ArgsKind::kExpList) {
         const auto explist = args_ptr->Explist();
         DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
         const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
         for (const auto &exp: explist_ptr->Exps()) {
             compiled_args.push_back(CompileExp(exp));
         }
-    } else if (args_type == "tableconstructor") {
+    } else if (args_kind == ArgsKind::kTableConstructor) {
         compiled_args.push_back(CompileTableconstructor(args_ptr->Tableconstructor()));
-    } else if (args_type == "string") {
+    } else if (args_kind == ArgsKind::kString) {
         compiled_args.push_back(CompileExp(args_ptr->String()));
     }
-    // "empty": no args
+    DEBUG_ASSERT(pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar &&
+                 "callee must be variable prefixexp (PreProcessor should have caught it)");
+    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+    DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple &&
+                 "callee must be simple variable (PreProcessor should have caught it)");
     std::string call_expr;
-    if (pe_pre_ptr->GetType() == "var") {
-        if (const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue()); var->GetType() == "simple") {
-            if (const auto &func_name = var->GetName(); func_name == "FAKELUA_SET_TABLE") {
-                // 内置表赋值：FAKELUA_SET_TABLE(t, k, v) -> FlSetTable(t, k, v)
-                if (compiled_args.size() != 3) {
-                    ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
-                }
-                const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
-                *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", compiled_args[0], compiled_args[1], compiled_args[2]);
-                *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
-                return tmp;
-            } else if (local_func_names_.contains(func_name)) {
-                // 直接调用同一 C 文件中定义的函数
-                call_expr = func_name + "(";
-                for (size_t i = 0; i < compiled_args.size(); ++i) {
-                    if (i > 0) {
-                        call_expr += ", ";
-                    }
-                    call_expr += compiled_args[i];
-                }
-                call_expr += ")";
-            } else {
-                // 在全局函数注册表中按名称动态查找。
-                // JIT 类型来自后端编译时宏 FAKELUA_JIT_TYPE。
-                call_expr = std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"{}\", {}", func_name, compiled_args.size());
-                for (const auto &arg: compiled_args) {
-                    call_expr += ", " + arg;
-                }
-                call_expr += ")";
-            }
-        } else {
-            // PreProcessor 已确保 callee 为简单变量名
-            DEBUG_ASSERT(false && "callee must be simple variable (PreProcessor should have caught it)");
+    const auto &func_name = var->GetName();
+    if (func_name == "FAKELUA_SET_TABLE") {
+        if (compiled_args.size() != 3) {
+            ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
         }
+        const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
+        *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", compiled_args[0], compiled_args[1], compiled_args[2]);
+        *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
+        return tmp;
+    } else if (local_func_names_.contains(func_name)) {
+        const int expected_params = local_func_names_.at(func_name);
+        if (static_cast<int>(compiled_args.size()) != expected_params) {
+            ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, expected_params,
+                                   compiled_args.size()),
+                       functioncall);
+        }
+        call_expr = func_name + "(";
+        for (size_t i = 0; i < compiled_args.size(); ++i) {
+            if (i > 0) {
+                call_expr += ", ";
+            }
+            call_expr += compiled_args[i];
+        }
+        call_expr += ")";
     } else {
-        // PreProcessor 已确保 callee 为 var 类型的 prefixexp
-        DEBUG_ASSERT(false && "callee must be variable prefixexp (PreProcessor should have caught it)");
+        call_expr = std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"{}\", {}", func_name, compiled_args.size());
+        for (const auto &arg: compiled_args) {
+            call_expr += ", " + arg;
+        }
+        call_expr += ")";
     }
     const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
     func_temp_decls_ << "    " << "CVar " << tmp << ";\n";
@@ -2364,5 +3067,6 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
 
     return tmp;
 }
+
 
 }// namespace fakelua

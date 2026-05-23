@@ -939,3 +939,20 @@ TEST(exception, function_too_many_params) {
         ASSERT_TRUE(std::string(e.what()).find("function input parameters exceed limit 8") != std::string::npos);
     }
 }
+
+TEST(exception, math_param_non_numeric_error) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_math_param_non_numeric_error.lua", {});
+
+    try {
+        CVar ret;
+        Call(s, JIT_GCC, "test", ret, "hello", 1);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("bad argument #1 (a): attempt to perform arithmetic on non-numeric value") != std::string::npos);
+    }
+}

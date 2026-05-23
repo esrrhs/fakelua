@@ -39,7 +39,7 @@ public:
     [[nodiscard]] Var Get(const Var &key) const;
 
     // 设置键值对。如果 val 为 Nil 且 can_be_nil 为 false，则执行删除操作。
-    void Set(State *s, const Var &key, const Var &val, bool can_be_nil);
+    void Set(State *state, const Var &key, const Var &val, bool can_be_nil);
 
     // 获取当前元素数量
     [[nodiscard]] size_t Size() const {
@@ -63,7 +63,7 @@ public:
 
 private:
     // 重新哈希并扩容
-    void Rehash(State *s);
+    void Rehash(State *state);
 
     // 原始插入逻辑，不检查扩容，返回是否成功（溢出池是否够用）
     bool InsertRaw(const Var &key, const Var &val, uint32_t hash);

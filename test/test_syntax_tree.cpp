@@ -540,7 +540,7 @@ TEST(syntax_tree, if) {
                          "                              (var)[3:25]\n"
                          "                                type: simple\n"
                          "                                name: arg\n"
-                         "        (elseif)[3:9]\n"
+                         "        (elseif)[2:54]\n"
                          "        (block)[5:9]\n"
                          "          (assign)[5:31]\n"
                          "            (varlist)[5:9]\n"
@@ -1812,4 +1812,83 @@ TEST(syntax_tree, test_empty) {
                          "  (empty)[3:1]\n";
 
     ASSERT_EQ(dumpstr, wantstr);
+}
+
+// compiler.cpp line 46: parse failure throws when the Lua source is syntactically invalid.
+TEST(syntax_tree, parse_failure_throws) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    Compiler c(s);
+    EXPECT_THROW(c.CompileString("function @invalid", {}), std::exception);
+}
+
+// preprocessor.cpp line 81: var count != exp count in assignment.
+TEST(syntax_tree, preprocess_assign_count_mismatch) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    Compiler c(s);
+    EXPECT_THROW(c.CompileString("a, b = 1", {}), std::exception);
+}
+
+// preprocessor.cpp line 246: colon method definition is not supported.
+TEST(syntax_tree, preprocess_colon_method_unsupported) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    Compiler c(s);
+    EXPECT_THROW(c.CompileString("function a:b() end", {}), std::exception);
+}
+
+// preprocessor.cpp line 250: multi-part function name is not supported.
+TEST(syntax_tree, preprocess_multipart_funcname_unsupported) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+    ASSERT_NE(s, nullptr);
+
+    Compiler c(s);
+    EXPECT_THROW(c.CompileString("function a.b.c() end", {}), std::exception);
+}
+
+// Covers SyntaxTreeTypeToString for all enum values (syntax_tree.h lines 55-128).
+TEST(syntax_tree, SyntaxTreeTypeToString) {
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::None), "None");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Empty), "Empty");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Block), "Block");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Label), "Label");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Return), "Return");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Assign), "Assign");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::VarList), "VarList");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::ExpList), "ExpList");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Var), "Var");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::FunctionCall), "FunctionCall");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::TableConstructor), "TableConstructor");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::FieldList), "FieldList");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Field), "Field");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Break), "Break");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Goto), "Goto");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::While), "While");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Repeat), "Repeat");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::If), "If");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::ElseIfList), "ElseIfList");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::ForLoop), "ForLoop");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::ForIn), "ForIn");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::NameList), "NameList");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Function), "Function");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::FuncNameList), "FuncNameList");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::FuncName), "FuncName");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::FuncBody), "FuncBody");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::FunctionDef), "FunctionDef");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::ParList), "ParList");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::LocalFunction), "LocalFunction");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::LocalVar), "LocalVar");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Exp), "Exp");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Binop), "Binop");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Unop), "Unop");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::Args), "Args");
+    ASSERT_EQ(SyntaxTreeTypeToString(SyntaxTreeType::PrefixExp), "PrefixExp");
 }

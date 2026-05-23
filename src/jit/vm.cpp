@@ -6,16 +6,16 @@
 
 namespace fakelua {
 
-extern "C" void *FakeluaAllocTemp(State *s, size_t size) {
-    return s->GetHeap().GetTempAllocator().Alloc(size);
+extern "C" void *FakeluaAllocTemp(State *state, size_t size) {
+    return state->GetHeap().GetTempAllocator().Alloc(size);
 }
 
-extern "C" void FakeluaThrowError(State *s, const char *msg) {
+extern "C" void FakeluaThrowError(State *state, const char *msg) {
     ThrowFakeluaException(msg);
 }
 
-extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...) {
-    const auto func = s->GetVM().GetFunction(std::string(name));
+extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {
+    const auto func = state->GetVM().GetFunction(std::string(name));
     if (func.Empty()) {
         ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' not found", name));
     }
@@ -37,12 +37,20 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, 
     }
 
     CVar arg_arr[8];
-    va_list vl;
-    va_start(vl, arg_num);
+    va_list args_list;
+    va_start(args_list, arg_num);
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnon-pod-varargs"
+#endif
     for (int i = 0; i < arg_num; ++i) {
-        arg_arr[i] = va_arg(vl, CVar);
+        // NOLINTNEXTLINE(clang-analyzer-valist.Uninitialized)
+        arg_arr[i] = va_arg(args_list, CVar);
     }
-    va_end(vl);
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+    va_end(args_list);
 
     switch (arg_num) {
         case 0: return reinterpret_cast<CVar (*)()>(addr)();
@@ -54,9 +62,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *s, int jit_type, 
         case 6: return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5]);
         case 7: return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6]);
         case 8: return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7]);
-        default:
-            ThrowFakeluaException(
-                    std::format("FakeluaCallByName: too many arguments ({}) for function '{}'", arg_num, name));
+        default: __builtin_unreachable();
     }
 }
 

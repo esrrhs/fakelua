@@ -25,6 +25,6 @@ private:
     ::TCCState *tcc_state_ = nullptr;
 };
 
-typedef std::shared_ptr<TCCHandle> TCCHandlePtr;
+using TCCHandlePtr = std::shared_ptr<TCCHandle>;
 
 }// namespace fakelua

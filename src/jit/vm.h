@@ -21,16 +21,16 @@ public:
     // 注册函数（单线程调用，见类注释）
     void RegisterFunction(const VmFunction &func) {
         const auto &name = func.GetName();
-        const auto it = vm_functions_.find(name);
-        if (it == vm_functions_.end()) {
+        const auto iter = vm_functions_.find(name);
+        if (iter == vm_functions_.end()) {
             vm_functions_.emplace(name, func);
             return;
         }
-        it->second.Merge(func);
+        iter->second.Merge(func);
     }
 
     // 获取函数
-    VmFunction GetFunction(const std::string &name) const {
+    [[nodiscard]] VmFunction GetFunction(const std::string &name) const {
         const auto iter = vm_functions_.find(name);
         if (iter == vm_functions_.end()) {
             return {};
@@ -48,10 +48,10 @@ private:
     uint64_t global_name_ = 0;
 };
 
-extern "C" void *FakeluaAllocTemp(State *s, size_t size);
+extern "C" void *FakeluaAllocTemp(State *state, size_t size);
 
-extern "C" void FakeluaThrowError(State *s, const char *msg);
+extern "C" void FakeluaThrowError(State *state, const char *msg);
 
-extern "C" CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
+extern "C" CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...);
 
 }// namespace fakelua

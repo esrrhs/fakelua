@@ -288,7 +288,7 @@ public:
         return *this;
     }
 
-    State *GetState() const {
+    [[nodiscard]] State *GetState() const {
         return state_;
     }
 
