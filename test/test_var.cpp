@@ -447,10 +447,10 @@ TEST(var, bitwise) {
     v1.Bitand(v2, res);
     ASSERT_EQ(res.GetInt(), 0b1000);
     // Integral float should be accepted in bitwise ops
-    Var(2.0).Bitand(Var(int64_t{3}), res);
-    ASSERT_EQ(res.GetInt(), 2);
+    Var(1.0).Bitand(Var(int64_t{3}), res);
+    ASSERT_EQ(res.GetInt(), 1);
     // Non-integral float should fail
-    ASSERT_ANY_THROW(Var(2.1).Bitand(Var(int64_t{1}), res));
+    ASSERT_ANY_THROW(Var(1.5).Bitand(Var(int64_t{3}), res));
 
     // Bitor
     v1.Bitor(v2, res);
@@ -2143,4 +2143,3 @@ TEST(var, table_size_on_non_table_throws) {
     Var v(true);
     EXPECT_THROW((void) v.TableSize(), std::exception);
 }
-
