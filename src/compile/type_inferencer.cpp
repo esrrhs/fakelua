@@ -515,6 +515,12 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
         }
         return;
     }
+    // 注意：env_.Lookup 在同一 block 内存在同名 local 变量时（如 `local x = 1; local x = f()`），
+    // 会返回后者的最终类型。这不构成 bug，因为：
+    //   1. 预处理阶段（preprocessor）已禁止同一作用域内重复声明同名局部变量；
+    //   2. 即使理论上出现同名，CGen 对初始化表达式节点的类型使用的是 LookupNodeType，
+    //      它优先查询 specialization snapshot，后处理覆写仅影响主推断路径的声明类型，
+    //      不会导致运行时类型不匹配。
     for (const auto &stmt: block->Stmts()) {
         if (stmt->Type() != SyntaxTreeType::LocalVar) {
             continue;
