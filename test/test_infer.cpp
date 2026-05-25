@@ -3440,7 +3440,7 @@ TEST(infer, test_bug3_or_left_numeric) {
     // (left_type flows through), and `x + 1` is arithmetic.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     // Native integer addition in specialization.
-    ASSERT_NE(code.find("((") && code.find(") + (1))"), std::string::npos);
+    ASSERT_NE(code.find(") + (1))"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_bug3_or_left_numeric.lua", {.debug_mode = debug_mode});
