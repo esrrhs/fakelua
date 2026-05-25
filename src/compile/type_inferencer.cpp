@@ -175,6 +175,9 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
             env_.EnterScope();
             env_.Define(for_loop->Name(), loop_var_type);
             InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_loop->Block()), false);
+            // 循环体内可能对循环变量重新赋值（例如 `a = "test"`），导致其类型
+            // 从初始的 T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量的
+            // 最终类型，以便 CGen 决定生成原生整型/浮点快路径还是 CVar 动态路径。
             const InferredType final_loop_var_type = env_.Lookup(for_loop->Name());
             env_.ExitScope();
 
