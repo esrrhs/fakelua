@@ -3434,8 +3434,8 @@ TEST(infer, test_bug2_bitwise_float_operand) {
 
 // Bug 3: `or` operator with numeric left operand should always return left_type.
 // Numbers (including 0) are truthy in Lua, so `n or x` always returns n.
-TEST(infer, test_bug3_or_left_numeric) {
-    const auto code = InferGetCCode("./infer/test_bug3_or_left_numeric.lua");
+TEST(infer, test_or_left_numeric) {
+    const auto code = InferGetCCode("./infer/test_or_left_numeric.lua");
     // n should be a math param because `n or 0` preserves numeric type
     // (left_type flows through), and `x + 1` is arithmetic.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -3443,7 +3443,7 @@ TEST(infer, test_bug3_or_left_numeric) {
     ASSERT_NE(code.find(") + (1))"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_bug3_or_left_numeric.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./infer/test_or_left_numeric.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
         ASSERT_EQ(ret, 6);  // (5 or 0) + 1 = 6
