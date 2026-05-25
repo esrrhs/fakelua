@@ -178,6 +178,11 @@ private:
     // 其 env 类型在 InferNode(Assign) 中不可被降级（以模拟运行时类型检查的保证）。
     std::unordered_set<std::string> pinned_vars_;
 
+    // 试推断期间跳过 InferBlock 的后处理（变量最终类型覆写初始化表达式类型）。
+    // 后处理是为 CGen 提供声明类型信息，但会污染试推断快照中算术表达式节点的类型，
+    // 导致 CheckArithmeticTypeChanges 无法正确检测算术改善/退化。
+    bool skip_post_processing_ = false;
+
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
     static constexpr int kMaxSpecIterations = 16;
 };
