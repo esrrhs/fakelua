@@ -3389,3 +3389,84 @@ TEST(infer, test_spec_forloop_int_float_degrade) {
         ASSERT_DOUBLE_EQ(dret, 9.5);
     });
 }
+
+// Bug 1: InferBlock post-processing must not pollute trial inference snapshots.
+// A degraded local init (y = n*2, then y = "override") should not prevent
+// math param discovery for n. The function should still be specialized.
+TEST(infer, test_postprocess_no_pollute) {
+    const auto code = InferGetCCode("./infer/test_postprocess_no_pollute.lua");
+    // n should be recognized as a math param → specialized versions should exist.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
+    // Native arithmetic in specialized versions.
+    ASSERT_NE(code.find("((n) * (2))"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_postprocess_no_pollute.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 10);
+        double dret = 0.0;
+        Call(s, type, "test", dret, 2.5);
+        ASSERT_DOUBLE_EQ(dret, 5.0);
+    });
+}
+
+// Bug 2: Bitwise operations should accept T_FLOAT operands (Lua 5.4 auto-converts).
+// When one operand is T_FLOAT and the other is T_INT, bitwise result should be T_INT.
+TEST(infer, test_bitwise_float_operand) {
+    const auto code = InferGetCCode("./infer/test_bitwise_float_operand.lua");
+    // Both params should be math params (used in bitwise arithmetic).
+    ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
+    // Float specialization: b is double but bitwise still produces int64_t.
+    ASSERT_NE(code.find("test_0_1(int64_t a, double b)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_bitwise_float_operand.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 7, 3);
+        ASSERT_EQ(ret, 3);  // 7 & 3 = 3
+        // Float operands: Lua auto-converts to int for bitwise.
+        Call(s, type, "test", ret, 7, 3.0);
+        ASSERT_EQ(ret, 3);
+    });
+}
+
+// Bug 3: `or` operator with numeric left operand should always return left_type.
+// Numbers (including 0) are truthy in Lua, so `n or x` always returns n.
+TEST(infer, test_or_left_numeric) {
+    const auto code = InferGetCCode("./infer/test_or_left_numeric.lua");
+    // n should be a math param because `n or 0` preserves numeric type
+    // (left_type flows through), and `x + 1` is arithmetic.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    // Native integer addition in specialization.
+    ASSERT_NE(code.find(") + (1))"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_or_left_numeric.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 6);  // (5 or 0) + 1 = 6
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 1);  // (0 or 0) + 1 = 1 (0 is truthy in Lua!)
+    });
+}
+
+// Bug 4: Math param discovery order dependency.
+// outer() calls inner(). If outer is processed before inner, without multi-pass
+// iteration outer's params wouldn't be detected as math params.
+TEST(infer, test_discovery_order) {
+    const auto code = InferGetCCode("./infer/test_discovery_order.lua");
+    // Both functions should be specialized.
+    ASSERT_NE(code.find("inner_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("outer_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_discovery_order.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "outer", ret, 3);
+        ASSERT_EQ(ret, 7);  // inner(3) + 1 = 6 + 1 = 7
+        Call(s, type, "inner", ret, 5);
+        ASSERT_EQ(ret, 10);  // 5 + 5 = 10
+    });
+}
