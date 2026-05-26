@@ -3,6 +3,7 @@
 #include "compile/inferred_type.h"
 #include "jit/vm_function.h"
 #include "syntax_tree.h"
+#include "util/debug.h"
 #include <format>
 #include <string>
 #include <vector>
@@ -70,15 +71,11 @@ inline InferredType InferNumericBinopResultType(const BinOpKind op_kind,
 // the three syntax forms: args ::= (explist) | tableconstructor | LiteralString.
 inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr) {
     std::vector<SyntaxTreeInterfacePtr> raw_args;
-    if (!args_ptr) {
-        return raw_args;
-    }
+    DEBUG_ASSERT(args_ptr);
     const auto args_kind = args_ptr->GetArgsKind();
     if (args_kind == ArgsKind::kExpList) {
         const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
-        if (!explist_ptr) {
-            return raw_args;
-        }
+        DEBUG_ASSERT(explist_ptr);
         const auto &exps = explist_ptr->Exps();
         raw_args.insert(raw_args.end(), exps.begin(), exps.end());
         return raw_args;
@@ -125,15 +122,13 @@ inline std::string SpecFuncName(const std::string &base_name,
 }
 
 // 将原生 C 数值表达式（int64_t / double）装箱为 CVar 字面量。
-// type 为 T_DYNAMIC 时直接返回 expr 本身（视为已是 CVar 表达式）。
+// type 必须为 T_INT 或 T_FLOAT。
 inline std::string BoxNativeValue(const std::string &expr, InferredType type) {
     if (type == T_INT) {
         return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", expr);
     }
-    if (type == T_FLOAT) {
-        return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", expr);
-    }
-    return expr;
+    DEBUG_ASSERT(type == T_FLOAT);
+    return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", expr);
 }
 
 // ---- 阶段一：解析结果 -------------------------------------------------------
