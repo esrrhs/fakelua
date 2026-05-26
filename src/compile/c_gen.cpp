@@ -445,6 +445,160 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
     FlTableInsertRaw(tbl, k, v, h);
 }
 
+// ---------------------------------------------------------------------------
+// FlGetTableInt —— 整数键 table 读取快路径
+// 跳过 NORMALIZE_TABLE_KEY（整数已是规范形式），内联计算整数哈希，
+// 避免 VarHash 的 type switch 和 VarEqual 的类型分支。
+// ---------------------------------------------------------------------------
+static inline CVar FlGetTableInt(CVar t, int64_t k) {
+    if (t.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    VarTable *tbl = t.data_.t;
+    if (tbl->count_ == 0) { return (CVar){VAR_NIL}; }
+    uint32_t h = (uint32_t)(k ^ (k >> 32));
+    if (h == 0) { h = 1; }
+    if (tbl->bucket_count_ == 0) {
+        for (uint32_t i = 0; i < tbl->count_; ++i) {
+            if (tbl->quick_data_[i].hash == h && tbl->quick_data_[i].key.type_ == VAR_INT && tbl->quick_data_[i].key.data_.i == k) {
+                return tbl->quick_data_[i].val;
+            }
+        }
+    } else {
+        uint32_t mask = tbl->bucket_count_ - 1;
+        uint32_t idx = h & mask;
+        TableNode *curr = &tbl->nodes_[idx];
+        if (curr->entry.key.type_ == VAR_NIL) { return (CVar){VAR_NIL}; }
+        while (1) {
+            if (curr->entry.hash == h && curr->entry.key.type_ == VAR_INT && curr->entry.key.data_.i == k) {
+                return curr->entry.val;
+            }
+            uint32_t next = curr->next;
+            if (next == 0xFFFFFFFF) { break; }
+            curr = &tbl->nodes_[next];
+        }
+    }
+    return (CVar){VAR_NIL};
+}
+
+// ---------------------------------------------------------------------------
+// FlSetTableInt —— 整数键 table 写入快路径
+// ---------------------------------------------------------------------------
+static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
+    if (t.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    VarTable *tbl = t.data_.t;
+    uint32_t h = (uint32_t)(k ^ (k >> 32));
+    if (h == 0) { h = 1; }
+    CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
+    if (v.type_ == VAR_NIL) {
+        // Deletion: delegate to generic path (rare operation, not worth duplicating)
+        FlSetTable(t, key_cvar, v);
+        return;
+    }
+    if (tbl->bucket_count_ == 0) {
+        for (uint32_t i = 0; i < tbl->count_; ++i) {
+            if (tbl->quick_data_[i].hash == h && tbl->quick_data_[i].key.type_ == VAR_INT && tbl->quick_data_[i].key.data_.i == k) {
+                tbl->quick_data_[i].val = v; return;
+            }
+        }
+        if (tbl->count_ < 8) {
+            tbl->quick_data_[tbl->count_].key = key_cvar;
+            tbl->quick_data_[tbl->count_].val = v;
+            tbl->quick_data_[tbl->count_].hash = h;
+            tbl->count_++; return;
+        }
+        FlTableRehash(tbl);
+    }
+    if (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF) { FlTableRehash(tbl); }
+    FlTableInsertRaw(tbl, key_cvar, v, h);
+}
+
+// ---------------------------------------------------------------------------
+// FlGetTableStrId —— 字符串常量键（STRINGID）table 读取快路径
+// STRINGID 的 data_.i 是 VarString* 指针（已含预计算 hash），
+// 直接用 pointer equality 做快速比较，然后按大小 + memcmp 做完整比较。
+// ---------------------------------------------------------------------------
+static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
+    if (t.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    VarTable *tbl = t.data_.t;
+    if (tbl->count_ == 0) { return (CVar){VAR_NIL}; }
+    VarString *vs = (VarString *)str_id;
+    if (vs->hash_ == 0) { vs->hash_ = FlHashString(vs->data_, vs->size_); }
+    uint32_t h = vs->hash_;
+    if (tbl->bucket_count_ == 0) {
+        for (uint32_t i = 0; i < tbl->count_; ++i) {
+            if (tbl->quick_data_[i].hash == h) {
+                CVar ek = tbl->quick_data_[i].key;
+                if (ek.type_ == VAR_STRINGID) {
+                    if (ek.data_.i == str_id) { return tbl->quick_data_[i].val; }
+                    VarString *evs = (VarString *)ek.data_.i;
+                    if (evs->size_ == vs->size_ && memcmp(evs->data_, vs->data_, vs->size_) == 0) { return tbl->quick_data_[i].val; }
+                } else if (ek.type_ == VAR_STRING) {
+                    if (ek.data_.s->size_ == vs->size_ && memcmp(ek.data_.s->data_, vs->data_, vs->size_) == 0) { return tbl->quick_data_[i].val; }
+                }
+            }
+        }
+    } else {
+        uint32_t mask = tbl->bucket_count_ - 1;
+        uint32_t idx = h & mask;
+        TableNode *curr = &tbl->nodes_[idx];
+        if (curr->entry.key.type_ == VAR_NIL) { return (CVar){VAR_NIL}; }
+        while (1) {
+            if (curr->entry.hash == h) {
+                CVar ek = curr->entry.key;
+                if (ek.type_ == VAR_STRINGID) {
+                    if (ek.data_.i == str_id) { return curr->entry.val; }
+                    VarString *evs = (VarString *)ek.data_.i;
+                    if (evs->size_ == vs->size_ && memcmp(evs->data_, vs->data_, vs->size_) == 0) { return curr->entry.val; }
+                } else if (ek.type_ == VAR_STRING) {
+                    if (ek.data_.s->size_ == vs->size_ && memcmp(ek.data_.s->data_, vs->data_, vs->size_) == 0) { return curr->entry.val; }
+                }
+            }
+            uint32_t next = curr->next;
+            if (next == 0xFFFFFFFF) { break; }
+            curr = &tbl->nodes_[next];
+        }
+    }
+    return (CVar){VAR_NIL};
+}
+
+// ---------------------------------------------------------------------------
+// FlSetTableStrId —— 字符串常量键（STRINGID）table 写入快路径
+// ---------------------------------------------------------------------------
+static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
+    if (t.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    VarTable *tbl = t.data_.t;
+    VarString *vs = (VarString *)str_id;
+    if (vs->hash_ == 0) { vs->hash_ = FlHashString(vs->data_, vs->size_); }
+    uint32_t h = vs->hash_;
+    CVar key_cvar; key_cvar.type_ = VAR_STRINGID; key_cvar.data_.i = str_id;
+    if (v.type_ == VAR_NIL) {
+        FlSetTable(t, key_cvar, v);
+        return;
+    }
+    if (tbl->bucket_count_ == 0) {
+        for (uint32_t i = 0; i < tbl->count_; ++i) {
+            if (tbl->quick_data_[i].hash == h) {
+                CVar ek = tbl->quick_data_[i].key;
+                if (ek.type_ == VAR_STRINGID) {
+                    if (ek.data_.i == str_id) { tbl->quick_data_[i].val = v; return; }
+                    VarString *evs = (VarString *)ek.data_.i;
+                    if (evs->size_ == vs->size_ && memcmp(evs->data_, vs->data_, vs->size_) == 0) { tbl->quick_data_[i].val = v; return; }
+                } else if (ek.type_ == VAR_STRING) {
+                    if (ek.data_.s->size_ == vs->size_ && memcmp(ek.data_.s->data_, vs->data_, vs->size_) == 0) { tbl->quick_data_[i].val = v; return; }
+                }
+            }
+        }
+        if (tbl->count_ < 8) {
+            tbl->quick_data_[tbl->count_].key = key_cvar;
+            tbl->quick_data_[tbl->count_].val = v;
+            tbl->quick_data_[tbl->count_].hash = h;
+            tbl->count_++; return;
+        }
+        FlTableRehash(tbl);
+    }
+    if (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF) { FlTableRehash(tbl); }
+    FlTableInsertRaw(tbl, key_cvar, v, h);
+}
+
 // 算术和比较宏（表达式风格）
 // 为提高性能，算术运算仅支持整数和浮点类型。
 
@@ -2349,18 +2503,31 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             if (fkind == FieldKind::kObject) {
                 const auto name = field_ptr->Name();
                 const auto id = s_->GetConstString().Alloc(name);
-                key_str = std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", id);
+                // Use FlSetTableStrId fast path for string constant keys.
+                *cur_output_ << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
             } else {
                 DEBUG_ASSERT(fkind == FieldKind::kArray);
                 if (const auto key = field_ptr->Key()) {
-                    key_str = CompileExp(key);
+                    // Check if key is a known integer for the fast path.
+                    const auto key_type = InferArgTypeForSpec(key);
+                    if (key_type == T_INT) {
+                        const auto native_key = TryCompileNativeExpr(key);
+                        if (!native_key.empty()) {
+                            *cur_output_ << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, native_key, value_str);
+                        } else {
+                            key_str = CompileExp(key);
+                            *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", var_name, key_str, value_str);
+                        }
+                    } else {
+                        key_str = CompileExp(key);
+                        *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", var_name, key_str, value_str);
+                    }
                 } else {
-                    key_str = std::format("(CVar){{.type_ = VAR_INT, .data_.i = {}}}", array_idx);
+                    // Sequential integer index — use FlSetTableInt fast path.
+                    *cur_output_ << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, array_idx, value_str);
                     ++array_idx;
                 }
             }
-
-            *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", var_name, key_str, value_str);
         }
     }
 
@@ -2534,6 +2701,25 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left,
         }
     }
 
+    // Native comparison fast path: ==, ~=, <, <=, >, >= in expression context.
+    // When both operands are known numeric types, generate a native C comparison
+    // and box the result as a CVar bool, avoiding the expensive OpLt/OpEq macros.
+    if (const auto cmp_it = kCmpOpMap.find(op_kind); cmp_it != kCmpOpMap.end()) {
+        const auto lt = InferArgTypeForSpec(left);
+        const auto rt = InferArgTypeForSpec(right);
+        if ((lt == T_INT || lt == T_FLOAT) && (rt == T_INT || rt == T_FLOAT)) {
+            const auto left_native = TryCompileNativeExpr(left);
+            const auto right_native = TryCompileNativeExpr(right);
+            if (!left_native.empty() && !right_native.empty()) {
+                const auto native_bool = std::format("({}) {} ({})", left_native, cmp_it->second, right_native);
+                const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    CVar " << tmp << ";\n";
+                *cur_output_ << GenTab() << std::format("SET_BOOL({}, {});\n", tmp, native_bool);
+                return tmp;
+            }
+        }
+    }
+
     const auto left_str = CompileExp(left);
     const auto right_str = CompileExp(right);
 
@@ -2594,6 +2780,36 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right,
 
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeUnop>(op);
     const auto op_kind = op_ptr->GetOpKind();
+
+    // Native fast path for unary minus and bitwise not when operand is numeric.
+    if (op_kind == UnOpKind::kMinus || op_kind == UnOpKind::kBitNot) {
+        const auto rt = InferArgTypeForSpec(right);
+        if (rt == T_INT || rt == T_FLOAT) {
+            const auto native_operand = TryCompileNativeExpr(right);
+            if (!native_operand.empty()) {
+                std::string native_expr;
+                InferredType result_type;
+                if (op_kind == UnOpKind::kMinus) {
+                    native_expr = std::format("(-({}))", native_operand);
+                    result_type = rt;
+                } else { // kBitNot
+                    if (rt == T_FLOAT) {
+                        const auto itmp = std::format("flua_native_{}", tmp_var_counter_++);
+                        func_temp_decls_ << "    int64_t " << itmp << ";\n";
+                        *cur_output_ << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
+                        native_expr = std::format("(~({}))", itmp);
+                    } else {
+                        native_expr = std::format("(~({}))", native_operand);
+                    }
+                    result_type = T_INT;
+                }
+                const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
+                func_temp_decls_ << "    CVar " << tmp << ";\n";
+                *cur_output_ << GenTab() << tmp << " = " << BoxNativeValue(native_expr, result_type) << ";\n";
+                return tmp;
+            }
+        }
+    }
 
     const auto right_str = CompileExp(right);
 
@@ -2670,6 +2886,14 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto pe = v_ptr->GetPrefixexp();
         const auto exp = v_ptr->GetExp();
         auto pe_ret = CompilePrefixexp(pe);
+        // Integer key fast path: use FlGetTableInt when key is known T_INT.
+        const auto key_type = InferArgTypeForSpec(exp);
+        if (key_type == T_INT) {
+            const auto native_key = TryCompileNativeExpr(exp);
+            if (!native_key.empty()) {
+                return std::format("FlGetTableInt({}, {})", pe_ret, native_key);
+            }
+        }
         auto exp_ret = CompileExp(exp);
         return std::format("FlGetTable({}, {})", pe_ret, exp_ret);
     } else /*if (var_kind == VarKind::kDot)*/ {
@@ -2678,12 +2902,9 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto name = v_ptr->GetName();
         auto pe_ret = CompilePrefixexp(pe);
 
-        const auto name_exp = std::make_shared<SyntaxTreeExp>(v_ptr->Loc());
-        name_exp->SetExpKind(ExpKind::kString);
-        name_exp->SetValue(name);
-        auto exp_ret = CompileExp(name_exp);
-
-        return std::format("FlGetTable({}, {})", pe_ret, exp_ret);
+        // String constant key fast path: use FlGetTableStrId directly.
+        const auto id = s_->GetConstString().Alloc(name);
+        return std::format("FlGetTableStrId({}, {})", pe_ret, id);
     }
 }
 
