@@ -3609,3 +3609,27 @@ TEST(infer, test_table_assign_dot_fast_path) {
         ASSERT_EQ(ret, 300);  // t.x + t.y = 100 + 200
     });
 }
+
+// 比较表达式结果（T_DYNAMIC）作为数学函数参数时，走动态调用路径。
+// 覆盖 InferNumericBinopResultType 中比较运算符（kLess 等）的分支。
+TEST(infer, test_spec_compare_arg_dynamic) {
+    const auto code = InferGetCCode("./infer/test_spec_compare_arg_dynamic.lua");
+    // add IS a math-param function (n + 0 creates arithmetic).
+    ASSERT_NE(code.find("add_0(int64_t n)"), std::string::npos);
+    // test should NOT pass specialized args to add since a < b is T_DYNAMIC.
+    // The entry function test should exist.
+    ASSERT_NE(code.find("CVar test(CVar a, CVar b)"), std::string::npos);
+}
+
+// 连接表达式（n .. n）中操作数为数学参数时，InferNumericBinopResultType 返回 T_DYNAMIC。
+// 覆盖 InferNumericBinopResultType 中 kConcat 的最终 return T_DYNAMIC 分支。
+TEST(infer, test_spec_concat_arg_dynamic) {
+    const auto code = InferGetCCode("./infer/test_spec_concat_arg_dynamic.lua");
+    // add IS a math-param function (n + 0 creates arithmetic).
+    ASSERT_NE(code.find("add_0(int64_t n)"), std::string::npos);
+    // test IS also a math-param function (n + 0 creates arithmetic).
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    // Inside test_0, the concat n .. n should call add dynamically (not add_0).
+    // The concat result is T_DYNAMIC, so specialization call is not possible.
+    ASSERT_NE(code.find("FlConcat("), std::string::npos);
+}
