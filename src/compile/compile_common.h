@@ -72,16 +72,10 @@ inline InferredType InferNumericBinopResultType(const BinOpKind op_kind,
 inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr) {
     std::vector<SyntaxTreeInterfacePtr> raw_args;
     DEBUG_ASSERT(args_ptr);
-    if (!args_ptr) {
-        return raw_args;
-    }
     const auto args_kind = args_ptr->GetArgsKind();
     if (args_kind == ArgsKind::kExpList) {
         const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
         DEBUG_ASSERT(explist_ptr);
-        if (!explist_ptr) {
-            return raw_args;
-        }
         const auto &exps = explist_ptr->Exps();
         raw_args.insert(raw_args.end(), exps.begin(), exps.end());
         return raw_args;
