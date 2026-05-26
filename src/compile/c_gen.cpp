@@ -3296,6 +3296,54 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         }
     }
 
+    // FAKELUA_SET_TABLE fast path: detect early before compiling all args to CVar,
+    // so we can use FlSetTableInt/FlSetTableStrId when the key type is known.
+    if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar && args_kind == ArgsKind::kExpList) {
+        const auto early_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+        if (early_var && early_var->GetVarKind() == VarKind::kSimple && early_var->GetName() == "FAKELUA_SET_TABLE") {
+            const auto explist_node = args_ptr->Explist();
+            DEBUG_ASSERT(explist_node->Type() == SyntaxTreeType::ExpList);
+            const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_node);
+            const auto &raw_args = explist_ptr->Exps();
+            if (raw_args.size() != 3) {
+                ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
+            }
+            const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar " << tmp << ";\n";
+
+            // Check if key (arg[1]) is a string literal → use FlSetTableStrId.
+            const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[1]);
+            if (key_exp && key_exp->GetExpKind() == ExpKind::kString) {
+                const auto &key_name = key_exp->ExpValue();
+                const auto id = s_->GetConstString().Alloc(key_name);
+                const auto tbl_str = CompileExp(raw_args[0]);
+                const auto val_str = CompileExp(raw_args[2]);
+                *cur_output_ << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
+                *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
+                return tmp;
+            }
+            // Check if key is a known integer type → use FlSetTableInt.
+            const auto key_type = InferArgTypeForSpec(raw_args[1]);
+            if (key_type == T_INT) {
+                const auto native_key = TryCompileNativeExpr(raw_args[1]);
+                if (!native_key.empty()) {
+                    const auto tbl_str = CompileExp(raw_args[0]);
+                    const auto val_str = CompileExp(raw_args[2]);
+                    *cur_output_ << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", tbl_str, native_key, val_str);
+                    *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
+                    return tmp;
+                }
+            }
+            // Fallback: compile all args as CVar and use generic FlSetTable.
+            const auto tbl_str = CompileExp(raw_args[0]);
+            const auto key_str = CompileExp(raw_args[1]);
+            const auto val_str = CompileExp(raw_args[2]);
+            *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", tbl_str, key_str, val_str);
+            *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
+            return tmp;
+        }
+    }
+
     // 普通路径：将所有参数编译为 CVar。
     std::vector<std::string> compiled_args;
     if (args_kind == ArgsKind::kExpList) {
