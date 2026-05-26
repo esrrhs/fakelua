@@ -3470,3 +3470,142 @@ TEST(infer, test_discovery_order) {
         ASSERT_EQ(ret, 10);  // 5 + 5 = 10
     });
 }
+
+// ===========================================================================
+// Tests for native fast paths (unary ops, comparisons, table access)
+// ===========================================================================
+
+// Native unary minus in specialized function: CompileUnop generates -(n)
+// directly when operand is T_INT.
+TEST(infer, test_native_unary_minus_standalone) {
+    const auto code = InferGetCCode("./infer/test_native_unary_minus_standalone.lua");
+    // Should produce native negation expression in specialized body.
+    ASSERT_NE(code.find("-("), std::string::npos);
+    // Should be specialized (n*2 makes n a math param).
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_unary_minus_standalone.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 10);
+        ASSERT_EQ(ret, 10);  // -10 + 10*2 = -10 + 20 = 10
+        Call(s, type, "test", ret, -3);
+        ASSERT_EQ(ret, -3);  // -(-3) + (-3)*2 = 3 + (-6) = -3
+    });
+}
+
+// Native bitwise NOT in specialized function: CompileUnop generates ~(n)
+// directly when operand is T_INT.
+TEST(infer, test_native_unary_bitnot) {
+    const auto code = InferGetCCode("./infer/test_native_unary_bitnot.lua");
+    // Should produce native bitwise not expression.
+    ASSERT_NE(code.find("~("), std::string::npos);
+    // Should be specialized.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_unary_bitnot.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, -1);  // ~0 + 0*2 = -1 + 0 = -1
+        Call(s, type, "test", ret, 1);
+        ASSERT_EQ(ret, 0);   // ~1 + 1*2 = -2 + 2 = 0
+    });
+}
+
+// Native comparison == in expression context with SET_BOOL fast path.
+TEST(infer, test_native_cmp_expr_eq) {
+    const auto code = InferGetCCode("./infer/test_native_cmp_expr_eq.lua");
+    // helper should be specialized (n*2).
+    ASSERT_NE(code.find("helper_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_cmp_expr_eq.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 1);   // helper(5)==10 -> true
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 0);   // helper(3)==10 -> false
+    });
+}
+
+// Native comparison < in expression context with SET_BOOL fast path.
+TEST(infer, test_native_cmp_expr_lt) {
+    const auto code = InferGetCCode("./infer/test_native_cmp_expr_lt.lua");
+    // Should be specialized (n*2).
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_native_cmp_expr_lt.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 1);   // 6 < 10 -> true
+        Call(s, type, "test", ret, 7);
+        ASSERT_EQ(ret, 0);   // 14 < 10 -> false
+    });
+}
+
+// Table constructor uses FlSetTableInt for sequential integer keys and
+// FlSetTableStrId for named fields.
+TEST(infer, test_table_constructor_fast_path) {
+    const auto code = InferGetCCode("./infer/test_table_constructor_fast_path.lua");
+    // Should use FlSetTableInt for sequential elements.
+    ASSERT_NE(code.find("FlSetTableInt("), std::string::npos);
+    // Should use FlSetTableStrId for named field 'x'.
+    ASSERT_NE(code.find("FlSetTableStrId("), std::string::npos);
+    // Should NOT use generic FlSetTable for these fields.
+    ASSERT_EQ(code.find("FlSetTable("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_constructor_fast_path.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 120);  // t[2] + t.x = 20 + 100
+    });
+}
+
+// Table dot access uses FlGetTableStrId fast path.
+TEST(infer, test_table_dot_access_fast_path) {
+    const auto code = InferGetCCode("./infer/test_table_dot_access_fast_path.lua");
+    // Should use FlGetTableStrId for t.a and t.b reads.
+    ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
+    // Should NOT use FlGetTable for dot access.
+    ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_dot_access_fast_path.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 30);  // t.a + t.b = 10 + 20
+    });
+}
+
+// Table bracket access with string literal uses FlGetTableStrId fast path.
+TEST(infer, test_table_bracket_string_fast_path) {
+    const auto code = InferGetCCode("./infer/test_table_bracket_string_fast_path.lua");
+    // Should use FlGetTableStrId for t["hello"] and t["world"] reads.
+    ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
+    // Should NOT use FlGetTable for string literal bracket access.
+    ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_bracket_string_fast_path.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 100);  // t["hello"] + t["world"] = 42 + 58
+    });
+}
+
+// Table dot assignment uses FlSetTableStrId fast path via FAKELUA_SET_TABLE.
+TEST(infer, test_table_assign_dot_fast_path) {
+    const auto code = InferGetCCode("./infer/test_table_assign_dot_fast_path.lua");
+    // Assignments t.x = 100, t.y = 200 should use FlSetTableStrId.
+    ASSERT_NE(code.find("FlSetTableStrId("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_assign_dot_fast_path.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 300);  // t.x + t.y = 100 + 200
+    });
+}
