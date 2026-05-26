@@ -2508,19 +2508,26 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             } else {
                 DEBUG_ASSERT(fkind == FieldKind::kArray);
                 if (const auto key = field_ptr->Key()) {
-                    // Check if key is a known integer for the fast path.
-                    const auto key_type = InferArgTypeForSpec(key);
-                    if (key_type == T_INT) {
-                        const auto native_key = TryCompileNativeExpr(key);
-                        if (!native_key.empty()) {
-                            *cur_output_ << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, native_key, value_str);
+                    // Check if key is a string literal for the fast path.
+                    const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(key);
+                    if (key_exp && key_exp->GetExpKind() == ExpKind::kString) {
+                        const auto id = s_->GetConstString().Alloc(key_exp->ExpValue());
+                        *cur_output_ << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
+                    } else {
+                        // Check if key is a known integer for the fast path.
+                        const auto key_type = InferArgTypeForSpec(key);
+                        if (key_type == T_INT) {
+                            const auto native_key = TryCompileNativeExpr(key);
+                            if (!native_key.empty()) {
+                                *cur_output_ << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, native_key, value_str);
+                            } else {
+                                key_str = CompileExp(key);
+                                *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", var_name, key_str, value_str);
+                            }
                         } else {
                             key_str = CompileExp(key);
                             *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", var_name, key_str, value_str);
                         }
-                    } else {
-                        key_str = CompileExp(key);
-                        *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", var_name, key_str, value_str);
                     }
                 } else {
                     // Sequential integer index — use FlSetTableInt fast path.
@@ -2886,6 +2893,12 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto pe = v_ptr->GetPrefixexp();
         const auto exp = v_ptr->GetExp();
         auto pe_ret = CompilePrefixexp(pe);
+        // String literal key fast path: t["key"] → FlGetTableStrId.
+        const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+        if (exp_node && exp_node->GetExpKind() == ExpKind::kString) {
+            const auto id = s_->GetConstString().Alloc(exp_node->ExpValue());
+            return std::format("FlGetTableStrId({}, {})", pe_ret, id);
+        }
         // Integer key fast path: use FlGetTableInt when key is known T_INT.
         const auto key_type = InferArgTypeForSpec(exp);
         if (key_type == T_INT) {
