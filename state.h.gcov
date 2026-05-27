@@ -1,4 +1,7 @@
         -:    0:Source:src/state/state.h
+        -:    0:Graph:build/src/CMakeFiles/fakelua.dir/compile/c_gen.cpp.gcno
+        -:    0:Data:build/src/CMakeFiles/fakelua.dir/compile/c_gen.cpp.gcda
+        -:    0:Runs:627
         -:    1:#pragma once
         -:    2:
         -:    3:#include "compile/compiler.h"
@@ -43,24 +46,6 @@
         -:   42:
      197*:   43:    ConstString &GetConstString() {
      197*:   44:        return const_string_;
-call    0 returned 100%
-branch  1 taken 100% (fallthrough)
-branch  2 taken 0% (throw)
-call    3 returned 100%
-branch  4 taken 100% (fallthrough)
-branch  5 taken 0% (throw)
-call    6 returned 100%
-branch  7 taken 100% (fallthrough)
-branch  8 taken 0% (throw)
-call    9 returned 100%
-branch 10 taken 100% (fallthrough)
-branch 11 taken 0% (throw)
-call   12 never executed
-branch 13 never executed (fallthrough)
-branch 14 never executed (throw)
-call   15 returned 100%
-branch 16 taken 100% (fallthrough)
-branch 17 taken 0% (throw)
         -:   45:    }
         -:   46:
         -:   47:    Vm &GetVM() {

@@ -81,15 +81,15 @@ inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_
         return raw_args;
     }
     if (args_kind == ArgsKind::kString) {
-        if (const auto str_exp = args_ptr->String()) {
-            raw_args.push_back(str_exp);
-        }
+        const auto str_exp = args_ptr->String();
+        DEBUG_ASSERT(str_exp);
+        raw_args.push_back(str_exp);
         return raw_args;
     }
     if (args_kind == ArgsKind::kTableConstructor) {
-        if (const auto table_arg = args_ptr->Tableconstructor()) {
-            raw_args.push_back(table_arg);
-        }
+        const auto table_arg = args_ptr->Tableconstructor();
+        DEBUG_ASSERT(table_arg);
+        raw_args.push_back(table_arg);
     }
     return raw_args;
 }

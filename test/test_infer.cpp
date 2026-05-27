@@ -3621,6 +3621,42 @@ TEST(infer, test_spec_compare_arg_dynamic) {
     ASSERT_NE(code.find("CVar test(CVar a, CVar b)"), std::string::npos);
 }
 
+// 位运算表达式（n & 1）中操作数为数学参数时，InferNumericBinopResultType 返回 T_INT。
+// 覆盖 InferNumericBinopResultType 中位运算符（kBitAnd 等）的分支。
+TEST(infer, test_spec_bitwise_arg_int) {
+    const auto code = InferGetCCode("./infer/test_spec_bitwise_arg_int.lua");
+    // add IS a math-param function (n + 0 creates arithmetic).
+    ASSERT_NE(code.find("add_0(int64_t n)"), std::string::npos);
+    // test IS also a math-param function (n + 0 creates arithmetic).
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    // Inside test_0, the bitwise n & 1 result is T_INT, so add_0 is called with int.
+    ASSERT_NE(code.find("add_0("), std::string::npos);
+}
+
+// and 表达式中两侧操作数均为数学参数时，InferNumericBinopResultType(kAnd) 返回 right_type。
+// 覆盖 InferNumericBinopResultType 中 kAnd 的分支。
+TEST(infer, test_spec_and_arg_type) {
+    const auto code = InferGetCCode("./infer/test_spec_and_arg_type.lua");
+    // add IS a math-param function.
+    ASSERT_NE(code.find("add_0(int64_t n)"), std::string::npos);
+    // test IS also a math-param function (a + 0, b + 0 create arithmetic).
+    ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
+    // Inside specialized test, `a and b` result is T_INT, so add_0 is called.
+    ASSERT_NE(code.find("add_0("), std::string::npos);
+}
+
+// or 表达式中两侧操作数均为数学参数时，InferNumericBinopResultType(kOr) 返回 left_type。
+// 覆盖 InferNumericBinopResultType 中 kOr 的分支。
+TEST(infer, test_spec_or_arg_type) {
+    const auto code = InferGetCCode("./infer/test_spec_or_arg_type.lua");
+    // add IS a math-param function.
+    ASSERT_NE(code.find("add_0(int64_t n)"), std::string::npos);
+    // test IS also a math-param function (a + 0, b + 0 create arithmetic).
+    ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
+    // Inside specialized test, `a or b` result is T_INT, so add_0 is called.
+    ASSERT_NE(code.find("add_0("), std::string::npos);
+}
+
 // 连接表达式（n .. n）中操作数为数学参数时，InferNumericBinopResultType 返回 T_DYNAMIC。
 // 覆盖 InferNumericBinopResultType 中 kConcat 的最终 return T_DYNAMIC 分支。
 TEST(infer, test_spec_concat_arg_dynamic) {

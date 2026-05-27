@@ -1,4 +1,7 @@
         -:    0:Source:src/compile/native_var_scope.h
+        -:    0:Graph:build/src/CMakeFiles/fakelua.dir/compile/c_gen.cpp.gcno
+        -:    0:Data:build/src/CMakeFiles/fakelua.dir/compile/c_gen.cpp.gcda
+        -:    0:Runs:627
         -:    1:#pragma once
         -:    2:
         -:    3:#include "compile/inferred_type.h"
@@ -16,137 +19,49 @@
         -:   15:// 每进入一个 C 作用域调用 Enter()，退出时调用 Exit()；
         -:   16:// DeclareNativeVar 在当前最内层作用域注册变量的原生类型。
         -:   17:// IsTyped / GetType 从内到外逐层查找，返回精确类型或 T_DYNAMIC。
-      782:   18:class NativeVarScope {
-call    0 returned 100%
-branch  1 taken 100% (fallthrough)
-branch  2 taken 0% (throw)
-call    3 never executed
+      785:   18:class NativeVarScope {
         -:   19:public:
         -:   20:    // 进入一个新的 C 作用域。
-    3207*:   21:    void Enter() {
-    3207*:   22:        scopes_.emplace_back();
-call    0 returned 100%
-branch  1 taken 100% (fallthrough)
-branch  2 taken 0% (throw)
-call    3 returned 100%
-branch  4 taken 100% (fallthrough)
-branch  5 taken 0% (throw)
-call    6 never executed
-branch  7 never executed (fallthrough)
-branch  8 never executed (throw)
-call    9 never executed
-branch 10 never executed (fallthrough)
-branch 11 never executed (throw)
-call   12 returned 100%
-branch 13 taken 100% (fallthrough)
-branch 14 taken 0% (throw)
-call   15 returned 100%
-branch 16 taken 100% (fallthrough)
-branch 17 taken 0% (throw)
-call   18 returned 100%
-branch 19 taken 100% (fallthrough)
-branch 20 taken 0% (throw)
-call   21 returned 100%
-branch 22 taken 100% (fallthrough)
-branch 23 taken 0% (throw)
-call   24 returned 100%
-branch 25 taken 100% (fallthrough)
-branch 26 taken 0% (throw)
-call   27 returned 100%
-call   28 returned 100%
+    3223*:   21:    void Enter() {
+    3223*:   22:        scopes_.emplace_back();
     #####:   23:    }
         -:   24:
         -:   25:    // 退出当前 C 作用域，丢弃其中所有局部声明。
-    3206*:   26:    void Exit() {
-    3206*:   27:        if (!scopes_.empty()) {
-branch  0 taken 100% (fallthrough)
-branch  1 taken 0%
-branch  2 taken 100% (fallthrough)
-branch  3 taken 0%
-branch  4 never executed (fallthrough)
-branch  5 never executed
-branch  6 never executed (fallthrough)
-branch  7 never executed
-branch  8 taken 100% (fallthrough)
-branch  9 taken 0%
-branch 10 taken 100% (fallthrough)
-branch 11 taken 0%
-branch 12 taken 100% (fallthrough)
-branch 13 taken 0%
-branch 14 taken 100% (fallthrough)
-branch 15 taken 0%
-branch 16 taken 100% (fallthrough)
-branch 17 taken 0%
-branch 18 taken 100% (fallthrough)
-branch 19 taken 0%
-branch 20 taken 100% (fallthrough)
-branch 21 taken 0%
-    3206*:   28:            scopes_.pop_back();
-call    0 returned 100%
-call    1 returned 100%
-call    2 never executed
-call    3 never executed
-call    4 returned 100%
-call    5 returned 100%
-call    6 returned 100%
-call    7 returned 100%
-call    8 returned 100%
-call    9 returned 100%
-call   10 returned 100%
+    3222*:   26:    void Exit() {
+    3222*:   27:        if (!scopes_.empty()) {
+    3222*:   28:            scopes_.pop_back();
         -:   29:        }
         -:   30:    }
         -:   31:
         -:   32:    // 清空所有作用域（在每次函数体编译开始时调用）。
-     1865:   33:    void Clear() {
-     1865:   34:        scopes_.clear();
-branch  0 taken 0% (fallthrough)
-branch  1 taken 100%
-call    2 returned 100%
+     1881:   33:    void Clear() {
+     1881:   34:        scopes_.clear();
         -:   35:    }
         -:   36:
         -:   37:    // 在当前最内层作用域声明变量的原生类型。
         -:   38:    // native_type 为 T_DYNAMIC 时表示 CVar。
-function _ZN7fakelua14NativeVarScope7DeclareERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEENS_12InferredTypeE called 3937 returned 100% blocks executed 60%
-     3937:   39:    void Declare(const std::string &name, InferredType native_type) {
-     3937:   40:        if (scopes_.empty()) {
-branch  0 taken 0% (fallthrough)
-branch  1 taken 100%
+     3979:   39:    void Declare(const std::string &name, InferredType native_type) {
+     3979:   40:        if (scopes_.empty()) {
     #####:   41:            Enter();
-call    0 never executed
         -:   42:        }
-     3937:   43:        scopes_.back()[name] = native_type;
-call    0 returned 100%
-     3937:   44:    }
+     3979:   43:        scopes_.back()[name] = native_type;
+     3979:   44:    }
         -:   45:
         -:   46:    // 判断变量是否已声明为非 CVar 的原生类型（int64_t / double）。
-function _ZNK7fakelua14NativeVarScope7IsTypedERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE called 3306 returned 100% blocks executed 100%
-     3306:   47:    [[nodiscard]] bool IsTyped(const std::string &name) const {
-     5960:   48:        for (const auto &scope: std::views::reverse(scopes_)) {
-branch  0 taken 81%
-branch  1 taken 19% (fallthrough)
-     4844:   49:            if (const auto it = scope.find(name); it != scope.end()) {
-call    0 returned 100%
-branch  1 taken 45% (fallthrough)
-branch  2 taken 55%
+     3324:   47:    [[nodiscard]] bool IsTyped(const std::string &name) const {
+     5996:   48:        for (const auto &scope: std::views::reverse(scopes_)) {
+     4862:   49:            if (const auto it = scope.find(name); it != scope.end()) {
      2190:   50:                return it->second != T_DYNAMIC;
-call    0 returned 100%
         -:   51:            }
         -:   52:        }
         -:   53:        return false;
         -:   54:    }
         -:   55:
         -:   56:    // 返回变量声明时的原生类型，未找到时返回 T_DYNAMIC。
-function _ZNK7fakelua14NativeVarScope7GetTypeERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE called 2476 returned 100% blocks executed 100%
      2476:   57:    [[nodiscard]] InferredType GetType(const std::string &name) const {
      4311:   58:        for (const auto &scope: std::views::reverse(scopes_)) {
-branch  0 taken 100%
-branch  1 taken 0% (fallthrough)
      4311:   59:            if (const auto it = scope.find(name); it != scope.end()) {
-call    0 returned 100%
-branch  1 taken 57% (fallthrough)
-branch  2 taken 43%
      2476:   60:                return it->second;
-call    0 returned 100%
         -:   61:            }
         -:   62:        }
         -:   63:        return T_DYNAMIC;

@@ -1,4 +1,7 @@
         -:    0:Source:src/util/string_util.h
+        -:    0:Graph:build/src/CMakeFiles/fakelua.dir/compile/c_gen.cpp.gcno
+        -:    0:Data:build/src/CMakeFiles/fakelua.dir/compile/c_gen.cpp.gcda
+        -:    0:Runs:627
         -:    1:#pragma once
         -:    2:
         -:    3:namespace fakelua {
@@ -15,17 +18,8 @@
         -:   14:    return std::regex_match(str.begin(), str.end(), g_number_regex);
         -:   15:}
         -:   16:
-    23602:   17:inline bool IsInteger(const std::string_view &str) {
-    23602:   18:    return std::regex_match(str.begin(), str.end(), g_integer_regex);
-call    0 returned 100%
-branch  1 taken 100% (fallthrough)
-branch  2 taken 0% (throw)
-call    3 returned 100%
-branch  4 taken 100% (fallthrough)
-branch  5 taken 0% (throw)
-call    6 returned 100%
-branch  7 taken 100% (fallthrough)
-branch  8 taken 0% (throw)
+      337:   17:inline bool IsInteger(const std::string_view &str) {
+      337:   18:    return std::regex_match(str.begin(), str.end(), g_integer_regex);
         -:   19:}
         -:   20:
         -:   21:int64_t ToInteger(const std::string_view &input);
