@@ -3621,6 +3621,18 @@ TEST(infer, test_spec_compare_arg_dynamic) {
     ASSERT_NE(code.find("CVar test(CVar a, CVar b)"), std::string::npos);
 }
 
+// 除法表达式（a / b）中操作数为数学参数时，InferNumericBinopResultType 返回 T_FLOAT。
+// 覆盖 InferNumericBinopResultType 中 kSlash/kPow 的分支。
+TEST(infer, test_spec_div_arg_float) {
+    const auto code = InferGetCCode("./infer/test_spec_div_arg_float.lua");
+    // add IS a math-param function (n + 0 creates arithmetic).
+    ASSERT_NE(code.find("add_0(int64_t n)"), std::string::npos);
+    // test IS also a math-param function (a + 0, b + 0 create arithmetic).
+    ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
+    // Inside test_0_0, the division a / b result is T_FLOAT, so add_1 (double) is called.
+    ASSERT_NE(code.find("add_1("), std::string::npos);
+}
+
 // 位运算表达式（n & 1）中操作数为数学参数时，InferNumericBinopResultType 返回 T_INT。
 // 覆盖 InferNumericBinopResultType 中位运算符（kBitAnd 等）的分支。
 TEST(infer, test_spec_bitwise_arg_int) {
