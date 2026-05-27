@@ -1,0 +1,53 @@
+        -:    0:Source:src/util/string_util.h
+        -:    1:#pragma once
+        -:    2:
+        -:    3:namespace fakelua {
+        -:    4:
+        -:    5:// 定义 StrContainerPtr
+        -:    6:using StrContainerPtr = std::shared_ptr<std::string>;
+        -:    7:
+        -:    8:inline const auto g_number_regex =
+        -:    9:        std::regex("^[+-]?[0-9]+(\\.[0-9]+)?([eE][+-]?[0-9]+)?$|^[+-]?0[xX][0-9a-fA-F]+(\\.[0-9a-fA-F]+)?([pP][+-]?[0-9]+)?$");
+        -:   10:
+        -:   11:inline const auto g_integer_regex = std::regex("^[+-]?[0-9]+$|^[+-]?0[xX][0-9a-fA-F]+$");
+        -:   12:
+        -:   13:inline bool IsNumber(const std::string_view &str) {
+        -:   14:    return std::regex_match(str.begin(), str.end(), g_number_regex);
+        -:   15:}
+        -:   16:
+    23602:   17:inline bool IsInteger(const std::string_view &str) {
+    23602:   18:    return std::regex_match(str.begin(), str.end(), g_integer_regex);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0% (throw)
+call    6 returned 100%
+branch  7 taken 100% (fallthrough)
+branch  8 taken 0% (throw)
+        -:   19:}
+        -:   20:
+        -:   21:int64_t ToInteger(const std::string_view &input);
+        -:   22:
+        -:   23:double ToFloat(const std::string_view &input);
+        -:   24:
+        -:   25:inline std::string JoinString(const std::vector<std::string> &strs, const std::string &sep) {
+        -:   26:    if (strs.empty()) {
+        -:   27:        return {};
+        -:   28:    }
+        -:   29:    return std::accumulate(std::next(strs.begin()), strs.end(), strs[0],
+        -:   30:                           [&](std::string acc, const std::string &item) { return std::move(acc) + sep + item; });
+        -:   31:}
+        -:   32:
+        -:   33:std::string ReplaceEscapeChars(const std::string &str);
+        -:   34:
+        -:   35:inline void TrimInplace(std::string &str) {
+        -:   36:    // 左侧去空格
+        -:   37:    str.erase(str.begin(), std::find_if(str.begin(), str.end(), [](unsigned char chr) { return !std::isspace(chr); }));
+        -:   38:
+        -:   39:    // 右侧去空格
+        -:   40:    str.erase(std::find_if(str.rbegin(), str.rend(), [](unsigned char chr) { return !std::isspace(chr); }).base(), str.end());
+        -:   41:}
+        -:   42:
+        -:   43:}// namespace fakelua

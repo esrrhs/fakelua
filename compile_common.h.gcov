@@ -1,0 +1,434 @@
+        -:    0:Source:src/compile/compile_common.h
+        -:    1:#pragma once
+        -:    2:
+        -:    3:#include "compile/inferred_type.h"
+        -:    4:#include "jit/vm_function.h"
+        -:    5:#include "syntax_tree.h"
+        -:    6:#include "util/debug.h"
+        -:    7:#include <format>
+        -:    8:#include <string>
+        -:    9:#include <vector>
+        -:   10:
+        -:   11:namespace fakelua {
+        -:   12:
+        -:   13:// AST 节点类型快照：节点原始指针 → 推断类型。
+        -:   14:// 每个特化 bitmask 对应一份快照，由 TypeInferencer::DiscoverMathParams 生成，
+        -:   15:// 供 CGen 在生成特化体时查询任意节点的类型。
+        -:   16:using EvalTypeSnapshot = std::unordered_map<SyntaxTreeInterface *, InferredType>;
+        -:   17:
+        -:   18:// 特化参数类型位掩码编码：bitmask 的第 i 位为 0 表示第 i 个数学参数为 int64_t，
+        -:   19:// 为 1 表示为 double。
+        -:   20:enum MathParamKind : int {
+        -:   21:    kMathParamInt = 0,   // 对应 int64_t
+        -:   22:    kMathParamFloat = 1, // 对应 double
+        -:   23:};
+        -:   24:
+        -:   25:// 根据 bitmask 和参数位索引返回该参数的类型。
+    23298:   26:inline MathParamKind MathParamKindOf(int bitmask, int bit_index) {
+    11747:   27:    return ((bitmask >> bit_index) & 1) ? kMathParamFloat : kMathParamInt;
+branch  0 taken 50% (fallthrough)
+branch  1 taken 50%
+branch  2 taken 50% (fallthrough)
+branch  3 taken 50%
+branch  4 taken 50% (fallthrough)
+branch  5 taken 50%
+branch  6 taken 50% (fallthrough)
+branch  7 taken 50%
+        -:   28:}
+        -:   29:
+        -:   30:// 返回 MathParamKind 对应的 C 类型名称字符串。
+     4379:   31:inline const char *MathParamCTypeName(MathParamKind kind) {
+     4379:   32:    return kind == kMathParamFloat ? "double" : "int64_t";
+branch  0 taken 50% (fallthrough)
+branch  1 taken 50%
+branch  2 taken 50% (fallthrough)
+branch  3 taken 50%
+        -:   33:}
+        -:   34:
+        -:   35:// 返回 MathParamKind 对应的 bitmask 后缀字符（'0' 或 '1'）。
+     7172:   36:inline char MathParamSuffix(MathParamKind kind) {
+     7172:   37:    return kind == kMathParamFloat ? '1' : '0';
+        -:   38:}
+        -:   39:
+    3293*:   40:inline bool IsNumericInferredType(const InferredType type) {
+    1816*:   41:    return type == T_INT || type == T_FLOAT;
+branch  0 taken 94%
+branch  1 taken 6%
+branch  2 taken 100%
+branch  3 taken 0%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+branch  6 taken 85%
+branch  7 taken 15%
+branch  8 taken 100% (fallthrough)
+branch  9 taken 0%
+branch 10 taken 100% (fallthrough)
+branch 11 taken 0%
+branch 12 taken 100% (fallthrough)
+branch 13 taken 0%
+branch 14 taken 65% (fallthrough)
+branch 15 taken 35%
+branch 16 taken 18%
+branch 17 taken 82%
+branch 18 never executed (fallthrough)
+branch 19 never executed
+        -:   42:}
+        -:   43:
+function _ZN7fakelua27InferNumericBinopResultTypeENS_9BinOpKindENS_12InferredTypeES1_ called 607 returned 100% blocks executed 73%
+      607:   44:inline InferredType InferNumericBinopResultType(const BinOpKind op_kind,
+        -:   45:                                                const InferredType left_type,
+        -:   46:                                                const InferredType right_type) {
+      607:   47:    if (!IsNumericInferredType(left_type) || !IsNumericInferredType(right_type)) {
+branch  0 taken 91% (fallthrough)
+branch  1 taken 9%
+branch  2 taken 99% (fallthrough)
+branch  3 taken 1%
+        -:   48:        return T_DYNAMIC;
+        -:   49:    }
+      547:   50:    if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+        -:   51:        return T_FLOAT;
+        -:   52:    }
+      547:   53:    if (op_kind == BinOpKind::kPlus || op_kind == BinOpKind::kMinus || op_kind == BinOpKind::kStar ||
+      547:   54:        op_kind == BinOpKind::kMod || op_kind == BinOpKind::kDoubleSlash) {
+branch  0 taken 99%
+branch  1 taken 0%
+branch  2 taken 0%
+branch  3 taken 0%
+branch  4 taken 1%
+      739:   55:        return (left_type == T_INT && right_type == T_INT) ? T_INT : T_FLOAT;
+branch  0 taken 37% (fallthrough)
+branch  1 taken 63%
+        -:   56:    }
+        -:   57:    if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr ||
+        -:   58:        op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
+    #####:   59:        return T_INT;
+        -:   60:    }
+        -:   61:    if (op_kind == BinOpKind::kAnd) {
+    #####:   62:        return right_type;
+        -:   63:    }
+        -:   64:    if (op_kind == BinOpKind::kOr) {
+    #####:   65:        return left_type;
+        -:   66:    }
+        -:   67:    return T_DYNAMIC;
+        -:   68:}
+        -:   69:
+        -:   70:// Extracts a function-call args node into a raw argument node array, covering
+        -:   71:// the three syntax forms: args ::= (explist) | tableconstructor | LiteralString.
+    3372*:   72:inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr) {
+    3372*:   73:    std::vector<SyntaxTreeInterfacePtr> raw_args;
+    3372*:   74:    DEBUG_ASSERT(args_ptr);
+    3372*:   75:    const auto args_kind = args_ptr->GetArgsKind();
+    3372*:   76:    if (args_kind == ArgsKind::kExpList) {
+    3222*:   77:        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+    3222*:   78:        DEBUG_ASSERT(explist_ptr);
+    3222*:   79:        const auto &exps = explist_ptr->Exps();
+    3222*:   80:        raw_args.insert(raw_args.end(), exps.begin(), exps.end());
+    3222*:   81:        return raw_args;
+    3222*:   82:    }
+     150*:   83:    if (args_kind == ArgsKind::kString) {
+      70*:   84:        if (const auto str_exp = args_ptr->String()) {
+      70*:   85:            raw_args.push_back(str_exp);
+    #####:   86:        }
+      70*:   87:        return raw_args;
+        -:   88:    }
+      80*:   89:    if (args_kind == ArgsKind::kTableConstructor) {
+      70*:   90:        if (const auto table_arg = args_ptr->Tableconstructor()) {
+      70*:   91:            raw_args.push_back(table_arg);
+      70*:   92:        }
+        -:   93:    }
+        -:   94:    return raw_args;
+    =====:   95:}
+------------------
+_ZN7fakelua18ExtractCallRawArgsERKSt10shared_ptrINS_14SyntaxTreeArgsEE:
+function _ZN7fakelua18ExtractCallRawArgsERKSt10shared_ptrINS_14SyntaxTreeArgsEE called 0 returned 0% blocks executed 0%
+    #####:   72:inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr) {
+    #####:   73:    std::vector<SyntaxTreeInterfacePtr> raw_args;
+    #####:   74:    DEBUG_ASSERT(args_ptr);
+branch  0 never executed (fallthrough)
+branch  1 never executed
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+call    6 never executed
+    #####:   75:    const auto args_kind = args_ptr->GetArgsKind();
+branch  0 never executed (fallthrough)
+branch  1 never executed
+    #####:   76:    if (args_kind == ArgsKind::kExpList) {
+branch  0 never executed (fallthrough)
+branch  1 never executed
+    #####:   77:        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+call    0 never executed
+call    1 never executed
+branch  2 never executed (fallthrough)
+branch  3 never executed
+    #####:   78:        DEBUG_ASSERT(explist_ptr);
+branch  0 never executed (fallthrough)
+branch  1 never executed
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+    #####:   79:        const auto &exps = explist_ptr->Exps();
+call    0 never executed
+branch  1 never executed (fallthrough)
+branch  2 never executed (throw)
+    #####:   80:        raw_args.insert(raw_args.end(), exps.begin(), exps.end());
+call    0 never executed
+branch  1 never executed (fallthrough)
+branch  2 never executed (throw)
+    #####:   81:        return raw_args;
+branch  0 never executed (fallthrough)
+branch  1 never executed
+    #####:   82:    }
+    #####:   83:    if (args_kind == ArgsKind::kString) {
+branch  0 never executed (fallthrough)
+branch  1 never executed
+    #####:   84:        if (const auto str_exp = args_ptr->String()) {
+call    0 never executed
+branch  1 never executed (fallthrough)
+branch  2 never executed
+    #####:   85:            raw_args.push_back(str_exp);
+call    0 never executed
+branch  1 never executed (fallthrough)
+branch  2 never executed (throw)
+    #####:   86:        }
+    #####:   87:        return raw_args;
+        -:   88:    }
+    #####:   89:    if (args_kind == ArgsKind::kTableConstructor) {
+branch  0 never executed (fallthrough)
+branch  1 never executed
+    #####:   90:        if (const auto table_arg = args_ptr->Tableconstructor()) {
+call    0 never executed
+branch  1 never executed (fallthrough)
+branch  2 never executed
+    #####:   91:            raw_args.push_back(table_arg);
+call    0 never executed
+branch  1 never executed (fallthrough)
+branch  2 never executed (throw)
+    #####:   92:        }
+        -:   93:    }
+        -:   94:    return raw_args;
+    =====:   95:}
+call    0 never executed
+------------------
+_ZN7fakelua18ExtractCallRawArgsERKSt10shared_ptrINS_14SyntaxTreeArgsEE:
+function _ZN7fakelua18ExtractCallRawArgsERKSt10shared_ptrINS_14SyntaxTreeArgsEE called 3372 returned 100% blocks executed 58%
+     3372:   72:inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr) {
+     3372:   73:    std::vector<SyntaxTreeInterfacePtr> raw_args;
+    3372*:   74:    DEBUG_ASSERT(args_ptr);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+call    6 never executed
+     3372:   75:    const auto args_kind = args_ptr->GetArgsKind();
+branch  0 taken 96% (fallthrough)
+branch  1 taken 4%
+     3372:   76:    if (args_kind == ArgsKind::kExpList) {
+branch  0 taken 96% (fallthrough)
+branch  1 taken 4%
+     3222:   77:        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+    3222*:   78:        DEBUG_ASSERT(explist_ptr);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+     3222:   79:        const auto &exps = explist_ptr->Exps();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     3222:   80:        raw_args.insert(raw_args.end(), exps.begin(), exps.end());
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     3222:   81:        return raw_args;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+     3222:   82:    }
+      150:   83:    if (args_kind == ArgsKind::kString) {
+branch  0 taken 47% (fallthrough)
+branch  1 taken 53%
+       70:   84:        if (const auto str_exp = args_ptr->String()) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+       70:   85:            raw_args.push_back(str_exp);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+    #####:   86:        }
+       70:   87:        return raw_args;
+        -:   88:    }
+       80:   89:    if (args_kind == ArgsKind::kTableConstructor) {
+branch  0 taken 88% (fallthrough)
+branch  1 taken 12%
+       70:   90:        if (const auto table_arg = args_ptr->Tableconstructor()) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+       70:   91:            raw_args.push_back(table_arg);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+       70:   92:        }
+        -:   93:    }
+        -:   94:    return raw_args;
+    =====:   95:}
+call    0 never executed
+------------------
+        -:   96:
+        -:   97:// ---- 无状态代码生成帮助函数 -------------------------------------------------
+        -:   98:// 这些函数不依赖任何实例状态，供 CGen 使用。
+        -:   99:
+        -:  100:// 返回特化函数返回值对应的 C 类型名称字符串（"int64_t"、"double" 或 "CVar"）。
+     4656:  101:inline const char *SpecReturnCTypeName(InferredType ret_type) {
+     4656:  102:    if (ret_type == T_INT) {
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+branch  2 taken 56% (fallthrough)
+branch  3 taken 44%
+branch  4 taken 44% (fallthrough)
+branch  5 taken 56%
+branch  6 taken 51% (fallthrough)
+branch  7 taken 49%
+branch  8 taken 51% (fallthrough)
+branch  9 taken 49%
+        -:  103:        return "int64_t";
+        -:  104:    }
+    1736*:  105:    if (ret_type == T_FLOAT) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 75% (fallthrough)
+branch  3 taken 25%
+branch  4 taken 75% (fallthrough)
+branch  5 taken 25%
+    1929*:  106:        return "double";
+        -:  107:    }
+        -:  108:    return "CVar";
+        -:  109:}
+        -:  110:
+        -:  111:// 根据基础名称、数学参数下标列表和位掩码返回特化函数名。
+        -:  112:// 例如 SpecFuncName("fib", {0}, 0) -> "fib_0"
+        -:  113://       SpecFuncName("test", {1,4}, 2) -> "test_0_1"
+function _ZN7fakelua12SpecFuncNameERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEERKSt6vectorIiSaIiEEi called 4860 returned 100% blocks executed 92%
+     4860:  114:inline std::string SpecFuncName(const std::string &base_name,
+        -:  115:                                const std::vector<int> &math_param_indices, int bitmask) {
+     4860:  116:    std::string name = base_name;
+call    0 returned 100%
+    12032:  117:    for (int i = 0; i < static_cast<int>(math_param_indices.size()); ++i) {
+call    0 returned 100%
+branch  1 taken 60%
+branch  2 taken 40% (fallthrough)
+     7172:  118:        name += '_';
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+    17928:  119:        name += MathParamSuffix(MathParamKindOf(bitmask, i));
+branch  0 taken 50% (fallthrough)
+branch  1 taken 50%
+call    2 returned 100%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0% (throw)
+        -:  120:    }
+     4860:  121:    return name;
+    =====:  122:}
+        -:  123:
+        -:  124:// 将原生 C 数值表达式（int64_t / double）装箱为 CVar 字面量。
+        -:  125:// type 必须为 T_INT 或 T_FLOAT。
+function _ZN7fakelua14BoxNativeValueERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEENS_12InferredTypeE called 1442 returned 100% blocks executed 67%
+     1462:  126:inline std::string BoxNativeValue(const std::string &expr, InferredType type) {
+     1442:  127:    if (type == T_INT) {
+branch  0 taken 57% (fallthrough)
+branch  1 taken 43%
+      832:  128:        return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", expr);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+        -:  129:    }
+     625*:  130:    DEBUG_ASSERT(type == T_FLOAT);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+call    3 never executed
+      630:  131:    return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", expr);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+        -:  132:}
+        -:  133:
+        -:  134:// ---- 阶段一：解析结果 -------------------------------------------------------
+        -:  135:// Parser 的输出：源文件名和语法树根节点。
+        -:  136:// 由 Compiler::Compile 在词法/语法解析阶段填充，
+        -:  137:// 后续各阶段均以此作为只读输入。
+        -:  138:struct ParseResult {
+        -:  139:    // 源代码文件名
+        -:  140:    std::string file_name;
+        -:  141:    // 语法树根节点（代码块）
+        -:  142:    SyntaxTreeInterfacePtr chunk;
+        -:  143:};
+        -:  144:
+        -:  145:// ---- 阶段二：类型推断结果 ---------------------------------------------------
+        -:  146:// TypeInferencer 的输出。
+        -:  147:// 由 TypeInferencer::Process 填充，供 CGen 使用。
+     1564:  148:struct InferResult {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0% (throw)
+        -:  149:    // 数学参数位置：函数名 → 参数列表中参与算术运算的参数下标列表（最多8个）。
+        -:  150:    // 由 TypeInferencer::DiscoverMathParams 填充，供 CGen 生成特化版本时使用。
+        -:  151:    std::unordered_map<std::string, std::vector<int>> math_param_positions;
+        -:  152:    // 特化快照：函数名 → 按 bitmask 索引的 EvalTypeSnapshot 数组（共 2^k 个）。
+        -:  153:    // 每个快照记录在对应参数类型假设下整个函数体所有 AST 节点的推断类型，
+        -:  154:    // 由 TypeInferencer::DiscoverMathParams 生成，供 CGen 在不依赖 EvalType()
+        -:  155:    // 字段的情况下直接查询特化版本中任意节点的类型。
+        -:  156:    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots;
+        -:  157:    // 特化返回类型：函数名 → 按 bitmask 索引的返回类型数组（共 2^k 个）。
+        -:  158:    // T_INT/T_FLOAT 表示该特化版本始终返回对应数值类型；T_DYNAMIC 表示未知或非数值。
+        -:  159:    // 由 TypeInferencer::DiscoverMathParams 通过不动点迭代填充，
+        -:  160:    // 供 CGen::InferArgTypeForSpec 在函数调用节点处查询被调用函数的实际返回类型。
+        -:  161:    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
+        -:  162:    // 全局类型推断结果：节点指针 → 推断类型。
+        -:  163:    // 由 TypeInferencer::Process 在全局（非试推断）推断完成后填充，
+        -:  164:    // 供 CGen 在非特化编译路径中查询任意节点的类型，替代原先内嵌在 AST 节点的 eval_type_ 字段。
+        -:  165:    EvalTypeSnapshot main_eval_types;
+        -:  166:};
+        -:  167:
+        -:  168:// ---- 阶段三：代码生成结果 ---------------------------------------------------
+        -:  169:// CGen 的输出。
+        -:  170:// 由 CGen::Generate 填充，供 JIT 编译器使用。
+      782:  171:struct GenResult {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  172:    // 生成的C代码字符串
+        -:  173:    std::string c_code;
+        -:  174:    // 记录的C代码（全局变量、函数声明、函数实现，不含公共头部）。
+        -:  175:    // 仅当 CompileConfig::record_c_code 为 true 时由 CGen 填充。
+        -:  176:    std::string recorded_c_code;
+        -:  177:    // 入口函数名->参数个数
+        -:  178:    std::unordered_map<std::string, int> function_names;
+        -:  179:};
+        -:  180:
+        -:  181:
+        -:  182:
+        -:  183:}// namespace fakelua

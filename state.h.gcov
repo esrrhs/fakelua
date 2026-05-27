@@ -1,0 +1,103 @@
+        -:    0:Source:src/state/state.h
+        -:    1:#pragma once
+        -:    2:
+        -:    3:#include "compile/compiler.h"
+        -:    4:#include "fakelua.h"
+        -:    5:#include "jit/vm.h"
+        -:    6:#include "state/const_string.h"
+        -:    7:#include "state/heap.h"
+        -:    8:
+        -:    9:struct TCCState;
+        -:   10:
+        -:   11:namespace fakelua {
+        -:   12:
+        -:   13:// 单个运行实例
+        -:   14://
+        -:   15:// 线程模型：State 是单线程实体，由调用方保证同一时刻只有一个线程访问它。
+        -:   16:// 本类所有成员（包括 reentrant_count_ 的 Add/Sub、heap_、vm_ 等）都未加锁：
+        -:   17://  - reentrant_count_ 只在脚本执行入口/出口处自增自减，用来检测重入而非跨线程计数；
+        -:   18://  - heap_ / vm_ / const_string_ 也依赖调用方的线程亲和性。
+        -:   19:// 如果将来需要跨线程共享同一 State，需要在此处引入同步或改为每线程一份 State。
+        -:   20:class State {
+        -:   21:public:
+        -:   22:    explicit State(const StateConfig &config = {});
+        -:   23:
+        -:   24:    ~State() = default;
+        -:   25:
+        -:   26:    void Reset() {
+        -:   27:        DEBUG_ASSERT(reentrant_count_ == 0);
+        -:   28:        heap_.Reset();
+        -:   29:    }
+        -:   30:
+        -:   31:    [[nodiscard]] const StateConfig &GetStateConfig() const {
+        -:   32:        return config_;
+        -:   33:    }
+        -:   34:
+        -:   35:    Compiler &GetCompiler() {
+        -:   36:        return compiler_;
+        -:   37:    }
+        -:   38:
+        -:   39:    Heap &GetHeap() {
+        -:   40:        return heap_;
+        -:   41:    }
+        -:   42:
+     197*:   43:    ConstString &GetConstString() {
+     197*:   44:        return const_string_;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0% (throw)
+call    6 returned 100%
+branch  7 taken 100% (fallthrough)
+branch  8 taken 0% (throw)
+call    9 returned 100%
+branch 10 taken 100% (fallthrough)
+branch 11 taken 0% (throw)
+call   12 never executed
+branch 13 never executed (fallthrough)
+branch 14 never executed (throw)
+call   15 returned 100%
+branch 16 taken 100% (fallthrough)
+branch 17 taken 0% (throw)
+        -:   45:    }
+        -:   46:
+        -:   47:    Vm &GetVM() {
+        -:   48:        return vm_;
+        -:   49:    }
+        -:   50:
+        -:   51:    [[nodiscard]] int GetReentrantCount() const {
+        -:   52:        return reentrant_count_;
+        -:   53:    }
+        -:   54:
+        -:   55:    // 单线程调用（见类注释），无需原子操作。
+        -:   56:    void AddReentrantCount() {
+        -:   57:        ++reentrant_count_;
+        -:   58:    }
+        -:   59:
+        -:   60:    // 单线程调用（见类注释），无需原子操作。
+        -:   61:    void SubReentrantCount() {
+        -:   62:        --reentrant_count_;
+        -:   63:    }
+        -:   64:
+        -:   65:    void SetVarInterfaceNewFunc(const std::function<VarInterface *()> &func) {
+        -:   66:        DEBUG_ASSERT(func != nullptr);
+        -:   67:        var_interface_new_func_ = func;
+        -:   68:    }
+        -:   69:
+        -:   70:    std::function<VarInterface *()> &GetVarInterfaceNewFunc() {
+        -:   71:        return var_interface_new_func_;
+        -:   72:    }
+        -:   73:
+        -:   74:private:
+        -:   75:    std::function<VarInterface *()> var_interface_new_func_;
+        -:   76:    int reentrant_count_ = 0;
+        -:   77:    StateConfig config_;
+        -:   78:    Compiler compiler_;
+        -:   79:    Heap heap_;
+        -:   80:    ConstString const_string_;
+        -:   81:    Vm vm_;
+        -:   82:};
+        -:   83:
+        -:   84:}// namespace fakelua

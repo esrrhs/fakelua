@@ -1,0 +1,3365 @@
+        -:    0:Source:src/compile/type_inferencer.cpp
+        -:    1:#include "compile/type_inferencer.h"
+        -:    2:
+        -:    3:#include <ranges>
+        -:    4:
+        -:    5:#include "compile/syntax_tree.h"
+        -:    6:#include "util/common.h"
+        -:    7:
+        -:    8:namespace fakelua {
+        -:    9:
+        -:   10:// ---------------------------------------------------------------------------
+        -:   11:// TypeEnvironment implementation
+        -:   12:// ---------------------------------------------------------------------------
+        -:   13:
+function _ZN7fakelua14TypeInferencer15TypeEnvironmentC2Ev called 14772 returned 100% blocks executed 75%
+    14772:   14:TypeInferencer::TypeEnvironment::TypeEnvironment() {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+    14772:   15:    EnterScope();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+    14772:   16:}
+call    0 never executed
+        -:   17:
+function _ZN7fakelua14TypeInferencer15TypeEnvironment10EnterScopeEv called 25374 returned 100% blocks executed 100%
+    25374:   18:void TypeInferencer::TypeEnvironment::EnterScope() {
+    25374:   19:    scopes_.emplace_back();
+call    0 returned 100%
+    25374:   20:}
+        -:   21:
+function _ZN7fakelua14TypeInferencer15TypeEnvironment9ExitScopeEv called 10602 returned 100% blocks executed 100%
+    10602:   22:void TypeInferencer::TypeEnvironment::ExitScope() {
+    10602:   23:    if (scopes_.size() > 1) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+    10602:   24:        scopes_.pop_back();
+call    0 returned 100%
+        -:   25:    }
+    10602:   26:}
+        -:   27:
+function _ZN7fakelua14TypeInferencer15TypeEnvironment6DefineERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEENS_12InferredTypeE called 31323 returned 100% blocks executed 100%
+    31323:   28:void TypeInferencer::TypeEnvironment::Define(const std::string &name, const InferredType type) {
+    31323:   29:    scopes_.back()[name] = type;
+call    0 returned 100%
+    31323:   30:}
+        -:   31:
+function _ZN7fakelua14TypeInferencer15TypeEnvironment6UpdateERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEENS_12InferredTypeE called 4247 returned 100% blocks executed 100%
+     4247:   32:bool TypeInferencer::TypeEnvironment::Update(const std::string &name, const InferredType type) {
+     8385:   33:    for (auto &scope: std::views::reverse(scopes_)) {
+branch  0 taken 100%
+branch  1 taken 0% (fallthrough)
+     8385:   34:        if (const auto found = scope.find(name); found != scope.end()) {
+call    0 returned 100%
+branch  1 taken 51% (fallthrough)
+branch  2 taken 49%
+     4247:   35:            found->second = MergeType(found->second, type);
+call    0 returned 100%
+call    1 returned 100%
+call    2 returned 100%
+     4247:   36:            return true;
+        -:   37:        }
+        -:   38:    }
+        -:   39:    return false;
+        -:   40:}
+        -:   41:
+function _ZNK7fakelua14TypeInferencer15TypeEnvironment6LookupERKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEE called 63294 returned 100% blocks executed 100%
+    63294:   42:InferredType TypeInferencer::TypeEnvironment::Lookup(const std::string &name) const {
+    86116:   43:    for (const auto &scope: std::views::reverse(scopes_)) {
+branch  0 taken 94%
+branch  1 taken 6% (fallthrough)
+    80783:   44:        if (const auto found = scope.find(name); found != scope.end()) {
+call    0 returned 100%
+branch  1 taken 72% (fallthrough)
+branch  2 taken 28%
+    57961:   45:            return found->second;
+call    0 returned 100%
+        -:   46:        }
+        -:   47:    }
+        -:   48:    return T_DYNAMIC;
+        -:   49:}
+        -:   50:
+function _ZN7fakelua14TypeInferencer15TypeEnvironment9MergeTypeENS_12InferredTypeES2_ called 4247 returned 100% blocks executed 50%
+     4247:   51:InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_type, const InferredType new_type) {
+     4247:   52:    if (old_type == T_DYNAMIC || new_type == T_DYNAMIC) {
+branch  0 taken 72% (fallthrough)
+branch  1 taken 28%
+        -:   53:        return T_DYNAMIC;
+        -:   54:    }
+    3052*:   55:    DEBUG_ASSERT(old_type != T_UNKNOWN);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+call    3 never executed
+call    4 never executed
+    3052*:   56:    DEBUG_ASSERT(new_type != T_UNKNOWN);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+call    3 never executed
+     3052:   57:    if (old_type == new_type) {
+branch  0 taken 78% (fallthrough)
+branch  1 taken 22%
+     2377:   58:        return old_type;
+        -:   59:    }
+        -:   60:    return T_DYNAMIC;
+        -:   61:}
+        -:   62:
+        -:   63:// ---------------------------------------------------------------------------
+        -:   64:// TypeInferencer implementation
+        -:   65:// ---------------------------------------------------------------------------
+        -:   66:
+function _ZN7fakelua14TypeInferencer7ProcessERKNS_11ParseResultE called 782 returned 100% blocks executed 88%
+      782:   67:InferResult TypeInferencer::Process(const ParseResult &pr) {
+      782:   68:    InferResult ir;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      782:   69:    InferNode(pr.chunk);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:   70:    // 将当前推断结果复制为全局主快照，供 CGen 在非特化路径下查询节点类型。
+      782:   71:    ir.main_eval_types = current_map_;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+        -:   72:
+        -:   73:    // 在正常推断之后，通过迭代不动点试推断发现数学参数，写入 ir.math_param_positions。
+      782:   74:    DiscoverMathParams(pr, ir);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      782:   75:    return ir;
+    =====:   76:}
+call    0 never executed
+        -:   77:
+function _ZN7fakelua14TypeInferencer9InferNodeERKSt10shared_ptrINS_19SyntaxTreeInterfaceEE called 297345 returned 100% blocks executed 61%
+   297345:   78:InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
+   297345:   79:    if (!node) {
+branch  0 taken 96% (fallthrough)
+branch  1 taken 4%
+        -:   80:        return T_UNKNOWN;
+        -:   81:    }
+        -:   82:
+   285159:   83:    switch (node->Type()) {
+call    0 returned 100%
+branch  1 taken 1%
+branch  2 taken 3%
+branch  3 taken 2%
+branch  4 taken 1%
+branch  5 taken 1%
+branch  6 taken 1%
+branch  7 taken 1%
+branch  8 taken 7%
+branch  9 taken 8%
+branch 10 taken 35%
+branch 11 taken 20%
+branch 12 taken 18%
+branch 13 taken 2%
+branch 14 taken 1%
+branch 15 taken 2%
+branch 16 taken 1%
+branch 17 taken 1%
+branch 18 taken 2%
+branch 19 taken 1%
+branch 20 taken 1%
+branch 21 taken 1%
+branch 22 taken 1%
+branch 23 taken 0%
+      887:   84:        case SyntaxTreeType::Block: {
+      887:   85:            const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+call    0 returned 100%
+        -:   86:            // 独立的 do...end 块必须引入自己的作用域，使内部的
+        -:   87:            // 局部声明不会污染（或覆盖）外围作用域。
+      887:   88:            InferBlock(block, true);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      887:   89:            current_map_[block.get()] = T_UNKNOWN;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+      887:   90:            return T_UNKNOWN;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      887:   91:        }
+call    0 never executed
+     7891:   92:        case SyntaxTreeType::LocalVar: {
+     7891:   93:            const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
+call    0 returned 100%
+     7891:   94:            const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(local_var->Namelist());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+     7891:   95:            std::vector<SyntaxTreeInterfacePtr> exps;
+     7891:   96:            if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(local_var->Explist())) {
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+     7891:   97:                exps = explist->Exps();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+    #####:   98:            }
+        -:   99:
+    7891*:  100:            DEBUG_ASSERT(namelist);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+call    6 never executed
+        -:  101:
+        -:  102:            const auto &names = namelist->Names();
+    15782:  103:            for (size_t i = 0; i < names.size(); ++i) {
+branch  0 taken 50%
+branch  1 taken 50% (fallthrough)
+     7891:  104:                InferredType type = T_DYNAMIC;
+     7891:  105:                if (i < exps.size()) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+     7891:  106:                    type = InferNode(exps[i]);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  107:                }
+     7891:  108:                env_.Define(names[i], type);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  109:                // 文件顶层（!in_funcbody_）数值类型局部变量：
+        -:  110:                // 将其记录到 file_level_types_，供 RunTrialInference
+        -:  111:                // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
+     7891:  112:                if (!in_funcbody_ && IsNumericInferredType(type)) {
+branch  0 taken 1% (fallthrough)
+branch  1 taken 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+       15:  113:                    file_level_types_[names[i]] = type;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  114:                }
+        -:  115:            }
+        -:  116:
+     7891:  117:            current_map_[node.get()] = T_UNKNOWN;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     7891:  118:            return T_UNKNOWN;
+    23673:  119:        }
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0%
+call    5 never executed
+call    6 never executed
+     6029:  120:        case SyntaxTreeType::Assign: {
+     6029:  121:            const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
+call    0 returned 100%
+     6029:  122:            const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+     6029:  123:            const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+    6029*:  124:            DEBUG_ASSERT(varlist && explist && !varlist->Vars().empty() && !explist->Exps().empty());
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+branch  6 taken 100% (fallthrough)
+branch  7 taken 0%
+call    8 never executed
+branch  9 never executed (fallthrough)
+branch 10 never executed (throw)
+call   11 never executed
+branch 12 never executed (fallthrough)
+branch 13 never executed
+        -:  125:
+    6029*:  126:            DEBUG_ASSERT(varlist->Vars().size() == 1 && explist->Exps().size() == 1);// 预处理阶段已将多赋值拆分成单赋值
+branch  0 taken 100%
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+call    4 never executed
+branch  5 never executed (fallthrough)
+branch  6 never executed (throw)
+call    7 never executed
+branch  8 never executed (fallthrough)
+branch  9 never executed
+        -:  127:
+     6029:  128:            const InferredType rhs_type = InferNode(explist->Exps()[0]);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     6029:  129:            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
+call    0 returned 100%
+    6029*:  130:            DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple);
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+call    4 never executed
+branch  5 never executed (fallthrough)
+branch  6 never executed (throw)
+call    7 never executed
+branch  8 never executed (fallthrough)
+branch  9 never executed
+        -:  131:
+     6029:  132:            const std::string name = var->GetName();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  133:            // 若变量被固定（数学参数在特化试推断中），跳过 env 降级，
+        -:  134:            // 以保持与运行时类型检查语义一致：赋值失败时会抛异常，不会改变变量类型。
+     6029:  135:            if (pinned_vars_.contains(name)) {
+call    0 returned 100%
+branch  1 taken 30% (fallthrough)
+branch  2 taken 70%
+     1782:  136:                const auto current = env_.Lookup(name);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     1782:  137:                current_map_[var.get()] = current;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     1782:  138:                current_map_[node.get()] = current;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     1782:  139:                return current;
+        -:  140:            }
+     4247:  141:            if (!env_.Update(name, rhs_type)) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 0% (fallthrough)
+branch  4 taken 100%
+    #####:  142:                current_map_[var.get()] = T_DYNAMIC;
+call    0 never executed
+branch  1 never executed (fallthrough)
+branch  2 never executed (throw)
+    #####:  143:                current_map_[node.get()] = T_DYNAMIC;
+call    0 never executed
+branch  1 never executed (fallthrough)
+branch  2 never executed (throw)
+    #####:  144:                return T_DYNAMIC;
+        -:  145:            }
+        -:  146:
+     4247:  147:            const auto current = env_.Lookup(name);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     4247:  148:            current_map_[var.get()] = current;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     4247:  149:            current_map_[node.get()] = current;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 never executed
+     4247:  150:            return current;
+    30145:  151:        }
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+branch  6 taken 100% (fallthrough)
+branch  7 taken 0%
+call    8 never executed
+     1515:  152:        case SyntaxTreeType::ForLoop: {
+     1515:  153:            const auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
+call    0 returned 100%
+     1515:  154:            const InferredType begin_type = InferNode(for_loop->ExpBegin());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+     1515:  155:            const InferredType end_type = InferNode(for_loop->ExpEnd());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+     1515:  156:            const InferredType step_type = InferNode(for_loop->ExpStep());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 taken 26% (fallthrough)
+branch  5 taken 74%
+        -:  157:
+        -:  158:            // 仅当所有边界都是 T_INT 时才将循环变量标记为 T_INT，
+        -:  159:            // 这与 CGen 使用的整型特化路径相匹配。当所有边界均为数值（T_INT 或 T_FLOAT）
+        -:  160:            // 但并非全为 T_INT 时，标记为 T_FLOAT 以启用 double 快路径。
+        -:  161:            // 当任何边界为 T_DYNAMIC 时，CGen 会生成 CVar 循环控制变量，
+        -:  162:            // 因此循环变量也必须是 T_DYNAMIC 以保持类型一致。
+     1515:  163:            const bool begin_valid = for_loop->ExpBegin() != nullptr;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+     1515:  164:            const bool end_valid = for_loop->ExpEnd() != nullptr;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+     2955:  165:            const bool step_numeric = !for_loop->ExpStep() || step_type == T_INT || step_type == T_FLOAT;
+call    0 returned 100%
+branch  1 taken 26% (fallthrough)
+branch  2 taken 74%
+branch  3 taken 81% (fallthrough)
+branch  4 taken 19%
+branch  5 taken 26% (fallthrough)
+branch  6 taken 74%
+     3030:  166:            const bool all_int = begin_valid && end_valid && begin_type == T_INT &&
+     1515:  167:                                 end_type == T_INT &&
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 55% (fallthrough)
+branch  3 taken 45%
+     1670:  168:                                 (!for_loop->ExpStep() || step_type == T_INT);
+call    0 returned 100%
+branch  1 taken 40% (fallthrough)
+branch  2 taken 60%
+branch  3 taken 50% (fallthrough)
+branch  4 taken 50%
+     3030:  169:            const bool all_numeric =
+      845:  170:                    !all_int && begin_valid && end_valid &&
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      845:  171:                    (begin_type == T_INT || begin_type == T_FLOAT) &&
+branch  0 taken 91% (fallthrough)
+branch  1 taken 9%
+     2285:  172:                    (end_type == T_INT || end_type == T_FLOAT) && step_numeric;
+branch  0 taken 56% (fallthrough)
+branch  1 taken 44%
+branch  2 taken 30% (fallthrough)
+branch  3 taken 70%
+     1515:  173:            const InferredType loop_var_type = all_int ? T_INT : (all_numeric ? T_FLOAT : T_DYNAMIC);
+branch  0 taken 56% (fallthrough)
+branch  1 taken 44%
+branch  2 taken 45% (fallthrough)
+branch  3 taken 55%
+        -:  174:
+     1515:  175:            env_.EnterScope();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     3030:  176:            env_.Define(for_loop->Name(), loop_var_type);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0% (throw)
+     3030:  177:            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_loop->Block()), false);
+call    0 returned 100%
+call    1 returned 100%
+call    2 returned 100%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0% (throw)
+branch  5 taken 0% (fallthrough)
+branch  6 taken 100%
+        -:  178:            // 循环体内可能对循环变量重新赋值（例如 `a = "test"`），导致其类型
+        -:  179:            // 从初始的 T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量的
+        -:  180:            // 最终类型，以便 CGen 决定生成原生整型/浮点快路径还是 CVar 动态路径。
+     3030:  181:            const InferredType final_loop_var_type = env_.Lookup(for_loop->Name());
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0% (throw)
+call    6 returned 100%
+     1515:  182:            env_.ExitScope();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  183:
+     1515:  184:            current_map_[node.get()] = final_loop_var_type;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+     1515:  185:            return final_loop_var_type;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+     1515:  186:        }
+call    0 never executed
+      903:  187:        case SyntaxTreeType::Function: {
+      903:  188:            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
+call    0 returned 100%
+      903:  189:            InferNode(func->Funcbody());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+      903:  190:            current_map_[node.get()] = T_UNKNOWN;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+      903:  191:            return T_UNKNOWN;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      903:  192:        }
+call    0 never executed
+       74:  193:        case SyntaxTreeType::LocalFunction: {
+       74:  194:            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
+call    0 returned 100%
+       74:  195:            InferNode(func->Funcbody());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+       74:  196:            current_map_[node.get()] = T_UNKNOWN;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+       74:  197:            return T_UNKNOWN;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+       74:  198:        }
+call    0 never executed
+      977:  199:        case SyntaxTreeType::FuncBody: {
+      977:  200:            const auto funcbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
+call    0 returned 100%
+      977:  201:            const bool saved_in_funcbody = in_funcbody_;
+      977:  202:            in_funcbody_ = true;
+      977:  203:            env_.EnterScope();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      977:  204:            if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(funcbody->Parlist())) {
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+branch  4 taken 64% (fallthrough)
+branch  5 taken 36%
+      627:  205:                if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+     1400:  206:                    for (const auto &name: namelist->Names()) {
+branch  0 taken 55%
+branch  1 taken 45% (fallthrough)
+      773:  207:                        env_.Define(name, T_DYNAMIC);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  208:                    }
+      627:  209:                }
+    #####:  210:            }
+     1954:  211:            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(funcbody->Block()), false);
+call    0 returned 100%
+call    1 returned 100%
+call    2 returned 100%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0% (throw)
+branch  5 taken 0% (fallthrough)
+branch  6 taken 100%
+      977:  212:            env_.ExitScope();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      977:  213:            in_funcbody_ = saved_in_funcbody;
+      977:  214:            current_map_[node.get()] = T_UNKNOWN;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+      977:  215:            return T_UNKNOWN;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      977:  216:        }
+call    0 never executed
+    18772:  217:        case SyntaxTreeType::Return: {
+    18772:  218:            const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
+call    0 returned 100%
+    18772:  219:            InferNode(ret->Explist());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+    18772:  220:            current_map_[node.get()] = T_UNKNOWN;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+    18772:  221:            return T_UNKNOWN;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+    18772:  222:        }
+call    0 never executed
+    23796:  223:        case SyntaxTreeType::ExpList: {
+    23796:  224:            const auto exp_list = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
+call    0 returned 100%
+    23796:  225:            InferredType last = T_UNKNOWN;
+    49522:  226:            for (const auto &exp: exp_list->Exps()) {
+branch  0 taken 52%
+branch  1 taken 48% (fallthrough)
+    25726:  227:                last = InferNode(exp);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  228:            }
+    23796:  229:            current_map_[node.get()] = last;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+    23796:  230:            return last;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+    23796:  231:        }
+call    0 never executed
+   100171:  232:        case SyntaxTreeType::Exp: {
+   100171:  233:            const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+call    0 returned 100%
+   100171:  234:            return InferExp(exp);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0%
+   100171:  235:        }
+call    0 never executed
+    56355:  236:        case SyntaxTreeType::PrefixExp: {
+    56355:  237:            const auto prefix_exp = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node);
+call    0 returned 100%
+    56355:  238:            return InferPrefixExp(prefix_exp);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0%
+    56355:  239:        }
+call    0 never executed
+    50166:  240:        case SyntaxTreeType::Var: {
+    50166:  241:            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
+call    0 returned 100%
+    50166:  242:            return InferVar(var);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0%
+    50166:  243:        }
+call    0 never executed
+     5333:  244:        case SyntaxTreeType::FunctionCall: {
+     5333:  245:            const auto functioncall = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+call    0 returned 100%
+     5333:  246:            InferNode(functioncall->prefixexp());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+     5333:  247:            InferNode(functioncall->Args());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+        -:  248:            // 当正在运行携带被调函数返回类型提示的试推断时，尝试解析该函数调用的实际返回类型。
+        -:  249:            // 主推断遍（trial_assumed_ret_ 为 nullopt）保持原有的 T_DYNAMIC 行为。
+     5333:  250:            const auto ret_type = ResolveCallReturnType(functioncall);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     5333:  251:            current_map_[node.get()] = ret_type;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+     5333:  252:            return ret_type;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+     5333:  253:        }
+call    0 never executed
+      115:  254:        case SyntaxTreeType::TableConstructor: {
+      115:  255:            const auto tableconstructor = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
+call    0 returned 100%
+      115:  256:            InferNode(tableconstructor->Fieldlist());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+      115:  257:            current_map_[node.get()] = T_DYNAMIC;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+      115:  258:            return T_DYNAMIC;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      115:  259:        }
+call    0 never executed
+     5333:  260:        case SyntaxTreeType::Args: {
+     5333:  261:            const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
+call    0 returned 100%
+     5333:  262:            InferNode(args->Explist());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+     5333:  263:            InferNode(args->Tableconstructor());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+     5333:  264:            InferNode(args->String());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+     5333:  265:            current_map_[node.get()] = T_DYNAMIC;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+     5333:  266:            return T_DYNAMIC;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+     5333:  267:        }
+call    0 never executed
+      115:  268:        case SyntaxTreeType::FieldList: {
+      115:  269:            const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
+call    0 returned 100%
+      230:  270:            for (const auto &field: fieldlist->Fields()) {
+branch  0 taken 50%
+branch  1 taken 50% (fallthrough)
+      115:  271:                InferNode(field);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  272:            }
+      115:  273:            current_map_[node.get()] = T_DYNAMIC;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+      115:  274:            return T_DYNAMIC;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      115:  275:        }
+call    0 never executed
+      115:  276:        case SyntaxTreeType::Field: {
+      115:  277:            const auto field = std::dynamic_pointer_cast<SyntaxTreeField>(node);
+call    0 returned 100%
+      115:  278:            InferNode(field->Key());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+      115:  279:            InferNode(field->Value());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+      115:  280:            current_map_[node.get()] = T_DYNAMIC;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+      115:  281:            return T_DYNAMIC;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      115:  282:        }
+call    0 never executed
+     5306:  283:        case SyntaxTreeType::If: {
+     5306:  284:            const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+call    0 returned 100%
+     5306:  285:            InferNode(if_stmt->Exp());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+    10612:  286:            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(if_stmt->Block()), true);
+call    0 returned 100%
+call    1 returned 100%
+call    2 returned 100%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0% (throw)
+branch  5 taken 0% (fallthrough)
+branch  6 taken 100%
+     5306:  287:            if (const auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs())) {
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+branch  4 taken 100%
+branch  5 taken 0%
+     5742:  288:                for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
+branch  0 taken 8%
+branch  1 taken 92% (fallthrough)
+      436:  289:                    InferNode(elseifs->ElseifExp(i));
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+      872:  290:                    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(elseifs->ElseifBlock(i)), true);
+call    0 returned 100%
+call    1 returned 100%
+call    2 returned 100%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0% (throw)
+branch  5 taken 0% (fallthrough)
+branch  6 taken 100%
+branch  7 never executed (fallthrough)
+branch  8 never executed
+        -:  291:                }
+    #####:  292:            }
+    10612:  293:            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(if_stmt->ElseBlock()), true);
+call    0 returned 100%
+call    1 returned 100%
+call    2 returned 100%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0% (throw)
+branch  5 taken 0% (fallthrough)
+branch  6 taken 100%
+     5306:  294:            current_map_[node.get()] = T_UNKNOWN;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+     5306:  295:            return T_UNKNOWN;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+     5306:  296:        }
+call    0 never executed
+      745:  297:        case SyntaxTreeType::While: {
+      745:  298:            const auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
+call    0 returned 100%
+      745:  299:            InferNode(while_stmt->Exp());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+     1490:  300:            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(while_stmt->Block()), true);
+call    0 returned 100%
+call    1 returned 100%
+call    2 returned 100%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0% (throw)
+branch  5 taken 0% (fallthrough)
+branch  6 taken 100%
+      745:  301:            current_map_[node.get()] = T_UNKNOWN;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+      745:  302:            return T_UNKNOWN;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      745:  303:        }
+call    0 never executed
+      265:  304:        case SyntaxTreeType::Repeat: {
+      265:  305:            const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
+call    0 returned 100%
+        -:  306:            // Lua 语义：until 条件可以访问 repeat 块内声明的 local 变量。
+        -:  307:            // 因此必须在 until 条件推断完成之后再退出作用域，而不能在块结束时立即退出。
+      265:  308:            env_.EnterScope();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      530:  309:            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(repeat_stmt->Block()), false);
+call    0 returned 100%
+call    1 returned 100%
+call    2 returned 100%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0% (throw)
+branch  5 taken 0% (fallthrough)
+branch  6 taken 100%
+      265:  310:            InferNode(repeat_stmt->Exp());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+      265:  311:            env_.ExitScope();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      265:  312:            current_map_[node.get()] = T_UNKNOWN;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+      265:  313:            return T_UNKNOWN;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      265:  314:        }
+call    0 never executed
+      201:  315:        case SyntaxTreeType::ForIn: {
+      201:  316:            const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
+call    0 returned 100%
+      201:  317:            InferNode(for_in->Explist());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 never executed (fallthrough)
+branch  5 never executed
+      201:  318:            const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(for_in->Namelist());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+     201*:  319:            DEBUG_ASSERT(namelist);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+        -:  320:            // For-in 循环变量是循环体作用域内的局部变量，必须先注入作用域。
+        -:  321:            // 否则循环体中的赋值会错误地更新外层同名变量，导致类型污染。
+      201:  322:            env_.EnterScope();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      603:  323:            for (const auto &name: namelist->Names()) {
+branch  0 taken 67%
+branch  1 taken 33% (fallthrough)
+      402:  324:                env_.Define(name, T_DYNAMIC);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  325:            }
+      402:  326:            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_in->Block()), false);
+call    0 returned 100%
+call    1 returned 100%
+call    2 returned 100%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0% (throw)
+branch  5 taken 0% (fallthrough)
+branch  6 taken 100%
+      201:  327:            env_.ExitScope();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      201:  328:            current_map_[node.get()] = T_UNKNOWN;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+      201:  329:            return T_UNKNOWN;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      402:  330:        }
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+call    2 never executed
+       95:  331:        case SyntaxTreeType::Empty:
+       95:  332:        case SyntaxTreeType::Label:
+       95:  333:        case SyntaxTreeType::Break:
+       95:  334:        case SyntaxTreeType::Goto:
+       95:  335:        case SyntaxTreeType::NameList: {
+        -:  336:            // 这些节点是语句或辅助结构，没有表达式类型
+       95:  337:            current_map_[node.get()] = T_UNKNOWN;
+call    0 returned 100%
+       95:  338:            return T_UNKNOWN;
+        -:  339:        }
+    #####:  340:        default: {
+    #####:  341:            ThrowFakeluaException(
+call    0 never executed
+call    1 never executed
+    #####:  342:                    std::format("InferNode: unexpected SyntaxTreeType: {}", SyntaxTreeTypeToString(node->Type())));
+call    0 never executed
+call    1 never executed
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+        -:  343:        }
+        -:  344:    }
+        -:  345:}
+        -:  346:
+function _ZN7fakelua14TypeInferencer8InferExpERKSt10shared_ptrINS_13SyntaxTreeExpEE called 100171 returned 100% blocks executed 78%
+   100171:  347:InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp) {
+   100171:  348:    const auto exp_kind = exp->GetExpKind();
+branch  0 taken 23% (fallthrough)
+branch  1 taken 77%
+        -:  349:
+   100171:  350:    if (exp_kind == ExpKind::kNumber) {
+branch  0 taken 23% (fallthrough)
+branch  1 taken 77%
+    23265:  351:        const auto &value = exp->ExpValue();
+call    0 returned 100%
+    23265:  352:        const auto ret = IsInteger(value) ? T_INT : T_FLOAT;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 3% (fallthrough)
+branch  4 taken 97%
+    23265:  353:        current_map_[exp.get()] = ret;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 never executed
+    23265:  354:        return ret;
+call    0 returned 100%
+    23265:  355:    }
+call    0 never executed
+    76906:  356:    if (exp_kind == ExpKind::kPrefixExp) {
+branch  0 taken 66% (fallthrough)
+branch  1 taken 34%
+    50957:  357:        const auto ret = InferNode(exp->Right());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+call    6 never executed
+    50957:  358:        current_map_[exp.get()] = ret;
+call    0 returned 100%
+    50957:  359:        return ret;
+        -:  360:    }
+    25949:  361:    if (exp_kind == ExpKind::kBinop) {
+branch  0 taken 93% (fallthrough)
+branch  1 taken 7%
+    24072:  362:        const auto left_type = InferNode(exp->Left());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+call    6 never executed
+    24072:  363:        const auto right_type = InferNode(exp->Right());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+call    6 never executed
+        -:  364:
+    24072:  365:        if (left_type == T_DYNAMIC || right_type == T_DYNAMIC) {
+branch  0 taken 26% (fallthrough)
+branch  1 taken 74%
+     6148:  366:            current_map_[exp.get()] = T_DYNAMIC;
+call    0 returned 100%
+     6148:  367:            return T_DYNAMIC;
+        -:  368:        }
+        -:  369:
+    17924:  370:        const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+   17924*:  371:        DEBUG_ASSERT(op);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+        -:  372:
+    17924:  373:        const auto op_kind = op->GetOpKind();
+branch  0 taken 63%
+branch  1 taken 37%
+        -:  374:
+        -:  375:        // 保持 INT+INT=INT、混合→FLOAT 语义的算术运算
+    17924:  376:        if (op_kind == BinOpKind::kPlus || op_kind == BinOpKind::kMinus || op_kind == BinOpKind::kStar ||
+    17924:  377:            op_kind == BinOpKind::kDoubleSlash || op_kind == BinOpKind::kMod) {
+branch  0 taken 63%
+branch  1 taken 37%
+    11347:  378:            if (left_type == T_INT && right_type == T_INT) {
+branch  0 taken 55% (fallthrough)
+branch  1 taken 45%
+     6274:  379:                current_map_[exp.get()] = T_INT;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     6274:  380:                return T_INT;
+        -:  381:            }
+     5073:  382:            if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+     5073:  383:                current_map_[exp.get()] = T_FLOAT;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     5073:  384:                return T_FLOAT;
+        -:  385:            }
+        -:  386:        }
+        -:  387:
+        -:  388:        // 结果始终为 FLOAT 的运算
+     6577:  389:        if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
+branch  0 taken 1% (fallthrough)
+branch  1 taken 100%
+       20:  390:            if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+       20:  391:                current_map_[exp.get()] = T_FLOAT;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+       20:  392:                return T_FLOAT;
+        -:  393:            }
+        -:  394:        }
+        -:  395:
+        -:  396:        // 位运算：Lua 5.4 会将整数浮点（如3.0）自动转为 int，
+        -:  397:        // 因此两个操作数均为数值类型时结果始终为 T_INT。
+     6557:  398:        if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kXor ||
+branch  0 taken 98% (fallthrough)
+branch  1 taken 2%
+     6397:  399:            op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
+branch  0 taken 99% (fallthrough)
+branch  1 taken 1%
+branch  2 taken 1% (fallthrough)
+branch  3 taken 99%
+      290:  400:            if (IsNumericInferredType(left_type) && IsNumericInferredType(right_type)) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+      290:  401:                current_map_[exp.get()] = T_INT;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      290:  402:                return T_INT;
+        -:  403:            }
+        -:  404:        }
+        -:  405:
+        -:  406:        // AND/OR：Lua 中整数和浮点数始终为真值（包括 0），因此：
+        -:  407:        //   a and b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 b → 类型为 right_type
+        -:  408:        //   a or  b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 a → 类型为 left_type
+     6267:  409:        if (op_kind == BinOpKind::kAnd) {
+branch  0 taken 1% (fallthrough)
+branch  1 taken 99%
+       80:  410:            if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+       80:  411:                current_map_[exp.get()] = right_type;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+       80:  412:                return right_type;
+        -:  413:            }
+        -:  414:        }
+     6187:  415:        if (op_kind == BinOpKind::kOr) {
+branch  0 taken 2% (fallthrough)
+branch  1 taken 98%
+        -:  416:            // 数值始终为真值（包括 0），因此 or 短路：结果始终为左操作数。
+        -:  417:            // 右操作数类型不影响结果类型。
+      140:  418:            if (left_type == T_INT || left_type == T_FLOAT) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      140:  419:                current_map_[exp.get()] = left_type;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      140:  420:                return left_type;
+        -:  421:            }
+        -:  422:        }
+        -:  423:
+     6047:  424:        current_map_[exp.get()] = T_DYNAMIC;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+     6047:  425:        return T_DYNAMIC;
+    17924:  426:    }
+call    0 never executed
+        -:  427:
+     1877:  428:    if (exp_kind == ExpKind::kUnop) {
+branch  0 taken 44% (fallthrough)
+branch  1 taken 56%
+      824:  429:        const auto operand_type = InferNode(exp->Right());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+call    6 never executed
+      824:  430:        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+     824*:  431:        DEBUG_ASSERT(op);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+      824:  432:        const auto op_kind = op->GetOpKind();
+branch  0 taken 25% (fallthrough)
+branch  1 taken 75%
+      824:  433:        if (op_kind == UnOpKind::kMinus) {
+branch  0 taken 25% (fallthrough)
+branch  1 taken 75%
+      210:  434:            if (operand_type == T_INT) {
+branch  0 taken 45% (fallthrough)
+branch  1 taken 55%
+       95:  435:                current_map_[exp.get()] = T_INT;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+       95:  436:                return T_INT;
+        -:  437:            }
+      115:  438:            if (operand_type == T_FLOAT) {
+branch  0 taken 57% (fallthrough)
+branch  1 taken 43%
+       65:  439:                current_map_[exp.get()] = T_FLOAT;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+       65:  440:                return T_FLOAT;
+        -:  441:            }
+        -:  442:        }
+      664:  443:        if (op_kind == UnOpKind::kBitNot) {
+branch  0 taken 38% (fallthrough)
+branch  1 taken 62%
+        -:  444:            // Lua 5.4 会将整数浮点自动转为 int，因此 ~T_FLOAT 也是合法的。
+      250:  445:            if (operand_type == T_INT || operand_type == T_FLOAT) {
+branch  0 taken 70% (fallthrough)
+branch  1 taken 30%
+      175:  446:                current_map_[exp.get()] = T_INT;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      175:  447:                return T_INT;
+        -:  448:            }
+        -:  449:        }
+      489:  450:        if (op_kind == UnOpKind::kNumberSign) {
+branch  0 taken 20% (fallthrough)
+branch  1 taken 80%
+        -:  451:            // # 运算符始终返回整数（字符串字节数或表元素数）。
+        -:  452:            // 无论操作数是字符串还是表（均为 T_DYNAMIC），结果类型始终为 T_INT。
+       99:  453:            current_map_[exp.get()] = T_INT;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+       99:  454:            return T_INT;
+        -:  455:        }
+      390:  456:        current_map_[exp.get()] = T_DYNAMIC;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 never executed (fallthrough)
+branch  4 never executed
+      390:  457:        return T_DYNAMIC;
+      824:  458:    }
+        -:  459:
+     1053:  460:    current_map_[exp.get()] = T_DYNAMIC;
+call    0 returned 100%
+     1053:  461:    return T_DYNAMIC;
+        -:  462:}
+        -:  463:
+function _ZN7fakelua14TypeInferencer14InferPrefixExpERKSt10shared_ptrINS_19SyntaxTreePrefixexpEE called 56355 returned 100% blocks executed 75%
+    56355:  464:InferredType TypeInferencer::InferPrefixExp(const std::shared_ptr<SyntaxTreePrefixexp> &prefix_exp) {
+    56355:  465:    const auto prefix_kind = prefix_exp->GetPrefixKind();
+branch  0 taken 91% (fallthrough)
+branch  1 taken 9%
+    56355:  466:    InferredType ret = T_DYNAMIC;
+        -:  467:
+    56355:  468:    if (prefix_kind == PrefixExpKind::kVar || prefix_kind == PrefixExpKind::kExp) {
+branch  0 taken 91% (fallthrough)
+branch  1 taken 9%
+   102562:  469:        ret = InferNode(prefix_exp->GetValue());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+call    6 never executed
+     5074:  470:    } else if (prefix_kind == PrefixExpKind::kFunctionCall) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+        -:  471:        // 传播 InferNode(FunctionCall) 的返回值：携带提示时为实际返回类型，否则为 T_DYNAMIC。
+    10148:  472:        ret = InferNode(prefix_exp->GetValue());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+        -:  473:    }
+        -:  474:
+    56355:  475:    current_map_[prefix_exp.get()] = ret;
+call    0 returned 100%
+    56355:  476:    return ret;
+        -:  477:}
+        -:  478:
+function _ZN7fakelua14TypeInferencer8InferVarERKSt10shared_ptrINS_13SyntaxTreeVarEE called 50166 returned 100% blocks executed 76%
+    50166:  479:InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var) {
+    50166:  480:    if (var->GetVarKind() == VarKind::kSimple) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 1%
+    50101:  481:        const auto ret = env_.Lookup(var->GetName());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+call    4 returned 100%
+call    5 never executed
+    50101:  482:        current_map_[var.get()] = ret;
+call    0 returned 100%
+    50101:  483:        return ret;
+        -:  484:    }
+        -:  485:
+        -:  486:    // 对于"方括号"和"点号"变量，处理子表达式以便内部变量
+        -:  487:    //（例如用作表索引的整型循环变量）被记录到 current_map_，
+        -:  488:    // 从而使 CGen 在生成变量引用时能通过 LookupNodeType 查到其原生类型，
+        -:  489:    // 而不会在需要 CVar 的地方错误地发出原始 int64_t 变量名。
+       65:  490:    if (const auto pe = var->GetPrefixexp()) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+       65:  491:        InferNode(pe);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+    #####:  492:    }
+call    0 never executed
+       65:  493:    if (var->GetVarKind() == VarKind::kSquare) {
+branch  0 taken 62% (fallthrough)
+branch  1 taken 38%
+       40:  494:        if (const auto exp = var->GetExp()) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+       40:  495:            InferNode(exp);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+       40:  496:        }
+        -:  497:    }
+        -:  498:
+       65:  499:    current_map_[var.get()] = T_DYNAMIC;
+call    0 returned 100%
+       65:  500:    return T_DYNAMIC;
+        -:  501:}
+        -:  502:
+function _ZN7fakelua14TypeInferencer10InferBlockERKSt10shared_ptrINS_15SyntaxTreeBlockEEb called 29628 returned 100% blocks executed 75%
+    29628:  503:void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, const bool new_scope) {
+    29628:  504:    if (!block) {
+branch  0 taken 83% (fallthrough)
+branch  1 taken 17%
+        -:  505:        return;
+        -:  506:    }
+        -:  507:
+    24592:  508:    if (new_scope) {
+branch  0 taken 31% (fallthrough)
+branch  1 taken 69%
+     7644:  509:        env_.EnterScope();
+call    0 returned 100%
+        -:  510:    }
+        -:  511:
+    66752:  512:    for (const auto &stmt: block->Stmts()) {
+branch  0 taken 63%
+branch  1 taken 37% (fallthrough)
+    42160:  513:        InferNode(stmt);
+call    0 returned 100%
+        -:  514:    }
+        -:  515:
+        -:  516:    // 后处理：变量可能被初始化为类型化表达式（例如整数字面量给出 T_INT），
+        -:  517:    // 但随后被涉及函数调用或参数的赋值修改为 T_DYNAMIC。在这种情况下，
+        -:  518:    // LocalVar 声明必须使用变量的*最终*类型，以便 C 代码生成器
+        -:  519:    // 为所有后续赋值生成兼容的存储声明。
+        -:  520:    // 注意：试推断期间跳过后处理，因为它会将算术表达式节点的类型覆写为 T_DYNAMIC，
+        -:  521:    // 导致 CheckArithmeticTypeChanges 无法正确检测算术改善/退化。
+    24592:  522:    if (skip_post_processing_) {
+branch  0 taken 26% (fallthrough)
+branch  1 taken 74%
+     6346:  523:        current_map_[block.get()] = T_UNKNOWN;
+call    0 returned 100%
+     6346:  524:        if (new_scope) {
+branch  0 taken 27% (fallthrough)
+branch  1 taken 73%
+     1718:  525:            env_.ExitScope();
+call    0 returned 100%
+        -:  526:        }
+     6346:  527:        return;
+        -:  528:    }
+        -:  529:    // 注意：env_.Lookup 在同一 block 内存在同名 local 变量时（如 `local x = 1; local x = f()`），
+        -:  530:    // 会返回后者的最终类型。这不构成 bug，因为：
+        -:  531:    //   1. 预处理阶段（preprocessor）已禁止同一作用域内重复声明同名局部变量；
+        -:  532:    //   2. 即使理论上出现同名，CGen 对初始化表达式节点的类型使用的是 LookupNodeType，
+        -:  533:    //      它优先查询 specialization snapshot，后处理覆写仅影响主推断路径的声明类型，
+        -:  534:    //      不会导致运行时类型不匹配。
+    49446:  535:    for (const auto &stmt: block->Stmts()) {
+branch  0 taken 63%
+branch  1 taken 37% (fallthrough)
+    31200:  536:        if (stmt->Type() != SyntaxTreeType::LocalVar) {
+call    0 returned 100%
+branch  1 taken 82% (fallthrough)
+branch  2 taken 18%
+    25551:  537:            continue;
+        -:  538:        }
+     5649:  539:        const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+call    0 returned 100%
+     5649:  540:        const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(local_var->Namelist());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+    5649*:  541:        DEBUG_ASSERT(namelist);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+     5649:  542:        std::vector<SyntaxTreeInterfacePtr> exps;
+     5649:  543:        if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(local_var->Explist())) {
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+     5649:  544:            exps = explist->Exps();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+    #####:  545:        }
+     5649:  546:        const auto &names = namelist->Names();
+    11298:  547:        for (size_t i = 0; i < names.size(); ++i) {
+branch  0 taken 50%
+branch  1 taken 50% (fallthrough)
+     5649:  548:            if (i < exps.size()) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+     5649:  549:                const auto final_type = env_.Lookup(names[i]);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     5649:  550:                current_map_[exps[i].get()] = final_type;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  551:            }
+        -:  552:        }
+    16947:  553:    }
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0%
+call    5 never executed
+        -:  554:
+    18246:  555:    current_map_[block.get()] = T_UNKNOWN;
+call    0 returned 100%
+    18246:  556:    if (new_scope) {
+branch  0 taken 32% (fallthrough)
+branch  1 taken 68%
+     5926:  557:        env_.ExitScope();
+call    0 returned 100%
+        -:  558:    }
+        -:  559:}
+        -:  560:
+        -:  561:// ---------------------------------------------------------------------------
+        -:  562:// 数学参数特化发现：迭代不动点推断
+        -:  563:// ---------------------------------------------------------------------------
+        -:  564:
+        -:  565:// 判断 exp 节点是否为算术表达式（结果可为 T_INT/T_FLOAT 的运算符）。
+        -:  566:// 包括算术/位运算二元运算符，以及一元负号（MINUS）和按位取反（BITNOT）。
+function _ZNK7fakelua14TypeInferencer16IsArithmeticExprERKSt10shared_ptrINS_19SyntaxTreeInterfaceEE called 10218 returned 100% blocks executed 62%
+    10218:  567:bool TypeInferencer::IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const {
+    10218:  568:    if (node->Type() != SyntaxTreeType::Exp) {
+call    0 returned 100%
+branch  1 taken 24% (fallthrough)
+branch  2 taken 76%
+        -:  569:        return false;
+        -:  570:    }
+     2418:  571:    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+call    0 returned 100%
+     2418:  572:    if (exp->GetExpKind() == ExpKind::kBinop) {
+branch  0 taken 48% (fallthrough)
+branch  1 taken 52%
+     1165:  573:        const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+    1165*:  574:        DEBUG_ASSERT(op);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+     1165:  575:        const auto k = op->GetOpKind();
+branch  0 taken 33% (fallthrough)
+branch  1 taken 67%
+     1165:  576:        return k == BinOpKind::kPlus || k == BinOpKind::kMinus || k == BinOpKind::kStar ||
+        -:  577:               k == BinOpKind::kSlash || k == BinOpKind::kDoubleSlash || k == BinOpKind::kPow ||
+     1165:  578:               k == BinOpKind::kMod || k == BinOpKind::kBitAnd || k == BinOpKind::kXor ||
+     1952:  579:               k == BinOpKind::kBitOr || k == BinOpKind::kLeftShift || k == BinOpKind::kRightShift;
+branch  0 taken 33% (fallthrough)
+branch  1 taken 67%
+branch  2 taken 3% (fallthrough)
+branch  3 taken 97%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+     1165:  580:    }
+     1253:  581:    if (exp->GetExpKind() == ExpKind::kUnop) {
+branch  0 taken 3% (fallthrough)
+branch  1 taken 97%
+       40:  582:        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+      40*:  583:        DEBUG_ASSERT(op);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+        -:  584:        // 一元负号：-T_INT=T_INT，-T_FLOAT=T_FLOAT，随参数类型改变。
+        -:  585:        // 按位取反：~T_INT=T_INT，仅对整数参数有意义。
+       60:  586:        return op->GetOpKind() == UnOpKind::kMinus || op->GetOpKind() == UnOpKind::kBitNot;
+branch  0 taken 75% (fallthrough)
+branch  1 taken 25%
+branch  2 taken 33% (fallthrough)
+branch  3 taken 67%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+       40:  587:    }
+        -:  588:    return false;
+     2418:  589:}
+        -:  590:
+        -:  591:// 判断 exp 节点是否为可原生化的有序比较运算符（<、<=、>、>=）。
+        -:  592:// 当两侧操作数均为数值类型时，CGen 可通过 TryCompileNativeBoolExpr
+        -:  593:// 直接生成原生 C 比较，无需 OpXxx 宏 + IsTrue 调用。
+        -:  594:// 注意：== / ~= 在 Lua 中可用于任意类型（字符串、布尔值、nil 等），
+        -:  595:// 不纳入此检测，否则会将仅含 == 的函数错误特化为数值函数，导致
+        -:  596:// 非数值调用方（如传入字符串）触发运行时 "attempt to perform arithmetic" 错误。
+function _ZNK7fakelua14TypeInferencer22IsNativeComparisonExprERKSt10shared_ptrINS_19SyntaxTreeInterfaceEE called 9411 returned 100% blocks executed 62%
+     9411:  597:bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) const {
+     9411:  598:    if (node->Type() != SyntaxTreeType::Exp) {
+call    0 returned 100%
+branch  1 taken 17% (fallthrough)
+branch  2 taken 83%
+        -:  599:        return false;
+        -:  600:    }
+     1611:  601:    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+call    0 returned 100%
+     1611:  602:    if (exp->GetExpKind() != ExpKind::kBinop) {
+branch  0 taken 23% (fallthrough)
+branch  1 taken 77%
+        -:  603:        return false;
+        -:  604:    }
+      378:  605:    const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+     378*:  606:    DEBUG_ASSERT(op);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+      378:  607:    const auto k = op->GetOpKind();
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      378:  608:    return k == BinOpKind::kLess || k == BinOpKind::kLessEqual || k == BinOpKind::kMore ||
+      378:  609:           k == BinOpKind::kMoreEqual;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+     1989:  610:}
+        -:  611:
+function _ZN7fakelua14TypeInferencer17RunTrialInferenceERKSt10shared_ptrINS_19SyntaxTreeInterfaceEERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaISC_EERKSt13unordered_mapISC_NS_12InferredTypeESt4hashISC_ESt8equal_toISC_ESaISt4pairIKSC_SI_EEEPKSH_ISC_S6_IiSaIiEESK_SM_SaISN_ISO_SV_EEEPKSH_ISC_S6_ISI_SaISI_EESK_SM_SaISN_ISO_S12_EEE called 6995 returned 100% blocks executed 70%
+     6995:  612:TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func_block,
+        -:  613:                                               const std::vector<std::string> &params,
+        -:  614:                                               const std::unordered_map<std::string, InferredType> &assumed_types,
+        -:  615:                                               const std::unordered_map<std::string, std::vector<int>> *math_positions,
+        -:  616:                                               const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret) {
+        -:  617:    // 保存当前推断器状态，trial 结束后恢复。
+     6995:  618:    TypeEnvironment saved_env = env_;
+call    0 returned 100%
+     6995:  619:    const bool saved_in_funcbody = in_funcbody_;
+        -:  620:    // 临时注入被调函数返回类型提示，供 ResolveCallReturnType 使用。
+     6995:  621:    auto saved_trial_math = std::move(trial_math_positions_);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+     6995:  622:    auto saved_trial_ret = std::move(trial_assumed_ret_);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+    10487:  623:    trial_math_positions_ = math_positions ? std::make_optional(*math_positions) : std::nullopt;
+branch  0 taken 50% (fallthrough)
+branch  1 taken 50%
+call    2 returned 100%
+branch  3 taken 50% (fallthrough)
+branch  4 taken 50%
+    10487:  624:    trial_assumed_ret_ = assumed_ret ? std::make_optional(*assumed_ret) : std::nullopt;
+branch  0 taken 50% (fallthrough)
+branch  1 taken 50%
+call    2 returned 100%
+branch  3 taken 50% (fallthrough)
+branch  4 taken 50%
+branch  5 never executed (fallthrough)
+branch  6 never executed
+        -:  625:
+        -:  626:    // 收集被固定的变量名（数学参数，即被分配了 T_INT/T_FLOAT 的参数）。
+        -:  627:    // 在 InferNode(Assign) 中，对这些变量的 env 更新将被跳过，以模拟运行时类型检查
+        -:  628:    // 对变量类型的保证（类似于旧 spec_ctx 对数学参数的 "始终持有特化类型" 语义）。
+     6995:  629:    std::unordered_set<std::string> saved_pinned = std::move(pinned_vars_);
+call    0 returned 100%
+     6995:  630:    pinned_vars_.clear();
+call    0 returned 100%
+    25826:  631:    for (const auto &[name, t] : assumed_types) {
+branch  0 taken 83% (fallthrough)
+branch  1 taken 17%
+branch  2 taken 60%
+branch  3 taken 40% (fallthrough)
+    10281:  632:        if (t == T_INT || t == T_FLOAT) {
+branch  0 taken 83% (fallthrough)
+branch  1 taken 17%
+     8550:  633:            pinned_vars_.insert(name);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  634:        }
+        -:  635:    }
+        -:  636:
+     6995:  637:    EvalTypeMap prev_map;
+        -:  638:
+    13990:  639:    for (int round = 0; round < kMaxSpecIterations; ++round) {
+branch  0 taken 100%
+branch  1 taken 0% (fallthrough)
+        -:  640:        // 每轮清除 func_block 节点在 current_map_ 中的旧条目，保证推断从干净状态开始。
+   363348:  641:        WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &n) { current_map_.erase(n.get()); });
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+        -:  642:
+        -:  643:        // 以假定的参数类型初始化 trial 环境；同时注入文件级数值常量，
+        -:  644:        // 使函数体能看到正确的文件级局部变量类型（T_INT/T_FLOAT）。
+    13990:  645:        env_ = TypeEnvironment{};
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+call    4 returned 100%
+    13990:  646:        in_funcbody_ = true;
+    14170:  647:        for (const auto &[fname, ftype]: file_level_types_) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 1%
+branch  4 taken 99% (fallthrough)
+      180:  648:            env_.Define(fname, ftype);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  649:        }
+    34552:  650:        for (const auto &p: params) {
+branch  0 taken 60%
+branch  1 taken 40% (fallthrough)
+    20562:  651:            const auto it = assumed_types.find(p);
+call    0 returned 100%
+    41124:  652:            env_.Define(p, it != assumed_types.end() ? it->second : T_DYNAMIC);
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+call    2 returned 100%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0% (throw)
+        -:  653:        }
+        -:  654:
+        -:  655:        // 运行函数体类型推断（不新开作用域，参数已在当前作用域中定义）。
+    13990:  656:        InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block), false);
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+call    4 never executed
+        -:  657:
+        -:  658:        // 快照本轮推断结果（仅 func_block 节点）。
+    13990:  659:        EvalTypeMap curr_map;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+function _ZZN7fakelua14TypeInferencer17RunTrialInferenceERKSt10shared_ptrINS_19SyntaxTreeInterfaceEERKSt6vectorINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESaISC_EERKSt13unordered_mapISC_NS_12InferredTypeESt4hashISC_ESt8equal_toISC_ESaISt4pairIKSC_SI_EEEPKSH_ISC_S6_IiSaIiEESK_SM_SaISN_ISO_SV_EEEPKSH_ISC_S6_ISI_SaISI_EESK_SM_SaISN_ISO_S12_EEEENKUlS5_E0_clES5_ called 349358 returned 100% blocks executed 100%
+    13990:  660:        WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &n) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 never executed
+   349358:  661:            const auto it = current_map_.find(n.get());
+call    0 returned 100%
+   643562:  662:            curr_map[n.get()] = (it != current_map_.end()) ? it->second : T_UNKNOWN;
+branch  0 taken 84% (fallthrough)
+branch  1 taken 16%
+call    2 returned 100%
+   349358:  663:        });
+        -:  664:
+    13990:  665:        if (curr_map == prev_map) {
+call    0 returned 100%
+branch  1 taken 50% (fallthrough)
+branch  2 taken 50%
+        -:  666:            // 已达到不动点，提前退出。
+        -:  667:            break;
+        -:  668:        }
+     6995:  669:        prev_map = std::move(curr_map);
+call    0 returned 100%
+call    1 returned 100%
+    13990:  670:    }
+        -:  671:
+        -:  672:    // 恢复推断器状态（含被调函数提示和固定变量集合）。
+     6995:  673:    env_ = std::move(saved_env);
+call    0 returned 100%
+     6995:  674:    in_funcbody_ = saved_in_funcbody;
+     6995:  675:    trial_math_positions_ = std::move(saved_trial_math);
+call    0 returned 100%
+     6995:  676:    trial_assumed_ret_ = std::move(saved_trial_ret);
+call    0 returned 100%
+     6995:  677:    pinned_vars_ = std::move(saved_pinned);
+call    0 returned 100%
+        -:  678:
+     6995:  679:    return prev_map;
+call    0 returned 100%
+     6995:  680:}
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+call    4 returned 100%
+        -:  681:
+function _ZNK7fakelua14TypeInferencer24HasArithmeticImprovementERKSt13unordered_mapIPNS_19SyntaxTreeInterfaceENS_12InferredTypeESt4hashIS3_ESt8equal_toIS3_ESaISt4pairIKS3_S4_EEESF_RKSt10shared_ptrIS2_ERKS1_INSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt6vectorIiSaIiEES5_ISP_ES7_ISP_ESaIS9_IKSP_SS_EEE called 642 returned 100% blocks executed 100%
+      642:  682:bool TypeInferencer::HasArithmeticImprovement(const EvalTypeMap &all_int, const EvalTypeMap &baseline,
+        -:  683:                                               const SyntaxTreeInterfacePtr &func_block,
+        -:  684:                                               const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
+      642:  685:    return CheckArithmeticTypeChanges(all_int, baseline, func_block, true, math_param_positions);
+call    0 returned 100%
+        -:  686:}
+        -:  687:
+function _ZNK7fakelua14TypeInferencer22ParamAffectsArithmeticERKSt13unordered_mapIPNS_19SyntaxTreeInterfaceENS_12InferredTypeESt4hashIS3_ESt8equal_toIS3_ESaISt4pairIKS3_S4_EEESF_RKSt10shared_ptrIS2_ERKS1_INSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt6vectorIiSaIiEES5_ISP_ES7_ISP_ESaIS9_IKSP_SS_EEE called 733 returned 100% blocks executed 100%
+      733:  688:bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const EvalTypeMap &without_p,
+        -:  689:                                              const SyntaxTreeInterfacePtr &func_block,
+        -:  690:                                              const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
+      733:  691:    return CheckArithmeticTypeChanges(all_int, without_p, func_block, false, math_param_positions);
+call    0 returned 100%
+        -:  692:}
+        -:  693:
+        -:  694:// ---------------------------------------------------------------------------
+        -:  695:// CheckArithmeticTypeChanges —— 数学参数发现的统一类型变化检测器
+        -:  696://
+        -:  697:// 单次遍历 func_block，在同一回调中按节点类别分派四类检测规则，
+        -:  698:// 避免多次重复扫描同一函数体：
+        -:  699://   规则1 — 算术表达式：检查节点自身类型（T_INT/T_FLOAT ↔ T_DYNAMIC）；
+        -:  700://   规则2 — 有序比较（< <= > >=，不含 == / ~=）：检查左右操作数类型；
+        -:  701://   规则3 — for-loop：检查循环节点自身类型；
+        -:  702://   规则4 — 已知数学函数调用：检查数学参数位置实参类型。
+        -:  703://
+        -:  704:// improvement_mode=true（改善检测）：
+        -:  705://   typed_map 中节点/操作数/实参为 T_INT/T_FLOAT，compare_map 中为 T_DYNAMIC，
+        -:  706://   说明增加参数类型假设后该槽位的类型得到改善。
+        -:  707:// improvement_mode=false（退化检测）：
+        -:  708://   typed_map 中节点/操作数/实参有具体类型，compare_map 中与之不同，
+        -:  709://   说明去掉某个参数后该槽位的类型发生了退化。
+        -:  710://
+        -:  711:// 注意：仅关注数学参数发现相关槽位（算术节点、有序比较操作数、
+        -:  712:// for-loop 节点、已知数学函数的指定参数位置），不检测函数体内任意节点的类型变化。
+        -:  713:// ---------------------------------------------------------------------------
+function _ZNK7fakelua14TypeInferencer26CheckArithmeticTypeChangesERKSt13unordered_mapIPNS_19SyntaxTreeInterfaceENS_12InferredTypeESt4hashIS3_ESt8equal_toIS3_ESaISt4pairIKS3_S4_EEESF_RKSt10shared_ptrIS2_EbRKS1_INSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt6vectorIiSaIiEES5_ISP_ES7_ISP_ESaIS9_IKSP_SS_EEE called 1375 returned 100% blocks executed 75%
+     1375:  714:bool TypeInferencer::CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
+        -:  715:                                                 const SyntaxTreeInterfacePtr &func_block,
+        -:  716:                                                 const bool improvement_mode,
+        -:  717:                                                 const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
+     1375:  718:    bool found = false;
+function _ZZNK7fakelua14TypeInferencer26CheckArithmeticTypeChangesERKSt13unordered_mapIPNS_19SyntaxTreeInterfaceENS_12InferredTypeESt4hashIS3_ESt8equal_toIS3_ESaISt4pairIKS3_S4_EEESF_RKSt10shared_ptrIS2_EbRKS1_INSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt6vectorIiSaIiEES5_ISP_ES7_ISP_ESaIS9_IKSP_SS_EEEENKUlSJ_E_clESJ_ called 33807 returned 100% blocks executed 68%
+     1375:  719:    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+    33807:  720:        if (found) {
+branch  0 taken 30% (fallthrough)
+branch  1 taken 70%
+        -:  721:            return;
+        -:  722:        }
+        -:  723:
+        -:  724:        // 规则1：算术表达式节点自身类型变化。
+    10218:  725:        if (IsArithmeticExpr(node)) {
+call    0 returned 100%
+branch  1 taken 8% (fallthrough)
+branch  2 taken 92%
+      807:  726:            const auto it_typed = typed_map.find(node.get());
+call    0 returned 100%
+      807:  727:            const auto it_compare = compare_map.find(node.get());
+call    0 returned 100%
+     807*:  728:            DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+call    4 never executed
+branch  5 never executed (fallthrough)
+branch  6 never executed (throw)
+call    7 never executed
+      807:  729:            if (IsNumericInferredType(it_typed->second)) {
+call    0 returned 100%
+branch  1 taken 94%
+branch  2 taken 6%
+     1514:  730:                found = improvement_mode ? (it_compare->second == T_DYNAMIC)
+branch  0 taken 44% (fallthrough)
+branch  1 taken 56%
+      426:  731:                                         : (it_compare->second != it_typed->second);
+call    0 returned 100%
+        -:  732:            }
+      807:  733:            return;
+        -:  734:        }
+        -:  735:
+        -:  736:        // 规则2：有序比较表达式（< <= > >=）左右操作数类型变化。
+        -:  737:        // == / ~= 可作用于任意 Lua 类型，不纳入此检测以避免误特化。
+     9411:  738:        if (IsNativeComparisonExpr(node)) {
+call    0 returned 100%
+branch  1 taken 3% (fallthrough)
+branch  2 taken 97%
+      263:  739:            const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+call    0 returned 100%
+      263:  740:            const auto left = exp->Left();
+call    0 returned 100%
+      263:  741:            const auto right = exp->Right();
+call    0 returned 100%
+     263*:  742:            DEBUG_ASSERT(left && right);
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+call    4 never executed
+branch  5 never executed (fallthrough)
+branch  6 never executed (throw)
+call    7 never executed
+branch  8 never executed (fallthrough)
+branch  9 never executed
+      263:  743:            const auto lt_typed = typed_map.find(left.get());
+call    0 returned 100%
+      263:  744:            const auto rt_typed = typed_map.find(right.get());
+call    0 returned 100%
+      263:  745:            const auto lt_compare = compare_map.find(left.get());
+call    0 returned 100%
+      263:  746:            const auto rt_compare = compare_map.find(right.get());
+call    0 returned 100%
+     263*:  747:            DEBUG_ASSERT(lt_typed != typed_map.end() && rt_typed != typed_map.end() &&
+branch  0 taken 100%
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+branch  6 taken 100% (fallthrough)
+branch  7 taken 0%
+call    8 never executed
+branch  9 never executed (fallthrough)
+branch 10 never executed (throw)
+call   11 never executed
+branch 12 never executed (fallthrough)
+branch 13 never executed
+      263:  748:                         lt_compare != compare_map.end() && rt_compare != compare_map.end());
+        -:  749:            // IsNumericInferredType 卫语句保证：进入此分支时两侧操作数在 typed_map 中均为
+        -:  750:            // T_INT/T_FLOAT，排除了 T_DYNAMIC 的情形，因此 improvement 模式下
+        -:  751:            // compare_map 退回 T_DYNAMIC 即代表真正的类型改善。
+      526:  752:            if (IsNumericInferredType(lt_typed->second) && IsNumericInferredType(rt_typed->second)) {
+call    0 returned 100%
+branch  1 taken 100%
+branch  2 taken 0%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0%
+      263:  753:                if (improvement_mode) {
+branch  0 taken 38% (fallthrough)
+branch  1 taken 62%
+        -:  754:                    // 改善：typed_map 中两侧均为数值，而 compare_map 中任一退回 T_DYNAMIC。
+      207:  755:                    found = (lt_compare->second == T_DYNAMIC || rt_compare->second == T_DYNAMIC);
+call    0 returned 100%
+branch  1 taken 5% (fallthrough)
+branch  2 taken 95%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0%
+        -:  756:                } else {
+        -:  757:                    // 退化：任一操作数与 typed_map 不一致（含 INT/FLOAT 变化）。
+      360:  758:                    found = (lt_compare->second != lt_typed->second || rt_compare->second != rt_typed->second);
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 31% (fallthrough)
+branch  3 taken 69%
+call    4 returned 100%
+branch  5 taken 71% (fallthrough)
+branch  6 taken 29%
+        -:  759:                }
+        -:  760:            }
+      263:  761:            return;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      789:  762:        }
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+call    4 never executed
+        -:  763:
+        -:  764:        // 规则3：for-loop 节点自身类型变化。
+     9148:  765:        if (node->Type() == SyntaxTreeType::ForLoop) {
+call    0 returned 100%
+branch  1 taken 1% (fallthrough)
+branch  2 taken 99%
+      135:  766:            const auto it_typed = typed_map.find(node.get());
+call    0 returned 100%
+      135:  767:            const auto it_compare = compare_map.find(node.get());
+call    0 returned 100%
+     135*:  768:            DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+call    4 never executed
+branch  5 never executed (fallthrough)
+branch  6 never executed (throw)
+call    7 never executed
+      135:  769:            if (IsNumericInferredType(it_typed->second)) {
+call    0 returned 100%
+branch  1 taken 85%
+branch  2 taken 15%
+      230:  770:                found = improvement_mode ? (it_compare->second == T_DYNAMIC)
+branch  0 taken 48% (fallthrough)
+branch  1 taken 52%
+       60:  771:                                         : (it_compare->second != it_typed->second);
+call    0 returned 100%
+        -:  772:            }
+      135:  773:            return;
+        -:  774:        }
+        -:  775:
+        -:  776:        // 规则4：已知数学函数调用的数学参数位置实参类型变化。
+        -:  777:        // 仅关注 math_param_positions 中登记的简单函数调用（callee 为普通变量名），
+        -:  778:        // 不处理方法调用（obj:method(...)）或表达式调用形式。
+     9013:  779:        if (node->Type() == SyntaxTreeType::FunctionCall) {
+call    0 returned 100%
+branch  1 taken 4% (fallthrough)
+branch  2 taken 96%
+      345:  780:            const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+call    0 returned 100%
+     345*:  781:            DEBUG_ASSERT(fc);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+      345:  782:            const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+     345*:  783:            DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+call    4 never executed
+branch  5 never executed (fallthrough)
+branch  6 never executed (throw)
+call    7 never executed
+branch  8 never executed (fallthrough)
+branch  9 never executed
+      345:  784:            const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0%
+branch  3 taken 100%
+     345*:  785:            DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+call    4 never executed
+branch  5 never executed (fallthrough)
+branch  6 never executed (throw)
+call    7 never executed
+branch  8 never executed (fallthrough)
+branch  9 never executed
+      345:  786:            const auto &callee_name = callee_var->GetName();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      345:  787:            const auto math_it = math_param_positions.find(callee_name);
+call    0 returned 100%
+      345:  788:            if (math_it == math_param_positions.end()) {
+branch  0 taken 91% (fallthrough)
+branch  1 taken 9%
+        -:  789:                return;
+        -:  790:            }
+      315:  791:            const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+     315*:  792:            DEBUG_ASSERT(args_ptr);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+      315:  793:            const auto raw_args = ExtractCallRawArgs(args_ptr);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      398:  794:            for (const int param_pos : math_it->second) {
+call    0 returned 100%
+branch  1 taken 89%
+branch  2 taken 11% (fallthrough)
+      355:  795:                if (param_pos >= static_cast<int>(raw_args.size())) {
+branch  0 taken 99% (fallthrough)
+branch  1 taken 1%
+        -:  796:                    return;
+        -:  797:                }
+      353:  798:                const auto &arg = raw_args[static_cast<size_t>(param_pos)];
+call    0 returned 100%
+      353:  799:                const auto it_typed = typed_map.find(arg.get());
+call    0 returned 100%
+      353:  800:                const auto it_comp = compare_map.find(arg.get());
+call    0 returned 100%
+     353*:  801:                DEBUG_ASSERT(it_typed != typed_map.end() && it_comp != compare_map.end());
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+call    4 never executed
+branch  5 never executed (fallthrough)
+branch  6 never executed (throw)
+call    7 never executed
+        -:  802:                // typed_map 中该实参有具体数值类型（T_INT/T_FLOAT）但 compare_map 中不同，
+        -:  803:                // 说明该数学参数槽位发生了类型变化。
+        -:  804:                // 此条件对 improvement_mode 和 degradation_mode 均成立，故不需要额外分支：
+        -:  805:                // 改善时 typed_map=all_int 有值而 compare_map=baseline 为 T_DYNAMIC；
+        -:  806:                // 退化时 typed_map=all_int 有值而 compare_map=without_p 类型不同。
+      396:  807:                if ((it_typed->second == T_INT || it_typed->second == T_FLOAT) &&
+call    0 returned 100%
+branch  1 taken 12%
+branch  2 taken 88%
+branch  3 taken 0% (fallthrough)
+branch  4 taken 100%
+      310:  808:                    it_comp->second != it_typed->second) {
+call    0 returned 100%
+branch  1 taken 13% (fallthrough)
+branch  2 taken 87%
+      270:  809:                    found = true;
+      270:  810:                    return;
+        -:  811:                }
+        -:  812:            }
+     1967:  813:        }
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+call    3 returned 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+call    6 returned 100%
+branch  7 taken 100% (fallthrough)
+branch  8 taken 0%
+branch  9 taken 100% (fallthrough)
+branch 10 taken 0%
+branch 11 taken 100% (fallthrough)
+branch 12 taken 0%
+branch 13 taken 100% (fallthrough)
+branch 14 taken 0%
+branch 15 taken 100% (fallthrough)
+branch 16 taken 0%
+branch 17 taken 100% (fallthrough)
+branch 18 taken 0%
+call   19 never executed
+        -:  814:    });
+     1375:  815:    return found;
+        -:  816:}
+        -:  817:
+        -:  818:// 检查 block_node 的所有执行路径是否均以 return 语句结束。
+        -:  819:// 与简单的"最后一条语句是 return"不同，此函数还能识别 if-elseif-else 结构
+        -:  820:// 中所有分支均返回的情况（如 fibonacci），从而正确标记所有路径均返回数值。
+        -:  821:// 不递归进入嵌套函数体（Function / LocalFunction）。
+function _ZNK7fakelua14TypeInferencer14AllPathsReturnERKSt10shared_ptrINS_19SyntaxTreeInterfaceEE called 959 returned 100% blocks executed 63%
+      959:  822:bool TypeInferencer::AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) const {
+     959*:  823:    DEBUG_ASSERT(block_node);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+call    3 never executed
+call    4 never executed
+      959:  824:    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(block_node);
+call    0 returned 100%
+      959:  825:    if (!block || block->Stmts().empty()) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 99% (fallthrough)
+branch  3 taken 1%
+        -:  826:        return false;
+        -:  827:    }
+      954:  828:    const auto &last = block->Stmts().back();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      954:  829:    switch (last->Type()) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 1%
+branch  4 taken 2%
+branch  5 taken 0%
+branch  6 taken 21%
+branch  7 taken 77%
+        -:  830:        case SyntaxTreeType::Return:
+        -:  831:            return true;
+        5:  832:        case SyntaxTreeType::Block:
+        -:  833:            // do...end 块：无条件执行（不同于 if/while 可能跳过），内部可含任意控制流。
+        -:  834:            // 若其所有路径均以 return 结束，则外层函数视为已返回。
+        5:  835:            return AllPathsReturn(last);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+       15:  836:        case SyntaxTreeType::If: {
+       15:  837:            const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(last);
+call    0 returned 100%
+        -:  838:            // if 分支必须返回。
+       30:  839:            if (!AllPathsReturn(if_node->Block())) {
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+branch  6 taken 0% (fallthrough)
+branch  7 taken 100%
+        -:  840:                return false;
+        -:  841:            }
+        -:  842:            // 所有 elseif 分支必须返回。
+       15:  843:            if (const auto elseifs = if_node->ElseIfs()) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+       15:  844:                const auto el = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(elseifs);
+call    0 returned 100%
+       20:  845:                for (const auto &blk : el->ElseifBlocks()) {
+branch  0 taken 50%
+branch  1 taken 50% (fallthrough)
+       10:  846:                    if (!AllPathsReturn(blk)) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 50% (fallthrough)
+branch  4 taken 50%
+        5:  847:                        return false;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+        -:  848:                    }
+        -:  849:                }
+       20:  850:            }
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+        -:  851:            // 必须有 else 分支且它也返回，否则无法保证所有路径均返回。
+       15:  852:            if (!if_node->ElseBlock()) {
+call    0 returned 100%
+branch  1 taken 50% (fallthrough)
+branch  2 taken 50%
+branch  3 taken 50%
+branch  4 taken 50% (fallthrough)
+        -:  853:                return false;
+        -:  854:            }
+       10:  855:            return AllPathsReturn(if_node->ElseBlock());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+branch  6 never executed (fallthrough)
+branch  7 never executed
+       15:  856:        }
+        -:  857:        case SyntaxTreeType::Assign:
+        -:  858:        case SyntaxTreeType::LocalVar:
+        -:  859:        case SyntaxTreeType::LocalFunction:
+        -:  860:        case SyntaxTreeType::Function:
+        -:  861:        case SyntaxTreeType::FunctionCall:
+        -:  862:        case SyntaxTreeType::While:
+        -:  863:        case SyntaxTreeType::Repeat:
+        -:  864:        case SyntaxTreeType::ForLoop:
+        -:  865:        case SyntaxTreeType::ForIn:
+        -:  866:        case SyntaxTreeType::Break:
+        -:  867:        case SyntaxTreeType::Goto:
+        -:  868:        case SyntaxTreeType::Label:
+        -:  869:        case SyntaxTreeType::Empty:
+        -:  870:            return false;
+    #####:  871:        default:
+    #####:  872:            ThrowFakeluaException(
+call    0 never executed
+branch  1 never executed (fallthrough)
+branch  2 never executed (throw)
+call    3 never executed
+    #####:  873:                    std::format("AllPathsReturn: unexpected statement type {}", SyntaxTreeTypeToString(last->Type())));
+call    0 never executed
+branch  1 never executed (fallthrough)
+branch  2 never executed (throw)
+call    3 never executed
+branch  4 never executed (fallthrough)
+branch  5 never executed (throw)
+call    6 never executed
+branch  7 never executed (fallthrough)
+branch  8 never executed (throw)
+branch  9 never executed (fallthrough)
+branch 10 never executed
+        -:  874:    }
+      959:  875:}
+        -:  876:
+        -:  877:// 从 block_node 中浅层收集每条顶层 return 语句的第一个返回表达式，
+        -:  878:// 不递归进入嵌套函数体（Function / LocalFunction 节点）。
+        -:  879:// 返回值为 true 表示该 block 的所有路径均以 return 结束（无 nil 隐式返回路径）。
+        -:  880:// 对于 nil 返回（无表达式或空列表），在 ret_exps 中压入 nullptr 作为占位符。
+function _ZNK7fakelua14TypeInferencer17CollectReturnExpsERKSt10shared_ptrINS_19SyntaxTreeInterfaceEERSt6vectorIS3_SaIS3_EE called 1103 returned 100% blocks executed 57%
+     1103:  881:bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
+        -:  882:                               std::vector<SyntaxTreeInterfacePtr> &ret_exps) const {
+     1103:  883:    if (!block_node) {
+branch  0 taken 85% (fallthrough)
+branch  1 taken 15%
+        -:  884:        return false;
+        -:  885:    }
+      939:  886:    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(block_node);
+call    0 returned 100%
+     939*:  887:    DEBUG_ASSERT(block);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+      939:  888:    const auto &stmts = block->Stmts();
+branch  0 taken 98% (fallthrough)
+branch  1 taken 2%
+      939:  889:    if (stmts.empty()) {
+branch  0 taken 98% (fallthrough)
+branch  1 taken 2%
+        -:  890:        return false;
+        -:  891:    }
+      924:  892:    const bool ends_with_return = AllPathsReturn(block_node);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     2542:  893:    for (const auto &stmt : stmts) {
+branch  0 taken 64%
+branch  1 taken 36% (fallthrough)
+     1618:  894:        switch (stmt->Type()) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 44%
+branch  4 taken 11%
+branch  5 taken 2%
+branch  6 taken 1%
+branch  7 taken 4%
+branch  8 taken 1%
+branch  9 taken 1%
+branch 10 taken 0%
+branch 11 taken 37%
+      712:  895:            case SyntaxTreeType::Return: {
+      712:  896:                const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt);
+call    0 returned 100%
+      712:  897:                const auto explist = ret->Explist();
+call    0 returned 100%
+      712:  898:                if (explist) {
+branch  0 taken 99% (fallthrough)
+branch  1 taken 1%
+      707:  899:                    const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+call    0 returned 100%
+      707:  900:                    if (el && !el->Exps().empty()) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+      707:  901:                        ret_exps.push_back(el->Exps()[0]);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      707:  902:                        break;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+        -:  903:                    }
+     707*:  904:                }
+        5:  905:                ret_exps.push_back(nullptr);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 0% (fallthrough)
+branch  4 taken 100%
+branch  5 never executed (fallthrough)
+branch  6 never executed
+        5:  906:                break;
+     1424:  907:            }
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      179:  908:            case SyntaxTreeType::If: {
+      179:  909:                const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+call    0 returned 100%
+      179:  910:                CollectReturnExps(if_node->Block(), ret_exps);
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+      179:  911:                if (const auto elseifs = if_node->ElseIfs()) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+      179:  912:                    const auto el = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(elseifs);
+call    0 returned 100%
+      203:  913:                    for (const auto &blk : el->ElseifBlocks()) {
+branch  0 taken 12%
+branch  1 taken 88% (fallthrough)
+       24:  914:                        CollectReturnExps(blk, ret_exps);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  915:                    }
+      179:  916:                }
+      179:  917:                CollectReturnExps(if_node->ElseBlock(), ret_exps);
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 never executed (fallthrough)
+branch  5 never executed
+      179:  918:                break;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+      179:  919:            }
+       25:  920:            case SyntaxTreeType::While: {
+       25:  921:                const auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
+call    0 returned 100%
+       25:  922:                CollectReturnExps(while_node->Block(), ret_exps);
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 never executed (fallthrough)
+branch  5 never executed
+       25:  923:                break;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+       25:  924:            }
+       15:  925:            case SyntaxTreeType::Repeat: {
+       15:  926:                const auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
+call    0 returned 100%
+       15:  927:                CollectReturnExps(rep->Block(), ret_exps);
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 never executed (fallthrough)
+branch  5 never executed
+       15:  928:                break;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+       15:  929:            }
+       70:  930:            case SyntaxTreeType::ForLoop: {
+       70:  931:                const auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
+call    0 returned 100%
+       70:  932:                CollectReturnExps(for_loop->Block(), ret_exps);
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 never executed (fallthrough)
+branch  5 never executed
+       70:  933:                break;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+       70:  934:            }
+        9:  935:            case SyntaxTreeType::ForIn: {
+        9:  936:                const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
+call    0 returned 100%
+        9:  937:                CollectReturnExps(for_in->Block(), ret_exps);
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 never executed (fallthrough)
+branch  5 never executed
+        9:  938:                break;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+        9:  939:            }
+        5:  940:            case SyntaxTreeType::Block:
+        -:  941:                // do...end 块：递归收集其内部的 return 表达式。
+        5:  942:                CollectReturnExps(stmt, ret_exps);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  943:                break;
+        -:  944:            case SyntaxTreeType::Assign:
+        -:  945:            case SyntaxTreeType::LocalVar:
+        -:  946:            case SyntaxTreeType::LocalFunction:
+        -:  947:            case SyntaxTreeType::Function:
+        -:  948:            case SyntaxTreeType::FunctionCall:
+        -:  949:            case SyntaxTreeType::Break:
+        -:  950:            case SyntaxTreeType::Goto:
+        -:  951:            case SyntaxTreeType::Label:
+        -:  952:            case SyntaxTreeType::Empty:
+        -:  953:                // 不含 return，无需递归。
+        -:  954:                break;
+    #####:  955:            default:
+    #####:  956:                ThrowFakeluaException(
+call    0 never executed
+branch  1 never executed (fallthrough)
+branch  2 never executed (throw)
+call    3 never executed
+    #####:  957:                        std::format("CollectReturnExps: unexpected statement type {}",
+call    0 never executed
+branch  1 never executed (fallthrough)
+branch  2 never executed (throw)
+    #####:  958:                                    SyntaxTreeTypeToString(stmt->Type())));
+call    0 never executed
+branch  1 never executed (fallthrough)
+branch  2 never executed (throw)
+call    3 never executed
+branch  4 never executed (fallthrough)
+branch  5 never executed (throw)
+branch  6 never executed (fallthrough)
+branch  7 never executed
+        -:  959:        }
+        -:  960:    }
+        -:  961:    return ends_with_return;
+      939:  962:}
+        -:  963:
+        -:  964:// ---------------------------------------------------------------------------
+        -:  965:// ResolveCallReturnType —— 试推断期间查询被调函数的返回类型
+        -:  966://
+        -:  967:// 仅在 trial_math_positions_ 和 trial_assumed_ret_ 均非 nullopt 时生效（即携带被调函数
+        -:  968:// 返回类型提示的试推断轮次中）。对于普通主推断遍，始终返回 T_DYNAMIC（行为与以前相同）。
+        -:  969://
+        -:  970:// 算法：
+        -:  971://   1. 从函数调用 AST 节点中提取被调函数名；
+        -:  972://   2. 查找该函数是否为已知数学函数（存在于 trial_math_positions_ 中）；
+        -:  973://   3. 从 current_map_ 中读取各数学参数位置的实参类型，构造 bitmask；
+        -:  974://   4. 在 trial_assumed_ret_ 中查找对应 bitmask 的返回类型并返回。
+        -:  975:// ---------------------------------------------------------------------------
+function _ZNK7fakelua14TypeInferencer21ResolveCallReturnTypeERKSt10shared_ptrINS_22SyntaxTreeFunctioncallEE called 5333 returned 100% blocks executed 56%
+     5333:  976:InferredType TypeInferencer::ResolveCallReturnType(
+        -:  977:        const std::shared_ptr<SyntaxTreeFunctioncall> &fc) const {
+     5333:  978:    if (!trial_math_positions_.has_value() || !trial_assumed_ret_.has_value()) {
+branch  0 taken 53% (fallthrough)
+branch  1 taken 47%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+        -:  979:        return T_DYNAMIC;
+        -:  980:    }
+        -:  981:    // 提取被调函数名（仅支持简单形式 callee(...)，方法调用形式不处理）。
+     2828:  982:    const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+    2828*:  983:    DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+call    4 never executed
+branch  5 never executed (fallthrough)
+branch  6 never executed (throw)
+call    7 never executed
+branch  8 never executed (fallthrough)
+branch  9 never executed
+     2828:  984:    const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0%
+branch  3 taken 100%
+    2828*:  985:    DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+call    4 never executed
+branch  5 never executed (fallthrough)
+branch  6 never executed (throw)
+call    7 never executed
+branch  8 never executed (fallthrough)
+branch  9 never executed
+     2828:  986:    const auto &callee_name = callee_var->GetName();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -:  987:
+     2828:  988:    const auto math_it = trial_math_positions_->find(callee_name);
+call    0 returned 100%
+     2828:  989:    if (math_it == trial_math_positions_->end()) {
+branch  0 taken 92% (fallthrough)
+branch  1 taken 8%
+        -:  990:        return T_DYNAMIC;
+        -:  991:    }
+     2612:  992:    const auto ret_it = trial_assumed_ret_->find(callee_name);
+call    0 returned 100%
+    2612*:  993:    DEBUG_ASSERT(ret_it != trial_assumed_ret_->end());
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+call    6 never executed
+        -:  994:
+        -:  995:    // 从已推断的实参类型（current_map_ 中已由 InferNode(Args) 填充）构造 bitmask。
+     2612:  996:    const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+    2612*:  997:    DEBUG_ASSERT(args_ptr);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+     2612:  998:    const auto raw_args = ExtractCallRawArgs(args_ptr);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     2612:  999:    const auto &math_params = math_it->second;
+call    0 returned 100%
+        -: 1000:
+     2612: 1001:    int bitmask = 0;
+     6272: 1002:    for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+call    0 returned 100%
+branch  1 taken 61%
+branch  2 taken 39% (fallthrough)
+     3812: 1003:        const int param_pos = math_params[static_cast<size_t>(i)];
+branch  0 taken 100% (fallthrough)
+branch  1 taken 1%
+     3812: 1004:        if (param_pos >= static_cast<int>(raw_args.size())) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 1%
+        -: 1005:            return T_DYNAMIC;
+        -: 1006:        }
+     3804: 1007:        const auto arg_it = current_map_.find(raw_args[static_cast<size_t>(param_pos)].get());
+call    0 returned 100%
+    3804*: 1008:        DEBUG_ASSERT(arg_it != current_map_.end());
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+     3804: 1009:        if (arg_it->second == T_FLOAT) {
+call    0 returned 100%
+branch  1 taken 48% (fallthrough)
+branch  2 taken 52%
+     1810: 1010:            bitmask |= (1 << i);
+     1994: 1011:        } else if (arg_it->second != T_INT) {
+call    0 returned 100%
+branch  1 taken 93% (fallthrough)
+branch  2 taken 7%
+        -: 1012:            // 实参不是数值类型，无法确定特化 bitmask。
+        -: 1013:            return T_DYNAMIC;
+        -: 1014:        }
+        -: 1015:    }
+        -: 1016:
+     2460: 1017:    const auto &ret_types = ret_it->second;
+call    0 returned 100%
+    2460*: 1018:    DEBUG_ASSERT(bitmask < static_cast<int>(ret_types.size()));
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+call    6 never executed
+     2460: 1019:    return ret_types[static_cast<size_t>(bitmask)];
+    13708: 1020:}
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0%
+branch  5 taken 100% (fallthrough)
+branch  6 taken 0%
+call    7 never executed
+        -: 1021:
+        -: 1022:// ---------------------------------------------------------------------------
+        -: 1023:// ComputeReturnTypeFromSnapshot —— 从快照中直接读取 return 表达式的推断类型
+        -: 1024://
+        -: 1025:// 与旧的 EvalReturnExpType 不同，本函数不递归重新计算表达式，
+        -: 1026:// 而是直接在（由 RunTrialInference 生成的、已注入被调函数返回类型提示的）
+        -: 1027:// 快照中查找每个 return 表达式节点的类型。
+        -: 1028:// 快照已通过提示注入而精确，函数调用节点的类型就是被调函数的实际返回类型。
+        -: 1029:// ---------------------------------------------------------------------------
+function _ZNK7fakelua14TypeInferencer29ComputeReturnTypeFromSnapshotERKSt13unordered_mapIPNS_19SyntaxTreeInterfaceENS_12InferredTypeESt4hashIS3_ESt8equal_toIS3_ESaISt4pairIKS3_S4_EEERKNS0_11FuncRetInfoE called 3492 returned 100% blocks executed 100%
+     3492: 1030:InferredType TypeInferencer::ComputeReturnTypeFromSnapshot(
+        -: 1031:        const EvalTypeSnapshot &snapshot,
+        -: 1032:        const FuncRetInfo &ret_info) const {
+     3492: 1033:    if (!ret_info.ends_with_return || ret_info.ret_exps.empty()) {
+branch  0 taken 98% (fallthrough)
+branch  1 taken 2%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+        -: 1034:        return T_DYNAMIC;
+        -: 1035:    }
+        -: 1036:    InferredType actual_ret = T_INT;  // 乐观初值
+     7501: 1037:    for (const auto &ret_exp : ret_info.ret_exps) {
+branch  0 taken 59%
+branch  1 taken 41% (fallthrough)
+     4402: 1038:        if (!ret_exp) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 1%
+        -: 1039:            // nullptr 代表显式的 nil return（return 无表达式）。
+        -: 1040:            return T_DYNAMIC;
+        -: 1041:        }
+     4382: 1042:        const auto it = snapshot.find(ret_exp.get());
+call    0 returned 100%
+     4382: 1043:        const auto inferred = (it != snapshot.end()) ? it->second : T_DYNAMIC;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+     4382: 1044:        if (inferred == T_FLOAT) {
+branch  0 taken 37% (fallthrough)
+branch  1 taken 63%
+     1609: 1045:            if (actual_ret == T_INT) {
+branch  0 taken 15%
+branch  1 taken 85%
+     4069: 1046:                actual_ret = T_FLOAT;
+        -: 1047:            }
+     2773: 1048:        } else if (inferred != T_INT) {
+branch  0 taken 89% (fallthrough)
+branch  1 taken 11%
+        -: 1049:            return T_DYNAMIC;
+        -: 1050:        }
+        -: 1051:    }
+        -: 1052:    return actual_ret;
+        -: 1053:}
+        -: 1054:
+function _ZNK7fakelua14TypeInferencer24CollectFunctionSpecInfosERKNS_11ParseResultE called 782 returned 100% blocks executed 59%
+      782: 1055:std::vector<TypeInferencer::FunctionSpecInfo> TypeInferencer::CollectFunctionSpecInfos(const ParseResult &pr) const {
+      782: 1056:    std::vector<FunctionSpecInfo> infos;
+      782: 1057:    const auto chunk = pr.chunk;
+call    0 returned 100%
+     782*: 1058:    DEBUG_ASSERT(chunk && chunk->Type() == SyntaxTreeType::Block);
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+call    2 returned 100%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0% (throw)
+branch  5 taken 0% (fallthrough)
+branch  6 taken 100%
+call    7 never executed
+branch  8 never executed (fallthrough)
+branch  9 never executed (throw)
+call   10 never executed
+branch 11 never executed (fallthrough)
+branch 12 never executed
+        -: 1059:
+      782: 1060:    const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+call    0 returned 100%
+     1774: 1061:    for (const auto &stmt : top_block->Stmts()) {
+branch  0 taken 56%
+branch  1 taken 44% (fallthrough)
+      992: 1062:        std::string name;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      992: 1063:        SyntaxTreeInterfacePtr funcbody;
+      992: 1064:        if (stmt->Type() == SyntaxTreeType::Function) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 91% (fallthrough)
+branch  4 taken 9%
+      903: 1065:            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
+call    0 returned 100%
+      903: 1066:            const auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+      903: 1067:            const auto fnlist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcname->FuncNameList());
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 0% (fallthrough)
+branch  3 taken 100%
+      903: 1068:            name = fnlist->Funcnames()[0];
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      903: 1069:            funcbody = func->Funcbody();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+     2798: 1070:        } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+call    4 returned 100%
+branch  5 taken 100% (fallthrough)
+branch  6 taken 0% (throw)
+branch  7 taken 83% (fallthrough)
+branch  8 taken 17%
+       74: 1071:            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
+call    0 returned 100%
+      148: 1072:            name = func->Name();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+call    4 returned 100%
+branch  5 never executed (fallthrough)
+branch  6 never executed
+       74: 1073:            funcbody = func->Funcbody();
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0%
+       74: 1074:        }
+      992: 1075:        if (name.empty() || !funcbody) {
+branch  0 taken 98% (fallthrough)
+branch  1 taken 2%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0%
+       15: 1076:            continue;
+        -: 1077:        }
+      977: 1078:        const auto funcbody_ptr = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
+call    0 returned 100%
+      977: 1079:        const auto parlist_node = funcbody_ptr->Parlist();
+call    0 returned 100%
+      977: 1080:        if (!parlist_node) {
+branch  0 taken 36%
+branch  1 taken 64%
+      350: 1081:            continue;
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+        -: 1082:        }
+      627: 1083:        const auto parlist_ptr = std::dynamic_pointer_cast<SyntaxTreeParlist>(parlist_node);
+call    0 returned 100%
+      627: 1084:        const auto namelist_node = parlist_ptr->Namelist();
+call    0 returned 100%
+     627*: 1085:        DEBUG_ASSERT(namelist_node);
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed
+      627: 1086:        const auto params = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist_node)->Names();
+call    0 returned 100%
+call    1 returned 100%
+branch  2 taken 100% (fallthrough)
+branch  3 taken 0% (throw)
+branch  4 never executed (fallthrough)
+branch  5 never executed
+     627*: 1087:        DEBUG_ASSERT(!params.empty());
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+call    2 never executed
+branch  3 never executed (fallthrough)
+branch  4 never executed (throw)
+call    5 never executed
+call    6 never executed
+      627: 1088:        FunctionSpecInfo info;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      627: 1089:        info.name = name;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      627: 1090:        info.block = funcbody_ptr->Block();
+call    0 returned 100%
+branch  1 taken 0% (fallthrough)
+branch  2 taken 100%
+call    3 returned 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0% (throw)
+      627: 1091:        info.params = params;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      627: 1092:        infos.emplace_back(std::move(info));
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     4827: 1093:    }
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+call    2 returned 100%
+call    3 returned 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0%
+branch  6 taken 100% (fallthrough)
+branch  7 taken 0%
+branch  8 taken 100% (fallthrough)
+branch  9 taken 0%
+branch 10 taken 100% (fallthrough)
+branch 11 taken 0%
+branch 12 taken 100% (fallthrough)
+branch 13 taken 0%
+call   14 returned 100%
+call   15 returned 100%
+call   16 never executed
+call   17 never executed
+      782: 1094:    return infos;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+     1564: 1095:}
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+call    2 never executed
+        -: 1096:
+        -: 1097:// ---------------------------------------------------------------------------
+        -: 1098:// FindMathParamIndices —— 逐参数敏感性测试
+        -: 1099://
+        -: 1100:// 算法：
+        -: 1101://   (1) 先检查全参数 T_INT（all_int）相对于 baseline 是否有算术改善。
+        -: 1102://       若无改善，则没有任何参数是数学参数，直接返回空列表。
+        -: 1103://   (2) 对每个参数 p_i，构造"无 p_i"假设：其余参数均为 T_INT，p_i 为 T_DYNAMIC，
+        -: 1104://       运行 RunTrialInference 得到 without_p 快照。
+        -: 1105://   (3) 对比 all_int 与 without_p：若去掉 p_i 后算术表达式或比较/for-loop 退化，
+        -: 1106://       则 p_i 确实影响算术运算，将其记录为数学参数。
+        -: 1107://
+        -: 1108:// 注意：此处使用"去掉一个参数后是否退化"而非"加上一个参数后是否改善"，
+        -: 1109:// 目的是检测参数之间的耦合——若 p_i 仅在与 p_j 共同为 T_INT 时才能使算术
+        -: 1110:// 节点特化，单独将 p_i 置回 T_DYNAMIC 也会触发退化，两者都会被记录。
+        -: 1111:// ---------------------------------------------------------------------------
+function _ZN7fakelua14TypeInferencer20FindMathParamIndicesERKNS0_16FunctionSpecInfoERKSt13unordered_mapIPNS_19SyntaxTreeInterfaceENS_12InferredTypeESt4hashIS6_ESt8equal_toIS6_ESaISt4pairIKS6_S7_EEESI_RKS4_INSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt6vectorIiSaIiEES8_ISO_ESA_ISO_ESaISC_IKSO_SR_EEE called 642 returned 100% blocks executed 75%
+      642: 1112:std::vector<int> TypeInferencer::FindMathParamIndices(
+        -: 1113:        const FunctionSpecInfo &info,
+        -: 1114:        const EvalTypeMap &baseline,
+        -: 1115:        const EvalTypeMap &all_int,
+        -: 1116:        const std::unordered_map<std::string, std::vector<int>> &known_math_positions) {
+      642: 1117:    std::vector<int> math_indices;
+        -: 1118:    // 快速剪枝：若全 T_INT 与 baseline 无改善，函数不具备特化价值。
+      642: 1119:    if (!HasArithmeticImprovement(all_int, baseline, info.block, known_math_positions)) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 93% (fallthrough)
+branch  4 taken 7%
+        -: 1120:        return math_indices;
+        -: 1121:    }
+        -: 1122:
+function _ZZN7fakelua14TypeInferencer20FindMathParamIndicesERKNS0_16FunctionSpecInfoERKSt13unordered_mapIPNS_19SyntaxTreeInterfaceENS_12InferredTypeESt4hashIS6_ESt8equal_toIS6_ESaISt4pairIKS6_S7_EEESI_RKS4_INSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt6vectorIiSaIiEES8_ISO_ESA_ISO_ESaISC_IKSO_SR_EEEENKUlRSU_S7_S7_E_clES10_S7_S7_ called 733 returned 100% blocks executed 90%
+     1330: 1123:    const auto make_assumed = [&](const std::string &special_param, const InferredType special_type,
+        -: 1124:                                  const InferredType default_type) {
+      733: 1125:        std::unordered_map<std::string, InferredType> assumed;
+     1858: 1126:        for (const auto &param : info.params) {
+branch  0 taken 61%
+branch  1 taken 39% (fallthrough)
+     1517: 1127:            assumed[param] = (!special_param.empty() && param == special_param) ? special_type : default_type;
+branch  0 taken 100% (fallthrough)
+branch  1 taken 0%
+branch  2 taken 35% (fallthrough)
+branch  3 taken 65%
+call    4 returned 100%
+branch  5 taken 100% (fallthrough)
+branch  6 taken 0% (throw)
+        -: 1128:        }
+      733: 1129:        return assumed;
+      597: 1130:    };
+        -: 1131:
+     1330: 1132:    for (int i = 0; i < static_cast<int>(info.params.size()); ++i) {
+branch  0 taken 55%
+branch  1 taken 45% (fallthrough)
+        -: 1133:        // without_p：除 p_i 为 T_DYNAMIC 外，其余参数均为 T_INT。
+      733: 1134:        const auto without_p_assumed = make_assumed(info.params[i], T_DYNAMIC, T_INT);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      733: 1135:        const auto without_p_map = RunTrialInference(info.block, info.params, without_p_assumed);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -: 1136:        // 若去掉 p_i 后算术/比较/for-loop 退化，则 p_i 是数学参数。
+      733: 1137:        if (ParamAffectsArithmetic(all_int, without_p_map, info.block, known_math_positions)) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 97% (fallthrough)
+branch  4 taken 3%
+      713: 1138:            math_indices.push_back(i);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -: 1139:        }
+      733: 1140:    }
+call    0 returned 100%
+      597: 1141:    return math_indices;
+    =====: 1142:}
+call    0 never executed
+        -: 1143:
+        -: 1144:// 为函数 info 的所有 2^k 个特化版本生成 AST 节点类型快照并存入 ir。
+        -: 1145:// 对每个 bitmask（0 ~ 2^k-1），按各数学参数的 int/float 分配构造假设类型表，
+        -: 1146:// 运行 RunTrialInference 得到该参数组合下整个函数体的节点类型快照。
+        -: 1147:// assumed_ret 非 null 时，试推断期间会将被调函数返回类型注入 InferNode(FunctionCall)，
+        -: 1148:// 使函数调用节点和下游（如 local x = f(n)）在快照中获得精确类型。
+function _ZNK7fakelua14TypeInferencer24BuildFunctionReturnCacheERKSt13unordered_mapINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairISt10shared_ptrINS_19SyntaxTreeInterfaceEESt6vectorIS7_SaIS7_EEESt4hashIS7_ESt8equal_toIS7_ESaIS8_IKS7_SF_EEE called 439 returned 100% blocks executed 77%
+      439: 1149:std::unordered_map<std::string, TypeInferencer::FuncRetInfo> TypeInferencer::BuildFunctionReturnCache(
+        -: 1150:        const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info) const {
+      439: 1151:    std::unordered_map<std::string, FuncRetInfo> func_ret_cache;
+     1633: 1152:    for (const auto &[func_name, info] : math_func_info) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 58%
+branch  4 taken 42% (fallthrough)
+      597: 1153:        FuncRetInfo ret_info;
+      597: 1154:        ret_info.ends_with_return = CollectReturnExps(info.first, ret_info.ret_exps);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      597: 1155:        func_ret_cache[func_name] = std::move(ret_info);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+call    4 returned 100%
+      597: 1156:    }
+      439: 1157:    return func_ret_cache;
+    =====: 1158:}
+        -: 1159:
+        -: 1160:// ---------------------------------------------------------------------------
+        -: 1161:// InferSpecializationReturnTypes —— 快照再生成 + 返回类型不动点推断
+        -: 1162://
+        -: 1163:// 问题背景：
+        -: 1164://   GenerateFunctionSpecializationSnapshots 生成的初始快照中函数调用节点的类型
+        -: 1165://   为 T_DYNAMIC，无法反映被调函数的实际返回类型，导致下游局部变量（如 local x = f(n)）
+        -: 1166://   在快照中也是 T_DYNAMIC，CGen 无法为其生成原生类型变量。
+        -: 1167://
+        -: 1168:// 新算法（最多 kMaxSpecIterations 轮）：
+        -: 1169://   (0) 初始假设：所有特化版本的返回类型均为 T_INT（乐观初始值）。
+        -: 1170://       用 T_INT 而非 T_DYNAMIC 初始化，使第一轮即可让被调函数调用节点获得 T_INT 类型，
+        -: 1171://       无循环依赖时通常一轮即可收敛。
+        -: 1172://   (1) 对每个数学函数的每个 bitmask 特化版本：
+        -: 1173://       (a) 以数学参数的对应类型和当前 ir.specialization_return_types 为提示，
+        -: 1174://           重新运行 RunTrialInference，生成新的精确快照；
+        -: 1175://       (b) 将新快照写回 ir.specialization_snapshots；
+        -: 1176://       (c) 调用 ComputeReturnTypeFromSnapshot，直接从快照中读取 return 表达式节点的类型，
+        -: 1177://           得出本轮实际返回类型；
+        -: 1178://       (d) 若本轮推断与上轮不同则标记 changed。
+        -: 1179://   (2) 若某轮 changed == false，则已收敛，提前退出。
+        -: 1180://
+        -: 1181:// 互递归收敛分析：
+        -: 1182://   - 类型格（lattice）为 T_INT < T_FLOAT < T_DYNAMIC，单向向上演化。
+        -: 1183://   - 每轮至多一个函数从乐观值向真实值升格，轮次上界为函数数 × 2（T_INT→T_FLOAT→T_DYNAMIC）。
+        -: 1184://   - kMaxSpecIterations = 16 对实际代码已足够。
+        -: 1185:// ---------------------------------------------------------------------------
+function _ZN7fakelua14TypeInferencer30InferSpecializationReturnTypesERNS_11InferResultERKSt13unordered_mapINSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEESt4pairISt10shared_ptrINS_19SyntaxTreeInterfaceEESt6vectorIS9_SaIS9_EEESt4hashIS9_ESt8equal_toIS9_ESaISA_IKS9_SH_EEERKS3_IS9_NS0_11FuncRetInfoESJ_SL_SaISA_ISM_SS_EEE called 439 returned 100% blocks executed 93%
+      439: 1186:void TypeInferencer::InferSpecializationReturnTypes(
+        -: 1187:        InferResult &ir,
+        -: 1188:        const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info,
+        -: 1189:        const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache) {
+        -: 1190:    // 乐观初始值：所有特化版本均假设返回 T_INT。
+     1633: 1191:    for (const auto &[func_name, math_params] : ir.math_param_positions) {
+call    0 returned 100%
+branch  1 taken 58%
+branch  2 taken 42% (fallthrough)
+      597: 1192:        ir.specialization_return_types[func_name].assign(
+call    0 returned 100%
+      597: 1193:                static_cast<size_t>(1 << static_cast<int>(math_params.size())), T_INT);
+call    0 returned 100%
+        -: 1194:    }
+        -: 1195:
+      928: 1196:    for (int round = 0; round < kMaxSpecIterations; ++round) {
+branch  0 taken 100%
+branch  1 taken 0% (fallthrough)
+      928: 1197:        bool changed = false;
+     3726: 1198:        for (const auto &[func_name, info] : math_func_info) {
+call    0 returned 100%
+branch  1 taken 60%
+branch  2 taken 40% (fallthrough)
+     1399: 1199:            const auto &[func_block, func_params] = info;
+call    0 returned 100%
+     1399: 1200:            const auto &math_indices = ir.math_param_positions.at(func_name);
+call    0 returned 100%
+     1399: 1201:            const auto &ret_info = func_ret_cache.at(func_name);
+call    0 returned 100%
+     1399: 1202:            const int num_specs = 1 << static_cast<int>(math_indices.size());
+        -: 1203:
+     4891: 1204:            for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+branch  0 taken 71%
+branch  1 taken 29% (fallthrough)
+        -: 1205:                // 以当前 assumed_ret 为提示重新运行试推断，生成精确快照。
+     3492: 1206:                std::unordered_map<std::string, InferredType> assumed;
+     8812: 1207:                for (const auto &p : func_params) {
+branch  0 taken 60%
+branch  1 taken 40% (fallthrough)
+     5320: 1208:                    assumed[p] = T_DYNAMIC;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -: 1209:                }
+     8672: 1210:                for (int i = 0; i < static_cast<int>(math_indices.size()); ++i) {
+branch  0 taken 60%
+branch  1 taken 40% (fallthrough)
+     7770: 1211:                    assumed[func_params[static_cast<size_t>(math_indices[i])]] =
+branch  0 taken 50% (fallthrough)
+branch  1 taken 50%
+call    2 returned 100%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0% (throw)
+     5180: 1212:                            (MathParamKindOf(bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
+branch  0 taken 50% (fallthrough)
+branch  1 taken 50%
+        -: 1213:                }
+     3492: 1214:                auto new_snapshot = RunTrialInference(func_block, func_params, assumed,
+     3492: 1215:                                                      &ir.math_param_positions,
+     3492: 1216:                                                      &ir.specialization_return_types);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -: 1217:
+        -: 1218:                // 从新快照中直接读取 return 表达式节点的类型。
+     3492: 1219:                const auto new_ret = ComputeReturnTypeFromSnapshot(new_snapshot, ret_info);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -: 1220:
+        -: 1221:                // 若快照或返回类型有变化，则更新并标记 changed。
+     3492: 1222:                const auto bitmask_sz = static_cast<size_t>(bitmask);
+     3492: 1223:                auto &cur_ret = ir.specialization_return_types[func_name][bitmask_sz];
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0% (throw)
+     3492: 1224:                auto &cur_snap = ir.specialization_snapshots[func_name][bitmask_sz];
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 78% (fallthrough)
+branch  4 taken 22%
+     6223: 1225:                if (new_ret != cur_ret || new_snapshot != cur_snap) {
+branch  0 taken 78% (fallthrough)
+branch  1 taken 22%
+branch  2 taken 13% (fallthrough)
+branch  3 taken 87%
+     1126: 1226:                    cur_ret = new_ret;
+     1126: 1227:                    cur_snap = std::move(new_snapshot);
+call    0 returned 100%
+     1126: 1228:                    changed = true;
+call    0 returned 100%
+        -: 1229:                }
+     3492: 1230:            }
+call    0 returned 100%
+        -: 1231:        }
+      928: 1232:        if (!changed) {
+branch  0 taken 53% (fallthrough)
+branch  1 taken 47%
+        -: 1233:            break;
+        -: 1234:        }
+        -: 1235:    }
+      439: 1236:}
+        -: 1237:
+        -: 1238:// ---------------------------------------------------------------------------
+        -: 1239:// DiscoverMathParams —— 数学参数发现的顶层驱动
+        -: 1240://
+        -: 1241:// 总体算法（三步）：
+        -: 1242://   1. 遍历每个顶层函数，通过 CollectFunctionSpecInfos 收集候选信息；
+        -: 1243://   2. 对每个候选函数：
+        -: 1244://      a. 以全 T_DYNAMIC 假设运行 baseline 推断，再以全 T_INT 假设运行 all_int 推断；
+        -: 1245://      b. 若两次推断在算术节点、比较操作数或 for-loop 类型上存在改善
+        -: 1246://         （HasArithmeticImprovement），则认为该函数值得特化；
+        -: 1247://      c. 逐参数测试：将某参数还原为 T_DYNAMIC（without_p），检查是否导致算术退化
+        -: 1248://         （ParamAffectsArithmetic）。若退化则确认该参数为数学参数；
+        -: 1249://      d. 记录数学参数下标列表，为后续 InferSpecializationReturnTypes 准备数据。
+        -: 1250://   3. 对所有有数学参数的函数，通过 InferSpecializationReturnTypes 的不动点迭代
+        -: 1251://      重新生成精确快照并推断每个特化版本的实际返回类型，
+        -: 1252://      写入 ir.specialization_snapshots 和 ir.specialization_return_types。
+        -: 1253://
+        -: 1254:// 注意：步骤2通过多轮迭代实现，因为函数 A 调用函数 B 时，A 的数学参数发现
+        -: 1255:// 依赖 B 已在 math_param_positions 中注册。若 A 在 B 之前被处理，第一轮不会
+        -: 1256:// 检测到 A 的参数通过调用 B 产生的算术改善。多轮迭代直到无新发现为止。
+        -: 1257:// ---------------------------------------------------------------------------
+function _ZN7fakelua14TypeInferencer18DiscoverMathParamsERKNS_11ParseResultERNS_11InferResultE called 782 returned 100% blocks executed 72%
+      782: 1258:void TypeInferencer::DiscoverMathParams(const ParseResult &pr, InferResult &ir) {
+      782: 1259:    std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> math_func_info;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      782: 1260:    const auto function_infos = CollectFunctionSpecInfos(pr);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -: 1261:
+        -: 1262:    // 多轮迭代直到无新的数学参数被发现（解决函数处理顺序依赖问题）。
+        -: 1263:    // 发现阶段跳过 InferBlock 后处理，保留算术表达式节点的真实推断类型，
+        -: 1264:    // 使 CheckArithmeticTypeChanges 能正确检测改善/退化。
+      782: 1265:    skip_post_processing_ = true;
+     1226: 1266:    for (int pass = 0; pass < kMaxSpecIterations; ++pass) {
+branch  0 taken 100%
+branch  1 taken 0% (fallthrough)
+     1226: 1267:        bool new_discovery = false;
+     2470: 1268:        for (const auto &info : function_infos) {
+branch  0 taken 50%
+branch  1 taken 50% (fallthrough)
+        -: 1269:            // 已知数学函数，跳过重复发现。
+     1244: 1270:            if (ir.math_param_positions.contains(info.name)) {
+call    0 returned 100%
+branch  1 taken 48% (fallthrough)
+branch  2 taken 52%
+      647: 1271:                continue;
+        -: 1272:            }
+function _ZZN7fakelua14TypeInferencer18DiscoverMathParamsERKNS_11ParseResultERNS_11InferResultEENKUlRKNSt7__cxx1112basic_stringIcSt11char_traitsIcESaIcEEENS_12InferredTypeESE_E_clESD_SE_SE_ called 1284 returned 100% blocks executed 80%
+     1926: 1273:            const auto make_assumed = [&](const std::string &special_param, const InferredType special_type,
+        -: 1274:                                          const InferredType default_type) {
+     1284: 1275:                std::unordered_map<std::string, InferredType> assumed;
+     2860: 1276:                for (const auto &param : info.params) {
+branch  0 taken 55%
+branch  1 taken 45% (fallthrough)
+    3152*: 1277:                    assumed[param] = (!special_param.empty() && param == special_param) ? special_type : default_type;
+branch  0 taken 0% (fallthrough)
+branch  1 taken 100%
+branch  2 never executed (fallthrough)
+branch  3 never executed
+call    4 returned 100%
+branch  5 taken 100% (fallthrough)
+branch  6 taken 0% (throw)
+        -: 1278:                }
+     1284: 1279:                return assumed;
+      642: 1280:            };
+        -: 1281:            // baseline：所有参数均假设为 T_DYNAMIC；all_int：所有参数均假设为 T_INT。
+        -: 1282:            // 两次推断的对比用于判断该函数的算术表达式是否能因参数类型已知而改善。
+     1284: 1283:            const auto baseline = RunTrialInference(info.block, info.params, make_assumed("", T_DYNAMIC, T_DYNAMIC));
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0% (throw)
+call    6 returned 100%
+branch  7 taken 100% (fallthrough)
+branch  8 taken 0% (throw)
+call    9 returned 100%
+     1284: 1284:            const auto all_int = RunTrialInference(info.block, info.params, make_assumed("", T_INT, T_INT));
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0% (throw)
+call    6 returned 100%
+branch  7 taken 100% (fallthrough)
+branch  8 taken 0% (throw)
+call    9 returned 100%
+call   10 never executed
+      642: 1285:            const auto math_indices = FindMathParamIndices(info, baseline, all_int, ir.math_param_positions);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -: 1286:
+      642: 1287:            if (math_indices.empty()) {
+branch  0 taken 7% (fallthrough)
+branch  1 taken 93%
+       45: 1288:                continue;
+        -: 1289:            }
+      597: 1290:            ir.math_param_positions[info.name] = math_indices;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0% (throw)
+      597: 1291:            math_func_info[info.name] = {info.block, info.params};
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+branch  4 taken 100% (fallthrough)
+branch  5 taken 0% (throw)
+call    6 returned 100%
+call    7 returned 100%
+call    8 never executed
+      597: 1292:            new_discovery = true;
+     597*: 1293:            LOG_INFO("TypeInferencer: {} math params for {} (pass {})", math_indices.size(), info.name, pass);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 0% (fallthrough)
+branch  4 taken 100%
+call    5 never executed
+branch  6 never executed (fallthrough)
+branch  7 never executed (throw)
+call    8 never executed
+branch  9 never executed (fallthrough)
+branch 10 never executed (throw)
+call   11 never executed
+call   12 never executed
+      642: 1294:        }
+call    0 returned 100%
+call    1 returned 100%
+call    2 returned 100%
+call    3 returned 100%
+call    4 returned 100%
+call    5 returned 100%
+call    6 never executed
+     1226: 1295:        if (!new_discovery) {
+branch  0 taken 36% (fallthrough)
+branch  1 taken 64%
+        -: 1296:            break;
+        -: 1297:        }
+        -: 1298:    }
+        -: 1299:
+        -: 1300:    // 发现阶段结束，恢复后处理以便生成 CGen 所需的精确快照。
+      782: 1301:    skip_post_processing_ = false;
+        -: 1302:
+        -: 1303:    // 为所有已发现的数学函数生成初始快照。
+     1976: 1304:    for (const auto &[func_name, info] : math_func_info) {
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+branch  3 taken 43%
+branch  4 taken 57% (fallthrough)
+      597: 1305:        const auto &math_indices = ir.math_param_positions.at(func_name);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      597: 1306:        const auto &[func_block, func_params] = info;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      597: 1307:        const int init_num_specs = 1 << static_cast<int>(math_indices.size());
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      597: 1308:        auto &init_snapshots = ir.specialization_snapshots[func_name];
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      597: 1309:        init_snapshots.resize(static_cast<size_t>(init_num_specs));
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+     2083: 1310:        for (int bitmask = 0; bitmask < init_num_specs; ++bitmask) {
+branch  0 taken 71%
+branch  1 taken 29% (fallthrough)
+     1486: 1311:            std::unordered_map<std::string, InferredType> assumed;
+     3746: 1312:            for (const auto &p : func_params) {
+branch  0 taken 60%
+branch  1 taken 40%
+     2260: 1313:                assumed[p] = T_DYNAMIC;
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+        -: 1314:            }
+     3676: 1315:            for (int i = 0; i < static_cast<int>(math_indices.size()); ++i) {
+branch  0 taken 60%
+branch  1 taken 40% (fallthrough)
+     3285: 1316:                assumed[func_params[static_cast<size_t>(math_indices[i])]] =
+branch  0 taken 50% (fallthrough)
+branch  1 taken 50%
+call    2 returned 100%
+branch  3 taken 100% (fallthrough)
+branch  4 taken 0% (throw)
+     2190: 1317:                        (MathParamKindOf(bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
+branch  0 taken 50% (fallthrough)
+branch  1 taken 50%
+        -: 1318:            }
+     1486: 1319:            init_snapshots[static_cast<size_t>(bitmask)] =
+call    0 returned 100%
+     2972: 1320:                    RunTrialInference(func_block, func_params, assumed);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+call    3 returned 100%
+call    4 returned 100%
+call    5 never executed
+     1486: 1321:        }
+        -: 1322:    }
+        -: 1323:
+      782: 1324:    if (math_func_info.empty()) {
+branch  0 taken 44% (fallthrough)
+branch  1 taken 56%
+      343: 1325:        return;
+        -: 1326:    }
+      439: 1327:    const auto func_ret_cache = BuildFunctionReturnCache(math_func_info);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      439: 1328:    InferSpecializationReturnTypes(ir, math_func_info, func_ret_cache);
+call    0 returned 100%
+branch  1 taken 100% (fallthrough)
+branch  2 taken 0% (throw)
+      782: 1329:}
+call    0 returned 100%
+call    1 returned 100%
+call    2 returned 100%
+call    3 returned 100%
+call    4 never executed
+        -: 1330:
+        -: 1331:}// namespace fakelua
