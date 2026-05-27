@@ -347,129 +347,145 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node) {
 InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp) {
     const auto exp_kind = exp->GetExpKind();
 
-    if (exp_kind == ExpKind::kNumber) {
-        const auto &value = exp->ExpValue();
-        const auto ret = IsInteger(value) ? T_INT : T_FLOAT;
-        current_map_[exp.get()] = ret;
-        return ret;
-    }
-    if (exp_kind == ExpKind::kPrefixExp) {
-        const auto ret = InferNode(exp->Right());
-        current_map_[exp.get()] = ret;
-        return ret;
-    }
-    if (exp_kind == ExpKind::kBinop) {
-        const auto left_type = InferNode(exp->Left());
-        const auto right_type = InferNode(exp->Right());
+    switch (exp_kind) {
+        case ExpKind::kNumber: {
+            const auto &value = exp->ExpValue();
+            const auto ret = IsInteger(value) ? T_INT : T_FLOAT;
+            current_map_[exp.get()] = ret;
+            return ret;
+        }
+        case ExpKind::kPrefixExp: {
+            const auto ret = InferNode(exp->Right());
+            current_map_[exp.get()] = ret;
+            return ret;
+        }
+        case ExpKind::kBinop: {
+            const auto left_type = InferNode(exp->Left());
+            const auto right_type = InferNode(exp->Right());
 
-        if (left_type == T_DYNAMIC || right_type == T_DYNAMIC) {
+            if (left_type == T_DYNAMIC || right_type == T_DYNAMIC) {
+                current_map_[exp.get()] = T_DYNAMIC;
+                return T_DYNAMIC;
+            }
+
+            const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
+            DEBUG_ASSERT(op);
+
+            const auto op_kind = op->GetOpKind();
+
+            // 保持 INT+INT=INT、混合→FLOAT 语义的算术运算
+            if (op_kind == BinOpKind::kPlus || op_kind == BinOpKind::kMinus || op_kind == BinOpKind::kStar ||
+                op_kind == BinOpKind::kDoubleSlash || op_kind == BinOpKind::kMod) {
+                if (left_type == T_INT && right_type == T_INT) {
+                    current_map_[exp.get()] = T_INT;
+                    return T_INT;
+                }
+                if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
+                    current_map_[exp.get()] = T_FLOAT;
+                    return T_FLOAT;
+                }
+            }
+
+            // 结果始终为 FLOAT 的运算
+            if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
+                if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
+                    current_map_[exp.get()] = T_FLOAT;
+                    return T_FLOAT;
+                }
+            }
+
+            // 位运算：Lua 5.4 会将整数浮点（如3.0）自动转为 int，
+            // 因此两个操作数均为数值类型时结果始终为 T_INT。
+            if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kXor ||
+                op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
+                if (IsNumericInferredType(left_type) && IsNumericInferredType(right_type)) {
+                    current_map_[exp.get()] = T_INT;
+                    return T_INT;
+                }
+            }
+
+            // AND/OR：Lua 中整数和浮点数始终为真值（包括 0），因此：
+            //   a and b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 b → 类型为 right_type
+            //   a or  b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 a → 类型为 left_type
+            if (op_kind == BinOpKind::kAnd) {
+                if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
+                    current_map_[exp.get()] = right_type;
+                    return right_type;
+                }
+            }
+            if (op_kind == BinOpKind::kOr) {
+                // 数值始终为真值（包括 0），因此 or 短路：结果始终为左操作数。
+                // 右操作数类型不影响结果类型。
+                if (left_type == T_INT || left_type == T_FLOAT) {
+                    current_map_[exp.get()] = left_type;
+                    return left_type;
+                }
+            }
+
             current_map_[exp.get()] = T_DYNAMIC;
             return T_DYNAMIC;
         }
-
-        const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
-        DEBUG_ASSERT(op);
-
-        const auto op_kind = op->GetOpKind();
-
-        // 保持 INT+INT=INT、混合→FLOAT 语义的算术运算
-        if (op_kind == BinOpKind::kPlus || op_kind == BinOpKind::kMinus || op_kind == BinOpKind::kStar ||
-            op_kind == BinOpKind::kDoubleSlash || op_kind == BinOpKind::kMod) {
-            if (left_type == T_INT && right_type == T_INT) {
+        case ExpKind::kUnop: {
+            const auto operand_type = InferNode(exp->Right());
+            const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
+            DEBUG_ASSERT(op);
+            const auto op_kind = op->GetOpKind();
+            if (op_kind == UnOpKind::kMinus) {
+                if (operand_type == T_INT) {
+                    current_map_[exp.get()] = T_INT;
+                    return T_INT;
+                }
+                if (operand_type == T_FLOAT) {
+                    current_map_[exp.get()] = T_FLOAT;
+                    return T_FLOAT;
+                }
+            }
+            if (op_kind == UnOpKind::kBitNot) {
+                // Lua 5.4 会将整数浮点自动转为 int，因此 ~T_FLOAT 也是合法的。
+                if (operand_type == T_INT || operand_type == T_FLOAT) {
+                    current_map_[exp.get()] = T_INT;
+                    return T_INT;
+                }
+            }
+            if (op_kind == UnOpKind::kNumberSign) {
+                // # 运算符始终返回整数（字符串字节数或表元素数）。
+                // 无论操作数是字符串还是表（均为 T_DYNAMIC），结果类型始终为 T_INT。
                 current_map_[exp.get()] = T_INT;
                 return T_INT;
             }
-            if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
-                current_map_[exp.get()] = T_FLOAT;
-                return T_FLOAT;
-            }
+            current_map_[exp.get()] = T_DYNAMIC;
+            return T_DYNAMIC;
         }
-
-        // 结果始终为 FLOAT 的运算
-        if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
-            if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
-                current_map_[exp.get()] = T_FLOAT;
-                return T_FLOAT;
-            }
+        case ExpKind::kNil:
+        case ExpKind::kTrue:
+        case ExpKind::kFalse:
+        case ExpKind::kString:
+        case ExpKind::kVarParams:
+        case ExpKind::kFunctionDef:
+        case ExpKind::kTableConstructor: {
+            current_map_[exp.get()] = T_DYNAMIC;
+            return T_DYNAMIC;
         }
-
-        // 位运算：Lua 5.4 会将整数浮点（如3.0）自动转为 int，
-        // 因此两个操作数均为数值类型时结果始终为 T_INT。
-        if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kXor ||
-            op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
-            if (IsNumericInferredType(left_type) && IsNumericInferredType(right_type)) {
-                current_map_[exp.get()] = T_INT;
-                return T_INT;
-            }
-        }
-
-        // AND/OR：Lua 中整数和浮点数始终为真值（包括 0），因此：
-        //   a and b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 b → 类型为 right_type
-        //   a or  b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 a → 类型为 left_type
-        if (op_kind == BinOpKind::kAnd) {
-            if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
-                current_map_[exp.get()] = right_type;
-                return right_type;
-            }
-        }
-        if (op_kind == BinOpKind::kOr) {
-            // 数值始终为真值（包括 0），因此 or 短路：结果始终为左操作数。
-            // 右操作数类型不影响结果类型。
-            if (left_type == T_INT || left_type == T_FLOAT) {
-                current_map_[exp.get()] = left_type;
-                return left_type;
-            }
-        }
-
-        current_map_[exp.get()] = T_DYNAMIC;
-        return T_DYNAMIC;
+        default:
+            throw std::runtime_error("InferExp: unhandled ExpKind");
     }
-
-    if (exp_kind == ExpKind::kUnop) {
-        const auto operand_type = InferNode(exp->Right());
-        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
-        DEBUG_ASSERT(op);
-        const auto op_kind = op->GetOpKind();
-        if (op_kind == UnOpKind::kMinus) {
-            if (operand_type == T_INT) {
-                current_map_[exp.get()] = T_INT;
-                return T_INT;
-            }
-            if (operand_type == T_FLOAT) {
-                current_map_[exp.get()] = T_FLOAT;
-                return T_FLOAT;
-            }
-        }
-        if (op_kind == UnOpKind::kBitNot) {
-            // Lua 5.4 会将整数浮点自动转为 int，因此 ~T_FLOAT 也是合法的。
-            if (operand_type == T_INT || operand_type == T_FLOAT) {
-                current_map_[exp.get()] = T_INT;
-                return T_INT;
-            }
-        }
-        if (op_kind == UnOpKind::kNumberSign) {
-            // # 运算符始终返回整数（字符串字节数或表元素数）。
-            // 无论操作数是字符串还是表（均为 T_DYNAMIC），结果类型始终为 T_INT。
-            current_map_[exp.get()] = T_INT;
-            return T_INT;
-        }
-        current_map_[exp.get()] = T_DYNAMIC;
-        return T_DYNAMIC;
-    }
-
-    current_map_[exp.get()] = T_DYNAMIC;
-    return T_DYNAMIC;
 }
 
 InferredType TypeInferencer::InferPrefixExp(const std::shared_ptr<SyntaxTreePrefixexp> &prefix_exp) {
     const auto prefix_kind = prefix_exp->GetPrefixKind();
     InferredType ret = T_DYNAMIC;
 
-    if (prefix_kind == PrefixExpKind::kVar || prefix_kind == PrefixExpKind::kExp) {
-        ret = InferNode(prefix_exp->GetValue());
-    } else if (prefix_kind == PrefixExpKind::kFunctionCall) {
-        // 传播 InferNode(FunctionCall) 的返回值：携带提示时为实际返回类型，否则为 T_DYNAMIC。
-        ret = InferNode(prefix_exp->GetValue());
+    switch (prefix_kind) {
+        case PrefixExpKind::kVar:
+        case PrefixExpKind::kExp:
+            ret = InferNode(prefix_exp->GetValue());
+            break;
+        case PrefixExpKind::kFunctionCall:
+            // 传播 InferNode(FunctionCall) 的返回值：携带提示时为实际返回类型，否则为 T_DYNAMIC。
+            ret = InferNode(prefix_exp->GetValue());
+            break;
+        default:
+            throw std::runtime_error("InferPrefixExp: unhandled PrefixExpKind");
     }
 
     current_map_[prefix_exp.get()] = ret;
@@ -477,27 +493,37 @@ InferredType TypeInferencer::InferPrefixExp(const std::shared_ptr<SyntaxTreePref
 }
 
 InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var) {
-    if (var->GetVarKind() == VarKind::kSimple) {
-        const auto ret = env_.Lookup(var->GetName());
-        current_map_[var.get()] = ret;
-        return ret;
-    }
-
-    // 对于"方括号"和"点号"变量，处理子表达式以便内部变量
-    //（例如用作表索引的整型循环变量）被记录到 current_map_，
-    // 从而使 CGen 在生成变量引用时能通过 LookupNodeType 查到其原生类型，
-    // 而不会在需要 CVar 的地方错误地发出原始 int64_t 变量名。
-    if (const auto pe = var->GetPrefixexp()) {
-        InferNode(pe);
-    }
-    if (var->GetVarKind() == VarKind::kSquare) {
-        if (const auto exp = var->GetExp()) {
-            InferNode(exp);
+    switch (var->GetVarKind()) {
+        case VarKind::kSimple: {
+            const auto ret = env_.Lookup(var->GetName());
+            current_map_[var.get()] = ret;
+            return ret;
         }
+        case VarKind::kSquare: {
+            // 对于"方括号"变量，处理子表达式以便内部变量
+            //（例如用作表索引的整型循环变量）被记录到 current_map_，
+            // 从而使 CGen 在生成变量引用时能通过 LookupNodeType 查到其原生类型，
+            // 而不会在需要 CVar 的地方错误地发出原始 int64_t 变量名。
+            if (const auto pe = var->GetPrefixexp()) {
+                InferNode(pe);
+            }
+            if (const auto exp = var->GetExp()) {
+                InferNode(exp);
+            }
+            current_map_[var.get()] = T_DYNAMIC;
+            return T_DYNAMIC;
+        }
+        case VarKind::kDot: {
+            // 对于"点号"变量，处理前缀表达式子节点
+            if (const auto pe = var->GetPrefixexp()) {
+                InferNode(pe);
+            }
+            current_map_[var.get()] = T_DYNAMIC;
+            return T_DYNAMIC;
+        }
+        default:
+            throw std::runtime_error("InferVar: unhandled VarKind");
     }
-
-    current_map_[var.get()] = T_DYNAMIC;
-    return T_DYNAMIC;
 }
 
 void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, const bool new_scope) {
