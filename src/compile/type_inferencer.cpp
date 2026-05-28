@@ -373,53 +373,77 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
 
             const auto op_kind = op->GetOpKind();
 
-            // 保持 INT+INT=INT、混合→FLOAT 语义的算术运算
-            if (op_kind == BinOpKind::kPlus || op_kind == BinOpKind::kMinus || op_kind == BinOpKind::kStar ||
-                op_kind == BinOpKind::kDoubleSlash || op_kind == BinOpKind::kMod) {
-                if (left_type == T_INT && right_type == T_INT) {
-                    current_map_[exp.get()] = T_INT;
-                    return T_INT;
+            switch (op_kind) {
+                // 保持 INT+INT=INT、混合→FLOAT 语义的算术运算
+                case BinOpKind::kPlus:
+                case BinOpKind::kMinus:
+                case BinOpKind::kStar:
+                case BinOpKind::kDoubleSlash:
+                case BinOpKind::kMod: {
+                    if (left_type == T_INT && right_type == T_INT) {
+                        current_map_[exp.get()] = T_INT;
+                        return T_INT;
+                    }
+                    if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
+                        current_map_[exp.get()] = T_FLOAT;
+                        return T_FLOAT;
+                    }
+                    break;
                 }
-                if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
-                    current_map_[exp.get()] = T_FLOAT;
-                    return T_FLOAT;
-                }
-            }
 
-            // 结果始终为 FLOAT 的运算
-            if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
-                if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
-                    current_map_[exp.get()] = T_FLOAT;
-                    return T_FLOAT;
+                // 结果始终为 FLOAT 的运算
+                case BinOpKind::kSlash:
+                case BinOpKind::kPow: {
+                    if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
+                        current_map_[exp.get()] = T_FLOAT;
+                        return T_FLOAT;
+                    }
+                    break;
                 }
-            }
 
-            // 位运算：Lua 5.4 会将整数浮点（如3.0）自动转为 int，
-            // 因此两个操作数均为数值类型时结果始终为 T_INT。
-            if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kXor ||
-                op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
-                if (IsNumericInferredType(left_type) && IsNumericInferredType(right_type)) {
-                    current_map_[exp.get()] = T_INT;
-                    return T_INT;
+                // 位运算：Lua 5.4 会将整数浮点（如3.0）自动转为 int，
+                // 因此两个操作数均为数值类型时结果始终为 T_INT。
+                case BinOpKind::kBitAnd:
+                case BinOpKind::kBitOr:
+                case BinOpKind::kXor:
+                case BinOpKind::kLeftShift:
+                case BinOpKind::kRightShift: {
+                    if (IsNumericInferredType(left_type) && IsNumericInferredType(right_type)) {
+                        current_map_[exp.get()] = T_INT;
+                        return T_INT;
+                    }
+                    break;
                 }
-            }
 
-            // AND/OR：Lua 中整数和浮点数始终为真值（包括 0），因此：
-            //   a and b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 b → 类型为 right_type
-            //   a or  b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 a → 类型为 left_type
-            if (op_kind == BinOpKind::kAnd) {
-                if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
-                    current_map_[exp.get()] = right_type;
-                    return right_type;
+                // AND/OR：Lua 中整数和浮点数始终为真值（包括 0），因此：
+                //   a and b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 b → 类型为 right_type
+                //   a or  b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 a → 类型为 left_type
+                case BinOpKind::kAnd: {
+                    if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
+                        current_map_[exp.get()] = right_type;
+                        return right_type;
+                    }
+                    break;
                 }
-            }
-            if (op_kind == BinOpKind::kOr) {
-                // 数值始终为真值（包括 0），因此 or 短路：结果始终为左操作数。
-                // 右操作数类型不影响结果类型。
-                if (left_type == T_INT || left_type == T_FLOAT) {
-                    current_map_[exp.get()] = left_type;
-                    return left_type;
+                case BinOpKind::kOr: {
+                    // 数值始终为真值（包括 0），因此 or 短路：结果始终为左操作数。
+                    // 右操作数类型不影响结果类型。
+                    if (left_type == T_INT || left_type == T_FLOAT) {
+                        current_map_[exp.get()] = left_type;
+                        return left_type;
+                    }
+                    break;
                 }
+
+                // 比较运算与字符串连接：结果为 T_DYNAMIC
+                case BinOpKind::kLess:
+                case BinOpKind::kLessEqual:
+                case BinOpKind::kMore:
+                case BinOpKind::kMoreEqual:
+                case BinOpKind::kEqual:
+                case BinOpKind::kNotEqual:
+                case BinOpKind::kConcat:
+                    break;
             }
 
             current_map_[exp.get()] = T_DYNAMIC;
