@@ -750,18 +750,6 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
     return prev_map;
 }
 
-bool TypeInferencer::HasArithmeticImprovement(const EvalTypeMap &all_int, const EvalTypeMap &baseline,
-                                               const SyntaxTreeInterfacePtr &func_block,
-                                               const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
-    return CheckArithmeticTypeChanges(all_int, baseline, func_block, true, math_param_positions);
-}
-
-bool TypeInferencer::ParamAffectsArithmetic(const EvalTypeMap &all_int, const EvalTypeMap &without_p,
-                                              const SyntaxTreeInterfacePtr &func_block,
-                                              const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
-    return CheckArithmeticTypeChanges(all_int, without_p, func_block, false, math_param_positions);
-}
-
 // ---------------------------------------------------------------------------
 // CheckArithmeticTypeChanges —— 数学参数发现的统一类型变化检测器
 //
@@ -1187,7 +1175,7 @@ std::vector<int> TypeInferencer::FindMathParamIndices(
         const std::unordered_map<std::string, std::vector<int>> &known_math_positions) {
     std::vector<int> math_indices;
     // 快速剪枝：若全 T_INT 与 baseline 无改善，函数不具备特化价值。
-    if (!HasArithmeticImprovement(all_int, baseline, info.block, known_math_positions)) {
+    if (!CheckArithmeticTypeChanges(all_int, baseline, info.block, true, known_math_positions)) {
         return math_indices;
     }
 
@@ -1205,7 +1193,7 @@ std::vector<int> TypeInferencer::FindMathParamIndices(
         const auto without_p_assumed = make_assumed(info.params[i], T_DYNAMIC, T_INT);
         const auto without_p_map = RunTrialInference(info.block, info.params, without_p_assumed);
         // 若去掉 p_i 后算术/比较/for-loop 退化，则 p_i 是数学参数。
-        if (ParamAffectsArithmetic(all_int, without_p_map, info.block, known_math_positions)) {
+        if (CheckArithmeticTypeChanges(all_int, without_p_map, info.block, false, known_math_positions)) {
             math_indices.push_back(i);
         }
     }
