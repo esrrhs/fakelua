@@ -70,8 +70,17 @@ InferResult TypeInferencer::Process(const ParseResult &pr) {
     // 将当前推断结果复制为全局主快照，供 CGen 在非特化路径下查询节点类型。
     ir.main_eval_types = current_map_;
 
-    // 在正常推断之后，通过迭代不动点试推断发现数学参数，写入 ir.math_param_positions。
-    DiscoverMathParams(pr, ir);
+    // 在正常推断之后，通过三个阶段发现数学参数并生成特化信息：
+    //   1. IdentifyMathParams：多轮迭代识别数学参数
+    //   2. GenerateInitialSnapshots：生成各特化版本的初始类型快照
+    //   3. InferSpecializationReturnTypes：不动点迭代精化返回类型
+    auto math_func_info = IdentifyMathParams(pr, ir);
+    if (!math_func_info.empty()) {
+        GenerateInitialSnapshots(ir, math_func_info);
+        const auto func_ret_cache = BuildFunctionReturnCache(math_func_info);
+        InferSpecializationReturnTypes(ir, math_func_info, func_ret_cache);
+    }
+
     return ir;
 }
 
@@ -1298,26 +1307,20 @@ void TypeInferencer::InferSpecializationReturnTypes(
 }
 
 // ---------------------------------------------------------------------------
-// DiscoverMathParams —— 数学参数发现的顶层驱动
+// IdentifyMathParams —— 多轮迭代识别数学参数
 //
-// 总体算法（三步）：
-//   1. 遍历每个顶层函数，通过 CollectFunctionSpecInfos 收集候选信息；
-//   2. 对每个候选函数：
-//      a. 以全 T_DYNAMIC 假设运行 baseline 推断，再以全 T_INT 假设运行 all_int 推断；
-//      b. 若两次推断在算术节点、比较操作数或 for-loop 类型上存在改善
-//         （HasArithmeticImprovement），则认为该函数值得特化；
-//      c. 逐参数测试：将某参数还原为 T_DYNAMIC（without_p），检查是否导致算术退化
-//         （ParamAffectsArithmetic）。若退化则确认该参数为数学参数；
-//      d. 记录数学参数下标列表，为后续 InferSpecializationReturnTypes 准备数据。
-//   3. 对所有有数学参数的函数，通过 InferSpecializationReturnTypes 的不动点迭代
-//      重新生成精确快照并推断每个特化版本的实际返回类型，
-//      写入 ir.specialization_snapshots 和 ir.specialization_return_types。
-//
-// 注意：步骤2通过多轮迭代实现，因为函数 A 调用函数 B 时，A 的数学参数发现
-// 依赖 B 已在 math_param_positions 中注册。若 A 在 B 之前被处理，第一轮不会
-// 检测到 A 的参数通过调用 B 产生的算术改善。多轮迭代直到无新发现为止。
+// 算法：
+//   1. 遍历顶层函数，收集候选信息；
+//   2. 多轮迭代直到无新发现（解决函数处理顺序依赖问题）：
+//      a. 以全 T_DYNAMIC 假设运行 baseline 推断；
+//      b. 以全 T_INT 假设运行 all_int 推断；
+//      c. 对比两次推断，若算术节点有改善则函数值得特化；
+//      d. 逐参数测试敏感性，确认哪些参数影响算术运算；
+//   3. 记录数学参数位置到 ir.math_param_positions；
+//   4. 返回数学函数信息供后续阶段使用。
 // ---------------------------------------------------------------------------
-void TypeInferencer::DiscoverMathParams(const ParseResult &pr, InferResult &ir) {
+std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>>
+TypeInferencer::IdentifyMathParams(const ParseResult &pr, InferResult &ir) {
     std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> math_func_info;
     const auto function_infos = CollectFunctionSpecInfos(pr);
 
@@ -1362,14 +1365,30 @@ void TypeInferencer::DiscoverMathParams(const ParseResult &pr, InferResult &ir) 
     // 发现阶段结束，恢复后处理以便生成 CGen 所需的精确快照。
     skip_post_processing_ = false;
 
-    // 为所有已发现的数学函数生成初始快照。
-    for (const auto &[func_name, info] : math_func_info) {
+    return math_func_info;
+}
+
+// ---------------------------------------------------------------------------
+// GenerateInitialSnapshots —— 生成初始特化快照
+//
+// 为每个数学函数生成所有 2^k 个特化版本的初始类型快照，
+// 写入 ir.specialization_snapshots。
+// 这些快照不含被调函数返回类型提示，将在后续不动点迭代中精化。
+// ---------------------------------------------------------------------------
+void TypeInferencer::GenerateInitialSnapshots(
+        InferResult &ir,
+        const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info) {
+
+    for (const auto &[func_name, func_data] : math_func_info) {
+        const auto &[func_block, func_params] = func_data;
         const auto &math_indices = ir.math_param_positions.at(func_name);
-        const auto &[func_block, func_params] = info;
-        const int init_num_specs = 1 << static_cast<int>(math_indices.size());
-        auto &init_snapshots = ir.specialization_snapshots[func_name];
-        init_snapshots.resize(static_cast<size_t>(init_num_specs));
-        for (int bitmask = 0; bitmask < init_num_specs; ++bitmask) {
+        const int num_specs = 1 << static_cast<int>(math_indices.size());
+
+        auto &snapshots = ir.specialization_snapshots[func_name];
+        snapshots.resize(static_cast<size_t>(num_specs));
+
+        for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+            // 构造参数类型假设：非数学参数为 T_DYNAMIC，数学参数按 bitmask 分配
             std::unordered_map<std::string, InferredType> assumed;
             for (const auto &p : func_params) {
                 assumed[p] = T_DYNAMIC;
@@ -1378,16 +1397,10 @@ void TypeInferencer::DiscoverMathParams(const ParseResult &pr, InferResult &ir) 
                 assumed[func_params[static_cast<size_t>(math_indices[i])]] =
                         (MathParamKindOf(bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
             }
-            init_snapshots[static_cast<size_t>(bitmask)] =
+            snapshots[static_cast<size_t>(bitmask)] =
                     RunTrialInference(func_block, func_params, assumed);
         }
     }
-
-    if (math_func_info.empty()) {
-        return;
-    }
-    const auto func_ret_cache = BuildFunctionReturnCache(math_func_info);
-    InferSpecializationReturnTypes(ir, math_func_info, func_ret_cache);
 }
 
 }// namespace fakelua

@@ -61,8 +61,16 @@ private:
     // 数学参数特化发现（迭代不动点推断）
     // -----------------------------------------------------------------------
 
-    // 遍历顶层函数，识别数学参数并写入 ir.math_param_positions。
-    void DiscoverMathParams(const ParseResult &pr, InferResult &ir);
+    // 多轮迭代识别数学参数，记录到 ir.math_param_positions，
+    // 同时返回数学函数信息（函数名 → {函数体, 参数列表}）。
+    std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>>
+    IdentifyMathParams(const ParseResult &pr, InferResult &ir);
+
+    // 为所有数学函数生成初始特化快照，写入 ir.specialization_snapshots。
+    // 每个函数生成 2^k 个快照（k = 数学参数个数）。
+    void GenerateInitialSnapshots(
+            InferResult &ir,
+            const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info);
 
     // 以 assumed_types 中给定的参数类型假设运行 InferBlock，迭代直到稳定（不动点），
     // 返回各 AST 节点 → InferredType 的快照。
