@@ -456,28 +456,38 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
             const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
             DEBUG_ASSERT(op);
             const auto op_kind = op->GetOpKind();
-            if (op_kind == UnOpKind::kMinus) {
-                if (operand_type == T_INT) {
+            switch (op_kind) {
+                case UnOpKind::kMinus: {
+                    if (operand_type == T_INT) {
+                        current_map_[exp.get()] = T_INT;
+                        return T_INT;
+                    }
+                    if (operand_type == T_FLOAT) {
+                        current_map_[exp.get()] = T_FLOAT;
+                        return T_FLOAT;
+                    }
+                    break;
+                }
+                case UnOpKind::kBitNot: {
+                    // Lua 5.4 会将整数浮点自动转为 int，因此 ~T_FLOAT 也是合法的。
+                    if (operand_type == T_INT || operand_type == T_FLOAT) {
+                        current_map_[exp.get()] = T_INT;
+                        return T_INT;
+                    }
+                    break;
+                }
+                case UnOpKind::kNumberSign: {
+                    // # 运算符始终返回整数（字符串字节数或表元素数）。
+                    // 无论操作数是字符串还是表（均为 T_DYNAMIC），结果类型始终为 T_INT。
                     current_map_[exp.get()] = T_INT;
                     return T_INT;
                 }
-                if (operand_type == T_FLOAT) {
-                    current_map_[exp.get()] = T_FLOAT;
-                    return T_FLOAT;
+                case UnOpKind::kNot: {
+                    // not 运算符始终返回布尔值，对于类型推断视为 T_DYNAMIC。
+                    break;
                 }
-            }
-            if (op_kind == UnOpKind::kBitNot) {
-                // Lua 5.4 会将整数浮点自动转为 int，因此 ~T_FLOAT 也是合法的。
-                if (operand_type == T_INT || operand_type == T_FLOAT) {
-                    current_map_[exp.get()] = T_INT;
-                    return T_INT;
-                }
-            }
-            if (op_kind == UnOpKind::kNumberSign) {
-                // # 运算符始终返回整数（字符串字节数或表元素数）。
-                // 无论操作数是字符串还是表（均为 T_DYNAMIC），结果类型始终为 T_INT。
-                current_map_[exp.get()] = T_INT;
-                return T_INT;
+                default:
+                    throw std::runtime_error("InferExp: unhandled UnOpKind");
             }
             current_map_[exp.get()] = T_DYNAMIC;
             return T_DYNAMIC;
