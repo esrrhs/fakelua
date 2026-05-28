@@ -444,6 +444,8 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp)
                 case BinOpKind::kNotEqual:
                 case BinOpKind::kConcat:
                     break;
+                default:
+                    throw std::runtime_error("InferExp: unhandled BinOpKind");
             }
 
             current_map_[exp.get()] = T_DYNAMIC;
