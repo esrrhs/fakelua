@@ -64,7 +64,7 @@ InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_t
 // TypeInferencer implementation
 // ---------------------------------------------------------------------------
 
-InferResult TypeInferencer::Process(const ParseResult &pr) {
+InferResult TypeInferencer::InferTypes(const ParseResult &pr) {
     InferResult ir;
     EvalTypeMap current_map;
     InferNode(pr.chunk, current_map, false);
@@ -100,99 +100,13 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, EvalT
             return T_UNKNOWN;
         }
         case SyntaxTreeType::LocalVar: {
-            const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
-            const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(local_var->Namelist());
-            std::vector<SyntaxTreeInterfacePtr> exps;
-            if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(local_var->Explist())) {
-                exps = explist->Exps();
-            }
-
-            DEBUG_ASSERT(namelist);
-
-            const auto &names = namelist->Names();
-            for (size_t i = 0; i < names.size(); ++i) {
-                InferredType type = T_DYNAMIC;
-                if (i < exps.size()) {
-                    type = InferNode(exps[i], current_map, in_funcbody, ctx);
-                }
-                env_.Define(names[i], type);
-                // 文件顶层（!in_funcbody）数值类型局部变量：
-                // 将其记录到 file_level_types_，供 RunTrialInference
-                // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
-                if (!in_funcbody && IsNumericInferredType(type)) {
-                    file_level_types_[names[i]] = type;
-                }
-            }
-
-            current_map[node.get()] = T_UNKNOWN;
-            return T_UNKNOWN;
+            return InferLocalVar(std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node), current_map, in_funcbody, ctx);
         }
         case SyntaxTreeType::Assign: {
-            const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
-            const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
-            const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
-            DEBUG_ASSERT(varlist && explist && !varlist->Vars().empty() && !explist->Exps().empty());
-
-            DEBUG_ASSERT(varlist->Vars().size() == 1 && explist->Exps().size() == 1);// 预处理阶段已将多赋值拆分成单赋值
-
-            const InferredType rhs_type = InferNode(explist->Exps()[0], current_map, in_funcbody, ctx);
-            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
-            DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple);
-
-            const std::string name = var->GetName();
-            // 若变量被固定（数学参数在特化试推断中），跳过 env 降级，
-            // 以保持与运行时类型检查语义一致：赋值失败时会抛异常，不会改变变量类型。
-            if (ctx && ctx->pinned_vars && ctx->pinned_vars->contains(name)) {
-                const auto current = env_.Lookup(name);
-                current_map[var.get()] = current;
-                current_map[node.get()] = current;
-                return current;
-            }
-            if (!env_.Update(name, rhs_type)) {
-                current_map[var.get()] = T_DYNAMIC;
-                current_map[node.get()] = T_DYNAMIC;
-                return T_DYNAMIC;
-            }
-
-            const auto current = env_.Lookup(name);
-            current_map[var.get()] = current;
-            current_map[node.get()] = current;
-            return current;
+            return InferAssign(std::dynamic_pointer_cast<SyntaxTreeAssign>(node), current_map, in_funcbody, ctx);
         }
         case SyntaxTreeType::ForLoop: {
-            const auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
-            const InferredType begin_type = InferNode(for_loop->ExpBegin(), current_map, in_funcbody, ctx);
-            const InferredType end_type = InferNode(for_loop->ExpEnd(), current_map, in_funcbody, ctx);
-            const InferredType step_type = InferNode(for_loop->ExpStep(), current_map, in_funcbody, ctx);
-
-            // 仅当所有边界都是 T_INT 时才将循环变量标记为 T_INT，
-            // 这与 CGen 使用的整型特化路径相匹配。当所有边界均为数值（T_INT 或 T_FLOAT）
-            // 但并非全为 T_INT 时，标记为 T_FLOAT 以启用 double 快路径。
-            // 当任何边界为 T_DYNAMIC 时，CGen 会生成 CVar 循环控制变量，
-            // 因此循环变量也必须是 T_DYNAMIC 以保持类型一致。
-            const bool begin_valid = for_loop->ExpBegin() != nullptr;
-            const bool end_valid = for_loop->ExpEnd() != nullptr;
-            const bool step_numeric = !for_loop->ExpStep() || step_type == T_INT || step_type == T_FLOAT;
-            const bool all_int = begin_valid && end_valid && begin_type == T_INT &&
-                                 end_type == T_INT &&
-                                 (!for_loop->ExpStep() || step_type == T_INT);
-            const bool all_numeric =
-                    !all_int && begin_valid && end_valid &&
-                    (begin_type == T_INT || begin_type == T_FLOAT) &&
-                    (end_type == T_INT || end_type == T_FLOAT) && step_numeric;
-            const InferredType loop_var_type = all_int ? T_INT : (all_numeric ? T_FLOAT : T_DYNAMIC);
-
-            env_.EnterScope();
-            env_.Define(for_loop->Name(), loop_var_type);
-            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_loop->Block()), false, current_map, in_funcbody, ctx);
-            // 循环体内可能对循环变量重新赋值（例如 `a = "test"`），导致其类型
-            // 从初始的 T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量的
-            // 最终类型，以便 CGen 决定生成原生整型/浮点快路径还是 CVar 动态路径。
-            const InferredType final_loop_var_type = env_.Lookup(for_loop->Name());
-            env_.ExitScope();
-
-            current_map[node.get()] = final_loop_var_type;
-            return final_loop_var_type;
+            return InferForLoop(std::dynamic_pointer_cast<SyntaxTreeForLoop>(node), current_map, in_funcbody, ctx);
         }
         case SyntaxTreeType::Function: {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
@@ -288,52 +202,16 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, EvalT
             return T_DYNAMIC;
         }
         case SyntaxTreeType::If: {
-            const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
-            InferNode(if_stmt->Exp(), current_map, in_funcbody, ctx);
-            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(if_stmt->Block()), true, current_map, in_funcbody, ctx);
-            if (const auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs())) {
-                for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
-                    InferNode(elseifs->ElseifExp(i), current_map, in_funcbody, ctx);
-                    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(elseifs->ElseifBlock(i)), true, current_map, in_funcbody, ctx);
-                }
-            }
-            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(if_stmt->ElseBlock()), true, current_map, in_funcbody, ctx);
-            current_map[node.get()] = T_UNKNOWN;
-            return T_UNKNOWN;
+            return InferIf(std::dynamic_pointer_cast<SyntaxTreeIf>(node), current_map, in_funcbody, ctx);
         }
         case SyntaxTreeType::While: {
-            const auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
-            InferNode(while_stmt->Exp(), current_map, in_funcbody, ctx);
-            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(while_stmt->Block()), true, current_map, in_funcbody, ctx);
-            current_map[node.get()] = T_UNKNOWN;
-            return T_UNKNOWN;
+            return InferWhile(std::dynamic_pointer_cast<SyntaxTreeWhile>(node), current_map, in_funcbody, ctx);
         }
         case SyntaxTreeType::Repeat: {
-            const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
-            // Lua 语义：until 条件可以访问 repeat 块内声明的 local 变量。
-            // 因此必须在 until 条件推断完成之后再退出作用域，而不能在块结束时立即退出。
-            env_.EnterScope();
-            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(repeat_stmt->Block()), false, current_map, in_funcbody, ctx);
-            InferNode(repeat_stmt->Exp(), current_map, in_funcbody, ctx);
-            env_.ExitScope();
-            current_map[node.get()] = T_UNKNOWN;
-            return T_UNKNOWN;
+            return InferRepeat(std::dynamic_pointer_cast<SyntaxTreeRepeat>(node), current_map, in_funcbody, ctx);
         }
         case SyntaxTreeType::ForIn: {
-            const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
-            InferNode(for_in->Explist(), current_map, in_funcbody, ctx);
-            const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(for_in->Namelist());
-            DEBUG_ASSERT(namelist);
-            // For-in 循环变量是循环体作用域内的局部变量，必须先注入作用域。
-            // 否则循环体中的赋值会错误地更新外层同名变量，导致类型污染。
-            env_.EnterScope();
-            for (const auto &name: namelist->Names()) {
-                env_.Define(name, T_DYNAMIC);
-            }
-            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_in->Block()), false, current_map, in_funcbody, ctx);
-            env_.ExitScope();
-            current_map[node.get()] = T_UNKNOWN;
-            return T_UNKNOWN;
+            return InferForIn(std::dynamic_pointer_cast<SyntaxTreeForIn>(node), current_map, in_funcbody, ctx);
         }
         case SyntaxTreeType::Empty:
         case SyntaxTreeType::Label:
@@ -349,6 +227,149 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, EvalT
                     std::format("InferNode: unexpected SyntaxTreeType: {}", SyntaxTreeTypeToString(node->Type())));
         }
     }
+}
+
+InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocalVar> &local_var, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+    const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(local_var->Namelist());
+    std::vector<SyntaxTreeInterfacePtr> exps;
+    if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(local_var->Explist())) {
+        exps = explist->Exps();
+    }
+
+    DEBUG_ASSERT(namelist);
+
+    const auto &names = namelist->Names();
+    for (size_t i = 0; i < names.size(); ++i) {
+        InferredType type = T_DYNAMIC;
+        if (i < exps.size()) {
+            type = InferNode(exps[i], current_map, in_funcbody, ctx);
+        }
+        env_.Define(names[i], type);
+        // 文件顶层（!in_funcbody）数值类型局部变量：
+        // 将其记录到 file_level_types_，供 RunTrialInference
+        // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
+        if (!in_funcbody && IsNumericInferredType(type)) {
+            file_level_types_[names[i]] = type;
+        }
+    }
+
+    current_map[local_var.get()] = T_UNKNOWN;
+    return T_UNKNOWN;
+}
+
+InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign> &assign, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+    const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+    const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
+    DEBUG_ASSERT(varlist && explist && !varlist->Vars().empty() && !explist->Exps().empty());
+
+    DEBUG_ASSERT(varlist->Vars().size() == 1 && explist->Exps().size() == 1);// 预处理阶段已将多赋值拆分成单赋值
+
+    const InferredType rhs_type = InferNode(explist->Exps()[0], current_map, in_funcbody, ctx);
+    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
+    DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple);
+
+    const std::string name = var->GetName();
+    // 若变量被固定（数学参数在特化试推断中），跳过 env 降级，
+    // 以保持与运行时类型检查语义一致：赋值失败时会抛异常，不会改变变量类型。
+    if (ctx && ctx->pinned_vars && ctx->pinned_vars->contains(name)) {
+        const auto current = env_.Lookup(name);
+        current_map[var.get()] = current;
+        current_map[assign.get()] = current;
+        return current;
+    }
+    if (!env_.Update(name, rhs_type)) {
+        current_map[var.get()] = T_DYNAMIC;
+        current_map[assign.get()] = T_DYNAMIC;
+        return T_DYNAMIC;
+    }
+
+    const auto current = env_.Lookup(name);
+    current_map[var.get()] = current;
+    current_map[assign.get()] = current;
+    return current;
+}
+
+InferredType TypeInferencer::InferForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_loop, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+    const InferredType begin_type = InferNode(for_loop->ExpBegin(), current_map, in_funcbody, ctx);
+    const InferredType end_type = InferNode(for_loop->ExpEnd(), current_map, in_funcbody, ctx);
+    const InferredType step_type = InferNode(for_loop->ExpStep(), current_map, in_funcbody, ctx);
+
+    // 仅当所有边界都是 T_INT 时才将循环变量标记为 T_INT，
+    // 这与 CGen 使用的整型特化路径相匹配。当所有边界均为数值（T_INT 或 T_FLOAT）
+    // 但并非全为 T_INT 时，标记为 T_FLOAT 以启用 double 快路径。
+    // 当任何边界为 T_DYNAMIC 时，CGen 会生成 CVar 循环控制变量，
+    // 因此循环变量也必须是 T_DYNAMIC 以保持类型一致。
+    const bool begin_valid = for_loop->ExpBegin() != nullptr;
+    const bool end_valid = for_loop->ExpEnd() != nullptr;
+    const bool step_numeric = !for_loop->ExpStep() || step_type == T_INT || step_type == T_FLOAT;
+    const bool all_int = begin_valid && end_valid && begin_type == T_INT &&
+                         end_type == T_INT &&
+                         (!for_loop->ExpStep() || step_type == T_INT);
+    const bool all_numeric =
+            !all_int && begin_valid && end_valid &&
+            (begin_type == T_INT || begin_type == T_FLOAT) &&
+            (end_type == T_INT || end_type == T_FLOAT) && step_numeric;
+    const InferredType loop_var_type = all_int ? T_INT : (all_numeric ? T_FLOAT : T_DYNAMIC);
+
+    env_.EnterScope();
+    env_.Define(for_loop->Name(), loop_var_type);
+    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_loop->Block()), false, current_map, in_funcbody, ctx);
+    // 循环体内可能对循环变量重新赋值（例如 `a = "test"`），导致其类型
+    // 从初始的 T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量的
+    // 最终类型，以便 CGen 决定生成原生整型/浮点快路径还是 CVar 动态路径。
+    const InferredType final_loop_var_type = env_.Lookup(for_loop->Name());
+    env_.ExitScope();
+
+    current_map[for_loop.get()] = final_loop_var_type;
+    return final_loop_var_type;
+}
+
+InferredType TypeInferencer::InferForIn(const std::shared_ptr<SyntaxTreeForIn> &for_in, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+    InferNode(for_in->Explist(), current_map, in_funcbody, ctx);
+    const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(for_in->Namelist());
+    DEBUG_ASSERT(namelist);
+    // For-in 循环变量是循环体作用域内的局部变量，必须先注入作用域。
+    // 否则循环体中的赋值会错误地更新外层同名变量，导致类型污染。
+    env_.EnterScope();
+    for (const auto &name: namelist->Names()) {
+        env_.Define(name, T_DYNAMIC);
+    }
+    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_in->Block()), false, current_map, in_funcbody, ctx);
+    env_.ExitScope();
+    current_map[for_in.get()] = T_UNKNOWN;
+    return T_UNKNOWN;
+}
+
+InferredType TypeInferencer::InferWhile(const std::shared_ptr<SyntaxTreeWhile> &while_stmt, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+    InferNode(while_stmt->Exp(), current_map, in_funcbody, ctx);
+    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(while_stmt->Block()), true, current_map, in_funcbody, ctx);
+    current_map[while_stmt.get()] = T_UNKNOWN;
+    return T_UNKNOWN;
+}
+
+InferredType TypeInferencer::InferRepeat(const std::shared_ptr<SyntaxTreeRepeat> &repeat_stmt, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+    // Lua 语义：until 条件可以访问 repeat 块内声明的 local 变量。
+    // 因此必须在 until 条件推断完成之后再退出作用域，而不能在块结束时立即退出。
+    env_.EnterScope();
+    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(repeat_stmt->Block()), false, current_map, in_funcbody, ctx);
+    InferNode(repeat_stmt->Exp(), current_map, in_funcbody, ctx);
+    env_.ExitScope();
+    current_map[repeat_stmt.get()] = T_UNKNOWN;
+    return T_UNKNOWN;
+}
+
+InferredType TypeInferencer::InferIf(const std::shared_ptr<SyntaxTreeIf> &if_stmt, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+    InferNode(if_stmt->Exp(), current_map, in_funcbody, ctx);
+    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(if_stmt->Block()), true, current_map, in_funcbody, ctx);
+    if (const auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs())) {
+        for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
+            InferNode(elseifs->ElseifExp(i), current_map, in_funcbody, ctx);
+            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(elseifs->ElseifBlock(i)), true, current_map, in_funcbody, ctx);
+        }
+    }
+    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(if_stmt->ElseBlock()), true, current_map, in_funcbody, ctx);
+    current_map[if_stmt.get()] = T_UNKNOWN;
+    return T_UNKNOWN;
 }
 
 InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
