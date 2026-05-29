@@ -9,7 +9,7 @@ namespace fakelua {
 class TypeInferencer {
 public:
     // 运行全局类型推断，并在返回的 InferResult 中填充数学参数特化信息。
-    InferResult Process(const ParseResult &pr);
+    InferResult InferTypes(const ParseResult &pr);
 
 private:
     class TypeEnvironment {
@@ -65,6 +65,15 @@ private:
     InferredType InferVar(const std::shared_ptr<SyntaxTreeVar> &var, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx = nullptr);
 
     void InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, bool new_scope, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx = nullptr);
+
+    // 辅助分析不同类型语句的私有成员函数，用于拆分庞大的 Switch 分支
+    InferredType InferLocalVar(const std::shared_ptr<SyntaxTreeLocalVar> &local_var, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
+    InferredType InferAssign(const std::shared_ptr<SyntaxTreeAssign> &assign, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
+    InferredType InferForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_loop, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
+    InferredType InferForIn(const std::shared_ptr<SyntaxTreeForIn> &for_in, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
+    InferredType InferWhile(const std::shared_ptr<SyntaxTreeWhile> &while_stmt, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
+    InferredType InferRepeat(const std::shared_ptr<SyntaxTreeRepeat> &repeat_stmt, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
+    InferredType InferIf(const std::shared_ptr<SyntaxTreeIf> &if_stmt, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
 
     // -----------------------------------------------------------------------
     // 数学参数特化发现（迭代不动点推断）

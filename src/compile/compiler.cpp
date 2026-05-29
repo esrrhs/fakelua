@@ -62,7 +62,7 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
 
     // 3. 类型推导（同时识别数学参数）
     TypeInferencer inferencer;
-    InferResult ir = inferencer.Process(pr);
+    InferResult ir = inferencer.InferTypes(pr);
 
     // 4. 转译为C
     CGen cgen(s_);
