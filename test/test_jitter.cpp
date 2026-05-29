@@ -1815,3 +1815,28 @@ TEST(jitter, test_for_in_shadow_local) {
     });
 }
 
+TEST(jitter, test_table_zero_key) {
+    std::vector<VarInterface *> tmp;
+    auto newfunc = [&]() {
+        auto ret = new SimpleVarImpl();
+        tmp.push_back(ret);
+        return ret;
+    };
+    JitterRunHelper([&](State *s, JITType type, bool debug_mode) {
+        SetVarInterfaceNewFunc(s, newfunc);
+        CompileFile(s, "./jit/test_table_zero_key.lua", {.debug_mode = debug_mode});
+        VarInterface *t = nullptr;
+        Call(s, type, "test", t);
+        ASSERT_NE(t, nullptr);
+        ASSERT_EQ(t->ViGetType(), VarInterface::Type::TABLE);
+        ASSERT_EQ(t->ViGetTableSize(), 1);
+        auto kv = t->ViGetTableKv(0);
+        ASSERT_EQ(kv.first->ViGetType(), VarInterface::Type::INT);
+        ASSERT_EQ(kv.first->ViGetInt(), 0);
+        ASSERT_EQ(kv.second->ViGetType(), VarInterface::Type::INT);
+        ASSERT_EQ(kv.second->ViGetInt(), 100);
+    });
+    for (auto &i: tmp) {
+        delete i;
+    }
+}

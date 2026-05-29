@@ -455,7 +455,6 @@ static inline CVar FlGetTableInt(CVar t, int64_t k) {
     VarTable *tbl = t.data_.t;
     if (tbl->count_ == 0) { return (CVar){VAR_NIL}; }
     uint32_t h = (uint32_t)(k ^ (k >> 32));
-    if (h == 0) { h = 1; }
     if (tbl->bucket_count_ == 0) {
         for (uint32_t i = 0; i < tbl->count_; ++i) {
             if (tbl->quick_data_[i].hash == h && tbl->quick_data_[i].key.type_ == VAR_INT && tbl->quick_data_[i].key.data_.i == k) {
@@ -486,7 +485,6 @@ static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
     if (t.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
     uint32_t h = (uint32_t)(k ^ (k >> 32));
-    if (h == 0) { h = 1; }
     CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
     if (v.type_ == VAR_NIL) {
         // Deletion: delegate to generic path (rare operation, not worth duplicating)
