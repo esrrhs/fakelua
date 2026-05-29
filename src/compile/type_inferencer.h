@@ -52,6 +52,8 @@ private:
     struct TrialInferenceContext {
         const std::unordered_map<std::string, std::vector<int>> *math_positions = nullptr;
         const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret = nullptr;
+        const std::unordered_set<std::string> *pinned_vars = nullptr;
+        bool skip_post_processing = false;
     };
 
     InferredType InferNode(const SyntaxTreeInterfacePtr &node, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx = nullptr);
@@ -88,7 +90,8 @@ private:
                                   const std::vector<std::string> &params,
                                   const std::unordered_map<std::string, InferredType> &assumed_types,
                                   const std::unordered_map<std::string, std::vector<int>> *math_positions = nullptr,
-                                  const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret = nullptr);
+                                  const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret = nullptr,
+                                  bool skip_post_processing = false);
 
     // 判断 exp 节点是否为算术表达式（结果可为 T_INT/T_FLOAT 的运算符）。
     // 包括算术/位运算二元运算符，以及一元负号和按位取反。
@@ -159,14 +162,7 @@ private:
     // 使函数体的试推断能看到正确的文件级常量类型，进而支持函数特化。
     std::unordered_map<std::string, InferredType> file_level_types_;
 
-    // 试推断期间被固定（pinned）的变量名集合：这些变量对应当前特化版本的数学参数，
-    // 其 env 类型在 InferNode(Assign) 中不可被降级（以模拟运行时类型检查的保证）。
-    std::unordered_set<std::string> pinned_vars_;
 
-    // 试推断期间跳过 InferBlock 的后处理（变量最终类型覆写初始化表达式类型）。
-    // 后处理是为 CGen 提供声明类型信息，但会污染试推断快照中算术表达式节点的类型，
-    // 导致 CheckArithmeticTypeChanges 无法正确检测算术改善/退化。
-    bool skip_post_processing_ = false;
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
     static constexpr int kMaxSpecIterations = 16;
