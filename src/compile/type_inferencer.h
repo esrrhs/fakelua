@@ -47,15 +47,22 @@ private:
     // node指针 → 推断类型的快照映射，用于特化发现的不动点迭代。
     using EvalTypeMap = EvalTypeSnapshot;
 
-    InferredType InferNode(const SyntaxTreeInterfacePtr &node);
+    // 试推断上下文：在 RunTrialInference 中创建，沿调用链传递，
+    // 用于 ResolveCallReturnType 解析被调函数的返回类型。
+    struct TrialInferenceContext {
+        const std::unordered_map<std::string, std::vector<int>> *math_positions = nullptr;
+        const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret = nullptr;
+    };
 
-    InferredType InferExp(const std::shared_ptr<SyntaxTreeExp> &exp);
+    InferredType InferNode(const SyntaxTreeInterfacePtr &node, const TrialInferenceContext *ctx = nullptr);
 
-    InferredType InferPrefixExp(const std::shared_ptr<SyntaxTreePrefixexp> &prefix_exp);
+    InferredType InferExp(const std::shared_ptr<SyntaxTreeExp> &exp, const TrialInferenceContext *ctx = nullptr);
 
-    InferredType InferVar(const std::shared_ptr<SyntaxTreeVar> &var);
+    InferredType InferPrefixExp(const std::shared_ptr<SyntaxTreePrefixexp> &prefix_exp, const TrialInferenceContext *ctx = nullptr);
 
-    void InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, bool new_scope);
+    InferredType InferVar(const std::shared_ptr<SyntaxTreeVar> &var, const TrialInferenceContext *ctx = nullptr);
+
+    void InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, bool new_scope, const TrialInferenceContext *ctx = nullptr);
 
     // -----------------------------------------------------------------------
     // 数学参数特化发现（迭代不动点推断）
@@ -130,10 +137,11 @@ private:
     bool CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
                            std::vector<SyntaxTreeInterfacePtr> &ret_exps) const;
 
-    // 试推断期间，根据 trial_math_positions_ / trial_assumed_ret_ 提示解析函数调用
-    // 的实际返回类型。提示为 null 时（主推断遍）始终返回 T_DYNAMIC。
+    // 试推断期间，根据上下文提示解析函数调用的实际返回类型。
+    // 上下文为 null 时（主推断遍）始终返回 T_DYNAMIC。
     [[nodiscard]] InferredType ResolveCallReturnType(
-            const std::shared_ptr<SyntaxTreeFunctioncall> &fc) const;
+            const std::shared_ptr<SyntaxTreeFunctioncall> &fc,
+            const TrialInferenceContext *ctx) const;
 
     // 从 RunTrialInference 生成的精确快照中直接读取 return 表达式节点的类型，
     // 汇总得出该特化版本的函数返回类型（T_INT / T_FLOAT / T_DYNAMIC）。
@@ -158,11 +166,6 @@ private:
     // RunTrialInference 在重置 env_ 后用此表重新注入这些常量，
     // 使函数体的试推断能看到正确的文件级常量类型，进而支持函数特化。
     std::unordered_map<std::string, InferredType> file_level_types_;
-
-    // 当非 nullopt 时，InferNode(FunctionCall) 会调用 ResolveCallReturnType 注入被调函数返回类型。
-    // 仅在 RunTrialInference 执行期间被临时设置，主推断遍（Process）中始终为 nullopt。
-    std::optional<std::unordered_map<std::string, std::vector<int>>> trial_math_positions_;
-    std::optional<std::unordered_map<std::string, std::vector<InferredType>>> trial_assumed_ret_;
 
     // 试推断期间被固定（pinned）的变量名集合：这些变量对应当前特化版本的数学参数，
     // 其 env 类型在 InferNode(Assign) 中不可被降级（以模拟运行时类型检查的保证）。
