@@ -54,15 +54,15 @@ private:
         const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret = nullptr;
     };
 
-    InferredType InferNode(const SyntaxTreeInterfacePtr &node, const TrialInferenceContext *ctx = nullptr);
+    InferredType InferNode(const SyntaxTreeInterfacePtr &node, EvalTypeMap &current_map, const TrialInferenceContext *ctx = nullptr);
 
-    InferredType InferExp(const std::shared_ptr<SyntaxTreeExp> &exp, const TrialInferenceContext *ctx = nullptr);
+    InferredType InferExp(const std::shared_ptr<SyntaxTreeExp> &exp, EvalTypeMap &current_map, const TrialInferenceContext *ctx = nullptr);
 
-    InferredType InferPrefixExp(const std::shared_ptr<SyntaxTreePrefixexp> &prefix_exp, const TrialInferenceContext *ctx = nullptr);
+    InferredType InferPrefixExp(const std::shared_ptr<SyntaxTreePrefixexp> &prefix_exp, EvalTypeMap &current_map, const TrialInferenceContext *ctx = nullptr);
 
-    InferredType InferVar(const std::shared_ptr<SyntaxTreeVar> &var, const TrialInferenceContext *ctx = nullptr);
+    InferredType InferVar(const std::shared_ptr<SyntaxTreeVar> &var, EvalTypeMap &current_map, const TrialInferenceContext *ctx = nullptr);
 
-    void InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, bool new_scope, const TrialInferenceContext *ctx = nullptr);
+    void InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, bool new_scope, EvalTypeMap &current_map, const TrialInferenceContext *ctx = nullptr);
 
     // -----------------------------------------------------------------------
     // 数学参数特化发现（迭代不动点推断）
@@ -141,6 +141,7 @@ private:
     // 上下文为 null 时（主推断遍）始终返回 T_DYNAMIC。
     [[nodiscard]] InferredType ResolveCallReturnType(
             const std::shared_ptr<SyntaxTreeFunctioncall> &fc,
+            const EvalTypeMap &current_map,
             const TrialInferenceContext *ctx) const;
 
     // 从 RunTrialInference 生成的精确快照中直接读取 return 表达式节点的类型，
@@ -154,12 +155,6 @@ private:
     // 是否正在推断函数体内部（true）还是文件顶层（false）。
     // 用于区分文件级 local 变量和函数体内局部变量，以决定是否写入 file_level_types_。
     bool in_funcbody_ = false;
-    // 当前推断遍次中所有已推断节点的类型映射：节点指针 → 推断类型。
-    // 替代原先内嵌在 AST 节点的 eval_type_ 字段，避免 AST 与推断过程耦合。
-    // 随 InferNode 调用逐步填充，最终复制给 cr.main_eval_types。
-    // RunTrialInference 在每轮开始时清除 func_block 节点的条目，试推断结束后
-    // 该映射反映最后一轮的推断结果（直到下一次 Process() 或 RunTrialInference 覆盖）。
-    EvalTypeMap current_map_;
 
     // 文件顶层（!in_funcbody_）的数值类型局部变量映射：变量名 → T_INT/T_FLOAT。
     // 在 InferNode LocalVar 阶段填充（仅记录数值字面量初始化的顶层 local 变量）。
