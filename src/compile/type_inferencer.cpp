@@ -67,7 +67,8 @@ InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_t
 InferResult TypeInferencer::InferTypes(const ParseResult &pr) {
     InferResult ir;
     EvalTypeMap current_map;
-    InferNode(pr.chunk, current_map, false);
+    TraversalContext tctx{current_map, false, nullptr};
+    InferNode(pr.chunk, tctx);
     // 将当前推断结果复制为全局主快照，供 CGen 在非特化路径下查询节点类型。
     ir.main_eval_types = current_map;
 
@@ -85,40 +86,39 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr) {
     return ir;
 }
 
-InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, TraversalContext &tctx) {
     if (!node) {
         return T_UNKNOWN;
     }
+
+    auto &current_map = tctx.current_map;
 
     switch (node->Type()) {
         case SyntaxTreeType::Block: {
             const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
             // 独立的 do...end 块必须引入自己的作用域，使内部的
             // 局部声明不会污染（或覆盖）外围作用域。
-            InferBlock(block, true, current_map, in_funcbody, ctx);
-            current_map[block.get()] = T_UNKNOWN;
-            return T_UNKNOWN;
+            InferBlock(block, true, tctx);
+            return RecordType(current_map, block.get(), T_UNKNOWN);
         }
         case SyntaxTreeType::LocalVar: {
-            return InferLocalVar(std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node), current_map, in_funcbody, ctx);
+            return InferLocalVar(std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node), tctx);
         }
         case SyntaxTreeType::Assign: {
-            return InferAssign(std::dynamic_pointer_cast<SyntaxTreeAssign>(node), current_map, in_funcbody, ctx);
+            return InferAssign(std::dynamic_pointer_cast<SyntaxTreeAssign>(node), tctx);
         }
         case SyntaxTreeType::ForLoop: {
-            return InferForLoop(std::dynamic_pointer_cast<SyntaxTreeForLoop>(node), current_map, in_funcbody, ctx);
+            return InferForLoop(std::dynamic_pointer_cast<SyntaxTreeForLoop>(node), tctx);
         }
         case SyntaxTreeType::Function: {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
-            InferNode(func->Funcbody(), current_map, in_funcbody, ctx);
-            current_map[node.get()] = T_UNKNOWN;
-            return T_UNKNOWN;
+            InferNode(func->Funcbody(), tctx);
+            return RecordType(current_map, node.get(), T_UNKNOWN);
         }
         case SyntaxTreeType::LocalFunction: {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
-            InferNode(func->Funcbody(), current_map, in_funcbody, ctx);
-            current_map[node.get()] = T_UNKNOWN;
-            return T_UNKNOWN;
+            InferNode(func->Funcbody(), tctx);
+            return RecordType(current_map, node.get(), T_UNKNOWN);
         }
         case SyntaxTreeType::FuncBody: {
             const auto funcbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
@@ -130,88 +130,81 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, EvalT
                     }
                 }
             }
-            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(funcbody->Block()), false, current_map, true, ctx);
+            TraversalContext sub_tctx{tctx.current_map, true, tctx.ctx};
+            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(funcbody->Block()), false, sub_tctx);
             env_.ExitScope();
-            current_map[node.get()] = T_UNKNOWN;
-            return T_UNKNOWN;
+            return RecordType(current_map, node.get(), T_UNKNOWN);
         }
         case SyntaxTreeType::Return: {
             const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
-            InferNode(ret->Explist(), current_map, in_funcbody, ctx);
-            current_map[node.get()] = T_UNKNOWN;
-            return T_UNKNOWN;
+            InferNode(ret->Explist(), tctx);
+            return RecordType(current_map, node.get(), T_UNKNOWN);
         }
         case SyntaxTreeType::ExpList: {
             const auto exp_list = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
             InferredType last = T_UNKNOWN;
             for (const auto &exp: exp_list->Exps()) {
-                last = InferNode(exp, current_map, in_funcbody, ctx);
+                last = InferNode(exp, tctx);
             }
-            current_map[node.get()] = last;
-            return last;
+            return RecordType(current_map, node.get(), last);
         }
         case SyntaxTreeType::Exp: {
             const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-            return InferExp(exp, current_map, in_funcbody, ctx);
+            return InferExp(exp, tctx);
         }
         case SyntaxTreeType::PrefixExp: {
             const auto prefix_exp = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node);
-            return InferPrefixExp(prefix_exp, current_map, in_funcbody, ctx);
+            return InferPrefixExp(prefix_exp, tctx);
         }
         case SyntaxTreeType::Var: {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
-            return InferVar(var, current_map, in_funcbody, ctx);
+            return InferVar(var, tctx);
         }
         case SyntaxTreeType::FunctionCall: {
             const auto functioncall = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
-            InferNode(functioncall->prefixexp(), current_map, in_funcbody, ctx);
-            InferNode(functioncall->Args(), current_map, in_funcbody, ctx);
+            InferNode(functioncall->prefixexp(), tctx);
+            InferNode(functioncall->Args(), tctx);
             // 当正在运行携带被调函数返回类型提示的试推断时，尝试解析该函数调用的实际返回类型。
             // 主推断遍（ctx 为 null）保持原有的 T_DYNAMIC 行为。
-            const auto ret_type = ResolveCallReturnType(functioncall, current_map, ctx);
-            current_map[node.get()] = ret_type;
-            return ret_type;
+            const auto ret_type = ResolveCallReturnType(functioncall, tctx);
+            return RecordType(current_map, node.get(), ret_type);
         }
         case SyntaxTreeType::TableConstructor: {
             const auto tableconstructor = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
-            InferNode(tableconstructor->Fieldlist(), current_map, in_funcbody, ctx);
-            current_map[node.get()] = T_DYNAMIC;
-            return T_DYNAMIC;
+            InferNode(tableconstructor->Fieldlist(), tctx);
+            return RecordType(current_map, node.get(), T_DYNAMIC);
         }
         case SyntaxTreeType::Args: {
             const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
-            InferNode(args->Explist(), current_map, in_funcbody, ctx);
-            InferNode(args->Tableconstructor(), current_map, in_funcbody, ctx);
-            InferNode(args->String(), current_map, in_funcbody, ctx);
-            current_map[node.get()] = T_DYNAMIC;
-            return T_DYNAMIC;
+            InferNode(args->Explist(), tctx);
+            InferNode(args->Tableconstructor(), tctx);
+            InferNode(args->String(), tctx);
+            return RecordType(current_map, node.get(), T_DYNAMIC);
         }
         case SyntaxTreeType::FieldList: {
             const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
             for (const auto &field: fieldlist->Fields()) {
-                InferNode(field, current_map, in_funcbody, ctx);
+                InferNode(field, tctx);
             }
-            current_map[node.get()] = T_DYNAMIC;
-            return T_DYNAMIC;
+            return RecordType(current_map, node.get(), T_DYNAMIC);
         }
         case SyntaxTreeType::Field: {
             const auto field = std::dynamic_pointer_cast<SyntaxTreeField>(node);
-            InferNode(field->Key(), current_map, in_funcbody, ctx);
-            InferNode(field->Value(), current_map, in_funcbody, ctx);
-            current_map[node.get()] = T_DYNAMIC;
-            return T_DYNAMIC;
+            InferNode(field->Key(), tctx);
+            InferNode(field->Value(), tctx);
+            return RecordType(current_map, node.get(), T_DYNAMIC);
         }
         case SyntaxTreeType::If: {
-            return InferIf(std::dynamic_pointer_cast<SyntaxTreeIf>(node), current_map, in_funcbody, ctx);
+            return InferIf(std::dynamic_pointer_cast<SyntaxTreeIf>(node), tctx);
         }
         case SyntaxTreeType::While: {
-            return InferWhile(std::dynamic_pointer_cast<SyntaxTreeWhile>(node), current_map, in_funcbody, ctx);
+            return InferWhile(std::dynamic_pointer_cast<SyntaxTreeWhile>(node), tctx);
         }
         case SyntaxTreeType::Repeat: {
-            return InferRepeat(std::dynamic_pointer_cast<SyntaxTreeRepeat>(node), current_map, in_funcbody, ctx);
+            return InferRepeat(std::dynamic_pointer_cast<SyntaxTreeRepeat>(node), tctx);
         }
         case SyntaxTreeType::ForIn: {
-            return InferForIn(std::dynamic_pointer_cast<SyntaxTreeForIn>(node), current_map, in_funcbody, ctx);
+            return InferForIn(std::dynamic_pointer_cast<SyntaxTreeForIn>(node), tctx);
         }
         case SyntaxTreeType::Empty:
         case SyntaxTreeType::Label:
@@ -219,8 +212,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, EvalT
         case SyntaxTreeType::Goto:
         case SyntaxTreeType::NameList: {
             // 这些节点是语句或辅助结构，没有表达式类型
-            current_map[node.get()] = T_UNKNOWN;
-            return T_UNKNOWN;
+            return RecordType(current_map, node.get(), T_UNKNOWN);
         }
         default: {
             ThrowFakeluaException(
@@ -229,7 +221,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, EvalT
     }
 }
 
-InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocalVar> &local_var, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocalVar> &local_var, TraversalContext &tctx) {
     const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(local_var->Namelist());
     std::vector<SyntaxTreeInterfacePtr> exps;
     if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(local_var->Explist())) {
@@ -237,62 +229,60 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
     }
 
     DEBUG_ASSERT(namelist);
+    auto &current_map = tctx.current_map;
 
     const auto &names = namelist->Names();
     for (size_t i = 0; i < names.size(); ++i) {
         InferredType type = T_DYNAMIC;
         if (i < exps.size()) {
-            type = InferNode(exps[i], current_map, in_funcbody, ctx);
+            type = InferNode(exps[i], tctx);
         }
         env_.Define(names[i], type);
         // 文件顶层（!in_funcbody）数值类型局部变量：
-        // 将其记录到 file_level_types_，供 RunTrialInference
+        // 将其记录 to file_level_types_，供 RunTrialInference
         // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
-        if (!in_funcbody && IsNumericInferredType(type)) {
+        if (!tctx.in_funcbody && IsNumericInferredType(type)) {
             file_level_types_[names[i]] = type;
         }
     }
 
-    current_map[local_var.get()] = T_UNKNOWN;
-    return T_UNKNOWN;
+    return RecordType(current_map, local_var.get(), T_UNKNOWN);
 }
 
-InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign> &assign, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign> &assign, TraversalContext &tctx) {
     const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
     const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
     DEBUG_ASSERT(varlist && explist && !varlist->Vars().empty() && !explist->Exps().empty());
 
     DEBUG_ASSERT(varlist->Vars().size() == 1 && explist->Exps().size() == 1);// 预处理阶段已将多赋值拆分成单赋值
 
-    const InferredType rhs_type = InferNode(explist->Exps()[0], current_map, in_funcbody, ctx);
+    const InferredType rhs_type = InferNode(explist->Exps()[0], tctx);
     const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
     DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple);
 
+    auto &current_map = tctx.current_map;
     const std::string name = var->GetName();
     // 若变量被固定（数学参数在特化试推断中），跳过 env 降级，
     // 以保持与运行时类型检查语义一致：赋值失败时会抛异常，不会改变变量类型。
-    if (ctx && ctx->pinned_vars && ctx->pinned_vars->contains(name)) {
+    if (tctx.IsPinnedVar(name)) {
         const auto current = env_.Lookup(name);
         current_map[var.get()] = current;
-        current_map[assign.get()] = current;
-        return current;
+        return RecordType(current_map, assign.get(), current);
     }
     if (!env_.Update(name, rhs_type)) {
         current_map[var.get()] = T_DYNAMIC;
-        current_map[assign.get()] = T_DYNAMIC;
-        return T_DYNAMIC;
+        return RecordType(current_map, assign.get(), T_DYNAMIC);
     }
 
     const auto current = env_.Lookup(name);
     current_map[var.get()] = current;
-    current_map[assign.get()] = current;
-    return current;
+    return RecordType(current_map, assign.get(), current);
 }
 
-InferredType TypeInferencer::InferForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_loop, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
-    const InferredType begin_type = InferNode(for_loop->ExpBegin(), current_map, in_funcbody, ctx);
-    const InferredType end_type = InferNode(for_loop->ExpEnd(), current_map, in_funcbody, ctx);
-    const InferredType step_type = InferNode(for_loop->ExpStep(), current_map, in_funcbody, ctx);
+InferredType TypeInferencer::InferForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_loop, TraversalContext &tctx) {
+    const InferredType begin_type = InferNode(for_loop->ExpBegin(), tctx);
+    const InferredType end_type = InferNode(for_loop->ExpEnd(), tctx);
+    const InferredType step_type = InferNode(for_loop->ExpStep(), tctx);
 
     // 仅当所有边界都是 T_INT 时才将循环变量标记为 T_INT，
     // 这与 CGen 使用的整型特化路径相匹配。当所有边界均为数值（T_INT 或 T_FLOAT）
@@ -311,21 +301,21 @@ InferredType TypeInferencer::InferForLoop(const std::shared_ptr<SyntaxTreeForLoo
             (end_type == T_INT || end_type == T_FLOAT) && step_numeric;
     const InferredType loop_var_type = all_int ? T_INT : (all_numeric ? T_FLOAT : T_DYNAMIC);
 
+    auto &current_map = tctx.current_map;
     env_.EnterScope();
     env_.Define(for_loop->Name(), loop_var_type);
-    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_loop->Block()), false, current_map, in_funcbody, ctx);
+    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_loop->Block()), false, tctx);
     // 循环体内可能对循环变量重新赋值（例如 `a = "test"`），导致其类型
-    // 从初始 of T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量的
+    // 从初始 of T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量 of
     // 最终类型，以便 CGen 决定生成原生整型/浮点快路径还是 CVar 动态路径。
     const InferredType final_loop_var_type = env_.Lookup(for_loop->Name());
     env_.ExitScope();
 
-    current_map[for_loop.get()] = final_loop_var_type;
-    return final_loop_var_type;
+    return RecordType(current_map, for_loop.get(), final_loop_var_type);
 }
 
-InferredType TypeInferencer::InferForIn(const std::shared_ptr<SyntaxTreeForIn> &for_in, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
-    InferNode(for_in->Explist(), current_map, in_funcbody, ctx);
+InferredType TypeInferencer::InferForIn(const std::shared_ptr<SyntaxTreeForIn> &for_in, TraversalContext &tctx) {
+    InferNode(for_in->Explist(), tctx);
     const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(for_in->Namelist());
     DEBUG_ASSERT(namelist);
     // For-in 循环变量是循环体作用域内的局部变量，必须先注入作用域。
@@ -334,66 +324,60 @@ InferredType TypeInferencer::InferForIn(const std::shared_ptr<SyntaxTreeForIn> &
     for (const auto &name: namelist->Names()) {
         env_.Define(name, T_DYNAMIC);
     }
-    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_in->Block()), false, current_map, in_funcbody, ctx);
+    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_in->Block()), false, tctx);
     env_.ExitScope();
-    current_map[for_in.get()] = T_UNKNOWN;
-    return T_UNKNOWN;
+    return RecordType(tctx.current_map, for_in.get(), T_UNKNOWN);
 }
 
-InferredType TypeInferencer::InferWhile(const std::shared_ptr<SyntaxTreeWhile> &while_stmt, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
-    InferNode(while_stmt->Exp(), current_map, in_funcbody, ctx);
-    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(while_stmt->Block()), true, current_map, in_funcbody, ctx);
-    current_map[while_stmt.get()] = T_UNKNOWN;
-    return T_UNKNOWN;
+InferredType TypeInferencer::InferWhile(const std::shared_ptr<SyntaxTreeWhile> &while_stmt, TraversalContext &tctx) {
+    InferNode(while_stmt->Exp(), tctx);
+    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(while_stmt->Block()), true, tctx);
+    return RecordType(tctx.current_map, while_stmt.get(), T_UNKNOWN);
 }
 
-InferredType TypeInferencer::InferRepeat(const std::shared_ptr<SyntaxTreeRepeat> &repeat_stmt, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
-    // Lua 语义：until 条件可以访问 repeat 块内声明的 local 变量。
+InferredType TypeInferencer::InferRepeat(const std::shared_ptr<SyntaxTreeRepeat> &repeat_stmt, TraversalContext &tctx) {
+    // Lua 语义：until 条件可以访问 repeat 块内声明 of local 变量。
     // 因此必须在 until 条件推断完成之后再退出作用域，而不能在块结束时立即退出。
     env_.EnterScope();
-    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(repeat_stmt->Block()), false, current_map, in_funcbody, ctx);
-    InferNode(repeat_stmt->Exp(), current_map, in_funcbody, ctx);
+    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(repeat_stmt->Block()), false, tctx);
+    InferNode(repeat_stmt->Exp(), tctx);
     env_.ExitScope();
-    current_map[repeat_stmt.get()] = T_UNKNOWN;
-    return T_UNKNOWN;
+    return RecordType(tctx.current_map, repeat_stmt.get(), T_UNKNOWN);
 }
 
-InferredType TypeInferencer::InferIf(const std::shared_ptr<SyntaxTreeIf> &if_stmt, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
-    InferNode(if_stmt->Exp(), current_map, in_funcbody, ctx);
-    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(if_stmt->Block()), true, current_map, in_funcbody, ctx);
+InferredType TypeInferencer::InferIf(const std::shared_ptr<SyntaxTreeIf> &if_stmt, TraversalContext &tctx) {
+    InferNode(if_stmt->Exp(), tctx);
+    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(if_stmt->Block()), true, tctx);
     if (const auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs())) {
         for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
-            InferNode(elseifs->ElseifExp(i), current_map, in_funcbody, ctx);
-            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(elseifs->ElseifBlock(i)), true, current_map, in_funcbody, ctx);
+            InferNode(elseifs->ElseifExp(i), tctx);
+            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(elseifs->ElseifBlock(i)), true, tctx);
         }
     }
-    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(if_stmt->ElseBlock()), true, current_map, in_funcbody, ctx);
-    current_map[if_stmt.get()] = T_UNKNOWN;
-    return T_UNKNOWN;
+    InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(if_stmt->ElseBlock()), true, tctx);
+    return RecordType(tctx.current_map, if_stmt.get(), T_UNKNOWN);
 }
 
-InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp, TraversalContext &tctx) {
     const auto exp_kind = exp->GetExpKind();
+    auto &current_map = tctx.current_map;
 
     switch (exp_kind) {
         case ExpKind::kNumber: {
             const auto &value = exp->ExpValue();
             const auto ret = IsInteger(value) ? T_INT : T_FLOAT;
-            current_map[exp.get()] = ret;
-            return ret;
+            return RecordType(current_map, exp.get(), ret);
         }
         case ExpKind::kPrefixExp: {
-            const auto ret = InferNode(exp->Right(), current_map, in_funcbody, ctx);
-            current_map[exp.get()] = ret;
-            return ret;
+            const auto ret = InferNode(exp->Right(), tctx);
+            return RecordType(current_map, exp.get(), ret);
         }
         case ExpKind::kBinop: {
-            const auto left_type = InferNode(exp->Left(), current_map, in_funcbody, ctx);
-            const auto right_type = InferNode(exp->Right(), current_map, in_funcbody, ctx);
+            const auto left_type = InferNode(exp->Left(), tctx);
+            const auto right_type = InferNode(exp->Right(), tctx);
 
             if (left_type == T_DYNAMIC || right_type == T_DYNAMIC) {
-                current_map[exp.get()] = T_DYNAMIC;
-                return T_DYNAMIC;
+                return RecordType(current_map, exp.get(), T_DYNAMIC);
             }
 
             const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
@@ -409,12 +393,10 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                 case BinOpKind::kDoubleSlash:
                 case BinOpKind::kMod: {
                     if (left_type == T_INT && right_type == T_INT) {
-                        current_map[exp.get()] = T_INT;
-                        return T_INT;
+                        return RecordType(current_map, exp.get(), T_INT);
                     }
                     if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
-                        current_map[exp.get()] = T_FLOAT;
-                        return T_FLOAT;
+                        return RecordType(current_map, exp.get(), T_FLOAT);
                     }
                     break;
                 }
@@ -423,8 +405,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                 case BinOpKind::kSlash:
                 case BinOpKind::kPow: {
                     if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
-                        current_map[exp.get()] = T_FLOAT;
-                        return T_FLOAT;
+                        return RecordType(current_map, exp.get(), T_FLOAT);
                     }
                     break;
                 }
@@ -437,19 +418,17 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                 case BinOpKind::kLeftShift:
                 case BinOpKind::kRightShift: {
                     if (IsNumericInferredType(left_type) && IsNumericInferredType(right_type)) {
-                        current_map[exp.get()] = T_INT;
-                        return T_INT;
+                        return RecordType(current_map, exp.get(), T_INT);
                     }
                     break;
                 }
 
-                // AND/OR：Lua 中整数和浮点数始终为真值（包括 0），因此：
+                // AND/OR：Lua 中整数 and 浮点数始终为真值（包括 0），因此：
                 //   a and b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 b → 类型为 right_type
                 //   a or  b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 a → 类型为 left_type
                 case BinOpKind::kAnd: {
                     if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
-                        current_map[exp.get()] = right_type;
-                        return right_type;
+                        return RecordType(current_map, exp.get(), right_type);
                     }
                     break;
                 }
@@ -457,8 +436,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                     // 数值始终为真值（包括 0），因此 or 短路：结果始终为左操作数。
                     // 右操作数类型不影响结果类型。
                     if (left_type == T_INT || left_type == T_FLOAT) {
-                        current_map[exp.get()] = left_type;
-                        return left_type;
+                        return RecordType(current_map, exp.get(), left_type);
                     }
                     break;
                 }
@@ -476,39 +454,34 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                     throw std::runtime_error("InferExp: unhandled BinOpKind");
             }
 
-            current_map[exp.get()] = T_DYNAMIC;
-            return T_DYNAMIC;
+            return RecordType(current_map, exp.get(), T_DYNAMIC);
         }
         case ExpKind::kUnop: {
-            const auto operand_type = InferNode(exp->Right(), current_map, in_funcbody, ctx);
+            const auto operand_type = InferNode(exp->Right(), tctx);
             const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
             DEBUG_ASSERT(op);
             const auto op_kind = op->GetOpKind();
             switch (op_kind) {
                 case UnOpKind::kMinus: {
                     if (operand_type == T_INT) {
-                        current_map[exp.get()] = T_INT;
-                        return T_INT;
+                        return RecordType(current_map, exp.get(), T_INT);
                     }
                     if (operand_type == T_FLOAT) {
-                        current_map[exp.get()] = T_FLOAT;
-                        return T_FLOAT;
+                        return RecordType(current_map, exp.get(), T_FLOAT);
                     }
                     break;
                 }
                 case UnOpKind::kBitNot: {
                     // Lua 5.4 会将整数浮点自动转为 int，因此 ~T_FLOAT 也是合法的。
                     if (operand_type == T_INT || operand_type == T_FLOAT) {
-                        current_map[exp.get()] = T_INT;
-                        return T_INT;
+                        return RecordType(current_map, exp.get(), T_INT);
                     }
                     break;
                 }
                 case UnOpKind::kNumberSign: {
                     // # 运算符始终返回整数（字符串字节数或表元素数）。
                     // 无论操作数是字符串还是表（均为 T_DYNAMIC），结果类型始终为 T_INT。
-                    current_map[exp.get()] = T_INT;
-                    return T_INT;
+                    return RecordType(current_map, exp.get(), T_INT);
                 }
                 case UnOpKind::kNot: {
                     // not 运算符始终返回布尔值，对于类型推断视为 T_DYNAMIC。
@@ -517,8 +490,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                 default:
                     throw std::runtime_error("InferExp: unhandled UnOpKind");
             }
-            current_map[exp.get()] = T_DYNAMIC;
-            return T_DYNAMIC;
+            return RecordType(current_map, exp.get(), T_DYNAMIC);
         }
         case ExpKind::kNil:
         case ExpKind::kTrue:
@@ -527,41 +499,39 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
         case ExpKind::kVarParams:
         case ExpKind::kFunctionDef:
         case ExpKind::kTableConstructor: {
-            current_map[exp.get()] = T_DYNAMIC;
-            return T_DYNAMIC;
+            return RecordType(current_map, exp.get(), T_DYNAMIC);
         }
         default:
             throw std::runtime_error("InferExp: unhandled ExpKind");
     }
 }
 
-InferredType TypeInferencer::InferPrefixExp(const std::shared_ptr<SyntaxTreePrefixexp> &prefix_exp, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+InferredType TypeInferencer::InferPrefixExp(const std::shared_ptr<SyntaxTreePrefixexp> &prefix_exp, TraversalContext &tctx) {
     const auto prefix_kind = prefix_exp->GetPrefixKind();
     InferredType ret = T_DYNAMIC;
 
     switch (prefix_kind) {
         case PrefixExpKind::kVar:
         case PrefixExpKind::kExp:
-            ret = InferNode(prefix_exp->GetValue(), current_map, in_funcbody, ctx);
+            ret = InferNode(prefix_exp->GetValue(), tctx);
             break;
         case PrefixExpKind::kFunctionCall:
             // 传播 InferNode(FunctionCall) 的返回值：携带提示时为实际返回类型，否则为 T_DYNAMIC。
-            ret = InferNode(prefix_exp->GetValue(), current_map, in_funcbody, ctx);
+            ret = InferNode(prefix_exp->GetValue(), tctx);
             break;
         default:
             throw std::runtime_error("InferPrefixExp: unhandled PrefixExpKind");
     }
 
-    current_map[prefix_exp.get()] = ret;
-    return ret;
+    return RecordType(tctx.current_map, prefix_exp.get(), ret);
 }
 
-InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var, TraversalContext &tctx) {
+    auto &current_map = tctx.current_map;
     switch (var->GetVarKind()) {
         case VarKind::kSimple: {
             const auto ret = env_.Lookup(var->GetName());
-            current_map[var.get()] = ret;
-            return ret;
+            return RecordType(current_map, var.get(), ret);
         }
         case VarKind::kSquare: {
             // 对于"方括号"变量，处理子表达式以便内部变量
@@ -569,28 +539,26 @@ InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var,
             // 从而使 CGen 在生成变量引用时能通过 LookupNodeType 查到其原生类型，
             // 而不会在需要 CVar 的地方错误地发出原始 int64_t 变量名。
             if (const auto pe = var->GetPrefixexp()) {
-                InferNode(pe, current_map, in_funcbody, ctx);
+                InferNode(pe, tctx);
             }
             if (const auto exp = var->GetExp()) {
-                InferNode(exp, current_map, in_funcbody, ctx);
+                InferNode(exp, tctx);
             }
-            current_map[var.get()] = T_DYNAMIC;
-            return T_DYNAMIC;
+            return RecordType(current_map, var.get(), T_DYNAMIC);
         }
         case VarKind::kDot: {
             // 对于"点号"变量，处理前缀表达式子节点
             if (const auto pe = var->GetPrefixexp()) {
-                InferNode(pe, current_map, in_funcbody, ctx);
+                InferNode(pe, tctx);
             }
-            current_map[var.get()] = T_DYNAMIC;
-            return T_DYNAMIC;
+            return RecordType(current_map, var.get(), T_DYNAMIC);
         }
         default:
             throw std::runtime_error("InferVar: unhandled VarKind");
     }
 }
 
-void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, const bool new_scope, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx) {
+void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, const bool new_scope, TraversalContext &tctx) {
     if (!block) {
         return;
     }
@@ -600,8 +568,10 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
     }
 
     for (const auto &stmt: block->Stmts()) {
-        InferNode(stmt, current_map, in_funcbody, ctx);
+        InferNode(stmt, tctx);
     }
+
+    auto &current_map = tctx.current_map;
 
     // 后处理：变量可能被初始化为类型化表达式（例如整数字面量给出 T_INT），
     // 但随后被涉及函数调用或参数的赋值修改为 T_DYNAMIC。在这种情况下，
@@ -609,7 +579,7 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
     // 为所有后续赋值生成兼容的存储声明。
     // 注意：试推断期间跳过后处理，因为它会将算术表达式节点的类型覆写为 T_DYNAMIC，
     // 导致 CheckArithmeticTypeChanges 无法正确检测算术改善/退化。
-    if (ctx && ctx->skip_post_processing) {
+    if (tctx.SkipPostProcessing()) {
         current_map[block.get()] = T_UNKNOWN;
         if (new_scope) {
             env_.ExitScope();
@@ -652,9 +622,8 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
 // SECTION 3: Specialization & Math Parameter Identification Logic
 // ===========================================================================
 
-std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>>
-TypeInferencer::IdentifyMathParams(const ParseResult &pr, InferResult &ir) {
-    std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> math_func_info;
+TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseResult &pr, InferResult &ir) {
+    MathFuncInfoMap math_func_info;
     const auto function_infos = CollectFunctionSpecInfos(pr);
 
     // 多轮迭代直到无新的数学参数被发现（解决函数处理顺序依赖问题）。
@@ -712,10 +681,7 @@ std::vector<int> TypeInferencer::FindMathParamIndices(
     return math_indices;
 }
 
-void TypeInferencer::GenerateInitialSnapshots(
-        InferResult &ir,
-        const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info) {
-
+void TypeInferencer::GenerateInitialSnapshots(InferResult &ir, const MathFuncInfoMap &math_func_info) {
     for (const auto &[func_name, func_data] : math_func_info) {
         const auto &[func_block, func_params] = func_data;
         const auto &math_indices = ir.math_param_positions.at(func_name);
@@ -754,7 +720,6 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
     ctx.assumed_ret = assumed_ret;
     ctx.pinned_vars = &pinned_vars;
     ctx.skip_post_processing = skip_post_processing;
-    const TrialInferenceContext *ctx_ptr = &ctx;
 
     EvalTypeMap prev_map;
     EvalTypeMap current_map;
@@ -776,7 +741,8 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
 
         // 运行函数体类型推断（不新开作用域，参数已在当前作用域中定义）。
         // in_funcbody=true 表示正在推断函数体内部。
-        InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block), false, current_map, true, ctx_ptr);
+        TraversalContext tctx{current_map, true, &ctx};
+        InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block), false, tctx);
 
         // 快照本轮推断结果（仅 func_block 节点）。
         EvalTypeMap curr_map;
@@ -799,11 +765,11 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
 }
 
 std::unordered_map<std::string, TypeInferencer::FuncRetInfo> TypeInferencer::BuildFunctionReturnCache(
-        const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info) const {
+        const MathFuncInfoMap &math_func_info) const {
     std::unordered_map<std::string, FuncRetInfo> func_ret_cache;
     for (const auto &[func_name, info] : math_func_info) {
         FuncRetInfo ret_info;
-        ret_info.ends_with_return = CollectReturnExps(info.first, ret_info.ret_exps);
+        ret_info.ends_with_return = CollectReturnExps(info.block, ret_info.ret_exps);
         func_ret_cache[func_name] = std::move(ret_info);
     }
     return func_ret_cache;
@@ -811,7 +777,7 @@ std::unordered_map<std::string, TypeInferencer::FuncRetInfo> TypeInferencer::Bui
 
 void TypeInferencer::InferSpecializationReturnTypes(
         InferResult &ir,
-        const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info,
+        const MathFuncInfoMap &math_func_info,
         const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache) {
     // 乐观初始值：所有特化版本均假设返回 T_INT。
     for (const auto &[func_name, math_params] : ir.math_param_positions) {
@@ -924,6 +890,92 @@ bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) 
            k == BinOpKind::kMoreEqual;
 }
 
+bool TypeInferencer::CheckArithmeticNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, const bool improvement_mode) const {
+    if (!IsArithmeticExpr(node)) {
+        return false;
+    }
+    const auto it_typed = typed_map.find(node.get());
+    const auto it_compare = compare_map.find(node.get());
+    DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
+    if (IsNumericInferredType(it_typed->second)) {
+        return improvement_mode ? (it_compare->second == T_DYNAMIC)
+                                 : (it_compare->second != it_typed->second);
+    }
+    return false;
+}
+
+bool TypeInferencer::CheckComparisonNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, const bool improvement_mode) const {
+    if (!IsNativeComparisonExpr(node)) {
+        return false;
+    }
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+    const auto left = exp->Left();
+    const auto right = exp->Right();
+    DEBUG_ASSERT(left && right);
+    const auto lt_typed = typed_map.find(left.get());
+    const auto rt_typed = typed_map.find(right.get());
+    const auto lt_compare = compare_map.find(left.get());
+    const auto rt_compare = compare_map.find(right.get());
+    DEBUG_ASSERT(lt_typed != typed_map.end() && rt_typed != typed_map.end() &&
+                 lt_compare != compare_map.end() && rt_compare != compare_map.end());
+    if (IsNumericInferredType(lt_typed->second) && IsNumericInferredType(rt_typed->second)) {
+        if (improvement_mode) {
+            return (lt_compare->second == T_DYNAMIC || rt_compare->second == T_DYNAMIC);
+        } else {
+            return (lt_compare->second != lt_typed->second || rt_compare->second != rt_typed->second);
+        }
+    }
+    return false;
+}
+
+bool TypeInferencer::CheckForLoopNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, const bool improvement_mode) const {
+    if (node->Type() != SyntaxTreeType::ForLoop) {
+        return false;
+    }
+    const auto it_typed = typed_map.find(node.get());
+    const auto it_compare = compare_map.find(node.get());
+    DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
+    if (IsNumericInferredType(it_typed->second)) {
+        return improvement_mode ? (it_compare->second == T_DYNAMIC)
+                                 : (it_compare->second != it_typed->second);
+    }
+    return false;
+}
+
+bool TypeInferencer::CheckCallNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
+    if (node->Type() != SyntaxTreeType::FunctionCall) {
+        return false;
+    }
+    const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+    DEBUG_ASSERT(fc);
+    const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+    DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
+    const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+    DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
+    const auto &callee_name = callee_var->GetName();
+    const auto math_it = math_param_positions.find(callee_name);
+    if (math_it == math_param_positions.end()) {
+        return false;
+    }
+    const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+    DEBUG_ASSERT(args_ptr);
+    const auto raw_args = ExtractCallRawArgs(args_ptr);
+    for (const int param_pos : math_it->second) {
+        if (param_pos >= static_cast<int>(raw_args.size())) {
+            return false;
+        }
+        const auto &arg = raw_args[static_cast<size_t>(param_pos)];
+        const auto it_typed = typed_map.find(arg.get());
+        const auto it_comp = compare_map.find(arg.get());
+        DEBUG_ASSERT(it_typed != typed_map.end() && it_comp != compare_map.end());
+        if ((it_typed->second == T_INT || it_typed->second == T_FLOAT) &&
+            it_comp->second != it_typed->second) {
+            return true;
+        }
+    }
+    return false;
+}
+
 bool TypeInferencer::CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
                                                  const SyntaxTreeInterfacePtr &func_block,
                                                  const bool improvement_mode,
@@ -933,96 +985,11 @@ bool TypeInferencer::CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, co
         if (found) {
             return;
         }
-
-        // 规则1：算术表达式节点自身类型变化。
-        if (IsArithmeticExpr(node)) {
-            const auto it_typed = typed_map.find(node.get());
-            const auto it_compare = compare_map.find(node.get());
-            DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
-            if (IsNumericInferredType(it_typed->second)) {
-                found = improvement_mode ? (it_compare->second == T_DYNAMIC)
-                                         : (it_compare->second != it_typed->second);
-            }
-            return;
-        }
-
-        // 规则2：有序比较表达式（< <= > >=）左右操作数类型变化。
-        // == / ~= 可作用于任意 Lua 类型，不纳入此检测以避免误特化。
-        if (IsNativeComparisonExpr(node)) {
-            const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-            const auto left = exp->Left();
-            const auto right = exp->Right();
-            DEBUG_ASSERT(left && right);
-            const auto lt_typed = typed_map.find(left.get());
-            const auto rt_typed = typed_map.find(right.get());
-            const auto lt_compare = compare_map.find(left.get());
-            const auto rt_compare = compare_map.find(right.get());
-            DEBUG_ASSERT(lt_typed != typed_map.end() && rt_typed != typed_map.end() &&
-                         lt_compare != compare_map.end() && rt_compare != compare_map.end());
-            // IsNumericInferredType 卫语句保证：进入此分支时两侧操作数在 typed_map 中均为
-            // T_INT/T_FLOAT，排除了 T_DYNAMIC 的情形，因此 improvement 模式下
-            // compare_map 退回 T_DYNAMIC 即代表真正的类型改善。
-            if (IsNumericInferredType(lt_typed->second) && IsNumericInferredType(rt_typed->second)) {
-                if (improvement_mode) {
-                    // 改善：typed_map 中两侧均为数值，而 compare_map 中任一退回 T_DYNAMIC。
-                    found = (lt_compare->second == T_DYNAMIC || rt_compare->second == T_DYNAMIC);
-                } else {
-                    // 退化：任一操作数与 typed_map 不一致（含 INT/FLOAT 变化）。
-                    found = (lt_compare->second != lt_typed->second || rt_compare->second != rt_typed->second);
-                }
-            }
-            return;
-        }
-
-        // 规则3：for-loop 节点自身类型变化。
-        if (node->Type() == SyntaxTreeType::ForLoop) {
-            const auto it_typed = typed_map.find(node.get());
-            const auto it_compare = compare_map.find(node.get());
-            DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
-            if (IsNumericInferredType(it_typed->second)) {
-                found = improvement_mode ? (it_compare->second == T_DYNAMIC)
-                                         : (it_compare->second != it_typed->second);
-            }
-            return;
-        }
-
-        // 规则4：已知数学函数调用的数学参数位置实参类型变化。
-        // 仅关注 math_param_positions 中登记的简单函数调用（callee 为普通变量名），
-        // 不处理方法调用（obj:method(...)）或表达式调用形式。
-        if (node->Type() == SyntaxTreeType::FunctionCall) {
-            const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
-            DEBUG_ASSERT(fc);
-            const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-            DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
-            const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-            DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
-            const auto &callee_name = callee_var->GetName();
-            const auto math_it = math_param_positions.find(callee_name);
-            if (math_it == math_param_positions.end()) {
-                return;
-            }
-            const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-            DEBUG_ASSERT(args_ptr);
-            const auto raw_args = ExtractCallRawArgs(args_ptr);
-            for (const int param_pos : math_it->second) {
-                if (param_pos >= static_cast<int>(raw_args.size())) {
-                    return;
-                }
-                const auto &arg = raw_args[static_cast<size_t>(param_pos)];
-                const auto it_typed = typed_map.find(arg.get());
-                const auto it_comp = compare_map.find(arg.get());
-                DEBUG_ASSERT(it_typed != typed_map.end() && it_comp != compare_map.end());
-                // typed_map 中该实参有具体数值类型（T_INT/T_FLOAT）但 compare_map 中不同，
-                // 说明该数学参数槽位发生了类型变化。
-                // 此条件对 improvement_mode 和 degradation_mode 均成立，故不需要额外分支：
-                // 改善时 typed_map=all_int 有值而 compare_map=baseline 为 T_DYNAMIC；
-                // 退化时 typed_map=all_int 有值而 compare_map=without_p 类型不同。
-                if ((it_typed->second == T_INT || it_typed->second == T_FLOAT) &&
-                    it_comp->second != it_typed->second) {
-                    found = true;
-                    return;
-                }
-            }
+        if (CheckArithmeticNodeChange(node, typed_map, compare_map, improvement_mode) ||
+            CheckComparisonNodeChange(node, typed_map, compare_map, improvement_mode) ||
+            CheckForLoopNodeChange(node, typed_map, compare_map, improvement_mode) ||
+            CheckCallNodeChange(node, typed_map, compare_map, math_param_positions)) {
+            found = true;
         }
     });
     return found;
@@ -1210,9 +1177,8 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
 
 InferredType TypeInferencer::ResolveCallReturnType(
         const std::shared_ptr<SyntaxTreeFunctioncall> &fc,
-        const EvalTypeMap &current_map,
-        const TrialInferenceContext *ctx) const {
-    if (!ctx || !ctx->math_positions || !ctx->assumed_ret) {
+        const TraversalContext &tctx) const {
+    if (!tctx.IsTrialInference() || !tctx.ctx->math_positions || !tctx.ctx->assumed_ret) {
         return T_DYNAMIC;
     }
     // 提取被调函数名（仅支持简单形式 callee(...)，方法调用形式不处理）。
@@ -1222,14 +1188,14 @@ InferredType TypeInferencer::ResolveCallReturnType(
     DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
     const auto &callee_name = callee_var->GetName();
 
-    const auto math_it = ctx->math_positions->find(callee_name);
-    if (math_it == ctx->math_positions->end()) {
+    const auto math_it = tctx.ctx->math_positions->find(callee_name);
+    if (math_it == tctx.ctx->math_positions->end()) {
         return T_DYNAMIC;
     }
-    const auto ret_it = ctx->assumed_ret->find(callee_name);
-    DEBUG_ASSERT(ret_it != ctx->assumed_ret->end());
+    const auto ret_it = tctx.ctx->assumed_ret->find(callee_name);
+    DEBUG_ASSERT(ret_it != tctx.ctx->assumed_ret->end());
 
-    // 从已推断的实参类型（current_map 中已由 InferNode(Args) 填充）构造 bitmask。
+    // 从已推断的实参类型（tctx.current_map 中已由 InferNode(Args) 填充）构造 bitmask。
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
     DEBUG_ASSERT(args_ptr);
     const auto raw_args = ExtractCallRawArgs(args_ptr);
@@ -1241,8 +1207,8 @@ InferredType TypeInferencer::ResolveCallReturnType(
         if (param_pos >= static_cast<int>(raw_args.size())) {
             return T_DYNAMIC;
         }
-        const auto arg_it = current_map.find(raw_args[static_cast<size_t>(param_pos)].get());
-        DEBUG_ASSERT(arg_it != current_map.end());
+        const auto arg_it = tctx.current_map.find(raw_args[static_cast<size_t>(param_pos)].get());
+        DEBUG_ASSERT(arg_it != tctx.current_map.end());
         if (arg_it->second == T_FLOAT) {
             bitmask |= (1 << i);
         } else if (arg_it->second != T_INT) {
