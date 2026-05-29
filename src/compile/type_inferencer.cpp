@@ -142,7 +142,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, EvalT
             const std::string name = var->GetName();
             // 若变量被固定（数学参数在特化试推断中），跳过 env 降级，
             // 以保持与运行时类型检查语义一致：赋值失败时会抛异常，不会改变变量类型。
-            if (pinned_vars_.contains(name)) {
+            if (ctx && ctx->pinned_vars && ctx->pinned_vars->contains(name)) {
                 const auto current = env_.Lookup(name);
                 current_map[var.get()] = current;
                 current_map[node.get()] = current;
@@ -588,7 +588,7 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
     // 为所有后续赋值生成兼容的存储声明。
     // 注意：试推断期间跳过后处理，因为它会将算术表达式节点的类型覆写为 T_DYNAMIC，
     // 导致 CheckArithmeticTypeChanges 无法正确检测算术改善/退化。
-    if (skip_post_processing_) {
+    if (ctx && ctx->skip_post_processing) {
         current_map[block.get()] = T_UNKNOWN;
         if (new_scope) {
             env_.ExitScope();
@@ -682,26 +682,25 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
                                                const std::vector<std::string> &params,
                                                const std::unordered_map<std::string, InferredType> &assumed_types,
                                                const std::unordered_map<std::string, std::vector<int>> *math_positions,
-                                               const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret) {
+                                               const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret,
+                                               bool skip_post_processing) {
     // 保存当前推断器状态，trial 结束后恢复。
     TypeEnvironment saved_env = env_;
+
+    std::unordered_set<std::string> pinned_vars;
+    for (const auto &[name, t] : assumed_types) {
+        if (t == T_INT || t == T_FLOAT) {
+            pinned_vars.insert(name);
+        }
+    }
 
     // 构造试推断上下文，沿调用链传递给 ResolveCallReturnType。
     TrialInferenceContext ctx;
     ctx.math_positions = math_positions;
     ctx.assumed_ret = assumed_ret;
-    const TrialInferenceContext *ctx_ptr = (math_positions || assumed_ret) ? &ctx : nullptr;
-
-    // 收集被固定的变量名（数学参数，即被分配了 T_INT/T_FLOAT 的参数）。
-    // 在 InferNode(Assign) 中，对这些变量的 env 更新将被跳过，以模拟运行时类型检查
-    // 对变量类型的保证（类似于旧 spec_ctx 对数学参数的 "始终持有特化类型" 语义）。
-    std::unordered_set<std::string> saved_pinned = std::move(pinned_vars_);
-    pinned_vars_.clear();
-    for (const auto &[name, t] : assumed_types) {
-        if (t == T_INT || t == T_FLOAT) {
-            pinned_vars_.insert(name);
-        }
-    }
+    ctx.pinned_vars = &pinned_vars;
+    ctx.skip_post_processing = skip_post_processing;
+    const TrialInferenceContext *ctx_ptr = &ctx;
 
     EvalTypeMap prev_map;
     EvalTypeMap current_map;
@@ -741,7 +740,6 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
 
     // 恢复推断器状态。
     env_ = std::move(saved_env);
-    pinned_vars_ = std::move(saved_pinned);
 
     return prev_map;
 }
@@ -1189,7 +1187,7 @@ std::vector<int> TypeInferencer::FindMathParamIndices(
     for (int i = 0; i < static_cast<int>(info.params.size()); ++i) {
         // without_p：除 p_i 为 T_DYNAMIC 外，其余参数均为 T_INT。
         const auto without_p_assumed = make_assumed(info.params[i], T_DYNAMIC, T_INT);
-        const auto without_p_map = RunTrialInference(info.block, info.params, without_p_assumed);
+        const auto without_p_map = RunTrialInference(info.block, info.params, without_p_assumed, nullptr, nullptr, true);
         // 若去掉 p_i 后算术/比较/for-loop 退化，则 p_i 是数学参数。
         if (CheckArithmeticTypeChanges(all_int, without_p_map, info.block, false, known_math_positions)) {
             math_indices.push_back(i);
@@ -1313,7 +1311,6 @@ TypeInferencer::IdentifyMathParams(const ParseResult &pr, InferResult &ir) {
     // 多轮迭代直到无新的数学参数被发现（解决函数处理顺序依赖问题）。
     // 发现阶段跳过 InferBlock 后处理，保留算术表达式节点的真实推断类型，
     // 使 CheckArithmeticTypeChanges 能正确检测改善/退化。
-    skip_post_processing_ = true;
     for (int pass = 0; pass < kMaxSpecIterations; ++pass) {
         bool new_discovery = false;
         for (const auto &info : function_infos) {
@@ -1331,8 +1328,8 @@ TypeInferencer::IdentifyMathParams(const ParseResult &pr, InferResult &ir) {
             };
             // baseline：所有参数均假设为 T_DYNAMIC；all_int：所有参数均假设为 T_INT。
             // 两次推断的对比用于判断该函数的算术表达式是否能因参数类型已知而改善。
-            const auto baseline = RunTrialInference(info.block, info.params, make_assumed("", T_DYNAMIC, T_DYNAMIC));
-            const auto all_int = RunTrialInference(info.block, info.params, make_assumed("", T_INT, T_INT));
+            const auto baseline = RunTrialInference(info.block, info.params, make_assumed("", T_DYNAMIC, T_DYNAMIC), nullptr, nullptr, true);
+            const auto all_int = RunTrialInference(info.block, info.params, make_assumed("", T_INT, T_INT), nullptr, nullptr, true);
             const auto math_indices = FindMathParamIndices(info, baseline, all_int, ir.math_param_positions);
 
             if (math_indices.empty()) {
@@ -1348,8 +1345,7 @@ TypeInferencer::IdentifyMathParams(const ParseResult &pr, InferResult &ir) {
         }
     }
 
-    // 发现阶段结束，恢复后处理以便生成 CGen 所需的精确快照。
-    skip_post_processing_ = false;
+
 
     return math_func_info;
 }
