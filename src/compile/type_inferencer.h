@@ -54,15 +54,15 @@ private:
         const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret = nullptr;
     };
 
-    InferredType InferNode(const SyntaxTreeInterfacePtr &node, EvalTypeMap &current_map, const TrialInferenceContext *ctx = nullptr);
+    InferredType InferNode(const SyntaxTreeInterfacePtr &node, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx = nullptr);
 
-    InferredType InferExp(const std::shared_ptr<SyntaxTreeExp> &exp, EvalTypeMap &current_map, const TrialInferenceContext *ctx = nullptr);
+    InferredType InferExp(const std::shared_ptr<SyntaxTreeExp> &exp, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx = nullptr);
 
-    InferredType InferPrefixExp(const std::shared_ptr<SyntaxTreePrefixexp> &prefix_exp, EvalTypeMap &current_map, const TrialInferenceContext *ctx = nullptr);
+    InferredType InferPrefixExp(const std::shared_ptr<SyntaxTreePrefixexp> &prefix_exp, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx = nullptr);
 
-    InferredType InferVar(const std::shared_ptr<SyntaxTreeVar> &var, EvalTypeMap &current_map, const TrialInferenceContext *ctx = nullptr);
+    InferredType InferVar(const std::shared_ptr<SyntaxTreeVar> &var, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx = nullptr);
 
-    void InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, bool new_scope, EvalTypeMap &current_map, const TrialInferenceContext *ctx = nullptr);
+    void InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, bool new_scope, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx = nullptr);
 
     // -----------------------------------------------------------------------
     // 数学参数特化发现（迭代不动点推断）
@@ -152,11 +152,8 @@ private:
 
 private:
     TypeEnvironment env_;
-    // 是否正在推断函数体内部（true）还是文件顶层（false）。
-    // 用于区分文件级 local 变量和函数体内局部变量，以决定是否写入 file_level_types_。
-    bool in_funcbody_ = false;
 
-    // 文件顶层（!in_funcbody_）的数值类型局部变量映射：变量名 → T_INT/T_FLOAT。
+    // 文件顶层的数值类型局部变量映射：变量名 → T_INT/T_FLOAT。
     // 在 InferNode LocalVar 阶段填充（仅记录数值字面量初始化的顶层 local 变量）。
     // RunTrialInference 在重置 env_ 后用此表重新注入这些常量，
     // 使函数体的试推断能看到正确的文件级常量类型，进而支持函数特化。
