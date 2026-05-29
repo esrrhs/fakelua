@@ -7,9 +7,9 @@
 
 namespace fakelua {
 
-// ---------------------------------------------------------------------------
-// TypeEnvironment implementation
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// SECTION 1: TypeEnvironment Implementation
+// ===========================================================================
 
 TypeInferencer::TypeEnvironment::TypeEnvironment() {
     EnterScope();
@@ -60,9 +60,9 @@ InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_t
     return T_DYNAMIC;
 }
 
-// ---------------------------------------------------------------------------
-// TypeInferencer implementation
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// SECTION 2: Core AST Type Inference Engine
+// ===========================================================================
 
 InferResult TypeInferencer::InferTypes(const ParseResult &pr) {
     InferResult ir;
@@ -315,7 +315,7 @@ InferredType TypeInferencer::InferForLoop(const std::shared_ptr<SyntaxTreeForLoo
     env_.Define(for_loop->Name(), loop_var_type);
     InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_loop->Block()), false, current_map, in_funcbody, ctx);
     // 循环体内可能对循环变量重新赋值（例如 `a = "test"`），导致其类型
-    // 从初始的 T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量的
+    // 从初始 of T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量的
     // 最终类型，以便 CGen 决定生成原生整型/浮点快路径还是 CVar 动态路径。
     const InferredType final_loop_var_type = env_.Lookup(for_loop->Name());
     env_.ExitScope();
@@ -648,55 +648,88 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
     }
 }
 
-// ---------------------------------------------------------------------------
-// 数学参数特化发现：迭代不动点推断
-// ---------------------------------------------------------------------------
+// ===========================================================================
+// SECTION 3: Specialization & Math Parameter Identification Logic
+// ===========================================================================
 
-// 判断 exp 节点是否为算术表达式（结果可为 T_INT/T_FLOAT 的运算符）。
-// 包括算术/位运算二元运算符，以及一元负号（MINUS）和按位取反（BITNOT）。
-bool TypeInferencer::IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const {
-    if (node->Type() != SyntaxTreeType::Exp) {
-        return false;
+std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>>
+TypeInferencer::IdentifyMathParams(const ParseResult &pr, InferResult &ir) {
+    std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> math_func_info;
+    const auto function_infos = CollectFunctionSpecInfos(pr);
+
+    // 多轮迭代直到无新的数学参数被发现（解决函数处理顺序依赖问题）。
+    // 发现阶段跳过 InferBlock 后处理，保留算术表达式节点的真实推断类型，
+    // 使 CheckArithmeticTypeChanges 能正确检测改善/退化。
+    for (int pass = 0; pass < kMaxSpecIterations; ++pass) {
+        bool new_discovery = false;
+        for (const auto &info : function_infos) {
+            // 已知数学函数，跳过重复发现。
+            if (ir.math_param_positions.contains(info.name)) {
+                continue;
+            }
+            // baseline：所有参数均假设为 T_DYNAMIC；all_int：所有参数均假设为 T_INT。
+            // 两次推断的对比用于判断该函数的算术表达式是否能因参数类型已知而改善。
+            const auto baseline = RunTrialInference(info.block, info.params, MakeAssumedParamTypes(info.params, "", T_DYNAMIC, T_DYNAMIC), nullptr, nullptr, true);
+            const auto all_int = RunTrialInference(info.block, info.params, MakeAssumedParamTypes(info.params, "", T_INT, T_INT), nullptr, nullptr, true);
+            const auto math_indices = FindMathParamIndices(info, baseline, all_int, ir.math_param_positions);
+
+            if (math_indices.empty()) {
+                continue;
+            }
+            ir.math_param_positions[info.name] = math_indices;
+            math_func_info[info.name] = {info.block, info.params};
+            new_discovery = true;
+            LOG_INFO("TypeInferencer: {} math params for {} (pass {})", math_indices.size(), info.name, pass);
+        }
+        if (!new_discovery) {
+            break;
+        }
     }
-    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-    if (exp->GetExpKind() == ExpKind::kBinop) {
-        const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
-        DEBUG_ASSERT(op);
-        const auto k = op->GetOpKind();
-        return k == BinOpKind::kPlus || k == BinOpKind::kMinus || k == BinOpKind::kStar ||
-               k == BinOpKind::kSlash || k == BinOpKind::kDoubleSlash || k == BinOpKind::kPow ||
-               k == BinOpKind::kMod || k == BinOpKind::kBitAnd || k == BinOpKind::kXor ||
-               k == BinOpKind::kBitOr || k == BinOpKind::kLeftShift || k == BinOpKind::kRightShift;
-    }
-    if (exp->GetExpKind() == ExpKind::kUnop) {
-        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
-        DEBUG_ASSERT(op);
-        // 一元负号：-T_INT=T_INT，-T_FLOAT=T_FLOAT，随参数类型改变。
-        // 按位取反：~T_INT=T_INT，仅对整数参数有意义。
-        return op->GetOpKind() == UnOpKind::kMinus || op->GetOpKind() == UnOpKind::kBitNot;
-    }
-    return false;
+
+    return math_func_info;
 }
 
-// 判断 exp 节点是否为可原生化的有序比较运算符（<、<=、>、>=）。
-// 当两侧操作数均为数值类型时，CGen 可通过 TryCompileNativeBoolExpr
-// 直接生成原生 C 比较，无需 OpXxx 宏 + IsTrue 调用。
-// 注意：== / ~= 在 Lua 中可用于任意类型（字符串、布尔值、nil 等），
-// 不纳入此检测，否则会将仅含 == 的函数错误特化为数值函数，导致
-// 非数值调用方（如传入字符串）触发运行时 "attempt to perform arithmetic" 错误。
-bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) const {
-    if (node->Type() != SyntaxTreeType::Exp) {
-        return false;
+std::vector<int> TypeInferencer::FindMathParamIndices(
+        const FunctionSpecInfo &info,
+        const EvalTypeMap &baseline,
+        const EvalTypeMap &all_int,
+        const std::unordered_map<std::string, std::vector<int>> &known_math_positions) {
+    std::vector<int> math_indices;
+    // 快速剪枝：若全 T_INT 与 baseline 无改善，函数不具备特化价值。
+    if (!CheckArithmeticTypeChanges(all_int, baseline, info.block, true, known_math_positions)) {
+        return math_indices;
     }
-    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-    if (exp->GetExpKind() != ExpKind::kBinop) {
-        return false;
+
+    for (int i = 0; i < static_cast<int>(info.params.size()); ++i) {
+        // without_p：除 p_i 为 T_DYNAMIC 外，其余参数均为 T_INT。
+        const auto without_p_assumed = MakeAssumedParamTypes(info.params, info.params[i], T_DYNAMIC, T_INT);
+        const auto without_p_map = RunTrialInference(info.block, info.params, without_p_assumed, nullptr, nullptr, true);
+        // 若去掉 p_i 后算术/比较/for-loop 退化，则 p_i 是数学参数。
+        if (CheckArithmeticTypeChanges(all_int, without_p_map, info.block, false, known_math_positions)) {
+            math_indices.push_back(i);
+        }
     }
-    const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
-    DEBUG_ASSERT(op);
-    const auto k = op->GetOpKind();
-    return k == BinOpKind::kLess || k == BinOpKind::kLessEqual || k == BinOpKind::kMore ||
-           k == BinOpKind::kMoreEqual;
+    return math_indices;
+}
+
+void TypeInferencer::GenerateInitialSnapshots(
+        InferResult &ir,
+        const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info) {
+
+    for (const auto &[func_name, func_data] : math_func_info) {
+        const auto &[func_block, func_params] = func_data;
+        const auto &math_indices = ir.math_param_positions.at(func_name);
+        const int num_specs = 1 << static_cast<int>(math_indices.size());
+
+        auto &snapshots = ir.specialization_snapshots[func_name];
+        snapshots.resize(static_cast<size_t>(num_specs));
+
+        for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+            // 构造参数类型假设：非数学参数为 T_DYNAMIC，数学参数按 bitmask 分配
+            auto assumed = MakeSpecializedParamTypes(func_params, math_indices, bitmask);
+            snapshots[static_cast<size_t>(bitmask)] = RunTrialInference(func_block, func_params, assumed);
+        }
+    }
 }
 
 TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func_block,
@@ -765,26 +798,132 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
     return prev_map;
 }
 
-// ---------------------------------------------------------------------------
-// CheckArithmeticTypeChanges —— 数学参数发现的统一类型变化检测器
-//
-// 单次遍历 func_block，在同一回调中按节点类别分派四类检测规则，
-// 避免多次重复扫描同一函数体：
-//   规则1 — 算术表达式：检查节点自身类型（T_INT/T_FLOAT ↔ T_DYNAMIC）；
-//   规则2 — 有序比较（< <= > >=，不含 == / ~=）：检查左右操作数类型；
-//   规则3 — for-loop：检查循环节点自身类型；
-//   规则4 — 已知数学函数调用：检查数学参数位置实参类型。
-//
-// improvement_mode=true（改善检测）：
-//   typed_map 中节点/操作数/实参为 T_INT/T_FLOAT，compare_map 中为 T_DYNAMIC，
-//   说明增加参数类型假设后该槽位的类型得到改善。
-// improvement_mode=false（退化检测）：
-//   typed_map 中节点/操作数/实参有具体类型，compare_map 中与之不同，
-//   说明去掉某个参数后该槽位的类型发生了退化。
-//
-// 注意：仅关注数学参数发现相关槽位（算术节点、有序比较操作数、
-// for-loop 节点、已知数学函数的指定参数位置），不检测函数体内任意节点的类型变化。
-// ---------------------------------------------------------------------------
+std::unordered_map<std::string, TypeInferencer::FuncRetInfo> TypeInferencer::BuildFunctionReturnCache(
+        const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info) const {
+    std::unordered_map<std::string, FuncRetInfo> func_ret_cache;
+    for (const auto &[func_name, info] : math_func_info) {
+        FuncRetInfo ret_info;
+        ret_info.ends_with_return = CollectReturnExps(info.first, ret_info.ret_exps);
+        func_ret_cache[func_name] = std::move(ret_info);
+    }
+    return func_ret_cache;
+}
+
+void TypeInferencer::InferSpecializationReturnTypes(
+        InferResult &ir,
+        const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info,
+        const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache) {
+    // 乐观初始值：所有特化版本均假设返回 T_INT。
+    for (const auto &[func_name, math_params] : ir.math_param_positions) {
+        ir.specialization_return_types[func_name].assign(
+                static_cast<size_t>(1 << static_cast<int>(math_params.size())), T_INT);
+    }
+
+    for (int round = 0; round < kMaxSpecIterations; ++round) {
+        bool changed = false;
+        for (const auto &[func_name, info] : math_func_info) {
+            const auto &[func_block, func_params] = info;
+            const auto &math_indices = ir.math_param_positions.at(func_name);
+            const auto &ret_info = func_ret_cache.at(func_name);
+            const int num_specs = 1 << static_cast<int>(math_indices.size());
+
+            for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+                // 以当前 assumed_ret 为提示重新运行试推断，生成精确快照。
+                auto assumed = MakeSpecializedParamTypes(func_params, math_indices, bitmask);
+                auto new_snapshot = RunTrialInference(func_block, func_params, assumed,
+                                                      &ir.math_param_positions,
+                                                      &ir.specialization_return_types);
+
+                // 从新快照中直接读取 return 表达式节点的类型。
+                const auto new_ret = ComputeReturnTypeFromSnapshot(new_snapshot, ret_info);
+
+                // 若快照或返回类型有变化，则更新并标记 changed。
+                const auto bitmask_sz = static_cast<size_t>(bitmask);
+                auto &cur_ret = ir.specialization_return_types[func_name][bitmask_sz];
+                auto &cur_snap = ir.specialization_snapshots[func_name][bitmask_sz];
+                if (new_ret != cur_ret || new_snapshot != cur_snap) {
+                    cur_ret = new_ret;
+                    cur_snap = std::move(new_snapshot);
+                    changed = true;
+                }
+            }
+        }
+        if (!changed) {
+            break;
+        }
+    }
+}
+
+// ===========================================================================
+// SECTION 4: AST Analysis and Helper Utilities
+// ===========================================================================
+
+std::unordered_map<std::string, InferredType> TypeInferencer::MakeAssumedParamTypes(
+        const std::vector<std::string> &params,
+        const std::string &special_param,
+        const InferredType special_type,
+        const InferredType default_type) const {
+    std::unordered_map<std::string, InferredType> assumed;
+    for (const auto &param : params) {
+        assumed[param] = (!special_param.empty() && param == special_param) ? special_type : default_type;
+    }
+    return assumed;
+}
+
+std::unordered_map<std::string, InferredType> TypeInferencer::MakeSpecializedParamTypes(
+        const std::vector<std::string> &params,
+        const std::vector<int> &math_indices,
+        const int bitmask) const {
+    std::unordered_map<std::string, InferredType> assumed;
+    for (const auto &p : params) {
+        assumed[p] = T_DYNAMIC;
+    }
+    for (int i = 0; i < static_cast<int>(math_indices.size()); ++i) {
+        assumed[params[static_cast<size_t>(math_indices[i])]] =
+                (MathParamKindOf(bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
+    }
+    return assumed;
+}
+
+bool TypeInferencer::IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const {
+    if (node->Type() != SyntaxTreeType::Exp) {
+        return false;
+    }
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+    if (exp->GetExpKind() == ExpKind::kBinop) {
+        const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
+        DEBUG_ASSERT(op);
+        const auto k = op->GetOpKind();
+        return k == BinOpKind::kPlus || k == BinOpKind::kMinus || k == BinOpKind::kStar ||
+               k == BinOpKind::kSlash || k == BinOpKind::kDoubleSlash || k == BinOpKind::kPow ||
+               k == BinOpKind::kMod || k == BinOpKind::kBitAnd || k == BinOpKind::kXor ||
+               k == BinOpKind::kBitOr || k == BinOpKind::kLeftShift || k == BinOpKind::kRightShift;
+    }
+    if (exp->GetExpKind() == ExpKind::kUnop) {
+        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(exp->Op());
+        DEBUG_ASSERT(op);
+        // 一元负号：-T_INT=T_INT，-T_FLOAT=T_FLOAT，随参数类型改变。
+        // 按位取反：~T_INT=T_INT，仅对整数参数有意义。
+        return op->GetOpKind() == UnOpKind::kMinus || op->GetOpKind() == UnOpKind::kBitNot;
+    }
+    return false;
+}
+
+bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) const {
+    if (node->Type() != SyntaxTreeType::Exp) {
+        return false;
+    }
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+    if (exp->GetExpKind() != ExpKind::kBinop) {
+        return false;
+    }
+    const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
+    DEBUG_ASSERT(op);
+    const auto k = op->GetOpKind();
+    return k == BinOpKind::kLess || k == BinOpKind::kLessEqual || k == BinOpKind::kMore ||
+           k == BinOpKind::kMoreEqual;
+}
+
 bool TypeInferencer::CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
                                                  const SyntaxTreeInterfacePtr &func_block,
                                                  const bool improvement_mode,
@@ -889,10 +1028,48 @@ bool TypeInferencer::CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, co
     return found;
 }
 
-// 检查 block_node 的所有执行路径是否均以 return 语句结束。
-// 与简单的"最后一条语句是 return"不同，此函数还能识别 if-elseif-else 结构
-// 中所有分支均返回的情况（如 fibonacci），从而正确标记所有路径均返回数值。
-// 不递归进入嵌套函数体（Function / LocalFunction）。
+std::vector<TypeInferencer::FunctionSpecInfo> TypeInferencer::CollectFunctionSpecInfos(const ParseResult &pr) const {
+    std::vector<FunctionSpecInfo> infos;
+    const auto chunk = pr.chunk;
+    DEBUG_ASSERT(chunk && chunk->Type() == SyntaxTreeType::Block);
+
+    const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+    for (const auto &stmt : top_block->Stmts()) {
+        std::string name;
+        SyntaxTreeInterfacePtr funcbody;
+        if (stmt->Type() == SyntaxTreeType::Function) {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
+            const auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
+            const auto fnlist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcname->FuncNameList());
+            name = fnlist->Funcnames()[0];
+            funcbody = func->Funcbody();
+        } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
+            name = func->Name();
+            funcbody = func->Funcbody();
+        }
+        if (name.empty() || !funcbody) {
+            continue;
+        }
+        const auto funcbody_ptr = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
+        const auto parlist_node = funcbody_ptr->Parlist();
+        if (!parlist_node) {
+            continue;
+        }
+        const auto parlist_ptr = std::dynamic_pointer_cast<SyntaxTreeParlist>(parlist_node);
+        const auto namelist_node = parlist_ptr->Namelist();
+        DEBUG_ASSERT(namelist_node);
+        const auto params = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist_node)->Names();
+        DEBUG_ASSERT(!params.empty());
+        FunctionSpecInfo info;
+        info.name = name;
+        info.block = funcbody_ptr->Block();
+        info.params = params;
+        infos.emplace_back(std::move(info));
+    }
+    return infos;
+}
+
 bool TypeInferencer::AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) const {
     DEBUG_ASSERT(block_node);
     const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(block_node);
@@ -948,10 +1125,6 @@ bool TypeInferencer::AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) co
     }
 }
 
-// 从 block_node 中浅层收集每条顶层 return 语句的第一个返回表达式，
-// 不递归进入嵌套函数体（Function / LocalFunction 节点）。
-// 返回值为 true 表示该 block 的所有路径均以 return 结束（无 nil 隐式返回路径）。
-// 对于 nil 返回（无表达式或空列表），在 ret_exps 中压入 nullptr 作为占位符。
 bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
                                std::vector<SyntaxTreeInterfacePtr> &ret_exps) const {
     if (!block_node) {
@@ -1035,18 +1208,6 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
     return ends_with_return;
 }
 
-// ---------------------------------------------------------------------------
-// ResolveCallReturnType —— 试推断期间查询被调函数的返回类型
-//
-// 仅在 ctx 非空且包含 math_positions 和 assumed_ret 时生效。
-// 对于普通主推断遍（ctx 为 null），始终返回 T_DYNAMIC。
-//
-// 算法：
-//   1. 从函数调用 AST 节点中提取被调函数名；
-//   2. 查找该函数是否为已知数学函数（存在于 ctx.math_positions 中）；
-//   3. 从 current_map 中读取各数学参数位置的实参类型，构造 bitmask；
-//   4. 在 ctx.assumed_ret 中查找对应 bitmask 的返回类型并返回。
-// ---------------------------------------------------------------------------
 InferredType TypeInferencer::ResolveCallReturnType(
         const std::shared_ptr<SyntaxTreeFunctioncall> &fc,
         const EvalTypeMap &current_map,
@@ -1095,14 +1256,6 @@ InferredType TypeInferencer::ResolveCallReturnType(
     return ret_types[static_cast<size_t>(bitmask)];
 }
 
-// ---------------------------------------------------------------------------
-// ComputeReturnTypeFromSnapshot —— 从快照中直接读取 return 表达式的推断类型
-//
-// 与旧的 EvalReturnExpType 不同，本函数不递归重新计算表达式，
-// 而是直接在（由 RunTrialInference 生成的、已注入被调函数返回类型提示的）
-// 快照中查找每个 return 表达式节点的类型。
-// 快照已通过提示注入而精确，函数调用节点的类型就是被调函数的实际返回类型。
-// ---------------------------------------------------------------------------
 InferredType TypeInferencer::ComputeReturnTypeFromSnapshot(
         const EvalTypeSnapshot &snapshot,
         const FuncRetInfo &ret_info) const {
@@ -1128,282 +1281,4 @@ InferredType TypeInferencer::ComputeReturnTypeFromSnapshot(
     return actual_ret;
 }
 
-std::vector<TypeInferencer::FunctionSpecInfo> TypeInferencer::CollectFunctionSpecInfos(const ParseResult &pr) const {
-    std::vector<FunctionSpecInfo> infos;
-    const auto chunk = pr.chunk;
-    DEBUG_ASSERT(chunk && chunk->Type() == SyntaxTreeType::Block);
-
-    const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
-    for (const auto &stmt : top_block->Stmts()) {
-        std::string name;
-        SyntaxTreeInterfacePtr funcbody;
-        if (stmt->Type() == SyntaxTreeType::Function) {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
-            const auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
-            const auto fnlist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcname->FuncNameList());
-            name = fnlist->Funcnames()[0];
-            funcbody = func->Funcbody();
-        } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
-            name = func->Name();
-            funcbody = func->Funcbody();
-        }
-        if (name.empty() || !funcbody) {
-            continue;
-        }
-        const auto funcbody_ptr = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
-        const auto parlist_node = funcbody_ptr->Parlist();
-        if (!parlist_node) {
-            continue;
-        }
-        const auto parlist_ptr = std::dynamic_pointer_cast<SyntaxTreeParlist>(parlist_node);
-        const auto namelist_node = parlist_ptr->Namelist();
-        DEBUG_ASSERT(namelist_node);
-        const auto params = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist_node)->Names();
-        DEBUG_ASSERT(!params.empty());
-        FunctionSpecInfo info;
-        info.name = name;
-        info.block = funcbody_ptr->Block();
-        info.params = params;
-        infos.emplace_back(std::move(info));
-    }
-    return infos;
-}
-
-// ---------------------------------------------------------------------------
-// FindMathParamIndices —— 逐参数敏感性测试
-//
-// 算法：
-//   (1) 先检查全参数 T_INT（all_int）相对于 baseline 是否有算术改善。
-//       若无改善，则没有任何参数是数学参数，直接返回空列表。
-//   (2) 对每个参数 p_i，构造"无 p_i"假设：其余参数均为 T_INT，p_i 为 T_DYNAMIC，
-//       运行 RunTrialInference 得到 without_p 快照。
-//   (3) 对比 all_int 与 without_p：若去掉 p_i 后算术表达式或比较/for-loop 退化，
-//       则 p_i 确实影响算术运算，将其记录为数学参数。
-//
-// 注意：此处使用"去掉一个参数后是否退化"而非"加上一个参数后是否改善"，
-// 目的是检测参数之间的耦合——若 p_i 仅在与 p_j 共同为 T_INT 时才能使算术
-// 节点特化，单独将 p_i 置回 T_DYNAMIC 也会触发退化，两者都会被记录。
-// ---------------------------------------------------------------------------
-std::vector<int> TypeInferencer::FindMathParamIndices(
-        const FunctionSpecInfo &info,
-        const EvalTypeMap &baseline,
-        const EvalTypeMap &all_int,
-        const std::unordered_map<std::string, std::vector<int>> &known_math_positions) {
-    std::vector<int> math_indices;
-    // 快速剪枝：若全 T_INT 与 baseline 无改善，函数不具备特化价值。
-    if (!CheckArithmeticTypeChanges(all_int, baseline, info.block, true, known_math_positions)) {
-        return math_indices;
-    }
-
-    const auto make_assumed = [&](const std::string &special_param, const InferredType special_type,
-                                  const InferredType default_type) {
-        std::unordered_map<std::string, InferredType> assumed;
-        for (const auto &param : info.params) {
-            assumed[param] = (!special_param.empty() && param == special_param) ? special_type : default_type;
-        }
-        return assumed;
-    };
-
-    for (int i = 0; i < static_cast<int>(info.params.size()); ++i) {
-        // without_p：除 p_i 为 T_DYNAMIC 外，其余参数均为 T_INT。
-        const auto without_p_assumed = make_assumed(info.params[i], T_DYNAMIC, T_INT);
-        const auto without_p_map = RunTrialInference(info.block, info.params, without_p_assumed, nullptr, nullptr, true);
-        // 若去掉 p_i 后算术/比较/for-loop 退化，则 p_i 是数学参数。
-        if (CheckArithmeticTypeChanges(all_int, without_p_map, info.block, false, known_math_positions)) {
-            math_indices.push_back(i);
-        }
-    }
-    return math_indices;
-}
-
-// 为函数 info 的所有 2^k 个特化版本生成 AST 节点类型快照并存入 ir。
-// 对每个 bitmask（0 ~ 2^k-1），按各数学参数的 int/float 分配构造假设类型表，
-// 运行 RunTrialInference 得到该参数组合下整个函数体的节点类型快照。
-// assumed_ret 非 null 时，试推断期间会将被调函数返回类型注入 InferNode(FunctionCall)，
-// 使函数调用节点和下游（如 local x = f(n)）在快照中获得精确类型。
-std::unordered_map<std::string, TypeInferencer::FuncRetInfo> TypeInferencer::BuildFunctionReturnCache(
-        const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info) const {
-    std::unordered_map<std::string, FuncRetInfo> func_ret_cache;
-    for (const auto &[func_name, info] : math_func_info) {
-        FuncRetInfo ret_info;
-        ret_info.ends_with_return = CollectReturnExps(info.first, ret_info.ret_exps);
-        func_ret_cache[func_name] = std::move(ret_info);
-    }
-    return func_ret_cache;
-}
-
-// ---------------------------------------------------------------------------
-// InferSpecializationReturnTypes —— 快照再生成 + 返回类型不动点推断
-//
-// 问题背景：
-//   GenerateFunctionSpecializationSnapshots 生成的初始快照中函数调用节点的类型
-//   为 T_DYNAMIC，无法反映被调函数的实际返回类型，导致下游局部变量（如 local x = f(n)）
-//   在快照中也是 T_DYNAMIC，CGen 无法为其生成原生类型变量。
-//
-// 新算法（最多 kMaxSpecIterations 轮）：
-//   (0) 初始假设：所有特化版本的返回类型均为 T_INT（乐观初始值）。
-//       用 T_INT 而非 T_DYNAMIC 初始化，使第一轮即可让被调函数调用节点获得 T_INT 类型，
-//       无循环依赖时通常一轮即可收敛。
-//   (1) 对每个数学函数的每个 bitmask 特化版本：
-//       (a) 以数学参数的对应类型和当前 ir.specialization_return_types 为提示，
-//           重新运行 RunTrialInference，生成新的精确快照；
-//       (b) 将新快照写回 ir.specialization_snapshots；
-//       (c) 调用 ComputeReturnTypeFromSnapshot，直接从快照中读取 return 表达式节点的类型，
-//           得出本轮实际返回类型；
-//       (d) 若本轮推断与上轮不同则标记 changed。
-//   (2) 若某轮 changed == false，则已收敛，提前退出。
-//
-// 互递归收敛分析：
-//   - 类型格（lattice）为 T_INT < T_FLOAT < T_DYNAMIC，单向向上演化。
-//   - 每轮至多一个函数从乐观值向真实值升格，轮次上界为函数数 × 2（T_INT→T_FLOAT→T_DYNAMIC）。
-//   - kMaxSpecIterations = 16 对实际代码已足够。
-// ---------------------------------------------------------------------------
-void TypeInferencer::InferSpecializationReturnTypes(
-        InferResult &ir,
-        const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info,
-        const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache) {
-    // 乐观初始值：所有特化版本均假设返回 T_INT。
-    for (const auto &[func_name, math_params] : ir.math_param_positions) {
-        ir.specialization_return_types[func_name].assign(
-                static_cast<size_t>(1 << static_cast<int>(math_params.size())), T_INT);
-    }
-
-    for (int round = 0; round < kMaxSpecIterations; ++round) {
-        bool changed = false;
-        for (const auto &[func_name, info] : math_func_info) {
-            const auto &[func_block, func_params] = info;
-            const auto &math_indices = ir.math_param_positions.at(func_name);
-            const auto &ret_info = func_ret_cache.at(func_name);
-            const int num_specs = 1 << static_cast<int>(math_indices.size());
-
-            for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
-                // 以当前 assumed_ret 为提示重新运行试推断，生成精确快照。
-                std::unordered_map<std::string, InferredType> assumed;
-                for (const auto &p : func_params) {
-                    assumed[p] = T_DYNAMIC;
-                }
-                for (int i = 0; i < static_cast<int>(math_indices.size()); ++i) {
-                    assumed[func_params[static_cast<size_t>(math_indices[i])]] =
-                            (MathParamKindOf(bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
-                }
-                auto new_snapshot = RunTrialInference(func_block, func_params, assumed,
-                                                      &ir.math_param_positions,
-                                                      &ir.specialization_return_types);
-
-                // 从新快照中直接读取 return 表达式节点的类型。
-                const auto new_ret = ComputeReturnTypeFromSnapshot(new_snapshot, ret_info);
-
-                // 若快照或返回类型有变化，则更新并标记 changed。
-                const auto bitmask_sz = static_cast<size_t>(bitmask);
-                auto &cur_ret = ir.specialization_return_types[func_name][bitmask_sz];
-                auto &cur_snap = ir.specialization_snapshots[func_name][bitmask_sz];
-                if (new_ret != cur_ret || new_snapshot != cur_snap) {
-                    cur_ret = new_ret;
-                    cur_snap = std::move(new_snapshot);
-                    changed = true;
-                }
-            }
-        }
-        if (!changed) {
-            break;
-        }
-    }
-}
-
-// ---------------------------------------------------------------------------
-// IdentifyMathParams —— 多轮迭代识别数学参数
-//
-// 算法：
-//   1. 遍历顶层函数，收集候选信息；
-//   2. 多轮迭代直到无新发现（解决函数处理顺序依赖问题）：
-//      a. 以全 T_DYNAMIC 假设运行 baseline 推断；
-//      b. 以全 T_INT 假设运行 all_int 推断；
-//      c. 对比两次推断，若算术节点有改善则函数值得特化；
-//      d. 逐参数测试敏感性，确认哪些参数影响算术运算；
-//   3. 记录数学参数位置到 ir.math_param_positions；
-//   4. 返回数学函数信息供后续阶段使用。
-// ---------------------------------------------------------------------------
-std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>>
-TypeInferencer::IdentifyMathParams(const ParseResult &pr, InferResult &ir) {
-    std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> math_func_info;
-    const auto function_infos = CollectFunctionSpecInfos(pr);
-
-    // 多轮迭代直到无新的数学参数被发现（解决函数处理顺序依赖问题）。
-    // 发现阶段跳过 InferBlock 后处理，保留算术表达式节点的真实推断类型，
-    // 使 CheckArithmeticTypeChanges 能正确检测改善/退化。
-    for (int pass = 0; pass < kMaxSpecIterations; ++pass) {
-        bool new_discovery = false;
-        for (const auto &info : function_infos) {
-            // 已知数学函数，跳过重复发现。
-            if (ir.math_param_positions.contains(info.name)) {
-                continue;
-            }
-            const auto make_assumed = [&](const std::string &special_param, const InferredType special_type,
-                                          const InferredType default_type) {
-                std::unordered_map<std::string, InferredType> assumed;
-                for (const auto &param : info.params) {
-                    assumed[param] = (!special_param.empty() && param == special_param) ? special_type : default_type;
-                }
-                return assumed;
-            };
-            // baseline：所有参数均假设为 T_DYNAMIC；all_int：所有参数均假设为 T_INT。
-            // 两次推断的对比用于判断该函数的算术表达式是否能因参数类型已知而改善。
-            const auto baseline = RunTrialInference(info.block, info.params, make_assumed("", T_DYNAMIC, T_DYNAMIC), nullptr, nullptr, true);
-            const auto all_int = RunTrialInference(info.block, info.params, make_assumed("", T_INT, T_INT), nullptr, nullptr, true);
-            const auto math_indices = FindMathParamIndices(info, baseline, all_int, ir.math_param_positions);
-
-            if (math_indices.empty()) {
-                continue;
-            }
-            ir.math_param_positions[info.name] = math_indices;
-            math_func_info[info.name] = {info.block, info.params};
-            new_discovery = true;
-            LOG_INFO("TypeInferencer: {} math params for {} (pass {})", math_indices.size(), info.name, pass);
-        }
-        if (!new_discovery) {
-            break;
-        }
-    }
-
-
-
-    return math_func_info;
-}
-
-// ---------------------------------------------------------------------------
-// GenerateInitialSnapshots —— 生成初始特化快照
-//
-// 为每个数学函数生成所有 2^k 个特化版本的初始类型快照，
-// 写入 ir.specialization_snapshots。
-// 这些快照不含被调函数返回类型提示，将在后续不动点迭代中精化。
-// ---------------------------------------------------------------------------
-void TypeInferencer::GenerateInitialSnapshots(
-        InferResult &ir,
-        const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info) {
-
-    for (const auto &[func_name, func_data] : math_func_info) {
-        const auto &[func_block, func_params] = func_data;
-        const auto &math_indices = ir.math_param_positions.at(func_name);
-        const int num_specs = 1 << static_cast<int>(math_indices.size());
-
-        auto &snapshots = ir.specialization_snapshots[func_name];
-        snapshots.resize(static_cast<size_t>(num_specs));
-
-        for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
-            // 构造参数类型假设：非数学参数为 T_DYNAMIC，数学参数按 bitmask 分配
-            std::unordered_map<std::string, InferredType> assumed;
-            for (const auto &p : func_params) {
-                assumed[p] = T_DYNAMIC;
-            }
-            for (int i = 0; i < static_cast<int>(math_indices.size()); ++i) {
-                assumed[func_params[static_cast<size_t>(math_indices[i])]] =
-                        (MathParamKindOf(bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
-            }
-            snapshots[static_cast<size_t>(bitmask)] =
-                    RunTrialInference(func_block, func_params, assumed);
-        }
-    }
-}
-
-}// namespace fakelua
+} // namespace fakelua

@@ -163,6 +163,19 @@ private:
             const FuncRetInfo &ret_info) const;
 
 private:
+    // 辅助工具：构造数学参数敏感性测试与特化的参数假设映射表
+    [[nodiscard]] std::unordered_map<std::string, InferredType> MakeAssumedParamTypes(
+            const std::vector<std::string> &params,
+            const std::string &special_param,
+            InferredType special_type,
+            InferredType default_type) const;
+
+    [[nodiscard]] std::unordered_map<std::string, InferredType> MakeSpecializedParamTypes(
+            const std::vector<std::string> &params,
+            const std::vector<int> &math_indices,
+            int bitmask) const;
+
+private:
     TypeEnvironment env_;
 
     // 文件顶层的数值类型局部变量映射：变量名 → T_INT/T_FLOAT。
@@ -170,8 +183,6 @@ private:
     // RunTrialInference 在重置 env_ 后用此表重新注入这些常量，
     // 使函数体的试推断能看到正确的文件级常量类型，进而支持函数特化。
     std::unordered_map<std::string, InferredType> file_level_types_;
-
-
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
     static constexpr int kMaxSpecIterations = 16;
