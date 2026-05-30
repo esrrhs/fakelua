@@ -664,9 +664,9 @@ std::vector<int> TypeInferencer::FindMathParamIndices(const FunctionSpecInfo &in
     for (int i = 0; i < static_cast<int>(info.params.size()); ++i) {
         // without_p：除 p_i 为 T_DYNAMIC 外，其余参数均为 T_INT。
         const auto without_p_assumed = MakeAssumedParamTypes(info.params, info.params[i], T_DYNAMIC, T_INT);
-        const auto without_p_map = RunTrialInference(info.block, info.params, without_p_assumed, nullptr, nullptr, true);
         // 若去掉 p_i 后算术/比较/for-loop 退化，则 p_i 是数学参数。
-        if (CheckArithmeticTypeChanges(all_int, without_p_map, info.block, false, known_math_positions)) {
+        if (const auto without_p_map = RunTrialInference(info.block, info.params, without_p_assumed, nullptr, nullptr, true);
+            CheckArithmeticTypeChanges(all_int, without_p_map, info.block, false, known_math_positions)) {
             math_indices.push_back(i);
         }
     }
