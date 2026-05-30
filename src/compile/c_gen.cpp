@@ -177,6 +177,10 @@ extern void* FakeluaAllocTemp(State *s, size_t size);
 extern void FakeluaThrowError(State *s, const char *msg);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
 
+static inline bool FlIsTrue(CVar v) {
+    return v.type_ != VAR_NIL && (v.type_ != VAR_BOOL || v.data_.b);
+}
+
 #ifndef FAKELUA_JIT_TYPE
 #define FAKELUA_JIT_TYPE 0
 #endif
@@ -3001,6 +3005,30 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return CompileNumericExp(e->Right());
         }
         if (op_kind == BinOpKind::kOr) {
+            // Pattern match Lua ternary: (cond and val1) or val2
+            if (e->Left()->Type() == SyntaxTreeType::Exp) {
+                const auto left_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(e->Left());
+                if (left_exp && left_exp->GetExpKind() == ExpKind::kBinop) {
+                    const auto left_op = std::dynamic_pointer_cast<SyntaxTreeBinop>(left_exp->Op());
+                    if (left_op && left_op->GetOpKind() == BinOpKind::kAnd) {
+                        const auto cond = left_exp->Left();
+                        const auto val1 = left_exp->Right();
+                        const auto val2 = e->Right();
+
+                        std::string cond_str;
+                        const auto cond_bool = TryCompileNativeBoolExpr(cond);
+                        if (!cond_bool.empty()) {
+                            cond_str = std::format("({})", cond_bool);
+                        } else {
+                            cond_str = std::format("FlIsTrue({})", CompileExp(cond));
+                        }
+
+                        const auto val1_str = CompileNumericExp(val1);
+                        const auto val2_str = CompileNumericExp(val2);
+                        return std::format("({} ? {} : {})", cond_str, val1_str, val2_str);
+                    }
+                }
+            }
             return CompileNumericExp(e->Left());
         }
 
