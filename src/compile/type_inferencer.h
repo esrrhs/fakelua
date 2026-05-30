@@ -73,6 +73,7 @@ private:
     struct TraversalContext {
         EvalTypeMap &current_map;
         TypeEnvironment &env;
+        std::unordered_map<std::string, InferredType> &file_level_types;
         bool in_funcbody = false;
         const TrialInferenceContext *ctx = nullptr;
 
@@ -114,11 +115,13 @@ private:
 
     // 多轮迭代识别数学参数，记录到 ir.math_param_positions，
     // 同时返回数学函数信息。
-    MathFuncInfoMap IdentifyMathParams(const ParseResult &pr, InferResult &ir);
+    MathFuncInfoMap IdentifyMathParams(const ParseResult &pr, InferResult &ir,
+                                       const std::unordered_map<std::string, InferredType> &file_level_types);
 
     // 为所有数学函数生成初始特化快照，写入 ir.specialization_snapshots。
     // 每个函数生成 2^k 个快照（k = 数学参数个数）。
-    void GenerateInitialSnapshots(InferResult &ir, const MathFuncInfoMap &math_func_info);
+    void GenerateInitialSnapshots(InferResult &ir, const MathFuncInfoMap &math_func_info,
+                                  const std::unordered_map<std::string, InferredType> &file_level_types);
 
     // 以 assumed_types 中给定的参数类型假设运行 InferBlock，迭代直到稳定（不动点），
     // 返回各 AST 节点 → InferredType 的快照。
@@ -127,12 +130,13 @@ private:
     // 使函数调用节点及其下游局部变量在快照中获得精确类型。
     EvalTypeMap RunTrialInference(const SyntaxTreeInterfacePtr &func_block, const std::vector<std::string> &params,
                                   const std::unordered_map<std::string, InferredType> &assumed_types,
+                                  const std::unordered_map<std::string, InferredType> &file_level_types,
                                   const std::unordered_map<std::string, std::vector<int>> *math_positions = nullptr,
                                   const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret = nullptr,
                                   bool skip_post_processing = false);
 
     // 判断 exp 节点是否为算术表达式（结果可为 T_INT/T_FLOAT 的运算符）。
-    // 包括算术/位运算二元运算符，以及一元负号和按位取反。
+    // 包括算术/位运算二元运算符，以及一元负号 and 按位取反。
     [[nodiscard]] bool IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const;
 
     // 判断 exp 节点是否为比较表达式（操作数可为数值，运算符为 </<=/>/>==/~=）。
@@ -158,12 +162,14 @@ private:
     [[nodiscard]] std::vector<FunctionSpecInfo> CollectFunctionSpecInfos(const ParseResult &pr) const;
 
     std::vector<int> FindMathParamIndices(const FunctionSpecInfo &info, const EvalTypeMap &baseline, const EvalTypeMap &all_int,
-                                          const std::unordered_map<std::string, std::vector<int>> &known_math_positions);
+                                          const std::unordered_map<std::string, std::vector<int>> &known_math_positions,
+                                          const std::unordered_map<std::string, InferredType> &file_level_types);
 
     [[nodiscard]] std::unordered_map<std::string, FuncRetInfo> BuildFunctionReturnCache(const MathFuncInfoMap &math_func_info) const;
 
     void InferSpecializationReturnTypes(InferResult &ir, const MathFuncInfoMap &math_func_info,
-                                        const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache);
+                                        const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache,
+                                        const std::unordered_map<std::string, InferredType> &file_level_types);
 
 
     // 检查 block_node 的所有执行路径是否均以 return 语句结束。
@@ -193,11 +199,6 @@ private:
     MakeSpecializedParamTypes(const std::vector<std::string> &params, const std::vector<int> &math_indices, int bitmask) const;
 
 private:
-    // 文件顶层的数值类型局部变量映射：变量名 → T_INT/T_FLOAT。
-    // 在 InferNode LocalVar 阶段填充（仅记录数值字面量初始化的顶层 local 变量）。
-    // RunTrialInference 在重置 env_ 后用此表重新注入这些常量，
-    // 使函数体的试推断能看到正确的文件级常量类型，进而支持函数特化。
-    std::unordered_map<std::string, InferredType> file_level_types_;
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
     static constexpr int kMaxSpecIterations = 16;
