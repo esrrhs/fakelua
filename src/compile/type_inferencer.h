@@ -9,7 +9,7 @@ namespace fakelua {
 class TypeInferencer {
 public:
     // 运行全局类型推断，并在返回的 InferResult 中填充数学参数特化信息。
-    InferResult InferTypes(const ParseResult &pr);
+    InferResult InferTypes(const ParseResult &pr, const CompileConfig &cfg);
 
 private:
     class TypeEnvironment {
