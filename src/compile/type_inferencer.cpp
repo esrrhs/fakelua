@@ -789,8 +789,7 @@ void TypeInferencer::InferSpecializationReturnTypes(InferResult &ir, const MathF
                 // 若快照或返回类型有变化，则更新并标记 changed。
                 const auto bitmask_sz = static_cast<size_t>(bitmask);
                 auto &cur_ret = ir.specialization_return_types[func_name][bitmask_sz];
-                auto &cur_snap = ir.specialization_snapshots[func_name][bitmask_sz];
-                if (new_ret != cur_ret || new_snapshot != cur_snap) {
+                if (auto &cur_snap = ir.specialization_snapshots[func_name][bitmask_sz]; new_ret != cur_ret || new_snapshot != cur_snap) {
                     cur_ret = new_ret;
                     cur_snap = std::move(new_snapshot);
                     changed = true;
@@ -1021,8 +1020,7 @@ bool TypeInferencer::AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) co
     if (!block || block->Stmts().empty()) {
         return false;
     }
-    const auto &last = block->Stmts().back();
-    switch (last->Type()) {
+    switch (const auto &last = block->Stmts().back(); last->Type()) {
         case SyntaxTreeType::Return:
             return true;
         case SyntaxTreeType::Block:
@@ -1205,8 +1203,7 @@ InferredType TypeInferencer::ComputeReturnTypeFromSnapshot(const EvalTypeSnapsho
             return T_DYNAMIC;
         }
         const auto it = snapshot.find(ret_exp.get());
-        const auto inferred = (it != snapshot.end()) ? it->second : T_DYNAMIC;
-        if (inferred == T_FLOAT) {
+        if (const auto inferred = (it != snapshot.end()) ? it->second : T_DYNAMIC; inferred == T_FLOAT) {
             if (actual_ret == T_INT) {
                 actual_ret = T_FLOAT;
             }

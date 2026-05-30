@@ -125,8 +125,7 @@ private:
     // math_positions / assumed_ret 非 null 时，InferNode(FunctionCall) 会通过
     // ResolveCallReturnType 将被调函数的特化返回类型注入推断结果，
     // 使函数调用节点及其下游局部变量在快照中获得精确类型。
-    EvalTypeMap RunTrialInference(const SyntaxTreeInterfacePtr &func_block,
-                                  const std::vector<std::string> &params,
+    EvalTypeMap RunTrialInference(const SyntaxTreeInterfacePtr &func_block, const std::vector<std::string> &params,
                                   const std::unordered_map<std::string, InferredType> &assumed_types,
                                   const std::unordered_map<std::string, std::vector<int>> *math_positions = nullptr,
                                   const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret = nullptr,
@@ -143,30 +142,28 @@ private:
 
     // 数学参数发现的统一类型变化检测器。
     [[nodiscard]] bool CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
-                                                  const SyntaxTreeInterfacePtr &func_block,
-                                                  bool improvement_mode,
+                                                  const SyntaxTreeInterfacePtr &func_block, bool improvement_mode,
                                                   const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
 
     // 拆分出的细粒度节点检测函数
-    [[nodiscard]] bool CheckArithmeticNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, bool improvement_mode) const;
-    [[nodiscard]] bool CheckComparisonNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, bool improvement_mode) const;
-    [[nodiscard]] bool CheckForLoopNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, bool improvement_mode) const;
-    [[nodiscard]] bool CheckCallNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
+    [[nodiscard]] bool CheckArithmeticNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map,
+                                                 const EvalTypeMap &compare_map, bool improvement_mode) const;
+    [[nodiscard]] bool CheckComparisonNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map,
+                                                 const EvalTypeMap &compare_map, bool improvement_mode) const;
+    [[nodiscard]] bool CheckForLoopNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map,
+                                              const EvalTypeMap &compare_map, bool improvement_mode) const;
+    [[nodiscard]] bool CheckCallNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
+                                           const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
 
     [[nodiscard]] std::vector<FunctionSpecInfo> CollectFunctionSpecInfos(const ParseResult &pr) const;
 
-    std::vector<int> FindMathParamIndices(const FunctionSpecInfo &info,
-                                          const EvalTypeMap &baseline,
-                                          const EvalTypeMap &all_int,
+    std::vector<int> FindMathParamIndices(const FunctionSpecInfo &info, const EvalTypeMap &baseline, const EvalTypeMap &all_int,
                                           const std::unordered_map<std::string, std::vector<int>> &known_math_positions);
 
-    [[nodiscard]] std::unordered_map<std::string, FuncRetInfo> BuildFunctionReturnCache(
-            const MathFuncInfoMap &math_func_info) const;
+    [[nodiscard]] std::unordered_map<std::string, FuncRetInfo> BuildFunctionReturnCache(const MathFuncInfoMap &math_func_info) const;
 
-    void InferSpecializationReturnTypes(
-            InferResult &ir,
-            const MathFuncInfoMap &math_func_info,
-            const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache);
+    void InferSpecializationReturnTypes(InferResult &ir, const MathFuncInfoMap &math_func_info,
+                                        const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache);
 
 
     // 检查 block_node 的所有执行路径是否均以 return 语句结束。
@@ -175,33 +172,25 @@ private:
 
     // 从 block_node 中浅层收集每条 return 语句的第一个返回表达式。
     // 返回 true 表示所有路径均以 return 结束（无隐式 nil 返回路径）。
-    bool CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
-                           std::vector<SyntaxTreeInterfacePtr> &ret_exps) const;
+    bool CollectReturnExps(const SyntaxTreeInterfacePtr &block_node, std::vector<SyntaxTreeInterfacePtr> &ret_exps) const;
 
     // 试推断期间，根据上下文提示解析函数调用的实际返回类型。
     // 上下文为 null 时（主推断遍）始终返回 T_DYNAMIC。
-    [[nodiscard]] InferredType ResolveCallReturnType(
-            const std::shared_ptr<SyntaxTreeFunctioncall> &fc,
-            const TraversalContext &tctx) const;
+    [[nodiscard]] InferredType ResolveCallReturnType(const std::shared_ptr<SyntaxTreeFunctioncall> &fc, const TraversalContext &tctx) const;
 
     // 从 RunTrialInference 生成的精确快照中直接读取 return 表达式节点的类型，
     // 汇总得出该特化版本的函数返回类型（T_INT / T_FLOAT / T_DYNAMIC）。
-    [[nodiscard]] InferredType ComputeReturnTypeFromSnapshot(
-            const EvalTypeSnapshot &snapshot,
-            const FuncRetInfo &ret_info) const;
+    [[nodiscard]] InferredType ComputeReturnTypeFromSnapshot(const EvalTypeSnapshot &snapshot, const FuncRetInfo &ret_info) const;
 
 private:
     // 辅助工具：构造数学参数敏感性测试与特化的参数假设映射表
-    [[nodiscard]] std::unordered_map<std::string, InferredType> MakeAssumedParamTypes(
-            const std::vector<std::string> &params,
-            const std::string &special_param,
-            InferredType special_type,
-            InferredType default_type) const;
+    [[nodiscard]] std::unordered_map<std::string, InferredType> MakeAssumedParamTypes(const std::vector<std::string> &params,
+                                                                                      const std::string &special_param,
+                                                                                      InferredType special_type,
+                                                                                      InferredType default_type) const;
 
-    [[nodiscard]] std::unordered_map<std::string, InferredType> MakeSpecializedParamTypes(
-            const std::vector<std::string> &params,
-            const std::vector<int> &math_indices,
-            int bitmask) const;
+    [[nodiscard]] std::unordered_map<std::string, InferredType>
+    MakeSpecializedParamTypes(const std::vector<std::string> &params, const std::vector<int> &math_indices, int bitmask) const;
 
 private:
     // 文件顶层的数值类型局部变量映射：变量名 → T_INT/T_FLOAT。
