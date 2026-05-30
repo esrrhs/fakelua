@@ -37,6 +37,16 @@ inline char MathParamSuffix(MathParamKind kind) {
     return kind == kMathParamFloat ? '1' : '0';
 }
 
+inline std::string InferredTypeToString(InferredType type) {
+    switch (type) {
+        case T_UNKNOWN: return "T_UNKNOWN";
+        case T_INT:     return "T_INT";
+        case T_FLOAT:   return "T_FLOAT";
+        case T_DYNAMIC: return "T_DYNAMIC";
+        default:        return "T_UNKNOWN";
+    }
+}
+
 inline bool IsNumericInferredType(const InferredType type) {
     return type == T_INT || type == T_FLOAT;
 }

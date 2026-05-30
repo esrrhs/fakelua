@@ -9,7 +9,7 @@ namespace fakelua {
 class TypeInferencer {
 public:
     // 运行全局类型推断，并在返回的 InferResult 中填充数学参数特化信息。
-    InferResult InferTypes(const ParseResult &pr);
+    InferResult InferTypes(const ParseResult &pr, const CompileConfig &cfg);
 
 private:
     class TypeEnvironment {
@@ -197,6 +197,8 @@ private:
 
     [[nodiscard]] std::unordered_map<std::string, InferredType>
     MakeSpecializedParamTypes(const std::vector<std::string> &params, const std::vector<int> &math_indices, int bitmask) const;
+
+    void DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &snapshot, int tab, std::ostream &os) const;
 
 private:
 

@@ -323,6 +323,10 @@ public:
         name_ = name;
     }
 
+    [[nodiscard]] const std::string &GetName() const {
+        return name_;
+    }
+
 private:
     std::string name_;
 };

@@ -1,11 +1,246 @@
 #include "compile/type_inferencer.h"
 
 #include <ranges>
+#include <fstream>
+#include <algorithm>
 
 #include "compile/syntax_tree.h"
 #include "util/common.h"
+#include "util/file_util.h"
 
 namespace fakelua {
+
+void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &snapshot, int tab, std::ostream &os) const {
+    if (!node) {
+        return;
+    }
+
+    for (int i = 0; i < tab; ++i) {
+        os << "  ";
+    }
+
+    std::string type_str = "T_UNKNOWN";
+    if (auto it = snapshot.find(node.get()); it != snapshot.end()) {
+        type_str = InferredTypeToString(it->second);
+    }
+
+    std::string node_name = SyntaxTreeTypeToString(node->Type());
+    std::string extra_info = "";
+
+    if (node->Type() == SyntaxTreeType::Exp) {
+        auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+        if (exp->GetExpKind() == ExpKind::kNumber) {
+            extra_info = std::format(" (number: {})", exp->ExpValue());
+        } else if (exp->GetExpKind() == ExpKind::kString) {
+            extra_info = std::format(" (string: \"{}\")", exp->ExpValue());
+        }
+    } else if (node->Type() == SyntaxTreeType::Var) {
+        auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
+        if (var->GetVarKind() == VarKind::kSimple) {
+            extra_info = std::format(" (var: {})", var->GetName());
+        }
+    } else if (node->Type() == SyntaxTreeType::Label) {
+        auto label = std::dynamic_pointer_cast<SyntaxTreeLabel>(node);
+        extra_info = std::format(" (label: {})", label->GetName());
+    }
+
+    os << std::format("{}{} <{}>\n", node_name, extra_info, type_str);
+
+    switch (node->Type()) {
+        case SyntaxTreeType::Empty:
+        case SyntaxTreeType::Label:
+        case SyntaxTreeType::Break:
+        case SyntaxTreeType::Goto:
+        case SyntaxTreeType::Binop:
+        case SyntaxTreeType::Unop:
+        case SyntaxTreeType::FuncNameList:
+        case SyntaxTreeType::NameList:
+            break;
+        case SyntaxTreeType::Block: {
+            auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+            for (auto &stmt: block->Stmts()) {
+                DumpASTWithTypes(stmt, snapshot, tab + 1, os);
+            }
+            break;
+        }
+        case SyntaxTreeType::Return: {
+            auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
+            DumpASTWithTypes(ret->Explist(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::Assign: {
+            auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
+            DumpASTWithTypes(assign->Varlist(), snapshot, tab + 1, os);
+            DumpASTWithTypes(assign->Explist(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::VarList: {
+            auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(node);
+            for (auto &var: varlist->Vars()) {
+                DumpASTWithTypes(var, snapshot, tab + 1, os);
+            }
+            break;
+        }
+        case SyntaxTreeType::ExpList: {
+            auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
+            for (auto &exp: explist->Exps()) {
+                DumpASTWithTypes(exp, snapshot, tab + 1, os);
+            }
+            break;
+        }
+        case SyntaxTreeType::Var: {
+            auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
+            if (var->GetVarKind() == VarKind::kSquare) {
+                DumpASTWithTypes(var->GetPrefixexp(), snapshot, tab + 1, os);
+                DumpASTWithTypes(var->GetExp(), snapshot, tab + 1, os);
+            } else if (var->GetVarKind() == VarKind::kDot) {
+                DumpASTWithTypes(var->GetPrefixexp(), snapshot, tab + 1, os);
+            }
+            break;
+        }
+        case SyntaxTreeType::FunctionCall: {
+            auto functioncall = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+            DumpASTWithTypes(functioncall->prefixexp(), snapshot, tab + 1, os);
+            DumpASTWithTypes(functioncall->Args(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::TableConstructor: {
+            auto tableconstructor = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
+            DumpASTWithTypes(tableconstructor->Fieldlist(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::FieldList: {
+            auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
+            for (auto &field: fieldlist->Fields()) {
+                DumpASTWithTypes(field, snapshot, tab + 1, os);
+            }
+            break;
+        }
+        case SyntaxTreeType::Field: {
+            auto field = std::dynamic_pointer_cast<SyntaxTreeField>(node);
+            DumpASTWithTypes(field->Key(), snapshot, tab + 1, os);
+            DumpASTWithTypes(field->Value(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::While: {
+            auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
+            DumpASTWithTypes(while_node->Exp(), snapshot, tab + 1, os);
+            DumpASTWithTypes(while_node->Block(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::Repeat: {
+            auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
+            DumpASTWithTypes(rep->Block(), snapshot, tab + 1, os);
+            DumpASTWithTypes(rep->Exp(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::If: {
+            auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+            DumpASTWithTypes(if_node->Exp(), snapshot, tab + 1, os);
+            DumpASTWithTypes(if_node->Block(), snapshot, tab + 1, os);
+            DumpASTWithTypes(if_node->ElseIfs(), snapshot, tab + 1, os);
+            DumpASTWithTypes(if_node->ElseBlock(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::ElseIfList: {
+            auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(node);
+            for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
+                DumpASTWithTypes(elseifs->ElseifExp(i), snapshot, tab + 1, os);
+                DumpASTWithTypes(elseifs->ElseifBlock(i), snapshot, tab + 1, os);
+            }
+            break;
+        }
+        case SyntaxTreeType::ForLoop: {
+            auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
+            DumpASTWithTypes(for_loop->ExpBegin(), snapshot, tab + 1, os);
+            DumpASTWithTypes(for_loop->ExpEnd(), snapshot, tab + 1, os);
+            DumpASTWithTypes(for_loop->ExpStep(), snapshot, tab + 1, os);
+            DumpASTWithTypes(for_loop->Block(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::ForIn: {
+            auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
+            DumpASTWithTypes(for_in->Namelist(), snapshot, tab + 1, os);
+            DumpASTWithTypes(for_in->Explist(), snapshot, tab + 1, os);
+            DumpASTWithTypes(for_in->Block(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::Function: {
+            auto func_node = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
+            DumpASTWithTypes(func_node->Funcname(), snapshot, tab + 1, os);
+            DumpASTWithTypes(func_node->Funcbody(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::FuncName: {
+            auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(node);
+            DumpASTWithTypes(funcname->FuncNameList(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::FuncBody: {
+            auto funcbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
+            DumpASTWithTypes(funcbody->Parlist(), snapshot, tab + 1, os);
+            DumpASTWithTypes(funcbody->Block(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::FunctionDef: {
+            auto functiondef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node);
+            DumpASTWithTypes(functiondef->Funcbody(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::ParList: {
+            auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(node);
+            DumpASTWithTypes(parlist->Namelist(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::LocalFunction: {
+            auto local_function = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
+            DumpASTWithTypes(local_function->Funcbody(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::LocalVar: {
+            auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
+            DumpASTWithTypes(local_var->Namelist(), snapshot, tab + 1, os);
+            DumpASTWithTypes(local_var->Explist(), snapshot, tab + 1, os);
+            break;
+        }
+        case SyntaxTreeType::Exp: {
+            auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+            if (exp->GetExpKind() == ExpKind::kBinop) {
+                DumpASTWithTypes(exp->Left(), snapshot, tab + 1, os);
+                DumpASTWithTypes(exp->Op(), snapshot, tab + 1, os);
+                DumpASTWithTypes(exp->Right(), snapshot, tab + 1, os);
+            } else if (exp->GetExpKind() == ExpKind::kUnop) {
+                DumpASTWithTypes(exp->Op(), snapshot, tab + 1, os);
+                DumpASTWithTypes(exp->Right(), snapshot, tab + 1, os);
+            } else if (exp->GetExpKind() == ExpKind::kPrefixExp) {
+                DumpASTWithTypes(exp->Right(), snapshot, tab + 1, os);
+            }
+            break;
+        }
+        case SyntaxTreeType::Args: {
+            auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
+            if (args->GetArgsKind() == ArgsKind::kExpList) {
+                DumpASTWithTypes(args->Explist(), snapshot, tab + 1, os);
+            } else if (args->GetArgsKind() == ArgsKind::kTableConstructor) {
+                DumpASTWithTypes(args->Tableconstructor(), snapshot, tab + 1, os);
+            }
+            break;
+        }
+        case SyntaxTreeType::PrefixExp: {
+            auto prefixexp = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node);
+            if (prefixexp->GetPrefixKind() == PrefixExpKind::kVar) {
+                DumpASTWithTypes(prefixexp->GetValue(), snapshot, tab + 1, os);
+            } else if (prefixexp->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
+                DumpASTWithTypes(prefixexp->GetValue(), snapshot, tab + 1, os);
+            } else if (prefixexp->GetPrefixKind() == PrefixExpKind::kExp) {
+                DumpASTWithTypes(prefixexp->GetValue(), snapshot, tab + 1, os);
+            }
+            break;
+        }
+        default:
+            ThrowFakeluaException(std::format("DumpASTWithTypes: unexpected SyntaxTreeType: {}", SyntaxTreeTypeToString(node->Type())));
+    }
+}
 
 // ===========================================================================
 // SECTION 1: TypeEnvironment Implementation
@@ -64,7 +299,7 @@ InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_t
 // SECTION 2: Core AST Type Inference Engine
 // ===========================================================================
 
-InferResult TypeInferencer::InferTypes(const ParseResult &pr) {
+InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfig &cfg) {
     InferResult ir;
     EvalTypeMap current_map;
     TypeEnvironment env;
@@ -83,6 +318,30 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr) {
         // InferSpecializationReturnTypes：不动点迭代精化返回类型
         const auto func_ret_cache = BuildFunctionReturnCache(math_func_info);
         InferSpecializationReturnTypes(ir, math_func_info, func_ret_cache, file_level_types);
+    }
+
+    if (cfg.debug_mode) {
+        const auto dumpfile = GenerateTmpFilename("fakelua_infer_", ".txt");
+        if (std::ofstream ofs(dumpfile); ofs.is_open()) {
+            ofs << "=== Main Evaluation Types ===\n";
+            DumpASTWithTypes(pr.chunk, ir.main_eval_types, 0, ofs);
+
+            if (!ir.specialization_snapshots.empty()) {
+                ofs << "\n=== Specialization Snapshots ===\n";
+                for (const auto &[func_name, snapshots] : ir.specialization_snapshots) {
+                    ofs << std::format("Function: {}\n", func_name);
+                    for (size_t bitmask = 0; bitmask < snapshots.size(); ++bitmask) {
+                        ofs << std::format("  Spec bitmask: {}\n", bitmask);
+                        DumpASTWithTypes(pr.chunk, snapshots[bitmask], 2, ofs);
+                    }
+                }
+            }
+            ofs.close();
+            std::cerr << "TypeInferencer: Type inference results dumped to " << dumpfile << std::endl;
+            LOG_INFO("Type inference results generated: {}", dumpfile);
+        } else {
+            LOG_ERROR("Failed to open output file: {}", dumpfile);
+        }
     }
 
     return ir;
