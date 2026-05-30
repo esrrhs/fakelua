@@ -72,6 +72,7 @@ private:
 
     struct TraversalContext {
         EvalTypeMap &current_map;
+        TypeEnvironment &env;
         bool in_funcbody = false;
         const TrialInferenceContext *ctx = nullptr;
 
@@ -203,8 +204,6 @@ private:
             int bitmask) const;
 
 private:
-    TypeEnvironment env_;
-
     // 文件顶层的数值类型局部变量映射：变量名 → T_INT/T_FLOAT。
     // 在 InferNode LocalVar 阶段填充（仅记录数值字面量初始化的顶层 local 变量）。
     // RunTrialInference 在重置 env_ 后用此表重新注入这些常量，
