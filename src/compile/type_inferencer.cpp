@@ -10,17 +10,7 @@
 
 namespace fakelua {
 
-static std::string InferredTypeToString(InferredType type) {
-    switch (type) {
-        case T_UNKNOWN: return "T_UNKNOWN";
-        case T_INT:     return "T_INT";
-        case T_FLOAT:   return "T_FLOAT";
-        case T_DYNAMIC: return "T_DYNAMIC";
-        default:        return "T_UNKNOWN";
-    }
-}
-
-static void DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &snapshot, int tab, std::ostream &os) {
+void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &snapshot, int tab, std::ostream &os) const {
     if (!node) {
         return;
     }
@@ -248,7 +238,7 @@ static void DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const EvalTypeS
             break;
         }
         default:
-            break;
+            ThrowFakeluaException(std::format("DumpASTWithTypes: unexpected SyntaxTreeType: {}", SyntaxTreeTypeToString(node->Type())));
     }
 }
 

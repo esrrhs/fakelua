@@ -198,6 +198,8 @@ private:
     [[nodiscard]] std::unordered_map<std::string, InferredType>
     MakeSpecializedParamTypes(const std::vector<std::string> &params, const std::vector<int> &math_indices, int bitmask) const;
 
+    void DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &snapshot, int tab, std::ostream &os) const;
+
 private:
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
