@@ -67,7 +67,8 @@ InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_t
 InferResult TypeInferencer::InferTypes(const ParseResult &pr) {
     InferResult ir;
     EvalTypeMap current_map;
-    TraversalContext tctx{current_map, false, nullptr};
+    TypeEnvironment env;
+    TraversalContext tctx{current_map, env, false, nullptr};
 
     InferNode(pr.chunk, tctx);
     // 将当前推断结果复制为全局主快照，供 CGen 在非特化路径下查询节点类型。
@@ -122,17 +123,17 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
         }
         case SyntaxTreeType::FuncBody: {
             const auto funcbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
-            env_.EnterScope();
+            tctx.env.EnterScope();
             if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(funcbody->Parlist())) {
                 if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
                     for (const auto &name: namelist->Names()) {
-                        env_.Define(name, T_DYNAMIC);
+                        tctx.env.Define(name, T_DYNAMIC);
                     }
                 }
             }
-            TraversalContext sub_tctx{tctx.current_map, true, tctx.ctx};
+            TraversalContext sub_tctx{tctx.current_map, tctx.env, true, tctx.ctx};
             InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(funcbody->Block()), false, sub_tctx);
-            env_.ExitScope();
+            tctx.env.ExitScope();
             return RecordType(current_map, node.get(), T_UNKNOWN);
         }
         case SyntaxTreeType::Return: {
@@ -236,7 +237,7 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
         if (i < exps.size()) {
             type = InferNode(exps[i], tctx);
         }
-        env_.Define(names[i], type);
+        tctx.env.Define(names[i], type);
         // 文件顶层（!in_funcbody）数值类型局部变量：
         // 将其记录 to file_level_types_，供 RunTrialInference
         // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
@@ -264,16 +265,16 @@ InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign>
     // 若变量被固定（数学参数在特化试推断中），跳过 env 降级，
     // 以保持与运行时类型检查语义一致：赋值失败时会抛异常，不会改变变量类型。
     if (tctx.IsPinnedVar(name)) {
-        const auto current = env_.Lookup(name);
+        const auto current = tctx.env.Lookup(name);
         current_map[var.get()] = current;
         return RecordType(current_map, assign.get(), current);
     }
-    if (!env_.Update(name, rhs_type)) {
+    if (!tctx.env.Update(name, rhs_type)) {
         current_map[var.get()] = T_DYNAMIC;
         return RecordType(current_map, assign.get(), T_DYNAMIC);
     }
 
-    const auto current = env_.Lookup(name);
+    const auto current = tctx.env.Lookup(name);
     current_map[var.get()] = current;
     return RecordType(current_map, assign.get(), current);
 }
@@ -298,14 +299,14 @@ InferredType TypeInferencer::InferForLoop(const std::shared_ptr<SyntaxTreeForLoo
     const InferredType loop_var_type = all_int ? T_INT : (all_numeric ? T_FLOAT : T_DYNAMIC);
 
     auto &current_map = tctx.current_map;
-    env_.EnterScope();
-    env_.Define(for_loop->Name(), loop_var_type);
+    tctx.env.EnterScope();
+    tctx.env.Define(for_loop->Name(), loop_var_type);
     InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_loop->Block()), false, tctx);
     // 循环体内可能对循环变量重新赋值（例如 `a = "test"`），导致其类型
     // 从初始 of T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量 of
     // 最终类型，以便 CGen 决定生成原生整型/浮点快路径还是 CVar 动态路径。
-    const InferredType final_loop_var_type = env_.Lookup(for_loop->Name());
-    env_.ExitScope();
+    const InferredType final_loop_var_type = tctx.env.Lookup(for_loop->Name());
+    tctx.env.ExitScope();
 
     return RecordType(current_map, for_loop.get(), final_loop_var_type);
 }
@@ -316,12 +317,12 @@ InferredType TypeInferencer::InferForIn(const std::shared_ptr<SyntaxTreeForIn> &
     DEBUG_ASSERT(namelist);
     // For-in 循环变量是循环体作用域内的局部变量，必须先注入作用域。
     // 否则循环体中的赋值会错误地更新外层同名变量，导致类型污染。
-    env_.EnterScope();
+    tctx.env.EnterScope();
     for (const auto &name: namelist->Names()) {
-        env_.Define(name, T_DYNAMIC);
+        tctx.env.Define(name, T_DYNAMIC);
     }
     InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_in->Block()), false, tctx);
-    env_.ExitScope();
+    tctx.env.ExitScope();
     return RecordType(tctx.current_map, for_in.get(), T_UNKNOWN);
 }
 
@@ -334,10 +335,10 @@ InferredType TypeInferencer::InferWhile(const std::shared_ptr<SyntaxTreeWhile> &
 InferredType TypeInferencer::InferRepeat(const std::shared_ptr<SyntaxTreeRepeat> &repeat_stmt, TraversalContext &tctx) {
     // Lua 语义：until 条件可以访问 repeat 块内声明 of local 变量。
     // 因此必须在 until 条件推断完成之后再退出作用域，而不能在块结束时立即退出。
-    env_.EnterScope();
+    tctx.env.EnterScope();
     InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(repeat_stmt->Block()), false, tctx);
     InferNode(repeat_stmt->Exp(), tctx);
-    env_.ExitScope();
+    tctx.env.ExitScope();
     return RecordType(tctx.current_map, repeat_stmt.get(), T_UNKNOWN);
 }
 
@@ -523,7 +524,7 @@ InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var,
     auto &current_map = tctx.current_map;
     switch (var->GetVarKind()) {
         case VarKind::kSimple: {
-            const auto ret = env_.Lookup(var->GetName());
+            const auto ret = tctx.env.Lookup(var->GetName());
             return RecordType(current_map, var.get(), ret);
         }
         case VarKind::kSquare: {
@@ -557,7 +558,7 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
     }
 
     if (new_scope) {
-        env_.EnterScope();
+        tctx.env.EnterScope();
     }
 
     for (const auto &stmt: block->Stmts()) {
@@ -575,7 +576,7 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
     if (tctx.SkipPostProcessing()) {
         current_map[block.get()] = T_UNKNOWN;
         if (new_scope) {
-            env_.ExitScope();
+            tctx.env.ExitScope();
         }
         return;
     }
@@ -599,7 +600,7 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
         const auto &names = namelist->Names();
         for (size_t i = 0; i < names.size(); ++i) {
             if (i < exps.size()) {
-                const auto final_type = env_.Lookup(names[i]);
+                const auto final_type = tctx.env.Lookup(names[i]);
                 current_map[exps[i].get()] = final_type;
             }
         }
@@ -607,7 +608,7 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
 
     current_map[block.get()] = T_UNKNOWN;
     if (new_scope) {
-        env_.ExitScope();
+        tctx.env.ExitScope();
     }
 }
 
@@ -696,9 +697,6 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
                                                               const std::unordered_map<std::string, std::vector<int>> *math_positions,
                                                               const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret,
                                                               bool skip_post_processing) {
-    // 保存当前推断器状态，trial 结束后恢复。
-    TypeEnvironment saved_env = env_;
-
     std::unordered_set<std::string> pinned_vars;
     for (const auto &[name, t]: assumed_types) {
         if (t == T_INT || t == T_FLOAT) {
@@ -722,18 +720,18 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
 
         // 以假定的参数类型初始化 trial 环境；同时注入文件级数值常量，
         // 使函数体能看到正确的文件级局部变量类型（T_INT/T_FLOAT）。
-        env_ = TypeEnvironment{};
+        TypeEnvironment env;
         for (const auto &[fname, ftype]: file_level_types_) {
-            env_.Define(fname, ftype);
+            env.Define(fname, ftype);
         }
         for (const auto &p: params) {
             const auto it = assumed_types.find(p);
-            env_.Define(p, it != assumed_types.end() ? it->second : T_DYNAMIC);
+            env.Define(p, it != assumed_types.end() ? it->second : T_DYNAMIC);
         }
 
         // 运行函数体类型推断（不新开作用域，参数已在当前作用域中定义）。
         // in_funcbody=true 表示正在推断函数体内部。
-        TraversalContext tctx{current_map, true, &ctx};
+        TraversalContext tctx{current_map, env, true, &ctx};
         InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block), false, tctx);
 
         // 快照本轮推断结果（仅 func_block 节点）。
@@ -749,9 +747,6 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
         }
         prev_map = std::move(curr_map);
     }
-
-    // 恢复推断器状态。
-    env_ = std::move(saved_env);
 
     return prev_map;
 }
