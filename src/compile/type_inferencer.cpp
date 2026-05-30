@@ -374,14 +374,38 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
             const auto left_type = InferNode(exp->Left(), tctx);
             const auto right_type = InferNode(exp->Right(), tctx);
 
+            const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
+            DEBUG_ASSERT(op);
+            const auto op_kind = op->GetOpKind();
+
+            if (op_kind == BinOpKind::kOr) {
+                // Pattern match Lua ternary: (cond and val1) or val2
+                if (exp->Left()->Type() == SyntaxTreeType::Exp) {
+                    const auto left_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp->Left());
+                    if (left_exp && left_exp->GetExpKind() == ExpKind::kBinop) {
+                        const auto left_op = std::dynamic_pointer_cast<SyntaxTreeBinop>(left_exp->Op());
+                        if (left_op && left_op->GetOpKind() == BinOpKind::kAnd) {
+                            const auto it = current_map.find(left_exp->Right().get());
+                            const auto val1_type = (it != current_map.end()) ? it->second : T_DYNAMIC;
+                            if ((val1_type == T_INT || val1_type == T_FLOAT) &&
+                                (right_type == T_INT || right_type == T_FLOAT)) {
+                                const auto merged = (val1_type == right_type) ? val1_type : T_FLOAT;
+                                return RecordType(current_map, exp.get(), merged);
+                            }
+                        }
+                    }
+                }
+                if (left_type == T_INT || left_type == T_FLOAT) {
+                    return RecordType(current_map, exp.get(), left_type);
+                }
+                return RecordType(current_map, exp.get(), T_DYNAMIC);
+            }
+
             if (left_type == T_DYNAMIC || right_type == T_DYNAMIC) {
                 return RecordType(current_map, exp.get(), T_DYNAMIC);
             }
 
-            const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(exp->Op());
-            DEBUG_ASSERT(op);
-
-            switch (const auto op_kind = op->GetOpKind()) {
+            switch (op_kind) {
                 // 保持 INT+INT=INT、混合→FLOAT 语义的算术运算
                 case BinOpKind::kPlus:
                 case BinOpKind::kMinus:
@@ -407,7 +431,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                 }
 
                 // 位运算：Lua 5.4 会将整数浮点（如3.0）自动转为 int，
-                // 因此两个操作数均为数值类型时结果始终为 T_INT。
+                // 结果始终为 T_INT。
                 case BinOpKind::kBitAnd:
                 case BinOpKind::kBitOr:
                 case BinOpKind::kXor:
@@ -421,18 +445,9 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
 
                 // AND/OR：Lua 中整数 and 浮点数始终为真值（包括 0），因此：
                 //   a and b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 b → 类型为 right_type
-                //   a or  b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 a → 类型为 left_type
                 case BinOpKind::kAnd: {
                     if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
                         return RecordType(current_map, exp.get(), right_type);
-                    }
-                    break;
-                }
-                case BinOpKind::kOr: {
-                    // 数值始终为真值（包括 0），因此 or 短路：结果始终为左操作数。
-                    // 右操作数类型不影响结果类型。
-                    if (left_type == T_INT || left_type == T_FLOAT) {
-                        return RecordType(current_map, exp.get(), left_type);
                     }
                     break;
                 }

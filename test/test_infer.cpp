@@ -3681,3 +3681,22 @@ TEST(infer, test_spec_concat_arg_dynamic) {
     // The concat result is T_DYNAMIC, so specialization call is not possible.
     ASSERT_NE(code.find("FlConcat("), std::string::npos);
 }
+
+// 三元表达式（(n > 0) and 1 or 2）优化测试。
+// 校验生成的 C 代码使用原生三元表达式且 JIT 运行结果正确。
+TEST(infer, test_spec_ternary) {
+    const auto code = InferGetCCode("./infer/test_spec_ternary.lua");
+    // test_0 必须被生成，且内部使用原生三元条件运算符 (n) > (0) ? 1 : 2
+    ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
+    ASSERT_NE(code.find("? 1 : 2"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_ternary.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, -5);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
