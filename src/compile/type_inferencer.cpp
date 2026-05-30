@@ -415,19 +415,15 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                     if (left_type == T_INT && right_type == T_INT) {
                         return RecordType(current_map, exp.get(), T_INT);
                     }
-                    if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
-                        return RecordType(current_map, exp.get(), T_FLOAT);
-                    }
-                    break;
+                    DEBUG_ASSERT((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT));
+                    return RecordType(current_map, exp.get(), T_FLOAT);
                 }
 
                 // 结果始终为 FLOAT 的运算
                 case BinOpKind::kSlash:
                 case BinOpKind::kPow: {
-                    if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
-                        return RecordType(current_map, exp.get(), T_FLOAT);
-                    }
-                    break;
+                    DEBUG_ASSERT((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT));
+                    return RecordType(current_map, exp.get(), T_FLOAT);
                 }
 
                 // 位运算：Lua 5.4 会将整数浮点（如3.0）自动转为 int，
@@ -437,19 +433,15 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                 case BinOpKind::kXor:
                 case BinOpKind::kLeftShift:
                 case BinOpKind::kRightShift: {
-                    if (IsNumericInferredType(left_type) && IsNumericInferredType(right_type)) {
-                        return RecordType(current_map, exp.get(), T_INT);
-                    }
-                    break;
+                    DEBUG_ASSERT(IsNumericInferredType(left_type) && IsNumericInferredType(right_type));
+                    return RecordType(current_map, exp.get(), T_INT);
                 }
 
                 // AND/OR：Lua 中整数 and 浮点数始终为真值（包括 0），因此：
                 //   a and b（a 为 T_INT/T_FLOAT）：a 始终为真，结果为 b → 类型为 right_type
                 case BinOpKind::kAnd: {
-                    if ((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
-                        return RecordType(current_map, exp.get(), right_type);
-                    }
-                    break;
+                    DEBUG_ASSERT((left_type == T_INT || left_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT));
+                    return RecordType(current_map, exp.get(), right_type);
                 }
 
                 // 比较运算与字符串连接：结果为 T_DYNAMIC
