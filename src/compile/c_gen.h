@@ -16,43 +16,37 @@ class State;
 class CGen {
 public:
     explicit CGen(State *s);
-
     ~CGen() = default;
 
+    // 核心代码生成入口
     GenResult Generate(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg);
 
 private:
+    // ==========================================
+    // SECTION 1: 核心调度与编排 (Core Orchestration)
+    // ==========================================
     GenResult Build(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg);
-
-    [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
-
     void GenerateHeader();
-
     void GenerateGlobal(const SyntaxTreeInterfacePtr &chunk);
-
     void GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr);
-
-    std::string CompileFuncName(const SyntaxTreeInterfacePtr &ptr);
-
-    std::vector<std::string> CompileParList(const SyntaxTreeInterfacePtr &parlist);
-
     void GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr);
-
+    
+    std::string CompileFuncName(const SyntaxTreeInterfacePtr &ptr);
+    std::vector<std::string> CompileParList(const SyntaxTreeInterfacePtr &parlist);
     void CompileFuncBody(const std::string &func_name,
                          const std::vector<std::string> &func_params,
                          const SyntaxTreeInterfacePtr &func_block,
                          int spec_bitmask,
                          std::ostream &out);
-
     void GenerateEntryDispatcher(const std::string &func_name,
                                  const std::vector<std::string> &func_params,
                                  const std::vector<int> &math_param_indices);
-
     [[nodiscard]] static bool BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block);
-
-    [[nodiscard]] std::string CompileExp(const SyntaxTreeInterfacePtr &exp);
     [[nodiscard]] InferredType GetSpecReturnType(const std::string &func_name, int bitmask) const;
 
+    // ==========================================
+    // SECTION 2: 语句编译 (Statement Compilation)
+    // ==========================================
     void CompileStmtBlock(const SyntaxTreeInterfacePtr &block);
     void CompileStmt(const SyntaxTreeInterfacePtr &stmt);
     void CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt);
@@ -71,6 +65,10 @@ private:
     void CompileScopedBlock(const SyntaxTreeInterfacePtr &block);
     std::string CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix);
 
+    // ==========================================
+    // SECTION 3: 表达式编译 (Expression Compilation)
+    // ==========================================
+    [[nodiscard]] std::string CompileExp(const SyntaxTreeInterfacePtr &exp);
     std::string CompilePrefixexp(const SyntaxTreeInterfacePtr &pe);
     std::string CompileVar(const SyntaxTreeInterfacePtr &v);
     std::string CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall);
@@ -81,10 +79,28 @@ private:
     std::string CompileUnop(const SyntaxTreeInterfacePtr &right,
                             const SyntaxTreeInterfacePtr &op);
 
+    // ==========================================
+    // SECTION 4: 类型推断与原生优化辅助 (Type Resolution & Native Helpers)
+    // ==========================================
     std::string CompileNumericExp(const SyntaxTreeInterfacePtr &exp);
     std::string TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp);
     std::string TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp);
     std::string TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node);
+    
+    // 原生算术、比较和一元操作编译的拆分辅助函数
+    std::string CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left,
+                                        const SyntaxTreeInterfacePtr &right,
+                                        BinOpKind op_kind,
+                                        InferredType lt,
+                                        InferredType rt);
+    std::string CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left,
+                                      const SyntaxTreeInterfacePtr &right,
+                                      BinOpKind op_kind,
+                                      InferredType lt,
+                                      InferredType rt);
+    std::string CompileNativeUnop(const SyntaxTreeInterfacePtr &right,
+                                  UnOpKind op_kind,
+                                  InferredType rt);
 
     [[nodiscard]] InferredType InferExpType(const SyntaxTreeInterfacePtr &exp) const;
     [[nodiscard]] InferredType InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const;
@@ -97,6 +113,7 @@ private:
                                             InferredType &spec_ret) const;
     [[nodiscard]] InferredType LookupNodeType(SyntaxTreeInterface *node) const;
 
+    // 原生变量作用域管理
     void EnterNativeVarScope() { native_var_scope_.Enter(); }
     void ExitNativeVarScope() { native_var_scope_.Exit(); }
     void DeclareNativeVar(const std::string &name, InferredType native_type) {
@@ -105,6 +122,10 @@ private:
     [[nodiscard]] bool IsTypedNativeVar(const std::string &name) const { return native_var_scope_.IsTyped(name); }
     [[nodiscard]] InferredType GetNativeVarType(const std::string &name) const { return native_var_scope_.GetType(name); }
 
+    // ==========================================
+    // SECTION 5: 杂项辅助 (Miscellaneous Utilities)
+    // ==========================================
+    [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
     [[nodiscard]] std::string GenTab() const;
 
 private:
