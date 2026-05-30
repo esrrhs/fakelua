@@ -39,6 +39,13 @@ private:
         std::vector<std::string> params;
     };
 
+    struct MathFuncInfo {
+        SyntaxTreeInterfacePtr block;
+        std::vector<std::string> params;
+    };
+
+    using MathFuncInfoMap = std::unordered_map<std::string, MathFuncInfo>;
+
     struct FuncRetInfo {
         std::vector<SyntaxTreeInterfacePtr> ret_exps;
         bool ends_with_return = false;
@@ -46,6 +53,13 @@ private:
 
     // node指针 → 推断类型的快照映射，用于特化发现的不动点迭代。
     using EvalTypeMap = EvalTypeSnapshot;
+
+    // 辅助工具：往快照 map 中写入类型并直接返回（单一出口，保证 map 与返回值一致）
+    static inline InferredType RecordType(EvalTypeMap &m, SyntaxTreeInterface *n, InferredType t) {
+        m[n] = t;
+        return t;
+    }
+
 
     // 试推断上下文：在 RunTrialInference 中创建，沿调用链传递，
     // 用于 ResolveCallReturnType 解析被调函数的返回类型。
@@ -56,39 +70,54 @@ private:
         bool skip_post_processing = false;
     };
 
-    InferredType InferNode(const SyntaxTreeInterfacePtr &node, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx = nullptr);
+    struct TraversalContext {
+        EvalTypeMap &current_map;
+        bool in_funcbody = false;
+        const TrialInferenceContext *ctx = nullptr;
 
-    InferredType InferExp(const std::shared_ptr<SyntaxTreeExp> &exp, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx = nullptr);
+        [[nodiscard]] bool IsTrialInference() const {
+            return ctx != nullptr;
+        }
 
-    InferredType InferPrefixExp(const std::shared_ptr<SyntaxTreePrefixexp> &prefix_exp, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx = nullptr);
+        [[nodiscard]] bool IsPinnedVar(const std::string &name) const {
+            return ctx && ctx->pinned_vars && ctx->pinned_vars->contains(name);
+        }
 
-    InferredType InferVar(const std::shared_ptr<SyntaxTreeVar> &var, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx = nullptr);
+        [[nodiscard]] bool SkipPostProcessing() const {
+            return ctx && ctx->skip_post_processing;
+        }
+    };
 
-    void InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, bool new_scope, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx = nullptr);
+    InferredType InferNode(const SyntaxTreeInterfacePtr &node, TraversalContext &tctx);
+
+    InferredType InferExp(const std::shared_ptr<SyntaxTreeExp> &exp, TraversalContext &tctx);
+
+    InferredType InferPrefixExp(const std::shared_ptr<SyntaxTreePrefixexp> &prefix_exp, TraversalContext &tctx);
+
+    InferredType InferVar(const std::shared_ptr<SyntaxTreeVar> &var, TraversalContext &tctx);
+
+    void InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, bool new_scope, TraversalContext &tctx);
 
     // 辅助分析不同类型语句的私有成员函数，用于拆分庞大的 Switch 分支
-    InferredType InferLocalVar(const std::shared_ptr<SyntaxTreeLocalVar> &local_var, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
-    InferredType InferAssign(const std::shared_ptr<SyntaxTreeAssign> &assign, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
-    InferredType InferForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_loop, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
-    InferredType InferForIn(const std::shared_ptr<SyntaxTreeForIn> &for_in, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
-    InferredType InferWhile(const std::shared_ptr<SyntaxTreeWhile> &while_stmt, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
-    InferredType InferRepeat(const std::shared_ptr<SyntaxTreeRepeat> &repeat_stmt, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
-    InferredType InferIf(const std::shared_ptr<SyntaxTreeIf> &if_stmt, EvalTypeMap &current_map, bool in_funcbody, const TrialInferenceContext *ctx);
+    InferredType InferLocalVar(const std::shared_ptr<SyntaxTreeLocalVar> &local_var, TraversalContext &tctx);
+    InferredType InferAssign(const std::shared_ptr<SyntaxTreeAssign> &assign, TraversalContext &tctx);
+    InferredType InferForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_loop, TraversalContext &tctx);
+    InferredType InferForIn(const std::shared_ptr<SyntaxTreeForIn> &for_in, TraversalContext &tctx);
+    InferredType InferWhile(const std::shared_ptr<SyntaxTreeWhile> &while_stmt, TraversalContext &tctx);
+    InferredType InferRepeat(const std::shared_ptr<SyntaxTreeRepeat> &repeat_stmt, TraversalContext &tctx);
+    InferredType InferIf(const std::shared_ptr<SyntaxTreeIf> &if_stmt, TraversalContext &tctx);
 
     // -----------------------------------------------------------------------
     // 数学参数特化发现（迭代不动点推断）
     // -----------------------------------------------------------------------
 
     // 多轮迭代识别数学参数，记录到 ir.math_param_positions，
-    // 同时返回数学函数信息（函数名 → {函数体, 参数列表}）。
-    std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>>
-    IdentifyMathParams(const ParseResult &pr, InferResult &ir);
+    // 同时返回数学函数信息。
+    MathFuncInfoMap IdentifyMathParams(const ParseResult &pr, InferResult &ir);
 
     // 为所有数学函数生成初始特化快照，写入 ir.specialization_snapshots。
     // 每个函数生成 2^k 个快照（k = 数学参数个数）。
-    void GenerateInitialSnapshots(
-            InferResult &ir,
-            const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info);
+    void GenerateInitialSnapshots(InferResult &ir, const MathFuncInfoMap &math_func_info);
 
     // 以 assumed_types 中给定的参数类型假设运行 InferBlock，迭代直到稳定（不动点），
     // 返回各 AST 节点 → InferredType 的快照。
@@ -112,18 +141,16 @@ private:
     [[nodiscard]] bool IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) const;
 
     // 数学参数发现的统一类型变化检测器。
-    // 仅做一次 WalkSyntaxTree 遍历，在同一回调中按节点类别分派四类检测规则：
-    //   1. 算术表达式：节点自身类型变化（T_INT/T_FLOAT ↔ T_DYNAMIC）；
-    //   2. 有序比较（< <= > >=）：左右操作数类型变化（均数值 ↔ 含 T_DYNAMIC）；
-    //   3. for-loop：循环节点自身类型变化；
-    //   4. 已知数学函数调用：数学参数位置实参类型变化。
-    // improvement_mode=true 时检测"改善"（compare_map 节点为 T_DYNAMIC），
-    // improvement_mode=false 时检测"退化"（compare_map 节点与 typed_map 不同）。
-    // 注意：仅关注数学参数发现相关槽位，不检测任意节点的类型变化。
     [[nodiscard]] bool CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
                                                   const SyntaxTreeInterfacePtr &func_block,
                                                   bool improvement_mode,
                                                   const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
+
+    // 拆分出的细粒度节点检测函数
+    [[nodiscard]] bool CheckArithmeticNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, bool improvement_mode) const;
+    [[nodiscard]] bool CheckComparisonNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, bool improvement_mode) const;
+    [[nodiscard]] bool CheckForLoopNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, bool improvement_mode) const;
+    [[nodiscard]] bool CheckCallNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
 
     [[nodiscard]] std::vector<FunctionSpecInfo> CollectFunctionSpecInfos(const ParseResult &pr) const;
 
@@ -133,12 +160,13 @@ private:
                                           const std::unordered_map<std::string, std::vector<int>> &known_math_positions);
 
     [[nodiscard]] std::unordered_map<std::string, FuncRetInfo> BuildFunctionReturnCache(
-            const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info) const;
+            const MathFuncInfoMap &math_func_info) const;
 
     void InferSpecializationReturnTypes(
             InferResult &ir,
-            const std::unordered_map<std::string, std::pair<SyntaxTreeInterfacePtr, std::vector<std::string>>> &math_func_info,
+            const MathFuncInfoMap &math_func_info,
             const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache);
+
 
     // 检查 block_node 的所有执行路径是否均以 return 语句结束。
     // 能识别 if-else（所有分支均返回）的情况，不递归进入嵌套函数体。
@@ -153,8 +181,7 @@ private:
     // 上下文为 null 时（主推断遍）始终返回 T_DYNAMIC。
     [[nodiscard]] InferredType ResolveCallReturnType(
             const std::shared_ptr<SyntaxTreeFunctioncall> &fc,
-            const EvalTypeMap &current_map,
-            const TrialInferenceContext *ctx) const;
+            const TraversalContext &tctx) const;
 
     // 从 RunTrialInference 生成的精确快照中直接读取 return 表达式节点的类型，
     // 汇总得出该特化版本的函数返回类型（T_INT / T_FLOAT / T_DYNAMIC）。
