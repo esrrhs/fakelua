@@ -73,7 +73,6 @@ private:
     struct TraversalContext {
         EvalTypeMap &current_map;
         TypeEnvironment &env;
-        std::unordered_map<std::string, InferredType> &file_level_types;
         bool in_funcbody = false;
         const TrialInferenceContext *ctx = nullptr;
 
@@ -115,13 +114,11 @@ private:
 
     // 多轮迭代识别数学参数，记录到 ir.math_param_positions，
     // 同时返回数学函数信息。
-    MathFuncInfoMap IdentifyMathParams(const ParseResult &pr, InferResult &ir,
-                                       const std::unordered_map<std::string, InferredType> &file_level_types);
+    MathFuncInfoMap IdentifyMathParams(const ParseResult &pr, InferResult &ir);
 
     // 为所有数学函数生成初始特化快照，写入 ir.specialization_snapshots。
     // 每个函数生成 2^k 个快照（k = 数学参数个数）。
-    void GenerateInitialSnapshots(InferResult &ir, const MathFuncInfoMap &math_func_info,
-                                  const std::unordered_map<std::string, InferredType> &file_level_types);
+    void GenerateInitialSnapshots(InferResult &ir, const MathFuncInfoMap &math_func_info);
 
     // 以 assumed_types 中给定的参数类型假设运行 InferBlock，迭代直到稳定（不动点），
     // 返回各 AST 节点 → InferredType 的快照。
@@ -130,7 +127,6 @@ private:
     // 使函数调用节点及其下游局部变量在快照中获得精确类型。
     EvalTypeMap RunTrialInference(const SyntaxTreeInterfacePtr &func_block, const std::vector<std::string> &params,
                                   const std::unordered_map<std::string, InferredType> &assumed_types,
-                                  const std::unordered_map<std::string, InferredType> &file_level_types,
                                   const std::unordered_map<std::string, std::vector<int>> *math_positions = nullptr,
                                   const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret = nullptr,
                                   bool skip_post_processing = false);
@@ -162,14 +158,12 @@ private:
     [[nodiscard]] std::vector<FunctionSpecInfo> CollectFunctionSpecInfos(const ParseResult &pr) const;
 
     std::vector<int> FindMathParamIndices(const FunctionSpecInfo &info, const EvalTypeMap &baseline, const EvalTypeMap &all_int,
-                                          const std::unordered_map<std::string, std::vector<int>> &known_math_positions,
-                                          const std::unordered_map<std::string, InferredType> &file_level_types);
+                                          const std::unordered_map<std::string, std::vector<int>> &known_math_positions);
 
     [[nodiscard]] std::unordered_map<std::string, FuncRetInfo> BuildFunctionReturnCache(const MathFuncInfoMap &math_func_info) const;
 
     void InferSpecializationReturnTypes(InferResult &ir, const MathFuncInfoMap &math_func_info,
-                                        const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache,
-                                        const std::unordered_map<std::string, InferredType> &file_level_types);
+                                        const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache);
 
 
     // 检查 block_node 的所有执行路径是否均以 return 语句结束。
@@ -201,6 +195,7 @@ private:
     void DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &snapshot, int tab, std::ostream &os) const;
 
 private:
+    std::unordered_map<std::string, InferredType> file_level_types_;
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
     static constexpr int kMaxSpecIterations = 16;

@@ -300,11 +300,11 @@ InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_t
 // ===========================================================================
 
 InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfig &cfg) {
+    file_level_types_.clear();
     InferResult ir;
     EvalTypeMap current_map;
     TypeEnvironment env;
-    std::unordered_map<std::string, InferredType> file_level_types;
-    TraversalContext tctx{current_map, env, file_level_types, false, nullptr};
+    TraversalContext tctx{current_map, env, false, nullptr};
 
     InferNode(pr.chunk, tctx);
     // 将当前推断结果复制为全局主快照，供 CGen 在非特化路径下查询节点类型。
@@ -312,12 +312,12 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
 
     // 在正常推断之后，通过三个阶段发现数学参数并生成特化信息：
     // IdentifyMathParams：多轮迭代识别数学参数
-    if (const auto math_func_info = IdentifyMathParams(pr, ir, file_level_types); !math_func_info.empty()) {
+    if (const auto math_func_info = IdentifyMathParams(pr, ir); !math_func_info.empty()) {
         // GenerateInitialSnapshots：生成各特化版本的初始类型快照
-        GenerateInitialSnapshots(ir, math_func_info, file_level_types);
+        GenerateInitialSnapshots(ir, math_func_info);
         // InferSpecializationReturnTypes：不动点迭代精化返回类型
         const auto func_ret_cache = BuildFunctionReturnCache(math_func_info);
-        InferSpecializationReturnTypes(ir, math_func_info, func_ret_cache, file_level_types);
+        InferSpecializationReturnTypes(ir, math_func_info, func_ret_cache);
     }
 
     if (cfg.debug_mode) {
@@ -391,7 +391,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
                     }
                 }
             }
-            TraversalContext sub_tctx{tctx.current_map, tctx.env, tctx.file_level_types, true, tctx.ctx};
+            TraversalContext sub_tctx{tctx.current_map, tctx.env, true, tctx.ctx};
             InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(funcbody->Block()), false, sub_tctx);
             tctx.env.ExitScope();
             return RecordType(current_map, node.get(), T_UNKNOWN);
@@ -502,7 +502,7 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
         // 将其记录 to file_level_types，供 RunTrialInference
         // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
         if (!tctx.in_funcbody && IsNumericInferredType(type)) {
-            tctx.file_level_types[names[i]] = type;
+            file_level_types_[names[i]] = type;
         }
     }
 
@@ -883,8 +883,7 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
 // SECTION 3: Specialization & Math Parameter Identification Logic
 // ===========================================================================
 
-TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseResult &pr, InferResult &ir,
-                                                                   const std::unordered_map<std::string, InferredType> &file_level_types) {
+TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseResult &pr, InferResult &ir) {
     MathFuncInfoMap math_func_info;
     const auto function_infos = CollectFunctionSpecInfos(pr);
 
@@ -901,10 +900,10 @@ TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseRe
             // baseline：所有参数均假设为 T_DYNAMIC；all_int：所有参数均假设为 T_INT。
             // 两次推断的对比用于判断该函数的算术表达式是否能因参数类型已知而改善。
             const auto baseline = RunTrialInference(info.block, info.params, MakeAssumedParamTypes(info.params, "", T_DYNAMIC, T_DYNAMIC),
-                                                    file_level_types, nullptr, nullptr, true);
+                                                    nullptr, nullptr, true);
             const auto all_int = RunTrialInference(info.block, info.params, MakeAssumedParamTypes(info.params, "", T_INT, T_INT),
-                                                   file_level_types, nullptr, nullptr, true);
-            const auto math_indices = FindMathParamIndices(info, baseline, all_int, ir.math_param_positions, file_level_types);
+                                                   nullptr, nullptr, true);
+            const auto math_indices = FindMathParamIndices(info, baseline, all_int, ir.math_param_positions);
 
             if (math_indices.empty()) {
                 continue;
@@ -923,8 +922,7 @@ TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseRe
 }
 
 std::vector<int> TypeInferencer::FindMathParamIndices(const FunctionSpecInfo &info, const EvalTypeMap &baseline, const EvalTypeMap &all_int,
-                                                      const std::unordered_map<std::string, std::vector<int>> &known_math_positions,
-                                                      const std::unordered_map<std::string, InferredType> &file_level_types) {
+                                                      const std::unordered_map<std::string, std::vector<int>> &known_math_positions) {
     std::vector<int> math_indices;
     // 快速剪枝：若全 T_INT 与 baseline 无改善，函数不具备特化价值。
     if (!CheckArithmeticTypeChanges(all_int, baseline, info.block, true, known_math_positions)) {
@@ -935,7 +933,7 @@ std::vector<int> TypeInferencer::FindMathParamIndices(const FunctionSpecInfo &in
         // without_p：除 p_i 为 T_DYNAMIC 外，其余参数均为 T_INT。
         const auto without_p_assumed = MakeAssumedParamTypes(info.params, info.params[i], T_DYNAMIC, T_INT);
         // 若去掉 p_i 后算术/比较/for-loop 退化，则 p_i 是数学参数。
-        if (const auto without_p_map = RunTrialInference(info.block, info.params, without_p_assumed, file_level_types, nullptr, nullptr, true);
+        if (const auto without_p_map = RunTrialInference(info.block, info.params, without_p_assumed, nullptr, nullptr, true);
             CheckArithmeticTypeChanges(all_int, without_p_map, info.block, false, known_math_positions)) {
             math_indices.push_back(i);
         }
@@ -943,8 +941,7 @@ std::vector<int> TypeInferencer::FindMathParamIndices(const FunctionSpecInfo &in
     return math_indices;
 }
 
-void TypeInferencer::GenerateInitialSnapshots(InferResult &ir, const MathFuncInfoMap &math_func_info,
-                                              const std::unordered_map<std::string, InferredType> &file_level_types) {
+void TypeInferencer::GenerateInitialSnapshots(InferResult &ir, const MathFuncInfoMap &math_func_info) {
     for (const auto &[func_name, func_data]: math_func_info) {
         const auto &[func_block, func_params] = func_data;
         const auto &math_indices = ir.math_param_positions.at(func_name);
@@ -956,18 +953,17 @@ void TypeInferencer::GenerateInitialSnapshots(InferResult &ir, const MathFuncInf
         for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
             // 构造参数类型假设：非数学参数为 T_DYNAMIC，数学参数按 bitmask 分配
             auto assumed = MakeSpecializedParamTypes(func_params, math_indices, bitmask);
-            snapshots[static_cast<size_t>(bitmask)] = RunTrialInference(func_block, func_params, assumed, file_level_types);
+            snapshots[static_cast<size_t>(bitmask)] = RunTrialInference(func_block, func_params, assumed);
         }
     }
 }
 
 TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func_block,
-                                                              const std::vector<std::string> &params,
-                                                              const std::unordered_map<std::string, InferredType> &assumed_types,
-                                                              const std::unordered_map<std::string, InferredType> &file_level_types,
-                                                              const std::unordered_map<std::string, std::vector<int>> *math_positions,
-                                                              const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret,
-                                                              bool skip_post_processing) {
+                                                             const std::vector<std::string> &params,
+                                                             const std::unordered_map<std::string, InferredType> &assumed_types,
+                                                             const std::unordered_map<std::string, std::vector<int>> *math_positions,
+                                                             const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret,
+                                                             bool skip_post_processing) {
     std::unordered_set<std::string> pinned_vars;
     for (const auto &[name, t]: assumed_types) {
         if (t == T_INT || t == T_FLOAT) {
@@ -992,7 +988,7 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
         // 以假定的参数类型初始化 trial 环境；同时注入文件级数值常量，
         // 使函数体能看到正确的文件级局部变量类型（T_INT/T_FLOAT）。
         TypeEnvironment env;
-        for (const auto &[fname, ftype]: file_level_types) {
+        for (const auto &[fname, ftype]: file_level_types_) {
             env.Define(fname, ftype);
         }
         for (const auto &p: params) {
@@ -1002,7 +998,7 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
 
         // 运行函数体类型推断（不新开作用域，参数已在当前作用域中定义）。
         // in_funcbody=true 表示正在推断函数体内部。
-        TraversalContext tctx{current_map, env, const_cast<std::unordered_map<std::string, InferredType>&>(file_level_types), true, &ctx};
+        TraversalContext tctx{current_map, env, true, &ctx};
         InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block), false, tctx);
 
         // 快照本轮推断结果（仅 func_block 节点）。
@@ -1034,8 +1030,7 @@ TypeInferencer::BuildFunctionReturnCache(const MathFuncInfoMap &math_func_info) 
 }
 
 void TypeInferencer::InferSpecializationReturnTypes(InferResult &ir, const MathFuncInfoMap &math_func_info,
-                                                    const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache,
-                                                    const std::unordered_map<std::string, InferredType> &file_level_types) {
+                                                    const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache) {
     // 乐观初始值：所有特化版本均假设返回 T_INT。
     for (const auto &[func_name, math_params]: ir.math_param_positions) {
         ir.specialization_return_types[func_name].assign(static_cast<size_t>(1 << static_cast<int>(math_params.size())), T_INT);
@@ -1053,7 +1048,7 @@ void TypeInferencer::InferSpecializationReturnTypes(InferResult &ir, const MathF
                 // 以当前 assumed_ret 为提示重新运行试推断，生成精确快照。
                 auto assumed = MakeSpecializedParamTypes(func_params, math_indices, bitmask);
                 auto new_snapshot =
-                        RunTrialInference(func_block, func_params, assumed, file_level_types, &ir.math_param_positions, &ir.specialization_return_types);
+                        RunTrialInference(func_block, func_params, assumed, &ir.math_param_positions, &ir.specialization_return_types);
 
                 // 从新快照中直接读取 return 表达式节点的类型。
                 const auto new_ret = ComputeReturnTypeFromSnapshot(new_snapshot, ret_info);
