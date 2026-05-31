@@ -1121,7 +1121,7 @@ std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parl
         auto &param_names = namelist_ptr->Names();
 
         std::set<std::string> param_names_set;
-        for (const auto &[key, _]: global_const_vars_) {
+        for (const auto &key: global_const_vars_ | std::views::keys) {
             param_names_set.insert(key);
         }
 
