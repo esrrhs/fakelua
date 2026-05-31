@@ -26,6 +26,8 @@ private:
 
         [[nodiscard]] InferredType Lookup(const std::string &name) const;
 
+        [[nodiscard]] size_t GetScopeDepth() const { return scopes_.size(); }
+
     private:
         static InferredType MergeType(InferredType old_type, InferredType new_type);
 
@@ -73,7 +75,6 @@ private:
     struct TraversalContext {
         EvalTypeMap &current_map;
         TypeEnvironment &env;
-        bool in_funcbody = false;
         const TrialInferenceContext *ctx = nullptr;
 
         [[nodiscard]] bool IsTrialInference() const {
