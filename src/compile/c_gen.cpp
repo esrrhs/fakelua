@@ -1077,12 +1077,9 @@ std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
     const auto name = std::dynamic_pointer_cast<SyntaxTreeFuncname>(ptr);
     const auto funcnamelistptr = name->FuncNameList();
 
-    std::vector<std::string> namelist;
-
     DEBUG_ASSERT(funcnamelistptr->Type() == SyntaxTreeType::FuncNameList);
     const auto funcnamelist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcnamelistptr);
-    const auto &names = funcnamelist->Funcnames();
-    namelist.insert(namelist.end(), names.begin(), names.end());
+    const auto &namelist = funcnamelist->Funcnames();
 
     // PreProcessor 已确保函数名为单段
     DEBUG_ASSERT(namelist.size() == 1);
@@ -1816,12 +1813,9 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
     const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
     const auto &names = namelist_ptr->Names();
 
-    std::vector<SyntaxTreeInterfacePtr> exps;
-    if (const auto explist = local_var->Explist()) {
-        DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
-        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
-        exps = explist_ptr->Exps();
-    }
+    static const std::vector<SyntaxTreeInterfacePtr> empty_exps;
+    const auto explist = local_var->Explist();
+    const auto &exps = explist ? std::dynamic_pointer_cast<SyntaxTreeExplist>(explist)->Exps() : empty_exps;
 
     for (size_t i = 0; i < names.size(); ++i) {
         const auto &name = names[i];
@@ -1918,12 +1912,10 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     const auto varlist_ptr = std::dynamic_pointer_cast<SyntaxTreeVarlist>(varlist);
     const auto &vars = varlist_ptr->Vars();
 
-    std::vector<SyntaxTreeInterfacePtr> exps;
-    if (const auto explist = assign->Explist()) {
-        DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
-        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
-        exps = explist_ptr->Exps();
-    }
+    const auto explist = assign->Explist();
+    DEBUG_ASSERT(explist && explist->Type() == SyntaxTreeType::ExpList);
+    const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+    const auto &exps = explist_ptr->Exps();
 
     // PreprocessSplitAssign 保证此时恰好有 1 个变量和 1 个表达式
     DEBUG_ASSERT(vars.size() == 1);
@@ -2517,7 +2509,6 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             const auto value_exp = field_ptr->Value();
             const auto value_str = CompileExp(value_exp);
 
-            std::string key_str;
             if (fkind == FieldKind::kObject) {
                 const auto name = field_ptr->Name();
                 const auto id = s_->GetConstString().Alloc(name);
@@ -2539,11 +2530,11 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                             if (!native_key.empty()) {
                                 *cur_output_ << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, native_key, value_str);
                             } else {
-                                key_str = CompileExp(key);
+                                const auto key_str = CompileExp(key);
                                 *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", var_name, key_str, value_str);
                             }
                         } else {
-                            key_str = CompileExp(key);
+                            const auto key_str = CompileExp(key);
                             *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", var_name, key_str, value_str);
                         }
                     }
@@ -3069,13 +3060,8 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
                         const auto val1 = left_exp->Right();
                         const auto val2 = e->Right();
 
-                        std::string cond_str;
                         const auto cond_bool = TryCompileNativeBoolExpr(cond);
-                        if (!cond_bool.empty()) {
-                            cond_str = std::format("({})", cond_bool);
-                        } else {
-                            cond_str = std::format("FlIsTrue({})", CompileExp(cond));
-                        }
+                        const auto cond_str = !cond_bool.empty() ? std::format("({})", cond_bool) : std::format("FlIsTrue({})", CompileExp(cond));
 
                         const auto val1_str = CompileNumericExp(val1);
                         const auto val2_str = CompileNumericExp(val2);
@@ -3456,7 +3442,6 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
     DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple &&
                  "callee must be simple variable (PreProcessor should have caught it)");
-    std::string call_expr;
     const auto &func_name = var->GetName();
     if (func_name == "FAKELUA_SET_TABLE") {
         if (compiled_args.size() != 3) {
@@ -3467,7 +3452,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         *cur_output_ << GenTab() << std::format("FlSetTable({}, {}, {});\n", compiled_args[0], compiled_args[1], compiled_args[2]);
         *cur_output_ << GenTab() << std::format("SET_NIL({});\n", tmp);
         return tmp;
-    } else if (local_func_names_.contains(func_name)) {
+    } 
+
+    std::string call_expr;
+    if (local_func_names_.contains(func_name)) {
         const int expected_params = local_func_names_.at(func_name);
         if (static_cast<int>(compiled_args.size()) != expected_params) {
             ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, expected_params,
