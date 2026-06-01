@@ -304,7 +304,7 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     InferResult ir;
     EvalTypeMap current_map;
     TypeEnvironment env;
-    TraversalContext tctx{current_map, env, false, nullptr};
+    TraversalContext tctx{current_map, env};
 
     InferNode(pr.chunk, tctx);
     // 将当前推断结果复制为全局主快照，供 CGen 在非特化路径下查询节点类型。
@@ -391,8 +391,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
                     }
                 }
             }
-            TraversalContext sub_tctx{tctx.current_map, tctx.env, true, tctx.ctx};
-            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(funcbody->Block()), false, sub_tctx);
+            InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(funcbody->Block()), false, tctx);
             tctx.env.ExitScope();
             return RecordType(current_map, node.get(), T_UNKNOWN);
         }
@@ -498,10 +497,10 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
             type = InferNode(exps[i], tctx);
         }
         tctx.env.Define(names[i], type);
-        // 文件顶层（!in_funcbody）数值类型局部变量：
+        // 文件顶层数值类型局部变量（非试推断且作用域深度 <= 2）：
         // 将其记录 to file_level_types，供 RunTrialInference
         // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
-        if (!tctx.in_funcbody && IsNumericInferredType(type)) {
+        if (!tctx.IsTrialInference() && tctx.env.GetScopeDepth() <= 2 && IsNumericInferredType(type)) {
             file_level_types_[names[i]] = type;
         }
     }
@@ -997,8 +996,7 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
         }
 
         // 运行函数体类型推断（不新开作用域，参数已在当前作用域中定义）。
-        // in_funcbody=true 表示正在推断函数体内部。
-        TraversalContext tctx{current_map, env, true, &ctx};
+        TraversalContext tctx{current_map, env, &ctx};
         InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block), false, tctx);
 
         // 快照本轮推断结果（仅 func_block 节点）。
