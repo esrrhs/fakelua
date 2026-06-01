@@ -154,7 +154,7 @@ TEST(jitter, multi_const_define) {
         ASSERT_NEAR(ret5, 2.3, 0.001);
     });
 }
-//
+
 TEST(jitter, empty_func_with_params) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_func_with_params.lua", {.debug_mode = debug_mode});
