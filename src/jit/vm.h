@@ -6,7 +6,7 @@
 
 namespace fakelua {
 
-// 负责运行时
+// 虚拟机：负责运行时函数注册与查找
 //
 // 线程模型：整个 fakelua 运行时假定单线程使用——一个 State 同一时刻只会被一个线程持有，
 // 注册/查找 VmFunction、分配全局名都发生在编译或初始化阶段，不会与执行期读者并发。
@@ -38,7 +38,7 @@ public:
         return iter->second;
     }
 
-    // 申请全局变量名字
+    // 分配一个唯一的全局变量名
     std::string AllocGlobalName() {
         return std::format("__fakelua_global_{}__", global_name_++);
     }

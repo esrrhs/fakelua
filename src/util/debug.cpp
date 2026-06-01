@@ -2,7 +2,7 @@
 
 namespace fakelua {
 
-// 一个简单的断言系统，仅用于调试。仅在 mingw 下生效
+// 断言失败时抛出异常，附带源文件位置信息
 [[noreturn]] void DebugAssertFail(const std::string &str, const std::source_location &source) {
     ThrowFakeluaException(std::format("assert fail: {} at {}:{}:{}", str, source.file_name(), source.line(), source.column()));
 }

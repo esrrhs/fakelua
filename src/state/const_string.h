@@ -21,7 +21,7 @@ public:
     // 根据ID返回字符串，没有则返回空字符串
     [[nodiscard]] static VarString *GetVarString(int64_t id);
 
-    // 返回大写
+    // 返回已分配的常量字符串数量
     [[nodiscard]] size_t Size() const {
         return str_to_id_map_.size();
     }

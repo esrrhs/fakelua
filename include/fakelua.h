@@ -257,7 +257,7 @@ State *FakeluaNewState(const StateConfig &cfg = {});
 // 释放 FakeLua 状态
 void FakeluaDeleteState(State *s);
 
-// 作用域下自动new delete
+// RAII 守卫：在作用域内自动管理 State 的创建与销毁
 class FakeluaStateGuard {
 public:
     explicit FakeluaStateGuard(const StateConfig &cfg = {}) : state_(FakeluaNewState(cfg)) {

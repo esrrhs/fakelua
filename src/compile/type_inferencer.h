@@ -136,7 +136,8 @@ private:
     // 包括算术/位运算二元运算符，以及一元负号 and 按位取反。
     [[nodiscard]] bool IsArithmeticExpr(const SyntaxTreeInterfacePtr &node) const;
 
-    // 判断 exp 节点是否为比较表达式（操作数可为数值，运算符为 </<=/>/>==/~=）。
+    // 判断 exp 节点是否为原生比较表达式（运算符为 < / <= / > / >=）。
+    // 不包含 == 和 ~=，因为它们可作用于任何 Lua 类型，不适合用于数学参数发现。
     // 比较运算符本身返回布尔值（T_DYNAMIC），但若两侧操作数均为数值类型，
     // TryCompileNativeBoolExpr 能生成原生 C 比较，避免 CVar 装拆箱。
     [[nodiscard]] bool IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) const;

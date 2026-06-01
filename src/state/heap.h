@@ -56,7 +56,7 @@ public:
 
     void Reset() {
         temp_allocator_.Reset();
-        // const_allocator_不重置，常量内存一直保留
+        // const_allocator_ 不重置，常量内存一直保留
     }
 
 private:
