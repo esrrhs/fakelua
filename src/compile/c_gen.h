@@ -23,7 +23,7 @@ public:
 
 private:
     // ==========================================
-    // SECTION 1: 核心调度与编排 (Core Orchestration)
+    // 第一部分：核心调度与编排
     // ==========================================
     GenResult Build(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg);
     void GenerateHeader();
@@ -45,7 +45,7 @@ private:
     [[nodiscard]] InferredType GetSpecReturnType(const std::string &func_name, int bitmask) const;
 
     // ==========================================
-    // SECTION 2: 语句编译 (Statement Compilation)
+    // 第二部分：语句编译
     // ==========================================
     void CompileStmtBlock(const SyntaxTreeInterfacePtr &block);
     void CompileStmt(const SyntaxTreeInterfacePtr &stmt);
@@ -66,7 +66,7 @@ private:
     std::string CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix);
 
     // ==========================================
-    // SECTION 3: 表达式编译 (Expression Compilation)
+    // 第三部分：表达式编译
     // ==========================================
     [[nodiscard]] std::string CompileExp(const SyntaxTreeInterfacePtr &exp);
     std::string CompilePrefixexp(const SyntaxTreeInterfacePtr &pe);
@@ -80,7 +80,7 @@ private:
                             const SyntaxTreeInterfacePtr &op);
 
     // ==========================================
-    // SECTION 4: 类型推断与原生优化辅助 (Type Resolution & Native Helpers)
+    // 第四部分：类型推断与原生优化辅助
     // ==========================================
     std::string CompileNumericExp(const SyntaxTreeInterfacePtr &exp);
     std::string TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp);
@@ -123,7 +123,7 @@ private:
     [[nodiscard]] InferredType GetNativeVarType(const std::string &name) const { return native_var_scope_.GetType(name); }
 
     // ==========================================
-    // SECTION 5: 杂项辅助 (Miscellaneous Utilities)
+    // 第五部分：杂项辅助
     // ==========================================
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
     [[nodiscard]] std::string GenTab() const;

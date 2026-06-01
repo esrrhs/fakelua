@@ -111,8 +111,8 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     args.emplace_back("-fPIC");
 #endif
 #if defined(__APPLE__)
-    // macOS .dylib requires -undefined dynamic_lookup to allow unresolved
-    // symbols that will be provided by the host process at runtime.
+    // macOS 的 .dylib 需要 -undefined dynamic_lookup 选项，
+    // 允许运行时由宿主进程提供未解析的符号。
     args.emplace_back("-undefined");
     args.emplace_back("dynamic_lookup");
 #endif

@@ -10,7 +10,7 @@
 namespace fakelua {
 
 // ===========================================================================
-// SECTION 1: 核心调度与编排 (Core Orchestration)
+// 第一部分：核心调度与编排
 // ===========================================================================
 
 CGen::CGen(State *s) : s_(s) {
@@ -1091,7 +1091,7 @@ std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
 }
 
 // ===========================================================================
-// SECTION 5: 杂项辅助 (Miscellaneous Utilities)
+// 第五部分：杂项辅助
 // ===========================================================================
 
 [[noreturn]] void CGen::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) {
@@ -1676,7 +1676,7 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
 }
 
 // ===========================================================================
-// SECTION 2: 语句编译 (Statement Compilation)
+// 第二部分：语句编译
 // ===========================================================================
 
 void CGen::CompileStmtBlock(const SyntaxTreeInterfacePtr &block) {
@@ -2405,7 +2405,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
 }
 
 // ===========================================================================
-// SECTION 3: 表达式编译 (Expression Compilation)
+// 第三部分：表达式编译
 // ===========================================================================
 
 std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
@@ -2965,7 +2965,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
 }
 
 // ===========================================================================
-// SECTION 4: 类型推断与原生优化辅助 (Type Resolution & Native Helpers)
+// 第四部分：类型推断与原生优化辅助
 // ===========================================================================
 
 // ---------------------------------------------------------------------------

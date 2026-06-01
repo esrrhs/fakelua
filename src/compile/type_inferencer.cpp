@@ -243,7 +243,7 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
 }
 
 // ===========================================================================
-// SECTION 1: TypeEnvironment Implementation
+// 第一部分：TypeEnvironment 实现
 // ===========================================================================
 
 TypeInferencer::TypeEnvironment::TypeEnvironment() {
@@ -296,7 +296,7 @@ InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_t
 }
 
 // ===========================================================================
-// SECTION 2: Core AST Type Inference Engine
+// 第二部分：核心 AST 类型推断引擎
 // ===========================================================================
 
 InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfig &cfg) {
@@ -879,7 +879,7 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
 }
 
 // ===========================================================================
-// SECTION 3: Specialization & Math Parameter Identification Logic
+// 第三部分：特化与数学参数识别逻辑
 // ===========================================================================
 
 TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseResult &pr, InferResult &ir) {
@@ -1068,7 +1068,7 @@ void TypeInferencer::InferSpecializationReturnTypes(InferResult &ir, const MathF
 }
 
 // ===========================================================================
-// SECTION 4: AST Analysis and Helper Utilities
+// 第四部分：AST 分析与辅助工具函数
 // ===========================================================================
 
 std::unordered_map<std::string, InferredType> TypeInferencer::MakeAssumedParamTypes(const std::vector<std::string> &params,

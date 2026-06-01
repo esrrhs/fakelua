@@ -77,8 +77,8 @@ inline InferredType InferNumericBinopResultType(const BinOpKind op_kind,
     return T_DYNAMIC;
 }
 
-// Extracts a function-call args node into a raw argument node array, covering
-// the three syntax forms: args ::= (explist) | tableconstructor | LiteralString.
+// 将函数调用的 args 节点展开为原始参数节点数组，
+// 覆盖三种语法形式：args ::= (explist) | tableconstructor | LiteralString。
 inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr) {
     std::vector<SyntaxTreeInterfacePtr> raw_args;
     DEBUG_ASSERT(args_ptr);
