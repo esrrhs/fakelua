@@ -23,12 +23,12 @@ Var VarTable::NormalizeTableKey(const Var &key) const {
     if (std::modf(double_val, &int_part) != 0.0) {
         return key;
     }
-    // 边界检查同 TryConvertNumberToInteger：static_cast<double>(INT64_MAX) 因浮点精度
-    // 会向上取整为 2^63，使用 '>' 而非 '>='。实践中 IEEE 754 double 在 2^62～2^63
-    // 范围步进为 512，modf 不会产生恰好等于 2^63 的有效中间值，因此对所有真实可达的
-    // double 整数值该检查均正确。与 Lua 5.4 官方实现一致，不做额外特判。
+    // 上界必须按"< 2^63"检查，而不能用 static_cast<double>(INT64_MAX)。
+    // 因为 double 无法精确表示 INT64_MAX，转换后会变成 2^63，若仍按 INT64_MAX 比较，
+    // 会把 2^63 误判为可转换值，随后 static_cast<int64_t>(2^63) 触发 UB。
+    constexpr double kInt64UpperBoundExclusive = 9223372036854775808.0; // 2^63
     if (int_part < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
-        int_part > static_cast<double>(std::numeric_limits<int64_t>::max())) {
+        int_part >= kInt64UpperBoundExclusive) {
         return key;
     }
 
