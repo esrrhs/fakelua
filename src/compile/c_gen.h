@@ -3,7 +3,6 @@
 #include "compile/compile_common.h"
 #include "compile/native_var_scope.h"
 #include "fakelua.h"
-#include <cassert>
 #include <functional>
 #include <optional>
 #include <sstream>
@@ -124,10 +123,7 @@ private:
     }
     [[nodiscard]] bool IsTypedNativeVar(const std::string &name) const { return native_var_scope_.IsTyped(name); }
     [[nodiscard]] InferredType GetNativeVarType(const std::string &name) const { return native_var_scope_.GetType(name); }
-    [[nodiscard]] const InferResult &ir() const {
-        assert(ir_.has_value() && "ir() called before Generate() sets ir_");
-        return ir_->get();
-    }
+    [[nodiscard]] const InferResult &ir() const { return ir_->get(); }
 
     // ==========================================
     // 第五部分：杂项辅助
