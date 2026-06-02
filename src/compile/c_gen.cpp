@@ -41,11 +41,8 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Com
 }
 
 GenResult CGen::Build(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg) {
-    // 加载类型推断结果，供声明生成与函数体编译使用。
-    math_param_positions_ = ir.math_param_positions;
-    specialization_snapshots_ = ir.specialization_snapshots;
-    specialization_return_types_ = ir.specialization_return_types;
-    main_eval_types_ = ir.main_eval_types;
+    // 保存类型推断结果的引用，供声明生成与函数体编译使用。
+    ir_ = &ir;
 
     GenResult gr;
     cur_output_ = &headers_;
@@ -1042,8 +1039,8 @@ void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
         gr.function_names[name] = static_cast<int>(params.size());
 
         // 如果函数含有数学参数，还需声明 2^k 个特化变体。
-        const auto math_it = math_param_positions_.find(name);
-        if (math_it != math_param_positions_.end()) {
+        const auto math_it = ir_->math_param_positions.find(name);
+        if (math_it != ir_->math_param_positions.end()) {
             const auto &math_params = math_it->second;
             const int num_specs = 1 << static_cast<int>(math_params.size());
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
@@ -1166,8 +1163,8 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
         }
 
         const auto func_block = funcbody_ptr->Block();
-        const auto math_it = math_param_positions_.find(name);
-        if (math_it != math_param_positions_.end()) {
+        const auto math_it = ir_->math_param_positions.find(name);
+        if (math_it != ir_->math_param_positions.end()) {
             // 函数含有数学参数：生成 2^k 个特化函数体，然后生成入口分发器。
             const auto &math_params = math_it->second;
             const int num_specs = 1 << static_cast<int>(math_params.size());
@@ -1330,15 +1327,15 @@ InferredType CGen::LookupNodeType(SyntaxTreeInterface *node) const {
             return it->second;
         }
     }
-    if (const auto it = main_eval_types_.find(node); it != main_eval_types_.end()) {
+    if (const auto it = ir_->main_eval_types.find(node); it != ir_->main_eval_types.end()) {
         return it->second;
     }
     return T_UNKNOWN;
 }
 
 InferredType CGen::GetSpecReturnType(const std::string &func_name, int bitmask) const {
-    const auto it = specialization_return_types_.find(func_name);
-    if (it == specialization_return_types_.end()) {
+    const auto it = ir_->specialization_return_types.find(func_name);
+    if (it == ir_->specialization_return_types.end()) {
         return T_DYNAMIC;
     }
     if (bitmask < 0 || bitmask >= static_cast<int>(it->second.size())) {
@@ -1360,7 +1357,7 @@ void CGen::CompileFuncBody(const std::string &func_name,
     cur_spec_snapshot_ = nullptr;
 
     if (spec_bitmask >= 0) {
-        const auto &math_params = math_param_positions_.at(func_name);
+        const auto &math_params = ir_->math_param_positions.at(func_name);
         for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
             const auto &param_name = func_params[static_cast<size_t>(math_params[i])];
             spec_param_types_[param_name] =
@@ -1368,8 +1365,8 @@ void CGen::CompileFuncBody(const std::string &func_name,
         }
         // 查找当前位掩码对应的快照，以便 CompileStmtLocalVar / CompileVar
         // 在此参数类型组合下能查询到每个 AST 节点的正确类型。
-        if (const auto snap_it = specialization_snapshots_.find(func_name);
-            snap_it != specialization_snapshots_.end()) {
+        if (const auto snap_it = ir_->specialization_snapshots.find(func_name);
+            snap_it != ir_->specialization_snapshots.end()) {
             const auto &snaps = snap_it->second;
             if (spec_bitmask < static_cast<int>(snaps.size())) {
                 cur_spec_snapshot_ = &snaps[static_cast<size_t>(spec_bitmask)];
@@ -1416,8 +1413,8 @@ void CGen::CompileFuncBody(const std::string &func_name,
 bool CGen::TryInferMathCallBitmask(const std::string &callee_name,
                                                const std::vector<SyntaxTreeInterfacePtr> &raw_args,
                                                int &bitmask) const {
-    const auto math_it = math_param_positions_.find(callee_name);
-    if (math_it == math_param_positions_.end()) {
+    const auto math_it = ir_->math_param_positions.find(callee_name);
+    if (math_it == ir_->math_param_positions.end()) {
         return false;
     }
     const auto &math_params = math_it->second;
@@ -1521,8 +1518,8 @@ InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
                 return T_DYNAMIC;
             }
             const auto &callee_name = callee_var->GetName();
-            const auto math_it = math_param_positions_.find(callee_name);
-            if (math_it == math_param_positions_.end() || math_it->second.empty()) {
+            const auto math_it = ir_->math_param_positions.find(callee_name);
+            if (math_it == ir_->math_param_positions.end() || math_it->second.empty()) {
                 return T_DYNAMIC;
             }
             const auto &math_params = math_it->second;
@@ -3245,7 +3242,7 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
         return {};
     }
 
-    const auto &math_params = math_param_positions_.at(callee_name);
+    const auto &math_params = ir_->math_param_positions.at(callee_name);
 
     std::unordered_map<int, std::string> native_exprs;
     for (int param_pos: math_params) {
@@ -3321,8 +3318,8 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
         if (callee_var && callee_var->GetVarKind() == VarKind::kSimple) {
             const auto &callee_name = callee_var->GetName();
-            const auto math_it = math_param_positions_.find(callee_name);
-            if (math_it != math_param_positions_.end()) {
+            const auto math_it = ir_->math_param_positions.find(callee_name);
+            if (math_it != ir_->math_param_positions.end()) {
                 const auto &math_params = math_it->second;
                 const auto explist_arg = args_ptr->Explist();
                 DEBUG_ASSERT(explist_arg->Type() == SyntaxTreeType::ExpList);

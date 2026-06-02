@@ -145,10 +145,7 @@ private:
 
     std::ostream *cur_output_ = nullptr;
 
-    std::unordered_map<std::string, std::vector<int>> math_param_positions_;
-    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots_;
-    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types_;
-    EvalTypeSnapshot main_eval_types_;
+    const InferResult *ir_ = nullptr;
 
     NativeVarScope native_var_scope_;
     std::unordered_map<std::string, InferredType> spec_param_types_;
