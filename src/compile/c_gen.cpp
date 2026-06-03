@@ -44,15 +44,14 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Com
 
 GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
     GenResult gr;
-    cur_section_ = Section::Headers;
-    GenerateHeader();
-    cur_section_ = Section::Globals;
-    GenerateGlobal(pr.chunk);
-    cur_section_ = Section::Decls;
-    GenerateDecls(pr.chunk, gr);
-    local_func_names_ = gr.function_names;
-    cur_section_ = Section::Impls;
-    GenerateImpl(pr.chunk, gr);
+    { SectionGuard sg(*this, Section::Headers); GenerateHeader(); }
+    { SectionGuard sg(*this, Section::Globals); GenerateGlobal(pr.chunk); }
+    {
+        SectionGuard sg(*this, Section::Decls);
+        GenerateDecls(pr.chunk, gr);
+        local_func_names_ = gr.function_names;
+    }
+    { SectionGuard sg(*this, Section::Impls); GenerateImpl(pr.chunk, gr); }
     if (cfg.record_c_code) {
         // 仅记录非头部部分（全局变量 + 声明 + 实现）。
         // 头部是每个编译单元相同的固定样板代码，对类型推断断言没有用处。
