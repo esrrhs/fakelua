@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <utility>
 #include <vector>
 
 namespace fakelua {
@@ -160,6 +161,7 @@ private:
             case Section::Impls:   return impls_;
             case Section::Body:    return body_ss_;
         }
+        std::unreachable();
     }
 
     // RAII guard：临时切换 section，析构时自动恢复，天然异常安全
