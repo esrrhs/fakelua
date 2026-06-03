@@ -3,6 +3,8 @@
 #include "compile/compile_common.h"
 #include "compile/native_var_scope.h"
 #include "fakelua.h"
+#include <functional>
+#include <optional>
 #include <sstream>
 #include <string>
 #include <unordered_map>
@@ -25,7 +27,7 @@ private:
     // ==========================================
     // 第一部分：核心调度与编排
     // ==========================================
-    GenResult Build(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg);
+    GenResult Build(const ParseResult &pr, const CompileConfig &cfg);
     void GenerateHeader();
     void GenerateGlobal(const SyntaxTreeInterfacePtr &chunk);
     void GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr);
@@ -121,6 +123,7 @@ private:
     }
     [[nodiscard]] bool IsTypedNativeVar(const std::string &name) const { return native_var_scope_.IsTyped(name); }
     [[nodiscard]] InferredType GetNativeVarType(const std::string &name) const { return native_var_scope_.GetType(name); }
+    [[nodiscard]] const InferResult &ir() const { return ir_->get(); }
 
     // ==========================================
     // 第五部分：杂项辅助
@@ -131,6 +134,7 @@ private:
 private:
     State *s_;
     std::string file_name_;
+    std::optional<std::reference_wrapper<const InferResult>> ir_;
 
     std::stringstream headers_;
     std::stringstream globals_;
@@ -144,11 +148,6 @@ private:
     std::unordered_map<std::string, int> local_func_names_;
 
     std::ostream *cur_output_ = nullptr;
-
-    std::unordered_map<std::string, std::vector<int>> math_param_positions_;
-    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots_;
-    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types_;
-    EvalTypeSnapshot main_eval_types_;
 
     NativeVarScope native_var_scope_;
     std::unordered_map<std::string, InferredType> spec_param_types_;
