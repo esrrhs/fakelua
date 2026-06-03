@@ -147,7 +147,28 @@ private:
 
     std::unordered_map<std::string, int> local_func_names_;
 
-    std::ostream *cur_output_ = nullptr;
+    // 当前写入的输出 section
+    enum class Section { Headers, Globals, Decls, Impls, Body };
+    Section cur_section_ = Section::Headers;
+
+    // 返回当前 section 对应的输出流引用
+    std::ostream &Out() {
+        switch (cur_section_) {
+            case Section::Headers: return headers_;
+            case Section::Globals: return globals_;
+            case Section::Decls:   return decls_;
+            case Section::Impls:   return impls_;
+            case Section::Body:    return body_ss_;
+        }
+    }
+
+    // RAII guard：临时切换 section，析构时自动恢复，天然异常安全
+    struct SectionGuard {
+        CGen &gen;
+        Section prev;
+        SectionGuard(CGen &g, Section s) : gen(g), prev(g.cur_section_) { gen.cur_section_ = s; }
+        ~SectionGuard() { gen.cur_section_ = prev; }
+    };
 
     NativeVarScope native_var_scope_;
     std::unordered_map<std::string, InferredType> spec_param_types_;
