@@ -138,7 +138,6 @@ private:
     std::string file_name_;
     std::optional<std::reference_wrapper<const InferResult>> ir_;
 
-    bool in_global_init_ = false;
     std::unordered_map<std::string, InferredType> global_const_vars_;
     int tmp_var_counter_ = 0;
 

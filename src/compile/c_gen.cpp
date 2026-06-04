@@ -918,8 +918,6 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
     SectionGuard sg(*this, Section::Globals);
     Out() << "// ===== Global Variables =====\n\n";
 
-    in_global_init_ = true;
-
     // 静态全局的CVar
     // 定义初始化器宏
     Out() << "static const CVar kNil = (CVar){.type_ = VAR_NIL};\n";
@@ -982,8 +980,6 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
             }
         }
     }
-
-    in_global_init_ = false;
 
     Out() << "\n";
 }
@@ -2413,19 +2409,19 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
     DEBUG_ASSERT(exp_kind != ExpKind::kVarParams && "VarParams should have been caught by PreProcessor");
 
     if (exp_kind == ExpKind::kNil) {
-        if (in_global_init_) {
+        if (cur_section_ == Section::Globals) {
             return "(CVar){.type_ = VAR_NIL}";
         } else {
             return "kNil";
         }
     } else if (exp_kind == ExpKind::kFalse) {
-        if (in_global_init_) {
+        if (cur_section_ == Section::Globals) {
             return "(CVar){.type_ = VAR_BOOL, .data_.b = false}";
         } else {
             return "kFalse";
         }
     } else if (exp_kind == ExpKind::kTrue) {
-        if (in_global_init_) {
+        if (cur_section_ == Section::Globals) {
             return "(CVar){.type_ = VAR_BOOL, .data_.b = true}";
         } else {
             return "kTrue";
@@ -2482,7 +2478,7 @@ std::string CGen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe) {
 }
 
 std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
-    DEBUG_ASSERT(!(in_global_init_));
+    DEBUG_ASSERT(cur_section_ != Section::Globals);
 
     DEBUG_ASSERT(tc->Type() == SyntaxTreeType::TableConstructor);
     const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc);
@@ -2570,7 +2566,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left,
                                             const SyntaxTreeInterfacePtr &right,
                                             const SyntaxTreeInterfacePtr &op) {
-    DEBUG_ASSERT(!(in_global_init_));
+    DEBUG_ASSERT(cur_section_ != Section::Globals);
 
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeBinop>(op);
     const auto op_kind = op_ptr->GetOpKind();
@@ -2683,7 +2679,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left,
 
 std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right,
                                            const SyntaxTreeInterfacePtr &op) {
-    DEBUG_ASSERT(!(in_global_init_));
+    DEBUG_ASSERT(cur_section_ != Section::Globals);
 
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeUnop>(op);
     const auto op_kind = op_ptr->GetOpKind();
@@ -2903,7 +2899,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
 
     if (const auto var_kind = v_ptr->GetVarKind(); var_kind == VarKind::kSimple) {
         const auto &name = v_ptr->GetName();
-        DEBUG_ASSERT(!(in_global_init_));
+        DEBUG_ASSERT(cur_section_ != Section::Globals);
         if (const auto spec_it = spec_param_types_.find(name); spec_it != spec_param_types_.end()) {
             if (spec_it->second == T_INT) {
                 return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
@@ -2928,7 +2924,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         }
         return name;
     } else if (var_kind == VarKind::kSquare) {
-        DEBUG_ASSERT(!(in_global_init_));
+        DEBUG_ASSERT(cur_section_ != Section::Globals);
         const auto pe = v_ptr->GetPrefixexp();
         const auto exp = v_ptr->GetExp();
         auto pe_ret = CompilePrefixexp(pe);
@@ -2949,7 +2945,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         auto exp_ret = CompileExp(exp);
         return std::format("FlGetTable({}, {})", pe_ret, exp_ret);
     } else /*if (var_kind == VarKind::kDot)*/ {
-        DEBUG_ASSERT(!(in_global_init_));
+        DEBUG_ASSERT(cur_section_ != Section::Globals);
         const auto pe = v_ptr->GetPrefixexp();
         const auto name = v_ptr->GetName();
         auto pe_ret = CompilePrefixexp(pe);
@@ -3294,7 +3290,7 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
 // 返回值：CVar 类型的临时变量名，供调用方（CompileExp/CompileNumericExp）使用。
 // ---------------------------------------------------------------------------
 std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall) {
-    DEBUG_ASSERT(!(in_global_init_));
+    DEBUG_ASSERT(cur_section_ != Section::Globals);
 
     DEBUG_ASSERT(functioncall->Type() == SyntaxTreeType::FunctionCall);
     const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall);
