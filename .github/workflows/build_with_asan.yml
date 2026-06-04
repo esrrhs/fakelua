@@ -21,8 +21,12 @@ jobs:
           
       - name: Setup Lua
         run: |
-          sudo apt-get update
-          sudo apt-get install -y lua5.4 liblua5.4-dev
+          wget https://www.lua.org/ftp/lua-5.4.7.tar.gz
+          tar -xf lua-5.4.7.tar.gz
+          cd lua-5.4.7
+          make linux
+          sudo make install
+          cd ..
 
       - name: Setup TCC
         run: |
