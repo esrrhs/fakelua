@@ -52,9 +52,9 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
     if (cfg.record_c_code) {
         // 仅记录非头部部分（全局变量 + 声明 + 实现）。
         // 头部是每个编译单元相同的固定样板代码，对类型推断断言没有用处。
-        gr.recorded_c_code = globals_.str() + decls_.str() + impls_.str();
+        gr.recorded_c_code = GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) + GetSectionStr(Section::Impls);
     }
-    gr.c_code = headers_.str() + globals_.str() + decls_.str() + impls_.str();
+    gr.c_code = GetSectionStr(Section::Headers) + GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) + GetSectionStr(Section::Impls);
     return gr;
 }
 
@@ -1183,7 +1183,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                     }
                 }
                 Out() << ") {\n";
-                CompileFuncBody(name, func_params, func_block, bitmask, impls_);
+                CompileFuncBody(name, func_params, func_block, bitmask, sections_[static_cast<size_t>(Section::Impls)]);
                 if (!BlockEndsWithReturn(func_block)) {
                     // 回退：当函数不以 return 结束时补充默认返回值。
                     // 对于原生返回类型，补 0/0.0；对于 CVar 类型，补 kNil。
@@ -1207,7 +1207,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                 Out() << "CVar " << func_params[i];
             }
             Out() << ") {\n";
-            CompileFuncBody(name, func_params, func_block, -1, impls_);
+            CompileFuncBody(name, func_params, func_block, -1, sections_[static_cast<size_t>(Section::Impls)]);
             if (!BlockEndsWithReturn(func_block)) {
                 Out() << "    return kNil;\n";
             }
@@ -1376,8 +1376,9 @@ void CGen::CompileFuncBody(const std::string &func_name,
     // 将函数体编译到 body 缓冲区。
     func_temp_decls_.str("");
     func_temp_decls_.clear();
-    body_ss_.str("");
-    body_ss_.clear();
+    auto &body_ss = sections_[static_cast<size_t>(Section::Body)];
+    body_ss.str("");
+    body_ss.clear();
     native_var_scope_.Clear();
     EnterNativeVarScope();
     for (const auto &param_name: func_params) {
@@ -1398,7 +1399,7 @@ void CGen::CompileFuncBody(const std::string &func_name,
 
     // 写入调用方提供的输出流。
     out << func_temp_decls_.str();
-    out << body_ss_.str();
+    out << body_ss.str();
 
     // 清除特化上下文。
     spec_param_types_.clear();

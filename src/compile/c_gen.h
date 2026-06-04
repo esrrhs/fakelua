@@ -3,6 +3,7 @@
 #include "compile/compile_common.h"
 #include "compile/native_var_scope.h"
 #include "fakelua.h"
+#include <array>
 #include <functional>
 #include <optional>
 #include <sstream>
@@ -137,11 +138,6 @@ private:
     std::string file_name_;
     std::optional<std::reference_wrapper<const InferResult>> ir_;
 
-    std::stringstream headers_;
-    std::stringstream globals_;
-    std::stringstream decls_;
-    std::stringstream impls_;
-
     bool in_global_init_ = false;
     std::unordered_map<std::string, InferredType> global_const_vars_;
     int tmp_var_counter_ = 0;
@@ -149,19 +145,18 @@ private:
     std::unordered_map<std::string, int> local_func_names_;
 
     // 当前写入的输出 section
-    enum class Section { Headers, Globals, Decls, Impls, Body };
+    enum class Section { Headers, Globals, Decls, Impls, Body, Count };
     Section cur_section_ = Section::Headers;
+
+    std::array<std::stringstream, static_cast<size_t>(Section::Count)> sections_;
 
     // 返回当前 section 对应的输出流引用
     std::ostream &Out() {
-        switch (cur_section_) {
-            case Section::Headers: return headers_;
-            case Section::Globals: return globals_;
-            case Section::Decls:   return decls_;
-            case Section::Impls:   return impls_;
-            case Section::Body:    return body_ss_;
-        }
-        std::unreachable();
+        return sections_[static_cast<size_t>(cur_section_)];
+    }
+
+    [[nodiscard]] std::string GetSectionStr(Section sec) const {
+        return sections_[static_cast<size_t>(sec)].str();
     }
 
     // RAII guard：临时切换 section，析构时自动恢复，天然异常安全
@@ -179,7 +174,6 @@ private:
     const EvalTypeSnapshot *cur_spec_snapshot_ = nullptr;
 
     std::stringstream func_temp_decls_;
-    std::stringstream body_ss_;
     int cur_tab_ = 0;
 };
 
