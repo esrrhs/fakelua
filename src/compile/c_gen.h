@@ -26,6 +26,17 @@ public:
     GenResult Generate(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg);
 
 private:
+    // 当前写入的输出 section
+    enum class Section { Headers, Globals, Decls, Impls, Body, Count };
+
+    // RAII guard：临时切换 section，析构时自动恢复，天然异常安全
+    struct SectionGuard {
+        CGen &gen;
+        Section prev;
+        SectionGuard(CGen &g, Section s) : gen(g), prev(g.cur_section_) { gen.cur_section_ = s; }
+        ~SectionGuard() { gen.cur_section_ = prev; }
+    };
+
     // ==========================================
     // 第一部分：核心调度与编排
     // ==========================================
@@ -133,6 +144,15 @@ private:
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
     [[nodiscard]] std::string GenTab() const;
 
+    // 返回当前 section 对应的输出流引用
+    std::ostream &Out() {
+        return sections_[static_cast<size_t>(cur_section_)];
+    }
+
+    [[nodiscard]] std::string GetSectionStr(Section sec) const {
+        return sections_[static_cast<size_t>(sec)].str();
+    }
+
 private:
     State *s_;
     std::string file_name_;
@@ -143,28 +163,9 @@ private:
 
     std::unordered_map<std::string, int> local_func_names_;
 
-    // 当前写入的输出 section
-    enum class Section { Headers, Globals, Decls, Impls, Body, Count };
     Section cur_section_ = Section::Headers;
 
     std::array<std::stringstream, static_cast<size_t>(Section::Count)> sections_;
-
-    // 返回当前 section 对应的输出流引用
-    std::ostream &Out() {
-        return sections_[static_cast<size_t>(cur_section_)];
-    }
-
-    [[nodiscard]] std::string GetSectionStr(Section sec) const {
-        return sections_[static_cast<size_t>(sec)].str();
-    }
-
-    // RAII guard：临时切换 section，析构时自动恢复，天然异常安全
-    struct SectionGuard {
-        CGen &gen;
-        Section prev;
-        SectionGuard(CGen &g, Section s) : gen(g), prev(g.cur_section_) { gen.cur_section_ = s; }
-        ~SectionGuard() { gen.cur_section_ = prev; }
-    };
 
     NativeVarScope native_var_scope_;
     std::unordered_map<std::string, InferredType> spec_param_types_;
