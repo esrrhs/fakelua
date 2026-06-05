@@ -16,16 +16,17 @@ namespace fakelua {
 CGen::CGen(State *s) : s_(s) {
 }
 
+// 核心编译入口函数：为输入的 AST、推断结果及配置生成 C 代码
 GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg) {
     LOG_INFO("start CGen::Generate {}", pr.file_name);
 
     file_name_ = pr.file_name;
-
     ir_ = ir;
 
-    // 生成代码
+    // 运行构建主流程
     GenResult gr = Build(pr, cfg);
 
+    // 如果开启了调试模式，将生成的 C 代码转储到临时文件中以供调试
     if (cfg.debug_mode) {
         const auto dumpfile = GenerateTmpFilename("fakelua_jit_", ".c");
         if (std::ofstream ofs(dumpfile); ofs.is_open()) {
@@ -42,13 +43,24 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Com
     return gr;
 }
 
+// 内部核心流水线：分别生成头文件、全局区、声明区和实现区代码，最后将它们拼接
 GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
     GenResult gr;
+
+    // 1. 生成 C 文件的头文件包含、基础结构体及宏定义
     GenerateHeader();
+
+    // 2. 扫描 AST 并生成全局静态常量、全局变量的初始化代码
     GenerateGlobal(pr.chunk);
+
+    // 3. 扫描 AST 树以搜集所有定义的函数，并为它们生成统一的 C 函数前置声明原型
     GenerateDecls(pr.chunk, gr);
     local_func_names_ = gr.function_names;
+
+    // 4. 遍历生成所有函数特化与通用的具体 C 代码实现
     GenerateImpl(pr.chunk, gr);
+
+    // 5. 根据配置记录生成的 C 核心区代码，或组合全部代码块输出最终结果
     if (cfg.record_c_code) {
         // 仅记录非头部部分（全局变量 + 声明 + 实现）。
         // 头部是每个编译单元相同的固定样板代码，对类型推断断言没有用处。
@@ -1587,6 +1599,7 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
 }
 
 
+// 尝试将表达式编译为高效的原生 C 数值运算表达式。若中途由于类型不匹配等抛出异常，则优雅捕获并返回空字符串（指示回退到动态分发计算）
 std::string CGen::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
     try {
         return CompileNumericExp(exp);
@@ -1680,6 +1693,7 @@ void CGen::CompileStmtBlock(const SyntaxTreeInterfacePtr &block) {
     }
 }
 
+// 编译单条语句：根据 AST 节点类型将其分发路由到各自专有的编译方法中
 void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
     switch (stmt->Type()) {
         case SyntaxTreeType::Return: {
@@ -2400,6 +2414,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
 // 第三部分：表达式编译
 // ===========================================================================
 
+// 编译表达式：将 AST 表达式节点转换为相应的 C 语言表达式字符串（如字面量、前缀表达式、二元/一元运算等）
 std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
     DEBUG_ASSERT(exp->Type() == SyntaxTreeType::Exp);
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
