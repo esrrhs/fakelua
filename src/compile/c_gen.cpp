@@ -1045,8 +1045,8 @@ void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
         gr.function_names[name] = static_cast<int>(params.size());
 
         // 如果函数含有数学参数，还需声明 2^k 个特化变体。
-        const auto math_it = ir().math_param_positions.find(name);
-        if (math_it != ir().math_param_positions.end()) {
+        if (const auto math_it = ir().math_param_positions.find(name);
+            math_it != ir().math_param_positions.end()) {
             const auto &math_params = math_it->second;
             const int num_specs = 1 << static_cast<int>(math_params.size());
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
@@ -1170,8 +1170,8 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
         }
 
         const auto func_block = funcbody_ptr->Block();
-        const auto math_it = ir().math_param_positions.find(name);
-        if (math_it != ir().math_param_positions.end()) {
+        if (const auto math_it = ir().math_param_positions.find(name);
+            math_it != ir().math_param_positions.end()) {
             // 函数含有数学参数：生成 2^k 个特化函数体，然后生成入口分发器。
             const auto &math_params = math_it->second;
             const int num_specs = 1 << static_cast<int>(math_params.size());
@@ -1341,14 +1341,14 @@ InferredType CGen::LookupNodeType(SyntaxTreeInterface *node) const {
 }
 
 InferredType CGen::GetSpecReturnType(const std::string &func_name, int bitmask) const {
-    const auto it = ir().specialization_return_types.find(func_name);
-    if (it == ir().specialization_return_types.end()) {
-        return T_DYNAMIC;
+    if (const auto it = ir().specialization_return_types.find(func_name);
+        it != ir().specialization_return_types.end()) {
+        if (bitmask < 0 || bitmask >= static_cast<int>(it->second.size())) {
+            return T_DYNAMIC;
+        }
+        return it->second[static_cast<size_t>(bitmask)];
     }
-    if (bitmask < 0 || bitmask >= static_cast<int>(it->second.size())) {
-        return T_DYNAMIC;
-    }
-    return it->second[static_cast<size_t>(bitmask)];
+    return T_DYNAMIC;
 }
 
 void CGen::CompileFuncBody(const std::string &func_name,
@@ -1420,30 +1420,30 @@ void CGen::CompileFuncBody(const std::string &func_name,
 bool CGen::TryInferMathCallBitmask(const std::string &callee_name,
                                                const std::vector<SyntaxTreeInterfacePtr> &raw_args,
                                                int &bitmask) const {
-    const auto math_it = ir().math_param_positions.find(callee_name);
-    if (math_it == ir().math_param_positions.end()) {
-        return false;
+    if (const auto math_it = ir().math_param_positions.find(callee_name);
+        math_it != ir().math_param_positions.end()) {
+        const auto &math_params = math_it->second;
+        bitmask = 0;
+        for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+            const int param_pos = math_params[i];
+            if (param_pos >= static_cast<int>(raw_args.size())) {
+                return false;
+            }
+            const auto &arg = raw_args[static_cast<size_t>(param_pos)];
+            if (!arg || arg->Type() != SyntaxTreeType::Exp) {
+                return false;
+            }
+            const auto arg_type = InferArgTypeForSpec(arg);
+            if (arg_type == T_DYNAMIC) {
+                return false;
+            }
+            if (arg_type == T_FLOAT) {
+                bitmask |= (1 << i);
+            }
+        }
+        return true;
     }
-    const auto &math_params = math_it->second;
-    bitmask = 0;
-    for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-        const int param_pos = math_params[i];
-        if (param_pos >= static_cast<int>(raw_args.size())) {
-            return false;
-        }
-        const auto &arg = raw_args[static_cast<size_t>(param_pos)];
-        if (!arg || arg->Type() != SyntaxTreeType::Exp) {
-            return false;
-        }
-        const auto arg_type = InferArgTypeForSpec(arg);
-        if (arg_type == T_DYNAMIC) {
-            return false;
-        }
-        if (arg_type == T_FLOAT) {
-            bitmask |= (1 << i);
-        }
-    }
-    return true;
+    return false;
 }
 
 bool CGen::TryInferMathCallSpec(const std::string &callee_name,
@@ -1525,35 +1525,34 @@ InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
                 return T_DYNAMIC;
             }
             const auto &callee_name = callee_var->GetName();
-            const auto math_it = ir().math_param_positions.find(callee_name);
-            if (math_it == ir().math_param_positions.end() || math_it->second.empty()) {
-                return T_DYNAMIC;
-            }
-            const auto &math_params = math_it->second;
-            const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-            if (!args_ptr) {
-                return T_DYNAMIC;
-            }
-            const auto raw_args = ExtractCallRawArgs(args_ptr);
-            int bitmask = 0;
-            for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-                const int param_pos = math_params[static_cast<size_t>(i)];
-                if (param_pos >= static_cast<int>(raw_args.size())) {
+            if (const auto math_it = ir().math_param_positions.find(callee_name);
+                math_it != ir().math_param_positions.end() && !math_it->second.empty()) {
+                const auto &math_params = math_it->second;
+                const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+                if (!args_ptr) {
                     return T_DYNAMIC;
                 }
-                const auto &arg = raw_args[static_cast<size_t>(param_pos)];
-                if (!arg || arg->Type() != SyntaxTreeType::Exp) {
-                    return T_DYNAMIC;
+                const auto raw_args = ExtractCallRawArgs(args_ptr);
+                int bitmask = 0;
+                for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+                    const int param_pos = math_params[static_cast<size_t>(i)];
+                    if (param_pos >= static_cast<int>(raw_args.size())) {
+                        return T_DYNAMIC;
+                    }
+                    const auto &arg = raw_args[static_cast<size_t>(param_pos)];
+                    if (!arg || arg->Type() != SyntaxTreeType::Exp) {
+                        return T_DYNAMIC;
+                    }
+                    const auto t = InferExpType(arg);
+                    if (t == T_DYNAMIC) {
+                        return T_DYNAMIC;
+                    }
+                    if (t == T_FLOAT) {
+                        bitmask |= (1 << i);
+                    }
                 }
-                const auto t = InferExpType(arg);
-                if (t == T_DYNAMIC) {
-                    return T_DYNAMIC;
-                }
-                if (t == T_FLOAT) {
-                    bitmask |= (1 << i);
-                }
+                return GetSpecReturnType(callee_name, bitmask);
             }
-            return GetSpecReturnType(callee_name, bitmask);
         }
 
         return T_DYNAMIC;
@@ -1663,21 +1662,20 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
         return std::format("({}) {} ({})", left_bool, c_op, right_bool);
     }
 
-    const auto op_it = kCmpOpMap.find(op_kind);
-    if (op_it == kCmpOpMap.end()) {
-        return {};
+    if (const auto op_it = kCmpOpMap.find(op_kind); op_it != kCmpOpMap.end()) {
+        const auto left_type = e->Left() ? InferArgTypeForSpec(e->Left()) : T_DYNAMIC;
+        const auto right_type = e->Right() ? InferArgTypeForSpec(e->Right()) : T_DYNAMIC;
+        if ((left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
+            return {};
+        }
+        const auto left_native = TryCompileNativeExpr(e->Left());
+        const auto right_native = TryCompileNativeExpr(e->Right());
+        if (left_native.empty() || right_native.empty()) {
+            return {};
+        }
+        return std::format("({}) {} ({})", left_native, op_it->second, right_native);
     }
-    const auto left_type = e->Left() ? InferArgTypeForSpec(e->Left()) : T_DYNAMIC;
-    const auto right_type = e->Right() ? InferArgTypeForSpec(e->Right()) : T_DYNAMIC;
-    if ((left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
-        return {};
-    }
-    const auto left_native = TryCompileNativeExpr(e->Left());
-    const auto right_native = TryCompileNativeExpr(e->Right());
-    if (left_native.empty() || right_native.empty()) {
-        return {};
-    }
-    return std::format("({}) {} ({})", left_native, op_it->second, right_native);
+    return {};
 }
 
 // ===========================================================================
