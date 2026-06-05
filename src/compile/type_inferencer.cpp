@@ -1197,24 +1197,24 @@ bool TypeInferencer::CheckCallNodeChange(const SyntaxTreeInterfacePtr &node, con
     const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
     DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
     const auto &callee_name = callee_var->GetName();
-    const auto math_it = math_param_positions.find(callee_name);
-    if (math_it == math_param_positions.end()) {
+    if (const auto math_it = math_param_positions.find(callee_name);
+        math_it != math_param_positions.end()) {
+        const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+        DEBUG_ASSERT(args_ptr);
+        const auto raw_args = ExtractCallRawArgs(args_ptr);
+        for (const int param_pos: math_it->second) {
+            if (param_pos >= static_cast<int>(raw_args.size())) {
+                return false;
+            }
+            const auto &arg = raw_args[static_cast<size_t>(param_pos)];
+            const auto it_typed = typed_map.find(arg.get());
+            const auto it_comp = compare_map.find(arg.get());
+            DEBUG_ASSERT(it_typed != typed_map.end() && it_comp != compare_map.end());
+            if ((it_typed->second == T_INT || it_typed->second == T_FLOAT) && it_comp->second != it_typed->second) {
+                return true;
+            }
+        }
         return false;
-    }
-    const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-    DEBUG_ASSERT(args_ptr);
-    const auto raw_args = ExtractCallRawArgs(args_ptr);
-    for (const int param_pos: math_it->second) {
-        if (param_pos >= static_cast<int>(raw_args.size())) {
-            return false;
-        }
-        const auto &arg = raw_args[static_cast<size_t>(param_pos)];
-        const auto it_typed = typed_map.find(arg.get());
-        const auto it_comp = compare_map.find(arg.get());
-        DEBUG_ASSERT(it_typed != typed_map.end() && it_comp != compare_map.end());
-        if ((it_typed->second == T_INT || it_typed->second == T_FLOAT) && it_comp->second != it_typed->second) {
-            return true;
-        }
     }
     return false;
 }
@@ -1467,8 +1467,13 @@ InferredType TypeInferencer::ComputeReturnTypeFromSnapshot(const EvalTypeSnapsho
             // nullptr 代表显式的 nil return（return 无表达式）。
             return T_DYNAMIC;
         }
-        const auto it = snapshot.find(ret_exp.get());
-        if (const auto inferred = (it != snapshot.end()) ? it->second : T_DYNAMIC; inferred == T_FLOAT) {
+        const auto inferred = [&]() {
+            if (const auto it = snapshot.find(ret_exp.get()); it != snapshot.end()) {
+                return it->second;
+            }
+            return T_DYNAMIC;
+        }();
+        if (inferred == T_FLOAT) {
             if (actual_ret == T_INT) {
                 actual_ret = T_FLOAT;
             }

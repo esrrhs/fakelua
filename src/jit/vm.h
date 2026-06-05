@@ -21,21 +21,19 @@ public:
     // 注册函数（单线程调用，见类注释）
     void RegisterFunction(const VmFunction &func) {
         const auto &name = func.GetName();
-        const auto iter = vm_functions_.find(name);
-        if (iter == vm_functions_.end()) {
+        if (const auto iter = vm_functions_.find(name); iter == vm_functions_.end()) {
             vm_functions_.emplace(name, func);
-            return;
+        } else {
+            iter->second.Merge(func);
         }
-        iter->second.Merge(func);
     }
 
     // 获取函数
     [[nodiscard]] VmFunction GetFunction(const std::string &name) const {
-        const auto iter = vm_functions_.find(name);
-        if (iter == vm_functions_.end()) {
-            return {};
+        if (const auto iter = vm_functions_.find(name); iter != vm_functions_.end()) {
+            return iter->second;
         }
-        return iter->second;
+        return {};
     }
 
     // 分配一个唯一的全局变量名
