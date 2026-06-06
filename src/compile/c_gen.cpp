@@ -1276,7 +1276,9 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
     // 计算分发索引。
     Out() << "    int flua_spec_idx = ";
     for (int i = 0; i < k; ++i) {
-        if (i > 0) Out() << " | ";
+        if (i > 0) {
+            Out() << " | ";
+        }
         const auto &mp_name = func_params[static_cast<size_t>(math_param_indices[i])];
         if (i == 0) {
             Out() << std::format("({}.type_ == VAR_FLOAT ? {} : {})", mp_name,
