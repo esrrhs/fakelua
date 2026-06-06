@@ -47,7 +47,7 @@ public:
     }
 
     // 遍历支持：获取快速路径数据指针
-    [[nodiscard]] VarEntry* GetQuickData() {
+    [[nodiscard]] VarEntry *GetQuickData() {
         return quick_data_;
     }
 

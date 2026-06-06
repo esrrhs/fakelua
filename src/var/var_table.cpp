@@ -26,9 +26,8 @@ Var VarTable::NormalizeTableKey(const Var &key) const {
     // 上界必须按"< 2^63"检查，而不能用 static_cast<double>(INT64_MAX)。
     // 因为 double 无法精确表示 INT64_MAX，转换后会变成 2^63，若仍按 INT64_MAX 比较，
     // 会把 2^63 误判为可转换值，随后 static_cast<int64_t>(2^63) 触发 UB。
-    constexpr double kInt64UpperBoundExclusive = 9223372036854775808.0; // 2^63
-    if (int_part < static_cast<double>(std::numeric_limits<int64_t>::min()) ||
-        int_part >= kInt64UpperBoundExclusive) {
+    constexpr double kInt64UpperBoundExclusive = 9223372036854775808.0;// 2^63
+    if (int_part < static_cast<double>(std::numeric_limits<int64_t>::min()) || int_part >= kInt64UpperBoundExclusive) {
         return key;
     }
 

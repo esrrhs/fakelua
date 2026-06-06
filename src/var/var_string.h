@@ -38,7 +38,7 @@ public:
         return hash_;
     }
 
-    static VarString * AllocTemp(State *state, const std::string_view &str);
+    static VarString *AllocTemp(State *state, const std::string_view &str);
 
 private:
     int size_ = 0;

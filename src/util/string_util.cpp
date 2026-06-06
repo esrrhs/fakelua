@@ -167,11 +167,11 @@ double ToFloat(const std::string_view &input) {
             prefix_len = 2;
         } else if (input[0] == '+' && input.length() > 3 && input[1] == '0' && (input[2] == 'x' || input[2] == 'X')) {
             hex_format = true;
-            prefix_len = 3;  // +0x prefix
+            prefix_len = 3;// +0x prefix
         } else if (input[0] == '-' && input.length() > 3 && input[1] == '0' && (input[2] == 'x' || input[2] == 'X')) {
             hex_format = true;
             negative = true;
-            prefix_len = 3;  // -0x prefix
+            prefix_len = 3;// -0x prefix
         }
     }
 
@@ -182,8 +182,7 @@ double ToFloat(const std::string_view &input) {
 
     if (hex_format) {
         // Check if it's a hex float (contains '.' or 'p'/'P')
-        bool is_hex_float = input.find('.') != std::string_view::npos ||
-                            input.find('p') != std::string_view::npos ||
+        bool is_hex_float = input.find('.') != std::string_view::npos || input.find('p') != std::string_view::npos ||
                             input.find('P') != std::string_view::npos;
 
         if (is_hex_float) {
@@ -191,7 +190,7 @@ double ToFloat(const std::string_view &input) {
             // Don't apply negative separately since strtod already handles it.
             std::string str(input.begin(), input.end());
             result = strtod(str.c_str(), &end_ptr);
-            negative = false;  // strtod already handled the sign
+            negative = false;// strtod already handled the sign
             if (end_ptr == str.c_str() || *end_ptr != '\0') {
                 ThrowFakeluaException(std::format("ToFloat failed, invalid argument: {}", input));
             }

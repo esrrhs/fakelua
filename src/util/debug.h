@@ -9,7 +9,7 @@ namespace fakelua {
 
 #define DEBUG_ASSERT(x)                                                                                                                    \
     if (!(x)) {                                                                                                                            \
-        fakelua::DebugAssertFail(#x);                                                                   \
+        fakelua::DebugAssertFail(#x);                                                                                                      \
     }
 
 }// namespace fakelua
