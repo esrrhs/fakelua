@@ -1055,8 +1055,8 @@ void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                 Out() << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < params.size(); ++i) {
                     if (i > 0) Out() << ", ";
-                    const auto mp_it = std::ranges::find(math_params, static_cast<int>(i));
-                    if (mp_it != math_params.end()) {
+                    if (const auto mp_it = std::ranges::find(math_params, static_cast<int>(i));
+                        mp_it != math_params.end()) {
                         const int mp_idx = static_cast<int>(mp_it - math_params.begin());
                         Out() << MathParamCTypeName(MathParamKindOf(bitmask, mp_idx)) << " " << params[i];
                     } else {
@@ -1182,8 +1182,8 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                 Out() << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < func_params.size(); ++i) {
                     if (i > 0) Out() << ", ";
-                    const auto mp_it = std::ranges::find(math_params, static_cast<int>(i));
-                    if (mp_it != math_params.end()) {
+                    if (const auto mp_it = std::ranges::find(math_params, static_cast<int>(i));
+                        mp_it != math_params.end()) {
                         const int mp_idx = static_cast<int>(mp_it - math_params.begin());
                         Out() << MathParamCTypeName(MathParamKindOf(bitmask, mp_idx)) << " " << func_params[i];
                     } else {
@@ -1292,8 +1292,8 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
             if (i > 0) {
                 args_str += ", ";
             }
-            const auto mp_it = std::ranges::find(math_param_indices, static_cast<int>(i));
-            if (mp_it != math_param_indices.end()) {
+            if (const auto mp_it = std::ranges::find(math_param_indices, static_cast<int>(i));
+                mp_it != math_param_indices.end()) {
                 const int mp_idx = static_cast<int>(mp_it - math_param_indices.begin());
                 const auto kind = MathParamKindOf(bitmask, mp_idx);
                 args_str += func_params[i] + (kind == kMathParamFloat ? ".data_.f" : ".data_.i");
