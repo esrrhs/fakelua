@@ -1288,7 +1288,6 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vect
     Out() << "    switch (flua_spec_idx) {\n";
     for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
         const auto spec_name = SpecFuncName(func_name, math_param_indices, bitmask);
-        const auto spec_ret = GetSpecReturnType(func_name, bitmask);
 
         // 构建参数列表字符串（math 参数取 .data_.i / .data_.f，其余直接传 CVar）。
         std::string args_str;
@@ -1305,7 +1304,7 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vect
             }
         }
 
-        if (spec_ret == T_INT || spec_ret == T_FLOAT) {
+        if (const auto spec_ret = GetSpecReturnType(func_name, bitmask); spec_ret == T_INT || spec_ret == T_FLOAT) {
             // 特化函数返回原生数值类型：需要将结果装箱为 CVar 后再返回。
             const auto native_tmp = std::format("flua_r_{}", bitmask);
             Out() << std::format("        case {}: {{ {} {} = {}({}); return {}; }}\n", bitmask, SpecReturnCTypeName(spec_ret), native_tmp,
@@ -1457,7 +1456,7 @@ InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
         }
         // 通过字面量字符串判断整数/浮点类型。
         const auto &val = e->ExpValue();
-        if (val.find('.') == std::string::npos && val.find('e') == std::string::npos && val.find('E') == std::string::npos) {
+        if (!val.contains('.') && !val.contains('e') && !val.contains('E')) {
             return T_INT;
         }
         return T_FLOAT;
@@ -1775,8 +1774,7 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     // 若当前处于原生返回类型的特化函数中，直接将返回表达式编译为原生数值并返回，
     // 跳过 CompileExp 的装箱步骤，消除一次 CVar 封箱拆箱开销。
     if (cur_spec_bitmask_ >= 0 && !cur_spec_func_name_.empty()) {
-        const auto spec_ret = GetSpecReturnType(cur_spec_func_name_, cur_spec_bitmask_);
-        if (spec_ret == T_INT || spec_ret == T_FLOAT) {
+        if (const auto spec_ret = GetSpecReturnType(cur_spec_func_name_, cur_spec_bitmask_); spec_ret == T_INT || spec_ret == T_FLOAT) {
             const auto native_ret = CompileNumericExp(exp);
             Out() << GenTab() << "return " << native_ret << ";\n";
             return;
@@ -3292,19 +3290,17 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     // 尝试直接调用优化：若被调函数是含有数学参数的本地函数，
     // 且所有数学参数的实参类型均已知，则直接发出特化调用。
     if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar && args_kind == ArgsKind::kExpList) {
-        const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
-        if (callee_var && callee_var->GetVarKind() == VarKind::kSimple) {
+        if (const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+            callee_var && callee_var->GetVarKind() == VarKind::kSimple) {
             const auto &callee_name = callee_var->GetName();
-            const auto math_it = ir().math_param_positions.find(callee_name);
-            if (math_it != ir().math_param_positions.end()) {
+            if (const auto math_it = ir().math_param_positions.find(callee_name); math_it != ir().math_param_positions.end()) {
                 const auto &math_params = math_it->second;
                 const auto explist_arg = args_ptr->Explist();
                 DEBUG_ASSERT(explist_arg->Type() == SyntaxTreeType::ExpList);
                 const auto explist_arg_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_arg);
                 const auto &raw_args = explist_arg_ptr->Exps();
 
-                int bitmask = 0;
-                if (TryInferMathCallBitmask(callee_name, raw_args, bitmask)) {
+                if (int bitmask = 0; TryInferMathCallBitmask(callee_name, raw_args, bitmask)) {
                     std::unordered_map<int, std::string> native_exprs;
                     bool can_spec = true;
                     for (int param_pos: math_params) {
@@ -3323,18 +3319,16 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                             if (i > 0) {
                                 call += ", ";
                             }
-                            const auto ne_it = native_exprs.find(i);
-                            if (ne_it != native_exprs.end()) {
+                            if (const auto ne_it = native_exprs.find(i); ne_it != native_exprs.end()) {
                                 call += ne_it->second;
                             } else {
                                 call += CompileExp(raw_args[i]);
                             }
                         }
                         call += ")";
-                        const auto spec_ret = GetSpecReturnType(callee_name, bitmask);
                         const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
                         func_temp_decls_ << "    CVar " << tmp << ";\n";
-                        if (spec_ret == T_INT || spec_ret == T_FLOAT) {
+                        if (const auto spec_ret = GetSpecReturnType(callee_name, bitmask); spec_ret == T_INT || spec_ret == T_FLOAT) {
                             const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
                             func_temp_decls_ << "    " << SpecReturnCTypeName(spec_ret) << " " << ntmp << ";\n";
                             Out() << GenTab() << ntmp << " = " << call << ";\n";
@@ -3352,8 +3346,8 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     // FAKELUA_SET_TABLE fast path: detect early before compiling all args to CVar,
     // so we can use FlSetTableInt/FlSetTableStrId when the key type is known.
     if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar && args_kind == ArgsKind::kExpList) {
-        const auto early_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
-        if (early_var && early_var->GetVarKind() == VarKind::kSimple && early_var->GetName() == "FAKELUA_SET_TABLE") {
+        if (const auto early_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+            early_var && early_var->GetVarKind() == VarKind::kSimple && early_var->GetName() == "FAKELUA_SET_TABLE") {
             const auto explist_node = args_ptr->Explist();
             DEBUG_ASSERT(explist_node->Type() == SyntaxTreeType::ExpList);
             const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist_node);
@@ -3365,8 +3359,8 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             func_temp_decls_ << "    CVar " << tmp << ";\n";
 
             // Check if key (arg[1]) is a string literal → use FlSetTableStrId.
-            const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[1]);
-            if (key_exp && key_exp->GetExpKind() == ExpKind::kString) {
+            if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[1]);
+                key_exp && key_exp->GetExpKind() == ExpKind::kString) {
                 const auto &key_name = key_exp->ExpValue();
                 const auto id = s_->GetConstString().Alloc(key_name);
                 const auto tbl_str = CompileExp(raw_args[0]);
@@ -3376,10 +3370,8 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 return tmp;
             }
             // Check if key is a known integer type → use FlSetTableInt.
-            const auto key_type = InferArgTypeForSpec(raw_args[1]);
-            if (key_type == T_INT) {
-                const auto native_key = TryCompileNativeExpr(raw_args[1]);
-                if (!native_key.empty()) {
+            if (const auto key_type = InferArgTypeForSpec(raw_args[1]); key_type == T_INT) {
+                if (const auto native_key = TryCompileNativeExpr(raw_args[1]); !native_key.empty()) {
                     const auto tbl_str = CompileExp(raw_args[0]);
                     const auto val_str = CompileExp(raw_args[2]);
                     Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", tbl_str, native_key, val_str);
@@ -3430,8 +3422,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
 
     std::string call_expr;
     if (local_func_names_.contains(func_name)) {
-        const int expected_params = local_func_names_.at(func_name);
-        if (static_cast<int>(compiled_args.size()) != expected_params) {
+        if (const int expected_params = local_func_names_.at(func_name); static_cast<int>(compiled_args.size()) != expected_params) {
             ThrowError(
                     std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, expected_params, compiled_args.size()),
                     functioncall);
