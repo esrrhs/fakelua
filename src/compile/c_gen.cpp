@@ -1054,7 +1054,9 @@ void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                 const auto spec_ret = GetSpecReturnType(name, bitmask);
                 Out() << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < params.size(); ++i) {
-                    if (i > 0) Out() << ", ";
+                    if (i > 0) {
+                        Out() << ", ";
+                    }
                     if (const auto mp_it = std::ranges::find(math_params, static_cast<int>(i));
                         mp_it != math_params.end()) {
                         const int mp_idx = static_cast<int>(mp_it - math_params.begin());
@@ -1181,7 +1183,9 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                 // 输出特化函数签名。
                 Out() << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < func_params.size(); ++i) {
-                    if (i > 0) Out() << ", ";
+                    if (i > 0) {
+                        Out() << ", ";
+                    }
                     if (const auto mp_it = std::ranges::find(math_params, static_cast<int>(i));
                         mp_it != math_params.end()) {
                         const int mp_idx = static_cast<int>(mp_it - math_params.begin());
@@ -1211,7 +1215,9 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
             // 无数学参数：正常编译（行为不变）。
             Out() << "CVar " << name << "(";
             for (size_t i = 0; i < func_params.size(); ++i) {
-                if (i > 0) Out() << ", ";
+                if (i > 0) {
+                    Out() << ", ";
+                }
                 Out() << "CVar " << func_params[i];
             }
             Out() << ") {\n";
@@ -1251,7 +1257,9 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name,
     // 入口函数：始终使用 CVar 签名。
     Out() << "CVar " << func_name << "(";
     for (size_t i = 0; i < func_params.size(); ++i) {
-        if (i > 0) Out() << ", ";
+        if (i > 0) {
+            Out() << ", ";
+        }
         Out() << "CVar " << func_params[i];
     }
     Out() << ") {\n";
