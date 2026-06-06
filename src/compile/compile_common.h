@@ -18,8 +18,8 @@ using EvalTypeSnapshot = std::unordered_map<SyntaxTreeInterface *, InferredType>
 // 特化参数类型位掩码编码：bitmask 的第 i 位为 0 表示第 i 个数学参数为 int64_t，
 // 为 1 表示为 double。
 enum MathParamKind : int {
-    kMathParamInt = 0,   // 对应 int64_t
-    kMathParamFloat = 1, // 对应 double
+    kMathParamInt = 0,  // 对应 int64_t
+    kMathParamFloat = 1,// 对应 double
 };
 
 // 根据 bitmask 和参数位索引返回该参数的类型。
@@ -39,11 +39,16 @@ inline char MathParamSuffix(MathParamKind kind) {
 
 inline std::string InferredTypeToString(InferredType type) {
     switch (type) {
-        case T_UNKNOWN: return "T_UNKNOWN";
-        case T_INT:     return "T_INT";
-        case T_FLOAT:   return "T_FLOAT";
-        case T_DYNAMIC: return "T_DYNAMIC";
-        default:        return "T_UNKNOWN";
+        case T_UNKNOWN:
+            return "T_UNKNOWN";
+        case T_INT:
+            return "T_INT";
+        case T_FLOAT:
+            return "T_FLOAT";
+        case T_DYNAMIC:
+            return "T_DYNAMIC";
+        default:
+            return "T_UNKNOWN";
     }
 }
 
@@ -51,21 +56,19 @@ inline bool IsNumericInferredType(const InferredType type) {
     return type == T_INT || type == T_FLOAT;
 }
 
-inline InferredType InferNumericBinopResultType(const BinOpKind op_kind,
-                                                const InferredType left_type,
-                                                const InferredType right_type) {
+inline InferredType InferNumericBinopResultType(const BinOpKind op_kind, const InferredType left_type, const InferredType right_type) {
     if (!IsNumericInferredType(left_type) || !IsNumericInferredType(right_type)) {
         return T_DYNAMIC;
     }
     if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
         return T_FLOAT;
     }
-    if (op_kind == BinOpKind::kPlus || op_kind == BinOpKind::kMinus || op_kind == BinOpKind::kStar ||
-        op_kind == BinOpKind::kMod || op_kind == BinOpKind::kDoubleSlash) {
+    if (op_kind == BinOpKind::kPlus || op_kind == BinOpKind::kMinus || op_kind == BinOpKind::kStar || op_kind == BinOpKind::kMod ||
+        op_kind == BinOpKind::kDoubleSlash) {
         return (left_type == T_INT && right_type == T_INT) ? T_INT : T_FLOAT;
     }
-    if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr ||
-        op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
+    if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kLeftShift ||
+        op_kind == BinOpKind::kRightShift) {
         return T_INT;
     }
     if (op_kind == BinOpKind::kAnd) {
@@ -121,8 +124,7 @@ inline const char *SpecReturnCTypeName(InferredType ret_type) {
 // 根据基础名称、数学参数下标列表和位掩码返回特化函数名。
 // 例如 SpecFuncName("fib", {0}, 0) -> "fib_0"
 //       SpecFuncName("test", {1,4}, 2) -> "test_0_1"
-inline std::string SpecFuncName(const std::string &base_name,
-                                const std::vector<int> &math_param_indices, int bitmask) {
+inline std::string SpecFuncName(const std::string &base_name, const std::vector<int> &math_param_indices, int bitmask) {
     std::string name = base_name;
     for (int i = 0; i < static_cast<int>(math_param_indices.size()); ++i) {
         name += '_';
@@ -187,7 +189,6 @@ struct GenResult {
     // 入口函数名->参数个数
     std::unordered_map<std::string, int> function_names;
 };
-
 
 
 }// namespace fakelua

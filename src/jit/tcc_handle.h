@@ -1,7 +1,7 @@
 #pragma once
 
-#include "jit/jit_common.h"
 #include "fakelua.h"
+#include "jit/jit_common.h"
 
 struct TCCState;
 

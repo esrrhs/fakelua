@@ -45,8 +45,8 @@ std::string WinErrToString(const DWORD err) {
         return "unknown error";
     }
     LPSTR msg = nullptr;
-    const DWORD len = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
-            nullptr, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPSTR>(&msg), 0, nullptr);
+    const DWORD len = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr,
+                                     err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPSTR>(&msg), 0, nullptr);
     if (len == 0 || !msg) {
         return std::format("error code {}", err);
     }
@@ -58,10 +58,9 @@ std::string WinErrToString(const DWORD err) {
 std::vector<std::string> GetWindowsDefaultLibraryPaths() {
     std::vector<std::string> ret;
     HMODULE module = nullptr;
-    if (!GetModuleHandleExA(
-                GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                reinterpret_cast<LPCSTR>(&GetWindowsDefaultLibraryPaths), &module) ||
-            !module) {
+    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
+                            reinterpret_cast<LPCSTR>(&GetWindowsDefaultLibraryPaths), &module) ||
+        !module) {
         return ret;
     }
     char module_path[MAX_PATH] = {0};
@@ -78,7 +77,7 @@ std::vector<std::string> GetWindowsDefaultLibraryPaths() {
     return ret;
 }
 #endif
-}
+}// namespace
 
 GccJitter::GccJitter(State *s) : s_(s) {
 }
@@ -87,11 +86,11 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     const std::string c_file = GenerateTmpFilename("fakelua_jit_", ".c");
     const std::string so_file = c_file.substr(0, c_file.size() - kCExtLen) +
 #if defined(_WIN32)
-            ".dll";
+                                ".dll";
 #elif defined(__APPLE__)
-            ".dylib";
+                                ".dylib";
 #else
-            ".so";
+                                ".so";
 #endif
     const std::string log_file = c_file.substr(0, c_file.size() - kCExtLen) + ".gcc.log";
 
@@ -147,27 +146,24 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 
     const int compile_status = _spawnvp(_P_WAIT, "gcc", argv.data());
     if (compile_status == -1) {
-        ThrowFakeluaException(std::format(
-                "GCC compile failed for {}: cannot execute gcc (errno {}: {}). cmd: {}",
-                pr.file_name, errno, std::strerror(errno), JoinCommand(args)));
+        ThrowFakeluaException(std::format("GCC compile failed for {}: cannot execute gcc (errno {}: {}). cmd: {}", pr.file_name, errno,
+                                          std::strerror(errno), JoinCommand(args)));
     }
     if (compile_status != 0) {
-        ThrowFakeluaException(std::format(
-                "GCC compile failed for {} with exit code {}. cmd: {}", pr.file_name, compile_status, JoinCommand(args)));
+        ThrowFakeluaException(
+                std::format("GCC compile failed for {} with exit code {}. cmd: {}", pr.file_name, compile_status, JoinCommand(args)));
     }
 
     HMODULE module_handle = LoadLibraryA(so_file.c_str());
     if (!module_handle) {
-        ThrowFakeluaException(
-                std::format("GCC compile failed, LoadLibrary failed for {}: {}", so_file, WinErrToString(GetLastError())));
+        ThrowFakeluaException(std::format("GCC compile failed, LoadLibrary failed for {}: {}", so_file, WinErrToString(GetLastError())));
     }
     const auto handle = std::make_shared<GCCHandle>(c_file, so_file, module_handle);
 
     for (const auto &[name, params_count]: gr.function_names) {
         FARPROC symbol_address = GetProcAddress(module_handle, name.c_str());
         if (!symbol_address) {
-            ThrowFakeluaException(
-                    std::format("GCC compile failed, GetProcAddress failed for symbol {} in {}", name, so_file));
+            ThrowFakeluaException(std::format("GCC compile failed, GetProcAddress failed for symbol {} in {}", name, so_file));
         }
         void *func_ptr = reinterpret_cast<void *>(symbol_address);
         s_->GetVM().RegisterFunction(VmFunction(name, params_count, JIT_GCC, func_ptr, handle));
@@ -210,8 +206,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         if (std::ifstream ifs(log_file); ifs.is_open()) {
             gcc_log.assign(std::istreambuf_iterator<char>(ifs), std::istreambuf_iterator<char>());
         }
-        ThrowFakeluaException(
-                std::format("GCC compile failed for {} (log: {})\n{}", pr.file_name, log_file, gcc_log));
+        ThrowFakeluaException(std::format("GCC compile failed for {} (log: {})\n{}", pr.file_name, log_file, gcc_log));
     }
 
     void *dl_handle = dlopen(so_file.c_str(), RTLD_NOW | RTLD_LOCAL);

@@ -122,14 +122,14 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
                     const auto single_explist = std::make_shared<SyntaxTreeExplist>(stmt->Loc());
                     const auto tmp_exp = std::make_shared<SyntaxTreeExp>(stmt->Loc());
                     tmp_exp->SetExpKind(ExpKind::kPrefixExp);
-                    
+
                     const auto tmp_prefix = std::make_shared<SyntaxTreePrefixexp>(stmt->Loc());
                     tmp_prefix->SetPrefixKind(PrefixExpKind::kVar);
                     const auto tmp_var = std::make_shared<SyntaxTreeVar>(stmt->Loc());
                     tmp_var->SetVarKind(VarKind::kSimple);
                     tmp_var->SetName(tmp_names[i]);
                     tmp_prefix->SetValue(tmp_var);
-                    
+
                     tmp_exp->SetRight(tmp_prefix);
                     single_explist->AddExp(tmp_exp);
                     new_assign->SetExplist(single_explist);
@@ -218,9 +218,7 @@ void PreProcessor::PreprocessTableAssign(const SyntaxTreeInterfacePtr &node) {
                 }
 
                 // 1
-                {
-                    args_explist->AddExp(exp);
-                }
+                { args_explist->AddExp(exp); }
 
                 args->SetExplist(args_explist);
                 args->SetArgsKind(ArgsKind::kExpList);
@@ -428,7 +426,7 @@ void PreProcessor::PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &
     const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
 
     std::vector<SyntaxTreeInterfacePtr> new_stmts;
-    for (const auto &stmt : top_block->Stmts()) {
+    for (const auto &stmt: top_block->Stmts()) {
         if (stmt->Type() != SyntaxTreeType::LocalVar) {
             new_stmts.push_back(stmt);
             continue;
@@ -460,7 +458,8 @@ void PreProcessor::PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &
         local_func->SetName(nl->Names()[0]);
         local_func->SetFuncbody(fdef->Funcbody());
         new_stmts.push_back(local_func);
-        LOG_INFO("PreprocessFunctiondefLocalVars: converted local {} = function(...) to local function {}(...)", nl->Names()[0], nl->Names()[0]);
+        LOG_INFO("PreprocessFunctiondefLocalVars: converted local {} = function(...) to local function {}(...)", nl->Names()[0],
+                 nl->Names()[0]);
     }
     top_block->SetStmts(new_stmts);
 }

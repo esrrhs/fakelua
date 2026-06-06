@@ -26,7 +26,9 @@ private:
 
         [[nodiscard]] InferredType Lookup(const std::string &name) const;
 
-        [[nodiscard]] size_t GetScopeDepth() const { return scopes_.size(); }
+        [[nodiscard]] size_t GetScopeDepth() const {
+            return scopes_.size();
+        }
 
     private:
         static InferredType MergeType(InferredType old_type, InferredType new_type);

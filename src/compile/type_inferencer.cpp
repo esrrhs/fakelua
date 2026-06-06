@@ -1,8 +1,8 @@
 #include "compile/type_inferencer.h"
 
-#include <ranges>
-#include <fstream>
 #include <algorithm>
+#include <fstream>
+#include <ranges>
 
 #include "compile/syntax_tree.h"
 #include "util/common.h"
@@ -10,7 +10,8 @@
 
 namespace fakelua {
 
-void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &snapshot, int tab, std::ostream &os) const {
+void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &snapshot, int tab,
+                                      std::ostream &os) const {
     if (!node) {
         return;
     }
@@ -328,7 +329,7 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
 
             if (!ir.specialization_snapshots.empty()) {
                 ofs << "\n=== Specialization Snapshots ===\n";
-                for (const auto &[func_name, snapshots] : ir.specialization_snapshots) {
+                for (const auto &[func_name, snapshots]: ir.specialization_snapshots) {
                     ofs << std::format("Function: {}\n", func_name);
                     for (size_t bitmask = 0; bitmask < snapshots.size(); ++bitmask) {
                         ofs << std::format("  Spec bitmask: {}\n", bitmask);
@@ -645,8 +646,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                         if (left_op && left_op->GetOpKind() == BinOpKind::kAnd) {
                             const auto it = current_map.find(left_exp->Right().get());
                             const auto val1_type = (it != current_map.end()) ? it->second : T_DYNAMIC;
-                            if ((val1_type == T_INT || val1_type == T_FLOAT) &&
-                                (right_type == T_INT || right_type == T_FLOAT)) {
+                            if ((val1_type == T_INT || val1_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
                                 const auto merged = (val1_type == right_type) ? val1_type : T_FLOAT;
                                 return RecordType(current_map, exp.get(), merged);
                             }
@@ -900,8 +900,8 @@ TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseRe
             // 两次推断的对比用于判断该函数的算术表达式是否能因参数类型已知而改善。
             const auto baseline = RunTrialInference(info.block, info.params, MakeAssumedParamTypes(info.params, "", T_DYNAMIC, T_DYNAMIC),
                                                     nullptr, nullptr, true);
-            const auto all_int = RunTrialInference(info.block, info.params, MakeAssumedParamTypes(info.params, "", T_INT, T_INT),
-                                                   nullptr, nullptr, true);
+            const auto all_int = RunTrialInference(info.block, info.params, MakeAssumedParamTypes(info.params, "", T_INT, T_INT), nullptr,
+                                                   nullptr, true);
             const auto math_indices = FindMathParamIndices(info, baseline, all_int, ir.math_param_positions);
 
             if (math_indices.empty()) {
@@ -958,11 +958,11 @@ void TypeInferencer::GenerateInitialSnapshots(InferResult &ir, const MathFuncInf
 }
 
 TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func_block,
-                                                             const std::vector<std::string> &params,
-                                                             const std::unordered_map<std::string, InferredType> &assumed_types,
-                                                             const std::unordered_map<std::string, std::vector<int>> *math_positions,
-                                                             const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret,
-                                                             bool skip_post_processing) {
+                                                              const std::vector<std::string> &params,
+                                                              const std::unordered_map<std::string, InferredType> &assumed_types,
+                                                              const std::unordered_map<std::string, std::vector<int>> *math_positions,
+                                                              const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret,
+                                                              bool skip_post_processing) {
     std::unordered_set<std::string> pinned_vars;
     for (const auto &[name, t]: assumed_types) {
         if (t == T_INT || t == T_FLOAT) {
@@ -1197,8 +1197,7 @@ bool TypeInferencer::CheckCallNodeChange(const SyntaxTreeInterfacePtr &node, con
     const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
     DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
     const auto &callee_name = callee_var->GetName();
-    if (const auto math_it = math_param_positions.find(callee_name);
-        math_it != math_param_positions.end()) {
+    if (const auto math_it = math_param_positions.find(callee_name); math_it != math_param_positions.end()) {
         const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
         DEBUG_ASSERT(args_ptr);
         const auto raw_args = ExtractCallRawArgs(args_ptr);
