@@ -1450,8 +1450,7 @@ InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
     const auto exp_kind = e->GetExpKind();
 
     if (exp_kind == ExpKind::kNumber) {
-        const auto node_type = LookupNodeType(e.get());
-        if (node_type == T_INT || node_type == T_FLOAT) {
+        if (const auto node_type = LookupNodeType(e.get()); node_type == T_INT || node_type == T_FLOAT) {
             return node_type;
         }
         // 通过字面量字符串判断整数/浮点类型。
@@ -1477,8 +1476,7 @@ InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
             if (const auto it = spec_param_types_.find(name); it != spec_param_types_.end()) {
                 return it->second;
             }
-            const auto native_type = GetNativeVarType(name);
-            if (native_type == T_INT || native_type == T_FLOAT) {
+            if (const auto native_type = GetNativeVarType(name); native_type == T_INT || native_type == T_FLOAT) {
                 return native_type;
             }
             // 文件级数值常量（static const int64_t / double）：返回其记录的原生类型。
@@ -1560,8 +1558,7 @@ InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
             return InferExpType(e->Right());
         }
         if (op->GetOpKind() == UnOpKind::kBitNot) {
-            const auto t = InferExpType(e->Right());
-            if (t == T_INT) {
+            if (const auto t = InferExpType(e->Right()); t == T_INT) {
                 return T_INT;
             }
             return T_DYNAMIC;
@@ -1613,8 +1610,7 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
 
     // 处理 not 一元逻辑取反：将 not <bool_expr> 编译为 !(<bool_expr>)。
     if (e->GetExpKind() == ExpKind::kUnop) {
-        const auto unop = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
-        if (!unop || unop->GetOpKind() != UnOpKind::kNot) {
+        if (const auto unop = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op()); !unop || unop->GetOpKind() != UnOpKind::kNot) {
             return {};
         }
         const auto inner = TryCompileNativeBoolExpr(e->Right());
@@ -1646,8 +1642,8 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
 
     if (const auto op_it = kCmpOpMap.find(op_kind); op_it != kCmpOpMap.end()) {
         const auto left_type = e->Left() ? InferArgTypeForSpec(e->Left()) : T_DYNAMIC;
-        const auto right_type = e->Right() ? InferArgTypeForSpec(e->Right()) : T_DYNAMIC;
-        if ((left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
+        if (const auto right_type = e->Right() ? InferArgTypeForSpec(e->Right()) : T_DYNAMIC;
+            (left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
             return {};
         }
         const auto left_native = TryCompileNativeExpr(e->Left());
@@ -1844,8 +1840,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exps[i]);
             bool is_degraded_expression = false;
             if (init_exp && LookupNodeType(exps[i].get()) == T_DYNAMIC) {
-                const auto kind = init_exp->GetExpKind();
-                if (kind == ExpKind::kNumber) {
+                if (const auto kind = init_exp->GetExpKind(); kind == ExpKind::kNumber) {
                     // 字面量始终产生数值类型；若快照中为 T_DYNAMIC，则必是后处理降级。
                     is_degraded_expression = true;
                 } else if (kind == ExpKind::kBinop && init_exp->Left() && init_exp->Right()) {
@@ -1860,10 +1855,8 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 }
             }
             if (!is_degraded_expression) {
-                const auto spec_type = InferArgTypeForSpec(exps[i]);
-                if (spec_type == T_INT || spec_type == T_FLOAT) {
-                    const auto native_expr = TryCompileNativeExpr(exps[i]);
-                    if (!native_expr.empty()) {
+                if (const auto spec_type = InferArgTypeForSpec(exps[i]); spec_type == T_INT || spec_type == T_FLOAT) {
+                    if (const auto native_expr = TryCompileNativeExpr(exps[i]); !native_expr.empty()) {
                         const auto c_type = (spec_type == T_INT) ? "int64_t" : "double";
                         if (IsTypedNativeVar(name)) {
                             const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
@@ -1915,12 +1908,10 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     if (const auto &name = v_ptr->GetName(); IsTypedNativeVar(name)) {
         // 被赋值变量是原生类型（int64_t / double）变量：
         const auto var_type = GetNativeVarType(name);
-        const auto native_rhs = TryCompileNativeExpr(exps[0]);
-        if (!native_rhs.empty()) {
+        if (const auto native_rhs = TryCompileNativeExpr(exps[0]); !native_rhs.empty()) {
             // RHS 可以直接编译为原生数值表达式——无需临时 CVar。
             // 若 RHS 类型与目标变量类型不同（如 double → int64_t），插入显式强制转换。
-            const auto rhs_type = InferArgTypeForSpec(exps[0]);
-            if (rhs_type == T_FLOAT && var_type == T_INT) {
+            if (const auto rhs_type = InferArgTypeForSpec(exps[0]); rhs_type == T_FLOAT && var_type == T_INT) {
                 Out() << GenTab() << name << " = (int64_t)(" << native_rhs << ");\n";
             } else if (rhs_type == T_INT && var_type == T_FLOAT) {
                 Out() << GenTab() << name << " = (double)(" << native_rhs << ");\n";
@@ -1989,8 +1980,7 @@ void CGen::CompileScopedBlock(const SyntaxTreeInterfacePtr &block) {
 }
 
 std::string CGen::CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix) {
-    auto native_cond = TryCompileNativeBoolExpr(exp);
-    if (!native_cond.empty()) {
+    if (auto native_cond = TryCompileNativeBoolExpr(exp); !native_cond.empty()) {
         return native_cond;
     }
     const auto tmp_bool = std::format("{}_{}", tmp_prefix, tmp_var_counter_++);
@@ -2004,8 +1994,7 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::While);
     const auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
 
-    const auto native_cond = TryCompileNativeBoolExpr(while_stmt->Exp());
-    if (!native_cond.empty()) {
+    if (const auto native_cond = TryCompileNativeBoolExpr(while_stmt->Exp()); !native_cond.empty()) {
         Out() << GenTab() << "while (" << native_cond << ") {\n";
         cur_tab_++;
         CompileScopedBlock(while_stmt->Block());
@@ -2503,16 +2492,14 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 DEBUG_ASSERT(fkind == FieldKind::kArray);
                 if (const auto key = field_ptr->Key()) {
                     // Check if key is a string literal for the fast path.
-                    const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(key);
-                    if (key_exp && key_exp->GetExpKind() == ExpKind::kString) {
+                    if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(key);
+                        key_exp && key_exp->GetExpKind() == ExpKind::kString) {
                         const auto id = s_->GetConstString().Alloc(key_exp->ExpValue());
                         Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
                     } else {
                         // Check if key is a known integer for the fast path.
-                        const auto key_type = InferArgTypeForSpec(key);
-                        if (key_type == T_INT) {
-                            const auto native_key = TryCompileNativeExpr(key);
-                            if (!native_key.empty()) {
+                        if (const auto key_type = InferArgTypeForSpec(key); key_type == T_INT) {
+                            if (const auto native_key = TryCompileNativeExpr(key); !native_key.empty()) {
                                 Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, native_key, value_str);
                             } else {
                                 const auto key_str = CompileExp(key);
@@ -2812,8 +2799,7 @@ std::string CGen::CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, cons
     if (const auto cmp_it = kCmpOpMap.find(op_kind); cmp_it != kCmpOpMap.end()) {
         if ((lt == T_INT || lt == T_FLOAT) && (rt == T_INT || rt == T_FLOAT)) {
             const auto left_native = TryCompileNativeExpr(left);
-            const auto right_native = TryCompileNativeExpr(right);
-            if (!left_native.empty() && !right_native.empty()) {
+            if (const auto right_native = TryCompileNativeExpr(right); !left_native.empty() && !right_native.empty()) {
                 const auto native_bool = std::format("({}) {} ({})", left_native, cmp_it->second, right_native);
                 const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    CVar " << tmp << ";\n";
@@ -2828,8 +2814,7 @@ std::string CGen::CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, cons
 std::string CGen::CompileNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType rt) {
     if (op_kind == UnOpKind::kMinus || op_kind == UnOpKind::kBitNot) {
         if (rt == T_INT || rt == T_FLOAT) {
-            const auto native_operand = TryCompileNativeExpr(right);
-            if (!native_operand.empty()) {
+            if (const auto native_operand = TryCompileNativeExpr(right); !native_operand.empty()) {
                 std::string native_expr;
                 InferredType result_type;
                 if (op_kind == UnOpKind::kMinus) {
@@ -2910,16 +2895,13 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto exp = v_ptr->GetExp();
         auto pe_ret = CompilePrefixexp(pe);
         // String literal key fast path: t["key"] → FlGetTableStrId.
-        const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-        if (exp_node && exp_node->GetExpKind() == ExpKind::kString) {
+        if (const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp); exp_node && exp_node->GetExpKind() == ExpKind::kString) {
             const auto id = s_->GetConstString().Alloc(exp_node->ExpValue());
             return std::format("FlGetTableStrId({}, {})", pe_ret, id);
         }
         // Integer key fast path: use FlGetTableInt when key is known T_INT.
-        const auto key_type = InferArgTypeForSpec(exp);
-        if (key_type == T_INT) {
-            const auto native_key = TryCompileNativeExpr(exp);
-            if (!native_key.empty()) {
+        if (const auto key_type = InferArgTypeForSpec(exp); key_type == T_INT) {
+            if (const auto native_key = TryCompileNativeExpr(exp); !native_key.empty()) {
                 return std::format("FlGetTableInt({}, {})", pe_ret, native_key);
             }
         }
@@ -2958,9 +2940,8 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
     DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
 
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-    const auto exp_kind = e->GetExpKind();
 
-    if (exp_kind == ExpKind::kNumber) {
+    if (const auto exp_kind = e->GetExpKind(); exp_kind == ExpKind::kNumber) {
         if (LookupNodeType(e.get()) == T_INT) {
             return std::to_string(ToInteger(e->ExpValue()));
         }
@@ -3002,8 +2983,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             if (inferred == T_DYNAMIC) {
                 ThrowError("function call cannot be specialized as numeric", exp);
             }
-            const auto native_result = TryCompileNativeSpecCallExpr(pe->GetValue());
-            if (!native_result.empty()) {
+            if (const auto native_result = TryCompileNativeSpecCallExpr(pe->GetValue()); !native_result.empty()) {
                 return native_result;
             }
             const auto call_str = CompileFunctioncall(pe->GetValue());
@@ -3025,10 +3005,10 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         if (op_kind == BinOpKind::kOr) {
             // Pattern match Lua ternary: (cond and val1) or val2
             if (e->Left()->Type() == SyntaxTreeType::Exp) {
-                const auto left_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(e->Left());
-                if (left_exp && left_exp->GetExpKind() == ExpKind::kBinop) {
-                    const auto left_op = std::dynamic_pointer_cast<SyntaxTreeBinop>(left_exp->Op());
-                    if (left_op && left_op->GetOpKind() == BinOpKind::kAnd) {
+                if (const auto left_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(e->Left());
+                    left_exp && left_exp->GetExpKind() == ExpKind::kBinop) {
+                    if (const auto left_op = std::dynamic_pointer_cast<SyntaxTreeBinop>(left_exp->Op());
+                        left_op && left_op->GetOpKind() == BinOpKind::kAnd) {
                         const auto cond = left_exp->Left();
                         const auto val1 = left_exp->Right();
                         const auto val2 = e->Right();
@@ -3235,8 +3215,7 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
         if (i > 0) {
             call += ", ";
         }
-        const auto ne_it = native_exprs.find(i);
-        if (ne_it != native_exprs.end()) {
+        if (const auto ne_it = native_exprs.find(i); ne_it != native_exprs.end()) {
             call += ne_it->second;
         } else {
             call += CompileExp(raw_args[i]);

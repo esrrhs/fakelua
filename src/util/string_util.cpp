@@ -182,9 +182,8 @@ double ToFloat(const std::string_view &input) {
 
     if (hex_format) {
         // Check if it's a hex float (contains '.' or 'p'/'P')
-        bool is_hex_float = input.contains('.') || input.contains('p') || input.contains('P');
 
-        if (is_hex_float) {
+        if (bool is_hex_float = input.contains('.') || input.contains('p') || input.contains('P'); is_hex_float) {
             // Hex float: pass full string to strtod (it handles sign and 0x prefix)
             // Don't apply negative separately since strtod already handles it.
             std::string str(input.begin(), input.end());

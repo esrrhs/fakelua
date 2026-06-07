@@ -247,8 +247,8 @@ void PreProcessor::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk) {
                 if (!funcname->ColonName().empty()) {
                     ThrowError("Unsupported function name with method definition", stmt);
                 }
-                const auto fnlist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcname->FuncNameList());
-                if (fnlist && fnlist->Funcnames().size() != 1) {
+                if (const auto fnlist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcname->FuncNameList());
+                    fnlist && fnlist->Funcnames().size() != 1) {
                     ThrowError(std::format("Unsupported function name with {} parts", fnlist->Funcnames().size()), stmt);
                 }
             }
@@ -299,8 +299,8 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
             if (callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
                 ThrowError("function call callee must be a variable", node);
             }
-            const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-            if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
+            if (const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+                !callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
                 ThrowError("function call callee must be a simple variable", node);
             }
             break;

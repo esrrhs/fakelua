@@ -29,15 +29,13 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
     std::string extra_info = "";
 
     if (node->Type() == SyntaxTreeType::Exp) {
-        auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-        if (exp->GetExpKind() == ExpKind::kNumber) {
+        if (auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node); exp->GetExpKind() == ExpKind::kNumber) {
             extra_info = std::format(" (number: {})", exp->ExpValue());
         } else if (exp->GetExpKind() == ExpKind::kString) {
             extra_info = std::format(" (string: \"{}\")", exp->ExpValue());
         }
     } else if (node->Type() == SyntaxTreeType::Var) {
-        auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
-        if (var->GetVarKind() == VarKind::kSimple) {
+        if (auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node); var->GetVarKind() == VarKind::kSimple) {
             extra_info = std::format(" (var: {})", var->GetName());
         }
     } else if (node->Type() == SyntaxTreeType::Label) {
@@ -90,8 +88,7 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
             break;
         }
         case SyntaxTreeType::Var: {
-            auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
-            if (var->GetVarKind() == VarKind::kSquare) {
+            if (auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node); var->GetVarKind() == VarKind::kSquare) {
                 DumpASTWithTypes(var->GetPrefixexp(), snapshot, tab + 1, os);
                 DumpASTWithTypes(var->GetExp(), snapshot, tab + 1, os);
             } else if (var->GetVarKind() == VarKind::kDot) {
@@ -205,8 +202,7 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
             break;
         }
         case SyntaxTreeType::Exp: {
-            auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-            if (exp->GetExpKind() == ExpKind::kBinop) {
+            if (auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node); exp->GetExpKind() == ExpKind::kBinop) {
                 DumpASTWithTypes(exp->Left(), snapshot, tab + 1, os);
                 DumpASTWithTypes(exp->Op(), snapshot, tab + 1, os);
                 DumpASTWithTypes(exp->Right(), snapshot, tab + 1, os);
@@ -219,8 +215,7 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
             break;
         }
         case SyntaxTreeType::Args: {
-            auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
-            if (args->GetArgsKind() == ArgsKind::kExpList) {
+            if (auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node); args->GetArgsKind() == ArgsKind::kExpList) {
                 DumpASTWithTypes(args->Explist(), snapshot, tab + 1, os);
             } else if (args->GetArgsKind() == ArgsKind::kTableConstructor) {
                 DumpASTWithTypes(args->Tableconstructor(), snapshot, tab + 1, os);
@@ -228,8 +223,7 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
             break;
         }
         case SyntaxTreeType::PrefixExp: {
-            auto prefixexp = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node);
-            if (prefixexp->GetPrefixKind() == PrefixExpKind::kVar) {
+            if (auto prefixexp = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node); prefixexp->GetPrefixKind() == PrefixExpKind::kVar) {
                 DumpASTWithTypes(prefixexp->GetValue(), snapshot, tab + 1, os);
             } else if (prefixexp->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
                 DumpASTWithTypes(prefixexp->GetValue(), snapshot, tab + 1, os);
@@ -640,13 +634,13 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
             if (op_kind == BinOpKind::kOr) {
                 // Pattern match Lua ternary: (cond and val1) or val2
                 if (exp->Left()->Type() == SyntaxTreeType::Exp) {
-                    const auto left_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp->Left());
-                    if (left_exp && left_exp->GetExpKind() == ExpKind::kBinop) {
-                        const auto left_op = std::dynamic_pointer_cast<SyntaxTreeBinop>(left_exp->Op());
-                        if (left_op && left_op->GetOpKind() == BinOpKind::kAnd) {
+                    if (const auto left_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp->Left());
+                        left_exp && left_exp->GetExpKind() == ExpKind::kBinop) {
+                        if (const auto left_op = std::dynamic_pointer_cast<SyntaxTreeBinop>(left_exp->Op());
+                            left_op && left_op->GetOpKind() == BinOpKind::kAnd) {
                             const auto it = current_map.find(left_exp->Right().get());
-                            const auto val1_type = (it != current_map.end()) ? it->second : T_DYNAMIC;
-                            if ((val1_type == T_INT || val1_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
+                            if (const auto val1_type = (it != current_map.end()) ? it->second : T_DYNAMIC;
+                                (val1_type == T_INT || val1_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
                                 const auto merged = (val1_type == right_type) ? val1_type : T_FLOAT;
                                 return RecordType(current_map, exp.get(), merged);
                             }
@@ -1346,10 +1340,8 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
         switch (stmt->Type()) {
             case SyntaxTreeType::Return: {
                 const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt);
-                const auto explist = ret->Explist();
-                if (explist) {
-                    const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
-                    if (el && !el->Exps().empty()) {
+                if (const auto explist = ret->Explist(); explist) {
+                    if (const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist); el && !el->Exps().empty()) {
                         ret_exps.push_back(el->Exps()[0]);
                         break;
                     }

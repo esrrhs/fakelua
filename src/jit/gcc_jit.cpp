@@ -64,8 +64,7 @@ std::vector<std::string> GetWindowsDefaultLibraryPaths() {
         return ret;
     }
     char module_path[MAX_PATH] = {0};
-    const DWORD len = GetModuleFileNameA(module, module_path, MAX_PATH);
-    if (len == 0 || len >= MAX_PATH) {
+    if (const DWORD len = GetModuleFileNameA(module, module_path, MAX_PATH); len == 0 || len >= MAX_PATH) {
         return ret;
     }
     const std::filesystem::path dll_path(module_path);
