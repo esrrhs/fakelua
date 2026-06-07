@@ -1840,147 +1840,82 @@ TEST(jitter, test_table_zero_key) {
     }
 }
 
-TEST(jitter, coverage_c_gen) {
+TEST(jitter, test_table_construct) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        // 1. Table constructor with string/int/generic keys
-        CompileString(s, R"(
-            function test_table_construct()
-                local t = { ["a"] = 1, [2] = 2, [true] = 3 }
-                return t["a"] + t[2] + t[true]
-            end
-        )",
-                      {.debug_mode = debug_mode});
+        CompileFile(s, "./jit/test_table_construct.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test_table_construct", ret);
         ASSERT_EQ(ret, 6);
-
-        // 2. Math parameters with dynamic arguments fallback (CompileExp fallback)
-        // and complex callee syntax:
-        // - my_abs(foo()) + 1: T_INT specialized math, but foo() is not native-compilable
-        // - my_abs "string": args is kString, not kExpList
-        CompileString(s, R"(
-            local function foo()
-                return 5
-            end
-            local function my_abs(n)
-                return n + 0 -- promotes n to math param
-            end
-            function test_math_specializations(y)
-                local val1 = my_abs(foo()) + 1          -- native_expr.empty() -> fallback to CompileExp
-                return val1
-            end
-            function test_math_string_arg()
-                local val4 = my_abs "5"
-                return val4
-            end
-        )",
-                      {.debug_mode = debug_mode});
-        ret = 0;
-        Call(s, type, "test_math_specializations", ret, -5);
-        ASSERT_EQ(ret, 6);// my_abs(5)+1 (6)
     });
 }
 
-TEST(jitter, coverage_c_gen_more) {
+TEST(jitter, test_math_specializations) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        // 1. Bitwise operations on specialized float
-        CompileString(s, R"(
-            function test_bitwise_float(x)
-                return x & 1
-            end
-            function test_bitnot_float(x)
-                return ~x
-            end
-            function test_dynamic_le(a, b)
-                return a <= b
-            end
-        )",
-                      {.debug_mode = debug_mode});
+        CompileFile(s, "./jit/test_math_specializations.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_math_specializations", ret, -5);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+TEST(jitter, test_bitwise_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitwise_float.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test_bitwise_float", ret, 5.0);
         ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, test_bitnot_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitnot_float.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
         Call(s, type, "test_bitnot_float", ret, 5.0);
         ASSERT_EQ(ret, ~5);
+    });
+}
+
+TEST(jitter, test_dynamic_le) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_le.lua", {.debug_mode = debug_mode});
         bool ret_b = false;
         Call(s, type, "test_dynamic_le", ret_b, 5, 6);
         ASSERT_TRUE(ret_b);
+    });
+}
 
-        // 2. Extra coverage for c_gen.cpp
-        CompileString(s, R"(
-            local MY_CONST = 42
-            local function my_add(x, y)
-                return x + y
-            end
-            local function my_abs(n)
-                return n + 0
-            end
-            function test_more_coverage(x, xf)
-                -- Table variable access (VarKind != kSimple)
-                local t = { a = 1 }
-                local val1 = t.a + x
-                
-                -- Global constant of type T_INT
-                local val2 = x + MY_CONST
-                
-                -- Unary bitnot on specialized int
-                local val3 = 0
-                val3 = ~x
-                
-                -- Unary bitnot on specialized float (degraded)
-                local val4 = 0.0
-                val4 = ~xf
-                
-                -- Unary not
-                local val5 = not t
-                
-                -- Calling specialized function with dynamic argument
-                local glob = 10
-                local val7 = my_abs(glob)
-                
-                -- TryCompileNativeBoolExpr branches
-                if x then end
-                if -x then end
-                if not x then end
-                if 1 then end
-                if x > 0 and xf then end
-                if x + 1 then end
-                
-                return val1 + val2 + val3 + val4
-            end
-            
-            function test_string_arg_error()
-                return my_abs "5"
-            end
-            
-            function test_shadow_coverage(x)
-                local res = 0
-                do
-                    local x = 6
-                    res = x
-                end
-                return res
-            end
-            
-            function test_table_spec(x)
-                local t = { [x] = 2 }
-                return t[x]
-            end
-            
-            function test_for_no_step(x)
-                local sum = 0
-                for i = 1, x do
-                    sum = sum + i
-                end
-                return sum
-            end
-        )",
-                      {.debug_mode = debug_mode});
+TEST(jitter, test_more_coverage) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_more_coverage.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
         Call(s, type, "test_more_coverage", ret, 5, 5.0);
         ASSERT_EQ(ret, 41);
+    });
+}
+
+TEST(jitter, test_shadow_coverage) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_shadow_coverage.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
         Call(s, type, "test_shadow_coverage", ret, 5);
         ASSERT_EQ(ret, 6);
+    });
+}
+
+TEST(jitter, test_table_spec) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_spec.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
         Call(s, type, "test_table_spec", ret, 5);
         ASSERT_EQ(ret, 2);
+    });
+}
+
+TEST(jitter, test_for_no_step) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_no_step.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
         Call(s, type, "test_for_no_step", ret, 5);
         ASSERT_EQ(ret, 15);
     });
@@ -1990,15 +1925,7 @@ TEST(jitter, test_spec_call_arg_count_error) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
-                CompileString(sg.GetState(), R"(
-                    local function my_add(x, y)
-                        return x + y
-                    end
-                    function test_fewer_args(x)
-                        return my_add(x)
-                    end
-                )",
-                              {.debug_mode = true});
+                CompileFile(sg.GetState(), "./jit/test_spec_call_arg_count_error.lua", {.debug_mode = true});
             },
             std::exception);
 }
@@ -2007,328 +1934,375 @@ TEST(jitter, test_set_table_arg_count_error) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
-                CompileString(sg.GetState(), R"(
-                    function test(t, k)
-                        FAKELUA_SET_TABLE(t, k)
-                    end
-                )",
-                              {.debug_mode = true});
+                CompileFile(sg.GetState(), "./jit/test_set_table_arg_count_error1.lua", {.debug_mode = true});
             },
             std::exception);
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
-                CompileString(sg.GetState(), R"(
-                    function test(t)
-                        FAKELUA_SET_TABLE "hello"
-                    end
-                )",
-                              {.debug_mode = true});
+                CompileFile(sg.GetState(), "./jit/test_set_table_arg_count_error2.lua", {.debug_mode = true});
             },
             std::exception);
 }
 
-TEST(jitter, coverage_c_gen_complete) {
+TEST(jitter, test_complete) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileString(s, R"(
-            local MY_CONST_2 = 100
-            local upvalue_int = 10
-            local upvalue_float = 20.0
-
-            local function foo(v)
-                return v
-            end
-            local function my_abs(n)
-                return n + 0
-            end
-            local function my_mixed_func(n, name)
-                return n + 1
-            end
-            local function helper_spec_mixed(x)
-                return x + my_mixed_func(x, "hello")
-            end
-            local function helper_spec_str(x)
-                return x + my_abs "5"
-            end
-            local function non_math_helper(x)
-                return x
-            end
-            local function helper_spec_non_math(x)
-                return x + non_math_helper(5)
-            end
-            local function my_abs_dynamic(n)
-                if n > 0 then
-                    return n
-                else
-                    return "not a number"
-                end
-            end
-            local function helper_spec_dynamic_ret(x)
-                return x + my_abs_dynamic(5)
-            end
-            local function helper_spec_dynamic_arg(x)
-                return x + my_abs(foo(x))
-            end
-            local function helper_bitwise_cvar(x)
-                return foo(x & 1)
-            end
-            local function test_bitwise_cvar(y)
-                local temp = y + 0.0
-                return helper_bitwise_cvar(y)
-            end
-
-            local function helper_upvalue_spec(x)
-                local dummy = x + 1.0
-                return dummy + upvalue_int + upvalue_float
-            end
-
-            local function helper_bool_ret(x)
-                return x > 0
-            end
-            local function test_bool_ret_spec(x)
-                local dummy = x + 1
-                return helper_bool_ret(x)
-            end
-
-            local function helper_user_func(x)
-                return x + 1
-            end
-            local function test_user_func_spec(x)
-                local dummy = x + 1
-                return x + helper_user_func(x)
-            end
-
-            local function helper_user_func_float(x)
-                return x + 1.0
-            end
-            local function test_user_func_spec_float(x)
-                local dummy = x + 1.0
-                return x + helper_user_func_float(x)
-            end
-
-            local function test_set_table_fallback(t, k, v)
-                FAKELUA_SET_TABLE(t, k, v)
-            end
-
-            local function helper_default_float(x)
-                local dummy = x + 1.0
-                if x > 0 then
-                    return x + 1.0
-                else
-                    error("error")
-                end
-            end
-            local function helper_default_int(x)
-                local dummy = x + 1
-                if x > 0 then
-                    return x + 1
-                end
-            end
-
-            -- Helper to compile specialized statements
-            local function helper_complete_spec(x, xf)
-                -- Force math param recognition
-                local dummy = x + 1
-                local dummy2 = xf + 1.0
-
-                -- Parentheses and not unwrapping
-                if ((x > 0)) then end
-                if not (x > 0) then end
-
-                -- Fallback assignment to specialized variable
-                x = foo(10)
-                xf = foo(20.0)
-
-                -- Arithmetic operators
-                local v_mul = x * x
-                local v_div = x / x
-                local v_pow = x ^ x
-                local v_fdiv_int = x // x
-                local v_fdiv_float = xf // xf
-                local v_mod_int = x % x
-                local v_mod_float = xf % xf
-
-                -- 1. Global constant T_INT assignment to specialized variable
-                local val_const = 0
-                val_const = MY_CONST_2
-
-                -- 2. Comparison with dynamic call where left is specialized and right is dynamic
-                local x_local = 5
-                if x_local > my_abs(foo(x)) then end
-
-                -- 3. Local variable shadowing
-                local y = x + 1
-                local res = 0
-                do
-                    local y = x + 2
-                    res = y
-                end
-
-                -- 4. Dynamic for-loop without step
-                local sum = 0
-                for i = foo(1), foo(5) do
-                    sum = sum + i
-                end
-
-                -- 5. Table constructor with specialized int key
-                local t = { [x] = 2 }
-
-                -- 6. Dynamic <= comparison
-                local le_val = xf <= foo(xf)
-
-                -- 7. Dynamic ~ bitnot
-                local not_val = ~foo(x)
-
-                return val_const + res + sum + t[x] + (le_val and 1 or 0) + not_val + dummy - dummy + dummy2 - dummy2 + v_mul - v_mul + v_div - v_div + v_pow - v_pow + v_fdiv_int - v_fdiv_int + v_fdiv_float - v_fdiv_float + v_mod_int - v_mod_int + v_mod_float - v_mod_float
-            end
-
-            function test_complete(x, xf)
-                local temp = x + 0
-                local tempf = xf + 0.0
-                return helper_complete_spec(x, xf) + test_bitwise_cvar(xf)
-            end
-
-            local function helper_specs_all(x)
-                -- Force math param recognition
-                local dummy = x + 1
-
-                local val1 = helper_spec_mixed(x)
-                local val2 = 0
-                if false then
-                    val2 = helper_spec_str(x)
-                end
-                local val3 = helper_spec_non_math(x)
-                local val4 = helper_spec_dynamic_ret(x)
-                local val5 = helper_spec_dynamic_arg(x)
-                local val6 = helper_upvalue_spec(x)
-                local val7 = 0
-                if test_bool_ret_spec(x) then
-                    val7 = 1
-                end
-                local val8 = test_user_func_spec(x)
-                local val9 = test_user_func_spec_float(x)
-
-                -- Fallback default returns
-                local val10 = helper_default_float(x) or 0.0
-                local val11 = helper_default_int(x) or 0
-
-                -- Unary minus and length
-                local val12 = -x
-                local val13 = 0
-                if false then
-                    val13 = #val1
-                end
-
-                -- Fallback while loop
-                while foo(1) do
-                    break
-                end
-
-                -- Trigger math.abs compiling fallback with native expression fail
-                if false then
-                    local b = x > 0
-                    local res_dyn = my_abs(b & 1)
-                end
-
-                local tbl = {}
-                test_set_table_fallback(tbl, "mykey", 123)
-
-                return val1 + val2 + val3 + val4 + val5 + val6 + val7 + val8 + val9 + val10 + val11 + val12 - val12 + val13 - val13 + dummy - dummy
-            end
-
-            function test_specs_helper(y)
-                local temp = y + 0
-                return helper_specs_all(y)
-            end
-        )",
-                      {.debug_mode = debug_mode, .record_c_code = true});
+        CompileFile(s, "./jit/test_complete.lua", {.debug_mode = debug_mode, .record_c_code = true});
         double ret_d = 0.0;
         Call(s, type, "test_complete", ret_d, 5, 5.0);
         ASSERT_DOUBLE_EQ(ret_d, 120.0);
+    });
+}
 
+TEST(jitter, test_specs_helper) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_specs_helper.lua", {.debug_mode = debug_mode});
         double ret_d2 = 0.0;
         Call(s, type, "test_specs_helper", ret_d2, 5);
         ASSERT_DOUBLE_EQ(ret_d2, 112.0);
     });
 }
 
-TEST(jitter, coverage_c_gen_compiler_errors_simple) {
+TEST(jitter, test_dup_const_error) {
     EXPECT_THROW({
         FakeluaStateGuard sg;
-        CompileString(sg.GetState(), R"(
-            local MY_CONST = 10
-            local MY_CONST = 20
-        )", {.debug_mode = true});
-    }, std::exception);
-    EXPECT_THROW({
-        FakeluaStateGuard sg;
-        CompileString(sg.GetState(), R"(
-            function test_dup(x, x)
-            end
-        )", {.debug_mode = true});
-    }, std::exception);
-    EXPECT_THROW({
-        FakeluaStateGuard sg;
-        CompileString(sg.GetState(), R"(
-            local MY_CONST = 10
-            function test()
-                local MY_CONST = 20
-            end
-        )", {.debug_mode = true});
+        CompileFile(sg.GetState(), "./jit/test_dup_const_error.lua", {.debug_mode = true});
     }, std::exception);
 }
 
-TEST(jitter, coverage_c_gen_native_arith_binop) {
+TEST(jitter, test_dup_param_error) {
+    EXPECT_THROW({
+        FakeluaStateGuard sg;
+        CompileFile(sg.GetState(), "./jit/test_dup_param_error.lua", {.debug_mode = true});
+    }, std::exception);
+}
+
+TEST(jitter, test_shadow_const_error) {
+    EXPECT_THROW({
+        FakeluaStateGuard sg;
+        CompileFile(sg.GetState(), "./jit/test_shadow_const_error.lua", {.debug_mode = true});
+    }, std::exception);
+}
+
+TEST(jitter, test_native_binop) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileString(s, R"(
-            local function foo(x)
-                return x
-            end
-
-            local function test_native_binop_int(x, y)
-                local dummy1 = x + 1
-                local dummy2 = y + 1
-                
-                local v_add = foo(x + y)
-                local v_sub = foo(x - y)
-                local v_mul = foo(x * y)
-                local v_div = foo(x / y)
-                local v_pow = foo(x ^ y)
-                local v_fdiv = foo(x // y)
-                local v_mod = foo(x % y)
-                local v_and = foo(x & y)
-                local v_or = foo(x | y)
-                local v_xor = foo(x ~ y)
-                local v_shl = foo(x << y)
-                local v_shr = foo(x >> y)
-                return 1
-            end
-            
-            local function test_native_binop_float(x, y)
-                local dummy1 = x + 1.0
-                local dummy2 = y + 1.0
-                
-                local v_add = foo(x + y)
-                local v_sub = foo(x - y)
-                local v_mul = foo(x * y)
-                local v_div = foo(x / y)
-                local v_pow = foo(x ^ y)
-                local v_fdiv = foo(x // y)
-                local v_mod = foo(x % y)
-                return 1
-            end
-
-            function test_entry(x, y, xf, yf)
-                local temp1 = x + 0
-                local temp2 = y + 0
-                local temp3 = xf + 0.0
-                local temp4 = yf + 0.0
-                return test_native_binop_int(x, y) + test_native_binop_float(xf, yf)
-            end
-        )", {.debug_mode = debug_mode});
+        CompileFile(s, "./jit/test_native_binop.lua", {.debug_mode = debug_mode});
         double ret_d = 0.0;
         Call(s, type, "test_entry", ret_d, 10, 3, 10.0, 3.0);
         ASSERT_DOUBLE_EQ(ret_d, 2.0);
     });
 }
 
+// --- Focused individual test cases (one scenario per test) ---
+
+TEST(jitter, table_constructor_string_int_generic_keys) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_constructor_string_int_generic_keys.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, "a", 2, true);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+TEST(jitter, math_spec_dynamic_call_fallback) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_math_spec_dynamic_call_fallback.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, -5);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+TEST(jitter, math_spec_string_arg_call) {
+    // Verifies that calling a math-specialized function with a string literal arg compiles correctly.
+    // The function itself would fail at runtime (arithmetic on string), so we only verify compilation.
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_math_spec_string_arg_call.lua", {.debug_mode = debug_mode});
+    });
+}
+
+TEST(jitter, bitwise_and_on_float_param) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitwise_and_on_float_param.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret, 5.0);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, bitnot_on_float_param) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitnot_on_float_param.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret, 5.0);
+        ASSERT_EQ(ret, ~5LL);
+    });
+}
+
+TEST(jitter, dynamic_le_comparison) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_le_comparison.lua", {.debug_mode = debug_mode});
+        bool ret = false;
+        Call(s, type, "test", ret, 5, 6);
+        ASSERT_TRUE(ret);
+        Call(s, type, "test", ret, 6, 5);
+        ASSERT_FALSE(ret);
+    });
+}
+
+TEST(jitter, table_field_access_in_arith) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_field_access_in_arith.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+TEST(jitter, global_const_int_in_expr) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_global_const_int_in_expr.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 45);
+    });
+}
+
+TEST(jitter, bitnot_on_specialized_int) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitnot_on_specialized_int.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, ~5);
+    });
+}
+
+TEST(jitter, bitnot_on_specialized_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitnot_on_specialized_float.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5.0);
+        ASSERT_EQ(ret, ~5);
+    });
+}
+
+TEST(jitter, shadow_local_in_do_block) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_shadow_local_in_do_block.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 99);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+TEST(jitter, table_dynamic_key_constructor) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_dynamic_key_constructor.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 7);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
+TEST(jitter, for_loop_no_explicit_step) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_loop_no_explicit_step.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 15);
+    });
+}
+
+TEST(jitter, spec_call_with_mixed_type_args) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_call_with_mixed_type_args.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 11);
+    });
+}
+
+TEST(jitter, spec_call_non_math_return) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_call_non_math_return.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 10);
+    });
+}
+
+TEST(jitter, spec_call_dynamic_return) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_call_dynamic_return.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 10);
+    });
+}
+
+TEST(jitter, spec_call_dynamic_arg) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_call_dynamic_arg.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 10);
+    });
+}
+
+TEST(jitter, bitwise_expr_as_cvar) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitwise_expr_as_cvar.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 5 & 1);
+    });
+}
+
+TEST(jitter, upvalue_in_specialized_func) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_upvalue_in_specialized_func.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret, 5.0);
+        ASSERT_DOUBLE_EQ(ret, 36.0);
+    });
+}
+
+TEST(jitter, bool_return_from_spec_func) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bool_return_from_spec_func.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, -1);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
+TEST(jitter, spec_func_returning_int) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_func_returning_int.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 11);
+    });
+}
+
+TEST(jitter, spec_func_returning_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_func_returning_float.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret, 5.0);
+        ASSERT_DOUBLE_EQ(ret, 11.0);
+    });
+}
+
+TEST(jitter, set_table_generic_fallback) {
+    std::vector<VarInterface *> tmp;
+    auto newfunc = [&]() {
+        auto ret = new SimpleVarImpl();
+        tmp.push_back(ret);
+        return ret;
+    };
+    JitterRunHelper([&](State *s, JITType type, bool debug_mode) {
+        SetVarInterfaceNewFunc(s, newfunc);
+        CompileFile(s, "./jit/test_set_table_generic_fallback.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, "mykey", 42);
+        ASSERT_EQ(ret, 42);
+    });
+    for (auto &i: tmp) {
+        delete i;
+    }
+}
+
+TEST(jitter, fallback_assign_to_spec_var) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_fallback_assign_to_spec_var.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret, 5, 5.0);
+        ASSERT_DOUBLE_EQ(ret, 30.0);
+    });
+}
+
+TEST(jitter, arith_ops_in_spec_func) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_arith_ops_in_spec_func.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3, 3.0);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
+TEST(jitter, global_const_int_assign_to_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_global_const_int_assign_to_local.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 100);
+    });
+}
+
+TEST(jitter, dynamic_for_loop_bounds) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_for_loop_bounds.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 15);
+    });
+}
+
+TEST(jitter, bool_expr_parens_and_not) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bool_expr_parens_and_not.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, -1);
+        ASSERT_EQ(ret, 10);
+    });
+}
+
+TEST(jitter, dynamic_le_with_spec_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_le_with_spec_float.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5.0);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, bitnot_on_dynamic_expr) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitnot_on_dynamic_expr.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, ~5);
+    });
+}
+
+TEST(jitter, duplicate_const_define_error) {
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_duplicate_const_define_error.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, duplicate_func_param_error) {
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_duplicate_func_param_error.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, shadow_global_const_error) {
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_shadow_global_const_error.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
