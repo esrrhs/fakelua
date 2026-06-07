@@ -1704,7 +1704,7 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
             break;
         }
         default: {
-            DEBUG_ASSERT(false && "unsupported stmt type");
+            ThrowError(std::format("not support stmt type: {}", SyntaxTreeTypeToString(stmt->Type())), stmt);
         }
     }
 }
@@ -2610,7 +2610,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     } else if (op_kind == BinOpKind::kNotEqual) {
         Out() << GenTab() << std::format("OpNe({}, {}, {});\n", l, r, tmp);
     } else {
-        DEBUG_ASSERT(false && "binary operator not supported");
+        ThrowError("binary operator not supported", op);
     }
 
     return tmp;
@@ -2645,7 +2645,7 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxT
     } else if (op_kind == UnOpKind::kNumberSign) {
         Out() << GenTab() << std::format("OpLen({}, {});\n", r, tmp);
     } else {
-        DEBUG_ASSERT(false && "unary operator not supported");
+        ThrowError("unary operator not supported", op);
     }
 
     return tmp;
@@ -2719,7 +2719,7 @@ std::string CGen::CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, co
                 Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
                 return itmp;
             }
-            DEBUG_ASSERT(false && "bitwise operand is not numeric");
+            ThrowError("bitwise operand is not numeric", operand_node);
             return {};
         };
         const auto left_int = to_int_operand(left, left_native);
@@ -2999,7 +2999,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
                 Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
                 return itmp;
             }
-            DEBUG_ASSERT(false && "bitwise operand is not numeric");
+            ThrowError("bitwise operand is not numeric", operand_node);
             return {};
         };
 
@@ -3071,7 +3071,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return ntmp;
         }
 
-        DEBUG_ASSERT(false && "operator is not supported in numeric specialization");
+        ThrowError("operator is not supported in numeric specialization", exp);
     } else if (exp_kind == ExpKind::kUnop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
         DEBUG_ASSERT(op);
@@ -3098,13 +3098,12 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
                 Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", operand, itmp);
                 return std::format("(~({}))", itmp);
             }
-            DEBUG_ASSERT(false && "bitwise operand is not numeric");
-            return {};
+            ThrowError("bitwise operand is not numeric", e->Right());
         }
-        DEBUG_ASSERT(false && "unary operator is not supported in numeric specialization");
+        ThrowError("unary operator is not supported in numeric specialization", exp);
     }
 
-    DEBUG_ASSERT(false && "unsupported numeric-specialized expression");
+    ThrowError("unsupported numeric-specialized expression", exp);
 }
 
 // ---------------------------------------------------------------------------
@@ -3343,7 +3342,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         if (compiled_args.size() != 3) {
             ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
         }
-        DEBUG_ASSERT(false && "FAKELUA_SET_TABLE should have been handled by early fast path");
+        ThrowError("FAKELUA_SET_TABLE should have been handled by early fast path", functioncall);
         return "";
     }
 
