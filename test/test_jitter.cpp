@@ -357,8 +357,9 @@ TEST(jitter, test_local_nested_table) {
 
         // need sort kv
         dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
-        ASSERT_EQ(t->ViToString(0), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-                                    "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+        ASSERT_EQ(t->ViToString(0),
+                  "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
+                  "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
     });
     for (auto &i: tmp) {
         delete i;
@@ -1431,9 +1432,8 @@ TEST(jitter, test_local_func_call_string) {
 // Dynamic function call via local variable: compiles successfully, but will naturally
 // fail at runtime since the local variable name "c" is used as the literal function name.
 TEST(jitter, test_var_func_call) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_var_func_call.lua", {.debug_mode = debug_mode});
-    });
+    JitterRunHelper(
+            [](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_var_func_call.lua", {.debug_mode = debug_mode}); });
 }
 
 // Dynamic function call via table index (c[k](a,b)) is not supported.
@@ -1564,7 +1564,7 @@ TEST(jitter, test_assign_same_line_multi) {
         CompileFile(s, "./jit/test_assign_same_line_multi.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 10); // 1 + 2 + 3 + 4 = 10
+        ASSERT_EQ(ret, 10);// 1 + 2 + 3 + 4 = 10
     });
 }
 
@@ -1728,8 +1728,7 @@ TEST(jitter, test_for_loop_zero_step_float) {
 // compiles without error.
 TEST(jitter, test_for_loop_zero_step_dynamic) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        EXPECT_NO_THROW(
-                CompileFile(s, "./jit/test_for_loop_zero_step_dynamic.lua", {.debug_mode = debug_mode}));
+        EXPECT_NO_THROW(CompileFile(s, "./jit/test_for_loop_zero_step_dynamic.lua", {.debug_mode = debug_mode}));
     });
 }
 
@@ -1839,4 +1838,471 @@ TEST(jitter, test_table_zero_key) {
     for (auto &i: tmp) {
         delete i;
     }
+}
+
+TEST(jitter, test_table_construct) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_construct.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_table_construct", ret);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+TEST(jitter, test_math_specializations) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_math_specializations.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test_math_specializations", ret, -5);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+TEST(jitter, test_bitwise_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitwise_float.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_bitwise_float", ret, 5.0);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, test_bitnot_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitnot_float.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_bitnot_float", ret, 5.0);
+        ASSERT_EQ(ret, ~5);
+    });
+}
+
+TEST(jitter, test_dynamic_le) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_le.lua", {.debug_mode = debug_mode});
+        bool ret_b = false;
+        Call(s, type, "test_dynamic_le", ret_b, 5, 6);
+        ASSERT_TRUE(ret_b);
+    });
+}
+
+TEST(jitter, test_more_coverage) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_more_coverage.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_more_coverage", ret, 5, 5.0);
+        ASSERT_EQ(ret, 41);
+    });
+}
+
+TEST(jitter, test_shadow_coverage) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_shadow_coverage.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_shadow_coverage", ret, 5);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+TEST(jitter, test_table_spec) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_spec.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_table_spec", ret, 5);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
+TEST(jitter, test_for_no_step) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_no_step.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_for_no_step", ret, 5);
+        ASSERT_EQ(ret, 15);
+    });
+}
+
+TEST(jitter, test_spec_call_arg_count_error) {
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_spec_call_arg_count_error.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_set_table_arg_count_error) {
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_set_table_arg_count_error1.lua", {.debug_mode = true});
+            },
+            std::exception);
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_set_table_arg_count_error2.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_complete) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_complete.lua", {.debug_mode = debug_mode, .record_c_code = true});
+        double ret_d = 0.0;
+        Call(s, type, "test_complete", ret_d, 5, 5.0);
+        ASSERT_DOUBLE_EQ(ret_d, 120.0);
+    });
+}
+
+TEST(jitter, test_specs_helper) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_specs_helper.lua", {.debug_mode = debug_mode});
+        double ret_d2 = 0.0;
+        Call(s, type, "test_specs_helper", ret_d2, 5);
+        ASSERT_DOUBLE_EQ(ret_d2, 112.0);
+    });
+}
+
+TEST(jitter, test_dup_const_error) {
+    EXPECT_THROW({
+        FakeluaStateGuard sg;
+        CompileFile(sg.GetState(), "./jit/test_dup_const_error.lua", {.debug_mode = true});
+    }, std::exception);
+}
+
+TEST(jitter, test_dup_param_error) {
+    EXPECT_THROW({
+        FakeluaStateGuard sg;
+        CompileFile(sg.GetState(), "./jit/test_dup_param_error.lua", {.debug_mode = true});
+    }, std::exception);
+}
+
+TEST(jitter, test_shadow_const_error) {
+    EXPECT_THROW({
+        FakeluaStateGuard sg;
+        CompileFile(sg.GetState(), "./jit/test_shadow_const_error.lua", {.debug_mode = true});
+    }, std::exception);
+}
+
+TEST(jitter, test_native_binop) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_native_binop.lua", {.debug_mode = debug_mode});
+        double ret_d = 0.0;
+        Call(s, type, "test_entry", ret_d, 10, 3, 10.0, 3.0);
+        ASSERT_DOUBLE_EQ(ret_d, 2.0);
+    });
+}
+
+// --- Focused individual test cases (one scenario per test) ---
+
+TEST(jitter, table_constructor_string_int_generic_keys) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_constructor_string_int_generic_keys.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, "a", 2, true);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+TEST(jitter, math_spec_dynamic_call_fallback) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_math_spec_dynamic_call_fallback.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, -5);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+TEST(jitter, math_spec_string_arg_call) {
+    // Verifies that calling a math-specialized function with a string literal arg compiles correctly.
+    // The function itself would fail at runtime (arithmetic on string), so we only verify compilation.
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_math_spec_string_arg_call.lua", {.debug_mode = debug_mode});
+    });
+}
+
+TEST(jitter, bitwise_and_on_float_param) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitwise_and_on_float_param.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret, 5.0);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, bitnot_on_float_param) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitnot_on_float_param.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret, 5.0);
+        ASSERT_EQ(ret, ~5LL);
+    });
+}
+
+TEST(jitter, dynamic_le_comparison) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_le_comparison.lua", {.debug_mode = debug_mode});
+        bool ret = false;
+        Call(s, type, "test", ret, 5, 6);
+        ASSERT_TRUE(ret);
+        Call(s, type, "test", ret, 6, 5);
+        ASSERT_FALSE(ret);
+    });
+}
+
+TEST(jitter, table_field_access_in_arith) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_field_access_in_arith.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+TEST(jitter, global_const_int_in_expr) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_global_const_int_in_expr.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3);
+        ASSERT_EQ(ret, 45);
+    });
+}
+
+TEST(jitter, bitnot_on_specialized_int) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitnot_on_specialized_int.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, ~5);
+    });
+}
+
+TEST(jitter, bitnot_on_specialized_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitnot_on_specialized_float.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5.0);
+        ASSERT_EQ(ret, ~5);
+    });
+}
+
+TEST(jitter, shadow_local_in_do_block) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_shadow_local_in_do_block.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 99);
+        ASSERT_EQ(ret, 6);
+    });
+}
+
+TEST(jitter, table_dynamic_key_constructor) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_dynamic_key_constructor.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 7);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
+TEST(jitter, for_loop_no_explicit_step) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_for_loop_no_explicit_step.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 15);
+    });
+}
+
+TEST(jitter, spec_call_with_mixed_type_args) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_call_with_mixed_type_args.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 11);
+    });
+}
+
+TEST(jitter, spec_call_non_math_return) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_call_non_math_return.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 10);
+    });
+}
+
+TEST(jitter, spec_call_dynamic_return) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_call_dynamic_return.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 10);
+    });
+}
+
+TEST(jitter, spec_call_dynamic_arg) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_call_dynamic_arg.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 10);
+    });
+}
+
+TEST(jitter, bitwise_expr_as_cvar) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitwise_expr_as_cvar.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 5 & 1);
+    });
+}
+
+TEST(jitter, upvalue_in_specialized_func) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_upvalue_in_specialized_func.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret, 5.0);
+        ASSERT_DOUBLE_EQ(ret, 36.0);
+    });
+}
+
+TEST(jitter, bool_return_from_spec_func) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bool_return_from_spec_func.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, -1);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
+TEST(jitter, spec_func_returning_int) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_func_returning_int.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 11);
+    });
+}
+
+TEST(jitter, spec_func_returning_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_spec_func_returning_float.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret, 5.0);
+        ASSERT_DOUBLE_EQ(ret, 11.0);
+    });
+}
+
+TEST(jitter, set_table_generic_fallback) {
+    std::vector<VarInterface *> tmp;
+    auto newfunc = [&]() {
+        auto ret = new SimpleVarImpl();
+        tmp.push_back(ret);
+        return ret;
+    };
+    JitterRunHelper([&](State *s, JITType type, bool debug_mode) {
+        SetVarInterfaceNewFunc(s, newfunc);
+        CompileFile(s, "./jit/test_set_table_generic_fallback.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, "mykey", 42);
+        ASSERT_EQ(ret, 42);
+    });
+    for (auto &i: tmp) {
+        delete i;
+    }
+}
+
+TEST(jitter, fallback_assign_to_spec_var) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_fallback_assign_to_spec_var.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test", ret, 5, 5.0);
+        ASSERT_DOUBLE_EQ(ret, 30.0);
+    });
+}
+
+TEST(jitter, arith_ops_in_spec_func) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_arith_ops_in_spec_func.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 3, 3.0);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
+TEST(jitter, global_const_int_assign_to_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_global_const_int_assign_to_local.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 100);
+    });
+}
+
+TEST(jitter, dynamic_for_loop_bounds) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_for_loop_bounds.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 0);
+        ASSERT_EQ(ret, 15);
+    });
+}
+
+TEST(jitter, bool_expr_parens_and_not) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bool_expr_parens_and_not.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test", ret, -1);
+        ASSERT_EQ(ret, 10);
+    });
+}
+
+TEST(jitter, dynamic_le_with_spec_float) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_dynamic_le_with_spec_float.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5.0);
+        ASSERT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, bitnot_on_dynamic_expr) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_bitnot_on_dynamic_expr.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, ~5);
+    });
+}
+
+TEST(jitter, duplicate_const_define_error) {
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_duplicate_const_define_error.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, duplicate_func_param_error) {
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_duplicate_func_param_error.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, shadow_global_const_error) {
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_shadow_global_const_error.lua", {.debug_mode = true});
+            },
+            std::exception);
 }
