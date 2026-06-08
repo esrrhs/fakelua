@@ -148,10 +148,8 @@ private:
     void CompileStmtBreak(const SyntaxTreeInterfacePtr &stmt);
     // 编译 for 数值循环语句（根据控制变量的类型分发至特化循环编译）
     void CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt);
-    // 编译控制变量特化为整数的高效原生 for 循环
-    void CompileTypedIntForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt);
-    // 编译控制变量特化为浮点数的高效原生 for 循环
-    void CompileTypedFloatForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt);
+    // 编译控制变量特化为数值的高效原生 for 循环
+    void CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt, InferredType loop_type);
     // 编译变量类型可能动态变化的通用 for 循环
     void CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt);
     // 编译泛型 for-in 遍历循环（如 ipairs/pairs 循环）
@@ -194,6 +192,9 @@ private:
     // 生成原生二元算术运算的代码
     std::string CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
                                         InferredType lt, InferredType rt);
+    // 生成底层未包装的原生算术/位运算表达式源码
+    std::string CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
+                                           InferredType result_type);
     // 生成原生二元比较运算的代码
     std::string CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
                                       InferredType lt, InferredType rt);

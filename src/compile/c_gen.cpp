@@ -2022,7 +2022,7 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
                                LookupNodeType(for_stmt->ExpEnd().get()) == T_INT &&
                                (!for_stmt->ExpStep() || LookupNodeType(for_stmt->ExpStep().get()) == T_INT);
     if (typed_int_for) {
-        CompileTypedIntForLoop(for_stmt);
+        CompileTypedNumericForLoop(for_stmt, T_INT);
         return;
     }
 
@@ -2034,101 +2034,62 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
             (LookupNodeType(for_stmt->ExpBegin().get()) == T_INT || LookupNodeType(for_stmt->ExpBegin().get()) == T_FLOAT) &&
             (LookupNodeType(for_stmt->ExpEnd().get()) == T_INT || LookupNodeType(for_stmt->ExpEnd().get()) == T_FLOAT) && step_is_numeric;
     if (typed_float_for) {
-        CompileTypedFloatForLoop(for_stmt);
+        CompileTypedNumericForLoop(for_stmt, T_FLOAT);
         return;
     }
 
     CompileDynamicForLoop(for_stmt);
 }
 
-void CGen::CompileTypedIntForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt) {
+void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt, InferredType loop_type) {
     const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
     const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
     const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
 
-    func_temp_decls_ << "    int64_t " << ctrl_var << ";\n";
-    func_temp_decls_ << "    int64_t " << end_var << ";\n";
-    func_temp_decls_ << "    int64_t " << step_var << ";\n";
+    const std::string type_str = (loop_type == T_INT) ? "int64_t" : "double";
+    const std::string zero_str = (loop_type == T_INT) ? "0" : "0.0";
+    const std::string step_default = (loop_type == T_INT) ? "1" : "1.0";
+    const std::string cast_prefix = (loop_type == T_INT) ? "" : "(double)";
+
+    func_temp_decls_ << "    " << type_str << " " << ctrl_var << ";\n";
+    func_temp_decls_ << "    " << type_str << " " << end_var << ";\n";
+    func_temp_decls_ << "    " << type_str << " " << step_var << ";\n";
 
     const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
-    Out() << GenTab() << ctrl_var << " = " << native_begin << ";\n";
+    Out() << GenTab() << ctrl_var << " = " << cast_prefix << "(" << native_begin << ");\n";
     const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
-    Out() << GenTab() << end_var << " = " << native_end << ";\n";
-    if (for_stmt->ExpStep()) {
-        if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
-            step_exp && step_exp->GetExpKind() == ExpKind::kNumber && LookupNodeType(step_exp.get()) == T_INT &&
-            ToInteger(step_exp->ExpValue()) == 0) {
-            ThrowError("'for' step is zero", for_stmt->ExpStep());
-        }
-        const auto native_step = CompileNumericExp(for_stmt->ExpStep());
-        Out() << GenTab() << step_var << " = " << native_step << ";\n";
-    } else {
-        Out() << GenTab() << step_var << " = 1;\n";
-    }
-    Out() << GenTab() << "if (" << step_var << " == 0) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
-
-    Out() << GenTab() << "for (; (" << step_var << " > 0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " << end_var
-          << "); " << ctrl_var << " += " << step_var << ") {\n";
-    cur_tab_++;
-    EnterNativeVarScope();
-    if (LookupNodeType(for_stmt.get()) == T_INT) {
-        Out() << GenTab() << "int64_t " << for_stmt->Name() << " = " << ctrl_var << ";\n";
-        DeclareNativeVar(for_stmt->Name(), T_INT);
-    } else {
-        Out() << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_INT) << ";\n";
-        DeclareNativeVar(for_stmt->Name(), T_DYNAMIC);
-    }
-    // 用内层作用域包裹循环体，避免 local 同名变量与循环变量在同一 C 作用域中重复声明。
-    Out() << GenTab() << "{\n";
-    cur_tab_++;
-    EnterNativeVarScope();
-    CompileStmtBlock(for_stmt->Block());
-    ExitNativeVarScope();
-    cur_tab_--;
-    Out() << GenTab() << "}\n";
-    ExitNativeVarScope();
-    cur_tab_--;
-    Out() << GenTab() << "}\n";
-}
-
-void CGen::CompileTypedFloatForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt) {
-    const auto ctrl_var = std::format("flua_for_ctrl_{}", tmp_var_counter_++);
-    const auto end_var = std::format("flua_for_end_{}", tmp_var_counter_++);
-    const auto step_var = std::format("flua_for_step_{}", tmp_var_counter_++);
-
-    func_temp_decls_ << "    double " << ctrl_var << ";\n";
-    func_temp_decls_ << "    double " << end_var << ";\n";
-    func_temp_decls_ << "    double " << step_var << ";\n";
-
-    const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
-    Out() << GenTab() << ctrl_var << " = (double)(" << native_begin << ");\n";
-    const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
-    Out() << GenTab() << end_var << " = (double)(" << native_end << ");\n";
+    Out() << GenTab() << end_var << " = " << cast_prefix << "(" << native_end << ");\n";
     if (for_stmt->ExpStep()) {
         if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
             step_exp && step_exp->GetExpKind() == ExpKind::kNumber) {
-            const double step_val = (LookupNodeType(step_exp.get()) == T_INT) ? static_cast<double>(ToInteger(step_exp->ExpValue()))
-                                                                              : ToFloat(step_exp->ExpValue());
-            if (step_val == 0.0) {
-                ThrowError("'for' step is zero", for_stmt->ExpStep());
+            if (loop_type == T_INT) {
+                if (LookupNodeType(step_exp.get()) == T_INT && ToInteger(step_exp->ExpValue()) == 0) {
+                    ThrowError("'for' step is zero", for_stmt->ExpStep());
+                }
+            } else {
+                const double step_val = (LookupNodeType(step_exp.get()) == T_INT) ? static_cast<double>(ToInteger(step_exp->ExpValue()))
+                                                                                  : ToFloat(step_exp->ExpValue());
+                if (step_val == 0.0) {
+                    ThrowError("'for' step is zero", for_stmt->ExpStep());
+                }
             }
         }
         const auto native_step = CompileNumericExp(for_stmt->ExpStep());
-        Out() << GenTab() << step_var << " = (double)(" << native_step << ");\n";
+        Out() << GenTab() << step_var << " = " << cast_prefix << "(" << native_step << ");\n";
     } else {
-        Out() << GenTab() << step_var << " = 1.0;\n";
+        Out() << GenTab() << step_var << " = " << step_default << ";\n";
     }
-    Out() << GenTab() << "if (" << step_var << " == 0.0) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+    Out() << GenTab() << "if (" << step_var << " == " << zero_str << ") { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
 
-    Out() << GenTab() << "for (; (" << step_var << " > 0.0) ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
+    Out() << GenTab() << "for (; (" << step_var << " > " << zero_str << ") ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
           << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
     cur_tab_++;
     EnterNativeVarScope();
-    if (LookupNodeType(for_stmt.get()) == T_FLOAT) {
-        Out() << GenTab() << "double " << for_stmt->Name() << " = " << ctrl_var << ";\n";
-        DeclareNativeVar(for_stmt->Name(), T_FLOAT);
+    if (LookupNodeType(for_stmt.get()) == loop_type) {
+        Out() << GenTab() << type_str << " " << for_stmt->Name() << " = " << ctrl_var << ";\n";
+        DeclareNativeVar(for_stmt->Name(), loop_type);
     } else {
-        Out() << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, T_FLOAT) << ";\n";
+        Out() << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, loop_type) << ";\n";
         DeclareNativeVar(for_stmt->Name(), T_DYNAMIC);
     }
     // 用内层作用域包裹循环体，避免 local 同名变量与循环变量在同一 C 作用域中重复声明。
@@ -2641,83 +2602,97 @@ std::string CGen::CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, co
         result_type = (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
     }
 
-    const auto left_native = CompileNumericExp(left);
-    const auto right_native = CompileNumericExp(right);
-    std::string native_expr;
-
-    if (op_kind == BinOpKind::kPlus) {
-        native_expr = std::format("(({}) + ({}))", left_native, right_native);
-    } else if (op_kind == BinOpKind::kMinus) {
-        native_expr = std::format("(({}) - ({}))", left_native, right_native);
-    } else if (op_kind == BinOpKind::kStar) {
-        native_expr = std::format("(({}) * ({}))", left_native, right_native);
-    } else if (op_kind == BinOpKind::kSlash) {
-        native_expr = std::format("((double)({}) / (double)({}))", left_native, right_native);
-    } else if (op_kind == BinOpKind::kPow) {
-        native_expr = std::format("pow((double)({}), (double)({}))", left_native, right_native);
-    } else if (op_kind == BinOpKind::kDoubleSlash) {
-        if (result_type == T_INT) {
-            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-            Out() << GenTab() << std::format("FlFloorDivInt(({}), ({}), {});\n", left_native, right_native, ntmp);
-            native_expr = ntmp;
-        } else {
-            native_expr = std::format("floor((double)({}) / (double)({}))", left_native, right_native);
-        }
-    } else if (op_kind == BinOpKind::kMod) {
-        if (result_type == T_INT) {
-            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-            Out() << GenTab() << std::format("FlModInt(({}), ({}), {});\n", left_native, right_native, ntmp);
-            native_expr = ntmp;
-        } else {
-            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    double " << ntmp << ";\n";
-            Out() << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left_native, right_native, ntmp);
-            native_expr = ntmp;
-        }
-    } else if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kXor ||
-               op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
-        const auto to_int_operand = [&](const SyntaxTreeInterfacePtr &operand_node, const std::string &native_operand) -> std::string {
-            const auto operand_type = InferArgTypeForSpec(operand_node);
-            if (operand_type == T_INT) {
-                return std::format("(int64_t)({})", native_operand);
-            }
-            if (operand_type == T_FLOAT) {
-                const auto itmp = std::format("flua_native_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    int64_t " << itmp << ";\n";
-                Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
-                return itmp;
-            }
-            ThrowError("bitwise operand is not numeric", operand_node);
-            return {};
-        };
-        const auto left_int = to_int_operand(left, left_native);
-        const auto right_int = to_int_operand(right, right_native);
-        if (op_kind == BinOpKind::kBitAnd) {
-            native_expr = std::format("(({}) & ({}))", left_int, right_int);
-        } else if (op_kind == BinOpKind::kBitOr) {
-            native_expr = std::format("(({}) | ({}))", left_int, right_int);
-        } else if (op_kind == BinOpKind::kXor) {
-            native_expr = std::format("(({}) ^ ({}))", left_int, right_int);
-        } else if (op_kind == BinOpKind::kLeftShift) {
-            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-            Out() << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left_int, right_int, ntmp);
-            native_expr = ntmp;
-        } else if (op_kind == BinOpKind::kRightShift) {
-            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-            Out() << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left_int, right_int, ntmp);
-            native_expr = ntmp;
-        }
-    }
-
+    const auto native_expr = CompileRawNativeArithBinop(left, right, op_kind, result_type);
     DEBUG_ASSERT(!native_expr.empty());
     const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
     func_temp_decls_ << "    CVar " << tmp << ";\n";
     Out() << GenTab() << tmp << " = " << BoxNativeValue(native_expr, result_type) << ";\n";
     return tmp;
+}
+
+std::string CGen::CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
+                                             InferredType result_type) {
+    const auto left_native = CompileNumericExp(left);
+    const auto right_native = CompileNumericExp(right);
+
+    const auto to_int_operand = [&](const SyntaxTreeInterfacePtr &operand_node, const std::string &native_operand) -> std::string {
+        const auto operand_type = InferArgTypeForSpec(operand_node);
+        if (operand_type == T_INT) {
+            return std::format("(int64_t)({})", native_operand);
+        }
+        if (operand_type == T_FLOAT) {
+            const auto itmp = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << itmp << ";\n";
+            Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
+            return itmp;
+        }
+        ThrowError("bitwise operand is not numeric", operand_node);
+        return {};
+    };
+
+    if (op_kind == BinOpKind::kPlus) {
+        return std::format("(({}) + ({}))", left_native, right_native);
+    }
+    if (op_kind == BinOpKind::kMinus) {
+        return std::format("(({}) - ({}))", left_native, right_native);
+    }
+    if (op_kind == BinOpKind::kStar) {
+        return std::format("(({}) * ({}))", left_native, right_native);
+    }
+    if (op_kind == BinOpKind::kSlash) {
+        return std::format("((double)({}) / (double)({}))", left_native, right_native);
+    }
+    if (op_kind == BinOpKind::kPow) {
+        return std::format("pow((double)({}), (double)({}))", left_native, right_native);
+    }
+    if (op_kind == BinOpKind::kDoubleSlash) {
+        if (result_type == T_INT) {
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+            Out() << GenTab() << std::format("FlFloorDivInt(({}), ({}), {});\n", left_native, right_native, ntmp);
+            return ntmp;
+        }
+        return std::format("floor((double)({}) / (double)({}))", left_native, right_native);
+    }
+    if (op_kind == BinOpKind::kMod) {
+        if (result_type == T_INT) {
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+            Out() << GenTab() << std::format("FlModInt(({}), ({}), {});\n", left_native, right_native, ntmp);
+            return ntmp;
+        }
+        const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    double " << ntmp << ";\n";
+        Out() << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left_native, right_native, ntmp);
+        return ntmp;
+    }
+    if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kXor ||
+        op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
+        const auto left_int = to_int_operand(left, left_native);
+        const auto right_int = to_int_operand(right, right_native);
+        if (op_kind == BinOpKind::kBitAnd) {
+            return std::format("(({}) & ({}))", left_int, right_int);
+        }
+        if (op_kind == BinOpKind::kBitOr) {
+            return std::format("(({}) | ({}))", left_int, right_int);
+        }
+        if (op_kind == BinOpKind::kXor) {
+            return std::format("(({}) ^ ({}))", left_int, right_int);
+        }
+        if (op_kind == BinOpKind::kLeftShift) {
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+            Out() << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left_int, right_int, ntmp);
+            return ntmp;
+        }
+        if (op_kind == BinOpKind::kRightShift) {
+            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
+            Out() << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left_int, right_int, ntmp);
+            return ntmp;
+        }
+    }
+    return "";
 }
 
 std::string CGen::CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
@@ -2948,92 +2923,11 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return CompileNumericExp(e->Left());
         }
 
-        const auto left = CompileNumericExp(e->Left());
-        const auto right = CompileNumericExp(e->Right());
-
-        const auto to_int_operand = [&](const SyntaxTreeInterfacePtr &operand_node, const std::string &native_operand) -> std::string {
-            const auto operand_type = InferArgTypeForSpec(operand_node);
-            if (operand_type == T_INT) {
-                return std::format("(int64_t)({})", native_operand);
-            }
-            if (operand_type == T_FLOAT) {
-                const auto itmp = std::format("flua_native_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    int64_t " << itmp << ";\n";
-                Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
-                return itmp;
-            }
-            ThrowError("bitwise operand is not numeric", operand_node);
-            return {};
-        };
-
-        if (op_kind == BinOpKind::kPlus) {
-            return std::format("(({}) + ({}))", left, right);
+        const auto result_type = LookupNodeType(e.get());
+        const auto res = CompileRawNativeArithBinop(e->Left(), e->Right(), op_kind, result_type);
+        if (!res.empty()) {
+            return res;
         }
-        if (op_kind == BinOpKind::kMinus) {
-            return std::format("(({}) - ({}))", left, right);
-        }
-        if (op_kind == BinOpKind::kStar) {
-            return std::format("(({}) * ({}))", left, right);
-        }
-        if (op_kind == BinOpKind::kSlash) {
-            return std::format("((double)({}) / (double)({}))", left, right);
-        }
-        if (op_kind == BinOpKind::kPow) {
-            return std::format("pow((double)({}), (double)({}))", left, right);
-        }
-        if (op_kind == BinOpKind::kDoubleSlash) {
-            if (LookupNodeType(e.get()) == T_INT) {
-                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-                Out() << GenTab() << std::format("FlFloorDivInt(({}), ({}), {});\n", left, right, ntmp);
-                return ntmp;
-            }
-            return std::format("floor((double)({}) / (double)({}))", left, right);
-        }
-        if (op_kind == BinOpKind::kMod) {
-            if (LookupNodeType(e.get()) == T_INT) {
-                const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-                Out() << GenTab() << std::format("FlModInt(({}), ({}), {});\n", left, right, ntmp);
-                return ntmp;
-            }
-            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    double " << ntmp << ";\n";
-            Out() << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left, right, ntmp);
-            return ntmp;
-        }
-        if (op_kind == BinOpKind::kBitAnd) {
-            const auto left_int = to_int_operand(e->Left(), left);
-            const auto right_int = to_int_operand(e->Right(), right);
-            return std::format("(({}) & ({}))", left_int, right_int);
-        }
-        if (op_kind == BinOpKind::kBitOr) {
-            const auto left_int = to_int_operand(e->Left(), left);
-            const auto right_int = to_int_operand(e->Right(), right);
-            return std::format("(({}) | ({}))", left_int, right_int);
-        }
-        if (op_kind == BinOpKind::kXor) {
-            const auto left_int = to_int_operand(e->Left(), left);
-            const auto right_int = to_int_operand(e->Right(), right);
-            return std::format("(({}) ^ ({}))", left_int, right_int);
-        }
-        if (op_kind == BinOpKind::kLeftShift) {
-            const auto left_int = to_int_operand(e->Left(), left);
-            const auto right_int = to_int_operand(e->Right(), right);
-            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-            Out() << GenTab() << std::format("FlLShiftInt(({}), ({}), {});\n", left_int, right_int, ntmp);
-            return ntmp;
-        }
-        if (op_kind == BinOpKind::kRightShift) {
-            const auto left_int = to_int_operand(e->Left(), left);
-            const auto right_int = to_int_operand(e->Right(), right);
-            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-            func_temp_decls_ << "    int64_t " << ntmp << ";\n";
-            Out() << GenTab() << std::format("FlRShiftInt(({}), ({}), {});\n", left_int, right_int, ntmp);
-            return ntmp;
-        }
-
         ThrowError("operator is not supported in numeric specialization", exp);
     } else if (exp_kind == ExpKind::kUnop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
