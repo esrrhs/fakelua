@@ -1423,7 +1423,6 @@ bool CGen::TryInferMathCallBitmask(const std::string &callee_name, const std::ve
         }
         return true;
     }
-    DEBUG_ASSERT(false && "callee_name should be a math function");
     return false;
 }
 
@@ -2366,7 +2365,6 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
         return CompileUnop(right, op);
     }
 
-    DEBUG_ASSERT(false && "unreachable");
     ThrowError("unsupported expression kind", e);
 }
 
@@ -2691,7 +2689,6 @@ std::string CGen::CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, co
                 Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
                 return itmp;
             }
-            DEBUG_ASSERT(false && "bitwise operand should be numeric");
             ThrowError("bitwise operand is not numeric", operand_node);
             return {};
         };
@@ -2913,7 +2910,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             if (const auto native_result = TryCompileNativeSpecCallExpr(pe->GetValue()); !native_result.empty()) {
                 return native_result;
             }
-            DEBUG_ASSERT(false && "unreachable PrefixExpKind");
+            ThrowError("function call cannot be specialized as numeric", exp);
         }
     } else if (exp_kind == ExpKind::kBinop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
@@ -2965,7 +2962,6 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
                 Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
                 return itmp;
             }
-            DEBUG_ASSERT(false && "bitwise operand should be numeric");
             ThrowError("bitwise operand is not numeric", operand_node);
             return {};
         };
@@ -3301,7 +3297,6 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         if (compiled_args.size() != 3) {
             ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
         }
-        DEBUG_ASSERT(false && "FAKELUA_SET_TABLE should have been handled by early fast path");
         ThrowError("FAKELUA_SET_TABLE should have been handled by early fast path", functioncall);
         return "";
     }
