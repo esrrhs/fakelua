@@ -2306,3 +2306,95 @@ TEST(jitter, shadow_global_const_error) {
             },
             std::exception);
 }
+
+TEST(jitter, test_math_spec_too_few_args) {
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_math_spec_too_few_args.lua", {.debug_mode = true});
+            },
+            std::exception);
+}
+
+TEST(jitter, test_shadow_typed_local) {
+    FakeluaStateGuard sg;
+    CompileFile(sg.GetState(), "./jit/test_shadow_typed_local.lua", {.debug_mode = true});
+    double ret = 0.0;
+    Call(sg.GetState(), JIT_TCC, "test_shadow", ret, 1.0);
+    EXPECT_DOUBLE_EQ(ret, 1.0);
+}
+
+TEST(jitter, test_math_spec_float_global) {
+    FakeluaStateGuard sg;
+    CompileFile(sg.GetState(), "./jit/test_math_spec_float_global.lua", {.debug_mode = true});
+    double ret = 0.0;
+    Call(sg.GetState(), JIT_TCC, "test_global", ret, 1.0);
+    EXPECT_DOUBLE_EQ(ret, 2.5);
+}
+
+TEST(jitter, test_math_spec_non_spec_call) {
+    FakeluaStateGuard sg;
+    CompileFile(sg.GetState(), "./jit/test_math_spec_non_spec_call.lua", {.debug_mode = true});
+    double ret = 0.0;
+    Call(sg.GetState(), JIT_TCC, "test_call", ret, 1.0);
+    EXPECT_DOUBLE_EQ(ret, 3.0);
+    double ret2 = 0.0;
+    Call(sg.GetState(), JIT_TCC, "test_call_non_native", ret2, 1.0);
+    EXPECT_DOUBLE_EQ(ret2, 3.0);
+}
+
+TEST(jitter, test_math_spec_non_bool_cond) {
+    FakeluaStateGuard sg;
+    CompileFile(sg.GetState(), "./jit/test_math_spec_non_bool_cond.lua", {.debug_mode = true});
+    double ret = 0.0;
+    Call(sg.GetState(), JIT_TCC, "test_cond", ret, 1.0);
+    EXPECT_DOUBLE_EQ(ret, 2.0);
+}
+
+TEST(jitter, test_math_spec_unsupported_op) {
+    FakeluaStateGuard sg;
+    CompileFile(sg.GetState(), "./jit/test_math_spec_unsupported_op.lua", {.debug_mode = true});
+    double ret = 0.0;
+    Call(sg.GetState(), JIT_TCC, "test_unsupported", ret, 1.0, 2.0, 3.0);
+    EXPECT_DOUBLE_EQ(ret, 1.0);
+}
+
+TEST(jitter, test_table_construct_unsupported_key) {
+    FakeluaStateGuard sg;
+    CompileFile(sg.GetState(), "./jit/test_table_construct_unsupported_key.lua", {.debug_mode = true});
+    double ret = 0.0;
+    Call(sg.GetState(), JIT_TCC, "test_construct", ret, "abc");
+    EXPECT_DOUBLE_EQ(ret, 42.0);
+}
+
+TEST(jitter, test_math_spec_non_native_arg) {
+    FakeluaStateGuard sg;
+    CompileFile(sg.GetState(), "./jit/test_math_spec_non_native_arg.lua", {.debug_mode = true});
+    double ret = 0.0;
+    Call(sg.GetState(), JIT_TCC, "test_sin", ret, 1.0, "abc");
+    EXPECT_DOUBLE_EQ(ret, 4.0);
+}
+
+TEST(jitter, test_math_spec_unsupported_unop) {
+    FakeluaStateGuard sg;
+    CompileFile(sg.GetState(), "./jit/test_math_spec_unsupported_unop.lua", {.debug_mode = true});
+    double ret = 0.0;
+    Call(sg.GetState(), JIT_TCC, "test_unsupported_unop", ret, 1.0);
+    EXPECT_DOUBLE_EQ(ret, 1.0);
+}
+
+TEST(jitter, test_math_spec_args_not_list) {
+    FakeluaStateGuard sg;
+    CompileFile(sg.GetState(), "./jit/test_math_spec_args_not_list.lua", {.debug_mode = true});
+    double ret = 0.0;
+    Call(sg.GetState(), JIT_TCC, "test_args_not_list", ret, 1.0);
+    EXPECT_DOUBLE_EQ(ret, 1.0);
+}
+
+TEST(jitter, test_math_call_non_spec_unsupported_arg) {
+    FakeluaStateGuard sg;
+    CompileFile(sg.GetState(), "./jit/test_math_call_non_spec_unsupported_arg.lua", {.debug_mode = true});
+    double ret = 0.0;
+    Call(sg.GetState(), JIT_TCC, "test_non_spec_unsupported", ret, "abc");
+    EXPECT_DOUBLE_EQ(ret, 3.0);
+}

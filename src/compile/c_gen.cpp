@@ -1423,14 +1423,14 @@ bool CGen::TryInferMathCallBitmask(const std::string &callee_name, const std::ve
         }
         return true;
     }
+    DEBUG_ASSERT(false && "callee_name should be a math function");
     return false;
 }
 
 bool CGen::TryInferMathCallSpec(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args, int &bitmask,
                                 InferredType &spec_ret) const {
-    if (!TryInferMathCallBitmask(callee_name, raw_args, bitmask)) {
-        return false;
-    }
+    [[maybe_unused]] bool ok = TryInferMathCallBitmask(callee_name, raw_args, bitmask);
+    DEBUG_ASSERT(ok);
     spec_ret = GetSpecReturnType(callee_name, bitmask);
     return true;
 }
@@ -1441,15 +1441,9 @@ InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
     const auto exp_kind = e->GetExpKind();
 
     if (exp_kind == ExpKind::kNumber) {
-        if (const auto node_type = LookupNodeType(e.get()); node_type == T_INT || node_type == T_FLOAT) {
-            return node_type;
-        }
-        // 通过字面量字符串判断整数/浮点类型。
-        const auto &val = e->ExpValue();
-        if (!val.contains('.') && !val.contains('e') && !val.contains('E')) {
-            return T_INT;
-        }
-        return T_FLOAT;
+        const auto node_type = LookupNodeType(e.get());
+        DEBUG_ASSERT(node_type == T_INT || node_type == T_FLOAT);
+        return node_type;
     }
 
     if (exp_kind == ExpKind::kPrefixExp) {
@@ -1619,9 +1613,7 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
         }
         const auto left_native = TryCompileNativeExpr(e->Left());
         const auto right_native = TryCompileNativeExpr(e->Right());
-        if (left_native.empty() || right_native.empty()) {
-            return {};
-        }
+        DEBUG_ASSERT(!left_native.empty() && !right_native.empty());
         return std::format("({}) {} ({})", left_native, op_it->second, right_native);
     }
     return {};
@@ -1807,21 +1799,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 }
             }
             if (!is_degraded_expression) {
-                if (const auto spec_type = InferArgTypeForSpec(exps[i]); spec_type == T_INT || spec_type == T_FLOAT) {
-                    if (const auto native_expr = TryCompileNativeExpr(exps[i]); !native_expr.empty()) {
-                        const auto c_type = (spec_type == T_INT) ? "int64_t" : "double";
-                        if (IsTypedNativeVar(name)) {
-                            const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
-                            func_temp_decls_ << "    " << c_type << " " << tmp << ";\n";
-                            Out() << GenTab() << tmp << " = " << native_expr << ";\n";
-                            Out() << GenTab() << c_type << " " << name << " = " << tmp << ";\n";
-                        } else {
-                            Out() << GenTab() << c_type << " " << name << " = " << native_expr << ";\n";
-                        }
-                        DeclareNativeVar(name, spec_type);
-                        continue;
-                    }
-                }
+                DEBUG_ASSERT(InferArgTypeForSpec(exps[i]) != T_INT && InferArgTypeForSpec(exps[i]) != T_FLOAT);
             }
             const std::string init = CompileExp(exps[i]);
             Out() << GenTab() << "CVar " << name << " = " << init << ";\n";
@@ -2713,6 +2691,7 @@ std::string CGen::CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, co
                 Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
                 return itmp;
             }
+            DEBUG_ASSERT(false && "bitwise operand should be numeric");
             ThrowError("bitwise operand is not numeric", operand_node);
             return {};
         };
@@ -2737,14 +2716,11 @@ std::string CGen::CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, co
         }
     }
 
-    if (!native_expr.empty()) {
-        const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    CVar " << tmp << ";\n";
-        Out() << GenTab() << tmp << " = " << BoxNativeValue(native_expr, result_type) << ";\n";
-        return tmp;
-    }
-
-    return "";
+    DEBUG_ASSERT(!native_expr.empty());
+    const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    CVar " << tmp << ";\n";
+    Out() << GenTab() << tmp << " = " << BoxNativeValue(native_expr, result_type) << ";\n";
+    return tmp;
 }
 
 std::string CGen::CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
@@ -2907,9 +2883,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         DEBUG_ASSERT(pe);
         if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-            if (!var || var->GetVarKind() != VarKind::kSimple) {
-                ThrowError("only simple variable is supported in numeric specialization", exp);
-            }
+            DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple);
             const auto &vname = var->GetName();
             if (spec_param_types_.contains(vname)) {
                 return vname;
@@ -2939,10 +2913,8 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             if (const auto native_result = TryCompileNativeSpecCallExpr(pe->GetValue()); !native_result.empty()) {
                 return native_result;
             }
-            const auto call_str = CompileFunctioncall(pe->GetValue());
-            return inferred == T_INT ? std::format("({}.data_.i)", call_str) : std::format("({}.data_.f)", call_str);
+            DEBUG_ASSERT(false && "unreachable PrefixExpKind");
         }
-        ThrowError("function call cannot be specialized as numeric", exp);
     } else if (exp_kind == ExpKind::kBinop) {
         const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
         DEBUG_ASSERT(op);
@@ -2993,6 +2965,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
                 Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
                 return itmp;
             }
+            DEBUG_ASSERT(false && "bitwise operand should be numeric");
             ThrowError("bitwise operand is not numeric", operand_node);
             return {};
         };
@@ -3136,21 +3109,16 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
 
     int bitmask = 0;
     InferredType spec_ret = T_DYNAMIC;
-    if (!TryInferMathCallSpec(callee_name, raw_args, bitmask, spec_ret)) {
-        return {};
-    }
-    if (spec_ret != T_INT && spec_ret != T_FLOAT) {
-        return {};
-    }
+    [[maybe_unused]] bool ok = TryInferMathCallSpec(callee_name, raw_args, bitmask, spec_ret);
+    DEBUG_ASSERT(ok);
+    DEBUG_ASSERT(spec_ret == T_INT || spec_ret == T_FLOAT);
 
     const auto &math_params = ir().math_param_positions.at(callee_name);
 
     std::unordered_map<int, std::string> native_exprs;
     for (int param_pos: math_params) {
         const auto native_expr = TryCompileNativeExpr(raw_args[param_pos]);
-        if (native_expr.empty()) {
-            return {};
-        }
+        DEBUG_ASSERT(!native_expr.empty());
         native_exprs[param_pos] = native_expr;
     }
 
@@ -3229,10 +3197,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                     bool can_spec = true;
                     for (int param_pos: math_params) {
                         const auto native_expr = TryCompileNativeExpr(raw_args[param_pos]);
-                        if (native_expr.empty()) {
-                            can_spec = false;
-                            break;
-                        }
+                        DEBUG_ASSERT(!native_expr.empty());
                         native_exprs[param_pos] = native_expr;
                     }
 
@@ -3336,6 +3301,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         if (compiled_args.size() != 3) {
             ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
         }
+        DEBUG_ASSERT(false && "FAKELUA_SET_TABLE should have been handled by early fast path");
         ThrowError("FAKELUA_SET_TABLE should have been handled by early fast path", functioncall);
         return "";
     }
