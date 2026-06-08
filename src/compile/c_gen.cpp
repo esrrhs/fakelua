@@ -2716,26 +2716,33 @@ std::string CGen::CompileNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKin
     if (op_kind == UnOpKind::kMinus || op_kind == UnOpKind::kBitNot) {
         if (rt == T_INT || rt == T_FLOAT) {
             if (const auto native_operand = TryCompileNativeExpr(right); !native_operand.empty()) {
-                std::string native_expr;
-                InferredType result_type;
-                if (op_kind == UnOpKind::kMinus) {
-                    native_expr = std::format("(-({}))", native_operand);
-                    result_type = rt;
-                } else {// kBitNot
-                    if (rt == T_FLOAT) {
-                        const auto itmp = std::format("flua_native_{}", tmp_var_counter_++);
-                        func_temp_decls_ << "    int64_t " << itmp << ";\n";
-                        Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
-                        native_expr = std::format("(~({}))", itmp);
-                    } else {
-                        native_expr = std::format("(~({}))", native_operand);
-                    }
-                    result_type = T_INT;
-                }
+                const auto native_expr = CompileRawNativeUnop(right, op_kind, rt);
+                const auto result_type = (op_kind == UnOpKind::kMinus) ? rt : T_INT;
                 const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    CVar " << tmp << ";\n";
                 Out() << GenTab() << tmp << " = " << BoxNativeValue(native_expr, result_type) << ";\n";
                 return tmp;
+            }
+        }
+    }
+    return "";
+}
+
+std::string CGen::CompileRawNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType rt) {
+    if (op_kind == UnOpKind::kMinus || op_kind == UnOpKind::kBitNot) {
+        if (rt == T_INT || rt == T_FLOAT) {
+            const auto native_operand = CompileNumericExp(right);
+            if (op_kind == UnOpKind::kMinus) {
+                return std::format("(-({}))", native_operand);
+            }
+            if (op_kind == UnOpKind::kBitNot) {
+                if (rt == T_FLOAT) {
+                    const auto itmp = std::format("flua_native_{}", tmp_var_counter_++);
+                    func_temp_decls_ << "    int64_t " << itmp << ";\n";
+                    Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);
+                    return std::format("(~({}))", itmp);
+                }
+                return std::format("(~((int64_t)({})))", native_operand);
             }
         }
     }
@@ -2940,21 +2947,12 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             Out() << GenTab() << std::format("FlLenInt(({}), {});\n", operand_cvar, ntmp);
             return ntmp;
         }
-        const auto operand = CompileNumericExp(e->Right());
-        if (op_kind == UnOpKind::kMinus) {
-            return std::format("(-({}))", operand);
+        const auto rt = InferArgTypeForSpec(e->Right());
+        const auto res = CompileRawNativeUnop(e->Right(), op_kind, rt);
+        if (!res.empty()) {
+            return res;
         }
         if (op_kind == UnOpKind::kBitNot) {
-            const auto operand_type = InferArgTypeForSpec(e->Right());
-            if (operand_type == T_INT) {
-                return std::format("(~((int64_t)({})))", operand);
-            }
-            if (operand_type == T_FLOAT) {
-                const auto itmp = std::format("flua_native_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    int64_t " << itmp << ";\n";
-                Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", operand, itmp);
-                return std::format("(~({}))", itmp);
-            }
             ThrowError("bitwise operand is not numeric", e->Right());
         }
         ThrowError("unary operator is not supported in numeric specialization", exp);
