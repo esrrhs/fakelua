@@ -1423,7 +1423,7 @@ bool CGen::TryInferMathCallBitmask(const std::string &callee_name, const std::ve
         }
         return true;
     }
-    return false;
+    ThrowFakeluaException("callee_name should be a math function");
 }
 
 bool CGen::TryInferMathCallSpec(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args, int &bitmask,
