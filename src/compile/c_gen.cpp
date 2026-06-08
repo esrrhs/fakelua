@@ -1439,105 +1439,102 @@ InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
     const auto exp_kind = e->GetExpKind();
 
-    if (exp_kind == ExpKind::kNumber) {
-        const auto node_type = LookupNodeType(e.get());
-        DEBUG_ASSERT(node_type == T_INT || node_type == T_FLOAT);
-        return node_type;
-    }
+    switch (exp_kind) {
+        case ExpKind::kNumber: {
+            const auto node_type = LookupNodeType(e.get());
+            DEBUG_ASSERT(node_type == T_INT || node_type == T_FLOAT);
+            return node_type;
+        }
+        case ExpKind::kPrefixExp: {
+            const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
+            DEBUG_ASSERT(pe);
 
-    if (exp_kind == ExpKind::kPrefixExp) {
-        const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
-        DEBUG_ASSERT(pe);
-
-        if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
-            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-            if (!var || var->GetVarKind() != VarKind::kSimple) {
+            if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
+                const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+                if (!var || var->GetVarKind() != VarKind::kSimple) {
+                    return T_DYNAMIC;
+                }
+                const auto &name = var->GetName();
+                if (const auto it = spec_param_types_.find(name); it != spec_param_types_.end()) {
+                    return it->second;
+                }
+                if (const auto native_type = GetNativeVarType(name); native_type == T_INT || native_type == T_FLOAT) {
+                    return native_type;
+                }
+                if (const auto git = global_const_vars_.find(name); git != global_const_vars_.end()) {
+                    if (git->second == T_INT || git->second == T_FLOAT) {
+                        return git->second;
+                    }
+                }
                 return T_DYNAMIC;
             }
-            const auto &name = var->GetName();
-            if (const auto it = spec_param_types_.find(name); it != spec_param_types_.end()) {
-                return it->second;
+
+            if (pe->GetPrefixKind() == PrefixExpKind::kExp) {
+                return InferExpType(pe->GetValue());
             }
-            if (const auto native_type = GetNativeVarType(name); native_type == T_INT || native_type == T_FLOAT) {
-                return native_type;
-            }
-            // 文件级数值常量（static const int64_t / double）：返回其记录的原生类型。
-            if (const auto git = global_const_vars_.find(name); git != global_const_vars_.end()) {
-                if (git->second == T_INT || git->second == T_FLOAT) {
-                    return git->second;
+
+            if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
+                const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
+                DEBUG_ASSERT(fc);
+                const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+                DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
+                const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+                DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
+                const auto &callee_name = callee_var->GetName();
+                if (const auto math_it = ir().math_param_positions.find(callee_name);
+                    math_it != ir().math_param_positions.end() && !math_it->second.empty()) {
+                    const auto &math_params = math_it->second;
+                    const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+                    DEBUG_ASSERT(args_ptr);
+                    const auto raw_args = ExtractCallRawArgs(args_ptr);
+                    int bitmask = 0;
+                    for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
+                        const int param_pos = math_params[static_cast<size_t>(i)];
+                        if (param_pos >= static_cast<int>(raw_args.size())) {
+                            return T_DYNAMIC;
+                        }
+                        const auto &arg = raw_args[static_cast<size_t>(param_pos)];
+                        DEBUG_ASSERT(arg && arg->Type() == SyntaxTreeType::Exp);
+                        const auto t = InferExpType(arg);
+                        if (t == T_DYNAMIC) {
+                            return T_DYNAMIC;
+                        }
+                        if (t == T_FLOAT) {
+                            bitmask |= (1 << i);
+                        }
+                    }
+                    return GetSpecReturnType(callee_name, bitmask);
                 }
             }
             return T_DYNAMIC;
         }
-
-        if (pe->GetPrefixKind() == PrefixExpKind::kExp) {
-            return InferExpType(pe->GetValue());
+        case ExpKind::kBinop: {
+            const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
+            DEBUG_ASSERT(op);
+            const auto lt = InferExpType(e->Left());
+            const auto rt = InferExpType(e->Right());
+            return InferNumericBinopResultType(op->GetOpKind(), lt, rt);
         }
-
-        if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
-            const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
-            DEBUG_ASSERT(fc);
-            const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-            DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
-            const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-            DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
-            const auto &callee_name = callee_var->GetName();
-            if (const auto math_it = ir().math_param_positions.find(callee_name);
-                math_it != ir().math_param_positions.end() && !math_it->second.empty()) {
-                const auto &math_params = math_it->second;
-                const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-                DEBUG_ASSERT(args_ptr);
-                const auto raw_args = ExtractCallRawArgs(args_ptr);
-                int bitmask = 0;
-                for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-                    const int param_pos = math_params[static_cast<size_t>(i)];
-                    if (param_pos >= static_cast<int>(raw_args.size())) {
-                        return T_DYNAMIC;// fewer args than math params: treat as dynamic
-                    }
-                    const auto &arg = raw_args[static_cast<size_t>(param_pos)];
-                    DEBUG_ASSERT(arg && arg->Type() == SyntaxTreeType::Exp);
-                    const auto t = InferExpType(arg);
-                    if (t == T_DYNAMIC) {
-                        return T_DYNAMIC;
-                    }
-                    if (t == T_FLOAT) {
-                        bitmask |= (1 << i);
-                    }
-                }
-                return GetSpecReturnType(callee_name, bitmask);
+        case ExpKind::kUnop: {
+            const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
+            DEBUG_ASSERT(op);
+            if (op->GetOpKind() == UnOpKind::kMinus) {
+                return InferExpType(e->Right());
             }
-        }
-
-        return T_DYNAMIC;
-    }
-
-    if (exp_kind == ExpKind::kBinop) {
-        const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
-        DEBUG_ASSERT(op);
-        const auto lt = InferExpType(e->Left());
-        const auto rt = InferExpType(e->Right());
-        return InferNumericBinopResultType(op->GetOpKind(), lt, rt);
-    }
-
-    if (exp_kind == ExpKind::kUnop) {
-        const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
-        DEBUG_ASSERT(op);
-        if (op->GetOpKind() == UnOpKind::kMinus) {
-            return InferExpType(e->Right());
-        }
-        if (op->GetOpKind() == UnOpKind::kBitNot) {
-            if (const auto t = InferExpType(e->Right()); t == T_INT) {
+            if (op->GetOpKind() == UnOpKind::kBitNot) {
+                if (const auto t = InferExpType(e->Right()); t == T_INT) {
+                    return T_INT;
+                }
+                return T_DYNAMIC;
+            }
+            if (op->GetOpKind() == UnOpKind::kNumberSign) {
                 return T_INT;
             }
             return T_DYNAMIC;
         }
-        if (op->GetOpKind() == UnOpKind::kNumberSign) {
-            return T_INT;
-        }
-        return T_DYNAMIC;
+        default:
+            return T_DYNAMIC;
     }
-
-    return T_DYNAMIC;
 }
 
 InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const {
@@ -1631,66 +1628,49 @@ void CGen::CompileStmtBlock(const SyntaxTreeInterfacePtr &block) {
     }
 }
 
-// 编译单条语句：根据 AST 节点类型将其分发路由到各自专有的编译方法中
 void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
     switch (stmt->Type()) {
-        case SyntaxTreeType::Return: {
+        case SyntaxTreeType::Return:
             CompileStmtReturn(stmt);
             break;
-        }
-        case SyntaxTreeType::LocalVar: {
+        case SyntaxTreeType::LocalVar:
             CompileStmtLocalVar(stmt);
             break;
-        }
-        case SyntaxTreeType::Assign: {
+        case SyntaxTreeType::Assign:
             CompileStmtAssign(stmt);
             break;
-        }
-        case SyntaxTreeType::FunctionCall: {
+        case SyntaxTreeType::FunctionCall:
             CompileStmtFunctioncall(stmt);
             break;
-        }
-        case SyntaxTreeType::Block: {
-            // do...end 块：发出一个 C 复合语句，使内部的 `local`
-            // 声明遮蔽外部变量而不是重新声明它们。
+        case SyntaxTreeType::Block:
             Out() << GenTab() << "{\n";
             cur_tab_++;
             CompileScopedBlock(stmt);
             cur_tab_--;
             Out() << GenTab() << "}\n";
             break;
-        }
-        case SyntaxTreeType::While: {
+        case SyntaxTreeType::While:
             CompileStmtWhile(stmt);
             break;
-        }
-        case SyntaxTreeType::Repeat: {
+        case SyntaxTreeType::Repeat:
             CompileStmtRepeat(stmt);
             break;
-        }
-        case SyntaxTreeType::If: {
+        case SyntaxTreeType::If:
             CompileStmtIf(stmt);
             break;
-        }
-        case SyntaxTreeType::Break: {
+        case SyntaxTreeType::Break:
             CompileStmtBreak(stmt);
             break;
-        }
-        case SyntaxTreeType::ForLoop: {
+        case SyntaxTreeType::ForLoop:
             CompileStmtForLoop(stmt);
             break;
-        }
-        case SyntaxTreeType::ForIn: {
+        case SyntaxTreeType::ForIn:
             CompileStmtForIn(stmt);
             break;
-        }
-        case SyntaxTreeType::Empty: {
-            // Semicolons produce empty statements; they are no-ops in Lua.
+        case SyntaxTreeType::Empty:
             break;
-        }
-        default: {
+        default:
             ThrowError(std::format("not support stmt type: {}", SyntaxTreeTypeToString(stmt->Type())), stmt);
-        }
     }
 }
 
@@ -2280,53 +2260,32 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp) {
 
     DEBUG_ASSERT(exp_kind != ExpKind::kVarParams && "VarParams should have been caught by PreProcessor");
 
-    if (exp_kind == ExpKind::kNil) {
-        if (cur_section_ == Section::Globals) {
-            return "(CVar){.type_ = VAR_NIL}";
-        } else {
-            return "kNil";
-        }
-    } else if (exp_kind == ExpKind::kFalse) {
-        if (cur_section_ == Section::Globals) {
-            return "(CVar){.type_ = VAR_BOOL, .data_.b = false}";
-        } else {
-            return "kFalse";
-        }
-    } else if (exp_kind == ExpKind::kTrue) {
-        if (cur_section_ == Section::Globals) {
-            return "(CVar){.type_ = VAR_BOOL, .data_.b = true}";
-        } else {
-            return "kTrue";
-        }
-    } else if (exp_kind == ExpKind::kNumber) {
-        if (IsInteger(value)) {
-            auto i = ToInteger(value);
-            return std::format("(CVar){{.type_ = VAR_INT, .data_.i = {}}}", i);
-        } else {
-            auto f = ToFloat(value);
-            return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}", f);
-        }
-    } else if (exp_kind == ExpKind::kString) {
-        auto id = s_->GetConstString().Alloc(value);
-        return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", id);
-    } else if (exp_kind == ExpKind::kPrefixExp) {
-        const auto pe = e->Right();
-        return CompilePrefixexp(pe);
-    } else if (exp_kind == ExpKind::kTableConstructor) {
-        const auto tc = e->Right();
-        return CompileTableconstructor(tc);
-    } else if (exp_kind == ExpKind::kBinop) {
-        const auto left = e->Left();
-        const auto right = e->Right();
-        const auto op = e->Op();
-        return CompileBinop(left, right, op);
-    } else if (exp_kind == ExpKind::kUnop) {
-        const auto right = e->Right();
-        const auto op = e->Op();
-        return CompileUnop(right, op);
+    switch (exp_kind) {
+        case ExpKind::kNil:
+            return (cur_section_ == Section::Globals) ? "(CVar){.type_ = VAR_NIL}" : "kNil";
+        case ExpKind::kFalse:
+            return (cur_section_ == Section::Globals) ? "(CVar){.type_ = VAR_BOOL, .data_.b = false}" : "kFalse";
+        case ExpKind::kTrue:
+            return (cur_section_ == Section::Globals) ? "(CVar){.type_ = VAR_BOOL, .data_.b = true}" : "kTrue";
+        case ExpKind::kNumber:
+            if (IsInteger(value)) {
+                return std::format("(CVar){{.type_ = VAR_INT, .data_.i = {}}}", ToInteger(value));
+            } else {
+                return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}", ToFloat(value));
+            }
+        case ExpKind::kString:
+            return std::format("(CVar){{.type_ = VAR_STRINGID, .data_.i = {}}}", s_->GetConstString().Alloc(value));
+        case ExpKind::kPrefixExp:
+            return CompilePrefixexp(e->Right());
+        case ExpKind::kTableConstructor:
+            return CompileTableconstructor(e->Right());
+        case ExpKind::kBinop:
+            return CompileBinop(e->Left(), e->Right(), e->Op());
+        case ExpKind::kUnop:
+            return CompileUnop(e->Right(), e->Op());
+        default:
+            ThrowError("unsupported expression kind", e);
     }
-
-    ThrowError("unsupported expression kind", e);
 }
 
 std::string CGen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe) {
