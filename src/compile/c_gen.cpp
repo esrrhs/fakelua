@@ -1659,16 +1659,6 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
             CompileStmtFunctioncall(stmt);
             break;
         }
-        case SyntaxTreeType::Label: {
-            // PreProcessor 已确保不存在 label
-            DEBUG_ASSERT(false && "label should have been caught by PreProcessor");
-            break;
-        }
-        case SyntaxTreeType::Goto: {
-            // PreProcessor 已确保不存在 goto
-            DEBUG_ASSERT(false && "goto should have been caught by PreProcessor");
-            break;
-        }
         case SyntaxTreeType::Block: {
             // do...end 块：发出一个 C 复合语句，使内部的 `local`
             // 声明遮蔽外部变量而不是重新声明它们。
