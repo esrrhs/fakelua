@@ -2306,3 +2306,106 @@ TEST(jitter, shadow_global_const_error) {
             },
             std::exception);
 }
+
+TEST(jitter, test_math_spec_too_few_args) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        EXPECT_THROW(
+                {
+                    CompileFile(s, "./jit/test_math_spec_too_few_args.lua", {.debug_mode = debug_mode});
+                },
+                std::exception);
+    });
+}
+
+TEST(jitter, test_shadow_typed_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_shadow_typed_local.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test_shadow", ret, 1.0);
+        EXPECT_DOUBLE_EQ(ret, 1.0);
+    });
+}
+
+TEST(jitter, test_math_spec_float_global) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_math_spec_float_global.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test_global", ret, 1.0);
+        EXPECT_DOUBLE_EQ(ret, 2.5);
+    });
+}
+
+TEST(jitter, test_math_spec_non_spec_call) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_math_spec_non_spec_call.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test_call", ret, 1.0);
+        EXPECT_DOUBLE_EQ(ret, 3.0);
+        double ret2 = 0.0;
+        Call(s, type, "test_call_non_native", ret2, 1.0);
+        EXPECT_DOUBLE_EQ(ret2, 3.0);
+    });
+}
+
+TEST(jitter, test_math_spec_non_bool_cond) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_math_spec_non_bool_cond.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test_cond", ret, 1.0);
+        EXPECT_DOUBLE_EQ(ret, 2.0);
+    });
+}
+
+TEST(jitter, test_math_spec_unsupported_op) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_math_spec_unsupported_op.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test_unsupported", ret, 1.0, 2.0, 3.0);
+        EXPECT_DOUBLE_EQ(ret, 1.0);
+    });
+}
+
+TEST(jitter, test_table_construct_unsupported_key) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_construct_unsupported_key.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test_construct", ret, "abc");
+        EXPECT_DOUBLE_EQ(ret, 42.0);
+    });
+}
+
+TEST(jitter, test_math_spec_non_native_arg) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_math_spec_non_native_arg.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test_sin", ret, 1.0, "abc");
+        EXPECT_DOUBLE_EQ(ret, 4.0);
+    });
+}
+
+TEST(jitter, test_math_spec_unsupported_unop) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_math_spec_unsupported_unop.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test_unsupported_unop", ret, 1.0);
+        EXPECT_DOUBLE_EQ(ret, 1.0);
+    });
+}
+
+TEST(jitter, test_math_spec_args_not_list) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_math_spec_args_not_list.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test_args_not_list", ret, 1.0);
+        EXPECT_DOUBLE_EQ(ret, 1.0);
+    });
+}
+
+TEST(jitter, test_math_call_non_spec_unsupported_arg) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_math_call_non_spec_unsupported_arg.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test_non_spec_unsupported", ret, "abc");
+        EXPECT_DOUBLE_EQ(ret, 3.0);
+    });
+}
