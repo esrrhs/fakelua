@@ -195,6 +195,8 @@ private:
     // 生成底层未包装的原生算术/位运算表达式源码
     std::string CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
                                            InferredType result_type);
+    // 生成底层未包装的原生一元运算表达式源码
+    std::string CompileRawNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType rt);
     // 生成原生二元比较运算的代码
     std::string CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
                                       InferredType lt, InferredType rt);
