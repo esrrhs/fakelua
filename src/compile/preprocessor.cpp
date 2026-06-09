@@ -7,6 +7,34 @@
 
 namespace fakelua {
 
+namespace {
+
+std::shared_ptr<SyntaxTreePrefixexp> MakeSimpleVarPrefixexp(const SyntaxTreeLocation &loc, const std::string &name) {
+    auto var = std::make_shared<SyntaxTreeVar>(loc);
+    var->SetVarKind(VarKind::kSimple);
+    var->SetName(name);
+    auto pe = std::make_shared<SyntaxTreePrefixexp>(loc);
+    pe->SetPrefixKind(PrefixExpKind::kVar);
+    pe->SetValue(var);
+    return pe;
+}
+
+std::shared_ptr<SyntaxTreeExp> MakePrefixexpExp(const SyntaxTreeLocation &loc, const SyntaxTreeInterfacePtr &pe) {
+    auto exp = std::make_shared<SyntaxTreeExp>(loc);
+    exp->SetExpKind(ExpKind::kPrefixExp);
+    exp->SetRight(pe);
+    return exp;
+}
+
+std::shared_ptr<SyntaxTreeExp> MakeStringExp(const SyntaxTreeLocation &loc, const std::string &val) {
+    auto exp = std::make_shared<SyntaxTreeExp>(loc);
+    exp->SetExpKind(ExpKind::kString);
+    exp->SetValue(val);
+    return exp;
+}
+
+} // namespace
+
 PreProcessor::PreProcessor(State *s) : s_(s) {
 }
 
@@ -72,12 +100,9 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
     for (const auto stmts = block_ptr->Stmts(); auto &stmt: stmts) {
         if (stmt->Type() == SyntaxTreeType::Assign) {
             const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
-            const auto varlist = assign->Varlist();
-            const auto explist = assign->Explist();
-            DEBUG_ASSERT(varlist->Type() == SyntaxTreeType::VarList);
-            DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
-            const auto varlist_ptr = std::dynamic_pointer_cast<SyntaxTreeVarlist>(varlist);
-            const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+            const auto varlist_ptr = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+            const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
+            DEBUG_ASSERT(varlist_ptr && explist_ptr);
             auto &vars = varlist_ptr->Vars();
             auto &exps = explist_ptr->Exps();
 
@@ -96,8 +121,6 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
                 std::vector<std::string> tmp_names;
 
                 for (size_t i = 0; i < vars.size(); ++i) {
-                    // 使用实例递增计数器（而非行号）生成唯一的临时变量名，
-                    // 避免同一行多条多重赋值语句产生名称冲突。
                     std::string tmp_name = std::format("__fakelua_tmp_{}_{}", tmp_var_counter_, i);
                     tmp_namelist->AddName(tmp_name);
                     tmp_explist->AddExp(exps[i]);
@@ -114,24 +137,12 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
                 // 3. 为每个变量生成单赋值语句：vars[i] = tmp_names[i]
                 for (size_t i = 0; i < vars.size(); ++i) {
                     const auto new_assign = std::make_shared<SyntaxTreeAssign>(stmt->Loc());
-
                     const auto single_varlist = std::make_shared<SyntaxTreeVarlist>(stmt->Loc());
                     single_varlist->AddVar(vars[i]);
                     new_assign->SetVarlist(single_varlist);
 
                     const auto single_explist = std::make_shared<SyntaxTreeExplist>(stmt->Loc());
-                    const auto tmp_exp = std::make_shared<SyntaxTreeExp>(stmt->Loc());
-                    tmp_exp->SetExpKind(ExpKind::kPrefixExp);
-
-                    const auto tmp_prefix = std::make_shared<SyntaxTreePrefixexp>(stmt->Loc());
-                    tmp_prefix->SetPrefixKind(PrefixExpKind::kVar);
-                    const auto tmp_var = std::make_shared<SyntaxTreeVar>(stmt->Loc());
-                    tmp_var->SetVarKind(VarKind::kSimple);
-                    tmp_var->SetName(tmp_names[i]);
-                    tmp_prefix->SetValue(tmp_var);
-
-                    tmp_exp->SetRight(tmp_prefix);
-                    single_explist->AddExp(tmp_exp);
+                    single_explist->AddExp(MakePrefixexpExp(stmt->Loc(), MakeSimpleVarPrefixexp(stmt->Loc(), tmp_names[i])));
                     new_assign->SetExplist(single_explist);
 
                     new_stmts.push_back(new_assign);
@@ -159,12 +170,9 @@ void PreProcessor::PreprocessTableAssign(const SyntaxTreeInterfacePtr &node) {
     for (const auto stmts = block_ptr->Stmts(); auto &stmt: stmts) {
         if (stmt->Type() == SyntaxTreeType::Assign) {
             const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
-            const auto varlist = assign->Varlist();
-            const auto explist = assign->Explist();
-            DEBUG_ASSERT(varlist->Type() == SyntaxTreeType::VarList);
-            DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
-            const auto varlist_ptr = std::dynamic_pointer_cast<SyntaxTreeVarlist>(varlist);
-            const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+            const auto varlist_ptr = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+            const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
+            DEBUG_ASSERT(varlist_ptr && explist_ptr);
             auto &vars = varlist_ptr->Vars();
             auto &exps = explist_ptr->Exps();
 
@@ -184,41 +192,23 @@ void PreProcessor::PreprocessTableAssign(const SyntaxTreeInterfacePtr &node) {
 
                 // 转为函数调用，a.b.c = 1 -> FAKELUA_SET_TABLE(a.b, "c", 1)
                 const auto func_call = std::make_shared<SyntaxTreeFunctioncall>(stmt->Loc());
-                const auto prefixexp = std::make_shared<SyntaxTreePrefixexp>(stmt->Loc());
-                const auto CallVar = std::make_shared<SyntaxTreeVar>(stmt->Loc());
-                CallVar->SetVarKind(VarKind::kSimple);
-                CallVar->SetName("FAKELUA_SET_TABLE");
-                prefixexp->SetPrefixKind(PrefixExpKind::kVar);
-                prefixexp->SetValue(CallVar);
-                func_call->SetPrefixexp(prefixexp);
+                func_call->SetPrefixexp(MakeSimpleVarPrefixexp(stmt->Loc(), "FAKELUA_SET_TABLE"));
 
                 const auto args = std::make_shared<SyntaxTreeArgs>(stmt->Loc());
                 const auto args_explist = std::make_shared<SyntaxTreeExplist>(stmt->Loc());
 
                 // a.b
-                {
-                    const auto args_exp = std::make_shared<SyntaxTreeExp>(stmt->Loc());
-                    const auto args_exp_prefixexp = var_ptr->GetPrefixexp();
-                    args_exp->SetExpKind(ExpKind::kPrefixExp);
-                    args_exp->SetRight(args_exp_prefixexp);
-                    args_explist->AddExp(args_exp);
-                }
+                args_explist->AddExp(MakePrefixexpExp(stmt->Loc(), var_ptr->GetPrefixexp()));
 
                 // "c"
-                {
-                    if (var_ptr->GetVarKind() == VarKind::kSquare) {
-                        const auto args_exp = var_ptr->GetExp();
-                        args_explist->AddExp(args_exp);
-                    } else {
-                        const auto args_exp = std::make_shared<SyntaxTreeExp>(stmt->Loc());
-                        args_exp->SetExpKind(ExpKind::kString);
-                        args_exp->SetValue(var_ptr->GetName());
-                        args_explist->AddExp(args_exp);
-                    }
+                if (var_ptr->GetVarKind() == VarKind::kSquare) {
+                    args_explist->AddExp(var_ptr->GetExp());
+                } else {
+                    args_explist->AddExp(MakeStringExp(stmt->Loc(), var_ptr->GetName()));
                 }
 
                 // 1
-                { args_explist->AddExp(exp); }
+                args_explist->AddExp(exp);
 
                 args->SetExplist(args_explist);
                 args->SetArgsKind(ArgsKind::kExpList);
@@ -420,35 +410,27 @@ void PreProcessor::PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &
 
     std::vector<SyntaxTreeInterfacePtr> new_stmts;
     for (const auto &stmt: top_block->Stmts()) {
-        if (stmt->Type() != SyntaxTreeType::LocalVar) {
-            new_stmts.push_back(stmt);
-            continue;
-        }
-        const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
-        const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
-        const auto el = lv->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist()) : nullptr;
-        if (!nl || !el || nl->Names().size() != 1 || el->Exps().size() != 1) {
-            new_stmts.push_back(stmt);
-            continue;
-        }
-        if (const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
-            !init_exp || init_exp->GetExpKind() != ExpKind::kFunctionDef) {
-            new_stmts.push_back(stmt);
-            continue;
-        } else {
-            if (const auto fdef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(init_exp->Right()); !fdef) {
-                new_stmts.push_back(stmt);
-                continue;
-            } else {
-                // 将 "local f = function(...) ... end" 转换为 "local function f(...) ... end"。
-                const auto local_func = std::make_shared<SyntaxTreeLocalFunction>(stmt->Loc());
-                local_func->SetName(nl->Names()[0]);
-                local_func->SetFuncbody(fdef->Funcbody());
-                new_stmts.push_back(local_func);
-                LOG_INFO("PreprocessFunctiondefLocalVars: converted local {} = function(...) to local function {}(...)", nl->Names()[0],
-                         nl->Names()[0]);
+        if (stmt->Type() == SyntaxTreeType::LocalVar) {
+            if (const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt)) {
+                const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
+                const auto el = lv->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist()) : nullptr;
+                if (nl && el && nl->Names().size() == 1 && el->Exps().size() == 1) {
+                    if (const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0])) {
+                        if (init_exp->GetExpKind() == ExpKind::kFunctionDef) {
+                            if (const auto fdef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(init_exp->Right())) {
+                                const auto local_func = std::make_shared<SyntaxTreeLocalFunction>(stmt->Loc());
+                                local_func->SetName(nl->Names()[0]);
+                                local_func->SetFuncbody(fdef->Funcbody());
+                                new_stmts.push_back(local_func);
+                                LOG_INFO("PreprocessFunctiondefLocalVars: converted local {} = function(...) to local function {}(...)", nl->Names()[0], nl->Names()[0]);
+                                continue;
+                            }
+                        }
+                    }
+                }
             }
         }
+        new_stmts.push_back(stmt);
     }
     top_block->SetStmts(new_stmts);
 }
