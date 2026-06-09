@@ -271,10 +271,8 @@ void PreProcessor::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk) {
 void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
     switch (node->Type()) {
         case SyntaxTreeType::Goto:
-            ThrowError("goto is not supported", node);
-            break;
         case SyntaxTreeType::Label:
-            ThrowError("label is not supported", node);
+            ThrowError(node->Type() == SyntaxTreeType::Goto ? "goto is not supported" : "label is not supported", node);
             break;
         case SyntaxTreeType::FunctionCall: {
             const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
@@ -307,10 +305,9 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
             break;
         }
         case SyntaxTreeType::Return: {
-            if (const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node)) {
-                if (const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist()); el && el->Exps().size() > 1) {
-                    ThrowError("multiple return values is not supported", node);
-                }
+            const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
+            if (const auto el = ret ? std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist()) : nullptr; el && el->Exps().size() > 1) {
+                ThrowError("multiple return values is not supported", node);
             }
             break;
         }
@@ -368,10 +365,9 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
         }
         case SyntaxTreeType::Exp: {
             const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-            if (exp->GetExpKind() == ExpKind::kVarParams) {
+            if (const auto kind = exp->GetExpKind(); kind == ExpKind::kVarParams) {
                 ThrowError("... is not supported", node);
-            }
-            if (exp->GetExpKind() == ExpKind::kFunctionDef) {
+            } else if (kind == ExpKind::kFunctionDef) {
                 ThrowError("anonymous function expression (functiondef) is not supported inside function bodies", node);
             }
             break;

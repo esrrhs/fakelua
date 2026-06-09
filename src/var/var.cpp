@@ -109,10 +109,8 @@ std::string Var::ToString(bool has_quote, bool has_postfix) const {
             break;
         }
         case VarType::String:
-            ret = has_quote ? std::format("\"{}\"", data_.s->Str()) : std::format("{}", data_.s->Str());
-            break;
         case VarType::StringId:
-            ret = has_quote ? std::format("\"{}\"", ConstString::GetString(data_.i)) : std::format("{}", ConstString::GetString(data_.i));
+            ret = has_quote ? std::format("\"{}\"", GetString()->Str()) : std::string(GetString()->Str());
             break;
         case VarType::Table:
             ret = std::format("table({})", static_cast<void *>(data_.t));
@@ -229,19 +227,21 @@ void Var::Slash(const Var &rhs, Var &result) const {
     result.SetFloat(GetCalculableNumber() / rhs.GetCalculableNumber());
 }
 
+int64_t Var::FloorDiv(int64_t lhs_val, int64_t rhs_val) const {
+    int64_t quotient = lhs_val / rhs_val;
+    if ((lhs_val ^ rhs_val) < 0 && lhs_val % rhs_val != 0) {
+        quotient -= 1;
+    }
+    return quotient;
+}
+
 void Var::DoubleSlash(const Var &rhs, Var &result) const {
     CheckCalculable(rhs, "//");
     if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
         if (rhs.GetCalculableInt() == 0) {
             ThrowFakeluaException("Var op failed, division by zero in '//'");
         }
-        int64_t lhs_val = GetCalculableInt();
-        int64_t rhs_val = rhs.GetCalculableInt();
-        int64_t quotient = lhs_val / rhs_val;
-        if ((lhs_val ^ rhs_val) < 0 && lhs_val % rhs_val != 0) {
-            quotient -= 1;
-        }
-        result.SetInt(quotient);
+        result.SetInt(FloorDiv(GetCalculableInt(), rhs.GetCalculableInt()));
     } else {
         result.SetFloat(std::floor(GetCalculableNumber() / rhs.GetCalculableNumber()));
     }
@@ -260,11 +260,7 @@ void Var::Mod(const Var &rhs, Var &result) const {
         }
         int64_t lhs_val = GetCalculableInt();
         int64_t rhs_val = rhs.GetCalculableInt();
-        int64_t quotient = lhs_val / rhs_val;
-        if ((lhs_val ^ rhs_val) < 0 && lhs_val % rhs_val != 0) {
-            quotient -= 1;
-        }
-        result.SetInt(lhs_val - rhs_val * quotient);
+        result.SetInt(lhs_val - rhs_val * FloorDiv(lhs_val, rhs_val));
     } else {
         double lhs_val = GetCalculableNumber();
         double rhs_val = rhs.GetCalculableNumber();
@@ -272,23 +268,9 @@ void Var::Mod(const Var &rhs, Var &result) const {
     }
 }
 
-void Var::Bitand(const Var &rhs, Var &result) const {
-    int64_t lhs_int = 0, rhs_int = 0;
-    CheckInteger(rhs, "&", lhs_int, rhs_int);
-    result.SetInt(lhs_int & rhs_int);
-}
-
-void Var::Xor(const Var &rhs, Var &result) const {
-    int64_t lhs_int = 0, rhs_int = 0;
-    CheckInteger(rhs, "~", lhs_int, rhs_int);
-    result.SetInt(lhs_int ^ rhs_int);
-}
-
-void Var::Bitor(const Var &rhs, Var &result) const {
-    int64_t lhs_int = 0, rhs_int = 0;
-    CheckInteger(rhs, "|", lhs_int, rhs_int);
-    result.SetInt(lhs_int | rhs_int);
-}
+void Var::Bitand(const Var &rhs, Var &result) const { BitBinop(rhs, result, "&", std::bit_and<int64_t>{}); }
+void Var::Xor(const Var &rhs, Var &result) const { BitBinop(rhs, result, "~", std::bit_xor<int64_t>{}); }
+void Var::Bitor(const Var &rhs, Var &result) const { BitBinop(rhs, result, "|", std::bit_or<int64_t>{}); }
 
 void Var::Shift(const Var &rhs, Var &result, const char *op_str, bool right) const {
     int64_t lhs_int = 0, rhs_int = 0;
