@@ -516,19 +516,13 @@ InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign>
 
     auto &current_map = tctx.current_map;
     const std::string name = var->GetName();
-    // 若变量被固定（数学参数在特化试推断中），跳过 env 降级，
-    // 以保持与运行时类型检查语义一致：赋值失败时会抛异常，不会改变变量类型。
+    InferredType current = T_DYNAMIC;
     if (tctx.IsPinnedVar(name)) {
-        const auto current = tctx.env.Lookup(name);
-        current_map[var.get()] = current;
-        return RecordType(current_map, assign.get(), current);
-    }
-    if (!tctx.env.Update(name, rhs_type)) {
-        current_map[var.get()] = T_DYNAMIC;
-        return RecordType(current_map, assign.get(), T_DYNAMIC);
+        current = tctx.env.Lookup(name);
+    } else if (tctx.env.Update(name, rhs_type)) {
+        current = tctx.env.Lookup(name);
     }
 
-    const auto current = tctx.env.Lookup(name);
     current_map[var.get()] = current;
     return RecordType(current_map, assign.get(), current);
 }
@@ -767,10 +761,7 @@ InferredType TypeInferencer::InferPrefixExp(const std::shared_ptr<SyntaxTreePref
     switch (prefix_kind) {
         case PrefixExpKind::kVar:
         case PrefixExpKind::kExp:
-            ret = InferNode(prefix_exp->GetValue(), tctx);
-            break;
         case PrefixExpKind::kFunctionCall:
-            // 传播 InferNode(FunctionCall) 的返回值：携带提示时为实际返回类型，否则为 T_DYNAMIC。
             ret = InferNode(prefix_exp->GetValue(), tctx);
             break;
         default:
@@ -827,41 +818,22 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
 
     auto &current_map = tctx.current_map;
 
-    // 后处理：变量可能被初始化为类型化表达式（例如整数字面量给出 T_INT），
-    // 但随后被涉及函数调用或参数的赋值修改为 T_DYNAMIC。在这种情况下，
-    // LocalVar 声明必须使用变量的*最终*类型，以便 C 代码生成器
-    // 为所有后续赋值生成兼容的存储声明。
-    // 注意：试推断期间跳过后处理，因为它会将算术表达式节点的类型覆写为 T_DYNAMIC，
-    // 导致 CheckArithmeticTypeChanges 无法正确检测算术改善/退化。
-    if (tctx.SkipPostProcessing()) {
-        current_map[block.get()] = T_UNKNOWN;
-        if (new_scope) {
-            tctx.env.ExitScope();
-        }
-        return;
-    }
-    // 注意：env_.Lookup 在同一 block 内存在同名 local 变量时（如 `local x = 1; local x = f()`），
-    // 会返回后者的最终类型。这不构成 bug，因为：
-    //   1. 预处理阶段（preprocessor）已禁止同一作用域内重复声明同名局部变量；
-    //   2. 即使理论上出现同名，CGen 对初始化表达式节点的类型使用的是 LookupNodeType，
-    //      它优先查询 specialization snapshot，后处理覆写仅影响主推断路径的声明类型，
-    //      不会导致运行时类型不匹配。
-    for (const auto &stmt: block->Stmts()) {
-        if (stmt->Type() != SyntaxTreeType::LocalVar) {
-            continue;
-        }
-        const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
-        const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(local_var->Namelist());
-        DEBUG_ASSERT(namelist);
-        std::vector<SyntaxTreeInterfacePtr> exps;
-        if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(local_var->Explist())) {
-            exps = explist->Exps();
-        }
-        const auto &names = namelist->Names();
-        for (size_t i = 0; i < names.size(); ++i) {
-            if (i < exps.size()) {
-                const auto final_type = tctx.env.Lookup(names[i]);
-                current_map[exps[i].get()] = final_type;
+    if (!tctx.SkipPostProcessing()) {
+        for (const auto &stmt: block->Stmts()) {
+            if (stmt->Type() == SyntaxTreeType::LocalVar) {
+                const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+                const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(local_var->Namelist());
+                DEBUG_ASSERT(namelist);
+                std::vector<SyntaxTreeInterfacePtr> exps;
+                if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(local_var->Explist())) {
+                    exps = explist->Exps();
+                }
+                const auto &names = namelist->Names();
+                for (size_t i = 0; i < names.size(); ++i) {
+                    if (i < exps.size()) {
+                        current_map[exps[i].get()] = tctx.env.Lookup(names[i]);
+                    }
+                }
             }
         }
     }
@@ -1126,18 +1098,22 @@ bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) 
     return k == BinOpKind::kLess || k == BinOpKind::kLessEqual || k == BinOpKind::kMore || k == BinOpKind::kMoreEqual;
 }
 
-bool TypeInferencer::CheckArithmeticNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map,
-                                               const EvalTypeMap &compare_map, const bool improvement_mode) const {
-    if (!IsArithmeticExpr(node)) {
-        return false;
-    }
+namespace {
+
+bool CheckNodeChangeCommon(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &typed_map,
+                           const EvalTypeSnapshot &compare_map, const bool improvement_mode) {
     const auto it_typed = typed_map.find(node.get());
     const auto it_compare = compare_map.find(node.get());
     DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
-    if (IsNumericInferredType(it_typed->second)) {
-        return improvement_mode ? (it_compare->second == T_DYNAMIC) : (it_compare->second != it_typed->second);
-    }
-    return false;
+    return IsNumericInferredType(it_typed->second) &&
+           (improvement_mode ? (it_compare->second == T_DYNAMIC) : (it_compare->second != it_typed->second));
+}
+
+} // namespace
+
+bool TypeInferencer::CheckArithmeticNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map,
+                                               const EvalTypeMap &compare_map, const bool improvement_mode) const {
+    return IsArithmeticExpr(node) && CheckNodeChangeCommon(node, typed_map, compare_map, improvement_mode);
 }
 
 bool TypeInferencer::CheckComparisonNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map,
@@ -1167,16 +1143,7 @@ bool TypeInferencer::CheckComparisonNodeChange(const SyntaxTreeInterfacePtr &nod
 
 bool TypeInferencer::CheckForLoopNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map,
                                             const EvalTypeMap &compare_map, const bool improvement_mode) const {
-    if (node->Type() != SyntaxTreeType::ForLoop) {
-        return false;
-    }
-    const auto it_typed = typed_map.find(node.get());
-    const auto it_compare = compare_map.find(node.get());
-    DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
-    if (IsNumericInferredType(it_typed->second)) {
-        return improvement_mode ? (it_compare->second == T_DYNAMIC) : (it_compare->second != it_typed->second);
-    }
-    return false;
+    return (node->Type() == SyntaxTreeType::ForLoop) && CheckNodeChangeCommon(node, typed_map, compare_map, improvement_mode);
 }
 
 bool TypeInferencer::CheckCallNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
@@ -1340,13 +1307,8 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
         switch (stmt->Type()) {
             case SyntaxTreeType::Return: {
                 const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt);
-                if (const auto explist = ret->Explist(); explist) {
-                    if (const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist); el && !el->Exps().empty()) {
-                        ret_exps.push_back(el->Exps()[0]);
-                        break;
-                    }
-                }
-                ret_exps.push_back(nullptr);
+                const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist());
+                ret_exps.push_back((el && !el->Exps().empty()) ? el->Exps()[0] : nullptr);
                 break;
             }
             case SyntaxTreeType::If: {
