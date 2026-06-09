@@ -294,11 +294,30 @@ void VarTable::Rehash(State *state) {
 
         bool success = true;
         if (old_bucket_count == 0) {
-            for (uint32_t i = 0; i < old_count; ++i) {
-                if (!InsertRaw(quick_data_[i].key, quick_data_[i].val, quick_data_[i].hash)) {
-                    success = false;
-                    break;
-                }
+            // 数据迁移：手动展开
+            if (old_count > 0 && !InsertRaw(quick_data_[0].key, quick_data_[0].val, quick_data_[0].hash)) {
+                success = false;
+            }
+            if (success && old_count > 1 && !InsertRaw(quick_data_[1].key, quick_data_[1].val, quick_data_[1].hash)) {
+                success = false;
+            }
+            if (success && old_count > 2 && !InsertRaw(quick_data_[2].key, quick_data_[2].val, quick_data_[2].hash)) {
+                success = false;
+            }
+            if (success && old_count > 3 && !InsertRaw(quick_data_[3].key, quick_data_[3].val, quick_data_[3].hash)) {
+                success = false;
+            }
+            if (success && old_count > 4 && !InsertRaw(quick_data_[4].key, quick_data_[4].val, quick_data_[4].hash)) {
+                success = false;
+            }
+            if (success && old_count > 5 && !InsertRaw(quick_data_[5].key, quick_data_[5].val, quick_data_[5].hash)) {
+                success = false;
+            }
+            if (success && old_count > 6 && !InsertRaw(quick_data_[6].key, quick_data_[6].val, quick_data_[6].hash)) {
+                success = false;
+            }
+            if (success && old_count > 7 && !InsertRaw(quick_data_[7].key, quick_data_[7].val, quick_data_[7].hash)) {
+                success = false;
             }
         } else {
             for (uint32_t i = 0; i < old_bucket_count; ++i) {
