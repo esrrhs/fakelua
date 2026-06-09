@@ -213,30 +213,15 @@ double Var::GetCalculableNumber() const {
 }
 
 void Var::Plus(const Var &rhs, Var &result) const {
-    CheckCalculable(rhs, "+");
-    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
-        result.SetInt(GetCalculableInt() + rhs.GetCalculableInt());
-    } else {
-        result.SetFloat(GetCalculableNumber() + rhs.GetCalculableNumber());
-    }
+    ArithBinop(rhs, result, "+", std::plus<int64_t>{}, std::plus<double>{});
 }
 
 void Var::Minus(const Var &rhs, Var &result) const {
-    CheckCalculable(rhs, "-");
-    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
-        result.SetInt(GetCalculableInt() - rhs.GetCalculableInt());
-    } else {
-        result.SetFloat(GetCalculableNumber() - rhs.GetCalculableNumber());
-    }
+    ArithBinop(rhs, result, "-", std::minus<int64_t>{}, std::minus<double>{});
 }
 
 void Var::Star(const Var &rhs, Var &result) const {
-    CheckCalculable(rhs, "*");
-    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
-        result.SetInt(GetCalculableInt() * rhs.GetCalculableInt());
-    } else {
-        result.SetFloat(GetCalculableNumber() * rhs.GetCalculableNumber());
-    }
+    ArithBinop(rhs, result, "*", std::multiplies<int64_t>{}, std::multiplies<double>{});
 }
 
 void Var::Slash(const Var &rhs, Var &result) const {
@@ -250,17 +235,9 @@ void Var::DoubleSlash(const Var &rhs, Var &result) const {
         if (rhs.GetCalculableInt() == 0) {
             ThrowFakeluaException("Var op failed, division by zero in '//'");
         }
-        // Lua 的 // 是向下取整除法，向负无穷方向舍入
-        // C++ 的 / 向零截断，因此需要针对负数结果进行调整
         int64_t lhs_val = GetCalculableInt();
         int64_t rhs_val = rhs.GetCalculableInt();
-        // UB 说明（有意保留，不做额外检测）：
-        // 当 a == INT64_MIN 且 b == -1 时，a / b 和 a % b 均触发有符号整数溢出 UB。
-        // Lua 5.4 官方实现同样未对此特判，实际结果在主流编译器（gcc/clang/msvc）
-        // 的 x86-64 平台上均为 INT64_MIN（IDIV 指令 of 硬件行为），行为稳定。
-        // 为避免额外分支带来的性能损失，此处不做特殊处理。
         int64_t quotient = lhs_val / rhs_val;
-        // 如果符号不同且有余数，则向负无穷方向调整
         if ((lhs_val ^ rhs_val) < 0 && lhs_val % rhs_val != 0) {
             quotient -= 1;
         }
@@ -281,23 +258,14 @@ void Var::Mod(const Var &rhs, Var &result) const {
         if (rhs.GetCalculableInt() == 0) {
             ThrowFakeluaException("Var op failed, division by zero in '%'");
         }
-        // Lua 的 % 遵循向下取整除法语义：a % b = a - b * floor(a / b)
-        // 这与 C++ 的 % 不同，C++ 向零截断
         int64_t lhs_val = GetCalculableInt();
         int64_t rhs_val = rhs.GetCalculableInt();
-        // UB 说明（有意保留，不做额外检测）：
-        // 当 a == INT64_MIN 且 b == -1 时，a / b 和 a % b 均触发有符号整数溢出 UB。
-        // Lua 5.4 官方实现同样未对此特判，实际结果在主流编译器的 x86-64 平台上
-        // 均为 INT64_MIN（IDIV 指令的硬件行为），行为稳定。
-        // 为避免额外分支带来的性能损失，此处不做特殊处理。
         int64_t quotient = lhs_val / rhs_val;
-        // 如果符号不同且有余数，则向负无穷方向调整
         if ((lhs_val ^ rhs_val) < 0 && lhs_val % rhs_val != 0) {
             quotient -= 1;
         }
         result.SetInt(lhs_val - rhs_val * quotient);
     } else {
-        // 对于浮点数，使用 fmod 已经可以得到正确的余数，但需要调整为 Lua 语义
         double lhs_val = GetCalculableNumber();
         double rhs_val = rhs.GetCalculableNumber();
         result.SetFloat(lhs_val - rhs_val * std::floor(lhs_val / rhs_val));
@@ -322,35 +290,23 @@ void Var::Bitor(const Var &rhs, Var &result) const {
     result.SetInt(lhs_int | rhs_int);
 }
 
-void Var::RightShift(const Var &rhs, Var &result) const {
+void Var::Shift(const Var &rhs, Var &result, const char *op_str, bool right) const {
     int64_t lhs_int = 0, rhs_int = 0;
-    CheckInteger(rhs, ">>", lhs_int, rhs_int);
-    auto shift = rhs_int;
-    if (shift >= 64 || shift <= -64) {
+    CheckInteger(rhs, op_str, lhs_int, rhs_int);
+    if (rhs_int >= 64 || rhs_int <= -64) {
         result.SetInt(0);
         return;
     }
-    if (shift >= 0) {
-        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(lhs_int) >> shift));
+    const uint64_t u_lhs = static_cast<uint64_t>(lhs_int);
+    if (rhs_int >= 0) {
+        result.SetInt(static_cast<int64_t>(right ? (u_lhs >> rhs_int) : (u_lhs << rhs_int)));
     } else {
-        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(lhs_int) << (-shift)));
+        result.SetInt(static_cast<int64_t>(right ? (u_lhs << -rhs_int) : (u_lhs >> -rhs_int)));
     }
 }
 
-void Var::LeftShift(const Var &rhs, Var &result) const {
-    int64_t lhs_int = 0, rhs_int = 0;
-    CheckInteger(rhs, "<<", lhs_int, rhs_int);
-    auto shift = rhs_int;
-    if (shift >= 64 || shift <= -64) {
-        result.SetInt(0);
-        return;
-    }
-    if (shift >= 0) {
-        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(lhs_int) << shift));
-    } else {
-        result.SetInt(static_cast<int64_t>(static_cast<uint64_t>(lhs_int) >> (-shift)));
-    }
-}
+void Var::RightShift(const Var &rhs, Var &result) const { Shift(rhs, result, ">>", true); }
+void Var::LeftShift(const Var &rhs, Var &result) const { Shift(rhs, result, "<<", false); }
 
 void Var::Concat(State *state, const Var &rhs, Var &result) const {
     // fakelua 有意扩展了 Lua 标准：允许任意类型通过 .. 运算符拼接。
@@ -360,39 +316,19 @@ void Var::Concat(State *state, const Var &rhs, Var &result) const {
 }
 
 void Var::Less(const Var &rhs, Var &result) const {
-    CheckCalculable(rhs, "<");
-    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
-        result.SetBool(GetCalculableInt() < rhs.GetCalculableInt());
-    } else {
-        result.SetBool(GetCalculableNumber() < rhs.GetCalculableNumber());
-    }
+    CompBinop(rhs, result, "<", std::less<int64_t>{}, std::less<double>{});
 }
 
 void Var::LessEqual(const Var &rhs, Var &result) const {
-    CheckCalculable(rhs, "<=");
-    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
-        result.SetBool(GetCalculableInt() <= rhs.GetCalculableInt());
-    } else {
-        result.SetBool(GetCalculableNumber() <= rhs.GetCalculableNumber());
-    }
+    CompBinop(rhs, result, "<=", std::less_equal<int64_t>{}, std::less_equal<double>{});
 }
 
 void Var::More(const Var &rhs, Var &result) const {
-    CheckCalculable(rhs, ">");
-    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
-        result.SetBool(GetCalculableInt() > rhs.GetCalculableInt());
-    } else {
-        result.SetBool(GetCalculableNumber() > rhs.GetCalculableNumber());
-    }
+    CompBinop(rhs, result, ">", std::greater<int64_t>{}, std::greater<double>{});
 }
 
 void Var::MoreEqual(const Var &rhs, Var &result) const {
-    CheckCalculable(rhs, ">=");
-    if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
-        result.SetBool(GetCalculableInt() >= rhs.GetCalculableInt());
-    } else {
-        result.SetBool(GetCalculableNumber() >= rhs.GetCalculableNumber());
-    }
+    CompBinop(rhs, result, ">=", std::greater_equal<int64_t>{}, std::greater_equal<double>{});
 }
 
 void Var::Equal(const Var &rhs, Var &result) const {
@@ -417,10 +353,6 @@ bool Var::TestTrue() const {
 void Var::UnopMinus(Var &result) const {
     CheckCalculable("-");
     if (IsCalculableInteger()) {
-        // UB 说明（有意保留，不做额外检测）：
-        // -INT64_MIN 触发有符号整数溢出 UB。Lua 5.4 官方实现同样未对此特判，
-        // 实际在主流编译器的 x86-64 平台上结果为 INT64_MIN（NEG 指令的硬件行为），
-        // 行为稳定。为避免额外分支带来的性能损失，此处不做特殊处理。
         result.SetInt(-GetCalculableInt());
     } else {
         result.SetFloat(-GetCalculableNumber());
@@ -432,17 +364,13 @@ void Var::UnopNot(Var &result) const {
 }
 
 void Var::UnopNumberSign(Var &result) const {
-    if (Type() != VarType::String && Type() != VarType::StringId && Type() != VarType::Table) {
+    if (Type() == VarType::String || Type() == VarType::StringId) {
+        result.SetInt(static_cast<int64_t>(GetString()->Size()));
+    } else if (Type() == VarType::Table) {
+        result.SetInt(static_cast<int64_t>(data_.t->Size()));
+    } else {
         ThrowFakeluaException(
                 std::format("Var op failed, operand of '#' must be string or table, got {} {}", VarTypeToString(Type()), ToString()));
-    }
-
-    if (Type() == VarType::String) {
-        result.SetInt(static_cast<int64_t>(data_.s->Size()));
-    } else if (Type() == VarType::StringId) {
-        result.SetInt(static_cast<int64_t>(ConstString::GetVarString(data_.i)->Size()));
-    } else {
-        result.SetInt(static_cast<int64_t>(data_.t->Size()));
     }
 }
 
@@ -452,30 +380,24 @@ void Var::UnopBitnot(Var &result) const {
     result.SetInt(~int_value);
 }
 
-void Var::TableSet(State *state, const Var &key, const Var &val, bool can_be_nil) const {
+void Var::CheckTable(const char *op) const {
     if (Type() != VarType::Table) {
-        ThrowFakeluaException(
-                std::format("Var op failed, operand of 'TableSet' must be table, got {} {}", VarTypeToString(Type()), ToString()));
+        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be table, got {} {}", op, VarTypeToString(Type()), ToString()));
     }
+}
 
+void Var::TableSet(State *state, const Var &key, const Var &val, bool can_be_nil) const {
+    CheckTable("TableSet");
     GetTable()->Set(state, key, val, can_be_nil);
 }
 
 Var Var::TableGet(const Var &key) const {
-    if (Type() != VarType::Table) {
-        ThrowFakeluaException(
-                std::format("Var op failed, operand of 'TableGet' must be table, got {} {}", VarTypeToString(Type()), ToString()));
-    }
-
+    CheckTable("TableGet");
     return GetTable()->Get(key);
 }
 
 size_t Var::TableSize() const {
-    if (Type() != VarType::Table) {
-        ThrowFakeluaException(
-                std::format("Var op failed, operand of 'TableSize' must be table, got {} {}", VarTypeToString(Type()), ToString()));
-    }
-
+    CheckTable("TableSize");
     return GetTable()->Size();
 }
 

@@ -213,6 +213,28 @@ private:
     void CheckCalculable(const char *op) const;
     void CheckInteger(const Var &rhs, const char *op, int64_t &lhs_int, int64_t &rhs_int) const;
     void CheckInteger(const char *op, int64_t &val) const;
+    void CheckTable(const char *op) const;
+    void Shift(const Var &rhs, Var &result, const char *op_str, bool right) const;
+
+    template <typename IntOp, typename FloatOp>
+    void ArithBinop(const Var &rhs, Var &result, const char *op_str, IntOp int_op, FloatOp float_op) const {
+        CheckCalculable(rhs, op_str);
+        if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
+            result.SetInt(int_op(GetCalculableInt(), rhs.GetCalculableInt()));
+        } else {
+            result.SetFloat(float_op(GetCalculableNumber(), rhs.GetCalculableNumber()));
+        }
+    }
+
+    template <typename IntOp, typename FloatOp>
+    void CompBinop(const Var &rhs, Var &result, const char *op_str, IntOp int_op, FloatOp float_op) const {
+        CheckCalculable(rhs, op_str);
+        if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
+            result.SetBool(int_op(GetCalculableInt(), rhs.GetCalculableInt()));
+        } else {
+            result.SetBool(float_op(GetCalculableNumber(), rhs.GetCalculableNumber()));
+        }
+    }
 };
 
 // 确保 Var 的大小为 16 字节，与 gccjit 中定义的 CVar 一致
