@@ -9,6 +9,34 @@
 
 namespace fakelua {
 
+void Var::CheckCalculable(const Var &rhs, const char *op) const {
+    if (!IsCalculable() || !rhs.IsCalculable()) {
+        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be number, got {} {}, {} {}", op, VarTypeToString(Type()),
+                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
+    }
+}
+
+void Var::CheckCalculable(const char *op) const {
+    if (!IsCalculable()) {
+        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be number, got {} {}", op, VarTypeToString(Type()),
+                                          ToString()));
+    }
+}
+
+void Var::CheckInteger(const Var &rhs, const char *op, int64_t &lhs_int, int64_t &rhs_int) const {
+    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
+        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be integer, got {} {}, {} {}", op, VarTypeToString(Type()),
+                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
+    }
+}
+
+void Var::CheckInteger(const char *op, int64_t &val) const {
+    if (!TryConvertNumberToInteger(val)) {
+        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be integer, got {} {}", op, VarTypeToString(Type()),
+                                          ToString()));
+    }
+}
+
 Var const_null_var;
 
 bool Var::TryConvertNumberToInteger(int64_t &out) const {
@@ -185,10 +213,7 @@ double Var::GetCalculableNumber() const {
 }
 
 void Var::Plus(const Var &rhs, Var &result) const {
-    if (!IsCalculable() || !rhs.IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '+' must be number, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
+    CheckCalculable(rhs, "+");
     if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
         result.SetInt(GetCalculableInt() + rhs.GetCalculableInt());
     } else {
@@ -197,10 +222,7 @@ void Var::Plus(const Var &rhs, Var &result) const {
 }
 
 void Var::Minus(const Var &rhs, Var &result) const {
-    if (!IsCalculable() || !rhs.IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '-' must be number, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
+    CheckCalculable(rhs, "-");
     if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
         result.SetInt(GetCalculableInt() - rhs.GetCalculableInt());
     } else {
@@ -209,10 +231,7 @@ void Var::Minus(const Var &rhs, Var &result) const {
 }
 
 void Var::Star(const Var &rhs, Var &result) const {
-    if (!IsCalculable() || !rhs.IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '*' must be number, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
+    CheckCalculable(rhs, "*");
     if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
         result.SetInt(GetCalculableInt() * rhs.GetCalculableInt());
     } else {
@@ -221,18 +240,12 @@ void Var::Star(const Var &rhs, Var &result) const {
 }
 
 void Var::Slash(const Var &rhs, Var &result) const {
-    if (!IsCalculable() || !rhs.IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '/' must be number, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
+    CheckCalculable(rhs, "/");
     result.SetFloat(GetCalculableNumber() / rhs.GetCalculableNumber());
 }
 
 void Var::DoubleSlash(const Var &rhs, Var &result) const {
-    if (!IsCalculable() || !rhs.IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '//' must be number, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
+    CheckCalculable(rhs, "//");
     if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
         if (rhs.GetCalculableInt() == 0) {
             ThrowFakeluaException("Var op failed, division by zero in '//'");
@@ -244,7 +257,7 @@ void Var::DoubleSlash(const Var &rhs, Var &result) const {
         // UB 说明（有意保留，不做额外检测）：
         // 当 a == INT64_MIN 且 b == -1 时，a / b 和 a % b 均触发有符号整数溢出 UB。
         // Lua 5.4 官方实现同样未对此特判，实际结果在主流编译器（gcc/clang/msvc）
-        // 的 x86-64 平台上均为 INT64_MIN（IDIV 指令的硬件行为），行为稳定。
+        // 的 x86-64 平台上均为 INT64_MIN（IDIV 指令 of 硬件行为），行为稳定。
         // 为避免额外分支带来的性能损失，此处不做特殊处理。
         int64_t quotient = lhs_val / rhs_val;
         // 如果符号不同且有余数，则向负无穷方向调整
@@ -258,18 +271,12 @@ void Var::DoubleSlash(const Var &rhs, Var &result) const {
 }
 
 void Var::Pow(const Var &rhs, Var &result) const {
-    if (!IsCalculable() || !rhs.IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '^' must be number, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
+    CheckCalculable(rhs, "^");
     result.SetFloat(std::pow(GetCalculableNumber(), rhs.GetCalculableNumber()));
 }
 
 void Var::Mod(const Var &rhs, Var &result) const {
-    if (!IsCalculable() || !rhs.IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '%' must be number, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
+    CheckCalculable(rhs, "%");
     if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
         if (rhs.GetCalculableInt() == 0) {
             ThrowFakeluaException("Var op failed, division by zero in '%'");
@@ -298,44 +305,27 @@ void Var::Mod(const Var &rhs, Var &result) const {
 }
 
 void Var::Bitand(const Var &rhs, Var &result) const {
-    int64_t lhs_int = 0;
-    int64_t rhs_int = 0;
-    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '&' must be integer, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
+    int64_t lhs_int = 0, rhs_int = 0;
+    CheckInteger(rhs, "&", lhs_int, rhs_int);
     result.SetInt(lhs_int & rhs_int);
 }
 
 void Var::Xor(const Var &rhs, Var &result) const {
-    int64_t lhs_int = 0;
-    int64_t rhs_int = 0;
-    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '~' must be integer, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
+    int64_t lhs_int = 0, rhs_int = 0;
+    CheckInteger(rhs, "~", lhs_int, rhs_int);
     result.SetInt(lhs_int ^ rhs_int);
 }
 
 void Var::Bitor(const Var &rhs, Var &result) const {
-    int64_t lhs_int = 0;
-    int64_t rhs_int = 0;
-    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '|' must be integer, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
+    int64_t lhs_int = 0, rhs_int = 0;
+    CheckInteger(rhs, "|", lhs_int, rhs_int);
     result.SetInt(lhs_int | rhs_int);
 }
 
 void Var::RightShift(const Var &rhs, Var &result) const {
-    int64_t lhs_int = 0;
-    int64_t rhs_int = 0;
-    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '>>' must be integer, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
+    int64_t lhs_int = 0, rhs_int = 0;
+    CheckInteger(rhs, ">>", lhs_int, rhs_int);
     auto shift = rhs_int;
-    // Lua 5.4: 移位量绝对值 >= 64 时结果为 0（逻辑移位到超过宽度视为清零）
     if (shift >= 64 || shift <= -64) {
         result.SetInt(0);
         return;
@@ -348,14 +338,9 @@ void Var::RightShift(const Var &rhs, Var &result) const {
 }
 
 void Var::LeftShift(const Var &rhs, Var &result) const {
-    int64_t lhs_int = 0;
-    int64_t rhs_int = 0;
-    if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '<<' must be integer, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
+    int64_t lhs_int = 0, rhs_int = 0;
+    CheckInteger(rhs, "<<", lhs_int, rhs_int);
     auto shift = rhs_int;
-    // Lua 5.4: 移位量绝对值 >= 64 时结果为 0（逻辑移位到超过宽度视为清零）
     if (shift >= 64 || shift <= -64) {
         result.SetInt(0);
         return;
@@ -375,15 +360,7 @@ void Var::Concat(State *state, const Var &rhs, Var &result) const {
 }
 
 void Var::Less(const Var &rhs, Var &result) const {
-    // fakelua 的设计决策：<、<=、>、>= 仅支持数值（Int/Float）类型的比较。
-    // Lua 5.4 标准还支持两个字符串之间的字典序比较，但 fakelua 不支持字符串比较运算符，
-    // PreProcessor 层面已经通过类型推断避免将字符串传入这些运算符；
-    // 若运行时确实收到非数值操作数，抛出异常是正确且预期的行为。
-    if (!IsCalculable() || !rhs.IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '<' must be number, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
-
+    CheckCalculable(rhs, "<");
     if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
         result.SetBool(GetCalculableInt() < rhs.GetCalculableInt());
     } else {
@@ -392,12 +369,7 @@ void Var::Less(const Var &rhs, Var &result) const {
 }
 
 void Var::LessEqual(const Var &rhs, Var &result) const {
-    // 同 Less：fakelua 仅支持数值参与 <= 比较，字符串比较不在支持范围内。
-    if (!IsCalculable() || !rhs.IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '<=' must be number, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
-
+    CheckCalculable(rhs, "<=");
     if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
         result.SetBool(GetCalculableInt() <= rhs.GetCalculableInt());
     } else {
@@ -406,12 +378,7 @@ void Var::LessEqual(const Var &rhs, Var &result) const {
 }
 
 void Var::More(const Var &rhs, Var &result) const {
-    // 同 Less：fakelua 仅支持数值参与 > 比较，字符串比较不在支持范围内。
-    if (!IsCalculable() || !rhs.IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '>' must be number, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
-
+    CheckCalculable(rhs, ">");
     if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
         result.SetBool(GetCalculableInt() > rhs.GetCalculableInt());
     } else {
@@ -420,12 +387,7 @@ void Var::More(const Var &rhs, Var &result) const {
 }
 
 void Var::MoreEqual(const Var &rhs, Var &result) const {
-    // 同 Less：fakelua 仅支持数值参与 >= 比较，字符串比较不在支持范围内。
-    if (!IsCalculable() || !rhs.IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '>=' must be number, got {} {}, {} {}", VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
-    }
-
+    CheckCalculable(rhs, ">=");
     if (IsCalculableInteger() && rhs.IsCalculableInteger()) {
         result.SetBool(GetCalculableInt() >= rhs.GetCalculableInt());
     } else {
@@ -453,9 +415,7 @@ bool Var::TestTrue() const {
 }
 
 void Var::UnopMinus(Var &result) const {
-    if (!IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '-' must be number, got {} {}", VarTypeToString(Type()), ToString()));
-    }
+    CheckCalculable("-");
     if (IsCalculableInteger()) {
         // UB 说明（有意保留，不做额外检测）：
         // -INT64_MIN 触发有符号整数溢出 UB。Lua 5.4 官方实现同样未对此特判，
@@ -488,10 +448,7 @@ void Var::UnopNumberSign(Var &result) const {
 
 void Var::UnopBitnot(Var &result) const {
     int64_t int_value = 0;
-    if (!TryConvertNumberToInteger(int_value)) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '~' must be integer, got {} {}", VarTypeToString(Type()), ToString()));
-    }
-
+    CheckInteger("~", int_value);
     result.SetInt(~int_value);
 }
 
