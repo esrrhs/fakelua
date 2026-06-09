@@ -1728,28 +1728,19 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             ThrowError("local variable conflicts with global constant: " + name, stmt);
         }
 
-        if (i < exps.size() && LookupNodeType(exps[i].get()) == T_INT) {
+        const auto type = (i < exps.size()) ? LookupNodeType(exps[i].get()) : T_DYNAMIC;
+        if (type == T_INT || type == T_FLOAT) {
             const auto native_expr = CompileNumericExp(exps[i]);
+            const std::string type_str = (type == T_INT) ? "int64_t" : "double";
             if (IsTypedNativeVar(name)) {
                 const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    int64_t " << tmp << ";\n";
+                func_temp_decls_ << "    " << type_str << " " << tmp << ";\n";
                 Out() << GenTab() << tmp << " = " << native_expr << ";\n";
-                Out() << GenTab() << "int64_t " << name << " = " << tmp << ";\n";
+                Out() << GenTab() << type_str << " " << name << " = " << tmp << ";\n";
             } else {
-                Out() << GenTab() << "int64_t " << name << " = " << native_expr << ";\n";
+                Out() << GenTab() << type_str << " " << name << " = " << native_expr << ";\n";
             }
-            DeclareNativeVar(name, T_INT);
-        } else if (i < exps.size() && LookupNodeType(exps[i].get()) == T_FLOAT) {
-            const auto native_expr = CompileNumericExp(exps[i]);
-            if (IsTypedNativeVar(name)) {
-                const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    double " << tmp << ";\n";
-                Out() << GenTab() << tmp << " = " << native_expr << ";\n";
-                Out() << GenTab() << "double " << name << " = " << tmp << ";\n";
-            } else {
-                Out() << GenTab() << "double " << name << " = " << native_expr << ";\n";
-            }
-            DeclareNativeVar(name, T_FLOAT);
+            DeclareNativeVar(name, type);
         } else if (i < exps.size()) {
             // EvalType 为 T_DYNAMIC：尝试通过 InferArgTypeForSpec 捕获数学函数调用返回值。
             // 但若推断器的后处理阶段已将该表达式从数值类型降级为 T_DYNAMIC
