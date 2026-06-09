@@ -279,15 +279,9 @@ InferredType TypeInferencer::TypeEnvironment::Lookup(const std::string &name) co
 }
 
 InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_type, const InferredType new_type) {
-    if (old_type == T_DYNAMIC || new_type == T_DYNAMIC) {
-        return T_DYNAMIC;
-    }
     DEBUG_ASSERT(old_type != T_UNKNOWN);
     DEBUG_ASSERT(new_type != T_UNKNOWN);
-    if (old_type == new_type) {
-        return old_type;
-    }
-    return T_DYNAMIC;
+    return (old_type == T_DYNAMIC || new_type == T_DYNAMIC || old_type != new_type) ? T_DYNAMIC : old_type;
 }
 
 // ===========================================================================
@@ -634,17 +628,13 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                             left_op && left_op->GetOpKind() == BinOpKind::kAnd) {
                             const auto it = current_map.find(left_exp->Right().get());
                             if (const auto val1_type = (it != current_map.end()) ? it->second : T_DYNAMIC;
-                                (val1_type == T_INT || val1_type == T_FLOAT) && (right_type == T_INT || right_type == T_FLOAT)) {
-                                const auto merged = (val1_type == right_type) ? val1_type : T_FLOAT;
-                                return RecordType(current_map, exp.get(), merged);
+                                IsNumericInferredType(val1_type) && IsNumericInferredType(right_type)) {
+                                return RecordType(current_map, exp.get(), (val1_type == right_type) ? val1_type : T_FLOAT);
                             }
                         }
                     }
                 }
-                if (left_type == T_INT || left_type == T_FLOAT) {
-                    return RecordType(current_map, exp.get(), left_type);
-                }
-                return RecordType(current_map, exp.get(), T_DYNAMIC);
+                return RecordType(current_map, exp.get(), IsNumericInferredType(left_type) ? left_type : T_DYNAMIC);
             }
 
             if (left_type == T_DYNAMIC || right_type == T_DYNAMIC) {
