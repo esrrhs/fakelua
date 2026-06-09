@@ -268,9 +268,17 @@ void Var::Mod(const Var &rhs, Var &result) const {
     }
 }
 
-void Var::Bitand(const Var &rhs, Var &result) const { BitBinop(rhs, result, "&", std::bit_and<int64_t>{}); }
-void Var::Xor(const Var &rhs, Var &result) const { BitBinop(rhs, result, "~", std::bit_xor<int64_t>{}); }
-void Var::Bitor(const Var &rhs, Var &result) const { BitBinop(rhs, result, "|", std::bit_or<int64_t>{}); }
+void Var::Bitand(const Var &rhs, Var &result) const {
+    BitBinop(rhs, result, "&", std::bit_and<int64_t>{});
+}
+
+void Var::Xor(const Var &rhs, Var &result) const {
+    BitBinop(rhs, result, "~", std::bit_xor<int64_t>{});
+}
+
+void Var::Bitor(const Var &rhs, Var &result) const {
+    BitBinop(rhs, result, "|", std::bit_or<int64_t>{});
+}
 
 void Var::Shift(const Var &rhs, Var &result, const char *op_str, bool right) const {
     int64_t lhs_int = 0, rhs_int = 0;
