@@ -49,30 +49,10 @@ Var VarTable::Get(const Var &key) const {
     const auto hash_val = static_cast<uint32_t>(lookup_key.Hash());
 
     if (bucket_count_ == 0) {
-        // 快速模式：手动展开以提升性能
-        if (count_ > 0 && quick_data_[0].hash == hash_val && quick_data_[0].key.Equal(lookup_key)) {
-            return quick_data_[0].val;
-        }
-        if (count_ > 1 && quick_data_[1].hash == hash_val && quick_data_[1].key.Equal(lookup_key)) {
-            return quick_data_[1].val;
-        }
-        if (count_ > 2 && quick_data_[2].hash == hash_val && quick_data_[2].key.Equal(lookup_key)) {
-            return quick_data_[2].val;
-        }
-        if (count_ > 3 && quick_data_[3].hash == hash_val && quick_data_[3].key.Equal(lookup_key)) {
-            return quick_data_[3].val;
-        }
-        if (count_ > 4 && quick_data_[4].hash == hash_val && quick_data_[4].key.Equal(lookup_key)) {
-            return quick_data_[4].val;
-        }
-        if (count_ > 5 && quick_data_[5].hash == hash_val && quick_data_[5].key.Equal(lookup_key)) {
-            return quick_data_[5].val;
-        }
-        if (count_ > 6 && quick_data_[6].hash == hash_val && quick_data_[6].key.Equal(lookup_key)) {
-            return quick_data_[6].val;
-        }
-        if (count_ > 7 && quick_data_[7].hash == hash_val && quick_data_[7].key.Equal(lookup_key)) {
-            return quick_data_[7].val;
+        for (int i = 0; i < static_cast<int>(count_); ++i) {
+            if (quick_data_[i].hash == hash_val && quick_data_[i].key.Equal(lookup_key)) {
+                return quick_data_[i].val;
+            }
         }
         return const_null_var;
     } else {
@@ -111,59 +91,14 @@ void VarTable::Set(State *state, const Var &key, const Var &val, bool can_be_nil
         }
 
         if (bucket_count_ == 0) {
-            // 快速模式删除：手动展开
-            if (count_ > 0 && quick_data_[0].hash == hash_val && quick_data_[0].key.Equal(store_key)) {
-                if (count_ > 1) {
-                    quick_data_[0] = quick_data_[count_ - 1];
+            for (int i = 0; i < static_cast<int>(count_); ++i) {
+                if (quick_data_[i].hash == hash_val && quick_data_[i].key.Equal(store_key)) {
+                    if (i < static_cast<int>(count_) - 1) {
+                        quick_data_[i] = quick_data_[count_ - 1];
+                    }
+                    count_--;
+                    return;
                 }
-                count_--;
-                return;
-            }
-            if (count_ > 1 && quick_data_[1].hash == hash_val && quick_data_[1].key.Equal(store_key)) {
-                if (count_ > 2) {
-                    quick_data_[1] = quick_data_[count_ - 1];
-                }
-                count_--;
-                return;
-            }
-            if (count_ > 2 && quick_data_[2].hash == hash_val && quick_data_[2].key.Equal(store_key)) {
-                if (count_ > 3) {
-                    quick_data_[2] = quick_data_[count_ - 1];
-                }
-                count_--;
-                return;
-            }
-            if (count_ > 3 && quick_data_[3].hash == hash_val && quick_data_[3].key.Equal(store_key)) {
-                if (count_ > 4) {
-                    quick_data_[3] = quick_data_[count_ - 1];
-                }
-                count_--;
-                return;
-            }
-            if (count_ > 4 && quick_data_[4].hash == hash_val && quick_data_[4].key.Equal(store_key)) {
-                if (count_ > 5) {
-                    quick_data_[4] = quick_data_[count_ - 1];
-                }
-                count_--;
-                return;
-            }
-            if (count_ > 5 && quick_data_[5].hash == hash_val && quick_data_[5].key.Equal(store_key)) {
-                if (count_ > 6) {
-                    quick_data_[5] = quick_data_[count_ - 1];
-                }
-                count_--;
-                return;
-            }
-            if (count_ > 6 && quick_data_[6].hash == hash_val && quick_data_[6].key.Equal(store_key)) {
-                if (count_ > 7) {
-                    quick_data_[6] = quick_data_[count_ - 1];
-                }
-                count_--;
-                return;
-            }
-            if (count_ > 7 && quick_data_[7].hash == hash_val && quick_data_[7].key.Equal(store_key)) {
-                count_--;
-                return;
             }
         } else {
             const uint32_t mask = bucket_count_ - 1;
@@ -232,38 +167,11 @@ void VarTable::Set(State *state, const Var &key, const Var &val, bool can_be_nil
     }
 
     if (bucket_count_ == 0) {
-        // 快速模式更新/插入：手动展开
-        if (count_ > 0 && quick_data_[0].hash == hash_val && quick_data_[0].key.Equal(store_key)) {
-            quick_data_[0].val = val;
-            return;
-        }
-        if (count_ > 1 && quick_data_[1].hash == hash_val && quick_data_[1].key.Equal(store_key)) {
-            quick_data_[1].val = val;
-            return;
-        }
-        if (count_ > 2 && quick_data_[2].hash == hash_val && quick_data_[2].key.Equal(store_key)) {
-            quick_data_[2].val = val;
-            return;
-        }
-        if (count_ > 3 && quick_data_[3].hash == hash_val && quick_data_[3].key.Equal(store_key)) {
-            quick_data_[3].val = val;
-            return;
-        }
-        if (count_ > 4 && quick_data_[4].hash == hash_val && quick_data_[4].key.Equal(store_key)) {
-            quick_data_[4].val = val;
-            return;
-        }
-        if (count_ > 5 && quick_data_[5].hash == hash_val && quick_data_[5].key.Equal(store_key)) {
-            quick_data_[5].val = val;
-            return;
-        }
-        if (count_ > 6 && quick_data_[6].hash == hash_val && quick_data_[6].key.Equal(store_key)) {
-            quick_data_[6].val = val;
-            return;
-        }
-        if (count_ > 7 && quick_data_[7].hash == hash_val && quick_data_[7].key.Equal(store_key)) {
-            quick_data_[7].val = val;
-            return;
+        for (int i = 0; i < static_cast<int>(count_); ++i) {
+            if (quick_data_[i].hash == hash_val && quick_data_[i].key.Equal(store_key)) {
+                quick_data_[i].val = val;
+                return;
+            }
         }
 
         if (count_ < QUICK_DATA_SIZE) {
