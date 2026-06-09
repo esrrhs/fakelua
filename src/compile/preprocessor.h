@@ -11,7 +11,6 @@ class PreProcessor {
 public:
     explicit PreProcessor(State *s);
 
-    ~PreProcessor() = default;
 
     void Process(const ParseResult &pr, const CompileConfig &cfg);
 

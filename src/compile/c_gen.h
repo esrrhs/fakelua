@@ -19,7 +19,6 @@ class State;
 class CGen {
 public:
     explicit CGen(State *s);
-    ~CGen() = default;
 
     // 核心代码生成入口
     GenResult Generate(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg);

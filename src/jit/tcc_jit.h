@@ -12,7 +12,6 @@ struct TCCState;
 class TccJitter {
 public:
     explicit TccJitter(State *s);
-    ~TccJitter() = default;
 
     void Compile(const ParseResult &pr, const GenResult &gr, const CompileConfig &cfg);
 

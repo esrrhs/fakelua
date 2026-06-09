@@ -14,7 +14,6 @@ class MyFlexer : public yyFlexLexer {
 public:
     MyFlexer() = default;
 
-    ~MyFlexer() override = default;
 
     // Bison 调用的词法分析接口，实现在 scanner.cpp 中
     virtual yy::parser::symbol_type MyYylex();
