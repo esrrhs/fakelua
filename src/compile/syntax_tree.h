@@ -273,7 +273,6 @@ public:
     explicit SyntaxTreeBlock(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeBlock() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -308,7 +307,6 @@ public:
     explicit SyntaxTreeLabel(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeLabel() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -337,7 +335,6 @@ public:
     explicit SyntaxTreeReturn(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeReturn() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -367,7 +364,6 @@ public:
     explicit SyntaxTreeAssign(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeAssign() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -408,7 +404,6 @@ public:
     explicit SyntaxTreeVarlist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeVarlist() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -438,7 +433,6 @@ public:
     explicit SyntaxTreeExplist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeExplist() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -468,7 +462,6 @@ public:
     explicit SyntaxTreeVar(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeVar() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -541,7 +534,6 @@ public:
     explicit SyntaxTreeFunctioncall(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeFunctioncall() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -593,7 +585,6 @@ public:
     explicit SyntaxTreeTableconstructor(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeTableconstructor() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -623,7 +614,6 @@ public:
     explicit SyntaxTreeFieldlist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeFieldlist() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -653,7 +643,6 @@ public:
     explicit SyntaxTreeField(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeField() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -716,7 +705,6 @@ public:
     explicit SyntaxTreeBreak(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeBreak() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -733,7 +721,6 @@ public:
     explicit SyntaxTreeGoto(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeGoto() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -758,7 +745,6 @@ public:
     explicit SyntaxTreeWhile(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeWhile() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -799,7 +785,6 @@ public:
     explicit SyntaxTreeRepeat(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeRepeat() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -840,7 +825,6 @@ public:
     explicit SyntaxTreeIf(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeIf() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -903,7 +887,6 @@ public:
     explicit SyntaxTreeElseiflist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeElseiflist() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -959,7 +942,6 @@ public:
     explicit SyntaxTreeForLoop(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeForLoop() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1033,7 +1015,6 @@ public:
     explicit SyntaxTreeForIn(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeForIn() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1085,7 +1066,6 @@ public:
     explicit SyntaxTreeNamelist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeNamelist() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1121,7 +1101,6 @@ public:
     explicit SyntaxTreeFunction(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeFunction() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1162,7 +1141,6 @@ public:
     explicit SyntaxTreeFuncnamelist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeFuncnamelist() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1192,7 +1170,6 @@ public:
     explicit SyntaxTreeFuncname(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeFuncname() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1233,7 +1210,6 @@ public:
     explicit SyntaxTreeFuncbody(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeFuncbody() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1274,7 +1250,6 @@ public:
     explicit SyntaxTreeFunctiondef(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeFunctiondef() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1304,7 +1279,6 @@ public:
     explicit SyntaxTreeParlist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeParlist() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1345,7 +1319,6 @@ public:
     explicit SyntaxTreeLocalFunction(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeLocalFunction() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1386,7 +1359,6 @@ public:
     explicit SyntaxTreeLocalVar(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeLocalVar() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1427,7 +1399,6 @@ public:
     explicit SyntaxTreeExp(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeExp() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1501,7 +1472,6 @@ public:
     explicit SyntaxTreeBinop(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeBinop() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1531,7 +1501,6 @@ public:
     explicit SyntaxTreeUnop(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeUnop() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1561,7 +1530,6 @@ public:
     explicit SyntaxTreeArgs(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreeArgs() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1624,7 +1592,6 @@ public:
     explicit SyntaxTreePrefixexp(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-    ~SyntaxTreePrefixexp() override = default;
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {

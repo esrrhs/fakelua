@@ -18,78 +18,68 @@ namespace fakelua {
 
 std::string ReplaceEscapeChars(const std::string &str) {
     std::string result;
-    for (std::string::const_iterator it = str.begin(); it != str.end();) {
+    for (auto it = str.begin(); it != str.end();) {
         if (*it == '\\') {
             ++it;
             if (it == str.end()) {
                 break;
             }
-            switch (*it) {
-                case 'a':
-                    result += '\a';
-                    ++it;
-                    break;
-                case 'b':
-                    result += '\b';
-                    ++it;
-                    break;
-                case '\\':
-                    result += '\\';
-                    ++it;
-                    break;
-                case 'f':
-                    result += '\f';
-                    ++it;
-                    break;
-                case 'n':
-                    result += '\n';
-                    ++it;
-                    break;
-                case 'r':
-                    result += '\r';
-                    ++it;
-                    break;
-                case 't':
-                    result += '\t';
-                    ++it;
-                    break;
-                case 'v':
-                    result += '\v';
-                    ++it;
-                    break;
-                case '\"':
-                    result += '\"';
-                    ++it;
-                    break;
-                case '\'':
-                    result += '\'';
-                    ++it;
-                    break;
-                case 'z':
-                    // 跳过后续的空白字符序列（包括空格、换行、制表符等）
-                    ++it;
-                    while (it != str.end() && std::isspace(static_cast<unsigned char>(*it))) {
-                        ++it;
+            if (isdigit(static_cast<unsigned char>(*it))) {
+                int dec_val = 0;
+                for (int i = 0; i < 3; ++i) {
+                    if (it == str.end() || !isdigit(static_cast<unsigned char>(*it))) {
+                        break;
                     }
-                    break;
-                default:
-                    if (!isdigit(static_cast<unsigned char>(*it))) {
-                        ThrowFakeluaException(std::format("ReplaceEscapeChars failed, invalid escape sequence \\{}", *it));
-                    }
-                    // 最多读取3位数字
-                    int dec_val = 0; /* 结果累加器 */
-                    for (int i = 0; i < 3; ++i) {
-                        if (it == str.end() || !isdigit(static_cast<unsigned char>(*it))) {
-                            break;
+                    dec_val = 10 * dec_val + *it - '0';
+                    ++it;
+                }
+                if (dec_val > 0xFF) {
+                    ThrowFakeluaException("ReplaceEscapeChars failed, decimal escape too large \\" + std::to_string(dec_val));
+                }
+                result += static_cast<char>(dec_val);
+            } else {
+                char esc = *it;
+                ++it;
+                switch (esc) {
+                    case 'a':
+                        result += '\a';
+                        break;
+                    case 'b':
+                        result += '\b';
+                        break;
+                    case '\\':
+                        result += '\\';
+                        break;
+                    case 'f':
+                        result += '\f';
+                        break;
+                    case 'n':
+                        result += '\n';
+                        break;
+                    case 'r':
+                        result += '\r';
+                        break;
+                    case 't':
+                        result += '\t';
+                        break;
+                    case 'v':
+                        result += '\v';
+                        break;
+                    case '\"':
+                        result += '\"';
+                        break;
+                    case '\'':
+                        result += '\'';
+                        break;
+                    case 'z':
+                        while (it != str.end() && std::isspace(static_cast<unsigned char>(*it))) {
+                            ++it;
                         }
-                        dec_val = 10 * dec_val + *it - '0';
-                        ++it;
-                    }
-                    if (dec_val > 0xFF) {
-                        ThrowFakeluaException("ReplaceEscapeChars failed, decimal escape too large \\" + std::to_string(dec_val));
-                    }
-                    result += static_cast<char>(dec_val);
-                    break;
+                        break;
+                    default:
+                        ThrowFakeluaException(std::format("ReplaceEscapeChars failed, invalid escape sequence \\{}", esc));
+                        break;
+                }
             }
         } else {
             result += *it;

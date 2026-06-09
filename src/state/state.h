@@ -21,7 +21,6 @@ class State {
 public:
     explicit State(const StateConfig &config = {});
 
-    ~State() = default;
 
     void Reset() {
         DEBUG_ASSERT(reentrant_count_ == 0);

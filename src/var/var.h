@@ -216,6 +216,15 @@ private:
     void CheckTable(const char *op) const;
     void Shift(const Var &rhs, Var &result, const char *op_str, bool right) const;
 
+    template <typename BitOp>
+    void BitBinop(const Var &rhs, Var &result, const char *op_str, BitOp bit_op) const {
+        int64_t lhs_int = 0, rhs_int = 0;
+        CheckInteger(rhs, op_str, lhs_int, rhs_int);
+        result.SetInt(bit_op(lhs_int, rhs_int));
+    }
+
+    int64_t FloorDiv(int64_t lhs_val, int64_t rhs_val) const;
+
     template <typename IntOp, typename FloatOp>
     void ArithBinop(const Var &rhs, Var &result, const char *op_str, IntOp int_op, FloatOp float_op) const {
         CheckCalculable(rhs, op_str);

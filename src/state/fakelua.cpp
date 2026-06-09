@@ -140,26 +140,24 @@ unsigned long FakeluaToNativeUlong(State *state, CVar val) { return FakeluaToNat
 long long FakeluaToNativeLonglong(State *state, CVar val) { return FakeluaToNativeIntHelper<long long>(val, "FakeluaToNativeLonglong"); }
 unsigned long long FakeluaToNativeUlonglong(State *state, CVar val) { return FakeluaToNativeIntHelper<unsigned long long>(val, "FakeluaToNativeUlonglong"); }
 
-float FakeluaToNativeFloat(State *state, CVar val) {
-    const auto var_val = reinterpret_cast<Var &>(val);
+template <typename T>
+T FakeluaToNativeFloatHelper(CVar val, const char *func_name) {
+    const auto &var_val = reinterpret_cast<const Var &>(val);
     if (var_val.Type() == VarType::Float) {
-        return static_cast<float>(var_val.GetFloat());
+        return static_cast<T>(var_val.GetFloat());
     }
     if (var_val.Type() == VarType::Int) {
-        return static_cast<float>(var_val.GetInt());
+        return static_cast<T>(var_val.GetInt());
     }
-    ThrowFakeluaException(std::format("FakeluaToNativeFloat failed, type is {}", VarTypeToString(var_val.Type())));
+    ThrowFakeluaException(std::format("{} failed, type is {}", func_name, VarTypeToString(var_val.Type())));
+}
+
+float FakeluaToNativeFloat(State *state, CVar val) {
+    return FakeluaToNativeFloatHelper<float>(val, "FakeluaToNativeFloat");
 }
 
 double FakeluaToNativeDouble(State *state, CVar val) {
-    const auto var_val = reinterpret_cast<Var &>(val);
-    if (var_val.Type() == VarType::Float) {
-        return var_val.GetFloat();
-    }
-    if (var_val.Type() == VarType::Int) {
-        return static_cast<double>(var_val.GetInt());
-    }
-    ThrowFakeluaException(std::format("FakeluaToNativeDouble failed, type is {}", VarTypeToString(var_val.Type())));
+    return FakeluaToNativeFloatHelper<double>(val, "FakeluaToNativeDouble");
 }
 
 std::string FakeluaToNativeString(State *state, CVar val) {

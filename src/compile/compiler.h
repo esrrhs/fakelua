@@ -15,7 +15,6 @@ public:
     // 构造函数
     explicit Compiler(State *s);
 
-    ~Compiler() = default;
 
 public:
     // 编译指定的 Lua 文件，返回解析阶段结果（含语法树）

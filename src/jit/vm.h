@@ -16,7 +16,6 @@ class Vm {
 public:
     Vm() = default;
 
-    ~Vm() = default;
 
     // 注册函数（单线程调用，见类注释）
     void RegisterFunction(const VmFunction &func) {
