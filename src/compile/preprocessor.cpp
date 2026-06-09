@@ -233,7 +233,8 @@ void PreProcessor::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk) {
     for (const auto &stmt: top_block->Stmts()) {
         if (stmt->Type() == SyntaxTreeType::Function) {
             const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
-            if (const auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname()); funcname) {
+            const auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
+            if (funcname) {
                 if (!funcname->ColonName().empty()) {
                     ThrowError("Unsupported function name with method definition", stmt);
                 }
@@ -250,8 +251,7 @@ void PreProcessor::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk) {
             if (!namelist) {
                 ThrowError("local variable namelist is missing", stmt);
             }
-            if (const auto explist = lv->Explist()) {
-                const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
+            if (const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist())) {
                 if (namelist->Names().size() != el->Exps().size()) {
                     ThrowError(std::format("local variable count {} not match expression count {}", namelist->Names().size(),
                                            el->Exps().size()),
@@ -330,40 +330,38 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
                 }
 
                 // 迭代器表达式必须是 pairs(t) 或 ipairs(t) 调用
-                if (const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(explist->Exps()[0]);
-                    !exp || exp->GetExpKind() != ExpKind::kPrefixExp) {
+                const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(explist->Exps()[0]);
+                if (!exp || exp->GetExpKind() != ExpKind::kPrefixExp) {
                     ThrowError("for in expression must be a pairs() or ipairs() call", node);
-                } else {
-                    if (const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
-                        !pe || pe->GetPrefixKind() != PrefixExpKind::kFunctionCall) {
-                        ThrowError("for in expression must be a function call", node);
-                    } else {
-                        if (const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue()); fc) {
-                            if (const auto func_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-                                !func_pe || func_pe->GetPrefixKind() != PrefixExpKind::kVar) {
-                                ThrowError("for in: only pairs() or ipairs() are supported", node);
-                            } else {
-                                if (const auto func_var = std::dynamic_pointer_cast<SyntaxTreeVar>(func_pe->GetValue());
-                                    !func_var || (func_var->GetName() != "pairs" && func_var->GetName() != "ipairs")) {
-                                    ThrowError(std::format("for in: only pairs() or ipairs() are supported, got '{}'",
-                                                           func_var ? func_var->GetName() : ""),
-                                               node);
-                                }
-                                // 检查 pairs/ipairs 的参数
-                                if (const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-                                    !args_ptr || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
-                                    ThrowError("for in: pairs/ipairs argument must be an expression list", node);
-                                } else {
-                                    if (const auto args_explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
-                                        !args_explist_ptr || args_explist_ptr->Exps().size() != 1) {
-                                        ThrowError(std::format("for in: pairs/ipairs must have exactly one argument, got {}",
-                                                               args_explist_ptr ? args_explist_ptr->Exps().size() : 0),
-                                                   node);
-                                    }
-                                }
-                            }
-                        }
-                    }
+                }
+                const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
+                if (!pe || pe->GetPrefixKind() != PrefixExpKind::kFunctionCall) {
+                    ThrowError("for in expression must be a function call", node);
+                }
+                const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
+                if (!fc) {
+                    ThrowError("for in: function call node is missing", node);
+                }
+                const auto func_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+                if (!func_pe || func_pe->GetPrefixKind() != PrefixExpKind::kVar) {
+                    ThrowError("for in: only pairs() or ipairs() are supported", node);
+                }
+                const auto func_var = std::dynamic_pointer_cast<SyntaxTreeVar>(func_pe->GetValue());
+                if (!func_var || (func_var->GetName() != "pairs" && func_var->GetName() != "ipairs")) {
+                    ThrowError(std::format("for in: only pairs() or ipairs() are supported, got '{}'",
+                                           func_var ? func_var->GetName() : ""),
+                               node);
+                }
+                // 检查 pairs/ipairs 的参数
+                const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+                if (!args_ptr || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
+                    ThrowError("for in: pairs/ipairs argument must be an expression list", node);
+                }
+                const auto args_explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+                if (!args_explist_ptr || args_explist_ptr->Exps().size() != 1) {
+                    ThrowError(std::format("for in: pairs/ipairs must have exactly one argument, got {}",
+                                           args_explist_ptr ? args_explist_ptr->Exps().size() : 0),
+                               node);
                 }
             }
             break;
@@ -411,21 +409,18 @@ void PreProcessor::PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &
     std::vector<SyntaxTreeInterfacePtr> new_stmts;
     for (const auto &stmt: top_block->Stmts()) {
         if (stmt->Type() == SyntaxTreeType::LocalVar) {
-            if (const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt)) {
-                const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
-                const auto el = lv->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist()) : nullptr;
-                if (nl && el && nl->Names().size() == 1 && el->Exps().size() == 1) {
-                    if (const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0])) {
-                        if (init_exp->GetExpKind() == ExpKind::kFunctionDef) {
-                            if (const auto fdef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(init_exp->Right())) {
-                                const auto local_func = std::make_shared<SyntaxTreeLocalFunction>(stmt->Loc());
-                                local_func->SetName(nl->Names()[0]);
-                                local_func->SetFuncbody(fdef->Funcbody());
-                                new_stmts.push_back(local_func);
-                                LOG_INFO("PreprocessFunctiondefLocalVars: converted local {} = function(...) to local function {}(...)", nl->Names()[0], nl->Names()[0]);
-                                continue;
-                            }
-                        }
+            const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+            const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
+            const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist());
+            if (nl && el && nl->Names().size() == 1 && el->Exps().size() == 1) {
+                if (const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]); init_exp && init_exp->GetExpKind() == ExpKind::kFunctionDef) {
+                    if (const auto fdef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(init_exp->Right())) {
+                        const auto local_func = std::make_shared<SyntaxTreeLocalFunction>(stmt->Loc());
+                        local_func->SetName(nl->Names()[0]);
+                        local_func->SetFuncbody(fdef->Funcbody());
+                        new_stmts.push_back(local_func);
+                        LOG_INFO("PreprocessFunctiondefLocalVars: converted local {} = function(...) to local function {}(...)", nl->Names()[0], nl->Names()[0]);
+                        continue;
                     }
                 }
             }
