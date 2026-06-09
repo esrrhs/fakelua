@@ -2725,15 +2725,25 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto &name = v_ptr->GetName();
         DEBUG_ASSERT(cur_section_ != Section::Globals);
         if (const auto spec_it = spec_param_types_.find(name); spec_it != spec_param_types_.end()) {
-            return BoxNativeValue(name, spec_it->second);
+            if (spec_it->second == T_INT) {
+                return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
+            }
+            return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
         }
-        if (const auto native_type = GetNativeVarType(name); native_type != T_DYNAMIC) {
-            return BoxNativeValue(name, native_type);
+        const auto native_type = GetNativeVarType(name);
+        if (native_type == T_INT) {
+            return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
+        }
+        if (native_type == T_FLOAT) {
+            return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
         }
         // 文件级数值常量（static const int64_t / double）：装箱为 CVar 后返回。
         if (const auto git = global_const_vars_.find(name); git != global_const_vars_.end()) {
-            if (git->second == T_INT || git->second == T_FLOAT) {
-                return BoxNativeValue(name, git->second);
+            if (git->second == T_INT) {
+                return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", name);
+            }
+            if (git->second == T_FLOAT) {
+                return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", name);
             }
         }
         return name;
