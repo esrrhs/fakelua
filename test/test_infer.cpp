@@ -3679,7 +3679,7 @@ TEST(infer, test_spec_concat_arg_dynamic) {
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     // Inside test_0, the concat n .. n should call add dynamically (not add_0).
     // The concat result is T_DYNAMIC, so specialization call is not possible.
-    ASSERT_NE(code.find("FlConcat("), std::string::npos);
+    ASSERT_NE(code.find("OpConcat("), std::string::npos);
 }
 
 // 三元表达式（(n > 0) and 1 or 2）优化测试。

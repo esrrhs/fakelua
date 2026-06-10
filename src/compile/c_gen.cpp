@@ -783,6 +783,8 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     else { FakeluaThrowError(_S, "attempt to get length of a non-string/table value"); } \
 } while(0)
 
+#define OpConcat(a, b, res) do { res = FlConcat(a, b); } while(0)
+
 static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
     switch (v.type_) {
         case VAR_NIL: memcpy(buf, "nil", 3); buf[3] = '\0'; return 3;
@@ -2466,6 +2468,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
             {BinOpKind::kBitOr, "OpBitOr"},
             {BinOpKind::kRightShift, "OpRightShift"},
             {BinOpKind::kLeftShift, "OpLeftShift"},
+            {BinOpKind::kConcat, "OpConcat"},
             {BinOpKind::kLess, "OpLt"},
             {BinOpKind::kLessEqual, "OpLe"},
             {BinOpKind::kMore, "OpGt"},
@@ -2476,8 +2479,6 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
 
     if (const auto it = kBinOpMacros.find(op_kind); it != kBinOpMacros.end()) {
         Out() << GenTab() << std::format("{}({}, {}, {});\n", it->second, l, r, tmp);
-    } else if (op_kind == BinOpKind::kConcat) {
-        Out() << GenTab() << std::format("{} = FlConcat({}, {});\n", tmp, l, r);
     } else {
         ThrowError("binary operator not supported", op);
     }
