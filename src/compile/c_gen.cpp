@@ -783,6 +783,8 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     else { FakeluaThrowError(_S, "attempt to get length of a non-string/table value"); } \
 } while(0)
 
+#define OpConcat(a, b, res) do { res = FlConcat(a, b); } while(0)
+
 static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
     switch (v.type_) {
         case VAR_NIL: memcpy(buf, "nil", 3); buf[3] = '\0'; return 3;
@@ -2452,44 +2454,31 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     const auto l = std::format("({})", left_str);
     const auto r = std::format("({})", right_str);
 
-    if (op_kind == BinOpKind::kPlus) {
-        Out() << GenTab() << std::format("OpAdd({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kMinus) {
-        Out() << GenTab() << std::format("OpSub({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kStar) {
-        Out() << GenTab() << std::format("OpMul({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kSlash) {
-        Out() << GenTab() << std::format("OpDiv({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kDoubleSlash) {
-        Out() << GenTab() << std::format("OpFloorDiv({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kPow) {
-        Out() << GenTab() << std::format("OpPow({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kMod) {
-        Out() << GenTab() << std::format("OpMod({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kBitAnd) {
-        Out() << GenTab() << std::format("OpBitAnd({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kXor) {
-        Out() << GenTab() << std::format("OpBitXor({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kBitOr) {
-        Out() << GenTab() << std::format("OpBitOr({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kRightShift) {
-        Out() << GenTab() << std::format("OpRightShift({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kLeftShift) {
-        Out() << GenTab() << std::format("OpLeftShift({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kConcat) {
-        Out() << GenTab() << std::format("{} = FlConcat({}, {});\n", tmp, l, r);
-    } else if (op_kind == BinOpKind::kLess) {
-        Out() << GenTab() << std::format("OpLt({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kLessEqual) {
-        Out() << GenTab() << std::format("OpLe({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kMore) {
-        Out() << GenTab() << std::format("OpGt({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kMoreEqual) {
-        Out() << GenTab() << std::format("OpGe({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kEqual) {
-        Out() << GenTab() << std::format("OpEq({}, {}, {});\n", l, r, tmp);
-    } else if (op_kind == BinOpKind::kNotEqual) {
-        Out() << GenTab() << std::format("OpNe({}, {}, {});\n", l, r, tmp);
+    // Lookup table for binary operators that use the OpXxx macro pattern.
+    static const std::unordered_map<BinOpKind, std::string_view> kBinOpMacros = {
+            {BinOpKind::kPlus, "OpAdd"},
+            {BinOpKind::kMinus, "OpSub"},
+            {BinOpKind::kStar, "OpMul"},
+            {BinOpKind::kSlash, "OpDiv"},
+            {BinOpKind::kDoubleSlash, "OpFloorDiv"},
+            {BinOpKind::kPow, "OpPow"},
+            {BinOpKind::kMod, "OpMod"},
+            {BinOpKind::kBitAnd, "OpBitAnd"},
+            {BinOpKind::kXor, "OpBitXor"},
+            {BinOpKind::kBitOr, "OpBitOr"},
+            {BinOpKind::kRightShift, "OpRightShift"},
+            {BinOpKind::kLeftShift, "OpLeftShift"},
+            {BinOpKind::kConcat, "OpConcat"},
+            {BinOpKind::kLess, "OpLt"},
+            {BinOpKind::kLessEqual, "OpLe"},
+            {BinOpKind::kMore, "OpGt"},
+            {BinOpKind::kMoreEqual, "OpGe"},
+            {BinOpKind::kEqual, "OpEq"},
+            {BinOpKind::kNotEqual, "OpNe"},
+    };
+
+    if (const auto it = kBinOpMacros.find(op_kind); it != kBinOpMacros.end()) {
+        Out() << GenTab() << std::format("{}({}, {}, {});\n", it->second, l, r, tmp);
     } else {
         ThrowError("binary operator not supported", op);
     }
