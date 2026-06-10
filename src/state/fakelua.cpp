@@ -193,8 +193,6 @@ void VarToVi(State *state, CVar src, VarInterface *dst) {
             dst->ViSetFloat(var_val.GetFloat());
             break;
         case VarType::String:
-            dst->ViSetString(var_val.GetString()->Str());
-            break;
         case VarType::StringId:
             dst->ViSetString(var_val.GetString()->Str());
             break;
