@@ -841,27 +841,31 @@ static inline CVar FlConcat(CVar a, CVar b) {
     } \
 } while(0)
 
-// 原生整数向下取整除法（Lua 语义：向负无穷方向取整）。
-// 与 OpFloorDiv 的 VAR_INT 分支保持完全一致的语义。
+// 计算整数向下取整除法的商（Lua 语义：向负无穷方向取整）。
 // UB 说明（有意保留）：当 a==INT64_MIN 且 b==-1 时，/ 和 % 均触发有符号溢出 UB。
 // Lua 5.4 官方实现同样未特判，x86-64 IDIV 硬件行为稳定，为性能不加额外分支。
+#define FlFloorDivQuotient(a, b, q) do { \
+    (q) = (a) / (b); \
+    if (((a) ^ (b)) < 0 && (a) % (b) != 0) { (q) -= 1; } \
+} while(0)
+
+// 原生整数向下取整除法（Lua 语义：向负无穷方向取整）。
+// 与 OpFloorDiv 的 VAR_INT 分支保持完全一致的语义。
 #define FlFloorDivInt(a, b, result) do { \
     int64_t __fl_a = (a); int64_t __fl_b = (b); \
     if (__fl_b == 0) { FakeluaThrowError(_S, "floor division by zero"); } \
-    int64_t __fl_q = __fl_a / __fl_b; \
-    if ((__fl_a ^ __fl_b) < 0 && __fl_a % __fl_b != 0) { __fl_q -= 1; } \
+    int64_t __fl_q; \
+    FlFloorDivQuotient(__fl_a, __fl_b, __fl_q); \
     (result) = __fl_q; \
 } while(0)
 
 // 原生整数取模（Lua 语义：a - b * floor(a/b)）。
 // 与 OpMod 的 VAR_INT 分支保持完全一致的语义。
-// UB 说明（有意保留）：当 a==INT64_MIN 且 b==-1 时，/ 和 % 均触发有符号溢出 UB。
-// Lua 5.4 官方实现同样未特判，x86-64 IDIV 硬件行为稳定，为性能不加额外分支。
 #define FlModInt(a, b, result) do { \
     int64_t __fm_a = (a); int64_t __fm_b = (b); \
     if (__fm_b == 0) { FakeluaThrowError(_S, "modulo by zero"); } \
-    int64_t __fm_q = __fm_a / __fm_b; \
-    if ((__fm_a ^ __fm_b) < 0 && __fm_a % __fm_b != 0) { __fm_q -= 1; } \
+    int64_t __fm_q; \
+    FlFloorDivQuotient(__fm_a, __fm_b, __fm_q); \
     (result) = __fm_a - __fm_b * __fm_q; \
 } while(0)
 
