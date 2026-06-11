@@ -5,7 +5,6 @@
 #include "util/common.h"
 #include "var_string.h"
 #include "var_table.h"
-#include <limits>
 
 namespace fakelua {
 
@@ -47,23 +46,11 @@ bool Var::TryConvertNumberToInteger(int64_t &out) const {
     if (Type() != VarType::Float) {
         return false;
     }
-
-    const double double_val = GetFloat();
-    if (!std::isfinite(double_val)) {
+    const auto result = TryConvertDoubleToInt64(GetFloat());
+    if (!result) {
         return false;
     }
-    double int_part = 0;
-    if (std::modf(double_val, &int_part) != 0.0) {
-        return false;
-    }
-    // 上界必须按“< 2^63”检查，而不能用 static_cast<double>(INT64_MAX)。
-    // 因为 double 无法精确表示 INT64_MAX，转换后会变成 2^63，若仍按 INT64_MAX 比较，
-    // 会把 2^63 误判为可转换值，随后 static_cast<int64_t>(2^63) 触发 UB。
-    constexpr double kInt64UpperBoundExclusive = 9223372036854775808.0;// 2^63
-    if (int_part < static_cast<double>(std::numeric_limits<int64_t>::min()) || int_part >= kInt64UpperBoundExclusive) {
-        return false;
-    }
-    out = static_cast<int64_t>(int_part);
+    out = *result;
     return true;
 }
 
@@ -154,10 +141,9 @@ size_t Var::Hash() const {
 
 bool Var::Equal(const Var &rhs) const {
     if (Type() != rhs.Type()) {
-        if (Type() == VarType::String && rhs.Type() == VarType::StringId) {
-            return GetString()->Str() == rhs.GetString()->Str();
-        }
-        if (Type() == VarType::StringId && rhs.Type() == VarType::String) {
+        // String and StringId are interchangeable for comparison
+        if ((Type() == VarType::String && rhs.Type() == VarType::StringId) ||
+            (Type() == VarType::StringId && rhs.Type() == VarType::String)) {
             return GetString()->Str() == rhs.GetString()->Str();
         }
         // Int and Float with the same mathematical value are equal (Lua semantics).

@@ -3,7 +3,6 @@
 #include "util/common.h"
 #include "var.h"
 #include <bit>
-#include <limits>
 
 namespace fakelua {
 
@@ -14,25 +13,12 @@ Var VarTable::NormalizeTableKey(const Var &key) const {
     if (key.Type() != VarType::Float) {
         return key;
     }
-
-    const double double_val = key.GetFloat();
-    if (!std::isfinite(double_val)) {
+    const auto result = TryConvertDoubleToInt64(key.GetFloat());
+    if (!result) {
         return key;
     }
-    double int_part = 0;
-    if (std::modf(double_val, &int_part) != 0.0) {
-        return key;
-    }
-    // 上界必须按"< 2^63"检查，而不能用 static_cast<double>(INT64_MAX)。
-    // 因为 double 无法精确表示 INT64_MAX，转换后会变成 2^63，若仍按 INT64_MAX 比较，
-    // 会把 2^63 误判为可转换值，随后 static_cast<int64_t>(2^63) 触发 UB。
-    constexpr double kInt64UpperBoundExclusive = 9223372036854775808.0;// 2^63
-    if (int_part < static_cast<double>(std::numeric_limits<int64_t>::min()) || int_part >= kInt64UpperBoundExclusive) {
-        return key;
-    }
-
     Var normalized;
-    normalized.SetInt(static_cast<int64_t>(int_part));
+    normalized.SetInt(*result);
     return normalized;
 }
 
