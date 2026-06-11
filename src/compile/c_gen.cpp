@@ -637,35 +637,23 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     } \
 } while(0)
 
-#define OpAdd(a, b, res) do { \
+// Helper to convert CVar to double (for mixed int/float arithmetic)
+#define CVAR_TO_DOUBLE(v) ((v).type_ == VAR_INT ? (double)(v).data_.i : (v).data_.f)
+
+// Internal implementation for arithmetic binary operations (Add/Sub/Mul)
+#define OP_ARITH_IMPL(a, b, res, op) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { SET_INT(res, _ra.data_.i + _rb.data_.i); } \
-    else { double _f1 = (_ra.type_ == VAR_INT) ? (double)_ra.data_.i : _ra.data_.f; \
-           double _f2 = (_rb.type_ == VAR_INT) ? (double)_rb.data_.i : _rb.data_.f; \
-           SET_FLOAT(res, _f1 + _f2); } \
+    if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { SET_INT(res, _ra.data_.i op _rb.data_.i); } \
+    else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) op CVAR_TO_DOUBLE(_rb)); } \
 } while(0)
 
-#define OpSub(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { SET_INT(res, _ra.data_.i - _rb.data_.i); } \
-    else { double _f1 = (_ra.type_ == VAR_INT) ? (double)_ra.data_.i : _ra.data_.f; \
-           double _f2 = (_rb.type_ == VAR_INT) ? (double)_rb.data_.i : _rb.data_.f; \
-           SET_FLOAT(res, _f1 - _f2); } \
-} while(0)
-
-#define OpMul(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { SET_INT(res, _ra.data_.i * _rb.data_.i); } \
-    else { double _f1 = (_ra.type_ == VAR_INT) ? (double)_ra.data_.i : _ra.data_.f; \
-           double _f2 = (_rb.type_ == VAR_INT) ? (double)_rb.data_.i : _rb.data_.f; \
-           SET_FLOAT(res, _f1 * _f2); } \
-} while(0)
+#define OpAdd(a, b, res) OP_ARITH_IMPL(a, b, res, +)
+#define OpSub(a, b, res) OP_ARITH_IMPL(a, b, res, -)
+#define OpMul(a, b, res) OP_ARITH_IMPL(a, b, res, *)
 
 #define OpDiv(a, b, res) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    double _f1 = (_ra.type_ == VAR_INT) ? (double)_ra.data_.i : _ra.data_.f; \
-    double _f2 = (_rb.type_ == VAR_INT) ? (double)_rb.data_.i : _rb.data_.f; \
-    SET_FLOAT(res, _f1 / _f2); \
+    SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) / CVAR_TO_DOUBLE(_rb)); \
 } while(0)
 
 #define OpFloorDiv(a, b, res) do { \
@@ -678,17 +666,13 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
         if ((_ra.data_.i ^ _rb.data_.i) < 0 && _ra.data_.i % _rb.data_.i != 0) { _q -= 1; } \
         SET_INT(res, _q); \
     } else { \
-        double _f1 = (_ra.type_ == VAR_INT) ? (double)_ra.data_.i : _ra.data_.f; \
-        double _f2 = (_rb.type_ == VAR_INT) ? (double)_rb.data_.i : _rb.data_.f; \
-        SET_FLOAT(res, floor(_f1 / _f2)); \
+        SET_FLOAT(res, floor(CVAR_TO_DOUBLE(_ra) / CVAR_TO_DOUBLE(_rb))); \
     } \
 } while(0)
 
 #define OpPow(a, b, res) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    double _f1 = (_ra.type_ == VAR_INT) ? (double)_ra.data_.i : _ra.data_.f; \
-    double _f2 = (_rb.type_ == VAR_INT) ? (double)_rb.data_.i : _rb.data_.f; \
-    SET_FLOAT(res, pow(_f1, _f2)); \
+    SET_FLOAT(res, pow(CVAR_TO_DOUBLE(_ra), CVAR_TO_DOUBLE(_rb))); \
 } while(0)
 
 #define OpMod(a, b, res) do { \
@@ -701,63 +685,41 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
         if ((_ra.data_.i ^ _rb.data_.i) < 0 && _ra.data_.i % _rb.data_.i != 0) { _q -= 1; } \
         SET_INT(res, _ra.data_.i - _rb.data_.i * _q); \
     } else { \
-        double _fa = (_ra.type_ == VAR_INT) ? (double)_ra.data_.i : _ra.data_.f; \
-        double _fb = (_rb.type_ == VAR_INT) ? (double)_rb.data_.i : _rb.data_.f; \
+        double _fa = CVAR_TO_DOUBLE(_ra); \
+        double _fb = CVAR_TO_DOUBLE(_rb); \
         SET_FLOAT(res, _fa - _fb * floor(_fa / _fb)); \
     } \
 } while(0)
 
-#define OpBitAnd(a, b, res) do { int64_t _ai; int64_t _bi; CheckInt(a, _ai); CheckInt(b, _bi); SET_INT(res, _ai & _bi); } while(0)
+// Internal implementation for bitwise operations (And/Xor/Or)
+#define OP_BIT_IMPL(a, b, res, op) do { int64_t _ai; int64_t _bi; CheckInt(a, _ai); CheckInt(b, _bi); SET_INT(res, _ai op _bi); } while(0)
 
-#define OpBitXor(a, b, res) do { int64_t _ai; int64_t _bi; CheckInt(a, _ai); CheckInt(b, _bi); SET_INT(res, _ai ^ _bi); } while(0)
+#define OpBitAnd(a, b, res) OP_BIT_IMPL(a, b, res, &)
+#define OpBitXor(a, b, res) OP_BIT_IMPL(a, b, res, ^)
+#define OpBitOr(a, b, res) OP_BIT_IMPL(a, b, res, |)
 
-#define OpBitOr(a, b, res) do { int64_t _ai; int64_t _bi; CheckInt(a, _ai); CheckInt(b, _bi); SET_INT(res, _ai | _bi); } while(0)
-
-#define OpRightShift(a, b, res) do { \
+// Internal implementation for shift operations (RightShift/LeftShift)
+#define OP_SHIFT_IMPL(a, b, res, _right) do { \
     int64_t _ai; int64_t _bi; CheckInt(a, _ai); CheckInt(b, _bi); \
     if (_bi >= 64 || _bi <= -64) { SET_INT(res, 0); } \
-    else if (_bi >= 0) { SET_INT(res, (int64_t)((uint64_t)_ai >> _bi)); } \
-    else { SET_INT(res, (int64_t)((uint64_t)_ai << (-(int64_t)_bi))); } \
+    else if (_bi >= 0) { SET_INT(res, (int64_t)((_right) ? ((uint64_t)_ai >> _bi) : ((uint64_t)_ai << _bi))); } \
+    else { SET_INT(res, (int64_t)((_right) ? ((uint64_t)_ai << (-_bi)) : ((uint64_t)_ai >> (-_bi)))); } \
 } while(0)
 
-#define OpLeftShift(a, b, res) do { \
-    int64_t _ai; int64_t _bi; CheckInt(a, _ai); CheckInt(b, _bi); \
-    if (_bi >= 64 || _bi <= -64) { SET_INT(res, 0); } \
-    else if (_bi >= 0) { SET_INT(res, (int64_t)((uint64_t)_ai << _bi)); } \
-    else { SET_INT(res, (int64_t)((uint64_t)_ai >> (-(int64_t)_bi))); } \
-} while(0)
+#define OpRightShift(a, b, res) OP_SHIFT_IMPL(a, b, res, 1)
+#define OpLeftShift(a, b, res) OP_SHIFT_IMPL(a, b, res, 0)
 
-#define OpLt(a, b, res) do { \
+// Internal implementation for comparison operations (Lt/Gt/Le/Ge)
+#define OP_CMP_IMPL(a, b, res, op) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { SET_BOOL(res, _ra.data_.i < _rb.data_.i); } \
-    else { double _f1 = (_ra.type_ == VAR_INT) ? (double)_ra.data_.i : _ra.data_.f; \
-           double _f2 = (_rb.type_ == VAR_INT) ? (double)_rb.data_.i : _rb.data_.f; \
-           SET_BOOL(res, _f1 < _f2); } \
+    if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { SET_BOOL(res, _ra.data_.i op _rb.data_.i); } \
+    else { SET_BOOL(res, CVAR_TO_DOUBLE(_ra) op CVAR_TO_DOUBLE(_rb)); } \
 } while(0)
 
-#define OpGt(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { SET_BOOL(res, _ra.data_.i > _rb.data_.i); } \
-    else { double _f1 = (_ra.type_ == VAR_INT) ? (double)_ra.data_.i : _ra.data_.f; \
-           double _f2 = (_rb.type_ == VAR_INT) ? (double)_rb.data_.i : _rb.data_.f; \
-           SET_BOOL(res, _f1 > _f2); } \
-} while(0)
-
-#define OpLe(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { SET_BOOL(res, _ra.data_.i <= _rb.data_.i); } \
-    else { double _f1 = (_ra.type_ == VAR_INT) ? (double)_ra.data_.i : _ra.data_.f; \
-           double _f2 = (_rb.type_ == VAR_INT) ? (double)_rb.data_.i : _rb.data_.f; \
-           SET_BOOL(res, _f1 <= _f2); } \
-} while(0)
-
-#define OpGe(a, b, res) do { \
-    CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { SET_BOOL(res, _ra.data_.i >= _rb.data_.i); } \
-    else { double _f1 = (_ra.type_ == VAR_INT) ? (double)_ra.data_.i : _ra.data_.f; \
-           double _f2 = (_rb.type_ == VAR_INT) ? (double)_rb.data_.i : _rb.data_.f; \
-           SET_BOOL(res, _f1 >= _f2); } \
-} while(0)
+#define OpLt(a, b, res) OP_CMP_IMPL(a, b, res, <)
+#define OpGt(a, b, res) OP_CMP_IMPL(a, b, res, >)
+#define OpLe(a, b, res) OP_CMP_IMPL(a, b, res, <=)
+#define OpGe(a, b, res) OP_CMP_IMPL(a, b, res, >=)
 
 #define OpEq(a, b, res) do { bool _eq; VarEqual(a, b, _eq); SET_BOOL(res, _eq); } while(0)
 
@@ -887,31 +849,26 @@ static inline CVar FlConcat(CVar a, CVar b) {
     (result) = (int64_t)__fi_ip; \
 } while(0)
 
-// 原生整数左移（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
-// 与 OpLeftShift 的逻辑完全一致，但接受原生 int64_t 参数以省去 CVar 打包/拆包。
-#define FlLShiftInt(a, b, result) do { \
-    int64_t __ls_a = (a); int64_t __ls_b = (b); \
-    if (__ls_b >= 64 || __ls_b <= -64) { \
+// 原生整数移位内部实现（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
+// _right 为 1 表示右移，为 0 表示左移。
+#define FlShiftIntImpl(a, b, result, _right) do { \
+    int64_t __sh_a = (a); int64_t __sh_b = (b); \
+    if (__sh_b >= 64 || __sh_b <= -64) { \
         (result) = (int64_t)0; \
-    } else if (__ls_b >= 0) { \
-        (result) = (int64_t)((uint64_t)__ls_a << __ls_b); \
+    } else if (__sh_b >= 0) { \
+        (result) = (int64_t)((_right) ? ((uint64_t)__sh_a >> __sh_b) : ((uint64_t)__sh_a << __sh_b)); \
     } else { \
-        (result) = (int64_t)((uint64_t)__ls_a >> (-__ls_b)); \
+        (result) = (int64_t)((_right) ? ((uint64_t)__sh_a << (-__sh_b)) : ((uint64_t)__sh_a >> (-__sh_b))); \
     } \
 } while(0)
 
+// 原生整数左移（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
+// 与 OpLeftShift 的逻辑完全一致，但接受原生 int64_t 参数以省去 CVar 打包/拆包。
+#define FlLShiftInt(a, b, result) FlShiftIntImpl(a, b, result, 0)
+
 // 原生整数右移（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
 // 与 OpRightShift 的逻辑完全一致，但接受原生 int64_t 参数。
-#define FlRShiftInt(a, b, result) do { \
-    int64_t __rs_a = (a); int64_t __rs_b = (b); \
-    if (__rs_b >= 64 || __rs_b <= -64) { \
-        (result) = (int64_t)0; \
-    } else if (__rs_b >= 0) { \
-        (result) = (int64_t)((uint64_t)__rs_a >> __rs_b); \
-    } else { \
-        (result) = (int64_t)((uint64_t)__rs_a << (-__rs_b)); \
-    } \
-} while(0)
+#define FlRShiftInt(a, b, result) FlShiftIntImpl(a, b, result, 1)
 
 // 原生取长度：从 CVar 中提取整数长度（字符串字节数或表元素数）。
 // 用于在数值特化路径中处理 # 运算符，替代 OpLen 宏以直接返回 int64_t。

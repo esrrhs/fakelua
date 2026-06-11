@@ -223,13 +223,8 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
             break;
         }
         case SyntaxTreeType::PrefixExp: {
-            if (auto prefixexp = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node); prefixexp->GetPrefixKind() == PrefixExpKind::kVar) {
-                DumpASTWithTypes(prefixexp->GetValue(), snapshot, tab + 1, os);
-            } else if (prefixexp->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
-                DumpASTWithTypes(prefixexp->GetValue(), snapshot, tab + 1, os);
-            } else if (prefixexp->GetPrefixKind() == PrefixExpKind::kExp) {
-                DumpASTWithTypes(prefixexp->GetValue(), snapshot, tab + 1, os);
-            }
+            auto prefixexp = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node);
+            DumpASTWithTypes(prefixexp->GetValue(), snapshot, tab + 1, os);
             break;
         }
         default:
