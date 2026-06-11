@@ -698,19 +698,16 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
 #define OpBitXor(a, b, res) OP_BIT_IMPL(a, b, res, ^)
 #define OpBitOr(a, b, res) OP_BIT_IMPL(a, b, res, |)
 
-#define OpRightShift(a, b, res) do { \
+// Internal implementation for shift operations (RightShift/LeftShift)
+#define OP_SHIFT_IMPL(a, b, res, _right) do { \
     int64_t _ai; int64_t _bi; CheckInt(a, _ai); CheckInt(b, _bi); \
     if (_bi >= 64 || _bi <= -64) { SET_INT(res, 0); } \
-    else if (_bi >= 0) { SET_INT(res, (int64_t)((uint64_t)_ai >> _bi)); } \
-    else { SET_INT(res, (int64_t)((uint64_t)_ai << (-(int64_t)_bi))); } \
+    else if (_bi >= 0) { SET_INT(res, (int64_t)((_right) ? ((uint64_t)_ai >> _bi) : ((uint64_t)_ai << _bi))); } \
+    else { SET_INT(res, (int64_t)((_right) ? ((uint64_t)_ai << (-_bi)) : ((uint64_t)_ai >> (-_bi)))); } \
 } while(0)
 
-#define OpLeftShift(a, b, res) do { \
-    int64_t _ai; int64_t _bi; CheckInt(a, _ai); CheckInt(b, _bi); \
-    if (_bi >= 64 || _bi <= -64) { SET_INT(res, 0); } \
-    else if (_bi >= 0) { SET_INT(res, (int64_t)((uint64_t)_ai << _bi)); } \
-    else { SET_INT(res, (int64_t)((uint64_t)_ai >> (-(int64_t)_bi))); } \
-} while(0)
+#define OpRightShift(a, b, res) OP_SHIFT_IMPL(a, b, res, 1)
+#define OpLeftShift(a, b, res) OP_SHIFT_IMPL(a, b, res, 0)
 
 // Internal implementation for comparison operations (Lt/Gt/Le/Ge)
 #define OP_CMP_IMPL(a, b, res, op) do { \
