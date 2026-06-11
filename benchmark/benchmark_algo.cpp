@@ -404,6 +404,34 @@ struct RuntimeContext {
         for (const char *script : lua_scripts) {
             CompileString(flua, script, {.debug_mode = false});
         }
+
+        // Warmup: call each FakeLua function once to page in JIT code and
+        // trigger any lazy initialization before benchmarks start timing.
+        int64_t warmup_ret = 0;
+        Call(flua, JIT_TCC, "bench_fib", warmup_ret, 10);
+        Call(flua, JIT_TCC, "bench_gcd", warmup_ret, 832040, 514229);
+        Call(flua, JIT_TCC, "bench_powmod", warmup_ret, 2, 1000, 1000000007);
+        Call(flua, JIT_TCC, "bench_sum", warmup_ret, 100);
+        Call(flua, JIT_TCC, "bench_bubble_sort", warmup_ret, 10);
+        Call(flua, JIT_TCC, "bench_sieve", warmup_ret, 100);
+        Call(flua, JIT_TCC, "bench_binary_search", warmup_ret, 100);
+        Call(flua, JIT_TCC, "bench_fast_pow", warmup_ret, 2, 1000, 1000000007);
+        Call(flua, JIT_TCC, "bench_popcount", warmup_ret, 100);
+        Call(flua, JIT_TCC, "bench_insertion_sort", warmup_ret, 10);
+        Call(flua, JIT_TCC, "bench_matmul", warmup_ret);
+#if !defined(_WIN32)
+        Call(flua, JIT_GCC, "bench_fib", warmup_ret, 10);
+        Call(flua, JIT_GCC, "bench_gcd", warmup_ret, 832040, 514229);
+        Call(flua, JIT_GCC, "bench_powmod", warmup_ret, 2, 1000, 1000000007);
+        Call(flua, JIT_GCC, "bench_sum", warmup_ret, 100);
+        Call(flua, JIT_GCC, "bench_bubble_sort", warmup_ret, 10);
+        Call(flua, JIT_GCC, "bench_sieve", warmup_ret, 100);
+        Call(flua, JIT_GCC, "bench_binary_search", warmup_ret, 100);
+        Call(flua, JIT_GCC, "bench_fast_pow", warmup_ret, 2, 1000, 1000000007);
+        Call(flua, JIT_GCC, "bench_popcount", warmup_ret, 100);
+        Call(flua, JIT_GCC, "bench_insertion_sort", warmup_ret, 10);
+        Call(flua, JIT_GCC, "bench_matmul", warmup_ret);
+#endif
     }
 
     ~RuntimeContext() {
