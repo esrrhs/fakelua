@@ -63,5 +63,6 @@
 #include "hash_func.h"
 #include "logging.h"
 #include "macro.h"
+#include "number_util.h"
 #include "os.h"
 #include "string_util.h"

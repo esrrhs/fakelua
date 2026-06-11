@@ -56,10 +56,7 @@ CVar NativeToFakeluaCstr(State *state, const char *val) {
 }
 
 CVar NativeToFakeluaStr(State *state, char *val) {
-    Var ret;
-    // 防御性处理：外部传入 nullptr 时视为空字符串，避免 string_view 构造崩溃
-    ret.SetTempString(state, val ? val : "");
-    return ret;
+    return NativeToFakeluaCstr(state, val);
 }
 
 CVar NativeToFakeluaString(State *state, const std::string &val) {
