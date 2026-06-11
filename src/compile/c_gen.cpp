@@ -887,31 +887,26 @@ static inline CVar FlConcat(CVar a, CVar b) {
     (result) = (int64_t)__fi_ip; \
 } while(0)
 
-// 原生整数左移（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
-// 与 OpLeftShift 的逻辑完全一致，但接受原生 int64_t 参数以省去 CVar 打包/拆包。
-#define FlLShiftInt(a, b, result) do { \
-    int64_t __ls_a = (a); int64_t __ls_b = (b); \
-    if (__ls_b >= 64 || __ls_b <= -64) { \
+// 原生整数移位内部实现（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
+// _right 为 1 表示右移，为 0 表示左移。
+#define FlShiftIntImpl(a, b, result, _right) do { \
+    int64_t __sh_a = (a); int64_t __sh_b = (b); \
+    if (__sh_b >= 64 || __sh_b <= -64) { \
         (result) = (int64_t)0; \
-    } else if (__ls_b >= 0) { \
-        (result) = (int64_t)((uint64_t)__ls_a << __ls_b); \
+    } else if (__sh_b >= 0) { \
+        (result) = (int64_t)((_right) ? ((uint64_t)__sh_a >> __sh_b) : ((uint64_t)__sh_a << __sh_b)); \
     } else { \
-        (result) = (int64_t)((uint64_t)__ls_a >> (-__ls_b)); \
+        (result) = (int64_t)((_right) ? ((uint64_t)__sh_a << (-__sh_b)) : ((uint64_t)__sh_a >> (-__sh_b))); \
     } \
 } while(0)
 
+// 原生整数左移（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
+// 与 OpLeftShift 的逻辑完全一致，但接受原生 int64_t 参数以省去 CVar 打包/拆包。
+#define FlLShiftInt(a, b, result) FlShiftIntImpl(a, b, result, 0)
+
 // 原生整数右移（Lua 语义：负移量反向移位，|移量| >= 64 返回 0，使用 uint64_t 避免符号位 UB）。
 // 与 OpRightShift 的逻辑完全一致，但接受原生 int64_t 参数。
-#define FlRShiftInt(a, b, result) do { \
-    int64_t __rs_a = (a); int64_t __rs_b = (b); \
-    if (__rs_b >= 64 || __rs_b <= -64) { \
-        (result) = (int64_t)0; \
-    } else if (__rs_b >= 0) { \
-        (result) = (int64_t)((uint64_t)__rs_a >> __rs_b); \
-    } else { \
-        (result) = (int64_t)((uint64_t)__rs_a << (-__rs_b)); \
-    } \
-} while(0)
+#define FlRShiftInt(a, b, result) FlShiftIntImpl(a, b, result, 1)
 
 // 原生取长度：从 CVar 中提取整数长度（字符串字节数或表元素数）。
 // 用于在数值特化路径中处理 # 运算符，替代 OpLen 宏以直接返回 int64_t。
