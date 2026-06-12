@@ -3722,6 +3722,10 @@ TEST(infer, test_math_spec_mixed) {
     ASSERT_NE(code.find("test_math_spec_mixed_0_0_0_0_0_0_0_0("), std::string::npos);
     // The entry function should take all 10 CVar parameters.
     ASSERT_NE(code.find("CVar test_math_spec_mixed(CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9, CVar p10)"), std::string::npos);
+    // Verify that specialized functions have correct parameter types:
+    // p1 and p10 are CVar, while p2..p9 are int64_t/double depending on the specialization.
+    ASSERT_NE(code.find("int64_t test_math_spec_mixed_0_0_0_0_0_0_0_0(CVar p1, int64_t p2, int64_t p3, int64_t p4, int64_t p5, int64_t p6, int64_t p7, int64_t p8, int64_t p9, CVar p10)"), std::string::npos);
+    ASSERT_NE(code.find("double test_math_spec_mixed_1_0_0_0_0_0_0_0(CVar p1, double p2, int64_t p3, int64_t p4, int64_t p5, int64_t p6, int64_t p7, int64_t p8, int64_t p9, CVar p10)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_math_spec_mixed.lua", {.debug_mode = debug_mode});
