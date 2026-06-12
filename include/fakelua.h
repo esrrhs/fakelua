@@ -538,43 +538,109 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &
     CVar ret_var;
     if constexpr (sizeof...(Args) == 0) {
         ret_var = reinterpret_cast<CVar (*)()>(addr)();
-#define CALL_CASE(N, ...) \
-    } else if constexpr (sizeof...(Args) == N) { \
-        ret_var = reinterpret_cast<CVar (*)(__VA_ARGS__)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+#define CVAR_1 CVar
+#define CVAR_2 CVAR_1, CVar
+#define CVAR_3 CVAR_2, CVar
+#define CVAR_4 CVAR_3, CVar
+#define CVAR_5 CVAR_4, CVar
+#define CVAR_6 CVAR_5, CVar
+#define CVAR_7 CVAR_6, CVar
+#define CVAR_8 CVAR_7, CVar
+#define CVAR_9 CVAR_8, CVar
+#define CVAR_10 CVAR_9, CVar
+#define CVAR_11 CVAR_10, CVar
+#define CVAR_12 CVAR_11, CVar
+#define CVAR_13 CVAR_12, CVar
+#define CVAR_14 CVAR_13, CVar
+#define CVAR_15 CVAR_14, CVar
+#define CVAR_16 CVAR_15, CVar
+#define CVAR_17 CVAR_16, CVar
+#define CVAR_18 CVAR_17, CVar
+#define CVAR_19 CVAR_18, CVar
+#define CVAR_20 CVAR_19, CVar
+#define CVAR_21 CVAR_20, CVar
+#define CVAR_22 CVAR_21, CVar
+#define CVAR_23 CVAR_22, CVar
+#define CVAR_24 CVAR_23, CVar
+#define CVAR_25 CVAR_24, CVar
+#define CVAR_26 CVAR_25, CVar
+#define CVAR_27 CVAR_26, CVar
+#define CVAR_28 CVAR_27, CVar
+#define CVAR_29 CVAR_28, CVar
+#define CVAR_30 CVAR_29, CVar
+#define CVAR_31 CVAR_30, CVar
+#define CVAR_32 CVAR_31, CVar
 
-    CALL_CASE(1, CVar)
-    CALL_CASE(2, CVar, CVar)
-    CALL_CASE(3, CVar, CVar, CVar)
-    CALL_CASE(4, CVar, CVar, CVar, CVar)
-    CALL_CASE(5, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(6, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(7, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(8, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(9, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(10, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(11, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(12, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(13, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(14, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(15, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(16, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(17, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(18, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(19, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(20, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(21, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(22, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(23, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(24, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(25, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(26, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(27, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(28, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(29, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(30, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(31, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
-    CALL_CASE(32, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)
+#define CALL_CASE(N) \
+    } else if constexpr (sizeof...(Args) == N) { \
+        ret_var = reinterpret_cast<CVar (*)(CVAR_##N)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+
+    CALL_CASE(1)
+    CALL_CASE(2)
+    CALL_CASE(3)
+    CALL_CASE(4)
+    CALL_CASE(5)
+    CALL_CASE(6)
+    CALL_CASE(7)
+    CALL_CASE(8)
+    CALL_CASE(9)
+    CALL_CASE(10)
+    CALL_CASE(11)
+    CALL_CASE(12)
+    CALL_CASE(13)
+    CALL_CASE(14)
+    CALL_CASE(15)
+    CALL_CASE(16)
+    CALL_CASE(17)
+    CALL_CASE(18)
+    CALL_CASE(19)
+    CALL_CASE(20)
+    CALL_CASE(21)
+    CALL_CASE(22)
+    CALL_CASE(23)
+    CALL_CASE(24)
+    CALL_CASE(25)
+    CALL_CASE(26)
+    CALL_CASE(27)
+    CALL_CASE(28)
+    CALL_CASE(29)
+    CALL_CASE(30)
+    CALL_CASE(31)
+    CALL_CASE(32)
+
 #undef CALL_CASE
+#undef CVAR_1
+#undef CVAR_2
+#undef CVAR_3
+#undef CVAR_4
+#undef CVAR_5
+#undef CVAR_6
+#undef CVAR_7
+#undef CVAR_8
+#undef CVAR_9
+#undef CVAR_10
+#undef CVAR_11
+#undef CVAR_12
+#undef CVAR_13
+#undef CVAR_14
+#undef CVAR_15
+#undef CVAR_16
+#undef CVAR_17
+#undef CVAR_18
+#undef CVAR_19
+#undef CVAR_20
+#undef CVAR_21
+#undef CVAR_22
+#undef CVAR_23
+#undef CVAR_24
+#undef CVAR_25
+#undef CVAR_26
+#undef CVAR_27
+#undef CVAR_28
+#undef CVAR_29
+#undef CVAR_30
+#undef CVAR_31
+#undef CVAR_32
     } else {
         static_assert(sizeof...(Args) <= 32, "Too many arguments for Call()");
     }

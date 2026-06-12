@@ -3726,9 +3726,9 @@ TEST(infer, test_math_spec_mixed) {
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_math_spec_mixed.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
-        Call(s, type, "test_math_spec_mixed", ret, 1, 1, 1, 1, 1, 1, 1, 1, 5, 5);
+        Call(s, type, "test_math_spec_mixed", ret, 5, 1, 1, 1, 1, 1, 1, 1, 1, 5);
         ASSERT_EQ(ret, 8);
-        Call(s, type, "test_math_spec_mixed", ret, 1, 1, 1, 1, 1, 1, 1, 1, 5, 6);
+        Call(s, type, "test_math_spec_mixed", ret, 5, 1, 1, 1, 1, 1, 1, 1, 1, 6);
         ASSERT_EQ(ret, 9);
     });
 }
