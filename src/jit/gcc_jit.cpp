@@ -181,13 +181,23 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         ThrowFakeluaException(std::format("GCC compile failed, cannot open log file {}", log_file));
     }
 
+    // Block SIGCHLD before fork to prevent the default handler from turning
+    // the child into a zombie before we get to waitpid.
+    sigset_t old_mask, block_mask;
+    sigemptyset(&block_mask);
+    sigaddset(&block_mask, SIGCHLD);
+    pthread_sigmask(SIG_BLOCK, &block_mask, &old_mask);
+
     const pid_t pid = fork();
     if (pid < 0) {
+        pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
         close(log_fd);
         ThrowFakeluaException(std::format("GCC compile failed, fork failed for {}", pr.file_name));
     }
 
     if (pid == 0) {
+        // Restore default signal mask in child before exec.
+        pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
         dup2(log_fd, STDOUT_FILENO);
         dup2(log_fd, STDERR_FILENO);
         close(log_fd);
@@ -198,8 +208,10 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 
     int status = 0;
     if (waitpid(pid, &status, 0) < 0) {
+        pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
         ThrowFakeluaException(std::format("GCC compile failed, waitpid failed for {}", pr.file_name));
     }
+    pthread_sigmask(SIG_SETMASK, &old_mask, nullptr);
     if (!WIFEXITED(status) || WEXITSTATUS(status) != 0) {
         std::string gcc_log;
         if (std::ifstream ifs(log_file); ifs.is_open()) {

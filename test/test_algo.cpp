@@ -288,3 +288,67 @@ TEST(algo, matrix) {
         ASSERT_EQ(LuaCall<int>(L, "test_cell", 3, 2), 114);
     });
 }
+
+// Collatz sequence length.
+// Exercises: while loop, modulo, floor division, conditional.
+TEST(algo, collatz) {
+    AlgoRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./algo/collatz.lua", {.debug_mode = debug_mode});
+        int r = 0;
+        Call(s, type, "collatz_len", r, 1);
+        ASSERT_EQ(r, 1);
+        Call(s, type, "collatz_len", r, 6);
+        ASSERT_EQ(r, 9);
+        Call(s, type, "collatz_len", r, 11);
+        ASSERT_EQ(r, 15);
+        Call(s, type, "collatz_len", r, 27);
+        ASSERT_EQ(r, 112);
+
+        Call(s, type, "collatz_max_len", r, 10);
+        ASSERT_EQ(r, 9);
+        Call(s, type, "collatz_max_len", r, 20);
+        ASSERT_EQ(r, 18);
+    });
+
+    LuaAlgoRunHelper("./algo/collatz.lua", [](lua_State *L) {
+        ASSERT_EQ(LuaCall<int>(L, "collatz_len", 1), 1);
+        ASSERT_EQ(LuaCall<int>(L, "collatz_len", 6), 9);
+        ASSERT_EQ(LuaCall<int>(L, "collatz_len", 11), 15);
+        ASSERT_EQ(LuaCall<int>(L, "collatz_len", 27), 112);
+        ASSERT_EQ(LuaCall<int>(L, "collatz_max_len", 10), 9);
+        ASSERT_EQ(LuaCall<int>(L, "collatz_max_len", 20), 18);
+    });
+}
+
+// Primality testing.
+// Exercises: while loop, modulo, floor division.
+TEST(algo, factorize) {
+    AlgoRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./algo/factorize.lua", {.debug_mode = debug_mode});
+        int r = 0;
+
+        // is_prime
+        Call(s, type, "is_prime", r, 2);
+        ASSERT_EQ(r, 1);
+        Call(s, type, "is_prime", r, 7);
+        ASSERT_EQ(r, 1);
+        Call(s, type, "is_prime", r, 4);
+        ASSERT_EQ(r, 0);
+        Call(s, type, "is_prime", r, 1);
+        ASSERT_EQ(r, 0);
+
+        // count_primes
+        Call(s, type, "count_primes", r, 10);
+        ASSERT_EQ(r, 4);
+        Call(s, type, "count_primes", r, 20);
+        ASSERT_EQ(r, 8);
+    });
+
+    LuaAlgoRunHelper("./algo/factorize.lua", [](lua_State *L) {
+        ASSERT_EQ(LuaCall<int>(L, "is_prime", 2), 1);
+        ASSERT_EQ(LuaCall<int>(L, "is_prime", 7), 1);
+        ASSERT_EQ(LuaCall<int>(L, "is_prime", 4), 0);
+        ASSERT_EQ(LuaCall<int>(L, "count_primes", 10), 4);
+        ASSERT_EQ(LuaCall<int>(L, "count_primes", 20), 8);
+    });
+}

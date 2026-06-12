@@ -2409,3 +2409,133 @@ TEST(jitter, test_math_call_non_spec_unsupported_arg) {
         EXPECT_DOUBLE_EQ(ret, 3.0);
     });
 }
+
+// ============================================================================
+// Lua 5.4 comprehensive compatibility tests
+// Inspired by lua-5.4.7-tests/ patterns, adapted for FakeLua subset
+// ============================================================================
+
+TEST(jitter, test_operators) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_operators.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_precedence", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_logical", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_string_concat", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_complex_expr", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_numeric_edge", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_bitwise", ret);
+        EXPECT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, test_control_flow) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_control_flow.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_nested_for", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_repeat_break", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_while_complex", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_if_elseif_chain", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_break_nested", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_repeat_complex", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_for_step", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_for_break", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_deep_if", ret);
+        EXPECT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, test_functions) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_functions.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_tail_recursion", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_local_function", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_multi_params", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_fibonacci", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_gcd_func", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_multi_return_via_table", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_recursive_power", ret);
+        EXPECT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, test_tables) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_tables.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_table_basic", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_table_string_keys", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_table_buildup", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_table_mixed", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_table_length", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_table_sort", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_table_matrix", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_table_sieve", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_table_fib", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_table_concat", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_table_nested", ret);
+        EXPECT_EQ(ret, 1);
+    });
+}
+
+TEST(jitter, test_edge_cases) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_edge_cases.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_mixed_arithmetic", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_integer_wrap", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_chained_comparison", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_complex_logical", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_local_scope", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_for_edge", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_string_basic", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_ternary_pattern", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_destructuring", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_operator_stress", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_sum_digits_func", ret);
+        EXPECT_EQ(ret, 1);
+        Call(s, type, "test_reverse_number_func", ret);
+        EXPECT_EQ(ret, 1);
+    });
+}
