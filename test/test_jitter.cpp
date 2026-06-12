@@ -2540,14 +2540,7 @@ TEST(jitter, test_edge_cases) {
     });
 }
 
-TEST(jitter, test_math_spec_9params) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_math_spec_9params.lua", {.debug_mode = debug_mode});
-        int64_t ret = 0;
-        Call(s, type, "test_math_spec_9params", ret, 1, 2, 3, 4, 5, 6, 7, 8, 9);
-        ASSERT_EQ(ret, 45);
-    });
-}
+
 
 TEST(jitter, test_32params) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {

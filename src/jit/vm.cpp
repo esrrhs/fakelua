@@ -52,100 +52,44 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
     va_end(args_list);
 
     switch (arg_num) {
-        case 0:
-            return reinterpret_cast<CVar (*)()>(addr)();
-        case 1:
-            return reinterpret_cast<CVar (*)(CVar)>(addr)(arg_arr[0]);
-        case 2:
-            return reinterpret_cast<CVar (*)(CVar, CVar)>(addr)(arg_arr[0], arg_arr[1]);
-        case 3:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2]);
-        case 4:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar)>(addr)(arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3]);
-        case 5:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4]);
-        case 6:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5]);
-        case 7:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6]);
-        case 8:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7]);
-        case 9:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8]);
-        case 10:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9]);
-        case 11:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10]);
-        case 12:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11]);
-        case 13:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12]);
-        case 14:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13]);
-        case 15:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14]);
-        case 16:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15]);
-        case 17:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16]);
-        case 18:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17]);
-        case 19:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18]);
-        case 20:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19]);
-        case 21:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20]);
-        case 22:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21]);
-        case 23:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22]);
-        case 24:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23]);
-        case 25:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24]);
-        case 26:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25]);
-        case 27:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25], arg_arr[26]);
-        case 28:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25], arg_arr[26], arg_arr[27]);
-        case 29:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25], arg_arr[26], arg_arr[27], arg_arr[28]);
-        case 30:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25], arg_arr[26], arg_arr[27], arg_arr[28], arg_arr[29]);
-        case 31:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25], arg_arr[26], arg_arr[27], arg_arr[28], arg_arr[29], arg_arr[30]);
-        case 32:
-            return reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(
-                    arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25], arg_arr[26], arg_arr[27], arg_arr[28], arg_arr[29], arg_arr[30], arg_arr[31]);
+#define VM_CASE(N, Types, Args) \
+        case N: \
+            return reinterpret_cast<CVar (*) Types>(addr) Args;
+
+        VM_CASE(0, (), ())
+        VM_CASE(1, (CVar), (arg_arr[0]))
+        VM_CASE(2, (CVar, CVar), (arg_arr[0], arg_arr[1]))
+        VM_CASE(3, (CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2]))
+        VM_CASE(4, (CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3]))
+        VM_CASE(5, (CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4]))
+        VM_CASE(6, (CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5]))
+        VM_CASE(7, (CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6]))
+        VM_CASE(8, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7]))
+        VM_CASE(9, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8]))
+        VM_CASE(10, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9]))
+        VM_CASE(11, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10]))
+        VM_CASE(12, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11]))
+        VM_CASE(13, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12]))
+        VM_CASE(14, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13]))
+        VM_CASE(15, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14]))
+        VM_CASE(16, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15]))
+        VM_CASE(17, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16]))
+        VM_CASE(18, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17]))
+        VM_CASE(19, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18]))
+        VM_CASE(20, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19]))
+        VM_CASE(21, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20]))
+        VM_CASE(22, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21]))
+        VM_CASE(23, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22]))
+        VM_CASE(24, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23]))
+        VM_CASE(25, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24]))
+        VM_CASE(26, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25]))
+        VM_CASE(27, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25], arg_arr[26]))
+        VM_CASE(28, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25], arg_arr[26], arg_arr[27]))
+        VM_CASE(29, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25], arg_arr[26], arg_arr[27], arg_arr[28]))
+        VM_CASE(30, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25], arg_arr[26], arg_arr[27], arg_arr[28], arg_arr[29]))
+        VM_CASE(31, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25], arg_arr[26], arg_arr[27], arg_arr[28], arg_arr[29], arg_arr[30]))
+        VM_CASE(32, (CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar), (arg_arr[0], arg_arr[1], arg_arr[2], arg_arr[3], arg_arr[4], arg_arr[5], arg_arr[6], arg_arr[7], arg_arr[8], arg_arr[9], arg_arr[10], arg_arr[11], arg_arr[12], arg_arr[13], arg_arr[14], arg_arr[15], arg_arr[16], arg_arr[17], arg_arr[18], arg_arr[19], arg_arr[20], arg_arr[21], arg_arr[22], arg_arr[23], arg_arr[24], arg_arr[25], arg_arr[26], arg_arr[27], arg_arr[28], arg_arr[29], arg_arr[30], arg_arr[31]))
+#undef VM_CASE
         default:
             __builtin_unreachable();
     }

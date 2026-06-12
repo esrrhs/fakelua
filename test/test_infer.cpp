@@ -3700,3 +3700,36 @@ TEST(infer, test_spec_ternary) {
     });
 }
 
+TEST(infer, test_math_spec_9params) {
+    const auto code = InferGetCCode("./infer/test_math_spec_9params.lua");
+    // Should NOT have specialized variants.
+    ASSERT_EQ(code.find("test_math_spec_9params_0"), std::string::npos);
+    // Entry function with CVar params.
+    ASSERT_NE(code.find("CVar test_math_spec_9params(CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_math_spec_9params.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_math_spec_9params", ret, 1, 2, 3, 4, 5, 6, 7, 8, 9);
+        ASSERT_EQ(ret, 45);
+    });
+}
+
+TEST(infer, test_math_spec_mixed) {
+    const auto code = InferGetCCode("./infer/test_math_spec_mixed.lua");
+    // Verify that the fully specialized version is generated.
+    // The name pattern suffix starts with _0_0_0_0_0_0_0_0 for 8 parameters.
+    ASSERT_NE(code.find("test_math_spec_mixed_0_0_0_0_0_0_0_0("), std::string::npos);
+    // The entry function should take all 10 CVar parameters.
+    ASSERT_NE(code.find("CVar test_math_spec_mixed(CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9, CVar p10)"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_math_spec_mixed.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_math_spec_mixed", ret, 1, 1, 1, 1, 1, 1, 1, 1, 5, 5);
+        ASSERT_EQ(ret, 8);
+        Call(s, type, "test_math_spec_mixed", ret, 1, 1, 1, 1, 1, 1, 1, 1, 5, 6);
+        ASSERT_EQ(ret, 9);
+    });
+}
+
