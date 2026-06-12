@@ -554,8 +554,56 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &
         ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
     } else if constexpr (sizeof...(Args) == 8) {
         ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 9) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 10) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 11) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 12) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 13) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 14) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 15) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 16) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 17) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 18) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 19) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 20) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 21) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 22) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 23) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 24) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 25) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 26) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 27) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 28) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 29) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 30) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 31) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    } else if constexpr (sizeof...(Args) == 32) {
+        ret_var = reinterpret_cast<CVar (*)(CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar, CVar)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
     } else {
-        static_assert(sizeof...(Args) <= 8, "Too many arguments for Call()");
+        static_assert(sizeof...(Args) <= 32, "Too many arguments for Call()");
     }
 
     ret = inter::FakeluaToNative<Ret>(s, ret_var);
