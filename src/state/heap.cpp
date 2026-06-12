@@ -24,19 +24,19 @@ void *HeapAllocator::Alloc(size_t size) {
 
     // 仅检查 size 本身是否超出块容量。padding 在同一块内才有意义，
     // 跨块时 offset 会重置为 0 导致 padding 为 0，因此不参与上限判断。
-    if (size > BLOCK_SIZE) {
+    if (UNLIKELY(size > BLOCK_SIZE)) {
         ThrowFakeluaException(std::format("Alloc failed, requested size {} exceeds block size {}", size, BLOCK_SIZE));
     }
 
     size_t padding = (alignment - (current_block_offset_ % alignment)) % alignment;
 
-    if (current_block_offset_ + padding + size > BLOCK_SIZE) {
+    if (UNLIKELY(current_block_offset_ + padding + size > BLOCK_SIZE)) {
         current_block_offset_ = 0;
         current_block_index_++;
         padding = 0;
     }
 
-    if (current_block_index_ >= blocks_.size()) {
+    if (UNLIKELY(current_block_index_ >= blocks_.size())) {
         // 分配一个新的内存块，确保块起始地址按 alignment 对齐，
         // 这样当 current_block_offset_=0 时返回的地址天然满足对齐要求。
         // BLOCK_SIZE 是 alignment 的整数倍（1MB 是 16 的倍数），满足 aligned_alloc 的要求。

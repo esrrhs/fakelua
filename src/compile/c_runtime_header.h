@@ -56,6 +56,9 @@ struct VarTable {
 
 typedef struct State State;
 
+#define LIKELY(x)   __builtin_expect(!!(x), 1)
+#define UNLIKELY(x) __builtin_expect(!!(x), 0)
+
 #define STR_SIZE(s) ((s)->size_)
 #define STR_DATA(s) ((s)->data_)
 #define TABLE_SIZE(t) ((t)->count_)
@@ -81,7 +84,7 @@ enum {
 
 #define NORMALIZE_TABLE_KEY(key) ({ \
     CVar __k = (key); \
-    if (__k.type_ == VAR_FLOAT) { \
+    if (LIKELY(__k.type_ == VAR_FLOAT)) { \
         double __d = __k.data_.f; \
         if (isfinite(__d)) { \
             double __ip; \
@@ -99,7 +102,7 @@ extern void FakeluaThrowError(State *s, const char *msg);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
 
 static inline bool FlIsTrue(CVar v) {
-    return v.type_ != VAR_NIL && (v.type_ != VAR_BOOL || v.data_.b);
+    return LIKELY(v.type_ != VAR_NIL) && (v.type_ != VAR_BOOL || v.data_.b);
 }
 
 #ifndef FAKELUA_JIT_TYPE
@@ -148,7 +151,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
 
 #define IsTrue(v, result) do { \
     CVar __tv = (v); \
-    (result) = (__tv.type_ != VAR_NIL && (__tv.type_ != VAR_BOOL || __tv.data_.b)); \
+    (result) = (LIKELY(__tv.type_ != VAR_NIL) && (__tv.type_ != VAR_BOOL || __tv.data_.b)); \
 } while(0)
 
 #define VarEqual(_fa, _fb, result) do { \
@@ -201,12 +204,12 @@ static inline uint32_t FlHashString(const char *str, int len) {
 
 static inline CVar FlGetTable(CVar t, CVar k) {
     k = NORMALIZE_TABLE_KEY(k);
-    if (t.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
-    if (k.type_ == VAR_NIL) { FakeluaThrowError(_S, "table index is nil"); }
+    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t;
-    if (tbl->count_ == 0) { return (CVar){VAR_NIL}; }
+    if (UNLIKELY(tbl->count_ == 0)) { return (CVar){VAR_NIL}; }
     uint32_t h; VarHash(k, h);
-    if (tbl->bucket_count_ == 0) {
+    if (LIKELY(tbl->bucket_count_ == 0)) {
         bool __eq;
         if (tbl->quick_data_[0].hash == h) { VarEqual(tbl->quick_data_[0].key, k, __eq); if (__eq) { return tbl->quick_data_[0].val; } }
         if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h) { VarEqual(tbl->quick_data_[1].key, k, __eq); if (__eq) { return tbl->quick_data_[1].val; } }
@@ -220,7 +223,7 @@ static inline CVar FlGetTable(CVar t, CVar k) {
         uint32_t mask = tbl->bucket_count_ - 1;
         uint32_t idx = h & mask;
         TableNode *curr = &tbl->nodes_[idx];
-        if (curr->entry.key.type_ == VAR_NIL) { return (CVar){VAR_NIL}; }
+        if (UNLIKELY(curr->entry.key.type_ == VAR_NIL)) { return (CVar){VAR_NIL}; }
         while (1) {
             if (curr->entry.hash == h) { bool __eq; VarEqual(curr->entry.key, k, __eq); if (__eq) { return curr->entry.val; } }
             uint32_t next = curr->next;
@@ -242,7 +245,7 @@ static inline bool FlTableInsertRaw(VarTable *tbl, CVar key, CVar val, uint32_t 
     assert(tbl->count_ < total_nodes);
     uint32_t idx = hash & mask;
     TableNode *main_node = &tbl->nodes_[idx];
-    if (main_node->entry.key.type_ == VAR_NIL) {
+    if (LIKELY(main_node->entry.key.type_ == VAR_NIL)) {
         main_node->entry.key = key; main_node->entry.val = val; main_node->entry.hash = hash; main_node->next = 0xFFFFFFFF;
         main_node->active_pos = tbl->count_; tbl->active_list_[tbl->count_] = idx;
         tbl->count_++; return true;
@@ -254,7 +257,7 @@ static inline bool FlTableInsertRaw(VarTable *tbl, CVar key, CVar val, uint32_t 
         if (curr->next == 0xFFFFFFFF) { break; }
         curr_idx = curr->next;
     }
-    if (tbl->free_list_idx_ == 0xFFFFFFFF) { return false; }
+    if (UNLIKELY(tbl->free_list_idx_ == 0xFFFFFFFF)) { return false; }
     uint32_t new_node_idx = tbl->free_list_idx_;
     TableNode *new_node = &tbl->nodes_[new_node_idx];
     tbl->free_list_idx_ = new_node->next;
@@ -281,7 +284,7 @@ static inline void FlTableRehash(VarTable *tbl) {
         { uint32_t i; for (i = 0; i < total_nodes; ++i) { new_nodes[i].entry.key.type_ = VAR_NIL; new_nodes[i].next = 0xFFFFFFFF; new_nodes[i].active_pos = 0xFFFFFFFF; } }
         TableNode *prev_nodes = tbl->nodes_; uint32_t *prev_active_list = tbl->active_list_; uint32_t prev_bucket_count = tbl->bucket_count_; uint32_t prev_count = tbl->count_; uint32_t prev_free_list_idx = tbl->free_list_idx_;
         tbl->nodes_ = new_nodes; tbl->active_list_ = new_active_list; tbl->bucket_count_ = new_bucket_count; tbl->count_ = 0;
-        if (overflow_count > 0) {
+        if (LIKELY(overflow_count > 0)) {
             { uint32_t i; for (i = 0; i < overflow_count - 1; ++i) { tbl->nodes_[new_bucket_count + i].next = new_bucket_count + i + 1; } }
             tbl->nodes_[new_bucket_count + overflow_count - 1].next = 0xFFFFFFFF;
             tbl->free_list_idx_ = new_bucket_count;
@@ -289,31 +292,31 @@ static inline void FlTableRehash(VarTable *tbl) {
             tbl->free_list_idx_ = 0xFFFFFFFF;
         }
         bool success = true;
-        if (old_bucket_count == 0) {
+        if (LIKELY(old_bucket_count == 0)) {
             { uint32_t i; for (i = 0; i < old_count; ++i) { if (!FlTableInsertRaw(tbl, tbl->quick_data_[i].key, tbl->quick_data_[i].val, tbl->quick_data_[i].hash)) { success = false; break; } } }
         } else {
             { uint32_t i; for (i = 0; i < old_bucket_count; ++i) {
                 uint32_t curr_idx = i;
                 while (curr_idx != 0xFFFFFFFF) {
                     TableNode *old_node = &old_nodes[curr_idx];
-                    if (old_node->entry.key.type_ != VAR_NIL) { if (!FlTableInsertRaw(tbl, old_node->entry.key, old_node->entry.val, old_node->entry.hash)) { success = false; break; } }
+                    if (LIKELY(old_node->entry.key.type_ != VAR_NIL)) { if (!FlTableInsertRaw(tbl, old_node->entry.key, old_node->entry.val, old_node->entry.hash)) { success = false; break; } }
                     curr_idx = old_node->next;
                 }
                 if (!success) { break; }
             } }
         }
-        if (success) { break; } else { tbl->nodes_ = prev_nodes; tbl->active_list_ = prev_active_list; tbl->bucket_count_ = prev_bucket_count; tbl->count_ = prev_count; tbl->free_list_idx_ = prev_free_list_idx; new_bucket_count *= 2; }
+        if (LIKELY(success)) { break; } else { tbl->nodes_ = prev_nodes; tbl->active_list_ = prev_active_list; tbl->bucket_count_ = prev_bucket_count; tbl->count_ = prev_count; tbl->free_list_idx_ = prev_free_list_idx; new_bucket_count *= 2; }
     }
 }
 
 static inline void FlSetTable(CVar t, CVar k, CVar v) {
     k = NORMALIZE_TABLE_KEY(k);
-    if (t.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
-    if (k.type_ == VAR_NIL) { FakeluaThrowError(_S, "table index is nil"); }
+    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t; uint32_t h; VarHash(k, h);
-    if (v.type_ == VAR_NIL) {
-        if (tbl->count_ == 0) { return; }
-        if (tbl->bucket_count_ == 0) {
+    if (UNLIKELY(v.type_ == VAR_NIL)) {
+        if (UNLIKELY(tbl->count_ == 0)) { return; }
+        if (LIKELY(tbl->bucket_count_ == 0)) {
             bool __eq;
             if (tbl->quick_data_[0].hash == h) { VarEqual(tbl->quick_data_[0].key, k, __eq); if (__eq) { if (tbl->count_ > 1) { tbl->quick_data_[0] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
             if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h) { VarEqual(tbl->quick_data_[1].key, k, __eq); if (__eq) { if (tbl->count_ > 2) { tbl->quick_data_[1] = tbl->quick_data_[tbl->count_ - 1]; } tbl->count_--; return; } }
@@ -325,7 +328,7 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
             if (tbl->count_ > 7 && tbl->quick_data_[7].hash == h) { VarEqual(tbl->quick_data_[7].key, k, __eq); if (__eq) { tbl->count_--; return; } }
         } else {
             uint32_t mask = tbl->bucket_count_ - 1; uint32_t idx = h & mask; TableNode *curr = &tbl->nodes_[idx];
-            if (curr->entry.key.type_ == VAR_NIL) { return; }
+            if (UNLIKELY(curr->entry.key.type_ == VAR_NIL)) { return; }
             { bool __eq; VarEqual(curr->entry.key, k, __eq); if (curr->entry.hash == h && __eq) {
                 if (curr->next != 0xFFFFFFFF) {
                     uint32_t next_idx = curr->next; TableNode *next_node = &tbl->nodes_[next_idx];
@@ -352,7 +355,7 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
         }
         return;
     }
-    if (tbl->bucket_count_ == 0) {
+    if (LIKELY(tbl->bucket_count_ == 0)) {
         bool __eq;
         if (tbl->count_ > 0 && tbl->quick_data_[0].hash == h) { VarEqual(tbl->quick_data_[0].key, k, __eq); if (__eq) { tbl->quick_data_[0].val = v; return; } }
         if (tbl->count_ > 1 && tbl->quick_data_[1].hash == h) { VarEqual(tbl->quick_data_[1].key, k, __eq); if (__eq) { tbl->quick_data_[1].val = v; return; } }
@@ -365,16 +368,16 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
         if (tbl->count_ < 8) { tbl->quick_data_[tbl->count_].key = k; tbl->quick_data_[tbl->count_].val = v; tbl->quick_data_[tbl->count_].hash = h; tbl->count_++; return; }
         FlTableRehash(tbl);
     }
-    if (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF) { FlTableRehash(tbl); }
+    if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) { FlTableRehash(tbl); }
     FlTableInsertRaw(tbl, k, v, h);
 }
 
 static inline CVar FlGetTableInt(CVar t, int64_t k) {
-    if (t.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
-    if (tbl->count_ == 0) { return (CVar){VAR_NIL}; }
+    if (UNLIKELY(tbl->count_ == 0)) { return (CVar){VAR_NIL}; }
     uint32_t h = (uint32_t)(k ^ (k >> 32));
-    if (tbl->bucket_count_ == 0) {
+    if (LIKELY(tbl->bucket_count_ == 0)) {
         for (uint32_t i = 0; i < tbl->count_; ++i) {
             if (tbl->quick_data_[i].hash == h && tbl->quick_data_[i].key.type_ == VAR_INT && tbl->quick_data_[i].key.data_.i == k) {
                 return tbl->quick_data_[i].val;
@@ -384,7 +387,7 @@ static inline CVar FlGetTableInt(CVar t, int64_t k) {
         uint32_t mask = tbl->bucket_count_ - 1;
         uint32_t idx = h & mask;
         TableNode *curr = &tbl->nodes_[idx];
-        if (curr->entry.key.type_ == VAR_NIL) { return (CVar){VAR_NIL}; }
+        if (UNLIKELY(curr->entry.key.type_ == VAR_NIL)) { return (CVar){VAR_NIL}; }
         while (1) {
             if (curr->entry.hash == h && curr->entry.key.type_ == VAR_INT && curr->entry.key.data_.i == k) {
                 return curr->entry.val;
@@ -398,15 +401,15 @@ static inline CVar FlGetTableInt(CVar t, int64_t k) {
 }
 
 static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
-    if (t.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
     uint32_t h = (uint32_t)(k ^ (k >> 32));
     CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
-    if (v.type_ == VAR_NIL) {
+    if (UNLIKELY(v.type_ == VAR_NIL)) {
         FlSetTable(t, key_cvar, v);
         return;
     }
-    if (tbl->bucket_count_ == 0) {
+    if (LIKELY(tbl->bucket_count_ == 0)) {
         for (uint32_t i = 0; i < tbl->count_; ++i) {
             if (tbl->quick_data_[i].hash == h && tbl->quick_data_[i].key.type_ == VAR_INT && tbl->quick_data_[i].key.data_.i == k) {
                 tbl->quick_data_[i].val = v; return;
@@ -420,26 +423,26 @@ static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
         }
         FlTableRehash(tbl);
     }
-    if (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF) { FlTableRehash(tbl); }
+    if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) { FlTableRehash(tbl); }
     FlTableInsertRaw(tbl, key_cvar, v, h);
 }
 
 static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
-    if (t.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
-    if (tbl->count_ == 0) { return (CVar){VAR_NIL}; }
+    if (UNLIKELY(tbl->count_ == 0)) { return (CVar){VAR_NIL}; }
     VarString *vs = (VarString *)str_id;
     if (vs->hash_ == 0) { vs->hash_ = FlHashString(vs->data_, vs->size_); }
     uint32_t h = vs->hash_;
-    if (tbl->bucket_count_ == 0) {
+    if (LIKELY(tbl->bucket_count_ == 0)) {
         for (uint32_t i = 0; i < tbl->count_; ++i) {
             if (tbl->quick_data_[i].hash == h) {
                 CVar ek = tbl->quick_data_[i].key;
-                if (ek.type_ == VAR_STRINGID) {
+                if (LIKELY(ek.type_ == VAR_STRINGID)) {
                     if (ek.data_.i == str_id) { return tbl->quick_data_[i].val; }
                     VarString *evs = (VarString *)ek.data_.i;
                     if (evs->size_ == vs->size_ && memcmp(evs->data_, vs->data_, vs->size_) == 0) { return tbl->quick_data_[i].val; }
-                } else if (ek.type_ == VAR_STRING) {
+                } else if (UNLIKELY(ek.type_ == VAR_STRING)) {
                     if (ek.data_.s->size_ == vs->size_ && memcmp(ek.data_.s->data_, vs->data_, vs->size_) == 0) { return tbl->quick_data_[i].val; }
                 }
             }
@@ -448,15 +451,15 @@ static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
         uint32_t mask = tbl->bucket_count_ - 1;
         uint32_t idx = h & mask;
         TableNode *curr = &tbl->nodes_[idx];
-        if (curr->entry.key.type_ == VAR_NIL) { return (CVar){VAR_NIL}; }
+        if (UNLIKELY(curr->entry.key.type_ == VAR_NIL)) { return (CVar){VAR_NIL}; }
         while (1) {
             if (curr->entry.hash == h) {
                 CVar ek = curr->entry.key;
-                if (ek.type_ == VAR_STRINGID) {
+                if (LIKELY(ek.type_ == VAR_STRINGID)) {
                     if (ek.data_.i == str_id) { return curr->entry.val; }
                     VarString *evs = (VarString *)ek.data_.i;
                     if (evs->size_ == vs->size_ && memcmp(evs->data_, vs->data_, vs->size_) == 0) { return curr->entry.val; }
-                } else if (ek.type_ == VAR_STRING) {
+                } else if (UNLIKELY(ek.type_ == VAR_STRING)) {
                     if (ek.data_.s->size_ == vs->size_ && memcmp(ek.data_.s->data_, vs->data_, vs->size_) == 0) { return curr->entry.val; }
                 }
             }
@@ -469,25 +472,25 @@ static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
 }
 
 static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
-    if (t.type_ != VAR_TABLE) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
+    if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
     VarString *vs = (VarString *)str_id;
     if (vs->hash_ == 0) { vs->hash_ = FlHashString(vs->data_, vs->size_); }
     uint32_t h = vs->hash_;
     CVar key_cvar; key_cvar.type_ = VAR_STRINGID; key_cvar.data_.i = str_id;
-    if (v.type_ == VAR_NIL) {
+    if (UNLIKELY(v.type_ == VAR_NIL)) {
         FlSetTable(t, key_cvar, v);
         return;
     }
-    if (tbl->bucket_count_ == 0) {
+    if (LIKELY(tbl->bucket_count_ == 0)) {
         for (uint32_t i = 0; i < tbl->count_; ++i) {
             if (tbl->quick_data_[i].hash == h) {
                 CVar ek = tbl->quick_data_[i].key;
-                if (ek.type_ == VAR_STRINGID) {
+                if (LIKELY(ek.type_ == VAR_STRINGID)) {
                     if (ek.data_.i == str_id) { tbl->quick_data_[i].val = v; return; }
                     VarString *evs = (VarString *)ek.data_.i;
                     if (evs->size_ == vs->size_ && memcmp(evs->data_, vs->data_, vs->size_) == 0) { tbl->quick_data_[i].val = v; return; }
-                } else if (ek.type_ == VAR_STRING) {
+                } else if (UNLIKELY(ek.type_ == VAR_STRING)) {
                     if (ek.data_.s->size_ == vs->size_ && memcmp(ek.data_.s->data_, vs->data_, vs->size_) == 0) { tbl->quick_data_[i].val = v; return; }
                 }
             }
@@ -500,19 +503,19 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
         }
         FlTableRehash(tbl);
     }
-    if (tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF) { FlTableRehash(tbl); }
+    if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) { FlTableRehash(tbl); }
     FlTableInsertRaw(tbl, key_cvar, v, h);
 }
 
 #define CheckNum(v) do { \
-    if ((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT) { \
+    if (UNLIKELY((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT)) { \
         FakeluaThrowError(_S, "attempt to perform arithmetic on non-numeric value"); \
     } \
 } while(0)
 
 #define CheckInt(v, result) do { \
-    if ((v).type_ == VAR_INT) { (result) = (v).data_.i; } \
-    else if ((v).type_ == VAR_FLOAT) { \
+    if (LIKELY((v).type_ == VAR_INT)) { (result) = (v).data_.i; } \
+    else if (UNLIKELY((v).type_ == VAR_FLOAT)) { \
         double __d = (v).data_.f; \
         if (!isfinite(__d)) { FakeluaThrowError(_S, "number has no integer representation"); } \
         double __ip; \
@@ -529,7 +532,7 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
 
 #define OP_ARITH_IMPL(a, b, res, op) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { SET_INT(res, _ra.data_.i op _rb.data_.i); } \
+    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_INT(res, _ra.data_.i op _rb.data_.i); } \
     else { SET_FLOAT(res, CVAR_TO_DOUBLE(_ra) op CVAR_TO_DOUBLE(_rb)); } \
 } while(0)
 
@@ -544,8 +547,8 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
 
 #define OpFloorDiv(a, b, res) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { \
-        if (_rb.data_.i == 0) { FakeluaThrowError(_S, "floor division by zero"); } \
+    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { \
+        if (UNLIKELY(_rb.data_.i == 0)) { FakeluaThrowError(_S, "floor division by zero"); } \
         int64_t _q = _ra.data_.i / _rb.data_.i; \
         if ((_ra.data_.i ^ _rb.data_.i) < 0 && _ra.data_.i % _rb.data_.i != 0) { _q -= 1; } \
         SET_INT(res, _q); \
@@ -561,8 +564,8 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
 
 #define OpMod(a, b, res) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { \
-        if (_rb.data_.i == 0) { FakeluaThrowError(_S, "modulo by zero"); } \
+    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { \
+        if (UNLIKELY(_rb.data_.i == 0)) { FakeluaThrowError(_S, "modulo by zero"); } \
         int64_t _q = _ra.data_.i / _rb.data_.i; \
         if ((_ra.data_.i ^ _rb.data_.i) < 0 && _ra.data_.i % _rb.data_.i != 0) { _q -= 1; } \
         SET_INT(res, _ra.data_.i - _rb.data_.i * _q); \
@@ -591,7 +594,7 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
 
 #define OP_CMP_IMPL(a, b, res, op) do { \
     CVar _ra = (a); CVar _rb = (b); CheckNum(_ra); CheckNum(_rb); \
-    if (_ra.type_ == VAR_INT && _rb.type_ == VAR_INT) { SET_BOOL(res, _ra.data_.i op _rb.data_.i); } \
+    if (LIKELY(_ra.type_ == VAR_INT && _rb.type_ == VAR_INT)) { SET_BOOL(res, _ra.data_.i op _rb.data_.i); } \
     else { SET_BOOL(res, CVAR_TO_DOUBLE(_ra) op CVAR_TO_DOUBLE(_rb)); } \
 } while(0)
 
@@ -608,7 +611,7 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
 
 #define OpUnaryMinus(a, res) do { \
     CVar _ra = (a); CheckNum(_ra); \
-    if (_ra.type_ == VAR_INT) { SET_INT(res, -_ra.data_.i); } \
+    if (LIKELY(_ra.type_ == VAR_INT)) { SET_INT(res, -_ra.data_.i); } \
     else { SET_FLOAT(res, -_ra.data_.f); } \
 } while(0)
 
@@ -616,7 +619,7 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
 
 #define OpLen(a, res) do { \
     CVar _lv = (a); \
-    if (_lv.type_ == VAR_STRING) { SET_INT(res, STR_SIZE(_lv.data_.s)); } \
+    if (LIKELY(_lv.type_ == VAR_STRING)) { SET_INT(res, STR_SIZE(_lv.data_.s)); } \
     else if (_lv.type_ == VAR_STRINGID) { SET_INT(res, STR_SIZE((VarString *)_lv.data_.i)); } \
     else if (_lv.type_ == VAR_TABLE) { SET_INT(res, TABLE_SIZE(_lv.data_.t)); } \
     else { FakeluaThrowError(_S, "attempt to get length of a non-string/table value"); } \
@@ -640,14 +643,14 @@ static inline CVar FlConcat(CVar a, CVar b) {
     char buf_a[256], buf_b[256];
     const char *sa = buf_a; int la;
     const char *sb = buf_b; int lb;
-    if (a.type_ == VAR_STRING) { sa = STR_DATA(a.data_.s); la = STR_SIZE(a.data_.s); }
-    else if (a.type_ == VAR_STRINGID) { VarString *vs = (VarString *)a.data_.i; sa = STR_DATA(vs); la = STR_SIZE(vs); }
+    if (LIKELY(a.type_ == VAR_STRING)) { sa = STR_DATA(a.data_.s); la = STR_SIZE(a.data_.s); }
+    else if (UNLIKELY(a.type_ == VAR_STRINGID)) { VarString *vs = (VarString *)a.data_.i; sa = STR_DATA(vs); la = STR_SIZE(vs); }
     else { la = FlVarToStr(a, buf_a, sizeof(buf_a)); }
-    if (b.type_ == VAR_STRING) { sb = STR_DATA(b.data_.s); lb = STR_SIZE(b.data_.s); }
-    else if (b.type_ == VAR_STRINGID) { VarString *vs = (VarString *)b.data_.i; sb = STR_DATA(vs); lb = STR_SIZE(vs); }
+    if (LIKELY(b.type_ == VAR_STRING)) { sb = STR_DATA(b.data_.s); lb = STR_SIZE(b.data_.s); }
+    else if (UNLIKELY(b.type_ == VAR_STRINGID)) { VarString *vs = (VarString *)b.data_.i; sb = STR_DATA(vs); lb = STR_SIZE(vs); }
     else { lb = FlVarToStr(b, buf_b, sizeof(buf_b)); }
     int total = la + lb;
-    if (total < la || total < lb) { FakeluaThrowError(_S, "string concatenation result too long"); }
+    if (UNLIKELY(total < la || total < lb)) { FakeluaThrowError(_S, "string concatenation result too long"); }
     VarString *vs = (VarString *)FakeluaAllocTemp(_S, sizeof(VarString) + total);
     vs->size_ = total;
     vs->hash_ = 0;
@@ -661,7 +664,7 @@ static inline CVar FlConcat(CVar a, CVar b) {
 }
 
 #define GET_TABLE_ENTRY(tbl, idx, k, v) do { \
-    if ((tbl).data_.t->bucket_count_ == 0) { \
+    if (LIKELY((tbl).data_.t->bucket_count_ == 0)) { \
         (k) = (tbl).data_.t->quick_data_[(idx)].key; \
         (v) = (tbl).data_.t->quick_data_[(idx)].val; \
     } else { \
@@ -678,7 +681,7 @@ static inline CVar FlConcat(CVar a, CVar b) {
 
 #define FlFloorDivInt(a, b, result) do { \
     int64_t __fl_a = (a); int64_t __fl_b = (b); \
-    if (__fl_b == 0) { FakeluaThrowError(_S, "floor division by zero"); } \
+    if (UNLIKELY(__fl_b == 0)) { FakeluaThrowError(_S, "floor division by zero"); } \
     int64_t __fl_q; \
     FlFloorDivQuotient(__fl_a, __fl_b, __fl_q); \
     (result) = __fl_q; \
@@ -686,7 +689,7 @@ static inline CVar FlConcat(CVar a, CVar b) {
 
 #define FlModInt(a, b, result) do { \
     int64_t __fm_a = (a); int64_t __fm_b = (b); \
-    if (__fm_b == 0) { FakeluaThrowError(_S, "modulo by zero"); } \
+    if (UNLIKELY(__fm_b == 0)) { FakeluaThrowError(_S, "modulo by zero"); } \
     int64_t __fm_q; \
     FlFloorDivQuotient(__fm_a, __fm_b, __fm_q); \
     (result) = __fm_a - __fm_b * __fm_q; \
@@ -708,7 +711,7 @@ static inline CVar FlConcat(CVar a, CVar b) {
 
 #define FlShiftIntImpl(a, b, result, _right) do { \
     int64_t __sh_a = (a); int64_t __sh_b = (b); \
-    if (__sh_b >= 64 || __sh_b <= -64) { \
+    if (UNLIKELY(__sh_b >= 64 || __sh_b <= -64)) { \
         (result) = (int64_t)0; \
     } else if (__sh_b >= 0) { \
         (result) = (int64_t)((_right) ? ((uint64_t)__sh_a >> __sh_b) : ((uint64_t)__sh_a << __sh_b)); \
@@ -723,11 +726,11 @@ static inline CVar FlConcat(CVar a, CVar b) {
 
 #define FlLenInt(v, result) do { \
     CVar __fl_v = (v); \
-    if (__fl_v.type_ == VAR_STRING) { \
+    if (LIKELY(__fl_v.type_ == VAR_STRING)) { \
         (result) = (int64_t)STR_SIZE(__fl_v.data_.s); \
-    } else if (__fl_v.type_ == VAR_STRINGID) { \
+    } else if (UNLIKELY(__fl_v.type_ == VAR_STRINGID)) { \
         (result) = (int64_t)STR_SIZE((VarString *)__fl_v.data_.i); \
-    } else if (__fl_v.type_ == VAR_TABLE) { \
+    } else if (UNLIKELY(__fl_v.type_ == VAR_TABLE)) { \
         (result) = (int64_t)TABLE_SIZE(__fl_v.data_.t); \
     } else { \
         FakeluaThrowError(_S, "attempt to get length of a non-string/table value"); \
