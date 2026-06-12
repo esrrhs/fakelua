@@ -39,11 +39,11 @@ void Var::CheckInteger(const char *op, int64_t &val) const {
 Var const_null_var;
 
 bool Var::TryConvertNumberToInteger(int64_t &out) const {
-    if (Type() == VarType::Int) {
+    if (LIKELY(Type() == VarType::Int)) {
         out = GetInt();
         return true;
     }
-    if (Type() != VarType::Float) {
+    if (UNLIKELY(Type() != VarType::Float)) {
         return false;
     }
     const auto result = TryConvertDoubleToInt64(GetFloat());
@@ -56,7 +56,7 @@ bool Var::TryConvertNumberToInteger(int64_t &out) const {
 
 VarString *Var::GetString() const {
     DEBUG_ASSERT(type_ == static_cast<int>(VarType::String) || type_ == static_cast<int>(VarType::StringId));
-    if (type_ == static_cast<int>(VarType::String)) {
+    if (LIKELY(type_ == static_cast<int>(VarType::String))) {
         return data_.s;
     } else /*if (type_ == static_cast<int>(VarType::StringId))*/ {
         return ConstString::GetVarString(data_.i);
@@ -189,7 +189,7 @@ int64_t Var::GetCalculableInt() const {
 }
 
 double Var::GetCalculableNumber() const {
-    if (type_ == static_cast<int>(VarType::Int)) {
+    if (LIKELY(type_ == static_cast<int>(VarType::Int))) {
         return static_cast<double>(data_.i);
     } else /*if (type_ == static_cast<int>(VarType::Float))*/ {
         return data_.f;
@@ -340,7 +340,7 @@ void Var::UnopNot(Var &result) const {
 }
 
 void Var::UnopNumberSign(Var &result) const {
-    if (Type() == VarType::String || Type() == VarType::StringId) {
+    if (LIKELY(Type() == VarType::String || Type() == VarType::StringId)) {
         result.SetInt(static_cast<int64_t>(GetString()->Size()));
     } else if (Type() == VarType::Table) {
         result.SetInt(static_cast<int64_t>(data_.t->Size()));
@@ -357,7 +357,7 @@ void Var::UnopBitnot(Var &result) const {
 }
 
 void Var::CheckTable(const char *op) const {
-    if (Type() != VarType::Table) {
+    if (UNLIKELY(Type() != VarType::Table)) {
         ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be table, got {} {}", op, VarTypeToString(Type()), ToString()));
     }
 }

@@ -431,7 +431,7 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vect
     for (int i = 0; i < k; ++i) {
         const int param_idx = math_param_indices[i];
         const auto &mp_name = func_params[static_cast<size_t>(param_idx)];
-        Out() << std::format("    if ({0}.type_ != VAR_INT && {0}.type_ != VAR_FLOAT) {{ FakeluaThrowError(_S, \"bad argument #{1} ({2}): "
+        Out() << std::format("    if (UNLIKELY({0}.type_ != VAR_INT && {0}.type_ != VAR_FLOAT)) {{ FakeluaThrowError(_S, \"bad argument #{1} ({2}): "
                              "attempt to perform arithmetic on non-numeric value\"); }}\n",
                              mp_name, param_idx + 1, mp_name);
     }
@@ -1004,7 +1004,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
             spec_param_types_.erase(name);
             if (var_type == T_FLOAT) {
                 // 运行时检查：CVar 必须是数值类型，否则报错。
-                Out() << GenTab() << "if (" << tmp << ".type_ == VAR_FLOAT) {\n";
+                Out() << GenTab() << "if (LIKELY(" << tmp << ".type_ == VAR_FLOAT)) {\n";
                 cur_tab_++;
                 Out() << GenTab() << name << " = " << tmp << ".data_.f;\n";
                 cur_tab_--;
@@ -1019,7 +1019,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
                 Out() << GenTab() << "}\n";
             } else {
                 // 运行时检查：CVar 必须是数值类型，否则报错。
-                Out() << GenTab() << "if (" << tmp << ".type_ == VAR_INT) {\n";
+                Out() << GenTab() << "if (LIKELY(" << tmp << ".type_ == VAR_INT)) {\n";
                 cur_tab_++;
                 Out() << GenTab() << name << " = " << tmp << ".data_.i;\n";
                 cur_tab_--;
@@ -1221,7 +1221,7 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
     } else {
         Out() << GenTab() << step_var << " = " << step_default << ";\n";
     }
-    Out() << GenTab() << "if (" << step_var << " == " << zero_str << ") { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+    Out() << GenTab() << "if (UNLIKELY(" << step_var << " == " << zero_str << ")) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
 
     Out() << GenTab() << "for (; (" << step_var << " > " << zero_str << ") ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
           << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
@@ -1275,11 +1275,11 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
         Out() << GenTab() << "SET_INT(" << step_var << ", 1);\n";
     }
 
-    Out() << GenTab() << "if (" << step_var << ".type_ == VAR_INT) {\n";
-    Out() << GenTab() << "    if (" << step_var << ".data_.i == 0) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+    Out() << GenTab() << "if (LIKELY(" << step_var << ".type_ == VAR_INT)) {\n";
+    Out() << GenTab() << "    if (UNLIKELY(" << step_var << ".data_.i == 0)) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
     Out() << GenTab() << "    " << step_pos_var << " = (" << step_var << ".data_.i > 0);\n";
     Out() << GenTab() << "} else if (" << step_var << ".type_ == VAR_FLOAT) {\n";
-    Out() << GenTab() << "    if (" << step_var << ".data_.f == 0.0) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+    Out() << GenTab() << "    if (UNLIKELY(" << step_var << ".data_.f == 0.0)) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
     Out() << GenTab() << "    " << step_pos_var << " = (" << step_var << ".data_.f > 0.0);\n";
     Out() << GenTab() << "} else { FakeluaThrowError(_S, \"'for' step must be a number\"); " << step_pos_var << " = 1; }\n";
 
@@ -1373,7 +1373,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     func_temp_decls_ << "    uint32_t " << idx_var << ";\n";
 
     Out() << GenTab() << tbl_var << " = " << tbl_expr << ";\n";
-    Out() << GenTab() << "if (" << tbl_var << ".type_ != VAR_TABLE) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
+    Out() << GenTab() << "if (UNLIKELY(" << tbl_var << ".type_ != VAR_TABLE)) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
     Out() << GenTab() << sz_var << " = " << tbl_var << ".data_.t->count_;\n";
 
     Out() << GenTab() << "for (" << idx_var << " = 0; " << idx_var << " < " << sz_var << "; " << idx_var << "++) {\n";

@@ -111,7 +111,7 @@ CVar NativeToFakeluaObj(State *state, const VarInterface *val) {
 
 bool FakeluaToNativeBool(State *state, CVar val) {
     const auto var_val = reinterpret_cast<Var &>(val);
-    if (var_val.Type() == VarType::Bool) {
+    if (LIKELY(var_val.Type() == VarType::Bool)) {
         return var_val.GetBool();
     }
     ThrowFakeluaException(std::format("FakeluaToNativeBool failed, type is {}", VarTypeToString(var_val.Type())));
@@ -120,7 +120,7 @@ bool FakeluaToNativeBool(State *state, CVar val) {
 template <typename T>
 T FakeluaToNativeIntHelper(CVar val, const char *func_name) {
     const auto &var_val = reinterpret_cast<const Var &>(val);
-    if (var_val.Type() == VarType::Int) {
+    if (LIKELY(var_val.Type() == VarType::Int)) {
         return static_cast<T>(var_val.GetInt());
     }
     ThrowFakeluaException(std::format("{} failed, type is {}", func_name, VarTypeToString(var_val.Type())));
@@ -140,10 +140,10 @@ unsigned long long FakeluaToNativeUlonglong(State *state, CVar val) { return Fak
 template <typename T>
 T FakeluaToNativeFloatHelper(CVar val, const char *func_name) {
     const auto &var_val = reinterpret_cast<const Var &>(val);
-    if (var_val.Type() == VarType::Float) {
+    if (LIKELY(var_val.Type() == VarType::Float)) {
         return static_cast<T>(var_val.GetFloat());
     }
-    if (var_val.Type() == VarType::Int) {
+    if (UNLIKELY(var_val.Type() == VarType::Int)) {
         return static_cast<T>(var_val.GetInt());
     }
     ThrowFakeluaException(std::format("{} failed, type is {}", func_name, VarTypeToString(var_val.Type())));
@@ -159,7 +159,7 @@ double FakeluaToNativeDouble(State *state, CVar val) {
 
 std::string FakeluaToNativeString(State *state, CVar val) {
     const auto var_val = reinterpret_cast<Var &>(val);
-    if (var_val.Type() == VarType::String || var_val.Type() == VarType::StringId) {
+    if (LIKELY(var_val.Type() == VarType::String || var_val.Type() == VarType::StringId)) {
         return std::string(var_val.GetString()->Str());
     }
     ThrowFakeluaException(std::format("FakeluaToNativeString failed, type is {}", VarTypeToString(var_val.Type())));
@@ -167,7 +167,7 @@ std::string FakeluaToNativeString(State *state, CVar val) {
 
 std::string_view FakeluaToNativeStringView(State *state, CVar val) {
     const auto var_val = reinterpret_cast<Var &>(val);
-    if (var_val.Type() == VarType::String || var_val.Type() == VarType::StringId) {
+    if (LIKELY(var_val.Type() == VarType::String || var_val.Type() == VarType::StringId)) {
         return var_val.GetString()->Str();
     }
     ThrowFakeluaException(std::format("FakeluaToNativeStringview failed, type is {}", VarTypeToString(var_val.Type())));
@@ -236,7 +236,7 @@ VarInterface *FakeluaToNativeObj(State *state, CVar val) {
 
 void *GetFuncAddr(State *state, JITType type, const std::string_view &name, int &arg_count) {
     const auto ret = state->GetVM().GetFunction({name.data(), name.size()});
-    if (ret.Empty()) {
+    if (UNLIKELY(ret.Empty())) {
         return nullptr;
     }
     arg_count = ret.GetArgCount();

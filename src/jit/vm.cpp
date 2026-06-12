@@ -16,21 +16,21 @@ extern "C" void FakeluaThrowError(State *state, const char *msg) {
 
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {
     const auto func = state->GetVM().GetFunction(std::string(name));
-    if (func.Empty()) {
+    if (UNLIKELY(func.Empty())) {
         ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' not found", name));
     }
     void *addr = func.GetAddr(static_cast<JITType>(jit_type));
-    if (!addr) {
+    if (UNLIKELY(!addr)) {
         ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' has no address for jit_type {}", name, jit_type));
     }
 
     // 最多支持 8 个参数（与下面的 switch 匹配）。
-    if (arg_num > 8) {
+    if (UNLIKELY(arg_num > 8)) {
         ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}) for function '{}', max is 8", arg_num, name));
     }
 
     // 严格校验参数个数：必须与目标函数签名匹配，否则会读取未初始化栈内存（UB）。
-    if (arg_num != func.GetArgCount()) {
+    if (UNLIKELY(arg_num != func.GetArgCount())) {
         ThrowFakeluaException(
                 std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, func.GetArgCount(), arg_num));
     }

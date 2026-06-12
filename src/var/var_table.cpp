@@ -10,7 +10,7 @@ namespace fakelua {
 static_assert(VarTable::QUICK_DATA_SIZE == 8, "QUICK_DATA_SIZE must be 8 for manually unrolled code");
 
 Var VarTable::NormalizeTableKey(const Var &key) const {
-    if (key.Type() != VarType::Float) {
+    if (UNLIKELY(key.Type() != VarType::Float)) {
         return key;
     }
     const auto result = TryConvertDoubleToInt64(key.GetFloat());
@@ -23,18 +23,18 @@ Var VarTable::NormalizeTableKey(const Var &key) const {
 }
 
 Var VarTable::Get(const Var &key) const {
-    if (key.Type() == VarType::Nil) {
+    if (UNLIKELY(key.Type() == VarType::Nil)) {
         ThrowFakeluaException("VarTable Get failed, table index is nil");
     }
     const Var lookup_key = NormalizeTableKey(key);
 
-    if (count_ == 0) {
+    if (UNLIKELY(count_ == 0)) {
         return const_null_var;
     }
 
     const auto hash_val = static_cast<uint32_t>(lookup_key.Hash());
 
-    if (bucket_count_ == 0) {
+    if (LIKELY(bucket_count_ == 0)) {
         for (int i = 0; i < static_cast<int>(count_); ++i) {
             if (quick_data_[i].hash == hash_val && quick_data_[i].key.Equal(lookup_key)) {
                 return quick_data_[i].val;
@@ -46,7 +46,7 @@ Var VarTable::Get(const Var &key) const {
         uint32_t curr_idx = hash_val & mask;
         const TableNode *curr = &nodes_[curr_idx];
 
-        if (curr->entry.key.Type() == VarType::Nil) {
+        if (UNLIKELY(curr->entry.key.Type() == VarType::Nil)) {
             return const_null_var;
         }
 
@@ -65,18 +65,18 @@ Var VarTable::Get(const Var &key) const {
 }
 
 void VarTable::Set(State *state, const Var &key, const Var &val, bool can_be_nil) {
-    if (key.Type() == VarType::Nil) {
+    if (UNLIKELY(key.Type() == VarType::Nil)) {
         ThrowFakeluaException("VarTable Set failed, table index is nil");
     }
     const Var store_key = NormalizeTableKey(key);
     const auto hash_val = static_cast<uint32_t>(store_key.Hash());
 
-    if (val.Type() == VarType::Nil && !can_be_nil) {
-        if (count_ == 0) {
+    if (UNLIKELY(val.Type() == VarType::Nil && !can_be_nil)) {
+        if (UNLIKELY(count_ == 0)) {
             return;
         }
 
-        if (bucket_count_ == 0) {
+        if (LIKELY(bucket_count_ == 0)) {
             for (int i = 0; i < static_cast<int>(count_); ++i) {
                 if (quick_data_[i].hash == hash_val && quick_data_[i].key.Equal(store_key)) {
                     if (i < static_cast<int>(count_) - 1) {
@@ -91,7 +91,7 @@ void VarTable::Set(State *state, const Var &key, const Var &val, bool can_be_nil
             const uint32_t idx = hash_val & mask;
             TableNode *curr = &nodes_[idx];
 
-            if (curr->entry.key.Type() == VarType::Nil) {
+            if (UNLIKELY(curr->entry.key.Type() == VarType::Nil)) {
                 return;
             }
 
@@ -152,7 +152,7 @@ void VarTable::Set(State *state, const Var &key, const Var &val, bool can_be_nil
         return;
     }
 
-    if (bucket_count_ == 0) {
+    if (LIKELY(bucket_count_ == 0)) {
         for (int i = 0; i < static_cast<int>(count_); ++i) {
             if (quick_data_[i].hash == hash_val && quick_data_[i].key.Equal(store_key)) {
                 quick_data_[i].val = val;
@@ -170,7 +170,7 @@ void VarTable::Set(State *state, const Var &key, const Var &val, bool can_be_nil
         Rehash(state);
     }
 
-    if (count_ >= bucket_count_ || free_list_idx_ == INVALID_INDEX) {
+    if (UNLIKELY(count_ >= bucket_count_ || free_list_idx_ == INVALID_INDEX)) {
         Rehash(state);
     }
 
@@ -184,7 +184,7 @@ bool VarTable::InsertRaw(const Var &key, const Var &val, uint32_t hash) {
     const uint32_t idx = hash & mask;
     TableNode *main_node = &nodes_[idx];
 
-    if (main_node->entry.key.Type() == VarType::Nil) {
+    if (LIKELY(main_node->entry.key.Type() == VarType::Nil)) {
         main_node->entry.key = key;
         main_node->entry.val = val;
         main_node->entry.hash = hash;
@@ -210,7 +210,7 @@ bool VarTable::InsertRaw(const Var &key, const Var &val, uint32_t hash) {
         curr_idx = curr->next;
     }
 
-    if (free_list_idx_ == INVALID_INDEX) {
+    if (UNLIKELY(free_list_idx_ == INVALID_INDEX)) {
         return false;
     }
 
