@@ -2149,3 +2149,30 @@ TEST(var, table_size_on_non_table_throws) {
     Var v(true);
     EXPECT_THROW((void) v.TableSize(), std::exception);
 }
+
+// ---------------------------------------------------------------------------
+// VarTable move semantics test.
+// ---------------------------------------------------------------------------
+TEST(var, vartable_move_semantics) {
+    const FakeluaStateGuard guard;
+    const auto s = guard.GetState();
+
+    VarTable vt1;
+    vt1.Set(s, Var(static_cast<int64_t>(1)), Var(static_cast<int64_t>(10)), false);
+    vt1.Set(s, Var(static_cast<int64_t>(2)), Var(static_cast<int64_t>(20)), false);
+
+    // Test move constructor
+    VarTable vt2(std::move(vt1));
+    ASSERT_EQ(vt2.Size(), 2);
+    ASSERT_EQ(vt2.Get(Var(static_cast<int64_t>(1))).GetInt(), 10);
+    ASSERT_EQ(vt2.Get(Var(static_cast<int64_t>(2))).GetInt(), 20);
+    ASSERT_EQ(vt1.Size(), 0);
+
+    // Test move assignment
+    VarTable vt3;
+    vt3 = std::move(vt2);
+    ASSERT_EQ(vt3.Size(), 2);
+    ASSERT_EQ(vt3.Get(Var(static_cast<int64_t>(1))).GetInt(), 10);
+    ASSERT_EQ(vt3.Get(Var(static_cast<int64_t>(2))).GetInt(), 20);
+    ASSERT_EQ(vt2.Size(), 0);
+}

@@ -337,4 +337,43 @@ void VarTable::Rehash(State *state) {
     }
 }
 
+VarTable::VarTable(VarTable &&other) noexcept
+    : count_(other.count_),
+      bucket_count_(other.bucket_count_),
+      nodes_(other.nodes_),
+      active_list_(other.active_list_),
+      free_list_idx_(other.free_list_idx_) {
+    for (uint32_t i = 0; i < QUICK_DATA_SIZE; ++i) {
+        quick_data_[i] = other.quick_data_[i];
+        other.quick_data_[i].key.SetNil();
+        other.quick_data_[i].val.SetNil();
+    }
+    other.count_ = 0;
+    other.bucket_count_ = 0;
+    other.nodes_ = nullptr;
+    other.active_list_ = nullptr;
+    other.free_list_idx_ = INVALID_INDEX;
+}
+
+VarTable &VarTable::operator=(VarTable &&other) noexcept {
+    if (this != &other) {
+        count_ = other.count_;
+        bucket_count_ = other.bucket_count_;
+        nodes_ = other.nodes_;
+        active_list_ = other.active_list_;
+        free_list_idx_ = other.free_list_idx_;
+        for (uint32_t i = 0; i < QUICK_DATA_SIZE; ++i) {
+            quick_data_[i] = other.quick_data_[i];
+            other.quick_data_[i].key.SetNil();
+            other.quick_data_[i].val.SetNil();
+        }
+        other.count_ = 0;
+        other.bucket_count_ = 0;
+        other.nodes_ = nullptr;
+        other.active_list_ = nullptr;
+        other.free_list_idx_ = INVALID_INDEX;
+    }
+    return *this;
+}
+
 }// namespace fakelua

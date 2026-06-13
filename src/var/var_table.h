@@ -31,9 +31,12 @@ public:
     };
 
 public:
-    // 禁止拷贝
+    // 禁止拷贝，支持移动
     VarTable(const VarTable &) = delete;
     VarTable &operator=(const VarTable &) = delete;
+
+    VarTable(VarTable &&other) noexcept;
+    VarTable &operator=(VarTable &&other) noexcept;
 
     // 根据 Key 获取 Value。如果不存在则返回 const_null_var。
     [[nodiscard]] Var Get(const Var &key) const;
