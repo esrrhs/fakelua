@@ -121,8 +121,8 @@ TEST(infer, test_infer_degrade_param) {
     // int specialization: sum and i are fully typed as int64_t.
     ASSERT_NE(code.find("int64_t sum = 0"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = "), std::string::npos);
-    // float specialization: loop control vars become double, sum degrades to CVar.
-    ASSERT_NE(code.find("CVar sum = "), std::string::npos);
+    // float specialization: loop control vars become double, sum becomes double.
+    ASSERT_NE(code.find("double sum = 0"), std::string::npos);
     ASSERT_NE(code.find("double i = "), std::string::npos);
     ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
 
@@ -180,8 +180,8 @@ TEST(infer, test_infer_for_step_dynamic) {
     // int specialization: all typed.
     ASSERT_NE(code.find("int64_t sum = 0"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = "), std::string::npos);
-    // float specialization: loop ctrl vars become double, sum degrades to CVar.
-    ASSERT_NE(code.find("CVar sum = "), std::string::npos);
+    // float specialization: loop ctrl vars become double, sum becomes double.
+    ASSERT_NE(code.find("double sum = 0"), std::string::npos);
     ASSERT_NE(code.find("double i = "), std::string::npos);
     ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
 
@@ -198,10 +198,9 @@ TEST(infer, test_infer_for_step_dynamic) {
 // x to T_DYNAMIC.  The post-pass updates the declaration.
 TEST(infer, test_infer_reassign_int_to_float) {
     const auto code = InferGetCCode("./infer/test_infer_reassign_int_to_float.lua");
-    // x must be CVar because int→float crosses a type boundary.
-    ASSERT_NE(code.find("CVar x = "), std::string::npos);
-    ASSERT_EQ(code.find("int64_t x"), std::string::npos);
-    ASSERT_EQ(code.find("double x"), std::string::npos);
+    // x becomes double because int→float merges to float.
+    ASSERT_NE(code.find("double x = 1;"), std::string::npos);
+    ASSERT_EQ(code.find("CVar x = "), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_reassign_int_to_float.lua", {.debug_mode = debug_mode});
@@ -227,9 +226,9 @@ TEST(infer, test_infer_if_scope_degrade) {
     ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
     // In the int specialization (test_0), x = n with n=T_INT keeps x as T_INT.
     ASSERT_NE(code.find("int64_t x"), std::string::npos);
-    // In the float specialization (test_1), MergeType(T_INT, T_FLOAT) = T_DYNAMIC
-    // so x degrades to CVar (is_degraded_literal path).
-    ASSERT_NE(code.find("CVar x = "), std::string::npos);
+    // In the float specialization (test_1), MergeType(T_INT, T_FLOAT) = T_FLOAT
+    // so x becomes double.
+    ASSERT_NE(code.find("double x = 5"), std::string::npos);
     // Both specs must use native C comparison, not IsTrue.
     ASSERT_NE(code.find("(n) > (0)"), std::string::npos);
 
@@ -250,8 +249,8 @@ TEST(infer, test_infer_if_scope_degrade) {
 // - test_1(double n): x = n makes x T_FLOAT, merged with T_INT initial → T_DYNAMIC → CVar x
 TEST(infer, test_infer_while_scope_degrade) {
     const auto code = InferGetCCode("./infer/test_infer_while_scope_degrade.lua");
-    // In the float specialization (test_1), x degrades to CVar because x = n (T_FLOAT param).
-    ASSERT_NE(code.find("CVar x = "), std::string::npos);
+    // In the float specialization (test_1), x becomes double.
+    ASSERT_NE(code.find("double x = 5"), std::string::npos);
     // In the int specialization (test_0), x is correctly int64_t because x = n is T_INT throughout.
     ASSERT_NE(code.find("int64_t x"), std::string::npos);
 
@@ -2835,10 +2834,9 @@ TEST(infer, test_spec_repeat_local_until) {
 // test(5) == 6 (n+1 path), test(-1) == 0.5 (0.5 path).
 TEST(infer, test_spec_local_degraded_binop) {
     const auto code = InferGetCCode("./infer/test_spec_local_degraded_binop.lua");
-    // x must be CVar — the binop n+1 is degraded to T_DYNAMIC by post-processing.
-    ASSERT_NE(code.find("CVar x"), std::string::npos);
-    // No int64_t x declaration should exist.
-    ASSERT_EQ(code.find("int64_t x"), std::string::npos);
+    // x becomes double.
+    ASSERT_NE(code.find("double x = "), std::string::npos);
+    ASSERT_EQ(code.find("CVar x"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_local_degraded_binop.lua", {.debug_mode = debug_mode});
@@ -2846,9 +2844,9 @@ TEST(infer, test_spec_local_degraded_binop) {
         double dret = 0.0;
         Call(s, type, "test", dret, -1);
         ASSERT_DOUBLE_EQ(dret, 0.5);
-        int ret = 0;
-        Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 6);
+        double dret2 = 0.0;
+        Call(s, type, "test", dret2, 5);
+        ASSERT_DOUBLE_EQ(dret2, 6.0);
     });
 }
 
