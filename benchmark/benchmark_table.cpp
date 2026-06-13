@@ -197,14 +197,18 @@ static void BM_VarTable_Iter(benchmark::State &state) {
         if (active_list == nullptr) {// Quick Path
             for (uint32_t i = 0; i < count; ++i) {
                 const auto &entry = quick_data[i];
-                benchmark::DoNotOptimize(entry.key);
-                benchmark::DoNotOptimize(entry.val);
+                auto k = entry.key;
+                auto v = entry.val;
+                benchmark::DoNotOptimize(k);
+                benchmark::DoNotOptimize(v);
             }
         } else {// Hash Table Path
             for (uint32_t i = 0; i < count; ++i) {
                 const auto &entry = nodes[active_list[i]].entry;
-                benchmark::DoNotOptimize(entry.key);
-                benchmark::DoNotOptimize(entry.val);
+                auto k = entry.key;
+                auto v = entry.val;
+                benchmark::DoNotOptimize(k);
+                benchmark::DoNotOptimize(v);
             }
         }
     }
@@ -223,8 +227,10 @@ static void BM_StdUnorderedMap_Iter(benchmark::State &state) {
 
     for ([[maybe_unused]] auto _: state) {
         for (auto &[fst, snd]: m) {
-            benchmark::DoNotOptimize(fst);
-            benchmark::DoNotOptimize(snd);
+            auto fst_val = fst;
+            auto snd_val = snd;
+            benchmark::DoNotOptimize(fst_val);
+            benchmark::DoNotOptimize(snd_val);
         }
     }
     state.SetComplexityN(state.range(0));
