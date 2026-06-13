@@ -419,7 +419,6 @@ struct RuntimeContext {
         Call(flua, JIT_TCC, "bench_popcount", warmup_ret, 100);
         Call(flua, JIT_TCC, "bench_insertion_sort", warmup_ret, 10);
         Call(flua, JIT_TCC, "bench_matmul", warmup_ret);
-#if !defined(_WIN32)
         Call(flua, JIT_GCC, "bench_fib", warmup_ret, 10);
         Call(flua, JIT_GCC, "bench_gcd", warmup_ret, 832040, 514229);
         Call(flua, JIT_GCC, "bench_powmod", warmup_ret, 2, 1000, 1000000007);
@@ -431,7 +430,6 @@ struct RuntimeContext {
         Call(flua, JIT_GCC, "bench_popcount", warmup_ret, 100);
         Call(flua, JIT_GCC, "bench_insertion_sort", warmup_ret, 10);
         Call(flua, JIT_GCC, "bench_matmul", warmup_ret);
-#endif
     }
 
     ~RuntimeContext() {
@@ -491,7 +489,6 @@ static void BM_FakeLua_Fibonacci_TCC(benchmark::State &state) {
     }
 }
 
-#if !defined(_WIN32)
 static void BM_FakeLua_Fibonacci_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppFib(n);
@@ -502,7 +499,6 @@ static void BM_FakeLua_Fibonacci_GCC(benchmark::State &state) {
         VerifyEqual(ret, expected, "FakeLua fib");
     }
 }
-#endif // !_WIN32
 
 static void BM_CPP_GCD(benchmark::State &state) {
     const int64_t a = state.range(0);
@@ -542,7 +538,6 @@ static void BM_FakeLua_GCD_TCC(benchmark::State &state) {
     }
 }
 
-#if !defined(_WIN32)
 static void BM_FakeLua_GCD_GCC(benchmark::State &state) {
     const int64_t a = state.range(0);
     const int64_t b = state.range(1);
@@ -554,7 +549,6 @@ static void BM_FakeLua_GCD_GCC(benchmark::State &state) {
         VerifyEqual(ret, expected, "FakeLua gcd");
     }
 }
-#endif // !_WIN32
 
 static void BM_CPP_PowMod(benchmark::State &state) {
     const int64_t base = state.range(0);
@@ -599,7 +593,6 @@ static void BM_FakeLua_PowMod_TCC(benchmark::State &state) {
     }
 }
 
-#if !defined(_WIN32)
 static void BM_FakeLua_PowMod_GCC(benchmark::State &state) {
     const int64_t base = state.range(0);
     const int64_t exp = state.range(1);
@@ -612,7 +605,6 @@ static void BM_FakeLua_PowMod_GCC(benchmark::State &state) {
         VerifyEqual(ret, expected, "FakeLua powmod");
     }
 }
-#endif // !_WIN32
 
 static void BM_CPP_Sum(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -647,7 +639,6 @@ static void BM_FakeLua_Sum_TCC(benchmark::State &state) {
     }
 }
 
-#if !defined(_WIN32)
 static void BM_FakeLua_Sum_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSum(n);
@@ -658,7 +649,6 @@ static void BM_FakeLua_Sum_GCC(benchmark::State &state) {
         VerifyEqual(ret, expected, "FakeLua sum");
     }
 }
-#endif // !_WIN32
 
 static void BM_CPP_BubbleSort(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -691,7 +681,6 @@ static void BM_FakeLua_BubbleSort_TCC(benchmark::State &state) {
     }
 }
 
-#if !defined(_WIN32)
 static void BM_FakeLua_BubbleSort_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     for ([[maybe_unused]] auto _: state) {
@@ -701,7 +690,6 @@ static void BM_FakeLua_BubbleSort_GCC(benchmark::State &state) {
         VerifyEqual(ret, 1, "FakeLua bubble_sort");
     }
 }
-#endif // !_WIN32
 
 static void BM_CPP_Sieve(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -736,7 +724,6 @@ static void BM_FakeLua_Sieve_TCC(benchmark::State &state) {
     }
 }
 
-#if !defined(_WIN32)
 static void BM_FakeLua_Sieve_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppSieve(n);
@@ -747,7 +734,6 @@ static void BM_FakeLua_Sieve_GCC(benchmark::State &state) {
         VerifyEqual(ret, expected, "FakeLua sieve");
     }
 }
-#endif // !_WIN32
 
 static void BM_CPP_BinarySearch(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -779,7 +765,6 @@ static void BM_FakeLua_BinarySearch_TCC(benchmark::State &state) {
     }
 }
 
-#if !defined(_WIN32)
 static void BM_FakeLua_BinarySearch_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     for ([[maybe_unused]] auto _: state) {
@@ -789,7 +774,6 @@ static void BM_FakeLua_BinarySearch_GCC(benchmark::State &state) {
         VerifyEqual(ret, n, "FakeLua binary_search");
     }
 }
-#endif // !_WIN32
 
 static void BM_CPP_FastPow(benchmark::State &state) {
     const int64_t base = state.range(0);
@@ -834,7 +818,6 @@ static void BM_FakeLua_FastPow_TCC(benchmark::State &state) {
     }
 }
 
-#if !defined(_WIN32)
 static void BM_FakeLua_FastPow_GCC(benchmark::State &state) {
     const int64_t base = state.range(0);
     const int64_t exp = state.range(1);
@@ -847,7 +830,6 @@ static void BM_FakeLua_FastPow_GCC(benchmark::State &state) {
         VerifyEqual(ret, expected, "FakeLua fast_pow");
     }
 }
-#endif // !_WIN32
 
 static void BM_CPP_Popcount(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -882,7 +864,6 @@ static void BM_FakeLua_Popcount_TCC(benchmark::State &state) {
     }
 }
 
-#if !defined(_WIN32)
 static void BM_FakeLua_Popcount_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     const int64_t expected = CppPopcount(n);
@@ -893,7 +874,6 @@ static void BM_FakeLua_Popcount_GCC(benchmark::State &state) {
         VerifyEqual(ret, expected, "FakeLua popcount");
     }
 }
-#endif // !_WIN32
 
 static void BM_CPP_InsertionSort(benchmark::State &state) {
     const int64_t n = state.range(0);
@@ -926,7 +906,6 @@ static void BM_FakeLua_InsertionSort_TCC(benchmark::State &state) {
     }
 }
 
-#if !defined(_WIN32)
 static void BM_FakeLua_InsertionSort_GCC(benchmark::State &state) {
     const int64_t n = state.range(0);
     for ([[maybe_unused]] auto _: state) {
@@ -936,7 +915,6 @@ static void BM_FakeLua_InsertionSort_GCC(benchmark::State &state) {
         VerifyEqual(ret, 1, "FakeLua insertion_sort");
     }
 }
-#endif // !_WIN32
 
 static void BM_CPP_MatMul(benchmark::State &state) {
     const int64_t expected = CppMatMul();
@@ -966,7 +944,6 @@ static void BM_FakeLua_MatMul_TCC(benchmark::State &state) {
     }
 }
 
-#if !defined(_WIN32)
 static void BM_FakeLua_MatMul_GCC(benchmark::State &state) {
     const int64_t expected = CppMatMul();
     for ([[maybe_unused]] auto _: state) {
@@ -976,7 +953,6 @@ static void BM_FakeLua_MatMul_GCC(benchmark::State &state) {
         VerifyEqual(ret, expected, "FakeLua matmul");
     }
 }
-#endif // !_WIN32
 
 }// namespace
 
@@ -995,76 +971,54 @@ static void BM_FakeLua_MatMul_GCC(benchmark::State &state) {
 BENCHMARK(BM_CPP_Fibonacci) FIB_ARGS;
 BENCHMARK(BM_Lua_Fibonacci) FIB_ARGS;
 BENCHMARK(BM_FakeLua_Fibonacci_TCC) FIB_ARGS;
-#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_Fibonacci_GCC) FIB_ARGS;
-#endif
 
 BENCHMARK(BM_CPP_GCD) GCD_ARGS;
 BENCHMARK(BM_Lua_GCD) GCD_ARGS;
 BENCHMARK(BM_FakeLua_GCD_TCC) GCD_ARGS;
-#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_GCD_GCC) GCD_ARGS;
-#endif
 
 BENCHMARK(BM_CPP_PowMod) POWMOD_ARGS;
 BENCHMARK(BM_Lua_PowMod) POWMOD_ARGS;
 BENCHMARK(BM_FakeLua_PowMod_TCC) POWMOD_ARGS;
-#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_PowMod_GCC) POWMOD_ARGS;
-#endif
 
 BENCHMARK(BM_CPP_Sum) SUM_ARGS;
 BENCHMARK(BM_Lua_Sum) SUM_ARGS;
 BENCHMARK(BM_FakeLua_Sum_TCC) SUM_ARGS;
-#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_Sum_GCC) SUM_ARGS;
-#endif
 
 BENCHMARK(BM_CPP_BubbleSort) BUBBLE_SORT_ARGS;
 BENCHMARK(BM_Lua_BubbleSort) BUBBLE_SORT_ARGS;
 BENCHMARK(BM_FakeLua_BubbleSort_TCC) BUBBLE_SORT_ARGS;
-#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_BubbleSort_GCC) BUBBLE_SORT_ARGS;
-#endif
 
 BENCHMARK(BM_CPP_Sieve) SIEVE_ARGS;
 BENCHMARK(BM_Lua_Sieve) SIEVE_ARGS;
 BENCHMARK(BM_FakeLua_Sieve_TCC) SIEVE_ARGS;
-#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_Sieve_GCC) SIEVE_ARGS;
-#endif
 
 BENCHMARK(BM_CPP_BinarySearch) BINARY_SEARCH_ARGS;
 BENCHMARK(BM_Lua_BinarySearch) BINARY_SEARCH_ARGS;
 BENCHMARK(BM_FakeLua_BinarySearch_TCC) BINARY_SEARCH_ARGS;
-#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_BinarySearch_GCC) BINARY_SEARCH_ARGS;
-#endif
 
 BENCHMARK(BM_CPP_FastPow) FAST_POW_ARGS;
 BENCHMARK(BM_Lua_FastPow) FAST_POW_ARGS;
 BENCHMARK(BM_FakeLua_FastPow_TCC) FAST_POW_ARGS;
-#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_FastPow_GCC) FAST_POW_ARGS;
-#endif
 
 BENCHMARK(BM_CPP_Popcount) POPCOUNT_ARGS;
 BENCHMARK(BM_Lua_Popcount) POPCOUNT_ARGS;
 BENCHMARK(BM_FakeLua_Popcount_TCC) POPCOUNT_ARGS;
-#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_Popcount_GCC) POPCOUNT_ARGS;
-#endif
 
 BENCHMARK(BM_CPP_InsertionSort) INSERTION_SORT_ARGS;
 BENCHMARK(BM_Lua_InsertionSort) INSERTION_SORT_ARGS;
 BENCHMARK(BM_FakeLua_InsertionSort_TCC) INSERTION_SORT_ARGS;
-#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_InsertionSort_GCC) INSERTION_SORT_ARGS;
-#endif
 
 BENCHMARK(BM_CPP_MatMul);
 BENCHMARK(BM_Lua_MatMul);
 BENCHMARK(BM_FakeLua_MatMul_TCC);
-#if !defined(_WIN32)
 BENCHMARK(BM_FakeLua_MatMul_GCC);
-#endif
