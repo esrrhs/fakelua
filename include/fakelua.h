@@ -346,91 +346,6 @@ CVar NativeToFakeluaString(State *s, const std::string &v);
 CVar NativeToFakeluaStringView(State *s, const std::string_view &v);
 CVar NativeToFakeluaObj(State *s, const VarInterface *v);
 
-template<typename T>
-CVar NativeToFakelua(State *s, T v) {
-    // 检查 T 是否为 nil
-    if constexpr (std::is_same_v<T, std::nullptr_t>) {
-        return NativeToFakeluaNil(s);
-    }
-    // 检查 T 是否为 bool
-    else if constexpr (std::is_same_v<T, bool>) {
-        return NativeToFakeluaBool(s, v);
-    }
-    // 检查 T 是否为 char
-    else if constexpr (std::is_same_v<T, char>) {
-        return NativeToFakeluaChar(s, v);
-    }
-    // 检查 T 是否为 unsigned char
-    else if constexpr (std::is_same_v<T, unsigned char>) {
-        return NativeToFakeluaUchar(s, v);
-    }
-    // 检查 T 是否为 short
-    else if constexpr (std::is_same_v<T, short>) {
-        return NativeToFakeluaShort(s, v);
-    }
-    // 检查 T 是否为 unsigned short
-    else if constexpr (std::is_same_v<T, unsigned short>) {
-        return NativeToFakeluaUshort(s, v);
-    }
-    // 检查 T 是否为 int
-    else if constexpr (std::is_same_v<T, int>) {
-        return NativeToFakeluaInt(s, v);
-    }
-    // 检查 T 是否为 unsigned int
-    else if constexpr (std::is_same_v<T, unsigned int>) {
-        return NativeToFakeluaUint(s, v);
-    }
-    // 检查 T 是否为 long
-    else if constexpr (std::is_same_v<T, long>) {
-        return NativeToFakeluaLong(s, v);
-    }
-    // 检查 T 是否为 unsigned long
-    else if constexpr (std::is_same_v<T, unsigned long>) {
-        return NativeToFakeluaUlong(s, v);
-    }
-    // 检查 T 是否为 long long
-    else if constexpr (std::is_same_v<T, long long>) {
-        return NativeToFakeluaLonglong(s, v);
-    }
-    // 检查 T 是否为 unsigned long long
-    else if constexpr (std::is_same_v<T, unsigned long long>) {
-        return NativeToFakeluaUlonglong(s, v);
-    }
-    // 检查 T 是否为 float
-    else if constexpr (std::is_same_v<T, float>) {
-        return NativeToFakeluaFloat(s, v);
-    }
-    // 检查 T 是否为 double
-    else if constexpr (std::is_same_v<T, double>) {
-        return NativeToFakeluaDouble(s, v);
-    }
-    // 检查 T 是否为 const char *
-    else if constexpr (std::is_same_v<T, const char *>) {
-        return NativeToFakeluaCstr(s, v);
-    }
-    // 检查 T 是否为 char *
-    else if constexpr (std::is_same_v<T, char *>) {
-        return NativeToFakeluaStr(s, v);
-    }
-    // 检查 T 是否为 std::string
-    else if constexpr (std::is_same_v<T, std::string>) {
-        return NativeToFakeluaString(s, v);
-    }
-    // 检查 T 是否为 std::string_view
-    else if constexpr (std::is_same_v<T, std::string_view>) {
-        return NativeToFakeluaStringView(s, v);
-    }
-    // 检查 T 是否为 cvar
-    else if constexpr (std::is_same_v<T, CVar>) {
-        return v;
-    } else {
-        // 静态断言 T 应该是 VarInterface* 或实现 VarInterface
-        static_assert(std::is_pointer_v<T>, "T should be pointer");
-        static_assert(std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>, "T should be VarInterface");
-        return NativeToFakeluaObj(s, v);
-    }
-}
-
 // FakeLua 转原生
 bool FakeluaToNativeBool(State *s, CVar v);
 char FakeluaToNativeChar(State *s, CVar v);
@@ -449,46 +364,97 @@ std::string FakeluaToNativeString(State *s, CVar v);
 std::string_view FakeluaToNativeStringView(State *s, CVar v);
 VarInterface *FakeluaToNativeObj(State *s, CVar v);
 
+inline CVar NativeToFakeluaNullptr(State *s, std::nullptr_t) {
+    return NativeToFakeluaNil(s);
+}
+
+template<typename T, typename = void>
+struct NativeToFakeluaHelper {
+    static_assert(std::is_pointer_v<T>, "T should be pointer");
+    static_assert(std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>, "T should be VarInterface");
+    static CVar Convert(State *s, T v) {
+        return NativeToFakeluaObj(s, v);
+    }
+};
+
+#define DECLARE_NATIVE_TO_FAKELUA_HELPER(type, func) \
+    template<> \
+    struct NativeToFakeluaHelper<type> { \
+        static CVar Convert(State *s, type v) { return func(s, v); } \
+    };
+
+DECLARE_NATIVE_TO_FAKELUA_HELPER(std::nullptr_t, NativeToFakeluaNullptr)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(bool, NativeToFakeluaBool)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(char, NativeToFakeluaChar)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(unsigned char, NativeToFakeluaUchar)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(short, NativeToFakeluaShort)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(unsigned short, NativeToFakeluaUshort)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(int, NativeToFakeluaInt)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(unsigned int, NativeToFakeluaUint)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(long, NativeToFakeluaLong)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(unsigned long, NativeToFakeluaUlong)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(long long, NativeToFakeluaLonglong)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(unsigned long long, NativeToFakeluaUlonglong)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(float, NativeToFakeluaFloat)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(double, NativeToFakeluaDouble)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(const char *, NativeToFakeluaCstr)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(char *, NativeToFakeluaStr)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(std::string, NativeToFakeluaString)
+DECLARE_NATIVE_TO_FAKELUA_HELPER(std::string_view, NativeToFakeluaStringView)
+
+#undef DECLARE_NATIVE_TO_FAKELUA_HELPER
+
+template<>
+struct NativeToFakeluaHelper<CVar> {
+    static CVar Convert(State *, CVar v) { return v; }
+};
+
+template<typename T>
+CVar NativeToFakelua(State *s, T v) {
+    return NativeToFakeluaHelper<std::decay_t<T>>::Convert(s, v);
+}
+
+template<typename T, typename = void>
+struct FakeluaToNativeHelper {
+    static_assert(std::is_pointer_v<T>, "T should be pointer");
+    static_assert(std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>, "T should be VarInterface");
+    static T Convert(State *s, CVar v) {
+        return static_cast<T>(FakeluaToNativeObj(s, v));
+    }
+};
+
+#define DECLARE_FAKELUA_TO_NATIVE_HELPER(type, func) \
+    template<> \
+    struct FakeluaToNativeHelper<type> { \
+        static type Convert(State *s, CVar v) { return func(s, v); } \
+    };
+
+DECLARE_FAKELUA_TO_NATIVE_HELPER(bool, FakeluaToNativeBool)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(char, FakeluaToNativeChar)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(unsigned char, FakeluaToNativeUchar)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(short, FakeluaToNativeShort)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(unsigned short, FakeluaToNativeUshort)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(int, FakeluaToNativeInt)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(unsigned int, FakeluaToNativeUint)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(long, FakeluaToNativeLong)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(unsigned long, FakeluaToNativeUlong)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(long long, FakeluaToNativeLonglong)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(unsigned long long, FakeluaToNativeUlonglong)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(float, FakeluaToNativeFloat)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(double, FakeluaToNativeDouble)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(std::string, FakeluaToNativeString)
+DECLARE_FAKELUA_TO_NATIVE_HELPER(std::string_view, FakeluaToNativeStringView)
+
+#undef DECLARE_FAKELUA_TO_NATIVE_HELPER
+
+template<>
+struct FakeluaToNativeHelper<CVar> {
+    static CVar Convert(State *, CVar v) { return v; }
+};
+
 template<typename T>
 T FakeluaToNative(State *s, const CVar v) {
-    if constexpr (std::is_same_v<T, bool>) {
-        return FakeluaToNativeBool(s, v);
-    } else if constexpr (std::is_same_v<T, char>) {
-        return FakeluaToNativeChar(s, v);
-    } else if constexpr (std::is_same_v<T, unsigned char>) {
-        return FakeluaToNativeUchar(s, v);
-    } else if constexpr (std::is_same_v<T, short>) {
-        return FakeluaToNativeShort(s, v);
-    } else if constexpr (std::is_same_v<T, unsigned short>) {
-        return FakeluaToNativeUshort(s, v);
-    } else if constexpr (std::is_same_v<T, int>) {
-        return FakeluaToNativeInt(s, v);
-    } else if constexpr (std::is_same_v<T, unsigned int>) {
-        return FakeluaToNativeUint(s, v);
-    } else if constexpr (std::is_same_v<T, long>) {
-        return FakeluaToNativeLong(s, v);
-    } else if constexpr (std::is_same_v<T, unsigned long>) {
-        return FakeluaToNativeUlong(s, v);
-    } else if constexpr (std::is_same_v<T, long long>) {
-        return FakeluaToNativeLonglong(s, v);
-    } else if constexpr (std::is_same_v<T, unsigned long long>) {
-        return FakeluaToNativeUlonglong(s, v);
-    } else if constexpr (std::is_same_v<T, float>) {
-        return FakeluaToNativeFloat(s, v);
-    } else if constexpr (std::is_same_v<T, double>) {
-        return FakeluaToNativeDouble(s, v);
-    } else if constexpr (std::is_same_v<T, std::string>) {
-        return FakeluaToNativeString(s, v);
-    } else if constexpr (std::is_same_v<T, std::string_view>) {
-        return FakeluaToNativeStringView(s, v);
-    } else if constexpr (std::is_same_v<T, CVar>) {
-        return v;
-    } else {
-        // 静态断言 T 应该是 VarInterface* 或实现 VarInterface
-        static_assert(std::is_pointer_v<T>, "T should be pointer");
-        static_assert(std::is_base_of_v<VarInterface, std::remove_pointer_t<T>>, "T should be VarInterface");
-        return FakeluaToNativeObj(s, v);
-    }
+    return FakeluaToNativeHelper<std::decay_t<T>>::Convert(s, v);
 }
 
 void *GetFuncAddr(State *s, JITType type, const std::string_view &name, int &arg_count);
