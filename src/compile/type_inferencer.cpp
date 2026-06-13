@@ -277,7 +277,16 @@ InferredType TypeInferencer::TypeEnvironment::Lookup(const std::string &name) co
 InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_type, const InferredType new_type) {
     DEBUG_ASSERT(old_type != T_UNKNOWN);
     DEBUG_ASSERT(new_type != T_UNKNOWN);
-    return (old_type == T_DYNAMIC || new_type == T_DYNAMIC || old_type != new_type) ? T_DYNAMIC : old_type;
+    if (old_type == T_DYNAMIC || new_type == T_DYNAMIC) {
+        return T_DYNAMIC;
+    }
+    if (old_type == new_type) {
+        return old_type;
+    }
+    if ((old_type == T_INT && new_type == T_FLOAT) || (old_type == T_FLOAT && new_type == T_INT)) {
+        return T_FLOAT;
+    }
+    return T_DYNAMIC;
 }
 
 // ===========================================================================

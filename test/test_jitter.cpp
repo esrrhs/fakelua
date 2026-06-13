@@ -1888,9 +1888,9 @@ TEST(jitter, test_dynamic_le) {
 TEST(jitter, test_more_coverage) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_more_coverage.lua", {.debug_mode = debug_mode});
-        int64_t ret = 0;
+        double ret = 0.0;
         Call(s, type, "test_more_coverage", ret, 5, 5.0);
-        ASSERT_EQ(ret, 41);
+        ASSERT_DOUBLE_EQ(ret, 41.0);
     });
 }
 
