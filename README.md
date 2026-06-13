@@ -74,7 +74,8 @@ static_assert(std::is_trivially_copyable_v<CVar>);
 ### 类型系统限制
 - 类型推导基于静态分析，复杂的动态类型操作无法优化
 - 函数 specialization 基于调用点的 math 参数发现
-- 函数参数上限 8 个
+- 函数参数上限 32 个（通过常量 `kMaxFunctionInputParams` 统一配置）
+- 数学特化参数上限 8 个（通过常量 `kMaxMathSpecializedParams` 统一配置，超过此限制的数学参数不进行特化，作为普通动态参数处理）
 
 ## 快速上手
 
@@ -149,7 +150,7 @@ int main() {
 }
 ```
 
-`Call()` 支持最多 8 个参数，参数与返回值在原生 C++ 类型与 `CVar` 之间自动转换。
+`Call()` 支持最多 32 个参数，参数与返回值在原生 C++ 类型与 `CVar` 之间自动转换。
 
 ## 性能基准
 
