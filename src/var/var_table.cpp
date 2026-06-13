@@ -9,7 +9,7 @@ namespace fakelua {
 // QUICK_DATA_SIZE 必须为 8，因为本文件中有手动展开的代码
 static_assert(VarTable::QUICK_DATA_SIZE == 8, "QUICK_DATA_SIZE must be 8 for manually unrolled code");
 
-const Var &VarTable::NormalizeTableKey(const Var &key, Var &storage) const {
+Var VarTable::NormalizeTableKey(const Var &key) const {
     if (UNLIKELY(key.Type() != VarType::Float)) {
         return key;
     }
@@ -17,16 +17,16 @@ const Var &VarTable::NormalizeTableKey(const Var &key, Var &storage) const {
     if (!result) {
         return key;
     }
-    storage.SetInt(*result);
-    return storage;
+    Var normalized;
+    normalized.SetInt(*result);
+    return normalized;
 }
 
 Var VarTable::Get(const Var &key) const {
     if (UNLIKELY(key.Type() == VarType::Nil)) {
         ThrowFakeluaException("VarTable Get failed, table index is nil");
     }
-    Var storage;
-    const Var &lookup_key = NormalizeTableKey(key, storage);
+    const Var lookup_key = NormalizeTableKey(key);
 
     if (UNLIKELY(count_ == 0)) {
         return const_null_var;
@@ -68,8 +68,7 @@ void VarTable::Set(State *state, const Var &key, const Var &val, bool can_be_nil
     if (UNLIKELY(key.Type() == VarType::Nil)) {
         ThrowFakeluaException("VarTable Set failed, table index is nil");
     }
-    Var storage;
-    const Var &store_key = NormalizeTableKey(key, storage);
+    const Var store_key = NormalizeTableKey(key);
     const auto hash_val = static_cast<uint32_t>(store_key.Hash());
 
     if (UNLIKELY(val.Type() == VarType::Nil && !can_be_nil)) {
