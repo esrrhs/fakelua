@@ -10,6 +10,9 @@
 
 namespace fakelua {
 
+constexpr size_t kMaxFunctionInputParams = 32;
+constexpr size_t kMaxMathSpecializedParams = 8;
+
 // 用于FakeLua与原生代码之间的通信，传输像table这样的复杂类型。
 struct VarInterface {
     enum class Type {
@@ -642,7 +645,7 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &
 #undef CVAR_31
 #undef CVAR_32
     } else {
-        static_assert(sizeof...(Args) <= 32, "Too many arguments for Call()");
+        static_assert(sizeof...(Args) <= kMaxFunctionInputParams, "Too many arguments for Call()");
     }
 
     ret = inter::FakeluaToNative<Ret>(s, ret_var);
