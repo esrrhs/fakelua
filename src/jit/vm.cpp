@@ -24,9 +24,9 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
         ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' has no address for jit_type {}", name, jit_type));
     }
 
-    // 最多支持 32 个参数（与下面的 switch 匹配）。
-    if (UNLIKELY(arg_num > 32)) {
-        ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}) for function '{}', max is 32", arg_num, name));
+    // 最多支持 kMaxFunctionInputParams 个参数（与下面的 switch 匹配）。
+    if (UNLIKELY(arg_num > static_cast<int>(kMaxFunctionInputParams))) {
+        ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}) for function '{}', max is {}", arg_num, name, kMaxFunctionInputParams));
     }
 
     // 严格校验参数个数：必须与目标函数签名匹配，否则会读取未初始化栈内存（UB）。
@@ -35,7 +35,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
                 std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, func.GetArgCount(), arg_num));
     }
 
-    CVar arg_arr[32];
+    CVar arg_arr[kMaxFunctionInputParams];
     va_list args_list;
     va_start(args_list, arg_num);
 #if defined(__clang__)
