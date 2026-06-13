@@ -858,6 +858,10 @@ TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseRe
             if (math_indices.empty()) {
                 continue;
             }
+            if (math_indices.size() > 8) {
+                LOG_INFO("TypeInferencer: {} math params for {} exceeds limit 8, treating all as dynamic", math_indices.size(), info.name);
+                continue;
+            }
             ir.math_param_positions[info.name] = math_indices;
             math_func_info[info.name] = {info.block, info.params};
             new_discovery = true;

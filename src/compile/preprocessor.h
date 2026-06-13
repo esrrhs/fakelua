@@ -34,7 +34,7 @@ private:
     void PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &chunk);
 
 private:
-    static constexpr size_t kMaxFunctionInputParams = 8;
+    static constexpr size_t kMaxFunctionInputParams = 32;
 
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
 

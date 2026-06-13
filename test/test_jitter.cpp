@@ -2539,3 +2539,18 @@ TEST(jitter, test_edge_cases) {
         EXPECT_EQ(ret, 1);
     });
 }
+
+
+
+TEST(jitter, test_32params) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_32params.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_32params", ret,
+             1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+             1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+             1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
+             1, 1);
+        ASSERT_EQ(ret, 32);
+    });
+}
