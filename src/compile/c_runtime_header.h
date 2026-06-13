@@ -82,20 +82,18 @@ enum {
     (v).data_.f = __f; \
 } while(0)
 
-#define NORMALIZE_TABLE_KEY(key) ({ \
-    CVar __k = (key); \
-    if (LIKELY(__k.type_ == VAR_FLOAT)) { \
-        double __d = __k.data_.f; \
-        if (isfinite(__d)) { \
-            double __ip; \
-            if (modf(__d, &__ip) == 0.0 && __ip >= (double)INT64_MIN && __ip <= (double)INT64_MAX) { \
-                __k.type_ = VAR_INT; \
-                __k.data_.i = (int64_t)__ip; \
-            } \
-        } \
-    } \
-    __k; \
-})
+static inline void NormalizeTableKey(CVar *key) {
+    if (UNLIKELY(key->type_ == VAR_FLOAT)) {
+        double __d = key->data_.f;
+        if (isfinite(__d)) {
+            double __ip;
+            if (modf(__d, &__ip) == 0.0 && __ip >= (double)INT64_MIN && __ip <= (double)INT64_MAX) {
+                key->type_ = VAR_INT;
+                key->data_.i = (int64_t)__ip;
+            }
+        }
+    }
+}
 
 extern void* FakeluaAllocTemp(State *s, size_t size);
 extern void FakeluaThrowError(State *s, const char *msg);
@@ -203,7 +201,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
 } while(0)
 
 static inline CVar FlGetTable(CVar t, CVar k) {
-    k = NORMALIZE_TABLE_KEY(k);
+    NormalizeTableKey(&k);
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t;
@@ -310,7 +308,7 @@ static inline void FlTableRehash(VarTable *tbl) {
 }
 
 static inline void FlSetTable(CVar t, CVar k, CVar v) {
-    k = NORMALIZE_TABLE_KEY(k);
+    NormalizeTableKey(&k);
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t; uint32_t h; VarHash(k, h);
