@@ -651,4 +651,98 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &
     ret = inter::FakeluaToNative<Ret>(s, ret_var);
 }
 
+// 多返回值版本的 Call
+// 用法：CallMulti(s, type, "foo", std::tie(ret1, ret2, ...), arg1, arg2, ...)
+// 从 VarMulti 中按序解包到各引用参数
+template<typename... Rets, typename... Args>
+void CallMulti(State *s, JITType type, const std::string_view &name, std::tuple<Rets &...> ret, Args &&...args) {
+    int arg_count = 0;
+    const auto addr = inter::GetFuncAddr(s, type, name, arg_count);
+    if (!addr) {
+        inter::ThrowInterFakeluaException(std::format("CallMulti failed, function {} not found", name));
+    }
+
+    if (sizeof...(Args) != static_cast<size_t>(arg_count)) {
+        inter::ThrowInterFakeluaException(
+                std::format("CallMulti failed, function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
+    }
+
+    if (const auto reentrant_count = inter::GetReentrantCount(s); !reentrant_count) {
+        inter::Reset(s);
+    }
+    inter::ReentryCounter rc(s);
+
+    CVar ret_var;
+    if constexpr (sizeof...(Args) == 0) {
+        ret_var = reinterpret_cast<CVar (*)()>(addr)();
+#define MCALL_CASE(N) \
+    } else if constexpr (sizeof...(Args) == N) { \
+        ret_var = reinterpret_cast<CVar (*)(CVAR_##N)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+
+    MCALL_CASE(1)
+    MCALL_CASE(2)
+    MCALL_CASE(3)
+    MCALL_CASE(4)
+    MCALL_CASE(5)
+    MCALL_CASE(6)
+    MCALL_CASE(7)
+    MCALL_CASE(8)
+    MCALL_CASE(9)
+    MCALL_CASE(10)
+    MCALL_CASE(11)
+    MCALL_CASE(12)
+    MCALL_CASE(13)
+    MCALL_CASE(14)
+    MCALL_CASE(15)
+    MCALL_CASE(16)
+    MCALL_CASE(17)
+    MCALL_CASE(18)
+    MCALL_CASE(19)
+    MCALL_CASE(20)
+    MCALL_CASE(21)
+    MCALL_CASE(22)
+    MCALL_CASE(23)
+    MCALL_CASE(24)
+    MCALL_CASE(25)
+    MCALL_CASE(26)
+    MCALL_CASE(27)
+    MCALL_CASE(28)
+    MCALL_CASE(29)
+    MCALL_CASE(30)
+    MCALL_CASE(31)
+    MCALL_CASE(32)
+
+#undef MCALL_CASE
+    } else {
+        static_assert(sizeof...(Args) <= kMaxFunctionInputParams, "Too many arguments for CallMulti()");
+    }
+
+    // 从 VarMulti 中解包返回值
+    if (ret_var.type_ == VAR_MULTI) {
+        const auto *multi = reinterpret_cast<const struct VarMulti *>(ret_var.data_.t);
+        const int multi_count = multi->count;
+        // 使用折叠表达式按索引解包
+        [&]<size_t... I>(std::index_sequence<I...>) {
+            (([&]() {
+                if (static_cast<int>(I) < multi_count) {
+                    std::get<I>(ret) = inter::FakeluaToNative<std::tuple_element_t<I, std::tuple<Rets...>>>(s, multi->values[I]);
+                } else {
+                    std::get<I>(ret) = inter::FakeluaToNative<std::tuple_element_t<I, std::tuple<Rets...>>>(s, kNil);
+                }
+            }()), ...);
+        }(std::index_sequence_for<Rets...>{});
+    } else {
+        // 单返回值：只取第一个
+        std::get<0>(ret) = inter::FakeluaToNative<std::tuple_element_t<0, std::tuple<Rets...>>>(s, ret_var);
+        // 其余参数设为默认值
+        [&]<size_t... I>(std::index_sequence<I...>) {
+            (([&]() {
+                if constexpr (I > 0) {
+                    std::get<I>(ret) = inter::FakeluaToNative<std::tuple_element_t<I, std::tuple<Rets...>>>(s, kNil);
+                }
+            }()), ...);
+        }(std::index_sequence_for<Rets...>{});
+    }
+}
+
 }// namespace fakelua
