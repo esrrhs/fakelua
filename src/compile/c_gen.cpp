@@ -475,8 +475,9 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vect
 
         if (const auto spec_ret = GetSpecReturnType(func_name, bitmask); spec_ret == T_INT || spec_ret == T_FLOAT) {
             // 特化函数返回原生数值类型：需要将结果装箱为 CVar 后再返回。
-            Out() << std::format("        case {}: return {};\n", bitmask,
-                                 BoxNativeValue(std::format("{}({})", spec_name, args_str), spec_ret));
+            const auto native_tmp = std::format("flua_r_{}", bitmask);
+            Out() << std::format("        case {}: {{ {} {} = {}({}); return {}; }}\n", bitmask, SpecReturnCTypeName(spec_ret), native_tmp,
+                                 spec_name, args_str, BoxNativeValue(native_tmp, spec_ret));
         } else {
             Out() << std::format("        case {}: return {}({});\n", bitmask, spec_name, args_str);
         }
@@ -877,23 +878,6 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     Out() << GenTab() << "return " << ret << ";\n";
 }
 
-static bool IsAlphaNumOrUnderscore(char c) {
-    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
-}
-
-static bool ExpressionUsesVariable(const std::string &expr_str, const std::string &var_name) {
-    size_t pos = 0;
-    while ((pos = expr_str.find(var_name, pos)) != std::string::npos) {
-        bool before_ok = (pos == 0) || !IsAlphaNumOrUnderscore(expr_str[pos - 1]);
-        bool after_ok = (pos + var_name.length() == expr_str.length()) || !IsAlphaNumOrUnderscore(expr_str[pos + var_name.length()]);
-        if (before_ok && after_ok) {
-            return true;
-        }
-        pos += var_name.length();
-    }
-    return false;
-}
-
 void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::LocalVar);
     const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
@@ -919,7 +903,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
         if (type == T_INT || type == T_FLOAT) {
             const auto native_expr = CompileNumericExp(exps[i]);
             const std::string type_str = (type == T_INT) ? "int64_t" : "double";
-            if (IsTypedNativeVar(name) && ExpressionUsesVariable(native_expr, name)) {
+            if (IsTypedNativeVar(name)) {
                 const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    " << type_str << " " << tmp << ";\n";
                 Out() << GenTab() << tmp << " = " << native_expr << ";\n";
@@ -2178,7 +2162,10 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
     }
     call += ")";
 
-    return call;
+    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    " << SpecReturnCTypeName(spec_ret) << " " << ntmp << ";\n";
+    Out() << GenTab() << ntmp << " = " << call << ";\n";
+    return ntmp;
 }
 
 // ---------------------------------------------------------------------------
@@ -2257,7 +2244,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                         const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
                         func_temp_decls_ << "    CVar " << tmp << ";\n";
                         if (const auto spec_ret = GetSpecReturnType(callee_name, bitmask); spec_ret == T_INT || spec_ret == T_FLOAT) {
-                            Out() << GenTab() << tmp << " = " << BoxNativeValue(call, spec_ret) << ";\n";
+                            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                            func_temp_decls_ << "    " << SpecReturnCTypeName(spec_ret) << " " << ntmp << ";\n";
+                            Out() << GenTab() << ntmp << " = " << call << ";\n";
+                            Out() << GenTab() << tmp << " = " << BoxNativeValue(ntmp, spec_ret) << ";\n";
                         } else {
                             Out() << GenTab() << tmp << " = " << call << ";\n";
                         }

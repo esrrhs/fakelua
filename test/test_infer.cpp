@@ -709,7 +709,7 @@ TEST(infer, test_spec_fib) {
     // Check: no FakeluaCallByName("fib") in the generated code.
     ASSERT_EQ(code.find("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"fib\""), std::string::npos);
     // Verify spec bodies use native add directly (no CVar wrapping of recursive results).
-    ASSERT_NE(code.find("return ((fib_0("), std::string::npos);
+    ASSERT_NE(code.find("return ((flua_native_"), std::string::npos);
 
     // Functional verification: fib(10) == 55.
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
