@@ -1035,6 +1035,66 @@ TEST(infer, test_infer_typed_float_for_mixed) {
     });
 }
 
+TEST(infer, test_infer_typed_int_for_neg_step_1) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_for_neg_step_1.lua");
+    ASSERT_NE(code.find("int64_t sum = "), std::string::npos);
+    ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("--"), std::string::npos);
+    ASSERT_EQ(code.find("int64_t flua_for_step_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_for_neg_step_1.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 55); // sum of 10..1
+    });
+}
+
+TEST(infer, test_infer_typed_int_for_neg_step_2) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_for_neg_step_2.lua");
+    ASSERT_NE(code.find("int64_t sum = "), std::string::npos);
+    ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find(" += -2"), std::string::npos);
+    ASSERT_EQ(code.find("int64_t flua_for_step_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_for_neg_step_2.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 30); // 10 + 8 + 6 + 4 + 2
+    });
+}
+
+TEST(infer, test_infer_typed_float_for_neg_step_1) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_for_neg_step_1.lua");
+    ASSERT_NE(code.find("double sum = "), std::string::npos);
+    ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("--"), std::string::npos);
+    ASSERT_EQ(code.find("double flua_for_step_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_for_neg_step_1.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 55.0, 0.001); // sum of 10.0..1.0
+    });
+}
+
+TEST(infer, test_infer_typed_float_for_neg_step_2) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_for_neg_step_2.lua");
+    ASSERT_NE(code.find("double sum = "), std::string::npos);
+    ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find(" += -2"), std::string::npos);
+    ASSERT_EQ(code.find("double flua_for_step_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_for_neg_step_2.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 30.0, 0.001); // 10.0 + 8.0 + 6.0 + 4.0 + 2.0
+    });
+}
+
 // CollectReassignedVars must descend into elseif blocks (type_inferencer.cpp lines 553-555).
 // n is a math param; the function body has an if/elseif structure.
 TEST(infer, test_spec_elseif_param) {
