@@ -17,6 +17,7 @@ typedef struct VarString {
 } VarString;
 
 typedef struct VarTable VarTable;
+typedef struct VarMulti VarMulti;
 
 typedef struct CVar {
     int type_;
@@ -27,6 +28,7 @@ typedef struct CVar {
         double f;
         VarString *s;
         VarTable *t;
+        VarMulti *m;
     } data_;
 } CVar;
 
@@ -71,7 +73,24 @@ enum {
     VAR_STRING = 4,
     VAR_STRINGID = 5,
     VAR_TABLE = 6,
+    VAR_MULTI = 7,
 };
+
+typedef struct VarMulti {
+    uint32_t count;
+    CVar *vars;
+} VarMulti;
+
+extern CVar FlMakeMulti(State *s, uint32_t count, ...);
+extern CVar FlCombineMulti(State *s, uint32_t prefix_count, const CVar *prefix_vars, CVar last);
+
+static inline CVar FlUnboxMulti(CVar v, uint32_t idx) {
+    if (LIKELY(v.type_ != VAR_MULTI)) {
+        return (idx == 0) ? v : (CVar){VAR_NIL};
+    }
+    VarMulti *m = v.data_.m;
+    return (idx < m->count) ? m->vars[idx] : (CVar){VAR_NIL};
+}
 
 #define SET_NIL(v) do { (v).type_ = VAR_NIL; } while(0)
 #define SET_BOOL(v, val) do { (v).type_ = VAR_BOOL; (v).data_.b = (val); } while(0)

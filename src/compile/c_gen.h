@@ -162,9 +162,9 @@ private:
     // 第三部分：表达式编译
     // ==========================================
     // 核心表达式编译器入口，返回计算该表达式的 C 语言表达式源码
-    [[nodiscard]] std::string CompileExp(const SyntaxTreeInterfacePtr &exp);
+    [[nodiscard]] std::string CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_multi = false);
     // 编译前缀表达式（如 `(exp)`、变量、表索引、或函数调用等）
-    std::string CompilePrefixexp(const SyntaxTreeInterfacePtr &pe);
+    std::string CompilePrefixexp(const SyntaxTreeInterfacePtr &pe, bool preserve_multi = false);
     // 编译变量访问（包括局部变量、全局变量以及表属性字段的读取）
     std::string CompileVar(const SyntaxTreeInterfacePtr &v);
     // 编译普通的函数调用表达式并获取其返回值
@@ -267,6 +267,9 @@ private:
     int tmp_var_counter_ = 0;                                        // 临时变量生成计数器
 
     std::unordered_map<std::string, int> local_func_names_;// 本地函数（非全局）的名称映射及作用域标识
+    std::unordered_map<std::string, int> local_func_max_returns_; // 记录本地函数的最大返回值数量
+
+    void AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr &chunk);
 
     Section cur_section_ = Section::Headers;// 当前输出对应的 CGen 逻辑代码段
 

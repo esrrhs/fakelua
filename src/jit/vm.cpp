@@ -24,18 +24,15 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
         ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' has no address for jit_type {}", name, jit_type));
     }
 
-    // 最多支持 kMaxFunctionInputParams 个参数（与下面的 switch 匹配）。
+    int expected_arg_count = func.GetArgCount();
+    if (UNLIKELY(expected_arg_count > static_cast<int>(kMaxFunctionInputParams))) {
+        ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects too many arguments ({}), max is {}", name, expected_arg_count, kMaxFunctionInputParams));
+    }
     if (UNLIKELY(arg_num > static_cast<int>(kMaxFunctionInputParams))) {
-        ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}) for function '{}', max is {}", arg_num, name, kMaxFunctionInputParams));
+        ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}) passed for function '{}', max is {}", arg_num, name, kMaxFunctionInputParams));
     }
 
-    // 严格校验参数个数：必须与目标函数签名匹配，否则会读取未初始化栈内存（UB）。
-    if (UNLIKELY(arg_num != func.GetArgCount())) {
-        ThrowFakeluaException(
-                std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, func.GetArgCount(), arg_num));
-    }
-
-    CVar arg_arr[kMaxFunctionInputParams];
+    CVar raw_arg_arr[kMaxFunctionInputParams];
     va_list args_list;
     va_start(args_list, arg_num);
 #if defined(__clang__)
@@ -44,14 +41,48 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 #endif
     for (int i = 0; i < arg_num; ++i) {
         // NOLINTNEXTLINE(clang-analyzer-valist.Uninitialized)
-        arg_arr[i] = va_arg(args_list, CVar);
+        raw_arg_arr[i] = va_arg(args_list, CVar);
     }
 #if defined(__clang__)
 #pragma clang diagnostic pop
 #endif
     va_end(args_list);
 
-    switch (arg_num) {
+    constexpr int VAR_NIL = 0;
+    constexpr int VAR_MULTI = 7;
+
+    bool has_multi_expansion = (arg_num > 0 && raw_arg_arr[arg_num - 1].type_ == VAR_MULTI);
+    if (!has_multi_expansion && arg_num != expected_arg_count) {
+        ThrowFakeluaException(
+                std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, arg_num));
+    }
+
+    CVar arg_arr[kMaxFunctionInputParams];
+    int actual_arg_num = 0;
+    for (int i = 0; i < arg_num; ++i) {
+        if (i == arg_num - 1 && raw_arg_arr[i].type_ == VAR_MULTI) {
+            VarMulti *m = raw_arg_arr[i].data_.m;
+            for (uint32_t j = 0; j < m->count; ++j) {
+                if (actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
+                    arg_arr[actual_arg_num++] = m->vars[j];
+                }
+            }
+        } else {
+            if (actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
+                if (raw_arg_arr[i].type_ == VAR_MULTI) {
+                    arg_arr[actual_arg_num++] = raw_arg_arr[i].data_.m->count > 0 ? raw_arg_arr[i].data_.m->vars[0] : (CVar){VAR_NIL};
+                } else {
+                    arg_arr[actual_arg_num++] = raw_arg_arr[i];
+                }
+            }
+        }
+    }
+
+    while (actual_arg_num < expected_arg_count && actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
+        arg_arr[actual_arg_num++] = (CVar){VAR_NIL};
+    }
+
+    switch (expected_arg_count) {
 #define CVAR_0
 #define CVAR_1 CVar
 #define CVAR_2 CVAR_1, CVar
@@ -230,4 +261,64 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
     }
 }
 
+extern "C" CVar FlMakeMulti(State *state, uint32_t count, ...) {
+    constexpr int VAR_MULTI = 7;
+    VarMulti *m = static_cast<VarMulti *>(FakeluaAllocTemp(state, sizeof(VarMulti)));
+    m->count = count;
+    m->vars = static_cast<CVar *>(FakeluaAllocTemp(state, count * sizeof(CVar)));
+    va_list args_list;
+    va_start(args_list, count);
+#if defined(__clang__)
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wnon-pod-varargs"
+#endif
+    for (uint32_t i = 0; i < count; ++i) {
+        m->vars[i] = va_arg(args_list, CVar);
+    }
+#if defined(__clang__)
+#pragma clang diagnostic pop
+#endif
+    va_end(args_list);
+    CVar res;
+    res.type_ = VAR_MULTI;
+    res.flag_ = 0;
+    res.data_.m = m;
+    return res;
+}
+
+extern "C" CVar FlCombineMulti(State *state, uint32_t prefix_count, const CVar *prefix_vars, CVar last) {
+    constexpr int VAR_NIL = 0;
+    constexpr int VAR_MULTI = 7;
+    uint32_t last_count = 1;
+    const CVar *last_vars = &last;
+    if (last.type_ == VAR_MULTI) {
+        VarMulti *m = last.data_.m;
+        last_count = m->count;
+        last_vars = m->vars;
+    }
+
+    uint32_t total_count = prefix_count + last_count;
+    VarMulti *m = static_cast<VarMulti *>(FakeluaAllocTemp(state, sizeof(VarMulti)));
+    m->count = total_count;
+    m->vars = static_cast<CVar *>(FakeluaAllocTemp(state, total_count * sizeof(CVar)));
+
+    for (uint32_t i = 0; i < prefix_count; ++i) {
+        if (prefix_vars[i].type_ == VAR_MULTI) {
+            m->vars[i] = prefix_vars[i].data_.m->count > 0 ? prefix_vars[i].data_.m->vars[0] : (CVar){VAR_NIL};
+        } else {
+            m->vars[i] = prefix_vars[i];
+        }
+    }
+    for (uint32_t i = 0; i < last_count; ++i) {
+        m->vars[prefix_count + i] = last_vars[i];
+    }
+
+    CVar res;
+    res.type_ = VAR_MULTI;
+    res.flag_ = 0;
+    res.data_.m = m;
+    return res;
+}
+
 }// namespace fakelua
+

@@ -45,59 +45,112 @@ TEST(jitter, empty_local_func) {
     });
 }
 
-// Multi-return is not supported yet, these tests verify the exception is thrown
 TEST(jitter, multi_return) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_return.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, 7); // VAR_MULTI
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->count, 5);
+        ASSERT_EQ(m->vars[0].type_, 2); // VAR_INT
+        ASSERT_EQ(m->vars[0].data_.i, 1);
+        ASSERT_EQ(m->vars[1].type_, 3); // VAR_FLOAT
+        ASSERT_DOUBLE_EQ(m->vars[1].data_.f, 2.3);
+        ASSERT_EQ(m->vars[2].type_, 1); // VAR_BOOL
+        ASSERT_FALSE(m->vars[2].data_.b);
+        ASSERT_EQ(m->vars[3].type_, 1); // VAR_BOOL
+        ASSERT_TRUE(m->vars[3].data_.b);
+        ASSERT_EQ(m->vars[4].type_, 5); // VAR_STRINGID
+    });
 }
 
 TEST(jitter, multi_return_call) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_return_call.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_call.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, 7); // VAR_MULTI
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->count, 3);
+        ASSERT_EQ(m->vars[0].type_, 5); // VAR_STRINGID
+        ASSERT_EQ(m->vars[1].type_, 2); // VAR_INT
+        ASSERT_EQ(m->vars[1].data_.i, 1);
+        ASSERT_EQ(m->vars[2].type_, 3); // VAR_FLOAT
+        ASSERT_DOUBLE_EQ(m->vars[2].data_.f, 2.3);
+    });
 }
 
 TEST(jitter, multi_return_call_ex) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_return_call_ex.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_call_ex.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, 7); // VAR_MULTI
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->count, 3);
+        ASSERT_EQ(m->vars[0].type_, 5); // VAR_STRINGID
+        ASSERT_EQ(m->vars[1].type_, 2); // VAR_INT
+        ASSERT_EQ(m->vars[1].data_.i, 1);
+        ASSERT_EQ(m->vars[2].type_, 3); // VAR_FLOAT
+        ASSERT_DOUBLE_EQ(m->vars[2].data_.f, 2.4);
+    });
 }
 
 TEST(jitter, multi_return_sub) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_return_sub.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_sub.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, 7); // VAR_MULTI
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->count, 3);
+        ASSERT_EQ(m->vars[0].type_, 5); // VAR_STRINGID
+        ASSERT_EQ(m->vars[1].type_, 2); // VAR_INT
+        ASSERT_EQ(m->vars[1].data_.i, 1);
+        ASSERT_EQ(m->vars[2].type_, 3); // VAR_FLOAT
+        ASSERT_DOUBLE_EQ(m->vars[2].data_.f, 2.3);
+    });
 }
 
 TEST(jitter, multi_return_multi) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_return_multi.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_multi.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, 7); // VAR_MULTI
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->count, 5);
+        ASSERT_EQ(m->vars[0].type_, 2); // VAR_INT
+        ASSERT_EQ(m->vars[0].data_.i, 1);
+        ASSERT_EQ(m->vars[1].type_, 2); // VAR_INT
+        ASSERT_EQ(m->vars[1].data_.i, 2);
+        ASSERT_EQ(m->vars[2].type_, 2); // VAR_INT
+        ASSERT_EQ(m->vars[2].data_.i, 3);
+        ASSERT_EQ(m->vars[3].type_, 2); // VAR_INT
+        ASSERT_EQ(m->vars[3].data_.i, 4);
+        ASSERT_EQ(m->vars[4].type_, 2); // VAR_INT
+        ASSERT_EQ(m->vars[4].data_.i, 5);
+    });
 }
 
 TEST(jitter, multi_return_multi_ex) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_return_multi_ex.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_multi_ex.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, 7); // VAR_MULTI
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->count, 4);
+        ASSERT_EQ(m->vars[0].type_, 2); // VAR_INT
+        ASSERT_EQ(m->vars[0].data_.i, 1);
+        ASSERT_EQ(m->vars[1].type_, 2); // VAR_INT
+        ASSERT_EQ(m->vars[1].data_.i, 2);
+        ASSERT_EQ(m->vars[2].type_, 2); // VAR_INT
+        ASSERT_EQ(m->vars[2].data_.i, 3);
+        ASSERT_EQ(m->vars[3].type_, 2); // VAR_INT
+        ASSERT_EQ(m->vars[3].data_.i, 6);
+    });
 }
 
 TEST(jitter, multi_name) {
