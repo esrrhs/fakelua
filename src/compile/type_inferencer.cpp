@@ -1291,7 +1291,7 @@ bool TypeInferencer::AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) co
     }
 }
 
-bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node, std::vector<SyntaxTreeInterfacePtr> &ret_exps) const {
+bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node, std::vector<std::vector<SyntaxTreeInterfacePtr>> &ret_exps) const {
     if (!block_node) {
         return false;
     }
@@ -1307,7 +1307,13 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
             case SyntaxTreeType::Return: {
                 const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt);
                 const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist());
-                ret_exps.push_back((el && !el->Exps().empty()) ? el->Exps()[0] : nullptr);
+                std::vector<SyntaxTreeInterfacePtr> one_ret;
+                if (el) {
+                    for (const auto &exp: el->Exps()) {
+                        one_ret.push_back(exp);
+                    }
+                }
+                ret_exps.push_back(std::move(one_ret));
                 break;
             }
             case SyntaxTreeType::If: {
@@ -1414,9 +1420,12 @@ InferredType TypeInferencer::ComputeReturnTypeFromSnapshot(const EvalTypeSnapsho
         return T_DYNAMIC;
     }
     InferredType actual_ret = T_INT;// 乐观初值
-    for (const auto &ret_exp: ret_info.ret_exps) {
+    for (const auto &one_ret: ret_info.ret_exps) {
+        if (one_ret.empty()) {
+            return T_DYNAMIC;
+        }
+        const auto &ret_exp = one_ret[0];
         if (!ret_exp) {
-            // nullptr 代表显式的 nil return（return 无表达式）。
             return T_DYNAMIC;
         }
         const auto inferred = [&]() {

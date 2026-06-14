@@ -252,8 +252,8 @@ void PreProcessor::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk) {
                 ThrowError("local variable namelist is missing", stmt);
             }
             if (const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist())) {
-                if (namelist->Names().size() != el->Exps().size()) {
-                    ThrowError(std::format("local variable count {} not match expression count {}", namelist->Names().size(),
+                if (namelist->Names().size() < el->Exps().size()) {
+                    ThrowError(std::format("local variable count {} less than expression count {}", namelist->Names().size(),
                                            el->Exps().size()),
                                stmt);
                 }
@@ -305,10 +305,6 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
             break;
         }
         case SyntaxTreeType::Return: {
-            const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
-            if (const auto el = ret ? std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist()) : nullptr; el && el->Exps().size() > 1) {
-                ThrowError("multiple return values is not supported", node);
-            }
             break;
         }
         case SyntaxTreeType::ForIn: {

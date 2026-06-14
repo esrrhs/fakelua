@@ -63,6 +63,11 @@ typedef struct State State;
 #define STR_DATA(s) ((s)->data_)
 #define TABLE_SIZE(t) ((t)->count_)
 
+typedef struct {
+    int count;
+    CVar values[0];
+} VarMulti;
+
 enum {
     VAR_NIL = 0,
     VAR_BOOL = 1,
@@ -71,6 +76,7 @@ enum {
     VAR_STRING = 4,
     VAR_STRINGID = 5,
     VAR_TABLE = 6,
+    VAR_MULTI = 7,
 };
 
 #define SET_NIL(v) do { (v).type_ = VAR_NIL; } while(0)

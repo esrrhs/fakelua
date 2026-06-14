@@ -51,7 +51,7 @@ private:
     using MathFuncInfoMap = std::unordered_map<std::string, MathFuncInfo>;
 
     struct FuncRetInfo {
-        std::vector<SyntaxTreeInterfacePtr> ret_exps;
+        std::vector<std::vector<SyntaxTreeInterfacePtr>> ret_exps;
         bool ends_with_return = false;
     };
 
@@ -176,7 +176,7 @@ private:
 
     // 从 block_node 中浅层收集每条 return 语句的第一个返回表达式。
     // 返回 true 表示所有路径均以 return 结束（无隐式 nil 返回路径）。
-    bool CollectReturnExps(const SyntaxTreeInterfacePtr &block_node, std::vector<SyntaxTreeInterfacePtr> &ret_exps) const;
+    bool CollectReturnExps(const SyntaxTreeInterfacePtr &block_node, std::vector<std::vector<SyntaxTreeInterfacePtr>> &ret_exps) const;
 
     // 试推断期间，根据上下文提示解析函数调用的实际返回类型。
     // 上下文为 null 时（主推断遍）始终返回 T_DYNAMIC。

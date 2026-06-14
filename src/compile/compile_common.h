@@ -171,6 +171,13 @@ struct InferResult {
     // 由 TypeInferencer::DiscoverMathParams 通过不动点迭代填充，
     // 供 CGen::InferArgTypeForSpec 在函数调用节点处查询被调用函数的实际返回类型。
     std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
+    // 多返回值类型：函数名 → 按 bitmask 索引的返回值类型向量数组（共 2^k 个）。
+    // 每个内层 vector 包含该特化版本所有返回值的类型（第0个元素等价于 specialization_return_types）。
+    // 仅当函数有多个返回值时才填充。
+    std::unordered_map<std::string, std::vector<std::vector<InferredType>>> specialization_multi_return_types;
+    // 函数返回值数量：函数名 → 返回值个数。
+    // 单返回值为 1，多返回值 > 1，无显式 return 为 0。
+    std::unordered_map<std::string, int> function_return_counts;
     // 全局类型推断结果：节点指针 → 推断类型。
     // 由 TypeInferencer::Process 在全局（非试推断）推断完成后填充，
     // 供 CGen 在非特化编译路径中查询任意节点的类型，替代原先内嵌在 AST 节点的 eval_type_ 字段。
