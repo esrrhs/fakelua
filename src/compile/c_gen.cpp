@@ -475,9 +475,8 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vect
 
         if (const auto spec_ret = GetSpecReturnType(func_name, bitmask); spec_ret == T_INT || spec_ret == T_FLOAT) {
             // 特化函数返回原生数值类型：需要将结果装箱为 CVar 后再返回。
-            const auto native_tmp = std::format("flua_r_{}", bitmask);
-            Out() << std::format("        case {}: {{ {} {} = {}({}); return {}; }}\n", bitmask, SpecReturnCTypeName(spec_ret), native_tmp,
-                                 spec_name, args_str, BoxNativeValue(native_tmp, spec_ret));
+            Out() << std::format("        case {}: return {};\n", bitmask,
+                                 BoxNativeValue(std::format("{}({})", spec_name, args_str), spec_ret));
         } else {
             Out() << std::format("        case {}: return {}({});\n", bitmask, spec_name, args_str);
         }
@@ -878,6 +877,23 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     Out() << GenTab() << "return " << ret << ";\n";
 }
 
+static bool IsAlphaNumOrUnderscore(char c) {
+    return (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '_';
+}
+
+static bool ExpressionUsesVariable(const std::string &expr_str, const std::string &var_name) {
+    size_t pos = 0;
+    while ((pos = expr_str.find(var_name, pos)) != std::string::npos) {
+        bool before_ok = (pos == 0) || !IsAlphaNumOrUnderscore(expr_str[pos - 1]);
+        bool after_ok = (pos + var_name.length() == expr_str.length()) || !IsAlphaNumOrUnderscore(expr_str[pos + var_name.length()]);
+        if (before_ok && after_ok) {
+            return true;
+        }
+        pos += var_name.length();
+    }
+    return false;
+}
+
 void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::LocalVar);
     const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
@@ -903,7 +919,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
         if (type == T_INT || type == T_FLOAT) {
             const auto native_expr = CompileNumericExp(exps[i]);
             const std::string type_str = (type == T_INT) ? "int64_t" : "double";
-            if (IsTypedNativeVar(name)) {
+            if (IsTypedNativeVar(name) && ExpressionUsesVariable(native_expr, name)) {
                 const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    " << type_str << " " << tmp << ";\n";
                 Out() << GenTab() << tmp << " = " << native_expr << ";\n";
@@ -1193,38 +1209,78 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
     const std::string step_default = (loop_type == T_INT) ? "1" : "1.0";
     const std::string cast_prefix = (loop_type == T_INT) ? "" : "(double)";
 
+    bool is_constant_step = false;
+    double step_double_val = 1.0;
+    int64_t step_int_val = 1;
+    if (!for_stmt->ExpStep()) {
+        is_constant_step = true;
+        step_double_val = 1.0;
+        step_int_val = 1;
+    } else if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
+               step_exp && step_exp->GetExpKind() == ExpKind::kNumber) {
+        is_constant_step = true;
+        if (loop_type == T_INT) {
+            step_int_val = ToInteger(step_exp->ExpValue());
+            if (step_int_val == 0) {
+                ThrowError("'for' step is zero", for_stmt->ExpStep());
+            }
+        } else {
+            step_double_val = (LookupNodeType(step_exp.get()) == T_INT) ? static_cast<double>(ToInteger(step_exp->ExpValue()))
+                                                                              : ToFloat(step_exp->ExpValue());
+            if (step_double_val == 0.0) {
+                ThrowError("'for' step is zero", for_stmt->ExpStep());
+            }
+        }
+    }
+
     func_temp_decls_ << "    " << type_str << " " << ctrl_var << ";\n";
     func_temp_decls_ << "    " << type_str << " " << end_var << ";\n";
-    func_temp_decls_ << "    " << type_str << " " << step_var << ";\n";
+    if (!is_constant_step) {
+        func_temp_decls_ << "    " << type_str << " " << step_var << ";\n";
+    }
 
     const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
     Out() << GenTab() << ctrl_var << " = " << cast_prefix << "(" << native_begin << ");\n";
     const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
     Out() << GenTab() << end_var << " = " << cast_prefix << "(" << native_end << ");\n";
-    if (for_stmt->ExpStep()) {
-        if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
-            step_exp && step_exp->GetExpKind() == ExpKind::kNumber) {
-            if (loop_type == T_INT) {
-                if (LookupNodeType(step_exp.get()) == T_INT && ToInteger(step_exp->ExpValue()) == 0) {
-                    ThrowError("'for' step is zero", for_stmt->ExpStep());
+
+    if (is_constant_step) {
+        if (loop_type == T_INT) {
+            if (step_int_val > 0) {
+                if (step_int_val == 1) {
+                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << "++) {\n";
+                } else {
+                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << " += " << step_int_val << ") {\n";
                 }
             } else {
-                const double step_val = (LookupNodeType(step_exp.get()) == T_INT) ? static_cast<double>(ToInteger(step_exp->ExpValue()))
-                                                                                  : ToFloat(step_exp->ExpValue());
-                if (step_val == 0.0) {
-                    ThrowError("'for' step is zero", for_stmt->ExpStep());
+                if (step_int_val == -1) {
+                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << "--) {\n";
+                } else {
+                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << " += " << step_int_val << ") {\n";
+                }
+            }
+        } else {
+            if (step_double_val > 0.0) {
+                if (step_double_val == 1.0) {
+                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << "++) {\n";
+                } else {
+                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << " += " << step_double_val << ") {\n";
+                }
+            } else {
+                if (step_double_val == -1.0) {
+                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << "--) {\n";
+                } else {
+                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << " += " << step_double_val << ") {\n";
                 }
             }
         }
+    } else {
         const auto native_step = CompileNumericExp(for_stmt->ExpStep());
         Out() << GenTab() << step_var << " = " << cast_prefix << "(" << native_step << ");\n";
-    } else {
-        Out() << GenTab() << step_var << " = " << step_default << ";\n";
+        Out() << GenTab() << "if (UNLIKELY(" << step_var << " == " << zero_str << ")) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+        Out() << GenTab() << "for (; (" << step_var << " > " << zero_str << ") ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
+              << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
     }
-    Out() << GenTab() << "if (UNLIKELY(" << step_var << " == " << zero_str << ")) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
-
-    Out() << GenTab() << "for (; (" << step_var << " > " << zero_str << ") ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
-          << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
     cur_tab_++;
     EnterNativeVarScope();
     if (LookupNodeType(for_stmt.get()) == loop_type) {
@@ -2122,10 +2178,7 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
     }
     call += ")";
 
-    const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-    func_temp_decls_ << "    " << SpecReturnCTypeName(spec_ret) << " " << ntmp << ";\n";
-    Out() << GenTab() << ntmp << " = " << call << ";\n";
-    return ntmp;
+    return call;
 }
 
 // ---------------------------------------------------------------------------
@@ -2204,10 +2257,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                         const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
                         func_temp_decls_ << "    CVar " << tmp << ";\n";
                         if (const auto spec_ret = GetSpecReturnType(callee_name, bitmask); spec_ret == T_INT || spec_ret == T_FLOAT) {
-                            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-                            func_temp_decls_ << "    " << SpecReturnCTypeName(spec_ret) << " " << ntmp << ";\n";
-                            Out() << GenTab() << ntmp << " = " << call << ";\n";
-                            Out() << GenTab() << tmp << " = " << BoxNativeValue(ntmp, spec_ret) << ";\n";
+                            Out() << GenTab() << tmp << " = " << BoxNativeValue(call, spec_ret) << ";\n";
                         } else {
                             Out() << GenTab() << tmp << " = " << call << ";\n";
                         }

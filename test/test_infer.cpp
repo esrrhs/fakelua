@@ -159,7 +159,7 @@ TEST(infer, test_infer_for_step_int) {
     // Typed int64_t for-loop path.
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
-    ASSERT_NE(code.find("int64_t flua_for_step_"), std::string::npos);
+    ASSERT_EQ(code.find("int64_t flua_for_step_"), std::string::npos);
     ASSERT_EQ(code.find("CVar sum"), std::string::npos);
     ASSERT_EQ(code.find("CVar i"), std::string::npos);
 
@@ -708,10 +708,8 @@ TEST(infer, test_spec_fib) {
     // The entry dispatcher must NOT be called recursively from fib_0/fib_1.
     // Check: no FakeluaCallByName("fib") in the generated code.
     ASSERT_EQ(code.find("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"fib\""), std::string::npos);
-    // No .data_.i extraction inside the spec bodies (no boxing/unboxing there).
-    // The dispatcher itself still has .data_.i/.data_.f for the entry call.
     // Verify spec bodies use native add directly (no CVar wrapping of recursive results).
-    ASSERT_NE(code.find("return ((flua_native_"), std::string::npos);
+    ASSERT_NE(code.find("return ((fib_0("), std::string::npos);
 
     // Functional verification: fib(10) == 55.
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
