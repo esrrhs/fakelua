@@ -851,7 +851,6 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
 
     auto explist = return_stmt->Explist();
     if (!explist) {
-        // 默认返回 nil
         explist = std::make_shared<SyntaxTreeExplist>(return_stmt->Loc());
         const auto exp = std::make_shared<SyntaxTreeExp>(return_stmt->Loc());
         exp->SetExpKind(ExpKind::kNil);
@@ -860,22 +859,33 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
 
     const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
     DEBUG_ASSERT(!explist_ptr->Exps().empty());
-    // PreProcessor 已确保不存在多返回值
-    DEBUG_ASSERT(explist_ptr->Exps().size() == 1);
+    const auto &exps = explist_ptr->Exps();
 
-    const auto exp = explist_ptr->Exps()[0];
-    // 若当前处于原生返回类型的特化函数中，直接将返回表达式编译为原生数值并返回，
-    // 跳过 CompileExp 的装箱步骤，消除一次 CVar 封箱拆箱开销。
-    if (cur_spec_bitmask_ >= 0 && !cur_spec_func_name_.empty()) {
-        if (const auto spec_ret = GetSpecReturnType(cur_spec_func_name_, cur_spec_bitmask_); spec_ret == T_INT || spec_ret == T_FLOAT) {
-            const auto native_ret = CompileNumericExp(exp);
-            Out() << GenTab() << "return " << native_ret << ";\n";
-            return;
+    if (exps.size() == 1) {
+        const auto exp = exps[0];
+        if (cur_spec_bitmask_ >= 0 && !cur_spec_func_name_.empty()) {
+            if (const auto spec_ret = GetSpecReturnType(cur_spec_func_name_, cur_spec_bitmask_); spec_ret == T_INT || spec_ret == T_FLOAT) {
+                const auto native_ret = CompileNumericExp(exp);
+                Out() << GenTab() << "return " << native_ret << ";\n";
+                return;
+            }
         }
+        const std::string ret = CompileExp(exp);
+        Out() << GenTab() << "return " << ret << ";\n";
+        return;
     }
-    // 始终通过 CompileExp 编译返回表达式。
-    const std::string ret = CompileExp(exp);
-    Out() << GenTab() << "return " << ret << ";\n";
+
+    // 多返回值：打包到 VarMulti
+    const int count = static_cast<int>(exps.size());
+    const auto multi_tmp = std::format("flua_multi_{}", tmp_var_counter_++);
+    func_temp_decls_ << "    VarMulti *" << multi_tmp << ";\n";
+    Out() << GenTab() << multi_tmp << " = (VarMulti *)FakeluaAllocTemp(_S, sizeof(VarMulti) + " << count << " * sizeof(CVar));\n";
+    Out() << GenTab() << multi_tmp << "->count = " << count << ";\n";
+    for (int i = 0; i < count; ++i) {
+        const auto val_str = CompileExp(exps[i]);
+        Out() << GenTab() << multi_tmp << "->values[" << i << "] = " << val_str << ";\n";
+    }
+    Out() << GenTab() << "return (CVar){.type_ = VAR_MULTI, .data_.t = (VarTable *)" << multi_tmp << "};\n";
 }
 
 void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
@@ -892,11 +902,30 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
     const auto explist = local_var->Explist();
     const auto &exps = explist ? std::dynamic_pointer_cast<SyntaxTreeExplist>(explist)->Exps() : empty_exps;
 
+    // 检测多返回值解包：names.size() > exps.size() 时，第一个表达式是函数调用
+    const bool is_multi_return_unpack = (names.size() > exps.size());
+    std::string multi_var_name;
+
+    if (is_multi_return_unpack && !exps.empty()) {
+        // 编译函数调用，获取 VarMulti
+        const std::string call_result = CompileExp(exps[0]);
+        multi_var_name = std::format("flua_multi_ret_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << multi_var_name << ";\n";
+        Out() << GenTab() << multi_var_name << " = " << call_result << ";\n";
+    }
+
     for (size_t i = 0; i < names.size(); ++i) {
         const auto &name = names[i];
 
         if (global_const_vars_.contains(name)) {
             ThrowError("local variable conflicts with global constant: " + name, stmt);
+        }
+
+        if (is_multi_return_unpack) {
+            // 多返回值解包：从 VarMulti 中读取第 i 个值
+            Out() << GenTab() << "CVar " << name << " = ((VarMulti *)" << multi_var_name << ".data_.t)->values[" << i << "];\n";
+            DeclareNativeVar(name, T_DYNAMIC);
+            continue;
         }
 
         const auto type = (i < exps.size()) ? LookupNodeType(exps[i].get()) : T_DYNAMIC;
