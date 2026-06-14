@@ -159,7 +159,7 @@ TEST(infer, test_infer_for_step_int) {
     // Typed int64_t for-loop path.
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
-    ASSERT_NE(code.find("int64_t flua_for_step_"), std::string::npos);
+    ASSERT_EQ(code.find("int64_t flua_for_step_"), std::string::npos);
     ASSERT_EQ(code.find("CVar sum"), std::string::npos);
     ASSERT_EQ(code.find("CVar i"), std::string::npos);
 
@@ -708,8 +708,6 @@ TEST(infer, test_spec_fib) {
     // The entry dispatcher must NOT be called recursively from fib_0/fib_1.
     // Check: no FakeluaCallByName("fib") in the generated code.
     ASSERT_EQ(code.find("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"fib\""), std::string::npos);
-    // No .data_.i extraction inside the spec bodies (no boxing/unboxing there).
-    // The dispatcher itself still has .data_.i/.data_.f for the entry call.
     // Verify spec bodies use native add directly (no CVar wrapping of recursive results).
     ASSERT_NE(code.find("return ((flua_native_"), std::string::npos);
 
@@ -1034,6 +1032,66 @@ TEST(infer, test_infer_typed_float_for_mixed) {
         double ret = 0;
         Call(s, type, "test", ret);
         ASSERT_NEAR(ret, 15.0, 0.001); // 1+2+3+4+5
+    });
+}
+
+TEST(infer, test_infer_typed_int_for_neg_step_1) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_for_neg_step_1.lua");
+    ASSERT_NE(code.find("int64_t sum = "), std::string::npos);
+    ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("--"), std::string::npos);
+    ASSERT_EQ(code.find("int64_t flua_for_step_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_for_neg_step_1.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 55); // sum of 10..1
+    });
+}
+
+TEST(infer, test_infer_typed_int_for_neg_step_2) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_int_for_neg_step_2.lua");
+    ASSERT_NE(code.find("int64_t sum = "), std::string::npos);
+    ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find(" += -2"), std::string::npos);
+    ASSERT_EQ(code.find("int64_t flua_for_step_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_int_for_neg_step_2.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 30); // 10 + 8 + 6 + 4 + 2
+    });
+}
+
+TEST(infer, test_infer_typed_float_for_neg_step_1) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_for_neg_step_1.lua");
+    ASSERT_NE(code.find("double sum = "), std::string::npos);
+    ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find("--"), std::string::npos);
+    ASSERT_EQ(code.find("double flua_for_step_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_for_neg_step_1.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 55.0, 0.001); // sum of 10.0..1.0
+    });
+}
+
+TEST(infer, test_infer_typed_float_for_neg_step_2) {
+    const auto code = InferGetCCode("./infer/test_infer_typed_float_for_neg_step_2.lua");
+    ASSERT_NE(code.find("double sum = "), std::string::npos);
+    ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
+    ASSERT_NE(code.find(" += -2"), std::string::npos);
+    ASSERT_EQ(code.find("double flua_for_step_"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_typed_float_for_neg_step_2.lua", {.debug_mode = debug_mode});
+        double ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_NEAR(ret, 30.0, 0.001); // 10.0 + 8.0 + 6.0 + 4.0 + 2.0
     });
 }
 

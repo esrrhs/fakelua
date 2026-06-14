@@ -1193,38 +1193,78 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
     const std::string step_default = (loop_type == T_INT) ? "1" : "1.0";
     const std::string cast_prefix = (loop_type == T_INT) ? "" : "(double)";
 
+    bool is_constant_step = false;
+    double step_double_val = 1.0;
+    int64_t step_int_val = 1;
+    if (!for_stmt->ExpStep()) {
+        is_constant_step = true;
+        step_double_val = 1.0;
+        step_int_val = 1;
+    } else if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
+               step_exp && step_exp->GetExpKind() == ExpKind::kNumber) {
+        is_constant_step = true;
+        if (loop_type == T_INT) {
+            step_int_val = ToInteger(step_exp->ExpValue());
+            if (step_int_val == 0) {
+                ThrowError("'for' step is zero", for_stmt->ExpStep());
+            }
+        } else {
+            step_double_val = (LookupNodeType(step_exp.get()) == T_INT) ? static_cast<double>(ToInteger(step_exp->ExpValue()))
+                                                                              : ToFloat(step_exp->ExpValue());
+            if (step_double_val == 0.0) {
+                ThrowError("'for' step is zero", for_stmt->ExpStep());
+            }
+        }
+    }
+
     func_temp_decls_ << "    " << type_str << " " << ctrl_var << ";\n";
     func_temp_decls_ << "    " << type_str << " " << end_var << ";\n";
-    func_temp_decls_ << "    " << type_str << " " << step_var << ";\n";
+    if (!is_constant_step) {
+        func_temp_decls_ << "    " << type_str << " " << step_var << ";\n";
+    }
 
     const auto native_begin = CompileNumericExp(for_stmt->ExpBegin());
     Out() << GenTab() << ctrl_var << " = " << cast_prefix << "(" << native_begin << ");\n";
     const auto native_end = CompileNumericExp(for_stmt->ExpEnd());
     Out() << GenTab() << end_var << " = " << cast_prefix << "(" << native_end << ");\n";
-    if (for_stmt->ExpStep()) {
-        if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
-            step_exp && step_exp->GetExpKind() == ExpKind::kNumber) {
-            if (loop_type == T_INT) {
-                if (LookupNodeType(step_exp.get()) == T_INT && ToInteger(step_exp->ExpValue()) == 0) {
-                    ThrowError("'for' step is zero", for_stmt->ExpStep());
+
+    if (is_constant_step) {
+        if (loop_type == T_INT) {
+            if (step_int_val > 0) {
+                if (step_int_val == 1) {
+                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << "++) {\n";
+                } else {
+                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << " += " << step_int_val << ") {\n";
                 }
             } else {
-                const double step_val = (LookupNodeType(step_exp.get()) == T_INT) ? static_cast<double>(ToInteger(step_exp->ExpValue()))
-                                                                                  : ToFloat(step_exp->ExpValue());
-                if (step_val == 0.0) {
-                    ThrowError("'for' step is zero", for_stmt->ExpStep());
+                if (step_int_val == -1) {
+                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << "--) {\n";
+                } else {
+                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << " += " << step_int_val << ") {\n";
+                }
+            }
+        } else {
+            if (step_double_val > 0.0) {
+                if (step_double_val == 1.0) {
+                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << "++) {\n";
+                } else {
+                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << " += " << step_double_val << ") {\n";
+                }
+            } else {
+                if (step_double_val == -1.0) {
+                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << "--) {\n";
+                } else {
+                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << " += " << step_double_val << ") {\n";
                 }
             }
         }
+    } else {
         const auto native_step = CompileNumericExp(for_stmt->ExpStep());
         Out() << GenTab() << step_var << " = " << cast_prefix << "(" << native_step << ");\n";
-    } else {
-        Out() << GenTab() << step_var << " = " << step_default << ";\n";
+        Out() << GenTab() << "if (UNLIKELY(" << step_var << " == " << zero_str << ")) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
+        Out() << GenTab() << "for (; (" << step_var << " > " << zero_str << ") ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
+              << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
     }
-    Out() << GenTab() << "if (UNLIKELY(" << step_var << " == " << zero_str << ")) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
-
-    Out() << GenTab() << "for (; (" << step_var << " > " << zero_str << ") ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
-          << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
     cur_tab_++;
     EnterNativeVarScope();
     if (LookupNodeType(for_stmt.get()) == loop_type) {
