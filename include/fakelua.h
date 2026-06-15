@@ -209,10 +209,7 @@ struct CVar {
     cvar_data data_{};
 };
 
-struct VarMulti {
-    uint32_t count;
-    CVar *vars;
-};
+
 
 // 确保 CVar 是标准布局类型（POD），以匹配 C 代码中的定义
 static_assert(std::is_standard_layout_v<CVar>, "CVar must be standard-layout for ABI compatibility");

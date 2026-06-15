@@ -23,6 +23,9 @@ public:
     // 核心代码生成入口
     GenResult Generate(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg);
 
+    static bool IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node);
+    static std::string GetCalleeName(const SyntaxTreeInterfacePtr &exp_node);
+
 private:
     // 当前写入的输出 section
     enum class Section { Headers, Globals, Decls, Impls, Body, Count };
@@ -270,6 +273,7 @@ private:
     std::unordered_map<std::string, int> local_func_max_returns_; // 记录本地函数的最大返回值数量
 
     void AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr &chunk);
+    static void CollectReturnsForBlock(const SyntaxTreeInterfacePtr &node, std::vector<SyntaxTreeInterfacePtr> &returns);
 
     Section cur_section_ = Section::Headers;// 当前输出对应的 CGen 逻辑代码段
 

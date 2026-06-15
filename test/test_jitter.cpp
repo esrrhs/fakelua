@@ -2,6 +2,7 @@
 #include "fakelua.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
+#include "var/var_multi.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;

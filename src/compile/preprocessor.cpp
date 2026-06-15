@@ -1,4 +1,5 @@
 #include "compile/preprocessor.h"
+#include "compile/c_gen.h"
 #include "fakelua.h"
 #include "state/state.h"
 #include "util/common.h"
@@ -31,14 +32,6 @@ std::shared_ptr<SyntaxTreeExp> MakeStringExp(const SyntaxTreeLocation &loc, cons
     exp->SetExpKind(ExpKind::kString);
     exp->SetValue(val);
     return exp;
-}
-
-bool IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node) {
-    if (!exp_node || exp_node->Type() != SyntaxTreeType::Exp) return false;
-    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp_node);
-    if (exp->GetExpKind() != ExpKind::kPrefixExp) return false;
-    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
-    return pe && pe->GetPrefixKind() == PrefixExpKind::kFunctionCall;
 }
 
 } // namespace
@@ -115,7 +108,7 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
             auto &exps = explist_ptr->Exps();
 
             // 如果赋值语句中变量数量和表达式数量不匹配，且最后不是函数调用，则抛出异常
-            bool last_is_func = !exps.empty() && IsFunctionCallExp(exps.back());
+            bool last_is_func = !exps.empty() && CGen::IsFunctionCallExp(exps.back());
             if (vars.size() != exps.size() && !(last_is_func && vars.size() > exps.size())) {
                 ThrowError(std::format("PreprocessSplitAssigns: assign stmt var count {} not match exp count {}", vars.size(), exps.size()),
                            explist_ptr);
@@ -263,7 +256,7 @@ void PreProcessor::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk) {
                 ThrowError("local variable namelist is missing", stmt);
             }
             if (const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist())) {
-                bool last_is_func = !el->Exps().empty() && IsFunctionCallExp(el->Exps().back());
+                bool last_is_func = !el->Exps().empty() && CGen::IsFunctionCallExp(el->Exps().back());
                 if (namelist->Names().size() != el->Exps().size() && !(last_is_func && namelist->Names().size() > el->Exps().size())) {
                     ThrowError(std::format("local variable count {} not match expression count {}", namelist->Names().size(),
                                            el->Exps().size()),
