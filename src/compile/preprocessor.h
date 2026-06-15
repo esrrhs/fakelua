@@ -15,6 +15,12 @@ public:
     void Process(const ParseResult &pr, const CompileConfig &cfg);
 
 private:
+    void CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk);
+
+    void CheckNode(const SyntaxTreeInterfacePtr &node);
+
+    void CheckGlobalConstExp(const SyntaxTreeInterfacePtr &exp);
+
     void PreprocessSplitAssigns(const SyntaxTreeInterfacePtr &chunk);
 
     void PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node);
