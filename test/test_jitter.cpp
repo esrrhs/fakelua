@@ -2,6 +2,10 @@
 #include "fakelua.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
+#include "var/var_multi.h"
+#include "var/var_type.h"
+#include "state/state.h"
+#include "state/const_string.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -45,59 +49,270 @@ TEST(jitter, empty_local_func) {
     });
 }
 
-// Multi-return is not supported yet, these tests verify the exception is thrown
 TEST(jitter, multi_return) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_return.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->count, 5);
+        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[0].data_.i, 1);
+        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Float));
+        ASSERT_DOUBLE_EQ(m->vars[1].data_.f, 2.3);
+        ASSERT_EQ(m->vars[2].type_, static_cast<int>(VarType::Bool));
+        ASSERT_FALSE(m->vars[2].data_.b);
+        ASSERT_EQ(m->vars[3].type_, static_cast<int>(VarType::Bool));
+        ASSERT_TRUE(m->vars[3].data_.b);
+        ASSERT_EQ(m->vars[4].type_, static_cast<int>(VarType::StringId));
+    });
 }
 
 TEST(jitter, multi_return_call) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_return_call.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_call.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->count, 3);
+        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::StringId));
+        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[1].data_.i, 1);
+        ASSERT_EQ(m->vars[2].type_, static_cast<int>(VarType::Float));
+        ASSERT_DOUBLE_EQ(m->vars[2].data_.f, 2.3);
+    });
 }
 
 TEST(jitter, multi_return_call_ex) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_return_call_ex.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_call_ex.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->count, 3);
+        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::StringId));
+        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[1].data_.i, 1);
+        ASSERT_EQ(m->vars[2].type_, static_cast<int>(VarType::Float));
+        ASSERT_DOUBLE_EQ(m->vars[2].data_.f, 2.4);
+    });
 }
 
 TEST(jitter, multi_return_sub) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_return_sub.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_sub.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->count, 3);
+        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::StringId));
+        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[1].data_.i, 1);
+        ASSERT_EQ(m->vars[2].type_, static_cast<int>(VarType::Float));
+        ASSERT_DOUBLE_EQ(m->vars[2].data_.f, 2.3);
+    });
 }
 
 TEST(jitter, multi_return_multi) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_return_multi.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_multi.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->count, 5);
+        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[0].data_.i, 1);
+        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[1].data_.i, 2);
+        ASSERT_EQ(m->vars[2].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[2].data_.i, 3);
+        ASSERT_EQ(m->vars[3].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[3].data_.i, 4);
+        ASSERT_EQ(m->vars[4].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[4].data_.i, 5);
+    });
 }
 
 TEST(jitter, multi_return_multi_ex) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_return_multi_ex.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_multi_ex.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->count, 4);
+        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[0].data_.i, 1);
+        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[1].data_.i, 2);
+        ASSERT_EQ(m->vars[2].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[2].data_.i, 3);
+        ASSERT_EQ(m->vars[3].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[3].data_.i, 6);
+    });
+}
+
+TEST(jitter, multi_return_table_expand) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_table_expand.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
+        VarTable *t = ret.data_.t;
+        ASSERT_EQ(t->Size(), 4);
+        ASSERT_EQ(t->Get(Var(int64_t(1))).GetInt(), 1);
+        ASSERT_EQ(t->Get(Var(int64_t(2))).GetInt(), 2);
+        ASSERT_EQ(t->Get(Var(int64_t(3))).GetInt(), 3);
+        ASSERT_EQ(t->Get(Var(int64_t(4))).GetInt(), 4);
+    });
+}
+
+TEST(jitter, multi_return_table_truncate) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_table_truncate.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
+        VarTable *t = ret.data_.t;
+        ASSERT_EQ(t->Size(), 4);
+        ASSERT_EQ(t->Get(Var(int64_t(1))).GetInt(), 1);
+        ASSERT_EQ(t->Get(Var(int64_t(2))).GetInt(), 2);
+        ASSERT_EQ(t->Get(Var(int64_t(3))).GetInt(), 3);
+        ASSERT_EQ(t->Get(Var(int64_t(4))).GetInt(), 5);
+    });
+}
+
+TEST(jitter, multi_return_table_keyed_val) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_table_keyed_val.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
+        VarTable *t = ret.data_.t;
+        Var key_a;
+        key_a.SetConstString(s, "a");
+        ASSERT_EQ(t->Get(key_a).GetInt(), 3);
+        Var key_b;
+        key_b.SetConstString(s, "b");
+        ASSERT_EQ(t->Get(key_b).type_, static_cast<int>(VarType::Nil));
+    });
+}
+
+TEST(jitter, multi_return_table_keyed_exp) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_table_keyed_exp.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
+        VarTable *t = ret.data_.t;
+        ASSERT_EQ(t->Get(Var(int64_t(3))).GetString()->Str(), "hello");
+        ASSERT_EQ(t->Get(Var(int64_t(4))).type_, static_cast<int>(VarType::Nil));
+    });
+}
+
+TEST(jitter, multi_return_table_indexing) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_table_indexing.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test_get", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::StringId));
+        ASSERT_EQ(ConstString::GetString(ret.data_.i), "val3");
+
+        Call(s, type, "test_set", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Table));
+        VarTable *t = ret.data_.t;
+        ASSERT_EQ(t->Get(Var(int64_t(3))).GetString()->Str(), "inserted");
+        ASSERT_EQ(t->Get(Var(int64_t(4))).type_, static_cast<int>(VarType::Nil));
+    });
+}
+
+TEST(jitter, multi_return_expr_arith) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_expr_arith.lua", {.debug_mode = debug_mode});
+        CVar ret;
+
+        // 加法
+        Call(s, type, "test_plus", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(ret.data_.i, 15); // 5 + 10
+
+        // 减法
+        Call(s, type, "test_minus", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(ret.data_.i, -90); // 10 - 100
+
+        // 等于比较
+        Call(s, type, "test_compare_eq", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Bool));
+        ASSERT_TRUE(ret.data_.b); // 10 == 10
+
+        // 逻辑非
+        Call(s, type, "test_logical_not", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Bool));
+        ASSERT_FALSE(ret.data_.b); // not 10
+
+        // 长度运算符
+        Call(s, type, "test_unop_len", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(ret.data_.i, 5); // #"hello"
+
+        // string concatenation
+        Call(s, type, "test_concat", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::String));
+        ASSERT_EQ(reinterpret_cast<Var &>(ret).GetString()->Str(), "hello_suffix");
+
+        // logical and
+        Call(s, type, "test_logical_and", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::StringId));
+        ASSERT_EQ(ConstString::GetString(ret.data_.i), "yes");
+
+        // logical or
+        Call(s, type, "test_logical_or", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Bool));
+        ASSERT_TRUE(ret.data_.b);
+    });
+}
+
+TEST(jitter, multi_return_expr_control) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_expr_control.lua", {.debug_mode = debug_mode});
+        CVar ret;
+
+        // if条件
+        Call(s, type, "test_if", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(ret.data_.i, 1);
+
+        // while条件
+        Call(s, type, "test_while", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(ret.data_.i, 3);
+
+        // for参数
+        Call(s, type, "test_for", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(ret.data_.i, 15); // 1 + 2 + 3 + 4 + 5
+    });
+}
+
+TEST(jitter, multi_return_expr_assign) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_multi_return_expr_assign.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->count, 2);
+        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[0].data_.i, 10);
+        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->vars[1].data_.i, 100);
+    });
 }
 
 TEST(jitter, multi_name) {

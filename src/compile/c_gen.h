@@ -21,7 +21,7 @@ public:
     explicit CGen(State *s);
 
     // 核心代码生成入口
-    GenResult Generate(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg);
+    GenResult Generate(const ParseResult &pr, const InferResult &ir, const AnalysisResult &ar, const CompileConfig &cfg);
 
 private:
     // 当前写入的输出 section
@@ -162,9 +162,9 @@ private:
     // 第三部分：表达式编译
     // ==========================================
     // 核心表达式编译器入口，返回计算该表达式的 C 语言表达式源码
-    [[nodiscard]] std::string CompileExp(const SyntaxTreeInterfacePtr &exp);
+    [[nodiscard]] std::string CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_multi = false);
     // 编译前缀表达式（如 `(exp)`、变量、表索引、或函数调用等）
-    std::string CompilePrefixexp(const SyntaxTreeInterfacePtr &pe);
+    std::string CompilePrefixexp(const SyntaxTreeInterfacePtr &pe, bool preserve_multi = false);
     // 编译变量访问（包括局部变量、全局变量以及表属性字段的读取）
     std::string CompileVar(const SyntaxTreeInterfacePtr &v);
     // 编译普通的函数调用表达式并获取其返回值
@@ -262,11 +262,16 @@ private:
     State *s_;                                                   // 全局虚拟机状态 State 引用
     std::string file_name_;                                      // 当前编译的源码文件名称
     std::optional<std::reference_wrapper<const InferResult>> ir_;// 全局类型推断结果快照引用
+    std::optional<std::reference_wrapper<const AnalysisResult>> ar_;// 语义与控制流分析结果引用
 
     std::unordered_map<std::string, InferredType> global_const_vars_;// 全局常量与对应类型的映射
     int tmp_var_counter_ = 0;                                        // 临时变量生成计数器
 
     std::unordered_map<std::string, int> local_func_names_;// 本地函数（非全局）的名称映射及作用域标识
+
+    [[nodiscard]] const AnalysisResult &ar() const {
+        return ar_->get();
+    }
 
     Section cur_section_ = Section::Headers;// 当前输出对应的 CGen 逻辑代码段
 

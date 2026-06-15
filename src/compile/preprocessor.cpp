@@ -7,9 +7,19 @@
 
 namespace fakelua {
 
-namespace {
+bool PreProcessor::IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node) {
+    if (!exp_node || exp_node->Type() != SyntaxTreeType::Exp) {
+        return false;
+    }
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp_node);
+    if (exp->GetExpKind() != ExpKind::kPrefixExp) {
+        return false;
+    }
+    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
+    return pe && pe->GetPrefixKind() == PrefixExpKind::kFunctionCall;
+}
 
-std::shared_ptr<SyntaxTreePrefixexp> MakeSimpleVarPrefixexp(const SyntaxTreeLocation &loc, const std::string &name) {
+std::shared_ptr<SyntaxTreePrefixexp> PreProcessor::MakeSimpleVarPrefixexp(const SyntaxTreeLocation &loc, const std::string &name) {
     auto var = std::make_shared<SyntaxTreeVar>(loc);
     var->SetVarKind(VarKind::kSimple);
     var->SetName(name);
@@ -19,21 +29,19 @@ std::shared_ptr<SyntaxTreePrefixexp> MakeSimpleVarPrefixexp(const SyntaxTreeLoca
     return pe;
 }
 
-std::shared_ptr<SyntaxTreeExp> MakePrefixexpExp(const SyntaxTreeLocation &loc, const SyntaxTreeInterfacePtr &pe) {
+std::shared_ptr<SyntaxTreeExp> PreProcessor::MakePrefixexpExp(const SyntaxTreeLocation &loc, const SyntaxTreeInterfacePtr &pe) {
     auto exp = std::make_shared<SyntaxTreeExp>(loc);
     exp->SetExpKind(ExpKind::kPrefixExp);
     exp->SetRight(pe);
     return exp;
 }
 
-std::shared_ptr<SyntaxTreeExp> MakeStringExp(const SyntaxTreeLocation &loc, const std::string &val) {
+std::shared_ptr<SyntaxTreeExp> PreProcessor::MakeStringExp(const SyntaxTreeLocation &loc, const std::string &val) {
     auto exp = std::make_shared<SyntaxTreeExp>(loc);
     exp->SetExpKind(ExpKind::kString);
     exp->SetValue(val);
     return exp;
 }
-
-} // namespace
 
 PreProcessor::PreProcessor(State *s) : s_(s) {
 }
@@ -106,8 +114,9 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
             auto &vars = varlist_ptr->Vars();
             auto &exps = explist_ptr->Exps();
 
-            // 如果赋值语句中变量数量和表达式数量不匹配，则抛出异常
-            if (vars.size() != exps.size()) {
+            // 如果赋值语句中变量数量和表达式数量不匹配，且最后不是函数调用，则抛出异常
+            bool last_is_func = !exps.empty() && IsFunctionCallExp(exps.back());
+            if (vars.size() != exps.size() && !(last_is_func && vars.size() > exps.size())) {
                 ThrowError(std::format("PreprocessSplitAssigns: assign stmt var count {} not match exp count {}", vars.size(), exps.size()),
                            explist_ptr);
             }
@@ -123,7 +132,9 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
                 for (size_t i = 0; i < vars.size(); ++i) {
                     std::string tmp_name = std::format("__fakelua_tmp_{}_{}", tmp_var_counter_, i);
                     tmp_namelist->AddName(tmp_name);
-                    tmp_explist->AddExp(exps[i]);
+                    if (i < exps.size()) {
+                        tmp_explist->AddExp(exps[i]);
+                    }
                     tmp_names.push_back(tmp_name);
                 }
                 ++tmp_var_counter_;
@@ -252,7 +263,8 @@ void PreProcessor::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk) {
                 ThrowError("local variable namelist is missing", stmt);
             }
             if (const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist())) {
-                if (namelist->Names().size() != el->Exps().size()) {
+                bool last_is_func = !el->Exps().empty() && IsFunctionCallExp(el->Exps().back());
+                if (namelist->Names().size() != el->Exps().size() && !(last_is_func && namelist->Names().size() > el->Exps().size())) {
                     ThrowError(std::format("local variable count {} not match expression count {}", namelist->Names().size(),
                                            el->Exps().size()),
                                stmt);
@@ -305,10 +317,6 @@ void PreProcessor::CheckNode(const SyntaxTreeInterfacePtr &node) {
             break;
         }
         case SyntaxTreeType::Return: {
-            const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
-            if (const auto el = ret ? std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist()) : nullptr; el && el->Exps().size() > 1) {
-                ThrowError("multiple return values is not supported", node);
-            }
             break;
         }
         case SyntaxTreeType::ForIn: {

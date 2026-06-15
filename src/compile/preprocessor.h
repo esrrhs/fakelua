@@ -40,6 +40,14 @@ private:
 
     void DumpDebugFile(const SyntaxTreeInterfacePtr &chunk, int step);
 
+    bool IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node);
+
+    std::shared_ptr<SyntaxTreePrefixexp> MakeSimpleVarPrefixexp(const SyntaxTreeLocation &loc, const std::string &name);
+
+    std::shared_ptr<SyntaxTreeExp> MakePrefixexpExp(const SyntaxTreeLocation &loc, const SyntaxTreeInterfacePtr &pe);
+
+    std::shared_ptr<SyntaxTreeExp> MakeStringExp(const SyntaxTreeLocation &loc, const std::string &val);
+
 private:
     State *s_;
     std::string file_name_;

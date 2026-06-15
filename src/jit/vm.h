@@ -51,4 +51,7 @@ extern "C" void FakeluaThrowError(State *state, const char *msg);
 
 extern "C" CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...);
 
+
 }// namespace fakelua
+
+

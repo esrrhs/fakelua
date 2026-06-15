@@ -5,14 +5,16 @@
 
 namespace fakelua {
 
+// This enum must be kept in sync with the enum in src/compile/c_runtime_header.h
 enum class VarType {
-    Nil,
-    Bool,
-    Int,
-    Float,
-    String,
-    StringId,
-    Table,
+    Nil = 0,
+    Bool = 1,
+    Int = 2,
+    Float = 3,
+    String = 4,
+    StringId = 5,
+    Table = 6,
+    Multi = 7,
 
     Min = Nil,
     Max = Table,
@@ -34,6 +36,8 @@ inline std::string VarTypeToString(VarType var_type) {
             return "StringId";
         case VarType::Table:
             return "Table";
+        case VarType::Multi:
+            return "Multi";
         default:
             return "UNKNOWN";
     }

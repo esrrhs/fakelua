@@ -17,6 +17,7 @@ typedef struct VarString {
 } VarString;
 
 typedef struct VarTable VarTable;
+typedef struct VarMulti VarMulti;
 
 typedef struct CVar {
     int type_;
@@ -27,6 +28,7 @@ typedef struct CVar {
         double f;
         VarString *s;
         VarTable *t;
+        VarMulti *m;
     } data_;
 } CVar;
 
@@ -71,7 +73,71 @@ enum {
     VAR_STRING = 4,
     VAR_STRINGID = 5,
     VAR_TABLE = 6,
+    VAR_MULTI = 7,
 };
+
+typedef struct VarMulti {
+    uint32_t count;
+    CVar vars[0];
+} VarMulti;
+
+extern void* FakeluaAllocTemp(State *s, size_t size);
+
+static inline CVar FlMakeMulti(State *state, uint32_t count, ...) {
+    VarMulti *m = (VarMulti *)FakeluaAllocTemp(state, sizeof(VarMulti) + count * sizeof(CVar));
+    m->count = count;
+    va_list args_list;
+    va_start(args_list, count);
+    for (uint32_t i = 0; i < count; ++i) {
+        m->vars[i] = va_arg(args_list, CVar);
+    }
+    va_end(args_list);
+    CVar res;
+    res.type_ = VAR_MULTI;
+    res.flag_ = 0;
+    res.data_.m = m;
+    return res;
+}
+
+static inline CVar FlCombineMulti(State *state, uint32_t prefix_count, const CVar *prefix_vars, CVar last) {
+    uint32_t last_count = 1;
+    const CVar *last_vars = &last;
+    if (last.type_ == VAR_MULTI) {
+        VarMulti *m = last.data_.m;
+        last_count = m->count;
+        last_vars = m->vars;
+    }
+
+    uint32_t total_count = prefix_count + last_count;
+    VarMulti *m = (VarMulti *)FakeluaAllocTemp(state, sizeof(VarMulti) + total_count * sizeof(CVar));
+    m->count = total_count;
+
+    for (uint32_t i = 0; i < prefix_count; ++i) {
+        if (prefix_vars[i].type_ == VAR_MULTI) {
+            m->vars[i] = prefix_vars[i].data_.m->count > 0 ? prefix_vars[i].data_.m->vars[0] : (CVar){VAR_NIL};
+        } else {
+            m->vars[i] = prefix_vars[i];
+        }
+    }
+    for (uint32_t i = 0; i < last_count; ++i) {
+        m->vars[prefix_count + i] = last_vars[i];
+    }
+
+    CVar res;
+    res.type_ = VAR_MULTI;
+    res.flag_ = 0;
+    res.data_.m = m;
+    return res;
+}
+
+
+static inline CVar FlUnboxMulti(CVar v, uint32_t idx) {
+    if (LIKELY(v.type_ != VAR_MULTI)) {
+        return (idx == 0) ? v : (CVar){VAR_NIL};
+    }
+    VarMulti *m = v.data_.m;
+    return (idx < m->count) ? m->vars[idx] : (CVar){VAR_NIL};
+}
 
 #define SET_NIL(v) do { (v).type_ = VAR_NIL; } while(0)
 #define SET_BOOL(v, val) do { (v).type_ = VAR_BOOL; (v).data_.b = (val); } while(0)
@@ -506,6 +572,18 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) { FlTableRehash(tbl); }
     FlTableInsertRaw(tbl, key_cvar, v, h);
 }
+
+static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
+    if (LIKELY(v.type_ != VAR_MULTI)) {
+        FlSetTableInt(t, start_idx, v);
+    } else {
+        VarMulti *m = v.data_.m;
+        for (uint32_t i = 0; i < m->count; ++i) {
+            FlSetTableInt(t, start_idx + i, m->vars[i]);
+        }
+    }
+}
+
 
 #define CheckNum(v) do { \
     if (UNLIKELY((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT)) { \
