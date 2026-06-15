@@ -10,6 +10,9 @@ SemanticAnalysis::SemanticAnalysis(State *s) : s_(s) {
 }
 
 AnalysisResult SemanticAnalysis::Analyze(const ParseResult &pr, const CompileConfig &cfg) {
+    file_name_ = pr.file_name;
+    CheckUnsupportedSyntax(pr.chunk);
+
     AnalysisResult ar;
     AnalyzeFunctionReturnCounts(pr.chunk, ar);
 
@@ -198,6 +201,186 @@ std::string SemanticAnalysis::GetCalleeName(const SyntaxTreeInterfacePtr &exp_no
         }
     }
     return "";
+}
+
+void SemanticAnalysis::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk) {
+    DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
+    const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+
+    for (const auto &stmt: top_block->Stmts()) {
+        if (stmt->Type() == SyntaxTreeType::Function) {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
+            const auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
+            if (funcname) {
+                if (!funcname->ColonName().empty()) {
+                    ThrowError("Unsupported function name with method definition", stmt);
+                }
+                const auto fnlist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcname->FuncNameList());
+                if (fnlist && fnlist->Funcnames().size() != 1) {
+                    ThrowError(std::format("Unsupported function name with {} parts", fnlist->Funcnames().size()), stmt);
+                }
+            }
+        }
+
+        if (stmt->Type() == SyntaxTreeType::LocalVar) {
+            const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+            const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
+            if (!namelist) {
+                ThrowError("local variable namelist is missing", stmt);
+            }
+            const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist());
+            if (el) {
+                bool last_is_func = !el->Exps().empty() && IsFunctionCallExp(el->Exps().back());
+                if (namelist->Names().size() != el->Exps().size() && !(last_is_func && namelist->Names().size() > el->Exps().size())) {
+                    ThrowError(std::format("local variable count {} not match expression count {}", namelist->Names().size(),
+                                           el->Exps().size()),
+                               stmt);
+                }
+                for (const auto &exp: el->Exps()) {
+                    CheckGlobalConstExp(exp);
+                }
+            }
+        }
+    }
+
+    WalkSyntaxTree(chunk, [this](const SyntaxTreeInterfacePtr &node) {
+        CheckNode(node);
+    });
+}
+
+void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node) {
+    switch (node->Type()) {
+        case SyntaxTreeType::Goto:
+        case SyntaxTreeType::Label: {
+            ThrowError(node->Type() == SyntaxTreeType::Goto ? "goto is not supported" : "label is not supported", node);
+            break;
+        }
+        case SyntaxTreeType::FunctionCall: {
+            const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+            if (!fc->Name().empty()) {
+                ThrowError("method calls (:) are not supported", node);
+            }
+            const auto callee_prefixexp = fc->prefixexp();
+            if (!callee_prefixexp || callee_prefixexp->Type() != SyntaxTreeType::PrefixExp) {
+                ThrowError("function call callee must be a prefix expression", node);
+            }
+            const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(callee_prefixexp);
+            if (callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
+                ThrowError("function call callee must be a variable", node);
+            }
+            const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+            if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
+                ThrowError("function call callee must be a simple variable", node);
+            }
+            break;
+        }
+        case SyntaxTreeType::ParList: {
+            const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(node);
+            if (parlist->VarParams()) {
+                ThrowError("varargs (...) is not supported", node);
+            }
+            const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist());
+            if (const size_t param_size = namelist ? namelist->Names().size() : 0; param_size > kMaxFunctionInputParams) {
+                ThrowError(std::format("function input parameters exceed limit {}, got {}", kMaxFunctionInputParams, param_size), node);
+            }
+            break;
+        }
+        case SyntaxTreeType::Return: {
+            break;
+        }
+        case SyntaxTreeType::ForIn: {
+            const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
+
+            const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(for_in->Namelist());
+            if (namelist && (namelist->Names().empty() || namelist->Names().size() > 2)) {
+                ThrowError(std::format("for in namelist size must be 1 or 2, but got {}", namelist->Names().size()), node);
+            }
+
+            const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(for_in->Explist());
+            if (explist) {
+                if (explist->Exps().size() != 1) {
+                    ThrowError(std::format("for in explist size must be 1, but got {}", explist->Exps().size()), node);
+                }
+
+                const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(explist->Exps()[0]);
+                if (!exp || exp->GetExpKind() != ExpKind::kPrefixExp) {
+                    ThrowError("for in expression must be a pairs() or ipairs() call", node);
+                }
+                const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
+                if (!pe || pe->GetPrefixKind() != PrefixExpKind::kFunctionCall) {
+                    ThrowError("for in expression must be a function call", node);
+                }
+                const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
+                if (!fc) {
+                    ThrowError("for in: function call node is missing", node);
+                }
+                const auto func_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+                if (!func_pe || func_pe->GetPrefixKind() != PrefixExpKind::kVar) {
+                    ThrowError("for in: only pairs() or ipairs() are supported", node);
+                }
+                const auto func_var = std::dynamic_pointer_cast<SyntaxTreeVar>(func_pe->GetValue());
+                if (!func_var || (func_var->GetName() != "pairs" && func_var->GetName() != "ipairs")) {
+                    ThrowError(std::format("for in: only pairs() or ipairs() are supported, got '{}'",
+                                           func_var ? func_var->GetName() : ""),
+                               node);
+                }
+                const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+                if (!args_ptr || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
+                    ThrowError("for in: pairs/ipairs argument must be an expression list", node);
+                }
+                const auto args_explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+                if (!args_explist_ptr || args_explist_ptr->Exps().size() != 1) {
+                    ThrowError(std::format("for in: pairs/ipairs must have exactly one argument, got {}",
+                                           args_explist_ptr ? args_explist_ptr->Exps().size() : 0),
+                               node);
+                }
+            }
+            break;
+        }
+        case SyntaxTreeType::Exp: {
+            const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+            const auto kind = exp->GetExpKind();
+            if (kind == ExpKind::kVarParams) {
+                ThrowError("... is not supported", node);
+            } else if (kind == ExpKind::kFunctionDef) {
+                ThrowError("anonymous function expression (functiondef) is not supported inside function bodies", node);
+            }
+            break;
+        }
+        default: {
+            break;
+        }
+    }
+}
+
+void SemanticAnalysis::CheckGlobalConstExp(const SyntaxTreeInterfacePtr &exp) {
+    DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
+    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    const auto exp_kind = e->GetExpKind();
+    if (exp_kind == ExpKind::kTableConstructor) {
+        ThrowError("table constructor is not supported in global variable initialization", exp);
+    } else if (exp_kind == ExpKind::kBinop) {
+        ThrowError("binary operator is not supported in global variable initialization", exp);
+    } else if (exp_kind == ExpKind::kUnop) {
+        ThrowError("unary operator is not supported in global variable initialization", exp);
+    } else if (exp_kind == ExpKind::kPrefixExp) {
+        const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
+        if (pe) {
+            if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
+                ThrowError("variable reference is not allowed in global variable initialization", exp);
+            } else if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
+                ThrowError("function call is not allowed in global variable initialization", exp);
+            }
+        }
+    }
+}
+
+[[noreturn]] void SemanticAnalysis::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) {
+    ThrowFakeluaException(std::format("SemanticAnalysis check failed, {} at {}", msg, LocationStr(ptr)));
+}
+
+std::string SemanticAnalysis::LocationStr(const SyntaxTreeInterfacePtr &ptr) {
+    return std::format("{}:{}:{}", file_name_, ptr->Loc().begin.line, ptr->Loc().begin.column);
 }
 
 } // namespace fakelua
