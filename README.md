@@ -51,6 +51,13 @@ static_assert(std::is_trivially_copyable_v<CVar>);
 
 `VarInterface` 是 Lua table 等复杂类型与宿主之间的抽象接口，宿主可按需实现自己的版本接入原有对象系统。库内附带 `SimpleVarImpl` 开箱即用。
 
+### 多返回值与参数展开（Multi-Return & Parameter Expansion）
+
+支持脚本内的多返回值函数调用、展开与截断：
+- **支持多返回值**：函数可以返回多个值（通过 `return a, b`），并在变量赋值（如 `local a, b = func()`）或返回语句中正确解包。
+- **参数动态展开**：在函数调用或 Table 构造中，若最后一项是多返回值函数调用，其返回值会自动展开（如 `func(a, b, func2())` 或 `local t = {a, b, func2()}`）。
+- **零开销与极低开销路径**：对于绝大多数单返回值函数，在编译期被直接优化为直通赋值；对于未知/跨文件函数，利用 CPU 分支预测机制在运行时以近乎零开销执行单值快速路径。
+
 ### C++ 嵌入 API
 
 - `CompileFile` / `CompileString` / `Call`，RAII 风格 `FakeluaStateGuard`
@@ -60,7 +67,6 @@ static_assert(std::is_trivially_copyable_v<CVar>);
 ## 当前已知限制
 
 ### 语法限制
-- 不支持多返回值（Call 仅支持单返回值，多返回可通过 Table 实现）
 - 不支持 varargs（`...`）
 - 不支持 `label` / `goto`
 - 泛型 `for in` 仅支持 `pairs()` / `ipairs()`
