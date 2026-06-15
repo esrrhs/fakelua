@@ -188,6 +188,8 @@ struct AnalysisResult {
     std::unordered_set<const SyntaxTreeInterface *> function_call_exps;
     // 语法分析出的所有函数调用到其被调用者名字的映射，供 CGen 直接查询
     std::unordered_map<const SyntaxTreeInterface *, std::string> callee_names;
+    // 文件级/全局数值常量及其类型映射
+    std::unordered_map<std::string, InferredType> global_const_vars;
 };
 
 // ---- 阶段三：代码生成结果 ---------------------------------------------------
