@@ -1,6 +1,7 @@
 #pragma once
 
 #include "compile/compile_common.h"
+#include "compile/syntax_tree.h"
 #include "fakelua.h"
 #include <unordered_map>
 #include <vector>
@@ -18,6 +19,12 @@ public:
     AnalysisResult Analyze(const ParseResult &pr, const CompileConfig &cfg);
 
 private:
+    void CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk);
+    void CheckNode(const SyntaxTreeInterfacePtr &node);
+    void CheckGlobalConstExp(const SyntaxTreeInterfacePtr &exp);
+    [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
+    std::string LocationStr(const SyntaxTreeInterfacePtr &ptr);
+
     void AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar);
     void CollectReturnsForBlock(const SyntaxTreeInterfacePtr &node, std::vector<SyntaxTreeInterfacePtr> &returns);
     bool IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node);
@@ -25,6 +32,7 @@ private:
 
 private:
     State *s_;
+    std::string file_name_;
 };
 
 } // namespace fakelua
