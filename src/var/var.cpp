@@ -5,6 +5,7 @@
 #include "util/common.h"
 #include "var_string.h"
 #include "var_table.h"
+#include "var_multi.h"
 
 namespace fakelua {
 
@@ -80,7 +81,7 @@ void Var::SetTable(State *state) {
 
 std::string Var::ToString(bool has_quote, bool has_postfix) const {
     std::string ret;
-    DEBUG_ASSERT(Type() >= VarType::Min && Type() <= VarType::Max);
+    DEBUG_ASSERT(Type() >= VarType::Min && (Type() <= VarType::Max || Type() == VarType::Multi));
     switch (Type()) {
         case VarType::Nil:
             ret = "nil";
@@ -102,6 +103,18 @@ std::string Var::ToString(bool has_quote, bool has_postfix) const {
         case VarType::Table:
             ret = std::format("table({})", static_cast<void *>(data_.t));
             break;
+        case VarType::Multi: {
+            VarMulti *m = data_.m;
+            ret = "multi(";
+            for (uint32_t i = 0; i < m->count; ++i) {
+                if (i > 0) {
+                    ret += ", ";
+                }
+                ret += static_cast<const Var &>(m->vars[i]).ToString(has_quote, has_postfix);
+            }
+            ret += ")";
+            break;
+        }
     }
 
     return ret;
@@ -132,6 +145,9 @@ size_t Var::Hash() const {
         }
         case VarType::Table: {
             return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data_.t) ^ (reinterpret_cast<uintptr_t>(data_.t) >> 32));
+        }
+        case VarType::Multi: {
+            return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data_.m) ^ (reinterpret_cast<uintptr_t>(data_.m) >> 32));
         }
         default: {
             return 0;
@@ -171,6 +187,19 @@ bool Var::Equal(const Var &rhs) const {
             return data_.i == rhs.data_.i;
         case VarType::Table:
             return data_.t == rhs.data_.t;
+        case VarType::Multi: {
+            VarMulti *m1 = data_.m;
+            VarMulti *m2 = rhs.data_.m;
+            if (m1->count != m2->count) {
+                return false;
+            }
+            for (uint32_t i = 0; i < m1->count; ++i) {
+                if (!(static_cast<const Var &>(m1->vars[i]) == static_cast<const Var &>(m2->vars[i]))) {
+                    return false;
+                }
+            }
+            return true;
+        }
         default:
             return false;
     }
@@ -321,6 +350,8 @@ bool Var::TestTrue() const {
             return false;
         case VarType::Bool:
             return GetBool();
+        case VarType::Multi:
+            return true;
         default:
             return true;
     }

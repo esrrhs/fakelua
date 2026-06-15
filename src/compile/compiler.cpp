@@ -3,6 +3,7 @@
 #include "compile/c_gen.h"
 #include "compile/preprocessor.h"
 #include "compile/type_inferencer.h"
+#include "compile/semantic_analysis.h"
 #include "jit/gcc_jit.h"
 #include "jit/tcc_jit.h"
 #include "state/state.h"
@@ -60,15 +61,19 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     PreProcessor pp(s_);
     pp.Process(pr, cfg);
 
-    // 3. 类型推导（同时识别数学参数）
+    // 3. 语义与控制流分析
+    SemanticAnalysis semantic_analysis(s_);
+    AnalysisResult ar = semantic_analysis.Analyze(pr, cfg);
+
+    // 4. 类型推导（同时识别数学参数）
     TypeInferencer inferencer;
     InferResult ir = inferencer.InferTypes(pr, cfg);
 
-    // 4. 转译为C
+    // 5. 转译为C
     CGen cgen(s_);
-    GenResult gr = cgen.Generate(pr, ir, cfg);
+    GenResult gr = cgen.Generate(pr, ir, ar, cfg);
 
-    // 5. JIT编译
+    // 6. JIT编译
     if (!cfg.disable_jit[JIT_TCC]) {
         TccJitter jitter(s_);
         jitter.Compile(pr, gr, cfg);

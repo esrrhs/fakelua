@@ -21,10 +21,7 @@ public:
     explicit CGen(State *s);
 
     // 核心代码生成入口
-    GenResult Generate(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg);
-
-    static bool IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node);
-    static std::string GetCalleeName(const SyntaxTreeInterfacePtr &exp_node);
+    GenResult Generate(const ParseResult &pr, const InferResult &ir, const AnalysisResult &ar, const CompileConfig &cfg);
 
 private:
     // 当前写入的输出 section
@@ -265,15 +262,16 @@ private:
     State *s_;                                                   // 全局虚拟机状态 State 引用
     std::string file_name_;                                      // 当前编译的源码文件名称
     std::optional<std::reference_wrapper<const InferResult>> ir_;// 全局类型推断结果快照引用
+    std::optional<std::reference_wrapper<const AnalysisResult>> ar_;// 语义与控制流分析结果引用
 
     std::unordered_map<std::string, InferredType> global_const_vars_;// 全局常量与对应类型的映射
     int tmp_var_counter_ = 0;                                        // 临时变量生成计数器
 
     std::unordered_map<std::string, int> local_func_names_;// 本地函数（非全局）的名称映射及作用域标识
-    std::unordered_map<std::string, int> local_func_max_returns_; // 记录本地函数的最大返回值数量
 
-    void AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr &chunk);
-    static void CollectReturnsForBlock(const SyntaxTreeInterfacePtr &node, std::vector<SyntaxTreeInterfacePtr> &returns);
+    [[nodiscard]] const AnalysisResult &ar() const {
+        return ar_->get();
+    }
 
     Section cur_section_ = Section::Headers;// 当前输出对应的 CGen 逻辑代码段
 

@@ -6,6 +6,7 @@
 #include "util/debug.h"
 #include <format>
 #include <string>
+#include <unordered_set>
 #include <vector>
 
 namespace fakelua {
@@ -175,6 +176,18 @@ struct InferResult {
     // 由 TypeInferencer::Process 在全局（非试推断）推断完成后填充，
     // 供 CGen 在非特化编译路径中查询任意节点的类型，替代原先内嵌在 AST 节点的 eval_type_ 字段。
     EvalTypeSnapshot main_eval_types;
+};
+
+// ---- 阶段二点五：语义与控制流分析结果 -----------------------------------------
+// Sema 的输出。
+// 由 Sema::Analyze 填充，供 CGen 使用。
+struct AnalysisResult {
+    // 函数名 -> 最大返回值数量（-1 代表动态，例如以函数调用结尾）
+    std::unordered_map<std::string, int> function_max_returns;
+    // 语法分析出的所有函数调用表达式节点集合，供 CGen 直接查询
+    std::unordered_set<const SyntaxTreeInterface *> function_call_exps;
+    // 语法分析出的所有函数调用到其被调用者名字的映射，供 CGen 直接查询
+    std::unordered_map<const SyntaxTreeInterface *, std::string> callee_names;
 };
 
 // ---- 阶段三：代码生成结果 ---------------------------------------------------

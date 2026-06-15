@@ -3,6 +3,7 @@
 #include "state/state.h"
 #include "util/common.h"
 #include "var/var_multi.h"
+#include "var/var_type.h"
 #include <stdarg.h>
 
 namespace fakelua {
@@ -49,38 +50,57 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 #endif
     va_end(args_list);
 
-    constexpr int VAR_NIL = 0;
-    constexpr int VAR_MULTI = 7;
-
-    bool has_multi_expansion = (arg_num > 0 && raw_arg_arr[arg_num - 1].type_ == VAR_MULTI);
-    if (!has_multi_expansion && arg_num != expected_arg_count) {
-        ThrowFakeluaException(
-                std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, arg_num));
-    }
-
-    CVar arg_arr[kMaxFunctionInputParams];
-    int actual_arg_num = 0;
+    bool has_any_multi = false;
     for (int i = 0; i < arg_num; ++i) {
-        if (i == arg_num - 1 && raw_arg_arr[i].type_ == VAR_MULTI) {
-            VarMulti *m = raw_arg_arr[i].data_.m;
-            for (uint32_t j = 0; j < m->count; ++j) {
-                if (actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
-                    arg_arr[actual_arg_num++] = m->vars[j];
-                }
-            }
-        } else {
-            if (actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
-                if (raw_arg_arr[i].type_ == VAR_MULTI) {
-                    arg_arr[actual_arg_num++] = raw_arg_arr[i].data_.m->count > 0 ? raw_arg_arr[i].data_.m->vars[0] : (CVar){VAR_NIL};
-                } else {
-                    arg_arr[actual_arg_num++] = raw_arg_arr[i];
-                }
-            }
+        if (UNLIKELY(raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi))) {
+            has_any_multi = true;
+            break;
         }
     }
 
-    while (actual_arg_num < expected_arg_count && actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
-        arg_arr[actual_arg_num++] = (CVar){VAR_NIL};
+    if (UNLIKELY(has_any_multi)) {
+        bool has_multi_expansion = (arg_num > 0 && raw_arg_arr[arg_num - 1].type_ == static_cast<int>(VarType::Multi));
+        if (!has_multi_expansion && arg_num != expected_arg_count) {
+            ThrowFakeluaException(
+                    std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, arg_num));
+        }
+    } else {
+        if (arg_num != expected_arg_count) {
+            ThrowFakeluaException(
+                    std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, arg_num));
+        }
+    }
+
+    CVar temp_arg_arr[kMaxFunctionInputParams];
+    const CVar *arg_arr = nullptr;
+
+    if (LIKELY(!has_any_multi && arg_num == expected_arg_count)) {
+        arg_arr = raw_arg_arr;
+    } else {
+        int actual_arg_num = 0;
+        for (int i = 0; i < arg_num; ++i) {
+            if (i == arg_num - 1 && raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
+                VarMulti *m = raw_arg_arr[i].data_.m;
+                for (uint32_t j = 0; j < m->count; ++j) {
+                    if (actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
+                        temp_arg_arr[actual_arg_num++] = m->vars[j];
+                    }
+                }
+            } else {
+                if (actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
+                    if (raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
+                        temp_arg_arr[actual_arg_num++] = raw_arg_arr[i].data_.m->count > 0 ? raw_arg_arr[i].data_.m->vars[0] : (CVar){static_cast<int>(VarType::Nil)};
+                    } else {
+                        temp_arg_arr[actual_arg_num++] = raw_arg_arr[i];
+                    }
+                }
+            }
+        }
+
+        while (actual_arg_num < expected_arg_count && actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
+            temp_arg_arr[actual_arg_num++] = (CVar){static_cast<int>(VarType::Nil)};
+        }
+        arg_arr = temp_arg_arr;
     }
 
     switch (expected_arg_count) {

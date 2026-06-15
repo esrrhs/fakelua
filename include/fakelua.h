@@ -188,7 +188,7 @@ struct SimpleVarImpl final : public VarInterface {
 };
 
 class VarTable;
-struct VarMulti;
+class VarMulti;
 class VarString;
 class Var;
 

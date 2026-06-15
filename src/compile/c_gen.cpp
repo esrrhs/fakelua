@@ -14,48 +14,16 @@ namespace fakelua {
 // 第一部分：核心调度与编排
 // ===========================================================================
 
-bool CGen::IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node) {
-    if (!exp_node || exp_node->Type() != SyntaxTreeType::Exp) {
-        return false;
-    }
-    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp_node);
-    if (exp->GetExpKind() != ExpKind::kPrefixExp) {
-        return false;
-    }
-    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
-    return pe && pe->GetPrefixKind() == PrefixExpKind::kFunctionCall;
-}
-
-std::string CGen::GetCalleeName(const SyntaxTreeInterfacePtr &exp_node) {
-    if (!IsFunctionCallExp(exp_node)) {
-        return "";
-    }
-    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp_node);
-    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
-    const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
-    const auto pe_pre = fc->prefixexp();
-    if (pe_pre->Type() != SyntaxTreeType::PrefixExp) {
-        return "";
-    }
-    const auto pe_pre_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe_pre);
-    if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
-        const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
-        if (callee_var && callee_var->GetVarKind() == VarKind::kSimple) {
-            return callee_var->GetName();
-        }
-    }
-    return "";
-}
-
 CGen::CGen(State *s) : s_(s) {
 }
 
 // 核心编译入口函数：为输入的 AST、推断结果及配置生成 C 代码
-GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const CompileConfig &cfg) {
+GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const AnalysisResult &ar, const CompileConfig &cfg) {
     LOG_INFO("start CGen::Generate {}", pr.file_name);
 
     file_name_ = pr.file_name;
     ir_ = ir;
+    ar_ = ar;
 
     // 运行构建主流程
     GenResult gr = Build(pr, cfg);
@@ -79,7 +47,6 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Com
 
 // 内部核心流水线：分别生成头文件、全局区、声明区和实现区代码，最后将它们拼接
 GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
-    AnalyzeFunctionReturnCounts(pr.chunk);
     GenResult gr;
 
     // 1. 生成 C 文件的头文件包含、基础结构体及宏定义
@@ -104,91 +71,6 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
     gr.c_code = GetSectionStr(Section::Headers) + GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) +
                 GetSectionStr(Section::Impls);
     return gr;
-}
-
-void CGen::CollectReturnsForBlock(const SyntaxTreeInterfacePtr &node, std::vector<SyntaxTreeInterfacePtr> &returns) {
-    if (!node) {
-        return;
-    }
-    if (node->Type() == SyntaxTreeType::Return) {
-        returns.push_back(node);
-        return;
-    }
-    if (node->Type() == SyntaxTreeType::Function || node->Type() == SyntaxTreeType::LocalFunction || node->Type() == SyntaxTreeType::FunctionDef) {
-        return;
-    }
-    if (node->Type() == SyntaxTreeType::Block) {
-        const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
-        for (const auto &stmt: block->Stmts()) {
-            CollectReturnsForBlock(stmt, returns);
-        }
-    } else if (node->Type() == SyntaxTreeType::If) {
-        const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
-        CollectReturnsForBlock(if_node->Block(), returns);
-        CollectReturnsForBlock(if_node->ElseIfs(), returns);
-        CollectReturnsForBlock(if_node->ElseBlock(), returns);
-    } else if (node->Type() == SyntaxTreeType::ElseIfList) {
-        const auto el = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(node);
-        for (const auto &blk: el->ElseifBlocks()) {
-            CollectReturnsForBlock(blk, returns);
-        }
-    } else if (node->Type() == SyntaxTreeType::While) {
-        const auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
-        CollectReturnsForBlock(while_node->Block(), returns);
-    } else if (node->Type() == SyntaxTreeType::Repeat) {
-        const auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
-        CollectReturnsForBlock(rep->Block(), returns);
-    } else if (node->Type() == SyntaxTreeType::ForLoop) {
-        const auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
-        CollectReturnsForBlock(for_loop->Block(), returns);
-    } else if (node->Type() == SyntaxTreeType::ForIn) {
-        const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
-        CollectReturnsForBlock(for_in->Block(), returns);
-    }
-}
-
-void CGen::AnalyzeFunctionReturnCounts(const SyntaxTreeInterfacePtr &chunk) {
-    DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
-    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
-    for (const auto &stmt: block->Stmts()) {
-        std::string name;
-        SyntaxTreeInterfacePtr funcbody;
-        if (stmt->Type() == SyntaxTreeType::Function) {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
-            name = CompileFuncName(func->Funcname());
-            funcbody = func->Funcbody();
-        } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
-            name = func->Name();
-            funcbody = func->Funcbody();
-        }
-        if (!funcbody) {
-            continue;
-        }
-
-        const auto funcbody_ptr = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
-        const auto func_block = funcbody_ptr->Block();
-        
-        std::vector<SyntaxTreeInterfacePtr> returns;
-        CollectReturnsForBlock(func_block, returns);
-        
-        int max_returns = 0;
-        for (const auto &ret_node: returns) {
-            const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(ret_node);
-            const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist());
-            if (!el || el->Exps().empty()) {
-                // return count is 0
-            } else {
-                int count = static_cast<int>(el->Exps().size());
-                if (IsFunctionCallExp(el->Exps().back())) {
-                    max_returns = -1; // dynamic
-                } else if (max_returns >= 0) {
-                    max_returns = std::max(max_returns, count);
-                }
-            }
-        }
-        local_func_max_returns_[name] = max_returns;
-    }
 }
 
 void CGen::GenerateHeader() {
@@ -997,11 +879,11 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
         Out() << GenTab() << "return " << ret << ";\n";
     } else {
         const auto &exps = explist_ptr->Exps();
-        bool last_is_func = IsFunctionCallExp(exps.back());
-        std::string last_callee = last_is_func ? GetCalleeName(exps.back()) : "";
+        bool last_is_func = ar().function_call_exps.contains(exps.back().get());
+        std::string last_callee = last_is_func ? ar().callee_names.at(exps.back().get()) : "";
         bool is_last_single_return_local = !last_callee.empty() && 
-                                           local_func_max_returns_.contains(last_callee) && 
-                                           local_func_max_returns_.at(last_callee) == 1;
+                                           ar().function_max_returns.contains(last_callee) && 
+                                           ar().function_max_returns.at(last_callee) == 1;
 
         if (last_is_func && !is_last_single_return_local) {
             std::vector<std::string> prefix_args;
@@ -1040,11 +922,11 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
     const auto explist = local_var->Explist();
     const auto &exps = explist ? std::dynamic_pointer_cast<SyntaxTreeExplist>(explist)->Exps() : empty_exps;
 
-    bool last_is_func = !exps.empty() && IsFunctionCallExp(exps.back());
-    std::string callee = last_is_func ? GetCalleeName(exps.back()) : "";
+    bool last_is_func = !exps.empty() && ar().function_call_exps.contains(exps.back().get());
+    std::string callee = last_is_func ? ar().callee_names.at(exps.back().get()) : "";
     bool is_single_return_local = !callee.empty() && 
-                                   local_func_max_returns_.contains(callee) && 
-                                   local_func_max_returns_.at(callee) == 1;
+                                   ar().function_max_returns.contains(callee) && 
+                                   ar().function_max_returns.at(callee) == 1;
 
     if (names.size() > exps.size() && last_is_func && !is_single_return_local) {
         // Compile prior expressions first (M - 1 expressions)
@@ -1694,21 +1576,10 @@ std::string CGen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe, bool preser
         if (preserve_multi) {
             return call;
         }
-        std::string callee = "";
-        if (const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(value)) {
-            if (const auto pe_pre = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp())) {
-                if (pe_pre->GetPrefixKind() == PrefixExpKind::kVar) {
-                    if (const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre->GetValue())) {
-                        if (callee_var->GetVarKind() == VarKind::kSimple) {
-                            callee = callee_var->GetName();
-                        }
-                    }
-                }
-            }
-        }
+        std::string callee = ar().callee_names.contains(value.get()) ? ar().callee_names.at(value.get()) : "";
         bool is_single_return_local = !callee.empty() && 
-                                       local_func_max_returns_.contains(callee) && 
-                                       local_func_max_returns_.at(callee) == 1;
+                                       ar().function_max_returns.contains(callee) && 
+                                       ar().function_max_returns.at(callee) == 1;
         if (is_single_return_local) {
             return call;
         }
@@ -1734,6 +1605,14 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
         DEBUG_ASSERT(fieldlist->Type() == SyntaxTreeType::FieldList);
         const auto fieldlist_ptr = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(fieldlist);
 
+        std::shared_ptr<SyntaxTreeField> last_array_field = nullptr;
+        for (const auto &field : fieldlist_ptr->Fields()) {
+            const auto field_ptr = std::dynamic_pointer_cast<SyntaxTreeField>(field);
+            if (field_ptr->GetFieldKind() == FieldKind::kArray && !field_ptr->Key()) {
+                last_array_field = field_ptr;
+            }
+        }
+
         int array_idx = 1;
         for (const auto &field: fieldlist_ptr->Fields()) {
             DEBUG_ASSERT(field->Type() == SyntaxTreeType::Field);
@@ -1741,7 +1620,9 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             const auto fkind = field_ptr->GetFieldKind();
 
             const auto value_exp = field_ptr->Value();
-            const auto value_str = CompileExp(value_exp);
+            bool is_func = ar().function_call_exps.contains(value_exp.get());
+            bool is_expand = (field_ptr == last_array_field) && is_func;
+            const auto value_str = CompileExp(value_exp, is_expand);
 
             if (fkind == FieldKind::kObject) {
                 const auto name = field_ptr->Name();
@@ -1771,9 +1652,13 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                         }
                     }
                 } else {
-                    // Sequential integer index — use FlSetTableInt fast path.
-                    Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, array_idx, value_str);
-                    ++array_idx;
+                    if (is_expand) {
+                        Out() << GenTab() << std::format("FlTableExpandMulti({}, {}, {});\n", var_name, array_idx, value_str);
+                    } else {
+                        // Sequential integer index — use FlSetTableInt fast path.
+                        Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, array_idx, value_str);
+                        ++array_idx;
+                    }
                 }
             }
         }
@@ -1781,6 +1666,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
     return var_name;
 }
+
 
 // ---------------------------------------------------------------------------
 // CompileBinop —— 二元运算符的代码生成
@@ -2526,11 +2412,11 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
         const auto &raw_args = explist_ptr->Exps();
 
-        bool last_is_func = !raw_args.empty() && IsFunctionCallExp(raw_args.back());
-        std::string last_callee = last_is_func ? GetCalleeName(raw_args.back()) : "";
+        bool last_is_func = !raw_args.empty() && ar().function_call_exps.contains(raw_args.back().get());
+        std::string last_callee = last_is_func ? ar().callee_names.at(raw_args.back().get()) : "";
         bool is_last_single_return_local = !last_callee.empty() && 
-                                           local_func_max_returns_.contains(last_callee) && 
-                                           local_func_max_returns_.at(last_callee) == 1;
+                                           ar().function_max_returns.contains(last_callee) && 
+                                           ar().function_max_returns.at(last_callee) == 1;
 
         if (last_is_func && !is_last_single_return_local) {
             has_expansion = true;

@@ -78,15 +78,14 @@ enum {
 
 typedef struct VarMulti {
     uint32_t count;
-    CVar *vars;
+    CVar vars[0];
 } VarMulti;
 
 extern void* FakeluaAllocTemp(State *s, size_t size);
 
 static inline CVar FlMakeMulti(State *state, uint32_t count, ...) {
-    VarMulti *m = (VarMulti *)FakeluaAllocTemp(state, sizeof(VarMulti));
+    VarMulti *m = (VarMulti *)FakeluaAllocTemp(state, sizeof(VarMulti) + count * sizeof(CVar));
     m->count = count;
-    m->vars = (CVar *)FakeluaAllocTemp(state, count * sizeof(CVar));
     va_list args_list;
     va_start(args_list, count);
     for (uint32_t i = 0; i < count; ++i) {
@@ -110,9 +109,8 @@ static inline CVar FlCombineMulti(State *state, uint32_t prefix_count, const CVa
     }
 
     uint32_t total_count = prefix_count + last_count;
-    VarMulti *m = (VarMulti *)FakeluaAllocTemp(state, sizeof(VarMulti));
+    VarMulti *m = (VarMulti *)FakeluaAllocTemp(state, sizeof(VarMulti) + total_count * sizeof(CVar));
     m->count = total_count;
-    m->vars = (CVar *)FakeluaAllocTemp(state, total_count * sizeof(CVar));
 
     for (uint32_t i = 0; i < prefix_count; ++i) {
         if (prefix_vars[i].type_ == VAR_MULTI) {
@@ -574,6 +572,18 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     if (UNLIKELY(tbl->count_ >= tbl->bucket_count_ || tbl->free_list_idx_ == 0xFFFFFFFF)) { FlTableRehash(tbl); }
     FlTableInsertRaw(tbl, key_cvar, v, h);
 }
+
+static inline void FlTableExpandMulti(CVar t, int64_t start_idx, CVar v) {
+    if (LIKELY(v.type_ != VAR_MULTI)) {
+        FlSetTableInt(t, start_idx, v);
+    } else {
+        VarMulti *m = v.data_.m;
+        for (uint32_t i = 0; i < m->count; ++i) {
+            FlSetTableInt(t, start_idx + i, m->vars[i]);
+        }
+    }
+}
+
 
 #define CheckNum(v) do { \
     if (UNLIKELY((v).type_ != VAR_INT && (v).type_ != VAR_FLOAT)) { \

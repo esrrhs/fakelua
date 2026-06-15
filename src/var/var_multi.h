@@ -4,9 +4,10 @@
 
 namespace fakelua {
 
-struct VarMulti {
+class VarMulti {
+public:
     uint32_t count;
-    CVar *vars;
+    CVar vars[0];
 
     static VarMulti *AllocTemp(State *state, uint32_t count);
 };

@@ -225,6 +225,10 @@ void VarToVi(State *state, CVar src, VarInterface *dst) {
             dst->ViSetTable(kvs);
             break;
         }
+        case VarType::Multi: {
+            ThrowFakeluaException("VarToVi failed: Multi-return type is not supported in host VarInterface");
+            break;
+        }
     }
 }
 
