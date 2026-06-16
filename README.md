@@ -25,7 +25,7 @@ FakeLua 是一个可嵌入的 Lua 子集编译引擎：将 Lua 脚本编译为 C
 2. **CGen** 为每个含数学参数的函数生成 `2^k` 个特化版本（`int64_t` / `double` 组合），以及一个运行时入口分发器，根据实际参数类型路由到对应特化体。
 3. 特化体内的算术运算直接用原生 C 类型（`int64_t`/`double`）计算，比较表达式也生成原生 C `bool` 而非走 `CVar` 装箱路径，彻底消除热路径上的类型判断开销。
 
-以递归 Fibonacci（n=32）为例，GCC 后端比 Lua 5.4 快 **9x**，TCC 后端快 **1.9x**（详见 [benchmark/README.md](benchmark/README.md)）。
+以递归 Fibonacci（n=32）为例，GCC 后端比 Lua 5.4 快 **43.7x**，TCC 后端快 **10.4x**（详见 [benchmark/README.md](benchmark/README.md)）。
 
 ### 自动类型推导
 
@@ -164,11 +164,11 @@ int main() {
 
 | 算法（典型参数） | Lua 5.4 | FakeLua TCC | FakeLua GCC |
 |---|---|---|---|
-| Fibonacci n=32 | 133 ms | 70 ms（**1.9x**↑） | 14.8 ms（**9.0x**↑） |
-| Sum n=5000000 | 21.9 ms | 9.7 ms（**2.3x**↑） | 1.1 ms（**19x**↑） |
-| Popcount n=100000 | 9.5 ms | 1.9 ms（**5.1x**↑） | 0.33 ms（**29x**↑） |
-| BubbleSort n=200 | 522 μs | 3.3 ms（0.16x） | 511 μs（**1.0x**） |
-| Sieve n=5000 | 176 μs | 989 μs（0.18x） | 142 μs（**1.2x**↑） |
+| Fibonacci n=32 | 229.6 ms | 22.1 ms（**10.4x**↑） | 5.3 ms（**43.7x**↑） |
+| Sum n=5000000 | 32.4 ms | 11.7 ms（**2.8x**↑） | 2.7 ms（**11.8x**↑） |
+| Popcount n=100000 | 13.9 ms | 1.95 ms（**7.1x**↑） | 0.49 ms（**28.4x**↑） |
+| BubbleSort n=200 | 873.7 μs | 2.46 ms（0.35x） | 461.2 μs（**1.9x**↑） |
+| Sieve n=5000 | 282.6 μs | 771.4 μs（0.37x） | 192.9 μs（**1.5x**↑） |
 
 > TCC 纯计算类场景（无 table）普遍快于 Lua；含大量 table 操作时 GCC 与 Lua 持平，TCC 偏慢（table 操作尚未特化）。完整数据见 [benchmark/README.md](benchmark/README.md)。
 
