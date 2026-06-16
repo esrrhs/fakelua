@@ -898,7 +898,8 @@ TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseRe
                 continue;
             }
             if (math_indices.size() > kMaxMathSpecializedParams) {
-                LOG_INFO("TypeInferencer: {} math params for {} exceeds limit {}, treating all as dynamic", math_indices.size(), info.name, kMaxMathSpecializedParams);
+                LOG_INFO("TypeInferencer: {} math params for {} exceeds limit {}, treating all as dynamic", math_indices.size(), info.name,
+                         kMaxMathSpecializedParams);
                 continue;
             }
             ir.math_param_positions[info.name] = math_indices;
@@ -1128,8 +1129,8 @@ bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) 
 
 namespace {
 
-bool CheckNodeChangeCommon(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &typed_map,
-                           const EvalTypeSnapshot &compare_map, const bool improvement_mode) {
+bool CheckNodeChangeCommon(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &typed_map, const EvalTypeSnapshot &compare_map,
+                           const bool improvement_mode) {
     const auto it_typed = typed_map.find(node.get());
     const auto it_compare = compare_map.find(node.get());
     DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
@@ -1137,7 +1138,7 @@ bool CheckNodeChangeCommon(const SyntaxTreeInterfacePtr &node, const EvalTypeSna
            (improvement_mode ? (it_compare->second == T_DYNAMIC) : (it_compare->second != it_typed->second));
 }
 
-} // namespace
+}// namespace
 
 bool TypeInferencer::CheckArithmeticNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map,
                                                const EvalTypeMap &compare_map, const bool improvement_mode) const {

@@ -37,4 +37,4 @@ private:
     std::unordered_set<const SyntaxTreeInterface *> top_level_stmts_;
 };
 
-} // namespace fakelua
+}// namespace fakelua
