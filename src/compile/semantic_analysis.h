@@ -19,8 +19,16 @@ public:
     AnalysisResult Analyze(const ParseResult &pr, const CompileConfig &cfg);
 
 private:
-    void CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk);
-    void CheckNode(const SyntaxTreeInterfacePtr &node);
+    void AnalyzeGlobalConstNames(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar);
+    void CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk, const AnalysisResult &ar);
+    void CheckNode(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
+    void CheckGotoOrLabel(const SyntaxTreeInterfacePtr &node);
+    void CheckFunctionCall(const SyntaxTreeInterfacePtr &node);
+    void CheckParList(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
+    void CheckLocalVar(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
+    void CheckForLoop(const SyntaxTreeInterfacePtr &node);
+    void CheckForIn(const SyntaxTreeInterfacePtr &node);
+    void CheckExp(const SyntaxTreeInterfacePtr &node);
     void CheckGlobalConstExp(const SyntaxTreeInterfacePtr &exp);
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
     std::string LocationStr(const SyntaxTreeInterfacePtr &ptr);
@@ -33,6 +41,7 @@ private:
 private:
     State *s_;
     std::string file_name_;
+    std::unordered_set<const SyntaxTreeInterface *> top_level_stmts_;
 };
 
-} // namespace fakelua
+}// namespace fakelua

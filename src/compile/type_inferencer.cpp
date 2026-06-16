@@ -304,6 +304,8 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     // 将当前推断结果复制为全局主快照，供 CGen 在非特化路径下查询节点类型。
     ir.main_eval_types = current_map;
 
+    CollectGlobalConstVars(pr, current_map, ir);
+
     // 在正常推断之后，通过三个阶段发现数学参数并生成特化信息：
     // IdentifyMathParams：多轮迭代识别数学参数
     if (const auto math_func_info = IdentifyMathParams(pr, ir); !math_func_info.empty()) {
@@ -869,7 +871,8 @@ TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseRe
                 continue;
             }
             if (math_indices.size() > kMaxMathSpecializedParams) {
-                LOG_INFO("TypeInferencer: {} math params for {} exceeds limit {}, treating all as dynamic", math_indices.size(), info.name, kMaxMathSpecializedParams);
+                LOG_INFO("TypeInferencer: {} math params for {} exceeds limit {}, treating all as dynamic", math_indices.size(), info.name,
+                         kMaxMathSpecializedParams);
                 continue;
             }
             ir.math_param_positions[info.name] = math_indices;
@@ -1099,8 +1102,8 @@ bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) 
 
 namespace {
 
-bool CheckNodeChangeCommon(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &typed_map,
-                           const EvalTypeSnapshot &compare_map, const bool improvement_mode) {
+bool CheckNodeChangeCommon(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &typed_map, const EvalTypeSnapshot &compare_map,
+                           const bool improvement_mode) {
     const auto it_typed = typed_map.find(node.get());
     const auto it_compare = compare_map.find(node.get());
     DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
@@ -1108,7 +1111,7 @@ bool CheckNodeChangeCommon(const SyntaxTreeInterfacePtr &node, const EvalTypeSna
            (improvement_mode ? (it_compare->second == T_DYNAMIC) : (it_compare->second != it_typed->second));
 }
 
-} // namespace
+}// namespace
 
 bool TypeInferencer::CheckArithmeticNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map,
                                                const EvalTypeMap &compare_map, const bool improvement_mode) const {
@@ -1434,6 +1437,36 @@ InferredType TypeInferencer::ComputeReturnTypeFromSnapshot(const EvalTypeSnapsho
         }
     }
     return actual_ret;
+}
+
+void TypeInferencer::CollectGlobalConstVars(const ParseResult &pr, const EvalTypeMap &current_map, InferResult &ir) {
+    DEBUG_ASSERT(pr.chunk->Type() == SyntaxTreeType::Block);
+    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
+    for (const auto &stmt: block->Stmts()) {
+        if (stmt->Type() == SyntaxTreeType::LocalVar) {
+            const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+            const auto namelist = local_var->Namelist();
+            const auto explist = local_var->Explist();
+            if (!namelist) {
+                continue;
+            }
+            const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
+            const auto &names = namelist_ptr->Names();
+            std::vector<SyntaxTreeInterfacePtr> exps;
+            if (explist) {
+                exps = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist)->Exps();
+            }
+            for (size_t i = 0; i < names.size(); ++i) {
+                InferredType type = T_DYNAMIC;
+                if (i < exps.size()) {
+                    if (auto it = current_map.find(exps[i].get()); it != current_map.end()) {
+                        type = it->second;
+                    }
+                }
+                ir.global_const_vars[names[i]] = type;
+            }
+        }
+    }
 }
 
 }// namespace fakelua

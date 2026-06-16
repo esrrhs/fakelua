@@ -264,7 +264,6 @@ private:
     std::optional<std::reference_wrapper<const InferResult>> ir_;// 全局类型推断结果快照引用
     std::optional<std::reference_wrapper<const AnalysisResult>> ar_;// 语义与控制流分析结果引用
 
-    std::unordered_map<std::string, InferredType> global_const_vars_;// 全局常量与对应类型的映射
     int tmp_var_counter_ = 0;                                        // 临时变量生成计数器
 
     std::unordered_map<std::string, int> local_func_names_;// 本地函数（非全局）的名称映射及作用域标识
