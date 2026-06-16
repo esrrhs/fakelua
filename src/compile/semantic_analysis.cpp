@@ -9,19 +9,16 @@ namespace fakelua {
 SemanticAnalysis::SemanticAnalysis(State *s) : s_(s) {
 }
 
-AnalysisResult SemanticAnalysis::Analyze(const ParseResult &pr, const CompileConfig &cfg)
-{
+AnalysisResult SemanticAnalysis::Analyze(const ParseResult &pr, const CompileConfig &cfg) {
     file_name_ = pr.file_name;
 
     AnalysisResult ar;
-    AnalyzeGlobalConsts(pr.chunk, ar);
+    AnalyzeGlobalConstNames(pr.chunk, ar);
     CheckUnsupportedSyntax(pr.chunk, ar);
     AnalyzeFunctionReturnCounts(pr.chunk, ar);
 
-    WalkSyntaxTree(pr.chunk, [&](const SyntaxTreeInterfacePtr &node)
-    {
-        if (IsFunctionCallExp(node))
-        {
+    WalkSyntaxTree(pr.chunk, [&](const SyntaxTreeInterfacePtr &node) {
+        if (IsFunctionCallExp(node)) {
             ar.function_call_exps.insert(node.get());
             std::string name = GetCalleeName(node);
             ar.callee_names[node.get()] = name;
@@ -29,8 +26,7 @@ AnalysisResult SemanticAnalysis::Analyze(const ParseResult &pr, const CompileCon
             const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
             const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
             const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
-            if (fc)
-            {
+            if (fc) {
                 ar.callee_names[fc.get()] = name;
             }
         }
@@ -39,45 +35,24 @@ AnalysisResult SemanticAnalysis::Analyze(const ParseResult &pr, const CompileCon
     return ar;
 }
 
-void SemanticAnalysis::AnalyzeGlobalConsts(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar)
-{
+void SemanticAnalysis::AnalyzeGlobalConstNames(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar) {
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
     const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
-    for (const auto &stmt: block->Stmts())
-    {
-        if (stmt->Type() == SyntaxTreeType::LocalVar)
-        {
+    for (const auto &stmt: block->Stmts()) {
+        if (stmt->Type() == SyntaxTreeType::LocalVar) {
             const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
             const auto namelist = local_var->Namelist();
             const auto explist = local_var->Explist();
-            if (!namelist || !explist)
-            {
+            if (!namelist || !explist) {
                 continue;
             }
             const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
-            const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
             const auto &names = namelist_ptr->Names();
-            auto &exps = explist_ptr->Exps();
-            for (size_t i = 0; i < names.size(); ++i)
-            {
-                if (i >= exps.size())
-                {
-                    break;
-                }
-                const auto &name = names[i];
-                const auto &exp = exps[i];
-                if (ar.global_const_vars.contains(name))
-                {
+            for (const auto &name: names) {
+                if (ar.global_const_names.contains(name)) {
                     ThrowError("duplicate global const variable: " + name, stmt);
                 }
-                InferredType global_type = T_DYNAMIC;
-                const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-                if (exp_ptr && exp_ptr->GetExpKind() == ExpKind::kNumber)
-                {
-                    const auto &val = exp_ptr->ExpValue();
-                    global_type = IsInteger(val) ? T_INT : T_FLOAT;
-                }
-                ar.global_const_vars[name] = global_type;
+                ar.global_const_names.insert(name);
             }
         }
     }
@@ -359,52 +334,39 @@ void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const Analy
             }
             break;
         }
-        case SyntaxTreeType::ParList:
-        {
+        case SyntaxTreeType::ParList: {
             const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(node);
-            if (parlist->VarParams())
-            {
+            if (parlist->VarParams()) {
                 ThrowError("varargs (...) is not supported", node);
             }
             const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist());
-            if (namelist)
-            {
+            if (namelist) {
                 std::set<std::string> param_names_set;
-                for (const auto &key: ar.global_const_vars | std::views::keys)
-                {
-                    param_names_set.insert(key);
+                for (const auto &name: ar.global_const_names) {
+                    param_names_set.insert(name);
                 }
-                for (const auto &name: namelist->Names())
-                {
-                    if (param_names_set.contains(name))
-                    {
+                for (const auto &name: namelist->Names()) {
+                    if (param_names_set.contains(name)) {
                         ThrowError("the param name is duplicated: " + name, namelist);
                     }
                     param_names_set.insert(name);
                 }
             }
-            if (const size_t param_size = namelist ? namelist->Names().size() : 0; param_size > kMaxFunctionInputParams)
-            {
+            if (const size_t param_size = namelist ? namelist->Names().size() : 0; param_size > kMaxFunctionInputParams) {
                 ThrowError(std::format("function input parameters exceed limit {}, got {}", kMaxFunctionInputParams, param_size), node);
             }
             break;
         }
-        case SyntaxTreeType::LocalVar:
-        {
+        case SyntaxTreeType::LocalVar: {
             const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
             const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
-            if (!namelist)
-            {
+            if (!namelist) {
                 ThrowError("local variable namelist is missing", node);
             }
-            if (!top_level_stmts_.contains(node.get()))
-            {
-                if (namelist)
-                {
-                    for (const auto &name: namelist->Names())
-                    {
-                        if (ar.global_const_vars.contains(name))
-                        {
+            if (!top_level_stmts_.contains(node.get())) {
+                if (namelist) {
+                    for (const auto &name: namelist->Names()) {
+                        if (ar.global_const_names.contains(name)) {
                             ThrowError("local variable conflicts with global constant: " + name, node);
                         }
                     }

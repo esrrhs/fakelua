@@ -12,7 +12,7 @@
 namespace fakelua {
 
 // AST 节点类型快照：节点原始指针 → 推断类型。
-// 每个特化 bitmask 对应一份快照，由 TypeInferencer::DiscoverMathParams 生成，
+// 每个特化 bitmask 对应一份快照，由 TypeInferencer::InferTypes 产生，
 // 供 CGen 在生成特化体时查询任意节点的类型。
 using EvalTypeSnapshot = std::unordered_map<SyntaxTreeInterface *, InferredType>;
 
@@ -155,32 +155,9 @@ struct ParseResult {
     SyntaxTreeInterfacePtr chunk;
 };
 
-// ---- 阶段二：类型推断结果 ---------------------------------------------------
-// TypeInferencer 的输出。
-// 由 TypeInferencer::Process 填充，供 CGen 使用。
-struct InferResult {
-    // 数学参数位置：函数名 → 参数列表中参与算术运算的参数下标列表（最多8个）。
-    // 由 TypeInferencer::DiscoverMathParams 填充，供 CGen 生成特化版本时使用。
-    std::unordered_map<std::string, std::vector<int>> math_param_positions;
-    // 特化快照：函数名 → 按 bitmask 索引的 EvalTypeSnapshot 数组（共 2^k 个）。
-    // 每个快照记录在对应参数类型假设下整个函数体所有 AST 节点的推断类型，
-    // 由 TypeInferencer::DiscoverMathParams 生成，供 CGen 在不依赖 EvalType()
-    // 字段的情况下直接查询特化版本中任意节点的类型。
-    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots;
-    // 特化返回类型：函数名 → 按 bitmask 索引的返回类型数组（共 2^k 个）。
-    // T_INT/T_FLOAT 表示该特化版本始终返回对应数值类型；T_DYNAMIC 表示未知或非数值。
-    // 由 TypeInferencer::DiscoverMathParams 通过不动点迭代填充，
-    // 供 CGen::InferArgTypeForSpec 在函数调用节点处查询被调用函数的实际返回类型。
-    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
-    // 全局类型推断结果：节点指针 → 推断类型。
-    // 由 TypeInferencer::Process 在全局（非试推断）推断完成后填充，
-    // 供 CGen 在非特化编译路径中查询任意节点的类型，替代原先内嵌在 AST 节点的 eval_type_ 字段。
-    EvalTypeSnapshot main_eval_types;
-};
-
-// ---- 阶段二点五：语义与控制流分析结果 -----------------------------------------
-// Sema 的输出。
-// 由 Sema::Analyze 填充，供 CGen 使用。
+// ---- 阶段三：语义与控制流分析结果 -----------------------------------------
+// SemanticAnalysis 的输出。
+// 由 SemanticAnalysis::Analyze 填充，供 CGen 使用。
 struct AnalysisResult {
     // 函数名 -> 最大返回值数量（-1 代表动态，例如以函数调用结尾）
     std::unordered_map<std::string, int> function_max_returns;
@@ -188,11 +165,36 @@ struct AnalysisResult {
     std::unordered_set<const SyntaxTreeInterface *> function_call_exps;
     // 语法分析出的所有函数调用到其被调用者名字的映射，供 CGen 直接查询
     std::unordered_map<const SyntaxTreeInterface *, std::string> callee_names;
-    // 文件级/全局数值常量及其类型映射
+    // 文件级/全局常量名称集合
+    std::unordered_set<std::string> global_const_names;
+};
+
+// ---- 阶段四：类型推断结果 ---------------------------------------------------
+// TypeInferencer 的输出。
+// 由 TypeInferencer::InferTypes 填充，供 CGen 使用。
+struct InferResult {
+    // 数学参数位置：函数名 → 参数列表中参与算术运算的参数下标列表（最多8个）。
+    // 由 TypeInferencer::InferTypes 填充，供 CGen 生成特化版本时使用。
+    std::unordered_map<std::string, std::vector<int>> math_param_positions;
+    // 特化快照：函数名 → 按 bitmask 索引 of EvalTypeSnapshot 数组（共 2^k 个）。
+    // 每个快照记录在对应参数类型假设下整个函数体所有 AST 节点的推断类型，
+    // 由 TypeInferencer::InferTypes 生成，供 CGen 在不依赖 EvalType()
+    // 字段的情况下直接查询特化版本中任意节点的类型。
+    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots;
+    // 特化返回类型：函数名 → 按 bitmask 索引的返回类型数组（共 2^k 个）。
+    // T_INT/T_FLOAT 表示该特化版本始终返回对应数值类型；T_DYNAMIC 表示未知或非数值。
+    // 由 TypeInferencer::InferTypes 通过不动点迭代填充，
+    // 供 CGen::InferArgTypeForSpec 在函数调用节点处查询被调用函数的实际返回类型。
+    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
+    // 全局类型推断结果：节点指针 → 推断类型。
+    // 由 TypeInferencer::InferTypes 在全局（非试推断）推断完成后填充，
+    // 供 CGen 在非特化编译路径中查询任意节点的类型，替代原先内嵌在 AST 节点的 eval_type_ 字段。
+    EvalTypeSnapshot main_eval_types;
+    // 文件级/全局数值常量及其推断类型映射
     std::unordered_map<std::string, InferredType> global_const_vars;
 };
 
-// ---- 阶段三：代码生成结果 ---------------------------------------------------
+// ---- 阶段五：代码生成结果 ---------------------------------------------------
 // CGen 的输出。
 // 由 CGen::Generate 填充，供 JIT 编译器使用。
 struct GenResult {

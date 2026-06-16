@@ -19,7 +19,7 @@ public:
     AnalysisResult Analyze(const ParseResult &pr, const CompileConfig &cfg);
 
 private:
-    void AnalyzeGlobalConsts(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar);
+    void AnalyzeGlobalConstNames(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar);
     void CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk, const AnalysisResult &ar);
     void CheckNode(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
     void CheckGlobalConstExp(const SyntaxTreeInterfacePtr &exp);

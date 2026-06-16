@@ -131,24 +131,17 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
             const auto &names = namelist_ptr->Names();
             auto &exps = explist_ptr->Exps();
 
-            for (size_t i = 0; i < names.size(); ++i)
-            {
+            for (size_t i = 0; i < names.size(); ++i) {
                 const auto &name = names[i];
                 const auto &exp = exps[i];
 
-                InferredType global_type = ar().global_const_vars.at(name);
-                const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+                InferredType global_type = ir().global_const_vars.at(name);
 
-                if (global_type == T_INT)
-                {
-                    Out() << "static const int64_t " << name << " = " << ToInteger(exp_ptr->ExpValue()) << ";\n";
-                }
-                else if (global_type == T_FLOAT)
-                {
-                    Out() << "static const double " << name << " = " << std::format("{}", ToFloat(exp_ptr->ExpValue())) << ";\n";
-                }
-                else
-                {
+                if (global_type == T_INT) {
+                    Out() << "static const int64_t " << name << " = " << CompileNumericExp(exp) << ";\n";
+                } else if (global_type == T_FLOAT) {
+                    Out() << "static const double " << name << " = " << CompileNumericExp(exp) << ";\n";
+                } else {
                     // 非数值字面量：保留 static const CVar 形式。
                     const std::string cvar_init = CompileExp(exp);
                     Out() << "static const CVar " << name << " = " << cvar_init << ";\n";
@@ -289,15 +282,12 @@ std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parl
     auto &param_names = namelist_ptr->Names();
 
     std::set<std::string> param_names_set;
-    for (const auto &key: ar().global_const_vars | std::views::keys)
-    {
+    for (const auto &key: ar().global_const_names) {
         param_names_set.insert(key);
     }
 
-    for (auto &name: param_names)
-    {
-        if (param_names_set.contains(name))
-        {
+    for (auto &name: param_names) {
+        if (param_names_set.contains(name)) {
             ThrowError("the param name is duplicated: " + name, namelist_ptr);
         }
         param_names_set.insert(name);
@@ -629,10 +619,8 @@ InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
                 if (const auto native_type = GetNativeVarType(name); native_type == T_INT || native_type == T_FLOAT) {
                     return native_type;
                 }
-                if (const auto git = ar().global_const_vars.find(name); git != ar().global_const_vars.end())
-                {
-                    if (git->second == T_INT || git->second == T_FLOAT)
-                    {
+                if (const auto git = ir().global_const_vars.find(name); git != ir().global_const_vars.end()) {
+                    if (git->second == T_INT || git->second == T_FLOAT) {
                         return git->second;
                     }
                 }
@@ -927,11 +915,9 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
 
     if (names.size() > exps.size() && last_is_func && !is_single_return_local) {
         // Compile prior expressions first (M - 1 expressions)
-        for (size_t i = 0; i < exps.size() - 1; ++i)
-        {
+        for (size_t i = 0; i < exps.size() - 1; ++i) {
             const auto &name = names[i];
-            if (ar().global_const_vars.contains(name))
-            {
+            if (ar().global_const_names.contains(name)) {
                 ThrowError("local variable conflicts with global constant: " + name, stmt);
             }
             // All prior expressions map one-to-one to variables
@@ -968,11 +954,9 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
         Out() << GenTab() << tmp_res << " = " << call_expr << ";\n";
 
         // Assign unboxed values to remaining variables
-        for (size_t i = exps.size() - 1; i < names.size(); ++i)
-        {
+        for (size_t i = exps.size() - 1; i < names.size(); ++i) {
             const auto &name = names[i];
-            if (ar().global_const_vars.contains(name))
-            {
+            if (ar().global_const_names.contains(name)) {
                 ThrowError("local variable conflicts with global constant: " + name, stmt);
             }
             Out() << GenTab() << "CVar " << name << " = FlUnboxMulti(" << tmp_res << ", " << (i - (exps.size() - 1)) << ");\n";
@@ -980,12 +964,10 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
         }
     } else {
         // Standard one-to-one compilation path (or fallback path where extra variables get nil)
-        for (size_t i = 0; i < names.size(); ++i)
-        {
+        for (size_t i = 0; i < names.size(); ++i) {
             const auto &name = names[i];
 
-            if (ar().global_const_vars.contains(name))
-            {
+            if (ar().global_const_names.contains(name)) {
                 ThrowError("local variable conflicts with global constant: " + name, stmt);
             }
 
@@ -2008,7 +1990,7 @@ std::string CGen::CompileRawNativeUnop(const SyntaxTreeInterfacePtr &right, UnOp
 // 生成策略（kSimple 变量）：
 //   优先级：特化参数类型表（spec_param_types_）
 //           > 原生局部变量作用域（NativeVarScope / GetNativeVarType）
-//           > 文件级数值常量（ar().global_const_vars）
+//           > 文件级数值常量（ir().global_const_vars）
 //           > 普通 CVar 变量名
 //
 //   前三种情形均已知为原生类型（int64_t / double），需装箱为 CVar 字面量后返回，
@@ -2034,10 +2016,8 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
             return BoxNativeValue(name, native_type);
         }
         // 文件级数值常量（static const int64_t / double）：装箱为 CVar 后返回。
-        if (const auto git = ar().global_const_vars.find(name); git != ar().global_const_vars.end())
-        {
-            if (git->second == T_INT || git->second == T_FLOAT)
-            {
+        if (const auto git = ir().global_const_vars.find(name); git != ir().global_const_vars.end()) {
+            if (git->second == T_INT || git->second == T_FLOAT) {
                 return BoxNativeValue(name, git->second);
             }
         }
@@ -2116,10 +2096,8 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
                 return vname;
             }
             // 文件级数值常量（static const int64_t / double）：直接用名称。
-            if (const auto git = ar().global_const_vars.find(vname); git != ar().global_const_vars.end())
-            {
-                if (git->second == T_INT || git->second == T_FLOAT)
-                {
+            if (const auto git = ir().global_const_vars.find(vname); git != ir().global_const_vars.end()) {
+                if (git->second == T_INT || git->second == T_FLOAT) {
                     return vname;
                 }
             }
