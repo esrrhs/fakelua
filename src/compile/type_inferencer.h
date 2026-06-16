@@ -186,6 +186,8 @@ private:
     // 汇总得出该特化版本的函数返回类型（T_INT / T_FLOAT / T_DYNAMIC）。
     [[nodiscard]] InferredType ComputeReturnTypeFromSnapshot(const EvalTypeSnapshot &snapshot, const FuncRetInfo &ret_info) const;
 
+    void CollectGlobalConstVars(const ParseResult &pr, const EvalTypeMap &current_map, InferResult &ir);
+
 private:
     // 辅助工具：构造数学参数敏感性测试与特化的参数假设映射表
     [[nodiscard]] std::unordered_map<std::string, InferredType> MakeAssumedParamTypes(const std::vector<std::string> &params,

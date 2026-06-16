@@ -22,6 +22,13 @@ private:
     void AnalyzeGlobalConstNames(const SyntaxTreeInterfacePtr &chunk, AnalysisResult &ar);
     void CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chunk, const AnalysisResult &ar);
     void CheckNode(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
+    void CheckGotoOrLabel(const SyntaxTreeInterfacePtr &node);
+    void CheckFunctionCall(const SyntaxTreeInterfacePtr &node);
+    void CheckParList(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
+    void CheckLocalVar(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
+    void CheckForLoop(const SyntaxTreeInterfacePtr &node);
+    void CheckForIn(const SyntaxTreeInterfacePtr &node);
+    void CheckExp(const SyntaxTreeInterfacePtr &node);
     void CheckGlobalConstExp(const SyntaxTreeInterfacePtr &exp);
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
     std::string LocationStr(const SyntaxTreeInterfacePtr &ptr);

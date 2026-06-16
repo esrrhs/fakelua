@@ -304,34 +304,7 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     // 将当前推断结果复制为全局主快照，供 CGen 在非特化路径下查询节点类型。
     ir.main_eval_types = current_map;
 
-    // Populate ir.global_const_vars with top-level local variable types from current_map
-    DEBUG_ASSERT(pr.chunk->Type() == SyntaxTreeType::Block);
-    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
-    for (const auto &stmt: block->Stmts()) {
-        if (stmt->Type() == SyntaxTreeType::LocalVar) {
-            const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
-            const auto namelist = local_var->Namelist();
-            const auto explist = local_var->Explist();
-            if (!namelist) {
-                continue;
-            }
-            const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
-            const auto &names = namelist_ptr->Names();
-            std::vector<SyntaxTreeInterfacePtr> exps;
-            if (explist) {
-                exps = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist)->Exps();
-            }
-            for (size_t i = 0; i < names.size(); ++i) {
-                InferredType type = T_DYNAMIC;
-                if (i < exps.size()) {
-                    if (auto it = current_map.find(exps[i].get()); it != current_map.end()) {
-                        type = it->second;
-                    }
-                }
-                ir.global_const_vars[names[i]] = type;
-            }
-        }
-    }
+    CollectGlobalConstVars(pr, current_map, ir);
 
     // 在正常推断之后，通过三个阶段发现数学参数并生成特化信息：
     // IdentifyMathParams：多轮迭代识别数学参数
@@ -1464,6 +1437,36 @@ InferredType TypeInferencer::ComputeReturnTypeFromSnapshot(const EvalTypeSnapsho
         }
     }
     return actual_ret;
+}
+
+void TypeInferencer::CollectGlobalConstVars(const ParseResult &pr, const EvalTypeMap &current_map, InferResult &ir) {
+    DEBUG_ASSERT(pr.chunk->Type() == SyntaxTreeType::Block);
+    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
+    for (const auto &stmt: block->Stmts()) {
+        if (stmt->Type() == SyntaxTreeType::LocalVar) {
+            const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+            const auto namelist = local_var->Namelist();
+            const auto explist = local_var->Explist();
+            if (!namelist) {
+                continue;
+            }
+            const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
+            const auto &names = namelist_ptr->Names();
+            std::vector<SyntaxTreeInterfacePtr> exps;
+            if (explist) {
+                exps = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist)->Exps();
+            }
+            for (size_t i = 0; i < names.size(); ++i) {
+                InferredType type = T_DYNAMIC;
+                if (i < exps.size()) {
+                    if (auto it = current_map.find(exps[i].get()); it != current_map.end()) {
+                        type = it->second;
+                    }
+                }
+                ir.global_const_vars[names[i]] = type;
+            }
+        }
+    }
 }
 
 }// namespace fakelua
