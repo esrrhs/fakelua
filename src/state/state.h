@@ -21,7 +21,6 @@ class State {
 public:
     explicit State(const StateConfig &config = {});
 
-
     void Reset() {
         DEBUG_ASSERT(reentrant_count_ == 0);
         heap_.Reset();

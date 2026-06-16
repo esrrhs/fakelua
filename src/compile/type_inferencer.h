@@ -64,7 +64,6 @@ private:
         return t;
     }
 
-
     // 试推断上下文：在 RunTrialInference 中创建，沿调用链传递，
     // 用于 ResolveCallReturnType 解析被调函数的返回类型。
     struct TrialInferenceContext {
