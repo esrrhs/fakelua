@@ -314,8 +314,7 @@ std::string SyntaxTreeLocalVar::Dump(int tab) const {
 
 // 转储表达式及其各操作数
 std::string SyntaxTreeExp::Dump(int tab) const {
-    static constexpr const char *kExpKindNames[] = {
-            "nil", "true", "false", "number", "string", "VarParams", "functiondef", "prefixexp", "tableconstructor", "binop", "unop"};
+    static constexpr const char *kExpKindNames[] = {"nil", "true", "false", "number", "string", "VarParams", "functiondef", "prefixexp", "tableconstructor", "binop", "unop"};
     std::string str;
     str += GenTab(tab) + "(exp)[" + LocStr() + "]\n";
     str += GenTab(tab + 1) + "type: " + kExpKindNames[static_cast<int>(exp_kind_)] + "\n";
@@ -334,9 +333,8 @@ std::string SyntaxTreeExp::Dump(int tab) const {
 
 // 转储二元运算符
 std::string SyntaxTreeBinop::Dump(int tab) const {
-    static constexpr const char *kBinOpNames[] = {"PLUS",       "MINUS", "STAR",       "SLASH",       "DOUBLE_SLASH", "POW",    "MOD",
-                                                  "BITAND",     "XOR",   "BITOR",      "RIGHT_SHIFT", "LEFT_SHIFT",   "CONCAT", "LESS",
-                                                  "LESS_EQUAL", "MORE",  "MORE_EQUAL", "EQUAL",       "NOT_EQUAL",    "AND",    "OR"};
+    static constexpr const char *kBinOpNames[] = {"PLUS",       "MINUS",  "STAR", "SLASH",      "DOUBLE_SLASH", "POW",        "MOD",   "BITAND",    "XOR", "BITOR", "RIGHT_SHIFT",
+                                                  "LEFT_SHIFT", "CONCAT", "LESS", "LESS_EQUAL", "MORE",         "MORE_EQUAL", "EQUAL", "NOT_EQUAL", "AND", "OR"};
     std::string str;
     str += GenTab(tab) + "(binop)[" + LocStr() + "]\n";
     str += GenTab(tab + 1) + "op: " + kBinOpNames[static_cast<int>(op_kind_)] + "\n";

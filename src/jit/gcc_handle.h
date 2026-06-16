@@ -7,8 +7,7 @@ namespace fakelua {
 
 class GCCHandle : public JITHandle {
 public:
-    GCCHandle(std::string c_file, std::string so_file, void *dl_handle)
-        : c_file_(std::move(c_file)), so_file_(std::move(so_file)), dl_handle_(dl_handle) {
+    GCCHandle(std::string c_file, std::string so_file, void *dl_handle) : c_file_(std::move(c_file)), so_file_(std::move(so_file)), dl_handle_(dl_handle) {
     }
 
     ~GCCHandle() override;

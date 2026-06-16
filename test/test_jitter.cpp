@@ -25,8 +25,7 @@ static void JitterRunHelper(const std::function<void(State *, JITType, bool)> &f
 }
 
 TEST(jitter, empty_file) {
-    JitterRunHelper(
-            [](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_empty_file.lua", {.debug_mode = debug_mode}); });
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_empty_file.lua", {.debug_mode = debug_mode}); });
 }
 
 TEST(jitter, empty_func) {
@@ -548,8 +547,7 @@ TEST(jitter, test_local_table) {
         dynamic_cast<SimpleVarImpl *>(t1)->ViSortTable();
         dynamic_cast<SimpleVarImpl *>(t2)->ViSortTable();
         dynamic_cast<SimpleVarImpl *>(t3)->ViSortTable();
-        ASSERT_EQ(t1->ViToString(0),
-                  "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
+        ASSERT_EQ(t1->ViToString(0), "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
         ASSERT_EQ(t2->ViToString(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
         ASSERT_EQ(t3->ViToString(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
     });
@@ -575,9 +573,8 @@ TEST(jitter, test_local_nested_table) {
 
         // need sort kv
         dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
-        ASSERT_EQ(t->ViToString(0),
-                  "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-                  "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+        ASSERT_EQ(t->ViToString(0), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
+                                    "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
     });
     for (auto &i: tmp) {
         delete i;
@@ -1677,8 +1674,7 @@ TEST(jitter, test_local_func_call_string) {
 // Dynamic function call via local variable: compiles successfully, but will naturally
 // fail at runtime since the local variable name "c" is used as the literal function name.
 TEST(jitter, test_var_func_call) {
-    JitterRunHelper(
-            [](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_var_func_call.lua", {.debug_mode = debug_mode}); });
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_var_func_call.lua", {.debug_mode = debug_mode}); });
 }
 
 // Dynamic function call via table index (c[k](a,b)) is not supported.
@@ -1971,9 +1967,7 @@ TEST(jitter, test_for_loop_zero_step_float) {
 // cannot be caught in a unit test.  This test verifies only that the Lua code
 // compiles without error.
 TEST(jitter, test_for_loop_zero_step_dynamic) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        EXPECT_NO_THROW(CompileFile(s, "./jit/test_for_loop_zero_step_dynamic.lua", {.debug_mode = debug_mode}));
-    });
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) { EXPECT_NO_THROW(CompileFile(s, "./jit/test_for_loop_zero_step_dynamic.lua", {.debug_mode = debug_mode})); });
 }
 
 // ForIn with only 1 loop variable (key only, no value variable).
@@ -2266,9 +2260,7 @@ TEST(jitter, math_spec_dynamic_call_fallback) {
 TEST(jitter, math_spec_string_arg_call) {
     // Verifies that calling a math-specialized function with a string literal arg compiles correctly.
     // The function itself would fail at runtime (arithmetic on string), so we only verify compilation.
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_math_spec_string_arg_call.lua", {.debug_mode = debug_mode});
-    });
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_math_spec_string_arg_call.lua", {.debug_mode = debug_mode}); });
 }
 
 TEST(jitter, bitwise_and_on_float_param) {
@@ -2558,9 +2550,7 @@ TEST(jitter, shadow_global_const_error) {
 }
 
 TEST(jitter, test_math_spec_too_few_args) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        EXPECT_THROW({ CompileFile(s, "./jit/test_math_spec_too_few_args.lua", {.debug_mode = debug_mode}); }, std::exception);
-    });
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) { EXPECT_THROW({ CompileFile(s, "./jit/test_math_spec_too_few_args.lua", {.debug_mode = debug_mode}); }, std::exception); });
 }
 
 TEST(jitter, test_shadow_typed_local) {

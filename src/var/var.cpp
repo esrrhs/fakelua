@@ -11,29 +11,25 @@ namespace fakelua {
 
 void Var::CheckCalculable(const Var &rhs, const char *op) const {
     if (!IsCalculable() || !rhs.IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be number, got {} {}, {} {}", op, VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
+        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be number, got {} {}, {} {}", op, VarTypeToString(Type()), ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
     }
 }
 
 void Var::CheckCalculable(const char *op) const {
     if (!IsCalculable()) {
-        ThrowFakeluaException(
-                std::format("Var op failed, operand of '{}' must be number, got {} {}", op, VarTypeToString(Type()), ToString()));
+        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be number, got {} {}", op, VarTypeToString(Type()), ToString()));
     }
 }
 
 void Var::CheckInteger(const Var &rhs, const char *op, int64_t &lhs_int, int64_t &rhs_int) const {
     if (!TryConvertNumberToInteger(lhs_int) || !rhs.TryConvertNumberToInteger(rhs_int)) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be integer, got {} {}, {} {}", op, VarTypeToString(Type()),
-                                          ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
+        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be integer, got {} {}, {} {}", op, VarTypeToString(Type()), ToString(), VarTypeToString(rhs.Type()), rhs.ToString()));
     }
 }
 
 void Var::CheckInteger(const char *op, int64_t &val) const {
     if (!TryConvertNumberToInteger(val)) {
-        ThrowFakeluaException(
-                std::format("Var op failed, operand of '{}' must be integer, got {} {}", op, VarTypeToString(Type()), ToString()));
+        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be integer, got {} {}", op, VarTypeToString(Type()), ToString()));
     }
 }
 
@@ -159,8 +155,7 @@ size_t Var::Hash() const {
 bool Var::Equal(const Var &rhs) const {
     if (Type() != rhs.Type()) {
         // String and StringId are interchangeable for comparison
-        if ((Type() == VarType::String && rhs.Type() == VarType::StringId) ||
-            (Type() == VarType::StringId && rhs.Type() == VarType::String)) {
+        if ((Type() == VarType::String && rhs.Type() == VarType::StringId) || (Type() == VarType::StringId && rhs.Type() == VarType::String)) {
             return GetString()->Str() == rhs.GetString()->Str();
         }
         // Int and Float with the same mathematical value are equal (Lua semantics).
@@ -382,8 +377,7 @@ void Var::UnopNumberSign(Var &result) const {
     } else if (Type() == VarType::Table) {
         result.SetInt(static_cast<int64_t>(data_.t->Size()));
     } else {
-        ThrowFakeluaException(
-                std::format("Var op failed, operand of '#' must be string or table, got {} {}", VarTypeToString(Type()), ToString()));
+        ThrowFakeluaException(std::format("Var op failed, operand of '#' must be string or table, got {} {}", VarTypeToString(Type()), ToString()));
     }
 }
 
@@ -395,8 +389,7 @@ void Var::UnopBitnot(Var &result) const {
 
 void Var::CheckTable(const char *op) const {
     if (UNLIKELY(Type() != VarType::Table)) {
-        ThrowFakeluaException(
-                std::format("Var op failed, operand of '{}' must be table, got {} {}", op, VarTypeToString(Type()), ToString()));
+        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be table, got {} {}", op, VarTypeToString(Type()), ToString()));
     }
 }
 

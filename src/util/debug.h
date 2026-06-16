@@ -10,9 +10,9 @@ namespace fakelua {
 [[noreturn]] void DebugAssertFail(const std::string &str, const std::source_location &source = std::source_location::current());
 
 #ifndef NDEBUG
-#define DEBUG_ASSERT(x)                                                                                                                    \
-    if (!(x)) {                                                                                                                            \
-        fakelua::DebugAssertFail(#x);                                                                                                      \
+#define DEBUG_ASSERT(x)                                                                                                                                                                                \
+    if (!(x)) {                                                                                                                                                                                        \
+        fakelua::DebugAssertFail(#x);                                                                                                                                                                  \
     }
 #else
 #define DEBUG_ASSERT(x) ((void) 0)

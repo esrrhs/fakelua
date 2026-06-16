@@ -113,8 +113,7 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
             // 如果赋值语句中变量数量和表达式数量不匹配，且最后不是函数调用，则抛出异常
             bool last_is_func = !exps.empty() && IsFunctionCallExp(exps.back());
             if (vars.size() != exps.size() && !(last_is_func && vars.size() > exps.size())) {
-                ThrowError(std::format("PreprocessSplitAssigns: assign stmt var count {} not match exp count {}", vars.size(), exps.size()),
-                           explist_ptr);
+                ThrowError(std::format("PreprocessSplitAssigns: assign stmt var count {} not match exp count {}", vars.size(), exps.size()), explist_ptr);
             }
 
             if (vars.size() == 1) {
@@ -185,17 +184,14 @@ void PreProcessor::PreprocessTableAssign(const SyntaxTreeInterfacePtr &node) {
 
             // 此时应该都只有一个变量和一个表达式
             if (vars.size() != 1 || exps.size() != 1) {
-                ThrowError(std::format("PreprocessTableAssigns: assign stmt var count {} or exp count {} not match 1", vars.size(),
-                                       exps.size()),
-                           stmt);
+                ThrowError(std::format("PreprocessTableAssigns: assign stmt var count {} or exp count {} not match 1", vars.size(), exps.size()), stmt);
             }
 
             auto &var = vars[0];
             auto &exp = exps[0];
 
             // 检查是不是赋值的table
-            if (const auto var_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(var);
-                var_ptr->GetVarKind() == VarKind::kSquare || var_ptr->GetVarKind() == VarKind::kDot) {
+            if (const auto var_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(var); var_ptr->GetVarKind() == VarKind::kSquare || var_ptr->GetVarKind() == VarKind::kDot) {
 
                 // 转为函数调用，a.b.c = 1 -> FAKELUA_SET_TABLE(a.b, "c", 1)
                 const auto func_call = std::make_shared<SyntaxTreeFunctioncall>(stmt->Loc());
@@ -244,15 +240,13 @@ void PreProcessor::PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &
             const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
             const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist());
             if (nl && el && nl->Names().size() == 1 && el->Exps().size() == 1) {
-                if (const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
-                    init_exp && init_exp->GetExpKind() == ExpKind::kFunctionDef) {
+                if (const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]); init_exp && init_exp->GetExpKind() == ExpKind::kFunctionDef) {
                     if (const auto fdef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(init_exp->Right())) {
                         const auto local_func = std::make_shared<SyntaxTreeLocalFunction>(stmt->Loc());
                         local_func->SetName(nl->Names()[0]);
                         local_func->SetFuncbody(fdef->Funcbody());
                         new_stmts.push_back(local_func);
-                        LOG_INFO("PreprocessFunctiondefLocalVars: converted local {} = function(...) to local function {}(...)",
-                                 nl->Names()[0], nl->Names()[0]);
+                        LOG_INFO("PreprocessFunctiondefLocalVars: converted local {} = function(...) to local function {}(...)", nl->Names()[0], nl->Names()[0]);
                         continue;
                     }
                 }

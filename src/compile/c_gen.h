@@ -114,11 +114,9 @@ private:
     // 编译参数列表节点，返回 C 语言格式的参数类型和名称字符串列表
     std::vector<std::string> CompileParList(const SyntaxTreeInterfacePtr &parlist);
     // 编译具体的函数体并将其 C 代码输出至给定的流中
-    void CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params,
-                         const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out);
+    void CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params, const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out);
     // 为特定函数生成分发入口（用于处理动态调用到特化强类型调用的转发）
-    void GenerateEntryDispatcher(const std::string &func_name, const std::vector<std::string> &func_params,
-                                 const std::vector<int> &math_param_indices);
+    void GenerateEntryDispatcher(const std::string &func_name, const std::vector<std::string> &func_params, const std::vector<int> &math_param_indices);
     // 辅助工具：判断一个基本块（Block）的结尾是否显式包含 return 语句
     [[nodiscard]] static bool BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block);
     // 获取特定特化签名下函数的返回类型
@@ -191,16 +189,13 @@ private:
     std::string TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node);
 
     // 生成原生二元算术运算的代码
-    std::string CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
-                                        InferredType lt, InferredType rt);
+    std::string CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType lt, InferredType rt);
     // 生成底层未包装的原生算术/位运算表达式源码
-    std::string CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
-                                           InferredType result_type);
+    std::string CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType result_type);
     // 生成底层未包装的原生一元运算表达式源码
     std::string CompileRawNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType rt);
     // 生成原生二元比较运算的代码
-    std::string CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
-                                      InferredType lt, InferredType rt);
+    std::string CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType lt, InferredType rt);
     // 生成原生一元运算的代码
     std::string CompileNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType rt);
 
@@ -209,11 +204,9 @@ private:
     // 为特化签名调用推断特定的参数类型
     [[nodiscard]] InferredType InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const;
     // 尝试推断数学特化库调用的参数掩码（bitmask）
-    [[nodiscard]] bool TryInferMathCallBitmask(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args,
-                                               int &bitmask) const;
+    [[nodiscard]] bool TryInferMathCallBitmask(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args, int &bitmask) const;
     // 尝试推断数学库特化调用的参数掩码与特化返回类型
-    [[nodiscard]] bool TryInferMathCallSpec(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args,
-                                            int &bitmask, InferredType &spec_ret) const;
+    [[nodiscard]] bool TryInferMathCallSpec(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args, int &bitmask, InferredType &spec_ret) const;
     // 根据 AST 节点指针在当前快照中查找推断出的类型
     [[nodiscard]] InferredType LookupNodeType(SyntaxTreeInterface *node) const;
 

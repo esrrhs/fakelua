@@ -127,11 +127,9 @@ private:
     // math_positions / assumed_ret 非 null 时，InferNode(FunctionCall) 会通过
     // ResolveCallReturnType 将被调函数的特化返回类型注入推断结果，
     // 使函数调用节点及其下游局部变量在快照中获得精确类型。
-    EvalTypeMap RunTrialInference(const SyntaxTreeInterfacePtr &func_block, const std::vector<std::string> &params,
-                                  const std::unordered_map<std::string, InferredType> &assumed_types,
+    EvalTypeMap RunTrialInference(const SyntaxTreeInterfacePtr &func_block, const std::vector<std::string> &params, const std::unordered_map<std::string, InferredType> &assumed_types,
                                   const std::unordered_map<std::string, std::vector<int>> *math_positions = nullptr,
-                                  const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret = nullptr,
-                                  bool skip_post_processing = false);
+                                  const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret = nullptr, bool skip_post_processing = false);
 
     // 判断 exp 节点是否为算术表达式（结果可为 T_INT/T_FLOAT 的运算符）。
     // 包括算术/位运算二元运算符，以及一元负号 and 按位取反。
@@ -144,17 +142,13 @@ private:
     [[nodiscard]] bool IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) const;
 
     // 数学参数发现的统一类型变化检测器。
-    [[nodiscard]] bool CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
-                                                  const SyntaxTreeInterfacePtr &func_block, bool improvement_mode,
+    [[nodiscard]] bool CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, const SyntaxTreeInterfacePtr &func_block, bool improvement_mode,
                                                   const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
 
     // 拆分出的细粒度节点检测函数
-    [[nodiscard]] bool CheckArithmeticNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map,
-                                                 const EvalTypeMap &compare_map, bool improvement_mode) const;
-    [[nodiscard]] bool CheckComparisonNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map,
-                                                 const EvalTypeMap &compare_map, bool improvement_mode) const;
-    [[nodiscard]] bool CheckForLoopNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map,
-                                              const EvalTypeMap &compare_map, bool improvement_mode) const;
+    [[nodiscard]] bool CheckArithmeticNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, bool improvement_mode) const;
+    [[nodiscard]] bool CheckComparisonNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, bool improvement_mode) const;
+    [[nodiscard]] bool CheckForLoopNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, bool improvement_mode) const;
     [[nodiscard]] bool CheckCallNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
                                            const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const;
 
@@ -165,8 +159,7 @@ private:
 
     [[nodiscard]] std::unordered_map<std::string, FuncRetInfo> BuildFunctionReturnCache(const MathFuncInfoMap &math_func_info) const;
 
-    void InferSpecializationReturnTypes(InferResult &ir, const MathFuncInfoMap &math_func_info,
-                                        const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache);
+    void InferSpecializationReturnTypes(InferResult &ir, const MathFuncInfoMap &math_func_info, const std::unordered_map<std::string, FuncRetInfo> &func_ret_cache);
 
 
     // 检查 block_node 的所有执行路径是否均以 return 语句结束。
@@ -189,13 +182,10 @@ private:
 
 private:
     // 辅助工具：构造数学参数敏感性测试与特化的参数假设映射表
-    [[nodiscard]] std::unordered_map<std::string, InferredType> MakeAssumedParamTypes(const std::vector<std::string> &params,
-                                                                                      const std::string &special_param,
-                                                                                      InferredType special_type,
+    [[nodiscard]] std::unordered_map<std::string, InferredType> MakeAssumedParamTypes(const std::vector<std::string> &params, const std::string &special_param, InferredType special_type,
                                                                                       InferredType default_type) const;
 
-    [[nodiscard]] std::unordered_map<std::string, InferredType>
-    MakeSpecializedParamTypes(const std::vector<std::string> &params, const std::vector<int> &math_indices, int bitmask) const;
+    [[nodiscard]] std::unordered_map<std::string, InferredType> MakeSpecializedParamTypes(const std::vector<std::string> &params, const std::vector<int> &math_indices, int bitmask) const;
 
     void DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &snapshot, int tab, std::ostream &os) const;
 

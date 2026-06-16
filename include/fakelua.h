@@ -534,8 +534,7 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &
     }
 
     if (sizeof...(Args) != static_cast<size_t>(arg_count)) {
-        inter::ThrowInterFakeluaException(
-                std::format("Call failed, function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
+        inter::ThrowInterFakeluaException(std::format("Call failed, function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
     }
 
     if (const auto reentrant_count = inter::GetReentrantCount(s); !reentrant_count) {
@@ -579,9 +578,9 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &
 #define CVAR_31 CVAR_30, CVar
 #define CVAR_32 CVAR_31, CVar
 
-#define CALL_CASE(N)                                                                                                                       \
-    }                                                                                                                                      \
-    else if constexpr (sizeof...(Args) == N) {                                                                                             \
+#define CALL_CASE(N)                                                                                                                                                                                   \
+    }                                                                                                                                                                                                  \
+    else if constexpr (sizeof...(Args) == N) {                                                                                                                                                         \
         ret_var = reinterpret_cast<CVar (*)(CVAR_##N)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
 
         CALL_CASE(1)

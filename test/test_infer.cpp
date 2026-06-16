@@ -462,7 +462,7 @@ TEST(infer, test_infer_for_shadow_case4) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case4.lua");
     ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos);                                                       // outer a
     ASSERT_NE(code.find("CVar a = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)(flua_for_ctrl_"), std::string::npos);// cursor a
-    ASSERT_NE(code.find("a = ((a) + (1));"), std::string::npos);// outer post-loop assign
+    ASSERT_NE(code.find("a = ((a) + (1));"), std::string::npos);                                                     // outer post-loop assign
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_shadow_case4.lua", {.debug_mode = debug_mode});
@@ -3760,8 +3760,7 @@ TEST(infer, test_math_spec_9params) {
     // Should NOT have specialized variants.
     ASSERT_EQ(code.find("test_math_spec_9params_0"), std::string::npos);
     // Entry function with CVar params.
-    ASSERT_NE(code.find("CVar test_math_spec_9params(CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9)"),
-              std::string::npos);
+    ASSERT_NE(code.find("CVar test_math_spec_9params(CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_math_spec_9params.lua", {.debug_mode = debug_mode});
@@ -3777,10 +3776,7 @@ TEST(infer, test_math_spec_mixed) {
     // The name pattern suffix starts with _0_0_0_0_0_0_0_0 for 8 parameters.
     ASSERT_NE(code.find("test_math_spec_mixed_0_0_0_0_0_0_0_0("), std::string::npos);
     // The entry function should take all 10 CVar parameters.
-    ASSERT_NE(
-            code.find(
-                    "CVar test_math_spec_mixed(CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9, CVar p10)"),
-            std::string::npos);
+    ASSERT_NE(code.find("CVar test_math_spec_mixed(CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9, CVar p10)"), std::string::npos);
     // Verify that specialized functions have correct parameter types:
     // p1 and p10 are CVar, while p2..p9 are int64_t/double depending on the specialization.
     ASSERT_NE(code.find("int64_t test_math_spec_mixed_0_0_0_0_0_0_0_0(CVar p1, int64_t p2, int64_t p3, int64_t p4, int64_t p5, int64_t p6, "

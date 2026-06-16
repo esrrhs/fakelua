@@ -68,8 +68,7 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
         // 头部是每个编译单元相同的固定样板代码，对类型推断断言没有用处。
         gr.recorded_c_code = GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) + GetSectionStr(Section::Impls);
     }
-    gr.c_code = GetSectionStr(Section::Headers) + GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) +
-                GetSectionStr(Section::Impls);
+    gr.c_code = GetSectionStr(Section::Headers) + GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) + GetSectionStr(Section::Impls);
     return gr;
 }
 
@@ -254,8 +253,7 @@ std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
 // ===========================================================================
 
 [[noreturn]] void CGen::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) {
-    ThrowFakeluaException(
-            std::format("Code generate failed, {} at {}:{}:{}", msg, file_name_, ptr->Loc().begin.line, ptr->Loc().begin.column));
+    ThrowFakeluaException(std::format("Code generate failed, {} at {}:{}:{}", msg, file_name_, ptr->Loc().begin.line, ptr->Loc().begin.column));
 }
 
 bool CGen::BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block) {
@@ -398,8 +396,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
 //      将数学参数从 CVar 中拆包（.data_.i / .data_.f）后直接传入。
 //      若特化函数返回原生类型（T_INT/T_FLOAT），则在返回前装箱为 CVar。
 // ---------------------------------------------------------------------------
-void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vector<std::string> &func_params,
-                                   const std::vector<int> &math_param_indices) {
+void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vector<std::string> &func_params, const std::vector<int> &math_param_indices) {
     const int k = static_cast<int>(math_param_indices.size());
     const int num_specs = 1 << k;
 
@@ -417,10 +414,9 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vect
     for (int i = 0; i < k; ++i) {
         const int param_idx = math_param_indices[i];
         const auto &mp_name = func_params[static_cast<size_t>(param_idx)];
-        Out() << std::format(
-                "    if (UNLIKELY({0}.type_ != VAR_INT && {0}.type_ != VAR_FLOAT)) {{ FakeluaThrowError(_S, \"bad argument #{1} ({2}): "
-                "attempt to perform arithmetic on non-numeric value\"); }}\n",
-                mp_name, param_idx + 1, mp_name);
+        Out() << std::format("    if (UNLIKELY({0}.type_ != VAR_INT && {0}.type_ != VAR_FLOAT)) {{ FakeluaThrowError(_S, \"bad argument #{1} ({2}): "
+                             "attempt to perform arithmetic on non-numeric value\"); }}\n",
+                             mp_name, param_idx + 1, mp_name);
     }
 
     // 计算分发索引。
@@ -431,11 +427,9 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vect
         }
         const auto &mp_name = func_params[static_cast<size_t>(math_param_indices[i])];
         if (i == 0) {
-            Out() << std::format("({}.type_ == VAR_FLOAT ? {} : {})", mp_name, static_cast<int>(kMathParamFloat),
-                                 static_cast<int>(kMathParamInt));
+            Out() << std::format("({}.type_ == VAR_FLOAT ? {} : {})", mp_name, static_cast<int>(kMathParamFloat), static_cast<int>(kMathParamInt));
         } else {
-            Out() << std::format("(({}.type_ == VAR_FLOAT ? {} : {}) << {})", mp_name, static_cast<int>(kMathParamFloat),
-                                 static_cast<int>(kMathParamInt), i);
+            Out() << std::format("(({}.type_ == VAR_FLOAT ? {} : {}) << {})", mp_name, static_cast<int>(kMathParamFloat), static_cast<int>(kMathParamInt), i);
         }
     }
     Out() << ";\n";
@@ -463,8 +457,7 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vect
         if (const auto spec_ret = GetSpecReturnType(func_name, bitmask); spec_ret == T_INT || spec_ret == T_FLOAT) {
             // 特化函数返回原生数值类型：需要将结果装箱为 CVar 后再返回。
             const auto native_tmp = std::format("flua_r_{}", bitmask);
-            Out() << std::format("        case {}: {{ {} {} = {}({}); return {}; }}\n", bitmask, SpecReturnCTypeName(spec_ret), native_tmp,
-                                 spec_name, args_str, BoxNativeValue(native_tmp, spec_ret));
+            Out() << std::format("        case {}: {{ {} {} = {}({}); return {}; }}\n", bitmask, SpecReturnCTypeName(spec_ret), native_tmp, spec_name, args_str, BoxNativeValue(native_tmp, spec_ret));
         } else {
             Out() << std::format("        case {}: return {}({});\n", bitmask, spec_name, args_str);
         }
@@ -499,8 +492,7 @@ InferredType CGen::GetSpecReturnType(const std::string &func_name, int bitmask) 
     return it->second[static_cast<size_t>(bitmask)];
 }
 
-void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params,
-                           const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out) {
+void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params, const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out) {
     SectionGuard section_guard(*this, Section::Body);
     // 初始化特化上下文。
     spec_param_types_.clear();
@@ -537,8 +529,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
         // 因此将其注册为对应的原生类型，以便 CompileStmtAssign / InferArgTypeForSpec
         // 能正确处理对这些参数的引用和赋值。
         // 非特化或非数学参数仍注册为 T_DYNAMIC（CVar）。
-        const InferredType param_native_type =
-                (spec_bitmask >= 0 && spec_param_types_.contains(param_name)) ? spec_param_types_.at(param_name) : T_DYNAMIC;
+        const InferredType param_native_type = (spec_bitmask >= 0 && spec_param_types_.contains(param_name)) ? spec_param_types_.at(param_name) : T_DYNAMIC;
         DeclareNativeVar(param_name, param_native_type);
     }
     cur_tab_++;
@@ -558,8 +549,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
     // section_guard 析构时自动恢复 cur_section_。
 }
 
-bool CGen::TryInferMathCallBitmask(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args,
-                                   int &bitmask) const {
+bool CGen::TryInferMathCallBitmask(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args, int &bitmask) const {
     if (const auto math_it = ir().math_param_positions.find(callee_name); math_it != ir().math_param_positions.end()) {
         const auto &math_params = math_it->second;
         bitmask = 0;
@@ -583,8 +573,7 @@ bool CGen::TryInferMathCallBitmask(const std::string &callee_name, const std::ve
     ThrowFakeluaException("callee_name should be a math function");
 }
 
-bool CGen::TryInferMathCallSpec(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args, int &bitmask,
-                                InferredType &spec_ret) const {
+bool CGen::TryInferMathCallSpec(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args, int &bitmask, InferredType &spec_ret) const {
     [[maybe_unused]] bool ok = TryInferMathCallBitmask(callee_name, raw_args, bitmask);
     DEBUG_ASSERT(ok);
     spec_ret = GetSpecReturnType(callee_name, bitmask);
@@ -638,8 +627,7 @@ InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
                 const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
                 DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
                 const auto &callee_name = callee_var->GetName();
-                if (const auto math_it = ir().math_param_positions.find(callee_name);
-                    math_it != ir().math_param_positions.end() && !math_it->second.empty()) {
+                if (const auto math_it = ir().math_param_positions.find(callee_name); math_it != ir().math_param_positions.end() && !math_it->second.empty()) {
                     const auto &math_params = math_it->second;
                     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
                     DEBUG_ASSERT(args_ptr);
@@ -709,9 +697,8 @@ std::string CGen::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
 }
 
 // 将比较运算符映射到对应的 C 操作符。
-static const std::unordered_map<BinOpKind, std::string_view> kCmpOpMap = {{BinOpKind::kLess, "<"},   {BinOpKind::kLessEqual, "<="},
-                                                                          {BinOpKind::kMore, ">"},   {BinOpKind::kMoreEqual, ">="},
-                                                                          {BinOpKind::kEqual, "=="}, {BinOpKind::kNotEqual, "!="}};
+static const std::unordered_map<BinOpKind, std::string_view> kCmpOpMap = {{BinOpKind::kLess, "<"},       {BinOpKind::kLessEqual, "<="}, {BinOpKind::kMore, ">"},
+                                                                          {BinOpKind::kMoreEqual, ">="}, {BinOpKind::kEqual, "=="},     {BinOpKind::kNotEqual, "!="}};
 
 std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
     // 只处理 Exp 节点。
@@ -759,8 +746,7 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
 
     if (const auto op_it = kCmpOpMap.find(op_kind); op_it != kCmpOpMap.end()) {
         const auto left_type = e->Left() ? InferArgTypeForSpec(e->Left()) : T_DYNAMIC;
-        if (const auto right_type = e->Right() ? InferArgTypeForSpec(e->Right()) : T_DYNAMIC;
-            (left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
+        if (const auto right_type = e->Right() ? InferArgTypeForSpec(e->Right()) : T_DYNAMIC; (left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
             return {};
         }
         const auto left_native = TryCompileNativeExpr(e->Left());
@@ -864,8 +850,7 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
         const auto &exps = explist_ptr->Exps();
         bool last_is_func = ar().function_call_exps.contains(exps.back().get());
         std::string last_callee = last_is_func ? ar().callee_names.at(exps.back().get()) : "";
-        bool is_last_single_return_local =
-                !last_callee.empty() && ar().function_max_returns.contains(last_callee) && ar().function_max_returns.at(last_callee) == 1;
+        bool is_last_single_return_local = !last_callee.empty() && ar().function_max_returns.contains(last_callee) && ar().function_max_returns.at(last_callee) == 1;
 
         if (last_is_func && !is_last_single_return_local) {
             std::vector<std::string> prefix_args;
@@ -878,8 +863,7 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
             for (size_t i = 0; i < prefix_args.size(); ++i) {
                 Out() << GenTab() << prefix_arr_name << "[" << i << "] = " << prefix_args[i] << ";\n";
             }
-            Out() << GenTab() << "return FlCombineMulti(_S, " << prefix_args.size() << ", " << prefix_arr_name << ", " << last_arg
-                  << ");\n";
+            Out() << GenTab() << "return FlCombineMulti(_S, " << prefix_args.size() << ", " << prefix_arr_name << ", " << last_arg << ");\n";
         } else {
             std::string call = std::format("FlMakeMulti(_S, {}", exps.size());
             for (const auto &exp: exps) {
@@ -907,8 +891,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
 
     bool last_is_func = !exps.empty() && ar().function_call_exps.contains(exps.back().get());
     std::string callee = last_is_func ? ar().callee_names.at(exps.back().get()) : "";
-    bool is_single_return_local =
-            !callee.empty() && ar().function_max_returns.contains(callee) && ar().function_max_returns.at(callee) == 1;
+    bool is_single_return_local = !callee.empty() && ar().function_max_returns.contains(callee) && ar().function_max_returns.at(callee) == 1;
 
     if (names.size() > exps.size() && last_is_func && !is_single_return_local) {
         // Compile prior expressions first (M - 1 expressions)
@@ -1212,8 +1195,7 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::ForLoop);
     const auto for_stmt = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
 
-    const bool typed_int_for = for_stmt->ExpBegin() && for_stmt->ExpEnd() && LookupNodeType(for_stmt->ExpBegin().get()) == T_INT &&
-                               LookupNodeType(for_stmt->ExpEnd().get()) == T_INT &&
+    const bool typed_int_for = for_stmt->ExpBegin() && for_stmt->ExpEnd() && LookupNodeType(for_stmt->ExpBegin().get()) == T_INT && LookupNodeType(for_stmt->ExpEnd().get()) == T_INT &&
                                (!for_stmt->ExpStep() || LookupNodeType(for_stmt->ExpStep().get()) == T_INT);
     if (typed_int_for) {
         CompileTypedNumericForLoop(for_stmt, T_INT);
@@ -1221,12 +1203,10 @@ void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     // T_FLOAT 快路径：所有边界为数值（T_INT 或 T_FLOAT）但并非全为 T_INT。
-    const bool step_is_numeric = !for_stmt->ExpStep() || LookupNodeType(for_stmt->ExpStep().get()) == T_INT ||
-                                 LookupNodeType(for_stmt->ExpStep().get()) == T_FLOAT;
-    const bool typed_float_for =
-            !typed_int_for && for_stmt->ExpBegin() && for_stmt->ExpEnd() &&
-            (LookupNodeType(for_stmt->ExpBegin().get()) == T_INT || LookupNodeType(for_stmt->ExpBegin().get()) == T_FLOAT) &&
-            (LookupNodeType(for_stmt->ExpEnd().get()) == T_INT || LookupNodeType(for_stmt->ExpEnd().get()) == T_FLOAT) && step_is_numeric;
+    const bool step_is_numeric = !for_stmt->ExpStep() || LookupNodeType(for_stmt->ExpStep().get()) == T_INT || LookupNodeType(for_stmt->ExpStep().get()) == T_FLOAT;
+    const bool typed_float_for = !typed_int_for && for_stmt->ExpBegin() && for_stmt->ExpEnd() &&
+                                 (LookupNodeType(for_stmt->ExpBegin().get()) == T_INT || LookupNodeType(for_stmt->ExpBegin().get()) == T_FLOAT) &&
+                                 (LookupNodeType(for_stmt->ExpEnd().get()) == T_INT || LookupNodeType(for_stmt->ExpEnd().get()) == T_FLOAT) && step_is_numeric;
     if (typed_float_for) {
         CompileTypedNumericForLoop(for_stmt, T_FLOAT);
         return;
@@ -1252,8 +1232,7 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
         is_constant_step = true;
         step_double_val = 1.0;
         step_int_val = 1;
-    } else if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep());
-               step_exp && step_exp->GetExpKind() == ExpKind::kNumber) {
+    } else if (const auto step_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(for_stmt->ExpStep()); step_exp && step_exp->GetExpKind() == ExpKind::kNumber) {
         is_constant_step = true;
         if (loop_type == T_INT) {
             step_int_val = ToInteger(step_exp->ExpValue());
@@ -1261,8 +1240,7 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
                 ThrowError("'for' step is zero", for_stmt->ExpStep());
             }
         } else {
-            step_double_val = (LookupNodeType(step_exp.get()) == T_INT) ? static_cast<double>(ToInteger(step_exp->ExpValue()))
-                                                                        : ToFloat(step_exp->ExpValue());
+            step_double_val = (LookupNodeType(step_exp.get()) == T_INT) ? static_cast<double>(ToInteger(step_exp->ExpValue())) : ToFloat(step_exp->ExpValue());
             if (step_double_val == 0.0) {
                 ThrowError("'for' step is zero", for_stmt->ExpStep());
             }
@@ -1286,15 +1264,13 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
                 if (step_int_val == 1) {
                     Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << "++) {\n";
                 } else {
-                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << " += " << step_int_val
-                          << ") {\n";
+                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << " += " << step_int_val << ") {\n";
                 }
             } else {
                 if (step_int_val == -1) {
                     Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << "--) {\n";
                 } else {
-                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << " += " << step_int_val
-                          << ") {\n";
+                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << " += " << step_int_val << ") {\n";
                 }
             }
         } else {
@@ -1302,15 +1278,13 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
                 if (step_double_val == 1.0) {
                     Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << "++) {\n";
                 } else {
-                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << " += " << step_double_val
-                          << ") {\n";
+                    Out() << GenTab() << "for (; " << ctrl_var << " <= " << end_var << "; " << ctrl_var << " += " << step_double_val << ") {\n";
                 }
             } else {
                 if (step_double_val == -1.0) {
                     Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << "--) {\n";
                 } else {
-                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << " += " << step_double_val
-                          << ") {\n";
+                    Out() << GenTab() << "for (; " << ctrl_var << " >= " << end_var << "; " << ctrl_var << " += " << step_double_val << ") {\n";
                 }
             }
         }
@@ -1318,8 +1292,8 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
         const auto native_step = CompileNumericExp(for_stmt->ExpStep());
         Out() << GenTab() << step_var << " = " << cast_prefix << "(" << native_step << ");\n";
         Out() << GenTab() << "if (UNLIKELY(" << step_var << " == " << zero_str << ")) { FakeluaThrowError(_S, \"'for' step is zero\"); }\n";
-        Out() << GenTab() << "for (; (" << step_var << " > " << zero_str << ") ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var
-              << " >= " << end_var << "); " << ctrl_var << " += " << step_var << ") {\n";
+        Out() << GenTab() << "for (; (" << step_var << " > " << zero_str << ") ? (" << ctrl_var << " <= " << end_var << ") : (" << ctrl_var << " >= " << end_var << "); " << ctrl_var
+              << " += " << step_var << ") {\n";
     }
     cur_tab_++;
     EnterNativeVarScope();
@@ -1563,8 +1537,7 @@ std::string CGen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe, bool preser
             return call;
         }
         std::string callee = ar().callee_names.contains(value.get()) ? ar().callee_names.at(value.get()) : "";
-        bool is_single_return_local =
-                !callee.empty() && ar().function_max_returns.contains(callee) && ar().function_max_returns.at(callee) == 1;
+        bool is_single_return_local = !callee.empty() && ar().function_max_returns.contains(callee) && ar().function_max_returns.at(callee) == 1;
         if (is_single_return_local) {
             return call;
         }
@@ -1618,8 +1591,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 DEBUG_ASSERT(fkind == FieldKind::kArray);
                 if (const auto key = field_ptr->Key()) {
                     // Check if key is a string literal for the fast path.
-                    if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(key);
-                        key_exp && key_exp->GetExpKind() == ExpKind::kString) {
+                    if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(key); key_exp && key_exp->GetExpKind() == ExpKind::kString) {
                         const auto id = s_->GetConstString().Alloc(key_exp->ExpValue());
                         Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
                     } else {
@@ -1810,11 +1782,9 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxT
     return tmp;
 }
 
-std::string CGen::CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
-                                          InferredType lt, InferredType rt) {
-    static const std::unordered_set<BinOpKind> kNativeArithOps = {
-            BinOpKind::kPlus, BinOpKind::kMinus,  BinOpKind::kStar, BinOpKind::kSlash, BinOpKind::kDoubleSlash, BinOpKind::kPow,
-            BinOpKind::kMod,  BinOpKind::kBitAnd, BinOpKind::kXor,  BinOpKind::kBitOr, BinOpKind::kLeftShift,   BinOpKind::kRightShift};
+std::string CGen::CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType lt, InferredType rt) {
+    static const std::unordered_set<BinOpKind> kNativeArithOps = {BinOpKind::kPlus, BinOpKind::kMinus,  BinOpKind::kStar, BinOpKind::kSlash, BinOpKind::kDoubleSlash, BinOpKind::kPow,
+                                                                  BinOpKind::kMod,  BinOpKind::kBitAnd, BinOpKind::kXor,  BinOpKind::kBitOr, BinOpKind::kLeftShift,   BinOpKind::kRightShift};
 
     if (!kNativeArithOps.contains(op_kind)) {
         return "";
@@ -1823,8 +1793,7 @@ std::string CGen::CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, co
     InferredType result_type;
     if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
         result_type = T_FLOAT;
-    } else if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr ||
-               op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
+    } else if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
         result_type = T_INT;
     } else {
         result_type = (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
@@ -1838,8 +1807,7 @@ std::string CGen::CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, co
     return tmp;
 }
 
-std::string CGen::CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
-                                             InferredType result_type) {
+std::string CGen::CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType result_type) {
     const auto left_native = CompileNumericExp(left);
     const auto right_native = CompileNumericExp(right);
 
@@ -1894,8 +1862,7 @@ std::string CGen::CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left,
         Out() << GenTab() << std::format("FlModFloat((double)({}), (double)({}), {});\n", left_native, right_native, ntmp);
         return ntmp;
     }
-    if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kLeftShift ||
-        op_kind == BinOpKind::kRightShift) {
+    if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
         const auto left_int = to_int_operand(left, left_native);
         const auto right_int = to_int_operand(right, right_native);
         if (op_kind == BinOpKind::kBitAnd) {
@@ -1923,8 +1890,7 @@ std::string CGen::CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left,
     return "";
 }
 
-std::string CGen::CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
-                                        InferredType lt, InferredType rt) {
+std::string CGen::CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType lt, InferredType rt) {
     if (const auto cmp_it = kCmpOpMap.find(op_kind); cmp_it != kCmpOpMap.end()) {
         if ((lt == T_INT || lt == T_FLOAT) && (rt == T_INT || rt == T_FLOAT)) {
             const auto left_native = TryCompileNativeExpr(left);
@@ -1996,8 +1962,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
     DEBUG_ASSERT(v->Type() == SyntaxTreeType::Var);
     auto v_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(v);
 
-    DEBUG_ASSERT(v_ptr->GetVarKind() == VarKind::kSimple || v_ptr->GetVarKind() == VarKind::kSquare ||
-                 v_ptr->GetVarKind() == VarKind::kDot);
+    DEBUG_ASSERT(v_ptr->GetVarKind() == VarKind::kSimple || v_ptr->GetVarKind() == VarKind::kSquare || v_ptr->GetVarKind() == VarKind::kDot);
 
     if (const auto var_kind = v_ptr->GetVarKind(); var_kind == VarKind::kSimple) {
         const auto &name = v_ptr->GetName();
@@ -2127,17 +2092,14 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
         if (op_kind == BinOpKind::kOr) {
             // Pattern match Lua ternary: (cond and val1) or val2
             if (e->Left()->Type() == SyntaxTreeType::Exp) {
-                if (const auto left_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(e->Left());
-                    left_exp && left_exp->GetExpKind() == ExpKind::kBinop) {
-                    if (const auto left_op = std::dynamic_pointer_cast<SyntaxTreeBinop>(left_exp->Op());
-                        left_op && left_op->GetOpKind() == BinOpKind::kAnd) {
+                if (const auto left_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(e->Left()); left_exp && left_exp->GetExpKind() == ExpKind::kBinop) {
+                    if (const auto left_op = std::dynamic_pointer_cast<SyntaxTreeBinop>(left_exp->Op()); left_op && left_op->GetOpKind() == BinOpKind::kAnd) {
                         const auto cond = left_exp->Left();
                         const auto val1 = left_exp->Right();
                         const auto val2 = e->Right();
 
                         const auto cond_bool = TryCompileNativeBoolExpr(cond);
-                        const auto cond_str =
-                                !cond_bool.empty() ? std::format("({})", cond_bool) : std::format("FlIsTrue({})", CompileExp(cond));
+                        const auto cond_str = !cond_bool.empty() ? std::format("({})", cond_bool) : std::format("FlIsTrue({})", CompileExp(cond));
 
                         const auto val1_str = CompileNumericExp(val1);
                         const auto val2_str = CompileNumericExp(val2);
@@ -2288,8 +2250,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     // 尝试直接调用优化：若被调函数是含有数学参数的本地函数，
     // 且所有数学参数的实参类型均已知，则直接发出特化调用。
     if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar && args_kind == ArgsKind::kExpList) {
-        if (const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
-            callee_var && callee_var->GetVarKind() == VarKind::kSimple) {
+        if (const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue()); callee_var && callee_var->GetVarKind() == VarKind::kSimple) {
             const auto &callee_name = callee_var->GetName();
             if (const auto math_it = ir().math_param_positions.find(callee_name); math_it != ir().math_param_positions.end()) {
                 const auto &math_params = math_it->second;
@@ -2354,8 +2315,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             func_temp_decls_ << "    CVar " << tmp << ";\n";
 
             // Check if key (arg[1]) is a string literal → use FlSetTableStrId.
-            if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[1]);
-                key_exp && key_exp->GetExpKind() == ExpKind::kString) {
+            if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[1]); key_exp && key_exp->GetExpKind() == ExpKind::kString) {
                 const auto &key_name = key_exp->ExpValue();
                 const auto id = s_->GetConstString().Alloc(key_name);
                 const auto tbl_str = CompileExp(raw_args[0]);
@@ -2398,8 +2358,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
 
         bool last_is_func = !raw_args.empty() && ar().function_call_exps.contains(raw_args.back().get());
         std::string last_callee = last_is_func ? ar().callee_names.at(raw_args.back().get()) : "";
-        bool is_last_single_return_local =
-                !last_callee.empty() && ar().function_max_returns.contains(last_callee) && ar().function_max_returns.at(last_callee) == 1;
+        bool is_last_single_return_local = !last_callee.empty() && ar().function_max_returns.contains(last_callee) && ar().function_max_returns.at(last_callee) == 1;
 
         if (last_is_func && !is_last_single_return_local) {
             has_expansion = true;
@@ -2422,8 +2381,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     } else if (args_kind == ArgsKind::kString) {
         compiled_args.push_back(CompileExp(args_ptr->String()));
     }
-    DEBUG_ASSERT(pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar &&
-                 "callee must be variable prefixexp (PreProcessor should have caught it)");
+    DEBUG_ASSERT(pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar && "callee must be variable prefixexp (PreProcessor should have caught it)");
     const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
     DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple && "callee must be simple variable (PreProcessor should have caught it)");
     const auto &func_name = var->GetName();
@@ -2444,9 +2402,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             }
         }
         if (static_cast<int>(compiled_args.size()) != expected_params) {
-            ThrowError(
-                    std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, expected_params, compiled_args.size()),
-                    functioncall);
+            ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, expected_params, compiled_args.size()), functioncall);
         }
         call_expr = func_name + "(";
         for (size_t i = 0; i < compiled_args.size(); ++i) {
