@@ -10,13 +10,11 @@ class VmFunction {
 public:
     VmFunction() = default;
 
-    VmFunction(std::string name, int arg_count, JITType jit_type, void *func_addr, const JITHandlePtr &jit_handle)
-        : name_(std::move(name)), arg_count_(arg_count) {
+    VmFunction(std::string name, int arg_count, JITType jit_type, void *func_addr, const JITHandlePtr &jit_handle) : name_(std::move(name)), arg_count_(arg_count) {
         DEBUG_ASSERT(jit_type >= 0 && jit_type < JIT_MAX);
         func_addr_[jit_type] = func_addr;
         handle_[jit_type] = jit_handle;
     }
-
 
     [[nodiscard]] bool Empty() const {
         return name_.empty();

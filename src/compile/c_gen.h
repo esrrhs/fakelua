@@ -31,9 +31,11 @@ private:
     struct SectionGuard {
         CGen &gen;
         Section prev;
+
         SectionGuard(CGen &g, Section s) : gen(g), prev(g.cur_section_) {
             gen.cur_section_ = s;
         }
+
         ~SectionGuard() {
             gen.cur_section_ = prev;
         }
@@ -70,7 +72,7 @@ private:
 
         // 判断变量是否已声明为非 CVar 的原生类型（int64_t / double）。
         [[nodiscard]] bool IsTyped(const std::string &name) const {
-            for (const auto &scope : std::views::reverse(scopes_)) {
+            for (const auto &scope: std::views::reverse(scopes_)) {
                 if (const auto it = scope.find(name); it != scope.end()) {
                     return it->second != T_DYNAMIC;
                 }
@@ -80,7 +82,7 @@ private:
 
         // 返回变量声明时的原生类型，未找到时返回 T_DYNAMIC。
         [[nodiscard]] InferredType GetType(const std::string &name) const {
-            for (const auto &scope : std::views::reverse(scopes_)) {
+            for (const auto &scope: std::views::reverse(scopes_)) {
                 if (const auto it = scope.find(name); it != scope.end()) {
                     return it->second;
                 }
@@ -112,11 +114,9 @@ private:
     // 编译参数列表节点，返回 C 语言格式的参数类型和名称字符串列表
     std::vector<std::string> CompileParList(const SyntaxTreeInterfacePtr &parlist);
     // 编译具体的函数体并将其 C 代码输出至给定的流中
-    void CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params,
-                         const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out);
+    void CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params, const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out);
     // 为特定函数生成分发入口（用于处理动态调用到特化强类型调用的转发）
-    void GenerateEntryDispatcher(const std::string &func_name, const std::vector<std::string> &func_params,
-                                 const std::vector<int> &math_param_indices);
+    void GenerateEntryDispatcher(const std::string &func_name, const std::vector<std::string> &func_params, const std::vector<int> &math_param_indices);
     // 辅助工具：判断一个基本块（Block）的结尾是否显式包含 return 语句
     [[nodiscard]] static bool BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block);
     // 获取特定特化签名下函数的返回类型
@@ -189,16 +189,13 @@ private:
     std::string TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node);
 
     // 生成原生二元算术运算的代码
-    std::string CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
-                                        InferredType lt, InferredType rt);
+    std::string CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType lt, InferredType rt);
     // 生成底层未包装的原生算术/位运算表达式源码
-    std::string CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
-                                           InferredType result_type);
+    std::string CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType result_type);
     // 生成底层未包装的原生一元运算表达式源码
     std::string CompileRawNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType rt);
     // 生成原生二元比较运算的代码
-    std::string CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind,
-                                      InferredType lt, InferredType rt);
+    std::string CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType lt, InferredType rt);
     // 生成原生一元运算的代码
     std::string CompileNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType rt);
 
@@ -207,11 +204,9 @@ private:
     // 为特化签名调用推断特定的参数类型
     [[nodiscard]] InferredType InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const;
     // 尝试推断数学特化库调用的参数掩码（bitmask）
-    [[nodiscard]] bool TryInferMathCallBitmask(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args,
-                                               int &bitmask) const;
+    [[nodiscard]] bool TryInferMathCallBitmask(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args, int &bitmask) const;
     // 尝试推断数学库特化调用的参数掩码与特化返回类型
-    [[nodiscard]] bool TryInferMathCallSpec(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args,
-                                            int &bitmask, InferredType &spec_ret) const;
+    [[nodiscard]] bool TryInferMathCallSpec(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args, int &bitmask, InferredType &spec_ret) const;
     // 根据 AST 节点指针在当前快照中查找推断出的类型
     [[nodiscard]] InferredType LookupNodeType(SyntaxTreeInterface *node) const;
 
@@ -219,22 +214,27 @@ private:
     void EnterNativeVarScope() {
         native_var_scope_.Enter();
     }
+
     // 退出当前局部原生变量类型作用域
     void ExitNativeVarScope() {
         native_var_scope_.Exit();
     }
+
     // 在当前局部原生作用域中声明一个具有强类型的原生 C 变量
     void DeclareNativeVar(const std::string &name, InferredType native_type) {
         native_var_scope_.Declare(name, native_type);
     }
+
     // 检查变量是否为已知强类型的原生变量
     [[nodiscard]] bool IsTypedNativeVar(const std::string &name) const {
         return native_var_scope_.IsTyped(name);
     }
+
     // 获取原生强类型变量在作用域中的推断类型
     [[nodiscard]] InferredType GetNativeVarType(const std::string &name) const {
         return native_var_scope_.GetType(name);
     }
+
     // 快捷访问推断器全局上下文结果
     [[nodiscard]] const InferResult &ir() const {
         return ir_->get();
@@ -259,12 +259,12 @@ private:
     }
 
 private:
-    State *s_;                                                   // 全局虚拟机状态 State 引用
-    std::string file_name_;                                      // 当前编译的源码文件名称
-    std::optional<std::reference_wrapper<const InferResult>> ir_;// 全局类型推断结果快照引用
+    State *s_;                                                      // 全局虚拟机状态 State 引用
+    std::string file_name_;                                         // 当前编译的源码文件名称
+    std::optional<std::reference_wrapper<const InferResult>> ir_;   // 全局类型推断结果快照引用
     std::optional<std::reference_wrapper<const AnalysisResult>> ar_;// 语义与控制流分析结果引用
 
-    int tmp_var_counter_ = 0;                                        // 临时变量生成计数器
+    int tmp_var_counter_ = 0;// 临时变量生成计数器
 
     std::unordered_map<std::string, int> local_func_names_;// 本地函数（非全局）的名称映射及作用域标识
 

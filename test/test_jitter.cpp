@@ -1,11 +1,11 @@
 #include "compile/compiler.h"
 #include "fakelua.h"
+#include "state/const_string.h"
+#include "state/state.h"
+#include "var/var_multi.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
-#include "var/var_multi.h"
 #include "var/var_type.h"
-#include "state/state.h"
-#include "state/const_string.h"
 #include "gtest/gtest.h"
 
 using namespace fakelua;
@@ -25,8 +25,7 @@ static void JitterRunHelper(const std::function<void(State *, JITType, bool)> &f
 }
 
 TEST(jitter, empty_file) {
-    JitterRunHelper(
-            [](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_empty_file.lua", {.debug_mode = debug_mode}); });
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_empty_file.lua", {.debug_mode = debug_mode}); });
 }
 
 TEST(jitter, empty_func) {
@@ -56,16 +55,16 @@ TEST(jitter, multi_return) {
         Call(s, type, "test", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
         VarMulti *m = ret.data_.m;
-        ASSERT_EQ(m->count, 5);
-        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[0].data_.i, 1);
-        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Float));
-        ASSERT_DOUBLE_EQ(m->vars[1].data_.f, 2.3);
-        ASSERT_EQ(m->vars[2].type_, static_cast<int>(VarType::Bool));
-        ASSERT_FALSE(m->vars[2].data_.b);
-        ASSERT_EQ(m->vars[3].type_, static_cast<int>(VarType::Bool));
-        ASSERT_TRUE(m->vars[3].data_.b);
-        ASSERT_EQ(m->vars[4].type_, static_cast<int>(VarType::StringId));
+        ASSERT_EQ(m->GetCount(), 5);
+        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[0].data_.i, 1);
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Float));
+        ASSERT_DOUBLE_EQ(m->GetVars()[1].data_.f, 2.3);
+        ASSERT_EQ(m->GetVars()[2].type_, static_cast<int>(VarType::Bool));
+        ASSERT_FALSE(m->GetVars()[2].data_.b);
+        ASSERT_EQ(m->GetVars()[3].type_, static_cast<int>(VarType::Bool));
+        ASSERT_TRUE(m->GetVars()[3].data_.b);
+        ASSERT_EQ(m->GetVars()[4].type_, static_cast<int>(VarType::StringId));
     });
 }
 
@@ -76,12 +75,12 @@ TEST(jitter, multi_return_call) {
         Call(s, type, "test", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
         VarMulti *m = ret.data_.m;
-        ASSERT_EQ(m->count, 3);
-        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::StringId));
-        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[1].data_.i, 1);
-        ASSERT_EQ(m->vars[2].type_, static_cast<int>(VarType::Float));
-        ASSERT_DOUBLE_EQ(m->vars[2].data_.f, 2.3);
+        ASSERT_EQ(m->GetCount(), 3);
+        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::StringId));
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[1].data_.i, 1);
+        ASSERT_EQ(m->GetVars()[2].type_, static_cast<int>(VarType::Float));
+        ASSERT_DOUBLE_EQ(m->GetVars()[2].data_.f, 2.3);
     });
 }
 
@@ -92,12 +91,12 @@ TEST(jitter, multi_return_call_ex) {
         Call(s, type, "test", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
         VarMulti *m = ret.data_.m;
-        ASSERT_EQ(m->count, 3);
-        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::StringId));
-        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[1].data_.i, 1);
-        ASSERT_EQ(m->vars[2].type_, static_cast<int>(VarType::Float));
-        ASSERT_DOUBLE_EQ(m->vars[2].data_.f, 2.4);
+        ASSERT_EQ(m->GetCount(), 3);
+        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::StringId));
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[1].data_.i, 1);
+        ASSERT_EQ(m->GetVars()[2].type_, static_cast<int>(VarType::Float));
+        ASSERT_DOUBLE_EQ(m->GetVars()[2].data_.f, 2.4);
     });
 }
 
@@ -108,12 +107,12 @@ TEST(jitter, multi_return_sub) {
         Call(s, type, "test", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
         VarMulti *m = ret.data_.m;
-        ASSERT_EQ(m->count, 3);
-        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::StringId));
-        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[1].data_.i, 1);
-        ASSERT_EQ(m->vars[2].type_, static_cast<int>(VarType::Float));
-        ASSERT_DOUBLE_EQ(m->vars[2].data_.f, 2.3);
+        ASSERT_EQ(m->GetCount(), 3);
+        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::StringId));
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[1].data_.i, 1);
+        ASSERT_EQ(m->GetVars()[2].type_, static_cast<int>(VarType::Float));
+        ASSERT_DOUBLE_EQ(m->GetVars()[2].data_.f, 2.3);
     });
 }
 
@@ -124,17 +123,17 @@ TEST(jitter, multi_return_multi) {
         Call(s, type, "test", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
         VarMulti *m = ret.data_.m;
-        ASSERT_EQ(m->count, 5);
-        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[0].data_.i, 1);
-        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[1].data_.i, 2);
-        ASSERT_EQ(m->vars[2].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[2].data_.i, 3);
-        ASSERT_EQ(m->vars[3].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[3].data_.i, 4);
-        ASSERT_EQ(m->vars[4].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[4].data_.i, 5);
+        ASSERT_EQ(m->GetCount(), 5);
+        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[0].data_.i, 1);
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[1].data_.i, 2);
+        ASSERT_EQ(m->GetVars()[2].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[2].data_.i, 3);
+        ASSERT_EQ(m->GetVars()[3].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[3].data_.i, 4);
+        ASSERT_EQ(m->GetVars()[4].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[4].data_.i, 5);
     });
 }
 
@@ -145,15 +144,15 @@ TEST(jitter, multi_return_multi_ex) {
         Call(s, type, "test", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
         VarMulti *m = ret.data_.m;
-        ASSERT_EQ(m->count, 4);
-        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[0].data_.i, 1);
-        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[1].data_.i, 2);
-        ASSERT_EQ(m->vars[2].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[2].data_.i, 3);
-        ASSERT_EQ(m->vars[3].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[3].data_.i, 6);
+        ASSERT_EQ(m->GetCount(), 4);
+        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[0].data_.i, 1);
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[1].data_.i, 2);
+        ASSERT_EQ(m->GetVars()[2].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[2].data_.i, 3);
+        ASSERT_EQ(m->GetVars()[3].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[3].data_.i, 6);
     });
 }
 
@@ -239,27 +238,27 @@ TEST(jitter, multi_return_expr_arith) {
         // 加法
         Call(s, type, "test_plus", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(ret.data_.i, 15); // 5 + 10
+        ASSERT_EQ(ret.data_.i, 15);// 5 + 10
 
         // 减法
         Call(s, type, "test_minus", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(ret.data_.i, -90); // 10 - 100
+        ASSERT_EQ(ret.data_.i, -90);// 10 - 100
 
         // 等于比较
         Call(s, type, "test_compare_eq", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Bool));
-        ASSERT_TRUE(ret.data_.b); // 10 == 10
+        ASSERT_TRUE(ret.data_.b);// 10 == 10
 
         // 逻辑非
         Call(s, type, "test_logical_not", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Bool));
-        ASSERT_FALSE(ret.data_.b); // not 10
+        ASSERT_FALSE(ret.data_.b);// not 10
 
         // 长度运算符
         Call(s, type, "test_unop_len", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(ret.data_.i, 5); // #"hello"
+        ASSERT_EQ(ret.data_.i, 5);// #"hello"
 
         // string concatenation
         Call(s, type, "test_concat", ret);
@@ -296,7 +295,7 @@ TEST(jitter, multi_return_expr_control) {
         // for参数
         Call(s, type, "test_for", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(ret.data_.i, 15); // 1 + 2 + 3 + 4 + 5
+        ASSERT_EQ(ret.data_.i, 15);// 1 + 2 + 3 + 4 + 5
     });
 }
 
@@ -307,11 +306,11 @@ TEST(jitter, multi_return_expr_assign) {
         Call(s, type, "test", ret);
         ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
         VarMulti *m = ret.data_.m;
-        ASSERT_EQ(m->count, 2);
-        ASSERT_EQ(m->vars[0].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[0].data_.i, 10);
-        ASSERT_EQ(m->vars[1].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->vars[1].data_.i, 100);
+        ASSERT_EQ(m->GetCount(), 2);
+        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[0].data_.i, 10);
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[1].data_.i, 100);
     });
 }
 
@@ -416,6 +415,7 @@ TEST(jitter, string) {
         ASSERT_EQ(ret, 1);
     });
 }
+
 //
 TEST(jitter, local_define) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -448,6 +448,7 @@ TEST(jitter, local_define_with_values) {
         ASSERT_EQ(v5.Type(), VarType::Nil);
     });
 }
+
 //
 TEST(jitter, test_assign) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -460,6 +461,7 @@ TEST(jitter, test_assign) {
         ASSERT_EQ(b, "2");
     });
 }
+
 //
 // Mismatched var/exp counts (e.g. a, b = 1) are rejected by PreprocessSplitAssign
 TEST(jitter, test_assign_not_match) {
@@ -545,8 +547,7 @@ TEST(jitter, test_local_table) {
         dynamic_cast<SimpleVarImpl *>(t1)->ViSortTable();
         dynamic_cast<SimpleVarImpl *>(t2)->ViSortTable();
         dynamic_cast<SimpleVarImpl *>(t3)->ViSortTable();
-        ASSERT_EQ(t1->ViToString(0),
-                  "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
+        ASSERT_EQ(t1->ViToString(0), "table:\n\t[1] = 1\n\t[2] = 2\n\t[3] = 3\n\t[4] = 4\n\t[5] = 5\n\t[6] = 6\n\t[7] = 7\n\t[8] = 8\n\t[9] = 9\n\t[10] = 10");
         ASSERT_EQ(t2->ViToString(0), "table:\n\t[\"a\"] = 1\n\t[\"b\"] = 2\n\t[\"c\"] = 3");
         ASSERT_EQ(t3->ViToString(0), "table:\n\t[1] = 1\n\t[2] = 3\n\t[3] = 5\n\t[\"b\"] = 2\n\t[\"d\"] = 4");
     });
@@ -572,9 +573,8 @@ TEST(jitter, test_local_nested_table) {
 
         // need sort kv
         dynamic_cast<SimpleVarImpl *>(t)->ViSortTable();
-        ASSERT_EQ(t->ViToString(0),
-                  "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
-                  "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
+        ASSERT_EQ(t->ViToString(0), "table:\n\t[\"array\"] = table:\n\t\t[1] = 1\n\t\t[2] = 2\n\t\t[3] = 3\n\t[\"map\"] = table:\n\t\t[\"a\"] "
+                                    "= 1\n\t\t[\"b\"] = 2\n\t\t[\"c\"] = 3");
     });
     for (auto &i: tmp) {
         delete i;
@@ -1301,6 +1301,7 @@ TEST(jitter, test_do_block) {
         ASSERT_EQ(ret, 1);
     });
 }
+
 TEST(jitter, test_while) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_while.lua", {.debug_mode = debug_mode});
@@ -1312,6 +1313,7 @@ TEST(jitter, test_while) {
         ASSERT_EQ(ret2, "a22");
     });
 }
+
 TEST(jitter, test_repeat) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_repeat.lua", {.debug_mode = debug_mode});
@@ -1323,6 +1325,7 @@ TEST(jitter, test_repeat) {
         ASSERT_EQ(ret2, "a22");
     });
 }
+
 TEST(jitter, test_while_double) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_while_double.lua", {.debug_mode = debug_mode});
@@ -1331,6 +1334,7 @@ TEST(jitter, test_while_double) {
         ASSERT_EQ(ret, 18);
     });
 }
+
 TEST(jitter, test_repeat_double) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_repeat_double.lua", {.debug_mode = debug_mode});
@@ -1339,6 +1343,7 @@ TEST(jitter, test_repeat_double) {
         ASSERT_EQ(ret, 18);
     });
 }
+
 //
 TEST(jitter, test_if) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -1438,6 +1443,7 @@ TEST(jitter, test_while_return) {
         ASSERT_EQ(ret, 2);
     });
 }
+
 TEST(jitter, test_repeat_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_repeat_return.lua", {.debug_mode = debug_mode});
@@ -1446,6 +1452,7 @@ TEST(jitter, test_repeat_return) {
         ASSERT_EQ(ret, 4);
     });
 }
+
 TEST(jitter, test_while_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_while_break.lua", {.debug_mode = debug_mode});
@@ -1454,6 +1461,7 @@ TEST(jitter, test_while_break) {
         ASSERT_EQ(ret, 11);
     });
 }
+
 TEST(jitter, test_repeat_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_repeat_break.lua", {.debug_mode = debug_mode});
@@ -1462,6 +1470,7 @@ TEST(jitter, test_repeat_break) {
         ASSERT_EQ(ret, 11);
     });
 }
+
 TEST(jitter, test_while_if_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_while_if_return.lua", {.debug_mode = debug_mode});
@@ -1472,6 +1481,7 @@ TEST(jitter, test_while_if_return) {
         ASSERT_EQ(ret, 4);
     });
 }
+
 TEST(jitter, test_repeat_if_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_repeat_if_return.lua", {.debug_mode = debug_mode});
@@ -1482,6 +1492,7 @@ TEST(jitter, test_repeat_if_return) {
         ASSERT_EQ(ret, 4);
     });
 }
+
 TEST(jitter, test_for_loop) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop.lua", {.debug_mode = debug_mode});
@@ -1490,6 +1501,7 @@ TEST(jitter, test_for_loop) {
         ASSERT_EQ(ret, 8);
     });
 }
+
 TEST(jitter, test_for_loop_default) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_default.lua", {.debug_mode = debug_mode});
@@ -1498,6 +1510,7 @@ TEST(jitter, test_for_loop_default) {
         ASSERT_EQ(ret, 12);
     });
 }
+
 TEST(jitter, test_for_loop_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_return.lua", {.debug_mode = debug_mode});
@@ -1508,6 +1521,7 @@ TEST(jitter, test_for_loop_return) {
         ASSERT_EQ(ret, 0);
     });
 }
+
 TEST(jitter, test_while_just_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_while_just_break.lua", {.debug_mode = debug_mode});
@@ -1518,6 +1532,7 @@ TEST(jitter, test_while_just_break) {
         ASSERT_EQ(ret, 5);
     });
 }
+
 TEST(jitter, test_repeat_just_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_repeat_just_break.lua", {.debug_mode = debug_mode});
@@ -1528,6 +1543,7 @@ TEST(jitter, test_repeat_just_break) {
         ASSERT_EQ(ret, 4);
     });
 }
+
 TEST(jitter, test_for_loop_double) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_double.lua", {.debug_mode = debug_mode});
@@ -1536,6 +1552,7 @@ TEST(jitter, test_for_loop_double) {
         ASSERT_EQ(ret, 21);
     });
 }
+
 TEST(jitter, test_for_loop_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_break.lua", {.debug_mode = debug_mode});
@@ -1544,6 +1561,7 @@ TEST(jitter, test_for_loop_break) {
         ASSERT_EQ(ret, 4);
     });
 }
+
 TEST(jitter, test_for_loop_if_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_if_return.lua", {.debug_mode = debug_mode});
@@ -1554,6 +1572,7 @@ TEST(jitter, test_for_loop_if_return) {
         ASSERT_EQ(ret, 10);
     });
 }
+
 TEST(jitter, test_for_loop_just_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_just_break.lua", {.debug_mode = debug_mode});
@@ -1564,6 +1583,7 @@ TEST(jitter, test_for_loop_just_break) {
         ASSERT_EQ(ret, 5);
     });
 }
+
 TEST(jitter, test_for_in) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in.lua", {.debug_mode = debug_mode});
@@ -1572,6 +1592,7 @@ TEST(jitter, test_for_in) {
         ASSERT_EQ(ret, 32);
     });
 }
+
 TEST(jitter, test_for_in_double) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_double.lua", {.debug_mode = debug_mode});
@@ -1580,6 +1601,7 @@ TEST(jitter, test_for_in_double) {
         ASSERT_EQ(ret, 320);
     });
 }
+
 TEST(jitter, test_for_in_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_break.lua", {.debug_mode = debug_mode});
@@ -1588,6 +1610,7 @@ TEST(jitter, test_for_in_break) {
         ASSERT_EQ(ret, 30);
     });
 }
+
 TEST(jitter, test_for_in_if_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_if_return.lua", {.debug_mode = debug_mode});
@@ -1598,6 +1621,7 @@ TEST(jitter, test_for_in_if_return) {
         ASSERT_EQ(ret, 4);
     });
 }
+
 TEST(jitter, test_for_in_just_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_just_break.lua", {.debug_mode = debug_mode});
@@ -1606,6 +1630,7 @@ TEST(jitter, test_for_in_just_break) {
         ASSERT_EQ(ret, 3);
     });
 }
+
 TEST(jitter, test_for_in_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_return.lua", {.debug_mode = debug_mode});
@@ -1614,6 +1639,7 @@ TEST(jitter, test_for_in_return) {
         ASSERT_EQ(ret, 3);
     });
 }
+
 TEST(jitter, test_for_in_return_fallback) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_return_fallback.lua", {.debug_mode = debug_mode});
@@ -1622,6 +1648,7 @@ TEST(jitter, test_for_in_return_fallback) {
         ASSERT_EQ(ret, 0);
     });
 }
+
 //
 //
 TEST(jitter, test_local_func_call_table_construct) {
@@ -1647,8 +1674,7 @@ TEST(jitter, test_local_func_call_string) {
 // Dynamic function call via local variable: compiles successfully, but will naturally
 // fail at runtime since the local variable name "c" is used as the literal function name.
 TEST(jitter, test_var_func_call) {
-    JitterRunHelper(
-            [](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_var_func_call.lua", {.debug_mode = debug_mode}); });
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_var_func_call.lua", {.debug_mode = debug_mode}); });
 }
 
 // Dynamic function call via table index (c[k](a,b)) is not supported.
@@ -1678,7 +1704,6 @@ TEST(jitter, test_table_get_set) {
         ASSERT_EQ(ret, 3);
     });
 }
-
 
 TEST(jitter, test_table_stringid_dynamic_get) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -1942,9 +1967,7 @@ TEST(jitter, test_for_loop_zero_step_float) {
 // cannot be caught in a unit test.  This test verifies only that the Lua code
 // compiles without error.
 TEST(jitter, test_for_loop_zero_step_dynamic) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        EXPECT_NO_THROW(CompileFile(s, "./jit/test_for_loop_zero_step_dynamic.lua", {.debug_mode = debug_mode}));
-    });
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) { EXPECT_NO_THROW(CompileFile(s, "./jit/test_for_loop_zero_step_dynamic.lua", {.debug_mode = debug_mode})); });
 }
 
 // ForIn with only 1 loop variable (key only, no value variable).
@@ -2179,24 +2202,30 @@ TEST(jitter, test_specs_helper) {
 }
 
 TEST(jitter, test_dup_const_error) {
-    EXPECT_THROW({
-        FakeluaStateGuard sg;
-        CompileFile(sg.GetState(), "./jit/test_dup_const_error.lua", {.debug_mode = true});
-    }, std::exception);
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_dup_const_error.lua", {.debug_mode = true});
+            },
+            std::exception);
 }
 
 TEST(jitter, test_dup_param_error) {
-    EXPECT_THROW({
-        FakeluaStateGuard sg;
-        CompileFile(sg.GetState(), "./jit/test_dup_param_error.lua", {.debug_mode = true});
-    }, std::exception);
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_dup_param_error.lua", {.debug_mode = true});
+            },
+            std::exception);
 }
 
 TEST(jitter, test_shadow_const_error) {
-    EXPECT_THROW({
-        FakeluaStateGuard sg;
-        CompileFile(sg.GetState(), "./jit/test_shadow_const_error.lua", {.debug_mode = true});
-    }, std::exception);
+    EXPECT_THROW(
+            {
+                FakeluaStateGuard sg;
+                CompileFile(sg.GetState(), "./jit/test_shadow_const_error.lua", {.debug_mode = true});
+            },
+            std::exception);
 }
 
 TEST(jitter, test_native_binop) {
@@ -2231,9 +2260,7 @@ TEST(jitter, math_spec_dynamic_call_fallback) {
 TEST(jitter, math_spec_string_arg_call) {
     // Verifies that calling a math-specialized function with a string literal arg compiles correctly.
     // The function itself would fail at runtime (arithmetic on string), so we only verify compilation.
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_math_spec_string_arg_call.lua", {.debug_mode = debug_mode});
-    });
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_math_spec_string_arg_call.lua", {.debug_mode = debug_mode}); });
 }
 
 TEST(jitter, bitwise_and_on_float_param) {
@@ -2523,13 +2550,7 @@ TEST(jitter, shadow_global_const_error) {
 }
 
 TEST(jitter, test_math_spec_too_few_args) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        EXPECT_THROW(
-                {
-                    CompileFile(s, "./jit/test_math_spec_too_few_args.lua", {.debug_mode = debug_mode});
-                },
-                std::exception);
-    });
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) { EXPECT_THROW({ CompileFile(s, "./jit/test_math_spec_too_few_args.lua", {.debug_mode = debug_mode}); }, std::exception); });
 }
 
 TEST(jitter, test_shadow_typed_local) {
@@ -2755,17 +2776,11 @@ TEST(jitter, test_edge_cases) {
     });
 }
 
-
-
 TEST(jitter, test_32params) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_32params.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
-        Call(s, type, "test_32params", ret,
-             1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-             1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-             1, 1, 1, 1, 1, 1, 1, 1, 1, 1,
-             1, 1);
+        Call(s, type, "test_32params", ret, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1);
         ASSERT_EQ(ret, 32);
     });
 }

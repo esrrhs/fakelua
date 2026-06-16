@@ -198,6 +198,7 @@ class Var;
 struct CVar {
     int type_ = 0;
     int flag_ = 0;
+
     union cvar_data {
         bool b;
         int64_t i;
@@ -206,10 +207,9 @@ struct CVar {
         VarTable *t;
         VarMulti *m;
     };
+
     cvar_data data_{};
 };
-
-
 
 // 确保 CVar 是标准布局类型（POD），以匹配 C 代码中的定义
 static_assert(std::is_standard_layout_v<CVar>, "CVar must be standard-layout for ABI compatibility");
@@ -284,6 +284,7 @@ public:
     FakeluaStateGuard(FakeluaStateGuard &&other) noexcept : state_(other.state_) {
         other.state_ = nullptr;
     }
+
     FakeluaStateGuard &operator=(FakeluaStateGuard &&other) noexcept {
         if (this != &other) {
             if (state_ != nullptr) {
@@ -533,8 +534,7 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &
     }
 
     if (sizeof...(Args) != static_cast<size_t>(arg_count)) {
-        inter::ThrowInterFakeluaException(
-                std::format("Call failed, function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
+        inter::ThrowInterFakeluaException(std::format("Call failed, function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
     }
 
     if (const auto reentrant_count = inter::GetReentrantCount(s); !reentrant_count) {
@@ -578,42 +578,43 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &
 #define CVAR_31 CVAR_30, CVar
 #define CVAR_32 CVAR_31, CVar
 
-#define CALL_CASE(N) \
-    } else if constexpr (sizeof...(Args) == N) { \
+#define CALL_CASE(N)                                                                                                                                                                                   \
+    }                                                                                                                                                                                                  \
+    else if constexpr (sizeof...(Args) == N) {                                                                                                                                                         \
         ret_var = reinterpret_cast<CVar (*)(CVAR_##N)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
 
-    CALL_CASE(1)
-    CALL_CASE(2)
-    CALL_CASE(3)
-    CALL_CASE(4)
-    CALL_CASE(5)
-    CALL_CASE(6)
-    CALL_CASE(7)
-    CALL_CASE(8)
-    CALL_CASE(9)
-    CALL_CASE(10)
-    CALL_CASE(11)
-    CALL_CASE(12)
-    CALL_CASE(13)
-    CALL_CASE(14)
-    CALL_CASE(15)
-    CALL_CASE(16)
-    CALL_CASE(17)
-    CALL_CASE(18)
-    CALL_CASE(19)
-    CALL_CASE(20)
-    CALL_CASE(21)
-    CALL_CASE(22)
-    CALL_CASE(23)
-    CALL_CASE(24)
-    CALL_CASE(25)
-    CALL_CASE(26)
-    CALL_CASE(27)
-    CALL_CASE(28)
-    CALL_CASE(29)
-    CALL_CASE(30)
-    CALL_CASE(31)
-    CALL_CASE(32)
+        CALL_CASE(1)
+        CALL_CASE(2)
+        CALL_CASE(3)
+        CALL_CASE(4)
+        CALL_CASE(5)
+        CALL_CASE(6)
+        CALL_CASE(7)
+        CALL_CASE(8)
+        CALL_CASE(9)
+        CALL_CASE(10)
+        CALL_CASE(11)
+        CALL_CASE(12)
+        CALL_CASE(13)
+        CALL_CASE(14)
+        CALL_CASE(15)
+        CALL_CASE(16)
+        CALL_CASE(17)
+        CALL_CASE(18)
+        CALL_CASE(19)
+        CALL_CASE(20)
+        CALL_CASE(21)
+        CALL_CASE(22)
+        CALL_CASE(23)
+        CALL_CASE(24)
+        CALL_CASE(25)
+        CALL_CASE(26)
+        CALL_CASE(27)
+        CALL_CASE(28)
+        CALL_CASE(29)
+        CALL_CASE(30)
+        CALL_CASE(31)
+        CALL_CASE(32)
 
 #undef CALL_CASE
 #undef CVAR_1

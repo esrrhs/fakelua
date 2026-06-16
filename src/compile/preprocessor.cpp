@@ -113,8 +113,7 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
             // 如果赋值语句中变量数量和表达式数量不匹配，且最后不是函数调用，则抛出异常
             bool last_is_func = !exps.empty() && IsFunctionCallExp(exps.back());
             if (vars.size() != exps.size() && !(last_is_func && vars.size() > exps.size())) {
-                ThrowError(std::format("PreprocessSplitAssigns: assign stmt var count {} not match exp count {}", vars.size(), exps.size()),
-                           explist_ptr);
+                ThrowError(std::format("PreprocessSplitAssigns: assign stmt var count {} not match exp count {}", vars.size(), exps.size()), explist_ptr);
             }
 
             if (vars.size() == 1) {
@@ -185,17 +184,14 @@ void PreProcessor::PreprocessTableAssign(const SyntaxTreeInterfacePtr &node) {
 
             // 此时应该都只有一个变量和一个表达式
             if (vars.size() != 1 || exps.size() != 1) {
-                ThrowError(std::format("PreprocessTableAssigns: assign stmt var count {} or exp count {} not match 1", vars.size(),
-                                       exps.size()),
-                           stmt);
+                ThrowError(std::format("PreprocessTableAssigns: assign stmt var count {} or exp count {} not match 1", vars.size(), exps.size()), stmt);
             }
 
             auto &var = vars[0];
             auto &exp = exps[0];
 
             // 检查是不是赋值的table
-            if (const auto var_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(var);
-                var_ptr->GetVarKind() == VarKind::kSquare || var_ptr->GetVarKind() == VarKind::kDot) {
+            if (const auto var_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(var); var_ptr->GetVarKind() == VarKind::kSquare || var_ptr->GetVarKind() == VarKind::kDot) {
 
                 // 转为函数调用，a.b.c = 1 -> FAKELUA_SET_TABLE(a.b, "c", 1)
                 const auto func_call = std::make_shared<SyntaxTreeFunctioncall>(stmt->Loc());
@@ -231,8 +227,6 @@ void PreProcessor::PreprocessTableAssign(const SyntaxTreeInterfacePtr &node) {
     }
     block_ptr->SetStmts(new_stmts);
 }
-
-
 
 void PreProcessor::PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &chunk) {
     LOG_INFO("start PreprocessFunctiondefLocalVars");

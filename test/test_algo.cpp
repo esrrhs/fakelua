@@ -23,8 +23,13 @@ static void AlgoRunHelper(const std::function<void(State *, JITType, bool)> &f) 
 }
 
 // Push helpers for the Lua C API.
-static void LuaPush(lua_State *L, int v) { lua_pushinteger(L, v); }
-static void LuaPush(lua_State *L, double v) { lua_pushnumber(L, v); }
+static void LuaPush(lua_State *L, int v) {
+    lua_pushinteger(L, v);
+}
+
+static void LuaPush(lua_State *L, double v) {
+    lua_pushnumber(L, v);
+}
 
 // Call a global Lua function and return its single result.
 // Ret must be int or double; Args must be int or double.
@@ -71,9 +76,7 @@ TEST(algo, fibonacci) {
         ASSERT_EQ(i, 832040);
     });
 
-    LuaAlgoRunHelper("./algo/fibonacci.lua", [](lua_State *L) {
-        ASSERT_EQ(LuaCall<int>(L, "test", 30), 832040);
-    });
+    LuaAlgoRunHelper("./algo/fibonacci.lua", [](lua_State *L) { ASSERT_EQ(LuaCall<int>(L, "test", 30), 832040); });
 }
 
 // Bubble sort: sort a 9-element array and verify element positions and sum.

@@ -45,8 +45,8 @@ std::string WinErrToString(const DWORD err) {
         return "unknown error";
     }
     LPSTR msg = nullptr;
-    const DWORD len = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr,
-                                     err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT), reinterpret_cast<LPSTR>(&msg), 0, nullptr);
+    const DWORD len = FormatMessageA(FORMAT_MESSAGE_ALLOCATE_BUFFER | FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS, nullptr, err, MAKELANGID(LANG_NEUTRAL, SUBLANG_DEFAULT),
+                                     reinterpret_cast<LPSTR>(&msg), 0, nullptr);
     if (len == 0 || !msg) {
         return std::format("error code {}", err);
     }
@@ -58,9 +58,7 @@ std::string WinErrToString(const DWORD err) {
 std::vector<std::string> GetWindowsDefaultLibraryPaths() {
     std::vector<std::string> ret;
     HMODULE module = nullptr;
-    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,
-                            reinterpret_cast<LPCSTR>(&GetWindowsDefaultLibraryPaths), &module) ||
-        !module) {
+    if (!GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, reinterpret_cast<LPCSTR>(&GetWindowsDefaultLibraryPaths), &module) || !module) {
         return ret;
     }
     char module_path[MAX_PATH] = {0};
@@ -145,12 +143,10 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 
     const int compile_status = _spawnvp(_P_WAIT, "gcc", argv.data());
     if (compile_status == -1) {
-        ThrowFakeluaException(std::format("GCC compile failed for {}: cannot execute gcc (errno {}: {}). cmd: {}", pr.file_name, errno,
-                                          std::strerror(errno), JoinCommand(args)));
+        ThrowFakeluaException(std::format("GCC compile failed for {}: cannot execute gcc (errno {}: {}). cmd: {}", pr.file_name, errno, std::strerror(errno), JoinCommand(args)));
     }
     if (compile_status != 0) {
-        ThrowFakeluaException(
-                std::format("GCC compile failed for {} with exit code {}. cmd: {}", pr.file_name, compile_status, JoinCommand(args)));
+        ThrowFakeluaException(std::format("GCC compile failed for {} with exit code {}. cmd: {}", pr.file_name, compile_status, JoinCommand(args)));
     }
 
     HMODULE module_handle = LoadLibraryA(so_file.c_str());

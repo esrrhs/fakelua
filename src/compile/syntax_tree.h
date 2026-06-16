@@ -273,7 +273,6 @@ public:
     explicit SyntaxTreeBlock(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::Block;
@@ -307,7 +306,6 @@ public:
     explicit SyntaxTreeLabel(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::Label;
@@ -334,7 +332,6 @@ class SyntaxTreeReturn final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreeReturn(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -363,7 +360,6 @@ class SyntaxTreeAssign final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreeAssign(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -404,7 +400,6 @@ public:
     explicit SyntaxTreeVarlist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::VarList;
@@ -433,7 +428,6 @@ public:
     explicit SyntaxTreeExplist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::ExpList;
@@ -461,7 +455,6 @@ class SyntaxTreeVar final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreeVar(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -534,7 +527,6 @@ public:
     explicit SyntaxTreeFunctioncall(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::FunctionCall;
@@ -585,7 +577,6 @@ public:
     explicit SyntaxTreeTableconstructor(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::TableConstructor;
@@ -614,7 +605,6 @@ public:
     explicit SyntaxTreeFieldlist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::FieldList;
@@ -642,7 +632,6 @@ class SyntaxTreeField final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreeField(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -705,7 +694,6 @@ public:
     explicit SyntaxTreeBreak(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::Break;
@@ -720,7 +708,6 @@ class SyntaxTreeGoto final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreeGoto(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -744,7 +731,6 @@ class SyntaxTreeWhile final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreeWhile(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -785,7 +771,6 @@ public:
     explicit SyntaxTreeRepeat(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::Repeat;
@@ -824,7 +809,6 @@ class SyntaxTreeIf final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreeIf(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -887,7 +871,6 @@ public:
     explicit SyntaxTreeElseiflist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::ElseIfList;
@@ -941,7 +924,6 @@ class SyntaxTreeForLoop final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreeForLoop(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1015,7 +997,6 @@ public:
     explicit SyntaxTreeForIn(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::ForIn;
@@ -1066,7 +1047,6 @@ public:
     explicit SyntaxTreeNamelist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::NameList;
@@ -1100,7 +1080,6 @@ class SyntaxTreeFunction final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreeFunction(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1141,7 +1120,6 @@ public:
     explicit SyntaxTreeFuncnamelist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::FuncNameList;
@@ -1169,7 +1147,6 @@ class SyntaxTreeFuncname final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreeFuncname(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1210,7 +1187,6 @@ public:
     explicit SyntaxTreeFuncbody(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::FuncBody;
@@ -1250,7 +1226,6 @@ public:
     explicit SyntaxTreeFunctiondef(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::FunctionDef;
@@ -1278,7 +1253,6 @@ class SyntaxTreeParlist final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreeParlist(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1319,7 +1293,6 @@ public:
     explicit SyntaxTreeLocalFunction(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::LocalFunction;
@@ -1359,7 +1332,6 @@ public:
     explicit SyntaxTreeLocalVar(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::LocalVar;
@@ -1398,7 +1370,6 @@ class SyntaxTreeExp final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreeExp(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1472,7 +1443,6 @@ public:
     explicit SyntaxTreeBinop(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::Binop;
@@ -1501,7 +1471,6 @@ public:
     explicit SyntaxTreeUnop(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
 
-
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
         return SyntaxTreeType::Unop;
@@ -1529,7 +1498,6 @@ class SyntaxTreeArgs final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreeArgs(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {
@@ -1591,7 +1559,6 @@ class SyntaxTreePrefixexp final : public SyntaxTreeInterface {
 public:
     explicit SyntaxTreePrefixexp(const SyntaxTreeLocation &loc) : SyntaxTreeInterface(loc) {
     }
-
 
     // 获取节点类型
     [[nodiscard]] SyntaxTreeType Type() const override {

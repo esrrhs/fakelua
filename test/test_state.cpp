@@ -21,10 +21,10 @@ TEST(state, const_string_alloc_and_interning) {
 
     const int64_t id1 = cs.Alloc("hello");
     const int64_t id2 = cs.Alloc("world");
-    const int64_t id3 = cs.Alloc("hello"); // should return same id as id1
+    const int64_t id3 = cs.Alloc("hello");// should return same id as id1
 
     ASSERT_NE(id1, id2);
-    ASSERT_EQ(id1, id3); // interning: same string → same ID
+    ASSERT_EQ(id1, id3);// interning: same string → same ID
 }
 
 TEST(state, const_string_get_string_roundtrip) {
@@ -138,20 +138,55 @@ TEST(state, reset_clears_heap) {
 // ---------------------------------------------------------------------------
 
 struct TestVarImpl final : public VarInterface {
-    [[nodiscard]] Type ViGetType() const override { return Type::NIL; }
-    void ViSetNil() override {}
-    void ViSetBool(bool) override {}
-    void ViSetInt(int64_t) override {}
-    void ViSetFloat(double) override {}
-    void ViSetString(const std::string_view &) override {}
-    void ViSetTable(const std::vector<std::pair<VarInterface *, VarInterface *>> &) override {}
-    [[nodiscard]] bool ViGetBool() const override { return false; }
-    [[nodiscard]] int64_t ViGetInt() const override { return 0; }
-    [[nodiscard]] double ViGetFloat() const override { return 0; }
-    [[nodiscard]] std::string_view ViGetString() const override { return {}; }
-    [[nodiscard]] size_t ViGetTableSize() const override { return 0; }
-    [[nodiscard]] std::pair<VarInterface *, VarInterface *> ViGetTableKv(int) const override { return {}; }
-    [[nodiscard]] std::string ViToString(int) const override { return "test"; }
+    [[nodiscard]] Type ViGetType() const override {
+        return Type::NIL;
+    }
+
+    void ViSetNil() override {
+    }
+
+    void ViSetBool(bool) override {
+    }
+
+    void ViSetInt(int64_t) override {
+    }
+
+    void ViSetFloat(double) override {
+    }
+
+    void ViSetString(const std::string_view &) override {
+    }
+
+    void ViSetTable(const std::vector<std::pair<VarInterface *, VarInterface *>> &) override {
+    }
+
+    [[nodiscard]] bool ViGetBool() const override {
+        return false;
+    }
+
+    [[nodiscard]] int64_t ViGetInt() const override {
+        return 0;
+    }
+
+    [[nodiscard]] double ViGetFloat() const override {
+        return 0;
+    }
+
+    [[nodiscard]] std::string_view ViGetString() const override {
+        return {};
+    }
+
+    [[nodiscard]] size_t ViGetTableSize() const override {
+        return 0;
+    }
+
+    [[nodiscard]] std::pair<VarInterface *, VarInterface *> ViGetTableKv(int) const override {
+        return {};
+    }
+
+    [[nodiscard]] std::string ViToString(int) const override {
+        return "test";
+    }
 };
 
 TEST(state, set_get_var_interface_new_func) {
@@ -208,7 +243,7 @@ TEST(state, compile_config_record_c_code_with_live_jit) {
     // Leave both JIT backends at their defaults (enabled) so that the
     // recorded_c_code path is exercised with a real TCC compilation.
     cfg.disable_jit[JIT_TCC] = false;
-    cfg.disable_jit[JIT_GCC] = true; // only TCC so the test is fast
+    cfg.disable_jit[JIT_GCC] = true;// only TCC so the test is fast
 
     ASSERT_NO_THROW(CompileString(s, "function test() return 99 end", cfg));
 
@@ -245,6 +280,7 @@ static CVar vmf_a() {
     r.SetInt(10);
     return r;
 }
+
 static CVar vmf_b() {
     Var r;
     r.SetInt(20);

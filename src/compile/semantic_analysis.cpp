@@ -184,8 +184,7 @@ void SemanticAnalysis::CollectReturnsForBlock(const SyntaxTreeInterfacePtr &node
         case SyntaxTreeType::Unop:
         case SyntaxTreeType::Args:
         case SyntaxTreeType::PrefixExp: {
-            ThrowFakeluaException(std::format("unexpected non-statement syntax tree type in CollectReturnsForBlock: {}",
-                                              SyntaxTreeTypeToString(node->Type())));
+            ThrowFakeluaException(std::format("unexpected non-statement syntax tree type in CollectReturnsForBlock: {}", SyntaxTreeTypeToString(node->Type())));
         }
         default: {
             ThrowFakeluaException(std::format("unknown syntax tree type in CollectReturnsForBlock: {}", static_cast<int>(node->Type())));
@@ -258,9 +257,7 @@ void SemanticAnalysis::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chun
             if (el) {
                 bool last_is_func = !el->Exps().empty() && IsFunctionCallExp(el->Exps().back());
                 if (namelist->Names().size() != el->Exps().size() && !(last_is_func && namelist->Names().size() > el->Exps().size())) {
-                    ThrowError(std::format("local variable count {} not match expression count {}", namelist->Names().size(),
-                                           el->Exps().size()),
-                               stmt);
+                    ThrowError(std::format("local variable count {} not match expression count {}", namelist->Names().size(), el->Exps().size()), stmt);
                 }
                 for (const auto &exp: el->Exps()) {
                     CheckGlobalConstExp(exp);
@@ -471,9 +468,7 @@ void SemanticAnalysis::CheckForIn(const SyntaxTreeInterfacePtr &node) {
         }
         const auto args_explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
         if (!args_explist_ptr || args_explist_ptr->Exps().size() != 1) {
-            ThrowError(std::format("for in: pairs/ipairs must have exactly one argument, got {}",
-                                   args_explist_ptr ? args_explist_ptr->Exps().size() : 0),
-                       node);
+            ThrowError(std::format("for in: pairs/ipairs must have exactly one argument, got {}", args_explist_ptr ? args_explist_ptr->Exps().size() : 0), node);
         }
     }
 }

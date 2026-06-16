@@ -64,12 +64,10 @@ inline InferredType InferNumericBinopResultType(const BinOpKind op_kind, const I
     if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
         return T_FLOAT;
     }
-    if (op_kind == BinOpKind::kPlus || op_kind == BinOpKind::kMinus || op_kind == BinOpKind::kStar || op_kind == BinOpKind::kMod ||
-        op_kind == BinOpKind::kDoubleSlash) {
+    if (op_kind == BinOpKind::kPlus || op_kind == BinOpKind::kMinus || op_kind == BinOpKind::kStar || op_kind == BinOpKind::kMod || op_kind == BinOpKind::kDoubleSlash) {
         return (left_type == T_INT && right_type == T_INT) ? T_INT : T_FLOAT;
     }
-    if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kLeftShift ||
-        op_kind == BinOpKind::kRightShift) {
+    if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
         return T_INT;
     }
     if (op_kind == BinOpKind::kAnd) {

@@ -8,7 +8,7 @@ namespace fakelua {
 
 namespace inter {
 
-template <typename T>
+template<typename T>
 CVar NativeToFakeluaIntHelper(T val) {
     Var ret;
     ret.SetInt(static_cast<int64_t>(val));
@@ -25,16 +25,45 @@ CVar NativeToFakeluaBool(State *state, bool val) {
     return ret;
 }
 
-CVar NativeToFakeluaChar(State *state, char val) { return NativeToFakeluaIntHelper(val); }
-CVar NativeToFakeluaUchar(State *state, unsigned char val) { return NativeToFakeluaIntHelper(val); }
-CVar NativeToFakeluaShort(State *state, short val) { return NativeToFakeluaIntHelper(val); }
-CVar NativeToFakeluaUshort(State *state, unsigned short val) { return NativeToFakeluaIntHelper(val); }
-CVar NativeToFakeluaInt(State *state, int val) { return NativeToFakeluaIntHelper(val); }
-CVar NativeToFakeluaUint(State *state, unsigned int val) { return NativeToFakeluaIntHelper(val); }
-CVar NativeToFakeluaLong(State *state, long val) { return NativeToFakeluaIntHelper(val); }
-CVar NativeToFakeluaUlong(State *state, unsigned long val) { return NativeToFakeluaIntHelper(val); }
-CVar NativeToFakeluaLonglong(State *state, long long val) { return NativeToFakeluaIntHelper(val); }
-CVar NativeToFakeluaUlonglong(State *state, unsigned long long val) { return NativeToFakeluaIntHelper(val); }
+CVar NativeToFakeluaChar(State *state, char val) {
+    return NativeToFakeluaIntHelper(val);
+}
+
+CVar NativeToFakeluaUchar(State *state, unsigned char val) {
+    return NativeToFakeluaIntHelper(val);
+}
+
+CVar NativeToFakeluaShort(State *state, short val) {
+    return NativeToFakeluaIntHelper(val);
+}
+
+CVar NativeToFakeluaUshort(State *state, unsigned short val) {
+    return NativeToFakeluaIntHelper(val);
+}
+
+CVar NativeToFakeluaInt(State *state, int val) {
+    return NativeToFakeluaIntHelper(val);
+}
+
+CVar NativeToFakeluaUint(State *state, unsigned int val) {
+    return NativeToFakeluaIntHelper(val);
+}
+
+CVar NativeToFakeluaLong(State *state, long val) {
+    return NativeToFakeluaIntHelper(val);
+}
+
+CVar NativeToFakeluaUlong(State *state, unsigned long val) {
+    return NativeToFakeluaIntHelper(val);
+}
+
+CVar NativeToFakeluaLonglong(State *state, long long val) {
+    return NativeToFakeluaIntHelper(val);
+}
+
+CVar NativeToFakeluaUlonglong(State *state, unsigned long long val) {
+    return NativeToFakeluaIntHelper(val);
+}
 
 CVar NativeToFakeluaFloat(State *state, float val) {
     Var ret;
@@ -117,7 +146,7 @@ bool FakeluaToNativeBool(State *state, CVar val) {
     ThrowFakeluaException(std::format("FakeluaToNativeBool failed, type is {}", VarTypeToString(var_val.Type())));
 }
 
-template <typename T>
+template<typename T>
 T FakeluaToNativeIntHelper(CVar val, const char *func_name) {
     const auto &var_val = reinterpret_cast<const Var &>(val);
     if (LIKELY(var_val.Type() == VarType::Int)) {
@@ -126,18 +155,47 @@ T FakeluaToNativeIntHelper(CVar val, const char *func_name) {
     ThrowFakeluaException(std::format("{} failed, type is {}", func_name, VarTypeToString(var_val.Type())));
 }
 
-char FakeluaToNativeChar(State *state, CVar val) { return FakeluaToNativeIntHelper<char>(val, "FakeluaToNativeChar"); }
-unsigned char FakeluaToNativeUchar(State *state, CVar val) { return FakeluaToNativeIntHelper<unsigned char>(val, "FakeluaToNativeUchar"); }
-short FakeluaToNativeShort(State *state, CVar val) { return FakeluaToNativeIntHelper<short>(val, "FakeluaToNativeShort"); }
-unsigned short FakeluaToNativeUshort(State *state, CVar val) { return FakeluaToNativeIntHelper<unsigned short>(val, "FakeluaToNativeUshort"); }
-int FakeluaToNativeInt(State *state, CVar val) { return FakeluaToNativeIntHelper<int>(val, "FakeluaToNativeInt"); }
-unsigned int FakeluaToNativeUint(State *state, CVar val) { return FakeluaToNativeIntHelper<unsigned int>(val, "FakeluaToNativeUint"); }
-long FakeluaToNativeLong(State *state, CVar val) { return FakeluaToNativeIntHelper<long>(val, "FakeluaToNativeLong"); }
-unsigned long FakeluaToNativeUlong(State *state, CVar val) { return FakeluaToNativeIntHelper<unsigned long>(val, "FakeluaToNativeUlong"); }
-long long FakeluaToNativeLonglong(State *state, CVar val) { return FakeluaToNativeIntHelper<long long>(val, "FakeluaToNativeLonglong"); }
-unsigned long long FakeluaToNativeUlonglong(State *state, CVar val) { return FakeluaToNativeIntHelper<unsigned long long>(val, "FakeluaToNativeUlonglong"); }
+char FakeluaToNativeChar(State *state, CVar val) {
+    return FakeluaToNativeIntHelper<char>(val, "FakeluaToNativeChar");
+}
 
-template <typename T>
+unsigned char FakeluaToNativeUchar(State *state, CVar val) {
+    return FakeluaToNativeIntHelper<unsigned char>(val, "FakeluaToNativeUchar");
+}
+
+short FakeluaToNativeShort(State *state, CVar val) {
+    return FakeluaToNativeIntHelper<short>(val, "FakeluaToNativeShort");
+}
+
+unsigned short FakeluaToNativeUshort(State *state, CVar val) {
+    return FakeluaToNativeIntHelper<unsigned short>(val, "FakeluaToNativeUshort");
+}
+
+int FakeluaToNativeInt(State *state, CVar val) {
+    return FakeluaToNativeIntHelper<int>(val, "FakeluaToNativeInt");
+}
+
+unsigned int FakeluaToNativeUint(State *state, CVar val) {
+    return FakeluaToNativeIntHelper<unsigned int>(val, "FakeluaToNativeUint");
+}
+
+long FakeluaToNativeLong(State *state, CVar val) {
+    return FakeluaToNativeIntHelper<long>(val, "FakeluaToNativeLong");
+}
+
+unsigned long FakeluaToNativeUlong(State *state, CVar val) {
+    return FakeluaToNativeIntHelper<unsigned long>(val, "FakeluaToNativeUlong");
+}
+
+long long FakeluaToNativeLonglong(State *state, CVar val) {
+    return FakeluaToNativeIntHelper<long long>(val, "FakeluaToNativeLonglong");
+}
+
+unsigned long long FakeluaToNativeUlonglong(State *state, CVar val) {
+    return FakeluaToNativeIntHelper<unsigned long long>(val, "FakeluaToNativeUlonglong");
+}
+
+template<typename T>
 T FakeluaToNativeFloatHelper(CVar val, const char *func_name) {
     const auto &var_val = reinterpret_cast<const Var &>(val);
     if (LIKELY(var_val.Type() == VarType::Float)) {
