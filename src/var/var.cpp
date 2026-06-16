@@ -3,9 +3,9 @@
 #include "state/const_string.h"
 #include "state/state.h"
 #include "util/common.h"
+#include "var_multi.h"
 #include "var_string.h"
 #include "var_table.h"
-#include "var_multi.h"
 
 namespace fakelua {
 
@@ -18,8 +18,8 @@ void Var::CheckCalculable(const Var &rhs, const char *op) const {
 
 void Var::CheckCalculable(const char *op) const {
     if (!IsCalculable()) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be number, got {} {}", op, VarTypeToString(Type()),
-                                          ToString()));
+        ThrowFakeluaException(
+                std::format("Var op failed, operand of '{}' must be number, got {} {}", op, VarTypeToString(Type()), ToString()));
     }
 }
 
@@ -32,8 +32,8 @@ void Var::CheckInteger(const Var &rhs, const char *op, int64_t &lhs_int, int64_t
 
 void Var::CheckInteger(const char *op, int64_t &val) const {
     if (!TryConvertNumberToInteger(val)) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be integer, got {} {}", op, VarTypeToString(Type()),
-                                          ToString()));
+        ThrowFakeluaException(
+                std::format("Var op failed, operand of '{}' must be integer, got {} {}", op, VarTypeToString(Type()), ToString()));
     }
 }
 
@@ -106,11 +106,11 @@ std::string Var::ToString(bool has_quote, bool has_postfix) const {
         case VarType::Multi: {
             VarMulti *m = data_.m;
             ret = "multi(";
-            for (uint32_t i = 0; i < m->count; ++i) {
+            for (uint32_t i = 0; i < m->GetCount(); ++i) {
                 if (i > 0) {
                     ret += ", ";
                 }
-                ret += static_cast<const Var &>(m->vars[i]).ToString(has_quote, has_postfix);
+                ret += static_cast<const Var &>(m->GetVars()[i]).ToString(has_quote, has_postfix);
             }
             ret += ")";
             break;
@@ -136,6 +136,7 @@ size_t Var::Hash() const {
                 double d;
                 uint64_t u;
             } bits;
+
             bits.d = data_.f;
             return static_cast<uint32_t>(bits.u ^ (bits.u >> 32));
         }
@@ -190,11 +191,11 @@ bool Var::Equal(const Var &rhs) const {
         case VarType::Multi: {
             VarMulti *m1 = data_.m;
             VarMulti *m2 = rhs.data_.m;
-            if (m1->count != m2->count) {
+            if (m1->GetCount() != m2->GetCount()) {
                 return false;
             }
-            for (uint32_t i = 0; i < m1->count; ++i) {
-                if (!(static_cast<const Var &>(m1->vars[i]) == static_cast<const Var &>(m2->vars[i]))) {
+            for (uint32_t i = 0; i < m1->GetCount(); ++i) {
+                if (!(static_cast<const Var &>(m1->GetVars()[i]) == static_cast<const Var &>(m2->GetVars()[i]))) {
                     return false;
                 }
             }
@@ -310,8 +311,13 @@ void Var::Shift(const Var &rhs, Var &result, const char *op_str, bool right) con
     }
 }
 
-void Var::RightShift(const Var &rhs, Var &result) const { Shift(rhs, result, ">>", true); }
-void Var::LeftShift(const Var &rhs, Var &result) const { Shift(rhs, result, "<<", false); }
+void Var::RightShift(const Var &rhs, Var &result) const {
+    Shift(rhs, result, ">>", true);
+}
+
+void Var::LeftShift(const Var &rhs, Var &result) const {
+    Shift(rhs, result, "<<", false);
+}
 
 void Var::Concat(State *state, const Var &rhs, Var &result) const {
     // fakelua 有意扩展了 Lua 标准：允许任意类型通过 .. 运算符拼接。
@@ -389,7 +395,8 @@ void Var::UnopBitnot(Var &result) const {
 
 void Var::CheckTable(const char *op) const {
     if (UNLIKELY(Type() != VarType::Table)) {
-        ThrowFakeluaException(std::format("Var op failed, operand of '{}' must be table, got {} {}", op, VarTypeToString(Type()), ToString()));
+        ThrowFakeluaException(
+                std::format("Var op failed, operand of '{}' must be table, got {} {}", op, VarTypeToString(Type()), ToString()));
     }
 }
 

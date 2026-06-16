@@ -14,7 +14,7 @@ namespace {
     return static_cast<VarType>(invalid);
 }
 
-} // namespace
+}// namespace
 
 TEST(var, construct) {
     const FakeluaStateGuard guard;
@@ -2050,7 +2050,7 @@ TEST(var, test_true_string) {
 
     Var empty_str;
     empty_str.SetTempString(s, "");
-    ASSERT_TRUE(empty_str.TestTrue()); // empty string is still truthy in Lua
+    ASSERT_TRUE(empty_str.TestTrue());// empty string is still truthy in Lua
 }
 
 TEST(var, test_true_table) {
@@ -2059,7 +2059,7 @@ TEST(var, test_true_table) {
 
     Var t;
     t.SetTable(s);
-    ASSERT_TRUE(t.TestTrue()); // table (even empty) is truthy
+    ASSERT_TRUE(t.TestTrue());// table (even empty) is truthy
 }
 
 // ---------------------------------------------------------------------------
