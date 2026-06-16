@@ -16,6 +16,7 @@ class Vm {
 public:
     Vm() = default;
 
+
     // 注册函数（单线程调用，见类注释）
     void RegisterFunction(const VmFunction &func) {
         const auto &name = func.GetName();
@@ -52,3 +53,5 @@ extern "C" CVar FakeluaCallByName(State *state, int jit_type, const char *name, 
 
 
 }// namespace fakelua
+
+

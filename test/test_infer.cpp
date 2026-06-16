@@ -167,7 +167,7 @@ TEST(infer, test_infer_for_step_int) {
         CompileFile(s, "./infer/test_infer_for_step_int.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 25);// 1+3+5+7+9
+        ASSERT_EQ(ret, 25); // 1+3+5+7+9
     });
 }
 
@@ -189,7 +189,7 @@ TEST(infer, test_infer_for_step_dynamic) {
         CompileFile(s, "./infer/test_infer_for_step_dynamic.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 2);
-        ASSERT_EQ(ret, 25);// 1+3+5+7+9 with step=2
+        ASSERT_EQ(ret, 25); // 1+3+5+7+9 with step=2
     });
 }
 
@@ -258,9 +258,9 @@ TEST(infer, test_infer_while_scope_degrade) {
         CompileFile(s, "./infer/test_infer_while_scope_degrade.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 0);
-        ASSERT_EQ(ret, 1);// loop ran: n=0→x=0, n=1→x=1, n=2 exits
+        ASSERT_EQ(ret, 1); // loop ran: n=0→x=0, n=1→x=1, n=2 exits
         Call(s, type, "test", ret, 3);
-        ASSERT_EQ(ret, 5);// loop skipped: x unchanged
+        ASSERT_EQ(ret, 5); // loop skipped: x unchanged
     });
 }
 
@@ -413,9 +413,9 @@ TEST(infer, test_infer_paren_exp) {
 // loop while cursor a remains native int in loop body.
 TEST(infer, test_infer_for_shadow_case1) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case1.lua");
-    ASSERT_NE(code.find("CVar a = "), std::string::npos);// outer a
+    ASSERT_NE(code.find("CVar a = "), std::string::npos); // outer a
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
-    ASSERT_NE(code.find("int64_t a = flua_for_ctrl_"), std::string::npos);// loop cursor
+    ASSERT_NE(code.find("int64_t a = flua_for_ctrl_"), std::string::npos); // loop cursor
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_shadow_case1.lua", {.debug_mode = debug_mode});
@@ -444,9 +444,9 @@ TEST(infer, test_infer_for_shadow_case2) {
 // typed after loop and support native numeric assignment.
 TEST(infer, test_infer_for_shadow_case3) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case3.lua");
-    ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos);            // outer a
-    ASSERT_NE(code.find("int64_t a = flua_for_ctrl_"), std::string::npos);// cursor a
-    ASSERT_NE(code.find("a = ((a) + (1));"), std::string::npos);          // outer post-loop assign
+    ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos); // outer a
+    ASSERT_NE(code.find("int64_t a = flua_for_ctrl_"), std::string::npos); // cursor a
+    ASSERT_NE(code.find("a = ((a) + (1));"), std::string::npos); // outer post-loop assign
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_shadow_case3.lua", {.debug_mode = debug_mode});
@@ -460,9 +460,9 @@ TEST(infer, test_infer_for_shadow_case3) {
 // outer a remains int64_t and is still used natively after loop.
 TEST(infer, test_infer_for_shadow_case4) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case4.lua");
-    ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos);                                                       // outer a
-    ASSERT_NE(code.find("CVar a = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)(flua_for_ctrl_"), std::string::npos);// cursor a
-    ASSERT_NE(code.find("a = ((a) + (1));"), std::string::npos);// outer post-loop assign
+    ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos); // outer a
+    ASSERT_NE(code.find("CVar a = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)(flua_for_ctrl_"), std::string::npos); // cursor a
+    ASSERT_NE(code.find("a = ((a) + (1));"), std::string::npos); // outer post-loop assign
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_for_shadow_case4.lua", {.debug_mode = debug_mode});
@@ -476,8 +476,8 @@ TEST(infer, test_infer_for_shadow_case4) {
 // outer dynamic `a` declaration/assignments after leaving do...end scope.
 TEST(infer, test_infer_do_shadow_typed_over_dynamic) {
     const auto code = InferGetCCode("./infer/test_infer_do_shadow_typed_over_dynamic.lua");
-    ASSERT_NE(code.find("CVar a = "), std::string::npos);     // outer a
-    ASSERT_NE(code.find("int64_t a = 1;"), std::string::npos);// inner a
+    ASSERT_NE(code.find("CVar a = "), std::string::npos); // outer a
+    ASSERT_NE(code.find("int64_t a = 1;"), std::string::npos); // inner a
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_do_shadow_typed_over_dynamic.lua", {.debug_mode = debug_mode});
@@ -782,7 +782,7 @@ TEST(infer, test_infer_typed_int_bitand) {
         CompileFile(s, "./infer/test_infer_typed_int_bitand.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 2);// 10 & 3 = 2
+        ASSERT_EQ(ret, 2); // 10 & 3 = 2
     });
 }
 
@@ -814,7 +814,7 @@ TEST(infer, test_infer_typed_int_bitor) {
         CompileFile(s, "./infer/test_infer_typed_int_bitor.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 15);// 12 | 3 = 15
+        ASSERT_EQ(ret, 15); // 12 | 3 = 15
     });
 }
 
@@ -831,7 +831,7 @@ TEST(infer, test_infer_typed_int_bitxor) {
         CompileFile(s, "./infer/test_infer_typed_int_bitxor.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 6);// 5 ^ 3 = 6
+        ASSERT_EQ(ret, 6); // 5 ^ 3 = 6
     });
 }
 
@@ -850,7 +850,7 @@ TEST(infer, test_infer_typed_int_leftshift) {
         CompileFile(s, "./infer/test_infer_typed_int_leftshift.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 16);// 1 << 4 = 16
+        ASSERT_EQ(ret, 16); // 1 << 4 = 16
     });
 }
 
@@ -869,7 +869,7 @@ TEST(infer, test_infer_typed_int_rightshift) {
         CompileFile(s, "./infer/test_infer_typed_int_rightshift.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 32);// 256 >> 3 = 32
+        ASSERT_EQ(ret, 32); // 256 >> 3 = 32
     });
 }
 
@@ -923,7 +923,7 @@ TEST(infer, test_infer_typed_int_bitnot) {
         CompileFile(s, "./infer/test_infer_typed_int_bitnot.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, -8);// ~7 == -8 in two's complement
+        ASSERT_EQ(ret, -8); // ~7 == -8 in two's complement
     });
 }
 
@@ -945,7 +945,7 @@ TEST(infer, test_infer_unary_minus_for_bound) {
         CompileFile(s, "./infer/test_infer_unary_minus_for_bound.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 0);// -5+...+5 = 0
+        ASSERT_EQ(ret, 0); // -5+...+5 = 0
     });
 }
 
@@ -969,7 +969,7 @@ TEST(infer, test_spec_bitnot_param) {
         CompileFile(s, "./infer/test_spec_bitnot_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, -5);// ~5 = -6, -6 + 1 = -5
+        ASSERT_EQ(ret, -5); // ~5 = -6, -6 + 1 = -5
     });
 }
 
@@ -993,7 +993,7 @@ TEST(infer, test_infer_typed_float_for) {
         CompileFile(s, "./infer/test_infer_typed_float_for.lua", {.debug_mode = debug_mode});
         double ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_NEAR(ret, 6.0, 0.001);// 1.0+2.0+3.0
+        ASSERT_NEAR(ret, 6.0, 0.001); // 1.0+2.0+3.0
     });
 }
 
@@ -1012,7 +1012,7 @@ TEST(infer, test_infer_typed_float_for_step) {
         CompileFile(s, "./infer/test_infer_typed_float_for_step.lua", {.debug_mode = debug_mode});
         double ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_NEAR(ret, 1.5, 0.001);// 0.0+0.5+1.0
+        ASSERT_NEAR(ret, 1.5, 0.001); // 0.0+0.5+1.0
     });
 }
 
@@ -1031,7 +1031,7 @@ TEST(infer, test_infer_typed_float_for_mixed) {
         CompileFile(s, "./infer/test_infer_typed_float_for_mixed.lua", {.debug_mode = debug_mode});
         double ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_NEAR(ret, 15.0, 0.001);// 1+2+3+4+5
+        ASSERT_NEAR(ret, 15.0, 0.001); // 1+2+3+4+5
     });
 }
 
@@ -1046,7 +1046,7 @@ TEST(infer, test_infer_typed_int_for_neg_step_1) {
         CompileFile(s, "./infer/test_infer_typed_int_for_neg_step_1.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 55);// sum of 10..1
+        ASSERT_EQ(ret, 55); // sum of 10..1
     });
 }
 
@@ -1061,7 +1061,7 @@ TEST(infer, test_infer_typed_int_for_neg_step_2) {
         CompileFile(s, "./infer/test_infer_typed_int_for_neg_step_2.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 30);// 10 + 8 + 6 + 4 + 2
+        ASSERT_EQ(ret, 30); // 10 + 8 + 6 + 4 + 2
     });
 }
 
@@ -1076,7 +1076,7 @@ TEST(infer, test_infer_typed_float_for_neg_step_1) {
         CompileFile(s, "./infer/test_infer_typed_float_for_neg_step_1.lua", {.debug_mode = debug_mode});
         double ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_NEAR(ret, 55.0, 0.001);// sum of 10.0..1.0
+        ASSERT_NEAR(ret, 55.0, 0.001); // sum of 10.0..1.0
     });
 }
 
@@ -1091,7 +1091,7 @@ TEST(infer, test_infer_typed_float_for_neg_step_2) {
         CompileFile(s, "./infer/test_infer_typed_float_for_neg_step_2.lua", {.debug_mode = debug_mode});
         double ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_NEAR(ret, 30.0, 0.001);// 10.0 + 8.0 + 6.0 + 4.0 + 2.0
+        ASSERT_NEAR(ret, 30.0, 0.001); // 10.0 + 8.0 + 6.0 + 4.0 + 2.0
     });
 }
 
@@ -1102,7 +1102,7 @@ TEST(infer, test_spec_elseif_param) {
         CompileFile(s, "./infer/test_spec_elseif_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 8);
-        ASSERT_EQ(ret, 11);// n=8: r = 8+1=9, elseif branch: r = 9+2=11
+        ASSERT_EQ(ret, 11); // n=8: r = 8+1=9, elseif branch: r = 9+2=11
     });
 }
 
@@ -1113,7 +1113,7 @@ TEST(infer, test_spec_forin_param) {
         CompileFile(s, "./infer/test_spec_forin_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 10);
-        ASSERT_EQ(ret, 16);// sum = 10+0 + 1+2+3 = 16
+        ASSERT_EQ(ret, 16); // sum = 10+0 + 1+2+3 = 16
     });
 }
 
@@ -1180,9 +1180,9 @@ TEST(infer, test_spec_reassign_powmod) {
         CompileFile(s, "./infer/test_spec_reassign_powmod.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 2, 10, 1000);
-        ASSERT_EQ(ret, 24);// 2^10 mod 1000 = 1024 mod 1000 = 24
+        ASSERT_EQ(ret, 24); // 2^10 mod 1000 = 1024 mod 1000 = 24
         Call(s, type, "test", ret, 3, 5, 100);
-        ASSERT_EQ(ret, 43);// 3^5 mod 100 = 243 mod 100 = 43
+        ASSERT_EQ(ret, 43); // 3^5 mod 100 = 243 mod 100 = 43
         Call(s, type, "test", ret, 7, 1, 1000000007);
         ASSERT_EQ(ret, 7);
     });
@@ -1226,11 +1226,11 @@ TEST(infer, test_native_bool_while) {
         CompileFile(s, "./infer/test_native_bool_while.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 15);// 5+4+3+2+1
+        ASSERT_EQ(ret, 15); // 5+4+3+2+1
         Call(s, type, "test", ret, 0);
         ASSERT_EQ(ret, 0);
         Call(s, type, "test", ret, 3);
-        ASSERT_EQ(ret, 6);// 3+2+1
+        ASSERT_EQ(ret, 6); // 3+2+1
     });
 }
 
@@ -1247,7 +1247,7 @@ TEST(infer, test_native_bool_repeat) {
         CompileFile(s, "./infer/test_native_bool_repeat.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 15);// 1+2+3+4+5
+        ASSERT_EQ(ret, 15); // 1+2+3+4+5
         Call(s, type, "test", ret, 1);
         ASSERT_EQ(ret, 1);
         Call(s, type, "test", ret, 10);
@@ -1417,7 +1417,7 @@ TEST(infer, test_spec_leftshift_param) {
         CompileFile(s, "./infer/test_spec_leftshift_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 20);// 5 << 2 = 20
+        ASSERT_EQ(ret, 20); // 5 << 2 = 20
     });
 }
 
@@ -1438,7 +1438,7 @@ TEST(infer, test_spec_rightshift_param) {
         CompileFile(s, "./infer/test_spec_rightshift_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 16);
-        ASSERT_EQ(ret, 8);// 16 >> 1 = 8
+        ASSERT_EQ(ret, 8); // 16 >> 1 = 8
     });
 }
 
@@ -1463,7 +1463,7 @@ TEST(infer, test_spec_len_param) {
         CompileFile(s, "./infer/test_spec_len_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 10);
-        ASSERT_EQ(ret, 15);// n=10, #"hello"=5, 10+5=15
+        ASSERT_EQ(ret, 15); // n=10, #"hello"=5, 10+5=15
     });
 }
 
@@ -1499,11 +1499,11 @@ TEST(infer, test_spec_for_bound_param) {
         CompileFile(s, "./infer/test_spec_for_bound_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 10);
-        ASSERT_EQ(ret, 55);// 1+2+...+10
+        ASSERT_EQ(ret, 55); // 1+2+...+10
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 15);// 1+2+3+4+5
+        ASSERT_EQ(ret, 15); // 1+2+3+4+5
         Call(s, type, "test", ret, 0);
-        ASSERT_EQ(ret, 0);// empty range
+        ASSERT_EQ(ret, 0); // empty range
     });
 }
 
@@ -1531,11 +1531,11 @@ TEST(infer, test_spec_compare_func_result) {
         CompileFile(s, "./infer/test_spec_compare_func_result.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 5);// f(5)=10 > 5 → true → return x=5
+        ASSERT_EQ(ret, 5); // f(5)=10 > 5 → true → return x=5
         Call(s, type, "test", ret, 0);
-        ASSERT_EQ(ret, 0);// f(0)=0 > 0 → false → return 0
+        ASSERT_EQ(ret, 0); // f(0)=0 > 0 → false → return 0
         Call(s, type, "test", ret, 3);
-        ASSERT_EQ(ret, 3);// f(3)=6 > 3 → true → return x=3
+        ASSERT_EQ(ret, 3); // f(3)=6 > 3 → true → return x=3
     });
 }
 
@@ -1582,19 +1582,19 @@ TEST(infer, test_spec_no_arith_compare_only) {
         CompileFile(s, "./infer/test_spec_no_arith_compare_only.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5, 5);
-        ASSERT_EQ(ret, 5);// n == m → return n
+        ASSERT_EQ(ret, 5); // n == m → return n
         Call(s, type, "test", ret, 5, 3);
-        ASSERT_EQ(ret, 3);// n != m → return m
+        ASSERT_EQ(ret, 3); // n != m → return m
         double dret = 0.0;
         Call(s, type, "test", dret, 2.5, 2.5);
-        ASSERT_DOUBLE_EQ(dret, 2.5);// n == m → return n
+        ASSERT_DOUBLE_EQ(dret, 2.5); // n == m → return n
         Call(s, type, "test", dret, 2.5, 1.5);
-        ASSERT_DOUBLE_EQ(dret, 1.5);// n != m → return m
+        ASSERT_DOUBLE_EQ(dret, 1.5); // n != m → return m
         std::string sret;
         Call(s, type, "test", sret, std::string("hello"), std::string("hello"));
-        ASSERT_EQ(sret, "hello");// string equality: return n
+        ASSERT_EQ(sret, "hello"); // string equality: return n
         Call(s, type, "test", sret, std::string("hello"), std::string("world"));
-        ASSERT_EQ(sret, "world");// string inequality: return m
+        ASSERT_EQ(sret, "world"); // string inequality: return m
     });
 }
 
@@ -1674,9 +1674,9 @@ TEST(infer, test_spec_bitnot_standalone_param) {
         CompileFile(s, "./infer/test_spec_bitnot_standalone_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, -6);// ~5 = -6
+        ASSERT_EQ(ret, -6); // ~5 = -6
         Call(s, type, "test", ret, 0);
-        ASSERT_EQ(ret, -1);// ~0 = -1
+        ASSERT_EQ(ret, -1); // ~0 = -1
     });
 }
 
@@ -1706,7 +1706,6 @@ TEST(infer, test_spec_do_return) {
         ASSERT_DOUBLE_EQ(dret, 3.5);
     });
 }
-
 // f uses n arithmetically (n+1) so it has a math param and gets specialised.
 // But f always returns the string "hello", not a numeric result.
 // InferArgTypeForSpec for f(n) must return T_DYNAMIC so the caller treats the
@@ -1858,12 +1857,12 @@ TEST(infer, test_spec_local_func) {
         CompileFile(s, "./infer/test_spec_local_func.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 26);// 5*5+1
+        ASSERT_EQ(ret, 26); // 5*5+1
         Call(s, type, "test", ret, 3);
-        ASSERT_EQ(ret, 10);// 3*3+1
+        ASSERT_EQ(ret, 10); // 3*3+1
         double dret = 0.0;
         Call(s, type, "test", dret, 2.0);
-        ASSERT_DOUBLE_EQ(dret, 5.0);// 2.0*2.0+1
+        ASSERT_DOUBLE_EQ(dret, 5.0); // 2.0*2.0+1
     });
 }
 
@@ -1885,11 +1884,11 @@ TEST(infer, test_spec_for_arith_end) {
         CompileFile(s, "./infer/test_spec_for_arith_end.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 55);// 1+2+...+10
+        ASSERT_EQ(ret, 55); // 1+2+...+10
         Call(s, type, "test", ret, 3);
-        ASSERT_EQ(ret, 21);// 1+2+...+6
+        ASSERT_EQ(ret, 21); // 1+2+...+6
         Call(s, type, "test", ret, 0);
-        ASSERT_EQ(ret, 0);// empty range
+        ASSERT_EQ(ret, 0); // empty range
     });
 }
 
@@ -1936,11 +1935,11 @@ TEST(infer, test_spec_for_break) {
         CompileFile(s, "./infer/test_spec_for_break.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 10);
-        ASSERT_EQ(ret, 6);// 1+2+3 (stops at i=4)
+        ASSERT_EQ(ret, 6); // 1+2+3 (stops at i=4)
         Call(s, type, "test", ret, 2);
-        ASSERT_EQ(ret, 3);// 1+2 (n < 4, no break needed)
+        ASSERT_EQ(ret, 3); // 1+2 (n < 4, no break needed)
         Call(s, type, "test", ret, 0);
-        ASSERT_EQ(ret, 0);// empty range
+        ASSERT_EQ(ret, 0); // empty range
     });
 }
 
@@ -1963,12 +1962,12 @@ TEST(infer, test_spec_arith_chain) {
         CompileFile(s, "./infer/test_spec_arith_chain.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 12);// (5+1)*2
+        ASSERT_EQ(ret, 12); // (5+1)*2
         Call(s, type, "test", ret, 3);
-        ASSERT_EQ(ret, 8);// (3+1)*2
+        ASSERT_EQ(ret, 8); // (3+1)*2
         double dret = 0.0;
         Call(s, type, "test", dret, 1.5);
-        ASSERT_DOUBLE_EQ(dret, 5.0);// (1.5+1)*2
+        ASSERT_DOUBLE_EQ(dret, 5.0); // (1.5+1)*2
     });
 }
 
@@ -1989,12 +1988,12 @@ TEST(infer, test_spec_repeat_arith) {
         CompileFile(s, "./infer/test_spec_repeat_arith.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 3);
-        ASSERT_EQ(ret, 15);// 3*5
+        ASSERT_EQ(ret, 15); // 3*5
         Call(s, type, "test", ret, 2);
-        ASSERT_EQ(ret, 10);// 2*5
+        ASSERT_EQ(ret, 10); // 2*5
         double dret = 0.0;
         Call(s, type, "test", dret, 1.5);
-        ASSERT_DOUBLE_EQ(dret, 7.5);// 1.5*5
+        ASSERT_DOUBLE_EQ(dret, 7.5); // 1.5*5
     });
 }
 
@@ -2095,11 +2094,11 @@ TEST(infer, test_spec_clamp_param) {
         CompileFile(s, "./infer/test_spec_clamp_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5, 1, 10);
-        ASSERT_EQ(ret, 5);// in range
+        ASSERT_EQ(ret, 5); // in range
         Call(s, type, "test", ret, 0, 1, 10);
-        ASSERT_EQ(ret, 1);// below lo
+        ASSERT_EQ(ret, 1); // below lo
         Call(s, type, "test", ret, 15, 1, 10);
-        ASSERT_EQ(ret, 10);// above hi
+        ASSERT_EQ(ret, 10); // above hi
         double dret = 0.0;
         Call(s, type, "test", dret, 5.5, 1.0, 10.0);
         ASSERT_DOUBLE_EQ(dret, 5.5);
@@ -2132,12 +2131,12 @@ TEST(infer, test_spec_or_param) {
         CompileFile(s, "./infer/test_spec_or_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 15);           // 5 or 2 = 5 (5 is truthy), 5 * 3 = 15
-        Call(s, type, "test", ret, 0);// 0 is truthy in Lua: 0 or 2 = 0, 0 * 3 = 0
+        ASSERT_EQ(ret, 15); // 5 or 2 = 5 (5 is truthy), 5 * 3 = 15
+        Call(s, type, "test", ret, 0); // 0 is truthy in Lua: 0 or 2 = 0, 0 * 3 = 0
         ASSERT_EQ(ret, 0);
         double dret = 0.0;
         Call(s, type, "test", dret, 3.5);
-        ASSERT_DOUBLE_EQ(dret, 10.5);// 3.5 or 2 = 3.5, 3.5 * 3 = 10.5
+        ASSERT_DOUBLE_EQ(dret, 10.5); // 3.5 or 2 = 3.5, 3.5 * 3 = 10.5
     });
 }
 
@@ -2157,12 +2156,12 @@ TEST(infer, test_spec_and_param) {
         CompileFile(s, "./infer/test_spec_and_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 6);            // 5 and 6 = 6
-        Call(s, type, "test", ret, 0);// 0 is truthy in Lua: 0 and 1 = 1
+        ASSERT_EQ(ret, 6); // 5 and 6 = 6
+        Call(s, type, "test", ret, 0); // 0 is truthy in Lua: 0 and 1 = 1
         ASSERT_EQ(ret, 1);
         double dret = 0.0;
         Call(s, type, "test", dret, 3.5);
-        ASSERT_DOUBLE_EQ(dret, 4.5);// 3.5 and 4.5 = 4.5
+        ASSERT_DOUBLE_EQ(dret, 4.5); // 3.5 and 4.5 = 4.5
     });
 }
 
@@ -2185,11 +2184,11 @@ TEST(infer, test_spec_for_arith_begin) {
         CompileFile(s, "./infer/test_spec_for_arith_begin.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 3);
-        ASSERT_EQ(ret, 52);// 3+4+...+10
+        ASSERT_EQ(ret, 52); // 3+4+...+10
         Call(s, type, "test", ret, 8);
-        ASSERT_EQ(ret, 27);// 8+9+10
+        ASSERT_EQ(ret, 27); // 8+9+10
         Call(s, type, "test", ret, 11);
-        ASSERT_EQ(ret, 0);// empty range
+        ASSERT_EQ(ret, 0); // empty range
     });
 }
 
@@ -2212,11 +2211,11 @@ TEST(infer, test_spec_for_arith_begin_expr) {
         CompileFile(s, "./infer/test_spec_for_arith_begin_expr.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 10);
-        ASSERT_EQ(ret, 155);// 11+12+...+20
+        ASSERT_EQ(ret, 155); // 11+12+...+20
         Call(s, type, "test", ret, 0);
-        ASSERT_EQ(ret, 210);// 1+2+...+20
+        ASSERT_EQ(ret, 210); // 1+2+...+20
         Call(s, type, "test", ret, 19);
-        ASSERT_EQ(ret, 20);// just 20
+        ASSERT_EQ(ret, 20); // just 20
     });
 }
 
@@ -2591,15 +2590,15 @@ TEST(infer, test_spec_clamp_le) {
         CompileFile(s, "./infer/test_spec_clamp_le.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5, 1, 10);
-        ASSERT_EQ(ret, 5);// in range
+        ASSERT_EQ(ret, 5); // in range
         Call(s, type, "test", ret, 0, 1, 10);
-        ASSERT_EQ(ret, 1);// below lo (0 <= 1)
+        ASSERT_EQ(ret, 1); // below lo (0 <= 1)
         Call(s, type, "test", ret, 15, 1, 10);
-        ASSERT_EQ(ret, 10);// above hi (15 >= 10)
+        ASSERT_EQ(ret, 10); // above hi (15 >= 10)
         Call(s, type, "test", ret, 1, 1, 10);
-        ASSERT_EQ(ret, 1);// x == lo → x <= lo, returns lo
+        ASSERT_EQ(ret, 1); // x == lo → x <= lo, returns lo
         Call(s, type, "test", ret, 10, 1, 10);
-        ASSERT_EQ(ret, 10);// x == hi → x >= hi, returns hi
+        ASSERT_EQ(ret, 10); // x == hi → x >= hi, returns hi
         double dret = 0.0;
         Call(s, type, "test", dret, 5.5, 1.0, 10.0);
         ASSERT_DOUBLE_EQ(dret, 5.5);
@@ -2772,7 +2771,7 @@ TEST(infer, test_spec_while_not_cond) {
         ASSERT_EQ(ret, 15);
         double dret = 0.0;
         Call(s, type, "test", dret, 3.0);
-        ASSERT_DOUBLE_EQ(dret, 6.0);// 3.0 + 2.0 + 1.0 + 0.0
+        ASSERT_DOUBLE_EQ(dret, 6.0); // 3.0 + 2.0 + 1.0 + 0.0
     });
 }
 
@@ -2937,9 +2936,9 @@ TEST(infer, test_spec_assign_nonnumeric_typed_int) {
         CompileFile(s, "./infer/test_spec_assign_nonnumeric_typed_int.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 11);// x=6, n=make_int(5)=5, return 5+6
+        ASSERT_EQ(ret, 11); // x=6, n=make_int(5)=5, return 5+6
         Call(s, type, "test", ret, 3);
-        ASSERT_EQ(ret, 7);// x=4, n=make_int(3)=3, return 3+4
+        ASSERT_EQ(ret, 7); // x=4, n=make_int(3)=3, return 3+4
     });
 }
 
@@ -2963,9 +2962,9 @@ TEST(infer, test_spec_assign_nonnumeric_typed_float) {
         CompileFile(s, "./infer/test_spec_assign_nonnumeric_typed_float.lua", {.debug_mode = debug_mode});
         double dret = 0.0;
         Call(s, type, "test", dret, 2.5);
-        ASSERT_DOUBLE_EQ(dret, 6.0);// x=3.5, n=make_float(2.5)=2.5, return 2.5+3.5
+        ASSERT_DOUBLE_EQ(dret, 6.0); // x=3.5, n=make_float(2.5)=2.5, return 2.5+3.5
         Call(s, type, "test", dret, 1.0);
-        ASSERT_DOUBLE_EQ(dret, 3.0);// x=2.0, n=make_float(1.0)=1.0, return 1.0+2.0
+        ASSERT_DOUBLE_EQ(dret, 3.0); // x=2.0, n=make_float(1.0)=1.0, return 1.0+2.0
     });
 }
 
@@ -3056,11 +3055,11 @@ TEST(infer, test_spec_reassign_param_cvar_path) {
         CompileFile(s, "./infer/test_spec_reassign_param_cvar_path.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 8);// n=cvar_helper(5)=7, return 7+1
+        ASSERT_EQ(ret, 8); // n=cvar_helper(5)=7, return 7+1
         Call(s, type, "test", ret, 10);
-        ASSERT_EQ(ret, 13);// n=cvar_helper(10)=12, return 12+1
+        ASSERT_EQ(ret, 13); // n=cvar_helper(10)=12, return 12+1
         Call(s, type, "test", ret, 0);
-        ASSERT_EQ(ret, 3);// n=cvar_helper(0)=2, return 2+1
+        ASSERT_EQ(ret, 3); // n=cvar_helper(0)=2, return 2+1
     });
 }
 
@@ -3215,14 +3214,15 @@ TEST(infer, test_spec_local_var_in_if) {
         CompileFile(s, "./infer/test_spec_local_var_in_if.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "outer", ret, 5);
-        ASSERT_EQ(ret, 11);// 5*2 + 1
+        ASSERT_EQ(ret, 11); // 5*2 + 1
         Call(s, type, "outer", ret, -1);
         ASSERT_EQ(ret, 0);
         double dret = 0.0;
         Call(s, type, "outer", dret, 2.5);
-        ASSERT_DOUBLE_EQ(dret, 6.0);// 2.5*2 + 1
+        ASSERT_DOUBLE_EQ(dret, 6.0); // 2.5*2 + 1
     });
 }
+
 
 // 三层链：inner→middle→outer，验证快照再生成不动点正确传播被调函数返回类型。
 // inner(n) 返回 n*2（T_INT），middle(n) 在 if 块内将 inner(n) 赋给局部变量 r，
@@ -3245,16 +3245,17 @@ TEST(infer, test_spec_callee_return_propagates_in_local) {
         CompileFile(s, "./infer/test_spec_callee_return_propagates_in_local.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "outer", ret, 5);
-        ASSERT_EQ(ret, 11);// inner(5)=10, middle(5)=11
+        ASSERT_EQ(ret, 11); // inner(5)=10, middle(5)=11
         Call(s, type, "outer", ret, 3);
-        ASSERT_EQ(ret, 7);// inner(3)=6, middle(3)=7
+        ASSERT_EQ(ret, 7);  // inner(3)=6, middle(3)=7
         Call(s, type, "outer", ret, -1);
-        ASSERT_EQ(ret, 0);// n <= 0 path in middle
+        ASSERT_EQ(ret, 0);  // n <= 0 path in middle
         double dret = 0.0;
         Call(s, type, "outer", dret, 2.5);
-        ASSERT_DOUBLE_EQ(dret, 6.0);// inner(2.5)=5.0, middle(2.5)=6.0
+        ASSERT_DOUBLE_EQ(dret, 6.0); // inner(2.5)=5.0, middle(2.5)=6.0
     });
 }
+
 
 // 文件级整数常量 OFFSET = 10 与数学参数 n 共同参与 n + OFFSET。
 // RunTrialInference 注入 OFFSET=T_INT，使 n+OFFSET 从 T_DYNAMIC 提升为 T_INT，
@@ -3412,12 +3413,12 @@ TEST(infer, test_spec_for_dynamic_bound) {
         CompileFile(s, "./infer/test_spec_for_dynamic_bound.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 55);// 1+2+...+10
+        ASSERT_EQ(ret, 55); // 1+2+...+10
         Call(s, type, "test", ret, 3);
-        ASSERT_EQ(ret, 21);// 1+2+...+6
+        ASSERT_EQ(ret, 21); // 1+2+...+6
         double dret = 0.0;
         Call(s, type, "test", dret, 2.5);
-        ASSERT_DOUBLE_EQ(dret, 15.0);// mul2(2.5)=5.0, 1+2+3+4+5=15
+        ASSERT_DOUBLE_EQ(dret, 15.0); // mul2(2.5)=5.0, 1+2+3+4+5=15
     });
 }
 
@@ -3480,7 +3481,7 @@ TEST(infer, test_bitwise_float_operand) {
         CompileFile(s, "./infer/test_bitwise_float_operand.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 7, 3);
-        ASSERT_EQ(ret, 3);// 7 & 3 = 3
+        ASSERT_EQ(ret, 3);  // 7 & 3 = 3
         // Float operands: Lua auto-converts to int for bitwise.
         Call(s, type, "test", ret, 7, 3.0);
         ASSERT_EQ(ret, 3);
@@ -3501,9 +3502,9 @@ TEST(infer, test_or_left_numeric) {
         CompileFile(s, "./infer/test_or_left_numeric.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 6);// (5 or 0) + 1 = 6
+        ASSERT_EQ(ret, 6);  // (5 or 0) + 1 = 6
         Call(s, type, "test", ret, 0);
-        ASSERT_EQ(ret, 1);// (0 or 0) + 1 = 1 (0 is truthy in Lua!)
+        ASSERT_EQ(ret, 1);  // (0 or 0) + 1 = 1 (0 is truthy in Lua!)
     });
 }
 
@@ -3520,9 +3521,9 @@ TEST(infer, test_discovery_order) {
         CompileFile(s, "./infer/test_discovery_order.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "outer", ret, 3);
-        ASSERT_EQ(ret, 7);// inner(3) + 1 = 6 + 1 = 7
+        ASSERT_EQ(ret, 7);  // inner(3) + 1 = 6 + 1 = 7
         Call(s, type, "inner", ret, 5);
-        ASSERT_EQ(ret, 10);// 5 + 5 = 10
+        ASSERT_EQ(ret, 10);  // 5 + 5 = 10
     });
 }
 
@@ -3543,9 +3544,9 @@ TEST(infer, test_native_unary_minus_standalone) {
         CompileFile(s, "./infer/test_native_unary_minus_standalone.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 10);
-        ASSERT_EQ(ret, 10);// -10 + 10*2 = -10 + 20 = 10
+        ASSERT_EQ(ret, 10);  // -10 + 10*2 = -10 + 20 = 10
         Call(s, type, "test", ret, -3);
-        ASSERT_EQ(ret, -3);// -(-3) + (-3)*2 = 3 + (-6) = -3
+        ASSERT_EQ(ret, -3);  // -(-3) + (-3)*2 = 3 + (-6) = -3
     });
 }
 
@@ -3562,9 +3563,9 @@ TEST(infer, test_native_unary_bitnot) {
         CompileFile(s, "./infer/test_native_unary_bitnot.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 0);
-        ASSERT_EQ(ret, -1);// ~0 + 0*2 = -1 + 0 = -1
+        ASSERT_EQ(ret, -1);  // ~0 + 0*2 = -1 + 0 = -1
         Call(s, type, "test", ret, 1);
-        ASSERT_EQ(ret, 0);// ~1 + 1*2 = -2 + 2 = 0
+        ASSERT_EQ(ret, 0);   // ~1 + 1*2 = -2 + 2 = 0
     });
 }
 
@@ -3578,9 +3579,9 @@ TEST(infer, test_native_cmp_expr_eq) {
         CompileFile(s, "./infer/test_native_cmp_expr_eq.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 5);
-        ASSERT_EQ(ret, 1);// helper(5)==10 -> true
+        ASSERT_EQ(ret, 1);   // helper(5)==10 -> true
         Call(s, type, "test", ret, 3);
-        ASSERT_EQ(ret, 0);// helper(3)==10 -> false
+        ASSERT_EQ(ret, 0);   // helper(3)==10 -> false
     });
 }
 
@@ -3594,9 +3595,9 @@ TEST(infer, test_native_cmp_expr_lt) {
         CompileFile(s, "./infer/test_native_cmp_expr_lt.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret, 3);
-        ASSERT_EQ(ret, 1);// 6 < 10 -> true
+        ASSERT_EQ(ret, 1);   // 6 < 10 -> true
         Call(s, type, "test", ret, 7);
-        ASSERT_EQ(ret, 0);// 14 < 10 -> false
+        ASSERT_EQ(ret, 0);   // 14 < 10 -> false
     });
 }
 
@@ -3615,7 +3616,7 @@ TEST(infer, test_table_constructor_fast_path) {
         CompileFile(s, "./infer/test_table_constructor_fast_path.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 120);// t[2] + t.x = 20 + 100
+        ASSERT_EQ(ret, 120);  // t[2] + t.x = 20 + 100
     });
 }
 
@@ -3631,7 +3632,7 @@ TEST(infer, test_table_dot_access_fast_path) {
         CompileFile(s, "./infer/test_table_dot_access_fast_path.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 30);// t.a + t.b = 10 + 20
+        ASSERT_EQ(ret, 30);  // t.a + t.b = 10 + 20
     });
 }
 
@@ -3647,7 +3648,7 @@ TEST(infer, test_table_bracket_string_fast_path) {
         CompileFile(s, "./infer/test_table_bracket_string_fast_path.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 100);// t["hello"] + t["world"] = 42 + 58
+        ASSERT_EQ(ret, 100);  // t["hello"] + t["world"] = 42 + 58
     });
 }
 
@@ -3661,7 +3662,7 @@ TEST(infer, test_table_assign_dot_fast_path) {
         CompileFile(s, "./infer/test_table_assign_dot_fast_path.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 300);// t.x + t.y = 100 + 200
+        ASSERT_EQ(ret, 300);  // t.x + t.y = 100 + 200
     });
 }
 
@@ -3760,8 +3761,7 @@ TEST(infer, test_math_spec_9params) {
     // Should NOT have specialized variants.
     ASSERT_EQ(code.find("test_math_spec_9params_0"), std::string::npos);
     // Entry function with CVar params.
-    ASSERT_NE(code.find("CVar test_math_spec_9params(CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9)"),
-              std::string::npos);
+    ASSERT_NE(code.find("CVar test_math_spec_9params(CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_math_spec_9params.lua", {.debug_mode = debug_mode});
@@ -3777,18 +3777,11 @@ TEST(infer, test_math_spec_mixed) {
     // The name pattern suffix starts with _0_0_0_0_0_0_0_0 for 8 parameters.
     ASSERT_NE(code.find("test_math_spec_mixed_0_0_0_0_0_0_0_0("), std::string::npos);
     // The entry function should take all 10 CVar parameters.
-    ASSERT_NE(
-            code.find(
-                    "CVar test_math_spec_mixed(CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9, CVar p10)"),
-            std::string::npos);
+    ASSERT_NE(code.find("CVar test_math_spec_mixed(CVar p1, CVar p2, CVar p3, CVar p4, CVar p5, CVar p6, CVar p7, CVar p8, CVar p9, CVar p10)"), std::string::npos);
     // Verify that specialized functions have correct parameter types:
     // p1 and p10 are CVar, while p2..p9 are int64_t/double depending on the specialization.
-    ASSERT_NE(code.find("int64_t test_math_spec_mixed_0_0_0_0_0_0_0_0(CVar p1, int64_t p2, int64_t p3, int64_t p4, int64_t p5, int64_t p6, "
-                        "int64_t p7, int64_t p8, int64_t p9, CVar p10)"),
-              std::string::npos);
-    ASSERT_NE(code.find("double test_math_spec_mixed_1_0_0_0_0_0_0_0(CVar p1, double p2, int64_t p3, int64_t p4, int64_t p5, int64_t p6, "
-                        "int64_t p7, int64_t p8, int64_t p9, CVar p10)"),
-              std::string::npos);
+    ASSERT_NE(code.find("int64_t test_math_spec_mixed_0_0_0_0_0_0_0_0(CVar p1, int64_t p2, int64_t p3, int64_t p4, int64_t p5, int64_t p6, int64_t p7, int64_t p8, int64_t p9, CVar p10)"), std::string::npos);
+    ASSERT_NE(code.find("double test_math_spec_mixed_1_0_0_0_0_0_0_0(CVar p1, double p2, int64_t p3, int64_t p4, int64_t p5, int64_t p6, int64_t p7, int64_t p8, int64_t p9, CVar p10)"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_math_spec_mixed.lua", {.debug_mode = debug_mode});
@@ -3799,3 +3792,4 @@ TEST(infer, test_math_spec_mixed) {
         ASSERT_EQ(ret, 9);
     });
 }
+

@@ -232,6 +232,8 @@ void PreProcessor::PreprocessTableAssign(const SyntaxTreeInterfacePtr &node) {
     block_ptr->SetStmts(new_stmts);
 }
 
+
+
 void PreProcessor::PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &chunk) {
     LOG_INFO("start PreprocessFunctiondefLocalVars");
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
@@ -244,15 +246,13 @@ void PreProcessor::PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &
             const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
             const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist());
             if (nl && el && nl->Names().size() == 1 && el->Exps().size() == 1) {
-                if (const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
-                    init_exp && init_exp->GetExpKind() == ExpKind::kFunctionDef) {
+                if (const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]); init_exp && init_exp->GetExpKind() == ExpKind::kFunctionDef) {
                     if (const auto fdef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(init_exp->Right())) {
                         const auto local_func = std::make_shared<SyntaxTreeLocalFunction>(stmt->Loc());
                         local_func->SetName(nl->Names()[0]);
                         local_func->SetFuncbody(fdef->Funcbody());
                         new_stmts.push_back(local_func);
-                        LOG_INFO("PreprocessFunctiondefLocalVars: converted local {} = function(...) to local function {}(...)",
-                                 nl->Names()[0], nl->Names()[0]);
+                        LOG_INFO("PreprocessFunctiondefLocalVars: converted local {} = function(...) to local function {}(...)", nl->Names()[0], nl->Names()[0]);
                         continue;
                     }
                 }

@@ -99,6 +99,7 @@ void CGen::GenerateHeader() {
     Out() << kCRuntimeHeader;
 }
 
+
 void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
     SectionGuard sg(*this, Section::Globals);
     Out() << "// ===== Global Variables =====\n\n";
@@ -474,6 +475,7 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vect
     Out() << "}\n";
 }
 
+
 std::string CGen::GenTab() const {
     const auto tab_size = static_cast<size_t>(cur_tab_) * 4;
     std::string tabs(tab_size, ' ');
@@ -698,6 +700,7 @@ InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const 
     DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
     return InferExpType(exp);
 }
+
 
 // 尝试将表达式编译为高效的原生 C 数值运算表达式。若中途由于类型不匹配等抛出异常，则优雅捕获并返回空字符串（指示回退到动态分发计算）
 std::string CGen::TryCompileNativeExpr(const SyntaxTreeInterfacePtr &exp) {
@@ -1651,6 +1654,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
     return var_name;
 }
+
 
 // ---------------------------------------------------------------------------
 // CompileBinop —— 二元运算符的代码生成

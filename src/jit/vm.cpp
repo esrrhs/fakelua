@@ -28,12 +28,10 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 
     int expected_arg_count = func.GetArgCount();
     if (UNLIKELY(expected_arg_count > static_cast<int>(kMaxFunctionInputParams))) {
-        ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects too many arguments ({}), max is {}", name,
-                                          expected_arg_count, kMaxFunctionInputParams));
+        ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects too many arguments ({}), max is {}", name, expected_arg_count, kMaxFunctionInputParams));
     }
     if (UNLIKELY(arg_num > static_cast<int>(kMaxFunctionInputParams))) {
-        ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}) passed for function '{}', max is {}", arg_num, name,
-                                          kMaxFunctionInputParams));
+        ThrowFakeluaException(std::format("FakeluaCallByName: too many arguments ({}) passed for function '{}', max is {}", arg_num, name, kMaxFunctionInputParams));
     }
 
     CVar raw_arg_arr[kMaxFunctionInputParams];
@@ -83,16 +81,15 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
         for (int i = 0; i < arg_num; ++i) {
             if (i == arg_num - 1 && raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
-                for (uint32_t j = 0; j < m->GetCount(); ++j) {
+                for (uint32_t j = 0; j < m->count; ++j) {
                     if (actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
-                        temp_arg_arr[actual_arg_num++] = m->GetVars()[j];
+                        temp_arg_arr[actual_arg_num++] = m->vars[j];
                     }
                 }
             } else {
                 if (actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
                     if (raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
-                        temp_arg_arr[actual_arg_num++] = raw_arg_arr[i].data_.m->GetCount() > 0 ? raw_arg_arr[i].data_.m->GetVars()[0]
-                                                                                                : (CVar) {static_cast<int>(VarType::Nil)};
+                        temp_arg_arr[actual_arg_num++] = raw_arg_arr[i].data_.m->count > 0 ? raw_arg_arr[i].data_.m->vars[0] : (CVar){static_cast<int>(VarType::Nil)};
                     } else {
                         temp_arg_arr[actual_arg_num++] = raw_arg_arr[i];
                     }
@@ -101,7 +98,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
         }
 
         while (actual_arg_num < expected_arg_count && actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
-            temp_arg_arr[actual_arg_num++] = (CVar) {static_cast<int>(VarType::Nil)};
+            temp_arg_arr[actual_arg_num++] = (CVar){static_cast<int>(VarType::Nil)};
         }
         arg_arr = temp_arg_arr;
     }
@@ -175,9 +172,9 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 #define ARG_31 ARG_30, arg_arr[30]
 #define ARG_32 ARG_31, arg_arr[31]
 
-#define VM_CASE(N)                                                                                                                         \
-    case N:                                                                                                                                \
-        return reinterpret_cast<CVar (*)(CVAR_##N)>(addr)(ARG_##N);
+#define VM_CASE(N) \
+        case N: \
+            return reinterpret_cast<CVar (*)(CVAR_##N)>(addr)(ARG_##N);
 
         VM_CASE(0)
         VM_CASE(1)
@@ -287,3 +284,5 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 
 
 }// namespace fakelua
+
+

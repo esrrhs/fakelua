@@ -31,11 +31,9 @@ private:
     struct SectionGuard {
         CGen &gen;
         Section prev;
-
         SectionGuard(CGen &g, Section s) : gen(g), prev(g.cur_section_) {
             gen.cur_section_ = s;
         }
-
         ~SectionGuard() {
             gen.cur_section_ = prev;
         }
@@ -72,7 +70,7 @@ private:
 
         // 判断变量是否已声明为非 CVar 的原生类型（int64_t / double）。
         [[nodiscard]] bool IsTyped(const std::string &name) const {
-            for (const auto &scope: std::views::reverse(scopes_)) {
+            for (const auto &scope : std::views::reverse(scopes_)) {
                 if (const auto it = scope.find(name); it != scope.end()) {
                     return it->second != T_DYNAMIC;
                 }
@@ -82,7 +80,7 @@ private:
 
         // 返回变量声明时的原生类型，未找到时返回 T_DYNAMIC。
         [[nodiscard]] InferredType GetType(const std::string &name) const {
-            for (const auto &scope: std::views::reverse(scopes_)) {
+            for (const auto &scope : std::views::reverse(scopes_)) {
                 if (const auto it = scope.find(name); it != scope.end()) {
                     return it->second;
                 }
@@ -221,27 +219,22 @@ private:
     void EnterNativeVarScope() {
         native_var_scope_.Enter();
     }
-
     // 退出当前局部原生变量类型作用域
     void ExitNativeVarScope() {
         native_var_scope_.Exit();
     }
-
     // 在当前局部原生作用域中声明一个具有强类型的原生 C 变量
     void DeclareNativeVar(const std::string &name, InferredType native_type) {
         native_var_scope_.Declare(name, native_type);
     }
-
     // 检查变量是否为已知强类型的原生变量
     [[nodiscard]] bool IsTypedNativeVar(const std::string &name) const {
         return native_var_scope_.IsTyped(name);
     }
-
     // 获取原生强类型变量在作用域中的推断类型
     [[nodiscard]] InferredType GetNativeVarType(const std::string &name) const {
         return native_var_scope_.GetType(name);
     }
-
     // 快捷访问推断器全局上下文结果
     [[nodiscard]] const InferResult &ir() const {
         return ir_->get();
@@ -266,12 +259,12 @@ private:
     }
 
 private:
-    State *s_;                                                      // 全局虚拟机状态 State 引用
-    std::string file_name_;                                         // 当前编译的源码文件名称
-    std::optional<std::reference_wrapper<const InferResult>> ir_;   // 全局类型推断结果快照引用
+    State *s_;                                                   // 全局虚拟机状态 State 引用
+    std::string file_name_;                                      // 当前编译的源码文件名称
+    std::optional<std::reference_wrapper<const InferResult>> ir_;// 全局类型推断结果快照引用
     std::optional<std::reference_wrapper<const AnalysisResult>> ar_;// 语义与控制流分析结果引用
 
-    int tmp_var_counter_ = 0;// 临时变量生成计数器
+    int tmp_var_counter_ = 0;                                        // 临时变量生成计数器
 
     std::unordered_map<std::string, int> local_func_names_;// 本地函数（非全局）的名称映射及作用域标识
 

@@ -24,55 +24,22 @@ struct InvalidVarImpl final : public VarInterface {
         // NOLINTNEXTLINE(clang-analyzer-optin.core.EnumCastOutOfRange)
         return static_cast<Type>(InvalidVarInterfaceTypeValue());
     }
-
-    void ViSetNil() override {
-    }
-
-    void ViSetBool(bool) override {
-    }
-
-    void ViSetInt(int64_t) override {
-    }
-
-    void ViSetFloat(double) override {
-    }
-
-    void ViSetString(const std::string_view &) override {
-    }
-
-    void ViSetTable(const std::vector<std::pair<VarInterface *, VarInterface *>> &) override {
-    }
-
-    [[nodiscard]] bool ViGetBool() const override {
-        return false;
-    }
-
-    [[nodiscard]] int64_t ViGetInt() const override {
-        return 0;
-    }
-
-    [[nodiscard]] double ViGetFloat() const override {
-        return 0;
-    }
-
-    [[nodiscard]] std::string_view ViGetString() const override {
-        return {};
-    }
-
-    [[nodiscard]] size_t ViGetTableSize() const override {
-        return 0;
-    }
-
-    [[nodiscard]] std::pair<VarInterface *, VarInterface *> ViGetTableKv(int) const override {
-        return {};
-    }
-
-    [[nodiscard]] std::string ViToString(int) const override {
-        return "invalid";
-    }
+    void ViSetNil() override {}
+    void ViSetBool(bool) override {}
+    void ViSetInt(int64_t) override {}
+    void ViSetFloat(double) override {}
+    void ViSetString(const std::string_view &) override {}
+    void ViSetTable(const std::vector<std::pair<VarInterface *, VarInterface *>> &) override {}
+    [[nodiscard]] bool ViGetBool() const override { return false; }
+    [[nodiscard]] int64_t ViGetInt() const override { return 0; }
+    [[nodiscard]] double ViGetFloat() const override { return 0; }
+    [[nodiscard]] std::string_view ViGetString() const override { return {}; }
+    [[nodiscard]] size_t ViGetTableSize() const override { return 0; }
+    [[nodiscard]] std::pair<VarInterface *, VarInterface *> ViGetTableKv(int) const override { return {}; }
+    [[nodiscard]] std::string ViToString(int) const override { return "invalid"; }
 };
 
-}// namespace
+} // namespace
 
 static CVar VmFn0() {
     Var ret;
@@ -80,37 +47,14 @@ static CVar VmFn0() {
     return ret;
 }
 
-static CVar VmFnEcho1(CVar a1) {
-    return a1;
-}
-
-static CVar VmFnEcho2(CVar a1, CVar a2) {
-    return a1;
-}
-
-static CVar VmFnEcho3(CVar a1, CVar a2, CVar a3) {
-    return a1;
-}
-
-static CVar VmFnEcho4(CVar a1, CVar a2, CVar a3, CVar a4) {
-    return a1;
-}
-
-static CVar VmFnEcho5(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5) {
-    return a1;
-}
-
-static CVar VmFnEcho6(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6) {
-    return a1;
-}
-
-static CVar VmFnEcho7(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6, CVar a7) {
-    return a1;
-}
-
-static CVar VmFnEcho8(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6, CVar a7, CVar a8) {
-    return a1;
-}
+static CVar VmFnEcho1(CVar a1) { return a1; }
+static CVar VmFnEcho2(CVar a1, CVar a2) { return a1; }
+static CVar VmFnEcho3(CVar a1, CVar a2, CVar a3) { return a1; }
+static CVar VmFnEcho4(CVar a1, CVar a2, CVar a3, CVar a4) { return a1; }
+static CVar VmFnEcho5(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5) { return a1; }
+static CVar VmFnEcho6(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6) { return a1; }
+static CVar VmFnEcho7(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6, CVar a7) { return a1; }
+static CVar VmFnEcho8(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6, CVar a7, CVar a8) { return a1; }
 
 #define TEST_JIT_TYPE JIT_TCC
 
@@ -121,24 +65,15 @@ static CVar callVmWithNArgs(State *s, const char *name, int n) {
     }
 
     switch (n) {
-        case 1:
-            return FakeluaCallByName(s, TEST_JIT_TYPE, name, 1, args[0]);
-        case 2:
-            return FakeluaCallByName(s, TEST_JIT_TYPE, name, 2, args[0], args[1]);
-        case 3:
-            return FakeluaCallByName(s, TEST_JIT_TYPE, name, 3, args[0], args[1], args[2]);
-        case 4:
-            return FakeluaCallByName(s, TEST_JIT_TYPE, name, 4, args[0], args[1], args[2], args[3]);
-        case 5:
-            return FakeluaCallByName(s, TEST_JIT_TYPE, name, 5, args[0], args[1], args[2], args[3], args[4]);
-        case 6:
-            return FakeluaCallByName(s, TEST_JIT_TYPE, name, 6, args[0], args[1], args[2], args[3], args[4], args[5]);
-        case 7:
-            return FakeluaCallByName(s, TEST_JIT_TYPE, name, 7, args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
-        case 8:
-            return FakeluaCallByName(s, TEST_JIT_TYPE, name, 8, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
-        default:
-            break;
+        case 1: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 1, args[0]);
+        case 2: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 2, args[0], args[1]);
+        case 3: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 3, args[0], args[1], args[2]);
+        case 4: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 4, args[0], args[1], args[2], args[3]);
+        case 5: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 5, args[0], args[1], args[2], args[3], args[4]);
+        case 6: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 6, args[0], args[1], args[2], args[3], args[4], args[5]);
+        case 7: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 7, args[0], args[1], args[2], args[3], args[4], args[5], args[6]);
+        case 8: return FakeluaCallByName(s, TEST_JIT_TYPE, name, 8, args[0], args[1], args[2], args[3], args[4], args[5], args[6], args[7]);
+        default: break;
     }
     return {};
 }

@@ -9,4 +9,4 @@ VarMulti *VarMulti::AllocTemp(State *state, uint32_t count) {
     return ret;
 }
 
-}// namespace fakelua
+} // namespace fakelua

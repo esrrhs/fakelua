@@ -133,7 +133,7 @@ TEST(common, vi_sort) {
     t.ViSortTable();
 
     ASSERT_EQ(t.ViToString(0), "table:\n\t[nil] = 1\n\t[nil] = 1\n\t[false] = 4\n\t[true] = 3\n\t[1.000000] = 5\n\t[2.000000] = "
-                               "6\n\t[table:] = 7\n\t[table:] = 7");
+                                "6\n\t[table:] = 7\n\t[table:] = 7");
 }
 
 TEST(common, IsNumber) {
