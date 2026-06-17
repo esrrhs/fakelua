@@ -254,6 +254,8 @@ Lua 源码
    ↓
 [预处理] → normalized AST (preprocessor)
    ↓
+[语义分析] → analysis result (semantic_analysis)
+   ↓
 [类型推导] → type hints (type_inferencer)
    ↓
 [C 代码生成] → C 源码 (c_gen)
@@ -270,6 +272,7 @@ Lua 源码
 | [`lexer/parser`](file:///home/project/fakelua/src/compile/bison/) | Lua 词法和语法解析 |
 | [`syntax_tree`](file:///home/project/fakelua/src/compile/syntax_tree.h) | AST 表示和遍历 |
 | [`preprocessor`](file:///home/project/fakelua/src/compile/preprocessor.h) | Lua 语法规范化（如 functiondef 提升） |
+| [`semantic_analysis`](file:///home/project/fakelua/src/compile/semantic_analysis.h) | 语义和控制流分析（如未定义符号分析等） |
 | [`type_inferencer`](file:///home/project/fakelua/src/compile/type_inferencer.h) | 静态类型推导和 specialization 决策 |
 | [`c_gen`](file:///home/project/fakelua/src/compile/c_gen.h) | C 代码生成和类型驱动优化 |
 | [`compile_common`](file:///home/project/fakelua/src/compile/compile_common.h) | 公共类型推导和代码生成工具 |
