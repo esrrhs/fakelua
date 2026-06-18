@@ -5,6 +5,7 @@
 #include "var/var_multi.h"
 #include "var/var_type.h"
 #include <stdarg.h>
+#include <vector>
 
 namespace fakelua {
 
@@ -58,45 +59,77 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
         }
     }
 
-    if (UNLIKELY(has_any_multi)) {
-        bool has_multi_expansion = (arg_num > 0 && raw_arg_arr[arg_num - 1].type_ == static_cast<int>(VarType::Multi));
-        if (!has_multi_expansion && arg_num != expected_arg_count) {
-            ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, arg_num));
-        }
-    } else {
-        if (arg_num != expected_arg_count) {
-            ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, arg_num));
+    if (!func.IsVararg()) {
+        if (UNLIKELY(has_any_multi)) {
+            bool has_multi_expansion = (arg_num > 0 && raw_arg_arr[arg_num - 1].type_ == static_cast<int>(VarType::Multi));
+            if (!has_multi_expansion && arg_num != expected_arg_count) {
+                ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, arg_num));
+            }
+        } else {
+            if (arg_num != expected_arg_count) {
+                ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, arg_num));
+            }
         }
     }
 
     CVar temp_arg_arr[kMaxFunctionInputParams];
     const CVar *arg_arr = nullptr;
 
-    if (LIKELY(!has_any_multi && arg_num == expected_arg_count)) {
+    if (LIKELY(!func.IsVararg() && !has_any_multi && arg_num == expected_arg_count)) {
         arg_arr = raw_arg_arr;
     } else {
-        int actual_arg_num = 0;
+        std::vector<CVar> flat_args;
+        flat_args.reserve(arg_num * 2);
         for (int i = 0; i < arg_num; ++i) {
             if (i == arg_num - 1 && raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
                 for (uint32_t j = 0; j < m->GetCount(); ++j) {
-                    if (actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
-                        temp_arg_arr[actual_arg_num++] = m->GetVars()[j];
+                    if (flat_args.size() < kMaxFunctionInputParams) {
+                        flat_args.push_back(m->GetVars()[j]);
                     }
                 }
             } else {
-                if (actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
+                if (flat_args.size() < kMaxFunctionInputParams) {
                     if (raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
-                        temp_arg_arr[actual_arg_num++] = raw_arg_arr[i].data_.m->GetCount() > 0 ? raw_arg_arr[i].data_.m->GetVars()[0] : (CVar) {static_cast<int>(VarType::Nil)};
+                        flat_args.push_back(raw_arg_arr[i].data_.m->GetCount() > 0 ? raw_arg_arr[i].data_.m->GetVars()[0] : (CVar) {static_cast<int>(VarType::Nil)});
                     } else {
-                        temp_arg_arr[actual_arg_num++] = raw_arg_arr[i];
+                        flat_args.push_back(raw_arg_arr[i]);
                     }
                 }
             }
         }
 
-        while (actual_arg_num < expected_arg_count && actual_arg_num < static_cast<int>(kMaxFunctionInputParams)) {
-            temp_arg_arr[actual_arg_num++] = (CVar) {static_cast<int>(VarType::Nil)};
+        if (func.IsVararg()) {
+            int fixed_param_count = expected_arg_count - 1;
+            for (int i = 0; i < fixed_param_count; ++i) {
+                if (i < static_cast<int>(flat_args.size())) {
+                    temp_arg_arr[i] = flat_args[i];
+                } else {
+                    temp_arg_arr[i] = (CVar){static_cast<int>(VarType::Nil)};
+                }
+            }
+            if (flat_args.size() <= static_cast<size_t>(fixed_param_count)) {
+                temp_arg_arr[fixed_param_count] = (CVar){static_cast<int>(VarType::Nil)};
+            } else {
+                uint32_t vararg_count = flat_args.size() - fixed_param_count;
+                VarMulti *m = VarMulti::AllocTemp(state, vararg_count);
+                for (uint32_t i = 0; i < vararg_count; ++i) {
+                    m->GetVars()[i] = flat_args[fixed_param_count + i];
+                }
+                CVar res;
+                res.type_ = static_cast<int>(VarType::Multi);
+                res.flag_ = 0;
+                res.data_.m = m;
+                temp_arg_arr[fixed_param_count] = res;
+            }
+        } else {
+            for (int i = 0; i < expected_arg_count; ++i) {
+                if (i < static_cast<int>(flat_args.size())) {
+                    temp_arg_arr[i] = flat_args[i];
+                } else {
+                    temp_arg_arr[i] = (CVar){static_cast<int>(VarType::Nil)};
+                }
+            }
         }
         arg_arr = temp_arg_arr;
     }

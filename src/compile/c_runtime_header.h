@@ -139,6 +139,27 @@ static inline CVar FlUnboxMulti(CVar v, uint32_t idx) {
     return (idx < m->count) ? m->vars[idx] : (CVar){VAR_NIL};
 }
 
+static inline CVar FlSliceMulti(State *state, CVar v, uint32_t start_idx) {
+    if (v.type_ != VAR_MULTI) {
+        return (start_idx == 0) ? v : (CVar){VAR_NIL};
+    }
+    VarMulti *m = v.data_.m;
+    if (start_idx >= m->count) {
+        return (CVar){VAR_NIL};
+    }
+    uint32_t count = m->count - start_idx;
+    VarMulti *nm = (VarMulti *)FakeluaAllocTemp(state, sizeof(VarMulti) + count * sizeof(CVar));
+    nm->count = count;
+    for (uint32_t i = 0; i < count; ++i) {
+        nm->vars[i] = m->vars[start_idx + i];
+    }
+    CVar res;
+    res.type_ = VAR_MULTI;
+    res.flag_ = 0;
+    res.data_.m = nm;
+    return res;
+}
+
 #define SET_NIL(v) do { (v).type_ = VAR_NIL; } while(0)
 #define SET_BOOL(v, val) do { (v).type_ = VAR_BOOL; (v).data_.b = (val); } while(0)
 #define SET_INT(v, val) do { (v).type_ = VAR_INT; (v).data_.i = (val); } while(0)

@@ -192,6 +192,11 @@ struct InferResult {
     std::unordered_map<std::string, InferredType> global_const_vars;
 };
 
+struct JitFunctionInfo {
+    int params_count = 0;
+    bool is_vararg = false;
+};
+
 // ---- 阶段五：代码生成结果 ---------------------------------------------------
 // CGen 的输出。
 // 由 CGen::Generate 填充，供 JIT 编译器使用。
@@ -201,8 +206,8 @@ struct GenResult {
     // 记录的C代码（全局变量、函数声明、函数实现，不含公共头部）。
     // 仅当 CompileConfig::record_c_code 为 true 时由 CGen 填充。
     std::string recorded_c_code;
-    // 入口函数名->参数个数
-    std::unordered_map<std::string, int> function_names;
+    // 函数名->函数元信息
+    std::unordered_map<std::string, JitFunctionInfo> function_names;
 };
 
 

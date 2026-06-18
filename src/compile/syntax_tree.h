@@ -1599,4 +1599,10 @@ using WalkSyntaxTreeFunc = std::function<void(const SyntaxTreeInterfacePtr &)>;
 // 深度优先遍历语法树
 void WalkSyntaxTree(const SyntaxTreeInterfacePtr &node, const WalkSyntaxTreeFunc &func);
 
+// 语法树剪枝遍历函数定义：回调返回 false 时，不继续遍历当前节点的子节点
+using WalkSyntaxTreePrunedFunc = std::function<bool(const SyntaxTreeInterfacePtr &)>;
+
+// 带有剪枝控制的深度优先遍历语法树
+void WalkSyntaxTreePruned(const SyntaxTreeInterfacePtr &node, const WalkSyntaxTreePrunedFunc &func);
+
 }// namespace fakelua

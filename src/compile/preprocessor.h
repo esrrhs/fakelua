@@ -23,6 +23,9 @@ private:
 
     void PreprocessTableAssign(const SyntaxTreeInterfacePtr &node);
 
+    // 处理可变参数 (...) 并将其转换为常规隐式参数
+    void PreprocessVarargs(const SyntaxTreeInterfacePtr &chunk);
+
     // 将顶层 "local f = function(...) ... end" 转换为 "local function f(...) ... end"，
     // 使其可被特化发现流程处理，行为与 LocalFunction 语句完全一致。
     void PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &chunk);
@@ -35,6 +38,8 @@ private:
     void DumpDebugFile(const SyntaxTreeInterfacePtr &chunk, int step);
 
     bool IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node);
+
+    bool IsVarargExp(const SyntaxTreeInterfacePtr &exp_node);
 
     std::shared_ptr<SyntaxTreePrefixexp> MakeSimpleVarPrefixexp(const SyntaxTreeLocation &loc, const std::string &name);
 

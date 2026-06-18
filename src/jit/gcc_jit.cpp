@@ -155,14 +155,14 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     }
     const auto handle = std::make_shared<GCCHandle>(c_file, so_file, module_handle);
 
-    for (const auto &[name, params_count]: gr.function_names) {
+    for (const auto &[name, info]: gr.function_names) {
         FARPROC symbol_address = GetProcAddress(module_handle, name.c_str());
         if (!symbol_address) {
             ThrowFakeluaException(std::format("GCC compile failed, GetProcAddress failed for symbol {} in {}", name, so_file));
         }
         void *func_ptr = reinterpret_cast<void *>(symbol_address);
-        s_->GetVM().RegisterFunction(VmFunction(name, params_count, JIT_GCC, func_ptr, handle));
-        LOG_INFO("Registered gcc function {} with {} params at address {}", name, params_count, func_ptr);
+        s_->GetVM().RegisterFunction(VmFunction(name, info.params_count, JIT_GCC, func_ptr, handle, info.is_vararg));
+        LOG_INFO("Registered gcc function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
     }
 #else
     std::vector<char *> argv;
@@ -222,13 +222,13 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     }
     const auto handle = std::make_shared<GCCHandle>(c_file, so_file, dl_handle);
 
-    for (const auto &[name, params_count]: gr.function_names) {
+    for (const auto &[name, info]: gr.function_names) {
         void *func_ptr = dlsym(dl_handle, name.c_str());
         if (!func_ptr) {
             ThrowFakeluaException(std::format("GCC compile failed, dlsym failed for symbol {} in {}", name, so_file));
         }
-        s_->GetVM().RegisterFunction(VmFunction(name, params_count, JIT_GCC, func_ptr, handle));
-        LOG_INFO("Registered gcc function {} with {} params at address {}", name, params_count, func_ptr);
+        s_->GetVM().RegisterFunction(VmFunction(name, info.params_count, JIT_GCC, func_ptr, handle, info.is_vararg));
+        LOG_INFO("Registered gcc function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
     }
 
     LOG_INFO("GCC JIT compilation finished for {}", pr.file_name);

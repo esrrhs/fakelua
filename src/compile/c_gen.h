@@ -201,6 +201,7 @@ private:
 
     // 静态获取表达式在推断器中的推断类型
     [[nodiscard]] InferredType InferExpType(const SyntaxTreeInterfacePtr &exp) const;
+    [[nodiscard]] bool IsVarargExp(const SyntaxTreeInterfacePtr &node) const;
     // 为特化签名调用推断特定的参数类型
     [[nodiscard]] InferredType InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const;
     // 尝试推断数学特化库调用的参数掩码（bitmask）
@@ -266,7 +267,7 @@ private:
 
     int tmp_var_counter_ = 0;// 临时变量生成计数器
 
-    std::unordered_map<std::string, int> local_func_names_;// 本地函数（非全局）的名称映射及作用域标识
+    std::unordered_map<std::string, JitFunctionInfo> local_func_names_;// 本地函数（非全局）的名称映射及作用域标识
 
     [[nodiscard]] const AnalysisResult &ar() const {
         return ar_->get();

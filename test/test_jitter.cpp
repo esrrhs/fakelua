@@ -388,23 +388,36 @@ TEST(jitter, empty_func_with_params) {
     });
 }
 
-// Variadic functions (...) are not supported yet, these tests verify the exception is thrown
 TEST(jitter, variadic_func) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_variadic_func.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_variadic_func.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "run_test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        auto m = ret.data_.m;
+        ASSERT_EQ(m->GetCount(), 2);
+        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[0].data_.i, 10);
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[1].data_.i, 20);
+    });
 }
 
 TEST(jitter, variadic_func_with_params) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_variadic_func_with_params.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_variadic_func_with_params.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "run_test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        auto m = ret.data_.m;
+        ASSERT_EQ(m->GetCount(), 3);
+        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[0].data_.i, 30);
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[1].data_.i, 20);
+        ASSERT_EQ(m->GetVars()[2].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[2].data_.i, 10);
+    });
 }
 
 TEST(jitter, string) {
@@ -475,30 +488,42 @@ TEST(jitter, test_assign_not_match) {
 
 // Variadic assignment (local a, b = ...) is not supported, these tests verify the exception is thrown
 TEST(jitter, test_assign_variadic_match) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_assign_variadic.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_assign_variadic.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "run_test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        auto m = ret.data_.m;
+        ASSERT_EQ(m->GetCount(), 2);
+        ASSERT_EQ(m->GetVars()[0].data_.i, 20);
+        ASSERT_EQ(m->GetVars()[1].data_.i, 10);
+    });
 }
 
 TEST(jitter, test_assign_variadic_no_match) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_assign_variadic_no_match.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_assign_variadic_no_match.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "run_test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        auto m = ret.data_.m;
+        ASSERT_EQ(m->GetCount(), 2);
+        ASSERT_EQ(m->GetVars()[0].data_.i, 1);
+        ASSERT_EQ(m->GetVars()[1].data_.i, 10);
+    });
 }
 
 TEST(jitter, test_assign_variadic_empty) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_assign_variadic_no_match.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_assign_variadic_no_match.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "run_empty_test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        auto m = ret.data_.m;
+        ASSERT_EQ(m->GetCount(), 2);
+        ASSERT_EQ(m->GetVars()[0].data_.i, 1);
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Nil));
+    });
 }
 
 // Table constructors in global variable initialization are not supported
@@ -583,30 +608,34 @@ TEST(jitter, test_local_nested_table) {
 
 // Variadic (...) in table constructors is not supported yet, these tests verify the exception is thrown
 TEST(jitter, test_local_table_with_variadic) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_local_table_with_variadic.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_local_table_with_variadic.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "run_test", ret);
+        ASSERT_EQ(ret, 30);
+    });
 }
 
 TEST(jitter, test_local_table_with_variadic_no_end) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_local_table_with_variadic_no_end.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_local_table_with_variadic_no_end.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "run_test", ret);
+        ASSERT_EQ(ret, 60);
+    });
 }
 
 TEST(jitter, test_local_table_with_variadic_no_end_replace) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_local_table_with_variadic_no_end_replace.lua", {.debug_mode = true});
-            },
-            std::exception);
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_local_table_with_variadic_no_end_replace.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "run_test", ret);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        auto m = ret.data_.m;
+        ASSERT_EQ(m->GetCount(), 2);
+        ASSERT_EQ(m->GetVars()[0].data_.i, 30);
+        ASSERT_EQ(m->GetVars()[1].data_.i, 20);
+    });
 }
 
 TEST(jitter, compile_empty_string) {
