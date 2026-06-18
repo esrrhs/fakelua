@@ -14,10 +14,7 @@ jobs:
     steps:
       - uses: actions/checkout@v1
 
-      - name: Setup GCC
-        uses: pkgxdev/setup@v1
-        with:
-          +: gcc@13
+
 
       - name: Setup Lua
         run: |
