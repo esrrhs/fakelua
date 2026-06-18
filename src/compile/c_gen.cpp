@@ -196,8 +196,10 @@ void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
         }
         Out() << ");\n";
 
-        // 记录函数参数数量
-        gr.function_names[name] = static_cast<int>(params.size());
+        bool is_vararg = !params.empty() && params.back().rfind("__fakelua_vararg_", 0) == 0;
+
+        // 记录函数参数数量和变参标记
+        gr.function_names[name] = JitFunctionInfo{static_cast<int>(params.size()), is_vararg};
 
         // 如果函数含有数学参数，还需声明 2^k 个特化变体。
         if (const auto math_it = ir().math_param_positions.find(name); math_it != ir().math_param_positions.end()) {
@@ -221,7 +223,7 @@ void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                 Out() << ");\n";
                 // 注册特化函数名，使 CompileFunctioncall 能将其识别为
                 // 本地调用（同文件直接调用）。
-                gr.function_names[spec_name] = static_cast<int>(params.size());
+                gr.function_names[spec_name] = JitFunctionInfo{static_cast<int>(params.size()), is_vararg};
             }
         }
     }
@@ -580,6 +582,25 @@ bool CGen::TryInferMathCallSpec(const std::string &callee_name, const std::vecto
     return true;
 }
 
+bool CGen::IsVarargExp(const SyntaxTreeInterfacePtr &node) const {
+    if (!node || node->Type() != SyntaxTreeType::Exp) {
+        return false;
+    }
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+    if (exp->GetExpKind() != ExpKind::kPrefixExp) {
+        return false;
+    }
+    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
+    if (!pe || pe->GetPrefixKind() != PrefixExpKind::kVar) {
+        return false;
+    }
+    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+    if (!var || var->GetVarKind() != VarKind::kSimple) {
+        return false;
+    }
+    return var->GetName().rfind("__fakelua_vararg_", 0) == 0;
+}
+
 InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
     DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
@@ -849,10 +870,11 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
     } else {
         const auto &exps = explist_ptr->Exps();
         bool last_is_func = ar().function_call_exps.contains(exps.back().get());
+        bool last_is_vararg = IsVarargExp(exps.back());
         std::string last_callee = last_is_func ? ar().callee_names.at(exps.back().get()) : "";
         bool is_last_single_return_local = !last_callee.empty() && ar().function_max_returns.contains(last_callee) && ar().function_max_returns.at(last_callee) == 1;
 
-        if (last_is_func && !is_last_single_return_local) {
+        if ((last_is_func && !is_last_single_return_local) || last_is_vararg) {
             std::vector<std::string> prefix_args;
             for (size_t i = 0; i < exps.size() - 1; ++i) {
                 prefix_args.push_back(CompileExp(exps[i], false));
@@ -890,10 +912,11 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
     const auto &exps = explist ? std::dynamic_pointer_cast<SyntaxTreeExplist>(explist)->Exps() : empty_exps;
 
     bool last_is_func = !exps.empty() && ar().function_call_exps.contains(exps.back().get());
+    bool last_is_vararg = !exps.empty() && IsVarargExp(exps.back());
     std::string callee = last_is_func ? ar().callee_names.at(exps.back().get()) : "";
     bool is_single_return_local = !callee.empty() && ar().function_max_returns.contains(callee) && ar().function_max_returns.at(callee) == 1;
 
-    if (names.size() > exps.size() && last_is_func && !is_single_return_local) {
+    if (names.size() > exps.size() && ((last_is_func && !is_single_return_local) || last_is_vararg)) {
         // Compile prior expressions first (M - 1 expressions)
         for (size_t i = 0; i < exps.size() - 1; ++i) {
             const auto &name = names[i];
@@ -1530,7 +1553,17 @@ std::string CGen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe, bool preser
     DEBUG_ASSERT(pe_kind == PrefixExpKind::kVar || pe_kind == PrefixExpKind::kFunctionCall || pe_kind == PrefixExpKind::kExp);
 
     if (pe_kind == PrefixExpKind::kVar) {
-        return CompileVar(value);
+        const auto var_str = CompileVar(value);
+        // 若变量是 vararg 隐式参数（类型可能为 VarType::Multi），且调用方不需要保留 Multi，
+        // 则取第一个值，等同于函数调用在非末尾位置的处理（FlUnboxMulti(x, 0)）。
+        if (!preserve_multi) {
+            const auto var_node = std::dynamic_pointer_cast<SyntaxTreeVar>(value);
+            if (var_node && var_node->GetVarKind() == VarKind::kSimple &&
+                var_node->GetName().rfind("__fakelua_vararg_", 0) == 0) {
+                return std::format("FlUnboxMulti({}, 0)", var_str);
+            }
+        }
+        return var_str;
     } else if (pe_kind == PrefixExpKind::kFunctionCall) {
         std::string call = CompileFunctioncall(value);
         if (preserve_multi) {
@@ -1579,7 +1612,8 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
             const auto value_exp = field_ptr->Value();
             bool is_func = ar().function_call_exps.contains(value_exp.get());
-            bool is_expand = (field_ptr == last_array_field) && is_func;
+            bool is_vararg = IsVarargExp(value_exp);
+            bool is_expand = (field_ptr == last_array_field) && (is_func || is_vararg);
             const auto value_str = CompileExp(value_exp, is_expand);
 
             if (fkind == FieldKind::kObject) {
@@ -2357,16 +2391,17 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         const auto &raw_args = explist_ptr->Exps();
 
         bool last_is_func = !raw_args.empty() && ar().function_call_exps.contains(raw_args.back().get());
+        bool last_is_vararg = !raw_args.empty() && IsVarargExp(raw_args.back());
         std::string last_callee = last_is_func ? ar().callee_names.at(raw_args.back().get()) : "";
         bool is_last_single_return_local = !last_callee.empty() && ar().function_max_returns.contains(last_callee) && ar().function_max_returns.at(last_callee) == 1;
 
-        if (last_is_func && !is_last_single_return_local) {
+        if ((last_is_func && !is_last_single_return_local) || last_is_vararg) {
             has_expansion = true;
             // Compile prior arguments first
             for (size_t i = 0; i < raw_args.size() - 1; ++i) {
                 compiled_args.push_back(CompileExp(raw_args[i]));
             }
-            // Compile the last function call into a temporary variable
+            // Compile the last function call/vararg into a temporary variable
             expansion_tmp = std::format("flua_call_res_{}", tmp_var_counter_++);
             func_temp_decls_ << "    CVar " << expansion_tmp << ";\n";
             Out() << GenTab() << expansion_tmp << " = " << CompileExp(raw_args.back(), true) << ";\n";
@@ -2395,14 +2430,60 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
 
     std::string call_expr;
     if (local_func_names_.contains(func_name)) {
-        const int expected_params = local_func_names_.at(func_name);
-        if (has_expansion) {
-            for (int i = expansion_start_idx; i < expected_params; ++i) {
-                compiled_args.push_back(std::format("FlUnboxMulti({}, {})", expansion_tmp, i - expansion_start_idx));
+        const auto &info = local_func_names_.at(func_name);
+        if (info.is_vararg) {
+            int N = info.params_count;
+            int fixed_param_count = N - 1;
+            if (has_expansion) {
+                if (expansion_start_idx < fixed_param_count) {
+                    for (int i = expansion_start_idx; i < fixed_param_count; ++i) {
+                        compiled_args.push_back(std::format("FlUnboxMulti({}, {})", expansion_tmp, i - expansion_start_idx));
+                    }
+                    std::string slice_expr = std::format("FlSliceMulti(_S, {}, {})", expansion_tmp, fixed_param_count - expansion_start_idx);
+                    compiled_args.push_back(slice_expr);
+                } else if (expansion_start_idx == fixed_param_count) {
+                    compiled_args.push_back(expansion_tmp);
+                } else { // expansion_start_idx > fixed_param_count
+                    std::vector<std::string> prefix_args;
+                    for (int i = fixed_param_count; i < expansion_start_idx; ++i) {
+                        prefix_args.push_back(compiled_args[i]);
+                    }
+                    compiled_args.resize(fixed_param_count);
+                    std::string prefix_arr_name = std::format("flua_vararg_prefix_{}", tmp_var_counter_++);
+                    func_temp_decls_ << "    CVar " << prefix_arr_name << "[" << prefix_args.size() << "];\n";
+                    for (size_t i = 0; i < prefix_args.size(); ++i) {
+                        Out() << GenTab() << prefix_arr_name << "[" << i << "] = " << prefix_args[i] << ";\n";
+                    }
+                    std::string combine_expr = std::format("FlCombineMulti(_S, {}, {}, {})", prefix_args.size(), prefix_arr_name, expansion_tmp);
+                    compiled_args.push_back(combine_expr);
+                }
+            } else {
+                int num_varargs = static_cast<int>(compiled_args.size()) > fixed_param_count ? static_cast<int>(compiled_args.size()) - fixed_param_count : 0;
+                if (num_varargs == 0) {
+                    while (static_cast<int>(compiled_args.size()) < fixed_param_count) {
+                        compiled_args.push_back("kNil");
+                    }
+                    compiled_args.push_back("kNil");
+                } else {
+                    std::string pack = std::format("FlMakeMulti(_S, {}", num_varargs);
+                    for (int i = fixed_param_count; i < static_cast<int>(compiled_args.size()); ++i) {
+                        pack += ", " + compiled_args[i];
+                    }
+                    pack += ")";
+                    compiled_args.resize(fixed_param_count);
+                    compiled_args.push_back(pack);
+                }
             }
-        }
-        if (static_cast<int>(compiled_args.size()) != expected_params) {
-            ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, expected_params, compiled_args.size()), functioncall);
+        } else {
+            const int expected_params = info.params_count;
+            if (has_expansion) {
+                for (int i = expansion_start_idx; i < expected_params; ++i) {
+                    compiled_args.push_back(std::format("FlUnboxMulti({}, {})", expansion_tmp, i - expansion_start_idx));
+                }
+            }
+            if (static_cast<int>(compiled_args.size()) != expected_params) {
+                ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, expected_params, compiled_args.size()), functioncall);
+            }
         }
         call_expr = func_name + "(";
         for (size_t i = 0; i < compiled_args.size(); ++i) {
