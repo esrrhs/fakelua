@@ -2,6 +2,7 @@
 #include "fakelua.h"
 #include "state/const_string.h"
 #include "state/state.h"
+#include "var/var_multi.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
 #include "var/var_type.h"
