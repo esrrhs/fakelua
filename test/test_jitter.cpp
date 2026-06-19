@@ -2813,3 +2813,112 @@ TEST(jitter, test_32params) {
         ASSERT_EQ(ret, 32);
     });
 }
+
+// ===========================================================================
+// C++ 直接调用变参 Lua 函数的测试
+//
+// 通过 FakeluaCallByName 从 C++ 侧传入任意数量参数调用 Lua 变参函数，
+// 验证 VM 层的变参打包/分发逻辑对外暴露的行为是否正确。
+// ===========================================================================
+
+// 场景1：纯变参求和——空变参返回 0
+TEST(jitter, vararg_from_cpp_sum_no_args) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        // sum() → 0
+        CVar ret = FakeluaCallByName(s, type, "sum", 0);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(ret.data_.i, 0);
+    });
+}
+
+// 场景2：纯变参求和——传 1 个参数
+TEST(jitter, vararg_from_cpp_sum_one_arg) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        CVar a = inter::NativeToFakeluaInt(s, 42);
+        // sum(42) → 42
+        CVar ret = FakeluaCallByName(s, type, "sum", 1, a);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(ret.data_.i, 42);
+    });
+}
+
+// 场景3：纯变参求和——传多个参数（C++ 侧直接传，VM 打包成 Multi）
+TEST(jitter, vararg_from_cpp_sum_multi_args) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        CVar a1 = inter::NativeToFakeluaInt(s, 10);
+        CVar a2 = inter::NativeToFakeluaInt(s, 20);
+        CVar a3 = inter::NativeToFakeluaInt(s, 30);
+        // sum(10, 20, 30) → 60
+        CVar ret = FakeluaCallByName(s, type, "sum", 3, a1, a2, a3);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(ret.data_.i, 60);
+    });
+}
+
+// 场景4：固定参数 + 变参——C++ 传多个参数，Lua 透传返回
+TEST(jitter, vararg_from_cpp_prefix_and_vararg) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        CVar prefix = inter::NativeToFakeluaInt(s, 1);
+        CVar v1     = inter::NativeToFakeluaInt(s, 2);
+        CVar v2     = inter::NativeToFakeluaInt(s, 3);
+        // prefix_and_vararg(1, 2, 3) → 1, 2, 3
+        // Lua 函数签名：prefix_and_vararg(prefix, ...) → 固定参数1个，变参槽1个
+        // FakeluaCallByName 传 3 个参数：prefix=1, vararg=[2,3]（打包）
+        CVar ret = FakeluaCallByName(s, type, "prefix_and_vararg", 3, prefix, v1, v2);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->GetCount(), 3);
+        ASSERT_EQ(m->GetVars()[0].data_.i, 1);
+        ASSERT_EQ(m->GetVars()[1].data_.i, 2);
+        ASSERT_EQ(m->GetVars()[2].data_.i, 3);
+    });
+}
+
+// 场景5：固定参数 + 变参——只传固定参数（变参为空）
+TEST(jitter, vararg_from_cpp_prefix_only) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        CVar prefix = inter::NativeToFakeluaInt(s, 99);
+        // prefix_and_vararg(99) → 99（vararg 为空 Multi，return prefix, ... 只返回 prefix）
+        CVar ret = FakeluaCallByName(s, type, "prefix_and_vararg", 1, prefix);
+        // 返回值可以是 Int（只有1个元素时 FlCombineMulti 折叠）或 Multi 含1个元素
+        int64_t val = 0;
+        if (ret.type_ == static_cast<int>(VarType::Int)) {
+            val = ret.data_.i;
+        } else if (ret.type_ == static_cast<int>(VarType::Multi)) {
+            ASSERT_GE(ret.data_.m->GetCount(), 1);
+            val = ret.data_.m->GetVars()[0].data_.i;
+        } else {
+            FAIL() << "unexpected return type: " << ret.type_;
+        }
+        ASSERT_EQ(val, 99);
+    });
+}
+
+// 场景6：空变参时走默认分支
+TEST(jitter, vararg_from_cpp_or_default_empty) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        // vararg_or_default() → -1
+        CVar ret = FakeluaCallByName(s, type, "vararg_or_default", 0);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(ret.data_.i, -1);
+    });
+}
+
+// 场景7：有变参时返回第一个
+TEST(jitter, vararg_from_cpp_or_default_with_arg) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        CVar a = inter::NativeToFakeluaInt(s, 7);
+        // vararg_or_default(7) → 7
+        CVar ret = FakeluaCallByName(s, type, "vararg_or_default", 1, a);
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(ret.data_.i, 7);
+    });
+}
+
