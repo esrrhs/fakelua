@@ -109,7 +109,14 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
                 }
             }
             if (flat_args.size() <= static_cast<size_t>(fixed_param_count)) {
-                temp_arg_arr[fixed_param_count] = (CVar){static_cast<int>(VarType::Nil)};
+                // 无多余参数：变参槽填入空 Multi（count=0），表示 ... 为空序列
+                // 不能填 Nil，否则 FlCombineMulti 会把 Nil 当作 1 个元素展开
+                VarMulti *empty_m = VarMulti::AllocTemp(state, 0);
+                CVar empty_res;
+                empty_res.type_ = static_cast<int>(VarType::Multi);
+                empty_res.flag_ = 0;
+                empty_res.data_.m = empty_m;
+                temp_arg_arr[fixed_param_count] = empty_res;
             } else {
                 uint32_t vararg_count = flat_args.size() - fixed_param_count;
                 VarMulti *m = VarMulti::AllocTemp(state, vararg_count);
