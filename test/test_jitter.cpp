@@ -2826,7 +2826,7 @@ TEST(jitter, test_32params) {
 // 场景1：纯变参求和——空变参返回 0
 TEST(jitter, vararg_from_cpp_sum_no_args) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./jit/test_vararg_sum.lua", {.debug_mode = debug_mode});
         // sum 签名编译后为 func(CVar __vararg_0)，传空 Multi 表示 0 个可变参数
         CVar vararg = MakeVarargs(s);
         CVar ret;
@@ -2838,7 +2838,7 @@ TEST(jitter, vararg_from_cpp_sum_no_args) {
 // 场景2：纯变参求和——传 1 个参数
 TEST(jitter, vararg_from_cpp_sum_one_arg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./jit/test_vararg_sum.lua", {.debug_mode = debug_mode});
         // sum({42}) → 42
         CVar vararg = MakeVarargs(s, 42LL);
         CVar ret;
@@ -2850,7 +2850,7 @@ TEST(jitter, vararg_from_cpp_sum_one_arg) {
 // 场景3：纯变参求和——传多个参数
 TEST(jitter, vararg_from_cpp_sum_multi_args) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./jit/test_vararg_sum.lua", {.debug_mode = debug_mode});
         // sum({10, 20, 30}) → 60
         CVar vararg = MakeVarargs(s, 10LL, 20LL, 30LL);
         CVar ret;
@@ -2862,7 +2862,7 @@ TEST(jitter, vararg_from_cpp_sum_multi_args) {
 // 场景4：固定参数 + 变参——Lua 透传返回，用公开 API 拆解
 TEST(jitter, vararg_from_cpp_prefix_and_vararg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./jit/test_vararg_prefix_and_vararg.lua", {.debug_mode = debug_mode});
         // prefix_and_vararg 签名：func(CVar prefix, CVar __vararg_0)
         // prefix=1, vararg={2, 3} → 返回 Multi{1, 2, 3}
         CVar vararg = MakeVarargs(s, 2LL, 3LL);
@@ -2878,7 +2878,7 @@ TEST(jitter, vararg_from_cpp_prefix_and_vararg) {
 // 场景5：固定参数 + 变参——变参为空
 TEST(jitter, vararg_from_cpp_prefix_only) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./jit/test_vararg_prefix_and_vararg.lua", {.debug_mode = debug_mode});
         // prefix=99, vararg={} → return prefix, ... → Multi{99}
         CVar vararg = MakeVarargs(s);
         CVar ret;
@@ -2891,7 +2891,7 @@ TEST(jitter, vararg_from_cpp_prefix_only) {
 // 场景6：空变参时走默认分支
 TEST(jitter, vararg_from_cpp_or_default_empty) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./jit/test_vararg_or_default.lua", {.debug_mode = debug_mode});
         // vararg_or_default({}) → -1
         CVar vararg = MakeVarargs(s);
         CVar ret;
@@ -2903,7 +2903,7 @@ TEST(jitter, vararg_from_cpp_or_default_empty) {
 // 场景7：有变参时返回第一个
 TEST(jitter, vararg_from_cpp_or_default_with_arg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./jit/test_vararg_or_default.lua", {.debug_mode = debug_mode});
         // vararg_or_default({7}) → 7
         CVar vararg = MakeVarargs(s, 7LL);
         CVar ret;

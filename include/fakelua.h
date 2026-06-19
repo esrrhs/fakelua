@@ -587,7 +587,21 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &
     }
 
     if (const auto reentrant_count = inter::GetReentrantCount(s); !reentrant_count) {
-        inter::Reset(s);
+        bool has_multi = false;
+        if constexpr (sizeof...(Args) > 0) {
+            auto check_multi = [](auto &&arg) -> bool {
+                using T = std::decay_t<decltype(arg)>;
+                if constexpr (std::is_same_v<T, CVar>) {
+                    return arg.type_ == 7;
+                } else {
+                    return false;
+                }
+            };
+            has_multi = (check_multi(std::forward<Args>(args)) || ...);
+        }
+        if (!has_multi) {
+            inter::Reset(s);
+        }
     }
     inter::ReentryCounter rc(s);
 
