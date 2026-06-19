@@ -2,7 +2,6 @@
 #include "fakelua.h"
 #include "state/const_string.h"
 #include "state/state.h"
-#include "var/var_multi.h"
 #include "var/var_string.h"
 #include "var/var_table.h"
 #include "var/var_type.h"
@@ -22,38 +21,6 @@ static void JitterRunHelper(const std::function<void(State *, JITType, bool)> &f
         f(s, type, false);
     }
     FakeluaDeleteState(s);
-}
-
-// ---------------------------------------------------------------------------
-// Multi CVar 打包/拆包 helper
-//
-// MakeMultiCVar: 从 CVar 列表构造一个 VarType::Multi 的 CVar（用于调用变参函数时手动打包变参槽）
-// MultiGetCount: 获取 Multi CVar 中元素个数
-// MultiGetInt:   获取 Multi CVar 中第 idx 个元素的 int64 值
-// ---------------------------------------------------------------------------
-static CVar MakeMultiCVar(State *s, std::initializer_list<CVar> vars) {
-    VarMulti *m = VarMulti::AllocTemp(s, static_cast<int>(vars.size()));
-    int i = 0;
-    for (const auto &v : vars) {
-        m->GetVars()[i++] = v;
-    }
-    CVar result;
-    result.type_ = static_cast<int>(VarType::Multi);
-    result.data_.m = m;
-    return result;
-}
-
-static int MultiGetCount(const CVar &c) {
-    if (c.type_ != static_cast<int>(VarType::Multi)) {
-        return 0;
-    }
-    return static_cast<int>(c.data_.m->GetCount());
-}
-
-static int64_t MultiGetInt(const CVar &c, int idx) {
-    assert(c.type_ == static_cast<int>(VarType::Multi));
-    assert(idx >= 0 && idx < static_cast<int>(c.data_.m->GetCount()));
-    return c.data_.m->GetVars()[idx].data_.i;
 }
 
 TEST(jitter, empty_file) {
@@ -2850,19 +2817,20 @@ TEST(jitter, test_32params) {
 // C++ 直接调用变参 Lua 函数的测试
 //
 // 约定：
-//   - 入参的变参槽由 C++ 用 MakeMultiCVar 手动打包后传入，不依赖 VM 的隐式打包
-//   - 返回的 Multi 用 MultiGetCount / MultiGetInt helper 拆解，不直接访问内部字段
+//   - 变参槽用公开 API MakeVarargs(s, v1, v2, ...) 打包
+//   - 返回值用公开 API GetVarargCount / GetVararg<T> 拆解
+//   - 调用使用 Call 而非 FakeluaCallByName
 // ===========================================================================
 
-// 场景1：纯变参求和——空变参返回 0（空 Multi 打包）
+// 场景1：纯变参求和——空变参返回 0
 TEST(jitter, vararg_from_cpp_sum_no_args) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
-        // sum 签名：func(CVar __vararg_0)，传空 Multi 代表 0 个可变参数
-        CVar vararg = MakeMultiCVar(s, {});
-        CVar ret = FakeluaCallByName(s, type, "sum", 1, vararg);
-        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(ret.data_.i, 0);
+        // sum 签名编译后为 func(CVar __vararg_0)，传空 Multi 表示 0 个可变参数
+        CVar vararg = MakeVarargs(s);
+        CVar ret;
+        Call(s, type, "sum", ret, vararg);
+        ASSERT_EQ(inter::FakeluaToNative<int64_t>(s, ret), 0);
     });
 }
 
@@ -2871,58 +2839,51 @@ TEST(jitter, vararg_from_cpp_sum_one_arg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
         // sum({42}) → 42
-        CVar vararg = MakeMultiCVar(s, {inter::NativeToFakeluaInt(s, 42)});
-        CVar ret = FakeluaCallByName(s, type, "sum", 1, vararg);
-        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(ret.data_.i, 42);
+        CVar vararg = MakeVarargs(s, 42LL);
+        CVar ret;
+        Call(s, type, "sum", ret, vararg);
+        ASSERT_EQ(inter::FakeluaToNative<int64_t>(s, ret), 42);
     });
 }
 
-// 场景3：纯变参求和——传多个参数（C++ 手动打包 Multi）
+// 场景3：纯变参求和——传多个参数
 TEST(jitter, vararg_from_cpp_sum_multi_args) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
         // sum({10, 20, 30}) → 60
-        CVar vararg = MakeMultiCVar(s, {
-            inter::NativeToFakeluaInt(s, 10),
-            inter::NativeToFakeluaInt(s, 20),
-            inter::NativeToFakeluaInt(s, 30),
-        });
-        CVar ret = FakeluaCallByName(s, type, "sum", 1, vararg);
-        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(ret.data_.i, 60);
+        CVar vararg = MakeVarargs(s, 10LL, 20LL, 30LL);
+        CVar ret;
+        Call(s, type, "sum", ret, vararg);
+        ASSERT_EQ(inter::FakeluaToNative<int64_t>(s, ret), 60);
     });
 }
 
-// 场景4：固定参数 + 变参——C++ 手动打包变参槽，Lua 透传返回，用 helper 拆解
+// 场景4：固定参数 + 变参——Lua 透传返回，用公开 API 拆解
 TEST(jitter, vararg_from_cpp_prefix_and_vararg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
         // prefix_and_vararg 签名：func(CVar prefix, CVar __vararg_0)
-        // 传 prefix=1, vararg={2, 3}，期望返回 Multi{1, 2, 3}
-        CVar prefix = inter::NativeToFakeluaInt(s, 1);
-        CVar vararg = MakeMultiCVar(s, {
-            inter::NativeToFakeluaInt(s, 2),
-            inter::NativeToFakeluaInt(s, 3),
-        });
-        CVar ret = FakeluaCallByName(s, type, "prefix_and_vararg", 2, prefix, vararg);
-        ASSERT_EQ(MultiGetCount(ret), 3);
-        ASSERT_EQ(MultiGetInt(ret, 0), 1);
-        ASSERT_EQ(MultiGetInt(ret, 1), 2);
-        ASSERT_EQ(MultiGetInt(ret, 2), 3);
+        // prefix=1, vararg={2, 3} → 返回 Multi{1, 2, 3}
+        CVar vararg = MakeVarargs(s, 2LL, 3LL);
+        CVar ret;
+        Call(s, type, "prefix_and_vararg", ret, 1LL, vararg);
+        ASSERT_EQ(GetVarargCount(ret), 3);
+        ASSERT_EQ(GetVararg<int64_t>(s, ret, 0), 1);
+        ASSERT_EQ(GetVararg<int64_t>(s, ret, 1), 2);
+        ASSERT_EQ(GetVararg<int64_t>(s, ret, 2), 3);
     });
 }
 
-// 场景5：固定参数 + 变参——变参为空 Multi
+// 场景5：固定参数 + 变参——变参为空
 TEST(jitter, vararg_from_cpp_prefix_only) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
-        // prefix=99, vararg={}，return prefix, ... → Multi{99}
-        CVar prefix = inter::NativeToFakeluaInt(s, 99);
-        CVar vararg = MakeMultiCVar(s, {});
-        CVar ret = FakeluaCallByName(s, type, "prefix_and_vararg", 2, prefix, vararg);
-        ASSERT_EQ(MultiGetCount(ret), 1);
-        ASSERT_EQ(MultiGetInt(ret, 0), 99);
+        // prefix=99, vararg={} → return prefix, ... → Multi{99}
+        CVar vararg = MakeVarargs(s);
+        CVar ret;
+        Call(s, type, "prefix_and_vararg", ret, 99LL, vararg);
+        ASSERT_EQ(GetVarargCount(ret), 1);
+        ASSERT_EQ(GetVararg<int64_t>(s, ret, 0), 99);
     });
 }
 
@@ -2931,10 +2892,10 @@ TEST(jitter, vararg_from_cpp_or_default_empty) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
         // vararg_or_default({}) → -1
-        CVar vararg = MakeMultiCVar(s, {});
-        CVar ret = FakeluaCallByName(s, type, "vararg_or_default", 1, vararg);
-        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(ret.data_.i, -1);
+        CVar vararg = MakeVarargs(s);
+        CVar ret;
+        Call(s, type, "vararg_or_default", ret, vararg);
+        ASSERT_EQ(inter::FakeluaToNative<int64_t>(s, ret), -1);
     });
 }
 
@@ -2943,10 +2904,10 @@ TEST(jitter, vararg_from_cpp_or_default_with_arg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_from_cpp.lua", {.debug_mode = debug_mode});
         // vararg_or_default({7}) → 7
-        CVar vararg = MakeMultiCVar(s, {inter::NativeToFakeluaInt(s, 7)});
-        CVar ret = FakeluaCallByName(s, type, "vararg_or_default", 1, vararg);
-        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(ret.data_.i, 7);
+        CVar vararg = MakeVarargs(s, 7LL);
+        CVar ret;
+        Call(s, type, "vararg_or_default", ret, vararg);
+        ASSERT_EQ(inter::FakeluaToNative<int64_t>(s, ret), 7);
     });
 }
 

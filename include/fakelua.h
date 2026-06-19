@@ -522,7 +522,56 @@ private:
     State *s_;
 };
 
+// ---------------------------------------------------------------------------
+// Multi CVar 底层操作（不透明实现，不暴露 VarMulti 内部布局）
+// 外部代码请使用公开的 MakeVarargs / GetVarargCount / GetVararg 模板。
+// ---------------------------------------------------------------------------
+
+// 分配一个含 count 个槽位的空 Multi CVar（各槽初始为 Nil）
+CVar AllocMultiCVar(State *s, int count);
+
+// 设置 Multi CVar 中第 idx 个槽的值（idx 必须在 [0, count) 内）
+void SetMultiCVarElement(CVar &multi, int idx, CVar val);
+
+// 读取 Multi CVar 中第 idx 个槽（越界返回 Nil）
+CVar GetMultiCVarElement(const CVar &multi, int idx);
+
+// 返回 Multi CVar 的元素个数（若不是 Multi 则返回 0）
+int GetMultiCVarCount(const CVar &multi);
+
 }// namespace inter
+
+// ---------------------------------------------------------------------------
+// 变参（vararg）打包 / 拆包公开接口
+//
+// 使用示例（调用 Lua 变参函数 sum(...)）：
+//   CVar args = MakeVarargs(s, 10, 20, 30);   // 打包 3 个整数
+//   CVar ret;
+//   Call(s, type, "sum", ret, args);           // 变参槽传 Multi
+//   int64_t result = GetVararg<int64_t>(s, ret, 0);
+//
+// MakeVarargs：将任意数量的原生值打包成 VarType::Multi 的 CVar。
+//   参数为空时产生空 Multi（等价于 Lua 的空 ...）。
+// GetVarargCount：返回 Multi CVar 的元素个数（非 Multi 返回 0）。
+// GetVararg<T>：取 Multi 中第 idx 个元素并转换为原生类型 T。
+// ---------------------------------------------------------------------------
+
+template<typename... Args>
+CVar MakeVarargs(State *s, Args &&...args) {
+    CVar result = inter::AllocMultiCVar(s, static_cast<int>(sizeof...(Args)));
+    int idx = 0;
+    (..., inter::SetMultiCVarElement(result, idx++, inter::NativeToFakelua(s, std::forward<Args>(args))));
+    return result;
+}
+
+inline int GetVarargCount(const CVar &c) {
+    return inter::GetMultiCVarCount(c);
+}
+
+template<typename T>
+T GetVararg(State *s, const CVar &c, int idx) {
+    return inter::FakeluaToNative<T>(s, inter::GetMultiCVarElement(c, idx));
+}
 
 // 调用函数
 template<typename Ret, typename... Args>
