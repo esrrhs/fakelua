@@ -39,8 +39,6 @@ private:
 
     bool IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node);
 
-    bool IsVarargExp(const SyntaxTreeInterfacePtr &exp_node);
-
     std::shared_ptr<SyntaxTreePrefixexp> MakeSimpleVarPrefixexp(const SyntaxTreeLocation &loc, const std::string &name);
 
     std::shared_ptr<SyntaxTreeExp> MakePrefixexpExp(const SyntaxTreeLocation &loc, const SyntaxTreeInterfacePtr &pe);

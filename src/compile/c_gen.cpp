@@ -582,25 +582,6 @@ bool CGen::TryInferMathCallSpec(const std::string &callee_name, const std::vecto
     return true;
 }
 
-bool CGen::IsVarargExp(const SyntaxTreeInterfacePtr &node) const {
-    if (!node || node->Type() != SyntaxTreeType::Exp) {
-        return false;
-    }
-    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-    if (exp->GetExpKind() != ExpKind::kPrefixExp) {
-        return false;
-    }
-    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
-    if (!pe || pe->GetPrefixKind() != PrefixExpKind::kVar) {
-        return false;
-    }
-    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-    if (!var || var->GetVarKind() != VarKind::kSimple) {
-        return false;
-    }
-    return var->GetName().rfind("__fakelua_vararg_", 0) == 0;
-}
-
 InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
     DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);

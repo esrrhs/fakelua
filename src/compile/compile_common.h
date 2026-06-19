@@ -142,6 +142,28 @@ inline std::string BoxNativeValue(const std::string &expr, InferredType type) {
     return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", expr);
 }
 
+// ---- vararg 辅助函数 ---------------------------------------------------------
+
+// 判断一个表达式节点是否为 __fakelua_vararg_* 变量引用。
+inline bool IsVarargExp(const SyntaxTreeInterfacePtr &exp_node) {
+    if (!exp_node || exp_node->Type() != SyntaxTreeType::Exp) {
+        return false;
+    }
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp_node);
+    if (exp->GetExpKind() != ExpKind::kPrefixExp) {
+        return false;
+    }
+    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
+    if (!pe || pe->GetPrefixKind() != PrefixExpKind::kVar) {
+        return false;
+    }
+    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+    if (!var || var->GetVarKind() != VarKind::kSimple) {
+        return false;
+    }
+    return var->GetName().rfind("__fakelua_vararg_", 0) == 0;
+}
+
 // ---- 阶段一：解析结果 -------------------------------------------------------
 // Parser 的输出：源文件名和语法树根节点。
 // 由 Compiler::Compile 在词法/语法解析阶段填充，

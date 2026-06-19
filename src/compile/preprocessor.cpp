@@ -19,25 +19,6 @@ bool PreProcessor::IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node) {
     return pe && pe->GetPrefixKind() == PrefixExpKind::kFunctionCall;
 }
 
-bool PreProcessor::IsVarargExp(const SyntaxTreeInterfacePtr &exp_node) {
-    if (!exp_node || exp_node->Type() != SyntaxTreeType::Exp) {
-        return false;
-    }
-    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp_node);
-    if (exp->GetExpKind() != ExpKind::kPrefixExp) {
-        return false;
-    }
-    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
-    if (!pe || pe->GetPrefixKind() != PrefixExpKind::kVar) {
-        return false;
-    }
-    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-    if (!var || var->GetVarKind() != VarKind::kSimple) {
-        return false;
-    }
-    return var->GetName().rfind("__fakelua_vararg_", 0) == 0;
-}
-
 std::shared_ptr<SyntaxTreePrefixexp> PreProcessor::MakeSimpleVarPrefixexp(const SyntaxTreeLocation &loc, const std::string &name) {
     auto var = std::make_shared<SyntaxTreeVar>(loc);
     var->SetVarKind(VarKind::kSimple);
