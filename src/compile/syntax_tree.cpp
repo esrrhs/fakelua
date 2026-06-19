@@ -718,7 +718,7 @@ void WalkSyntaxTreePruned(const SyntaxTreeInterfacePtr &node, const WalkSyntaxTr
             WalkSyntaxTreePruned(std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node)->GetValue(), func);
             break;
         default:
-            DEBUG_ASSERT(false && "unknown syntax tree type");
+            ThrowFakeluaException(std::format("WalkSyntaxTreePruned: unknown syntax tree type {}", static_cast<int>(node->Type())));
             break;
     }
 }
