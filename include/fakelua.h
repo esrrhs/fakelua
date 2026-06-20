@@ -522,13 +522,33 @@ private:
     State *s_;
 };
 
-}// namespace inter
-
-// Multi CVar 内部操作前向声明（完整定义在文件末尾）
 CVar AllocMultiCVar(State *s, int count);
 void SetMultiCVarElement(CVar &multi, int idx, CVar val);
 CVar GetMultiCVarElement(const CVar &multi, int idx);
 int GetMultiCVarCount(const CVar &multi);
+
+}// namespace inter
+
+class VarMulti {
+public:
+    static VarMulti *AllocTemp(State *state, uint32_t count);
+
+    [[nodiscard]] uint32_t GetCount() const {
+        return count;
+    }
+
+    [[nodiscard]] const CVar *GetVars() const {
+        return vars;
+    }
+
+    [[nodiscard]] CVar *GetVars() {
+        return vars;
+    }
+
+private:
+    uint32_t count;
+    CVar vars[0];
+};
 
 // ---------------------------------------------------------------------------
 // std::tuple 支持：自动解包 Multi 返回值
@@ -545,7 +565,7 @@ namespace inter {
 
 template<typename Tuple, std::size_t... I>
 void UnpackMultiToTuple(State *s, const CVar &ret_var, Tuple &tuple, std::index_sequence<I...>) {
-    ((std::get<I>(tuple) = FakeluaToNative<std::remove_cvref_t<std::tuple_element_t<I, std::remove_cvref_t<Tuple>>>>(s, GetMultiCVarElement(ret_var, I))), ...);
+    ((std::get<I>(tuple) = FakeluaToNative<std::remove_cvref_t<std::tuple_element_t<I, std::remove_cvref_t<Tuple>>>>(s, inter::GetMultiCVarElement(ret_var, I))), ...);
 }
 
 }// namespace inter
@@ -678,9 +698,9 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
             call_cvars[i] = raw_cvars[i];
         }
         const int vararg_count = user_arg_count - fixed_count;
-        CVar multi = AllocMultiCVar(s, vararg_count > 0 ? vararg_count : 0);
+        CVar multi = inter::AllocMultiCVar(s, vararg_count > 0 ? vararg_count : 0);
         for (int i = 0; i < vararg_count; ++i) {
-            SetMultiCVarElement(multi, i, raw_cvars[fixed_count + i]);
+            inter::SetMultiCVarElement(multi, i, raw_cvars[fixed_count + i]);
         }
         call_cvars[fixed_count] = multi;
 
@@ -847,35 +867,5 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
 #undef CALLARG_30
 #undef CALLARG_31
 #undef CALLARG_32
-
-// ============================================================================
-// Multi CVar 内部实现 —— 仅供 Call() 模板内部使用，不对外暴露
-// ============================================================================
-
-CVar AllocMultiCVar(State *s, int count);
-void SetMultiCVarElement(CVar &multi, int idx, CVar val);
-CVar GetMultiCVarElement(const CVar &multi, int idx);
-int GetMultiCVarCount(const CVar &multi);
-
-class VarMulti {
-public:
-    static VarMulti *AllocTemp(State *state, uint32_t count);
-
-    [[nodiscard]] uint32_t GetCount() const {
-        return count;
-    }
-
-    [[nodiscard]] const CVar *GetVars() const {
-        return vars;
-    }
-
-    [[nodiscard]] CVar *GetVars() {
-        return vars;
-    }
-
-private:
-    uint32_t count;
-    CVar vars[0];
-};
 
 }// namespace fakelua

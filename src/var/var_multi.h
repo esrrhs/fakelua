@@ -2,5 +2,5 @@
 
 #include "fakelua.h"
 
-// Multi CVar 内部实现 —— .cpp 文件通过此头文件获取 VarMulti 完整类型
-// fakelua.h 已提供 VarMulti 定义和相关函数声明
+// Multi CVar 完整类型声明在 fakelua.h 的 inter 命名空间内
+// 本头文件仅供 .cpp 文件引入 fakelua.h 获取完整 VarMulti 类型

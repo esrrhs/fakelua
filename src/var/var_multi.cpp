@@ -12,6 +12,8 @@ VarMulti *VarMulti::AllocTemp(State *state, uint32_t count) {
     return ret;
 }
 
+namespace inter {
+
 CVar AllocMultiCVar(State *s, int count) {
     VarMulti *m = VarMulti::AllocTemp(s, count);
     for (int i = 0; i < count; ++i) {
@@ -49,4 +51,5 @@ int GetMultiCVarCount(const CVar &multi) {
     return static_cast<int>(multi.data_.m->GetCount());
 }
 
+}// namespace inter
 }// namespace fakelua
