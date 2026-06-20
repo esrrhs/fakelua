@@ -215,6 +215,10 @@ struct CVar {
 static_assert(std::is_standard_layout_v<CVar>, "CVar must be standard-layout for ABI compatibility");
 static_assert(std::is_trivially_copyable_v<CVar>, "CVar must be trivially copyable for ABI compatibility");
 
+// VarMulti 完整定义在 var_multi.h 中（仅 .cpp 文件 include）
+// 这里 forward-declare 供 CVar 联合体使用
+// Call() 模板通过 inter::DispatchCall 间接使用 Multi，无需在此暴露 VarMulti 定义
+
 // JIT类型
 enum JITType {
     // TinyCC 是一个小型的 C 语言编译器，支持即时编译（JIT）。它的特点是编译速度快，适合于需要快速生成和执行代码的场景
@@ -522,33 +526,14 @@ private:
     State *s_;
 };
 
+CVar DispatchCall(void *addr, const CVar *args, int arg_count);
+
 CVar AllocMultiCVar(State *s, int count);
 void SetMultiCVarElement(CVar &multi, int idx, CVar val);
 CVar GetMultiCVarElement(const CVar &multi, int idx);
 int GetMultiCVarCount(const CVar &multi);
 
 }// namespace inter
-
-class VarMulti {
-public:
-    static VarMulti *AllocTemp(State *state, uint32_t count);
-
-    [[nodiscard]] uint32_t GetCount() const {
-        return count;
-    }
-
-    [[nodiscard]] const CVar *GetVars() const {
-        return vars;
-    }
-
-    [[nodiscard]] CVar *GetVars() {
-        return vars;
-    }
-
-private:
-    uint32_t count;
-    CVar vars[0];
-};
 
 // ---------------------------------------------------------------------------
 // std::tuple 支持：自动解包 Multi 返回值
@@ -578,74 +563,6 @@ void UnpackMultiToTuple(State *s, const CVar &ret_var, Tuple &tuple, std::index_
 //   2. 自动 vararg：Call(s, type, "sum", ret, 1, 2, 3)  -- 多余参数自动打包成 Multi
 //   3. 多返回值：Call(s, type, "fn", std::tie(a, b, c))  -- 自动解包 Multi 到 tuple
 // ---------------------------------------------------------------------------
-
-#define CALLCVAR_0
-#define CALLCVAR_1 CVar
-#define CALLCVAR_2 CALLCVAR_1, CVar
-#define CALLCVAR_3 CALLCVAR_2, CVar
-#define CALLCVAR_4 CALLCVAR_3, CVar
-#define CALLCVAR_5 CALLCVAR_4, CVar
-#define CALLCVAR_6 CALLCVAR_5, CVar
-#define CALLCVAR_7 CALLCVAR_6, CVar
-#define CALLCVAR_8 CALLCVAR_7, CVar
-#define CALLCVAR_9 CALLCVAR_8, CVar
-#define CALLCVAR_10 CALLCVAR_9, CVar
-#define CALLCVAR_11 CALLCVAR_10, CVar
-#define CALLCVAR_12 CALLCVAR_11, CVar
-#define CALLCVAR_13 CALLCVAR_12, CVar
-#define CALLCVAR_14 CALLCVAR_13, CVar
-#define CALLCVAR_15 CALLCVAR_14, CVar
-#define CALLCVAR_16 CALLCVAR_15, CVar
-#define CALLCVAR_17 CALLCVAR_16, CVar
-#define CALLCVAR_18 CALLCVAR_17, CVar
-#define CALLCVAR_19 CALLCVAR_18, CVar
-#define CALLCVAR_20 CALLCVAR_19, CVar
-#define CALLCVAR_21 CALLCVAR_20, CVar
-#define CALLCVAR_22 CALLCVAR_21, CVar
-#define CALLCVAR_23 CALLCVAR_22, CVar
-#define CALLCVAR_24 CALLCVAR_23, CVar
-#define CALLCVAR_25 CALLCVAR_24, CVar
-#define CALLCVAR_26 CALLCVAR_25, CVar
-#define CALLCVAR_27 CALLCVAR_26, CVar
-#define CALLCVAR_28 CALLCVAR_27, CVar
-#define CALLCVAR_29 CALLCVAR_28, CVar
-#define CALLCVAR_30 CALLCVAR_29, CVar
-#define CALLCVAR_31 CALLCVAR_30, CVar
-#define CALLCVAR_32 CALLCVAR_31, CVar
-
-#define CALLARG_0
-#define CALLARG_1 call_cvars[0]
-#define CALLARG_2 CALLARG_1, call_cvars[1]
-#define CALLARG_3 CALLARG_2, call_cvars[2]
-#define CALLARG_4 CALLARG_3, call_cvars[3]
-#define CALLARG_5 CALLARG_4, call_cvars[4]
-#define CALLARG_6 CALLARG_5, call_cvars[5]
-#define CALLARG_7 CALLARG_6, call_cvars[6]
-#define CALLARG_8 CALLARG_7, call_cvars[7]
-#define CALLARG_9 CALLARG_8, call_cvars[8]
-#define CALLARG_10 CALLARG_9, call_cvars[9]
-#define CALLARG_11 CALLARG_10, call_cvars[10]
-#define CALLARG_12 CALLARG_11, call_cvars[11]
-#define CALLARG_13 CALLARG_12, call_cvars[12]
-#define CALLARG_14 CALLARG_13, call_cvars[13]
-#define CALLARG_15 CALLARG_14, call_cvars[14]
-#define CALLARG_16 CALLARG_15, call_cvars[15]
-#define CALLARG_17 CALLARG_16, call_cvars[16]
-#define CALLARG_18 CALLARG_17, call_cvars[17]
-#define CALLARG_19 CALLARG_18, call_cvars[18]
-#define CALLARG_20 CALLARG_19, call_cvars[19]
-#define CALLARG_21 CALLARG_20, call_cvars[20]
-#define CALLARG_22 CALLARG_21, call_cvars[21]
-#define CALLARG_23 CALLARG_22, call_cvars[22]
-#define CALLARG_24 CALLARG_23, call_cvars[23]
-#define CALLARG_25 CALLARG_24, call_cvars[24]
-#define CALLARG_26 CALLARG_25, call_cvars[25]
-#define CALLARG_27 CALLARG_26, call_cvars[26]
-#define CALLARG_28 CALLARG_27, call_cvars[27]
-#define CALLARG_29 CALLARG_28, call_cvars[28]
-#define CALLARG_30 CALLARG_29, call_cvars[29]
-#define CALLARG_31 CALLARG_30, call_cvars[30]
-#define CALLARG_32 CALLARG_31, call_cvars[31]
 
 template<typename Ret, typename... Args>
 void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args &&...args) {
@@ -683,114 +600,28 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
     }
     inter::ReentryCounter rc(s);
 
-    CVar ret_var;
+    // 将模板参数转为 CVar 数组
+    CVar call_cvars[kMaxFunctionInputParams] = {};
+    if constexpr (sizeof...(Args) > 0) {
+        int idx = 0;
+        ((call_cvars[idx++] = inter::NativeToFakelua(s, std::forward<Args>(args))), ...);
+    }
 
+    // vararg：将多余参数打包为 Multi
     if (is_vararg) {
-        // 自动 vararg 路径：将多余参数打包为 Multi
-        CVar raw_cvars[kMaxFunctionInputParams] = {};
-        if constexpr (sizeof...(Args) > 0) {
-            int idx = 0;
-            ((raw_cvars[idx++] = inter::NativeToFakelua(s, std::forward<Args>(args))), ...);
-        }
-
-        CVar call_cvars[kMaxFunctionInputParams];
-        for (int i = 0; i < fixed_count; ++i) {
-            call_cvars[i] = raw_cvars[i];
-        }
+        CVar raw_cvars[kMaxFunctionInputParams];
+        for (int i = 0; i < fixed_count; ++i) raw_cvars[i] = call_cvars[i];
         const int vararg_count = user_arg_count - fixed_count;
         CVar multi = inter::AllocMultiCVar(s, vararg_count > 0 ? vararg_count : 0);
         for (int i = 0; i < vararg_count; ++i) {
-            inter::SetMultiCVarElement(multi, i, raw_cvars[fixed_count + i]);
+            inter::SetMultiCVarElement(multi, i, call_cvars[fixed_count + i]);
         }
-        call_cvars[fixed_count] = multi;
-
-        switch (arg_count) {
-#define CALL_DISPATCH(N) case N: ret_var = reinterpret_cast<CVar (*)(CALLCVAR_##N)>(addr)(CALLARG_##N); break;
-            CALL_DISPATCH(0)
-            CALL_DISPATCH(1)
-            CALL_DISPATCH(2)
-            CALL_DISPATCH(3)
-            CALL_DISPATCH(4)
-            CALL_DISPATCH(5)
-            CALL_DISPATCH(6)
-            CALL_DISPATCH(7)
-            CALL_DISPATCH(8)
-            CALL_DISPATCH(9)
-            CALL_DISPATCH(10)
-            CALL_DISPATCH(11)
-            CALL_DISPATCH(12)
-            CALL_DISPATCH(13)
-            CALL_DISPATCH(14)
-            CALL_DISPATCH(15)
-            CALL_DISPATCH(16)
-            CALL_DISPATCH(17)
-            CALL_DISPATCH(18)
-            CALL_DISPATCH(19)
-            CALL_DISPATCH(20)
-            CALL_DISPATCH(21)
-            CALL_DISPATCH(22)
-            CALL_DISPATCH(23)
-            CALL_DISPATCH(24)
-            CALL_DISPATCH(25)
-            CALL_DISPATCH(26)
-            CALL_DISPATCH(27)
-            CALL_DISPATCH(28)
-            CALL_DISPATCH(29)
-            CALL_DISPATCH(30)
-            CALL_DISPATCH(31)
-            CALL_DISPATCH(32)
-#undef CALL_DISPATCH
-            default:
-                inter::ThrowInterFakeluaException(std::format("Call failed, function {} has too many compiled params {}", name, arg_count));
-        }
-    } else {
-        // 非 vararg 编译期快速路径
-        CVar call_cvars[kMaxFunctionInputParams] = {};
-        if constexpr (sizeof...(Args) > 0) {
-            int idx = 0;
-            ((call_cvars[idx++] = inter::NativeToFakelua(s, std::forward<Args>(args))), ...);
-        }
-
-        switch (arg_count) {
-#define CALL_DISPATCH(N) case N: ret_var = reinterpret_cast<CVar (*)(CALLCVAR_##N)>(addr)(CALLARG_##N); break;
-            CALL_DISPATCH(0)
-            CALL_DISPATCH(1)
-            CALL_DISPATCH(2)
-            CALL_DISPATCH(3)
-            CALL_DISPATCH(4)
-            CALL_DISPATCH(5)
-            CALL_DISPATCH(6)
-            CALL_DISPATCH(7)
-            CALL_DISPATCH(8)
-            CALL_DISPATCH(9)
-            CALL_DISPATCH(10)
-            CALL_DISPATCH(11)
-            CALL_DISPATCH(12)
-            CALL_DISPATCH(13)
-            CALL_DISPATCH(14)
-            CALL_DISPATCH(15)
-            CALL_DISPATCH(16)
-            CALL_DISPATCH(17)
-            CALL_DISPATCH(18)
-            CALL_DISPATCH(19)
-            CALL_DISPATCH(20)
-            CALL_DISPATCH(21)
-            CALL_DISPATCH(22)
-            CALL_DISPATCH(23)
-            CALL_DISPATCH(24)
-            CALL_DISPATCH(25)
-            CALL_DISPATCH(26)
-            CALL_DISPATCH(27)
-            CALL_DISPATCH(28)
-            CALL_DISPATCH(29)
-            CALL_DISPATCH(30)
-            CALL_DISPATCH(31)
-            CALL_DISPATCH(32)
-#undef CALL_DISPATCH
-            default:
-                static_assert(sizeof...(Args) <= kMaxFunctionInputParams, "Too many arguments for Call()");
-        }
+        raw_cvars[fixed_count] = multi;
+        for (int i = 0; i < arg_count; ++i) call_cvars[i] = raw_cvars[i];
     }
+
+    // 分发调用
+    CVar ret_var = inter::DispatchCall(addr, call_cvars, arg_count);
 
     // 返回值处理：自动解包 tuple / 单值
     if constexpr (is_std_tuple_v<RetType>) {
@@ -800,72 +631,5 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
         ret = inter::FakeluaToNative<RetType>(s, ret_var);
     }
 }
-
-#undef CALLCVAR_0
-#undef CALLCVAR_1
-#undef CALLCVAR_2
-#undef CALLCVAR_3
-#undef CALLCVAR_4
-#undef CALLCVAR_5
-#undef CALLCVAR_6
-#undef CALLCVAR_7
-#undef CALLCVAR_8
-#undef CALLCVAR_9
-#undef CALLCVAR_10
-#undef CALLCVAR_11
-#undef CALLCVAR_12
-#undef CALLCVAR_13
-#undef CALLCVAR_14
-#undef CALLCVAR_15
-#undef CALLCVAR_16
-#undef CALLCVAR_17
-#undef CALLCVAR_18
-#undef CALLCVAR_19
-#undef CALLCVAR_20
-#undef CALLCVAR_21
-#undef CALLCVAR_22
-#undef CALLCVAR_23
-#undef CALLCVAR_24
-#undef CALLCVAR_25
-#undef CALLCVAR_26
-#undef CALLCVAR_27
-#undef CALLCVAR_28
-#undef CALLCVAR_29
-#undef CALLCVAR_30
-#undef CALLCVAR_31
-#undef CALLCVAR_32
-#undef CALLARG_0
-#undef CALLARG_1
-#undef CALLARG_2
-#undef CALLARG_3
-#undef CALLARG_4
-#undef CALLARG_5
-#undef CALLARG_6
-#undef CALLARG_7
-#undef CALLARG_8
-#undef CALLARG_9
-#undef CALLARG_10
-#undef CALLARG_11
-#undef CALLARG_12
-#undef CALLARG_13
-#undef CALLARG_14
-#undef CALLARG_15
-#undef CALLARG_16
-#undef CALLARG_17
-#undef CALLARG_18
-#undef CALLARG_19
-#undef CALLARG_20
-#undef CALLARG_21
-#undef CALLARG_22
-#undef CALLARG_23
-#undef CALLARG_24
-#undef CALLARG_25
-#undef CALLARG_26
-#undef CALLARG_27
-#undef CALLARG_28
-#undef CALLARG_29
-#undef CALLARG_30
-#undef CALLARG_31
-#undef CALLARG_32
 
 }// namespace fakelua
