@@ -51,10 +51,10 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 
     const CVar *arg_arr = nullptr;
     const bool last_is_multi = (arg_num > 0 && raw_arg_arr[arg_num - 1].type_ == static_cast<int>(VarType::Multi));
+    CVar temp_arg_arr[kMaxFunctionInputParams];
     if (LIKELY(!is_vararg && arg_num == expected_arg_count && !last_is_multi)) {
         arg_arr = raw_arg_arr;
     } else {
-        CVar temp_arg_arr[kMaxFunctionInputParams];
 
         // 展开 Multi 参数到 flat_args
         CVar flat_args_buf[kMaxFunctionInputParams];
