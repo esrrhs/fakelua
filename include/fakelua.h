@@ -522,23 +522,13 @@ private:
     State *s_;
 };
 
-// ---------------------------------------------------------------------------
-// Multi CVar 底层操作（供 Call() 内部使用）
-// ---------------------------------------------------------------------------
-
-// 分配一个含 count 个槽位的空 Multi CVar（各槽初始为 Nil）
-CVar AllocMultiCVar(State *s, int count);
-
-// 设置 Multi CVar 中第 idx 个槽的值（idx 必须在 [0, count) 内）
-void SetMultiCVarElement(CVar &multi, int idx, CVar val);
-
-// 读取 Multi CVar 中第 idx 个槽（越界返回 Nil）
-CVar GetMultiCVarElement(const CVar &multi, int idx);
-
-// 返回 Multi CVar 的元素个数（若不是 Multi 则返回 0）
-int GetMultiCVarCount(const CVar &multi);
-
 }// namespace inter
+
+// Multi CVar 内部操作前向声明（完整定义在文件末尾）
+CVar AllocMultiCVar(State *s, int count);
+void SetMultiCVarElement(CVar &multi, int idx, CVar val);
+CVar GetMultiCVarElement(const CVar &multi, int idx);
+int GetMultiCVarCount(const CVar &multi);
 
 // ---------------------------------------------------------------------------
 // std::tuple 支持：自动解包 Multi 返回值
@@ -688,9 +678,9 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
             call_cvars[i] = raw_cvars[i];
         }
         const int vararg_count = user_arg_count - fixed_count;
-        CVar multi = inter::AllocMultiCVar(s, vararg_count > 0 ? vararg_count : 0);
+        CVar multi = AllocMultiCVar(s, vararg_count > 0 ? vararg_count : 0);
         for (int i = 0; i < vararg_count; ++i) {
-            inter::SetMultiCVarElement(multi, i, raw_cvars[fixed_count + i]);
+            SetMultiCVarElement(multi, i, raw_cvars[fixed_count + i]);
         }
         call_cvars[fixed_count] = multi;
 
@@ -857,5 +847,35 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
 #undef CALLARG_30
 #undef CALLARG_31
 #undef CALLARG_32
+
+// ============================================================================
+// Multi CVar 内部实现 —— 仅供 Call() 模板内部使用，不对外暴露
+// ============================================================================
+
+CVar AllocMultiCVar(State *s, int count);
+void SetMultiCVarElement(CVar &multi, int idx, CVar val);
+CVar GetMultiCVarElement(const CVar &multi, int idx);
+int GetMultiCVarCount(const CVar &multi);
+
+class VarMulti {
+public:
+    static VarMulti *AllocTemp(State *state, uint32_t count);
+
+    [[nodiscard]] uint32_t GetCount() const {
+        return count;
+    }
+
+    [[nodiscard]] const CVar *GetVars() const {
+        return vars;
+    }
+
+    [[nodiscard]] CVar *GetVars() {
+        return vars;
+    }
+
+private:
+    uint32_t count;
+    CVar vars[0];
+};
 
 }// namespace fakelua

@@ -2,27 +2,5 @@
 
 #include "fakelua.h"
 
-namespace fakelua {
-
-class VarMulti {
-public:
-    static VarMulti *AllocTemp(State *state, uint32_t count);
-
-    [[nodiscard]] uint32_t GetCount() const {
-        return count;
-    }
-
-    [[nodiscard]] const CVar *GetVars() const {
-        return vars;
-    }
-
-    [[nodiscard]] CVar *GetVars() {
-        return vars;
-    }
-
-private:
-    uint32_t count;
-    CVar vars[0];
-};
-
-}// namespace fakelua
+// Multi CVar 内部实现 —— .cpp 文件通过此头文件获取 VarMulti 完整类型
+// fakelua.h 已提供 VarMulti 定义和相关函数声明
