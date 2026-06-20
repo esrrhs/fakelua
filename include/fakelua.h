@@ -523,8 +523,7 @@ private:
 };
 
 // ---------------------------------------------------------------------------
-// Multi CVar 底层操作（不透明实现，不暴露 VarMulti 内部布局）
-// 外部代码请使用公开的 MakeVarargs / GetVarargCount / GetVararg 模板。
+// Multi CVar 底层操作（供 Call() 内部使用）
 // ---------------------------------------------------------------------------
 
 // 分配一个含 count 个槽位的空 Multi CVar（各槽初始为 Nil）
@@ -540,27 +539,6 @@ CVar GetMultiCVarElement(const CVar &multi, int idx);
 int GetMultiCVarCount(const CVar &multi);
 
 }// namespace inter
-
-// ---------------------------------------------------------------------------
-// 变参（vararg）打包 / 拆包公开接口（供高级场景使用，一般通过 Call 自动处理）
-// ---------------------------------------------------------------------------
-
-template<typename... Args>
-CVar MakeVarargs(State *s, Args &&...args) {
-    CVar result = inter::AllocMultiCVar(s, static_cast<int>(sizeof...(Args)));
-    int idx = 0;
-    (..., inter::SetMultiCVarElement(result, idx++, inter::NativeToFakelua(s, std::forward<Args>(args))));
-    return result;
-}
-
-inline int GetVarargCount(const CVar &c) {
-    return inter::GetMultiCVarCount(c);
-}
-
-template<typename T>
-T GetVararg(State *s, const CVar &c, int idx) {
-    return inter::FakeluaToNative<T>(s, inter::GetMultiCVarElement(c, idx));
-}
 
 // ---------------------------------------------------------------------------
 // std::tuple 支持：自动解包 Multi 返回值

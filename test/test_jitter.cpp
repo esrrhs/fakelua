@@ -2818,8 +2818,8 @@ TEST(jitter, test_32params) {
 // C++ 直接调用变参 Lua 函数的测试
 //
 // 约定：
-//   - 变参槽用公开 API MakeVarargs(s, v1, v2, ...) 打包
-//   - 返回值用公开 API GetVarargCount / GetVararg<T> 拆解
+    //   - vararg 参数直接传递，Call() 自动打包
+    //   - 多返回值用 std::tie 自动解包
 //   - 调用使用 Call 而非 FakeluaCallByName
 // ===========================================================================
 
