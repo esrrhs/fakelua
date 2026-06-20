@@ -78,7 +78,8 @@ TEST(state, get_func_addr_success) {
     s.GetVM().RegisterFunction(VmFunction("myfunc", 0, JIT_TCC, reinterpret_cast<void *>(&dummy_fn), {}));
 
     int arg_count = -1;
-    void *addr = inter::GetFuncAddr(&s, JIT_TCC, "myfunc", arg_count);
+    bool dummy_vararg = false;
+    void *addr = inter::GetFuncAddr(&s, JIT_TCC, "myfunc", arg_count, dummy_vararg);
     ASSERT_NE(addr, nullptr);
     ASSERT_EQ(arg_count, 0);
     ASSERT_EQ(addr, reinterpret_cast<void *>(&dummy_fn));
@@ -87,7 +88,8 @@ TEST(state, get_func_addr_success) {
 TEST(state, get_func_addr_missing_returns_null) {
     State s;
     int arg_count = -1;
-    void *addr = inter::GetFuncAddr(&s, JIT_TCC, "nonexistent", arg_count);
+    bool dummy_vararg = false;
+    void *addr = inter::GetFuncAddr(&s, JIT_TCC, "nonexistent", arg_count, dummy_vararg);
     ASSERT_EQ(addr, nullptr);
     // arg_count must remain unchanged when function is not found
     ASSERT_EQ(arg_count, -1);
@@ -225,7 +227,8 @@ TEST(state, compile_config_skip_jit) {
 
     // No function should have been registered because JIT was skipped.
     int arg_count = -1;
-    void *addr = inter::GetFuncAddr(s, JIT_TCC, "test", arg_count);
+    bool dummy_vararg = false;
+    void *addr = inter::GetFuncAddr(s, JIT_TCC, "test", arg_count, dummy_vararg);
     ASSERT_EQ(addr, nullptr);
 }
 

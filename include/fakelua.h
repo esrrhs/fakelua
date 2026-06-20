@@ -314,9 +314,9 @@ void CompileString(State *s, const std::string &str, const CompileConfig &cfg);
 // 返回全局变量、函数声明和函数实现部分，不含公共头部。
 std::string GetLastRecordedCCode(State *s);
 
-// 调用某个脚本函数，出于性能考虑，不支持变参，也只允许返回一个值，多返回值可使用Table来实现
+// 调用某个脚本函数（定义在文件末尾）
 template<typename Ret, typename... Args>
-void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &&...args);
+void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args &&...args);
 
 // 设置 VarInterface 构造实例函数
 void SetVarInterfaceNewFunc(State *s, const std::function<VarInterface *()> &func);
@@ -496,7 +496,7 @@ T FakeluaToNative(State *s, const CVar v) {
     }
 }
 
-void *GetFuncAddr(State *s, JITType type, const std::string_view &name, int &arg_count);
+void *GetFuncAddr(State *s, JITType type, const std::string_view &name, int &arg_count, bool &is_vararg);
 
 [[noreturn]] void ThrowInterFakeluaException(const std::string &msg);
 
@@ -542,18 +542,7 @@ int GetMultiCVarCount(const CVar &multi);
 }// namespace inter
 
 // ---------------------------------------------------------------------------
-// 变参（vararg）打包 / 拆包公开接口
-//
-// 使用示例（调用 Lua 变参函数 sum(...)）：
-//   CVar args = MakeVarargs(s, 10, 20, 30);   // 打包 3 个整数
-//   CVar ret;
-//   Call(s, type, "sum", ret, args);           // 变参槽传 Multi
-//   int64_t result = GetVararg<int64_t>(s, ret, 0);
-//
-// MakeVarargs：将任意数量的原生值打包成 VarType::Multi 的 CVar。
-//   参数为空时产生空 Multi（等价于 Lua 的空 ...）。
-// GetVarargCount：返回 Multi CVar 的元素个数（非 Multi 返回 0）。
-// GetVararg<T>：取 Multi 中第 idx 个元素并转换为原生类型 T。
+// 变参（vararg）打包 / 拆包公开接口（供高级场景使用，一般通过 Call 自动处理）
 // ---------------------------------------------------------------------------
 
 template<typename... Args>
@@ -573,17 +562,118 @@ T GetVararg(State *s, const CVar &c, int idx) {
     return inter::FakeluaToNative<T>(s, inter::GetMultiCVarElement(c, idx));
 }
 
-// 调用函数
+// ---------------------------------------------------------------------------
+// std::tuple 支持：自动解包 Multi 返回值
+// ---------------------------------------------------------------------------
+
+template<typename T>
+struct is_std_tuple : std::false_type {};
+template<typename... Ts>
+struct is_std_tuple<std::tuple<Ts...>> : std::true_type {};
+template<typename T>
+inline constexpr bool is_std_tuple_v = is_std_tuple<T>::value;
+
+namespace inter {
+
+template<typename Tuple, std::size_t... I>
+void UnpackMultiToTuple(State *s, const CVar &ret_var, Tuple &tuple, std::index_sequence<I...>) {
+    ((std::get<I>(tuple) = FakeluaToNative<std::remove_cvref_t<std::tuple_element_t<I, std::remove_cvref_t<Tuple>>>>(s, GetMultiCVarElement(ret_var, I))), ...);
+}
+
+}// namespace inter
+
+// ---------------------------------------------------------------------------
+// Call() — 统一调用入口
+//
+// 支持：
+//   1. 普通调用：Call(s, type, "fn", ret, arg1, arg2)
+//   2. 自动 vararg：Call(s, type, "sum", ret, 1, 2, 3)  -- 多余参数自动打包成 Multi
+//   3. 多返回值：Call(s, type, "fn", std::tie(a, b, c))  -- 自动解包 Multi 到 tuple
+// ---------------------------------------------------------------------------
+
+#define CALLCVAR_0
+#define CALLCVAR_1 CVar
+#define CALLCVAR_2 CALLCVAR_1, CVar
+#define CALLCVAR_3 CALLCVAR_2, CVar
+#define CALLCVAR_4 CALLCVAR_3, CVar
+#define CALLCVAR_5 CALLCVAR_4, CVar
+#define CALLCVAR_6 CALLCVAR_5, CVar
+#define CALLCVAR_7 CALLCVAR_6, CVar
+#define CALLCVAR_8 CALLCVAR_7, CVar
+#define CALLCVAR_9 CALLCVAR_8, CVar
+#define CALLCVAR_10 CALLCVAR_9, CVar
+#define CALLCVAR_11 CALLCVAR_10, CVar
+#define CALLCVAR_12 CALLCVAR_11, CVar
+#define CALLCVAR_13 CALLCVAR_12, CVar
+#define CALLCVAR_14 CALLCVAR_13, CVar
+#define CALLCVAR_15 CALLCVAR_14, CVar
+#define CALLCVAR_16 CALLCVAR_15, CVar
+#define CALLCVAR_17 CALLCVAR_16, CVar
+#define CALLCVAR_18 CALLCVAR_17, CVar
+#define CALLCVAR_19 CALLCVAR_18, CVar
+#define CALLCVAR_20 CALLCVAR_19, CVar
+#define CALLCVAR_21 CALLCVAR_20, CVar
+#define CALLCVAR_22 CALLCVAR_21, CVar
+#define CALLCVAR_23 CALLCVAR_22, CVar
+#define CALLCVAR_24 CALLCVAR_23, CVar
+#define CALLCVAR_25 CALLCVAR_24, CVar
+#define CALLCVAR_26 CALLCVAR_25, CVar
+#define CALLCVAR_27 CALLCVAR_26, CVar
+#define CALLCVAR_28 CALLCVAR_27, CVar
+#define CALLCVAR_29 CALLCVAR_28, CVar
+#define CALLCVAR_30 CALLCVAR_29, CVar
+#define CALLCVAR_31 CALLCVAR_30, CVar
+#define CALLCVAR_32 CALLCVAR_31, CVar
+
+#define CALLARG_0
+#define CALLARG_1 call_cvars[0]
+#define CALLARG_2 CALLARG_1, call_cvars[1]
+#define CALLARG_3 CALLARG_2, call_cvars[2]
+#define CALLARG_4 CALLARG_3, call_cvars[3]
+#define CALLARG_5 CALLARG_4, call_cvars[4]
+#define CALLARG_6 CALLARG_5, call_cvars[5]
+#define CALLARG_7 CALLARG_6, call_cvars[6]
+#define CALLARG_8 CALLARG_7, call_cvars[7]
+#define CALLARG_9 CALLARG_8, call_cvars[8]
+#define CALLARG_10 CALLARG_9, call_cvars[9]
+#define CALLARG_11 CALLARG_10, call_cvars[10]
+#define CALLARG_12 CALLARG_11, call_cvars[11]
+#define CALLARG_13 CALLARG_12, call_cvars[12]
+#define CALLARG_14 CALLARG_13, call_cvars[13]
+#define CALLARG_15 CALLARG_14, call_cvars[14]
+#define CALLARG_16 CALLARG_15, call_cvars[15]
+#define CALLARG_17 CALLARG_16, call_cvars[16]
+#define CALLARG_18 CALLARG_17, call_cvars[17]
+#define CALLARG_19 CALLARG_18, call_cvars[18]
+#define CALLARG_20 CALLARG_19, call_cvars[19]
+#define CALLARG_21 CALLARG_20, call_cvars[20]
+#define CALLARG_22 CALLARG_21, call_cvars[21]
+#define CALLARG_23 CALLARG_22, call_cvars[22]
+#define CALLARG_24 CALLARG_23, call_cvars[23]
+#define CALLARG_25 CALLARG_24, call_cvars[24]
+#define CALLARG_26 CALLARG_25, call_cvars[25]
+#define CALLARG_27 CALLARG_26, call_cvars[26]
+#define CALLARG_28 CALLARG_27, call_cvars[27]
+#define CALLARG_29 CALLARG_28, call_cvars[28]
+#define CALLARG_30 CALLARG_29, call_cvars[29]
+#define CALLARG_31 CALLARG_30, call_cvars[30]
+#define CALLARG_32 CALLARG_31, call_cvars[31]
+
 template<typename Ret, typename... Args>
-void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &&...args) {
+void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args &&...args) {
+    using RetType = std::remove_cvref_t<Ret>;
     int arg_count = 0;
-    const auto addr = inter::GetFuncAddr(s, type, name, arg_count);
+    bool is_vararg = false;
+    const auto addr = inter::GetFuncAddr(s, type, name, arg_count, is_vararg);
     if (!addr) {
         inter::ThrowInterFakeluaException(std::format("Call failed, function {} not found", name));
     }
 
-    if (sizeof...(Args) != static_cast<size_t>(arg_count)) {
-        inter::ThrowInterFakeluaException(std::format("Call failed, function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
+    const int user_arg_count = static_cast<int>(sizeof...(Args));
+    const int fixed_count = is_vararg ? arg_count - 1 : arg_count;
+
+    if (__builtin_expect(!is_vararg && user_arg_count != arg_count, 0)) {
+        inter::ThrowInterFakeluaException(std::format("Call failed, function {} arg count not match, need {} get {}", name, arg_count, user_arg_count));
     }
 
     if (const auto reentrant_count = inter::GetReentrantCount(s); !reentrant_count) {
@@ -606,117 +696,188 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &
     inter::ReentryCounter rc(s);
 
     CVar ret_var;
-    if constexpr (sizeof...(Args) == 0) {
-        ret_var = reinterpret_cast<CVar (*)()>(addr)();
-#define CVAR_1 CVar
-#define CVAR_2 CVAR_1, CVar
-#define CVAR_3 CVAR_2, CVar
-#define CVAR_4 CVAR_3, CVar
-#define CVAR_5 CVAR_4, CVar
-#define CVAR_6 CVAR_5, CVar
-#define CVAR_7 CVAR_6, CVar
-#define CVAR_8 CVAR_7, CVar
-#define CVAR_9 CVAR_8, CVar
-#define CVAR_10 CVAR_9, CVar
-#define CVAR_11 CVAR_10, CVar
-#define CVAR_12 CVAR_11, CVar
-#define CVAR_13 CVAR_12, CVar
-#define CVAR_14 CVAR_13, CVar
-#define CVAR_15 CVAR_14, CVar
-#define CVAR_16 CVAR_15, CVar
-#define CVAR_17 CVAR_16, CVar
-#define CVAR_18 CVAR_17, CVar
-#define CVAR_19 CVAR_18, CVar
-#define CVAR_20 CVAR_19, CVar
-#define CVAR_21 CVAR_20, CVar
-#define CVAR_22 CVAR_21, CVar
-#define CVAR_23 CVAR_22, CVar
-#define CVAR_24 CVAR_23, CVar
-#define CVAR_25 CVAR_24, CVar
-#define CVAR_26 CVAR_25, CVar
-#define CVAR_27 CVAR_26, CVar
-#define CVAR_28 CVAR_27, CVar
-#define CVAR_29 CVAR_28, CVar
-#define CVAR_30 CVAR_29, CVar
-#define CVAR_31 CVAR_30, CVar
-#define CVAR_32 CVAR_31, CVar
 
-#define CALL_CASE(N)                                                                                                                                                                                   \
-    }                                                                                                                                                                                                  \
-    else if constexpr (sizeof...(Args) == N) {                                                                                                                                                         \
-        ret_var = reinterpret_cast<CVar (*)(CVAR_##N)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
+    if (is_vararg) {
+        // 自动 vararg 路径：将多余参数打包为 Multi
+        CVar raw_cvars[kMaxFunctionInputParams] = {};
+        if constexpr (sizeof...(Args) > 0) {
+            int idx = 0;
+            ((raw_cvars[idx++] = inter::NativeToFakelua(s, std::forward<Args>(args))), ...);
+        }
 
-        CALL_CASE(1)
-        CALL_CASE(2)
-        CALL_CASE(3)
-        CALL_CASE(4)
-        CALL_CASE(5)
-        CALL_CASE(6)
-        CALL_CASE(7)
-        CALL_CASE(8)
-        CALL_CASE(9)
-        CALL_CASE(10)
-        CALL_CASE(11)
-        CALL_CASE(12)
-        CALL_CASE(13)
-        CALL_CASE(14)
-        CALL_CASE(15)
-        CALL_CASE(16)
-        CALL_CASE(17)
-        CALL_CASE(18)
-        CALL_CASE(19)
-        CALL_CASE(20)
-        CALL_CASE(21)
-        CALL_CASE(22)
-        CALL_CASE(23)
-        CALL_CASE(24)
-        CALL_CASE(25)
-        CALL_CASE(26)
-        CALL_CASE(27)
-        CALL_CASE(28)
-        CALL_CASE(29)
-        CALL_CASE(30)
-        CALL_CASE(31)
-        CALL_CASE(32)
+        CVar call_cvars[kMaxFunctionInputParams];
+        for (int i = 0; i < fixed_count; ++i) {
+            call_cvars[i] = raw_cvars[i];
+        }
+        const int vararg_count = user_arg_count - fixed_count;
+        CVar multi = inter::AllocMultiCVar(s, vararg_count > 0 ? vararg_count : 0);
+        for (int i = 0; i < vararg_count; ++i) {
+            inter::SetMultiCVarElement(multi, i, raw_cvars[fixed_count + i]);
+        }
+        call_cvars[fixed_count] = multi;
 
-#undef CALL_CASE
-#undef CVAR_1
-#undef CVAR_2
-#undef CVAR_3
-#undef CVAR_4
-#undef CVAR_5
-#undef CVAR_6
-#undef CVAR_7
-#undef CVAR_8
-#undef CVAR_9
-#undef CVAR_10
-#undef CVAR_11
-#undef CVAR_12
-#undef CVAR_13
-#undef CVAR_14
-#undef CVAR_15
-#undef CVAR_16
-#undef CVAR_17
-#undef CVAR_18
-#undef CVAR_19
-#undef CVAR_20
-#undef CVAR_21
-#undef CVAR_22
-#undef CVAR_23
-#undef CVAR_24
-#undef CVAR_25
-#undef CVAR_26
-#undef CVAR_27
-#undef CVAR_28
-#undef CVAR_29
-#undef CVAR_30
-#undef CVAR_31
-#undef CVAR_32
+        switch (arg_count) {
+#define CALL_DISPATCH(N) case N: ret_var = reinterpret_cast<CVar (*)(CALLCVAR_##N)>(addr)(CALLARG_##N); break;
+            CALL_DISPATCH(0)
+            CALL_DISPATCH(1)
+            CALL_DISPATCH(2)
+            CALL_DISPATCH(3)
+            CALL_DISPATCH(4)
+            CALL_DISPATCH(5)
+            CALL_DISPATCH(6)
+            CALL_DISPATCH(7)
+            CALL_DISPATCH(8)
+            CALL_DISPATCH(9)
+            CALL_DISPATCH(10)
+            CALL_DISPATCH(11)
+            CALL_DISPATCH(12)
+            CALL_DISPATCH(13)
+            CALL_DISPATCH(14)
+            CALL_DISPATCH(15)
+            CALL_DISPATCH(16)
+            CALL_DISPATCH(17)
+            CALL_DISPATCH(18)
+            CALL_DISPATCH(19)
+            CALL_DISPATCH(20)
+            CALL_DISPATCH(21)
+            CALL_DISPATCH(22)
+            CALL_DISPATCH(23)
+            CALL_DISPATCH(24)
+            CALL_DISPATCH(25)
+            CALL_DISPATCH(26)
+            CALL_DISPATCH(27)
+            CALL_DISPATCH(28)
+            CALL_DISPATCH(29)
+            CALL_DISPATCH(30)
+            CALL_DISPATCH(31)
+            CALL_DISPATCH(32)
+#undef CALL_DISPATCH
+            default:
+                inter::ThrowInterFakeluaException(std::format("Call failed, function {} has too many compiled params {}", name, arg_count));
+        }
     } else {
-        static_assert(sizeof...(Args) <= kMaxFunctionInputParams, "Too many arguments for Call()");
+        // 非 vararg 编译期快速路径
+        CVar call_cvars[kMaxFunctionInputParams] = {};
+        if constexpr (sizeof...(Args) > 0) {
+            int idx = 0;
+            ((call_cvars[idx++] = inter::NativeToFakelua(s, std::forward<Args>(args))), ...);
+        }
+
+        switch (arg_count) {
+#define CALL_DISPATCH(N) case N: ret_var = reinterpret_cast<CVar (*)(CALLCVAR_##N)>(addr)(CALLARG_##N); break;
+            CALL_DISPATCH(0)
+            CALL_DISPATCH(1)
+            CALL_DISPATCH(2)
+            CALL_DISPATCH(3)
+            CALL_DISPATCH(4)
+            CALL_DISPATCH(5)
+            CALL_DISPATCH(6)
+            CALL_DISPATCH(7)
+            CALL_DISPATCH(8)
+            CALL_DISPATCH(9)
+            CALL_DISPATCH(10)
+            CALL_DISPATCH(11)
+            CALL_DISPATCH(12)
+            CALL_DISPATCH(13)
+            CALL_DISPATCH(14)
+            CALL_DISPATCH(15)
+            CALL_DISPATCH(16)
+            CALL_DISPATCH(17)
+            CALL_DISPATCH(18)
+            CALL_DISPATCH(19)
+            CALL_DISPATCH(20)
+            CALL_DISPATCH(21)
+            CALL_DISPATCH(22)
+            CALL_DISPATCH(23)
+            CALL_DISPATCH(24)
+            CALL_DISPATCH(25)
+            CALL_DISPATCH(26)
+            CALL_DISPATCH(27)
+            CALL_DISPATCH(28)
+            CALL_DISPATCH(29)
+            CALL_DISPATCH(30)
+            CALL_DISPATCH(31)
+            CALL_DISPATCH(32)
+#undef CALL_DISPATCH
+            default:
+                static_assert(sizeof...(Args) <= kMaxFunctionInputParams, "Too many arguments for Call()");
+        }
     }
 
-    ret = inter::FakeluaToNative<Ret>(s, ret_var);
+    // 返回值处理：自动解包 tuple / 单值
+    if constexpr (is_std_tuple_v<RetType>) {
+        constexpr std::size_t N = std::tuple_size_v<RetType>;
+        inter::UnpackMultiToTuple(s, ret_var, ret, std::make_index_sequence<N>{});
+    } else {
+        ret = inter::FakeluaToNative<RetType>(s, ret_var);
+    }
 }
+
+#undef CALLCVAR_0
+#undef CALLCVAR_1
+#undef CALLCVAR_2
+#undef CALLCVAR_3
+#undef CALLCVAR_4
+#undef CALLCVAR_5
+#undef CALLCVAR_6
+#undef CALLCVAR_7
+#undef CALLCVAR_8
+#undef CALLCVAR_9
+#undef CALLCVAR_10
+#undef CALLCVAR_11
+#undef CALLCVAR_12
+#undef CALLCVAR_13
+#undef CALLCVAR_14
+#undef CALLCVAR_15
+#undef CALLCVAR_16
+#undef CALLCVAR_17
+#undef CALLCVAR_18
+#undef CALLCVAR_19
+#undef CALLCVAR_20
+#undef CALLCVAR_21
+#undef CALLCVAR_22
+#undef CALLCVAR_23
+#undef CALLCVAR_24
+#undef CALLCVAR_25
+#undef CALLCVAR_26
+#undef CALLCVAR_27
+#undef CALLCVAR_28
+#undef CALLCVAR_29
+#undef CALLCVAR_30
+#undef CALLCVAR_31
+#undef CALLCVAR_32
+#undef CALLARG_0
+#undef CALLARG_1
+#undef CALLARG_2
+#undef CALLARG_3
+#undef CALLARG_4
+#undef CALLARG_5
+#undef CALLARG_6
+#undef CALLARG_7
+#undef CALLARG_8
+#undef CALLARG_9
+#undef CALLARG_10
+#undef CALLARG_11
+#undef CALLARG_12
+#undef CALLARG_13
+#undef CALLARG_14
+#undef CALLARG_15
+#undef CALLARG_16
+#undef CALLARG_17
+#undef CALLARG_18
+#undef CALLARG_19
+#undef CALLARG_20
+#undef CALLARG_21
+#undef CALLARG_22
+#undef CALLARG_23
+#undef CALLARG_24
+#undef CALLARG_25
+#undef CALLARG_26
+#undef CALLARG_27
+#undef CALLARG_28
+#undef CALLARG_29
+#undef CALLARG_30
+#undef CALLARG_31
+#undef CALLARG_32
 
 }// namespace fakelua

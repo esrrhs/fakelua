@@ -2827,88 +2827,65 @@ TEST(jitter, test_32params) {
 TEST(jitter, vararg_from_cpp_sum_no_args) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_sum.lua", {.debug_mode = debug_mode});
-        // sum 签名编译后为 func(CVar __vararg_0)，传空 Multi 表示 0 个可变参数
-        CVar vararg = MakeVarargs(s);
-        CVar ret;
-        Call(s, type, "sum", ret, vararg);
-        ASSERT_EQ(inter::FakeluaToNative<int64_t>(s, ret), 0);
+        int64_t ret = 0;
+        Call(s, type, "sum", ret);
+        ASSERT_EQ(ret, 0);
     });
 }
 
-// 场景2：纯变参求和——传 1 个参数
 TEST(jitter, vararg_from_cpp_sum_one_arg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_sum.lua", {.debug_mode = debug_mode});
-        // sum({42}) → 42
-        CVar vararg = MakeVarargs(s, 42LL);
-        CVar ret;
-        Call(s, type, "sum", ret, vararg);
-        ASSERT_EQ(inter::FakeluaToNative<int64_t>(s, ret), 42);
+        int64_t ret = 0;
+        Call(s, type, "sum", ret, 42LL);
+        ASSERT_EQ(ret, 42);
     });
 }
 
-// 场景3：纯变参求和——传多个参数
 TEST(jitter, vararg_from_cpp_sum_multi_args) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_sum.lua", {.debug_mode = debug_mode});
-        // sum({10, 20, 30}) → 60
-        CVar vararg = MakeVarargs(s, 10LL, 20LL, 30LL);
-        CVar ret;
-        Call(s, type, "sum", ret, vararg);
-        ASSERT_EQ(inter::FakeluaToNative<int64_t>(s, ret), 60);
+        int64_t ret = 0;
+        Call(s, type, "sum", ret, 10LL, 20LL, 30LL);
+        ASSERT_EQ(ret, 60);
     });
 }
 
-// 场景4：固定参数 + 变参——Lua 透传返回，用公开 API 拆解
 TEST(jitter, vararg_from_cpp_prefix_and_vararg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_prefix_and_vararg.lua", {.debug_mode = debug_mode});
-        // prefix_and_vararg 签名：func(CVar prefix, CVar __vararg_0)
-        // prefix=1, vararg={2, 3} → 返回 Multi{1, 2, 3}
-        CVar vararg = MakeVarargs(s, 2LL, 3LL);
-        CVar ret;
-        Call(s, type, "prefix_and_vararg", ret, 1LL, vararg);
-        ASSERT_EQ(GetVarargCount(ret), 3);
-        ASSERT_EQ(GetVararg<int64_t>(s, ret, 0), 1);
-        ASSERT_EQ(GetVararg<int64_t>(s, ret, 1), 2);
-        ASSERT_EQ(GetVararg<int64_t>(s, ret, 2), 3);
+        int64_t a = 0, b = 0, c = 0;
+        Call(s, type, "prefix_and_vararg", std::tie(a, b, c), 1LL, 2LL, 3LL);
+        ASSERT_EQ(a, 1);
+        ASSERT_EQ(b, 2);
+        ASSERT_EQ(c, 3);
     });
 }
 
-// 场景5：固定参数 + 变参——变参为空
 TEST(jitter, vararg_from_cpp_prefix_only) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_prefix_and_vararg.lua", {.debug_mode = debug_mode});
-        // prefix=99, vararg={} → return prefix, ... → Multi{99}
-        CVar vararg = MakeVarargs(s);
-        CVar ret;
-        Call(s, type, "prefix_and_vararg", ret, 99LL, vararg);
-        ASSERT_EQ(GetVarargCount(ret), 1);
-        ASSERT_EQ(GetVararg<int64_t>(s, ret, 0), 99);
+        int64_t a = 0;
+        Call(s, type, "prefix_and_vararg", std::tie(a), 99LL);
+        ASSERT_EQ(a, 99);
     });
 }
 
-// 场景6：空变参时走默认分支
 TEST(jitter, vararg_from_cpp_or_default_empty) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_or_default.lua", {.debug_mode = debug_mode});
-        // vararg_or_default({}) → -1
-        CVar vararg = MakeVarargs(s);
-        CVar ret;
-        Call(s, type, "vararg_or_default", ret, vararg);
-        ASSERT_EQ(inter::FakeluaToNative<int64_t>(s, ret), -1);
+        int64_t ret = 0;
+        Call(s, type, "vararg_or_default", ret);
+        ASSERT_EQ(ret, -1);
     });
 }
 
-// 场景7：有变参时返回第一个
 TEST(jitter, vararg_from_cpp_or_default_with_arg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_or_default.lua", {.debug_mode = debug_mode});
-        // vararg_or_default({7}) → 7
-        CVar vararg = MakeVarargs(s, 7LL);
-        CVar ret;
-        Call(s, type, "vararg_or_default", ret, vararg);
-        ASSERT_EQ(inter::FakeluaToNative<int64_t>(s, ret), 7);
+        int64_t ret = 0;
+        Call(s, type, "vararg_or_default", ret, 7LL);
+        ASSERT_EQ(ret, 7);
     });
 }
 
