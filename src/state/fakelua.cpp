@@ -357,6 +357,12 @@ std::function<VarInterface *()> &GetVarInterfaceNewFunc(State *state) {
     return state->GetVarInterfaceNewFunc();
 }
 
+void ThrowIfMultiCVar(const CVar &v) {
+    if (v.type_ == static_cast<int>(VarType::Multi)) {
+        ThrowFakeluaException("NativeToFakelua: CVar with Multi type is not allowed, use raw values instead");
+    }
+}
+
 void SetDebugLogLevel(int level) {
     SetLogLevel(static_cast<LogLevel>(level));
 }
