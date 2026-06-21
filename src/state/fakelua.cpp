@@ -520,6 +520,47 @@ CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count) {
     __builtin_unreachable();
 }
 
+CVar AllocMultiCVar(State *s, int count) {
+    VarMulti *m = VarMulti::AllocTemp(s, count);
+    for (int i = 0; i < count; ++i) {
+        m->GetVars()[i] = CVar{static_cast<int>(VarType::Nil)};
+    }
+    CVar result;
+    result.type_ = static_cast<int>(VarType::Multi);
+    result.flag_ = 0;
+    result.data_.m = m;
+    return result;
+}
+
+void SetMultiCVarElement(CVar &multi, int idx, CVar val) {
+    if (UNLIKELY(multi.type_ != static_cast<int>(VarType::Multi))) {
+        ThrowFakeluaException("SetMultiCVarElement: CVar is not Multi");
+    }
+    VarMulti *m = multi.data_.m;
+    if (UNLIKELY(idx < 0 || idx >= static_cast<int>(m->GetCount()))) {
+        ThrowFakeluaException(std::format("SetMultiCVarElement: idx {} out of range", idx));
+    }
+    m->GetVars()[idx] = val;
+}
+
+CVar GetMultiCVarElement(const CVar &multi, int idx) {
+    if (UNLIKELY(multi.type_ != static_cast<int>(VarType::Multi))) {
+        ThrowFakeluaException("GetMultiCVarElement: CVar is not Multi");
+    }
+    VarMulti *m = multi.data_.m;
+    if (UNLIKELY(idx < 0 || idx >= static_cast<int>(m->GetCount()))) {
+        ThrowFakeluaException(std::format("GetMultiCVarElement: idx {} out of range", idx));
+    }
+    return m->GetVars()[idx];
+}
+
+int GetMultiCVarCount(const CVar &multi) {
+    if (UNLIKELY(multi.type_ != static_cast<int>(VarType::Multi))) {
+        ThrowFakeluaException("GetMultiCVarCount: CVar is not Multi");
+    }
+    return static_cast<int>(multi.data_.m->GetCount());
+}
+
 }// namespace inter
 
 }// namespace fakelua
