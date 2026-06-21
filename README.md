@@ -59,12 +59,12 @@ static_assert(std::is_trivially_copyable_v<CVar>);
 
 [VarInterface](file:///home/project/fakelua/include/fakelua.h#L17) 是 Lua table 等复杂类型与宿主之间的抽象接口，宿主可按需实现自己的版本接入原有对象系统。库内附带 [SimpleVarImpl](file:///home/project/fakelua/include/fakelua.h#L61) 开箱即用。
 
-### 多返回值与参数展开（Multi-Return & Parameter Expansion）
+### 多返回值与可变参数（Multi-Return & Varargs）
 
-支持脚本内的多返回值函数调用、展开与截断：
-- **支持多返回值**：函数可以返回多个值（通过 `return a, b`），并在变量赋值（如 `local a, b = func()`）或返回语句中正确解包。
-- **参数动态展开**：在函数调用或 Table 构造中，若最后一项是多返回值函数调用，其返回值会自动展开（如 `func(a, b, func2())` 或 `local t = {a, b, func2()}`）。
-- **零开销与极低开销路径**：对于绝大多数单返回值函数，在编译期被直接优化为直通赋值；对于未知/跨文件函数，利用 CPU 分支预测机制在运行时以近乎零开销执行单值快速路径。
+- **多返回值**：函数可以通过 `return a, b` 返回多个值，在赋值或返回语句中正确解包。
+- **参数动态展开**：在函数调用或 Table 构造中，若最后一项是多返回值函数调用，其返回值会自动展开。
+- **可变参数（`...`）**：支持声明和调用 vararg 函数，C++ 侧调用时多余参数自动打包为 Multi，无需手动组装。
+- **C++ 返回值自动解包**：通过 `std::tie(a, b, c)` 接收多返回值，模板自动将 Multi CVar 拆解为各变量。
 
 ### C++ 嵌入 API
 
@@ -75,7 +75,6 @@ static_assert(std::is_trivially_copyable_v<CVar>);
 ## 当前已知限制
 
 ### 语法限制
-- 不支持 varargs（`...`）
 - 不支持 `label` / `goto`
 - 泛型 `for in` 仅支持 `pairs()` / `ipairs()`
 - 脚本侧函数调用仅支持简单函数名调用（不支持复杂前缀表达式调用，如 `obj:method()` 需通过间接方式实现）
@@ -160,12 +159,22 @@ int main() {
 
     CompileFile(s, "script.lua", CompileConfig{.debug_mode = false});
 
+    // 基本调用
     int ret = 0;
     Call(s, JIT_GCC, "add", ret, 1, 2);
+
+    // 可变参数调用 — 多余参数自动打包为 Multi
+    int sum = 0;
+    Call(s, JIT_TCC, "sum", sum, 10, 20, 30);
+
+    // 多返回值 — 用 std::tie 自动解包
+    int a = 0, b = 0;
+    std::string c;
+    Call(s, JIT_GCC, "multi_return", std::tie(a, b, c), some_arg);
 }
 ```
 
-[Call()](file:///home/project/fakelua/include/fakelua.h#L318) 支持最多 32 个参数（受到 [kMaxFunctionInputParams](file:///home/project/fakelua/include/fakelua.h#L13) 的统一限制），参数与返回值在原生 C++ 类型与 [CVar](file:///home/project/fakelua/include/fakelua.h#L198) 之间自动转换。
+[Call()](file:///home/project/fakelua/include/fakelua.h#L318) 支持最多 32 个参数（受到 [kMaxFunctionInputParams](file:///home/project/fakelua/include/fakelua.h#L13) 的统一限制），参数与返回值在原生 C++ 类型与 [CVar](file:///home/project/fakelua/include/fakelua.h#L198) 之间自动转换。调用 vararg 函数时，超出固定参数的多余参数会自动打包；多返回值函数可通过 `std::tie` 接收。
 
 ## 性能基准
 
@@ -310,7 +319,7 @@ fakelua/
 ## 常见问题
 
 ### Q: 为什么选择 Lua 子集而不是完整 Lua？
-A: 完整 Lua 的某些动态特性（如 metatable、varargs）很难高效编译。子集实现聚焦于可静态分析的常见模式，通过类型推导和 JIT 编译获得接近 C 的性能。目前也支持了受限的多返回值和参数展开，但更复杂的元表（metatable）或协程等特性尚不支持。
+A: 完整 Lua 的某些动态特性（如 metatable）很难高效编译。子集实现聚焦于可静态分析的常见模式，通过类型推导和 JIT 编译获得接近 C 的性能。目前已支持多返回值、参数展开与可变参数（varargs），但更复杂的元表（metatable）或协程等特性尚不支持。
 
 ### Q: TCC 和 GCC 后端如何选择？
 A: **TCC** 快速编译（适合脚本小、编译频繁）；**GCC** 优化充分（适合脚本大、运行次数多）。在同一 API 下可根据场景动态选择。
