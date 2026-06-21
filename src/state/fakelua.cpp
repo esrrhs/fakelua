@@ -358,7 +358,7 @@ std::function<VarInterface *()> &GetVarInterfaceNewFunc(State *state) {
 }
 
 void ThrowIfMultiCVar(const CVar &v) {
-    if (v.type_ == static_cast<int>(VarType::Multi)) {
+    if (__builtin_expect(v.type_ == static_cast<int>(VarType::Multi), 0)) {
         ThrowFakeluaException("NativeToFakelua: CVar with Multi type is not allowed, use raw values instead");
     }
 }

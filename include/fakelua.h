@@ -573,7 +573,7 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
     int arg_count = 0;
     bool is_vararg = false;
     const auto addr = inter::GetFuncAddr(s, type, name, arg_count, is_vararg);
-    if (!addr) {
+    if (__builtin_expect(!addr, 0)) {
         inter::ThrowInterFakeluaException(std::format("Call failed, function {} not found", name));
     }
 
@@ -597,7 +597,7 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
     }
 
     // vararg：将多余参数打包为 Multi
-    if (is_vararg) {
+    if (__builtin_expect(is_vararg, 0)) {
         CVar raw_cvars[kMaxFunctionInputParams];
         for (int i = 0; i < fixed_count; ++i) raw_cvars[i] = call_cvars[i];
         const int vararg_count = user_arg_count - fixed_count;
