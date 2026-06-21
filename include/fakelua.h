@@ -581,22 +581,23 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args 
         inter::ThrowInterFakeluaException(std::format("Call failed, function {} arg count not match, need {} get {}", name, arg_count, user_arg_count));
     }
 
+    // 禁止直接传入 Multi 类型参数（由 Call 内部自动打包）
+    if constexpr (sizeof...(Args) > 0) {
+        auto check_multi = [](auto &&arg) -> bool {
+            using T = std::decay_t<decltype(arg)>;
+            if constexpr (std::is_same_v<T, CVar>) {
+                return arg.type_ == 7;
+            } else {
+                return false;
+            }
+        };
+        if ((check_multi(std::forward<Args>(args)) || ...)) {
+            inter::ThrowInterFakeluaException(std::format("Call failed, function {}: CVar with Multi type is not allowed as argument, use raw values instead", name));
+        }
+    }
+
     if (const auto reentrant_count = inter::GetReentrantCount(s); !reentrant_count) {
-        bool has_multi = false;
-        if constexpr (sizeof...(Args) > 0) {
-            auto check_multi = [](auto &&arg) -> bool {
-                using T = std::decay_t<decltype(arg)>;
-                if constexpr (std::is_same_v<T, CVar>) {
-                    return arg.type_ == 7;
-                } else {
-                    return false;
-                }
-            };
-            has_multi = (check_multi(std::forward<Args>(args)) || ...);
-        }
-        if (!has_multi) {
-            inter::Reset(s);
-        }
+        inter::Reset(s);
     }
     inter::ReentryCounter rc(s);
 
