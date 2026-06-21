@@ -550,4 +550,177 @@ void WalkSyntaxTree(const SyntaxTreeInterfacePtr &node, const WalkSyntaxTreeFunc
     }
 }
 
+void WalkSyntaxTreePruned(const SyntaxTreeInterfacePtr &node, const WalkSyntaxTreePrunedFunc &func) {
+    if (!node) {
+        return;
+    }
+    if (!func(node)) {
+        return;
+    }
+    switch (node->Type()) {
+        case SyntaxTreeType::Empty:
+        case SyntaxTreeType::Label:
+        case SyntaxTreeType::Break:
+        case SyntaxTreeType::Goto:
+        case SyntaxTreeType::NameList:
+        case SyntaxTreeType::FuncNameList:
+        case SyntaxTreeType::Binop:
+        case SyntaxTreeType::Unop:
+            break;
+        case SyntaxTreeType::Block: {
+            auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+            for (auto &stmt: block->Stmts()) {
+                WalkSyntaxTreePruned(stmt, func);
+            }
+            break;
+        }
+        case SyntaxTreeType::Return:
+            WalkSyntaxTreePruned(std::dynamic_pointer_cast<SyntaxTreeReturn>(node)->Explist(), func);
+            break;
+        case SyntaxTreeType::Assign: {
+            auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
+            WalkSyntaxTreePruned(assign->Varlist(), func);
+            WalkSyntaxTreePruned(assign->Explist(), func);
+            break;
+        }
+        case SyntaxTreeType::VarList: {
+            auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(node);
+            for (auto &var: varlist->Vars()) {
+                WalkSyntaxTreePruned(var, func);
+            }
+            break;
+        }
+        case SyntaxTreeType::ExpList: {
+            auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
+            for (auto &exp: explist->Exps()) {
+                WalkSyntaxTreePruned(exp, func);
+            }
+            break;
+        }
+        case SyntaxTreeType::Var: {
+            auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
+            WalkSyntaxTreePruned(var->GetExp(), func);
+            WalkSyntaxTreePruned(var->GetPrefixexp(), func);
+            break;
+        }
+        case SyntaxTreeType::FunctionCall: {
+            auto functioncall = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+            WalkSyntaxTreePruned(functioncall->prefixexp(), func);
+            WalkSyntaxTreePruned(functioncall->Args(), func);
+            break;
+        }
+        case SyntaxTreeType::TableConstructor:
+            WalkSyntaxTreePruned(std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node)->Fieldlist(), func);
+            break;
+        case SyntaxTreeType::FieldList: {
+            auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
+            for (auto &field: fieldlist->Fields()) {
+                WalkSyntaxTreePruned(field, func);
+            }
+            break;
+        }
+        case SyntaxTreeType::Field: {
+            auto field = std::dynamic_pointer_cast<SyntaxTreeField>(node);
+            WalkSyntaxTreePruned(field->Key(), func);
+            WalkSyntaxTreePruned(field->Value(), func);
+            break;
+        }
+        case SyntaxTreeType::While: {
+            auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
+            WalkSyntaxTreePruned(while_node->Exp(), func);
+            WalkSyntaxTreePruned(while_node->Block(), func);
+            break;
+        }
+        case SyntaxTreeType::Repeat: {
+            auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
+            WalkSyntaxTreePruned(rep->Block(), func);
+            WalkSyntaxTreePruned(rep->Exp(), func);
+            break;
+        }
+        case SyntaxTreeType::If: {
+            auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+            WalkSyntaxTreePruned(if_node->Exp(), func);
+            WalkSyntaxTreePruned(if_node->Block(), func);
+            WalkSyntaxTreePruned(if_node->ElseIfs(), func);
+            WalkSyntaxTreePruned(if_node->ElseBlock(), func);
+            break;
+        }
+        case SyntaxTreeType::ElseIfList: {
+            auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(node);
+            for (auto &exp: elseifs->ElseifExps()) {
+                WalkSyntaxTreePruned(exp, func);
+            }
+            for (auto &block: elseifs->ElseifBlocks()) {
+                WalkSyntaxTreePruned(block, func);
+            }
+            break;
+        }
+        case SyntaxTreeType::ForLoop: {
+            auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
+            WalkSyntaxTreePruned(for_loop->ExpBegin(), func);
+            WalkSyntaxTreePruned(for_loop->ExpEnd(), func);
+            WalkSyntaxTreePruned(for_loop->ExpStep(), func);
+            WalkSyntaxTreePruned(for_loop->Block(), func);
+            break;
+        }
+        case SyntaxTreeType::ForIn: {
+            auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
+            WalkSyntaxTreePruned(for_in->Namelist(), func);
+            WalkSyntaxTreePruned(for_in->Explist(), func);
+            WalkSyntaxTreePruned(for_in->Block(), func);
+            break;
+        }
+        case SyntaxTreeType::Function: {
+            auto func_node = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
+            WalkSyntaxTreePruned(func_node->Funcname(), func);
+            WalkSyntaxTreePruned(func_node->Funcbody(), func);
+            break;
+        }
+        case SyntaxTreeType::FuncName:
+            WalkSyntaxTreePruned(std::dynamic_pointer_cast<SyntaxTreeFuncname>(node)->FuncNameList(), func);
+            break;
+        case SyntaxTreeType::FuncBody: {
+            auto funcbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
+            WalkSyntaxTreePruned(funcbody->Parlist(), func);
+            WalkSyntaxTreePruned(funcbody->Block(), func);
+            break;
+        }
+        case SyntaxTreeType::FunctionDef:
+            WalkSyntaxTreePruned(std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node)->Funcbody(), func);
+            break;
+        case SyntaxTreeType::ParList:
+            WalkSyntaxTreePruned(std::dynamic_pointer_cast<SyntaxTreeParlist>(node)->Namelist(), func);
+            break;
+        case SyntaxTreeType::LocalFunction:
+            WalkSyntaxTreePruned(std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node)->Funcbody(), func);
+            break;
+        case SyntaxTreeType::LocalVar: {
+            auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
+            WalkSyntaxTreePruned(local_var->Namelist(), func);
+            WalkSyntaxTreePruned(local_var->Explist(), func);
+            break;
+        }
+        case SyntaxTreeType::Exp: {
+            auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+            WalkSyntaxTreePruned(exp->Left(), func);
+            WalkSyntaxTreePruned(exp->Op(), func);
+            WalkSyntaxTreePruned(exp->Right(), func);
+            break;
+        }
+        case SyntaxTreeType::Args: {
+            auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
+            WalkSyntaxTreePruned(args->Explist(), func);
+            WalkSyntaxTreePruned(args->Tableconstructor(), func);
+            WalkSyntaxTreePruned(args->String(), func);
+            break;
+        }
+        case SyntaxTreeType::PrefixExp:
+            WalkSyntaxTreePruned(std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node)->GetValue(), func);
+            break;
+        default:
+            ThrowFakeluaException(std::format("WalkSyntaxTreePruned: unknown syntax tree type {}", static_cast<int>(node->Type())));
+            break;
+    }
+}
+
 }// namespace fakelua

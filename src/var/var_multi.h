@@ -4,6 +4,9 @@
 
 namespace fakelua {
 
+// VarMulti 完整类型定义 —— 仅供 .cpp 文件使用
+// 函数声明在 fakelua.h 的 inter 命名空间中
+
 class VarMulti {
 public:
     static VarMulti *AllocTemp(State *state, uint32_t count);

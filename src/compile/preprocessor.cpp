@@ -58,6 +58,9 @@ void PreProcessor::Process(const ParseResult &pr, const CompileConfig &cfg) {
     // 使其能被后续特化发现流程识别。
     PreprocessFunctiondefLocalVars(chunk);
 
+    // 替换可变参数 "..."
+    PreprocessVarargs(chunk);
+
     // 拆分多赋值语句 比如 'a, b = 1, 2' to 'a = 1; b = 2;'
     PreprocessSplitAssigns(chunk);
     if (cfg.debug_mode) {
@@ -110,9 +113,10 @@ void PreProcessor::PreprocessSplitAssign(const SyntaxTreeInterfacePtr &node) {
             auto &vars = varlist_ptr->Vars();
             auto &exps = explist_ptr->Exps();
 
-            // 如果赋值语句中变量数量和表达式数量不匹配，且最后不是函数调用，则抛出异常
+            // 如果赋值语句中变量数量和表达式数量不匹配，且最后不是函数调用或可变参数，则抛出异常
             bool last_is_func = !exps.empty() && IsFunctionCallExp(exps.back());
-            if (vars.size() != exps.size() && !(last_is_func && vars.size() > exps.size())) {
+            bool last_is_vararg = !exps.empty() && IsVarargExp(exps.back());
+            if (vars.size() != exps.size() && !((last_is_func || last_is_vararg) && vars.size() > exps.size())) {
                 ThrowError(std::format("PreprocessSplitAssigns: assign stmt var count {} not match exp count {}", vars.size(), exps.size()), explist_ptr);
             }
 
@@ -255,6 +259,90 @@ void PreProcessor::PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &
         new_stmts.push_back(stmt);
     }
     top_block->SetStmts(new_stmts);
+}
+
+void PreProcessor::PreprocessVarargs(const SyntaxTreeInterfacePtr &chunk) {
+    LOG_INFO("start PreprocessVarargs");
+    WalkSyntaxTree(chunk, [this](const SyntaxTreeInterfacePtr &node) {
+        if (!node) return;
+
+        SyntaxTreeInterfacePtr parlist_node = nullptr;
+        SyntaxTreeInterfacePtr block_node = nullptr;
+
+        if (node->Type() == SyntaxTreeType::Function) {
+            const auto f = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
+            const auto fbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(f->Funcbody());
+            if (fbody) {
+                parlist_node = fbody->Parlist();
+                block_node = fbody->Block();
+            }
+        } else if (node->Type() == SyntaxTreeType::FunctionDef) {
+            const auto fdef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node);
+            const auto fbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(fdef->Funcbody());
+            if (fbody) {
+                parlist_node = fbody->Parlist();
+                block_node = fbody->Block();
+            }
+        } else if (node->Type() == SyntaxTreeType::LocalFunction) {
+            const auto lf = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
+            const auto fbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(lf->Funcbody());
+            if (fbody) {
+                parlist_node = fbody->Parlist();
+                block_node = fbody->Block();
+            }
+        }
+
+        if (!parlist_node) return;
+
+        const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(parlist_node);
+        if (!parlist || !parlist->VarParams()) return;
+
+        // 发现可变参数函数！
+        // 1. 生成唯一的隐式变量名
+        std::string vararg_name = std::format("__fakelua_vararg_{}", tmp_var_counter_++);
+
+        // 2. 将此变量加入参数列表中的 namelist
+        auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist());
+        if (!namelist) {
+            namelist = std::make_shared<SyntaxTreeNamelist>(parlist->Loc());
+            parlist->SetNamelist(namelist);
+        }
+        namelist->AddName(vararg_name);
+
+        // 3. 清除变参标记，防止后续报错
+        parlist->SetVarParams(false);
+
+        // 4. 重写函数体内的所有 "..."
+        if (block_node) {
+            WalkSyntaxTreePruned(block_node, [this, &vararg_name](const SyntaxTreeInterfacePtr &sub_node) -> bool {
+                if (!sub_node) return false;
+
+                // 遇到嵌套函数体，检查它是否自身为可变参数函数
+                if (sub_node->Type() == SyntaxTreeType::FuncBody) {
+                    const auto sub_fbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(sub_node);
+                    const auto sub_parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(sub_fbody->Parlist());
+                    if (sub_parlist && sub_parlist->VarParams()) {
+                        // 嵌套的变参函数在此剪枝，不要继续深入它的内部
+                        return false;
+                    }
+                }
+
+                // 找到 `...` 表达式进行替换
+                if (sub_node->Type() == SyntaxTreeType::Exp) {
+                    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(sub_node);
+                    if (exp->GetExpKind() == ExpKind::kVarParams) {
+                        exp->SetExpKind(ExpKind::kPrefixExp);
+                        auto pe = MakeSimpleVarPrefixexp(exp->Loc(), vararg_name);
+                        exp->SetRight(pe);
+                        return false; // 不需要再向下递归此 Exp 节点的子节点
+                    }
+                }
+
+                return true;
+            });
+        }
+    });
+    LOG_INFO("end PreprocessVarargs");
 }
 
 }// namespace fakelua

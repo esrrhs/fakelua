@@ -142,6 +142,28 @@ inline std::string BoxNativeValue(const std::string &expr, InferredType type) {
     return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", expr);
 }
 
+// ---- vararg 辅助函数 ---------------------------------------------------------
+
+// 判断一个表达式节点是否为 __fakelua_vararg_* 变量引用。
+inline bool IsVarargExp(const SyntaxTreeInterfacePtr &exp_node) {
+    if (!exp_node || exp_node->Type() != SyntaxTreeType::Exp) {
+        return false;
+    }
+    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp_node);
+    if (exp->GetExpKind() != ExpKind::kPrefixExp) {
+        return false;
+    }
+    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
+    if (!pe || pe->GetPrefixKind() != PrefixExpKind::kVar) {
+        return false;
+    }
+    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+    if (!var || var->GetVarKind() != VarKind::kSimple) {
+        return false;
+    }
+    return var->GetName().rfind("__fakelua_vararg_", 0) == 0;
+}
+
 // ---- 阶段一：解析结果 -------------------------------------------------------
 // Parser 的输出：源文件名和语法树根节点。
 // 由 Compiler::Compile 在词法/语法解析阶段填充，
@@ -192,6 +214,11 @@ struct InferResult {
     std::unordered_map<std::string, InferredType> global_const_vars;
 };
 
+struct JitFunctionInfo {
+    int params_count = 0;
+    bool is_vararg = false;
+};
+
 // ---- 阶段五：代码生成结果 ---------------------------------------------------
 // CGen 的输出。
 // 由 CGen::Generate 填充，供 JIT 编译器使用。
@@ -201,8 +228,8 @@ struct GenResult {
     // 记录的C代码（全局变量、函数声明、函数实现，不含公共头部）。
     // 仅当 CompileConfig::record_c_code 为 true 时由 CGen 填充。
     std::string recorded_c_code;
-    // 入口函数名->参数个数
-    std::unordered_map<std::string, int> function_names;
+    // 函数名->函数元信息
+    std::unordered_map<std::string, JitFunctionInfo> function_names;
 };
 
 

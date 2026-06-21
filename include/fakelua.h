@@ -215,6 +215,10 @@ struct CVar {
 static_assert(std::is_standard_layout_v<CVar>, "CVar must be standard-layout for ABI compatibility");
 static_assert(std::is_trivially_copyable_v<CVar>, "CVar must be trivially copyable for ABI compatibility");
 
+// VarMulti 完整定义在 var_multi.h 中（仅 .cpp 文件 include）
+// 这里 forward-declare 供 CVar 联合体使用
+// Call() 模板通过 inter::DispatchCall 间接使用 Multi，无需在此暴露 VarMulti 定义
+
 // JIT类型
 enum JITType {
     // TinyCC 是一个小型的 C 语言编译器，支持即时编译（JIT）。它的特点是编译速度快，适合于需要快速生成和执行代码的场景
@@ -314,9 +318,9 @@ void CompileString(State *s, const std::string &str, const CompileConfig &cfg);
 // 返回全局变量、函数声明和函数实现部分，不含公共头部。
 std::string GetLastRecordedCCode(State *s);
 
-// 调用某个脚本函数，出于性能考虑，不支持变参，也只允许返回一个值，多返回值可使用Table来实现
+// 调用某个脚本函数（定义在文件末尾）
 template<typename Ret, typename... Args>
-void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &&...args);
+void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args &&...args);
 
 // 设置 VarInterface 构造实例函数
 void SetVarInterfaceNewFunc(State *s, const std::function<VarInterface *()> &func);
@@ -350,6 +354,8 @@ CVar NativeToFakeluaStr(State *s, char *v);
 CVar NativeToFakeluaString(State *s, const std::string &v);
 CVar NativeToFakeluaStringView(State *s, const std::string_view &v);
 CVar NativeToFakeluaObj(State *s, const VarInterface *v);
+
+void ThrowIfMultiCVar(const CVar &v);
 
 template<typename T>
 CVar NativeToFakelua(State *s, T v) {
@@ -427,6 +433,7 @@ CVar NativeToFakelua(State *s, T v) {
     }
     // 检查 T 是否为 cvar
     else if constexpr (std::is_same_v<T, CVar>) {
+        ThrowIfMultiCVar(v);
         return v;
     } else {
         // 静态断言 T 应该是 VarInterface* 或实现 VarInterface
@@ -496,7 +503,7 @@ T FakeluaToNative(State *s, const CVar v) {
     }
 }
 
-void *GetFuncAddr(State *s, JITType type, const std::string_view &name, int &arg_count);
+void *GetFuncAddr(State *s, JITType type, const std::string_view &name, int &arg_count, bool &is_vararg);
 
 [[noreturn]] void ThrowInterFakeluaException(const std::string &msg);
 
@@ -522,19 +529,59 @@ private:
     State *s_;
 };
 
+CVar DispatchCall(void *addr, const CVar *args, int arg_count);
+
+CVar AllocMultiCVar(State *s, int count);
+void SetMultiCVarElement(CVar &multi, int idx, CVar val);
+CVar GetMultiCVarElement(const CVar &multi, int idx);
+int GetMultiCVarCount(const CVar &multi);
+
 }// namespace inter
 
-// 调用函数
+// ---------------------------------------------------------------------------
+// std::tuple 支持：自动解包 Multi 返回值
+// ---------------------------------------------------------------------------
+
+template<typename T>
+struct is_std_tuple : std::false_type {};
+template<typename... Ts>
+struct is_std_tuple<std::tuple<Ts...>> : std::true_type {};
+template<typename T>
+inline constexpr bool is_std_tuple_v = is_std_tuple<T>::value;
+
+namespace inter {
+
+template<typename Tuple, std::size_t... I>
+void UnpackMultiToTuple(State *s, const CVar &ret_var, Tuple &tuple, std::index_sequence<I...>) {
+    ((std::get<I>(tuple) = FakeluaToNative<std::remove_cvref_t<std::tuple_element_t<I, std::remove_cvref_t<Tuple>>>>(s, inter::GetMultiCVarElement(ret_var, I))), ...);
+}
+
+}// namespace inter
+
+// ---------------------------------------------------------------------------
+// Call() — 统一调用入口
+//
+// 支持：
+//   1. 普通调用：Call(s, type, "fn", ret, arg1, arg2)
+//   2. 自动 vararg：Call(s, type, "sum", ret, 1, 2, 3)  -- 多余参数自动打包成 Multi
+//   3. 多返回值：Call(s, type, "fn", std::tie(a, b, c))  -- 自动解包 Multi 到 tuple
+// ---------------------------------------------------------------------------
+
 template<typename Ret, typename... Args>
-void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &&...args) {
+void Call(State *s, JITType type, const std::string_view &name, Ret &&ret, Args &&...args) {
+    using RetType = std::remove_cvref_t<Ret>;
     int arg_count = 0;
-    const auto addr = inter::GetFuncAddr(s, type, name, arg_count);
-    if (!addr) {
+    bool is_vararg = false;
+    const auto addr = inter::GetFuncAddr(s, type, name, arg_count, is_vararg);
+    if (__builtin_expect(!addr, 0)) {
         inter::ThrowInterFakeluaException(std::format("Call failed, function {} not found", name));
     }
 
-    if (sizeof...(Args) != static_cast<size_t>(arg_count)) {
-        inter::ThrowInterFakeluaException(std::format("Call failed, function {} arg count not match, need {} get {}", name, arg_count, sizeof...(Args)));
+    const int user_arg_count = static_cast<int>(sizeof...(Args));
+    const int fixed_count = is_vararg ? arg_count - 1 : arg_count;
+
+    if (__builtin_expect(!is_vararg && user_arg_count != arg_count, 0)) {
+        inter::ThrowInterFakeluaException(std::format("Call failed, function {} arg count not match, need {} get {}", name, arg_count, user_arg_count));
     }
 
     if (const auto reentrant_count = inter::GetReentrantCount(s); !reentrant_count) {
@@ -542,118 +589,36 @@ void Call(State *s, JITType type, const std::string_view &name, Ret &ret, Args &
     }
     inter::ReentryCounter rc(s);
 
-    CVar ret_var;
-    if constexpr (sizeof...(Args) == 0) {
-        ret_var = reinterpret_cast<CVar (*)()>(addr)();
-#define CVAR_1 CVar
-#define CVAR_2 CVAR_1, CVar
-#define CVAR_3 CVAR_2, CVar
-#define CVAR_4 CVAR_3, CVar
-#define CVAR_5 CVAR_4, CVar
-#define CVAR_6 CVAR_5, CVar
-#define CVAR_7 CVAR_6, CVar
-#define CVAR_8 CVAR_7, CVar
-#define CVAR_9 CVAR_8, CVar
-#define CVAR_10 CVAR_9, CVar
-#define CVAR_11 CVAR_10, CVar
-#define CVAR_12 CVAR_11, CVar
-#define CVAR_13 CVAR_12, CVar
-#define CVAR_14 CVAR_13, CVar
-#define CVAR_15 CVAR_14, CVar
-#define CVAR_16 CVAR_15, CVar
-#define CVAR_17 CVAR_16, CVar
-#define CVAR_18 CVAR_17, CVar
-#define CVAR_19 CVAR_18, CVar
-#define CVAR_20 CVAR_19, CVar
-#define CVAR_21 CVAR_20, CVar
-#define CVAR_22 CVAR_21, CVar
-#define CVAR_23 CVAR_22, CVar
-#define CVAR_24 CVAR_23, CVar
-#define CVAR_25 CVAR_24, CVar
-#define CVAR_26 CVAR_25, CVar
-#define CVAR_27 CVAR_26, CVar
-#define CVAR_28 CVAR_27, CVar
-#define CVAR_29 CVAR_28, CVar
-#define CVAR_30 CVAR_29, CVar
-#define CVAR_31 CVAR_30, CVar
-#define CVAR_32 CVAR_31, CVar
-
-#define CALL_CASE(N)                                                                                                                                                                                   \
-    }                                                                                                                                                                                                  \
-    else if constexpr (sizeof...(Args) == N) {                                                                                                                                                         \
-        ret_var = reinterpret_cast<CVar (*)(CVAR_##N)>(addr)(inter::NativeToFakelua(s, std::forward<Args>(args))...);
-
-        CALL_CASE(1)
-        CALL_CASE(2)
-        CALL_CASE(3)
-        CALL_CASE(4)
-        CALL_CASE(5)
-        CALL_CASE(6)
-        CALL_CASE(7)
-        CALL_CASE(8)
-        CALL_CASE(9)
-        CALL_CASE(10)
-        CALL_CASE(11)
-        CALL_CASE(12)
-        CALL_CASE(13)
-        CALL_CASE(14)
-        CALL_CASE(15)
-        CALL_CASE(16)
-        CALL_CASE(17)
-        CALL_CASE(18)
-        CALL_CASE(19)
-        CALL_CASE(20)
-        CALL_CASE(21)
-        CALL_CASE(22)
-        CALL_CASE(23)
-        CALL_CASE(24)
-        CALL_CASE(25)
-        CALL_CASE(26)
-        CALL_CASE(27)
-        CALL_CASE(28)
-        CALL_CASE(29)
-        CALL_CASE(30)
-        CALL_CASE(31)
-        CALL_CASE(32)
-
-#undef CALL_CASE
-#undef CVAR_1
-#undef CVAR_2
-#undef CVAR_3
-#undef CVAR_4
-#undef CVAR_5
-#undef CVAR_6
-#undef CVAR_7
-#undef CVAR_8
-#undef CVAR_9
-#undef CVAR_10
-#undef CVAR_11
-#undef CVAR_12
-#undef CVAR_13
-#undef CVAR_14
-#undef CVAR_15
-#undef CVAR_16
-#undef CVAR_17
-#undef CVAR_18
-#undef CVAR_19
-#undef CVAR_20
-#undef CVAR_21
-#undef CVAR_22
-#undef CVAR_23
-#undef CVAR_24
-#undef CVAR_25
-#undef CVAR_26
-#undef CVAR_27
-#undef CVAR_28
-#undef CVAR_29
-#undef CVAR_30
-#undef CVAR_31
-#undef CVAR_32
-    } else {
-        static_assert(sizeof...(Args) <= kMaxFunctionInputParams, "Too many arguments for Call()");
+    // 将模板参数转为 CVar 数组
+    CVar call_cvars[kMaxFunctionInputParams] = {};
+    if constexpr (sizeof...(Args) > 0) {
+        int idx = 0;
+        ((call_cvars[idx++] = inter::NativeToFakelua(s, std::forward<Args>(args))), ...);
     }
 
-    ret = inter::FakeluaToNative<Ret>(s, ret_var);
+    // vararg：将多余参数打包为 Multi
+    if (__builtin_expect(is_vararg, 0)) {
+        CVar raw_cvars[kMaxFunctionInputParams];
+        for (int i = 0; i < fixed_count; ++i) raw_cvars[i] = call_cvars[i];
+        const int vararg_count = user_arg_count - fixed_count;
+        CVar multi = inter::AllocMultiCVar(s, vararg_count > 0 ? vararg_count : 0);
+        for (int i = 0; i < vararg_count; ++i) {
+            inter::SetMultiCVarElement(multi, i, call_cvars[fixed_count + i]);
+        }
+        raw_cvars[fixed_count] = multi;
+        for (int i = 0; i < arg_count; ++i) call_cvars[i] = raw_cvars[i];
+    }
+
+    // 分发调用
+    CVar ret_var = inter::DispatchCall(addr, call_cvars, arg_count);
+
+    // 返回值处理：自动解包 tuple / 单值
+    if constexpr (is_std_tuple_v<RetType>) {
+        constexpr std::size_t N = std::tuple_size_v<RetType>;
+        inter::UnpackMultiToTuple(s, ret_var, ret, std::make_index_sequence<N>{});
+    } else {
+        ret = inter::FakeluaToNative<RetType>(s, ret_var);
+    }
 }
 
 }// namespace fakelua

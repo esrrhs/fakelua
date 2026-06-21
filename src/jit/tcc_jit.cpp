@@ -20,7 +20,7 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         ThrowFakeluaException(std::format("TCC compile failed, tcc_relocate failed for {}", pr.file_name));
     }
 
-    for (const auto &[name, params_count]: gr.function_names) {
+    for (const auto &[name, info]: gr.function_names) {
         void *func_ptr = tcc_get_symbol(s, name.c_str());
         if (!func_ptr) {
             ThrowFakeluaException(std::format("TCC compile failed, tcc_get_symbol failed for symbol {} in {}", name, pr.file_name));
@@ -29,8 +29,8 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         // 这里把 handle (shared_ptr<TCCHandle>) 一并交给 VmFunction 持有，VmFunction 又
         // 被存放到 State 的 Vm 中（见 src/jit/vm_function.h 的 handle_ 成员）。
         // 因此只要 VmFunction 还活着，func_ptr 就保证可用；State 析构才会一并释放。
-        s_->GetVM().RegisterFunction(VmFunction(name, params_count, JIT_TCC, func_ptr, handle));
-        LOG_INFO("Registered function {} with {} params at address {}", name, params_count, func_ptr);
+        s_->GetVM().RegisterFunction(VmFunction(name, info.params_count, JIT_TCC, func_ptr, handle, info.is_vararg));
+        LOG_INFO("Registered function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
     }
 
     LOG_INFO("TCC JIT compilation finished for {}", pr.file_name);

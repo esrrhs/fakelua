@@ -266,7 +266,7 @@ private:
 
     int tmp_var_counter_ = 0;// 临时变量生成计数器
 
-    std::unordered_map<std::string, int> local_func_names_;// 本地函数（非全局）的名称映射及作用域标识
+    std::unordered_map<std::string, JitFunctionInfo> local_func_names_;// 本地函数（非全局）的名称映射及作用域标识
 
     [[nodiscard]] const AnalysisResult &ar() const {
         return ar_->get();
