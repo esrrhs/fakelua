@@ -46,7 +46,7 @@ private:
 // 从大块内存中切出一小块内存使用，释放的时候一口气全释放
 class Heap {
 public:
-    HeapAllocator &GetTAllocator(bool is_const) {
+    HeapAllocator &GetAllocator(bool is_const) {
         if (is_const) {
             return const_allocator_;
         }

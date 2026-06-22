@@ -13,7 +13,7 @@ int64_t ConstString::Alloc(const std::string_view &str) {
         return it->second;
     }
 
-    auto ptr = static_cast<VarString *>(s_->GetHeap().GetTAllocator(true).Alloc(sizeof(VarString) + str.size()));
+    auto ptr = static_cast<VarString *>(s_->GetHeap().GetAllocator(true).Alloc(sizeof(VarString) + str.size()));
     new (ptr) VarString(str);
     auto id = reinterpret_cast<int64_t>(ptr);
 

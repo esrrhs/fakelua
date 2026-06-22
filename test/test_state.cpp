@@ -127,7 +127,7 @@ TEST(state, reset_clears_heap) {
     auto *s = guard.GetState();
 
     // Allocate some temp memory so that the heap is non-empty.
-    auto &temp_alloc = s->GetHeap().GetTAllocator(false);
+    auto &temp_alloc = s->GetHeap().GetAllocator(false);
     ASSERT_NE(temp_alloc.Alloc(256), nullptr);
     ASSERT_GT(temp_alloc.Size(), 0u);
 

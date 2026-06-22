@@ -72,7 +72,7 @@ void Var::SetConstString(State *state, const std::string_view &val) {
 
 void Var::SetTable(State *state) {
     type_ = static_cast<int>(VarType::Table);
-    data_.t = state->GetHeap().GetTAllocator(false).New<VarTable>();
+    data_.t = state->GetHeap().GetAllocator(false).New<VarTable>();
 }
 
 std::string Var::ToString(bool has_quote, bool has_postfix) const {
