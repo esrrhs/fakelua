@@ -62,6 +62,18 @@ public:
         // const_allocator_ 不重置，常量内存一直保留
     }
 
+    class ConstAllocGuard {
+    public:
+        explicit ConstAllocGuard(Heap &heap) : heap_(heap) {
+            heap_.SetUseConstAlloc(true);
+        }
+        ~ConstAllocGuard() {
+            heap_.SetUseConstAlloc(false);
+        }
+    private:
+        Heap &heap_;
+    };
+
     void SetUseConstAlloc(bool val) {
         use_const_alloc_ = val;
     }

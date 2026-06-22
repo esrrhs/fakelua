@@ -77,48 +77,10 @@ ParseResult Compiler::Compile(MyFlexer &f, const CompileConfig &cfg) {
     if (!cfg.disable_jit[JIT_TCC]) {
         TccJitter jitter(s_);
         jitter.Compile(pr, gr, cfg);
-
-        int arg_count = 0;
-        bool is_vararg = false;
-        void *addr = inter::GetFuncAddr(s_, JIT_TCC, "__fakelua_init", arg_count, is_vararg);
-        if (addr) {
-            jmp_buf jb;
-            jmp_buf *old_jb = g_jit_exception_jmp_buf;
-            g_jit_exception_jmp_buf = &jb;
-            if (setjmp(jb) == 0) {
-                s_->GetHeap().SetUseConstAlloc(true);
-                inter::DispatchCall(addr, nullptr, 0);
-                s_->GetHeap().SetUseConstAlloc(false);
-                g_jit_exception_jmp_buf = old_jb;
-            } else {
-                g_jit_exception_jmp_buf = old_jb;
-                s_->GetHeap().SetUseConstAlloc(false);
-                ThrowFakeluaException(g_jit_exception_msg);
-            }
-        }
     }
     if (!cfg.disable_jit[JIT_GCC]) {
         GccJitter jitter(s_);
         jitter.Compile(pr, gr, cfg);
-
-        int arg_count = 0;
-        bool is_vararg = false;
-        void *addr = inter::GetFuncAddr(s_, JIT_GCC, "__fakelua_init", arg_count, is_vararg);
-        if (addr) {
-            jmp_buf jb;
-            jmp_buf *old_jb = g_jit_exception_jmp_buf;
-            g_jit_exception_jmp_buf = &jb;
-            if (setjmp(jb) == 0) {
-                s_->GetHeap().SetUseConstAlloc(true);
-                inter::DispatchCall(addr, nullptr, 0);
-                s_->GetHeap().SetUseConstAlloc(false);
-                g_jit_exception_jmp_buf = old_jb;
-            } else {
-                g_jit_exception_jmp_buf = old_jb;
-                s_->GetHeap().SetUseConstAlloc(false);
-                ThrowFakeluaException(g_jit_exception_msg);
-            }
-        }
     }
 
     if (cfg.record_c_code) {
