@@ -8,7 +8,7 @@
 
 namespace fakelua {
 
-extern "C" void *FakeluaAllocTemp(State *state, size_t size, bool is_const) {
+extern "C" void *FakeluaAlloc(State *state, size_t size, bool is_const) {
     return state->GetHeap().GetAllocator(is_const).Alloc(size);
 }
 

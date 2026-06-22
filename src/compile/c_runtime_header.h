@@ -81,10 +81,10 @@ typedef struct VarMulti {
     CVar vars[0];
 } VarMulti;
 
-extern void* FakeluaAllocTemp(State *s, size_t size, bool is_const);
+extern void* FakeluaAlloc(State *s, size_t size, bool is_const);
 
 static inline CVar FlMakeMulti(State *state, uint32_t count, ...) {
-    VarMulti *m = (VarMulti *)FakeluaAllocTemp(state, sizeof(VarMulti) + count * sizeof(CVar), !init_flag);
+    VarMulti *m = (VarMulti *)FakeluaAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
     m->count = count;
     va_list args_list;
     va_start(args_list, count);
@@ -109,7 +109,7 @@ static inline CVar FlCombineMulti(State *state, uint32_t prefix_count, const CVa
     }
 
     uint32_t total_count = prefix_count + last_count;
-    VarMulti *m = (VarMulti *)FakeluaAllocTemp(state, sizeof(VarMulti) + total_count * sizeof(CVar), !init_flag);
+    VarMulti *m = (VarMulti *)FakeluaAlloc(state, sizeof(VarMulti) + total_count * sizeof(CVar), !__fakelua_init_flag__);
     m->count = total_count;
 
     for (uint32_t i = 0; i < prefix_count; ++i) {
@@ -148,7 +148,7 @@ static inline CVar FlSliceMulti(State *state, CVar v, uint32_t start_idx) {
         return (CVar){VAR_NIL};
     }
     uint32_t count = m->count - start_idx;
-    VarMulti *nm = (VarMulti *)FakeluaAllocTemp(state, sizeof(VarMulti) + count * sizeof(CVar), !init_flag);
+    VarMulti *nm = (VarMulti *)FakeluaAlloc(state, sizeof(VarMulti) + count * sizeof(CVar), !__fakelua_init_flag__);
     nm->count = count;
     for (uint32_t i = 0; i < count; ++i) {
         nm->vars[i] = m->vars[start_idx + i];
@@ -184,7 +184,7 @@ static inline CVar FlSliceMulti(State *state, CVar v, uint32_t start_idx) {
     __k; \
 })
 
-extern void* FakeluaAllocTemp(State *s, size_t size, bool is_const);
+extern void* FakeluaAlloc(State *s, size_t size, bool is_const);
 extern void FakeluaThrowError(State *s, const char *msg);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
 
@@ -211,7 +211,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
 #define SET_STRING(v, str, len) do { \
     int __len = (len); \
     const char *__s_ptr = (str); \
-    VarString *__vs = (VarString *)FakeluaAllocTemp(_S, sizeof(VarString) + __len, !init_flag); \
+    VarString *__vs = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + __len, !__fakelua_init_flag__); \
     __vs->size_ = __len; \
     __vs->hash_ = 0; \
     memcpy(__vs->data_, __s_ptr, __len); \
@@ -220,7 +220,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
 } while(0)
 
 #define SET_TABLE(v) do { \
-    VarTable *__t = (VarTable *)FakeluaAllocTemp(_S, sizeof(VarTable), !init_flag); \
+    VarTable *__t = (VarTable *)FakeluaAlloc(_S, sizeof(VarTable), !__fakelua_init_flag__); \
     __t->count_ = 0; \
     __t->bucket_count_ = 0; \
     __t->nodes_ = NULL; \
@@ -365,7 +365,7 @@ static inline void FlTableRehash(VarTable *tbl) {
         uint32_t total_nodes = new_bucket_count + overflow_count;
         size_t nodes_size = total_nodes * sizeof(TableNode);
         size_t active_list_size = total_nodes * sizeof(uint32_t);
-        char *buffer = (char *)FakeluaAllocTemp(_S, nodes_size + active_list_size, !init_flag);
+        char *buffer = (char *)FakeluaAlloc(_S, nodes_size + active_list_size, !__fakelua_init_flag__);
         TableNode *new_nodes = (TableNode *)buffer;
         uint32_t *new_active_list = (uint32_t *)(buffer + nodes_size);
         { uint32_t i; for (i = 0; i < total_nodes; ++i) { new_nodes[i].entry.key.type_ = VAR_NIL; new_nodes[i].next = 0xFFFFFFFF; new_nodes[i].active_pos = 0xFFFFFFFF; } }
@@ -750,7 +750,7 @@ static inline CVar FlConcat(CVar a, CVar b) {
     else { lb = FlVarToStr(b, buf_b, sizeof(buf_b)); }
     int total = la + lb;
     if (UNLIKELY(total < la || total < lb)) { FakeluaThrowError(_S, "string concatenation result too long"); }
-    VarString *vs = (VarString *)FakeluaAllocTemp(_S, sizeof(VarString) + total, !init_flag);
+    VarString *vs = (VarString *)FakeluaAlloc(_S, sizeof(VarString) + total, !__fakelua_init_flag__);
     vs->size_ = total;
     vs->hash_ = 0;
     memcpy(vs->data_, sa, la);

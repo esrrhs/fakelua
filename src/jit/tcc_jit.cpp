@@ -33,7 +33,7 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         LOG_INFO("Registered function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
     }
 
-    void *init_ptr = tcc_get_symbol(s, "__fakelua_init");
+    void *init_ptr = tcc_get_symbol(s, kInitFunctionName);
     if (init_ptr) {
         inter::DispatchCall(init_ptr, nullptr, 0);
     }

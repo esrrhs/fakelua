@@ -373,7 +373,7 @@ bool PreProcessor::IsComplexExp(const SyntaxTreeInterfacePtr &exp) {
 
 std::shared_ptr<SyntaxTreeFunction> PreProcessor::MakeInitFunction(const SyntaxTreeLocation &loc, const std::vector<SyntaxTreeInterfacePtr> &assign_stmts) {
     auto fnlist = std::make_shared<SyntaxTreeFuncnamelist>(loc);
-    fnlist->AddName("__fakelua_init");
+    fnlist->AddName(kInitFunctionName);
 
     auto fname = std::make_shared<SyntaxTreeFuncname>(loc);
     fname->SetFuncNameList(fnlist);

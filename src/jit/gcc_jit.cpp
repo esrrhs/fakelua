@@ -165,7 +165,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         LOG_INFO("Registered gcc function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
     }
 
-    FARPROC init_symbol = GetProcAddress(module_handle, "__fakelua_init");
+    FARPROC init_symbol = GetProcAddress(module_handle, kInitFunctionName);
     if (init_symbol) {
         void *init_ptr = reinterpret_cast<void *>(init_symbol);
         inter::DispatchCall(init_ptr, nullptr, 0);
@@ -237,7 +237,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         LOG_INFO("Registered gcc function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
     }
 
-    void *init_ptr = dlsym(dl_handle, "__fakelua_init");
+    void *init_ptr = dlsym(dl_handle, kInitFunctionName);
     if (init_ptr) {
         inter::DispatchCall(init_ptr, nullptr, 0);
     }
