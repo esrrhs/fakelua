@@ -93,8 +93,9 @@ void CGen::GenerateHeader() {
     // 比其宿主 State 活得更久——State 析构即销毁 Vm，进而释放 handle 和代码页。
     // 同一份代码也不会被跨 State 复用（每次编译都会重新生成）。
     Out() << "static void * _S = (void *) " << s_ << ";\n";
+    Out() << "static bool init_flag = false;\n";
 
-    // C 运行时类型定义、宏和函数（从 c_runtime_header.h 提取，便于独立维护）
+    // C 运行时类型定义、宏 and 函数（从 c_runtime_header.h 提取，便于独立维护）
     Out() << kCRuntimeHeader;
 }
 
@@ -542,6 +543,9 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
     // 写入调用方提供的输出流。
     out << func_temp_decls_.str();
     out << body_ss.str();
+    if (func_name == "__fakelua_init") {
+        out << "    init_flag = true;\n";
+    }
 
     // 清除特化上下文。
     spec_param_types_.clear();

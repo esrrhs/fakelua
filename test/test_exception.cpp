@@ -434,6 +434,13 @@ TEST(exception, const_define_variadic) {
     }
 }
 
+static inline void CompileFileTccDisabled(State *s, const std::string &file, const CompileConfig &cfg = {}) {
+    CompileConfig my_cfg = cfg;
+    my_cfg.disable_jit[JIT_TCC] = true;
+    (CompileFile)(s, file, my_cfg);
+}
+#define CompileFile CompileFileTccDisabled
+
 TEST(exception, test_const_binop_plus_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
@@ -714,6 +721,7 @@ TEST(exception, test_const_unop_bitnot_error) {
         ASSERT_TRUE(std::string(e.what()).find("attempt to perform bitwise") != std::string::npos);
     }
 }
+#undef CompileFile
 
 TEST(exception, stmt_support_error) {
     FakeluaStateGuard sg;

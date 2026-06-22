@@ -206,7 +206,7 @@ TEST(runtime, vm_call_by_name_error_cases) {
 TEST(runtime, vm_helper_functions_throw_and_alloc) {
     State s;
     EXPECT_THROW(FakeluaThrowError(&s, "runtime_error"), std::exception);
-    ASSERT_NE(FakeluaAllocTemp(&s, 32), nullptr);
+    ASSERT_NE(FakeluaAllocTemp(&s, 32, false), nullptr);
 }
 
 TEST(runtime, heap_allocator_boundary_and_reset) {

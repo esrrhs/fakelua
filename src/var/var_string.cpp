@@ -4,7 +4,7 @@
 namespace fakelua {
 
 VarString *VarString::AllocTemp(State *state, const std::string_view &str) {
-    auto ret = static_cast<VarString *>(state->GetHeap().GetTempAllocator().Alloc(sizeof(VarString) + str.size()));
+    auto ret = static_cast<VarString *>(state->GetHeap().GetTAllocator(false).Alloc(sizeof(VarString) + str.size()));
     new (ret) VarString(str);
     return ret;
 }

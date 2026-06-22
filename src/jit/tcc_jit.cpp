@@ -3,8 +3,6 @@
 #include "state/state.h"
 #include "util/logging.h"
 
-#include "jit/vm.h"
-
 namespace fakelua {
 
 TccJitter::TccJitter(State *s) : s_(s) {
@@ -37,17 +35,7 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 
     void *init_ptr = tcc_get_symbol(s, "__fakelua_init");
     if (init_ptr) {
-        Heap::ConstAllocGuard guard(s_->GetHeap());
-        jmp_buf jb;
-        jmp_buf *old_jb = g_jit_exception_jmp_buf;
-        g_jit_exception_jmp_buf = &jb;
-        if (setjmp(jb) == 0) {
-            inter::DispatchCall(init_ptr, nullptr, 0);
-            g_jit_exception_jmp_buf = old_jb;
-        } else {
-            g_jit_exception_jmp_buf = old_jb;
-            ThrowFakeluaException(g_jit_exception_msg);
-        }
+        inter::DispatchCall(init_ptr, nullptr, 0);
     }
 
     LOG_INFO("TCC JIT compilation finished for {}", pr.file_name);

@@ -474,11 +474,9 @@ void PreProcessor::PreprocessGlobalInitializers(const SyntaxTreeInterfacePtr &ch
         new_stmts.push_back(stmt);
     }
 
-    if (!init_assign_stmts.empty()) {
-        auto init_func = MakeInitFunction(chunk->Loc(), init_assign_stmts);
-        new_stmts.push_back(init_func);
-        LOG_INFO("PreprocessGlobalInitializers: generated __fakelua_init function with {} initializers", init_assign_stmts.size());
-    }
+    auto init_func = MakeInitFunction(chunk->Loc(), init_assign_stmts);
+    new_stmts.push_back(init_func);
+    LOG_INFO("PreprocessGlobalInitializers: generated __fakelua_init function with {} initializers", init_assign_stmts.size());
 
     top_block->SetStmts(new_stmts);
     LOG_INFO("end PreprocessGlobalInitializers");

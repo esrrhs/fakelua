@@ -247,7 +247,7 @@ void VarTable::Rehash(State *state) {
 
         const size_t nodes_size = total_nodes * sizeof(TableNode);
         const size_t active_list_size = total_nodes * sizeof(uint32_t);
-        auto *buffer = static_cast<char *>(state->GetHeap().GetTempAllocator().Alloc(nodes_size + active_list_size));
+        auto *buffer = static_cast<char *>(state->GetHeap().GetTAllocator(false).Alloc(nodes_size + active_list_size));
 
         auto *new_nodes = reinterpret_cast<TableNode *>(buffer);
         auto *new_active_list = reinterpret_cast<uint32_t *>(buffer + nodes_size);

@@ -44,12 +44,7 @@ private:
     uint64_t global_name_ = 0;
 };
 
-#include <setjmp.h>
-
-extern thread_local jmp_buf *g_jit_exception_jmp_buf;
-extern thread_local const char *g_jit_exception_msg;
-
-extern "C" void *FakeluaAllocTemp(State *state, size_t size);
+extern "C" void *FakeluaAllocTemp(State *state, size_t size, bool is_const);
 
 extern "C" void FakeluaThrowError(State *state, const char *msg);
 

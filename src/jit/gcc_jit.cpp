@@ -160,6 +160,7 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         if (!symbol_address) {
             ThrowFakeluaException(std::format("GCC compile failed, GetProcAddress failed for symbol {} in {}", name, so_file));
         }
+        void *func_ptr = reinterpret_cast<void *>(symbol_address);
         s_->GetVM().RegisterFunction(VmFunction(name, info.params_count, JIT_GCC, func_ptr, handle, info.is_vararg));
         LOG_INFO("Registered gcc function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
     }
@@ -167,7 +168,6 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     FARPROC init_symbol = GetProcAddress(module_handle, "__fakelua_init");
     if (init_symbol) {
         void *init_ptr = reinterpret_cast<void *>(init_symbol);
-        Heap::ConstAllocGuard guard(s_->GetHeap());
         inter::DispatchCall(init_ptr, nullptr, 0);
     }
 #else
@@ -239,7 +239,6 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
 
     void *init_ptr = dlsym(dl_handle, "__fakelua_init");
     if (init_ptr) {
-        Heap::ConstAllocGuard guard(s_->GetHeap());
         inter::DispatchCall(init_ptr, nullptr, 0);
     }
 
