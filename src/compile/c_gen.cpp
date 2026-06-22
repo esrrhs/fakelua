@@ -136,13 +136,13 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                 InferredType global_type = ir().global_const_vars.at(name);
 
                 if (global_type == T_INT) {
-                    Out() << "static const int64_t " << name << " = " << CompileNumericExp(exp) << ";\n";
+                    Out() << "static int64_t " << name << " = " << CompileNumericExp(exp) << ";\n";
                 } else if (global_type == T_FLOAT) {
-                    Out() << "static const double " << name << " = " << CompileNumericExp(exp) << ";\n";
+                    Out() << "static double " << name << " = " << CompileNumericExp(exp) << ";\n";
                 } else {
-                    // 非数值字面量：保留 static const CVar 形式。
+                    // 非数值字面量：保留 static CVar 形式。
                     const std::string cvar_init = CompileExp(exp);
-                    Out() << "static const CVar " << name << " = " << cvar_init << ";\n";
+                    Out() << "static CVar " << name << " = " << cvar_init << ";\n";
                 }
             }
         }

@@ -47,6 +47,9 @@ private:
 class Heap {
 public:
     HeapAllocator &GetTempAllocator() {
+        if (use_const_alloc_) {
+            return const_allocator_;
+        }
         return temp_allocator_;
     }
 
@@ -59,9 +62,18 @@ public:
         // const_allocator_ 不重置，常量内存一直保留
     }
 
+    void SetUseConstAlloc(bool val) {
+        use_const_alloc_ = val;
+    }
+
+    [[nodiscard]] bool GetUseConstAlloc() const {
+        return use_const_alloc_;
+    }
+
 private:
     HeapAllocator temp_allocator_; // 临时内存分配器，编译过程中使用，编译结束后重置
     HeapAllocator const_allocator_;// 常量内存分配器，编译过程中使用，编译结束后不重置
+    bool use_const_alloc_ = false;
 };
 
 }// namespace fakelua

@@ -8,11 +8,18 @@
 
 namespace fakelua {
 
+thread_local jmp_buf *g_jit_exception_jmp_buf = nullptr;
+thread_local const char *g_jit_exception_msg = nullptr;
+
 extern "C" void *FakeluaAllocTemp(State *state, size_t size) {
     return state->GetHeap().GetTempAllocator().Alloc(size);
 }
 
 extern "C" void FakeluaThrowError(State *state, const char *msg) {
+    if (g_jit_exception_jmp_buf) {
+        g_jit_exception_msg = msg;
+        longjmp(*g_jit_exception_jmp_buf, 1);
+    }
     ThrowFakeluaException(msg);
 }
 

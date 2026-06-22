@@ -445,7 +445,7 @@ TEST(exception, test_const_binop_plus_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -471,7 +471,7 @@ TEST(exception, test_const_binop_minus_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -486,7 +486,7 @@ TEST(exception, test_const_binop_star_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -501,7 +501,7 @@ TEST(exception, test_const_binop_slash_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -516,7 +516,7 @@ TEST(exception, test_const_binop_double_slash_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -531,7 +531,7 @@ TEST(exception, test_const_binop_pow_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -546,7 +546,7 @@ TEST(exception, test_const_binop_mod_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -561,7 +561,7 @@ TEST(exception, test_const_binop_bitand_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("number has no integer representation") != std::string::npos);
     }
 }
 
@@ -576,7 +576,7 @@ TEST(exception, test_const_binop_xor_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("number has no integer representation") != std::string::npos);
     }
 }
 
@@ -591,7 +591,7 @@ TEST(exception, test_const_binop_bitor_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("number has no integer representation") != std::string::npos);
     }
 }
 
@@ -606,7 +606,7 @@ TEST(exception, test_const_binop_right_shift_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("number has no integer representation") != std::string::npos);
     }
 }
 
@@ -621,7 +621,7 @@ TEST(exception, test_const_binop_left_shift_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("number has no integer representation") != std::string::npos);
     }
 }
 
@@ -636,7 +636,7 @@ TEST(exception, test_const_binop_less_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -651,7 +651,7 @@ TEST(exception, test_const_binop_less_equal_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -666,7 +666,7 @@ TEST(exception, test_const_binop_more_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -681,7 +681,7 @@ TEST(exception, test_const_binop_more_equal_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -696,7 +696,7 @@ TEST(exception, test_const_unop_len_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to get length") != std::string::npos);
     }
 }
 
@@ -711,7 +711,7 @@ TEST(exception, test_const_unop_bitnot_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform bitwise") != std::string::npos);
     }
 }
 
@@ -751,13 +751,7 @@ TEST(exception, const_func_call_error) {
     ASSERT_NE(s, nullptr);
     SetDebugLogLevel(0);
 
-    try {
-        CompileFile(s, "./exception/test_const_func_call_error.lua", {});
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not allowed in global variable initialization") != std::string::npos);
-    }
+    ASSERT_NO_THROW(CompileFile(s, "./exception/test_const_func_call_error.lua", {}));
 }
 
 TEST(exception, no_define_lvalue_error) {

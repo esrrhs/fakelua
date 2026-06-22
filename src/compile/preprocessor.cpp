@@ -58,6 +58,9 @@ void PreProcessor::Process(const ParseResult &pr, const CompileConfig &cfg) {
     // 使其能被后续特化发现流程识别。
     PreprocessFunctiondefLocalVars(chunk);
 
+    // 预处理全局变量初始化
+    PreprocessGlobalInitializers(chunk);
+
     // 替换可变参数 "..."
     PreprocessVarargs(chunk);
 
@@ -343,6 +346,142 @@ void PreProcessor::PreprocessVarargs(const SyntaxTreeInterfacePtr &chunk) {
         }
     });
     LOG_INFO("end PreprocessVarargs");
+}
+
+bool PreProcessor::IsComplexExp(const SyntaxTreeInterfacePtr &exp) {
+    if (!exp || exp->Type() != SyntaxTreeType::Exp) {
+        return false;
+    }
+    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    const auto exp_kind = e->GetExpKind();
+    if (exp_kind == ExpKind::kTableConstructor ||
+        exp_kind == ExpKind::kBinop ||
+        exp_kind == ExpKind::kUnop) {
+        return true;
+    }
+    if (exp_kind == ExpKind::kPrefixExp) {
+        const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
+        if (pe) {
+            if (pe->GetPrefixKind() == PrefixExpKind::kVar ||
+                pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+std::shared_ptr<SyntaxTreeFunction> PreProcessor::MakeInitFunction(const SyntaxTreeLocation &loc, const std::vector<SyntaxTreeInterfacePtr> &assign_stmts) {
+    auto fnlist = std::make_shared<SyntaxTreeFuncnamelist>(loc);
+    fnlist->AddName("__fakelua_init");
+
+    auto fname = std::make_shared<SyntaxTreeFuncname>(loc);
+    fname->SetFuncNameList(fnlist);
+
+    auto block = std::make_shared<SyntaxTreeBlock>(loc);
+    block->SetStmts(assign_stmts);
+
+    auto fbody = std::make_shared<SyntaxTreeFuncbody>(loc);
+    fbody->SetBlock(block);
+
+    auto func = std::make_shared<SyntaxTreeFunction>(loc);
+    func->SetFuncname(fname);
+    func->SetFuncbody(fbody);
+
+    return func;
+}
+
+void PreProcessor::PreprocessGlobalInitializers(const SyntaxTreeInterfacePtr &chunk) {
+    LOG_INFO("start PreprocessGlobalInitializers");
+    DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
+    const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+
+    std::vector<SyntaxTreeInterfacePtr> init_assign_stmts;
+    std::vector<SyntaxTreeInterfacePtr> new_stmts;
+
+    for (const auto &stmt : top_block->Stmts()) {
+        if (stmt->Type() == SyntaxTreeType::LocalVar) {
+            const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+            const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
+            const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist());
+
+            if (namelist && explist) {
+                auto &names = namelist->Names();
+                auto &exps = explist->Exps();
+
+                bool has_complex = false;
+                for (const auto &exp : exps) {
+                    if (IsComplexExp(exp)) {
+                        has_complex = true;
+                        break;
+                    }
+                }
+
+                bool last_is_func = !exps.empty() && IsFunctionCallExp(exps.back());
+                bool last_is_vararg = !exps.empty() && IsVarargExp(exps.back());
+                if (names.size() != exps.size() && (last_is_func || last_is_vararg)) {
+                    has_complex = true;
+                }
+
+                if (has_complex) {
+                    if (names.size() == exps.size()) {
+                        for (size_t i = 0; i < names.size(); ++i) {
+                            if (IsComplexExp(exps[i])) {
+                                auto assign = std::make_shared<SyntaxTreeAssign>(stmt->Loc());
+                                auto varlist = std::make_shared<SyntaxTreeVarlist>(stmt->Loc());
+                                auto var = std::make_shared<SyntaxTreeVar>(stmt->Loc());
+                                var->SetName(names[i]);
+                                var->SetVarKind(VarKind::kSimple);
+                                varlist->AddVar(var);
+                                assign->SetVarlist(varlist);
+
+                                auto single_explist = std::make_shared<SyntaxTreeExplist>(stmt->Loc());
+                                single_explist->AddExp(exps[i]);
+                                assign->SetExplist(single_explist);
+
+                                init_assign_stmts.push_back(assign);
+
+                                auto nil_exp = std::make_shared<SyntaxTreeExp>(stmt->Loc());
+                                nil_exp->SetExpKind(ExpKind::kNil);
+                                exps[i] = nil_exp;
+                            }
+                        }
+                    } else {
+                        auto assign = std::make_shared<SyntaxTreeAssign>(stmt->Loc());
+                        auto varlist = std::make_shared<SyntaxTreeVarlist>(stmt->Loc());
+                        for (const auto &name : names) {
+                            auto var = std::make_shared<SyntaxTreeVar>(stmt->Loc());
+                            var->SetName(name);
+                            var->SetVarKind(VarKind::kSimple);
+                            varlist->AddVar(var);
+                        }
+                        assign->SetVarlist(varlist);
+                        assign->SetExplist(explist);
+
+                        init_assign_stmts.push_back(assign);
+
+                        std::vector<SyntaxTreeInterfacePtr> nil_exps;
+                        for (size_t i = 0; i < names.size(); ++i) {
+                            auto nil_exp = std::make_shared<SyntaxTreeExp>(stmt->Loc());
+                            nil_exp->SetExpKind(ExpKind::kNil);
+                            nil_exps.push_back(nil_exp);
+                        }
+                        exps = nil_exps;
+                    }
+                }
+            }
+        }
+        new_stmts.push_back(stmt);
+    }
+
+    if (!init_assign_stmts.empty()) {
+        auto init_func = MakeInitFunction(chunk->Loc(), init_assign_stmts);
+        new_stmts.push_back(init_func);
+        LOG_INFO("PreprocessGlobalInitializers: generated __fakelua_init function with {} initializers", init_assign_stmts.size());
+    }
+
+    top_block->SetStmts(new_stmts);
+    LOG_INFO("end PreprocessGlobalInitializers");
 }
 
 }// namespace fakelua
