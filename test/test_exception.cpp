@@ -8,6 +8,20 @@ using namespace fakelua;
 
 #define TEST_JIT_TYPE JIT_TCC
 
+// TCC 异常处理限制说明：
+// TCC 编译生成的动态指令帧（JIT 代码段）中没有 DWARF 异常展开表（.eh_frame），
+// 如果在这些 TCC 动态帧中运行的代码（如 __fakelua_init 全局初始化流程）抛出 C++ 异常，
+// 运行时由于无法定位异常处理器，将直接触发 std::terminate() 导致进程崩溃。
+// 
+// 为此，我们手动在下面包含复杂全局变量初始化（其求值过程中可能触发 C++ 运行时异常）的 18 个
+// 测试用例中，使用 CompileFileTccDisabled 显式禁用 JIT_TCC，以允许 GCC JIT 正常执行并捕获 C++ 异常。
+static inline void CompileFileTccDisabled(State *s, const std::string &file) {
+    CompileConfig cfg;
+    cfg.disable_jit[JIT_TCC] = true;
+    CompileFile(s, file, cfg);
+}
+
+
 TEST(exception, function_param_duplicate) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
@@ -434,6 +448,8 @@ TEST(exception, const_define_variadic) {
     }
 }
 
+
+
 TEST(exception, test_const_binop_plus_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
@@ -441,11 +457,11 @@ TEST(exception, test_const_binop_plus_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_plus_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_plus_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -467,11 +483,11 @@ TEST(exception, test_const_binop_minus_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_minus_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_minus_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -482,11 +498,11 @@ TEST(exception, test_const_binop_star_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_star_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_star_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -497,11 +513,11 @@ TEST(exception, test_const_binop_slash_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_slash_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_slash_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -512,11 +528,11 @@ TEST(exception, test_const_binop_double_slash_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_double_slash_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_double_slash_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -527,11 +543,11 @@ TEST(exception, test_const_binop_pow_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_pow_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_pow_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -542,11 +558,11 @@ TEST(exception, test_const_binop_mod_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_mod_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_mod_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -557,11 +573,11 @@ TEST(exception, test_const_binop_bitand_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_bitand_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_bitand_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("number has no integer representation") != std::string::npos);
     }
 }
 
@@ -572,11 +588,11 @@ TEST(exception, test_const_binop_xor_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_xor_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_xor_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("number has no integer representation") != std::string::npos);
     }
 }
 
@@ -587,11 +603,11 @@ TEST(exception, test_const_binop_bitor_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_bitor_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_bitor_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("number has no integer representation") != std::string::npos);
     }
 }
 
@@ -602,11 +618,11 @@ TEST(exception, test_const_binop_right_shift_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_right_shift_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_right_shift_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("number has no integer representation") != std::string::npos);
     }
 }
 
@@ -617,11 +633,11 @@ TEST(exception, test_const_binop_left_shift_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_left_shift_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_left_shift_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("number has no integer representation") != std::string::npos);
     }
 }
 
@@ -632,11 +648,11 @@ TEST(exception, test_const_binop_less_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_less_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_less_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -647,11 +663,11 @@ TEST(exception, test_const_binop_less_equal_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_less_equal_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_less_equal_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -662,11 +678,11 @@ TEST(exception, test_const_binop_more_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_more_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_more_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -677,11 +693,11 @@ TEST(exception, test_const_binop_more_equal_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_binop_more_equal_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_binop_more_equal_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform arithmetic") != std::string::npos);
     }
 }
 
@@ -692,11 +708,11 @@ TEST(exception, test_const_unop_len_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_unop_len_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_unop_len_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to get length") != std::string::npos);
     }
 }
 
@@ -707,13 +723,14 @@ TEST(exception, test_const_unop_bitnot_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFile(s, "./exception/test_const_unop_bitnot_error.lua", {});
+        CompileFileTccDisabled(s, "./exception/test_const_unop_bitnot_error.lua");
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not supported in global variable initialization") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("attempt to perform bitwise") != std::string::npos);
     }
 }
+
 
 TEST(exception, stmt_support_error) {
     FakeluaStateGuard sg;
@@ -751,13 +768,7 @@ TEST(exception, const_func_call_error) {
     ASSERT_NE(s, nullptr);
     SetDebugLogLevel(0);
 
-    try {
-        CompileFile(s, "./exception/test_const_func_call_error.lua", {});
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not allowed in global variable initialization") != std::string::npos);
-    }
+    ASSERT_NO_THROW(CompileFile(s, "./exception/test_const_func_call_error.lua", {}));
 }
 
 TEST(exception, no_define_lvalue_error) {

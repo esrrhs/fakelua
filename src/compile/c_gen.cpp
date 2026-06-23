@@ -93,8 +93,9 @@ void CGen::GenerateHeader() {
     // 比其宿主 State 活得更久——State 析构即销毁 Vm，进而释放 handle 和代码页。
     // 同一份代码也不会被跨 State 复用（每次编译都会重新生成）。
     Out() << "static void * _S = (void *) " << s_ << ";\n";
+    Out() << "static bool __fakelua_init_flag__ = false;\n";
 
-    // C 运行时类型定义、宏和函数（从 c_runtime_header.h 提取，便于独立维护）
+    // C 运行时类型定义、宏 and 函数（从 c_runtime_header.h 提取，便于独立维护）
     Out() << kCRuntimeHeader;
 }
 
@@ -134,15 +135,23 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                 const auto &exp = exps[i];
 
                 InferredType global_type = ir().global_const_vars.at(name);
-
+                const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
                 if (global_type == T_INT) {
-                    Out() << "static const int64_t " << name << " = " << CompileNumericExp(exp) << ";\n";
+                    if (exp_node && exp_node->GetExpKind() == ExpKind::kNil) {
+                        Out() << "static int64_t " << name << " = 0;\n";
+                    } else {
+                        Out() << "static const int64_t " << name << " = " << CompileNumericExp(exp) << ";\n";
+                    }
                 } else if (global_type == T_FLOAT) {
-                    Out() << "static const double " << name << " = " << CompileNumericExp(exp) << ";\n";
+                    if (exp_node && exp_node->GetExpKind() == ExpKind::kNil) {
+                        Out() << "static double " << name << " = 0.0;\n";
+                    } else {
+                        Out() << "static const double " << name << " = " << CompileNumericExp(exp) << ";\n";
+                    }
                 } else {
-                    // 非数值字面量：保留 static const CVar 形式。
+                    // 非数值字面量：保留 static CVar 形式。
                     const std::string cvar_init = CompileExp(exp);
-                    Out() << "static const CVar " << name << " = " << cvar_init << ";\n";
+                    Out() << "static CVar " << name << " = " << cvar_init << ";\n";
                 }
             }
         }
@@ -542,6 +551,9 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
     // 写入调用方提供的输出流。
     out << func_temp_decls_.str();
     out << body_ss.str();
+    if (func_name == kInitFunctionName) {
+        out << "    __fakelua_init_flag__ = true;\n";
+    }
 
     // 清除特化上下文。
     spec_param_types_.clear();

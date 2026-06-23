@@ -164,6 +164,12 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         s_->GetVM().RegisterFunction(VmFunction(name, info.params_count, JIT_GCC, func_ptr, handle, info.is_vararg));
         LOG_INFO("Registered gcc function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
     }
+
+    FARPROC init_symbol = GetProcAddress(module_handle, kInitFunctionName);
+    if (init_symbol) {
+        void *init_ptr = reinterpret_cast<void *>(init_symbol);
+        inter::DispatchCall(init_ptr, nullptr, 0);
+    }
 #else
     std::vector<char *> argv;
     argv.reserve(args.size() + 1);
@@ -229,6 +235,11 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
         }
         s_->GetVM().RegisterFunction(VmFunction(name, info.params_count, JIT_GCC, func_ptr, handle, info.is_vararg));
         LOG_INFO("Registered gcc function {} with {} params (vararg: {}) at address {}", name, info.params_count, info.is_vararg, func_ptr);
+    }
+
+    void *init_ptr = dlsym(dl_handle, kInitFunctionName);
+    if (init_ptr) {
+        inter::DispatchCall(init_ptr, nullptr, 0);
     }
 
     LOG_INFO("GCC JIT compilation finished for {}", pr.file_name);

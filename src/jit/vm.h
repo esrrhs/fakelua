@@ -44,7 +44,7 @@ private:
     uint64_t global_name_ = 0;
 };
 
-extern "C" void *FakeluaAllocTemp(State *state, size_t size);
+extern "C" void *FakeluaAlloc(State *state, size_t size, bool is_const);
 
 extern "C" void FakeluaThrowError(State *state, const char *msg);
 

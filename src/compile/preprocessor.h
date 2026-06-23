@@ -30,6 +30,13 @@ private:
     // 使其可被特化发现流程处理，行为与 LocalFunction 语句完全一致。
     void PreprocessFunctiondefLocalVars(const SyntaxTreeInterfacePtr &chunk);
 
+    // 预处理全局/文件级变量的复杂表达式初始化，将其转移到 __fakelua_init 中执行
+    void PreprocessGlobalInitializers(const SyntaxTreeInterfacePtr &chunk);
+
+    bool IsComplexExp(const SyntaxTreeInterfacePtr &exp);
+
+    std::shared_ptr<SyntaxTreeFunction> MakeInitFunction(const SyntaxTreeLocation &loc, const std::vector<SyntaxTreeInterfacePtr> &assign_stmts);
+
 private:
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
 
