@@ -8,10 +8,12 @@ using namespace fakelua;
 
 #define TEST_JIT_TYPE JIT_GCC
 
-// NOTE: Since TCC-compiled memory frames do not generate C++ exception unwinding metadata (.eh_frame),
-// throwing C++ exceptions through JIT TCC stack frames will fail to locate handler frames, triggering std::terminate() and crashing the test process.
-// To keep code clean and maintain standard exception propagation tests for other runtimes,
-// we globally disable JIT_TCC for all compilation-level and execution-level exception tests in this file.
+// 禁用 JIT_TCC 说明：
+// 1. TCC 编译出来的动态内存帧（JIT 编译生成的机器码）中缺少 DWARF 异常展开表（.eh_frame），
+//    一旦在此类动态帧中抛出 C++ 异常，运行时无法查找到对应的 Catch 块，会直接触发 std::terminate() 导致进程崩溃。
+// 2. 考虑到 TCC 主要是作为我们开发测试期间使用的轻量级 JIT 编译器，没有必要在生产级别支持复杂的异常处理，
+//    因此在这里全局禁用 JIT_TCC，所有的 JIT 异常流程测试均强制使用 GCC JIT（即 TEST_JIT_TYPE 设置为 JIT_GCC）。
+// 这样可以规避为了兼容 TCC 动态异常处理而引入复杂的 setjmp/longjmp 结构，保持底层内存及 JIT 设计的纯粹性与高可读性。
 static inline void CompileFileTccDisabled(State *s, const std::string &file, const CompileConfig &cfg = {}) {
     CompileConfig my_cfg = cfg;
     my_cfg.disable_jit[JIT_TCC] = true;
