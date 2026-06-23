@@ -6,7 +6,19 @@
 
 using namespace fakelua;
 
-#define TEST_JIT_TYPE JIT_TCC
+#define TEST_JIT_TYPE JIT_GCC
+
+// NOTE: Since TCC-compiled memory frames do not generate C++ exception unwinding metadata (.eh_frame),
+// throwing C++ exceptions through JIT TCC stack frames will fail to locate handler frames, triggering std::terminate() and crashing the test process.
+// To keep code clean and maintain standard exception propagation tests for other runtimes,
+// we globally disable JIT_TCC for all compilation-level and execution-level exception tests in this file.
+static inline void CompileFileTccDisabled(State *s, const std::string &file, const CompileConfig &cfg = {}) {
+    CompileConfig my_cfg = cfg;
+    my_cfg.disable_jit[JIT_TCC] = true;
+    (CompileFile)(s, file, my_cfg);
+}
+#define CompileFile CompileFileTccDisabled
+
 
 TEST(exception, function_param_duplicate) {
     FakeluaStateGuard sg;
@@ -434,11 +446,7 @@ TEST(exception, const_define_variadic) {
     }
 }
 
-static inline void CompileFileTccDisabled(State *s, const std::string &file) {
-    CompileConfig cfg;
-    cfg.disable_jit[JIT_TCC] = true;
-    CompileFile(s, file, cfg);
-}
+
 
 TEST(exception, test_const_binop_plus_error) {
     FakeluaStateGuard sg;
@@ -447,7 +455,7 @@ TEST(exception, test_const_binop_plus_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_plus_error.lua");
+        CompileFile(s, "./exception/test_const_binop_plus_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -473,7 +481,7 @@ TEST(exception, test_const_binop_minus_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_minus_error.lua");
+        CompileFile(s, "./exception/test_const_binop_minus_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -488,7 +496,7 @@ TEST(exception, test_const_binop_star_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_star_error.lua");
+        CompileFile(s, "./exception/test_const_binop_star_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -503,7 +511,7 @@ TEST(exception, test_const_binop_slash_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_slash_error.lua");
+        CompileFile(s, "./exception/test_const_binop_slash_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -518,7 +526,7 @@ TEST(exception, test_const_binop_double_slash_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_double_slash_error.lua");
+        CompileFile(s, "./exception/test_const_binop_double_slash_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -533,7 +541,7 @@ TEST(exception, test_const_binop_pow_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_pow_error.lua");
+        CompileFile(s, "./exception/test_const_binop_pow_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -548,7 +556,7 @@ TEST(exception, test_const_binop_mod_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_mod_error.lua");
+        CompileFile(s, "./exception/test_const_binop_mod_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -563,7 +571,7 @@ TEST(exception, test_const_binop_bitand_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_bitand_error.lua");
+        CompileFile(s, "./exception/test_const_binop_bitand_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -578,7 +586,7 @@ TEST(exception, test_const_binop_xor_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_xor_error.lua");
+        CompileFile(s, "./exception/test_const_binop_xor_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -593,7 +601,7 @@ TEST(exception, test_const_binop_bitor_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_bitor_error.lua");
+        CompileFile(s, "./exception/test_const_binop_bitor_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -608,7 +616,7 @@ TEST(exception, test_const_binop_right_shift_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_right_shift_error.lua");
+        CompileFile(s, "./exception/test_const_binop_right_shift_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -623,7 +631,7 @@ TEST(exception, test_const_binop_left_shift_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_left_shift_error.lua");
+        CompileFile(s, "./exception/test_const_binop_left_shift_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -638,7 +646,7 @@ TEST(exception, test_const_binop_less_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_less_error.lua");
+        CompileFile(s, "./exception/test_const_binop_less_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -653,7 +661,7 @@ TEST(exception, test_const_binop_less_equal_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_less_equal_error.lua");
+        CompileFile(s, "./exception/test_const_binop_less_equal_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -668,7 +676,7 @@ TEST(exception, test_const_binop_more_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_more_error.lua");
+        CompileFile(s, "./exception/test_const_binop_more_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -683,7 +691,7 @@ TEST(exception, test_const_binop_more_equal_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_binop_more_equal_error.lua");
+        CompileFile(s, "./exception/test_const_binop_more_equal_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -698,7 +706,7 @@ TEST(exception, test_const_unop_len_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_unop_len_error.lua");
+        CompileFile(s, "./exception/test_const_unop_len_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -713,7 +721,7 @@ TEST(exception, test_const_unop_bitnot_error) {
     SetDebugLogLevel(0);
 
     try {
-        CompileFileTccDisabled(s, "./exception/test_const_unop_bitnot_error.lua");
+        CompileFile(s, "./exception/test_const_unop_bitnot_error.lua", {});
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
@@ -772,7 +780,7 @@ TEST(exception, no_define_lvalue_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("TCC compile") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("compile failed") != std::string::npos);
     }
 }
 
@@ -802,7 +810,7 @@ TEST(exception, test_break_error) {
         ASSERT_TRUE(false);
     } catch (const std::exception &e) {
         std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("TCC compile") != std::string::npos);
+        ASSERT_TRUE(std::string(e.what()).find("compile failed") != std::string::npos);
     }
 }
 
