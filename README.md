@@ -88,6 +88,18 @@ static_assert(std::is_trivially_copyable_v<CVar>);
 - 支持基本类型、对象、以及自定义 VarInterface 实现的高级映射
 - 支持记录编译生成的 C 代码用于调试和性能分析（`CompileConfig::record_c_code`）
 
+### 全局变量复杂初始化
+
+支持任意复杂表达式作为全局/文件级变量的初始化器：
+
+```lua
+local x = math.floor(3.14) + 1
+local y = x * 2 - 1
+local z = (x + y) / 2.0
+```
+
+编译器会将复杂初始化器提取到生成的 `__fakelua_init()` 函数中，在 JIT 加载后立即执行，使全局变量获得正确的运行时值。
+
 ## 当前已知限制
 
 ### 语法限制
@@ -97,8 +109,6 @@ static_assert(std::is_trivially_copyable_v<CVar>);
 
 ### 初始化约束
 - 全局变量初始化不支持 table constructor
-- 全局变量初始化不支持部分复杂表达式
-- 文件级 local 变量仅支持数值类型（T_INT/T_FLOAT）和 nil/bool/string 的特定初始化
 
 ### 类型系统限制
 - 类型推导基于静态分析，复杂的动态类型操作无法优化
