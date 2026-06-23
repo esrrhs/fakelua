@@ -13,8 +13,6 @@ namespace fakelua {
 constexpr size_t kMaxFunctionInputParams = 32;
 constexpr size_t kMaxMathSpecializedParams = 8;
 
-inline constexpr const char *kInitFunctionName = "__fakelua_init";
-
 // 用于FakeLua与原生代码之间的通信，传输像table这样的复杂类型。
 struct VarInterface {
     enum class Type {

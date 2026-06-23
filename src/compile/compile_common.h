@@ -11,6 +11,8 @@
 
 namespace fakelua {
 
+inline constexpr const char *kInitFunctionName = "__fakelua_init";
+
 // AST 节点类型快照：节点原始指针 → 推断类型。
 // 每个特化 bitmask 对应一份快照，由 TypeInferencer::InferTypes 产生，
 // 供 CGen 在生成特化体时查询任意节点的类型。
