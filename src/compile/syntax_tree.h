@@ -722,6 +722,10 @@ public:
         label_ = label;
     }
 
+    [[nodiscard]] const std::string &GetLabel() const {
+        return label_;
+    }
+
 private:
     std::string label_;
 };

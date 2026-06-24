@@ -2885,3 +2885,43 @@ TEST(jitter, test_const_complex_expr) {
         ASSERT_EQ(t->Get(key_val).GetInt(), -20);
     });
 }
+
+// ============================================================================
+// goto/label 测试
+// ============================================================================
+
+TEST(jitter, goto_forward_skip) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_goto_basic.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_goto_forward", ret);
+        ASSERT_EQ(ret, 100);
+    });
+}
+
+TEST(jitter, goto_backward_loop) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_goto_basic.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_goto_backward", ret);
+        ASSERT_EQ(ret, 5);
+    });
+}
+
+TEST(jitter, goto_label_no_goto) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_goto_basic.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_label_no_goto", ret);
+        ASSERT_EQ(ret, 42);
+    });
+}
+
+TEST(jitter, goto_invalid_jumps_over_local) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        EXPECT_THROW(
+            CompileFile(s, "./jit/test_goto_invalid.lua", {.debug_mode = debug_mode}),
+            std::exception
+        );
+    });
+}

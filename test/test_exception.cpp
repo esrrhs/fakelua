@@ -732,36 +732,6 @@ TEST(exception, test_const_unop_bitnot_error) {
 }
 
 
-TEST(exception, stmt_support_error) {
-    FakeluaStateGuard sg;
-    auto s = sg.GetState();
-    ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
-
-    try {
-        CompileFile(s, "./exception/test_stmt_support_error.lua", {});
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("goto is not supported") != std::string::npos);
-    }
-}
-
-TEST(exception, label_support_error) {
-    FakeluaStateGuard sg;
-    auto s = sg.GetState();
-    ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
-
-    try {
-        CompileFile(s, "./exception/test_label_support_error.lua", {});
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("label is not supported") != std::string::npos);
-    }
-}
-
 TEST(exception, const_func_call_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();

@@ -825,6 +825,12 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
             break;
         case SyntaxTreeType::Empty:
             break;
+        case SyntaxTreeType::Goto:
+            CompileStmtGoto(stmt);
+            break;
+        case SyntaxTreeType::Label:
+            CompileStmtLabel(stmt);
+            break;
         default:
             ThrowError(std::format("not support stmt type: {}", SyntaxTreeTypeToString(stmt->Type())), stmt);
     }
@@ -1205,6 +1211,18 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
 
 void CGen::CompileStmtBreak(const SyntaxTreeInterfacePtr &stmt) {
     Out() << GenTab() << "break;\n";
+}
+
+void CGen::CompileStmtGoto(const SyntaxTreeInterfacePtr &stmt) {
+    DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::Goto);
+    const auto goto_stmt = std::dynamic_pointer_cast<SyntaxTreeGoto>(stmt);
+    Out() << GenTab() << "goto flua_L_" << goto_stmt->GetLabel() << ";\n";
+}
+
+void CGen::CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt) {
+    DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::Label);
+    const auto label_stmt = std::dynamic_pointer_cast<SyntaxTreeLabel>(stmt);
+    Out() << "flua_L_" << label_stmt->GetName() << ": ;\n";
 }
 
 void CGen::CompileStmtForLoop(const SyntaxTreeInterfacePtr &stmt) {
