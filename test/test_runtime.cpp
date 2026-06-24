@@ -648,3 +648,94 @@ TEST(vm_cvar_call, multi_return_expansion) {
     ASSERT_EQ(r4.type_, static_cast<int>(VarType::Int));
     ASSERT_EQ(r4.data_.i, 32);
 }
+
+// ============================================================================
+// ThrowIfMultiCVar: 检测 CVar 为 Multi 时抛出异常
+// ============================================================================
+TEST(runtime, throw_if_multi_cvar_rejects_multi_type) {
+    State s;
+    VarMulti *m = VarMulti::AllocTemp(&s, 1);
+    m->GetVars()[0] = inter::NativeToFakeluaInt(&s, 42);
+    CVar multi;
+    multi.type_ = static_cast<int>(VarType::Multi);
+    multi.data_.m = m;
+
+    EXPECT_THROW(inter::ThrowIfMultiCVar(multi), std::exception);
+}
+
+TEST(runtime, throw_if_multi_cvar_allows_non_multi) {
+    State s;
+    CVar normal = inter::NativeToFakeluaInt(&s, 42);
+    EXPECT_NO_THROW(inter::ThrowIfMultiCVar(normal));
+}
+
+// ============================================================================
+// SetMultiCVarElement / GetMultiCVarElement / GetMultiCVarCount 错误路径
+// ============================================================================
+TEST(runtime, set_multi_element_wrong_type_throws) {
+    State s;
+    CVar not_multi = inter::NativeToFakeluaInt(&s, 42);
+    CVar dummy;
+    EXPECT_THROW(inter::SetMultiCVarElement(not_multi, 0, dummy), std::exception);
+}
+
+TEST(runtime, set_multi_element_out_of_range_throws) {
+    State s;
+    CVar multi = inter::AllocMultiCVar(&s, 2);
+    CVar dummy;
+    EXPECT_THROW(inter::SetMultiCVarElement(multi, 5, dummy), std::exception);
+}
+
+TEST(runtime, get_multi_element_wrong_type_throws) {
+    State s;
+    CVar not_multi = inter::NativeToFakeluaInt(&s, 42);
+    EXPECT_THROW(inter::GetMultiCVarElement(not_multi, 0), std::exception);
+}
+
+TEST(runtime, get_multi_element_out_of_range_throws) {
+    State s;
+    CVar multi = inter::AllocMultiCVar(&s, 2);
+    inter::SetMultiCVarElement(multi, 0, inter::NativeToFakeluaInt(&s, 10));
+    inter::SetMultiCVarElement(multi, 1, inter::NativeToFakeluaInt(&s, 20));
+    EXPECT_THROW(inter::GetMultiCVarElement(multi, 5), std::exception);
+}
+
+TEST(runtime, get_multi_count_wrong_type_throws) {
+    State s;
+    CVar not_multi = inter::NativeToFakeluaInt(&s, 42);
+    EXPECT_THROW(inter::GetMultiCVarCount(not_multi), std::exception);
+}
+
+// ============================================================================
+// FakeluaCallByName vararg 路径
+// ============================================================================
+static CVar VmFnVarargSum(CVar a1, CVar vararg_multi) {
+    State s;
+    int64_t sum = inter::FakeluaToNative<int64_t>(&s, a1);
+    if (vararg_multi.type_ == static_cast<int>(VarType::Multi)) {
+        VarMulti *m = vararg_multi.data_.m;
+        for (uint32_t i = 0; i < m->GetCount(); ++i) {
+            sum += inter::FakeluaToNative<int64_t>(&s, m->GetVars()[i]);
+        }
+    }
+    return inter::NativeToFakeluaInt(&s, sum);
+}
+
+TEST(runtime, fakelua_call_by_name_vararg_path) {
+    State s;
+    s.GetVM().RegisterFunction(VmFunction("vararg_sum", 2, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnVarargSum), {}, true));
+
+    // 场景1：传入 1 个固定参数 + 2 个 vararg 参数（auto-pack 为 Multi）
+    CVar r1 = FakeluaCallByName(&s, TEST_JIT_TYPE, "vararg_sum", 3,
+                                inter::NativeToFakeluaInt(&s, 10),
+                                inter::NativeToFakeluaInt(&s, 20),
+                                inter::NativeToFakeluaInt(&s, 30));
+    ASSERT_EQ(r1.type_, static_cast<int>(VarType::Int));
+    ASSERT_EQ(r1.data_.i, 60);  // 10 + 20 + 30
+
+    // 场景2：只传固定参数，vararg 为空
+    CVar r2 = FakeluaCallByName(&s, TEST_JIT_TYPE, "vararg_sum", 1,
+                                inter::NativeToFakeluaInt(&s, 42));
+    ASSERT_EQ(r2.type_, static_cast<int>(VarType::Int));
+    ASSERT_EQ(r2.data_.i, 42);
+}
