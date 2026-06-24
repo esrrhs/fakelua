@@ -153,6 +153,8 @@ private:
     void CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_stmt);
     // 编译泛型 for-in 遍历循环（如 ipairs/pairs 循环）
     void CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt);
+    void CompileStmtGoto(const SyntaxTreeInterfacePtr &stmt);
+    void CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt);
     // 编译具有独立原生强类型作用域的局部的花括号作用域块
     void CompileScopedBlock(const SyntaxTreeInterfacePtr &block);
     // 编译条件布尔表达式（用于处理逻辑运算的短路特性与分支预测优化）
