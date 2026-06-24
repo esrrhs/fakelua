@@ -315,33 +315,6 @@ Lua 源码
 | [`state`](file:///home/project/fakelua/src/state/) | FakeLua 运行时状态管理 |
 | [`var`](file:///home/project/fakelua/src/var/) | 动态值 CVar 和转换工具 |
 
-## 项目结构
-
-```
-fakelua/
-├── include/
-│   └── fakelua.h           # 公共 C++ API
-├── src/
-│   ├── compile/            # Lua 编译器实现
-│   │   ├── c_gen.h/cpp     # C 代码生成
-│   │   ├── type_inferencer.h/cpp  # 类型推导
-│   │   ├── preprocessor.h/cpp     # 预处理
-│   │   ├── syntax_tree.h/cpp      # AST
-│   │   └── ...
-│   ├── jit/                # JIT 后端
-│   │   ├── tcc_jit.h/cpp   # TinyCC 后端
-│   │   ├── gcc_jit.h/cpp   # GCC 后端
-│   │   ├── vm.h/cpp        # 虚拟机
-│   │   └── ...
-│   ├── state/              # 运行时状态
-│   ├── var/                # 动态值和转换
-│   └── util/               # 工具函数
-├── test/                   # 单元测试
-├── benchmark/              # 性能基准
-├── cmd/                    # 命令行工具 flua
-└── cmake/                  # CMake 配置
-```
-
 ## 常见问题
 
 ### Q: 为什么选择 Lua 子集而不是完整 Lua？
