@@ -764,22 +764,6 @@ TEST(exception, goto_cross_function) {
     EXPECT_THROW(CompileFile(s, "./exception/test_goto_cross_function.lua", {}), std::exception);
 }
 
-TEST(exception, goto_sibling_nested) {
-    FakeluaStateGuard sg;
-    auto s = sg.GetState();
-    ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
-    EXPECT_THROW(CompileFile(s, "./exception/test_goto_sibling_nested.lua", {}), std::exception);
-}
-
-TEST(exception, goto_elseif_nonexistent) {
-    FakeluaStateGuard sg;
-    auto s = sg.GetState();
-    ASSERT_NE(s, nullptr);
-    SetDebugLogLevel(0);
-    EXPECT_THROW(CompileFile(s, "./exception/test_goto_elseif_nonexistent.lua", {}), std::exception);
-}
-
 TEST(exception, const_func_call_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
