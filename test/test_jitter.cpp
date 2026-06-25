@@ -2885,3 +2885,62 @@ TEST(jitter, test_const_complex_expr) {
         ASSERT_EQ(t->Get(key_val).GetInt(), -20);
     });
 }
+
+// ============================================================================
+// goto/label 合法场景
+// ============================================================================
+
+TEST(jitter, goto_forward_skip) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_goto_forward_skip.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_goto_forward_skip", ret);
+        ASSERT_EQ(ret, 100);
+    });
+}
+
+TEST(jitter, goto_backward_loop) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_goto_backward_loop.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_goto_backward_loop", ret);
+        ASSERT_EQ(ret, 5);
+    });
+}
+
+TEST(jitter, goto_label_only) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_goto_label_only.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_label_no_goto", ret);
+        ASSERT_EQ(ret, 42);
+    });
+}
+
+TEST(jitter, goto_continue_simulation) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_goto_continue.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_goto_continue", ret);
+        // 奇数之和 1+3+5+7+9 = 25
+        ASSERT_EQ(ret, 25);
+    });
+}
+
+TEST(jitter, goto_break_out_of_nested_loops) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_goto_break_out.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_goto_break_out", ret);
+        ASSERT_EQ(ret, 21);
+    });
+}
+
+TEST(jitter, goto_in_if_else) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_goto_in_if_else.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_goto_in_if_else", ret);
+        ASSERT_EQ(ret, 0);
+    });
+}
