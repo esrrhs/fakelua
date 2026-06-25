@@ -732,6 +732,38 @@ TEST(exception, test_const_unop_bitnot_error) {
 }
 
 
+TEST(exception, goto_skip_local) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_goto_skip_single_local.lua", {}), std::exception);
+}
+
+TEST(exception, goto_skip_multiple_locals) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_goto_skip_local.lua", {}), std::exception);
+}
+
+TEST(exception, goto_nonexistent_label) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_goto_nonexistent_label.lua", {}), std::exception);
+}
+
+TEST(exception, goto_cross_function) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_goto_cross_function.lua", {}), std::exception);
+}
+
 TEST(exception, const_func_call_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
