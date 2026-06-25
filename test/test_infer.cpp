@@ -3073,9 +3073,9 @@ TEST(infer, test_spec_reassign_param_cvar_path) {
 // sum 累加结果应声明为 int64_t。test() = N*(N+1)/2 = 5050。
 TEST(infer, test_global_const_int) {
     const auto code = InferGetCCode("./infer/test_global_const_int.lua");
-    // 文件级常量应生成 static const int64_t，而非 CVar。
-    ASSERT_NE(code.find("static const int64_t N = 100;"), std::string::npos);
-    ASSERT_EQ(code.find("static const CVar N"), std::string::npos);
+    // 文件级常量应生成 static int64_t，而非 CVar。
+    ASSERT_NE(code.find("static int64_t N = 100;"), std::string::npos);
+    ASSERT_EQ(code.find("static CVar N"), std::string::npos);
     // 循环累加变量应为 int64_t（T_INT 推断）。
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
     ASSERT_EQ(code.find("CVar sum"), std::string::npos);
@@ -3093,9 +3093,9 @@ TEST(infer, test_global_const_int) {
 // 生成 test_0(int64_t r) / test_1(double r) 特化版本。
 TEST(infer, test_global_const_float) {
     const auto code = InferGetCCode("./infer/test_global_const_float.lua");
-    // 文件级常量应生成 static const double，而非 CVar。
-    ASSERT_NE(code.find("static const double PI ="), std::string::npos);
-    ASSERT_EQ(code.find("static const CVar PI"), std::string::npos);
+    // 文件级常量应生成 static double，而非 CVar。
+    ASSERT_NE(code.find("static double PI ="), std::string::npos);
+    ASSERT_EQ(code.find("static CVar PI"), std::string::npos);
     // r 因与 PI（T_FLOAT）参与乘法而成为数学参数，生成特化版本。
     ASSERT_NE(code.find("test_0(int64_t r)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double r)"), std::string::npos);
@@ -3262,8 +3262,8 @@ TEST(infer, test_spec_callee_return_propagates_in_local) {
 // add_offset(5) == 15, add_offset(20) == 30.
 TEST(infer, test_global_const_spec) {
     const auto code = InferGetCCode("./infer/test_global_const_spec.lua");
-    // OFFSET 应生成 static const int64_t。
-    ASSERT_NE(code.find("static const int64_t OFFSET = 10;"), std::string::npos);
+    // OFFSET 应生成 static int64_t。
+    ASSERT_NE(code.find("static int64_t OFFSET = 10;"), std::string::npos);
     // n 应成为数学参数，生成 int64_t 特化版本。
     ASSERT_NE(code.find("add_offset_0(int64_t n)"), std::string::npos);
 
