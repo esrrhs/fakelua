@@ -354,7 +354,7 @@ void SemanticAnalysis::CollectBlockLabels(const SyntaxTreeInterfacePtr &block, s
     }
 }
 
-void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, std::unordered_map<std::string, SyntaxTreeInterfacePtr> &visible_labels) {
+void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, std::unordered_map<std::string, SyntaxTreeInterfacePtr> visible_labels) {
     const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
     if (!blk) return;
 
@@ -408,6 +408,14 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
         } else if (stmt->Type() == SyntaxTreeType::If) {
             const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
             ValidateGotoInBlock(if_stmt->Block(), visible_labels);
+            if (if_stmt->ElseIfs()) {
+                const auto elseif_list = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs());
+                if (elseif_list) {
+                    for (const auto &elseif_blk : elseif_list->ElseifBlocks()) {
+                        ValidateGotoInBlock(elseif_blk, visible_labels);
+                    }
+                }
+            }
             if (if_stmt->ElseBlock()) ValidateGotoInBlock(if_stmt->ElseBlock(), visible_labels);
         } else if (stmt->Type() == SyntaxTreeType::ForLoop) {
             ValidateGotoInBlock(std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt)->Block(), visible_labels);
