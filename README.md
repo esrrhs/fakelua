@@ -109,6 +109,14 @@ local z = (x + y) / 2.0
 - 函数参数上限 32 个（通过常量 `kMaxFunctionInputParams` 统一配置）
 - 数学特化参数上限 8 个（通过常量 [kMaxMathSpecializedParams](file:///home/project/fakelua/include/fakelua.h#L14) 统一配置，超过此限制的数学参数不进行特化，作为普通动态参数处理）
 
+### 语言特性缺失
+- 不支持协程（coroutine）
+- 不支持元表（metatable）
+- 不支持 `pcall` / `xpcall` 错误处理
+- 不支持 `require` / `module` 模块系统
+- 不支持 `string.*` / `math.*` 等标准库函数
+- 不支持 `assert` / `error` 等调试函数
+
 ## 快速上手
 
 ### 构建
