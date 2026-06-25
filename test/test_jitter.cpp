@@ -2886,6 +2886,30 @@ TEST(jitter, test_const_complex_expr) {
     });
 }
 
+TEST(jitter, test_const_no_init) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_const_no_init.lua", {.debug_mode = debug_mode});
+        CVar ret;
+        Call(s, type, "test", ret);
+
+        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
+        VarMulti *m = ret.data_.m;
+        ASSERT_EQ(m->GetCount(), 4);
+
+        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[0].data_.i, 5);
+
+        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[1].data_.i, 10);
+
+        ASSERT_EQ(m->GetVars()[2].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[2].data_.i, 15);
+
+        ASSERT_EQ(m->GetVars()[3].type_, static_cast<int>(VarType::Int));
+        ASSERT_EQ(m->GetVars()[3].data_.i, 20);
+    });
+}
+
 // ============================================================================
 // goto/label 合法场景
 // ============================================================================

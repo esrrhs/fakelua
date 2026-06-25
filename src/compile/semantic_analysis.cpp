@@ -42,8 +42,7 @@ void SemanticAnalysis::AnalyzeGlobalConstNames(const SyntaxTreeInterfacePtr &chu
         if (stmt->Type() == SyntaxTreeType::LocalVar) {
             const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
             const auto namelist = local_var->Namelist();
-            const auto explist = local_var->Explist();
-            if (!namelist || !explist) {
+            if (!namelist) {
                 continue;
             }
             const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
