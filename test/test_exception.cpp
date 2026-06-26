@@ -985,3 +985,27 @@ TEST(exception, math_param_non_numeric_error) {
         ASSERT_TRUE(std::string(e.what()).find("bad argument #1 (a): attempt to perform arithmetic on non-numeric value") != std::string::npos);
     }
 }
+
+TEST(exception, const_no_init) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_const_no_init.lua", {}), std::exception);
+}
+
+TEST(exception, const_reassign) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_const_reassign.lua", {}), std::exception);
+}
+
+TEST(exception, top_level_bare_local) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_top_level_bare_local.lua", {}), std::exception);
+}
