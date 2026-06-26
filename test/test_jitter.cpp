@@ -1978,12 +1978,10 @@ TEST(jitter, test_for_in_key_only) {
 // Top-level bare local variable (no initializer): exercises c_gen.cpp
 // BuildLocalVarExtensions line 797 (the continue that skips the bare local).
 TEST(jitter, test_top_level_bare_local) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_top_level_bare_local.lua", {.debug_mode = debug_mode});
-        int ret = 0;
-        Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 1);
-    });
+    EXPECT_THROW({
+        State s;
+        CompileFile(&s, "./jit/test_top_level_bare_local.lua", {.debug_mode = true});
+    }, std::exception);
 }
 
 // T_DYNAMIC unary minus: exercises OpUnaryMinus in CompileExp CVar path
@@ -2887,27 +2885,10 @@ TEST(jitter, test_const_complex_expr) {
 }
 
 TEST(jitter, test_const_no_init) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_const_no_init.lua", {.debug_mode = debug_mode});
-        CVar ret;
-        Call(s, type, "test", ret);
-
-        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Multi));
-        VarMulti *m = ret.data_.m;
-        ASSERT_EQ(m->GetCount(), 4);
-
-        ASSERT_EQ(m->GetVars()[0].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->GetVars()[0].data_.i, 5);
-
-        ASSERT_EQ(m->GetVars()[1].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->GetVars()[1].data_.i, 10);
-
-        ASSERT_EQ(m->GetVars()[2].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->GetVars()[2].data_.i, 15);
-
-        ASSERT_EQ(m->GetVars()[3].type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(m->GetVars()[3].data_.i, 20);
-    });
+    EXPECT_THROW({
+        State s;
+        CompileFile(&s, "./jit/test_const_no_init.lua", {.debug_mode = true});
+    }, std::exception);
 }
 
 TEST(jitter, test_const_reassign) {

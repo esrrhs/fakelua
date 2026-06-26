@@ -253,14 +253,15 @@ void SemanticAnalysis::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chun
                 ThrowError("local variable namelist is missing", stmt);
             }
             const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist());
-            if (el) {
-                bool last_is_func = !el->Exps().empty() && IsFunctionCallExp(el->Exps().back());
-                if (namelist->Names().size() != el->Exps().size() && !(last_is_func && namelist->Names().size() > el->Exps().size())) {
-                    ThrowError(std::format("local variable count {} not match expression count {}", namelist->Names().size(), el->Exps().size()), stmt);
-                }
-                for (const auto &exp: el->Exps()) {
-                    CheckGlobalConstExp(exp);
-                }
+            if (!el) {
+                ThrowError("global constant must be initialized", stmt);
+            }
+            bool last_is_func = !el->Exps().empty() && IsFunctionCallExp(el->Exps().back());
+            if (namelist->Names().size() != el->Exps().size() && !(last_is_func && namelist->Names().size() > el->Exps().size())) {
+                ThrowError(std::format("local variable count {} not match expression count {}", namelist->Names().size(), el->Exps().size()), stmt);
+            }
+            for (const auto &exp: el->Exps()) {
+                CheckGlobalConstExp(exp);
             }
         }
     }
