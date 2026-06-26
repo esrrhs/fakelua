@@ -118,39 +118,40 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
             const auto namelist = local_var->Namelist();
             const auto explist = local_var->Explist();
 
-            if (!namelist || !explist) {
+            if (!namelist) {
                 continue;
             }
 
             DEBUG_ASSERT(namelist->Type() == SyntaxTreeType::NameList);
-            DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
 
             const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
-            const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
             const auto &names = namelist_ptr->Names();
-            auto &exps = explist_ptr->Exps();
+
+            static const std::vector<SyntaxTreeInterfacePtr> empty_exps;
+            const auto explist_ptr = explist ? std::dynamic_pointer_cast<SyntaxTreeExplist>(explist) : nullptr;
+            const auto &exps = explist_ptr ? explist_ptr->Exps() : empty_exps;
 
             for (size_t i = 0; i < names.size(); ++i) {
                 const auto &name = names[i];
-                const auto &exp = exps[i];
+                SyntaxTreeInterfacePtr exp = (i < exps.size()) ? exps[i] : nullptr;
 
                 InferredType global_type = ir().global_const_vars.at(name);
                 const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
                 if (global_type == T_INT) {
-                    if (exp_node && exp_node->GetExpKind() == ExpKind::kNil) {
+                    if (!exp_node || exp_node->GetExpKind() == ExpKind::kNil) {
                         Out() << "static int64_t " << name << " = 0;\n";
                     } else {
                         Out() << "static const int64_t " << name << " = " << CompileNumericExp(exp) << ";\n";
                     }
                 } else if (global_type == T_FLOAT) {
-                    if (exp_node && exp_node->GetExpKind() == ExpKind::kNil) {
+                    if (!exp_node || exp_node->GetExpKind() == ExpKind::kNil) {
                         Out() << "static double " << name << " = 0.0;\n";
                     } else {
                         Out() << "static const double " << name << " = " << CompileNumericExp(exp) << ";\n";
                     }
                 } else {
                     // 非数值字面量：保留 static CVar 形式。
-                    const std::string cvar_init = CompileExp(exp);
+                    const std::string cvar_init = exp ? CompileExp(exp) : "(CVar){.type_ = VAR_NIL}";
                     Out() << "static CVar " << name << " = " << cvar_init << ";\n";
                 }
             }

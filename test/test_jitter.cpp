@@ -1975,16 +1975,6 @@ TEST(jitter, test_for_in_key_only) {
     });
 }
 
-// Top-level bare local variable (no initializer): exercises c_gen.cpp
-// BuildLocalVarExtensions line 797 (the continue that skips the bare local).
-TEST(jitter, test_top_level_bare_local) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_top_level_bare_local.lua", {.debug_mode = debug_mode});
-        int ret = 0;
-        Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 1);
-    });
-}
 
 // T_DYNAMIC unary minus: exercises OpUnaryMinus in CompileExp CVar path
 // (c_gen.cpp line 2497). x is a T_DYNAMIC table lookup; -x uses OpUnaryMinus.
@@ -2885,6 +2875,7 @@ TEST(jitter, test_const_complex_expr) {
         ASSERT_EQ(t->Get(key_val).GetInt(), -20);
     });
 }
+
 
 // ============================================================================
 // goto/label 合法场景

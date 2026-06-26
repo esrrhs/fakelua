@@ -470,8 +470,12 @@ void PreProcessor::PreprocessGlobalInitializers(const SyntaxTreeInterfacePtr &ch
                     }
                 }
             }
+            new_stmts.push_back(stmt);
+        } else if (stmt->Type() == SyntaxTreeType::Function || stmt->Type() == SyntaxTreeType::LocalFunction) {
+            new_stmts.push_back(stmt);
+        } else {
+            init_assign_stmts.push_back(stmt);
         }
-        new_stmts.push_back(stmt);
     }
 
     auto init_func = MakeInitFunction(chunk->Loc(), init_assign_stmts);

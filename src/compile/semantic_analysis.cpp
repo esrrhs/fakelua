@@ -42,8 +42,7 @@ void SemanticAnalysis::AnalyzeGlobalConstNames(const SyntaxTreeInterfacePtr &chu
         if (stmt->Type() == SyntaxTreeType::LocalVar) {
             const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
             const auto namelist = local_var->Namelist();
-            const auto explist = local_var->Explist();
-            if (!namelist || !explist) {
+            if (!namelist) {
                 continue;
             }
             const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
@@ -254,14 +253,15 @@ void SemanticAnalysis::CheckUnsupportedSyntax(const SyntaxTreeInterfacePtr &chun
                 ThrowError("local variable namelist is missing", stmt);
             }
             const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist());
-            if (el) {
-                bool last_is_func = !el->Exps().empty() && IsFunctionCallExp(el->Exps().back());
-                if (namelist->Names().size() != el->Exps().size() && !(last_is_func && namelist->Names().size() > el->Exps().size())) {
-                    ThrowError(std::format("local variable count {} not match expression count {}", namelist->Names().size(), el->Exps().size()), stmt);
-                }
-                for (const auto &exp: el->Exps()) {
-                    CheckGlobalConstExp(exp);
-                }
+            if (!el) {
+                ThrowError("global constant must be initialized", stmt);
+            }
+            bool last_is_func = !el->Exps().empty() && IsFunctionCallExp(el->Exps().back());
+            if (namelist->Names().size() != el->Exps().size() && !(last_is_func && namelist->Names().size() > el->Exps().size())) {
+                ThrowError(std::format("local variable count {} not match expression count {}", namelist->Names().size(), el->Exps().size()), stmt);
+            }
+            for (const auto &exp: el->Exps()) {
+                CheckGlobalConstExp(exp);
             }
         }
     }
