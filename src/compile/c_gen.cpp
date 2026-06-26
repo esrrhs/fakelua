@@ -141,13 +141,13 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                     if (!exp_node || exp_node->GetExpKind() == ExpKind::kNil) {
                         Out() << "static int64_t " << name << " = 0;\n";
                     } else {
-                        Out() << "static int64_t " << name << " = " << CompileNumericExp(exp) << ";\n";
+                        Out() << "static const int64_t " << name << " = " << CompileNumericExp(exp) << ";\n";
                     }
                 } else if (global_type == T_FLOAT) {
                     if (!exp_node || exp_node->GetExpKind() == ExpKind::kNil) {
                         Out() << "static double " << name << " = 0.0;\n";
                     } else {
-                        Out() << "static double " << name << " = " << CompileNumericExp(exp) << ";\n";
+                        Out() << "static const double " << name << " = " << CompileNumericExp(exp) << ";\n";
                     }
                 } else {
                     // 非数值字面量：保留 static CVar 形式。

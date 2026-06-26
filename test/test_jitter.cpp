@@ -2911,14 +2911,10 @@ TEST(jitter, test_const_no_init) {
 }
 
 TEST(jitter, test_const_reassign) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./jit/test_const_reassign.lua", {.debug_mode = debug_mode});
-        CVar ret;
-        Call(s, type, "test", ret);
-
-        ASSERT_EQ(ret.type_, static_cast<int>(VarType::Int));
-        ASSERT_EQ(ret.data_.i, 4);
-    });
+    EXPECT_THROW({
+        State s;
+        CompileFile(&s, "./jit/test_const_reassign.lua", {.debug_mode = true});
+    }, std::exception);
 }
 
 // ============================================================================

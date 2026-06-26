@@ -229,26 +229,12 @@ private:
 
     // 检查变量是否为已知强类型的原生变量
     [[nodiscard]] bool IsTypedNativeVar(const std::string &name) const {
-        if (native_var_scope_.IsTyped(name)) {
-            return true;
-        }
-        if (const auto git = ir().global_const_vars.find(name); git != ir().global_const_vars.end()) {
-            if (git->second == T_INT || git->second == T_FLOAT) {
-                return true;
-            }
-        }
-        return false;
+        return native_var_scope_.IsTyped(name);
     }
 
     // 获取原生强类型变量在作用域中的推断类型
     [[nodiscard]] InferredType GetNativeVarType(const std::string &name) const {
-        if (native_var_scope_.IsTyped(name)) {
-            return native_var_scope_.GetType(name);
-        }
-        if (const auto git = ir().global_const_vars.find(name); git != ir().global_const_vars.end()) {
-            return git->second;
-        }
-        return T_DYNAMIC;
+        return native_var_scope_.GetType(name);
     }
 
     // 快捷访问推断器全局上下文结果
