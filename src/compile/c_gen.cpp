@@ -64,8 +64,6 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
 
     // 5. 根据配置记录生成的 C 核心区代码，或组合全部代码块输出最终结果
     if (cfg.record_c_code) {
-        // 仅记录非头部部分（全局变量 + 声明 + 实现）。
-        // 头部是每个编译单元相同的固定样板代码，对类型推断断言没有用处。
         gr.recorded_c_code = GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) + GetSectionStr(Section::Impls);
     }
     gr.c_code = GetSectionStr(Section::Headers) + GetSectionStr(Section::Globals) + GetSectionStr(Section::Decls) + GetSectionStr(Section::Impls);
@@ -557,6 +555,12 @@ std::string CGen::GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const {
     auto it = table_spec_types_.find(name);
     if (it != table_spec_types_.end()) return it->second;
     return "";
+}
+
+bool CGen::IsSpecField(const std::string &spec_type, const std::string &key) const {
+    auto it = spec_field_names_.find(spec_type);
+    if (it == spec_field_names_.end()) return false;
+    return it->second.contains(key);
 }
 
 void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params, const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out) {
@@ -1735,6 +1739,9 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             }
 
             table_spec_types_[var_name] = spec_type;
+            for (const auto &f: fields) {
+                spec_field_names_[spec_type].insert(f.key);
+            }
             return var_name;
         }
     }
@@ -2166,8 +2173,8 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         auto pe_ret = CompilePrefixexp(pe);
         // String literal key fast path: t["key"] → FlGetTableStrId.
         if (const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp); exp_node && exp_node->GetExpKind() == ExpKind::kString) {
-            // table 特化快速路径
-            if (auto spec_type = GetSpecTypeForVar(pe); !spec_type.empty()) {
+            // table 特化快速路径：仅当 key 是已知 spec 字段时使用
+            if (auto spec_type = GetSpecTypeForVar(pe); !spec_type.empty() && IsSpecField(spec_type, exp_node->ExpValue())) {
                 return std::format("FlSpecGet({}, {}, {})", pe_ret, spec_type, exp_node->ExpValue());
             }
             const auto id = s_->GetConstString().Alloc(exp_node->ExpValue());
@@ -2187,8 +2194,8 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto name = v_ptr->GetName();
         auto pe_ret = CompilePrefixexp(pe);
 
-        // table 特化快速路径
-        if (auto spec_type = GetSpecTypeForVar(pe); !spec_type.empty()) {
+        // table 特化快速路径：仅当 key 是已知 spec 字段时使用
+        if (auto spec_type = GetSpecTypeForVar(pe); !spec_type.empty() && IsSpecField(spec_type, name)) {
             return std::format("FlSpecGet({}, {}, {})", pe_ret, spec_type, name);
         }
 
@@ -2506,8 +2513,8 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[1]); key_exp && key_exp->GetExpKind() == ExpKind::kString) {
                 const auto tbl_str = CompileExp(raw_args[0]);
                 const auto val_str = CompileExp(raw_args[2]);
-                // 检查 table 参数是否有已知的 spec 类型
-                if (auto spec_type = GetSpecTypeForVar(raw_args[0]); !spec_type.empty()) {
+                // 检查 table 参数是否有已知的 spec 类型，且 key 是已知 spec 字段
+                if (auto spec_type = GetSpecTypeForVar(raw_args[0]); !spec_type.empty() && IsSpecField(spec_type, key_exp->ExpValue())) {
                     Out() << GenTab() << std::format("FlSpecPtr({}, {})->{} = {};\n", tbl_str, spec_type, key_exp->ExpValue(), val_str);
                     Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
                     return tmp;

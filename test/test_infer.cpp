@@ -3811,7 +3811,37 @@ TEST(infer, test_table_struct_spec) {
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_table_struct_spec.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
+
         Call(s, type, "test_struct_spec", ret);
         ASSERT_EQ(ret, 119);
+
+        Call(s, type, "test_single_field", ret);
+        ASSERT_EQ(ret, 42);
+
+        Call(s, type, "test_write_then_read", ret);
+        ASSERT_EQ(ret, 60);
+
+        Call(s, type, "test_pairs_iter", ret);
+        ASSERT_EQ(ret, 30);
+
+        Call(s, type, "test_dynamic_key", ret, std::string("z"), 99);
+        ASSERT_EQ(ret, 10);
+
+        Call(s, type, "test_pass_to_func", ret, std::string("a"));
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_pass_to_func", ret, std::string("b"));
+        ASSERT_EQ(ret, 2);
+
+        Call(s, type, "test_multi_tables", ret);
+        ASSERT_EQ(ret, 30);
+
+        Call(s, type, "test_nested", ret);
+        ASSERT_EQ(ret, 5);
+
+        Call(s, type, "test_three_fields", ret);
+        ASSERT_EQ(ret, 600);
+
+        Call(s, type, "test_dynamic_write_and_read", ret);
+        ASSERT_EQ(ret, 3);
     });
 }

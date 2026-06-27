@@ -127,8 +127,10 @@ private:
     [[nodiscard]] bool CanSpecializeTable(const SyntaxTreeInterfacePtr &tc) const;
     // table 特化辅助：获取 table constructor 的字段信息
     [[nodiscard]] std::vector<TableFieldInfo> GetTableFields(const SyntaxTreeInterfacePtr &tc) const;
-    // table 特化辅助：从 prefixexp 获取变量的 spec 类型名（空字符串表示无特化或有动态写入不安全）
+    // table 特化辅助：从 prefixexp 获取变量的 spec 类型名（空字符串表示无特化）
     [[nodiscard]] std::string GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const;
+    // table 特化辅助：检查 key 是否为已知 spec 字段
+    [[nodiscard]] bool IsSpecField(const std::string &spec_type, const std::string &key) const;
     // table 特化辅助：从 prefixexp 提取简单变量名（空字符串表示非简单变量）
     [[nodiscard]] static std::string GetSimpleVarName(const SyntaxTreeInterfacePtr &pe);
 
@@ -299,6 +301,8 @@ private:
 
     // table 特化：变量名/临时变量名 → spec 结构体类型名
     std::unordered_map<std::string, std::string> table_spec_types_;
+    // spec 类型名 → 已知字段名集合（用于 FAKELUA_SET_TABLE / CompileVar 判断 key 是否在 spec 中）
+    std::unordered_map<std::string, std::unordered_set<std::string>> spec_field_names_;
     // 已生成的 spec typedef/get/set 名称集合，避免重复生成
     std::unordered_set<std::string> generated_spec_typedefs_;
 };
