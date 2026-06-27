@@ -3801,8 +3801,13 @@ TEST(infer, test_math_spec_mixed) {
 TEST(infer, test_table_struct_spec) {
     const auto code = InferGetCCode("./infer/test_table_struct_spec.lua");
 
-    // The recorded code (Globals+Decls+Impls) won't contain Headers where spec code lives,
-    // so we validate the runtime behavior instead.
+    // SET_TABLE_SPEC macro in function body (Impls section)
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // FlSpecPtr for direct spec field writes during init
+    ASSERT_NE(code.find("FlSpecPtr("), std::string::npos);
+    // FlSpecGet for direct spec field reads
+    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_table_struct_spec.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
