@@ -2936,11 +2936,3 @@ TEST(jitter, goto_in_if_else) {
     });
 }
 
-TEST(jitter, table_struct_spec) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_table_struct_spec.lua", {.debug_mode = debug_mode});
-        int64_t ret = 0;
-        Call(s, type, "test_struct_spec", ret);
-        ASSERT_EQ(ret, 119);
-    });
-}

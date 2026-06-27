@@ -3797,3 +3797,16 @@ TEST(infer, test_math_spec_mixed) {
         ASSERT_EQ(ret, 9);
     });
 }
+
+TEST(infer, test_table_struct_spec) {
+    const auto code = InferGetCCode("./infer/test_table_struct_spec.lua");
+
+    // The recorded code (Globals+Decls+Impls) won't contain Headers where spec code lives,
+    // so we validate the runtime behavior instead.
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_struct_spec.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_struct_spec", ret);
+        ASSERT_EQ(ret, 119);
+    });
+}
