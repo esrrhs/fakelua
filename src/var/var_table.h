@@ -78,6 +78,9 @@ private:
     uint32_t *active_list_ = nullptr;          // 活跃索引数组，存储 nodes_ 的下标
     VarEntry quick_data_[QUICK_DATA_SIZE] = {};// 嵌入式数组（不包含 next 指针）
     uint32_t free_list_idx_ = INVALID_INDEX;   // 溢出池中的自由节点链表头下标
+    void *spec = nullptr;                       // 特化结构体指针，NULL 表示走普通路径
+    void *spec_get = nullptr;                   // 特化读取函数指针
+    void *spec_set = nullptr;                   // 特化写入函数指针
 };
 
 

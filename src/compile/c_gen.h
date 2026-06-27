@@ -8,6 +8,7 @@
 #include <sstream>
 #include <string>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -121,6 +122,15 @@ private:
     [[nodiscard]] static bool BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block);
     // 获取特定特化签名下函数的返回类型
     [[nodiscard]] InferredType GetSpecReturnType(const std::string &func_name, int bitmask) const;
+
+    // table 特化辅助：判断 table constructor 是否可特化（所有字段均为静态字符串 key）
+    [[nodiscard]] bool CanSpecializeTable(const SyntaxTreeInterfacePtr &tc) const;
+    // table 特化辅助：获取 table constructor 的字段信息
+    [[nodiscard]] std::vector<TableFieldInfo> GetTableFields(const SyntaxTreeInterfacePtr &tc) const;
+    // table 特化辅助：从 prefixexp 获取变量的 spec 类型名（空字符串表示无特化或有动态写入不安全）
+    [[nodiscard]] std::string GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const;
+    // table 特化辅助：从 prefixexp 提取简单变量名（空字符串表示非简单变量）
+    [[nodiscard]] static std::string GetSimpleVarName(const SyntaxTreeInterfacePtr &pe);
 
     // ==========================================
     // 第二部分：语句编译
@@ -286,6 +296,11 @@ private:
 
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
     int cur_tab_ = 0;                  // 当前 C 代码生成器所处的缩进级别深度
+
+    // table 特化：变量名/临时变量名 → spec 结构体类型名
+    std::unordered_map<std::string, std::string> table_spec_types_;
+    // 已生成的 spec typedef/get/set 名称集合，避免重复生成
+    std::unordered_set<std::string> generated_spec_typedefs_;
 };
 
 }// namespace fakelua

@@ -2935,3 +2935,12 @@ TEST(jitter, goto_in_if_else) {
         ASSERT_EQ(ret, 0);
     });
 }
+
+TEST(jitter, table_struct_spec) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_struct_spec.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_struct_spec", ret);
+        ASSERT_EQ(ret, 119);
+    });
+}

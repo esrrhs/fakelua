@@ -3622,8 +3622,9 @@ TEST(infer, test_table_constructor_fast_path) {
 // Table dot access uses FlGetTableStrId fast path.
 TEST(infer, test_table_dot_access_fast_path) {
     const auto code = InferGetCCode("./infer/test_table_dot_access_fast_path.lua");
-    // Should use FlGetTableStrId for t.a and t.b reads.
-    ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
+    // Should use either FlGetTableStrId or spec fast path for t.a and t.b reads.
+    ASSERT_TRUE(code.find("FlGetTableStrId(") != std::string::npos ||
+                code.find("FlSpecPtr(") != std::string::npos);
     // Should NOT use FlGetTable for dot access.
     ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
 
@@ -3638,8 +3639,9 @@ TEST(infer, test_table_dot_access_fast_path) {
 // Table bracket access with string literal uses FlGetTableStrId fast path.
 TEST(infer, test_table_bracket_string_fast_path) {
     const auto code = InferGetCCode("./infer/test_table_bracket_string_fast_path.lua");
-    // Should use FlGetTableStrId for t["hello"] and t["world"] reads.
-    ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
+    // Should use either FlGetTableStrId or spec fast path for t["hello"] and t["world"] reads.
+    ASSERT_TRUE(code.find("FlGetTableStrId(") != std::string::npos ||
+                code.find("FlSpecPtr(") != std::string::npos);
     // Should NOT use FlGetTable for string literal bracket access.
     ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
 
