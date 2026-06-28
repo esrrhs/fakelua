@@ -253,12 +253,15 @@ static inline uint32_t FlHashString(const char *str, int len) {
     (v).data_.t = __t; \
 } while(0)
 
-#define SET_TABLE_SPEC(v, SpecType, get_fn, set_fn) do { \
+#define SET_TABLE_SPEC(v, SpecType, get_fn, set_fn, field_count) do { \
     SET_TABLE(v); \
     SpecType *__sp = (SpecType *)FakeluaAlloc(_S, sizeof(SpecType), !__fakelua_init_flag__); \
     (v).data_.t->spec = __sp; \
     (v).data_.t->spec_get = (get_fn); \
     (v).data_.t->spec_set = (set_fn); \
+    (v).data_.t->spec_keys = (CVar *)FakeluaAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__); \
+    (v).data_.t->spec_vals = (CVar *)FakeluaAlloc(_S, sizeof(CVar) * (field_count), !__fakelua_init_flag__); \
+    (v).data_.t->spec_count = (field_count); \
 } while(0)
 
 #define IsTrue(v, result) do { \
