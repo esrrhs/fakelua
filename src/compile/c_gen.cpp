@@ -1720,14 +1720,15 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 Out() << "        int64_t __sid = k.data_.i;\n";
                 int f_idx = 0;
                 for (const auto &f: fields) {
-                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.key << " = v; tbl->spec_vals[" << f_idx << "] = v; *__finish = true; return; }\n";
+                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.key << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
                     f_idx++;
                 }
                 Out() << "    } else if (k.type_ == VAR_STRING) {\n";
                 Out() << "        VarString *__vs = k.data_.s;\n";
                 f_idx = 0;
                 for (const auto &f: fields) {
-                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.key << " = v; tbl->spec_vals[" << f_idx << "] = v; *__finish = true; return; }\n";
+                    const auto id = s_->GetConstString().Alloc(f.key);
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.key << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = (CVar){.type_ = VAR_STRINGID, .data_.i = " << id << "}; *__finish = true; return; }\n";
                     f_idx++;
                 }
                 Out() << "    }\n";
@@ -1738,8 +1739,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             // 使用宏分配 table + spec + spec_keys/spec_vals
             Out() << GenTab() << "SET_TABLE_SPEC(" << var_name << ", " << spec_type << ", " << get_fn << ", " << set_fn << ", " << fields.size() << ");\n";
 
-            // 填充 spec_keys/spec_vals
-            int field_idx = 0;
+            // 填充 spec_keys/spec_vals (现在由 FlSetTableStrId 内部通过 set_fn 自动完成)
             for (const auto &f: fields) {
                 const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(tc_ptr->Fieldlist());
                 for (const auto &field: fieldlist->Fields()) {
@@ -1748,9 +1748,6 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                         const auto value_str = CompileExp(fp->Value());
                         const auto id = s_->GetConstString().Alloc(f.key);
                         Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
-                        Out() << GenTab() << std::format("((CVar *){}.data_.t->spec_keys)[{}] = (CVar){{.type_ = VAR_STRINGID, .data_.i = {}}};\n", var_name, field_idx, id);
-                        Out() << GenTab() << std::format("((CVar *){}.data_.t->spec_vals)[{}] = {};\n", var_name, field_idx, value_str);
-                        field_idx++;
                         break;
                     }
                 }
