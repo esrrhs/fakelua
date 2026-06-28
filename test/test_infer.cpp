@@ -3739,6 +3739,19 @@ TEST(infer, test_spec_concat_arg_dynamic) {
     ASSERT_NE(code.find("OpConcat("), std::string::npos);
 }
 
+TEST(infer, test_spec_direct_read) {
+    const auto code = InferGetCCode("./infer/test_spec_direct_read.lua");
+    // 确保直接利用指针解引用读取字段，不再包含 FlGetTableStrId
+    ASSERT_EQ(code.find("FlGetTableStrId("), std::string::npos);
+    
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_direct_read.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_direct", ret);
+        ASSERT_EQ(ret, 120);
+    });
+}
+
 // 三元表达式（(n > 0) and 1 or 2）优化测试。
 // 校验生成的 C 代码使用原生三元表达式且 JIT 运行结果正确。
 TEST(infer, test_spec_ternary) {
@@ -3954,5 +3967,3 @@ TEST(infer, test_spec_nested) {
         ASSERT_EQ(ret, 5);
     });
 }
-
-

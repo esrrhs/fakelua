@@ -2188,7 +2188,12 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         auto pe_ret = CompilePrefixexp(pe);
         // String literal key fast path: t["key"] → FlGetTableStrId.
         if (const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp); exp_node && exp_node->GetExpKind() == ExpKind::kString) {
-            const auto id = s_->GetConstString().Alloc(exp_node->ExpValue());
+            const auto key_name = exp_node->ExpValue();
+            const auto spec_type = GetSpecTypeForVar(pe);
+            if (!spec_type.empty() && IsSpecField(spec_type, key_name)) {
+                return std::format("((({} *){}.data_.t->spec)->{})", spec_type, pe_ret, key_name);
+            }
+            const auto id = s_->GetConstString().Alloc(key_name);
             return std::format("FlGetTableStrId({}, {})", pe_ret, id);
         }
         // Integer key fast path: use FlGetTableInt when key is known T_INT.
@@ -2204,6 +2209,11 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto pe = v_ptr->GetPrefixexp();
         const auto name = v_ptr->GetName();
         auto pe_ret = CompilePrefixexp(pe);
+
+        const auto spec_type = GetSpecTypeForVar(pe);
+        if (!spec_type.empty() && IsSpecField(spec_type, name)) {
+            return std::format("((({} *){}.data_.t->spec)->{})", spec_type, pe_ret, name);
+        }
 
         // String constant key fast path: use FlGetTableStrId directly.
         const auto id = s_->GetConstString().Alloc(name);
