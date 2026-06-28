@@ -1695,24 +1695,24 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 }
                 Out() << "} " << spec_type << ";\n\n";
 
-                // get 函数：遍历字段，命中返回 spec 值，未命中调 hash fallback
+                // get 函数：str_id 比较快路径 + memcmp 兜底（VAR_STRING 键 str_id 与 const id 不同）
                 Out() << "static CVar " << get_fn << "(VarTable *tbl, int64_t str_id) {\n";
                 Out() << "    " << spec_type << " *s = (" << spec_type << " *)tbl->spec;\n";
                 for (const auto &f: fields) {
-                    const auto id = s_->GetConstString().Alloc(f.key);
-                    Out() << "    if (str_id == " << id << ") { return s->" << f.key << "; }\n";
+                    Out() << "    if (str_id == " << s_->GetConstString().Alloc(f.key)
+                          << ") { return s->" << f.key << "; }\n";
                     Out() << "    { VarString *__vs = (VarString *)str_id; if (__vs->size_ == " << f.key.size()
                           << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { return s->" << f.key << "; } }\n";
                 }
                 Out() << "    return FlGetTableStrIdRaw(tbl, str_id);\n";
                 Out() << "}\n\n";
 
-                // set 函数：遍历字段，命中写 spec，未命中调 hash fallback
+                // set 函数：同理
                 Out() << "static void " << set_fn << "(VarTable *tbl, int64_t str_id, CVar v) {\n";
                 Out() << "    " << spec_type << " *s = (" << spec_type << " *)tbl->spec;\n";
                 for (const auto &f: fields) {
-                    const auto id = s_->GetConstString().Alloc(f.key);
-                    Out() << "    if (str_id == " << id << ") { s->" << f.key << " = v; return; }\n";
+                    Out() << "    if (str_id == " << s_->GetConstString().Alloc(f.key)
+                          << ") { s->" << f.key << " = v; return; }\n";
                     Out() << "    { VarString *__vs = (VarString *)str_id; if (__vs->size_ == " << f.key.size()
                           << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.key << " = v; return; } }\n";
                 }
