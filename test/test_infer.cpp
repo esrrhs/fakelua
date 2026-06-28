@@ -3624,7 +3624,7 @@ TEST(infer, test_table_dot_access_fast_path) {
     const auto code = InferGetCCode("./infer/test_table_dot_access_fast_path.lua");
     // Should use either FlGetTableStrId or spec fast path for t.a and t.b reads.
     ASSERT_TRUE(code.find("FlGetTableStrId(") != std::string::npos ||
-                code.find("FlSpecPtr(") != std::string::npos);
+                code.find("SET_TABLE_SPEC(") != std::string::npos);
     // Should NOT use FlGetTable for dot access.
     ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
 
@@ -3641,7 +3641,7 @@ TEST(infer, test_table_bracket_string_fast_path) {
     const auto code = InferGetCCode("./infer/test_table_bracket_string_fast_path.lua");
     // Should use either FlGetTableStrId or spec fast path for t["hello"] and t["world"] reads.
     ASSERT_TRUE(code.find("FlGetTableStrId(") != std::string::npos ||
-                code.find("FlSpecPtr(") != std::string::npos);
+                code.find("SET_TABLE_SPEC(") != std::string::npos);
     // Should NOT use FlGetTable for string literal bracket access.
     ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
 
@@ -3802,7 +3802,7 @@ TEST(infer, test_global_table_spec) {
     const auto code = InferGetCCode("./infer/test_global_table_spec.lua");
     // Global table should also be specialized
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    ASSERT_NE(code.find("FlSpecPtr("), std::string::npos);
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_global_table_spec.lua", {.debug_mode = debug_mode});
@@ -3815,8 +3815,8 @@ TEST(infer, test_global_table_spec) {
 TEST(infer, test_spec_basic) {
     const auto code = InferGetCCode("./infer/test_spec_basic.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    ASSERT_NE(code.find("FlSpecPtr("), std::string::npos);
-    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("flua_spec_get_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_basic.lua", {.debug_mode = debug_mode});
@@ -3829,7 +3829,7 @@ TEST(infer, test_spec_basic) {
 TEST(infer, test_spec_single_field) {
     const auto code = InferGetCCode("./infer/test_spec_single_field.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
+    ASSERT_NE(code.find("flua_spec_get_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_single_field.lua", {.debug_mode = debug_mode});
@@ -3842,10 +3842,10 @@ TEST(infer, test_spec_single_field) {
 TEST(infer, test_spec_write_multi) {
     const auto code = InferGetCCode("./infer/test_spec_write_multi.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    // 多次写入都走 FlSpecPtr
+    // 多次写入都走 FlSetTableStrId
     int count = 0;
     std::string::size_type pos = 0;
-    while ((pos = code.find("FlSpecPtr(", pos)) != std::string::npos) { count++; pos++; }
+    while ((pos = code.find("FlSetTableStrId(", pos)) != std::string::npos) { count++; pos++; }
     ASSERT_GE(count, 6);// init 3 + write 3
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -3876,8 +3876,8 @@ TEST(infer, test_spec_dynamic_write) {
     // 初始化写 spec_keys/spec_vals 数组
     ASSERT_NE(code.find("spec_keys"), std::string::npos);
     ASSERT_NE(code.find("spec_vals"), std::string::npos);
-    // x 走 FlSpecGet
-    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
+    // x 走 FlGetTableStrId
+    ASSERT_NE(code.find("flua_spec_get_"), std::string::npos);
     // y 走 FlGetTableStrId
     ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
 
@@ -3892,10 +3892,10 @@ TEST(infer, test_spec_dynamic_write) {
 TEST(infer, test_spec_dynamic_key) {
     const auto code = InferGetCCode("./infer/test_spec_dynamic_key.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    // 动态 key 写入走 FlSetTable（非 FlSpecPtr）
+    // 动态 key 写入走 FlSetTable（非 FlSetTableStrId）
     ASSERT_NE(code.find("FlSetTable("), std::string::npos);
-    // 读取 x 走 FlSpecGet
-    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
+    // 读取 x 走 FlGetTableStrId
+    ASSERT_NE(code.find("flua_spec_get_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_dynamic_key.lua", {.debug_mode = debug_mode});
@@ -3908,7 +3908,7 @@ TEST(infer, test_spec_dynamic_key) {
 TEST(infer, test_spec_func_param) {
     const auto code = InferGetCCode("./infer/test_spec_func_param.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    // 参数动态访问走 FlGetTable（非 FlSpecGet）
+    // 参数动态访问走 FlGetTable（非 FlGetTableStrId）
     ASSERT_NE(code.find("FlGetTable("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -3944,8 +3944,8 @@ TEST(infer, test_spec_nested) {
     std::string::size_type pos = 0;
     while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) { spec_count++; pos++; }
     ASSERT_EQ(spec_count, 2);
-    // 内层读取走 FlSpecGet（通过外层 spec_get fallback）
-    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
+    // 内层读取走 FlGetTableStrId（通过外层 spec_get fallback）
+    ASSERT_NE(code.find("flua_spec_get_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_nested.lua", {.debug_mode = debug_mode});

@@ -1695,28 +1695,38 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 }
                 Out() << "} " << spec_type << ";\n\n";
 
-                // get 函数：str_id 比较快路径 + memcmp 兜底（VAR_STRING 键 str_id 与 const id 不同）
-                Out() << "static CVar " << get_fn << "(VarTable *tbl, int64_t str_id) {\n";
+                // get 函数：接受 CVar k，处理 VAR_STRINGID 和 VAR_STRING 两种情况
+                Out() << "static CVar " << get_fn << "(VarTable *tbl, CVar k) {\n";
                 Out() << "    " << spec_type << " *s = (" << spec_type << " *)tbl->spec;\n";
+                Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
+                Out() << "        int64_t __sid = k.data_.i;\n";
                 for (const auto &f: fields) {
-                    Out() << "    if (str_id == " << s_->GetConstString().Alloc(f.key)
-                          << ") { return s->" << f.key << "; }\n";
-                    Out() << "    { VarString *__vs = (VarString *)str_id; if (__vs->size_ == " << f.key.size()
-                          << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { return s->" << f.key << "; } }\n";
+                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { return s->" << f.key << "; }\n";
                 }
-                Out() << "    return FlGetTableStrIdRaw(tbl, str_id);\n";
+                Out() << "    } else if (k.type_ == VAR_STRING) {\n";
+                Out() << "        VarString *__vs = k.data_.s;\n";
+                for (const auto &f: fields) {
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { return s->" << f.key << "; }\n";
+                }
+                Out() << "    }\n";
+                Out() << "    return FlGetTableStrIdRaw(tbl, (k.type_ == VAR_STRINGID) ? k.data_.i : (int64_t)(uintptr_t)k.data_.s);\n";
                 Out() << "}\n\n";
 
                 // set 函数：同理
-                Out() << "static void " << set_fn << "(VarTable *tbl, int64_t str_id, CVar v) {\n";
+                Out() << "static void " << set_fn << "(VarTable *tbl, CVar k, CVar v) {\n";
                 Out() << "    " << spec_type << " *s = (" << spec_type << " *)tbl->spec;\n";
+                Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
+                Out() << "        int64_t __sid = k.data_.i;\n";
                 for (const auto &f: fields) {
-                    Out() << "    if (str_id == " << s_->GetConstString().Alloc(f.key)
-                          << ") { s->" << f.key << " = v; return; }\n";
-                    Out() << "    { VarString *__vs = (VarString *)str_id; if (__vs->size_ == " << f.key.size()
-                          << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.key << " = v; return; } }\n";
+                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.key << " = v; return; }\n";
                 }
-                Out() << "    FlSetTableStrIdRaw(tbl, str_id, v);\n";
+                Out() << "    } else if (k.type_ == VAR_STRING) {\n";
+                Out() << "        VarString *__vs = k.data_.s;\n";
+                for (const auto &f: fields) {
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.key << " = v; return; }\n";
+                }
+                Out() << "    }\n";
+                Out() << "    FlSetTableStrIdRaw(tbl, (k.type_ == VAR_STRINGID) ? k.data_.i : (int64_t)(uintptr_t)k.data_.s, v);\n";
                 Out() << "}\n\n";
             }
 
@@ -1740,11 +1750,11 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(tc_ptr->Fieldlist());
                 for (const auto &field: fieldlist->Fields()) {
                     const auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field);
-                    if (fp->GetFieldKind() == FieldKind::kObject && fp->Name() == f.key) {
+                     if (fp->GetFieldKind() == FieldKind::kObject && fp->Name() == f.key) {
                         const auto value_str = CompileExp(fp->Value());
                         const auto id = s_->GetConstString().Alloc(f.key);
-                        // 写 spec 结构体（快速路径）
-                        Out() << GenTab() << std::format("FlSpecPtr({}, {})->{} = {};\n", var_name, spec_type, f.key, value_str);
+                        // 通过 FlSetTableStrId 写入（内部自动走 spec_set）
+                        Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
                         // 填充 spec_keys/spec_vals（遍历路径）
                         Out() << GenTab() << std::format("{}[{}] = (CVar){{.type_ = VAR_STRINGID, .data_.i = {}}};\n", keys_var, field_idx, id);
                         Out() << GenTab() << std::format("{}[{}] = {};\n", vals_var, field_idx, value_str);
@@ -2189,10 +2199,6 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         auto pe_ret = CompilePrefixexp(pe);
         // String literal key fast path: t["key"] → FlGetTableStrId.
         if (const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp); exp_node && exp_node->GetExpKind() == ExpKind::kString) {
-            // table 特化快速路径：仅当 key 是已知 spec 字段时使用
-            if (auto spec_type = GetSpecTypeForVar(pe); !spec_type.empty() && IsSpecField(spec_type, exp_node->ExpValue())) {
-                return std::format("FlSpecGet({}, {}, {})", pe_ret, spec_type, exp_node->ExpValue());
-            }
             const auto id = s_->GetConstString().Alloc(exp_node->ExpValue());
             return std::format("FlGetTableStrId({}, {})", pe_ret, id);
         }
@@ -2209,11 +2215,6 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto pe = v_ptr->GetPrefixexp();
         const auto name = v_ptr->GetName();
         auto pe_ret = CompilePrefixexp(pe);
-
-        // table 特化快速路径：仅当 key 是已知 spec 字段时使用
-        if (auto spec_type = GetSpecTypeForVar(pe); !spec_type.empty() && IsSpecField(spec_type, name)) {
-            return std::format("FlSpecGet({}, {}, {})", pe_ret, spec_type, name);
-        }
 
         // String constant key fast path: use FlGetTableStrId directly.
         const auto id = s_->GetConstString().Alloc(name);
@@ -2529,13 +2530,6 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[1]); key_exp && key_exp->GetExpKind() == ExpKind::kString) {
                 const auto tbl_str = CompileExp(raw_args[0]);
                 const auto val_str = CompileExp(raw_args[2]);
-                // 检查 table 参数是否有已知的 spec 类型，且 key 是已知 spec 字段
-                if (auto spec_type = GetSpecTypeForVar(raw_args[0]); !spec_type.empty() && IsSpecField(spec_type, key_exp->ExpValue())) {
-                    Out() << GenTab() << std::format("FlSpecPtr({}, {})->{} = {};\n", tbl_str, spec_type, key_exp->ExpValue(), val_str);
-                    Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
-                    return tmp;
-                }
-                // 普通路径：使用 FlSetTableStrId
                 const auto id = s_->GetConstString().Alloc(key_exp->ExpValue());
                 Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
                 Out() << GenTab() << std::format("SET_NIL({});\n", tmp);

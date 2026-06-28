@@ -49,8 +49,8 @@ typedef struct TableNode {
 
 struct VarTable;
 
-typedef CVar (*SpecGetFn)(VarTable *tbl, int64_t str_id);
-typedef void (*SpecSetFn)(VarTable *tbl, int64_t str_id, CVar val);
+typedef CVar (*SpecGetFn)(VarTable *tbl, CVar k);
+typedef void (*SpecSetFn)(VarTable *tbl, CVar k, CVar v);
 
 struct VarTable {
     uint32_t count_;
@@ -261,9 +261,6 @@ static inline uint32_t FlHashString(const char *str, int len) {
     (v).data_.t->spec_set = (set_fn); \
 } while(0)
 
-#define FlSpecGet(tbl, SpecType, field) (((SpecType *)(tbl).data_.t->spec)->field)
-#define FlSpecPtr(tbl, SpecType) (((SpecType *)(tbl).data_.t->spec))
-
 #define IsTrue(v, result) do { \
     CVar __tv = (v); \
     (result) = (LIKELY(__tv.type_ != VAR_NIL) && (__tv.type_ != VAR_BOOL || __tv.data_.b)); \
@@ -322,10 +319,7 @@ static inline CVar FlGetTable(CVar t, CVar k) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_get) {
-        if (LIKELY(k.type_ == VAR_STRINGID)) { return tbl->spec_get(tbl, k.data_.i); }
-        if (LIKELY(k.type_ == VAR_STRING)) { return tbl->spec_get(tbl, (int64_t)(uintptr_t)k.data_.s); }
-    }
+    if (tbl->spec_get) { return tbl->spec_get(tbl, k); }
     if (UNLIKELY(tbl->count_ == 0)) { return (CVar){VAR_NIL}; }
     uint32_t h; VarHash(k, h);
     if (LIKELY(tbl->bucket_count_ == 0)) {
@@ -433,10 +427,7 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_set) {
-        if (LIKELY(k.type_ == VAR_STRINGID)) { tbl->spec_set(tbl, k.data_.i, v); return; }
-        if (LIKELY(k.type_ == VAR_STRING)) { tbl->spec_set(tbl, (int64_t)(uintptr_t)k.data_.s, v); return; }
-    }
+    if (tbl->spec_set) { tbl->spec_set(tbl, k, v); return; }
     uint32_t h; VarHash(k, h);
     if (UNLIKELY(v.type_ == VAR_NIL)) {
         if (UNLIKELY(tbl->count_ == 0)) { return; }
@@ -596,7 +587,10 @@ static inline CVar FlGetTableStrIdRaw(VarTable *tbl, int64_t str_id) {
 static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_get) { return tbl->spec_get(tbl, str_id); }
+    if (tbl->spec_get) {
+        CVar k; k.type_ = VAR_STRINGID; k.data_.i = str_id;
+        return tbl->spec_get(tbl, k);
+    }
     return FlGetTableStrIdRaw(tbl, str_id);
 }
 
@@ -637,7 +631,10 @@ static inline void FlSetTableStrIdRaw(VarTable *tbl, int64_t str_id, CVar v) {
 static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_set) { tbl->spec_set(tbl, str_id, v); return; }
+    if (tbl->spec_set) {
+        CVar k; k.type_ = VAR_STRINGID; k.data_.i = str_id;
+        tbl->spec_set(tbl, k, v); return;
+    }
     FlSetTableStrIdRaw(tbl, str_id, v);
 }
 
