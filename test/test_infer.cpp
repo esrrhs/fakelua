@@ -3798,6 +3798,108 @@ TEST(infer, test_math_spec_mixed) {
     });
 }
 
+TEST(infer, test_global_table_spec) {
+    const auto code = InferGetCCode("./infer/test_global_table_spec.lua");
+    // Global table should also be specialized
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FlSpecPtr("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_global_table_spec.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_global_spec", ret);
+        ASSERT_EQ(ret, 30);
+    });
+}
+
+TEST(infer, test_spec_basic) {
+    const auto code = InferGetCCode("./infer/test_spec_basic.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FlSpecPtr("), std::string::npos);
+    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_basic.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_basic", ret);
+        ASSERT_EQ(ret, 119);
+    });
+}
+
+TEST(infer, test_spec_single_field) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_single_field.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_single", ret);
+        ASSERT_EQ(ret, 42);
+    });
+}
+
+TEST(infer, test_spec_write_multi) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_write_multi.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_write_multi", ret);
+        ASSERT_EQ(ret, 60);
+    });
+}
+
+TEST(infer, test_spec_pairs) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_pairs.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_pairs", ret);
+        ASSERT_EQ(ret, 30);
+    });
+}
+
+TEST(infer, test_spec_dynamic_key) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_dynamic_key.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_dynamic", ret, std::string("z"), 99);
+        ASSERT_EQ(ret, 10);
+    });
+}
+
+TEST(infer, test_spec_func_param) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_func_param.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_func_param", ret, std::string("a"));
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_func_param", ret, std::string("b"));
+        ASSERT_EQ(ret, 2);
+    });
+}
+
+TEST(infer, test_spec_multi_tables) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_multi_tables.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_multi", ret);
+        ASSERT_EQ(ret, 30);
+    });
+}
+
+TEST(infer, test_spec_nested) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_nested.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_nested", ret);
+        ASSERT_EQ(ret, 5);
+    });
+}
+
+TEST(infer, test_spec_dynamic_write) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_dynamic_write.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_dynamic_write", ret);
+        ASSERT_EQ(ret, 3);
+    });
+}
+
 TEST(infer, test_table_struct_spec) {
     const auto code = InferGetCCode("./infer/test_table_struct_spec.lua");
 
