@@ -189,6 +189,9 @@ private:
 
     void DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &snapshot, int tab, std::ostream &os) const;
 
+    // table 特化分析：收集所有 table 的访问模式，判断是否可特化
+    void AnalyzeTableAccess(const SyntaxTreeInterfacePtr &chunk, InferResult &ir);
+
 private:
     std::unordered_map<std::string, InferredType> file_level_types_;
 

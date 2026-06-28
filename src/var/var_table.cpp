@@ -28,6 +28,17 @@ Var VarTable::Get(const Var &key) const {
     }
     const Var lookup_key = NormalizeTableKey(key);
 
+    // 先查 spec 字段
+    if (spec_count > 0) {
+        const auto *sk = reinterpret_cast<const Var *>(spec_keys);
+        const auto *sv = reinterpret_cast<const Var *>(spec_vals);
+        for (uint32_t i = 0; i < spec_count; ++i) {
+            if (sk[i].Equal(lookup_key)) {
+                return sv[i];
+            }
+        }
+    }
+
     if (UNLIKELY(count_ == 0)) {
         return const_null_var;
     }

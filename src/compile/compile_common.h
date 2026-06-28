@@ -192,6 +192,18 @@ struct AnalysisResult {
 };
 
 // ---- 阶段四：类型推断结果 ---------------------------------------------------
+// table 特化信息：描述一个 table 的字段结构
+struct TableFieldInfo {
+    std::string key;      // 字段名（静态字符串 key）
+    InferredType type;    // 值的推断类型
+};
+
+// table 特化信息：table constructor 节点对应的特化描述
+struct TableSpecInfo {
+    std::vector<TableFieldInfo> fields;
+    bool can_specialize;  // 所有访问是否已知（可特化）
+};
+
 // TypeInferencer 的输出。
 // 由 TypeInferencer::InferTypes 填充，供 CGen 使用。
 struct InferResult {
@@ -214,6 +226,8 @@ struct InferResult {
     EvalTypeSnapshot main_eval_types;
     // 文件级/全局数值常量及其推断类型映射
     std::unordered_map<std::string, InferredType> global_const_vars;
+    // table 特化信息：table constructor 节点 → 特化信息
+    std::unordered_map<const SyntaxTreeInterface *, struct TableSpecInfo> table_spec_infos;
 };
 
 struct JitFunctionInfo {
