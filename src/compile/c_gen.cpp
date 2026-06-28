@@ -1674,8 +1674,8 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
         const auto fields = GetTableFields(tc);
         if (!fields.empty()) {
             const auto spec_type = std::format("flua_spec_{}", reinterpret_cast<uintptr_t>(tc.get()));
-            const auto get_fn = std::format("flua_spec_get_{}", reinterpret_cast<uintptr_t>(tc.get()));
-            const auto set_fn = std::format("flua_spec_set_{}", reinterpret_cast<uintptr_t>(tc.get()));
+            const auto get_fn = std::format("FlGetTableStrId_{}", reinterpret_cast<uintptr_t>(tc.get()));
+            const auto set_fn = std::format("FlSetTableStrId_{}", reinterpret_cast<uintptr_t>(tc.get()));
 
             // 生成 typedef + get/set 函数到 Headers section（仅首次）
             if (!generated_spec_typedefs_.contains(spec_type)) {

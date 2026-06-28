@@ -3816,7 +3816,7 @@ TEST(infer, test_spec_basic) {
     const auto code = InferGetCCode("./infer/test_spec_basic.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    ASSERT_NE(code.find("flua_spec_get_"), std::string::npos);
+    ASSERT_NE(code.find("FlGetTableStrId_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_basic.lua", {.debug_mode = debug_mode});
@@ -3829,7 +3829,7 @@ TEST(infer, test_spec_basic) {
 TEST(infer, test_spec_single_field) {
     const auto code = InferGetCCode("./infer/test_spec_single_field.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    ASSERT_NE(code.find("flua_spec_get_"), std::string::npos);
+    ASSERT_NE(code.find("FlGetTableStrId_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_single_field.lua", {.debug_mode = debug_mode});
@@ -3877,7 +3877,7 @@ TEST(infer, test_spec_dynamic_write) {
     ASSERT_NE(code.find("spec_keys"), std::string::npos);
     ASSERT_NE(code.find("spec_vals"), std::string::npos);
     // x 走 FlGetTableStrId
-    ASSERT_NE(code.find("flua_spec_get_"), std::string::npos);
+    ASSERT_NE(code.find("FlGetTableStrId_"), std::string::npos);
     // y 走 FlGetTableStrId
     ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
 
@@ -3895,7 +3895,7 @@ TEST(infer, test_spec_dynamic_key) {
     // 动态 key 写入走 FlSetTable（非 FlSetTableStrId）
     ASSERT_NE(code.find("FlSetTable("), std::string::npos);
     // 读取 x 走 FlGetTableStrId
-    ASSERT_NE(code.find("flua_spec_get_"), std::string::npos);
+    ASSERT_NE(code.find("FlGetTableStrId_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_dynamic_key.lua", {.debug_mode = debug_mode});
@@ -3945,7 +3945,7 @@ TEST(infer, test_spec_nested) {
     while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) { spec_count++; pos++; }
     ASSERT_EQ(spec_count, 2);
     // 内层读取走 FlGetTableStrId（通过外层 spec_get fallback）
-    ASSERT_NE(code.find("flua_spec_get_"), std::string::npos);
+    ASSERT_NE(code.find("FlGetTableStrId_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_nested.lua", {.debug_mode = debug_mode});
