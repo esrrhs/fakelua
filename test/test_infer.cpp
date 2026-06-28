@@ -3888,12 +3888,11 @@ TEST(infer, test_spec_pairs) {
 TEST(infer, test_spec_dynamic_write) {
     const auto code = InferGetCCode("./infer/test_spec_dynamic_write.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    // 初始化写 spec_keys/spec_vals 数组
-    ASSERT_NE(code.find("spec_keys"), std::string::npos);
-    ASSERT_NE(code.find("spec_vals"), std::string::npos);
-    // x 走 FlGetTableStrId
+    // 确保使用了 FL_SPEC 宏来直连访问属性
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+    // x 走 FlGetTableStrId_xxxx (通过特化)
     ASSERT_NE(code.find("FlGetTableStrId_"), std::string::npos);
-    // y 走 FlGetTableStrId
+    // y 走普通 FlGetTableStrId (非特化)
     ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -3943,6 +3942,8 @@ TEST(infer, test_spec_multi_tables) {
     std::string::size_type pos = 0;
     while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) { spec_count++; pos++; }
     ASSERT_EQ(spec_count, 2);
+    // 确保使用了 FL_SPEC 宏来直连访问属性
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_multi_tables.lua", {.debug_mode = debug_mode});
@@ -3959,6 +3960,8 @@ TEST(infer, test_spec_nested) {
     std::string::size_type pos = 0;
     while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) { spec_count++; pos++; }
     ASSERT_EQ(spec_count, 2);
+    // 外层访问使用了 FL_SPEC
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
     // 内层读取走 FlGetTableStrId（通过外层 spec_get fallback）
     ASSERT_NE(code.find("FlGetTableStrId_"), std::string::npos);
 
