@@ -49,8 +49,8 @@ typedef struct TableNode {
 
 struct VarTable;
 
-typedef CVar (*SpecGetFn)(VarTable *tbl, CVar k);
-typedef void (*SpecSetFn)(VarTable *tbl, CVar k, CVar v);
+typedef CVar (*SpecGetFn)(VarTable *tbl, CVar k, bool *finish);
+typedef void (*SpecSetFn)(VarTable *tbl, CVar k, CVar v, bool *finish);
 
 struct VarTable {
     uint32_t count_;
@@ -322,7 +322,11 @@ static inline CVar FlGetTable(CVar t, CVar k) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_get) { return tbl->spec_get(tbl, k); }
+    if (tbl->spec_get) {
+        bool __finish = false;
+        CVar __r = tbl->spec_get(tbl, k, &__finish);
+        if (__finish) return __r;
+    }
     if (UNLIKELY(tbl->count_ == 0)) { return (CVar){VAR_NIL}; }
     uint32_t h; VarHash(k, h);
     if (LIKELY(tbl->bucket_count_ == 0)) {
@@ -430,7 +434,11 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     if (UNLIKELY(k.type_ == VAR_NIL)) { FakeluaThrowError(_S, "table index is nil"); }
     VarTable *tbl = t.data_.t;
-    if (tbl->spec_set) { tbl->spec_set(tbl, k, v); return; }
+    if (tbl->spec_set) {
+        bool __finish = false;
+        tbl->spec_set(tbl, k, v, &__finish);
+        if (__finish) return;
+    }
     uint32_t h; VarHash(k, h);
     if (UNLIKELY(v.type_ == VAR_NIL)) {
         if (UNLIKELY(tbl->count_ == 0)) { return; }
@@ -592,7 +600,9 @@ static inline CVar FlGetTableStrId(CVar t, int64_t str_id) {
     VarTable *tbl = t.data_.t;
     if (tbl->spec_get) {
         CVar k; k.type_ = VAR_STRINGID; k.data_.i = str_id;
-        return tbl->spec_get(tbl, k);
+        bool __finish = false;
+        CVar __r = tbl->spec_get(tbl, k, &__finish);
+        if (__finish) return __r;
     }
     return FlGetTableStrIdRaw(tbl, str_id);
 }
@@ -636,7 +646,9 @@ static inline void FlSetTableStrId(CVar t, int64_t str_id, CVar v) {
     VarTable *tbl = t.data_.t;
     if (tbl->spec_set) {
         CVar k; k.type_ = VAR_STRINGID; k.data_.i = str_id;
-        tbl->spec_set(tbl, k, v); return;
+        bool __finish = false;
+        tbl->spec_set(tbl, k, v, &__finish);
+        if (__finish) return;
     }
     FlSetTableStrIdRaw(tbl, str_id, v);
 }

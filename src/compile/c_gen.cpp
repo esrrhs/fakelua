@@ -1695,38 +1695,39 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 }
                 Out() << "} " << spec_type << ";\n\n";
 
-                // get 函数：接受 CVar k，处理 VAR_STRINGID 和 VAR_STRING 两种情况
-                Out() << "static CVar " << get_fn << "(VarTable *tbl, CVar k) {\n";
+                // get 函数：接受 CVar k + bool *finish，命中设 *finish=true
+                Out() << "static CVar " << get_fn << "(VarTable *tbl, CVar k, bool *__finish) {\n";
                 Out() << "    " << spec_type << " *s = (" << spec_type << " *)tbl->spec;\n";
                 Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
                 Out() << "        int64_t __sid = k.data_.i;\n";
                 for (const auto &f: fields) {
-                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { return s->" << f.key << "; }\n";
+                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { *__finish = true; return s->" << f.key << "; }\n";
                 }
                 Out() << "    } else if (k.type_ == VAR_STRING) {\n";
                 Out() << "        VarString *__vs = k.data_.s;\n";
                 for (const auto &f: fields) {
-                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { return s->" << f.key << "; }\n";
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { *__finish = true; return s->" << f.key << "; }\n";
                 }
                 Out() << "    }\n";
-                Out() << "    return FlGetTableStrIdRaw(tbl, (k.type_ == VAR_STRINGID) ? k.data_.i : (int64_t)(uintptr_t)k.data_.s);\n";
+                Out() << "    *__finish = false;\n";
+                Out() << "    return (CVar){VAR_NIL};\n";
                 Out() << "}\n\n";
 
                 // set 函数：同理
-                Out() << "static void " << set_fn << "(VarTable *tbl, CVar k, CVar v) {\n";
+                Out() << "static void " << set_fn << "(VarTable *tbl, CVar k, CVar v, bool *__finish) {\n";
                 Out() << "    " << spec_type << " *s = (" << spec_type << " *)tbl->spec;\n";
                 Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
                 Out() << "        int64_t __sid = k.data_.i;\n";
                 for (const auto &f: fields) {
-                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.key << " = v; return; }\n";
+                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.key << " = v; *__finish = true; return; }\n";
                 }
                 Out() << "    } else if (k.type_ == VAR_STRING) {\n";
                 Out() << "        VarString *__vs = k.data_.s;\n";
                 for (const auto &f: fields) {
-                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.key << " = v; return; }\n";
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.key << " = v; *__finish = true; return; }\n";
                 }
                 Out() << "    }\n";
-                Out() << "    FlSetTableStrIdRaw(tbl, (k.type_ == VAR_STRINGID) ? k.data_.i : (int64_t)(uintptr_t)k.data_.s, v);\n";
+                Out() << "    *__finish = false;\n";
                 Out() << "}\n\n";
             }
 
