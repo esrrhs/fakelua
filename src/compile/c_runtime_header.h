@@ -62,6 +62,9 @@ struct VarTable {
     void *spec;
     SpecGetFn spec_get;
     SpecSetFn spec_set;
+    CVar *spec_keys;
+    CVar *spec_vals;
+    uint32_t spec_count;
 };
 
 typedef struct State State;
@@ -237,6 +240,9 @@ static inline uint32_t FlHashString(const char *str, int len) {
     __t->spec = NULL; \
     __t->spec_get = NULL; \
     __t->spec_set = NULL; \
+    __t->spec_keys = NULL; \
+    __t->spec_vals = NULL; \
+    __t->spec_count = 0; \
     assert(sizeof(__t->quick_data_) == 8 * sizeof(VarEntry)); \
     { int __i; for (__i = 0; __i < 8; ++__i) { \
         __t->quick_data_[__i].key.type_ = VAR_NIL; \
@@ -804,11 +810,15 @@ static inline CVar FlConcat(CVar a, CVar b) {
 }
 
 #define GET_TABLE_ENTRY(tbl, idx, k, v) do { \
-    if (LIKELY((tbl).data_.t->bucket_count_ == 0)) { \
-        (k) = (tbl).data_.t->quick_data_[(idx)].key; \
-        (v) = (tbl).data_.t->quick_data_[(idx)].val; \
+    uint32_t __spec_cnt = (tbl).data_.t->spec_count; \
+    if (LIKELY((idx) < __spec_cnt)) { \
+        (k) = (tbl).data_.t->spec_keys[(idx)]; \
+        (v) = (tbl).data_.t->spec_vals[(idx)]; \
+    } else if (LIKELY((tbl).data_.t->bucket_count_ == 0)) { \
+        (k) = (tbl).data_.t->quick_data_[(idx) - __spec_cnt].key; \
+        (v) = (tbl).data_.t->quick_data_[(idx) - __spec_cnt].val; \
     } else { \
-        uint32_t __gti_node_idx = (tbl).data_.t->active_list_[(idx)]; \
+        uint32_t __gti_node_idx = (tbl).data_.t->active_list_[(idx) - __spec_cnt]; \
         (k) = (tbl).data_.t->nodes_[__gti_node_idx].entry.key; \
         (v) = (tbl).data_.t->nodes_[__gti_node_idx].entry.val; \
     } \

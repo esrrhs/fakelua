@@ -43,6 +43,11 @@ public:
 
     // 获取当前元素数量
     [[nodiscard]] size_t Size() const {
+        return count_ + spec_count;
+    }
+
+    // 返回 hash 元素数量（不含 spec 字段）
+    [[nodiscard]] uint32_t GetHashCount() const {
         return count_;
     }
 
@@ -59,6 +64,21 @@ public:
     // AIA 遍历支持：返回底层节点数组起始地址
     [[nodiscard]] const TableNode *GetNodes() const {
         return nodes_;
+    }
+
+    // 特化遍历支持：返回 spec 字段数
+    [[nodiscard]] uint32_t GetSpecCount() const {
+        return spec_count;
+    }
+
+    // 特化遍历支持：返回 spec_keys 数组
+    [[nodiscard]] const CVar *GetSpecKeys() const {
+        return reinterpret_cast<const CVar *>(spec_keys);
+    }
+
+    // 特化遍历支持：返回 spec_vals 数组
+    [[nodiscard]] const CVar *GetSpecVals() const {
+        return reinterpret_cast<const CVar *>(spec_vals);
     }
 
 private:
@@ -78,9 +98,12 @@ private:
     uint32_t *active_list_ = nullptr;          // 活跃索引数组，存储 nodes_ 的下标
     VarEntry quick_data_[QUICK_DATA_SIZE] = {};// 嵌入式数组（不包含 next 指针）
     uint32_t free_list_idx_ = INVALID_INDEX;   // 溢出池中的自由节点链表头下标
-    void *spec = nullptr;                       // 特化结构体指针，NULL 表示走普通路径
-    void *spec_get = nullptr;                   // 特化读取函数指针
-    void *spec_set = nullptr;                   // 特化写入函数指针
+    void *spec = nullptr;
+    void *spec_get = nullptr;
+    void *spec_set = nullptr;
+    void *spec_keys = nullptr;
+    void *spec_vals = nullptr;
+    uint32_t spec_count = 0;
 };
 
 

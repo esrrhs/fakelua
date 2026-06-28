@@ -255,10 +255,23 @@ void VarToVi(State *state, CVar src, VarInterface *dst) {
         case VarType::Table: {
             std::vector<std::pair<VarInterface *, VarInterface *>> kvs;
             const auto table = var_val.GetTable();
-            const uint32_t count = static_cast<uint32_t>(table->Size());
+            // 先遍历 spec 字段
+            if (table->GetSpecCount() > 0) {
+                const auto *spec_keys = table->GetSpecKeys();
+                const auto *spec_vals = table->GetSpecVals();
+                for (uint32_t i = 0; i < table->GetSpecCount(); ++i) {
+                    auto key_item = GetVarInterfaceNewFunc(state)();
+                    auto val_item = GetVarInterfaceNewFunc(state)();
+                    VarToVi(state, spec_keys[i], key_item);
+                    VarToVi(state, spec_vals[i], val_item);
+                    kvs.emplace_back(key_item, val_item);
+                }
+            }
+            // 再遍历 hash 字段
+            const uint32_t count = table->GetHashCount();
             const VarTable::VarEntry *quick_data = table->GetQuickData();
             const auto *nodes = table->GetNodes();
-            if (const uint32_t *active_list = table->GetActiveList(); active_list == nullptr) {// 快速路径
+            if (const uint32_t *active_list = table->GetActiveList(); active_list == nullptr) {
                 for (uint32_t i = 0; i < count; ++i) {
                     const auto &entry = quick_data[i];
                     const auto key = entry.key;
@@ -269,7 +282,7 @@ void VarToVi(State *state, CVar src, VarInterface *dst) {
                     VarToVi(state, val, val_item);
                     kvs.emplace_back(key_item, val_item);
                 }
-            } else {// 哈希表路径
+            } else {
                 for (uint32_t i = 0; i < count; ++i) {
                     const auto &entry = nodes[active_list[i]].entry;
                     const auto key = entry.key;

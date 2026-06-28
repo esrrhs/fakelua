@@ -1545,7 +1545,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
 
     Out() << GenTab() << tbl_var << " = " << tbl_expr << ";\n";
     Out() << GenTab() << "if (UNLIKELY(" << tbl_var << ".type_ != VAR_TABLE)) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
-    Out() << GenTab() << sz_var << " = " << tbl_var << ".data_.t->count_;\n";
+    Out() << GenTab() << sz_var << " = " << tbl_var << ".data_.t->count_ + " << tbl_var << ".data_.t->spec_count;\n";
 
     Out() << GenTab() << "for (" << idx_var << " = 0; " << idx_var << " < " << sz_var << "; " << idx_var << "++) {\n";
     cur_tab_++;
@@ -1723,7 +1723,19 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             // 使用宏分配 table + spec，并注册函数指针
             Out() << GenTab() << "SET_TABLE_SPEC(" << var_name << ", " << spec_type << ", " << get_fn << ", " << set_fn << ");\n";
 
-            // 在 spec 结构体中初始化字段，同时写入 hash（保证迭代/打印等非 spec 路径可用）
+            // 堆分配 spec_keys/spec_vals 数组用于遍历
+            const auto keys_var = std::format("flua_spec_keys_{}", tmp_var_counter_++);
+            const auto vals_var = std::format("flua_spec_vals_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar *" << keys_var << ";\n";
+            func_temp_decls_ << "    CVar *" << vals_var << ";\n";
+            Out() << GenTab() << keys_var << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar) * " << fields.size() << ", !__fakelua_init_flag__);\n";
+            Out() << GenTab() << vals_var << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar) * " << fields.size() << ", !__fakelua_init_flag__);\n";
+            Out() << GenTab() << var_name << ".data_.t->spec_keys = " << keys_var << ";\n";
+            Out() << GenTab() << var_name << ".data_.t->spec_vals = " << vals_var << ";\n";
+            Out() << GenTab() << var_name << ".data_.t->spec_count = " << fields.size() << ";\n";
+
+            // 在 spec 结构体中初始化字段，同时填充 spec_keys/spec_vals
+            int field_idx = 0;
             for (const auto &f: fields) {
                 const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(tc_ptr->Fieldlist());
                 for (const auto &field: fieldlist->Fields()) {
@@ -1731,8 +1743,12 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                     if (fp->GetFieldKind() == FieldKind::kObject && fp->Name() == f.key) {
                         const auto value_str = CompileExp(fp->Value());
                         const auto id = s_->GetConstString().Alloc(f.key);
+                        // 写 spec 结构体（快速路径）
                         Out() << GenTab() << std::format("FlSpecPtr({}, {})->{} = {};\n", var_name, spec_type, f.key, value_str);
-                        Out() << GenTab() << std::format("FlSetTableStrIdRaw({}.data_.t, {}, {});\n", var_name, id, value_str);
+                        // 填充 spec_keys/spec_vals（遍历路径）
+                        Out() << GenTab() << std::format("{}[{}] = (CVar){{.type_ = VAR_STRINGID, .data_.i = {}}};\n", keys_var, field_idx, id);
+                        Out() << GenTab() << std::format("{}[{}] = {};\n", vals_var, field_idx, value_str);
+                        field_idx++;
                         break;
                     }
                 }

@@ -3873,8 +3873,9 @@ TEST(infer, test_spec_pairs) {
 TEST(infer, test_spec_dynamic_write) {
     const auto code = InferGetCCode("./infer/test_spec_dynamic_write.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    // 初始化时双写到 hash
-    ASSERT_NE(code.find("FlSetTableStrIdRaw("), std::string::npos);
+    // 初始化写 spec_keys/spec_vals 数组
+    ASSERT_NE(code.find("spec_keys"), std::string::npos);
+    ASSERT_NE(code.find("spec_vals"), std::string::npos);
     // x 走 FlSpecGet
     ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
     // y 走 FlGetTableStrId
