@@ -2191,7 +2191,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
             const auto key_name = exp_node->ExpValue();
             const auto spec_type = GetSpecTypeForVar(pe);
             if (!spec_type.empty() && IsSpecField(spec_type, key_name)) {
-                return std::format("((({} *){}.data_.t->spec)->{})", spec_type, pe_ret, key_name);
+                return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, key_name);
             }
             const auto id = s_->GetConstString().Alloc(key_name);
             return std::format("FlGetTableStrId({}, {})", pe_ret, id);
@@ -2212,7 +2212,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
 
         const auto spec_type = GetSpecTypeForVar(pe);
         if (!spec_type.empty() && IsSpecField(spec_type, name)) {
-            return std::format("((({} *){}.data_.t->spec)->{})", spec_type, pe_ret, name);
+            return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, name);
         }
 
         // String constant key fast path: use FlGetTableStrId directly.
