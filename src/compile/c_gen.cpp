@@ -1754,8 +1754,10 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             }
 
             table_spec_types_[var_name] = spec_type;
+            int f_idx = 0;
             for (const auto &f: fields) {
                 spec_field_names_[spec_type].insert(f.key);
+                spec_field_indices_[spec_type][f.key] = f_idx++;
             }
             return var_name;
         }
@@ -2529,8 +2531,15 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[1]); key_exp && key_exp->GetExpKind() == ExpKind::kString) {
                 const auto tbl_str = CompileExp(raw_args[0]);
                 const auto val_str = CompileExp(raw_args[2]);
-                const auto id = s_->GetConstString().Alloc(key_exp->ExpValue());
-                Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
+                const auto key_name = key_exp->ExpValue();
+                const auto spec_type = GetSpecTypeForVar(raw_args[0]);
+                if (!spec_type.empty() && IsSpecField(spec_type, key_name)) {
+                    int index = spec_field_indices_[spec_type][key_name];
+                    Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, key_name, index, val_str);
+                } else {
+                    const auto id = s_->GetConstString().Alloc(key_name);
+                    Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
+                }
                 Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
                 return tmp;
             }

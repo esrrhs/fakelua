@@ -265,6 +265,10 @@ static inline uint32_t FlHashString(const char *str, int len) {
 } while(0)
 
 #define FL_SPEC(SpecType, v, field) (((SpecType *)(v).data_.t->spec)->field)
+#define FL_SET_SPEC(SpecType, v, field, index, ...) do { \
+    FL_SPEC(SpecType, (v), field) = (__VA_ARGS__); \
+    (v).data_.t->spec_vals[(index)] = (__VA_ARGS__); \
+} while(0)
 
 #define IsTrue(v, result) do { \
     CVar __tv = (v); \

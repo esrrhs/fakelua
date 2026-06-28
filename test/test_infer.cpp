@@ -3857,11 +3857,15 @@ TEST(infer, test_spec_single_field) {
 TEST(infer, test_spec_write_multi) {
     const auto code = InferGetCCode("./infer/test_spec_write_multi.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    // 多次写入都走 FlSetTableStrId
-    int count = 0;
+    // 初始化写入走 FlSetTableStrId，特化字段属性赋值优化为走 FL_SET_SPEC
+    int count_id = 0;
+    int count_set_spec = 0;
     std::string::size_type pos = 0;
-    while ((pos = code.find("FlSetTableStrId(", pos)) != std::string::npos) { count++; pos++; }
-    ASSERT_GE(count, 6);// init 3 + write 3
+    while ((pos = code.find("FlSetTableStrId(", pos)) != std::string::npos) { count_id++; pos++; }
+    pos = 0;
+    while ((pos = code.find("FL_SET_SPEC(", pos)) != std::string::npos) { count_set_spec++; pos++; }
+    ASSERT_GE(count_id, 3);       // 初始化 3 次
+    ASSERT_GE(count_set_spec, 3); // 写属性 3 次
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_write_multi.lua", {.debug_mode = debug_mode});
