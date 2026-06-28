@@ -3827,6 +3827,10 @@ TEST(infer, test_spec_basic) {
 }
 
 TEST(infer, test_spec_single_field) {
+    const auto code = InferGetCCode("./infer/test_spec_single_field.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_single_field.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -3836,6 +3840,14 @@ TEST(infer, test_spec_single_field) {
 }
 
 TEST(infer, test_spec_write_multi) {
+    const auto code = InferGetCCode("./infer/test_spec_write_multi.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // 多次写入都走 FlSpecPtr
+    int count = 0;
+    std::string::size_type pos = 0;
+    while ((pos = code.find("FlSpecPtr(", pos)) != std::string::npos) { count++; pos++; }
+    ASSERT_GE(count, 6);// init 3 + write 3
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_write_multi.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -3845,6 +3857,11 @@ TEST(infer, test_spec_write_multi) {
 }
 
 TEST(infer, test_spec_pairs) {
+    const auto code = InferGetCCode("./infer/test_spec_pairs.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // pairs 遍历走 GET_TABLE_ENTRY（hash）
+    ASSERT_NE(code.find("GET_TABLE_ENTRY("), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_pairs.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -3854,6 +3871,13 @@ TEST(infer, test_spec_pairs) {
 }
 
 TEST(infer, test_spec_dynamic_key) {
+    const auto code = InferGetCCode("./infer/test_spec_dynamic_key.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // 动态 key 写入走 FlSetTable（非 FlSpecPtr）
+    ASSERT_NE(code.find("FlSetTable("), std::string::npos);
+    // 读取 x 走 FlSpecGet
+    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_dynamic_key.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -3863,6 +3887,11 @@ TEST(infer, test_spec_dynamic_key) {
 }
 
 TEST(infer, test_spec_func_param) {
+    const auto code = InferGetCCode("./infer/test_spec_func_param.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // 参数动态访问走 FlGetTable（非 FlSpecGet）
+    ASSERT_NE(code.find("FlGetTable("), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_func_param.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -3874,6 +3903,13 @@ TEST(infer, test_spec_func_param) {
 }
 
 TEST(infer, test_spec_multi_tables) {
+    const auto code = InferGetCCode("./infer/test_spec_multi_tables.lua");
+    // 两个 table 各自特化
+    int spec_count = 0;
+    std::string::size_type pos = 0;
+    while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) { spec_count++; pos++; }
+    ASSERT_EQ(spec_count, 2);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_multi_tables.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -3883,6 +3919,15 @@ TEST(infer, test_spec_multi_tables) {
 }
 
 TEST(infer, test_spec_nested) {
+    const auto code = InferGetCCode("./infer/test_spec_nested.lua");
+    // 外层和内层 table 都会被特化（全是 kObject 字段）
+    int spec_count = 0;
+    std::string::size_type pos = 0;
+    while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) { spec_count++; pos++; }
+    ASSERT_EQ(spec_count, 2);
+    // 内层读取走 FlSpecGet（通过外层 spec_get fallback）
+    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_nested.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -3892,58 +3937,19 @@ TEST(infer, test_spec_nested) {
 }
 
 TEST(infer, test_spec_dynamic_write) {
+    const auto code = InferGetCCode("./infer/test_spec_dynamic_write.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // y 通过 FlSetTableStrIdRaw 写入 hash
+    ASSERT_NE(code.find("FlSetTableStrIdRaw("), std::string::npos);
+    // x 读取走 FlSpecGet
+    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
+    // y 读取走 FlGetTableStrId（hash fallback）
+    ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_dynamic_write.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test_dynamic_write", ret);
-        ASSERT_EQ(ret, 3);
-    });
-}
-
-TEST(infer, test_table_struct_spec) {
-    const auto code = InferGetCCode("./infer/test_table_struct_spec.lua");
-
-    // SET_TABLE_SPEC macro in function body (Impls section)
-    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    // FlSpecPtr for direct spec field writes during init
-    ASSERT_NE(code.find("FlSpecPtr("), std::string::npos);
-    // FlSpecGet for direct spec field reads
-    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
-
-    InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_table_struct_spec.lua", {.debug_mode = debug_mode});
-        int64_t ret = 0;
-
-        Call(s, type, "test_struct_spec", ret);
-        ASSERT_EQ(ret, 119);
-
-        Call(s, type, "test_single_field", ret);
-        ASSERT_EQ(ret, 42);
-
-        Call(s, type, "test_write_then_read", ret);
-        ASSERT_EQ(ret, 60);
-
-        Call(s, type, "test_pairs_iter", ret);
-        ASSERT_EQ(ret, 30);
-
-        Call(s, type, "test_dynamic_key", ret, std::string("z"), 99);
-        ASSERT_EQ(ret, 10);
-
-        Call(s, type, "test_pass_to_func", ret, std::string("a"));
-        ASSERT_EQ(ret, 1);
-        Call(s, type, "test_pass_to_func", ret, std::string("b"));
-        ASSERT_EQ(ret, 2);
-
-        Call(s, type, "test_multi_tables", ret);
-        ASSERT_EQ(ret, 30);
-
-        Call(s, type, "test_nested", ret);
-        ASSERT_EQ(ret, 5);
-
-        Call(s, type, "test_three_fields", ret);
-        ASSERT_EQ(ret, 600);
-
-        Call(s, type, "test_dynamic_write_and_read", ret);
         ASSERT_EQ(ret, 3);
     });
 }
