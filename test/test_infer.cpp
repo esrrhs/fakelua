@@ -3859,7 +3859,7 @@ TEST(infer, test_spec_write_multi) {
 TEST(infer, test_spec_pairs) {
     const auto code = InferGetCCode("./infer/test_spec_pairs.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    // pairs 遍历走 GET_TABLE_ENTRY（hash）
+    // pairs 遍历走 GET_TABLE_ENTRY（hash），初始化时双写保证 hash 有数据
     ASSERT_NE(code.find("GET_TABLE_ENTRY("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -3867,6 +3867,24 @@ TEST(infer, test_spec_pairs) {
         int64_t ret = 0;
         Call(s, type, "test_pairs", ret);
         ASSERT_EQ(ret, 30);
+    });
+}
+
+TEST(infer, test_spec_dynamic_write) {
+    const auto code = InferGetCCode("./infer/test_spec_dynamic_write.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // 初始化时双写到 hash
+    ASSERT_NE(code.find("FlSetTableStrIdRaw("), std::string::npos);
+    // x 走 FlSpecGet
+    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
+    // y 走 FlGetTableStrId
+    ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_dynamic_write.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_dynamic_write", ret);
+        ASSERT_EQ(ret, 3);
     });
 }
 
@@ -3933,23 +3951,5 @@ TEST(infer, test_spec_nested) {
         int64_t ret = 0;
         Call(s, type, "test_nested", ret);
         ASSERT_EQ(ret, 5);
-    });
-}
-
-TEST(infer, test_spec_dynamic_write) {
-    const auto code = InferGetCCode("./infer/test_spec_dynamic_write.lua");
-    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    // y 通过 FlSetTableStrIdRaw 写入 hash
-    ASSERT_NE(code.find("FlSetTableStrIdRaw("), std::string::npos);
-    // x 读取走 FlSpecGet
-    ASSERT_NE(code.find("FlSpecGet("), std::string::npos);
-    // y 读取走 FlGetTableStrId（hash fallback）
-    ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
-
-    InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_spec_dynamic_write.lua", {.debug_mode = debug_mode});
-        int64_t ret = 0;
-        Call(s, type, "test_dynamic_write", ret);
-        ASSERT_EQ(ret, 3);
     });
 }
