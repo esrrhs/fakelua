@@ -3866,7 +3866,7 @@ TEST(infer, test_spec_pairs) {
         CompileFile(s, "./infer/test_spec_pairs.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test_pairs", ret);
-        ASSERT_EQ(ret, 30);
+        ASSERT_EQ(ret, 120);
     });
 }
 
@@ -3954,3 +3954,5 @@ TEST(infer, test_spec_nested) {
         ASSERT_EQ(ret, 5);
     });
 }
+
+

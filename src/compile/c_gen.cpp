@@ -1718,13 +1718,17 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 Out() << "    " << spec_type << " *s = (" << spec_type << " *)tbl->spec;\n";
                 Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
                 Out() << "        int64_t __sid = k.data_.i;\n";
+                int f_idx = 0;
                 for (const auto &f: fields) {
-                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.key << " = v; *__finish = true; return; }\n";
+                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.key << " = v; tbl->spec_vals[" << f_idx << "] = v; *__finish = true; return; }\n";
+                    f_idx++;
                 }
                 Out() << "    } else if (k.type_ == VAR_STRING) {\n";
                 Out() << "        VarString *__vs = k.data_.s;\n";
+                f_idx = 0;
                 for (const auto &f: fields) {
-                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.key << " = v; *__finish = true; return; }\n";
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.key << " = v; tbl->spec_vals[" << f_idx << "] = v; *__finish = true; return; }\n";
+                    f_idx++;
                 }
                 Out() << "    }\n";
                 Out() << "    *__finish = false;\n";
