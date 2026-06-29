@@ -130,7 +130,11 @@ private:
     // table 特化辅助：从 prefixexp 获取变量的 spec 类型名（空字符串表示无特化）
     [[nodiscard]] std::string GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const;
     // table 特化辅助：检查 key 是否为已知 spec 字段
+    [[nodiscard]] bool IsSpecField(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
     [[nodiscard]] bool IsSpecField(const std::string &spec_type, const std::string &key) const;
+    [[nodiscard]] std::string GetSpecFieldCName(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
+    [[nodiscard]] int GetSpecFieldIndex(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
+    [[nodiscard]] InferredType GetSpecFieldType(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
     // table 特化辅助：从 prefixexp 提取简单变量名（空字符串表示非简单变量）
     [[nodiscard]] static std::string GetSimpleVarName(const SyntaxTreeInterfacePtr &pe);
 
@@ -307,6 +311,10 @@ private:
     std::unordered_map<std::string, std::unordered_set<std::string>> spec_field_names_;
     // spec 类型名 → 字段名到索引的映射表（用于 FL_SET_SPEC 宏生成）
     std::unordered_map<std::string, std::unordered_map<std::string, int>> spec_field_indices_;
+    // spec 类型名 → 字段名到其在 C 结构体中的字段名称的映射表
+    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> spec_field_c_names_;
+    // spec 类型名 → 字段名到其值类型的映射表
+    std::unordered_map<std::string, std::unordered_map<std::string, InferredType>> spec_field_types_;
     // 已生成的 spec typedef/get/set 名称集合，避免重复生成
     std::unordered_set<std::string> generated_spec_typedefs_;
 };

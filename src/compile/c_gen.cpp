@@ -531,6 +531,13 @@ InferredType CGen::GetSpecReturnType(const std::string &func_name, int bitmask) 
     return it->second[static_cast<size_t>(bitmask)];
 }
 
+static std::string GetKeyDescriptor(const std::string &key, TableKeyKind kind) {
+    if (kind == TableKeyKind::kString) return "S_" + key;
+    if (kind == TableKeyKind::kInt) return "I_" + key;
+    if (kind == TableKeyKind::kBool) return "B_" + key;
+    return "F_" + key;
+}
+
 bool CGen::CanSpecializeTable(const SyntaxTreeInterfacePtr &tc) const {
     if (!tc || tc->Type() != SyntaxTreeType::TableConstructor) return false;
     const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc);
@@ -540,10 +547,39 @@ bool CGen::CanSpecializeTable(const SyntaxTreeInterfacePtr &tc) const {
     for (const auto &field : fieldlist->Fields()) {
         const auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field);
         if (!fp) return false;
-        // 只有 kObject（name = value）字段可特化，kArray 不可
-        if (fp->GetFieldKind() != FieldKind::kObject) {
-            return false;
+        if (fp->GetFieldKind() == FieldKind::kObject) {
+            continue;
         }
+        // FieldKind::kArray
+        if (fp->Key() == nullptr) {
+            // 隐式索引：如果值是函数调用或 varargs（可能多返回），不特化
+            auto val_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Value());
+            if (val_exp) {
+                if (val_exp->GetExpKind() == ExpKind::kPrefixExp) {
+                    auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(val_exp->Right());
+                    if (pe && pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
+                        return false;
+                    }
+                    // 预处理后的 varargs 变量引用
+                    if (pe && pe->GetPrefixKind() == PrefixExpKind::kVar) {
+                        auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+                        if (var && var->GetVarKind() == VarKind::kSimple && var->GetName().rfind("__fakelua_vararg_", 0) == 0) {
+                            return false;
+                        }
+                    }
+                } else if (val_exp->GetExpKind() == ExpKind::kVarParams) {
+                    return false;
+                }
+            }
+            continue;
+        }
+        const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
+        if (!key_exp) return false;
+        auto kind = key_exp->GetExpKind();
+        if (kind == ExpKind::kString || kind == ExpKind::kNumber || kind == ExpKind::kTrue || kind == ExpKind::kFalse) {
+            continue;
+        }
+        return false;
     }
     return true;
 }
@@ -554,11 +590,117 @@ std::vector<TableFieldInfo> CGen::GetTableFields(const SyntaxTreeInterfacePtr &t
     if (!tc_ptr->Fieldlist()) return fields;
     const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(tc_ptr->Fieldlist());
     if (!fieldlist) return fields;
+
+    struct FieldEntry {
+        TableFieldInfo info;
+        size_t index;
+    };
+    std::unordered_map<std::string, FieldEntry> unique_fields;
+    std::vector<std::string> order;
+
+    int array_idx = 1;
     for (const auto &field : fieldlist->Fields()) {
         const auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field);
-        if (!fp || fp->GetFieldKind() != FieldKind::kObject) continue;
-        InferredType ft = LookupNodeType(fp->Value().get());
-        fields.push_back({fp->Name(), ft});
+        if (!fp) continue;
+
+        TableFieldInfo f_info;
+        std::string key_desc;
+
+        if (fp->GetFieldKind() == FieldKind::kObject) {
+            f_info.key = fp->Name();
+            f_info.key_kind = TableKeyKind::kString;
+            f_info.c_field_name = fp->Name();
+            key_desc = "S_" + f_info.key;
+        } else {
+            if (fp->Key() == nullptr) {
+                f_info.key = std::to_string(array_idx);
+                f_info.key_kind = TableKeyKind::kInt;
+                f_info.c_field_name = "_int_" + f_info.key;
+                f_info.int_value = array_idx;
+                key_desc = "I_" + f_info.key;
+                array_idx++;
+            } else {
+                const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
+                if (key_exp) {
+                    if (key_exp->GetExpKind() == ExpKind::kString) {
+                        f_info.key = key_exp->ExpValue();
+                        f_info.key_kind = TableKeyKind::kString;
+                        f_info.c_field_name = f_info.key;
+                        key_desc = "S_" + f_info.key;
+                    } else if (key_exp->GetExpKind() == ExpKind::kNumber) {
+                        std::string num_str = key_exp->ExpValue();
+                        if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
+                            f_info.key = num_str;
+                            f_info.key_kind = TableKeyKind::kInt;
+                            f_info.c_field_name = "_int_" + f_info.key;
+                            f_info.int_value = std::stoll(num_str);
+                            key_desc = "I_" + f_info.key;
+                            // 显式整数键占用隐式索引位置，更新 array_idx
+                            array_idx = std::max(array_idx, static_cast<int>(f_info.int_value + 1));
+                        } else {
+                            f_info.key = num_str;
+                            f_info.key_kind = TableKeyKind::kFloat;
+                            std::string sanitized = num_str;
+                            std::replace(sanitized.begin(), sanitized.end(), '.', '_');
+                            std::replace(sanitized.begin(), sanitized.end(), '-', '_');
+                            std::replace(sanitized.begin(), sanitized.end(), '+', '_');
+                            f_info.c_field_name = "_float_" + sanitized;
+                            f_info.float_value = std::stod(num_str);
+                            key_desc = "F_" + f_info.key;
+                        }
+                    } else if (key_exp->GetExpKind() == ExpKind::kTrue) {
+                        f_info.key = "true";
+                        f_info.key_kind = TableKeyKind::kBool;
+                        f_info.c_field_name = "_bool_true";
+                        f_info.bool_value = true;
+                        key_desc = "B_true";
+                    } else if (key_exp->GetExpKind() == ExpKind::kFalse) {
+                        f_info.key = "false";
+                        f_info.key_kind = TableKeyKind::kBool;
+                        f_info.c_field_name = "_bool_false";
+                        f_info.bool_value = false;
+                        key_desc = "B_false";
+                    } else {
+                        continue;
+                    }
+                } else {
+                    continue;
+                }
+            }
+        }
+
+        // Determine value type from AST node directly (type inference not yet run)
+        auto value_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Value());
+        if (value_exp) {
+            auto kind = value_exp->GetExpKind();
+            if (kind == ExpKind::kNumber) {
+                std::string num_str = value_exp->ExpValue();
+                if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
+                    f_info.type = T_INT;
+                } else {
+                    f_info.type = T_FLOAT;
+                }
+            } else if (kind == ExpKind::kTrue || kind == ExpKind::kFalse) {
+                f_info.type = T_DYNAMIC;  // bool stored as CVar
+            } else if (kind == ExpKind::kString) {
+                f_info.type = T_DYNAMIC;  // string stored as CVar
+            } else {
+                f_info.type = LookupNodeType(fp->Value().get());
+            }
+        } else {
+            f_info.type = LookupNodeType(fp->Value().get());
+        }
+
+        if (unique_fields.contains(key_desc)) {
+            unique_fields[key_desc].info.type = f_info.type;
+        } else {
+            unique_fields[key_desc] = {f_info, order.size()};
+            order.push_back(key_desc);
+        }
+    }
+
+    for (const auto &k : order) {
+        fields.push_back(unique_fields[k].info);
     }
     return fields;
 }
@@ -588,10 +730,42 @@ std::string CGen::GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const {
     return "";
 }
 
-bool CGen::IsSpecField(const std::string &spec_type, const std::string &key) const {
+bool CGen::IsSpecField(const std::string &spec_type, const std::string &key, TableKeyKind kind) const {
     auto it = spec_field_names_.find(spec_type);
     if (it == spec_field_names_.end()) return false;
-    return it->second.contains(key);
+    std::string key_desc = GetKeyDescriptor(key, kind);
+    return it->second.contains(key_desc);
+}
+
+bool CGen::IsSpecField(const std::string &spec_type, const std::string &key) const {
+    return IsSpecField(spec_type, key, TableKeyKind::kString);
+}
+
+std::string CGen::GetSpecFieldCName(const std::string &spec_type, const std::string &key, TableKeyKind kind) const {
+    auto it = spec_field_c_names_.find(spec_type);
+    if (it == spec_field_c_names_.end()) return "";
+    std::string key_desc = GetKeyDescriptor(key, kind);
+    auto fit = it->second.find(key_desc);
+    if (fit == it->second.end()) return "";
+    return fit->second;
+}
+
+int CGen::GetSpecFieldIndex(const std::string &spec_type, const std::string &key, TableKeyKind kind) const {
+    auto it = spec_field_indices_.find(spec_type);
+    if (it == spec_field_indices_.end()) return -1;
+    std::string key_desc = GetKeyDescriptor(key, kind);
+    auto fit = it->second.find(key_desc);
+    if (fit == it->second.end()) return -1;
+    return fit->second;
+}
+
+InferredType CGen::GetSpecFieldType(const std::string &spec_type, const std::string &key, TableKeyKind kind) const {
+    auto it = spec_field_types_.find(spec_type);
+    if (it == spec_field_types_.end()) return T_UNKNOWN;
+    std::string key_desc = GetKeyDescriptor(key, kind);
+    auto fit = it->second.find(key_desc);
+    if (fit == it->second.end()) return T_UNKNOWN;
+    return fit->second;
 }
 
 void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params, const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out) {
@@ -1718,7 +1892,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
     func_temp_decls_ << "    "
                      << "CVar " << var_name << ";\n";
 
-    // table 特化：所有字段均为 kObject
+    // table 特化：所有字段键均为静态已知
     if (CanSpecializeTable(tc)) {
         const auto fields = GetTableFields(tc);
         if (!fields.empty()) {
@@ -1734,30 +1908,90 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 // typedef
                 Out() << "typedef struct " << spec_type << " {\n";
                 for (const auto &f: fields) {
-                    if (f.type == T_INT) {
-                        Out() << "    int64_t " << f.key << ";\n";
-                    } else if (f.type == T_FLOAT) {
-                        Out() << "    double " << f.key << ";\n";
-                    } else {
-                        Out() << "    CVar " << f.key << ";\n";
-                    }
+                    Out() << "    CVar " << f.c_field_name << ";\n";
                 }
                 Out() << "} " << spec_type << ";\n\n";
+
+                bool has_string_keys = false;
+                bool has_int_keys = false;
+                bool has_float_keys = false;
+                bool has_bool_keys = false;
+                for (const auto &f : fields) {
+                    if (f.key_kind == TableKeyKind::kString) has_string_keys = true;
+                    else if (f.key_kind == TableKeyKind::kInt) has_int_keys = true;
+                    else if (f.key_kind == TableKeyKind::kFloat) has_float_keys = true;
+                    else if (f.key_kind == TableKeyKind::kBool) has_bool_keys = true;
+                }
 
                 // get 函数：接受 CVar k + bool *finish，命中设 *finish=true
                 Out() << "static CVar " << get_fn << "(VarTable *tbl, CVar k, bool *__finish) {\n";
                 Out() << "    " << spec_type << " *s = (" << spec_type << " *)tbl->spec;\n";
-                Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
-                Out() << "        int64_t __sid = k.data_.i;\n";
-                for (const auto &f: fields) {
-                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { *__finish = true; return s->" << f.key << "; }\n";
+                
+                if (has_string_keys) {
+                    Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
+                    Out() << "        int64_t __sid = k.data_.i;\n";
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kString) {
+                            Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                        }
+                    }
+                    Out() << "    } else if (k.type_ == VAR_STRING) {\n";
+                    Out() << "        VarString *__vs = k.data_.s;\n";
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kString) {
+                            Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                        }
+                    }
+                    Out() << "    }\n";
                 }
-                Out() << "    } else if (k.type_ == VAR_STRING) {\n";
-                Out() << "        VarString *__vs = k.data_.s;\n";
-                for (const auto &f: fields) {
-                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { *__finish = true; return s->" << f.key << "; }\n";
+
+                if (has_int_keys) {
+                    Out() << "    if (k.type_ == VAR_INT) {\n";
+                    Out() << "        int64_t __ival = k.data_.i;\n";
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kInt) {
+                            Out() << "        if (__ival == " << f.int_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                        }
+                    }
+                    Out() << "    } else if (k.type_ == VAR_FLOAT) {\n";
+                    Out() << "        double __fval = k.data_.f;\n";
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kInt) {
+                            Out() << "        if (__fval == (double)" << f.int_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                        }
+                    }
+                    Out() << "    }\n";
                 }
-                Out() << "    }\n";
+
+                if (has_float_keys) {
+                    Out() << "    if (k.type_ == VAR_FLOAT) {\n";
+                    Out() << "        double __fval = k.data_.f;\n";
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kFloat) {
+                            Out() << "        if (__fval == " << f.float_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                        }
+                    }
+                    Out() << "    } else if (k.type_ == VAR_INT) {\n";
+                    Out() << "        int64_t __ival = k.data_.i;\n";
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kFloat) {
+                            Out() << "        if ((double)__ival == " << f.float_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                        }
+                    }
+                    Out() << "    }\n";
+                }
+
+                if (has_bool_keys) {
+                    Out() << "    if (k.type_ == VAR_BOOL) {\n";
+                    Out() << "        bool __bval = k.data_.b;\n";
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kBool) {
+                            Out() << "        if (__bval == " << (f.bool_value ? "true" : "false") << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                        }
+                    }
+                    Out() << "    }\n";
+                }
+
                 Out() << "    *__finish = false;\n";
                 Out() << "    return (CVar){VAR_NIL};\n";
                 Out() << "}\n\n";
@@ -1765,22 +1999,129 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 // set 函数：同理
                 Out() << "static void " << set_fn << "(VarTable *tbl, CVar k, CVar v, bool *__finish) {\n";
                 Out() << "    " << spec_type << " *s = (" << spec_type << " *)tbl->spec;\n";
-                Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
-                Out() << "        int64_t __sid = k.data_.i;\n";
-                int f_idx = 0;
-                for (const auto &f: fields) {
-                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.key << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
-                    f_idx++;
+                
+                if (has_string_keys) {
+                    Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
+                    Out() << "        int64_t __sid = k.data_.i;\n";
+                    int f_idx = 0;
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kString) {
+                            if (f.type == T_INT) {
+                                Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            } else if (f.type == T_FLOAT) {
+                                Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            } else {
+                                Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            }
+                        }
+                        f_idx++;
+                    }
+                    Out() << "    } else if (k.type_ == VAR_STRING) {\n";
+                    Out() << "        VarString *__vs = k.data_.s;\n";
+                    f_idx = 0;
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kString) {
+                            const auto id = s_->GetConstString().Alloc(f.key);
+                            if (f.type == T_INT) {
+                                Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = (CVar){.type_ = VAR_STRINGID, .data_.i = " << id << "}; *__finish = true; return; }\n";
+                            } else if (f.type == T_FLOAT) {
+                                Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = (CVar){.type_ = VAR_STRINGID, .data_.i = " << id << "}; *__finish = true; return; }\n";
+                            } else {
+                                Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = (CVar){.type_ = VAR_STRINGID, .data_.i = " << id << "}; *__finish = true; return; }\n";
+                            }
+                        }
+                        f_idx++;
+                    }
+                    Out() << "    }\n";
                 }
-                Out() << "    } else if (k.type_ == VAR_STRING) {\n";
-                Out() << "        VarString *__vs = k.data_.s;\n";
-                f_idx = 0;
-                for (const auto &f: fields) {
-                    const auto id = s_->GetConstString().Alloc(f.key);
-                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.key << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = (CVar){.type_ = VAR_STRINGID, .data_.i = " << id << "}; *__finish = true; return; }\n";
-                    f_idx++;
+
+                if (has_int_keys) {
+                    Out() << "    if (k.type_ == VAR_INT) {\n";
+                    Out() << "        int64_t __ival = k.data_.i;\n";
+                    int f_idx = 0;
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kInt) {
+                            if (f.type == T_INT) {
+                                Out() << "        if (__ival == " << f.int_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            } else if (f.type == T_FLOAT) {
+                                Out() << "        if (__ival == " << f.int_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            } else {
+                                Out() << "        if (__ival == " << f.int_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            }
+                        }
+                        f_idx++;
+                    }
+                    Out() << "    } else if (k.type_ == VAR_FLOAT) {\n";
+                    Out() << "        double __fval = k.data_.f;\n";
+                    f_idx = 0;
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kInt) {
+                            if (f.type == T_INT) {
+                                Out() << "        if (__fval == (double)" << f.int_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            } else if (f.type == T_FLOAT) {
+                                Out() << "        if (__fval == (double)" << f.int_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            } else {
+                                Out() << "        if (__fval == (double)" << f.int_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            }
+                        }
+                        f_idx++;
+                    }
+                    Out() << "    }\n";
                 }
-                Out() << "    }\n";
+
+                if (has_float_keys) {
+                    Out() << "    if (k.type_ == VAR_FLOAT) {\n";
+                    Out() << "        double __fval = k.data_.f;\n";
+                    int f_idx = 0;
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kFloat) {
+                            if (f.type == T_INT) {
+                                Out() << "        if (__fval == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            } else if (f.type == T_FLOAT) {
+                                Out() << "        if (__fval == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            } else {
+                                Out() << "        if (__fval == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            }
+                        }
+                        f_idx++;
+                    }
+                    Out() << "    } else if (k.type_ == VAR_INT) {\n";
+                    Out() << "        int64_t __ival = k.data_.i;\n";
+                    f_idx = 0;
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kFloat) {
+                            if (f.type == T_INT) {
+                                Out() << "        if ((double)__ival == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            } else if (f.type == T_FLOAT) {
+                                Out() << "        if ((double)__ival == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            } else {
+                                Out() << "        if ((double)__ival == " << f.float_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            }
+                        }
+                        f_idx++;
+                    }
+                    Out() << "    }\n";
+                }
+
+                if (has_bool_keys) {
+                    Out() << "    if (k.type_ == VAR_BOOL) {\n";
+                    Out() << "        bool __bval = k.data_.b;\n";
+                    int f_idx = 0;
+                    for (const auto &f: fields) {
+                        if (f.key_kind == TableKeyKind::kBool) {
+                            if (f.type == T_INT) {
+                                Out() << "        if (__bval == " << (f.bool_value ? "true" : "false") << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            } else if (f.type == T_FLOAT) {
+                                Out() << "        if (__bval == " << (f.bool_value ? "true" : "false") << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            } else {
+                                Out() << "        if (__bval == " << (f.bool_value ? "true" : "false") << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                            }
+                        }
+                        f_idx++;
+                    }
+                    Out() << "    }\n";
+                }
+
                 Out() << "    *__finish = false;\n";
                 Out() << "}\n\n";
             }
@@ -1788,15 +2129,92 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             // 使用宏分配 table + spec + spec_keys/spec_vals
             Out() << GenTab() << "SET_TABLE_SPEC(" << var_name << ", " << spec_type << ", " << get_fn << ", " << set_fn << ", " << fields.size() << ");\n";
 
-            // 填充 spec_keys/spec_vals (现在由 FlSetTableStrId 内部通过 set_fn 自动完成)
+            // 填充 spec_keys/spec_vals
             for (const auto &f: fields) {
                 const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(tc_ptr->Fieldlist());
+                int cur_array_idx = 1;
                 for (const auto &field: fieldlist->Fields()) {
                     const auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field);
-                     if (fp->GetFieldKind() == FieldKind::kObject && fp->Name() == f.key) {
+                    if (!fp) continue;
+
+                    bool match = false;
+                    if (f.key_kind == TableKeyKind::kString) {
+                        if (fp->GetFieldKind() == FieldKind::kObject && fp->Name() == f.key) {
+                            match = true;
+                        } else if (fp->GetFieldKind() == FieldKind::kArray && fp->Key() != nullptr) {
+                            const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
+                            if (key_exp && key_exp->GetExpKind() == ExpKind::kString && key_exp->ExpValue() == f.key) {
+                                match = true;
+                            }
+                        }
+                    } else if (f.key_kind == TableKeyKind::kInt) {
+                        if (fp->GetFieldKind() == FieldKind::kArray) {
+                            if (fp->Key() == nullptr) {
+                                if (cur_array_idx == f.int_value) {
+                                    match = true;
+                                }
+                            } else {
+                                const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
+                                if (key_exp && key_exp->GetExpKind() == ExpKind::kNumber) {
+                                    std::string num_str = key_exp->ExpValue();
+                                    if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
+                                        if (std::stoll(num_str) == f.int_value) {
+                                            match = true;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    } else if (f.key_kind == TableKeyKind::kBool) {
+                        if (fp->GetFieldKind() == FieldKind::kArray && fp->Key() != nullptr) {
+                            const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
+                            if (key_exp) {
+                                if (key_exp->GetExpKind() == ExpKind::kTrue && f.bool_value) {
+                                    match = true;
+                                } else if (key_exp->GetExpKind() == ExpKind::kFalse && !f.bool_value) {
+                                    match = true;
+                                }
+                            }
+                        }
+                    } else if (f.key_kind == TableKeyKind::kFloat) {
+                        if (fp->GetFieldKind() == FieldKind::kArray && fp->Key() != nullptr) {
+                            const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
+                            if (key_exp && key_exp->GetExpKind() == ExpKind::kNumber) {
+                                std::string num_str = key_exp->ExpValue();
+                                if (num_str.find('.') != std::string::npos || num_str.find('e') != std::string::npos || num_str.find('E') != std::string::npos) {
+                                    if (std::stod(num_str) == f.float_value) {
+                                        match = true;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    if (fp->GetFieldKind() == FieldKind::kArray && fp->Key() == nullptr) {
+                        cur_array_idx++;
+                    } else if (fp->GetFieldKind() == FieldKind::kArray && fp->Key() != nullptr) {
+                        // 显式整数键也占用隐式索引位置
+                        const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
+                        if (key_exp && key_exp->GetExpKind() == ExpKind::kNumber) {
+                            std::string num_str = key_exp->ExpValue();
+                            if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
+                                cur_array_idx = std::max(cur_array_idx, static_cast<int>(std::stoll(num_str) + 1));
+                            }
+                        }
+                    }
+
+                    if (match) {
                         const auto value_str = CompileExp(fp->Value());
-                        const auto id = s_->GetConstString().Alloc(f.key);
-                        Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
+                        if (f.key_kind == TableKeyKind::kString) {
+                            const auto id = s_->GetConstString().Alloc(f.key);
+                            Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
+                        } else if (f.key_kind == TableKeyKind::kInt) {
+                            Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, f.int_value, value_str);
+                        } else if (f.key_kind == TableKeyKind::kBool) {
+                            Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_BOOL, .data_.b = {}}}, {});\n", var_name, f.bool_value ? "true" : "false", value_str);
+                        } else if (f.key_kind == TableKeyKind::kFloat) {
+                            Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}, {});\n", var_name, f.float_value, value_str);
+                        }
                         break;
                     }
                 }
@@ -1808,8 +2226,11 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             }
             int f_idx = 0;
             for (const auto &f: fields) {
-                spec_field_names_[spec_type].insert(f.key);
-                spec_field_indices_[spec_type][f.key] = f_idx++;
+                std::string key_desc = GetKeyDescriptor(f.key, f.key_kind);
+                spec_field_names_[spec_type].insert(key_desc);
+                spec_field_indices_[spec_type][key_desc] = f_idx++;
+                spec_field_c_names_[spec_type][key_desc] = f.c_field_name;
+                spec_field_types_[spec_type][key_desc] = f.type;
             }
             return var_name;
         }
@@ -2240,16 +2661,59 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto pe = v_ptr->GetPrefixexp();
         const auto exp = v_ptr->GetExp();
         auto pe_ret = CompilePrefixexp(pe);
-        // String literal key fast path: t["key"] → FlGetTableStrId.
-        if (const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp); exp_node && exp_node->GetExpKind() == ExpKind::kString) {
-            const auto key_name = exp_node->ExpValue();
-            const auto spec_type = GetSpecTypeForVar(pe);
-            if (!spec_type.empty() && IsSpecField(spec_type, key_name)) {
-                return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, key_name);
+        const auto spec_type = GetSpecTypeForVar(pe);
+
+        if (const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp)) {
+            // String literal key fast path: t["key"] → FlGetTableStrId or FL_SPEC.
+            if (exp_node->GetExpKind() == ExpKind::kString) {
+                const auto key_name = exp_node->ExpValue();
+                if (!spec_type.empty() && IsSpecField(spec_type, key_name, TableKeyKind::kString)) {
+                    const auto c_name = GetSpecFieldCName(spec_type, key_name, TableKeyKind::kString);
+                    const auto ftype = GetSpecFieldType(spec_type, key_name, TableKeyKind::kString);
+                    if (ftype == T_INT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+                    if (ftype == T_FLOAT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+                    return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+                }
+                const auto id = s_->GetConstString().Alloc(key_name);
+                return std::format("FlGetTableStrId({}, {})", pe_ret, id);
             }
-            const auto id = s_->GetConstString().Alloc(key_name);
-            return std::format("FlGetTableStrId({}, {})", pe_ret, id);
+            // Integer literal key fast path: t[1] → FlGetTableInt or FL_SPEC.
+            if (exp_node->GetExpKind() == ExpKind::kNumber) {
+                std::string num_str = exp_node->ExpValue();
+                if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
+                    if (!spec_type.empty() && IsSpecField(spec_type, num_str, TableKeyKind::kInt)) {
+                        const auto c_name = GetSpecFieldCName(spec_type, num_str, TableKeyKind::kInt);
+                        const auto ftype = GetSpecFieldType(spec_type, num_str, TableKeyKind::kInt);
+                        if (ftype == T_INT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+                        if (ftype == T_FLOAT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+                        return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+                    }
+                    return std::format("FlGetTableInt({}, {})", pe_ret, num_str);
+                } else {
+                    if (!spec_type.empty() && IsSpecField(spec_type, num_str, TableKeyKind::kFloat)) {
+                        const auto c_name = GetSpecFieldCName(spec_type, num_str, TableKeyKind::kFloat);
+                        const auto ftype = GetSpecFieldType(spec_type, num_str, TableKeyKind::kFloat);
+                        if (ftype == T_INT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+                        if (ftype == T_FLOAT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+                        return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+                    }
+                    return std::format("FlGetTable({}, (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}})", pe_ret, num_str);
+                }
+            }
+            // Boolean literal key fast path: t[true] → FlGetTable or FL_SPEC.
+            if (exp_node->GetExpKind() == ExpKind::kTrue || exp_node->GetExpKind() == ExpKind::kFalse) {
+                std::string bool_str = (exp_node->GetExpKind() == ExpKind::kTrue) ? "true" : "false";
+                if (!spec_type.empty() && IsSpecField(spec_type, bool_str, TableKeyKind::kBool)) {
+                    const auto c_name = GetSpecFieldCName(spec_type, bool_str, TableKeyKind::kBool);
+                    const auto ftype = GetSpecFieldType(spec_type, bool_str, TableKeyKind::kBool);
+                    if (ftype == T_INT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+                    if (ftype == T_FLOAT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+                    return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+                }
+                return std::format("FlGetTable({}, {})", pe_ret, bool_str == "true" ? "kTrue" : "kFalse");
+            }
         }
+
         // Integer key fast path: use FlGetTableInt when key is known T_INT.
         if (const auto key_type = InferArgTypeForSpec(exp); key_type == T_INT) {
             if (const auto native_key = TryCompileNativeExpr(exp); !native_key.empty()) {
@@ -2265,8 +2729,12 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         auto pe_ret = CompilePrefixexp(pe);
 
         const auto spec_type = GetSpecTypeForVar(pe);
-        if (!spec_type.empty() && IsSpecField(spec_type, name)) {
-            return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, name);
+        if (!spec_type.empty() && IsSpecField(spec_type, name, TableKeyKind::kString)) {
+            const auto c_name = GetSpecFieldCName(spec_type, name, TableKeyKind::kString);
+            const auto ftype = GetSpecFieldType(spec_type, name, TableKeyKind::kString);
+            if (ftype == T_INT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+            if (ftype == T_FLOAT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
+            return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
         }
 
         // String constant key fast path: use FlGetTableStrId directly.
@@ -2580,20 +3048,112 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             func_temp_decls_ << "    CVar " << tmp << ";\n";
 
             // table 特化快速路径：通过 spec 指针直接设置成员
-            if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[1]); key_exp && key_exp->GetExpKind() == ExpKind::kString) {
+            if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[1])) {
                 const auto tbl_str = CompileExp(raw_args[0]);
                 const auto val_str = CompileExp(raw_args[2]);
-                const auto key_name = key_exp->ExpValue();
                 const auto spec_type = GetSpecTypeForVar(raw_args[0]);
-                if (!spec_type.empty() && IsSpecField(spec_type, key_name)) {
-                    int index = spec_field_indices_[spec_type][key_name];
-                    Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, key_name, index, val_str);
-                } else {
-                    const auto id = s_->GetConstString().Alloc(key_name);
-                    Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
+
+                bool is_spec = false;
+                std::string c_field_name;
+                int index = -1;
+
+                if (key_exp->GetExpKind() == ExpKind::kString) {
+                    const auto key_name = key_exp->ExpValue();
+                    if (!spec_type.empty() && IsSpecField(spec_type, key_name, TableKeyKind::kString)) {
+                        is_spec = true;
+                        c_field_name = GetSpecFieldCName(spec_type, key_name, TableKeyKind::kString);
+                        index = GetSpecFieldIndex(spec_type, key_name, TableKeyKind::kString);
+                    }
+                    if (is_spec) {
+                        const auto ftype = GetSpecFieldType(spec_type, key_name, TableKeyKind::kString);
+                        const auto tmp_val = std::format("flua_spec_val_{}", tmp_var_counter_++);
+                        func_temp_decls_ << "    CVar " << tmp_val << ";\n";
+                        Out() << GenTab() << tmp_val << " = " << val_str << ";\n";
+                        if (ftype == T_INT) {
+                            Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
+                        } else if (ftype == T_FLOAT) {
+                            Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
+                        } else {
+                            Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
+                        }
+                    } else {
+                        const auto id = s_->GetConstString().Alloc(key_name);
+                        Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
+                    }
+                    Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
+                    return tmp;
+                } else if (key_exp->GetExpKind() == ExpKind::kNumber) {
+                    std::string num_str = key_exp->ExpValue();
+                    if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
+                        if (!spec_type.empty() && IsSpecField(spec_type, num_str, TableKeyKind::kInt)) {
+                            is_spec = true;
+                            c_field_name = GetSpecFieldCName(spec_type, num_str, TableKeyKind::kInt);
+                            index = GetSpecFieldIndex(spec_type, num_str, TableKeyKind::kInt);
+                        }
+                        if (is_spec) {
+                            const auto ftype = GetSpecFieldType(spec_type, num_str, TableKeyKind::kInt);
+                            const auto tmp_val = std::format("flua_spec_val_{}", tmp_var_counter_++);
+                            func_temp_decls_ << "    CVar " << tmp_val << ";\n";
+                            Out() << GenTab() << tmp_val << " = " << val_str << ";\n";
+                            if (ftype == T_INT) {
+                                Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
+                            } else if (ftype == T_FLOAT) {
+                                Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
+                            } else {
+                                Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
+                            }
+                        } else {
+                            Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", tbl_str, num_str, val_str);
+                        }
+                    } else {
+                        if (!spec_type.empty() && IsSpecField(spec_type, num_str, TableKeyKind::kFloat)) {
+                            is_spec = true;
+                            c_field_name = GetSpecFieldCName(spec_type, num_str, TableKeyKind::kFloat);
+                            index = GetSpecFieldIndex(spec_type, num_str, TableKeyKind::kFloat);
+                        }
+                        if (is_spec) {
+                            const auto ftype = GetSpecFieldType(spec_type, num_str, TableKeyKind::kFloat);
+                            const auto tmp_val = std::format("flua_spec_val_{}", tmp_var_counter_++);
+                            func_temp_decls_ << "    CVar " << tmp_val << ";\n";
+                            Out() << GenTab() << tmp_val << " = " << val_str << ";\n";
+                            if (ftype == T_INT) {
+                                Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
+                            } else if (ftype == T_FLOAT) {
+                                Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
+                            } else {
+                                Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
+                            }
+                        } else {
+                            Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}, {});\n", tbl_str, num_str, val_str);
+                        }
+                    }
+                    Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
+                    return tmp;
+                } else if (key_exp->GetExpKind() == ExpKind::kTrue || key_exp->GetExpKind() == ExpKind::kFalse) {
+                    std::string bool_str = (key_exp->GetExpKind() == ExpKind::kTrue) ? "true" : "false";
+                    if (!spec_type.empty() && IsSpecField(spec_type, bool_str, TableKeyKind::kBool)) {
+                        is_spec = true;
+                        c_field_name = GetSpecFieldCName(spec_type, bool_str, TableKeyKind::kBool);
+                        index = GetSpecFieldIndex(spec_type, bool_str, TableKeyKind::kBool);
+                    }
+                    if (is_spec) {
+                        const auto ftype = GetSpecFieldType(spec_type, bool_str, TableKeyKind::kBool);
+                        const auto tmp_val = std::format("flua_spec_val_{}", tmp_var_counter_++);
+                        func_temp_decls_ << "    CVar " << tmp_val << ";\n";
+                        Out() << GenTab() << tmp_val << " = " << val_str << ";\n";
+                        if (ftype == T_INT) {
+                            Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
+                        } else if (ftype == T_FLOAT) {
+                            Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
+                        } else {
+                            Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
+                        }
+                    } else {
+                        Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_BOOL, .data_.b = {}}}, {});\n", tbl_str, bool_str == "true" ? "true" : "false", val_str);
+                    }
+                    Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
+                    return tmp;
                 }
-                Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
-                return tmp;
             }
             // Check if key is a known integer type → use FlSetTableInt.
             if (const auto key_type = InferArgTypeForSpec(raw_args[1]); key_type == T_INT) {

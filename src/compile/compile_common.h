@@ -192,10 +192,22 @@ struct AnalysisResult {
 };
 
 // ---- 阶段四：类型推断结果 ---------------------------------------------------
+enum class TableKeyKind {
+    kString,
+    kInt,
+    kBool,
+    kFloat
+};
+
 // table 特化信息：描述一个 table 的字段结构
 struct TableFieldInfo {
-    std::string key;      // 字段名（静态字符串 key）
-    InferredType type;    // 值的推断类型
+    std::string key;            // 字段名（静态字符串 key）
+    InferredType type;          // 值的推断类型
+    TableKeyKind key_kind = TableKeyKind::kString;
+    std::string c_field_name;
+    int64_t int_value = 0;
+    bool bool_value = false;
+    double float_value = 0.0;
 };
 
 // table 特化信息：table constructor 节点对应的特化描述

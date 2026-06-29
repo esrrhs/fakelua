@@ -74,7 +74,7 @@ typedef struct State State;
 
 #define STR_SIZE(s) ((s)->size_)
 #define STR_DATA(s) ((s)->data_)
-#define TABLE_SIZE(t) ((t)->count_)
+#define TABLE_SIZE(t) ((t)->count_ + (t)->spec_count)
 
 enum {
     VAR_NIL = 0,
@@ -265,9 +265,10 @@ static inline uint32_t FlHashString(const char *str, int len) {
 } while(0)
 
 #define FL_SPEC(SpecType, v, field) (((SpecType *)(v).data_.t->spec)->field)
-#define FL_SET_SPEC(SpecType, v, field, index, ...) do { \
-    FL_SPEC(SpecType, (v), field) = (__VA_ARGS__); \
-    (v).data_.t->spec_vals[(index)] = (__VA_ARGS__); \
+#define FL_SET_SPEC(SpecType, v, field, index, val) do { \
+    CVar __flsv = (val); \
+    FL_SPEC(SpecType, (v), field) = __flsv; \
+    (v).data_.t->spec_vals[(index)] = __flsv; \
 } while(0)
 
 #define IsTrue(v, result) do { \
@@ -507,6 +508,12 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
 static inline CVar FlGetTableInt(CVar t, int64_t k) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
+    if (tbl->spec_get) {
+        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
+        bool __finish = false;
+        CVar __r = tbl->spec_get(tbl, key_cvar, &__finish);
+        if (__finish) return __r;
+    }
     if (UNLIKELY(tbl->count_ == 0)) { return (CVar){VAR_NIL}; }
     uint32_t h = (uint32_t)(k ^ (k >> 32));
     if (LIKELY(tbl->bucket_count_ == 0)) {
@@ -535,6 +542,12 @@ static inline CVar FlGetTableInt(CVar t, int64_t k) {
 static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
+    if (tbl->spec_set) {
+        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
+        bool __finish = false;
+        tbl->spec_set(tbl, key_cvar, v, &__finish);
+        if (__finish) return;
+    }
     uint32_t h = (uint32_t)(k ^ (k >> 32));
     CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
     if (UNLIKELY(v.type_ == VAR_NIL)) {
