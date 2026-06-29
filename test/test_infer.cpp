@@ -4093,6 +4093,8 @@ TEST(infer, test_spec_int_key) {
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
+    ASSERT_EQ(code.find("FlGetTableInt("), std::string::npos);
+    ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_int_key.lua", {.debug_mode = debug_mode});
@@ -4107,6 +4109,7 @@ TEST(infer, test_spec_bool_key) {
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
+    ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_bool_key.lua", {.debug_mode = debug_mode});
@@ -4121,6 +4124,7 @@ TEST(infer, test_spec_float_key) {
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
+    ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_float_key.lua", {.debug_mode = debug_mode});
@@ -4135,6 +4139,9 @@ TEST(infer, test_spec_mixed_keys) {
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
+    ASSERT_EQ(code.find("FlGetTableStrId("), std::string::npos);
+    ASSERT_EQ(code.find("FlGetTableInt("), std::string::npos);
+    ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_mixed_keys.lua", {.debug_mode = debug_mode});
@@ -4145,6 +4152,12 @@ TEST(infer, test_spec_mixed_keys) {
 }
 
 TEST(infer, test_spec_non_string_dynamic) {
+    const auto code = InferGetCCode("./infer/test_spec_non_string_dynamic.lua");
+    // 动态 Key 读取无法特化，因此必须有 FlGetTable 和 FlSetTable
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FlGetTable("), std::string::npos);
+    ASSERT_NE(code.find("FlSetTable("), std::string::npos);
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_non_string_dynamic.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
