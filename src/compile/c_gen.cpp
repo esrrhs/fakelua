@@ -306,7 +306,26 @@ std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parl
 void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
     SectionGuard sg(*this, Section::Impls);
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
-    for (const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk); auto &stmt: block->Stmts()) {
+    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+
+    // 第一步：优先编译 __fakelua_init
+    SyntaxTreeInterfacePtr init_stmt = nullptr;
+    for (auto &stmt: block->Stmts()) {
+        std::string name;
+        if (stmt->Type() == SyntaxTreeType::Function) {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
+            name = CompileFuncName(func->Funcname());
+        } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
+            name = func->Name();
+        }
+        if (name == kInitFunctionName) {
+            init_stmt = stmt;
+            break;
+        }
+    }
+
+    auto compile_func = [this, &gr](const SyntaxTreeInterfacePtr &stmt) {
         std::string name;
         SyntaxTreeInterfacePtr funcbody;
         if (stmt->Type() == SyntaxTreeType::Function) {
@@ -320,7 +339,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
         }
 
         if (!funcbody) {
-            continue;
+            return;
         }
 
         DEBUG_ASSERT(funcbody->Type() == SyntaxTreeType::FuncBody);
@@ -385,6 +404,16 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
             }
             Out() << "}\n";
         }
+    };
+
+    if (init_stmt) {
+        compile_func(init_stmt);
+    }
+
+    // 第二步：编译其它所有函数
+    for (auto &stmt: block->Stmts()) {
+        if (stmt == init_stmt) continue;
+        compile_func(stmt);
     }
 }
 
@@ -554,6 +583,8 @@ std::string CGen::GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const {
     if (name.empty()) return "";
     auto it = table_spec_types_.find(name);
     if (it != table_spec_types_.end()) return it->second;
+    auto git = global_table_spec_types_.find(name);
+    if (git != global_table_spec_types_.end()) return git->second;
     return "";
 }
 
@@ -1003,6 +1034,9 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 DeclareNativeVar(name, T_DYNAMIC);
                 if (auto sit = table_spec_types_.find(init); sit != table_spec_types_.end()) {
                     table_spec_types_[name] = sit->second;
+                    if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
+                        global_table_spec_types_[name] = sit->second;
+                    }
                 }
             }
         }
@@ -1067,6 +1101,9 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 DeclareNativeVar(name, T_DYNAMIC);
                 if (auto sit = table_spec_types_.find(init); sit != table_spec_types_.end()) {
                     table_spec_types_[name] = sit->second;
+                    if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
+                        global_table_spec_types_[name] = sit->second;
+                    }
                 }
             } else {
                 Out() << GenTab() << "CVar " << name << " = kNil;\n";
@@ -1161,6 +1198,18 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     } else {
         const std::string rhs = CompileExp(exps[0]);
         Out() << GenTab() << name << " = " << rhs << ";\n";
+        std::string spec_type = "";
+        if (auto it = table_spec_types_.find(rhs); it != table_spec_types_.end()) {
+            spec_type = it->second;
+        } else if (auto git = global_table_spec_types_.find(rhs); git != global_table_spec_types_.end()) {
+            spec_type = git->second;
+        }
+        if (!spec_type.empty()) {
+            table_spec_types_[name] = spec_type;
+            if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
+                global_table_spec_types_[name] = spec_type;
+            }
+        }
     }
 }
 
@@ -1754,6 +1803,9 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             }
 
             table_spec_types_[var_name] = spec_type;
+            if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
+                global_table_spec_types_[var_name] = spec_type;
+            }
             int f_idx = 0;
             for (const auto &f: fields) {
                 spec_field_names_[spec_type].insert(f.key);

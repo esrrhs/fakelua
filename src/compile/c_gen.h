@@ -301,6 +301,8 @@ private:
 
     // table 特化：变量名/临时变量名 → spec 结构体类型名
     std::unordered_map<std::string, std::string> table_spec_types_;
+    // 全局/静态特化：模块静态 Table 变量名 → spec 结构体类型名
+    std::unordered_map<std::string, std::string> global_table_spec_types_;
     // spec 类型名 → 已知字段名集合（用于 FAKELUA_SET_TABLE / CompileVar 判断 key 是否在 spec 中）
     std::unordered_map<std::string, std::unordered_set<std::string>> spec_field_names_;
     // spec 类型名 → 字段名到索引的映射表（用于 FL_SET_SPEC 宏生成）

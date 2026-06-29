@@ -3976,3 +3976,104 @@ TEST(infer, test_spec_nested) {
         ASSERT_EQ(ret, 5);
     });
 }
+
+TEST(infer, test_table_spec_dynamic_key) {
+    const auto code = InferGetCCode("./infer/test_table_spec_dynamic_key.lua");
+    // 因为是 { x = 10, y = 20 }，它仍会被特化构造
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // 但动态 key "t[k]" 会退化，不能产生 FL_SPEC 或 FL_SET_SPEC
+    ASSERT_EQ(code.find("FL_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FlGetTable("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_dynamic_key.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_dynamic_key", ret);
+        ASSERT_EQ(ret, 10);
+    });
+}
+
+TEST(infer, test_table_spec_empty) {
+    const auto code = InferGetCCode("./infer/test_table_spec_empty.lua");
+    // 空 table 构造，不开启特化
+    ASSERT_EQ(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_EQ(code.find("FL_SPEC("), std::string::npos);
+    ASSERT_EQ(code.find("FL_SET_SPEC("), std::string::npos);
+    // 应退化到普通的 table 读写接口
+    ASSERT_NE(code.find("FlSetTableStrId("), std::string::npos);
+    ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_empty.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_empty", ret);
+        ASSERT_EQ(ret, 10);
+    });
+}
+
+TEST(infer, test_table_spec_mixed) {
+    const auto code = InferGetCCode("./infer/test_table_spec_mixed.lua");
+    // 含有数组索引字段，不开启特化
+    ASSERT_EQ(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_EQ(code.find("FL_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_mixed.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_mixed", ret);
+        ASSERT_EQ(ret, 200);
+    });
+}
+
+TEST(infer, test_table_spec_undefined_field) {
+    const auto code = InferGetCCode("./infer/test_table_spec_undefined_field.lua");
+    // table 本身只有 x = 10，能特化
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // 读取已定义属性 x 使用特化偏移
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+    // 写入/读取未定义的 y 字段时退化
+    ASSERT_NE(code.find("FlSetTableStrId("), std::string::npos);
+    ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
+    // 且绝对不会有针对 y 的特化读写
+    ASSERT_EQ(code.find("FL_SET_SPEC("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_undefined_field.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_undefined_field", ret);
+        ASSERT_EQ(ret, 30);
+    });
+}
+
+TEST(infer, test_table_spec_control_flow) {
+    const auto code = InferGetCCode("./infer/test_table_spec_control_flow.lua");
+    // 两个分支都会特化构造 table，因此有 SET_TABLE_SPEC
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // 但在分支汇合后，t.x 因静态类型退化而不能产生特化读取
+    ASSERT_EQ(code.find("FL_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_control_flow.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_control_flow", ret, 1);
+        ASSERT_EQ(ret, 10);
+        Call(s, type, "test_control_flow", ret, 0);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
+TEST(infer, test_table_spec_func_param_degrade) {
+    const auto code = InferGetCCode("./infer/test_table_spec_func_param_degrade.lua");
+    // get_x 里的 tbl.x 属性访问没有特化，因为 tbl 是形参 (T_DYNAMIC)
+    ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
+    ASSERT_EQ(code.find("FL_SPEC("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_func_param_degrade.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_func_param_degrade", ret);
+        ASSERT_EQ(ret, 42);
+    });
+}
