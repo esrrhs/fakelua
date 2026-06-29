@@ -3739,8 +3739,8 @@ TEST(infer, test_spec_concat_arg_dynamic) {
     ASSERT_NE(code.find("OpConcat("), std::string::npos);
 }
 
-TEST(infer, test_spec_direct_read) {
-    const auto code = InferGetCCode("./infer/test_spec_direct_read.lua");
+TEST(infer, test_spec_direct_access) {
+    const auto code = InferGetCCode("./infer/test_spec_direct_access.lua");
     // 确保直接利用指针解引用读取字段，不再包含 FlGetTableStrId
     ASSERT_EQ(code.find("FlGetTableStrId("), std::string::npos);
     // 确保使用的是精简的 FL_SPEC 宏形式
@@ -3749,7 +3749,7 @@ TEST(infer, test_spec_direct_read) {
     ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
     
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_spec_direct_read.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./infer/test_spec_direct_access.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test_direct", ret);
         ASSERT_EQ(ret, 120);
