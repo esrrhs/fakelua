@@ -4165,3 +4165,17 @@ TEST(infer, test_spec_non_string_dynamic) {
         ASSERT_EQ(ret, 150); // 100 + 20 + 30
     });
 }
+
+TEST(infer, test_spec_nil_traversal) {
+    const auto code = InferGetCCode("./infer/test_spec_nil_traversal.lua");
+    ASSERT_NE(code.find("GET_TABLE_ENTRY("), std::string::npos);
+    ASSERT_NE(code.find("v.type_ == VAR_NIL"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_nil_traversal.lua", {.debug_mode = debug_mode});
+        std::tuple<int64_t, int64_t> ret;
+        Call(s, type, "test_nil_traversal", ret);
+        ASSERT_EQ(std::get<0>(ret), 1);
+        ASSERT_EQ(std::get<1>(ret), 0);
+    });
+}
