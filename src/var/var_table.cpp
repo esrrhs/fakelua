@@ -80,6 +80,14 @@ void VarTable::Set(State *state, const Var &key, const Var &val, bool can_be_nil
         ThrowFakeluaException("VarTable Set failed, table index is nil");
     }
     const Var store_key = NormalizeTableKey(key);
+    if (spec_set) {
+        bool finish = false;
+        typedef void (*SpecSetFn)(VarTable *tbl, CVar k, CVar v, bool *finish);
+        reinterpret_cast<SpecSetFn>(spec_set)(this, store_key, val, &finish);
+        if (finish) {
+            return;
+        }
+    }
     const auto hash_val = static_cast<uint32_t>(store_key.Hash());
 
     if (UNLIKELY(val.Type() == VarType::Nil && !can_be_nil)) {

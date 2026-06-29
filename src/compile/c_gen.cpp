@@ -306,7 +306,26 @@ std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parl
 void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
     SectionGuard sg(*this, Section::Impls);
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
-    for (const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk); auto &stmt: block->Stmts()) {
+    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
+
+    // 第一步：优先编译 __fakelua_init
+    SyntaxTreeInterfacePtr init_stmt = nullptr;
+    for (auto &stmt: block->Stmts()) {
+        std::string name;
+        if (stmt->Type() == SyntaxTreeType::Function) {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
+            name = CompileFuncName(func->Funcname());
+        } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
+            name = func->Name();
+        }
+        if (name == kInitFunctionName) {
+            init_stmt = stmt;
+            break;
+        }
+    }
+
+    auto compile_func = [this, &gr](const SyntaxTreeInterfacePtr &stmt) {
         std::string name;
         SyntaxTreeInterfacePtr funcbody;
         if (stmt->Type() == SyntaxTreeType::Function) {
@@ -320,7 +339,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
         }
 
         if (!funcbody) {
-            continue;
+            return;
         }
 
         DEBUG_ASSERT(funcbody->Type() == SyntaxTreeType::FuncBody);
@@ -385,6 +404,16 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
             }
             Out() << "}\n";
         }
+    };
+
+    if (init_stmt) {
+        compile_func(init_stmt);
+    }
+
+    // 第二步：编译其它所有函数
+    for (auto &stmt: block->Stmts()) {
+        if (stmt == init_stmt) continue;
+        compile_func(stmt);
     }
 }
 
@@ -554,6 +583,8 @@ std::string CGen::GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const {
     if (name.empty()) return "";
     auto it = table_spec_types_.find(name);
     if (it != table_spec_types_.end()) return it->second;
+    auto git = global_table_spec_types_.find(name);
+    if (git != global_table_spec_types_.end()) return git->second;
     return "";
 }
 
@@ -1003,6 +1034,9 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 DeclareNativeVar(name, T_DYNAMIC);
                 if (auto sit = table_spec_types_.find(init); sit != table_spec_types_.end()) {
                     table_spec_types_[name] = sit->second;
+                    if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
+                        global_table_spec_types_[name] = sit->second;
+                    }
                 }
             }
         }
@@ -1067,6 +1101,9 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 DeclareNativeVar(name, T_DYNAMIC);
                 if (auto sit = table_spec_types_.find(init); sit != table_spec_types_.end()) {
                     table_spec_types_[name] = sit->second;
+                    if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
+                        global_table_spec_types_[name] = sit->second;
+                    }
                 }
             } else {
                 Out() << GenTab() << "CVar " << name << " = kNil;\n";
@@ -1161,6 +1198,18 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     } else {
         const std::string rhs = CompileExp(exps[0]);
         Out() << GenTab() << name << " = " << rhs << ";\n";
+        std::string spec_type = "";
+        if (auto it = table_spec_types_.find(rhs); it != table_spec_types_.end()) {
+            spec_type = it->second;
+        } else if (auto git = global_table_spec_types_.find(rhs); git != global_table_spec_types_.end()) {
+            spec_type = git->second;
+        }
+        if (!spec_type.empty()) {
+            table_spec_types_[name] = spec_type;
+            if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
+                global_table_spec_types_[name] = spec_type;
+            }
+        }
     }
 }
 
@@ -1718,13 +1767,18 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 Out() << "    " << spec_type << " *s = (" << spec_type << " *)tbl->spec;\n";
                 Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
                 Out() << "        int64_t __sid = k.data_.i;\n";
+                int f_idx = 0;
                 for (const auto &f: fields) {
-                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.key << " = v; *__finish = true; return; }\n";
+                    Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.key << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
+                    f_idx++;
                 }
                 Out() << "    } else if (k.type_ == VAR_STRING) {\n";
                 Out() << "        VarString *__vs = k.data_.s;\n";
+                f_idx = 0;
                 for (const auto &f: fields) {
-                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.key << " = v; *__finish = true; return; }\n";
+                    const auto id = s_->GetConstString().Alloc(f.key);
+                    Out() << "        if (__vs->size_ == " << f.key.size() << " && memcmp(__vs->data_, \"" << f.key << "\", " << f.key.size() << ") == 0) { s->" << f.key << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = (CVar){.type_ = VAR_STRINGID, .data_.i = " << id << "}; *__finish = true; return; }\n";
+                    f_idx++;
                 }
                 Out() << "    }\n";
                 Out() << "    *__finish = false;\n";
@@ -1734,8 +1788,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             // 使用宏分配 table + spec + spec_keys/spec_vals
             Out() << GenTab() << "SET_TABLE_SPEC(" << var_name << ", " << spec_type << ", " << get_fn << ", " << set_fn << ", " << fields.size() << ");\n";
 
-            // 填充 spec_keys/spec_vals
-            int field_idx = 0;
+            // 填充 spec_keys/spec_vals (现在由 FlSetTableStrId 内部通过 set_fn 自动完成)
             for (const auto &f: fields) {
                 const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(tc_ptr->Fieldlist());
                 for (const auto &field: fieldlist->Fields()) {
@@ -1744,17 +1797,19 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                         const auto value_str = CompileExp(fp->Value());
                         const auto id = s_->GetConstString().Alloc(f.key);
                         Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
-                        Out() << GenTab() << std::format("((CVar *){}.data_.t->spec_keys)[{}] = (CVar){{.type_ = VAR_STRINGID, .data_.i = {}}};\n", var_name, field_idx, id);
-                        Out() << GenTab() << std::format("((CVar *){}.data_.t->spec_vals)[{}] = {};\n", var_name, field_idx, value_str);
-                        field_idx++;
                         break;
                     }
                 }
             }
 
             table_spec_types_[var_name] = spec_type;
+            if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
+                global_table_spec_types_[var_name] = spec_type;
+            }
+            int f_idx = 0;
             for (const auto &f: fields) {
                 spec_field_names_[spec_type].insert(f.key);
+                spec_field_indices_[spec_type][f.key] = f_idx++;
             }
             return var_name;
         }
@@ -2187,7 +2242,12 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         auto pe_ret = CompilePrefixexp(pe);
         // String literal key fast path: t["key"] → FlGetTableStrId.
         if (const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp); exp_node && exp_node->GetExpKind() == ExpKind::kString) {
-            const auto id = s_->GetConstString().Alloc(exp_node->ExpValue());
+            const auto key_name = exp_node->ExpValue();
+            const auto spec_type = GetSpecTypeForVar(pe);
+            if (!spec_type.empty() && IsSpecField(spec_type, key_name)) {
+                return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, key_name);
+            }
+            const auto id = s_->GetConstString().Alloc(key_name);
             return std::format("FlGetTableStrId({}, {})", pe_ret, id);
         }
         // Integer key fast path: use FlGetTableInt when key is known T_INT.
@@ -2203,6 +2263,11 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto pe = v_ptr->GetPrefixexp();
         const auto name = v_ptr->GetName();
         auto pe_ret = CompilePrefixexp(pe);
+
+        const auto spec_type = GetSpecTypeForVar(pe);
+        if (!spec_type.empty() && IsSpecField(spec_type, name)) {
+            return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, name);
+        }
 
         // String constant key fast path: use FlGetTableStrId directly.
         const auto id = s_->GetConstString().Alloc(name);
@@ -2518,8 +2583,15 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
             if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[1]); key_exp && key_exp->GetExpKind() == ExpKind::kString) {
                 const auto tbl_str = CompileExp(raw_args[0]);
                 const auto val_str = CompileExp(raw_args[2]);
-                const auto id = s_->GetConstString().Alloc(key_exp->ExpValue());
-                Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
+                const auto key_name = key_exp->ExpValue();
+                const auto spec_type = GetSpecTypeForVar(raw_args[0]);
+                if (!spec_type.empty() && IsSpecField(spec_type, key_name)) {
+                    int index = spec_field_indices_[spec_type][key_name];
+                    Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, key_name, index, val_str);
+                } else {
+                    const auto id = s_->GetConstString().Alloc(key_name);
+                    Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
+                }
                 Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
                 return tmp;
             }
