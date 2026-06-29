@@ -135,6 +135,8 @@ private:
     [[nodiscard]] std::string GetSpecFieldCName(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
     [[nodiscard]] int GetSpecFieldIndex(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
     [[nodiscard]] InferredType GetSpecFieldType(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
+    // table 特化辅助：生成字段描述符（用于 map key）
+    [[nodiscard]] static std::string GetKeyDescriptor(const std::string &key, TableKeyKind kind);
     // table 特化辅助：从 prefixexp 提取简单变量名（空字符串表示非简单变量）
     [[nodiscard]] static std::string GetSimpleVarName(const SyntaxTreeInterfacePtr &pe);
 

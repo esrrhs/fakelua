@@ -531,7 +531,7 @@ InferredType CGen::GetSpecReturnType(const std::string &func_name, int bitmask) 
     return it->second[static_cast<size_t>(bitmask)];
 }
 
-static std::string GetKeyDescriptor(const std::string &key, TableKeyKind kind) {
+std::string CGen::GetKeyDescriptor(const std::string &key, TableKeyKind kind) {
     if (kind == TableKeyKind::kString) return "S_" + key;
     if (kind == TableKeyKind::kInt) return "I_" + key;
     if (kind == TableKeyKind::kBool) return "B_" + key;

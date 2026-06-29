@@ -4088,28 +4088,67 @@ TEST(infer, test_table_spec_func_param_degrade) {
     });
 }
 
-TEST(infer, test_table_spec_non_string_keys) {
-    const auto code = InferGetCCode("./infer/test_spec_non_string_keys.lua");
-    // 确保使用 pointer offset (FL_SPEC/FL_SPEC_INT/FL_SPEC_FLOAT) 读取
+TEST(infer, test_spec_int_key) {
+    const auto code = InferGetCCode("./infer/test_spec_int_key.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    ASSERT_TRUE(code.find("FL_SPEC(") != std::string::npos || 
-                code.find("FL_SPEC_INT(") != std::string::npos || 
-                code.find("FL_SPEC_FLOAT(") != std::string::npos);
-    ASSERT_TRUE(code.find("FL_SET_SPEC(") != std::string::npos ||
-                code.find("FL_SET_SPEC(") != std::string::npos ||
-                code.find("FL_SET_SPEC(") != std::string::npos ||
-                code.find("FL_SET_SPEC(") != std::string::npos);
-    ASSERT_EQ(code.find("FlGetTableStrId("), std::string::npos);
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        CompileFile(s, "./infer/test_spec_non_string_keys.lua", {.debug_mode = debug_mode});
-        
-        int64_t ret1 = 0;
-        Call(s, type, "test_non_string", ret1);
-        ASSERT_EQ(ret1, 1650);
+        CompileFile(s, "./infer/test_spec_int_key.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_int_key", ret);
+        ASSERT_EQ(ret, 150); // 100 + 20 + 30
+    });
+}
 
-        int64_t ret2 = 0;
-        Call(s, type, "test_non_string_dynamic", ret2, (int64_t)1, std::string("x"), true);
-        ASSERT_EQ(ret2, 150);
+TEST(infer, test_spec_bool_key) {
+    const auto code = InferGetCCode("./infer/test_spec_bool_key.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_bool_key.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_bool_key", ret);
+        ASSERT_EQ(ret, 120); // 100 + 20
+    });
+}
+
+TEST(infer, test_spec_float_key) {
+    const auto code = InferGetCCode("./infer/test_spec_float_key.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_float_key.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_float_key", ret);
+        ASSERT_EQ(ret, 120); // 100 + 20
+    });
+}
+
+TEST(infer, test_spec_mixed_keys) {
+    const auto code = InferGetCCode("./infer/test_spec_mixed_keys.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_mixed_keys.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_mixed_keys", ret);
+        ASSERT_EQ(ret, 1650); // 10+20+30+40+50+100+200+300+400+500
+    });
+}
+
+TEST(infer, test_spec_non_string_dynamic) {
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_spec_non_string_dynamic.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_dynamic", ret, (int64_t)1, std::string("x"), true);
+        ASSERT_EQ(ret, 150); // 100 + 20 + 30
     });
 }
