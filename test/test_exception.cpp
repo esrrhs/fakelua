@@ -1009,3 +1009,11 @@ TEST(exception, top_level_bare_local) {
     SetDebugLogLevel(0);
     EXPECT_THROW(CompileFile(s, "./exception/test_top_level_bare_local.lua", {}), std::exception);
 }
+
+TEST(exception, test_spec_duplicate_keys) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    EXPECT_THROW(CompileFile(s, "./exception/test_spec_duplicate_keys.lua", {}), std::exception);
+}
