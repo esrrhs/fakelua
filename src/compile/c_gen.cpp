@@ -1887,6 +1887,55 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
     DEBUG_ASSERT(tc->Type() == SyntaxTreeType::TableConstructor);
     const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc);
 
+    // 检查重复 key，一旦发现重复则抛出编译异常
+    if (const auto fieldlist = tc_ptr->Fieldlist()) {
+        const auto fieldlist_ptr = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(fieldlist);
+        std::unordered_set<std::string> unique_keys;
+        int array_idx = 1;
+        for (const auto &field : fieldlist_ptr->Fields()) {
+            const auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field);
+            if (!fp) continue;
+
+            std::string key_desc;
+            if (fp->GetFieldKind() == FieldKind::kObject) {
+                key_desc = "S_" + fp->Name();
+            } else {
+                if (fp->Key() == nullptr) {
+                    key_desc = "I_" + std::to_string(array_idx);
+                    array_idx++;
+                } else {
+                    const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
+                    if (key_exp) {
+                        auto kind = key_exp->GetExpKind();
+                        if (kind == ExpKind::kString) {
+                            key_desc = "S_" + key_exp->ExpValue();
+                        } else if (kind == ExpKind::kNumber) {
+                            std::string num_str = key_exp->ExpValue();
+                            if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
+                                int64_t ival = std::stoll(num_str);
+                                key_desc = "I_" + num_str;
+                                array_idx = std::max(array_idx, static_cast<int>(ival + 1));
+                            } else {
+                                key_desc = "F_" + num_str;
+                            }
+                        } else if (kind == ExpKind::kTrue) {
+                            key_desc = "B_true";
+                        } else if (kind == ExpKind::kFalse) {
+                            key_desc = "B_false";
+                        }
+                    }
+                }
+            }
+
+            if (!key_desc.empty()) {
+                if (unique_keys.contains(key_desc)) {
+                    ThrowError("duplicate key in table constructor: " + key_desc.substr(2), tc);
+                }
+                unique_keys.insert(key_desc);
+            }
+        }
+    }
+
     const auto var_name = std::format("flua_tbl_{}", tmp_var_counter_++);
 
     func_temp_decls_ << "    "
