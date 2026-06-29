@@ -2129,93 +2129,46 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             // 使用宏分配 table + spec + spec_keys/spec_vals
             Out() << GenTab() << "SET_TABLE_SPEC(" << var_name << ", " << spec_type << ", " << get_fn << ", " << set_fn << ", " << fields.size() << ");\n";
 
-            // 填充 spec_keys/spec_vals
-            for (const auto &f: fields) {
-                const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(tc_ptr->Fieldlist());
-                int cur_array_idx = 1;
-                for (const auto &field: fieldlist->Fields()) {
-                    const auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field);
-                    if (!fp) continue;
+            // 填充 spec_keys/spec_vals (以正确的左到右语法顺序)
+            int cur_array_idx = 1;
+            const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(tc_ptr->Fieldlist());
+            for (const auto &field : fieldlist->Fields()) {
+                const auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field);
+                if (!fp) continue;
 
-                    bool match = false;
-                    if (f.key_kind == TableKeyKind::kString) {
-                        if (fp->GetFieldKind() == FieldKind::kObject && fp->Name() == f.key) {
-                            match = true;
-                        } else if (fp->GetFieldKind() == FieldKind::kArray && fp->Key() != nullptr) {
-                            const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
-                            if (key_exp && key_exp->GetExpKind() == ExpKind::kString && key_exp->ExpValue() == f.key) {
-                                match = true;
-                            }
-                        }
-                    } else if (f.key_kind == TableKeyKind::kInt) {
-                        if (fp->GetFieldKind() == FieldKind::kArray) {
-                            if (fp->Key() == nullptr) {
-                                if (cur_array_idx == f.int_value) {
-                                    match = true;
-                                }
-                            } else {
-                                const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
-                                if (key_exp && key_exp->GetExpKind() == ExpKind::kNumber) {
-                                    std::string num_str = key_exp->ExpValue();
-                                    if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
-                                        if (std::stoll(num_str) == f.int_value) {
-                                            match = true;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    } else if (f.key_kind == TableKeyKind::kBool) {
-                        if (fp->GetFieldKind() == FieldKind::kArray && fp->Key() != nullptr) {
-                            const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
-                            if (key_exp) {
-                                if (key_exp->GetExpKind() == ExpKind::kTrue && f.bool_value) {
-                                    match = true;
-                                } else if (key_exp->GetExpKind() == ExpKind::kFalse && !f.bool_value) {
-                                    match = true;
-                                }
-                            }
-                        }
-                    } else if (f.key_kind == TableKeyKind::kFloat) {
-                        if (fp->GetFieldKind() == FieldKind::kArray && fp->Key() != nullptr) {
-                            const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
-                            if (key_exp && key_exp->GetExpKind() == ExpKind::kNumber) {
-                                std::string num_str = key_exp->ExpValue();
-                                if (num_str.find('.') != std::string::npos || num_str.find('e') != std::string::npos || num_str.find('E') != std::string::npos) {
-                                    if (std::stod(num_str) == f.float_value) {
-                                        match = true;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                const auto value_str = CompileExp(fp->Value());
 
-                    if (fp->GetFieldKind() == FieldKind::kArray && fp->Key() == nullptr) {
+                if (fp->GetFieldKind() == FieldKind::kObject) {
+                    const auto key_name = fp->Name();
+                    const auto id = s_->GetConstString().Alloc(key_name);
+                    Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
+                } else {
+                    if (fp->Key() == nullptr) {
+                        Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, cur_array_idx, value_str);
                         cur_array_idx++;
-                    } else if (fp->GetFieldKind() == FieldKind::kArray && fp->Key() != nullptr) {
-                        // 显式整数键也占用隐式索引位置
+                    } else {
                         const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
-                        if (key_exp && key_exp->GetExpKind() == ExpKind::kNumber) {
-                            std::string num_str = key_exp->ExpValue();
-                            if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
-                                cur_array_idx = std::max(cur_array_idx, static_cast<int>(std::stoll(num_str) + 1));
+                        if (key_exp) {
+                            if (key_exp->GetExpKind() == ExpKind::kString) {
+                                const auto key_name = key_exp->ExpValue();
+                                const auto id = s_->GetConstString().Alloc(key_name);
+                                Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
+                            } else if (key_exp->GetExpKind() == ExpKind::kNumber) {
+                                std::string num_str = key_exp->ExpValue();
+                                if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
+                                    int64_t int_val = std::stoll(num_str);
+                                    Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, int_val, value_str);
+                                    cur_array_idx = std::max(cur_array_idx, static_cast<int>(int_val + 1));
+                                } else {
+                                    double float_val = std::stod(num_str);
+                                    Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}, {});\n", var_name, float_val, value_str);
+                                }
+                            } else if (key_exp->GetExpKind() == ExpKind::kTrue) {
+                                Out() << GenTab() << std::format("FlSetTable({}, kTrue, {});\n", var_name, value_str);
+                            } else if (key_exp->GetExpKind() == ExpKind::kFalse) {
+                                Out() << GenTab() << std::format("FlSetTable({}, kFalse, {});\n", var_name, value_str);
                             }
                         }
-                    }
-
-                    if (match) {
-                        const auto value_str = CompileExp(fp->Value());
-                        if (f.key_kind == TableKeyKind::kString) {
-                            const auto id = s_->GetConstString().Alloc(f.key);
-                            Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
-                        } else if (f.key_kind == TableKeyKind::kInt) {
-                            Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, f.int_value, value_str);
-                        } else if (f.key_kind == TableKeyKind::kBool) {
-                            Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_BOOL, .data_.b = {}}}, {});\n", var_name, f.bool_value ? "true" : "false", value_str);
-                        } else if (f.key_kind == TableKeyKind::kFloat) {
-                            Out() << GenTab() << std::format("FlSetTable({}, (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}}, {});\n", var_name, f.float_value, value_str);
-                        }
-                        break;
                     }
                 }
             }
