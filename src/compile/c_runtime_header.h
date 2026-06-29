@@ -507,6 +507,12 @@ static inline void FlSetTable(CVar t, CVar k, CVar v) {
 static inline CVar FlGetTableInt(CVar t, int64_t k) {
     if (UNLIKELY(t.type_ != VAR_TABLE)) { FakeluaThrowError(_S, "attempt to index a non-table value"); }
     VarTable *tbl = t.data_.t;
+    if (tbl->spec_get) {
+        CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
+        bool __finish = false;
+        CVar __r = tbl->spec_get(tbl, key_cvar, &__finish);
+        if (__finish) return __r;
+    }
     if (UNLIKELY(tbl->count_ == 0)) { return (CVar){VAR_NIL}; }
     uint32_t h = (uint32_t)(k ^ (k >> 32));
     if (LIKELY(tbl->bucket_count_ == 0)) {
@@ -537,6 +543,11 @@ static inline void FlSetTableInt(CVar t, int64_t k, CVar v) {
     VarTable *tbl = t.data_.t;
     uint32_t h = (uint32_t)(k ^ (k >> 32));
     CVar key_cvar; key_cvar.type_ = VAR_INT; key_cvar.data_.i = k;
+    if (tbl->spec_set) {
+        bool __finish = false;
+        tbl->spec_set(tbl, key_cvar, v, &__finish);
+        if (__finish) return;
+    }
     if (UNLIKELY(v.type_ == VAR_NIL)) {
         FlSetTable(t, key_cvar, v);
         return;

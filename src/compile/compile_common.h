@@ -191,11 +191,22 @@ struct AnalysisResult {
     std::unordered_set<std::string> global_const_names;
 };
 
-// ---- 阶段四：类型推断结果 ---------------------------------------------------
+enum class TableKeyKind {
+    kString,
+    kInt,
+    kFloat,
+    kBool
+};
+
 // table 特化信息：描述一个 table 的字段结构
 struct TableFieldInfo {
-    std::string key;      // 字段名（静态字符串 key）
+    std::string key;      // 字段名原始值，或是由非 string key 转换而来的字符串
+    TableKeyKind key_kind = TableKeyKind::kString;
+    int64_t int_key = 0;
+    double float_key = 0.0;
+    bool bool_key = false;
     InferredType type;    // 值的推断类型
+    std::string c_member; // 成员变量名（Name Mangling 后的 C 变量名）
 };
 
 // table 特化信息：table constructor 节点对应的特化描述

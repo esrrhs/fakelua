@@ -307,6 +307,8 @@ private:
     std::unordered_map<std::string, std::unordered_set<std::string>> spec_field_names_;
     // spec 类型名 → 字段名到索引的映射表（用于 FL_SET_SPEC 宏生成）
     std::unordered_map<std::string, std::unordered_map<std::string, int>> spec_field_indices_;
+    // spec 类型名 → 字段名到数据类型的映射表
+    std::unordered_map<std::string, std::unordered_map<std::string, InferredType>> spec_field_types_;
     // 已生成的 spec typedef/get/set 名称集合，避免重复生成
     std::unordered_set<std::string> generated_spec_typedefs_;
 };
