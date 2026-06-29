@@ -1778,11 +1778,13 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         const auto &val_name = names[1];
         Out() << GenTab() << "CVar " << key_name << "; CVar " << val_name << ";\n";
         Out() << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, key_name, val_name);
+        Out() << GenTab() << std::format("if ({} == VAR_NIL) {{ continue; }}\n", val_name + ".type_");
     } else {
         const auto dummy_val = std::format("flua_fi_dummy_val_{}", tmp_var_counter_++);
         func_temp_decls_ << "    CVar " << dummy_val << ";\n";
         Out() << GenTab() << "CVar " << key_name << ";\n";
         Out() << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, key_name, dummy_val);
+        Out() << GenTab() << std::format("if ({} == VAR_NIL) {{ continue; }}\n", dummy_val + ".type_");
     }
 
     EnterNativeVarScope();
