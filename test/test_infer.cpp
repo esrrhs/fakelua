@@ -3745,6 +3745,8 @@ TEST(infer, test_spec_direct_read) {
     ASSERT_EQ(code.find("FlGetTableStrId("), std::string::npos);
     // 确保使用的是精简的 FL_SPEC 宏形式
     ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+    // 确保写入时使用的是精简的 FL_SET_SPEC 宏指针偏移形式
+    ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
     
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_direct_read.lua", {.debug_mode = debug_mode});
