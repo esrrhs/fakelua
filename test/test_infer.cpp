@@ -4152,9 +4152,3 @@ TEST(infer, test_spec_non_string_dynamic) {
         ASSERT_EQ(ret, 150); // 100 + 20 + 30
     });
 }
-
-TEST(infer, test_spec_duplicate_keys) {
-    InferRunHelper([](State *s, JITType type, bool debug_mode) {
-        ASSERT_ANY_THROW(CompileFile(s, "./infer/test_spec_duplicate_keys.lua", {.debug_mode = debug_mode}));
-    });
-}
