@@ -3746,7 +3746,7 @@ TEST(infer, test_spec_direct_access) {
     // 确保使用的是精简的 FL_SPEC 宏形式
     ASSERT_TRUE(code.find("FL_SPEC(") != std::string::npos || code.find("FL_SPEC_INT(") != std::string::npos || code.find("FL_SPEC_FLOAT(") != std::string::npos);
     // 确保写入时使用的是精简的 FL_SET_SPEC 宏指针偏移形式
-    ASSERT_TRUE(code.find("FL_SET_SPEC(") != std::string::npos || code.find("FL_SET_SPEC(") != std::string::npos || code.find("FL_SET_SPEC(") != std::string::npos || code.find("FL_SET_SPEC(") != std::string::npos);
+    ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
     
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_direct_access.lua", {.debug_mode = debug_mode});
@@ -3819,7 +3819,7 @@ TEST(infer, test_global_table_spec) {
     const auto code = InferGetCCode("./infer/test_global_table_spec.lua");
     // Global table should also be specialized
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_global_table_spec.lua", {.debug_mode = debug_mode});
@@ -3832,7 +3832,7 @@ TEST(infer, test_global_table_spec) {
 TEST(infer, test_spec_basic) {
     const auto code = InferGetCCode("./infer/test_spec_basic.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FlGetTableStrId_"), std::string::npos);
     ASSERT_NE(code.find("FlGetTableStrId_"), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
