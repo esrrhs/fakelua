@@ -4197,3 +4197,51 @@ TEST(infer, test_table_spec_negative_int_key) {
         ASSERT_EQ(ret, 1);
     });
 }
+
+TEST(infer, test_table_spec_expr_key) {
+    const auto code = InferGetCCode("./infer/test_table_spec_func_call_value.lua");
+    ASSERT_EQ(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_EQ(code.find("FL_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("SET_TABLE("), std::string::npos);
+    ASSERT_NE(code.find("FlTableExpandMulti("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_func_call_value.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_func_call_element", ret);
+        ASSERT_EQ(ret, 42);
+    });
+}
+
+TEST(infer, test_table_spec_var_value) {
+    const auto code = InferGetCCode("./infer/test_table_spec_var_value.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_var_value.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_var_value", ret);
+        ASSERT_EQ(ret, 30);
+        Call(s, type, "test_var_value_write", ret);
+        ASSERT_EQ(ret, 99);
+    });
+}
+
+TEST(infer, test_table_spec_string_negative_int) {
+    const auto code = InferGetCCode("./infer/test_table_spec_string_negative_int.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("_int__1"), std::string::npos);
+    ASSERT_NE(code.find("_int__2"), std::string::npos);
+    ASSERT_EQ(code.find("_int_-1"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_string_negative_int.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_string_negative_int", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
