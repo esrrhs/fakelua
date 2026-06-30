@@ -200,6 +200,20 @@ function bench_matmul()
     return c[1] + c[5] + c[9]
 end
 )";
+constexpr const char *kVector3Script = R"(
+function bench_vector3(n)
+    local v1 = {x = 10, y = 20, z = 30}
+    local v2 = {x = 1, y = 2, z = 3}
+    local sum = 0
+    for i = 1, n do
+        v1.x = v1.x + v2.x
+        v1.y = v1.y + v2.y
+        v1.z = v1.z + v2.z
+        sum = sum + v1.x + v1.y + v1.z
+    end
+    return sum
+end
+)";
 int64_t CppFib(const int64_t n) {
     if (n <= 1) {
         return n;
@@ -240,6 +254,24 @@ int64_t CppSum(const int64_t n) {
 // A global volatile zero prevents the compiler from constant-folding the 3x3
 // matrix product in CppMatMul while keeping the numeric results correct.
 volatile int64_t g_matmul_nonce = 0;
+
+int64_t CppVector3(int64_t n) {
+    struct Vector3 {
+        int64_t x;
+        int64_t y;
+        int64_t z;
+    };
+    Vector3 v1{10 + g_matmul_nonce, 20, 30};
+    Vector3 v2{1, 2, 3};
+    int64_t sum = 0;
+    for (int64_t i = 1; i <= n; ++i) {
+        v1.x = v1.x + v2.x;
+        v1.y = v1.y + v2.y;
+        v1.z = v1.z + v2.z;
+        sum = sum + v1.x + v1.y + v1.z;
+    }
+    return sum;
+}
 
 int64_t CppBubbleSort(const int64_t n) {
     std::vector<int64_t> t(static_cast<size_t>(n));
@@ -403,7 +435,7 @@ struct RuntimeContext {
         const char *lua_scripts[] = {
                 kFibScript,    kGcdScript,    kPowScript,         kSumScript,        kBubbleSortScript,
                 kSieveScript,  kBinarySearchScript, kFastPowScript, kPopcountScript,
-                kInsertionSortScript, kMatMulScript};
+                kInsertionSortScript, kMatMulScript, kVector3Script};
         for (const char *script : lua_scripts) {
             if (luaL_dostring(lua, script) != LUA_OK) {
                 const char *err = lua_tostring(lua, -1);
@@ -430,6 +462,7 @@ struct RuntimeContext {
         Call(flua, JIT_TCC, "bench_popcount", warmup_ret, 100);
         Call(flua, JIT_TCC, "bench_insertion_sort", warmup_ret, 10);
         Call(flua, JIT_TCC, "bench_matmul", warmup_ret);
+        Call(flua, JIT_TCC, "bench_vector3", warmup_ret, 100);
         Call(flua, JIT_GCC, "bench_fib", warmup_ret, 10);
         Call(flua, JIT_GCC, "bench_gcd", warmup_ret, 832040, 514229);
         Call(flua, JIT_GCC, "bench_powmod", warmup_ret, 2, 1000, 1000000007);
@@ -441,6 +474,7 @@ struct RuntimeContext {
         Call(flua, JIT_GCC, "bench_popcount", warmup_ret, 100);
         Call(flua, JIT_GCC, "bench_insertion_sort", warmup_ret, 10);
         Call(flua, JIT_GCC, "bench_matmul", warmup_ret);
+        Call(flua, JIT_GCC, "bench_vector3", warmup_ret, 100);
     }
 
     ~RuntimeContext() {
@@ -965,6 +999,48 @@ static void BM_FakeLua_MatMul_GCC(benchmark::State &state) {
     }
 }
 
+static void BM_CPP_Vector3(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    const int64_t expected = CppVector3(n);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = CppVector3(n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "C++ vector3");
+    }
+}
+
+static void BM_Lua_Vector3(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    const int64_t expected = CppVector3(n);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = CallLuaInt(g_ctx.lua, "bench_vector3", n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "Lua vector3");
+    }
+}
+
+static void BM_FakeLua_Vector3_TCC(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    const int64_t expected = CppVector3(n);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_TCC, "bench_vector3", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua vector3");
+    }
+}
+
+static void BM_FakeLua_Vector3_GCC(benchmark::State &state) {
+    const int64_t n = state.range(0);
+    const int64_t expected = CppVector3(n);
+    for ([[maybe_unused]] auto _: state) {
+        int64_t ret = 0;
+        Call(g_ctx.flua, JIT_GCC, "bench_vector3", ret, n);
+        benchmark::DoNotOptimize(ret);
+        VerifyEqual(ret, expected, "FakeLua vector3");
+    }
+}
+
 }// namespace
 
 #define FIB_ARGS ->Arg(20)->Arg(25)->Arg(30)->Arg(32)
@@ -1033,3 +1109,10 @@ BENCHMARK(BM_CPP_MatMul);
 BENCHMARK(BM_Lua_MatMul);
 BENCHMARK(BM_FakeLua_MatMul_TCC);
 BENCHMARK(BM_FakeLua_MatMul_GCC);
+
+#define VECTOR3_ARGS ->Arg(10000)->Arg(100000)->Arg(1000000)
+
+BENCHMARK(BM_CPP_Vector3) VECTOR3_ARGS;
+BENCHMARK(BM_Lua_Vector3) VECTOR3_ARGS;
+BENCHMARK(BM_FakeLua_Vector3_TCC) VECTOR3_ARGS;
+BENCHMARK(BM_FakeLua_Vector3_GCC) VECTOR3_ARGS;
