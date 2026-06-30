@@ -208,6 +208,7 @@ struct TableFieldInfo {
     int64_t int_value = 0;
     bool bool_value = false;
     double float_value = 0.0;
+    bool optional = false;      // Phase 2: 该字段在当前 constructor 字面量中不存在（由合并产生），emit 时需 nil 初始化
 };
 
 // table 特化信息：table constructor 节点对应的特化描述

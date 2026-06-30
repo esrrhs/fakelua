@@ -4060,9 +4060,9 @@ TEST(infer, test_table_spec_control_flow) {
     const auto code = InferGetCCode("./infer/test_table_spec_control_flow.lua");
     // 两个分支都会特化构造 table，因此有 SET_TABLE_SPEC
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
-    // 但在分支汇合后，t.x 因静态类型退化而不能产生特化读取
-    ASSERT_EQ(code.find("FL_SPEC("), std::string::npos);
-    ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
+    // Phase 2: 两分支的 {x=10} / {y=20} 合并为统一结构体 {x?,y?}，
+    // 汇合后 t.x 走 FL_SPEC 偏移读（缺失字段读出 nil CVar，由 nil 初始化保证）。
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_table_spec_control_flow.lua", {.debug_mode = debug_mode});
@@ -4071,6 +4071,29 @@ TEST(infer, test_table_spec_control_flow) {
         ASSERT_EQ(ret, 10);
         Call(s, type, "test_control_flow", ret, 0);
         ASSERT_EQ(ret, 0);
+    });
+}
+
+TEST(infer, test_table_spec_if_else_soundness) {
+    // Phase 2: if-else 两分支构造不同 shape 的 table 赋给同一变量，
+    // 汇合后两 constructor 统一到合并结构体 {x?,y?}，a.x / a.y 走 FL_SPEC 偏移读。
+    // 缺失字段在 emit 时显式 nil 初始化（temp allocator 不清零），保证读到 nil CVar。
+    // 详见 test_table_spec_if_else_soundness.lua。
+    const auto code = InferGetCCode("./infer/test_table_spec_if_else_soundness.lua");
+    // 分支内构造 table 仍会特化（SET_TABLE_SPEC 出现在分支内部）
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // 汇合后 a.x / a.y 访问走 FL_SPEC 偏移读
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_if_else_soundness.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        // cond=1: a={x=10}, a.x=10, a.y=nil→0, return 10
+        Call(s, type, "test_if_else_soundness", ret, 1);
+        ASSERT_EQ(ret, 10);
+        // cond=0: a={y=11}, a.x=nil→0, a.y=11, return 11
+        Call(s, type, "test_if_else_soundness", ret, 0);
+        ASSERT_EQ(ret, 11);
     });
 }
 

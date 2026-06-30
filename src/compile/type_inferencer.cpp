@@ -339,8 +339,8 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
         }
     }
 
-    // 分析 table 访问模式，填充 table_spec_infos
-    AnalyzeTableAccess(pr.chunk, ir);
+    // 分析 table 形状，填充 table_spec_infos（流不敏感字段并集 + optional 标记）
+    AnalyzeTableShapes(pr.chunk, ir);
 
     return ir;
 }
@@ -1444,35 +1444,245 @@ void TypeInferencer::CollectGlobalConstVars(const ParseResult &pr, const EvalTyp
     }
 }
 
-void TypeInferencer::AnalyzeTableAccess(const SyntaxTreeInterfacePtr &chunk, InferResult &ir) {
-    // 收集所有 table constructor 节点
-    std::unordered_set<const SyntaxTreeInterface *> table_constructors;
+std::string TypeInferencer::FieldKeyDescriptor(const TableFieldInfo &f) {
+    switch (f.key_kind) {
+        case TableKeyKind::kString: return "S_" + f.key;
+        case TableKeyKind::kInt:    return "I_" + f.key;
+        case TableKeyKind::kBool:   return "B_" + f.key;
+        case TableKeyKind::kFloat:  return "F_" + f.key;
+    }
+    return "S_" + f.key;
+}
 
-    // 递归遍历 AST 收集 table 访问模式
+void TypeInferencer::MergeFieldsInto(std::vector<TableFieldInfo> &dst, const std::vector<TableFieldInfo> &src) {
+    // 按 key 描述符去重并集：已存在则保留 dst 条目（不覆盖），否则追加。
+    std::unordered_set<std::string> dst_descs;
+    for (const auto &f: dst) {
+        dst_descs.insert(FieldKeyDescriptor(f));
+    }
+    for (const auto &f: src) {
+        const auto desc = FieldKeyDescriptor(f);
+        if (!dst_descs.contains(desc)) {
+            dst.push_back(f);
+            dst_descs.insert(desc);
+        }
+    }
+}
+
+bool TypeInferencer::BuildCtorFields(const SyntaxTreeInterfacePtr &tc, std::vector<TableFieldInfo> &out) {
+    out.clear();
+    if (!tc || tc->Type() != SyntaxTreeType::TableConstructor) return false;
+    const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc);
+    if (!tc_ptr->Fieldlist()) return false;
+    const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(tc_ptr->Fieldlist());
+    if (!fieldlist) return false;
+
+    struct Entry {
+        TableFieldInfo info;
+        std::string desc;
+    };
+    std::unordered_map<std::string, Entry> unique;
+    std::vector<std::string> order;
+    int array_idx = 1;
+
+    for (const auto &field: fieldlist->Fields()) {
+        const auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field);
+        if (!fp) return false;
+
+        TableFieldInfo f;
+        f.type = T_DYNAMIC; // 类型由 CGen 在 emit 时重新推导，这里只关心 key 布局
+        std::string desc;
+
+        if (fp->GetFieldKind() == FieldKind::kObject) {
+            f.key = fp->Name();
+            f.key_kind = TableKeyKind::kString;
+            f.c_field_name = fp->Name();
+            desc = "S_" + f.key;
+        } else {
+            // FieldKind::kArray
+            if (fp->Key() == nullptr) {
+                // 隐式索引：值不能是函数调用或 varargs（可能多返回）
+                auto val_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Value());
+                if (val_exp) {
+                    if (val_exp->GetExpKind() == ExpKind::kPrefixExp) {
+                        auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(val_exp->Right());
+                        if (pe && pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) return false;
+                        if (pe && pe->GetPrefixKind() == PrefixExpKind::kVar) {
+                            auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+                            if (var && var->GetVarKind() == VarKind::kSimple && var->GetName().rfind("__fakelua_vararg_", 0) == 0) return false;
+                        }
+                    } else if (val_exp->GetExpKind() == ExpKind::kVarParams) {
+                        return false;
+                    }
+                }
+                f.key = std::to_string(array_idx);
+                f.key_kind = TableKeyKind::kInt;
+                f.c_field_name = "_int_" + f.key;
+                f.int_value = array_idx;
+                desc = "I_" + f.key;
+                array_idx++;
+            } else {
+                const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
+                if (!key_exp) return false;
+                auto kind = key_exp->GetExpKind();
+                if (kind == ExpKind::kString) {
+                    f.key = key_exp->ExpValue();
+                    f.key_kind = TableKeyKind::kString;
+                    f.c_field_name = f.key;
+                    desc = "S_" + f.key;
+                } else if (kind == ExpKind::kNumber) {
+                    std::string num_str = key_exp->ExpValue();
+                    if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
+                        f.key = num_str;
+                        f.key_kind = TableKeyKind::kInt;
+                        f.int_value = std::stoll(num_str);
+                        std::string sanitized = f.key;
+                        std::replace(sanitized.begin(), sanitized.end(), '-', '_');
+                        f.c_field_name = "_int_" + sanitized;
+                        desc = "I_" + f.key;
+                        array_idx = std::max(array_idx, static_cast<int>(f.int_value + 1));
+                    } else {
+                        f.key = num_str;
+                        f.key_kind = TableKeyKind::kFloat;
+                        std::string sanitized = num_str;
+                        std::replace(sanitized.begin(), sanitized.end(), '.', '_');
+                        std::replace(sanitized.begin(), sanitized.end(), '-', '_');
+                        std::replace(sanitized.begin(), sanitized.end(), '+', '_');
+                        f.c_field_name = "_float_" + sanitized;
+                        f.float_value = std::stod(num_str);
+                        desc = "F_" + f.key;
+                    }
+                } else if (kind == ExpKind::kTrue) {
+                    f.key = "true";
+                    f.key_kind = TableKeyKind::kBool;
+                    f.c_field_name = "_bool_true";
+                    f.bool_value = true;
+                    desc = "B_true";
+                } else if (kind == ExpKind::kFalse) {
+                    f.key = "false";
+                    f.key_kind = TableKeyKind::kBool;
+                    f.c_field_name = "_bool_false";
+                    f.bool_value = false;
+                    desc = "B_false";
+                } else {
+                    return false; // 非静态 key
+                }
+            }
+        }
+
+        if (!unique.contains(desc)) {
+            unique[desc] = {f, desc};
+            order.push_back(desc);
+        }
+    }
+
+    out.reserve(order.size());
+    for (const auto &d: order) {
+        out.push_back(unique[d].info);
+    }
+    return true;
+}
+
+void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, InferResult &ir) {
+    // 流不敏感的 per-variable 字段并集分析（函数级隔离）。
+    //
+    // 原理：为让 if-else 两分支构造的不同 shape table（如 {x} 和 {y}）能统一到同一
+    // 结构体布局，每个 constructor 必须按其目标变量的「所有赋值字段并集」来 emit。
+    // 这样两分支的 constructor 产生相同的 spec-type-name（由字段签名决定），
+    // CGen 侧 Phase 1 的字符串比较 join 自然判定为一致并保留，字段访问走 FL_SPEC。
+    //
+    // optional 标记：某字段在当前 constructor 字面量中不存在（由兄弟分支贡献），
+    // CGen emit 时需显式 nil 初始化该字段，避免 temp allocator 不清零导致的未定义读。
+    //
+    // 函数级隔离：不同函数的局部变量即使同名也独立分析，避免跨函数并集导致
+    // shape 膨胀（如 test_table_basic 的 {1..5} 和 test_table_string_keys 的
+    // {name,age,city} 被错误合并成 15 字段结构体）。嵌套函数体进入时压栈、退出时清栈。
+
+    std::unordered_map<const SyntaxTreeInterface *, std::vector<TableFieldInfo>> ctor_own_fields;
+
+    struct FuncFrame {
+        std::unordered_map<const SyntaxTreeInterface *, std::string> ctor_target_vars;
+        std::unordered_map<std::string, std::vector<TableFieldInfo>> var_fields;
+    };
+    std::vector<std::shared_ptr<FuncFrame>> frames;
+    auto push_frame = [&]() { frames.push_back(std::make_shared<FuncFrame>()); };
+    // 注意：不 pop frame。所有 frame 保留到 stamping 阶段供查询，
+    // 因为 ctor_target_vars / var_fields 在函数退出后仍需被 stamp 循环访问。
+    // 函数级隔离由 push_frame 实现（每个 function body 进入时新开 frame）。
+    push_frame(); // 顶层 frame（文件级 / __fakelua_init）
+
+    // 辅助：从 table constructor 节点构建 own_fields 并登记
+    auto record_ctor_node = [&](const SyntaxTreeInterfacePtr &tc) -> const SyntaxTreeInterface * {
+        if (!tc || tc->Type() != SyntaxTreeType::TableConstructor) return nullptr;
+        std::vector<TableFieldInfo> own;
+        if (!BuildCtorFields(tc, own) || own.empty()) return nullptr;
+        const auto *key = tc.get();
+        ctor_own_fields[key] = std::move(own);
+        return key;
+    };
+    // 辅助：若 exp 是 table constructor 表达式，提取其 tc 节点并登记
+    auto record_ctor_exp = [&](const SyntaxTreeInterfacePtr &exp) -> const SyntaxTreeInterface * {
+        if (!exp || exp->Type() != SyntaxTreeType::Exp) return nullptr;
+        auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+        if (!e || e->GetExpKind() != ExpKind::kTableConstructor) return nullptr;
+        // SyntaxTreeExp 将 table constructor 存于 Right()
+        return record_ctor_node(e->Right());
+    };
+
     std::function<void(const SyntaxTreeInterfacePtr &)> walk = [&](const SyntaxTreeInterfacePtr &node) {
         if (!node) return;
         switch (node->Type()) {
             case SyntaxTreeType::Block: {
                 auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
-                for (const auto &stmt : blk->Stmts()) { walk(stmt); }
+                for (const auto &stmt: blk->Stmts()) { walk(stmt); }
                 return;
             }
             case SyntaxTreeType::LocalVar: {
                 auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
+                const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
+                std::vector<SyntaxTreeInterfacePtr> exps;
                 if (auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist())) {
-                    for (const auto &exp : el->Exps()) { walk(exp); }
+                    exps = el->Exps();
+                    for (const auto &exp: exps) { walk(exp); }
+                }
+                if (namelist) {
+                    const auto &names = namelist->Names();
+                    for (size_t i = 0; i < names.size() && i < exps.size(); ++i) {
+                        if (const auto *tc_key = record_ctor_exp(exps[i])) {
+                            auto &frame = *frames.back();
+                            frame.ctor_target_vars[tc_key] = names[i];
+                            MergeFieldsInto(frame.var_fields[names[i]], ctor_own_fields[tc_key]);
+                        }
+                    }
                 }
                 return;
             }
             case SyntaxTreeType::Assign: {
                 auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
-                if (auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist())) {
-                    for (const auto &exp : el->Exps()) { walk(exp); }
+                const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+                const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
+                if (explist) {
+                    for (const auto &exp: explist->Exps()) { walk(exp); }
+                }
+                // 预处理保证 1 var / 1 exp
+                if (varlist && explist && !explist->Exps().empty()) {
+                    const auto v = varlist->Vars().empty() ? nullptr : std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
+                    if (v && v->GetVarKind() == VarKind::kSimple) {
+                        if (const auto *tc_key = record_ctor_exp(explist->Exps()[0])) {
+                            auto &frame = *frames.back();
+                            frame.ctor_target_vars[tc_key] = v->GetName();
+                            MergeFieldsInto(frame.var_fields[v->GetName()], ctor_own_fields[tc_key]);
+                        }
+                    }
                 }
                 return;
             }
             case SyntaxTreeType::Exp: {
                 auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+                // 表达式本身的 table constructor 子节点也要登记（无目标变量的 ctor）
+                if (exp->GetExpKind() == ExpKind::kTableConstructor) {
+                    record_ctor_node(exp->Right());
+                }
                 walk(exp->Left());
                 walk(exp->Right());
                 return;
@@ -1490,7 +1700,7 @@ void TypeInferencer::AnalyzeTableAccess(const SyntaxTreeInterfacePtr &chunk, Inf
                 return;
             }
             case SyntaxTreeType::TableConstructor:
-                table_constructors.insert(node.get());
+                record_ctor_node(node);
                 return;
             case SyntaxTreeType::While: {
                 auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
@@ -1498,35 +1708,56 @@ void TypeInferencer::AnalyzeTableAccess(const SyntaxTreeInterfacePtr &chunk, Inf
                 walk(while_stmt->Block());
                 return;
             }
+            case SyntaxTreeType::Repeat: {
+                auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
+                walk(repeat_stmt->Block());
+                walk(repeat_stmt->Exp());
+                return;
+            }
             case SyntaxTreeType::If: {
                 auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
                 walk(if_stmt->Exp());
                 walk(if_stmt->Block());
+                if (const auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs())) {
+                    for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
+                        walk(elseifs->ElseifExp(i));
+                        walk(elseifs->ElseifBlock(i));
+                    }
+                }
                 if (auto else_block = if_stmt->ElseBlock()) { walk(else_block); }
                 return;
             }
             case SyntaxTreeType::ForLoop: {
                 auto for_stmt = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
+                if (for_stmt->ExpBegin()) walk(for_stmt->ExpBegin());
+                if (for_stmt->ExpEnd()) walk(for_stmt->ExpEnd());
+                if (for_stmt->ExpStep()) walk(for_stmt->ExpStep());
                 walk(for_stmt->Block());
                 return;
             }
             case SyntaxTreeType::ForIn: {
                 auto forin_stmt = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
+                walk(forin_stmt->Explist());
                 walk(forin_stmt->Block());
                 return;
             }
             case SyntaxTreeType::Function: {
                 auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
+                // 函数体是变量作用域边界，进入时压栈（不 pop，见 frame 定义注释），
+                // 隔离不同函数的同名局部变量（如各函数的 local t）。
+                push_frame();
                 walk(func->Funcbody());
                 return;
             }
             case SyntaxTreeType::LocalFunction: {
                 auto lf = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
+                push_frame();
                 walk(lf->Funcbody());
                 return;
             }
             case SyntaxTreeType::FuncBody: {
                 auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
+                if (fb->Parlist()) walk(fb->Parlist());
                 walk(fb->Block());
                 return;
             }
@@ -1537,7 +1768,7 @@ void TypeInferencer::AnalyzeTableAccess(const SyntaxTreeInterfacePtr &chunk, Inf
             }
             case SyntaxTreeType::ExpList: {
                 auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
-                for (const auto &exp : el->Exps()) { walk(exp); }
+                for (const auto &exp: el->Exps()) { walk(exp); }
                 return;
             }
             case SyntaxTreeType::FunctionCall: {
@@ -1549,7 +1780,9 @@ void TypeInferencer::AnalyzeTableAccess(const SyntaxTreeInterfacePtr &chunk, Inf
             case SyntaxTreeType::Args: {
                 auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
                 if (auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(args->Explist())) {
-                    for (const auto &exp : el->Exps()) { walk(exp); }
+                    for (const auto &exp: el->Exps()) { walk(exp); }
+                } else if (args->GetArgsKind() == ArgsKind::kTableConstructor) {
+                    walk(args->Tableconstructor());
                 }
                 return;
             }
@@ -1561,7 +1794,6 @@ void TypeInferencer::AnalyzeTableAccess(const SyntaxTreeInterfacePtr &chunk, Inf
             case SyntaxTreeType::Field:
             case SyntaxTreeType::Break:
             case SyntaxTreeType::Goto:
-            case SyntaxTreeType::Repeat:
             case SyntaxTreeType::ElseIfList:
             case SyntaxTreeType::NameList:
             case SyntaxTreeType::FunctionDef:
@@ -1572,18 +1804,47 @@ void TypeInferencer::AnalyzeTableAccess(const SyntaxTreeInterfacePtr &chunk, Inf
             case SyntaxTreeType::Unop:
                 return;
         }
-        ThrowFakeluaException("AnalyzeTableAccess: unhandled SyntaxTreeType");
+        ThrowFakeluaException("AnalyzeTableShapes: unhandled SyntaxTreeType");
     };
 
     walk(chunk);
 
-    // 对收集到的 table constructor 节点，分析其字段访问模式
-    for (const auto *tc : table_constructors) {
-        // TODO: 后续版本中实现完整的字段访问分析
-        // 当前版本先标记所有 table 为不可特化
+    // 为每个登记过的 constructor 节点计算其应 emit 的合并字段布局
+    for (const auto &[tc_key, own]: ctor_own_fields) {
         TableSpecInfo info;
-        info.can_specialize = false;
-        ir.table_spec_infos[tc] = info;
+        info.can_specialize = true;
+
+        std::unordered_set<std::string> own_descs;
+        for (const auto &f: own) {
+            own_descs.insert(FieldKeyDescriptor(f));
+        }
+
+        // 在所有函数 frame 中查找该 ctor 的目标变量（ctor 节点唯一，只可能在一个 frame 中）
+        const std::vector<TableFieldInfo> *merged_ptr = nullptr;
+        for (const auto &frame_ptr: frames) {
+            const auto &frame = *frame_ptr;
+            const auto tv_it = frame.ctor_target_vars.find(tc_key);
+            if (tv_it != frame.ctor_target_vars.end()) {
+                merged_ptr = &frame.var_fields.at(tv_it->second);
+                break;
+            }
+        }
+
+        if (merged_ptr != nullptr) {
+            // 有目标变量：用变量的字段并集作为布局，标记 optional
+            info.fields = *merged_ptr;
+            for (auto &f: info.fields) {
+                if (!own_descs.contains(FieldKeyDescriptor(f))) {
+                    f.optional = true;
+                } else {
+                    f.optional = false;
+                }
+            }
+        } else {
+            // 无目标变量（如函数参数、返回值）：用自身字段，全部 non-optional
+            info.fields = own;
+        }
+        ir.table_spec_infos[tc_key] = std::move(info);
     }
 }
 

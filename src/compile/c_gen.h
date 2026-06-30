@@ -42,6 +42,14 @@ private:
         }
     };
 
+    // SpecSnapshot：捕获某一时刻 table_spec_types_ 与 global_table_spec_types_ 的完整状态，
+    // 用于控制流汇合点（if-else）的流敏感 join。Phase 1 中 join 策略为：
+    // 各分支快照内同名变量的 spec-type-name 必须一致才保留，否则从映射中 erase（降级为 dynamic）。
+    struct SpecSnapshot {
+        std::unordered_map<std::string, std::string> t;
+        std::unordered_map<std::string, std::string> g;
+    };
+
     // NativeVarScope —— 编译期原生变量作用域管理器。
     class NativeVarScope {
     public:
@@ -267,6 +275,21 @@ private:
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
     // 根据当前缩进深度生成 C 代码缩进空白字符
     [[nodiscard]] std::string GenTab() const;
+
+    // 保存当前 table_spec_types_ / global_table_spec_types_ 的完整快照（值拷贝）。
+    [[nodiscard]] SpecSnapshot SaveSpecSnapshot() const;
+    // 用快照覆盖当前 table_spec_types_ / global_table_spec_types_。
+    void RestoreSpecSnapshot(const SpecSnapshot &s);
+    // 对一组分支快照执行 Phase 1 join：同名变量 spec-type-name 全部一致则保留，否则丢弃（降级为 dynamic）。
+    // 返回 join 后的 T/G 映射，由调用方写入实例成员。
+    static void JoinSpecSnapshots(const std::vector<SpecSnapshot> &branch_snaps, std::unordered_map<std::string, std::string> &out_t,
+                                  std::unordered_map<std::string, std::string> &out_g);
+
+    // 根据字段布局计算 spec 结构体类型名：flua_spec_<hex(签名)>。
+    // 签名 = 排序后的字段 key 描述符拼接，确保相同布局（无论字段顺序）产生相同类型名，
+    // 使不同 constructor 字面量在合并后共享同一 typedef + get/set，并让 CGen 侧的
+    // 字符串比较 join 能识别两分支构造的同 shape table 为一致。
+    [[nodiscard]] static std::string ComputeSpecTypeName(const std::vector<TableFieldInfo> &fields);
 
     // 返回当前 active 代码段（section）的输出流引用
     std::ostream &Out() {
