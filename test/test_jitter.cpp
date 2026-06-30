@@ -2935,3 +2935,16 @@ TEST(jitter, goto_in_if_else) {
         ASSERT_EQ(ret, 0);
     });
 }
+
+TEST(jitter, test_table_negative_int_key) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_table_negative_int_key.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_negative_int_key", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_negative_int_key_write", ret);
+        ASSERT_EQ(ret, 1);
+        Call(s, type, "test_negative_int_key_mixed", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}

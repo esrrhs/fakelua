@@ -4179,3 +4179,21 @@ TEST(infer, test_spec_nil_traversal) {
         ASSERT_EQ(std::get<1>(ret), 0);
     });
 }
+
+TEST(infer, test_table_spec_negative_int_key) {
+    const auto code = InferGetCCode("./infer/test_table_spec_negative_int_key.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("_int__1"), std::string::npos);
+    ASSERT_NE(code.find("_int__2"), std::string::npos);
+    ASSERT_NE(code.find("_int__3"), std::string::npos);
+    ASSERT_EQ(code.find("_int_-1"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_negative_int_key.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_neg_int_spec", ret);
+        ASSERT_EQ(ret, 1);
+    });
+}
