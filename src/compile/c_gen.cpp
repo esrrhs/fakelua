@@ -1980,12 +1980,14 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 
                 if (has_string_keys) {
                     Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
-                    Out() << "        int64_t __sid = k.data_.i;\n";
+                    Out() << "        switch (k.data_.i) {\n";
                     for (const auto &f: fields) {
                         if (f.key_kind == TableKeyKind::kString) {
-                            Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                            Out() << "            case " << s_->GetConstString().Alloc(f.key) << ": *__finish = true; return s->" << f.c_field_name << ";\n";
                         }
                     }
+                    Out() << "            default: break;\n";
+                    Out() << "        }\n";
                     Out() << "    } else if (k.type_ == VAR_STRING) {\n";
                     Out() << "        VarString *__vs = k.data_.s;\n";
                     for (const auto &f: fields) {
@@ -1998,12 +2000,14 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
                 if (has_int_keys) {
                     Out() << "    if (k.type_ == VAR_INT) {\n";
-                    Out() << "        int64_t __ival = k.data_.i;\n";
+                    Out() << "        switch (k.data_.i) {\n";
                     for (const auto &f: fields) {
                         if (f.key_kind == TableKeyKind::kInt) {
-                            Out() << "        if (__ival == " << f.int_value << ") { *__finish = true; return s->" << f.c_field_name << "; }\n";
+                            Out() << "            case " << f.int_value << ": *__finish = true; return s->" << f.c_field_name << ";\n";
                         }
                     }
+                    Out() << "            default: break;\n";
+                    Out() << "        }\n";
                     Out() << "    } else if (k.type_ == VAR_FLOAT) {\n";
                     Out() << "        double __fval = k.data_.f;\n";
                     for (const auto &f: fields) {
@@ -2053,20 +2057,16 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 
                 if (has_string_keys) {
                     Out() << "    if (LIKELY(k.type_ == VAR_STRINGID)) {\n";
-                    Out() << "        int64_t __sid = k.data_.i;\n";
+                    Out() << "        switch (k.data_.i) {\n";
                     int f_idx = 0;
                     for (const auto &f: fields) {
                         if (f.key_kind == TableKeyKind::kString) {
-                            if (f.type == T_INT) {
-                                Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
-                            } else if (f.type == T_FLOAT) {
-                                Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
-                            } else {
-                                Out() << "        if (__sid == " << s_->GetConstString().Alloc(f.key) << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
-                            }
+                            Out() << "            case " << s_->GetConstString().Alloc(f.key) << ": s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return;\n";
                         }
                         f_idx++;
                     }
+                    Out() << "            default: break;\n";
+                    Out() << "        }\n";
                     Out() << "    } else if (k.type_ == VAR_STRING) {\n";
                     Out() << "        VarString *__vs = k.data_.s;\n";
                     f_idx = 0;
@@ -2088,20 +2088,16 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
                 if (has_int_keys) {
                     Out() << "    if (k.type_ == VAR_INT) {\n";
-                    Out() << "        int64_t __ival = k.data_.i;\n";
+                    Out() << "        switch (k.data_.i) {\n";
                     int f_idx = 0;
                     for (const auto &f: fields) {
                         if (f.key_kind == TableKeyKind::kInt) {
-                            if (f.type == T_INT) {
-                                Out() << "        if (__ival == " << f.int_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
-                            } else if (f.type == T_FLOAT) {
-                                Out() << "        if (__ival == " << f.int_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
-                            } else {
-                                Out() << "        if (__ival == " << f.int_value << ") { s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return; }\n";
-                            }
+                            Out() << "            case " << f.int_value << ": s->" << f.c_field_name << " = v; tbl->spec_vals[" << f_idx << "] = v; tbl->spec_keys[" << f_idx << "] = k; *__finish = true; return;\n";
                         }
                         f_idx++;
                     }
+                    Out() << "            default: break;\n";
+                    Out() << "        }\n";
                     Out() << "    } else if (k.type_ == VAR_FLOAT) {\n";
                     Out() << "        double __fval = k.data_.f;\n";
                     f_idx = 0;
