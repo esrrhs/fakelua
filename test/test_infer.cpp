@@ -4245,3 +4245,18 @@ TEST(infer, test_table_spec_string_negative_int) {
         ASSERT_EQ(ret, 1);
     });
 }
+
+TEST(infer, test_table_spec_reassign_to_table) {
+    const auto code = InferGetCCode("./infer/test_table_spec_reassign_to_table.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_reassign_to_table.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test_reassign_to_spec_table", ret);
+        ASSERT_EQ(ret, 30);
+        Call(s, type, "test_nil_to_table", ret);
+        ASSERT_EQ(ret, 300);
+    });
+}
