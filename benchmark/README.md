@@ -52,7 +52,7 @@ build/bin/bench_mark --benchmark_repetitions=1 --benchmark_report_aggregates_onl
 
 ```text
 Starting benchmarks...
-2026-06-30T09:44:59+08:00
+2026-06-30T10:18:40+08:00
 Running build/bin/bench_mark
 Run on (2 X 2595.12 MHz CPU s)
 CPU Caches:
@@ -60,267 +60,279 @@ CPU Caches:
   L1 Instruction 32 KiB (x2)
   L2 Unified 4096 KiB (x2)
   L3 Unified 16384 KiB (x1)
-Load Average: 1.37, 1.11, 0.56
+Load Average: 0.93, 0.56, 0.49
 ***WARNING*** ASLR is enabled, the results may have unreproducible noise in them.
 --------------------------------------------------------------------------------------------
 Benchmark                                                  Time             CPU   Iterations
 --------------------------------------------------------------------------------------------
-BM_CPP_Fibonacci/20                                    16008 ns        16007 ns        45519
-BM_CPP_Fibonacci/25                                   149842 ns       149834 ns         3763
-BM_CPP_Fibonacci/30                                  1935410 ns      1935203 ns          323
-BM_CPP_Fibonacci/32                                  4609975 ns      4609667 ns          140
-BM_Lua_Fibonacci/20                                   647729 ns       637369 ns          834
-BM_Lua_Fibonacci/25                                  7210360 ns      7208117 ns           75
-BM_Lua_Fibonacci/30                                 77382140 ns     77374146 ns            7
-BM_Lua_Fibonacci/32                                203315917 ns    203261013 ns            3
-BM_FakeLua_Fibonacci_TCC/20                            62273 ns        62226 ns         8328
-BM_FakeLua_Fibonacci_TCC/25                           678051 ns       677999 ns          769
-BM_FakeLua_Fibonacci_TCC/30                          7902576 ns      7902125 ns           90
-BM_FakeLua_Fibonacci_TCC/32                         20584100 ns     20582117 ns           32
-BM_FakeLua_Fibonacci_GCC/20                            18091 ns        18087 ns        42269
-BM_FakeLua_Fibonacci_GCC/25                           167772 ns       167747 ns         4647
-BM_FakeLua_Fibonacci_GCC/30                          1753677 ns      1753566 ns          424
-BM_FakeLua_Fibonacci_GCC/32                          4482231 ns      4481388 ns          154
-BM_CPP_GCD/832040/514229                                 121 ns          121 ns      5793388
-BM_CPP_GCD/123456789/987654321                          16.7 ns         16.7 ns     41989728
-BM_CPP_GCD/2147483647/1073741823                        13.0 ns         13.0 ns     53785631
-BM_Lua_GCD/832040/514229                                 455 ns          455 ns      1557703
-BM_Lua_GCD/123456789/987654321                           121 ns          121 ns      6117795
-BM_Lua_GCD/2147483647/1073741823                         102 ns          102 ns      6983506
-BM_FakeLua_GCD_TCC/832040/514229                         249 ns          249 ns      2829847
-BM_FakeLua_GCD_TCC/123456789/987654321                   123 ns          123 ns      5648381
-BM_FakeLua_GCD_TCC/2147483647/1073741823                 120 ns          120 ns      5483997
-BM_FakeLua_GCD_GCC/832040/514229                         204 ns          204 ns      3184055
-BM_FakeLua_GCD_GCC/123456789/987654321                   104 ns          104 ns      6985374
-BM_FakeLua_GCD_GCC/2147483647/1073741823                 103 ns          103 ns      7112510
-BM_CPP_PowMod/2/1000/1000000007                          104 ns          104 ns      6672134
-BM_CPP_PowMod/7/1000000/1000000007                       211 ns          204 ns      3430097
-BM_CPP_PowMod/1234567/7654321/1000000007                 296 ns          296 ns      2364986
-BM_Lua_PowMod/2/1000/1000000007                          431 ns          430 ns      1346558
-BM_Lua_PowMod/7/1000000/1000000007                       783 ns          783 ns       702983
-BM_Lua_PowMod/1234567/7654321/1000000007                 929 ns          929 ns       587754
-BM_FakeLua_PowMod_TCC/2/1000/1000000007                  329 ns          328 ns      2125330
-BM_FakeLua_PowMod_TCC/7/1000000/1000000007               559 ns          559 ns      1249671
-BM_FakeLua_PowMod_TCC/1234567/7654321/1000000007         686 ns          685 ns       910892
-BM_FakeLua_PowMod_GCC/2/1000/1000000007                  215 ns          215 ns      3082299
-BM_FakeLua_PowMod_GCC/7/1000000/1000000007               321 ns          320 ns      2180342
-BM_FakeLua_PowMod_GCC/1234567/7654321/1000000007         416 ns          416 ns      1669384
-BM_CPP_Sum/10000                                        3102 ns         3084 ns       226200
-BM_CPP_Sum/100000                                      30843 ns        30839 ns        22541
-BM_CPP_Sum/1000000                                    309256 ns       308840 ns         2259
-BM_CPP_Sum/5000000                                   1544944 ns      1543977 ns          454
-BM_Lua_Sum/10000                                       54854 ns        54850 ns        13183
-BM_Lua_Sum/100000                                     561601 ns       561492 ns         1314
-BM_Lua_Sum/1000000                                   5477424 ns      5477005 ns          124
-BM_Lua_Sum/5000000                                  27062610 ns     27058821 ns           24
-BM_FakeLua_Sum_TCC/10000                               23160 ns        23158 ns        35149
-BM_FakeLua_Sum_TCC/100000                             282868 ns       282840 ns         2677
-BM_FakeLua_Sum_TCC/1000000                           2192839 ns      2182694 ns          247
-BM_FakeLua_Sum_TCC/5000000                          11623169 ns     11621250 ns           54
-BM_FakeLua_Sum_GCC/10000                                3200 ns         3199 ns       217286
-BM_FakeLua_Sum_GCC/100000                              30991 ns        30984 ns        22479
-BM_FakeLua_Sum_GCC/1000000                            309443 ns       309399 ns         2257
-BM_FakeLua_Sum_GCC/5000000                           1547809 ns      1547548 ns          452
-BM_CPP_BubbleSort/50                                    7630 ns         7630 ns        88511
-BM_CPP_BubbleSort/100                                  31130 ns        31128 ns        22369
-BM_CPP_BubbleSort/200                                 126463 ns       126440 ns         5545
-BM_Lua_BubbleSort/50                                   55824 ns        55821 ns        12185
-BM_Lua_BubbleSort/100                                 212161 ns       212150 ns         3078
-BM_Lua_BubbleSort/200                                 829936 ns       829893 ns          820
-BM_FakeLua_BubbleSort_TCC/50                          110365 ns       110357 ns         5981
-BM_FakeLua_BubbleSort_TCC/100                         435808 ns       435786 ns         1556
-BM_FakeLua_BubbleSort_TCC/200                        1670608 ns      1670406 ns          357
-BM_FakeLua_BubbleSort_GCC/50                           31257 ns        31255 ns        21844
-BM_FakeLua_BubbleSort_GCC/100                         126102 ns       126083 ns         5734
-BM_FakeLua_BubbleSort_GCC/200                         494390 ns       494083 ns         1387
-BM_CPP_Sieve/100                                         262 ns          262 ns      2786529
-BM_CPP_Sieve/500                                        1195 ns         1195 ns       486069
-BM_CPP_Sieve/1000                                       2431 ns         2431 ns       268792
-BM_CPP_Sieve/5000                                      12225 ns        12222 ns        52696
-BM_Lua_Sieve/100                                        6972 ns         6971 ns       104759
-BM_Lua_Sieve/500                                       27702 ns        27700 ns        24378
-BM_Lua_Sieve/1000                                      54331 ns        54323 ns        12999
-BM_Lua_Sieve/5000                                     271115 ns       271094 ns         2464
-BM_FakeLua_Sieve_TCC/100                                9853 ns         9852 ns        69927
-BM_FakeLua_Sieve_TCC/500                               48193 ns        48114 ns        14698
-BM_FakeLua_Sieve_TCC/1000                              93058 ns        93013 ns         5540
-BM_FakeLua_Sieve_TCC/5000                             618925 ns       615934 ns          987
-BM_FakeLua_Sieve_GCC/100                                2040 ns         2035 ns       335329
-BM_FakeLua_Sieve_GCC/500                                9593 ns         9592 ns        75845
-BM_FakeLua_Sieve_GCC/1000                              19647 ns        19632 ns        32409
-BM_FakeLua_Sieve_GCC/5000                             129324 ns       127890 ns         5774
-BM_CPP_BinarySearch/100                                  851 ns          851 ns       665348
-BM_CPP_BinarySearch/500                                 5952 ns         5946 ns        96513
-BM_CPP_BinarySearch/1000                               17173 ns        17155 ns        35337
-BM_Lua_BinarySearch/100                                29224 ns        29205 ns        23414
-BM_Lua_BinarySearch/500                               198527 ns       197626 ns         3635
-BM_Lua_BinarySearch/1000                              446568 ns       446178 ns         1260
-BM_FakeLua_BinarySearch_TCC/100                        39536 ns        39385 ns        13558
-BM_FakeLua_BinarySearch_TCC/500                       280991 ns       280134 ns         2359
-BM_FakeLua_BinarySearch_TCC/1000                      666917 ns       661824 ns         1058
-BM_FakeLua_BinarySearch_GCC/100                         6127 ns         6126 ns       112390
-BM_FakeLua_BinarySearch_GCC/500                        53016 ns        52983 ns        11614
-BM_FakeLua_BinarySearch_GCC/1000                      119763 ns       119686 ns         5314
-BM_CPP_FastPow/2/1000/1000000007                         105 ns          105 ns      6641928
-BM_CPP_FastPow/7/1000000/1000000007                      204 ns          204 ns      3434751
-BM_CPP_FastPow/1234567/7654321/1000000007                297 ns          297 ns      2359400
-BM_Lua_FastPow/2/1000/1000000007                         401 ns          401 ns      1705543
-BM_Lua_FastPow/7/1000000/1000000007                      705 ns          705 ns       989627
-BM_Lua_FastPow/1234567/7654321/1000000007                837 ns          837 ns       840387
-BM_FakeLua_FastPow_TCC/2/1000/1000000007                 222 ns          222 ns      2868975
-BM_FakeLua_FastPow_TCC/7/1000000/1000000007              340 ns          340 ns      2049087
-BM_FakeLua_FastPow_TCC/1234567/7654321/1000000007        433 ns          431 ns      1580977
-BM_FakeLua_FastPow_GCC/2/1000/1000000007                 209 ns          209 ns      3480654
-BM_FakeLua_FastPow_GCC/7/1000000/1000000007              312 ns          312 ns      2209156
-BM_FakeLua_FastPow_GCC/1234567/7654321/1000000007        421 ns          402 ns      1752476
-BM_CPP_Popcount/1000                                    3377 ns         3374 ns       200543
-BM_CPP_Popcount/10000                                  39030 ns        39026 ns        16843
-BM_CPP_Popcount/100000                                496824 ns       496720 ns         1047
-BM_Lua_Popcount/1000                                   85285 ns        85273 ns         6181
-BM_Lua_Popcount/10000                                1047535 ns      1047486 ns          535
-BM_Lua_Popcount/100000                              13216690 ns     13215924 ns           47
-BM_FakeLua_Popcount_TCC/1000                           12488 ns        12486 ns        56229
-BM_FakeLua_Popcount_TCC/10000                         162758 ns       162474 ns         4346
-BM_FakeLua_Popcount_TCC/100000                       2033611 ns      2033476 ns          345
-BM_FakeLua_Popcount_GCC/1000                            3282 ns         3282 ns       211005
-BM_FakeLua_Popcount_GCC/10000                          37908 ns        37905 ns        18826
-BM_FakeLua_Popcount_GCC/100000                        463118 ns       463087 ns         1488
-BM_CPP_InsertionSort/50                                  766 ns          765 ns       938554
-BM_CPP_InsertionSort/100                                3259 ns         3258 ns       209119
-BM_CPP_InsertionSort/200                               11818 ns        11811 ns        61323
-BM_Lua_InsertionSort/50                                39667 ns        39603 ns        12852
-BM_Lua_InsertionSort/100                              147392 ns       147281 ns         3860
-BM_Lua_InsertionSort/200                              583389 ns       582117 ns          871
-BM_FakeLua_InsertionSort_TCC/50                        74512 ns        74417 ns        10037
-BM_FakeLua_InsertionSort_TCC/100                      280040 ns       279870 ns         2395
-BM_FakeLua_InsertionSort_TCC/200                     1108195 ns      1107482 ns          660
-BM_FakeLua_InsertionSort_GCC/50                        12548 ns        12546 ns        43291
-BM_FakeLua_InsertionSort_GCC/100                       48255 ns        48252 ns        15064
-BM_FakeLua_InsertionSort_GCC/200                      186111 ns       186099 ns         3298
-BM_CPP_MatMul                                           3.24 ns         3.19 ns    225790435
-BM_Lua_MatMul                                           2658 ns         2658 ns       255933
-BM_FakeLua_MatMul_TCC                                   2389 ns         2388 ns       315072
-BM_FakeLua_MatMul_GCC                                    611 ns          611 ns      1113757
-BM_VarTable_Set/2                                        134 ns          134 ns      4401795
-BM_VarTable_Set/4                                        160 ns          160 ns      3887808
-BM_VarTable_Set/8                                        202 ns          202 ns      2998203
-BM_VarTable_Set/16                                       643 ns          637 ns       844942
-BM_VarTable_Set/32                                      1505 ns         1505 ns       400637
-BM_VarTable_Set/64                                      3330 ns         3329 ns       210505
-BM_VarTable_Set/128                                     6660 ns         6659 ns        81755
-BM_VarTable_Set/256                                    13410 ns        13408 ns        44498
-BM_VarTable_Set/512                                    26788 ns        26783 ns        23661
-BM_VarTable_Set/1024                                   53629 ns        53623 ns        10213
-BM_StdUnorderedMap_Set/2                                91.1 ns         91.1 ns      5660054
-BM_StdUnorderedMap_Set/4                                 138 ns          138 ns      4245368
-BM_StdUnorderedMap_Set/8                                 255 ns          255 ns      2446435
-BM_StdUnorderedMap_Set/16                                607 ns          606 ns      1212194
-BM_StdUnorderedMap_Set/32                               1338 ns         1338 ns       568249
-BM_StdUnorderedMap_Set/64                               2636 ns         2635 ns       274793
-BM_StdUnorderedMap_Set/128                              5545 ns         5545 ns       128400
-BM_StdUnorderedMap_Set/256                             12219 ns        12218 ns        60944
-BM_StdUnorderedMap_Set/512                             27034 ns        27015 ns        25733
-BM_StdUnorderedMap_Set/1024                            56935 ns        56898 ns         9645
-BM_LuaTable_Set/2                                        792 ns          797 ns       755142
-BM_LuaTable_Set/4                                        961 ns          967 ns       650491
-BM_LuaTable_Set/8                                       1238 ns         1245 ns       534927
-BM_LuaTable_Set/16                                      1716 ns         1722 ns       370643
-BM_LuaTable_Set/32                                      2520 ns         2529 ns       292984
-BM_LuaTable_Set/64                                      4040 ns         4050 ns       174723
-BM_LuaTable_Set/128                                     7241 ns         7259 ns       104225
-BM_LuaTable_Set/256                                    13029 ns        13047 ns        57720
-BM_LuaTable_Set/512                                    23800 ns        23823 ns        28305
-BM_LuaTable_Set/1024                                   45894 ns        45927 ns        15405
-BM_VarTable_Get/2                                       25.1 ns         25.1 ns     26224788
-BM_VarTable_Get/4                                       53.7 ns         53.7 ns     12900369
-BM_VarTable_Get/8                                        123 ns          123 ns      6077651
-BM_VarTable_Get/16                                       195 ns          195 ns      3008175
-BM_VarTable_Get/32                                       396 ns          393 ns      1327700
-BM_VarTable_Get/64                                       769 ns          768 ns       741136
-BM_VarTable_Get/128                                     1547 ns         1546 ns       401881
-BM_VarTable_Get/256                                     3155 ns         3152 ns       226503
-BM_VarTable_Get/512                                     6240 ns         6218 ns       107660
-BM_VarTable_Get/1024                                   12789 ns        12783 ns        54934
-BM_StdUnorderedMap_Get/2                                9.92 ns         9.92 ns     67849166
-BM_StdUnorderedMap_Get/4                                21.7 ns         21.7 ns     31893695
-BM_StdUnorderedMap_Get/8                                46.2 ns         46.2 ns     15118455
-BM_StdUnorderedMap_Get/16                               94.5 ns         94.4 ns      7363551
-BM_StdUnorderedMap_Get/32                                191 ns          191 ns      3684983
-BM_StdUnorderedMap_Get/64                                385 ns          384 ns      1812854
-BM_StdUnorderedMap_Get/128                               751 ns          750 ns       909450
-BM_StdUnorderedMap_Get/256                              1553 ns         1552 ns       435835
-BM_StdUnorderedMap_Get/512                              3135 ns         3131 ns       221898
-BM_StdUnorderedMap_Get/1024                             6225 ns         6220 ns       106909
-BM_LuaTable_Get/2                                       33.3 ns         33.2 ns     20425020
-BM_LuaTable_Get/4                                       65.6 ns         65.5 ns      8967110
-BM_LuaTable_Get/8                                        143 ns          143 ns      4555389
-BM_LuaTable_Get/16                                       275 ns          275 ns      2633494
-BM_LuaTable_Get/32                                       545 ns          544 ns      1272535
-BM_LuaTable_Get/64                                      1012 ns         1012 ns       533830
-BM_LuaTable_Get/128                                     1986 ns         1983 ns       316631
-BM_LuaTable_Get/256                                     4301 ns         4296 ns       123403
-BM_LuaTable_Get/512                                     8162 ns         8158 ns        66512
-BM_LuaTable_Get/1024                                   16591 ns        16580 ns        36680
-BM_VarTable_Iter/2                                      1.27 ns         1.27 ns    400938278
-BM_VarTable_Iter/4                                      2.68 ns         2.68 ns    246875959
-BM_VarTable_Iter/8                                      5.34 ns         5.34 ns    129641028
-BM_VarTable_Iter/16                                     14.3 ns         14.3 ns     50621487
-BM_VarTable_Iter/32                                     30.5 ns         30.5 ns     21527565
-BM_VarTable_Iter/64                                     57.3 ns         57.3 ns     12119780
-BM_VarTable_Iter/128                                     112 ns          112 ns      4840048
-BM_VarTable_Iter/256                                     231 ns          231 ns      2758155
-BM_VarTable_Iter/512                                     476 ns          476 ns      1317886
-BM_VarTable_Iter/1024                                    994 ns          993 ns       765138
-BM_StdUnorderedMap_Iter/2                              0.912 ns        0.881 ns    780554000
-BM_StdUnorderedMap_Iter/4                               1.73 ns         1.73 ns    397890693
-BM_StdUnorderedMap_Iter/8                               4.34 ns         4.32 ns    165085593
-BM_StdUnorderedMap_Iter/16                              10.4 ns         10.4 ns     53420604
-BM_StdUnorderedMap_Iter/32                              27.4 ns         27.4 ns     23705292
-BM_StdUnorderedMap_Iter/64                              67.7 ns         67.6 ns      8988589
-BM_StdUnorderedMap_Iter/128                              170 ns          170 ns      3970423
-BM_StdUnorderedMap_Iter/256                              365 ns          364 ns      1965055
-BM_StdUnorderedMap_Iter/512                              998 ns          998 ns       604533
-BM_StdUnorderedMap_Iter/1024                            2015 ns         2015 ns       334402
-BM_LuaTable_Iter/2                                      63.4 ns         63.4 ns     10136812
-BM_LuaTable_Iter/4                                       120 ns          120 ns      5138734
-BM_LuaTable_Iter/8                                       222 ns          222 ns      2960988
-BM_LuaTable_Iter/16                                      393 ns          393 ns      1661334
-BM_LuaTable_Iter/32                                      795 ns          795 ns       915013
-BM_LuaTable_Iter/64                                     1494 ns         1493 ns       392443
-BM_LuaTable_Iter/128                                    3006 ns         3005 ns       219387
-BM_LuaTable_Iter/256                                    6080 ns         6078 ns        82600
-BM_LuaTable_Iter/512                                   12414 ns        12413 ns        48441
-BM_LuaTable_Iter/1024                                  24401 ns        24398 ns        30014
-BM_VarTable_Del/2                                        292 ns          293 ns      2478516
-BM_VarTable_Del/4                                        327 ns          328 ns      2169742
-BM_VarTable_Del/8                                        401 ns          403 ns      1298310
-BM_VarTable_Del/16                                       523 ns          519 ns      1097282
-BM_VarTable_Del/32                                       974 ns          898 ns       823902
-BM_VarTable_Del/64                                      1825 ns         1649 ns       537873
-BM_VarTable_Del/128                                     3222 ns         2994 ns       299084
-BM_VarTable_Del/256                                     5433 ns         5028 ns       100000
-BM_VarTable_Del/512                                    13662 ns        10536 ns        85579
-BM_VarTable_Del/1024                                   25912 ns        20676 ns        44492
-BM_StdUnorderedMap_Del/2                                 286 ns          287 ns      2303641
-BM_StdUnorderedMap_Del/4                                 321 ns          323 ns      2243128
-BM_StdUnorderedMap_Del/8                                 363 ns          365 ns      1914816
-BM_StdUnorderedMap_Del/16                                582 ns          583 ns      1247619
-BM_StdUnorderedMap_Del/32                                963 ns          961 ns       680338
-BM_StdUnorderedMap_Del/64                               1698 ns         1697 ns       412703
-BM_StdUnorderedMap_Del/128                              3236 ns         3230 ns       211936
-BM_StdUnorderedMap_Del/256                              5078 ns         5072 ns       118861
-BM_StdUnorderedMap_Del/512                              9964 ns         9953 ns        69310
-BM_StdUnorderedMap_Del/1024                            19689 ns        19658 ns        36471
-BM_LuaTable_Del/2                                        549 ns          548 ns      1237456
-BM_LuaTable_Del/4                                        571 ns          572 ns      1071477
-BM_LuaTable_Del/8                                        660 ns          651 ns      1113857
-BM_LuaTable_Del/16                                       788 ns          786 ns       857193
-BM_LuaTable_Del/32                                       993 ns          991 ns       725350
-BM_LuaTable_Del/64                                      1464 ns         1458 ns       477532
-BM_LuaTable_Del/128                                     2448 ns         2386 ns       294235
-BM_LuaTable_Del/256                                     4305 ns         4291 ns       164149
-BM_LuaTable_Del/512                                     8053 ns         8039 ns        84879
-BM_LuaTable_Del/1024                                   15641 ns        15604 ns        44281
+BM_CPP_Fibonacci/20                                    16130 ns        16121 ns        45655
+BM_CPP_Fibonacci/25                                   148027 ns       147927 ns         3719
+BM_CPP_Fibonacci/30                                  1844064 ns      1842803 ns          307
+BM_CPP_Fibonacci/32                                  4897692 ns      4895087 ns          146
+BM_Lua_Fibonacci/20                                   670169 ns       668306 ns         1063
+BM_Lua_Fibonacci/25                                  7127658 ns      7126321 ns           75
+BM_Lua_Fibonacci/30                                 78384976 ns     78364318 ns            7
+BM_Lua_Fibonacci/32                                203974603 ns    203951570 ns            3
+BM_FakeLua_Fibonacci_TCC/20                            62256 ns        61686 ns         8529
+BM_FakeLua_Fibonacci_TCC/25                           719884 ns       719831 ns         1016
+BM_FakeLua_Fibonacci_TCC/30                          7530770 ns      7525059 ns           86
+BM_FakeLua_Fibonacci_TCC/32                         20000669 ns     19975480 ns           33
+BM_FakeLua_Fibonacci_GCC/20                            16687 ns        16675 ns        34085
+BM_FakeLua_Fibonacci_GCC/25                           158315 ns       158201 ns         3652
+BM_FakeLua_Fibonacci_GCC/30                          1690121 ns      1688046 ns          358
+BM_FakeLua_Fibonacci_GCC/32                          4578175 ns      4575733 ns          158
+BM_CPP_GCD/832040/514229                                 121 ns          121 ns      5792608
+BM_CPP_GCD/123456789/987654321                          16.7 ns         16.7 ns     41957368
+BM_CPP_GCD/2147483647/1073741823                        13.0 ns         13.0 ns     54101379
+BM_Lua_GCD/832040/514229                                 461 ns          461 ns      1553999
+BM_Lua_GCD/123456789/987654321                           121 ns          121 ns      5919974
+BM_Lua_GCD/2147483647/1073741823                         103 ns          103 ns      5244187
+BM_FakeLua_GCD_TCC/832040/514229                         272 ns          271 ns      2700385
+BM_FakeLua_GCD_TCC/123456789/987654321                   125 ns          124 ns      5181201
+BM_FakeLua_GCD_TCC/2147483647/1073741823                 118 ns          118 ns      5429263
+BM_FakeLua_GCD_GCC/832040/514229                         204 ns          204 ns      3105192
+BM_FakeLua_GCD_GCC/123456789/987654321                   109 ns          109 ns      6720043
+BM_FakeLua_GCD_GCC/2147483647/1073741823                 107 ns          107 ns      6812078
+BM_CPP_PowMod/2/1000/1000000007                          104 ns          104 ns      6675637
+BM_CPP_PowMod/7/1000000/1000000007                       204 ns          204 ns      3426311
+BM_CPP_PowMod/1234567/7654321/1000000007                 296 ns          296 ns      2363560
+BM_Lua_PowMod/2/1000/1000000007                          447 ns          446 ns      1593875
+BM_Lua_PowMod/7/1000000/1000000007                       794 ns          793 ns       760631
+BM_Lua_PowMod/1234567/7654321/1000000007                 917 ns          917 ns       650246
+BM_FakeLua_PowMod_TCC/2/1000/1000000007                  330 ns          330 ns      2083492
+BM_FakeLua_PowMod_TCC/7/1000000/1000000007               556 ns          555 ns      1240802
+BM_FakeLua_PowMod_TCC/1234567/7654321/1000000007         685 ns          684 ns       917803
+BM_FakeLua_PowMod_GCC/2/1000/1000000007                  213 ns          213 ns      3122515
+BM_FakeLua_PowMod_GCC/7/1000000/1000000007               325 ns          324 ns      2193541
+BM_FakeLua_PowMod_GCC/1234567/7654321/1000000007         418 ns          418 ns      1677203
+BM_CPP_Sum/10000                                        3093 ns         3091 ns       226167
+BM_CPP_Sum/100000                                      30913 ns        30894 ns        22710
+BM_CPP_Sum/1000000                                    308959 ns       308794 ns         2260
+BM_CPP_Sum/5000000                                   1545431 ns      1544441 ns          454
+BM_Lua_Sum/10000                                       54957 ns        54924 ns        12242
+BM_Lua_Sum/100000                                     557657 ns       556859 ns         1305
+BM_Lua_Sum/1000000                                   5482921 ns      5478826 ns          124
+BM_Lua_Sum/5000000                                  27519155 ns     27454388 ns           25
+BM_FakeLua_Sum_TCC/10000                               24932 ns        24888 ns        30538
+BM_FakeLua_Sum_TCC/100000                             275630 ns       275605 ns         2437
+BM_FakeLua_Sum_TCC/1000000                           2309112 ns      2308994 ns          243
+BM_FakeLua_Sum_TCC/5000000                          10949988 ns     10928047 ns          106
+BM_FakeLua_Sum_GCC/10000                                3208 ns         3205 ns       217461
+BM_FakeLua_Sum_GCC/100000                              31109 ns        31076 ns        22608
+BM_FakeLua_Sum_GCC/1000000                            309717 ns       309525 ns         2257
+BM_FakeLua_Sum_GCC/5000000                           1548046 ns      1545380 ns          454
+BM_CPP_BubbleSort/50                                    7645 ns         7616 ns        90281
+BM_CPP_BubbleSort/100                                  31503 ns        31454 ns        22197
+BM_CPP_BubbleSort/200                                 126535 ns       126442 ns         5538
+BM_Lua_BubbleSort/50                                   54143 ns        54074 ns        13160
+BM_Lua_BubbleSort/100                                 208882 ns       208761 ns         3492
+BM_Lua_BubbleSort/200                                 827332 ns       826375 ns          867
+BM_FakeLua_BubbleSort_TCC/50                          115897 ns       115279 ns         6490
+BM_FakeLua_BubbleSort_TCC/100                         437174 ns       436672 ns         1552
+BM_FakeLua_BubbleSort_TCC/200                        1745774 ns      1744644 ns          420
+BM_FakeLua_BubbleSort_GCC/50                           31261 ns        31230 ns        21558
+BM_FakeLua_BubbleSort_GCC/100                         125133 ns       124415 ns         5771
+BM_FakeLua_BubbleSort_GCC/200                         491459 ns       491089 ns         1377
+BM_CPP_Sieve/100                                         252 ns          252 ns      2557016
+BM_CPP_Sieve/500                                        1189 ns         1189 ns       459109
+BM_CPP_Sieve/1000                                       2390 ns         2387 ns       262120
+BM_CPP_Sieve/5000                                      12224 ns        12216 ns        44905
+BM_Lua_Sieve/100                                        7186 ns         7168 ns       101746
+BM_Lua_Sieve/500                                       27269 ns        27254 ns        24345
+BM_Lua_Sieve/1000                                      53974 ns        53909 ns        12549
+BM_Lua_Sieve/5000                                     271415 ns       271204 ns         2509
+BM_FakeLua_Sieve_TCC/100                                9879 ns         9866 ns        73295
+BM_FakeLua_Sieve_TCC/500                               48811 ns        48770 ns        14699
+BM_FakeLua_Sieve_TCC/1000                              97995 ns        97826 ns         7391
+BM_FakeLua_Sieve_TCC/5000                             598991 ns       598603 ns         1137
+BM_FakeLua_Sieve_GCC/100                                1975 ns         1975 ns       309957
+BM_FakeLua_Sieve_GCC/500                                9618 ns         9612 ns        76797
+BM_FakeLua_Sieve_GCC/1000                              18809 ns        18797 ns        32344
+BM_FakeLua_Sieve_GCC/5000                             126305 ns       126112 ns         4605
+BM_CPP_BinarySearch/100                                  847 ns          847 ns       665604
+BM_CPP_BinarySearch/500                                 6085 ns         6084 ns       114231
+BM_CPP_BinarySearch/1000                               18675 ns        18662 ns        33826
+BM_Lua_BinarySearch/100                                29602 ns        29544 ns        24840
+BM_Lua_BinarySearch/500                               199351 ns       199208 ns         3500
+BM_Lua_BinarySearch/1000                              455633 ns       455131 ns         1554
+BM_FakeLua_BinarySearch_TCC/100                        40367 ns        40341 ns        16917
+BM_FakeLua_BinarySearch_TCC/500                       272334 ns       272048 ns         2368
+BM_FakeLua_BinarySearch_TCC/1000                      635170 ns       634709 ns          813
+BM_FakeLua_BinarySearch_GCC/100                         6036 ns         6033 ns        89302
+BM_FakeLua_BinarySearch_GCC/500                        52320 ns        52316 ns        11679
+BM_FakeLua_BinarySearch_GCC/1000                      125561 ns       125368 ns         5089
+BM_CPP_FastPow/2/1000/1000000007                         105 ns          104 ns      6713052
+BM_CPP_FastPow/7/1000000/1000000007                      204 ns          204 ns      3424937
+BM_CPP_FastPow/1234567/7654321/1000000007                297 ns          297 ns      2362940
+BM_Lua_FastPow/2/1000/1000000007                         394 ns          394 ns      1335285
+BM_Lua_FastPow/7/1000000/1000000007                      707 ns          707 ns       956345
+BM_Lua_FastPow/1234567/7654321/1000000007                817 ns          817 ns       673915
+BM_FakeLua_FastPow_TCC/2/1000/1000000007                 236 ns          236 ns      2726024
+BM_FakeLua_FastPow_TCC/7/1000000/1000000007              345 ns          344 ns      2094568
+BM_FakeLua_FastPow_TCC/1234567/7654321/1000000007        432 ns          432 ns      1385499
+BM_FakeLua_FastPow_GCC/2/1000/1000000007                 201 ns          201 ns      3154883
+BM_FakeLua_FastPow_GCC/7/1000000/1000000007              303 ns          303 ns      2187277
+BM_FakeLua_FastPow_GCC/1234567/7654321/1000000007        413 ns          412 ns      1708921
+BM_CPP_Popcount/1000                                    3461 ns         3461 ns       196618
+BM_CPP_Popcount/10000                                  39697 ns        39625 ns        18225
+BM_CPP_Popcount/100000                                466051 ns       465826 ns         1088
+BM_Lua_Popcount/1000                                   89670 ns        89571 ns         8048
+BM_Lua_Popcount/10000                                1055931 ns      1055335 ns          512
+BM_Lua_Popcount/100000                              12913960 ns     12887776 ns           45
+BM_FakeLua_Popcount_TCC/1000                           12268 ns        12261 ns        54288
+BM_FakeLua_Popcount_TCC/10000                         161034 ns       160947 ns         4282
+BM_FakeLua_Popcount_TCC/100000                       2035586 ns      2035472 ns          537
+BM_FakeLua_Popcount_GCC/1000                            3336 ns         3334 ns       206377
+BM_FakeLua_Popcount_GCC/10000                          37999 ns        37948 ns        19342
+BM_FakeLua_Popcount_GCC/100000                        434847 ns       434527 ns         1177
+BM_CPP_InsertionSort/50                                  762 ns          761 ns       947296
+BM_CPP_InsertionSort/100                                3239 ns         3233 ns       206762
+BM_CPP_InsertionSort/200                               11939 ns        11936 ns        60634
+BM_Lua_InsertionSort/50                                39990 ns        39968 ns        17203
+BM_Lua_InsertionSort/100                              153927 ns       153406 ns         4814
+BM_Lua_InsertionSort/200                              604500 ns       603691 ns         1164
+BM_FakeLua_InsertionSort_TCC/50                        70532 ns        70314 ns         8504
+BM_FakeLua_InsertionSort_TCC/100                      278055 ns       277838 ns         2386
+BM_FakeLua_InsertionSort_TCC/200                     1055127 ns      1054524 ns          611
+BM_FakeLua_InsertionSort_GCC/50                        12386 ns        12367 ns        40433
+BM_FakeLua_InsertionSort_GCC/100                       49395 ns        49327 ns        14816
+BM_FakeLua_InsertionSort_GCC/200                      186224 ns       186039 ns         4032
+BM_CPP_MatMul                                           1.93 ns         1.93 ns    336018531
+BM_Lua_MatMul                                           2662 ns         2659 ns       275885
+BM_FakeLua_MatMul_TCC                                   2248 ns         2247 ns       290223
+BM_FakeLua_MatMul_GCC                                    578 ns          578 ns      1201897
+BM_CPP_Vector3/10000                                    5094 ns         5084 ns       137897
+BM_CPP_Vector3/100000                                  49756 ns        49730 ns        14405
+BM_CPP_Vector3/1000000                                503049 ns       502392 ns         1000
+BM_Lua_Vector3/10000                                 1143004 ns      1121024 ns          654
+BM_Lua_Vector3/100000                               10802073 ns     10799088 ns           59
+BM_Lua_Vector3/1000000                             107690234 ns    107666616 ns            5
+BM_FakeLua_Vector3_TCC/10000                          670453 ns       648277 ns         1132
+BM_FakeLua_Vector3_TCC/100000                        6523911 ns      6523463 ns          110
+BM_FakeLua_Vector3_TCC/1000000                      64958393 ns     64955620 ns           11
+BM_FakeLua_Vector3_GCC/10000                           64602 ns        64070 ns        10772
+BM_FakeLua_Vector3_GCC/100000                         637211 ns       637125 ns         1167
+BM_FakeLua_Vector3_GCC/1000000                       6532916 ns      6531773 ns          109
+BM_VarTable_Set/2                                        135 ns          135 ns      4432781
+BM_VarTable_Set/4                                        156 ns          156 ns      3941017
+BM_VarTable_Set/8                                        204 ns          204 ns      3069956
+BM_VarTable_Set/16                                       637 ns          637 ns       830342
+BM_VarTable_Set/32                                      1543 ns         1541 ns       477554
+BM_VarTable_Set/64                                      3325 ns         3317 ns       205995
+BM_VarTable_Set/128                                     6606 ns         6601 ns        81851
+BM_VarTable_Set/256                                    13295 ns        13287 ns        44448
+BM_VarTable_Set/512                                    27421 ns        27388 ns        25102
+BM_VarTable_Set/1024                                   55003 ns        54959 ns        11982
+BM_StdUnorderedMap_Set/2                                83.7 ns         83.6 ns      5999522
+BM_StdUnorderedMap_Set/4                                 129 ns          129 ns      4325805
+BM_StdUnorderedMap_Set/8                                 258 ns          257 ns      2544994
+BM_StdUnorderedMap_Set/16                                621 ns          621 ns      1139844
+BM_StdUnorderedMap_Set/32                               1293 ns         1292 ns       471222
+BM_StdUnorderedMap_Set/64                               2623 ns         2618 ns       276807
+BM_StdUnorderedMap_Set/128                              5526 ns         5523 ns       130532
+BM_StdUnorderedMap_Set/256                             12850 ns        12826 ns        60623
+BM_StdUnorderedMap_Set/512                             29013 ns        28993 ns        25582
+BM_StdUnorderedMap_Set/1024                            56471 ns        56429 ns        12751
+BM_LuaTable_Set/2                                        807 ns          812 ns       819234
+BM_LuaTable_Set/4                                        988 ns          994 ns       724871
+BM_LuaTable_Set/8                                       1289 ns         1297 ns       586246
+BM_LuaTable_Set/16                                      1650 ns         1657 ns       379762
+BM_LuaTable_Set/32                                      2549 ns         2557 ns       275902
+BM_LuaTable_Set/64                                      4194 ns         4204 ns       177341
+BM_LuaTable_Set/128                                     6800 ns         6811 ns        74607
+BM_LuaTable_Set/256                                    12314 ns        12335 ns        46158
+BM_LuaTable_Set/512                                    23869 ns        23899 ns        28189
+BM_LuaTable_Set/1024                                   47622 ns        47665 ns        16590
+BM_VarTable_Get/2                                       28.8 ns         28.8 ns     25055875
+BM_VarTable_Get/4                                       57.9 ns         57.8 ns      9598256
+BM_VarTable_Get/8                                        120 ns          120 ns      5006177
+BM_VarTable_Get/16                                       225 ns          225 ns      2950793
+BM_VarTable_Get/32                                       419 ns          419 ns      1588169
+BM_VarTable_Get/64                                       831 ns          831 ns       651228
+BM_VarTable_Get/128                                     1662 ns         1662 ns       369990
+BM_VarTable_Get/256                                     3495 ns         3492 ns       199122
+BM_VarTable_Get/512                                     6879 ns         6878 ns        99033
+BM_VarTable_Get/1024                                   13386 ns        13385 ns        45815
+BM_StdUnorderedMap_Get/2                                9.91 ns         9.90 ns     67343717
+BM_StdUnorderedMap_Get/4                                21.6 ns         21.6 ns     31667121
+BM_StdUnorderedMap_Get/8                                46.2 ns         46.2 ns     15133786
+BM_StdUnorderedMap_Get/16                               96.3 ns         94.4 ns      7291603
+BM_StdUnorderedMap_Get/32                                191 ns          191 ns      3620217
+BM_StdUnorderedMap_Get/64                                385 ns          383 ns      1828373
+BM_StdUnorderedMap_Get/128                               754 ns          753 ns       884779
+BM_StdUnorderedMap_Get/256                              1565 ns         1565 ns       435180
+BM_StdUnorderedMap_Get/512                              3153 ns         3142 ns       221762
+BM_StdUnorderedMap_Get/1024                             6278 ns         6278 ns       106713
+BM_LuaTable_Get/2                                       33.6 ns         33.6 ns     21058785
+BM_LuaTable_Get/4                                       66.1 ns         66.1 ns      7817932
+BM_LuaTable_Get/8                                        137 ns          137 ns      4320543
+BM_LuaTable_Get/16                                       276 ns          276 ns      2496498
+BM_LuaTable_Get/32                                       534 ns          534 ns      1243606
+BM_LuaTable_Get/64                                      1040 ns         1040 ns       695346
+BM_LuaTable_Get/128                                     2121 ns         2121 ns       299295
+BM_LuaTable_Get/256                                     4043 ns         4042 ns       159422
+BM_LuaTable_Get/512                                     8310 ns         8310 ns        63437
+BM_LuaTable_Get/1024                                   16679 ns        16678 ns        37525
+BM_VarTable_Iter/2                                      1.32 ns         1.32 ns    403977579
+BM_VarTable_Iter/4                                      2.53 ns         2.53 ns    248254081
+BM_VarTable_Iter/8                                      5.28 ns         5.28 ns    134830542
+BM_VarTable_Iter/16                                     14.3 ns         14.3 ns     51320386
+BM_VarTable_Iter/32                                     28.6 ns         28.6 ns     23129004
+BM_VarTable_Iter/64                                     57.2 ns         57.2 ns     11836331
+BM_VarTable_Iter/128                                     119 ns          119 ns      5465238
+BM_VarTable_Iter/256                                     231 ns          231 ns      2841827
+BM_VarTable_Iter/512                                     466 ns          466 ns      1336094
+BM_VarTable_Iter/1024                                    921 ns          920 ns       577419
+BM_StdUnorderedMap_Iter/2                              0.890 ns        0.890 ns    829810379
+BM_StdUnorderedMap_Iter/4                               1.84 ns         1.84 ns    332540053
+BM_StdUnorderedMap_Iter/8                               4.36 ns         4.35 ns    117268318
+BM_StdUnorderedMap_Iter/16                              10.7 ns         10.7 ns     67522923
+BM_StdUnorderedMap_Iter/32                              27.8 ns         27.8 ns     23935775
+BM_StdUnorderedMap_Iter/64                              68.9 ns         68.8 ns      9318311
+BM_StdUnorderedMap_Iter/128                              184 ns          184 ns      3922894
+BM_StdUnorderedMap_Iter/256                              438 ns          432 ns      1880077
+BM_StdUnorderedMap_Iter/512                             1327 ns         1325 ns       557978
+BM_StdUnorderedMap_Iter/1024                            2390 ns         2390 ns       297377
+BM_LuaTable_Iter/2                                      61.8 ns         61.8 ns     11033026
+BM_LuaTable_Iter/4                                       118 ns          118 ns      4771078
+BM_LuaTable_Iter/8                                       219 ns          219 ns      2962909
+BM_LuaTable_Iter/16                                      400 ns          400 ns      1643680
+BM_LuaTable_Iter/32                                      797 ns          796 ns       914000
+BM_LuaTable_Iter/64                                     1496 ns         1496 ns       395893
+BM_LuaTable_Iter/128                                    2960 ns         2960 ns       217955
+BM_LuaTable_Iter/256                                    6215 ns         6214 ns       115078
+BM_LuaTable_Iter/512                                   12078 ns        12071 ns        48040
+BM_LuaTable_Iter/1024                                  23554 ns        23551 ns        26205
+BM_VarTable_Del/2                                        296 ns          297 ns      2460558
+BM_VarTable_Del/4                                        331 ns          327 ns      2156886
+BM_VarTable_Del/8                                        404 ns          405 ns      1727263
+BM_VarTable_Del/16                                       544 ns          541 ns      1080401
+BM_VarTable_Del/32                                       868 ns          858 ns       808506
+BM_VarTable_Del/64                                      1814 ns         1723 ns       460445
+BM_VarTable_Del/128                                     3179 ns         2930 ns       284913
+BM_VarTable_Del/256                                     5529 ns         5173 ns       100000
+BM_VarTable_Del/512                                    11878 ns        11393 ns        66451
+BM_VarTable_Del/1024                                   24450 ns        21694 ns        43892
+BM_StdUnorderedMap_Del/2                                 291 ns          293 ns      2165845
+BM_StdUnorderedMap_Del/4                                 308 ns          309 ns      2200724
+BM_StdUnorderedMap_Del/8                                 371 ns          373 ns      1923522
+BM_StdUnorderedMap_Del/16                                592 ns          593 ns      1122081
+BM_StdUnorderedMap_Del/32                                969 ns          968 ns       725536
+BM_StdUnorderedMap_Del/64                               1742 ns         1740 ns       406547
+BM_StdUnorderedMap_Del/128                              3280 ns         3277 ns       212401
+BM_StdUnorderedMap_Del/256                              5303 ns         5289 ns       114018
+BM_StdUnorderedMap_Del/512                             10193 ns        10183 ns        65456
+BM_StdUnorderedMap_Del/1024                            20047 ns        20009 ns        34973
+BM_LuaTable_Del/2                                        548 ns          541 ns      1280533
+BM_LuaTable_Del/4                                        555 ns          556 ns      1102730
+BM_LuaTable_Del/8                                        632 ns          630 ns      1117357
+BM_LuaTable_Del/16                                       739 ns          733 ns       884358
+BM_LuaTable_Del/32                                       976 ns          972 ns       698806
+BM_LuaTable_Del/64                                      1459 ns         1451 ns       501583
+BM_LuaTable_Del/128                                     2406 ns         2394 ns       290888
+BM_LuaTable_Del/256                                     4297 ns         4280 ns       163744
+BM_LuaTable_Del/512                                     8134 ns         8090 ns        89315
+BM_LuaTable_Del/1024                                   15693 ns        15660 ns        44228
 ```
 
 ---
@@ -333,37 +345,37 @@ BM_LuaTable_Del/1024                                   15641 ns        15604 ns 
 
 | 实现 | CPU Time | vs C++ |
 |------|----------|--------|
-| C++ | 4.61 ms | 1x |
-| Lua | 203.26 ms | **44.09x** 慢 |
-| FakeLua TCC | 20.58 ms | **4.46x** 慢 |
-| FakeLua GCC | 4.48 ms | **1.03x** 快 (比 C++ 快 **2%**) |
+| C++ | 4.90 ms | 1x |
+| Lua | 203.95 ms | **41.66x** 慢 |
+| FakeLua TCC | 19.98 ms | **4.08x** 慢 |
+| FakeLua GCC | 4.58 ms | **1.07x** 快 (比 C++ 快 **6%**) |
 
 ### 2. GCD（a=832040, b=514229，约 30 次迭代）
 
 | 实现 | CPU Time | vs C++ |
 |------|----------|--------|
 | C++ | 121 ns | 1x |
-| Lua | 455 ns | **3.76x** 慢 |
-| FakeLua TCC | 249 ns | **2.06x** 慢 (比 Lua 快 **1.83x**) |
-| FakeLua GCC | 204 ns | **1.69x** 慢 (比 Lua 快 **2.23x**) |
+| Lua | 461 ns | **3.81x** 慢 |
+| FakeLua TCC | 271 ns | **2.24x** 慢 (比 Lua 快 **1.70x**) |
+| FakeLua GCC | 204 ns | **1.69x** 慢 (比 Lua 快 **2.26x**) |
 
 ### 3. PowMod（base=1234567, exp=7654321, mod=1e9+7，约 23 次循环，用 `%`/`//`）
 
 | 实现 | CPU Time | vs C++ |
 |------|----------|--------|
 | C++ | 296 ns | 1x |
-| Lua | 929 ns | **3.14x** 慢 |
-| FakeLua TCC | 685 ns | **2.31x** 慢 (比 Lua 快 **1.36x**) |
-| FakeLua GCC | 416 ns | **1.41x** 慢 (比 Lua 快 **2.23x**) |
+| Lua | 917 ns | **3.10x** 慢 |
+| FakeLua TCC | 684 ns | **2.31x** 慢 (比 Lua 快 **1.34x**) |
+| FakeLua GCC | 418 ns | **1.41x** 慢 (比 Lua 快 **2.19x**) |
 
 ### 4. FastPow（base=1234567, exp=7654321, mod=1e9+7，用 `&`/`>>`）
 
 | 实现 | CPU Time | vs C++ |
 |------|----------|--------|
 | C++ | 297 ns | 1x |
-| Lua | 837 ns | **2.82x** 慢 |
-| FakeLua TCC | 431 ns | **1.45x** 慢 (比 Lua 快 **1.94x**) |
-| FakeLua GCC | 402 ns | **1.35x** 慢 (比 Lua 快 **2.08x**) |
+| Lua | 817 ns | **2.75x** 慢 |
+| FakeLua TCC | 432 ns | **1.45x** 慢 (比 Lua 快 **1.89x**) |
+| FakeLua GCC | 412 ns | **1.39x** 慢 (比 Lua 快 **1.98x**) |
 
 > FastPow 用位运算 `&`/`>>` 代替取余/整除 `%`/`//`，在 FakeLua TCC 下比 PowMod 快约 **1.6x**（690.0 ns → 429.0 ns），说明 TCC 对位运算的代码生成较优。GCC 两者表现也较接近。
 
@@ -372,8 +384,8 @@ BM_LuaTable_Del/1024                                   15641 ns        15604 ns 
 | 实现 | CPU Time | vs C++ |
 |------|----------|--------|
 | C++ | 1.54 ms | 1x |
-| Lua | 27.06 ms | **17.53x** 慢 |
-| FakeLua TCC | 11.62 ms | **7.53x** 慢 (比 Lua 快 **2.33x**) |
+| Lua | 27.45 ms | **17.78x** 慢 |
+| FakeLua TCC | 10.93 ms | **7.08x** 慢 (比 Lua 快 **2.51x**) |
 | FakeLua GCC | 1.55 ms | **1.00x** 慢 |
 
 > 纯整数累加循环：FakeLua GCC 与 C++ 几乎完全相同，说明 GCC `-O3` 对简单数值循环已达到 C++ 原生水平。TCC 比 Lua 快 **2.0x**。
@@ -383,53 +395,9 @@ BM_LuaTable_Del/1024                                   15641 ns        15604 ns 
 | 实现 | CPU Time | vs C++ |
 |------|----------|--------|
 | C++ | 126.4 µs | 1x |
-| Lua | 829.9 µs | **6.56x** 慢 |
-| FakeLua TCC | 1.67 ms | **13.21x** 慢 (比 Lua 慢 **2.01x**) |
-| FakeLua GCC | 494.1 µs | **3.91x** 慢 (比 Lua 快 **1.68x**) |
-
-> 含大量表 Set/Get 操作的排序算法，**TCC 表现明显弱于 Lua**（2.1x 差距）。TCC 对 table 索引操作生成的代码路径较长（无寄存器分配优化），而 Lua 解释器在 table 操作上已高度优化。GCC 目前比 Lua 快约 **2.6x**。
-
-### 7. Sieve（n=5000，Eratosthenes 筛）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 12.2 µs | 1x |
-| Lua | 271.1 µs | **22.18x** 慢 |
-| FakeLua TCC | 615.9 µs | **50.40x** 慢 (比 Lua 慢 **2.27x**) |
-| FakeLua GCC | 127.9 µs | **10.46x** 慢 (比 Lua 快 **2.12x**) |
-
-> 筛法涉及大量 boolean 表操作（`is_prime[j] = false`），TCC 在此类写密集型表操作上比 Lua 慢 **2.3x**，同样反映 TCC 在 table 写操作的代码生成开销。GCC 比 Lua 快 **2.3x**。
-
-### 8. BinarySearch（n=1000，n 次二分查找，查全局常量表）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 17.2 µs | 1x |
-| Lua | 446.2 µs | **26.01x** 慢 |
-| FakeLua TCC | 661.8 µs | **38.58x** 慢 (比 Lua 慢 **1.48x**) |
-| FakeLua GCC | 119.7 µs | **6.98x** 慢 (比 Lua 快 **3.73x**) |
-
-> 二分查找改用全局常量表 `search_init_vals` 后，**避免了每次调用时的 Table 重复分配与填充开销**。这大幅减少了 GC 抖动，使得 FakeLua GCC 相比 Lua 的优势从之前的 4.7x 扩大到 **5.4x**，TCC 相比 Lua 的劣势也从 1.4x 缩小到仅 1.15x。
-
-### 9. Popcount（n=100000，Brian Kernighan 位计数累加）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 496.7 µs | 1x |
-| Lua | 13.22 ms | **26.61x** 慢 |
-| FakeLua TCC | 2.03 ms | **4.09x** 慢 (比 Lua 快 **6.50x**) |
-| FakeLua GCC | 463.1 µs | **1.07x** 快 (比 C++ 快 **6%**) |
-
-> 纯整数位运算（`&`，`!=`），无表操作。**TCC 比 Lua 快 6.2x，GCC 比 Lua 快 26.8x，超越 C++**（在测量误差范围内基本持平）。
-
-### 10. InsertionSort（n=200，O(n²)，含表操作）
-
-| 实现 | CPU Time | vs C++ |
-|------|----------|--------|
-| C++ | 11.8 µs | 1x |
-| Lua | 582.1 µs | **49.29x** 慢 |
-| FakeLua TCC | 1.11 ms | **93.77x** 慢 (比 Lua 慢 **1.90x**) |
-| FakeLua GCC | 186.1 µs | **15.76x** 慢 (比 Lua 快 **3.13x**) |
+| Lua | 826.4 µs | **6.54x** 慢 |
+| FakeLua TCC | 1.74 ms | **13.80x** 慢 (比 Lua 慢 **2.11x**) |
+| FakeLua GCC | 491.1 µs | **3.88x** 慢 (比 Lua 快 **1.68x**) |
 
 > 与冒泡排序类似，表操作为瓶颈。TCC 比 Lua 慢约 1.8x，GCC 快于 Lua 约 2.7x。
 
@@ -437,10 +405,10 @@ BM_LuaTable_Del/1024                                   15641 ns        15604 ns 
 
 | 实现 | CPU Time | vs C++ |
 |------|----------|--------|
-| C++ | 3.19 ns | 1x |
-| Lua | 2.7 µs | **833.23x** 慢 |
-| FakeLua TCC | 2.4 µs | **748.59x** 慢 (比 Lua 快 **1.11x**) |
-| FakeLua GCC | 611 ns | **191.54x** 慢 (比 Lua 快 **4.35x**) |
+| C++ | 1.93 ns | 1x |
+| Lua | 2.7 µs | **1377.72x** 慢 |
+| FakeLua TCC | 2.2 µs | **1164.25x** 慢 (比 Lua 快 **1.18x**) |
+| FakeLua GCC | 578 ns | **299.48x** 慢 (比 Lua 快 **4.60x**) |
 
 > 将只读矩阵 `mat_a` 和 `mat_b` 移入全局/模块级常量，并启用 Table 特化后，**TCC 和 GCC-JIT 的性能均获得巨大突破**：
 > - **TCC** 成功跑赢 Lua 5.4 解释器（快 **1.15x**）。
@@ -452,21 +420,38 @@ BM_LuaTable_Del/1024                                   15641 ns        15604 ns 
 
 ---
 
+### 12. Vector3（三维坐标 x, y, z 在循环中累计读写）
+
+| 实现 | CPU Time | vs C++ |
+|------|----------|--------|
+| C++ | 502.4 µs | 1x |
+| Lua | 107.67 ms | **214.31x** 慢 |
+| FakeLua TCC | 64.96 ms | **129.29x** 慢 (比 Lua 快 **1.66x**) |
+| FakeLua GCC | 6.53 ms | **13.00x** 慢 |
+
+> **实现细节剖析**：
+> 在本测试中，`v1` 和 `v2` 是通过字面量键定义的局部 Vector3 表 `{x=10, y=20, z=30}`。由于键 `x`, `y`, `z` 均为静态已知的字符串字面量，JIT 编译器**成功将该 Table 构造特化为了静态的 C 结构体**。
+> 同时，在循环体内对 `v1.x = v1.x + v2.x` 等成员的读写都是静态已知的字符串 Key 访问，因此 JIT 编译器**直接将其编译为了零查找开销的静态指针偏移访问**（类似于 C 语言结构体成员的直接读写 `v1.spec->x = v1.spec->x + v2.spec->x`）。
+> 相比之下，Lua 5.4 在执行这 100 万次循环时，必须进行总共 900 万次基于字符串哈希的 Table Lookup。实验表明，FakeLua GCC 比标准 Lua 5.4 **快 16.48 倍**，充分展示了 Table 结构体特化和直接指针偏移读写的强悍性能。
+
+---
+
 ## FakeLua TCC vs Lua 5.4 详细对比
 
 | 算法 | 参数 | Lua | FakeLua TCC | 结果 |
 |------|------|-----|-------------|------|
-| Fibonacci | n=32 | 203.26 ms | 20.58 ms | TCC **9.88x 快** |
-| GCD | 832040/514229 | 455 ns | 249 ns | TCC **1.83x 快** |
-| PowMod | 1234567/7654321/1e9+7 | 929 ns | 685 ns | TCC **1.36x 快** |
-| FastPow | 1234567/7654321/1e9+7 | 837 ns | 431 ns | TCC **1.94x 快** |
-| Sum | n=5000000 | 27.06 ms | 11.62 ms | TCC **2.33x 快** |
-| BubbleSort | n=200 | 829.9 µs | 1.67 ms | TCC **2.01x 慢** |
-| Sieve | n=5000 | 271.1 µs | 615.9 µs | TCC **2.27x 慢** |
-| BinarySearch | n=1000 | 446.2 µs | 661.8 µs | TCC **1.48x 慢** |
-| Popcount | n=100000 | 13.22 ms | 2.03 ms | TCC **6.50x 快** |
-| InsertionSort | n=200 | 582.1 µs | 1.11 ms | TCC **1.90x 慢** |
-| MatMul | 单次 3×3 | 2.7 µs | 2.4 µs | TCC **1.11x 快** |
+| Fibonacci | n=32 | 203.95 ms | 19.98 ms | TCC **10.21x 快** |
+| GCD | 832040/514229 | 461 ns | 271 ns | TCC **1.70x 快** |
+| PowMod | 1234567/7654321/1e9+7 | 917 ns | 684 ns | TCC **1.34x 快** |
+| FastPow | 1234567/7654321/1e9+7 | 817 ns | 432 ns | TCC **1.89x 快** |
+| Sum | n=5000000 | 27.45 ms | 10.93 ms | TCC **2.51x 快** |
+| BubbleSort | n=200 | 826.4 µs | 1.74 ms | TCC **2.11x 慢** |
+| Sieve | n=5000 | 271.2 µs | 598.6 µs | TCC **2.21x 慢** |
+| BinarySearch | n=1000 | 455.1 µs | 634.7 µs | TCC **1.39x 慢** |
+| Popcount | n=100000 | 12.89 ms | 2.04 ms | TCC **6.33x 快** |
+| InsertionSort | n=200 | 603.7 µs | 1.05 ms | TCC **1.75x 慢** |
+| MatMul | 单次 3×3 | 2.7 µs | 2.2 µs | TCC **1.18x 快** |
+| Vector3 | n=1000000 | 107.67 ms | 64.96 ms | TCC **1.66x 快** |
 
 > **结论**：在将部分 Table 静态只读部分常量化后，TCC 在 MatMul 这样的运算中超越了 Lua；在纯数值算法上也保持 1.7x ~ 10.4x 的巨大优势。表写操作依然是 TCC 的软肋，但表读与遍历性能表现优异。
 
@@ -476,29 +461,30 @@ BM_LuaTable_Del/1024                                   15641 ns        15604 ns 
 
 | 算法 | 参数 | Lua | FakeLua GCC | GCC 快多少 |
 |------|------|-----|-------------|-----------|
-| Fibonacci | n=32 | 203.26 ms | 4.48 ms | **45.36x** |
-| GCD | 832040/514229 | 455 ns | 204 ns | **2.23x** |
-| PowMod | 1234567/7654321/1e9+7 | 929 ns | 416 ns | **2.23x** |
-| FastPow | 1234567/7654321/1e9+7 | 837 ns | 402 ns | **2.08x** |
-| Sum | n=5000000 | 27.06 ms | 1.55 ms | **17.48x** |
-| BubbleSort | n=200 | 829.9 µs | 494.1 µs | **1.68x** |
-| Sieve | n=5000 | 271.1 µs | 127.9 µs | **2.12x** |
-| BinarySearch | n=1000 | 446.2 µs | 119.7 µs | **3.73x** |
-| Popcount | n=100000 | 13.22 ms | 463.1 µs | **28.54x** |
-| InsertionSort | n=200 | 582.1 µs | 186.1 µs | **3.13x** |
-| MatMul | 单次 3×3 | 2.7 µs | 611 ns | **4.35x** |
+| Fibonacci | n=32 | 203.95 ms | 4.58 ms | **44.57x** |
+| GCD | 832040/514229 | 461 ns | 204 ns | **2.26x** |
+| PowMod | 1234567/7654321/1e9+7 | 917 ns | 418 ns | **2.19x** |
+| FastPow | 1234567/7654321/1e9+7 | 817 ns | 412 ns | **1.98x** |
+| Sum | n=5000000 | 27.45 ms | 1.55 ms | **17.77x** |
+| BubbleSort | n=200 | 826.4 µs | 491.1 µs | **1.68x** |
+| Sieve | n=5000 | 271.2 µs | 126.1 µs | **2.15x** |
+| BinarySearch | n=1000 | 455.1 µs | 125.4 µs | **3.63x** |
+| Popcount | n=100000 | 12.89 ms | 434.5 µs | **29.66x** |
+| InsertionSort | n=200 | 603.7 µs | 186.0 µs | **3.24x** |
+| MatMul | 单次 3×3 | 2.7 µs | 578 ns | **4.60x** |
+| Vector3 | n=1000000 | 107.67 ms | 6.53 ms | **16.48x** |
 
 ### FakeLua GCC 按场景分类
 
 | 场景类型 | FakeLua GCC 比 Lua 快 | 原因 |
 |---------|----------------------|------|
-| **纯整数累加 (Sum)** | **17.48x** | GCC `-O3` 向量化，达到 C++ 原生水平 |
-| **纯整数位运算 (Popcount)** | **28.54x** | 位运算全部原生化，GCC 极进优化 |
-| **递归 (Fibonacci)** | **45.36x** | 数值特化 + 原生递归，GCC 深度内联 |
-| **算术循环 (PowMod/FastPow)** | **2.23x–2.08x** | 循环体数值特化，取模运算受益于寄存器优化 |
-| **短迭代 (GCD)** | **2.23x** | 迭代次数少，函数调用开销占比高 |
-| **二分查找 (BinarySearch)** | **3.73x** | 混合数值+表操作，GCC 部分消除 table 开销 |
-| **表操作为主 (BubbleSort/InsertionSort/Sieve/MatMul)** | **1.68x–4.35x** | 引入了 Table 结构体特化与读写，大幅提升读写效率 |
+| **纯整数累加 (Sum)** | **17.77x** | GCC `-O3` 向量化，达到 C++ 原生水平 |
+| **纯整数位运算 (Popcount)** | **29.66x** | 位运算全部原生化，GCC 极进优化 |
+| **递归 (Fibonacci)** | **44.57x** | 数值特化 + 原生递归，GCC 深度内联 |
+| **算术循环 (PowMod/FastPow)** | **2.19x–1.98x** | 循环体数值特化，取模运算受益于寄存器优化 |
+| **短迭代 (GCD)** | **2.26x** | 迭代次数少，函数调用开销占比高 |
+| **二分查找 (BinarySearch)** | **3.63x** | 混合数值+表操作，GCC 部分消除 table 开销 |
+| **表操作为主 (BubbleSort/InsertionSort/Sieve/MatMul/Vector3)** | **1.68x–16.48x** | 引入了 Table 结构体特化与读写，大幅提升读写效率 |
 
 > **FakeLua GCC 后端在所有算法上均快于 Lua 5.4**（2.0x ~ 44.9x），特别是表常量化后，部分表操作场景的性能优势得到了显著提升。
 
