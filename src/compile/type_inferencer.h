@@ -189,8 +189,22 @@ private:
 
     void DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &snapshot, int tab, std::ostream &os) const;
 
-    // table 特化分析：收集所有 table 的访问模式，判断是否可特化
-    void AnalyzeTableAccess(const SyntaxTreeInterfacePtr &chunk, InferResult &ir);
+    // table 特化分析：流不敏感地收集每个变量被赋值过的所有 table constructor
+    // 字段并集，为每个 constructor 节点标记其应 emit 的合并字段布局（含 optional 标记）。
+    // CGen 在 CompileTableconstructor 中消费 ir.table_spec_infos 得到合并布局，
+    // 使 if-else 两分支构造的不同 shape table 能统一到同一结构体，字段访问走 FL_SPEC。
+    void AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, InferResult &ir);
+
+    // 从 table constructor 字面量提取字段信息（key/kind/c_field_name/数值）。
+    // 复用 CGen::GetTableFields 的 key 解析逻辑，但不依赖类型推断（type 留 T_DYNAMIC）。
+    // 返回 false 表示该 constructor 不可特化（含非静态 key 或 vararg/funcall 数组值）。
+    static bool BuildCtorFields(const SyntaxTreeInterfacePtr &tc, std::vector<TableFieldInfo> &out);
+
+    // 将 src 的字段并集到 dst（按 key 描述符去重，已存在则保留 dst 中的条目）。
+    static void MergeFieldsInto(std::vector<TableFieldInfo> &dst, const std::vector<TableFieldInfo> &src);
+
+    // 字段 key 描述符（与 CGen::GetKeyDescriptor 一致，用于去重和签名）。
+    static std::string FieldKeyDescriptor(const TableFieldInfo &f);
 
 private:
     std::unordered_map<std::string, InferredType> file_level_types_;
