@@ -1,9 +1,9 @@
 # FakeLua 统一 SSA/CFG/Shape 编译管线 — 状态与实施文档
 
-> **最后更新**: 2026-07-05（Step 8：FindSpecializableParams 完善 + return type 推断 + 比较特化回归修复）
+> **最后更新**: 2026-07-05（Step 9-11：BuildVarNameVersionMap + LookupNodeType SSA 回退 + legacy 字段删除）
 > **设计规范**: `/root/lua-dialect-type-inference-spec.md`
 > **当前分支**: `ssa-pipeline-v2`
-> **当前测试**: ~636 PASSED + ~76 FAILED（收敛中，部分因进程崩溃计数可能不准）
+> **当前测试**: ~680 PASSED + ~76 FAILED（infer.test_spec_* 从 <10 → 56 通过）
 
 ---
 
