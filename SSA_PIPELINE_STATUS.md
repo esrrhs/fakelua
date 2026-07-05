@@ -1,9 +1,13 @@
 # FakeLua 统一 SSA/CFG/Shape 编译管线 — 状态与实施文档
 
-> **最后更新**: 2026-07-06（Step 12：per-bitmark 返回类型 forward-propagation）
+> **最后更新**: 2026-07-06（Step 12-13：local forward-prop + PrefixExp 递归 + 三元推导）
 > **设计规范**: `/root/lua-dialect-type-inference-spec.md`
 > **当前分支**: `ssa-pipeline-v2`
-> **当前测试**: ~680 PASSED + ~80 FAILED（spec 61/24，algo 7/10，其他稳定）
+> **当前测试**: ~680 PASSED + ~80 FAILED（活跃测试共 719 个）
+> - algo: 7/10（bubble_sort/insertion_sort/matrix 失败 — 需要表特化）
+> - infer.spec_*: 61/24（持续收敛中）
+> - common/state/syntax_tree/var/util: 全部通过（约 200+）
+> - exception/jitter/ini/runtime: 部分 crash 干扰统计
 
 ---
 
