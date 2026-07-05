@@ -228,16 +228,11 @@ struct SpecParam {
 };
 
 // TypeInferencer 的输出。
+// 兼容设计：下方 legacy 字段由 SSA/CFG/Shape 管线统一填充，
+// 使 CGen 和 JIT 无需感知 SSA 细节即可工作。随着 SSA 管线成熟，
+// 每个 legacy 字段最终可摘除（由 SSA 字段直接替代）。
 struct InferResult {
-    // ── Legacy 字段 ──────────────────────────────────────
-    std::unordered_map<std::string, std::vector<int>> math_param_positions;
-    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots;
-    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
-    EvalTypeSnapshot main_eval_types;
-    std::unordered_map<std::string, InferredType> global_const_vars;
-    std::unordered_map<const SyntaxTreeInterface *, struct TableSpecInfo> table_spec_infos;
-
-    // ── SSA 路径字段 ────────────────────────────────────
+    // ── SSA/CFG/Shape 主路径（规范 §1–§9 的真相源）─────────────
     std::unordered_map<int, SSATypeInfo> ssa_version_types;
     std::unordered_map<const SyntaxTreeInterface *, int> node_ssa_version;
     std::shared_ptr<struct ShapeRegistry> shape_registry;
@@ -245,10 +240,17 @@ struct InferResult {
     std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo> main_ssa_types;
     std::unordered_map<std::string, std::vector<std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo>>> spec_ssa_snapshots;
     std::unordered_map<std::string, std::vector<SSATypeInfo>> spec_ssa_return_types;
-    std::unordered_map<std::string, SSATypeInfo> global_table_shapes;
     std::unordered_map<std::string, int> var_final_shapes;
     std::unordered_map<const SyntaxTreeInterface *, int> ctor_target_shapes;
     std::unordered_map<std::string, std::unordered_map<std::string, bool>> escape_vars;
+
+    // ── Legacy 兼容字段（由 SSA 管线填充，退化路径使用）────────
+    EvalTypeSnapshot main_eval_types;
+    std::unordered_map<std::string, InferredType> global_const_vars;
+    std::unordered_map<std::string, std::vector<int>> math_param_positions;
+    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots;
+    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
+    std::unordered_map<const SyntaxTreeInterface *, struct TableSpecInfo> table_spec_infos;
 };
 
 struct JitFunctionInfo {

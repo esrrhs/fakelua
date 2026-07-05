@@ -22,10 +22,17 @@ private:
     void RunSSAAnalysis(const ParseResult &pr, InferResult &ir);
     void RunSSASpecialization(const ParseResult &pr, InferResult &ir);
 
-    // ── legacy + SSA 辅助 ────────────────────────────────────────────
+    // ── Legacy 兼容桥（由 SSA 快照派生）──────────────────────────────
+    void PopulateMainEvalTypesFromSSA(const SyntaxTreeInterfacePtr &chunk, InferResult &ir);
+    void PopulateGlobalConstVarsFromSSA(const SyntaxTreeInterfacePtr &chunk, InferResult &ir);
+    void PopulateLegacyReturnTypes(InferResult &ir);
+    void PopulateMathParamPositionsFromSSA(InferResult &ir);
+    void PopulateTableSpecInfosFromSSA(const SyntaxTreeInterfacePtr &chunk, InferResult &ir);
+
+    // ── SSA 辅助 ──────────────────────────────────────────────────────
     [[nodiscard]] std::vector<FunctionSpecInfo> CollectFunctionSpecInfos(const ParseResult &pr) const;
-    void WalkAST(const SyntaxTreeInterfacePtr &node, EvalTypeSnapshot &map);
     void CollectGlobalConstVars(const ParseResult &pr, const EvalTypeSnapshot &current_map, InferResult &ir);
+    void AnnotateSimpleConstants(const SyntaxTreeInterfacePtr &node, InferResult &ir);
 };
 
 }// namespace fakelua
