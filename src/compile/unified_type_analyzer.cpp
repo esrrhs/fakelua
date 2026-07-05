@@ -627,6 +627,9 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
     };
     visit_all(func_block);
 
+    // 去重：expr_vars 中的名字可能因为 visit_all 多次访问同一 Exp 而被重复插入
+    // （set 已经去重，但后续的 Sort+Unique by param_index 也处理一次）
+
     // 映射 expr_vars → SpecParam（含 param_index，按 param_index 排序并去重）
     for (const auto &name : expr_vars) {
         auto it = cfg.param_indices.find(name);

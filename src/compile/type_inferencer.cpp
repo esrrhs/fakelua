@@ -510,6 +510,16 @@ static InferredType inferRetTypeFromAssumptionsImpl(
 static InferredType inferRetTypeFromAssumptionsImpl(const SyntaxTreeInterfacePtr &exp,
                                                      const std::unordered_map<std::string, InferredType> &var_types) {
     if (!exp) return {T_DYNAMIC};
+    if (exp->Type() == SyntaxTreeType::PrefixExp) {
+        auto *pe = static_cast<SyntaxTreePrefixexp *>(exp.get());
+        if (pe->GetPrefixKind() == PrefixExpKind::kExp && pe->GetValue()) {
+            return inferRetTypeFromAssumptionsImpl(pe->GetValue(), var_types);
+        }
+        if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
+            return inferRetTypeFromAssumptionsImpl(pe->GetValue(), var_types);
+        }
+        return {T_DYNAMIC};
+    }
     if (exp->Type() == SyntaxTreeType::Var) {
         auto *v = static_cast<SyntaxTreeVar *>(exp.get());
         if (v->GetVarKind() == VarKind::kSimple) {
@@ -542,12 +552,23 @@ static InferredType inferRetTypeFromAssumptionsImpl(const SyntaxTreeInterfacePtr
     if (k == ExpKind::kBinop && e->Left() && e->Right()) {
         auto lt = inferRetTypeFromAssumptionsImpl(e->Left(), var_types);
         auto rt = inferRetTypeFromAssumptionsImpl(e->Right(), var_types);
-        if (IsNumericInferredType(lt) && IsNumericInferredType(rt))
-            return (lt == T_FLOAT || rt == T_FLOAT) ? T_FLOAT : T_INT;
-        // 递归 / pow 强制 double
         auto *bop = e->Op() ? static_cast<SyntaxTreeBinop *>(e->Op().get()) : nullptr;
-        if (bop && (bop->GetOpKind() == BinOpKind::kSlash || bop->GetOpKind() == BinOpKind::kPow))
-            return T_FLOAT;
+        // 算术 / 位运算 / 比较：两侧均为数值 → 返回数值类型（比较 → T_INT）
+        bool is_arith = bop && (bop->GetOpKind() == BinOpKind::kPlus || bop->GetOpKind() == BinOpKind::kMinus ||
+                                bop->GetOpKind() == BinOpKind::kStar || bop->GetOpKind() == BinOpKind::kSlash ||
+                                bop->GetOpKind() == BinOpKind::kDoubleSlash || bop->GetOpKind() == BinOpKind::kPow ||
+                                bop->GetOpKind() == BinOpKind::kMod || bop->GetOpKind() == BinOpKind::kBitAnd ||
+                                bop->GetOpKind() == BinOpKind::kBitOr || bop->GetOpKind() == BinOpKind::kXor ||
+                                bop->GetOpKind() == BinOpKind::kLeftShift || bop->GetOpKind() == BinOpKind::kRightShift ||
+                                bop->GetOpKind() == BinOpKind::kLess || bop->GetOpKind() == BinOpKind::kLessEqual ||
+                                bop->GetOpKind() == BinOpKind::kMore || bop->GetOpKind() == BinOpKind::kMoreEqual ||
+                                bop->GetOpKind() == BinOpKind::kEqual || bop->GetOpKind() == BinOpKind::kNotEqual);
+        if (is_arith && IsNumericInferredType(lt) && IsNumericInferredType(rt))
+            return (lt == T_FLOAT || rt == T_FLOAT || bop->GetOpKind() == BinOpKind::kSlash || bop->GetOpKind() == BinOpKind::kPow) ? T_FLOAT : T_INT;
+        // 三元 (cond) and val1 or val2：如果两个分支都数值化，结果数值化
+        bool is_and_or = bop && (bop->GetOpKind() == BinOpKind::kAnd || bop->GetOpKind() == BinOpKind::kOr);
+        if (is_and_or && IsNumericInferredType(lt) && IsNumericInferredType(rt))
+            return (lt == T_FLOAT || rt == T_FLOAT) ? T_FLOAT : T_INT;
         return {T_DYNAMIC};
     }
     if (k == ExpKind::kUnop && e->Right()) {
@@ -575,13 +596,16 @@ InferredType TypeInferencer::inferRetTypeFromAssumptions(
             var_types[func_params[sp.param_index]] = is_float ? T_FLOAT : T_INT;
         }
     }
-    // 收集所有 return 表达式的推导结果
+    // 收集所有 return 表达式的推导结果，同时做 per-bitmark 简单的 forward propagation
     InferredType result = T_UNKNOWN;
-    std::function<void(const SyntaxTreeInterfacePtr&)> walk;
-    walk = [&](const SyntaxTreeInterfacePtr &node) {
-        if (!node) return;
-        if (node->Type() == SyntaxTreeType::Return) {
-            auto ret_node = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
+
+    std::function<void(const SyntaxTreeInterfacePtr &)> walk_stmt;
+    std::function<void(const SyntaxTreeInterfacePtr &)> walk_block;
+
+    walk_stmt = [&](const SyntaxTreeInterfacePtr &stmt) {
+        if (!stmt) return;
+        if (stmt->Type() == SyntaxTreeType::Return) {
+            auto ret_node = std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt);
             if (ret_node && ret_node->Explist()) {
                 auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(ret_node->Explist());
                 if (el && !el->Exps().empty()) {
@@ -590,32 +614,76 @@ InferredType TypeInferencer::inferRetTypeFromAssumptions(
                     else if (IsNumericInferredType(result) && IsNumericInferredType(t)) {
                         result = (result == T_FLOAT || t == T_FLOAT) ? T_FLOAT : result;
                     } else if (IsNumericInferredType(result) && !IsNumericInferredType(t)) {
-                        // 已知数值类型 + 不可推导（如递归调用）→ 保持已知类型
+                        // 已知数值类型 + 不可推导 → 保持已知类型
                     } else if (!IsNumericInferredType(result) && IsNumericInferredType(t)) {
                         result = t;
                     }
-                    // 两者都不可推导 → 维持 T_UNKNOWN，后续默认 int
                 }
             }
             return;
         }
-        switch (node->Type()) {
-            case SyntaxTreeType::Block: {
-                auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
-                for (auto &s : blk->Stmts()) walk(s);
-                break;
+        if (stmt->Type() == SyntaxTreeType::LocalVar) {
+            // local name, name2,... = exp1, exp2,...  — forward-propagate local 类型
+            auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+            auto nl = lv->Namelist();
+            auto el = lv->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist()) : nullptr;
+            if (!nl || nl->Type() != SyntaxTreeType::NameList) return;
+            auto nlist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(nl);
+            const auto &names = nlist->Names();
+            const auto &exps = el ? el->Exps() : std::vector<SyntaxTreeInterfacePtr>{};
+            for (size_t i = 0; i < names.size(); ++i) {
+                if (i < exps.size()) {
+                    InferredType t = inferRetTypeFromAssumptionsImpl(exps[i], var_types);
+                    if (IsNumericInferredType(t)) var_types[names[i]] = t;
+                    else var_types.erase(names[i]);
+                } else {
+                    var_types.erase(names[i]);
+                }
             }
+            return;
+        }
+        if (stmt->Type() == SyntaxTreeType::Assign) {
+            auto as = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
+            auto vl = as->Varlist() ? std::dynamic_pointer_cast<SyntaxTreeVarlist>(as->Varlist()) : nullptr;
+            auto el = as->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(as->Explist()) : nullptr;
+            if (!vl || !el) return;
+            const auto &vars = vl->Vars();
+            const auto &exps = el->Exps();
+            for (size_t i = 0; i < vars.size() && i < exps.size(); ++i) {
+                if (vars[i]->Type() != SyntaxTreeType::Var) continue;
+                auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[i]);
+                if (v->GetVarKind() != VarKind::kSimple) continue;
+                InferredType t = inferRetTypeFromAssumptionsImpl(exps[i], var_types);
+                auto it = var_types.find(v->GetName());
+                if (IsNumericInferredType(t)) {
+                    if (it == var_types.end()) var_types[v->GetName()] = t;
+                    else if (IsNumericInferredType(it->second))
+                        it->second = (it->second == T_FLOAT || t == T_FLOAT) ? T_FLOAT : it->second;
+                } else {
+                    var_types.erase(v->GetName());
+                }
+            }
+            return;
+        }
+        // recurse into nested blocks
+        switch (stmt->Type()) {
+            case SyntaxTreeType::Block: walk_block(stmt); break;
             case SyntaxTreeType::If: {
-                auto ifn = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
-                walk(ifn->Block());
-                if (auto eb = ifn->ElseBlock()) walk(eb);
+                auto ifn = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+                walk_block(ifn->Block());
+                if (auto eb = ifn->ElseBlock()) walk_block(eb);
                 break;
             }
-            default:
-                break;
+            default: break;
         }
     };
-    walk(func_block);
+
+    walk_block = [&](const SyntaxTreeInterfacePtr &node) {
+        if (!node || node->Type() != SyntaxTreeType::Block) return;
+        auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+        for (auto &s : blk->Stmts()) walk_stmt(s);
+    };
+    walk_block(func_block);
     if (result == T_UNKNOWN) result = T_INT;
     return result;
 }
