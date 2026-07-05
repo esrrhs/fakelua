@@ -432,6 +432,19 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
             } else if (pe->GetPrefixKind() == PrefixExpKind::kExp && pe->GetValue()) {
                 // 括号表达式 (exp) — 继续深入
                 collect_vars(pe->GetValue(), depth);
+            } else if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall && pe->GetValue()) {
+                // 函数调用 — 遍历所有实参
+                auto *fc = static_cast<SyntaxTreeFunctioncall *>(pe->GetValue().get());
+                if (fc->Args()) {
+                    auto args_node = fc->Args();
+                    auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
+                    if (args_ptr && args_ptr->GetArgsKind() == ArgsKind::kExpList) {
+                        auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+                        if (el) {
+                            for (auto &arg : el->Exps()) collect_vars(arg, depth);
+                        }
+                    }
+                }
             }
             return;
         }
