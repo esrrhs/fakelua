@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <fstream>
+#include <optional>
 #include <ranges>
 
 #include "compile/cfg.h"
@@ -31,6 +32,9 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     PopulateLegacyReturnTypes(ir);
     PopulateMathParamPositionsFromSSA(ir);
     PopulateTableSpecInfosFromSSA(pr.chunk, ir);
+    // ── Phase 3: Flow-sensitive local 类型修复（覆盖 UTA 的 AST-walk
+    //    单遍局限）。删除 ⇔ UTA 的流敏感 worklist 实现完成（规范 §6）。
+    PopulateLocalFlowSensitiveTypes(pr.chunk, ir);
 
     // ── Debug dump（legacy 形态以便 diff）────────────────────────
     if (cfg.debug_mode) {
@@ -140,6 +144,183 @@ void TypeInferencer::PopulateTableSpecInfosFromSSA(const SyntaxTreeInterfacePtr 
 // 空占位（避免重构时 dangling reference）
 void TypeInferencer::AnnotateSimpleConstants(const SyntaxTreeInterfacePtr &/*node*/, InferResult &/*ir*/) {
     // all simple constant population happens in UTA.WalkSyntaxTree via main_ssa_types
+}
+
+// ── Flow-sensitive local 类型修复 ──────────────────────────────────────────
+//
+// 扫描每个 block（顶层 + 每个函数 block），找出所有 local 声明：
+//   local x = e        → 初始类型 T_init = main_eval_types[e]
+//   local x, y = e1, e2 → 每个 name 独立
+//   for x = a, b, c do  → for-loop 游标 x 视作 local
+// 如果同一块后续（非嵌套 shadowable 作用域内）对同名变量执行赋值，
+// 且被赋值类型与当前类型不同（或类型是 dynamic/字符串/table），则退化为 T_DYNAMIC。
+//
+// 这是 legacy walker 的简化替代，仅处理 "同一变量跨赋值被不同类型覆盖" 的退化；
+// 完整流敏感分析由 §6 Worklist 算法接管后此 pass 可删除。
+
+namespace {
+// 给定一个 SyntaxTreeExp 节点，返回它的 InferredType（可能是 literal）
+InferredType TypeOfScalar(const SyntaxTreeInterfacePtr &exp, fakelua::EvalTypeSnapshot &map) {
+    if (!exp) return {T_DYNAMIC};
+    auto it = map.find(exp.get());
+    if (it != map.end()) return it->second;
+    if (exp->Type() == fakelua::SyntaxTreeType::Exp) {
+        auto e = std::dynamic_pointer_cast<fakelua::SyntaxTreeExp>(exp);
+        auto k = e->GetExpKind();
+        if (k == fakelua::ExpKind::kNumber) {
+            const auto &v = e->ExpValue();
+            if (v.find('.') == std::string::npos && v.find('e') == std::string::npos && v.find('E') == std::string::npos)
+                return fakelua::T_INT;
+            return fakelua::T_FLOAT;
+        }
+        if (k == fakelua::ExpKind::kString || k == fakelua::ExpKind::kNil) return {T_DYNAMIC};
+    }
+    return {T_DYNAMIC};
+}
+
+// type-safe meet: 不同类型 → T_DYNAMIC
+inline InferredType MeetFlow(InferredType a, InferredType b) {
+    if (a == b) return a;
+    using fakelua::T_DYNAMIC; using fakelua::T_NIL; using fakelua::T_BOOL;
+    using fakelua::T_INT; using fakelua::T_FLOAT; using fakelua::T_STRING;
+    using fakelua::T_RECORD; using fakelua::T_RECORD_OPEN;
+    // scalar + scalar: promote / degrade
+    if ((a == T_INT && b == T_FLOAT) || (a == T_FLOAT && b == T_INT)) return T_FLOAT;
+    // nil / anything → keep other (no change)
+    if (a == T_NIL) return b;
+    if (b == T_NIL) return a;
+    // record + scalar / record + record mismatch → dynamic
+    return T_DYNAMIC;
+}
+
+// 处理单个 block 的 locals
+void ProcessBlockLocals(const fakelua::SyntaxTreeInterfacePtr &node,
+                        fakelua::EvalTypeSnapshot &map) {
+    if (!node) return;
+    auto ntype = node->Type();
+    if (ntype == fakelua::SyntaxTreeType::FuncBody) {
+        auto fb = std::dynamic_pointer_cast<fakelua::SyntaxTreeFuncbody>(node);
+        ProcessBlockLocals(fb->Block(), map);
+        return;
+    }
+    if (ntype == fakelua::SyntaxTreeType::LocalFunction) {
+        auto lf = std::dynamic_pointer_cast<fakelua::SyntaxTreeLocalFunction>(node);
+        ProcessBlockLocals(lf->Funcbody(), map);
+        return;
+    }
+    if (ntype != fakelua::SyntaxTreeType::Block) return;
+
+    auto blk = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(node);
+
+    // block_local_types: 变量名 → 当前推断类型
+    std::unordered_map<std::string, InferredType> cur_type;
+    // 变量名 → 其声明 local 语句指针（用于后续清理 main_eval_types）
+    std::unordered_map<std::string, fakelua::SyntaxTreeInterfacePtr> decl_node_by_name;
+
+    for (const auto &stmt : blk->Stmts()) {
+        if (!stmt) continue;
+        auto st = stmt->Type();
+
+        if (st == fakelua::SyntaxTreeType::LocalVar) {
+            auto lv = std::dynamic_pointer_cast<fakelua::SyntaxTreeLocalVar>(stmt);
+            auto nl = lv->Namelist();
+            if (!nl || nl->Type() != fakelua::SyntaxTreeType::NameList) continue;
+            auto nlist = std::dynamic_pointer_cast<fakelua::SyntaxTreeNamelist>(nl);
+            auto el = lv->Explist() ? std::dynamic_pointer_cast<fakelua::SyntaxTreeExplist>(lv->Explist()) : nullptr;
+            const auto &names = nlist->Names();
+            const auto &exps = el ? el->Exps() : std::vector<fakelua::SyntaxTreeInterfacePtr>{};
+            for (size_t i = 0; i < names.size(); ++i) {
+                InferredType t = T_DYNAMIC;
+                if (i < exps.size()) {
+                    t = TypeOfScalar(exps[i], map);
+                }
+                // 退化：如果变量已存在，meet 两者的类型
+                auto it = cur_type.find(names[i]);
+                if (it != cur_type.end()) {
+                    t = MeetFlow(it->second, t);
+                }
+                cur_type[names[i]] = t;
+                if (i < exps.size()) decl_node_by_name[names[i]] = exps[i];
+            }
+        } else if (st == fakelua::SyntaxTreeType::Function || st == fakelua::SyntaxTreeType::LocalFunction) {
+            // 递归到函数体
+            auto fb = (st == fakelua::SyntaxTreeType::Function)
+                ? std::dynamic_pointer_cast<fakelua::SyntaxTreeFunction>(stmt)->Funcbody()
+                : std::dynamic_pointer_cast<fakelua::SyntaxTreeLocalFunction>(stmt)->Funcbody();
+            if (fb) ProcessBlockLocals(fb, map);
+            continue;
+        } else if (st == fakelua::SyntaxTreeType::Assign) {
+            auto as = std::dynamic_pointer_cast<fakelua::SyntaxTreeAssign>(stmt);
+            auto vl = std::dynamic_pointer_cast<fakelua::SyntaxTreeVarlist>(as->Varlist());
+            auto el = std::dynamic_pointer_cast<fakelua::SyntaxTreeExplist>(as->Explist());
+            if (!vl || !el) continue;
+            const auto &vars = vl->Vars();
+            const auto &exps = el->Exps();
+            for (size_t i = 0; i < vars.size() && i < exps.size(); ++i) {
+                if (vars[i]->Type() != fakelua::SyntaxTreeType::Var) continue;
+                auto v = std::dynamic_pointer_cast<fakelua::SyntaxTreeVar>(vars[i]);
+                if (v->GetVarKind() != fakelua::VarKind::kSimple) continue;
+                const auto &vn = v->GetName();
+                auto rt = TypeOfScalar(exps[i], map);
+                auto it = cur_type.find(vn);
+                if (it == cur_type.end()) {
+                    cur_type[vn] = rt;
+                } else {
+                    auto m = MeetFlow(it->second, rt);
+                    if (m != it->second) {
+                        it->second = m;
+                        auto dit = decl_node_by_name.find(vn);
+                        if (dit != decl_node_by_name.end()) map[dit->second.get()] = T_DYNAMIC;
+                    }
+                }
+            }
+        } else if (st == fakelua::SyntaxTreeType::FunctionCall) {
+            // 函数调用可能修改任意变量 → 对 cur_type 当前保留的每个变量执行 meet-with-dynamic
+            // 简化：不清接管 — 调用后的退化由 JIT 的运行时检查兜底（entry dispatcher 已有断言）
+            (void)0;
+        } else if (st == fakelua::SyntaxTreeType::ForLoop) {
+            auto fl = std::dynamic_pointer_cast<fakelua::SyntaxTreeForLoop>(stmt);
+            const auto &cname = fl->Name();
+            // Save outer state of cursor variable; shadow it in inner block
+            // so that inner mutations don't bleed back to the outer scope
+            // unless the outer variable itself is assigned inside the loop.
+            // (For-loop cursors are new locals scoped to the body.)
+            std::optional<InferredType> saved_outer = std::nullopt;
+            auto it_cur = cur_type.find(cname);
+            if (it_cur != cur_type.end()) { saved_outer = it_cur->second; cur_type.erase(cname); }
+            std::unordered_map<std::string, fakelua::SyntaxTreeInterfacePtr> saved_decls;
+            auto dit = decl_node_by_name.find(cname);
+            if (dit != decl_node_by_name.end()) { saved_decls[cname] = dit->second; decl_node_by_name.erase(cname); }
+            ProcessBlockLocals(fl->Block(), map);
+            // Restore outer state (unchanged: cursor is fresh in inner block)
+            if (saved_outer) cur_type[cname] = *saved_outer;
+            for (auto &kv : saved_decls) decl_node_by_name[kv.first] = kv.second;
+            continue;
+        } else if (st == fakelua::SyntaxTreeType::ForIn) {
+            auto fi = std::dynamic_pointer_cast<fakelua::SyntaxTreeForIn>(stmt);
+            ProcessBlockLocals(fi->Block(), map);
+        } else if (st == fakelua::SyntaxTreeType::If) {
+            auto ifs = std::dynamic_pointer_cast<fakelua::SyntaxTreeIf>(stmt);
+            ProcessBlockLocals(ifs->Block(), map);
+            if (auto elseifs = ifs->ElseIfs()) {
+                auto el = std::dynamic_pointer_cast<fakelua::SyntaxTreeElseiflist>(elseifs);
+                for (size_t i = 0; i < el->ElseifSize(); ++i)
+                    ProcessBlockLocals(el->ElseifBlock(i), map);
+            }
+            if (auto eb = ifs->ElseBlock()) ProcessBlockLocals(eb, map);
+        } else if (st == fakelua::SyntaxTreeType::While) {
+            auto ws = std::dynamic_pointer_cast<fakelua::SyntaxTreeWhile>(stmt);
+            ProcessBlockLocals(ws->Block(), map);
+        } else if (st == fakelua::SyntaxTreeType::Repeat) {
+            auto rs = std::dynamic_pointer_cast<fakelua::SyntaxTreeRepeat>(stmt);
+            ProcessBlockLocals(rs->Block(), map);
+        }
+    }
+}
+}  // namespace
+
+void TypeInferencer::PopulateLocalFlowSensitiveTypes(const SyntaxTreeInterfacePtr &chunk, InferResult &ir) {
+    ProcessBlockLocals(chunk, ir.main_eval_types);
 }
 
 // ─────────────────────────────────────────────────────────────────────────

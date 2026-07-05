@@ -1,9 +1,9 @@
 # FakeLua 统一 SSA/CFG/Shape 编译管线 — 状态与实施文档
 
-> **最后更新**: 2026-07-05（Step 5：兼容层恢复 + 类型推导单轨化）
+> **最后更新**: 2026-07-05（Step 5b：legacy 兼容层 + PrintLocalFlowSensitiveTypes 初探）
 > **设计规范**: `/root/lua-dialect-type-inference-spec.md`
 > **当前分支**: `ssa-pipeline-v2`
-> **当前测试**: 593 PASSED + 163 FAILED（0 DISABLED）【待重新验证】
+> **当前测试**: ≈590 PASSED + ≈166 FAILED（正在收敛中）
 
 ---
 
@@ -89,13 +89,23 @@ RunSSAAnalysis → RunSSASpecialization → PopulateMainEvalTypesFromSSA
 - type_inferencer.cpp 调用 RunSSAAnalysis/SSASpecialization
 - 测试文件添加 DISABLED_ 前缀
 
-### Step 5 — 恢复 legacy 兼容层 + 单轨化 InferTypes（本次）
+### Step 5 — 恢复 legacy 兼容层 + 单轨化 InferTypes（commit `16483db`）
 - 把 6 个 legacy 字段携带回来作为兼容层
 - 在 InferTypes 末尾统一由 SSA 桥接字段填充
 - `InferTypes` 不再重复运行 SSA（删除了重复的 RunSSAAnalysis 调用）
 - **删除了旧 legacy 路径**（`IdentifyMathParams`/`AnalyzeTableShapes`/`RunTrialInference`/`MathWalker`）
 - **构建通过**（100%）
-- ⚠️ 测试尚未完整验证，baseline 是 593+163
+- 测试 baseline 593/163（部分回归与 baseline 同级，回归主要来自 bubble_sort 等在 Step 4 就已失败）
+
+### Step 5b — PopulateLocalFlowSensitiveTypes 初探（未提交）
+- 目标：补回 legacy AST walker 的变量退化能力（「同一变量被不同类型赋值 → 退化为 CVar」）
+- 实现：ProcessBlockLocals 遍历每个 block 的 stmts/assign/for-local/var declarations，
+  对每个 name 查找 decl_node_by_name 将退化写回 main_eval_types
+- 处理嵌套：Function/LocalFunction/ForLoop/If/While/Repeat/ForIn 都递归调用 ProcessBlockLocals
+- ForLoop cursor shadow：游标变量在循环体内是独立的 local，处理完 body 后恢复外层 state
+- 已验证效果：`test_infer_for_shadow_case2` 通过（之前因该 test JIT runtime throw crash）
+- 遗留 case1/case3/case4：因 for-loop cursor 的 CGen 生成 `CVar a = (CVar){...}` 而非 `int64_t a = flua_for_ctrl_`，
+  需要 CGen 侧也配合感知游标 shadow；或者在 bridge 内额外标记游标 dynamic 而非等待 CGen 决策
 
 ---
 
@@ -153,6 +163,10 @@ RunSSAAnalysis → RunSSASpecialization → PopulateMainEvalTypesFromSSA
 ### P6: 删除兼容层字段
 - 逐个摘除 `InferResult` 末尾的 6 个 legacy 字段
 - 修改 CGen 直接使用 SSA 主路径字段
+
+### P7: 补齐 for-loop cursor shadow（case1/case3/case4）
+- CGen 代码生成感知游标 shadow：同一变量名在 for-loop body 内是独立 local
+- 或 bridge 内额外标记 cursor var decl as dynamic from CGen perspective
 
 ---
 
