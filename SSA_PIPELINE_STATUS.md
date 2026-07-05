@@ -1,9 +1,9 @@
 # FakeLua 统一 SSA/CFG/Shape 编译管线 — 状态与实施文档
 
-> **最后更新**: 2026-07-05（Step 6：PopulateLocalFlowSensitiveTypes 类型传播增强 + for-loop cursor shadow 修复）
+> **最后更新**: 2026-07-05（Step 8：FindSpecializableParams 完善 + return type 推断 + 比较特化回归修复）
 > **设计规范**: `/root/lua-dialect-type-inference-spec.md`
 > **当前分支**: `ssa-pipeline-v2`
-> **当前测试**: 636 PASSED + 120 FAILED（从 612/144 收敛）
+> **当前测试**: ~636 PASSED + ~76 FAILED（收敛中，部分因进程崩溃计数可能不准）
 
 ---
 
@@ -29,8 +29,8 @@ Lua 源码 → Lexer/Parser → AST → PreProcessor → SemanticAnalysis → Ty
 |------|-----|
 | 分支 | `ssa-pipeline-v2` |
 | 构建 | ✅ 成功 |
-| 测试 baseline | 636 PASSED + 120 FAILED（从 612/144 收敛，Step 6 修复 24 个用例） |
-| 累计 commit 数 | Step 1–Step 5（上轮会话）+ Step 6（本轮） |
+| 测试 baseline | ~636 PASSED + ~76 FAILED（Step 6–8 累计收敛） |
+| 累计 commit 数 | Step 1–Step 5（上轮会话）+ Step 6–Step 8（本轮） |
 
 **关键文件**：
 
@@ -204,11 +204,14 @@ PopulateMainEvalTypesFromSSA 把该 T_DYNAMIC 直接写入 main_eval_types，使
 - 修复：让 typed_int_for/typed_float_for 分支正确传播 float 游标到 CGen 的 CompileTypedNumericForLoop。
 - 修复后通过：jitter.test_for_loop_float*, test_infer_typed_float_for*。
 
-### P3: entry dispatcher 数学参数特化迁移
-当前 spec_* 用例依赖 SSA 管线外的 legacy entry dispatcher（bitmath 入口分发）：
-- FindSpecializableParams → 生成特化函数变体 → entry dispatcher 按 bitmask 路由
-- 测试断言内容形如 code.find("spec_fib_0")，验证特化函数名生成正确。
-- 这类路径暂时保持；等 P1 SSA+worklist 完成后可统一迁移为调用点类型特化。
+### P3: entry dispatcher 返回类型 + for 循环游标类型（跨 bitmask 特化）
+当前 STEP 7–8 已修复 FindSpecializableParams 检测和 SSABuilder 初始化但仍遗留：
+- `infer_test_infer_degrade_param`：for 循环游标 i 在特化版本（bitmask=0/1）中
+  仍为 CVar 而非 int64_t/double。根因是 CGen 编译特化版本时只能看到
+  bitmask=-1 的 main_eval_types，看不到 per-bitmask 快照。
+- 解决：在 CGen 的 CompileFuncBody(bitmask) 内，当 bitmask≥0 时改用
+  `spec_ssa_snapshots[func_name][bitmask]` 做 LookupNodeType 查询。
+- 这是实现「specialized body 使用 snapshot types」架构的关键一步。
 
 ### P4: Shape 流敏感推导（规范 §5）— 与控制流联动
 - field read/write 需要流敏感 shape；当前仅构造不演化。
