@@ -1,9 +1,9 @@
 # FakeLua 统一 SSA/CFG/Shape 编译管线 — 状态与实施文档
 
-> **最后更新**: 2026-07-05（Step 9-11：BuildVarNameVersionMap + LookupNodeType SSA 回退 + legacy 字段删除）
+> **最后更新**: 2026-07-05（Step 11-13：FindSpec visit_all 递归 + 三元模式检测 + bare return 修复）
 > **设计规范**: `/root/lua-dialect-type-inference-spec.md`
 > **当前分支**: `ssa-pipeline-v2`
-> **当前测试**: ~680 PASSED + ~76 FAILED（infer.test_spec_* 从 <10 → 56 通过）
+> **当前测试**: ~680 PASSED + ~120 FAILED（visit_all 重构引入 algo_gcd 回归）
 
 ---
 
@@ -174,9 +174,24 @@ PopulateMainEvalTypesFromSSA 把该 T_DYNAMIC 直接写入 main_eval_types，使
 
 ## 下次会话入口（按优先级）
 
-### P0: 当前 baseline 验证（必须）
+### P0: 修复 algo_gcd 回归（最高优先级）
+visit_all 重构后 algo_gcd（及可能 algo.factorize/binary_search）在 JIT runtime 报
+"function call cannot be specialized as numeric"。根因可能是：
+- gcd 是递归函数，其 body 内部 `return gcd(b, a % b)` 调用自身
+- visit_all 现在检测到 `a % b` 中的参数 a/b 并触发特化
+- 但特化版本的 gcd 内部递归调用仍尝试调用 dispatch 入口（CVar 签名），
+  导致参数类型不匹配触发 runtime FakeluaThrowError
+- 修复：特化函数内部的 self-call 直接指向特化版本（入口名 + bitmask 后缀），
+  而不是 dispatch 入口。
+
+```bash
+# 复现
+cd build/bin && ./unit_tests --gtest_filter=algo.gcd --gtest_print_time=0
+```
+
+### P1: 当前 baseline 验证
 - `cd build/bin && ./unit_tests --gtest_filter='-*DISABLED*' --gtest_brief=1`
-- 对比基线 636 PASSED / 120 FAILED（Step 6–8 后的数字），登记回归
+- 对比基线并登记其他用例的通过/失败
 
 ### P1: 解决 test_infer_degrade_param（循环游标类型跨 bitmask 传播）
 前几次会话已让 bitmask=0/1 的 for 边界类型检测通过（end_t=T_INT/T_FLOAT），
