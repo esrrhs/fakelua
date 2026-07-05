@@ -55,10 +55,6 @@ inline std::string InferredTypeToString(InferredType type) {
     }
 }
 
-inline bool IsNumericInferredType(const InferredType type) {
-    return type == T_INT || type == T_FLOAT;
-}
-
 inline InferredType InferNumericBinopResultType(const BinOpKind op_kind, const InferredType left_type, const InferredType right_type) {
     if (!IsNumericInferredType(left_type) || !IsNumericInferredType(right_type)) {
         return T_DYNAMIC;
@@ -217,30 +213,42 @@ struct TableSpecInfo {
     bool can_specialize;  // 所有访问是否已知（可特化）
 };
 
+// ── SSA 类型信息 ──────────────────────────────────────────────────────────
+struct SSATypeInfo {
+    InferredType type = T_UNKNOWN;
+    int shape_id = -1;
+    bool operator==(const SSATypeInfo &o) const { return type == o.type && shape_id == o.shape_id; }
+    bool operator!=(const SSATypeInfo &o) const { return !(*this == o); }
+};
+
+struct SpecParam {
+    int param_index;
+    bool is_math;
+    bool is_shape;
+};
+
 // TypeInferencer 的输出。
-// 由 TypeInferencer::InferTypes 填充，供 CGen 使用。
 struct InferResult {
-    // 数学参数位置：函数名 → 参数列表中参与算术运算的参数下标列表（最多8个）。
-    // 由 TypeInferencer::InferTypes 填充，供 CGen 生成特化版本时使用。
+    // ── Legacy 字段 ──────────────────────────────────────
     std::unordered_map<std::string, std::vector<int>> math_param_positions;
-    // 特化快照：函数名 → 按 bitmask 索引 of EvalTypeSnapshot 数组（共 2^k 个）。
-    // 每个快照记录在对应参数类型假设下整个函数体所有 AST 节点的推断类型，
-    // 由 TypeInferencer::InferTypes 生成，供 CGen 在不依赖 EvalType()
-    // 字段的情况下直接查询特化版本中任意节点的类型。
     std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots;
-    // 特化返回类型：函数名 → 按 bitmask 索引的返回类型数组（共 2^k 个）。
-    // T_INT/T_FLOAT 表示该特化版本始终返回对应数值类型；T_DYNAMIC 表示未知或非数值。
-    // 由 TypeInferencer::InferTypes 通过不动点迭代填充，
-    // 供 CGen::InferArgTypeForSpec 在函数调用节点处查询被调用函数的实际返回类型。
     std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
-    // 全局类型推断结果：节点指针 → 推断类型。
-    // 由 TypeInferencer::InferTypes 在全局（非试推断）推断完成后填充，
-    // 供 CGen 在非特化编译路径中查询任意节点的类型，替代原先内嵌在 AST 节点的 eval_type_ 字段。
     EvalTypeSnapshot main_eval_types;
-    // 文件级/全局数值常量及其推断类型映射
     std::unordered_map<std::string, InferredType> global_const_vars;
-    // table 特化信息：table constructor 节点 → 特化信息
     std::unordered_map<const SyntaxTreeInterface *, struct TableSpecInfo> table_spec_infos;
+
+    // ── SSA 路径字段 ────────────────────────────────────
+    std::unordered_map<int, SSATypeInfo> ssa_version_types;
+    std::unordered_map<const SyntaxTreeInterface *, int> node_ssa_version;
+    std::shared_ptr<struct ShapeRegistry> shape_registry;
+    std::unordered_map<std::string, std::vector<SpecParam>> specializable_params;
+    std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo> main_ssa_types;
+    std::unordered_map<std::string, std::vector<std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo>>> spec_ssa_snapshots;
+    std::unordered_map<std::string, std::vector<SSATypeInfo>> spec_ssa_return_types;
+    std::unordered_map<std::string, SSATypeInfo> global_table_shapes;
+    std::unordered_map<std::string, int> var_final_shapes;
+    std::unordered_map<const SyntaxTreeInterface *, int> ctor_target_shapes;
+    std::unordered_map<std::string, std::unordered_map<std::string, bool>> escape_vars;
 };
 
 struct JitFunctionInfo {
