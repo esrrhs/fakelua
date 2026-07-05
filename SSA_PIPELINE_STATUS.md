@@ -1,9 +1,9 @@
 # FakeLua 统一 SSA/CFG/Shape 编译管线 — 状态与实施文档
 
-> **最后更新**: 2026-07-05（Step 11-13：FindSpec visit_all 递归 + 三元模式检测 + bare return 修复）
+> **最后更新**: 2026-07-06（Step 12：per-bitmark 返回类型 forward-propagation）
 > **设计规范**: `/root/lua-dialect-type-inference-spec.md`
 > **当前分支**: `ssa-pipeline-v2`
-> **当前测试**: ~680 PASSED + ~120 FAILED（visit_all 重构引入 algo_gcd 回归）
+> **当前测试**: ~680 PASSED + ~80 FAILED（spec 61/24，algo 7/10，其他稳定）
 
 ---
 
