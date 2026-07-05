@@ -22,6 +22,9 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
     }
     registry_ = ir.shape_registry.get();
 
+    // 构建变量名 → SSA 版本映射（SSABuilder 骨架不实现完整 use_versions 映射）
+    auto name_ver = BuildVarNameVersionMap(ssa);
+
     // 运行 worklist
     TypeEnv version_types;
     RunWorklist(ssa, param_assumptions, version_types, ir);
@@ -44,7 +47,7 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
                     case SyntaxTreeType::TableConstructor:
                     case SyntaxTreeType::FunctionCall:
                     case SyntaxTreeType::ExpList: {
-                        auto ty = InferExprType(node, ssa, version_types, ir);
+                        auto ty = InferExprType(node, ssa, version_types, ir, name_ver);
                         ir.main_ssa_types[node.get()] = ty;
                         ir.node_ssa_version[node.get()] = -1;  // 不精确——留作后续
                         break;
@@ -74,7 +77,7 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
                     case SyntaxTreeType::TableConstructor:
                     case SyntaxTreeType::FunctionCall:
                     case SyntaxTreeType::ExpList: {
-                        auto ty = InferExprType(node, ssa, version_types, ir);
+                        auto ty = InferExprType(node, ssa, version_types, ir, name_ver);
                         snap[(size_t)bitmask][node.get()] = ty;
                         break;
                     }
@@ -102,13 +105,29 @@ void UnifiedTypeAnalyzer::RunWorklist(const SSAFunction &ssa,
     }
 }
 
+// 为当前 SSA 函数构建变量名 → 最新 SSA 版本号的映射。
+// 由于 SSABuilder 仍是骨架（不实现 Cytron 算法），退而求其次用 var_all_versions
+// 中每个变量的最后一个版本号（对过程内单赋值形式的简单函数足够）。
+UnifiedTypeAnalyzer::VarNameToVersion UnifiedTypeAnalyzer::BuildVarNameVersionMap(const SSAFunction &ssa) {
+    VarNameToVersion m;
+    for (auto &[name, vers] : ssa.var_all_versions) {
+        if (!vers.empty()) m[name] = vers.back();
+    }
+    return m;
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // 递归推导表达式类型
+// name_ver 闭包提供 var_name → SSA version 的查找；
+// 当 SSABuilder 仍是骨架无法提供 use_versions 时，通过此 map 解析变量类型。
 // ─────────────────────────────────────────────────────────────────────────
-SSATypeInfo UnifiedTypeAnalyzer::InferExprType(const SyntaxTreeInterfacePtr &expr,
-                                                const SSAFunction &ssa,
-                                                const TypeEnv &version_types,
-                                                const InferResult &ir) {
+SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
+    const SyntaxTreeInterfacePtr &expr,
+    const SSAFunction &ssa,
+    const TypeEnv &version_types,
+    const InferResult &ir,
+    const std::unordered_map<std::string, int> &name_ver) {
+
     if (!expr) return {T_UNKNOWN, -1};
 
     switch (expr->Type()) {
@@ -126,17 +145,15 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(const SyntaxTreeInterfacePtr &exp
                 case ExpKind::kTrue:
                 case ExpKind::kFalse: return {T_BOOL, -1};
                 case ExpKind::kBinop: {
-                    auto lt = InferExprType(e->Left(), ssa, version_types, ir);
-                    auto rt = InferExprType(e->Right(), ssa, version_types, ir);
-                    auto *op = static_cast<SyntaxTreeBinop *>(e->Op().get());
+                    auto lt = InferExprType(e->Left(), ssa, version_types, ir, name_ver);
+                    auto rt = InferExprType(e->Right(), ssa, version_types, ir, name_ver);
                     return {ShapeRegistry::MeetType(lt.type, rt.type), -1};
                 }
                 case ExpKind::kUnop: {
-                    auto operand = InferExprType(e->Right(), ssa, version_types, ir);
-                    return operand;
+                    return InferExprType(e->Right(), ssa, version_types, ir, name_ver);
                 }
                 case ExpKind::kPrefixExp: {
-                    return InferExprType(e->Right(), ssa, version_types, ir);
+                    return InferExprType(e->Right(), ssa, version_types, ir, name_ver);
                 }
                 case ExpKind::kTableConstructor: {
                     int shape_id = BuildShapeFromCtor(expr, ssa, version_types, ir);
@@ -151,10 +168,16 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(const SyntaxTreeInterfacePtr &exp
             auto *v = static_cast<SyntaxTreeVar *>(expr.get());
             if (v->GetVarKind() == VarKind::kSimple) {
                 const std::string &vname = v->GetName();
-                // 通过 SSA 查找
+                // 1. 优先通过 SSA use_versions 精确查找
                 auto vit = ssa.use_versions.find(expr.get());
                 if (vit != ssa.use_versions.end()) {
                     auto tit = version_types.find(vit->second);
+                    if (tit != version_types.end()) return tit->second;
+                }
+                // 2. 回退：通过变量名查找其 SSABuilder 分配的最新版本
+                auto nit = name_ver.find(vname);
+                if (nit != name_ver.end()) {
+                    auto tit = version_types.find(nit->second);
                     if (tit != version_types.end()) return tit->second;
                 }
             }
@@ -167,7 +190,7 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(const SyntaxTreeInterfacePtr &exp
         }
         case SyntaxTreeType::PrefixExp: {
             auto *pe = static_cast<SyntaxTreePrefixexp *>(expr.get());
-            return InferExprType(pe->GetValue(), ssa, version_types, ir);
+            return InferExprType(pe->GetValue(), ssa, version_types, ir, name_ver);
         }
         case SyntaxTreeType::FunctionCall: {
             return {T_DYNAMIC, -1};
@@ -220,7 +243,7 @@ int UnifiedTypeAnalyzer::BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc,
         }
 
         // 推导字段值类型
-        auto val_ty = InferExprType(fp->Value(), ssa, version_types, ir);
+        auto val_ty = InferExprType(fp->Value(), ssa, version_types, ir, {});
         fd.type = val_ty.type;
         shape.fields.push_back(fd);
     }

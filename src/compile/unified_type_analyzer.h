@@ -60,16 +60,20 @@ public:
 
 private:
     using TypeEnv = std::unordered_map<int, SSATypeInfo>;
+    using VarNameToVersion = std::unordered_map<std::string, int>;
 
     void RunWorklist(const SSAFunction &ssa,
                      const ParamAssumption &param_assumptions,
                      TypeEnv &version_types,
                      const InferResult &ir);
 
+    VarNameToVersion BuildVarNameVersionMap(const SSAFunction &ssa);
+
     SSATypeInfo InferExprType(const SyntaxTreeInterfacePtr &expr,
                               const SSAFunction &ssa,
                               const TypeEnv &version_types,
-                              const InferResult &ir);
+                              const InferResult &ir,
+                              const VarNameToVersion &name_ver);
 
     int BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc,
                            const SSAFunction &ssa,

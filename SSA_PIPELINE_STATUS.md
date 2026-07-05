@@ -174,24 +174,23 @@ PopulateMainEvalTypesFromSSA 把该 T_DYNAMIC 直接写入 main_eval_types，使
 
 ## 下次会话入口（按优先级）
 
-### P0: 继续收敛测试（基线 636 PASSED + 120 FAILED）
-剩余 120 个 FAILURE 分类（按影响范围排序）：
+### P0: 当前 baseline 验证（必须）
+- `cd build/bin && ./unit_tests --gtest_filter='-*DISABLED*' --gtest_brief=1`
+- 对比基线 636 PASSED / 120 FAILED（Step 6–8 后的数字），登记回归
 
-| 类别 | 代表用例 | 可能根因 |
-|------|---------|---------|
-| algo (3) | bubble_sort, insertion_sort, matrix | for-loop JIT 或 table 特化 |
-| jitter (4) | for_loop_float*, vararg_from_cpp_sum* | 浮点游标、vararg 场景 |
-| infer.math_spec_* (1) | math_spec_mixed | 数学参数特化路径（bitmask 入口分发） |
-| infer.native_bool_* (12) | native_bool_and/elseif/float/if/nested/not/or/repeat/while/... | 原生 bool 表达式走 CGen 而非 SSA |
-| infer.native_cmp/unary (6) | cmp_expr_eq/lt, unary_minus_standalone, unary_bitnot | 原生比较/一元 |
-| infer.test_spec_* (75) | 各种 specializable 参数路径 | entry dispatcher + 数学/表特化 snapshot |
-| infer.test_table_spec_* (2) | control_flow, if_else_soundness | 表特化流敏感 |
-| exception (1) | math_param_non_numeric_error | 数学参数非数值 error path |
-| 其他 (16) | allpaths_return, count_loop, elseif_no_return, ... | 多个小问题 |
+### P1: 解决 test_infer_degrade_param（循环游标类型跨 bitmask 传播）
+前几次会话已让 bitmask=0/1 的 for 边界类型检测通过（end_t=T_INT/T_FLOAT），
+但 `sum` 在 bitmask=1 时未按预期退化为 CVar。更深层原因：PopLSFT 只做一次
+（main_eval_types, bitmask=-1），不理解 per-bitmark 类型环境。
+- 方案：`CGen::CompileFuncBody(bitmask)` 内，对 local 声明也感知 `cur_spec_snapshot_`
+  中的类型（当前仅算术/二元运算走 Spec 路径）；
+- 更彻底的方案：在 `PopulateLocalFlowSensitiveTypes` 之后，针对每个函数的每个 bitmask
+  再跑一遍简单的 environment propagation，让快照中每个 local 声明节点的类型也
+  根据 bitmask 假设重新计算；
+- 关联影响：jit 下的 `test_binop_equal`、`test_infer_degrade_param` 等用例。
 
-### P1: 补齐 SSA 构造（规范 §3）— 重大步骤
-**根本问题**：当前 Step 6 的修复是启发式桥接；PopLSFT 只能处理过程内线性流，
-不理解控制流合并（if/while 汇合）。要彻底解决 spec_* 的 75 个用例，必须实现 SSA + Worklist。
+### P2: 补齐 SSA 构造（规范 §3）— 重大步骤
+当前 Step 6–8 的修复是启发式桥接；要彻底收敛，必须实现 SSA + Worklist。
 - 实现 `SSABuilder::Build`（Cytron 标准算法）：变量栈、支配边界、φ 插入、变量重命名
 - 实现 `UnifiedTypeAnalyzer::RunWorklist`（规范 §6）：
   - reverse-postorder 遍历基本块；meet over preds' out_env (per φ)
@@ -199,29 +198,26 @@ PopulateMainEvalTypesFromSSA 把该 T_DYNAMIC 直接写入 main_eval_types，使
 - 完成后 PopLSFT 可逐步替换为 worklist 的 out_env 直接桥接。
 - 完成后步骤 P5（CGen 迁移）和 P6（legacy 字段删除）才会真正安全。
 
-### P2: 浮点游标 + for_loop_float
-- 当前 for-loop 只识别整型特化（typed_int_for）；float/double 游标仍走通用 CVar 路径。
-- 修复：让 typed_int_for/typed_float_for 分支正确传播 float 游标到 CGen 的 CompileTypedNumericForLoop。
-- 修复后通过：jitter.test_for_loop_float*, test_infer_typed_float_for*。
+### P3: 浮点游标 + for_loop_float (`jitter.test_for_loop_float*`, `infer.test_infer_typed_float_for*`)
+当前 for 循环游标类型判断依赖 `LookupNodeType(ExpBegin/Exp/Step) == T_INT`，
+其中 ExpEnd 在参数化 for 循环中（`for i = 1, n do`）是参数引用，在特化快照中
+可能为 T_INT/T_FLOAT 但仍走 dynamic 路径。需要与 P1 配合。
 
-### P3: entry dispatcher 返回类型 + for 循环游标类型（跨 bitmask 特化）
-当前 STEP 7–8 已修复 FindSpecializableParams 检测和 SSABuilder 初始化但仍遗留：
-- `infer_test_infer_degrade_param`：for 循环游标 i 在特化版本（bitmask=0/1）中
-  仍为 CVar 而非 int64_t/double。根因是 CGen 编译特化版本时只能看到
-  bitmask=-1 的 main_eval_types，看不到 per-bitmask 快照。
-- 解决：在 CGen 的 CompileFuncBody(bitmask) 内，当 bitmask≥0 时改用
-  `spec_ssa_snapshots[func_name][bitmask]` 做 LookupNodeType 查询。
-- 这是实现「specialized body 使用 snapshot types」架构的关键一步。
+### P4: native_bool/native_cmp/native_unary 直接 C 生成（~18 个失败）
+断言形如 `SET_BOOL(res, (a) == (b))`。当前 Binop 走 CVar 路径。
+- 修复：在 CGen 中当 Binop 两端操作数都是 known-numeric-local 时走原生路径。
+- 需要先修好 InferExpType 对 Binop 的 T_INT/T_FLOAT 推导（P1 的 per-bitmark 快照增强）
 
-### P4: Shape 流敏感推导（规范 §5）— 与控制流联动
-- field read/write 需要流敏感 shape；当前仅构造不演化。
-- 依赖 P1 worklist 提供 per-block in/out_env。
+### P5: entry dispatcher snapshot-aware 入口
+- `infer.test_spec_*` 很多用例要求特化递归函数体内部自调用特化版本
+  （如 `fib_0(((n) - (1)))`），当前入口已生成特化版本但内部调用仍走 entry dispatcher。
+- 这需要在特化版本编译时 InferExprType 学会：「对 self-call 且参数已特化，返回特化版本类型」
 
-### P5: 函数摘要 + 调用点实例化（规范 §7）
+### P6: 函数摘要 + 调用点实例化（规范 §7）
 - `FuncSummary` 存储 `param_types` + `ret_type` + `param_escape[i]`
 - 递归函数处理：第一次遇到假设未完成摘要
 
-### P6: CGen 迁移（依赖 P1 完成）
+### P7: CGen 迁移（依赖 P1 完成）
 - `CompileTableconstructor` 走 SSA shape_registry 路径
 - `CompileVar` kDot/kSquare 走 offset/shape 路径
 - 删除 `table_spec_types_`/`spec_field_*` 等 legacy 字符串式特化
