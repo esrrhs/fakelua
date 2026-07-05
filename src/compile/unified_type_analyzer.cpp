@@ -429,6 +429,9 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
             auto *pe = static_cast<SyntaxTreePrefixexp *>(node.get());
             if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
                 collect_vars(pe->GetValue(), depth);
+            } else if (pe->GetPrefixKind() == PrefixExpKind::kExp && pe->GetValue()) {
+                // 括号表达式 (exp) — 继续深入
+                collect_vars(pe->GetValue(), depth);
             }
             return;
         }
@@ -456,6 +459,24 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
                     if (e->Right()) collect_vars(e->Right(), depth + 1);
                     return;
                 }
+                // 三元模式 (cond) and val1 or val2：
+                // AST: and(Left=cond, Right=val1), or(Left=and(...,val1), Right=val2)
+                if ((opk == BinOpKind::kAnd || opk == BinOpKind::kOr) && depth < 4) {
+                    const SyntaxTreeInterfacePtr &val_node = e->Right();
+                    const SyntaxTreeInterfacePtr &cond_node = e->Left();
+                    if (val_node && val_node->Type() == SyntaxTreeType::Exp) {
+                        auto ve = std::dynamic_pointer_cast<SyntaxTreeExp>(val_node);
+                        if (ve && ve->GetExpKind() == ExpKind::kNumber) {
+                            if (cond_node) collect_vars(cond_node, depth + 1);
+                        }
+                    }
+                }
+                // depth>0 意味着我们从三元模式递归进来，比较/逻辑操作符的操作数也要收集。
+                if (depth > 0 && depth < 4) {
+                    if (e->Left()) collect_vars(e->Left(), depth + 1);
+                    if (e->Right()) collect_vars(e->Right(), depth + 1);
+                    return;
+                }
             }
         }
         if (k == ExpKind::kUnop) {
@@ -464,65 +485,134 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
         }
     };
 
-    // 找到所有算术 Binop / 比较 / Le 等二元运算符，收集其操作数中出现的参数变量
-    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
-        if (!node || node->Type() != SyntaxTreeType::Exp) return;
-        auto *e = static_cast<SyntaxTreeExp *>(node.get());
-        if (e->GetExpKind() != ExpKind::kBinop) return;
-        auto *bop = e->Op() ? static_cast<SyntaxTreeBinop *>(e->Op().get()) : nullptr;
-        if (!bop) return;
-        auto opk = bop->GetOpKind();
-        // 算术/位运算：参数作为操作数可特化
-        // 注意：比较运算（==, <= 等）不做数学特化，因为字符串等非数值类型也可比较，
-        // 若特化会生成要求数值参数的 entry dispatcher，导致运行时报错。
-        bool is_arith = (opk == BinOpKind::kPlus || opk == BinOpKind::kMinus ||
-                        opk == BinOpKind::kStar || opk == BinOpKind::kSlash ||
-                        opk == BinOpKind::kDoubleSlash || opk == BinOpKind::kPow ||
-                        opk == BinOpKind::kMod || opk == BinOpKind::kBitAnd ||
-                        opk == BinOpKind::kBitOr || opk == BinOpKind::kXor ||
-                        opk == BinOpKind::kLeftShift || opk == BinOpKind::kRightShift);
-        if (!is_arith) return;
-        if (e->Left()) collect_vars(e->Left(), 0);
-        if (e->Right()) collect_vars(e->Right(), 0);
-    });
-
-    // 一元运算（取负、not、bitnot 等）：参数作为操作数可特化
-    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
-        if (!node || node->Type() != SyntaxTreeType::Exp) return;
-        auto *e = static_cast<SyntaxTreeExp *>(node.get());
-        if (e->GetExpKind() != ExpKind::kUnop) return;
-        auto *uop = e->Op() ? static_cast<SyntaxTreeUnop *>(e->Op().get()) : nullptr;
-        if (!uop) return;
-        auto opk = uop->GetOpKind();
-        bool is_numeric_unop = (opk == UnOpKind::kMinus || opk == UnOpKind::kNot ||
-                                opk == UnOpKind::kBitNot || opk == UnOpKind::kNumberSign);
-        if (!is_numeric_unop) return;
-        if (e->Right()) collect_vars(e->Right(), 0);
-    });
-
-    // for 数值循环的边界表达式出现参数时也可特化（例如 for i = 1, n do）
-    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
-        if (!node || node->Type() != SyntaxTreeType::ForLoop) return;
-        auto *fl = static_cast<SyntaxTreeForLoop *>(node.get());
-        if (fl->ExpBegin()) collect_vars(fl->ExpBegin(), 0);
-        if (fl->ExpEnd()) collect_vars(fl->ExpEnd(), 0);
-        if (fl->ExpStep()) collect_vars(fl->ExpStep(), 0);
-    });
-
-    // 函数调用实参中的参数（例如 return fib(n-1) + fib(n-2) 中的 n-1）
-    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
-        if (!node || node->Type() != SyntaxTreeType::FunctionCall) return;
-        auto *fc = static_cast<SyntaxTreeFunctioncall *>(node.get());
-        if (!fc->Args()) return;
-        auto args = fc->Args();
-        // 参数可能是 Table/Explist/String
-        if (args->Type() == SyntaxTreeType::ExpList) {
-            auto *el = static_cast<SyntaxTreeExplist *>(args.get());
-            for (auto &a : el->Exps()) collect_vars(a, 0);
-        } else if (args->Type() == SyntaxTreeType::Exp) {
-            collect_vars(args, 0);
+    // 递归遍历函数体，找到所有 Exp 节点。
+    // WalkSyntaxTree 不会深入 Exp 子表达式，需要 custom visitor。
+    std::function<void(const SyntaxTreeInterfacePtr&)> visit_all;
+    visit_all = [&](const SyntaxTreeInterfacePtr &node) {
+        if (!node) return;
+        if (node->Type() == SyntaxTreeType::Exp) {
+            auto *e = static_cast<SyntaxTreeExp *>(node.get());
+            // 对所有 Binop/Unop 调用 collect_vars 进行遍历：
+            // collect_vars 内部会根据 depth 和 opkind 判断是否收集参数。
+            if (e->GetExpKind() == ExpKind::kBinop || e->GetExpKind() == ExpKind::kUnop || e->GetExpKind() == ExpKind::kPrefixExp) {
+                // 顶层 Binop: 以 depth=0 调用；其内部会处理算术/三元/比较的回退收集
+                collect_vars(node, 0);
+            }
+            return;
         }
-    });
+        // Recurse via WalkSyntaxTree semantics for non-Exp nodes
+        switch (node->Type()) {
+            case SyntaxTreeType::Block: {
+                auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+                for (auto &s : blk->Stmts()) visit_all(s);
+                break;
+            }
+            case SyntaxTreeType::Return: {
+                auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
+                if (ret->Explist()) visit_all(ret->Explist());
+                break;
+            }
+            case SyntaxTreeType::Assign: {
+                auto as = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
+                if (as->Varlist()) visit_all(as->Varlist());
+                if (as->Explist()) visit_all(as->Explist());
+                break;
+            }
+            case SyntaxTreeType::VarList: {
+                auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(node);
+                for (auto &v : vl->Vars()) visit_all(v);
+                break;
+            }
+            case SyntaxTreeType::ExpList: {
+                auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
+                for (auto &e : el->Exps()) visit_all(e);
+                break;
+            }
+            case SyntaxTreeType::Var: {
+                auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
+                if (v->GetExp()) visit_all(v->GetExp());
+                if (v->GetPrefixexp()) visit_all(v->GetPrefixexp());
+                break;
+            }
+            case SyntaxTreeType::FunctionCall: {
+                auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+                if (fc->prefixexp()) visit_all(fc->prefixexp());
+                if (fc->Args()) visit_all(fc->Args());
+                break;
+            }
+            case SyntaxTreeType::TableConstructor: {
+                auto tc = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
+                if (tc->Fieldlist()) visit_all(tc->Fieldlist());
+                break;
+            }
+            case SyntaxTreeType::FieldList: {
+                auto fl = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
+                for (auto &f : fl->Fields()) visit_all(f);
+                break;
+            }
+            case SyntaxTreeType::Field: {
+                auto f = std::dynamic_pointer_cast<SyntaxTreeField>(node);
+                if (f->Key()) visit_all(f->Key());
+                if (f->Value()) visit_all(f->Value());
+                break;
+            }
+            case SyntaxTreeType::While: {
+                auto w = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
+                if (w->Exp()) visit_all(w->Exp());
+                if (w->Block()) visit_all(w->Block());
+                break;
+            }
+            case SyntaxTreeType::Repeat: {
+                auto r = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
+                if (r->Block()) visit_all(r->Block());
+                if (r->Exp()) visit_all(r->Exp());
+                break;
+            }
+            case SyntaxTreeType::If: {
+                auto ifn = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+                if (ifn->Exp()) visit_all(ifn->Exp());
+                if (ifn->Block()) visit_all(ifn->Block());
+                if (ifn->ElseIfs()) visit_all(ifn->ElseIfs());
+                if (ifn->ElseBlock()) visit_all(ifn->ElseBlock());
+                break;
+            }
+            case SyntaxTreeType::ElseIfList: {
+                auto el = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(node);
+                for (auto &e : el->ElseifExps()) visit_all(e);
+                for (auto &b : el->ElseifBlocks()) visit_all(b);
+                break;
+            }
+            case SyntaxTreeType::ForLoop: {
+                auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
+                if (fl->ExpBegin()) visit_all(fl->ExpBegin());
+                if (fl->ExpEnd()) visit_all(fl->ExpEnd());
+                if (fl->ExpStep()) visit_all(fl->ExpStep());
+                if (fl->Block()) visit_all(fl->Block());
+                break;
+            }
+            case SyntaxTreeType::ForIn: {
+                auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
+                if (fi->Namelist()) visit_all(fi->Namelist());
+                if (fi->Explist()) visit_all(fi->Explist());
+                if (fi->Block()) visit_all(fi->Block());
+                break;
+            }
+            case SyntaxTreeType::FuncBody: {
+                auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
+                if (fb->Block()) visit_all(fb->Block());
+                break;
+            }
+            case SyntaxTreeType::LocalVar: {
+                auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
+                if (lv->Namelist()) visit_all(lv->Namelist());
+                if (lv->Explist()) visit_all(lv->Explist());
+                break;
+            }
+            default:
+                break;
+        }
+    };
+    visit_all(func_block);
 
     // 映射 expr_vars → SpecParam（含 param_index，按 param_index 排序并去重）
     for (const auto &name : expr_vars) {
