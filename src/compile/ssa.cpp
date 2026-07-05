@@ -13,11 +13,17 @@ SSAFunction SSABuilder::Build(const CFGFunction &cfg) {
     var_stacks_.clear();
     next_version_ = 0;
 
-    // 为每个参数创建初始版本
-    for (int i = 0; i < (int) cfg.blocks.size(); ++i) {
-        const auto &blk = cfg.blocks[i];
-        // todo: 完整实现 SSA 构造
+    // 为每个参数创建初始版本号（即使 CFG 构造是骨架，也供 RunWorklist/特化使用）
+    int param_count = 0;
+    for (const auto &[pname, pidx] : cfg.param_indices) {
+        if (pidx + 1 > param_count) param_count = pidx + 1;
     }
+    ssa_.param_versions.resize(param_count);
+    for (int i = 0; i < param_count; ++i) {
+        ssa_.param_versions[i] = NewVersion(std::to_string(i), /*block_id=*/0);
+    }
+
+    // todo: 完整实现 SSA 构造（Cytron 算法 + 变量重命名 + φ 节点）
 
     return std::move(ssa_);
 }

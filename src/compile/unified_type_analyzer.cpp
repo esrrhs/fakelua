@@ -322,7 +322,7 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
     std::vector<SpecParam> result;
     if (!func_block) return result;
 
-    // 收集函数参数名
+    // 收集函数参数名（优先从 FuncBody 结构恢复；fallback 到 cfg.param_indices）
     std::unordered_set<std::string> param_names;
     if (func_block->Type() == SyntaxTreeType::FuncBody) {
         auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(func_block);
@@ -334,17 +334,73 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
             }
         }
     }
+    // Fallback：当 func_block 是函数体 Block 而非 FuncBody 时，cfg.param_indices 持有参数名
+    if (param_names.empty()) {
+        for (const auto &[pname, _] : cfg.param_indices) param_names.insert(pname);
+    }
 
-    std::unordered_set<std::string> math_vars;
+    // 收集表达式中直接出现的简单变量名（不进入 Call/Index 内部）
+    std::unordered_set<std::string> expr_vars;
+    std::function<void(const SyntaxTreeInterfacePtr&, int)> collect_vars;
+    collect_vars = [&](const SyntaxTreeInterfacePtr &node, int depth) {
+        if (!node) return;
+        if (node->Type() == SyntaxTreeType::Var) {
+            auto *v = static_cast<SyntaxTreeVar *>(node.get());
+            if (v->GetVarKind() == VarKind::kSimple && param_names.count(v->GetName())) {
+                expr_vars.insert(v->GetName());
+            }
+            return;
+        }
+        if (node->Type() == SyntaxTreeType::PrefixExp) {
+            auto *pe = static_cast<SyntaxTreePrefixexp *>(node.get());
+            if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
+                collect_vars(pe->GetValue(), depth);
+            }
+            return;
+        }
+        if (node->Type() != SyntaxTreeType::Exp) return;
+        auto *e = static_cast<SyntaxTreeExp *>(node.get());
+        auto k = e->GetExpKind();
+        if (k == ExpKind::kNumber || k == ExpKind::kString || k == ExpKind::kNil ||
+            k == ExpKind::kTrue || k == ExpKind::kFalse) return;
+        if (k == ExpKind::kPrefixExp) {
+            if (e->Right()) collect_vars(e->Right(), depth);
+            return;
+        }
+        if (k == ExpKind::kBinop) {
+            auto *bop = e->Op() ? static_cast<SyntaxTreeBinop *>(e->Op().get()) : nullptr;
+            if (bop) {
+                auto opk = bop->GetOpKind();
+                bool is_arith = (opk == BinOpKind::kPlus || opk == BinOpKind::kMinus ||
+                                opk == BinOpKind::kStar || opk == BinOpKind::kSlash ||
+                                opk == BinOpKind::kDoubleSlash || opk == BinOpKind::kPow ||
+                                opk == BinOpKind::kMod || opk == BinOpKind::kBitAnd ||
+                                opk == BinOpKind::kBitOr || opk == BinOpKind::kXor ||
+                                opk == BinOpKind::kLeftShift || opk == BinOpKind::kRightShift);
+                if (is_arith && depth < 4) {
+                    if (e->Left()) collect_vars(e->Left(), depth + 1);
+                    if (e->Right()) collect_vars(e->Right(), depth + 1);
+                    return;
+                }
+            }
+        }
+        if (k == ExpKind::kUnop) {
+            if (e->Right()) collect_vars(e->Right(), depth + 1);
+            return;
+        }
+    };
 
-    // Walk 找所有算术二元运算的操作数
+    // 找到所有算术 Binop / 比较 / Le 等二元运算符，收集其操作数中出现的参数变量
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
         if (!node || node->Type() != SyntaxTreeType::Exp) return;
         auto *e = static_cast<SyntaxTreeExp *>(node.get());
         if (e->GetExpKind() != ExpKind::kBinop) return;
-        auto *bop = static_cast<SyntaxTreeBinop *>(e->Op().get());
+        auto *bop = e->Op() ? static_cast<SyntaxTreeBinop *>(e->Op().get()) : nullptr;
         if (!bop) return;
         auto opk = bop->GetOpKind();
+        // 算术/位运算：参数作为操作数可特化
+        // 注意：比较运算（==, <= 等）不做数学特化，因为字符串等非数值类型也可比较，
+        // 若特化会生成要求数值参数的 entry dispatcher，导致运行时报错。
         bool is_arith = (opk == BinOpKind::kPlus || opk == BinOpKind::kMinus ||
                         opk == BinOpKind::kStar || opk == BinOpKind::kSlash ||
                         opk == BinOpKind::kDoubleSlash || opk == BinOpKind::kPow ||
@@ -352,37 +408,39 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
                         opk == BinOpKind::kBitOr || opk == BinOpKind::kXor ||
                         opk == BinOpKind::kLeftShift || opk == BinOpKind::kRightShift);
         if (!is_arith) return;
-        // 收集两侧的简单变量名
-        auto collect_vars = [&](const SyntaxTreeInterfacePtr &sub) {
-            if (sub && sub->Type() == SyntaxTreeType::Exp) {
-                auto *se = static_cast<SyntaxTreeExp *>(sub.get());
-                if (se->GetExpKind() == ExpKind::kPrefixExp && se->Right() &&
-                    se->Right()->Type() == SyntaxTreeType::PrefixExp) {
-                    auto *pe2 = static_cast<SyntaxTreePrefixexp *>(se->Right().get());
-                    if (pe2->GetPrefixKind() == PrefixExpKind::kVar && pe2->GetValue() &&
-                        pe2->GetValue()->Type() == SyntaxTreeType::Var) {
-                        auto *v = static_cast<SyntaxTreeVar *>(pe2->GetValue().get());
-                        if (v->GetVarKind() == VarKind::kSimple && param_names.count(v->GetName())) {
-                            math_vars.insert(v->GetName());
-                        }
-                    }
-                }
-            }
-        };
-        collect_vars(e->Left());
-        collect_vars(e->Right());
+        if (e->Left()) collect_vars(e->Left(), 0);
+        if (e->Right()) collect_vars(e->Right(), 0);
     });
 
-    // 映射到 SpecParam
-    // todo: 完整实现需要按 param_index 排序
-    for (const auto &name : math_vars) {
-        for (size_t i = 0; i < cfg.param_indices.size(); ++i) {
-            if (i < cfg.blocks.size()) {  // wrong check, but simplifies
-                result.push_back({static_cast<int>(i), true, false});
-                break;
-            }
+    // 一元运算（取负、not、bitnot 等）：参数作为操作数可特化
+    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+        if (!node || node->Type() != SyntaxTreeType::Exp) return;
+        auto *e = static_cast<SyntaxTreeExp *>(node.get());
+        if (e->GetExpKind() != ExpKind::kUnop) return;
+        auto *uop = e->Op() ? static_cast<SyntaxTreeUnop *>(e->Op().get()) : nullptr;
+        if (!uop) return;
+        auto opk = uop->GetOpKind();
+        bool is_numeric_unop = (opk == UnOpKind::kMinus || opk == UnOpKind::kNot ||
+                                opk == UnOpKind::kBitNot || opk == UnOpKind::kNumberSign);
+        if (!is_numeric_unop) return;
+        if (e->Right()) collect_vars(e->Right(), 0);
+    });
+
+    // 映射 expr_vars → SpecParam（含 param_index，按 param_index 排序并去重）
+    for (const auto &name : expr_vars) {
+        auto it = cfg.param_indices.find(name);
+        if (it != cfg.param_indices.end()) {
+            result.push_back({it->second, true, false});
         }
     }
+    // 去重并用 param_index 排序
+    std::sort(result.begin(), result.end(),
+              [](const SpecParam &a, const SpecParam &b) { return a.param_index < b.param_index; });
+    result.erase(std::unique(result.begin(), result.end(),
+                              [](const SpecParam &a, const SpecParam &b) {
+                                  return a.param_index == b.param_index && a.is_math == b.is_math;
+                              }),
+                 result.end());
 
     return result;
 }

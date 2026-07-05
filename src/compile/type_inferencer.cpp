@@ -500,7 +500,191 @@ void TypeInferencer::RunSSASpecialization(const ParseResult &pr, InferResult &ir
 
             if (!changed) break;
         }
+
+        // 推导每个特化版本的返回类型（基于快照中 return 表达式的类型；
+        // 当快照全为 T_DYNAMIC 时，回退到 param_assumptions 直接代入计算）
+        auto &snaps = ir.spec_ssa_snapshots[func_info.name];
+        for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
+            if ((size_t)bitmask >= snaps.size()) break;
+            InferredType merged_ret = inferReturnTypeFromSnaps(func_info.block, snaps[(size_t)bitmask]);
+            if (!IsNumericInferredType(merged_ret)) {
+                // 回退：直接用 param_assumptions 推导
+                merged_ret = inferRetTypeFromAssumptions(func_info.block, func_info.params,
+                                                          spec_params, bitmask);
+            }
+            rets[(size_t)bitmask].type = merged_ret;
+        }
     }
+}
+
+// 把参数类型代入 return 表达式做类型推导：沿 AST 递归，变量引用替换为假设类型
+static InferredType inferRetTypeFromAssumptionsImpl(
+    const SyntaxTreeInterfacePtr &exp,
+    const std::unordered_map<std::string, InferredType> &var_types);
+
+static InferredType inferRetTypeFromAssumptionsImpl(const SyntaxTreeInterfacePtr &exp,
+                                                     const std::unordered_map<std::string, InferredType> &var_types) {
+    if (!exp) return {T_DYNAMIC};
+    if (exp->Type() == SyntaxTreeType::Var) {
+        auto *v = static_cast<SyntaxTreeVar *>(exp.get());
+        if (v->GetVarKind() == VarKind::kSimple) {
+            auto it = var_types.find(v->GetName());
+            if (it != var_types.end()) return it->second;
+        }
+        return {T_DYNAMIC};
+    }
+    if (exp->Type() == SyntaxTreeType::PrefixExp) {
+        auto *pe = static_cast<SyntaxTreePrefixexp *>(exp.get());
+        if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
+            return inferRetTypeFromAssumptionsImpl(pe->GetValue(), var_types);
+        }
+        return {T_DYNAMIC};
+    }
+    if (exp->Type() != SyntaxTreeType::Exp) return {T_DYNAMIC};
+    auto *e = static_cast<SyntaxTreeExp *>(exp.get());
+    auto k = e->GetExpKind();
+    if (k == ExpKind::kNumber) {
+        const auto &v = e->ExpValue();
+        if (v.find('.') == std::string::npos && v.find('e') == std::string::npos && v.find('E') == std::string::npos)
+            return T_INT;
+        return T_FLOAT;
+    }
+    if (k == ExpKind::kString || k == ExpKind::kNil) return {T_DYNAMIC};
+    if (k == ExpKind::kPrefixExp) {
+        if (e->Right()) return inferRetTypeFromAssumptionsImpl(e->Right(), var_types);
+        return {T_DYNAMIC};
+    }
+    if (k == ExpKind::kBinop && e->Left() && e->Right()) {
+        auto lt = inferRetTypeFromAssumptionsImpl(e->Left(), var_types);
+        auto rt = inferRetTypeFromAssumptionsImpl(e->Right(), var_types);
+        if (IsNumericInferredType(lt) && IsNumericInferredType(rt))
+            return (lt == T_FLOAT || rt == T_FLOAT) ? T_FLOAT : T_INT;
+        // 递归 / pow 强制 double
+        auto *bop = e->Op() ? static_cast<SyntaxTreeBinop *>(e->Op().get()) : nullptr;
+        if (bop && (bop->GetOpKind() == BinOpKind::kSlash || bop->GetOpKind() == BinOpKind::kPow))
+            return T_FLOAT;
+        return {T_DYNAMIC};
+    }
+    if (k == ExpKind::kUnop && e->Right()) {
+        auto in = inferRetTypeFromAssumptionsImpl(e->Right(), var_types);
+        if (IsNumericInferredType(in)) return in;
+        return {T_DYNAMIC};
+    }
+    return {T_DYNAMIC};
+}
+
+// 顶层 helper：给定函数参数表达式 / 假设类型，计算返回类型
+InferredType TypeInferencer::inferRetTypeFromAssumptions(
+    const SyntaxTreeInterfacePtr &func_block,
+    const std::vector<std::string> &func_params,
+    const std::vector<SpecParam> &spec_params,
+    int bitmask) {
+
+    // 建立参数的假设类型映射
+    std::unordered_map<std::string, InferredType> var_types;
+    for (const auto &sp : spec_params) {
+        if (!sp.is_math) continue;
+        int idx = &sp - &spec_params[0];
+        bool is_float = (bitmask & (1 << idx)) != 0;
+        if (sp.param_index >= 0 && sp.param_index < (int)func_params.size()) {
+            var_types[func_params[sp.param_index]] = is_float ? T_FLOAT : T_INT;
+        }
+    }
+    // 收集所有 return 表达式的推导结果
+    InferredType result = T_UNKNOWN;
+    std::function<void(const SyntaxTreeInterfacePtr&)> walk;
+    walk = [&](const SyntaxTreeInterfacePtr &node) {
+        if (!node) return;
+        if (node->Type() == SyntaxTreeType::Return) {
+            auto ret_node = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
+            if (ret_node && ret_node->Explist()) {
+                auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(ret_node->Explist());
+                if (el && !el->Exps().empty()) {
+                    InferredType t = inferRetTypeFromAssumptionsImpl(el->Exps()[0], var_types);
+                    if (result == T_UNKNOWN) result = t;
+                    else if (IsNumericInferredType(result) && IsNumericInferredType(t)) {
+                        result = (result == T_FLOAT || t == T_FLOAT) ? T_FLOAT : result;
+                    } else if (IsNumericInferredType(result) && !IsNumericInferredType(t)) {
+                        // 已知数值类型 + 不可推导（如递归调用）→ 保持已知类型
+                    } else if (!IsNumericInferredType(result) && IsNumericInferredType(t)) {
+                        result = t;
+                    }
+                    // 两者都不可推导 → 维持 T_UNKNOWN，后续默认 int
+                }
+            }
+            return;
+        }
+        switch (node->Type()) {
+            case SyntaxTreeType::Block: {
+                auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+                for (auto &s : blk->Stmts()) walk(s);
+                break;
+            }
+            case SyntaxTreeType::If: {
+                auto ifn = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+                walk(ifn->Block());
+                if (auto eb = ifn->ElseBlock()) walk(eb);
+                break;
+            }
+            default:
+                break;
+        }
+    };
+    walk(func_block);
+    if (result == T_UNKNOWN) result = T_INT;
+    return result;
+}
+
+// 从特化快照中推导函数特化版本的返回类型
+// 当快照全部为 T_DYNAMIC（SSA use_versions 未填充）时，回退到 param_assumptions：
+// 通过把参数类型代入 return 表达式 AST 来直接计算。
+InferredType TypeInferencer::inferReturnTypeFromSnaps(
+    const SyntaxTreeInterfacePtr &func_block,
+    const std::unordered_map<const SyntaxTreeInterface*, SSATypeInfo> &snap) {
+
+    // 先尝试从快照推导
+    InferredType result = T_UNKNOWN;
+    std::function<void(const SyntaxTreeInterfacePtr&)> walk;
+    walk = [&](const SyntaxTreeInterfacePtr &node) {
+        if (!node) return;
+        if (node->Type() == SyntaxTreeType::Return) {
+            auto ret_node = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
+            if (ret_node && ret_node->Explist()) {
+                auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(ret_node->Explist());
+                if (el && !el->Exps().empty()) {
+                    auto it = snap.find(el->Exps()[0].get());
+                    if (it != snap.end()) {
+                        InferredType t = it->second.type;
+                        if (result == T_UNKNOWN) result = t;
+                        else if (IsNumericInferredType(result) && IsNumericInferredType(t)) {
+                            result = (result == T_FLOAT || t == T_FLOAT) ? T_FLOAT : result;
+                        } else {
+                            result = T_DYNAMIC;
+                        }
+                    }
+                }
+            }
+            return;
+        }
+        switch (node->Type()) {
+            case SyntaxTreeType::Block: {
+                auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+                for (auto &s : blk->Stmts()) walk(s);
+                break;
+            }
+            case SyntaxTreeType::If: {
+                auto ifn = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+                walk(ifn->Block());
+                if (auto eb = ifn->ElseBlock()) walk(eb);
+                break;
+            }
+            default:
+                break;
+        }
+    };
+    walk(func_block);
+    if (result == T_UNKNOWN) result = T_INT; // 默认 int
+    return result;
 }
 
 std::vector<TypeInferencer::FunctionSpecInfo>

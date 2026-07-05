@@ -40,6 +40,14 @@ private:
     [[nodiscard]] std::vector<FunctionSpecInfo> CollectFunctionSpecInfos(const ParseResult &pr) const;
     void CollectGlobalConstVars(const ParseResult &pr, const EvalTypeSnapshot &current_map, InferResult &ir);
     void AnnotateSimpleConstants(const SyntaxTreeInterfacePtr &node, InferResult &ir);
+
+    // ── 特化返回类型推导 ──────────────────────────────────────────────
+    static InferredType inferReturnTypeFromSnaps(const SyntaxTreeInterfacePtr &func_block,
+                                                  const std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo> &snap);
+    static InferredType inferRetTypeFromAssumptions(const SyntaxTreeInterfacePtr &func_block,
+                                                     const std::vector<std::string> &func_params,
+                                                     const std::vector<SpecParam> &spec_params,
+                                                     int bitmask);
 };
 
 }// namespace fakelua
