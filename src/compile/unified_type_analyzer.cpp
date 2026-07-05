@@ -426,6 +426,30 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
         if (e->Right()) collect_vars(e->Right(), 0);
     });
 
+    // for 数值循环的边界表达式出现参数时也可特化（例如 for i = 1, n do）
+    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+        if (!node || node->Type() != SyntaxTreeType::ForLoop) return;
+        auto *fl = static_cast<SyntaxTreeForLoop *>(node.get());
+        if (fl->ExpBegin()) collect_vars(fl->ExpBegin(), 0);
+        if (fl->ExpEnd()) collect_vars(fl->ExpEnd(), 0);
+        if (fl->ExpStep()) collect_vars(fl->ExpStep(), 0);
+    });
+
+    // 函数调用实参中的参数（例如 return fib(n-1) + fib(n-2) 中的 n-1）
+    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+        if (!node || node->Type() != SyntaxTreeType::FunctionCall) return;
+        auto *fc = static_cast<SyntaxTreeFunctioncall *>(node.get());
+        if (!fc->Args()) return;
+        auto args = fc->Args();
+        // 参数可能是 Table/Explist/String
+        if (args->Type() == SyntaxTreeType::ExpList) {
+            auto *el = static_cast<SyntaxTreeExplist *>(args.get());
+            for (auto &a : el->Exps()) collect_vars(a, 0);
+        } else if (args->Type() == SyntaxTreeType::Exp) {
+            collect_vars(args, 0);
+        }
+    });
+
     // 映射 expr_vars → SpecParam（含 param_index，按 param_index 排序并去重）
     for (const auto &name : expr_vars) {
         auto it = cfg.param_indices.find(name);
