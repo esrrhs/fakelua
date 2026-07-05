@@ -1205,11 +1205,18 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
         const auto exp = explist_ptr->Exps()[0];
         // 若当前处于原生返回类型的特化函数中，直接将返回表达式编译为原生数值并返回，
         // 跳过 CompileExp 的装箱步骤，消除一次 CVar 封箱拆箱开销。
+        // 注意：bare return（返回 nil）在特化版本中需把 nil 转为 0（int）或 0.0（double）。
         if (cur_spec_bitmask_ >= 0 && !cur_spec_func_name_.empty()) {
             if (const auto spec_ret = GetSpecReturnType(cur_spec_func_name_, cur_spec_bitmask_); spec_ret == T_INT || spec_ret == T_FLOAT) {
-                const auto native_ret = CompileNumericExp(exp);
-                Out() << GenTab() << "return " << native_ret << ";\n";
-                return;
+                if (exp->Type() == SyntaxTreeType::Exp && static_cast<SyntaxTreeExp*>(exp.get())->GetExpKind() == ExpKind::kNil) {
+                    // bare return in typed specialization → return 0 / 0.0
+                    Out() << GenTab() << "return " << (spec_ret == T_INT ? "0" : "0.0") << ";\n";
+                    return;
+                }
+                if (const auto native_ret = TryCompileNativeExpr(exp); !native_ret.empty()) {
+                    Out() << GenTab() << "return " << native_ret << ";\n";
+                    return;
+                }
             }
         }
         // 始终通过 CompileExp 编译返回表达式。
