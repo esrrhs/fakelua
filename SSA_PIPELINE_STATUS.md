@@ -1,9 +1,9 @@
 # FakeLua 统一 SSA/CFG/Shape 编译管线 — 状态与实施文档
 
-> **最后更新**: 2026-07-05（Step 5b：legacy 兼容层 + PrintLocalFlowSensitiveTypes 初探）
+> **最后更新**: 2026-07-05（Step 6：PopulateLocalFlowSensitiveTypes 类型传播增强 + for-loop cursor shadow 修复）
 > **设计规范**: `/root/lua-dialect-type-inference-spec.md`
 > **当前分支**: `ssa-pipeline-v2`
-> **当前测试**: ≈590 PASSED + ≈166 FAILED（正在收敛中）
+> **当前测试**: 636 PASSED + 120 FAILED（从 612/144 收敛）
 
 ---
 
@@ -29,8 +29,8 @@ Lua 源码 → Lexer/Parser → AST → PreProcessor → SemanticAnalysis → Ty
 |------|-----|
 | 分支 | `ssa-pipeline-v2` |
 | 构建 | ✅ 成功 |
-| 测试 baseline | 593 PASSED + 163 FAILED（从 Step 4 继承） |
-| 已提交 commit 数（本会话） | 5 个（Step 1–Step 5） |
+| 测试 baseline | 636 PASSED + 120 FAILED（从 612/144 收敛，Step 6 修复 24 个用例） |
+| 累计 commit 数 | Step 1–Step 5（上轮会话）+ Step 6（本轮） |
 
 **关键文件**：
 
@@ -107,6 +107,52 @@ RunSSAAnalysis → RunSSASpecialization → PopulateMainEvalTypesFromSSA
 - 遗留 case1/case3/case4：因 for-loop cursor 的 CGen 生成 `CVar a = (CVar){...}` 而非 `int64_t a = flua_for_ctrl_`，
   需要 CGen 侧也配合感知游标 shadow；或者在 bridge 内额外标记游标 dynamic 而非等待 CGen 决策
 
+### Step 6 — 完善 PopulateLocalFlowSensitiveTypes（已提交，本轮）
+
+#### 解决的核心问题
+SSA/CFG 管线仍是骨架（`RunWorklist` 仅初始化参数版本，缺少完全 Cyton 算法），
+导致 `UnifiedTypeAnalyzer::InferExprType` 对 Binop/Unop 含变量操作数的情形只能得到 `T_DYNAMIC`。
+PopulateMainEvalTypesFromSSA 把该 T_DYNAMIC 直接写入 main_eval_types，使得 CGen 无法生成原生数值类型代码。
+
+#### 修改 1：TypeOfScalar 增加 cur_type 上下文感知
+`src/compile/type_inferencer.cpp`
+- 将 `TypeOfScalar(exp, map)` 改为 `TypeOfScalar(exp, map, cur_type)`，新增变量名 → 当前推断类型的上下文查找。
+- 把 Binop/Unop/PrefixExp(Var) 的递归解析提到 map 缓存查找之前：
+  - SSA 阶段缺少 worklist，Binop 节点 map 中存的是 T_DYNAMIC；
+  - 我们的 `cur_type` 知道操作数变量名对应的类型（由 PopLSFT 逐语句累积）；
+  - 递归解析 Binop/Unop 可直接跳过 map 缓存，按 cur_type 推导结果类型。
+- MeetFlow 辅助函数移到 TypeOfScalar 之前，支持递归调用。
+
+#### 修改 2：main_eval_types 回写数值类型
+- LocalVar handler 中：当 exps[i] 经 TypeOfScalar 被推导为 T_INT/T_FLOAT 时，
+  回写 `map[exps[i]] = t`，把 SSA 阶段误填的 T_DYNAMIC 覆盖。
+- Assign handler 中：类似逻辑，当 rt 为数值类型时也回写 `map[exps[i]]`。
+- 关键效果：`local y = x * 4` / `x = x - 3` 等写法现在能正确生成 int64_t 局部变量。
+
+#### 修改 3：for-loop cursor 类型 bridge
+- 问题：SSA UTA 的 WalkSyntaxTree 只对 Exp/Var/... 语义节点填充 main_ssa_types，
+  不覆盖 ForLoop 语句节点。故 `LookupNodeType(for_stmt.get())` 永远返回 T_UNKNOWN ≠ T_INT，
+  导致 CGen 总是为游标生成 CVar 而非 int64_t。
+- 修复：ProcessBlockLocals 处理完 for-loop body 后，手动在 main_eval_types 中
+  为 for_stmt 节点注册类型：
+  - 默认 T_INT（case1/3/4：游标 never reassigned → 按边界类型用原生代码）
+  - 当 body 内出现「游标名 = 非数值」的直接赋值时置 T_DYNAMIC（case2：`a = "test"` → CVar）
+- 判 body 语句列表是直接扫描（而非依赖递归 cur_type，因为递归层的 cur_type 不会自动向上传播）。
+
+#### 修复的测试用例（24 个）
+- infer.test_infer_typed_int_for
+- infer.test_infer_typed_int_double_slash
+- infer.test_infer_typed_int_mod
+- infer.test_infer_typed_int_negative_floor_div
+- infer.test_infer_typed_int_negative_mod
+- infer.test_infer_typed_int_bitnot
+- infer.test_infer_typed_int_for_star
+- infer.test_infer_typed_int_for_neg_step_1 / case2
+- infer.test_infer_typed_float_var_cvar_assign
+- infer.test_infer_for_shadow_case1/case2/case3/case4（Step 5b 遗留）
+- infer.test_infer_typed_int_minus/star（Step 5b 遗留）
+- 等共 24 个 Δ 修复（具体清单见 test/ 目录）
+
 ---
 
 ## 当前实现与规范的差距
@@ -128,45 +174,55 @@ RunSSAAnalysis → RunSSASpecialization → PopulateMainEvalTypesFromSSA
 
 ## 下次会话入口（按优先级）
 
-### P0: 验证当前 build 的测试回归（必须）
-1. 运行 `cd build/bin && ./unit_tests --gtest_filter='-*DISABLED*'`
-2. 对比 baseline 的 593/163 数字，登记回归用例
-3. 把因 legacy 路径退化导致的误disable的测试重新启用
+### P0: 继续收敛测试（基线 636 PASSED + 120 FAILED）
+剩余 120 个 FAILURE 分类（按影响范围排序）：
 
-### P1: 补齐 SSA 构造（规范 §3）
-实现 `SSABuilder::Build`：
-- 变量栈 + DFS 变量重命名（Cytron 标准算法）
-- φ 节点插入（在 dominance frontier）
-- 把信息回填 `def_versions`/`use_versions`/`var_all_versions`
+| 类别 | 代表用例 | 可能根因 |
+|------|---------|---------|
+| algo (3) | bubble_sort, insertion_sort, matrix | for-loop JIT 或 table 特化 |
+| jitter (4) | for_loop_float*, vararg_from_cpp_sum* | 浮点游标、vararg 场景 |
+| infer.math_spec_* (1) | math_spec_mixed | 数学参数特化路径（bitmask 入口分发） |
+| infer.native_bool_* (12) | native_bool_and/elseif/float/if/nested/not/or/repeat/while/... | 原生 bool 表达式走 CGen 而非 SSA |
+| infer.native_cmp/unary (6) | cmp_expr_eq/lt, unary_minus_standalone, unary_bitnot | 原生比较/一元 |
+| infer.test_spec_* (75) | 各种 specializable 参数路径 | entry dispatcher + 数学/表特化 snapshot |
+| infer.test_table_spec_* (2) | control_flow, if_else_soundness | 表特化流敏感 |
+| exception (1) | math_param_non_numeric_error | 数学参数非数值 error path |
+| 其他 (16) | allpaths_return, count_loop, elseif_no_return, ... | 多个小问题 |
 
-### P2: 完整 Worklist（规范 §6）
-实现 `UnifiedTypeAnalyzer::RunWorklist`：
-- reverse-postorder 遍历基本块
-- meet over preds' out_env (per φ)
-- transfer: 逐语句 update env
-- widening: 迭代次数超限触发 shape→open / truncate fields
+### P1: 补齐 SSA 构造（规范 §3）— 重大步骤
+**根本问题**：当前 Step 6 的修复是启发式桥接；PopLSFT 只能处理过程内线性流，
+不理解控制流合并（if/while 汇合）。要彻底解决 spec_* 的 75 个用例，必须实现 SSA + Worklist。
+- 实现 `SSABuilder::Build`（Cytron 标准算法）：变量栈、支配边界、φ 插入、变量重命名
+- 实现 `UnifiedTypeAnalyzer::RunWorklist`（规范 §6）：
+  - reverse-postorder 遍历基本块；meet over preds' out_env (per φ)
+  - transfer: 逐语句 update env；widening: 迭代超限 → shape→open
+- 完成后 PopLSFT 可逐步替换为 worklist 的 out_env 直接桥接。
+- 完成后步骤 P5（CGen 迁移）和 P6（legacy 字段删除）才会真正安全。
 
-### P3: Shape 流敏感推导（规范 §5）
-扩展 UTA 的 transfer：
-- `a.b` field read 命中已知字段→`T_INT/T_RECORD`；开放 record→`T_DYNAMIC`；封闭无该字段→`T_NIL`
-- `a.b = v` field write: 同名字段合一/加宽/退化
+### P2: 浮点游标 + for_loop_float
+- 当前 for-loop 只识别整型特化（typed_int_for）；float/double 游标仍走通用 CVar 路径。
+- 修复：让 typed_int_for/typed_float_for 分支正确传播 float 游标到 CGen 的 CompileTypedNumericForLoop。
+- 修复后通过：jitter.test_for_loop_float*, test_infer_typed_float_for*。
 
-### P4: 函数摘要 + 调用点实例化（规范 §7）
+### P3: entry dispatcher 数学参数特化迁移
+当前 spec_* 用例依赖 SSA 管线外的 legacy entry dispatcher（bitmath 入口分发）：
+- FindSpecializableParams → 生成特化函数变体 → entry dispatcher 按 bitmask 路由
+- 测试断言内容形如 code.find("spec_fib_0")，验证特化函数名生成正确。
+- 这类路径暂时保持；等 P1 SSA+worklist 完成后可统一迁移为调用点类型特化。
+
+### P4: Shape 流敏感推导（规范 §5）— 与控制流联动
+- field read/write 需要流敏感 shape；当前仅构造不演化。
+- 依赖 P1 worklist 提供 per-block in/out_env。
+
+### P5: 函数摘要 + 调用点实例化（规范 §7）
 - `FuncSummary` 存储 `param_types` + `ret_type` + `param_escape[i]`
 - 递归函数处理：第一次遇到假设未完成摘要
 
-### P5: CGen 迁移
+### P6: CGen 迁移（依赖 P1 完成）
 - `CompileTableconstructor` 走 SSA shape_registry 路径
 - `CompileVar` kDot/kSquare 走 offset/shape 路径
 - 删除 `table_spec_types_`/`spec_field_*` 等 legacy 字符串式特化
-
-### P6: 删除兼容层字段
-- 逐个摘除 `InferResult` 末尾的 6 个 legacy 字段
-- 修改 CGen 直接使用 SSA 主路径字段
-
-### P7: 补齐 for-loop cursor shadow（case1/case3/case4）
-- CGen 代码生成感知游标 shadow：同一变量名在 for-loop body 内是独立 local
-- 或 bridge 内额外标记 cursor var decl as dynamic from CGen perspective
+- 删除 InferResult 末尾 6 个 legacy 兼容字段
 
 ---
 
