@@ -29,7 +29,7 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     // ── Phase 2: 兼容桥 —— 从 SSA 快照派生 legacy 字段 ─────────────
     PopulateMainEvalTypesFromSSA(pr.chunk, ir);
     PopulateGlobalConstVarsFromSSA(pr.chunk, ir);
-    PopulateLegacyReturnTypes(ir);
+    // PopulateLegacyReturnTypes 已删除：CGen 直接读 spec_ssa_return_types / spec_ssa_snapshots
     PopulateMathParamPositionsFromSSA(ir);
     PopulateTableSpecInfosFromSSA(pr.chunk, ir);
     // ── Phase 3: Flow-sensitive local 类型修复（覆盖 UTA 的 AST-walk
@@ -86,23 +86,8 @@ void TypeInferencer::PopulateGlobalConstVarsFromSSA(const SyntaxTreeInterfacePtr
     }
 }
 
-// 填充 legacy specialization_snapshots / specialization_return_types（CGen 兼容）
-void TypeInferencer::PopulateLegacyReturnTypes(InferResult &ir) {
-    for (auto &[func, rets] : ir.spec_ssa_return_types) {
-        auto &legacy = ir.specialization_return_types[func];
-        legacy.resize(rets.size());
-        for (size_t i = 0; i < rets.size(); ++i)
-            legacy[i] = rets[i].type;
-    }
-    for (auto &[func, snaps] : ir.spec_ssa_snapshots) {
-        auto &legacy = ir.specialization_snapshots[func];
-        legacy.resize(snaps.size());
-        for (size_t i = 0; i < snaps.size(); ++i) {
-            for (const auto &[node, ssa_info] : snaps[i])
-                legacy[i][const_cast<SyntaxTreeInterface *>(node)] = ssa_info.type;
-        }
-    }
-}
+// PopulateLegacyReturnTypes 已删除 — CGen 通过 spec_ssa_return_types / spec_ssa_snapshots
+// 直接桥接，不再需要 legacy 副本。
 
 // 填充 legacy math_param_positions —— 从 specializable_params 按 is_math 选出参数下标
 void TypeInferencer::PopulateMathParamPositionsFromSSA(InferResult &ir) {

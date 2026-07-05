@@ -592,6 +592,18 @@ InferredType CGen::LookupNodeType(SyntaxTreeInterface *node) const {
             return it->second;
         }
     }
+    // per-bitmark 特化：直接查询 SSA spec_ssa_snapshot（若 cur_spec_snapshot_ 未命中）
+    if (cur_spec_bitmask_ >= 0 && !cur_spec_func_name_.empty()) {
+        const auto snap_it = ir().spec_ssa_snapshots.find(cur_spec_func_name_);
+        if (snap_it != ir().spec_ssa_snapshots.end()) {
+            const auto &snaps = snap_it->second;
+            if (static_cast<size_t>(cur_spec_bitmask_) < snaps.size()) {
+                const auto &snap = snaps[static_cast<size_t>(cur_spec_bitmask_)];
+                const auto it = snap.find(node);
+                if (it != snap.end()) return it->second.type;
+            }
+        }
+    }
     if (const auto it = ir().main_eval_types.find(node); it != ir().main_eval_types.end()) {
         return it->second;
     }
@@ -599,10 +611,11 @@ InferredType CGen::LookupNodeType(SyntaxTreeInterface *node) const {
 }
 
 InferredType CGen::GetSpecReturnType(const std::string &func_name, int bitmask) const {
-    const auto it = ir().specialization_return_types.find(func_name);
-    DEBUG_ASSERT(it != ir().specialization_return_types.end());
-    DEBUG_ASSERT(bitmask >= 0 && bitmask < static_cast<int>(it->second.size()));
-    return it->second[static_cast<size_t>(bitmask)];
+    // 直接读 SSA spec_ssa_return_types（移除 legacy 字段后这里已是唯一来源）
+    const auto it = ir().spec_ssa_return_types.find(func_name);
+    if (it == ir().spec_ssa_return_types.end()) return T_DYNAMIC;
+    if (bitmask < 0 || bitmask >= static_cast<int>(it->second.size())) return T_DYNAMIC;
+    return it->second[static_cast<size_t>(bitmask)].type;
 }
 
 std::string CGen::GetKeyDescriptor(const std::string &key, TableKeyKind kind) {
@@ -859,14 +872,8 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
             const auto &param_name = func_params[static_cast<size_t>(math_params[i])];
             spec_param_types_[param_name] = (MathParamKindOf(spec_bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
         }
-        // 查找当前位掩码对应的快照，以便 CompileStmtLocalVar / CompileVar
-        // 在此参数类型组合下能查询到每个 AST 节点的正确类型。
-        if (const auto snap_it = ir().specialization_snapshots.find(func_name); snap_it != ir().specialization_snapshots.end()) {
-            const auto &snaps = snap_it->second;
-            if (spec_bitmask < static_cast<int>(snaps.size())) {
-                cur_spec_snapshot_ = &snaps[static_cast<size_t>(spec_bitmask)];
-            }
-        }
+        // 使用 SSA spec_ssa_snapshot（每个 bitmask 对应的 unordered_map<node, SSATypeInfo>）
+        // 留 cur_spec_snapshot_ = nullptr 即可；LookupNodeType 会回退到 SSA 快照
     }
 
     // 将函数体编译到 body 缓冲区。

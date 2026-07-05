@@ -25,7 +25,7 @@ private:
     // ── Legacy 兼容桥（由 SSA 快照派生）──────────────────────────────
     void PopulateMainEvalTypesFromSSA(const SyntaxTreeInterfacePtr &chunk, InferResult &ir);
     void PopulateGlobalConstVarsFromSSA(const SyntaxTreeInterfacePtr &chunk, InferResult &ir);
-    void PopulateLegacyReturnTypes(InferResult &ir);
+    // PopulateLegacyReturnTypes 已删除；CGen 直接读 SSA 主路径字段
     void PopulateMathParamPositionsFromSSA(InferResult &ir);
     void PopulateTableSpecInfosFromSSA(const SyntaxTreeInterfacePtr &chunk, InferResult &ir);
 

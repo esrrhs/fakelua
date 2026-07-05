@@ -245,11 +245,10 @@ struct InferResult {
     std::unordered_map<std::string, std::unordered_map<std::string, bool>> escape_vars;
 
     // ── Legacy 兼容字段（由 SSA 管线填充，退化路径使用）────────
+    // TODO: 等 worklist 完成后逐步替换为 SSA 主路径字段直接桥接
     EvalTypeSnapshot main_eval_types;
     std::unordered_map<std::string, InferredType> global_const_vars;
     std::unordered_map<std::string, std::vector<int>> math_param_positions;
-    std::unordered_map<std::string, std::vector<EvalTypeSnapshot>> specialization_snapshots;
-    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
     std::unordered_map<const SyntaxTreeInterface *, struct TableSpecInfo> table_spec_infos;
 };
 
