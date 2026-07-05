@@ -66,7 +66,7 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
         auto &snap = ir.spec_ssa_snapshots[func_name];
         if ((size_t)bitmask >= snap.size()) snap.resize((size_t)bitmask + 1);
 
-        // 记录特化快照
+        // 记录特化快照（第一轮：从 AST 节点直接推导）
         if (func_block) {
             WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
                 if (!node) return;
@@ -85,6 +85,57 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
                         break;
                 }
             });
+        }
+
+        // 第二轮：对 local 声明和赋值，用快照已知类型回写 RHS 表达式的类型。
+        // 这样 CGen 的特化变形体看到 local x = <expr> 时能根据快照决定 x 的原生类型。
+        if (func_block) {
+            std::function<void(const SyntaxTreeInterfacePtr&)> propagate;
+            propagate = [&](const SyntaxTreeInterfacePtr &node) {
+                if (!node) return;
+                if (node->Type() == SyntaxTreeType::LocalVar) {
+                    auto *lv = static_cast<SyntaxTreeLocalVar *>(node.get());
+                    auto nl = lv->Namelist();
+                    auto el = lv->Explist();
+                    if (!nl || nl->Type() != SyntaxTreeType::NameList) return;
+                    auto nlist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(nl);
+                    auto exps = el ? std::dynamic_pointer_cast<SyntaxTreeExplist>(el) : nullptr;
+                    auto &names = nlist->Names();
+                    for (size_t i = 0; i < names.size(); ++i) {
+                        if (exps && i < exps->Exps().size()) {
+                            auto &exp = exps->Exps()[i];
+                            auto it = snap[(size_t)bitmask].find(exp.get());
+                            if (it != snap[(size_t)bitmask].end() && IsNumericInferredType(it->second.type)) {
+                                // 已推导为 T_INT/T_FLOAT：记录到 snap 供后续 CGen 查询
+                                snap[(size_t)bitmask][exp.get()] = it->second;
+                            }
+                        }
+                    }
+                } else if (node->Type() == SyntaxTreeType::Assign) {
+                    auto *as = static_cast<SyntaxTreeAssign *>(node.get());
+                    auto vl = as->Varlist() ? std::dynamic_pointer_cast<SyntaxTreeVarlist>(as->Varlist()) : nullptr;
+                    auto el = as->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(as->Explist()) : nullptr;
+                    if (!vl || !el) return;
+                    auto &vars = vl->Vars();
+                    auto &exps = el->Exps();
+                    for (size_t i = 0; i < vars.size() && i < exps.size(); ++i) {
+                        auto it = snap[(size_t)bitmask].find(exps[i].get());
+                        if (it != snap[(size_t)bitmask].end() && IsNumericInferredType(it->second.type)) {
+                            snap[(size_t)bitmask][exps[i].get()] = it->second;
+                        }
+                    }
+                } else if (node->Type() == SyntaxTreeType::ForLoop) {
+                    auto *fl = static_cast<SyntaxTreeForLoop *>(node.get());
+                    propagate(fl->Block());
+                } else if (node->Type() == SyntaxTreeType::Block) {
+                    auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+                    if (blk) for (auto &s : blk->Stmts()) propagate(s);
+                } else if (node->Type() == SyntaxTreeType::If) {
+                    auto ifn = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+                    if (ifn) { propagate(ifn->Block()); if (auto eb = ifn->ElseBlock()) propagate(eb); }
+                }
+            };
+            propagate(func_block);
         }
     }
 }
