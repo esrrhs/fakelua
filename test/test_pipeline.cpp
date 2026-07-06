@@ -774,6 +774,57 @@ TEST(pipeline, meet_open_records) {
     EXPECT_GE(meet_shape.fields.size(), 1u);
 }
 
+// ── Step 6: CGen 迁移到 Shape 路径测试 ────────────────────────────────
+
+#include "compile/c_gen.h"
+#include "compile/compiler.h"
+
+// 辅助：编译 Lua 源码并返回 C 代码
+static std::string GetCCode(const std::string &lua_source) {
+    const auto s = FakeluaNewState();
+    CompileConfig cfg;
+    cfg.record_c_code = true;
+
+    Compiler compiler(s);
+    ParseResult pr = compiler.CompileString(lua_source, cfg);
+
+    // 手动运行完整管线
+    CFGFunction cfg_obj = BuildCfgFromSource(lua_source);
+
+    InferResult ir;
+    ir.shape_registry = std::make_shared<ShapeRegistry>();
+    UnifiedTypeAnalyzer uta(ir.shape_registry.get());
+    SSABuilder ssa_builder;
+    SSAFunction ssa = ssa_builder.Build(cfg_obj);
+    uta.Analyze("__fakelua_init", pr.chunk, cfg_obj, ssa, ir);
+
+    CGen cgen(s);
+    AnalysisResult ar;
+    GenResult gr = cgen.Generate(pr, ir, ar, cfg);
+
+    FakeluaDeleteState(s);
+    return gr.c_code;
+}
+
+// 测试 struct typedef 生成
+TEST(pipeline, cgen_shape_struct_typedef) {
+    auto code = GetCCode(R"(
+        local a = {b=1, c=2.0}
+    )");
+
+    // 应生成 LuaShape0 typedef
+    EXPECT_NE(code.find("LuaShape0"), std::string::npos)
+        << "should generate LuaShape0 typedef for {b:int, c:float}\n" + code;
+    // 应包含 double c 字段（T_FLOAT → double）
+    EXPECT_NE(code.find("double c"), std::string::npos)
+        << "should have field 'double c'\n" + code;
+    // 应包含 int64_t b 字段（T_INT → int64_t）
+    EXPECT_NE(code.find("int64_t b"), std::string::npos)
+        << "should have field 'int64_t b'\n" + code;
+
+    std::cout << "Generated C code (struct):\n" << code.substr(0, std::min((size_t)500, code.size())) << "\n";
+}
+
 // ── Step 5: 逃逸分析测试 ──────────────────────────────────────────────
 
 // 测试 return 导致逃逸

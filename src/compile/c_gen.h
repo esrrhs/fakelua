@@ -40,6 +40,7 @@ private:
     // ==========================================
     GenResult Build(const ParseResult &pr, const CompileConfig &cfg);
     void GenerateHeader();
+    void GenerateShapeStructs();
     void GenerateGlobal(const SyntaxTreeInterfacePtr &chunk);
     void GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr);
     void GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr);
@@ -57,6 +58,8 @@ private:
     void CompileStmt(const SyntaxTreeInterfacePtr &stmt);
     void CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt);
     void CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt);
+    // 尝试以 struct literal 形式编译局部变量初始化，成功时返回 true。
+    bool TryCompileLocalStructInit(const std::string &var_name, const SyntaxTreeInterfacePtr &exp_node);
     void CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt);
     void CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &stmt);
     void CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt);
@@ -112,6 +115,9 @@ private:
 
     std::stringstream func_temp_decls_;
     int cur_tab_ = 0;
+
+    // 当前正在编译的函数名（供逃逸判断/形状查询使用）
+    std::string cur_func_name_;
 };
 
 }// namespace fakelua

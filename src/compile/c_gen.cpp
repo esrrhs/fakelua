@@ -1,6 +1,7 @@
 #include "compile/c_gen.h"
 
 #include "compile/c_runtime_header.h"
+#include "compile/shape_type.h"
 #include "state/state.h"
 #include "util/common.h"
 #include "util/exception.h"
@@ -93,6 +94,65 @@ void CGen::GenerateHeader() {
 
     // C 运行时类型定义、宏 and 函数（从 c_runtime_header.h 提取，便于独立维护）
     Out() << kCRuntimeHeader;
+
+    // 为 shape_registry 中已注册的封闭 record shape 生成 struct typedef。
+    // 仅对 is_closed（is_open == false）且所有字段类型都具备 C 原语映射的 shape 生成。
+    // 这些 struct 类型为后续偏移访问提供 ABI 基础。
+    GenerateShapeStructs();
+}
+
+// 将单个 InferredType 映射为 C 类型字符串。T_NIL 没有稳定布局，返回 std::nullop 以跳过。
+static std::optional<std::string> InferredTypeToCType(InferredType t) {
+    switch (t) {
+        case T_INT:    return "int64_t";
+        case T_FLOAT:  return "double";
+        case T_BOOL:   return "bool";
+        case T_STRING: return "const char*";
+        case T_NIL:    return std::nullopt;
+        default:       return "CVar";  // 未知/混杂类型以 CVar 占位
+    }
+}
+
+void CGen::GenerateShapeStructs() {
+    const auto &reg = ir().shape_registry;
+    if (!reg || reg->Count() == 0) {
+        return;
+    }
+
+
+    Out() << "\n// ===== Shape struct typedefs =====\n";
+
+    // 按 shape_id 顺序遍历（shapes_ 是 vector，id 即下标）。
+    for (int id = 0; id < reg->Count(); ++id) {
+        const ShapeType shape = reg->Get(id);
+
+        // 仅对封闭 record 生成 struct。
+        if (shape.is_open) {
+            continue;
+        }
+
+        // 如果存在任何字段没有 C 原语映射（T_NIL），则无法生成完整 struct 定义。
+        bool skip = false;
+        for (const auto &fd : shape.fields) {
+            if (fd.type == T_NIL) {
+                skip = true;
+                break;
+            }
+        }
+        if (skip) {
+            continue;
+        }
+
+        Out() << "typedef struct {\n";
+        for (const auto &fd : shape.fields) {
+            auto c_type = InferredTypeToCType(fd.type);
+            DEBUG_ASSERT(c_type.has_value());
+            Out() << "    " << *c_type << " " << fd.c_field_name << ";\n";
+        }
+        Out() << "} LuaShape" << id << ";\n";
+    }
+
+    Out() << "\n";
 }
 
 void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
@@ -350,9 +410,11 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
     auto &body_ss = sections_[static_cast<size_t>(Section::Body)];
     body_ss.str("");
     body_ss.clear();
+    cur_func_name_ = func_name;
     cur_tab_++;
     CompileStmtBlock(func_block);
     cur_tab_--;
+    cur_func_name_.clear();
 
     // 写入调用方提供的输出流。
     out << func_temp_decls_.str();
@@ -535,6 +597,10 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             }
 
             if (i < exps.size()) {
+                // 尝试以 struct literal 形式生成 closed-record table 构造
+                if (TryCompileLocalStructInit(name, exps[i])) {
+                    continue;
+                }
                 const std::string init = CompileExp(exps[i]);
                 Out() << GenTab() << "CVar " << name << " = " << init << ";\n";
             } else {
@@ -542,6 +608,132 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             }
         }
     }
+}
+
+// 判断一个变量名在当前函数上下文中是否适合使用 struct type 存储。
+// 条件：
+//   1) var_final_shapes[name] 存在（即 analysis 已推断其 shape）
+//   2) shape 必须是封闭 record
+//   3) 变量不能逃逸（escape_vars[cur_func_name][name] != true）
+static bool CanUseStructForVar(const std::string &var_name, const std::string &func_name, const InferResult &ir) {
+    const auto &reg_ptr = ir.shape_registry;
+    if (!reg_ptr) return false;
+
+    auto fit = ir.var_final_shapes.find(var_name);
+    if (fit == ir.var_final_shapes.end()) return false;
+    int shape_id = fit->second;
+    if (shape_id < 0) return false;
+
+    const auto &shape = reg_ptr->Get(shape_id);
+    if (shape.is_open) return false;
+
+    auto eit = ir.escape_vars.find(func_name);
+    if (eit != ir.escape_vars.end()) {
+        auto vit = eit->second.find(var_name);
+        if (vit != eit->second.end() && vit->second) {
+            return false;  // 逃逸变量不走 struct 路径
+        }
+    }
+    return true;
+}
+
+// 尝试以 "LuaShapeN name = {.field = val, ...};" 形式编译局部变量初始化。
+// 成功时返回 true 并直接向 Out() 输出声明 + 初始化；失败时返回 false 让调用方走 CVar 路径。
+bool CGen::TryCompileLocalStructInit(const std::string &var_name, const SyntaxTreeInterfacePtr &exp_node) {
+    // 只对 Exp 节点（内部是 TableConstructor）进行处理
+    if (!exp_node || exp_node->Type() != SyntaxTreeType::Exp) {
+        return false;
+    }
+    const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp_node);
+    if (exp_ptr->GetExpKind() != ExpKind::kTableConstructor) {
+        return false;
+    }
+    const auto tc_node = exp_ptr->Right();
+    if (!tc_node || tc_node->Type() != SyntaxTreeType::TableConstructor) {
+        return false;
+    }
+
+    // 变量必须适合 struct 路径；同时 main_ssa_types 中 RHS ctor 节点也应有对应 shape（精确验证）
+    if (!CanUseStructForVar(var_name, cur_func_name_, ir())) {
+        return false;
+    }
+    // 需要 main_ssa_types[tc_node] 也是 T_RECORD 且 shape_id 一致（精确点类型与全局类型一致）
+    auto mit = ir().main_ssa_types.find(tc_node.get());
+    if (mit == ir().main_ssa_types.end() || !IsRecordInferredType(mit->second.type)) {
+        return false;
+    }
+    const int shape_id = mit->second.shape_id;
+    if (shape_id < 0) return false;
+
+    const auto &reg = *ir().shape_registry;
+    const auto &shape = reg.Get(shape_id);
+    if (shape.is_open) return false;
+
+    const auto tc = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc_node);
+
+    // 构造 struct c_field_name -> init_expr 的映射
+    std::unordered_map<std::string, std::string> init_map;
+    if (const auto fieldlist = tc->Fieldlist()) {
+        const auto fieldlist_ptr = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(fieldlist);
+        for (const auto &field : fieldlist_ptr->Fields()) {
+            const auto field_ptr = std::dynamic_pointer_cast<SyntaxTreeField>(field);
+            if (!field_ptr) continue;
+
+            std::string lua_field_name;
+            if (field_ptr->GetFieldKind() == FieldKind::kObject) {
+                lua_field_name = field_ptr->Name();
+            } else {
+                // kArray
+                if (const auto key = field_ptr->Key()) {
+                    if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(key);
+                        key_exp && key_exp->GetExpKind() == ExpKind::kString) {
+                        lua_field_name = key_exp->ExpValue();
+                    } else {
+                        return false;  // 非字符串键无法用 struct
+                    }
+                } else {
+                    return false;  // 无键数组元素无法用 struct
+                }
+            }
+
+            // 字段必须在 shape 中存在
+            const FieldDef *fd = shape.FindField(lua_field_name);
+            if (!fd) {
+                return false;
+            }
+
+            const auto value_str = CompileExp(field_ptr->Value());
+            init_map[fd->c_field_name] = value_str;
+        }
+    }
+
+    // 生成 struct 初始化
+    // 字段顺序按 shape.fields 顺序输出；所有 shape 中列出的字段都必须有初始化表达式，
+    // 缺失的字段按照类型默认值初始化。
+    Out() << GenTab() << "LuaShape" << shape_id << " " << var_name << " = {";
+    bool first = true;
+    for (const auto &fd : shape.fields) {
+        if (!first) Out() << ", ";
+        first = false;
+        auto it = init_map.find(fd.c_field_name);
+        if (it != init_map.end()) {
+            Out() << "." << fd.c_field_name << " = " << it->second;
+        } else {
+            // 默认值
+            if (fd.type == T_INT || fd.type == T_FLOAT) {
+                Out() << "." << fd.c_field_name << " = 0";
+            } else if (fd.type == T_BOOL) {
+                Out() << "." << fd.c_field_name << " = false";
+            } else if (fd.type == T_STRING) {
+                Out() << "." << fd.c_field_name << " = NULL";
+            } else {
+                // CVar 情形（理论上不会发生，但保留）
+                Out() << "." << fd.c_field_name << " = (CVar){.type_ = VAR_NIL}";
+            }
+        }
+    }
+    Out() << "};\n";
+    return true;
 }
 
 void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
@@ -1216,6 +1408,61 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto pe = v_ptr->GetPrefixexp();
         const auto name = v_ptr->GetName();
         auto pe_ret = CompilePrefixexp(pe);
+
+        // 检查是否可以对 base 变量走 struct 直接偏移访问：
+        //   1) pe 是简单变量 (pe_ptr->GetValue() 为 Var kSimple)
+        //   2) 该变量当前 SSA 版本具有封闭 record shape
+        //      （优先使用 main_ssa_types 提供的节点级精确类型，
+        //       var_final_shapes 仅记录多版本合并后的类型，单点信息会丢失）
+        //   3) 变量不逃逸
+        //   4) 被访问字段在 shape 中存在
+        const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
+        if (pe_ptr && pe_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
+            const auto base_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_ptr->GetValue());
+            if (base_var && base_var->GetVarKind() == VarKind::kSimple) {
+                const std::string &base_name = base_var->GetName();
+
+                // 优先：从 main_ssa_types 获取当前节点的精确类型
+                const SSATypeInfo *node_type = nullptr;
+                auto nit = ir().main_ssa_types.find(base_var.get());
+                if (nit != ir().main_ssa_types.end()) {
+                    node_type = &nit->second;
+                }
+
+                // 回退：从 var_final_shapes 获取变量级合并类型
+                int shape_id = -1;
+                if (node_type && node_type->shape_id >= 0 &&
+                    (node_type->type == T_RECORD || node_type->type == T_RECORD_OPEN)) {
+                    shape_id = node_type->shape_id;
+                } else if (!cur_func_name_.empty()) {
+                    auto fit = ir().var_final_shapes.find(base_name);
+                    if (fit != ir().var_final_shapes.end()) {
+                        shape_id = fit->second;
+                    }
+                }
+
+                if (shape_id >= 0) {
+                    auto &reg = *ir().shape_registry;
+                    const auto &shape = reg.Get(shape_id);
+                    if (!shape.is_open && shape.FindField(name)) {
+                        // 逃逸检查
+                        bool escaped = false;
+                        auto eit = ir().escape_vars.find(cur_func_name_);
+                        if (eit != ir().escape_vars.end()) {
+                            auto vit = eit->second.find(base_name);
+                            if (vit != eit->second.end() && vit->second) {
+                                escaped = true;
+                            }
+                        }
+                        if (!escaped) {
+                            const FieldDef *fd = shape.FindField(name);
+                            // 直接结构体成员访问：base_var_name.c_field_name
+                            return std::format("{}.{}", base_name, fd->c_field_name);
+                        }
+                    }
+                }
+            }
+        }
 
         // String constant key fast path: use FlGetTableStrId directly.
         const auto id = s_->GetConstString().Alloc(name);
