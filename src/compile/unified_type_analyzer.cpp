@@ -475,17 +475,12 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
                     if (e->Right()) collect_vars(e->Right(), depth + 1);
                     return;
                 }
-                // 三元模式 (cond) and val1 or val2：
-                // AST: and(Left=cond, Right=val1), or(Left=and(...,val1), Right=val2)
+                // and/or: 只要有一个操作数在算术或比较 context（含嵌套），
+                // 则同变量也是 math param。收集两侧操作数中的所有简单变量。
+                // 例子：n and (n+1) → n 出现在 n+1 算术中 → n 是 math param
                 if ((opk == BinOpKind::kAnd || opk == BinOpKind::kOr) && depth < 4) {
-                    const SyntaxTreeInterfacePtr &val_node = e->Right();
-                    const SyntaxTreeInterfacePtr &cond_node = e->Left();
-                    if (val_node && val_node->Type() == SyntaxTreeType::Exp) {
-                        auto ve = std::dynamic_pointer_cast<SyntaxTreeExp>(val_node);
-                        if (ve && ve->GetExpKind() == ExpKind::kNumber) {
-                            if (cond_node) collect_vars(cond_node, depth + 1);
-                        }
-                    }
+                    if (e->Left()) collect_vars(e->Left(), depth + 1);
+                    if (e->Right()) collect_vars(e->Right(), depth + 1);
                 }
                 // depth>0 意味着我们从三元模式递归进来，比较/逻辑操作符的操作数也要收集。
                 if (depth > 0 && depth < 4) {
