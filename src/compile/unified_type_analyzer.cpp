@@ -132,6 +132,9 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
     // 计算 widest shapes
     ComputeVarFinalShapes(ssa, ir);
     ComputeCtorTargetShapes(func_block, ssa, ir);
+
+    // §8 逃逸分析
+    ComputeEscape(func_name, func_block, cfg, ir.escape_vars[func_name]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -868,12 +871,31 @@ static InferredType DeriveExprTypeForRet(const SyntaxTreeInterfacePtr &expr,
 void UnifiedTypeAnalyzer::BuildSummary(const std::string &func_name,
                                         const SyntaxTreeInterfacePtr &func_block,
                                         const SSAFunction &ssa,
+                                        const CFGFunction &cfg,
                                         const TypeEnv &version_types,
                                         InferResult &ir) {
     FuncSummary &s = ir.func_summaries[func_name];
     s.func_name = func_name;
     s.param_types.resize(ssa.param_versions.size(), {T_DYNAMIC, -1});
     s.param_escape.resize(ssa.param_versions.size(), false);
+
+    // §8.2 逃逸信息收集
+    auto esc_it = ir.escape_vars.find(func_name);
+    if (esc_it != ir.escape_vars.end()) {
+        const EscapeEnv &esc = esc_it->second;
+        // 检查每个参数是否逃逸
+        for (size_t i = 0; i < ssa.param_versions.size(); ++i) {
+            // 通过参数名查找逃逸状态
+            // 注意：param_indices 给出了参数名到索引的映射
+            for (auto &[pname, pidx] : cfg.param_indices) {
+                if (pidx == (int)i) {
+                    auto pit = esc.find(pname);
+                    if (pit != esc.end()) s.param_escape[i] = pit->second;
+                    break;
+                }
+            }
+        }
+    }
 
     // 从 version_types 推导参数类型（规范 §7.2）
     for (size_t i = 0; i < ssa.param_versions.size(); ++i) {
@@ -925,6 +947,160 @@ void UnifiedTypeAnalyzer::BuildSummary(const std::string &func_name,
         });
     }
     s.ret_type = merged_ret;
+}
+
+// ── §8 逃逸分析 ──────────────────────────────────────────────────────────
+
+void UnifiedTypeAnalyzer::ComputeEscape(const std::string &func_name,
+                                        const SyntaxTreeInterfacePtr &func_block,
+                                        const CFGFunction &cfg,
+                                        EscapeEnv &escape_env) {
+    if (!func_block) return;
+    // 初始化：所有 local 变量标记为不逃逸
+    // 逃逸分析通过遍历语句，检测逃逸场景并标记
+
+    // 遍历函数体所有语句做逃逸转移
+    std::function<void(const SyntaxTreeInterfacePtr&)> walk;
+    walk = [&](const SyntaxTreeInterfacePtr &node) {
+        if (!node) return;
+        switch (node->Type()) {
+            case SyntaxTreeType::Block: {
+                auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+                for (auto &s : blk->Stmts()) walk(s);
+                break;
+            }
+            case SyntaxTreeType::If: {
+                auto *ifs = static_cast<SyntaxTreeIf*>(node.get());
+                walk(ifs->Block());
+                if (ifs->ElseBlock()) walk(ifs->ElseBlock());
+                break;
+            }
+            case SyntaxTreeType::While: {
+                auto *ws = static_cast<SyntaxTreeWhile*>(node.get());
+                walk(ws->Block());
+                break;
+            }
+            case SyntaxTreeType::ForLoop: {
+                auto *fl = static_cast<SyntaxTreeForLoop*>(node.get());
+                walk(fl->Block());
+                break;
+            }
+            default:
+                EscapeTransfer(node, escape_env, VarEnv{});
+                break;
+        }
+    };
+    walk(func_block);
+}
+
+void UnifiedTypeAnalyzer::EscapeTransfer(const SyntaxTreeInterfacePtr &stmt,
+                                          EscapeEnv &escape_env,
+                                          const VarEnv &type_env) {
+    if (!stmt) return;
+
+    // 递归收集语句中引用的所有变量名
+    std::vector<std::string> ref_names;
+    std::function<void(const SyntaxTreeInterfacePtr&)> collect_refs;
+    collect_refs = [&](const SyntaxTreeInterfacePtr &node) {
+        if (!node) return;
+        switch (node->Type()) {
+            case SyntaxTreeType::Var: {
+                auto *v = static_cast<SyntaxTreeVar*>(node.get());
+                if (v->GetVarKind() == VarKind::kSimple) ref_names.push_back(v->GetName());
+                if (v->GetPrefixexp()) collect_refs(v->GetPrefixexp());
+                if (v->GetExp()) collect_refs(v->GetExp());
+                break;
+            }
+            case SyntaxTreeType::Exp: {
+                auto *e = static_cast<SyntaxTreeExp*>(node.get());
+                collect_refs(e->Left());
+                collect_refs(e->Right());
+                break;
+            }
+            case SyntaxTreeType::PrefixExp: {
+                auto *pe = static_cast<SyntaxTreePrefixexp*>(node.get());
+                collect_refs(pe->GetValue());
+                break;
+            }
+            case SyntaxTreeType::ExpList: {
+                auto *el = static_cast<SyntaxTreeExplist*>(node.get());
+                for (auto &e : el->Exps()) collect_refs(e);
+                break;
+            }
+            case SyntaxTreeType::Args: {
+                auto *args = static_cast<SyntaxTreeArgs*>(node.get());
+                if (args->GetArgsKind() == ArgsKind::kExpList && args->Explist())
+                    collect_refs(args->Explist());
+                else if (args->Tableconstructor())
+                    collect_refs(args->Tableconstructor());
+                break;
+            }
+            case SyntaxTreeType::FunctionCall: {
+                auto *fc = static_cast<SyntaxTreeFunctioncall*>(node.get());
+                if (fc->prefixexp()) collect_refs(fc->prefixexp());
+                if (fc->Args()) collect_refs(fc->Args());
+                break;
+            }
+            default:
+                break;
+        }
+    };
+
+    switch (stmt->Type()) {
+        case SyntaxTreeType::FunctionCall: {
+            // 规范 §8.1：传给函数的参数逃逸
+            auto *fc = static_cast<SyntaxTreeFunctioncall*>(stmt.get());
+            // 获取 callee 名
+            std::string callee;
+            if (fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::Var) {
+                callee = static_cast<SyntaxTreeVar*>(fc->prefixexp().get())->GetName();
+            }
+            // 收集参数中引用的变量
+            if (fc->Args()) collect_refs(fc->Args());
+            if (!callee.empty()) {
+                // 有摘要的函数：参数不逃逸（保守：仍标记逃逸）
+                // TODO: 根据摘要的 param_escape 决定
+            }
+            // 未知函数或保守策略：所有参数引用都逃逸
+            for (auto &name : ref_names) escape_env[name] = true;
+            break;
+        }
+        case SyntaxTreeType::Return: {
+            // 规范 §8.1：被 return 的变量逃逸（保守）
+            auto *ret = static_cast<SyntaxTreeReturn*>(stmt.get());
+            if (ret->Explist()) collect_refs(ret->Explist());
+            for (auto &name : ref_names) escape_env[name] = true;
+            break;
+        }
+        case SyntaxTreeType::Assign: {
+            auto *as = static_cast<SyntaxTreeAssign*>(stmt.get());
+            auto vl = as->Varlist() ? std::dynamic_pointer_cast<SyntaxTreeVarlist>(as->Varlist()) : nullptr;
+            auto el = as->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(as->Explist()) : nullptr;
+            if (vl && el) {
+                auto &vars = vl->Vars();
+                auto &exps = el->Exps();
+                for (size_t i = 0; i < vars.size() && i < exps.size(); ++i) {
+                    collect_refs(exps[i]);
+                }
+                // 检查 LHS：赋值给 dynamic 变量 → RHS 引用逃逸
+                for (size_t i = 0; i < vars.size() && i < exps.size(); ++i) {
+                    if (vars[i]->Type() != SyntaxTreeType::Var) continue;
+                    auto *v = static_cast<SyntaxTreeVar*>(vars[i].get());
+                    if (v->GetVarKind() == VarKind::kSimple) {
+                        auto it = type_env.find(v->GetName());
+                        if (it != type_env.end() && it->second.type == T_DYNAMIC) {
+                            // 赋值给 dynamic 变量 → 引用逃逸
+                            for (auto &name : ref_names) escape_env[name] = true;
+                        }
+                    }
+                }
+            }
+            ref_names.clear();
+            break;
+        }
+        default:
+            break;
+    }
 }
 
 }// namespace fakelua

@@ -59,7 +59,7 @@ void TypeInferencer::RunSSAAnalysis(const ParseResult &pr, InferResult &ir) {
 
         uta.Analyze(func_info.name, func_info.block, cfg, ssa, ir);
         uta.ComputeCtorTargetShapes(func_info.block, ssa, ir);
-        uta.BuildSummary(func_info.name, func_info.block, ssa, ir.ssa_version_types, ir);
+        uta.BuildSummary(func_info.name, func_info.block, ssa, cfg, ir.ssa_version_types, ir);
 
         ir.func_summaries[func_info.name].being_built = false;
     }

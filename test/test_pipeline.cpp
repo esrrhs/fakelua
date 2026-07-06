@@ -233,7 +233,7 @@ static InferResult AnalyzeSource(const std::string &lua_source) {
     // 构建顶层摘要
     ir.func_summaries["__fakelua_init"].being_built = false;
     ir.func_summaries["__fakelua_init"].func_name = "__fakelua_init";
-    uta.BuildSummary("__fakelua_init", chunk, ssa, ir.ssa_version_types, ir);
+    uta.BuildSummary("__fakelua_init", chunk, ssa, cfg, ir.ssa_version_types, ir);
 
     // 分析函数定义（从顶层 chunk 中查找）
     std::function<void(const SyntaxTreeInterfacePtr&)> analyze_funcs;
@@ -274,7 +274,7 @@ static InferResult AnalyzeSource(const std::string &lua_source) {
             ir.func_summaries[name].being_built = true;
             ir.func_summaries[name].func_name = name;
             uta.Analyze(name, fbody->Block(), func_cfg, func_ssa, ir);
-            uta.BuildSummary(name, fbody->Block(), func_ssa, ir.ssa_version_types, ir);
+            uta.BuildSummary(name, fbody->Block(), func_ssa, func_cfg, ir.ssa_version_types, ir);
             ir.func_summaries[name].being_built = false;
         } else if (node->Type() == SyntaxTreeType::Block) {
             auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
@@ -772,6 +772,62 @@ TEST(pipeline, meet_open_records) {
     EXPECT_TRUE(meet_shape.is_open);
     // 应包含 b（optional）和 d
     EXPECT_GE(meet_shape.fields.size(), 1u);
+}
+
+// ── Step 5: 逃逸分析测试 ──────────────────────────────────────────────
+
+// 测试 return 导致逃逸
+TEST(pipeline, escape_return) {
+    auto ir = AnalyzeSource(R"(
+        local function test()
+            local a = {x=1}
+            return a   -- a 逃逸（被 return）
+        end
+    )");
+
+    auto esc_it = ir.escape_vars.find("test");
+    ASSERT_NE(esc_it, ir.escape_vars.end()) << "should have escape info for 'test'";
+    auto a_it = esc_it->second.find("a");
+    ASSERT_NE(a_it, esc_it->second.end()) << "should track variable 'a'";
+    EXPECT_TRUE(a_it->second) << "a should escape (returned)";
+
+    std::cout << "test() escape: a=" << (a_it->second ? "yes" : "no") << "\n";
+}
+
+// 测试函数调用导致参数逃逸
+TEST(pipeline, escape_function_call) {
+    auto ir = AnalyzeSource(R"(
+        local function test()
+            local a = {x=1}
+            print(a)   -- a 逃逸（传给未知函数 print）
+        end
+    )");
+
+    auto esc_it = ir.escape_vars.find("test");
+    ASSERT_NE(esc_it, ir.escape_vars.end()) << "should have escape info for 'test'";
+    auto a_it = esc_it->second.find("a");
+    ASSERT_NE(a_it, esc_it->second.end()) << "should track variable 'a'";
+    EXPECT_TRUE(a_it->second) << "a should escape (passed to unknown function)";
+
+    std::cout << "test() escape: a=" << (a_it->second ? "yes" : "no") << "\n";
+}
+
+// 测试不逃逸的 local 变量
+TEST(pipeline, escape_no_escape) {
+    auto ir = AnalyzeSource(R"(
+        local function test()
+            local a = {x=1}
+            local b = a.x   -- a 仅被读取，不逃逸
+        end
+    )");
+
+    auto esc_it = ir.escape_vars.find("test");
+    ASSERT_NE(esc_it, ir.escape_vars.end()) << "should have escape info for 'test'";
+    auto a_it = esc_it->second.find("a");
+    if (a_it != esc_it->second.end()) {
+        EXPECT_FALSE(a_it->second) << "a should NOT escape (only read)";
+        std::cout << "test() escape: a=" << (a_it->second ? "yes" : "no") << "\n";
+    }
 }
 
 // ── Step 4: 函数摘要 + 跨函数类型推导测试 ─────────────────────────────

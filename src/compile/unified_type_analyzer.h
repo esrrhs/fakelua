@@ -35,6 +35,7 @@ public:
     void BuildSummary(const std::string &func_name,
                       const SyntaxTreeInterfacePtr &func_block,
                       const SSAFunction &ssa,
+                      const CFGFunction &cfg,
                       const std::unordered_map<int, SSATypeInfo> &version_types,
                       InferResult &ir);
 
@@ -45,6 +46,7 @@ public:
     using VarEnv = std::unordered_map<std::string, SSATypeInfo>;
     using TypeEnv = std::unordered_map<int, SSATypeInfo>;
     using VarNameToVersion = std::unordered_map<std::string, int>;
+    using EscapeEnv = std::unordered_map<std::string, bool>;  // 变量名 → 是否逃逸
 
 private:
     // ── 工作表主循环（§6）──────────────────────────────────────────────
@@ -93,6 +95,18 @@ private:
                                       const std::string &target_name,
                                       const std::unordered_map<std::string, int> &var_final_shapes,
                                       std::unordered_map<const SyntaxTreeInterface *, int> &ctor_target_shapes);
+
+    // ── §8 逃逸分析 ────────────────────────────────────────────────────
+    // 分析函数体内各变量的逃逸状态，结果写入 ir.escape_vars
+    void ComputeEscape(const std::string &func_name,
+                       const SyntaxTreeInterfacePtr &func_block,
+                       const CFGFunction &cfg,
+                       EscapeEnv &escape_env);
+
+    // 单条语句的逃逸转移
+    void EscapeTransfer(const SyntaxTreeInterfacePtr &stmt,
+                        EscapeEnv &escape_env,
+                        const VarEnv &type_env);
 
     ShapeRegistry *registry_ = nullptr;
     std::string cur_func_name_;
