@@ -572,6 +572,11 @@ static InferredType inferRetTypeFromAssumptionsImpl(const SyntaxTreeInterfacePtr
         return {T_DYNAMIC};
     }
     if (k == ExpKind::kUnop && e->Right()) {
+        auto *unop = e->Op() ? static_cast<SyntaxTreeUnop *>(e->Op().get()) : nullptr;
+        if (unop && (unop->GetOpKind() == UnOpKind::kNumberSign || unop->GetOpKind() == UnOpKind::kBitNot)) {
+            // #s 和 ~x 的结果永远是 int（即使 operand 类型未知）
+            return T_INT;
+        }
         auto in = inferRetTypeFromAssumptionsImpl(e->Right(), var_types);
         if (IsNumericInferredType(in)) return in;
         return {T_DYNAMIC};
