@@ -102,12 +102,14 @@ private:
                         const SSAFunction &ssa,
                         const TypeEnv &version_types);
 
-    // 从 env 出发，填充 stmts 列表中所有子表达式节点的 main_ssa_types
+    // 从 env 出发，填充 stmts 列表中所有子表达式节点的类型到 out_map
+    // out_map 可以是 &ir.main_ssa_types（主分析）或 &snap[bitmask]（特化快照）
     void PopulateNodeTypesFromStmts(const std::vector<SyntaxTreeInterfacePtr> &stmts,
                                     const VarEnv &env,
                                     const SSAFunction &ssa,
                                     const TypeEnv &version_types,
-                                    InferResult &ir);
+                                    InferResult &ir,
+                                    std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo> *out_map);
 
     // 两个 var_env 取 meet
     static VarEnv MeetEnv(const VarEnv &a, const VarEnv &b);
