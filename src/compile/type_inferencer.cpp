@@ -310,15 +310,13 @@ void ProcessBlockLocals(const fakelua::SyntaxTreeInterfacePtr &node,
                     auto m = MeetFlow(it->second, rt);
                     if (m != it->second) {
                         it->second = m;
-                        // 只有当 meet 结果退化为 T_DYNAMIC 时才写回 map；
-                        // 数值型 meet（如 int→float）保持数值化，使 CGen
-                        // 在该变量后续继续赋数值时仍能生成原生类型代码。
-                        if (m == T_DYNAMIC) {
-                            auto dit = decl_node_by_name.find(vn);
-                            if (dit != decl_node_by_name.end()) map[dit->second.get()] = T_DYNAMIC;
-                        } else if (m == T_INT || m == T_FLOAT) {
-                            auto dit = decl_node_by_name.find(vn);
-                            if (dit != decl_node_by_name.end()) map[dit->second.get()] = m;
+                        auto dit = decl_node_by_name.find(vn);
+                        if (dit != decl_node_by_name.end()) {
+                            if (m == T_DYNAMIC) {
+                                map[dit->second.get()] = T_DYNAMIC;
+                            } else if (m == T_INT || m == T_FLOAT) {
+                                map[dit->second.get()] = m;
+                            }
                         }
                     }
                 }
