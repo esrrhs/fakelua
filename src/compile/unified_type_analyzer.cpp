@@ -885,11 +885,13 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
                                      kind == BinOpKind::kPow || kind == BinOpKind::kBitAnd ||
                                      kind == BinOpKind::kBitOr || kind == BinOpKind::kXor ||
                                      kind == BinOpKind::kLeftShift || kind == BinOpKind::kRightShift);
-                    bool is_compare = (kind == BinOpKind::kEqual || kind == BinOpKind::kNotEqual ||
-                                       kind == BinOpKind::kLess || kind == BinOpKind::kMore ||
-                                       kind == BinOpKind::kLessEqual || kind == BinOpKind::kMoreEqual);
+                    // ordering 比较只对数字有效，始终触发特化
+                    bool is_ordering_cmp = (kind == BinOpKind::kLess || kind == BinOpKind::kMore ||
+                                            kind == BinOpKind::kLessEqual || kind == BinOpKind::kMoreEqual);
+                    // ==/!=/and/or 只在已有算术参数时触发（避免 string 比较误特化）
+                    bool is_eq_cmp = (kind == BinOpKind::kEqual || kind == BinOpKind::kNotEqual);
                     bool is_logic = (kind == BinOpKind::kAnd || kind == BinOpKind::kOr);
-                    if (is_arith || (include_cmp && (is_compare || is_logic))) {
+                    if (is_arith || is_ordering_cmp || (include_cmp && (is_eq_cmp || is_logic))) {
                         if (e->Left()) collect_vars(e->Left(), depth + 1);
                         if (e->Right()) collect_vars(e->Right(), depth + 1);
                     }
