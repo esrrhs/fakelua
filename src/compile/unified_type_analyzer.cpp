@@ -150,6 +150,47 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
                                            &snap[(size_t)bitmask]);
             }
 
+            // 后处理：根据所有块 out_env 的 meet 结果更新 LocalVar 声明的 RHS 类型
+            // 这样 float-snapshot 中 `local sum = 0` 的 RHS 能反映 sum 经过循环回边后的最终类型
+            {
+                // 收集每个变量在所有 blocks out_env 中的最终类型（取 meet）
+                VarEnv merged;
+                for (const auto &[bid, env] : block_outs) {
+                    for (const auto &[v, t] : env) {
+                        auto it = merged.find(v);
+                        if (it == merged.end()) merged[v] = t;
+                        else it->second = Meet(it->second, t);
+                    }
+                }
+                // 遍历所有 blocks 的 LocalVar，用 merged 类型更新快照
+                for (const auto &b : cfg.blocks) {
+                    for (const auto &s : b.stmts) {
+                        if (!s || s->Type() != SyntaxTreeType::LocalVar) continue;
+                        auto *lv = static_cast<SyntaxTreeLocalVar *>(s.get());
+                        auto nl = lv->Namelist();
+                        auto el = lv->Explist();
+                        if (!nl || nl->Type() != SyntaxTreeType::NameList) continue;
+                        auto nlist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(nl);
+                        auto exps = el ? std::dynamic_pointer_cast<SyntaxTreeExplist>(el) : nullptr;
+                        if (!nlist || !exps) continue;
+                        const auto &names = nlist->Names();
+                        const auto &exps_vec = exps->Exps();
+                        for (size_t i = 0; i < names.size() && i < exps_vec.size(); ++i) {
+                            auto eit = merged.find(names[i]);
+                            if (eit != merged.end() && exps_vec[i]) {
+                                // 只有当最终类型退化了（比初始类型更宽）时才更新
+                                auto init_it = exps_vec[i] ? snap[(size_t)bitmask].find(exps_vec[i].get()) : snap[(size_t)bitmask].end();
+                                InferredType init_type = (init_it != snap[(size_t)bitmask].end()) ? init_it->second.type : T_UNKNOWN;
+                                if (eit->second.type == T_DYNAMIC || eit->second.type != init_type) {
+                                    SSATypeInfo final_ty{eit->second.type, -1};
+                                    snap[(size_t)bitmask][exps_vec[i].get()] = final_ty;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             // 第二轮：对 LocalVar/Assign 的 RHS 用快照已知类型回写
             std::function<void(const SyntaxTreeInterfacePtr&)> propagate;
             propagate = [&](const SyntaxTreeInterfacePtr &node) {
