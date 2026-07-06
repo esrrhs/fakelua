@@ -888,10 +888,15 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
                     // ordering 比较只对数字有效，始终触发特化
                     bool is_ordering_cmp = (kind == BinOpKind::kLess || kind == BinOpKind::kMore ||
                                             kind == BinOpKind::kLessEqual || kind == BinOpKind::kMoreEqual);
-                    // ==/!=/and/or 只在已有算术参数时触发（避免 string 比较误特化）
+                    // ==/!= 只在已有算术参数时触发（避免 string 比较误特化）
                     bool is_eq_cmp = (kind == BinOpKind::kEqual || kind == BinOpKind::kNotEqual);
+                    // and/or 始终递归（寻找嵌套的三元模式中的比较），但只在 include_cmp 时收集
                     bool is_logic = (kind == BinOpKind::kAnd || kind == BinOpKind::kOr);
-                    if (is_arith || is_ordering_cmp || (include_cmp && (is_eq_cmp || is_logic))) {
+                    if (is_arith || is_ordering_cmp || include_cmp) {
+                        if (e->Left()) collect_vars(e->Left(), depth + 1);
+                        if (e->Right()) collect_vars(e->Right(), depth + 1);
+                    } else if (is_logic) {
+                        // 始终递归以发现嵌套的 ordering 比较（如 (n>0) and 1 or 2）
                         if (e->Left()) collect_vars(e->Left(), depth + 1);
                         if (e->Right()) collect_vars(e->Right(), depth + 1);
                     }
@@ -1050,6 +1055,8 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
     include_cmp = false;
     visit_all(func_block);
 
+    // pass 2: 始终运行，收集 ==/!=/and/or 中的参数（三元模式需要）
+    // 也收集 pass 1 遗漏的 ordering 比较参数（如果 pass 1 没收集到的话）
     if (!expr_vars.empty()) {
         include_cmp = true;
         visit_all(func_block);
