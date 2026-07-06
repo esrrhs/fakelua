@@ -10,13 +10,17 @@
 > | algo | 7/3 | bubble_sort/insertion_sort/matrix 需表特化 |
 > | common | 4/0 | ✅ |
 > | exception | 66/0 | ✅ |
-> | **infer** | **143/58** | 主要工作区域 |
+> | **infer** | **143/58** | 主要工作区域 (runtime 问题为主) |
 > | ini | 1/0 | ✅ |
 > | jitter | 233/22 | JIT runtime 特化体问题 |
 > | runtime | 18/0 | ✅ |
 > | vm_cvar_call | 2/1 | 单failure |
 > | state | 16/0 | ✅ |
 > | syntax_tree | 26/6 | 部分与 SSA 无关 |
+>
+> infer 58 个失败进一步细分:
+> - 编译失败 (generate code 不符合 assertion): ~15
+> - JIT runtime 崩溃 (type error in 特化 body): ~43
 
 ---
 
