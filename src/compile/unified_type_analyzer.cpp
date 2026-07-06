@@ -13,11 +13,8 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
                                    const SyntaxTreeInterfacePtr &func_block,
                                    const CFGFunction &cfg,
                                    SSAFunction &ssa,
-                                   InferResult &ir,
-                                   int bitmask,
-                                   const ParamAssumption &param_assumptions) {
+                                   InferResult &ir) {
     cur_func_name_ = func_name;
-    cur_bitmask_ = bitmask;
 
     if (!ir.shape_registry) {
         ir.shape_registry = std::make_shared<ShapeRegistry>();
@@ -27,218 +24,90 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
     // 构建变量名 → SSA 版本映射
     auto name_ver = BuildVarNameVersionMap(ssa);
 
-    // ── 主分析：跑流敏感工作表 ────────────────────────────────────────
-    // 同时生成 version_types（param names → 类型）供 InferExprType 使用
+    // ── 主分析：跑流敏感工作表（规范 §6）────────────────────────────
     TypeEnv version_types;
-    // 初始化参数版本类型（保留接口兼容）
+    // 初始化参数版本类型（默认 T_DYNAMIC）
     for (size_t i = 0; i < ssa.param_versions.size(); ++i) {
-        int ver = ssa.param_versions[i];
-        auto pit = param_assumptions.find(ver);
-        version_types[ver] = (pit != param_assumptions.end())
-            ? pit->second : SSATypeInfo{T_DYNAMIC, -1};
+        version_types[ssa.param_versions[i]] = {T_DYNAMIC, -1};
     }
 
     // 跑流敏感工作表，返回每个块的 out_env
-    std::unordered_map<int, VarEnv> block_outs;
-    if (bitmask == -1) {
-        block_outs = RunWorklist(cfg, ssa, param_assumptions, ir);
-        // 合并 version_types → ir.ssa_version_types（legacy 兼容：ComputeVarFinalShapes 等依赖）
-        for (const auto &[ver, ty] : version_types) {
-            ir.ssa_version_types[ver] = ty;
-        }
+    std::unordered_map<int, VarEnv> block_outs = RunWorklist(cfg, ssa, ir);
 
-        // 推导所有 AST 节点的类型：对每个块，使用其 out_env 作为上下文调用 InferExprType
-        // （某些参数可能是顶层块入口定义的；块内赋值按 TransferStmt 已写回 env）
-        if (func_block) {
-            // 用工作表得到的 env，对主块出口处的变量进行全局 env 合并：
-            // 由于主块只有一个 exit 块，我们合并所有块 out_env = 整个函数的"可能出口状态"
-            VarEnv merged;
-            for (const auto &[bid, env] : block_outs) {
-                for (const auto &[v, t] : env) {
-                    auto it = merged.find(v);
-                    if (it == merged.end()) merged[v] = t;
-                    else it->second = Meet(it->second, t);
-                }
-            }
-            WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
-                if (!node) return;
-                switch (node->Type()) {
-                    case SyntaxTreeType::Exp:
-                    case SyntaxTreeType::Var:
-                    case SyntaxTreeType::PrefixExp:
-                    case SyntaxTreeType::TableConstructor:
-                    case SyntaxTreeType::FunctionCall:
-                    case SyntaxTreeType::ExpList: {
-                        auto ty = InferExprType(node, ssa, version_types, ir, name_ver, &merged);
-                        ir.main_ssa_types[node.get()] = ty;
-                        ir.node_ssa_version[node.get()] = -1;
-                        break;
-                    }
-                    default:
-                        break;
-                }
-            });
-        }
+    // 合并 version_types → ir.ssa_version_types
+    for (const auto &[ver, ty] : version_types) {
+        ir.ssa_version_types[ver] = ty;
+    }
 
-        // 额外：用工作表得到的 env 直接对每个 block 的顶层 stmt 做更精确的类型传播
-        // （这是核心的流敏感部分：块内赋值后的变量来源类型）
-        for (const auto &b : cfg.blocks) {
-            if (b.stmts.empty()) continue;
-            // 块的 in_env = meet of preds' out_env
-            VarEnv env;
-            bool first_pred = true;
-            for (int pid : b.pred_ids) {
-                auto pit = block_outs.find(pid);
-                if (pit == block_outs.end()) continue;
-                if (first_pred) {
-                    env = pit->second;
-                    first_pred = false;
-                } else {
-                    env = MeetEnv(env, pit->second);
-                }
-            }
+    // 用工作表得到的 env 直接对每个 block 的顶层 stmt 做精确的类型传播
+    for (const auto &b : cfg.blocks) {
+        if (b.stmts.empty()) continue;
+        // 块的 in_env = meet of preds' out_env
+        VarEnv env;
+        bool first_pred = true;
+        for (int pid : b.pred_ids) {
+            auto pit = block_outs.find(pid);
+            if (pit == block_outs.end()) continue;
             if (first_pred) {
-                // entry block: seed param types from ssa
-                for (const auto &[pname, pidx] : cfg.param_indices) {
-                    int ver = (pidx < (int)ssa.param_versions.size()) ? ssa.param_versions[pidx] : -1;
-                    if (ver >= 0) {
-                        auto vit = version_types.find(ver);
-                        if (vit != version_types.end())
-                            env[pname] = vit->second;
-                    }
-                }
+                env = pit->second;
+                first_pred = false;
+            } else {
+                env = MeetEnv(env, pit->second);
             }
-            // 对块内每个 stmt 做 Transfer（更新 env），然后填充 main_ssa_types
-            for (const auto &s : b.stmts) {
-                env = TransferStmt(s, env, ssa, version_types);
-            }
-            PopulateNodeTypesFromStmts(b.stmts, env, ssa, version_types, ir, nullptr);
-            // 保存块的 out_env
-            block_outs[b.id] = env;
         }
-
-        // 计算 widest shapes
-        ComputeVarFinalShapes(ssa, ir);
-        ComputeCtorTargetShapes(func_block, ssa, ir);
-    } else {
-        // ── 特化分析：Per-bitmask 快照 — 用 worklist 跑不动点 ─────────
-        auto &snap = ir.spec_ssa_snapshots[func_name];
-        if ((size_t)bitmask >= snap.size()) snap.resize((size_t)bitmask + 1);
-
-        // 跑 worklist 时使用 param_assumptions 特化假设派生 entry env
-        if (func_block) {
-            // 跑 worklist：用 cfg + TransferStmt 推导出每个块的 out_env
-            // 临时覆盖 RunWorklist 使用的 entry seed，让参数版本被特化假设填充
-            TypeEnv saved_vt = ir.ssa_version_types;
+        if (first_pred) {
+            // entry block: seed param types from ssa
             for (const auto &[pname, pidx] : cfg.param_indices) {
                 int ver = (pidx < (int)ssa.param_versions.size()) ? ssa.param_versions[pidx] : -1;
                 if (ver >= 0) {
-                    auto pit = param_assumptions.find(ver);
-                    if (pit != param_assumptions.end())
-                        ir.ssa_version_types[ver] = pit->second;
+                    auto vit = version_types.find(ver);
+                    if (vit != version_types.end())
+                        env[pname] = vit->second;
                 }
             }
-            std::unordered_map<int, VarEnv> block_outs = RunWorklist(cfg, ssa, param_assumptions, ir);
-            ir.ssa_version_types = std::move(saved_vt);
-
-            // 用每个块的 out_env 推导该块内所有子表达式的类型 → 快照
-            for (const auto &b : cfg.blocks) {
-                VarEnv env;
-                auto it = block_outs.find(b.id);
-                if (it != block_outs.end()) env = it->second;
-                PopulateNodeTypesFromStmts(b.stmts, env, ssa, version_types, ir,
-                                           &snap[(size_t)bitmask]);
-            }
-
-            // 后处理：根据所有块 out_env 的 meet 结果更新 LocalVar 声明的 RHS 类型
-            // 这样 float-snapshot 中 `local sum = 0` 的 RHS 能反映 sum 经过循环回边后的最终类型
-            {
-                // 收集每个变量在所有 blocks out_env 中的最终类型（取 meet）
-                VarEnv merged;
-                for (const auto &[bid, env] : block_outs) {
-                    for (const auto &[v, t] : env) {
-                        auto it = merged.find(v);
-                        if (it == merged.end()) merged[v] = t;
-                        else it->second = Meet(it->second, t);
-                    }
-                }
-                // 遍历所有 blocks 的 LocalVar，用 merged 类型更新快照
-                for (const auto &b : cfg.blocks) {
-                    for (const auto &s : b.stmts) {
-                        if (!s || s->Type() != SyntaxTreeType::LocalVar) continue;
-                        auto *lv = static_cast<SyntaxTreeLocalVar *>(s.get());
-                        auto nl = lv->Namelist();
-                        auto el = lv->Explist();
-                        if (!nl || nl->Type() != SyntaxTreeType::NameList) continue;
-                        auto nlist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(nl);
-                        auto exps = el ? std::dynamic_pointer_cast<SyntaxTreeExplist>(el) : nullptr;
-                        if (!nlist || !exps) continue;
-                        const auto &names = nlist->Names();
-                        const auto &exps_vec = exps->Exps();
-                        for (size_t i = 0; i < names.size() && i < exps_vec.size(); ++i) {
-                            auto eit = merged.find(names[i]);
-                            if (eit != merged.end() && exps_vec[i]) {
-                                // 只有当最终类型退化了（比初始类型更宽）时才更新
-                                auto init_it = exps_vec[i] ? snap[(size_t)bitmask].find(exps_vec[i].get()) : snap[(size_t)bitmask].end();
-                                InferredType init_type = (init_it != snap[(size_t)bitmask].end()) ? init_it->second.type : T_UNKNOWN;
-                                if (eit->second.type == T_DYNAMIC || eit->second.type != init_type) {
-                                    SSATypeInfo final_ty{eit->second.type, -1};
-                                    snap[(size_t)bitmask][exps_vec[i].get()] = final_ty;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // 第二轮：对 LocalVar/Assign 的 RHS 用快照已知类型回写
-            std::function<void(const SyntaxTreeInterfacePtr&)> propagate;
-            propagate = [&](const SyntaxTreeInterfacePtr &node) {
-                if (!node) return;
-                if (node->Type() == SyntaxTreeType::LocalVar) {
-                    auto *lv = static_cast<SyntaxTreeLocalVar *>(node.get());
-                    auto nl = lv->Namelist();
-                    auto el = lv->Explist();
-                    if (!nl || nl->Type() != SyntaxTreeType::NameList) return;
-                    auto nlist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(nl);
-                    auto exps = el ? std::dynamic_pointer_cast<SyntaxTreeExplist>(el) : nullptr;
-                    auto &names = nlist->Names();
-                    for (size_t i = 0; i < names.size(); ++i) {
-                        if (exps && i < exps->Exps().size()) {
-                            auto &exp = exps->Exps()[i];
-                            auto it = snap[(size_t)bitmask].find(exp.get());
-                            if (it != snap[(size_t)bitmask].end() && IsNumericInferredType(it->second.type)) {
-                                snap[(size_t)bitmask][exp.get()] = it->second;
-                            }
-                        }
-                    }
-                } else if (node->Type() == SyntaxTreeType::Assign) {
-                    auto *as = static_cast<SyntaxTreeAssign *>(node.get());
-                    auto vl = as->Varlist() ? std::dynamic_pointer_cast<SyntaxTreeVarlist>(as->Varlist()) : nullptr;
-                    auto el = as->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(as->Explist()) : nullptr;
-                    if (!vl || !el) return;
-                    auto &vars = vl->Vars();
-                    auto &exps = el->Exps();
-                    for (size_t i = 0; i < vars.size() && i < exps.size(); ++i) {
-                        auto it = snap[(size_t)bitmask].find(exps[i].get());
-                        if (it != snap[(size_t)bitmask].end() && IsNumericInferredType(it->second.type)) {
-                            snap[(size_t)bitmask][exps[i].get()] = it->second;
-                        }
-                    }
-                } else if (node->Type() == SyntaxTreeType::ForLoop) {
-                    auto *fl = static_cast<SyntaxTreeForLoop *>(node.get());
-                    propagate(fl->Block());
-                } else if (node->Type() == SyntaxTreeType::Block) {
-                    auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
-                    if (blk) for (auto &s : blk->Stmts()) propagate(s);
-                } else if (node->Type() == SyntaxTreeType::If) {
-                    auto ifn = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
-                    if (ifn) { propagate(ifn->Block()); if (auto eb = ifn->ElseBlock()) propagate(eb); }
-                }
-            };
-            propagate(func_block);
         }
+        // 对块内每个 stmt 做 Transfer（更新 env），然后填充 main_ssa_types
+        for (const auto &s : b.stmts) {
+            env = TransferStmt(s, env, ssa, version_types);
+        }
+        PopulateNodeTypesFromStmts(b.stmts, env, ssa, version_types, ir);
+        // 保存块的 out_env
+        block_outs[b.id] = env;
     }
+
+    // 推导所有 AST 节点的类型（使用合并的全局 env）
+    if (func_block) {
+        VarEnv merged;
+        for (const auto &[bid, env] : block_outs) {
+            for (const auto &[v, t] : env) {
+                auto it = merged.find(v);
+                if (it == merged.end()) merged[v] = t;
+                else it->second = Meet(it->second, t);
+            }
+        }
+        WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+            if (!node) return;
+            switch (node->Type()) {
+                case SyntaxTreeType::Exp:
+                case SyntaxTreeType::Var:
+                case SyntaxTreeType::PrefixExp:
+                case SyntaxTreeType::TableConstructor:
+                case SyntaxTreeType::FunctionCall:
+                case SyntaxTreeType::ExpList: {
+                    auto ty = InferExprType(node, ssa, version_types, ir, name_ver, &merged);
+                    ir.main_ssa_types[node.get()] = ty;
+                    ir.node_ssa_version[node.get()] = -1;
+                    break;
+                }
+                default:
+                    break;
+            }
+        });
+    }
+
+    // 计算 widest shapes
+    ComputeVarFinalShapes(ssa, ir);
+    ComputeCtorTargetShapes(func_block, ssa, ir);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
@@ -247,19 +116,13 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
 std::unordered_map<int, UnifiedTypeAnalyzer::VarEnv>
 UnifiedTypeAnalyzer::RunWorklist(const CFGFunction &cfg,
                                   const SSAFunction &ssa,
-                                  const ParamAssumption &param_assumptions,
                                   const InferResult &ir) {
     // 退化为单块情况（无分支）
     if (cfg.blocks.size() <= 1) {
         VarEnv env;
-        // seed param types
+        // seed param types (default T_DYNAMIC)
         for (const auto &[pname, pidx] : cfg.param_indices) {
-            int ver = (pidx < (int)ssa.param_versions.size()) ? ssa.param_versions[pidx] : -1;
-            if (ver >= 0) {
-                auto pit = param_assumptions.find(ver);
-                env[pname] = (pit != param_assumptions.end())
-                    ? pit->second : SSATypeInfo{T_DYNAMIC, -1};
-            }
+            env[pname] = {T_DYNAMIC, -1};
         }
         for (const auto &b : cfg.blocks) {
             for (const auto &s : b.stmts) {
@@ -292,17 +155,10 @@ UnifiedTypeAnalyzer::RunWorklist(const CFGFunction &cfg,
     // 2) in/out envs
     std::unordered_map<int, VarEnv> in_envs, out_envs;
 
-    // 3) 初始 env：seed params in entry block
+    // 3) 初始 env：seed params in entry block (default T_DYNAMIC)
     in_envs[cfg.entry_id] = {};
     for (const auto &[pname, pidx] : cfg.param_indices) {
-        int ver = (pidx < (int)ssa.param_versions.size()) ? ssa.param_versions[pidx] : -1;
-        if (ver >= 0) {
-            auto pit = param_assumptions.find(ver);
-            in_envs[cfg.entry_id][pname] = (pit != param_assumptions.end())
-                ? pit->second : SSATypeInfo{T_DYNAMIC, -1};
-        } else {
-            in_envs[cfg.entry_id][pname] = {T_DYNAMIC, -1};
-        }
+        in_envs[cfg.entry_id][pname] = {T_DYNAMIC, -1};
     }
 
     // 4) 迭代直到不动点
@@ -606,7 +462,7 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
                     return InferExprType(e->Right(), ssa, version_types, ir, name_ver, local_env);
                 }
                 case ExpKind::kTableConstructor: {
-                    int shape_id = BuildShapeFromCtor(expr, ssa, version_types, ir, local_env);
+                    int shape_id = BuildShapeFromCtor(expr, ssa, version_types, ir);
                     if (shape_id >= 0) return {T_RECORD, shape_id};
                     return {T_DYNAMIC, -1};
                 }
@@ -639,7 +495,7 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
             return {T_DYNAMIC, -1};
         }
         case SyntaxTreeType::TableConstructor: {
-            int shape_id = BuildShapeFromCtor(expr, ssa, version_types, ir, local_env);
+            int shape_id = BuildShapeFromCtor(expr, ssa, version_types, ir);
             if (shape_id >= 0) return {T_RECORD, shape_id};
             return {T_DYNAMIC, -1};
         }
@@ -648,14 +504,17 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
             return InferExprType(pe->GetValue(), ssa, version_types, ir, name_ver, local_env);
         }
         case SyntaxTreeType::FunctionCall: {
-            // 尝试从函数摘要获取返回类型
+            // 尝试从函数摘要获取返回类型（过程间分析，规范 §7）
             auto *fc = static_cast<SyntaxTreeFunctioncall *>(expr.get());
             const std::string &callee = fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::Var
                 ? static_cast<SyntaxTreeVar *>(fc->prefixexp().get())->GetName()
                 : "";
             if (!callee.empty()) {
-                SSATypeInfo ret = ApplyCallSummary(callee, ir);
-                if (ret.type != T_UNKNOWN && ret.type != T_DYNAMIC) return ret;
+                auto it = ir.func_summaries.find(callee);
+                if (it != ir.func_summaries.end() && !it->second.being_built
+                    && it->second.ret_type.type != T_UNKNOWN && it->second.ret_type.type != T_DYNAMIC) {
+                    return it->second.ret_type;
+                }
             }
             return {T_DYNAMIC, -1};
         }
@@ -667,8 +526,7 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
 int UnifiedTypeAnalyzer::BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc,
                                            const SSAFunction &ssa,
                                            const TypeEnv &version_types,
-                                           const InferResult &ir,
-                                           const VarEnv *local_env) {
+                                           const InferResult &ir) {
     if (!tc || tc->Type() != SyntaxTreeType::TableConstructor) return -1;
     auto *tc_ptr = static_cast<SyntaxTreeTableconstructor *>(tc.get());
     if (!tc_ptr->Fieldlist()) return -1;
@@ -703,7 +561,7 @@ int UnifiedTypeAnalyzer::BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc,
             }
         }
 
-        auto val_ty = InferExprType(fp->Value(), ssa, version_types, ir, {}, local_env);
+        auto val_ty = InferExprType(fp->Value(), ssa, version_types, ir, {});
         fd.type = val_ty.type;
         shape.fields.push_back(fd);
     }
@@ -914,311 +772,6 @@ void UnifiedTypeAnalyzer::BuildSummary(const std::string &func_name,
         });
     }
     s.ret_type = merged_ret;
-}
-
-SSATypeInfo UnifiedTypeAnalyzer::ApplyCallSummary(const std::string &callee_name,
-                                                   const InferResult &ir) const {
-    auto it = ir.func_summaries.find(callee_name);
-    if (it == ir.func_summaries.end()) return {T_DYNAMIC, -1};
-    if (it->second.being_built) return {T_DYNAMIC, -1};  // 递归调用
-    return it->second.ret_type;
-}
-
-// ── 发现可特化参数 ──────────────────────────────────────────────────────
-std::vector<UnifiedTypeAnalyzer::SpecParam>
-UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_block,
-                                              const CFGFunction &cfg,
-                                              const SSAFunction &ssa,
-                                              const InferResult &ir) {
-    std::vector<SpecParam> result;
-    if (!func_block) return result;
-
-    std::unordered_set<std::string> param_names;
-    // 收集所有参数
-    for (auto &[pname, pidx] : cfg.param_indices) {
-        param_names.insert(pname);
-    }
-
-    // 预扫描：建立"local 变量 → 来源参数"映射（跟踪参数传递链）
-    // 例如 `local x = n` → local_to_src[x] = n
-    // 这样当 x 用于算术时，n 也被视为数学参数
-    std::unordered_map<std::string, std::string> local_to_src;
-    if (func_block) {
-        WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
-            if (!node || node->Type() != SyntaxTreeType::LocalVar) return;
-            auto *lv = static_cast<SyntaxTreeLocalVar *>(node.get());
-            auto nl = lv->Namelist();
-            auto el = lv->Explist();
-            if (!nl || nl->Type() != SyntaxTreeType::NameList) return;
-            auto nlist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(nl);
-            auto exps = el ? std::dynamic_pointer_cast<SyntaxTreeExplist>(el) : nullptr;
-            if (!nlist || !exps) return;
-            const auto &names = nlist->Names();
-            const auto &exps_vec = exps->Exps();
-            for (size_t i = 0; i < names.size() && i < exps_vec.size(); ++i) {
-                // 如果 RHS 是简单的参数引用，建立映射
-                if (!exps_vec[i]) continue;
-                // 解包 Exp/PrefixExp 包装，找到最内层的 Var
-                auto *inner = exps_vec[i].get();
-                while (inner) {
-                    if (inner->Type() == SyntaxTreeType::Var) break;
-                    if (inner->Type() == SyntaxTreeType::PrefixExp) {
-                        inner = static_cast<SyntaxTreePrefixexp *>(inner)->GetValue().get();
-                    } else if (inner->Type() == SyntaxTreeType::Exp) {
-                        auto *ep = static_cast<SyntaxTreeExp *>(inner);
-                        inner = ep->Right() ? ep->Right().get() : nullptr;
-                    } else {
-                        inner = nullptr;
-                    }
-                }
-                if (inner && inner->Type() == SyntaxTreeType::Var) {
-                    auto *v = static_cast<SyntaxTreeVar *>(inner);
-                    if (v->GetVarKind() == VarKind::kSimple && param_names.count(v->GetName())) {
-                        local_to_src[names[i]] = v->GetName();
-                    }
-                }
-                (void)0;  // silence unused warning in release
-            }
-        });
-    }
-
-    std::unordered_set<std::string> expr_vars;
-
-    bool include_cmp = false;
-    std::function<void(const SyntaxTreeInterfacePtr&, int)> collect_vars;
-    collect_vars = [&](const SyntaxTreeInterfacePtr &node, int depth) {
-        if (!node) return;
-        switch (node->Type()) {
-            case SyntaxTreeType::Var: {
-                auto *v = static_cast<SyntaxTreeVar *>(node.get());
-                if (v->GetVarKind() == VarKind::kSimple) {
-                    const std::string &name = v->GetName();
-                    if (depth > 0) {
-                        if (param_names.count(name)) {
-                            expr_vars.insert(name);
-                        } else {
-                            // 检查是否是通过 local 传递的参数
-                            auto it = local_to_src.find(name);
-                            if (it != local_to_src.end()) {
-                                expr_vars.insert(it->second);
-                            }
-                        }
-                    }
-                }
-                break;
-            }
-            case SyntaxTreeType::PrefixExp: {
-                auto *pe = static_cast<SyntaxTreePrefixexp *>(node.get());
-                if (pe->GetPrefixKind() == PrefixExpKind::kVar && pe->GetValue()) {
-                    collect_vars(pe->GetValue(), depth);
-                } else if (pe->GetPrefixKind() == PrefixExpKind::kExp && pe->GetValue()) {
-                    collect_vars(pe->GetValue(), depth);
-                }
-                break;
-            }
-            case SyntaxTreeType::Exp: {
-                auto *e = static_cast<SyntaxTreeExp *>(node.get());
-                if (e->GetExpKind() == ExpKind::kBinop) {
-                    auto *bin = e->Op() ? dynamic_cast<SyntaxTreeBinop*>(e->Op().get()) : nullptr;
-                    auto kind = bin ? bin->GetOpKind() : BinOpKind::kPlus;
-                    bool is_arith = (kind == BinOpKind::kPlus || kind == BinOpKind::kMinus ||
-                                     kind == BinOpKind::kStar || kind == BinOpKind::kSlash ||
-                                     kind == BinOpKind::kDoubleSlash || kind == BinOpKind::kMod ||
-                                     kind == BinOpKind::kPow || kind == BinOpKind::kBitAnd ||
-                                     kind == BinOpKind::kBitOr || kind == BinOpKind::kXor ||
-                                     kind == BinOpKind::kLeftShift || kind == BinOpKind::kRightShift);
-                    // ordering 比较只对数字有效，始终触发特化
-                    bool is_ordering_cmp = (kind == BinOpKind::kLess || kind == BinOpKind::kMore ||
-                                            kind == BinOpKind::kLessEqual || kind == BinOpKind::kMoreEqual);
-                    // ==/!= 只在已有算术参数时触发（避免 string 比较误特化）
-                    bool is_eq_cmp = (kind == BinOpKind::kEqual || kind == BinOpKind::kNotEqual);
-                    // and/or 始终递归（寻找嵌套的三元模式中的比较），但只在 include_cmp 时收集
-                    bool is_logic = (kind == BinOpKind::kAnd || kind == BinOpKind::kOr);
-                    if (is_arith || is_ordering_cmp || include_cmp) {
-                        if (e->Left()) collect_vars(e->Left(), depth + 1);
-                        if (e->Right()) collect_vars(e->Right(), depth + 1);
-                    } else if (is_logic) {
-                        // 始终递归以发现嵌套的 ordering 比较（如 (n>0) and 1 or 2）
-                        if (e->Left()) collect_vars(e->Left(), depth + 1);
-                        if (e->Right()) collect_vars(e->Right(), depth + 1);
-                    }
-                } else if (e->GetExpKind() == ExpKind::kUnop) {
-                    if (e->Right()) collect_vars(e->Right(), depth + 1);
-                } else if (e->GetExpKind() == ExpKind::kPrefixExp) {
-                    // PrefixExp 只是"包装"节点：depth 应保持不变。只有当来自 Binop
-                    // 内部时 depth>0，才能把 Var 标记为可特化参数；顶层 PrefixExp
-                    // (如 return a) 不应特化。
-                    if (e->Right()) collect_vars(e->Right(), depth);
-                }
-                break;
-            }
-            case SyntaxTreeType::FunctionCall: {
-                auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
-                if (fc && fc->Args()) {
-                    auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-                    if (!args) break;
-                    if (args->GetArgsKind() == ArgsKind::kExpList && args->Explist()) {
-                        auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(args->Explist());
-                        if (el) for (auto &e : el->Exps()) collect_vars(e, depth);
-                    } else if (args->GetArgsKind() == ArgsKind::kTableConstructor && args->Tableconstructor()) {
-                        collect_vars(args->Tableconstructor(), depth);
-                    }
-                }
-                break;
-            }
-            default:
-                break;
-        }
-    };
-
-    std::function<void(const SyntaxTreeInterfacePtr&)> visit_all;
-    visit_all = [&](const SyntaxTreeInterfacePtr &node) {
-        if (!node) return;
-        if (node->Type() == SyntaxTreeType::Exp) {
-            auto *e = static_cast<SyntaxTreeExp *>(node.get());
-            if (e->GetExpKind() == ExpKind::kBinop || e->GetExpKind() == ExpKind::kUnop || e->GetExpKind() == ExpKind::kPrefixExp) {
-                collect_vars(node, 0);
-            }
-            return;
-        }
-        switch (node->Type()) {
-            case SyntaxTreeType::Block: {
-                auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
-                for (auto &s : blk->Stmts()) visit_all(s);
-                break;
-            }
-            case SyntaxTreeType::Return: {
-                auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
-                if (ret->Explist()) visit_all(ret->Explist());
-                break;
-            }
-            case SyntaxTreeType::Assign: {
-                auto as = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
-                if (as->Varlist()) visit_all(as->Varlist());
-                if (as->Explist()) visit_all(as->Explist());
-                break;
-            }
-            case SyntaxTreeType::VarList: {
-                auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(node);
-                for (auto &v : vl->Vars()) visit_all(v);
-                break;
-            }
-            case SyntaxTreeType::ExpList: {
-                auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
-                for (auto &e : el->Exps()) visit_all(e);
-                break;
-            }
-            case SyntaxTreeType::Var: {
-                auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
-                if (v->GetExp()) visit_all(v->GetExp());
-                if (v->GetPrefixexp()) visit_all(v->GetPrefixexp());
-                break;
-            }
-            case SyntaxTreeType::FunctionCall: {
-                auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
-                if (fc->prefixexp()) visit_all(fc->prefixexp());
-                if (fc->Args()) visit_all(fc->Args());
-                break;
-            }
-            case SyntaxTreeType::TableConstructor: {
-                auto tc = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
-                if (tc->Fieldlist()) visit_all(tc->Fieldlist());
-                break;
-            }
-            case SyntaxTreeType::FieldList: {
-                auto fl = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
-                for (auto &f : fl->Fields()) visit_all(f);
-                break;
-            }
-            case SyntaxTreeType::Field: {
-                auto f = std::dynamic_pointer_cast<SyntaxTreeField>(node);
-                if (f->Key()) visit_all(f->Key());
-                if (f->Value()) visit_all(f->Value());
-                break;
-            }
-            case SyntaxTreeType::While: {
-                auto w = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
-                if (w->Exp()) visit_all(w->Exp());
-                if (w->Block()) visit_all(w->Block());
-                break;
-            }
-            case SyntaxTreeType::Repeat: {
-                auto r = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
-                if (r->Block()) visit_all(r->Block());
-                if (r->Exp()) visit_all(r->Exp());
-                break;
-            }
-            case SyntaxTreeType::If: {
-                auto ifn = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
-                if (ifn->Exp()) visit_all(ifn->Exp());
-                if (ifn->Block()) visit_all(ifn->Block());
-                if (ifn->ElseIfs()) visit_all(ifn->ElseIfs());
-                if (ifn->ElseBlock()) visit_all(ifn->ElseBlock());
-                break;
-            }
-            case SyntaxTreeType::ElseIfList: {
-                auto el = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(node);
-                for (auto &e : el->ElseifExps()) visit_all(e);
-                for (auto &b : el->ElseifBlocks()) visit_all(b);
-                break;
-            }
-            case SyntaxTreeType::ForLoop: {
-                auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
-                // for-loop 边界（begin/end/step）属于数值语境 — 参数引用应触发数学特化
-                // 以 depth=1 进入，使 Var 节点满足 depth>0 条件
-                if (fl->ExpBegin()) collect_vars(fl->ExpBegin(), 1);
-                if (fl->ExpEnd()) collect_vars(fl->ExpEnd(), 1);
-                if (fl->ExpStep()) collect_vars(fl->ExpStep(), 1);
-                if (fl->Block()) visit_all(fl->Block());
-                break;
-            }
-            case SyntaxTreeType::ForIn: {
-                auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
-                if (fi->Namelist()) visit_all(fi->Namelist());
-                if (fi->Explist()) visit_all(fi->Explist());
-                if (fi->Block()) visit_all(fi->Block());
-                break;
-            }
-            case SyntaxTreeType::FuncBody: {
-                auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
-                if (fb->Block()) visit_all(fb->Block());
-                break;
-            }
-            case SyntaxTreeType::LocalVar: {
-                auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
-                if (lv->Namelist()) visit_all(lv->Namelist());
-                if (lv->Explist()) visit_all(lv->Explist());
-                break;
-            }
-            default:
-                break;
-        }
-    };
-    include_cmp = false;
-    visit_all(func_block);
-
-    // pass 2: 始终运行，收集 ==/!=/and/or 中的参数（三元模式需要）
-    // 也收集 pass 1 遗漏的 ordering 比较参数（如果 pass 1 没收集到的话）
-    if (!expr_vars.empty()) {
-        include_cmp = true;
-        visit_all(func_block);
-    }
-
-    for (const auto &name : expr_vars) {
-        auto it = cfg.param_indices.find(name);
-        if (it != cfg.param_indices.end()) {
-            result.push_back({it->second, true, false});
-        }
-    }
-    std::sort(result.begin(), result.end(),
-              [](const SpecParam &a, const SpecParam &b) { return a.param_index < b.param_index; });
-    result.erase(std::unique(result.begin(), result.end(),
-                              [](const SpecParam &a, const SpecParam &b) {
-                                  return a.param_index == b.param_index && a.is_math == b.is_math;
-                              }),
-                 result.end());
-
-    return result;
 }
 
 }// namespace fakelua

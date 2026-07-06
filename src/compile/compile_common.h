@@ -13,68 +13,19 @@ namespace fakelua {
 
 inline constexpr const char *kInitFunctionName = "__fakelua_init";
 
-// AST 节点类型快照：节点原始指针 → 推断类型。
-// 每个特化 bitmask 对应一份快照，由 TypeInferencer::InferTypes 产生，
-// 供 CGen 在生成特化体时查询任意节点的类型。
-using EvalTypeSnapshot = std::unordered_map<SyntaxTreeInterface *, InferredType>;
-
-// 特化参数类型位掩码编码：bitmask 的第 i 位为 0 表示第 i 个数学参数为 int64_t，
-// 为 1 表示为 double。
-enum MathParamKind : int {
-    kMathParamInt = 0,  // 对应 int64_t
-    kMathParamFloat = 1,// 对应 double
-};
-
-// 根据 bitmask 和参数位索引返回该参数的类型。
-inline MathParamKind MathParamKindOf(int bitmask, int bit_index) {
-    return ((bitmask >> bit_index) & 1) ? kMathParamFloat : kMathParamInt;
-}
-
-// 返回 MathParamKind 对应的 C 类型名称字符串。
-inline const char *MathParamCTypeName(MathParamKind kind) {
-    return kind == kMathParamFloat ? "double" : "int64_t";
-}
-
-// 返回 MathParamKind 对应的 bitmask 后缀字符（'0' 或 '1'）。
-inline char MathParamSuffix(MathParamKind kind) {
-    return kind == kMathParamFloat ? '1' : '0';
-}
-
 inline std::string InferredTypeToString(InferredType type) {
     switch (type) {
-        case T_UNKNOWN:
-            return "T_UNKNOWN";
-        case T_INT:
-            return "T_INT";
-        case T_FLOAT:
-            return "T_FLOAT";
-        case T_DYNAMIC:
-            return "T_DYNAMIC";
-        default:
-            return "T_UNKNOWN";
+        case T_UNKNOWN:    return "T_UNKNOWN";
+        case T_NIL:        return "T_NIL";
+        case T_BOOL:       return "T_BOOL";
+        case T_INT:        return "T_INT";
+        case T_FLOAT:      return "T_FLOAT";
+        case T_STRING:     return "T_STRING";
+        case T_RECORD:     return "T_RECORD";
+        case T_RECORD_OPEN:return "T_RECORD_OPEN";
+        case T_DYNAMIC:    return "T_DYNAMIC";
+        default:           return "T_UNKNOWN";
     }
-}
-
-inline InferredType InferNumericBinopResultType(const BinOpKind op_kind, const InferredType left_type, const InferredType right_type) {
-    if (!IsNumericInferredType(left_type) || !IsNumericInferredType(right_type)) {
-        return T_DYNAMIC;
-    }
-    if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
-        return T_FLOAT;
-    }
-    if (op_kind == BinOpKind::kPlus || op_kind == BinOpKind::kMinus || op_kind == BinOpKind::kStar || op_kind == BinOpKind::kMod || op_kind == BinOpKind::kDoubleSlash) {
-        return (left_type == T_INT && right_type == T_INT) ? T_INT : T_FLOAT;
-    }
-    if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
-        return T_INT;
-    }
-    if (op_kind == BinOpKind::kAnd) {
-        return right_type;
-    }
-    if (op_kind == BinOpKind::kOr) {
-        return left_type;
-    }
-    return T_DYNAMIC;
 }
 
 // 将函数调用的 args 节点展开为原始参数节点数组，
@@ -102,42 +53,6 @@ inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_
         raw_args.push_back(table_arg);
     }
     return raw_args;
-}
-
-// ---- 无状态代码生成帮助函数 -------------------------------------------------
-// 这些函数不依赖任何实例状态，供 CGen 使用。
-
-// 返回特化函数返回值对应的 C 类型名称字符串（"int64_t"、"double" 或 "CVar"）。
-inline const char *SpecReturnCTypeName(InferredType ret_type) {
-    if (ret_type == T_INT) {
-        return "int64_t";
-    }
-    if (ret_type == T_FLOAT) {
-        return "double";
-    }
-    return "CVar";
-}
-
-// 根据基础名称、数学参数下标列表和位掩码返回特化函数名。
-// 例如 SpecFuncName("fib", {0}, 0) -> "fib_0"
-//       SpecFuncName("test", {1,4}, 2) -> "test_0_1"
-inline std::string SpecFuncName(const std::string &base_name, const std::vector<int> &math_param_indices, int bitmask) {
-    std::string name = base_name;
-    for (int i = 0; i < static_cast<int>(math_param_indices.size()); ++i) {
-        name += '_';
-        name += MathParamSuffix(MathParamKindOf(bitmask, i));
-    }
-    return name;
-}
-
-// 将原生 C 数值表达式（int64_t / double）装箱为 CVar 字面量。
-// type 必须为 T_INT 或 T_FLOAT。
-inline std::string BoxNativeValue(const std::string &expr, InferredType type) {
-    if (type == T_INT) {
-        return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", expr);
-    }
-    DEBUG_ASSERT(type == T_FLOAT);
-    return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", expr);
 }
 
 // ---- vararg 辅助函数 ---------------------------------------------------------
@@ -187,44 +102,12 @@ struct AnalysisResult {
     std::unordered_set<std::string> global_const_names;
 };
 
-// ---- 阶段四：类型推断结果 ---------------------------------------------------
-enum class TableKeyKind {
-    kString,
-    kInt,
-    kBool,
-    kFloat
-};
-
-// table 特化信息：描述一个 table 的字段结构
-struct TableFieldInfo {
-    std::string key;            // 字段名（静态字符串 key）
-    InferredType type;          // 值的推断类型
-    TableKeyKind key_kind = TableKeyKind::kString;
-    std::string c_field_name;
-    int64_t int_value = 0;
-    bool bool_value = false;
-    double float_value = 0.0;
-    bool optional = false;      // Phase 2: 该字段在当前 constructor 字面量中不存在（由合并产生），emit 时需 nil 初始化
-};
-
-// table 特化信息：table constructor 节点对应的特化描述
-struct TableSpecInfo {
-    std::vector<TableFieldInfo> fields;
-    bool can_specialize;  // 所有访问是否已知（可特化）
-};
-
 // ── SSA 类型信息 ──────────────────────────────────────────────────────────
 struct SSATypeInfo {
     InferredType type = T_UNKNOWN;
     int shape_id = -1;
     bool operator==(const SSATypeInfo &o) const { return type == o.type && shape_id == o.shape_id; }
     bool operator!=(const SSATypeInfo &o) const { return !(*this == o); }
-};
-
-struct SpecParam {
-    int param_index;
-    bool is_math;
-    bool is_shape;
 };
 
 // 函数摘要：用于过程间分析（规范 §7）
@@ -237,30 +120,24 @@ struct FuncSummary {
     bool being_built = false;                        // 递归检测标记
 };
 
-// TypeInferencer 的输出。
-// 兼容设计：下方 legacy 字段由 SSA/CFG/Shape 管线统一填充，
-// 使 CGen 和 JIT 无需感知 SSA 细节即可工作。随着 SSA 管线成熟，
-// 每个 legacy 字段最终可摘除（由 SSA 字段直接替代）。
+// TypeInferencer 的输出 — SSA/CFG/Shape 管线的真相源。
 struct InferResult {
-    // ── SSA/CFG/Shape 主路径（规范 §1–§9 的真相源）─────────────
+    // SSA 版本 → 类型信息
     std::unordered_map<int, SSATypeInfo> ssa_version_types;
+    // AST 节点 → SSA 版本号
     std::unordered_map<const SyntaxTreeInterface *, int> node_ssa_version;
-    std::shared_ptr<struct ShapeRegistry> shape_registry;
-    std::unordered_map<std::string, std::vector<SpecParam>> specializable_params;
+    // AST 节点 → 推导类型（主分析路径）
     std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo> main_ssa_types;
-    std::unordered_map<std::string, std::vector<std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo>>> spec_ssa_snapshots;
-    std::unordered_map<std::string, std::vector<SSATypeInfo>> spec_ssa_return_types;
+    // 全局 shape 注册表
+    std::shared_ptr<struct ShapeRegistry> shape_registry;
+    // 变量名 → 最终 shape_id（所有版本的 meet）
     std::unordered_map<std::string, int> var_final_shapes;
+    // table constructor AST 节点 → shape_id
     std::unordered_map<const SyntaxTreeInterface *, int> ctor_target_shapes;
+    // 逃逸分析结果：函数名 → (变量名 → 是否逃逸)
     std::unordered_map<std::string, std::unordered_map<std::string, bool>> escape_vars;
+    // 函数摘要：函数名 → 摘要
     std::unordered_map<std::string, FuncSummary> func_summaries;
-
-    // ── Legacy 兼容字段（由 SSA 管线填充，退化路径使用）────────
-    // TODO: 等 worklist 完成后逐步替换为 SSA 主路径字段直接桥接
-    EvalTypeSnapshot main_eval_types;
-    std::unordered_map<std::string, InferredType> global_const_vars;
-    std::unordered_map<std::string, std::vector<int>> math_param_positions;
-    std::unordered_map<const SyntaxTreeInterface *, struct TableSpecInfo> table_spec_infos;
 };
 
 struct JitFunctionInfo {
