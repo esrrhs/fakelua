@@ -424,9 +424,16 @@ void TypeInferencer::RunSSAAnalysis(const ParseResult &pr, InferResult &ir) {
 
     const auto function_infos = CollectFunctionSpecInfos(pr);
 
+    // 第一轮：分析所有函数，建立函数摘要。
+    // 按顺序分析，后续函数可引用前面函数的摘要（跨函数调用推导）。
+    // 递归函数通过 being_built 标记打破循环。
     for (const auto &func_info : function_infos) {
         CFGFunction cfg = cfg_builder.Build(func_info.block, func_info.params, func_info.name, /*is_vararg=*/false);
         SSAFunction ssa = ssa_builder.Build(cfg);
+
+        // 标记"构建中"以处理递归调用
+        ir.func_summaries[func_info.name].being_built = true;
+        ir.func_summaries[func_info.name].func_name = func_info.name;
 
         uta.Analyze(func_info.name, func_info.block, cfg, ssa, ir, /*bitmask=*/-1);
         uta.ComputeCtorTargetShapes(func_info.block, ssa, ir);
@@ -435,6 +442,10 @@ void TypeInferencer::RunSSAAnalysis(const ParseResult &pr, InferResult &ir) {
         if (!spec_params.empty()) {
             ir.specializable_params[func_info.name] = std::move(spec_params);
         }
+
+        // 构建函数摘要供后续跨函数推导使用
+        uta.BuildSummary(func_info.name, func_info.block, ssa, ir.ssa_version_types, ir);
+        ir.func_summaries[func_info.name].being_built = false;
     }
 
     // 顶层 chunk

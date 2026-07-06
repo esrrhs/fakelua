@@ -605,6 +605,15 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
             return InferExprType(pe->GetValue(), ssa, version_types, ir, name_ver, local_env);
         }
         case SyntaxTreeType::FunctionCall: {
+            // 尝试从函数摘要获取返回类型
+            auto *fc = static_cast<SyntaxTreeFunctioncall *>(expr.get());
+            const std::string &callee = fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::Var
+                ? static_cast<SyntaxTreeVar *>(fc->prefixexp().get())->GetName()
+                : "";
+            if (!callee.empty()) {
+                SSATypeInfo ret = ApplyCallSummary(callee, ir);
+                if (ret.type != T_UNKNOWN && ret.type != T_DYNAMIC) return ret;
+            }
             return {T_DYNAMIC, -1};
         }
         default:
@@ -733,17 +742,44 @@ void UnifiedTypeAnalyzer::LinkExprToTargetShape(
     }
 }
 
-void UnifiedTypeAnalyzer::BuildSummary(const std::string & /*func_name*/,
-                                        const SyntaxTreeInterfacePtr & /*func_block*/,
-                                        const SSAFunction & /*ssa*/,
-                                        const TypeEnv & /*version_types*/,
-                                        InferResult & /*ir*/) {
-    // stub
+void UnifiedTypeAnalyzer::BuildSummary(const std::string &func_name,
+                                        const SyntaxTreeInterfacePtr &func_block,
+                                        const SSAFunction &ssa,
+                                        const TypeEnv &version_types,
+                                        InferResult &ir) {
+    FuncSummary &s = ir.func_summaries[func_name];
+    s.func_name = func_name;
+    s.param_types.resize(ssa.param_versions.size(), {T_DYNAMIC, -1});
+    s.param_escape.resize(ssa.param_versions.size(), false);
+
+    // 从 main_ssa_types 收集返回类型
+    SSATypeInfo merged_ret{T_UNKNOWN, -1};
+    if (func_block) {
+        WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+            if (!node || node->Type() != SyntaxTreeType::Return) return;
+            auto *ret = static_cast<SyntaxTreeReturn *>(node.get());
+            if (!ret->Explist()) return;
+            auto el_ptr = ret->Explist()->Type() == SyntaxTreeType::ExpList
+                ? std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist())
+                : std::shared_ptr<SyntaxTreeExplist>();
+            if (!el_ptr || el_ptr->Exps().empty()) return;
+            auto it = ir.main_ssa_types.find(el_ptr->Exps()[0].get());
+            if (it != ir.main_ssa_types.end()) {
+                if (merged_ret.type == T_UNKNOWN) merged_ret = it->second;
+                else merged_ret = Meet(merged_ret, it->second);
+            }
+        });
+    }
+    if (merged_ret.type == T_UNKNOWN) merged_ret = {T_NIL, -1};
+    s.ret_type = merged_ret;
 }
 
-SSATypeInfo UnifiedTypeAnalyzer::ApplyCallSummary(const std::string & /*callee_name*/,
-                                                   const InferResult & /*ir*/) const {
-    return {T_DYNAMIC, -1};
+SSATypeInfo UnifiedTypeAnalyzer::ApplyCallSummary(const std::string &callee_name,
+                                                   const InferResult &ir) const {
+    auto it = ir.func_summaries.find(callee_name);
+    if (it == ir.func_summaries.end()) return {T_DYNAMIC, -1};
+    if (it->second.being_built) return {T_DYNAMIC, -1};  // 递归调用
+    return it->second.ret_type;
 }
 
 // ── 发现可特化参数 ──────────────────────────────────────────────────────
@@ -761,6 +797,49 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
         param_names.insert(pname);
     }
 
+    // 预扫描：建立"local 变量 → 来源参数"映射（跟踪参数传递链）
+    // 例如 `local x = n` → local_to_src[x] = n
+    // 这样当 x 用于算术时，n 也被视为数学参数
+    std::unordered_map<std::string, std::string> local_to_src;
+    if (func_block) {
+        WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+            if (!node || node->Type() != SyntaxTreeType::LocalVar) return;
+            auto *lv = static_cast<SyntaxTreeLocalVar *>(node.get());
+            auto nl = lv->Namelist();
+            auto el = lv->Explist();
+            if (!nl || nl->Type() != SyntaxTreeType::NameList) return;
+            auto nlist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(nl);
+            auto exps = el ? std::dynamic_pointer_cast<SyntaxTreeExplist>(el) : nullptr;
+            if (!nlist || !exps) return;
+            const auto &names = nlist->Names();
+            const auto &exps_vec = exps->Exps();
+            for (size_t i = 0; i < names.size() && i < exps_vec.size(); ++i) {
+                // 如果 RHS 是简单的参数引用，建立映射
+                if (!exps_vec[i]) continue;
+                // 解包 Exp/PrefixExp 包装，找到最内层的 Var
+                auto *inner = exps_vec[i].get();
+                while (inner) {
+                    if (inner->Type() == SyntaxTreeType::Var) break;
+                    if (inner->Type() == SyntaxTreeType::PrefixExp) {
+                        inner = static_cast<SyntaxTreePrefixexp *>(inner)->GetValue().get();
+                    } else if (inner->Type() == SyntaxTreeType::Exp) {
+                        auto *ep = static_cast<SyntaxTreeExp *>(inner);
+                        inner = ep->Right() ? ep->Right().get() : nullptr;
+                    } else {
+                        inner = nullptr;
+                    }
+                }
+                if (inner && inner->Type() == SyntaxTreeType::Var) {
+                    auto *v = static_cast<SyntaxTreeVar *>(inner);
+                    if (v->GetVarKind() == VarKind::kSimple && param_names.count(v->GetName())) {
+                        local_to_src[names[i]] = v->GetName();
+                    }
+                }
+                (void)0;  // silence unused warning in release
+            }
+        });
+    }
+
     std::unordered_set<std::string> expr_vars;
 
     bool include_cmp = false;
@@ -772,8 +851,16 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
                 auto *v = static_cast<SyntaxTreeVar *>(node.get());
                 if (v->GetVarKind() == VarKind::kSimple) {
                     const std::string &name = v->GetName();
-                    if (param_names.count(name) && depth > 0) {
-                        expr_vars.insert(name);
+                    if (depth > 0) {
+                        if (param_names.count(name)) {
+                            expr_vars.insert(name);
+                        } else {
+                            // 检查是否是通过 local 传递的参数
+                            auto it = local_to_src.find(name);
+                            if (it != local_to_src.end()) {
+                                expr_vars.insert(it->second);
+                            }
+                        }
                     }
                 }
                 break;

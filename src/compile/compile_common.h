@@ -227,6 +227,16 @@ struct SpecParam {
     bool is_shape;
 };
 
+// 函数摘要：用于过程间分析（规范 §7）
+struct FuncSummary {
+    std::string func_name;
+    std::vector<SSATypeInfo> param_types;           // 每个参数的 SSA 类型
+    SSATypeInfo ret_type{T_UNKNOWN, -1};             // 返回类型（所有 return 的 meet）
+    std::vector<bool> param_escape;                  // 参数是否逃逸
+    bool is_vararg = false;
+    bool being_built = false;                        // 递归检测标记
+};
+
 // TypeInferencer 的输出。
 // 兼容设计：下方 legacy 字段由 SSA/CFG/Shape 管线统一填充，
 // 使 CGen 和 JIT 无需感知 SSA 细节即可工作。随着 SSA 管线成熟，
@@ -243,6 +253,7 @@ struct InferResult {
     std::unordered_map<std::string, int> var_final_shapes;
     std::unordered_map<const SyntaxTreeInterface *, int> ctor_target_shapes;
     std::unordered_map<std::string, std::unordered_map<std::string, bool>> escape_vars;
+    std::unordered_map<std::string, FuncSummary> func_summaries;
 
     // ── Legacy 兼容字段（由 SSA 管线填充，退化路径使用）────────
     // TODO: 等 worklist 完成后逐步替换为 SSA 主路径字段直接桥接
