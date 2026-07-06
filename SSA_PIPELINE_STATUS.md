@@ -4,7 +4,7 @@
 > **设计规范**: `/root/lua-dialect-type-inference-spec.md`
 > **当前分支**: `ssa-pipeline-v2`
 > **当前测试**: 构建通过，common(13) / syntax_tree(34) / state(16) / var(117) / util(18) / runtime(18) / ini(1) / vm_cvar_call(3) / exception(66) 全部通过；algo 7/3；
->   infer 55/14 (test_infer_*), native 12/2, spec 56/29
+>   infer 55/14 (test_infer_*), native 12/2, spec 58/27
 >
 > | Suite | Pass/Fail | 备注 |
 > |-------|-----------|------|
@@ -20,7 +20,7 @@
 > | algo | 7/3 | bubble_sort/insertion_sort/matrix 需表特化 |
 > | **infer.test_infer_*** | **55/14** | 主要工作区域（26 修复） |
 > | **infer.test_native_*** | **12/2** | 原生 bool/repeat |
-> | **infer.test_spec_*** | **57/28** | 特化路径（Step 17-18: +4） |
+> | **infer.test_spec_*** | **58/27** | 特化路径（Step 17-19: +5） |
 
 ---
 
