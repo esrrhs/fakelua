@@ -481,8 +481,8 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
                 }
                 // 2. SSA use_versions
                 auto vit = ssa.use_versions.find(expr.get());
-                if (vit != ssa.use_versions.end()) {
-                    auto tit = version_types.find(vit->second);
+                if (vit != ssa.use_versions.end() && !vit->second.empty()) {
+                    auto tit = version_types.find(vit->second[0]);
                     if (tit != version_types.end()) return tit->second;
                 }
                 // 3. name_ver fallback
@@ -627,13 +627,31 @@ void UnifiedTypeAnalyzer::LinkExprToTargetShape(
                     auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(s);
                     auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
                     auto el = lv->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist()) : nullptr;
+                    if (!nl) continue;
                     const auto &names = nl->Names();
                     const auto &exps = el ? el->Exps() : std::vector<SyntaxTreeInterfacePtr>{};
                     for (size_t i = 0; i < names.size() && i < exps.size(); ++i) {
                         LinkExprToTargetShape(exps[i], names[i], var_final_shapes, ctor_target_shapes);
                     }
+                } else if (s->Type() == SyntaxTreeType::Function || s->Type() == SyntaxTreeType::LocalFunction) {
+                    auto fb = (s->Type() == SyntaxTreeType::Function)
+                        ? std::dynamic_pointer_cast<SyntaxTreeFunction>(s)->Funcbody()
+                        : std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(s)->Funcbody();
+                    auto fb_ptr = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(fb);
+                    if (fb_ptr && fb_ptr->Block())
+                        LinkExprToTargetShape(fb_ptr->Block(), target_name, var_final_shapes, ctor_target_shapes);
                 }
             }
+            break;
+        }
+        case SyntaxTreeType::Exp: {
+            auto *e = static_cast<SyntaxTreeExp *>(node.get());
+            LinkExprToTargetShape(e->Right(), target_name, var_final_shapes, ctor_target_shapes);
+            break;
+        }
+        case SyntaxTreeType::ExpList: {
+            auto *el = static_cast<SyntaxTreeExplist *>(node.get());
+            for (auto &exp : el->Exps()) LinkExprToTargetShape(exp, target_name, var_final_shapes, ctor_target_shapes);
             break;
         }
         case SyntaxTreeType::TableConstructor:

@@ -37,6 +37,9 @@ struct CFGFunction {
     }
     std::unordered_map<int, std::unordered_set<int>> dominators;      // id -> dominated set
     std::unordered_map<int, std::unordered_set<int>> dominance_frontier;
+
+    // 序列化为可读字符串（用于测试验证）
+    [[nodiscard]] std::string DumpToString() const;
 };
 
 // CFG builder - 从函数 block 构建控制流图
@@ -56,8 +59,8 @@ private:
     BasicBlock &GetBlock(int id);
     void AddEdge(int from, int to);
 
-    // 构建函数体：从 entry 块开始，exit 块为终止块
-    void BuildBlock(const SyntaxTreeInterfacePtr &node, int current_block, int exit_block);
+    // 构建函数体：从 entry 块开始。返回尾块 id（不自动连接 exit，exit_block 仅传递给控制流语句）。
+    int BuildBlock(const SyntaxTreeInterfacePtr &node, int current_block, int exit_block);
 
     // 构建单条语句：可能分裂基本块（if/while/for/repeat）
     // 返回"当前块"（可能已被分裂）

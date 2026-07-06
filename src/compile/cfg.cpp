@@ -25,7 +25,8 @@ CFGFunction CFGBuilder::Build(const SyntaxTreeInterfacePtr &func_block,
     cfg_.exit_ids.push_back(exit);
 
     // 构建函数体
-    BuildBlock(func_block, entry, exit);
+    int tail = BuildBlock(func_block, entry, exit);
+    AddEdge(tail, exit);
 
     // 计算支配关系（可选，需要 SSA φ 插入时使用）
     ComputeDominators();
@@ -55,16 +56,16 @@ void CFGBuilder::AddEdge(int from, int to) {
     }
 }
 
-void CFGBuilder::BuildBlock(const SyntaxTreeInterfacePtr &node, int current_block, int exit_block) {
-    if (!node) return;
-    if (node->Type() != SyntaxTreeType::Block) return;
+int CFGBuilder::BuildBlock(const SyntaxTreeInterfacePtr &node, int current_block, int exit_block) {
+    if (!node) return current_block;
+    if (node->Type() != SyntaxTreeType::Block) return current_block;
 
     auto block_ptr = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
     int cur = current_block;
     for (auto &stmt : block_ptr->Stmts()) {
         cur = BuildStmt(stmt, cur, exit_block);
     }
-    AddEdge(cur, exit_block);
+    return cur;
 }
 
 int CFGBuilder::BuildStmt(const SyntaxTreeInterfacePtr &stmt, int current_block, int exit_block) {
@@ -92,51 +93,55 @@ int CFGBuilder::BuildStmt(const SyntaxTreeInterfacePtr &stmt, int current_block,
 int CFGBuilder::BuildIf(const SyntaxTreeInterfacePtr &node, int current_block, int exit_block) {
     auto *ifn = static_cast<SyntaxTreeIf *>(node.get());
 
-    // 1. 当前块成为条件判断块（条件表达式已在上一语句追加到 current_block 之前的块）
-    //    这里条件表达式已经作为前缀被处理？实际上 IF 的 Exp() 是条件，独立追加到 cond block
+    // 1. 条件判断块
     int cond_block = current_block;
-    GetBlock(cond_block).stmts.push_back(node);  // 整个 IF 节点进入 cond block 供分析器读取
+    GetBlock(cond_block).stmts.push_back(node);
+
+    // 1. 先创建汇合块（这样可以将它作为 exit_block 传给分支）
+    int merge_block = NewBlock();
+
+    // 收集各分支的尾块（用于连接到汇合块）
+    std::vector<int> branch_tails;
+    bool has_full_coverage = true;  // 是否有 else（全覆盖）
 
     // 2. then 块
     int then_block = NewBlock();
     AddEdge(cond_block, then_block);
+    int then_tail = BuildBlock(ifn->Block(), then_block, merge_block);
+    branch_tails.push_back(then_tail);
 
-    // 3. 处理 elseif 链
-    //    先处理 if body
-    auto if_block_body = ifn->Block();
-    BuildBlock(if_block_body, then_block, exit_block);  // then 跳入 exit
-
-    // elseif 链
+    // 3. elseif 链
     auto elseiflist = ifn->ElseIfs();
     if (elseiflist && elseiflist->Type() == SyntaxTreeType::ElseIfList) {
         auto elist = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(elseiflist);
         for (size_t i = 0; i < elist->ElseifSize(); ++i) {
             int ecblock = NewBlock();
             AddEdge(cond_block, ecblock);
-            // 当前设计简化：条件 expr 也连接到每个 elseif
-            // 分析时可以从 elseif node 获取条件
-            auto ebody = elist->ElseifBlock(i);
-            BuildBlock(ebody, ecblock, exit_block);
+            int tail = BuildBlock(elist->ElseifBlock(i), ecblock, merge_block);
+            branch_tails.push_back(tail);
         }
     }
 
-    // else 块
+    // 4. else 块
     if (auto eb = ifn->ElseBlock()) {
         int else_block = NewBlock();
         AddEdge(cond_block, else_block);
-        BuildBlock(eb, else_block, exit_block);
+        int tail = BuildBlock(eb, else_block, merge_block);
+        branch_tails.push_back(tail);
+    } else {
+        has_full_coverage = false;
     }
 
-    // 返回条件块（不包含连接到 exit 的边——每个分支自行连接）
-    // 但条件块没有 fall-through 到 exit: 必须分支返回。
-    // 当前设计：条件的 fall-through 也连到 exit（不含 else 时）
-    if (!ifn->ElseBlock() && (!elseiflist || elseiflist->Type() != SyntaxTreeType::ElseIfList ||
-        std::dynamic_pointer_cast<SyntaxTreeElseiflist>(elseiflist)->ElseifSize() == 0)) {
-        AddEdge(cond_block, exit_block);  // 没有 else 时的 fall-through
+    // 5. 将各分支尾连接到汇合块
+    for (int tail : branch_tails) {
+        AddEdge(tail, merge_block);
+    }
+    // 如果没有 else，条件块 fall-through 到汇合块
+    if (!has_full_coverage) {
+        AddEdge(cond_block, merge_block);
     }
 
-    // 汇合块已经由各分支连接 exit_block 处理。返回 cond_block 以便后续语句追加。
-    return cond_block;
+    return merge_block;
 }
 
 int CFGBuilder::BuildWhile(const SyntaxTreeInterfacePtr &node, int current_block, int exit_block) {
@@ -145,19 +150,18 @@ int CFGBuilder::BuildWhile(const SyntaxTreeInterfacePtr &node, int current_block
     // 循环头块（条件判断）
     int header = NewBlock();
     AddEdge(current_block, header);
-    GetBlock(header).stmts.push_back(node);  // while 进入 header 供分析器读取
+    GetBlock(header).stmts.push_back(node);
 
     // 循环体块
     int body = NewBlock();
     AddEdge(header, body);  // 条件为真 → 进入体
+    AddEdge(header, exit_block);  // 条件为假 → 退出
 
-    // exit 块的后继 = 条件为假跳出
-    AddEdge(header, exit_block);
+    // 递归构建循环体，末尾回到 header
+    int body_tail = BuildBlock(w->Block(), body, header);
+    AddEdge(body_tail, header);
 
-    // 递归构建循环体
-    BuildBlock(w->Block(), body, header);  // 体末尾回到 header
-
-    return header;  // 继续从 header 往外追加后续语句
+    return header;
 }
 
 int CFGBuilder::BuildRepeat(const SyntaxTreeInterfacePtr &node, int current_block, int exit_block) {
@@ -168,15 +172,15 @@ int CFGBuilder::BuildRepeat(const SyntaxTreeInterfacePtr &node, int current_bloc
 
     // 条件的块（在体之后）
     int cond = NewBlock();
-    AddEdge(body, cond);  // 体末尾进入条件
     GetBlock(cond).stmts.push_back(node);
 
     AddEdge(cond, body);  // 条件为假 → 再次循环
     AddEdge(cond, exit_block);  // 条件为真 → 退出
 
-    BuildBlock(r->Block(), body, cond);
+    int body_tail = BuildBlock(r->Block(), body, cond);
+    AddEdge(body_tail, cond);  // 体末尾进入条件
 
-    return cond;  // 后续语句追加到 cond 块
+    return cond;
 }
 
 int CFGBuilder::BuildForLoop(const SyntaxTreeInterfacePtr &node, int current_block, int exit_block) {
@@ -185,15 +189,15 @@ int CFGBuilder::BuildForLoop(const SyntaxTreeInterfacePtr &node, int current_blo
     // 初始化块（start/end/step 求值）
     int init = NewBlock();
     AddEdge(current_block, init);
-    GetBlock(init).stmts.push_back(node);  // for 语句进入 init 块
+    GetBlock(init).stmts.push_back(node);
 
     // 循环体块
     int body = NewBlock();
     AddEdge(init, body);  // 进入体
     AddEdge(init, exit_block);  // 边界不满足 → 退出
 
-    // 循环末尾回到 init 块重新判断（数值 for）
-    BuildBlock(fl->Block(), body, init);
+    int body_tail = BuildBlock(fl->Block(), body, init);
+    AddEdge(body_tail, init);  // 循环末尾回到 init 重新判断
 
     return init;
 }
@@ -209,7 +213,8 @@ int CFGBuilder::BuildForIn(const SyntaxTreeInterfacePtr &node, int current_block
     AddEdge(init, body);
     AddEdge(init, exit_block);
 
-    BuildBlock(fi->Block(), body, init);
+    int body_tail = BuildBlock(fi->Block(), body, init);
+    AddEdge(body_tail, init);
 
     return init;
 }
@@ -255,37 +260,59 @@ void CFGBuilder::ComputeDominators() {
 
 void CFGBuilder::ComputeDominanceFrontier() {
     cfg_.dominance_frontier.clear();
-    for (auto &b : cfg_.blocks) {
-        if (b.pred_ids.size() >= 2) {
-            for (int pred_id : b.pred_ids) {
-                int runner = pred_id;
-                // runner 不严格支配 b（pred 路径上第一个满足条件的块）
-                auto rdom = cfg_.dominators.find(runner);
-                if (rdom == cfg_.dominators.end()) continue;
-                // runner 已经支配 b——沿支配树向上找严格支配节点
-                // 简化：DF(n) = {y | n 支配某个 y 的 pred 但 n 不严格支配 y}
-                for (auto &cb : cfg_.blocks) {
-                    if (cb.id == runner) continue;
-                    // 如果 runner 不是 cb 的严格支配者但 runner 支配 cb 的某个 pred
-                    bool runner_strict_doms_cb = false;
-                    bool runner_doms_pred_of_cb = false;
-                    auto cdom = cfg_.dominators.find(cb.id);
-                    if (cdom != cfg_.dominators.end()) {
-                        runner_strict_doms_cb = (runner != cb.id && cdom->second.count(runner));
-                    }
-                    for (int p : cb.pred_ids) {
-                        if (p == runner) continue;
-                        auto pdom = cfg_.dominators.find(p);
-                        if (pdom != cfg_.dominators.end() && pdom->second.count(runner))
-                            runner_doms_pred_of_cb = true;
-                    }
-                    if (runner_doms_pred_of_cb && !runner_strict_doms_cb) {
-                        cfg_.dominance_frontier[runner].insert(cb.id);
-                    }
+    // 标准算法：DF(n) = { y | ∃p ∈ pred(y), n 支配 p 但 n 不严格支配 y }
+    // 注意：n 支配自身（reflexive），所以当 n ∈ pred(y) 且 n 不严格支配 y 时，y ∈ DF(n)
+    for (const auto &n : cfg_.blocks) {
+        for (const auto &y : cfg_.blocks) {
+            if (y.id == n.id) continue;
+            if (y.pred_ids.size() < 2) continue;  // 只有多前驱块才需要 φ
+            // 检查 n 是否支配 y 的某个前驱（包括 n 自身）
+            bool n_doms_pred_of_y = false;
+            for (int p : y.pred_ids) {
+                if (p == n.id) {
+                    // n 支配自身（reflexive dominance）
+                    n_doms_pred_of_y = true;
+                    break;
                 }
+                auto pdom = cfg_.dominators.find(p);
+                if (pdom != cfg_.dominators.end() && pdom->second.count(n.id)) {
+                    n_doms_pred_of_y = true;
+                    break;
+                }
+            }
+            if (!n_doms_pred_of_y) continue;
+            // 检查 n 是否不严格支配 y
+            auto ydom = cfg_.dominators.find(y.id);
+            bool n_strict_doms_y = (ydom != cfg_.dominators.end() && ydom->second.count(n.id));
+            if (!n_strict_doms_y) {
+                cfg_.dominance_frontier[n.id].insert(y.id);
             }
         }
     }
+}
+
+std::string CFGFunction::DumpToString() const {
+    std::ostringstream oss;
+    oss << "CFG[" << func_name << "] entry=" << entry_id << " exits=[";
+    for (size_t i = 0; i < exit_ids.size(); ++i) {
+        if (i > 0) oss << ",";
+        oss << exit_ids[i];
+    }
+    oss << "]\n";
+    for (const auto &b : blocks) {
+        oss << "  block " << b.id << ": preds=[";
+        for (size_t i = 0; i < b.pred_ids.size(); ++i) {
+            if (i > 0) oss << ",";
+            oss << b.pred_ids[i];
+        }
+        oss << "] succs=[";
+        for (size_t i = 0; i < b.succ_ids.size(); ++i) {
+            if (i > 0) oss << ",";
+            oss << b.succ_ids[i];
+        }
+        oss << "] stmts=" << b.stmts.size() << "\n";
+    }
+    return oss.str();
 }
 
 }// namespace fakelua

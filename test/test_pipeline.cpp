@@ -1,0 +1,496 @@
+#include "compile/cfg.h"
+#include "compile/compiler.h"
+#include "compile/my_flexer.h"
+#include "compile/shape_type.h"
+#include "compile/ssa.h"
+#include "compile/syntax_tree.h"
+#include "compile/unified_type_analyzer.h"
+#include "fakelua.h"
+#include "gtest/gtest.h"
+
+// 解析器头文件
+#include "compile/bison/parser.h"
+
+#include <sstream>
+
+using namespace fakelua;
+
+// ── 辅助：从 Lua 源码字符串构建 CFG（绕过预处理，直接解析） ───────────
+static CFGFunction BuildCfgFromSource(const std::string &lua_source,
+                                       const std::vector<std::string> &params = {}) {
+    const auto s = FakeluaNewState();
+    if (!s) {
+        return {};
+    }
+
+    // 直接解析，不经过 PreProcessor（预处理会将顶层语句包装到 __fakelua_init 中）
+    MyFlexer f;
+    f.InputString(lua_source);
+    yy::parser parse(&f);
+    auto code = parse.parse();
+    if (code != 0) {
+        FakeluaDeleteState(s);
+        return {};
+    }
+
+    auto chunk = f.GetChunk();
+
+    CFGBuilder builder;
+    CFGFunction cfg = builder.Build(chunk, params, "test_func", false);
+
+    FakeluaDeleteState(s);
+    return cfg;
+}
+
+// ── Step 1.1: CFG 构造测试 ──────────────────────────────────────────
+
+// 基本顺序语句：顶层代码中 entry 块就是函数体，所以是 entry + exit = 2 blocks
+TEST(pipeline, cfg_sequential) {
+    auto cfg = BuildCfgFromSource(R"(
+        local a = 1
+        local b = 2
+        local c = a + b
+    )");
+
+    // 顶层代码：entry 块包含所有语句，exit 块为空
+    ASSERT_EQ(cfg.blocks.size(), 2);
+    ASSERT_EQ(cfg.entry_id, 0);
+
+    // entry 块有 3 条 stmt
+    const auto *entry = cfg.FindBlock(cfg.entry_id);
+    ASSERT_NE(entry, nullptr);
+    EXPECT_EQ(entry->stmts.size(), 3);
+
+    // exit 块无前驱以外的边
+    const auto *exit = cfg.FindBlock(cfg.exit_ids[0]);
+    ASSERT_NE(exit, nullptr);
+    EXPECT_EQ(exit->stmts.size(), 0);
+    EXPECT_EQ(exit->pred_ids.size(), 1);
+    EXPECT_EQ(exit->pred_ids[0], cfg.entry_id);
+
+    std::cout << cfg.DumpToString() << std::endl;
+}
+
+// if-else：应有 cond + then + else + merge + exit 共 5 个块
+TEST(pipeline, cfg_if_else_merge) {
+    auto cfg = BuildCfgFromSource(R"(
+        local a = 1
+        if a > 0 then
+            a = 2
+        else
+            a = 3
+        end
+        local b = a
+    )");
+
+    // merge 块应该包含 "local b = a" 语句
+    bool found_merge = false;
+    for (const auto &blk : cfg.blocks) {
+        for (const auto &s : blk.stmts) {
+            if (s->Type() == SyntaxTreeType::LocalVar) {
+                // 这个 local 声明是 if 之后的 "local b = a"
+                auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(s);
+                if (lv) {
+                    auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
+                    if (nl && nl->Names().size() == 1 && nl->Names()[0] == "b") {
+                        found_merge = true;
+                        // merge 块应该有 2 个前驱（then 尾 + else 尾）
+                        EXPECT_GE(blk.pred_ids.size(), 2)
+                            << "merge block should have >= 2 predecessors from branches";
+                        break;
+                    }
+                }
+            }
+        }
+        if (found_merge) break;
+    }
+    EXPECT_TRUE(found_merge) << "should find merge block containing 'local b = a'";
+
+    std::cout << cfg.DumpToString() << std::endl;
+}
+
+// while 循环：有回边
+TEST(pipeline, cfg_while_loop) {
+    auto cfg = BuildCfgFromSource(R"(
+        local i = 0
+        while i < 10 do
+            i = i + 1
+        end
+    )");
+
+    // 找到循环 header 块（包含 While 节点）
+    const BasicBlock *header = nullptr;
+    for (const auto &b : cfg.blocks) {
+        for (const auto &s : b.stmts) {
+            if (s->Type() == SyntaxTreeType::While) {
+                header = &b;
+                break;
+            }
+        }
+        if (header) break;
+    }
+    ASSERT_NE(header, nullptr);
+
+    // header 应该有回边：某个 body 后继的后继是 header
+    bool has_back_edge = false;
+    for (int sid : header->succ_ids) {
+        auto *succ = cfg.FindBlock(sid);
+        if (succ) {
+            for (int ssucc : succ->succ_ids) {
+                if (ssucc == header->id) has_back_edge = true;
+            }
+        }
+    }
+    EXPECT_TRUE(has_back_edge) << "while loop should have back edge from body to header";
+
+    std::cout << cfg.DumpToString() << std::endl;
+}
+
+// for 数值循环
+TEST(pipeline, cfg_for_loop) {
+    auto cfg = BuildCfgFromSource(R"(
+        for i = 1, 10 do
+            local x = i
+        end
+    )");
+
+    // 找到 init 块（包含 ForLoop 节点）
+    const BasicBlock *init = nullptr;
+    for (const auto &b : cfg.blocks) {
+        for (const auto &s : b.stmts) {
+            if (s->Type() == SyntaxTreeType::ForLoop) {
+                init = &b;
+                break;
+            }
+        }
+        if (init) break;
+    }
+    ASSERT_NE(init, nullptr);
+
+    // init 应该有一个 succ 是 exit
+    bool has_exit_succ = false;
+    for (int sid : init->succ_ids) {
+        if (std::find(cfg.exit_ids.begin(), cfg.exit_ids.end(), sid) != cfg.exit_ids.end())
+            has_exit_succ = true;
+    }
+    EXPECT_TRUE(has_exit_succ) << "for loop should have exit successor";
+
+    std::cout << cfg.DumpToString() << std::endl;
+}
+
+// 支配关系：entry 支配所有块，每块支配自身
+TEST(pipeline, cfg_dominators_basic) {
+    auto cfg = BuildCfgFromSource(R"(
+        local a = 1
+        if a > 0 then
+            a = 2
+        else
+            a = 3
+        end
+        local b = a
+    )");
+
+    for (const auto &b : cfg.blocks) {
+        auto it = cfg.dominators.find(b.id);
+        ASSERT_NE(it, cfg.dominators.end());
+        EXPECT_TRUE(it->second.count(cfg.entry_id))
+            << "entry should dominate block " << b.id;
+        EXPECT_TRUE(it->second.count(b.id))
+            << "block " << b.id << " should dominate itself";
+    }
+}
+
+// ── 辅助：从 Lua 源码构建 SSA ───────────────────────────────────────────
+static SSAFunction BuildSsaFromSource(const std::string &lua_source,
+                                       const std::vector<std::string> &params = {}) {
+    CFGFunction cfg = BuildCfgFromSource(lua_source, params);
+    SSABuilder builder;
+    return builder.Build(cfg);
+}
+
+// ── 辅助：从 Lua 源码构建 InferResult（运行完整 SSA+类型分析） ───────────
+static InferResult AnalyzeSource(const std::string &lua_source) {
+    const auto s = FakeluaNewState();
+    Compiler compiler(s);
+    ParseResult pr = compiler.CompileString(lua_source, CompileConfig{});
+
+    CFGFunction cfg = BuildCfgFromSource(lua_source);
+
+    InferResult ir;
+    ir.shape_registry = std::make_shared<ShapeRegistry>();
+
+    UnifiedTypeAnalyzer uta(ir.shape_registry.get());
+    SSABuilder ssa_builder;
+    SSAFunction ssa = ssa_builder.Build(cfg);
+
+    // 用 chunk 作为 func_block
+    uta.Analyze("test_func", pr.chunk, cfg, ssa, ir);
+
+    FakeluaDeleteState(s);
+    return ir;
+}
+
+// ── Step 1.2: SSA 构造测试 ──────────────────────────────────────────
+
+// 简单顺序赋值：a = 1; a = 2 应产生 a_v1, a_v2
+TEST(pipeline, ssa_sequential_assign) {
+    auto cfg = BuildCfgFromSource(R"(
+        local a = 1
+        a = 2
+    )");
+
+    SSABuilder builder;
+    SSAFunction ssa = builder.Build(cfg);
+
+    // a 应有 2 个版本（v0 来自 local a = 1, v1 来自 a = 2）
+    auto it = ssa.var_all_versions.find("a");
+    ASSERT_NE(it, ssa.var_all_versions.end());
+    EXPECT_EQ(it->second.size(), 2u);
+
+    // 无分支，应无 φ
+    EXPECT_EQ(ssa.block_phis.size(), 0u);
+
+    std::cout << ssa.DumpToString() << std::endl;
+}
+
+// if-else 分支合并：应在 merge 块插入 φ 节点
+TEST(pipeline, ssa_if_else_phi) {
+    auto cfg = BuildCfgFromSource(R"(
+        local a = 1
+        if a > 0 then
+            a = 2
+        else
+            a = 3
+        end
+        local b = a
+    )");
+
+    SSABuilder builder;
+    SSAFunction ssa = builder.Build(cfg);
+
+    // a 应有 4 个版本：v0 (local a=1), v1 (φ in merge), v3 (a=2 in then), v4 (a=3 in else)
+    auto it = ssa.var_all_versions.find("a");
+    ASSERT_NE(it, ssa.var_all_versions.end());
+    EXPECT_EQ(it->second.size(), 4u);
+
+    // 应在 merge 块有 φ 节点
+    bool found_phi = false;
+    for (const auto &[bid, phis] : ssa.block_phis) {
+        for (const auto &phi : phis) {
+            if (phi.var_name == "a" && phi.result_version >= 0) {
+                found_phi = true;
+                EXPECT_GE(phi.arg_versions.size(), 2u)
+                    << "phi should have 2 args from then/else branches";
+                EXPECT_NE(phi.arg_versions[0], -1);
+                EXPECT_NE(phi.arg_versions[1], -1);
+                EXPECT_NE(phi.arg_versions[0], phi.arg_versions[1])
+                    << "phi args should be different versions";
+            }
+        }
+    }
+    EXPECT_TRUE(found_phi) << "should have phi for 'a' in merge block";
+
+    std::cout << ssa.DumpToString() << std::endl;
+}
+
+// while 循环：应在 header 块插入 φ 节点
+TEST(pipeline, ssa_while_phi) {
+    auto cfg = BuildCfgFromSource(R"(
+        local i = 0
+        while i < 10 do
+            i = i + 1
+        end
+    )");
+
+    SSABuilder builder;
+    SSAFunction ssa = builder.Build(cfg);
+
+    // i 应有多个版本：v0 (local i=0), v1 (i=i+1 in body), v2 (φ in header)
+    auto it = ssa.var_all_versions.find("i");
+    ASSERT_NE(it, ssa.var_all_versions.end());
+    EXPECT_GE(it->second.size(), 3u);
+
+    // 应在 header 块有 φ 节点
+    // header 块是包含 While 语句的块
+    int header_id = -1;
+    for (const auto &b : cfg.blocks) {
+        for (const auto &s : b.stmts) {
+            if (s->Type() == SyntaxTreeType::While) { header_id = b.id; break; }
+        }
+        if (header_id >= 0) break;
+    }
+    ASSERT_GE(header_id, 0);
+
+    auto phi_it = ssa.block_phis.find(header_id);
+    ASSERT_NE(phi_it, ssa.block_phis.end()) << "should have phi in while header block";
+
+    bool found_i_phi = false;
+    for (const auto &phi : phi_it->second) {
+        if (phi.var_name == "i") {
+            found_i_phi = true;
+            EXPECT_GE(phi.arg_versions.size(), 2u)
+                << "phi should have 2 args (pre-loop + back-edge)";
+        }
+    }
+    EXPECT_TRUE(found_i_phi) << "should have phi for 'i' in while header";
+
+    std::cout << ssa.DumpToString() << std::endl;
+}
+
+// 参数版本：函数参数应有初始版本
+TEST(pipeline, ssa_param_versions) {
+    // 使用带参数的源码（通过函数定义）
+    auto cfg = BuildCfgFromSource(R"(
+        local function f(x, y)
+            return x + y
+        end
+    )", {"x", "y"});
+
+    SSABuilder builder;
+    SSAFunction ssa = builder.Build(cfg);
+
+    // 参数 x, y 应有初始版本
+    EXPECT_EQ(ssa.param_versions.size(), 2u);
+    EXPECT_GE(ssa.param_versions[0], 0);
+    EXPECT_GE(ssa.param_versions[1], 0);
+
+    // x, y 应在 var_all_versions 中
+    EXPECT_TRUE(ssa.var_all_versions.count("x"));
+    EXPECT_TRUE(ssa.var_all_versions.count("y"));
+
+    std::cout << ssa.DumpToString() << std::endl;
+}
+
+// ── Step 1.3: 简单类型推导测试 ──────────────────────────────────────────
+
+// 辅助：在 ir.main_ssa_types 中查找给定源 AST 节点对应的类型
+static InferredType LookupNodeType(const InferResult &ir, const SyntaxTreeInterface *needle) {
+    auto it = ir.main_ssa_types.find(needle);
+    if (it != ir.main_ssa_types.end()) return it->second.type;
+    return T_UNKNOWN;
+}
+
+// 测试字面量类型推导
+TEST(pipeline, type_literals) {
+    auto ir = AnalyzeSource(R"(
+        local a = 1
+        local b = 1.5
+        local c = "hello"
+        local d = nil
+        local e = true
+    )");
+
+    // main_ssa_types 不应为空
+    EXPECT_FALSE(ir.main_ssa_types.empty()) << "should have type info for nodes";
+
+    // shape_registry 应存在
+    EXPECT_TRUE(ir.shape_registry != nullptr);
+
+    std::cout << "main_ssa_types count: " << ir.main_ssa_types.size() << "\n";
+}
+
+// 测试二元运算类型推导
+TEST(pipeline, type_binop) {
+    auto ir = AnalyzeSource(R"(
+        local a = 1
+        local b = 2
+        local c = a + b
+    )");
+
+    // main_ssa_types 应包含 binop 节点的类型信息
+    EXPECT_FALSE(ir.main_ssa_types.empty());
+
+    // 查找 binop 节点
+    int binop_count = 0;
+    for (const auto &[node, ssa] : ir.main_ssa_types) {
+        if (node->Type() == SyntaxTreeType::Exp) {
+            auto *e = static_cast<SyntaxTreeExp*>(const_cast<SyntaxTreeInterface*>(node));
+            if (e->GetExpKind() == ExpKind::kBinop) {
+                binop_count++;
+            }
+        }
+    }
+    EXPECT_GE(binop_count, 1) << "should have at least one binop typed";
+}
+
+// 测试变量赋值传播
+TEST(pipeline, type_var_propagation) {
+    auto ir = AnalyzeSource(R"(
+        local a = 1
+        local b = a
+    )");
+
+    // b = a 的 RHS (a) 的类型应被推导出来
+    EXPECT_FALSE(ir.main_ssa_types.empty());
+}
+
+// ── Step 1.4: Shape 字面量构造测试 ────────────────────────────────────
+
+// 测试 table 构造 {b=1, c=2.0} 产生封闭 record
+TEST(pipeline, shape_literal) {
+    auto ir = AnalyzeSource(R"(
+        local a = {b=1, c=2.0}
+    )");
+
+    // shape_registry 应有至少 1 个 shape
+    ASSERT_TRUE(ir.shape_registry != nullptr);
+    EXPECT_GE(ir.shape_registry->Count(), 1) << "should have at least one shape";
+
+    // 验证 shape 的字段（直接检查 registry 中的所有 shape）
+    bool found = false;
+    for (int sid = 0; sid < ir.shape_registry->Count(); ++sid) {
+        const ShapeType &shape = ir.shape_registry->Get(sid);
+        if (shape.fields.empty()) continue;
+        if (shape.is_open) continue;
+
+        // 检查是否有 b 和 c 字段
+        bool has_b = false, has_c = false;
+        for (const auto &f : shape.fields) {
+            if (f.name == "b" && f.type == T_INT) has_b = true;
+            if (f.name == "c" && f.type == T_FLOAT) has_c = true;
+        }
+        if (has_b && has_c) {
+            found = true;
+            EXPECT_GE(shape.fields.size(), 2u);
+            break;
+        }
+    }
+    EXPECT_TRUE(found) << "should find a closed shape with fields b:int, c:float";
+
+    std::cout << "shape count: " << ir.shape_registry->Count() << "\n";
+    for (int sid = 0; sid < ir.shape_registry->Count(); ++sid) {
+        const ShapeType &shape = ir.shape_registry->Get(sid);
+        std::cout << "  shape " << sid << ": open=" << shape.is_open << " fields=[";
+        for (size_t i = 0; i < shape.fields.size(); ++i) {
+            if (i > 0) std::cout << ", ";
+            std::cout << shape.fields[i].name << ":"
+                      << InferredTypeToString(shape.fields[i].type);
+        }
+        std::cout << "]\n";
+    }
+}
+
+// 测试空 table {} 不产生 shape（或产生空 shape）
+TEST(pipeline, shape_empty) {
+    auto ir = AnalyzeSource(R"(
+        local a = {}
+    )");
+
+    // 空 table 不应产生有字段的 shape
+    for (const auto &[node, shape_id] : ir.ctor_target_shapes) {
+        if (shape_id < 0) continue;
+        const ShapeType &shape = ir.shape_registry->Get(shape_id);
+        EXPECT_EQ(shape.fields.size(), 0u) << "empty table should have no fields";
+    }
+}
+
+// 测试嵌套 table
+TEST(pipeline, shape_nested) {
+    auto ir = AnalyzeSource(R"(
+        local a = {p={x=1, y=2}}
+    )");
+
+    ASSERT_TRUE(ir.shape_registry != nullptr);
+    // 应至少有 2 个 shape（外层和内层）
+    EXPECT_GE(ir.shape_registry->Count(), 2u) << "should have shapes for both outer and inner tables";
+}

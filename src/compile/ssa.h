@@ -1,38 +1,47 @@
 #pragma once
 
 #include "compile/cfg.h"
-#include "compile/compile_common.h"
+#include <string>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 namespace fakelua {
 
-// SSA 形式的 phi 节点
+// SSA 形式的 φ 节点
 struct PhiNode {
-    int result_version = -1;
-    std::vector<int> arg_versions;
-};
-
-// SSA 形式的一个基本块
-struct SSABlock {
-    int id = -1;
-    std::vector<PhiNode> phis;
+    int var_id = -1;              // 变量索引
+    std::string var_name;          // 变量名（调试/dump 用）
+    int result_version = -1;       // 该 φ 产生的新版本号
+    std::vector<int> arg_versions; // 各前驱块传入的版本号（按 pred_ids 顺序）
 };
 
 // 单个函数的 SSA 形式
 struct SSAFunction {
     std::string func_name;
     std::vector<int> param_versions;  // 每个参数的初始 SSA 版本号
-    std::unordered_map<int, PhiNode> phis;  // 基本块 id -> phi nodes list (keyed by result_version)
-    std::unordered_map<const SyntaxTreeInterfacePtr::element_type *, int> def_versions;
-    std::unordered_map<const SyntaxTreeInterfacePtr::element_type *, int> use_versions;
-    std::unordered_map<int, std::vector<int>> def_versions_multi;  // 单个节点可能定义多个版本
-    std::unordered_map<std::string, std::vector<int>> var_all_versions;  // 变量名 -> 所有 SSA 版本号
-    std::unordered_map<int, int> version_to_block;  // 版本号 -> 定义所在块
+
+    // block_id → 该块入口的 φ 节点列表
+    std::unordered_map<int, std::vector<PhiNode>> block_phis;
+
+    // AST 节点 → 定义的版本号
+    std::unordered_map<const SyntaxTreeInterface *, int> def_versions;
+    // AST 节点 → 使用的版本号列表
+    std::unordered_map<const SyntaxTreeInterface *, std::vector<int>> use_versions;
+
+    // 变量名 → 所有 SSA 版本号
+    std::unordered_map<std::string, std::vector<int>> var_all_versions;
+    // 版本号 → 定义所在块
+    std::unordered_map<int, int> version_to_block;
+    // 版本号 → 变量名
+    std::unordered_map<int, std::string> version_to_name;
+
+    int next_version = 0;
+
+    // 序列化为可读字符串（用于测试验证）
+    [[nodiscard]] std::string DumpToString() const;
 };
 
-// SSA Builder
 class SSABuilder {
 public:
     SSAFunction Build(const CFGFunction &cfg);
@@ -40,10 +49,40 @@ public:
 private:
     SSAFunction ssa_;
     int next_version_ = 0;
-    std::unordered_map<std::string, std::vector<int>> var_stacks_;
 
+    // 变量名 → 变量索引
+    std::unordered_map<std::string, int> var_name_to_id_;
+    std::vector<std::string> var_id_to_name_;
+
+    // 变量索引 → 定义该变量的基本块集合
+    std::vector<std::unordered_set<int>> var_def_blocks_;
+
+    // 支配树子节点
+    std::unordered_map<int, std::vector<int>> dom_tree_children_;
+
+    int GetVarId(const std::string &name);
     int NewVersion(const std::string &var_name, int block_id);
-    int GetCurrVersion(const std::string &var_name);
+
+    // 收集每个块中定义的所有变量
+    void CollectDefBlocks(const CFGFunction &cfg);
+
+    // 构建支配树（从支配关系推导）
+    void BuildDomTree(const CFGFunction &cfg);
+
+    // Cytron Step 1: 插入 φ 节点
+    void InsertPhis(const CFGFunction &cfg);
+
+    // Cytron Step 2: 变量重命名
+    void RenameVariables(const CFGFunction &cfg);
+
+    // 在单个块中处理语句的定义/使用
+    void RenameBlockStmts(int block_id, const std::vector<SyntaxTreeInterfacePtr> &stmts,
+                         std::unordered_map<int, int> &stack_top);
+
+    // 收集单个语句中定义的变量名
+    static std::vector<std::string> GetDefNames(const SyntaxTreeInterfacePtr &stmt);
+    // 收集单个语句中使用的变量名（递归进入表达式，不含定义目标的 LHS）
+    static std::vector<std::string> GetUseNames(const SyntaxTreeInterfacePtr &stmt);
 };
 
 }// namespace fakelua
