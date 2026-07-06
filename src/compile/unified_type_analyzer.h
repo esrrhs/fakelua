@@ -130,6 +130,7 @@ private:
 
     ShapeRegistry *registry_ = nullptr;
     std::string cur_func_name_;
+    int cur_bitmask_ = -1;
 };
 
 }// namespace fakelua

@@ -17,6 +17,7 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
                                    int bitmask,
                                    const ParamAssumption &param_assumptions) {
     cur_func_name_ = func_name;
+    cur_bitmask_ = bitmask;
 
     if (!ir.shape_registry) {
         ir.shape_registry = std::make_shared<ShapeRegistry>();
@@ -484,6 +485,8 @@ void UnifiedTypeAnalyzer::PopulateNodeTypesFromStmts(
                                 const auto &v = ep->ExpValue();
                                 if (v.find('.') != std::string::npos || v.find('e') != std::string::npos || v.find('E') != std::string::npos)
                                     cursor_type = T_FLOAT;
+                            } else if (ep->GetExpKind() == ExpKind::kPrefixExp && ep->Right()) {
+                                check_exp(ep->Right());
                             }
                         } else if (e->Type() == SyntaxTreeType::Var) {
                             auto *v = static_cast<SyntaxTreeVar *>(e.get());
