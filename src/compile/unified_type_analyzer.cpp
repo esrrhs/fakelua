@@ -420,7 +420,10 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
         if (!node) return;
         if (node->Type() == SyntaxTreeType::Var) {
             auto *v = static_cast<SyntaxTreeVar *>(node.get());
-            if (v->GetVarKind() == VarKind::kSimple && param_names.count(v->GetName())) {
+            // depth > 0 意味着我们从算术/三元/比较 Binop 内部递归到此变量，
+            // 表明该参数在算术语境中被使用 → 可数学特化。
+            // depth == 0 说明是顶层 Return/If-condition 中的纯变量引用，不特化。
+            if (depth > 0 && v->GetVarKind() == VarKind::kSimple && param_names.count(v->GetName())) {
                 expr_vars.insert(v->GetName());
             }
             return;
@@ -498,17 +501,16 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
         }
     };
 
-    // 递归遍历函数体，找到所有 Exp 节点。
-    // WalkSyntaxTree 不会深入 Exp 子表达式，需要 custom visitor。
+    // 递归遍历函数体，找到所有 Binop/Unop 表达式并收集其中的参数名。
+    // 对于顶层 PrefixExp（如 return n 中的单个变量引用）不触发收集。
     std::function<void(const SyntaxTreeInterfacePtr&)> visit_all;
     visit_all = [&](const SyntaxTreeInterfacePtr &node) {
         if (!node) return;
         if (node->Type() == SyntaxTreeType::Exp) {
             auto *e = static_cast<SyntaxTreeExp *>(node.get());
-            // 对所有 Binop/Unop 调用 collect_vars 进行遍历：
-            // collect_vars 内部会根据 depth 和 opkind 判断是否收集参数。
+            // 对所有 Binop/Unop/PrefixExp 调用 collect_vars：内部根据 depth + opkind 判断。
+            // 关键 restriction：顶层 (depth == 0) 的变量引用不会被插入 expr_vars（见 Var 分支判断）。
             if (e->GetExpKind() == ExpKind::kBinop || e->GetExpKind() == ExpKind::kUnop || e->GetExpKind() == ExpKind::kPrefixExp) {
-                // 顶层 Binop: 以 depth=0 调用；其内部会处理算术/三元/比较的回退收集
                 collect_vars(node, 0);
             }
             return;
