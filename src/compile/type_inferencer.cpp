@@ -182,6 +182,10 @@ InferredType TypeOfScalar(const SyntaxTreeInterfacePtr &exp,
             auto lt = TypeOfScalar(e->Left(), map, cur_type);
             auto rt = TypeOfScalar(e->Right(), map, cur_type);
             if (fakelua::IsNumericInferredType(lt) && fakelua::IsNumericInferredType(rt)) {
+                // / 和 ^ 强制产生 double（即使操作数都是 int）
+                auto *bop = e->Op() ? static_cast<SyntaxTreeBinop *>(e->Op().get()) : nullptr;
+                if (bop && (bop->GetOpKind() == BinOpKind::kSlash || bop->GetOpKind() == BinOpKind::kPow))
+                    return fakelua::T_FLOAT;
                 return MeetFlow(lt, rt);
             }
         }
@@ -306,8 +310,16 @@ void ProcessBlockLocals(const fakelua::SyntaxTreeInterfacePtr &node,
                     auto m = MeetFlow(it->second, rt);
                     if (m != it->second) {
                         it->second = m;
-                        auto dit = decl_node_by_name.find(vn);
-                        if (dit != decl_node_by_name.end()) map[dit->second.get()] = T_DYNAMIC;
+                        // 只有当 meet 结果退化为 T_DYNAMIC 时才写回 map；
+                        // 数值型 meet（如 int→float）保持数值化，使 CGen
+                        // 在该变量后续继续赋数值时仍能生成原生类型代码。
+                        if (m == T_DYNAMIC) {
+                            auto dit = decl_node_by_name.find(vn);
+                            if (dit != decl_node_by_name.end()) map[dit->second.get()] = T_DYNAMIC;
+                        } else if (m == T_INT || m == T_FLOAT) {
+                            auto dit = decl_node_by_name.find(vn);
+                            if (dit != decl_node_by_name.end()) map[dit->second.get()] = m;
+                        }
                     }
                 }
                 // 更新 map 中 RHS 表达式对应的类型，便于后续 CGen 类型查询
