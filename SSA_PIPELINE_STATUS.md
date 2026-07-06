@@ -1,13 +1,22 @@
 # FakeLua 统一 SSA/CFG/Shape 编译管线 — 状态与实施文档
 
-> **最后更新**: 2026-07-06（Step 12-13：local forward-prop + PrefixExp 递归 + 三元推导）
+> **最后更新**: 2026-07-06（Step 13-14：and/or 全量收集 + 准确 baseline 建立）
 > **设计规范**: `/root/lua-dialect-type-inference-spec.md`
 > **当前分支**: `ssa-pipeline-v2`
-> **当前测试**: ~680 PASSED + ~80 FAILED（活跃测试共 719 个）
-> - algo: 7/10（bubble_sort/insertion_sort/matrix 失败 — 需要表特化）
-> - infer.spec_*: 61/24（持续收敛中）
-> - common/state/syntax_tree/var/util: 全部通过（约 200+）
-> - exception/jitter/ini/runtime: 部分 crash 干扰统计
+> **当前测试**: **627 PASSED + 92 FAILED** (87.2% pass rate, 719 活跃测试)
+>
+> | Suite | Pass/Fail | 备注 |
+> |-------|-----------|------|
+> | algo | 7/3 | bubble_sort/insertion_sort/matrix 需表特化 |
+> | common | 4/0 | ✅ |
+> | exception | 66/0 | ✅ |
+> | **infer** | **143/58** | 主要工作区域 |
+> | ini | 1/0 | ✅ |
+> | jitter | 233/22 | JIT runtime 特化体问题 |
+> | runtime | 18/0 | ✅ |
+> | vm_cvar_call | 2/1 | 单failure |
+> | state | 16/0 | ✅ |
+> | syntax_tree | 26/6 | 部分与 SSA 无关 |
 
 ---
 
