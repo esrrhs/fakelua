@@ -604,16 +604,29 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
             return InferExprType(pe->GetValue(), ssa, version_types, ir, name_ver, local_env);
         }
         case SyntaxTreeType::FunctionCall: {
-            // 尝试从函数摘要获取返回类型（过程间分析，规范 §7）
+            // 过程间分析（规范 §7）：从函数摘要获取返回类型
             auto *fc = static_cast<SyntaxTreeFunctioncall *>(expr.get());
-            const std::string &callee = fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::Var
-                ? static_cast<SyntaxTreeVar *>(fc->prefixexp().get())->GetName()
-                : "";
+            std::string callee;
+            if (fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::Var) {
+                callee = static_cast<SyntaxTreeVar *>(fc->prefixexp().get())->GetName();
+            } else if (fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
+                auto *pe = static_cast<SyntaxTreePrefixexp *>(fc->prefixexp().get());
+                if (pe->GetValue() && pe->GetValue()->Type() == SyntaxTreeType::Var)
+                    callee = static_cast<SyntaxTreeVar *>(pe->GetValue().get())->GetName();
+            }
             if (!callee.empty()) {
                 auto it = ir.func_summaries.find(callee);
-                if (it != ir.func_summaries.end() && !it->second.being_built
-                    && it->second.ret_type.type != T_UNKNOWN && it->second.ret_type.type != T_DYNAMIC) {
-                    return it->second.ret_type;
+                if (it != ir.func_summaries.end()) {
+                    const FuncSummary &summary = it->second;
+                    if (summary.being_built) {
+                        // 递归调用：返回类型未知
+                        return {T_DYNAMIC, -1};
+                    }
+                    if (summary.ret_type.type != T_UNKNOWN && summary.ret_type.type != T_DYNAMIC) {
+                        return summary.ret_type;
+                    }
+                    // 返回类型是 DYNAMIC 但摘要已知：尝试从表达式推导
+                    // （对于 return param 类型的函数，ret_type 保持 DYNAMIC）
                 }
             }
             return {T_DYNAMIC, -1};
@@ -861,6 +874,19 @@ void UnifiedTypeAnalyzer::BuildSummary(const std::string &func_name,
     s.func_name = func_name;
     s.param_types.resize(ssa.param_versions.size(), {T_DYNAMIC, -1});
     s.param_escape.resize(ssa.param_versions.size(), false);
+
+    // 从 version_types 推导参数类型（规范 §7.2）
+    for (size_t i = 0; i < ssa.param_versions.size(); ++i) {
+        int ver = ssa.param_versions[i];
+        // 从 SSA 定义块中查找该参数被使用时的类型
+        auto vt_it = version_types.find(ver);
+        if (vt_it != version_types.end()) {
+            s.param_types[i] = vt_it->second;
+        } else {
+            // 默认 T_DYNAMIC（参数类型未知）
+            s.param_types[i] = {T_DYNAMIC, -1};
+        }
+    }
 
     // 从 main_ssa_types 收集返回类型
     SSATypeInfo merged_ret{T_UNKNOWN, -1};

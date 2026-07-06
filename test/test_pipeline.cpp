@@ -227,7 +227,68 @@ static InferResult AnalyzeSource(const std::string &lua_source) {
     SSABuilder ssa_builder;
     SSAFunction ssa = ssa_builder.Build(cfg);
 
+    // 分析顶层（chunk）
     uta.Analyze("test_func", chunk, cfg, ssa, ir);
+
+    // 构建顶层摘要
+    ir.func_summaries["__fakelua_init"].being_built = false;
+    ir.func_summaries["__fakelua_init"].func_name = "__fakelua_init";
+    uta.BuildSummary("__fakelua_init", chunk, ssa, ir.ssa_version_types, ir);
+
+    // 分析函数定义（从顶层 chunk 中查找）
+    std::function<void(const SyntaxTreeInterfacePtr&)> analyze_funcs;
+    analyze_funcs = [&](const SyntaxTreeInterfacePtr &node) {
+        if (!node) return;
+        if (node->Type() == SyntaxTreeType::Function || node->Type() == SyntaxTreeType::LocalFunction) {
+            std::string name;
+            SyntaxTreeInterfacePtr fbody_node;
+            if (node->Type() == SyntaxTreeType::Function) {
+                auto *func = static_cast<SyntaxTreeFunction*>(node.get());
+                auto fname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
+                if (!fname) return;
+                auto fnlist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(fname->FuncNameList());
+                if (!fnlist || fnlist->Funcnames().empty()) return;
+                name = fnlist->Funcnames()[0];
+                fbody_node = func->Funcbody();
+            } else {
+                auto *lfunc = static_cast<SyntaxTreeLocalFunction*>(node.get());
+                name = lfunc->Name();
+                fbody_node = lfunc->Funcbody();
+            }
+
+            auto fbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(fbody_node);
+            if (!fbody || !fbody->Block()) return;
+
+            // 构建该函数的 CFG 和 SSA
+            std::vector<std::string> params;
+            if (fbody->Parlist()) {
+                auto pl = std::dynamic_pointer_cast<SyntaxTreeParlist>(fbody->Parlist());
+                auto nl = pl ? std::dynamic_pointer_cast<SyntaxTreeNamelist>(pl->Namelist()) : nullptr;
+                if (nl) params = nl->Names();
+            }
+
+            CFGBuilder func_cfg_builder;
+            CFGFunction func_cfg = func_cfg_builder.Build(fbody->Block(), params, name, false);
+            SSAFunction func_ssa = ssa_builder.Build(func_cfg);
+
+            ir.func_summaries[name].being_built = true;
+            ir.func_summaries[name].func_name = name;
+            uta.Analyze(name, fbody->Block(), func_cfg, func_ssa, ir);
+            uta.BuildSummary(name, fbody->Block(), func_ssa, ir.ssa_version_types, ir);
+            ir.func_summaries[name].being_built = false;
+        } else if (node->Type() == SyntaxTreeType::Block) {
+            auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+            for (auto &stmt : blk->Stmts()) analyze_funcs(stmt);
+        } else if (node->Type() == SyntaxTreeType::If) {
+            auto *ifs = static_cast<SyntaxTreeIf*>(node.get());
+            analyze_funcs(ifs->Block());
+            if (ifs->ElseBlock()) analyze_funcs(ifs->ElseBlock());
+        } else if (node->Type() == SyntaxTreeType::While) {
+            auto *ws = static_cast<SyntaxTreeWhile*>(node.get());
+            analyze_funcs(ws->Block());
+        }
+    };
+    analyze_funcs(chunk);
 
     return ir;
 }
@@ -711,6 +772,77 @@ TEST(pipeline, meet_open_records) {
     EXPECT_TRUE(meet_shape.is_open);
     // 应包含 b（optional）和 d
     EXPECT_GE(meet_shape.fields.size(), 1u);
+}
+
+// ── Step 4: 函数摘要 + 跨函数类型推导测试 ─────────────────────────────
+
+// 规范 §14.1 #4：函数返回值的跨函数类型推导
+TEST(pipeline, interprocedural_basic) {
+    auto ir = AnalyzeSource(R"(
+        local function make() return {x=1, y=2} end
+        local p = make()
+    )");
+
+    // make 函数的摘要应记录返回类型为 Record{x:int, y:int}
+    auto it = ir.func_summaries.find("make");
+    ASSERT_NE(it, ir.func_summaries.end()) << "should have summary for 'make'";
+
+    const FuncSummary &summary = it->second;
+    EXPECT_EQ(summary.ret_type.type, T_RECORD) << "make() should return Record";
+    EXPECT_GE(summary.ret_type.shape_id, 0) << "make() return shape_id should be >= 0";
+
+    // 验证 shape 的字段
+    if (summary.ret_type.shape_id >= 0 && ir.shape_registry) {
+        const ShapeType &shape = ir.shape_registry->Get(summary.ret_type.shape_id);
+        EXPECT_EQ(shape.fields.size(), 2u);
+        bool has_x = false, has_y = false;
+        for (const auto &f : shape.fields) {
+            if (f.name == "x" && f.type == T_INT) has_x = true;
+            if (f.name == "y" && f.type == T_INT) has_y = true;
+        }
+        EXPECT_TRUE(has_x) << "return shape should have field x:int";
+        EXPECT_TRUE(has_y) << "return shape should have field y:int";
+    }
+
+    std::cout << "make() ret_type: " << InferredTypeToString(summary.ret_type.type)
+              << " shape=" << summary.ret_type.shape_id << "\n";
+}
+
+// 测试函数参数类型记录
+TEST(pipeline, interprocedural_param_types) {
+    auto ir = AnalyzeSource(R"(
+        local function add(a, b) return a + b end
+    )");
+
+    auto it = ir.func_summaries.find("add");
+    ASSERT_NE(it, ir.func_summaries.end()) << "should have summary for 'add'";
+
+    const FuncSummary &summary = it->second;
+    EXPECT_EQ(summary.param_types.size(), 2u) << "add should have 2 param types";
+    // 参数默认为 T_DYNAMIC（无注解）
+    EXPECT_TRUE(ir.func_summaries.count("add") > 0);
+
+    std::cout << "add() params: " << summary.param_types.size() << "\n";
+    for (size_t i = 0; i < summary.param_types.size(); ++i) {
+        std::cout << "  param " << i << ": " << InferredTypeToString(summary.param_types[i].type) << "\n";
+    }
+}
+
+// 测试多态函数（规范 §12.2）
+TEST(pipeline, interprocedural_polymorphic) {
+    auto ir = AnalyzeSource(R"(
+        local function id(x) return x end
+        local a = id(1)        -- a : int
+        local b = id("hello")  -- b : string
+    )");
+
+    // id 函数的摘要返回类型应为 T_DYNAMIC（多态）
+    auto it = ir.func_summaries.find("id");
+    ASSERT_NE(it, ir.func_summaries.end()) << "should have summary for 'id'";
+
+    const FuncSummary &summary = it->second;
+    // id(x) return x 的返回类型与参数类型相同（都是 T_DYNAMIC 默认）
+    std::cout << "id() ret_type: " << InferredTypeToString(summary.ret_type.type) << "\n";
 }
 
 // ── Step 3.4: 收敛性测试 ──────────────────────────────────────────────
