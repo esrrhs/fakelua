@@ -199,6 +199,9 @@ InferredType TypeOfScalar(const SyntaxTreeInterfacePtr &exp,
                         return vit->second;
                     }
                 }
+            } else if (pe && pe->GetPrefixKind() == fakelua::PrefixExpKind::kExp && pe->GetValue()) {
+                // 括号表达式 (expr) → 递归解析内部表达式
+                return TypeOfScalar(pe->GetValue(), map, cur_type);
             }
         }
     }
