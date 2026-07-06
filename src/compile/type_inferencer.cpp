@@ -349,7 +349,11 @@ void ProcessBlockLocals(const fakelua::SyntaxTreeInterfacePtr &node,
             // value (case2).  cur_type mutations inside recursive ProcessBlockLocals
             // do not propagate back, so we walk the body manually to look for
             // direct `cname = <non-numeric>` Assign statements.
+            // 默认游标类型：如果块类型推导已确定是 T_FLOAT（浮点边界），沿用之
             InferredType cursor_type = T_INT;
+            if (auto it = map.find(stmt.get()); it != map.end() && it->second == T_FLOAT) {
+                cursor_type = T_FLOAT;
+            }
             if (fl->Block()) {
                 auto body_blk = std::dynamic_pointer_cast<fakelua::SyntaxTreeBlock>(fl->Block());
                 if (body_blk) {

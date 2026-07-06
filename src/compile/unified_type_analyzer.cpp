@@ -405,6 +405,8 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
                         const auto &v = ep->ExpValue();
                         if (v.find('.') != std::string::npos || v.find('e') != std::string::npos || v.find('E') != std::string::npos)
                             cursor_type = T_FLOAT;
+                    } else if (ep->GetExpKind() == ExpKind::kPrefixExp && ep->Right()) {
+                        check_exp(ep->Right());
                     }
                 } else if (e->Type() == SyntaxTreeType::Var) {
                     auto *v = static_cast<SyntaxTreeVar *>(e.get());
