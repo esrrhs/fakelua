@@ -222,11 +222,20 @@ UnifiedTypeAnalyzer::RunWorklist(const CFGFunction &cfg,
             new_out = TransferStmt(s, new_out, ssa, empty_vt);
         }
 
-        // widening on loops: 如果迭代超限且字段集是 record，则提早退化
-        if (iter_count > kWidenIter && !widened) {
-            // 如果发现某个块 env 大小在缩小，停止增长：这里用 noop
-            // 因为 var_env 大小恒为「已知变量数」，不会无限扩张；
-            // record shape 字段增长问题由 ShapeRegistry::Widen 特化时单独处理
+        // widening on loops: 迭代超限时，对 env 中的 record shape 调用 Widen
+        if (iter_count > kWidenIter && registry_) {
+            for (auto &[vname, vtype] : new_out) {
+                if (IsRecordInferredType(vtype.type) && vtype.shape_id >= 0) {
+                    int new_shape_id = registry_->Widen(vtype.shape_id, iter_count);
+                    if (new_shape_id < 0) {
+                        // 退化为 T_DYNAMIC
+                        vtype.type = T_DYNAMIC;
+                        vtype.shape_id = -1;
+                    } else {
+                        vtype.shape_id = new_shape_id;
+                    }
+                }
+            }
         }
 
         in_envs[bid] = new_in;
@@ -305,10 +314,46 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
             for (size_t i = 0; i < vars.size() && i < exps.size(); ++i) {
                 if (vars[i]->Type() != SyntaxTreeType::Var) continue;
                 auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[i]);
-                if (!v || v->GetVarKind() != VarKind::kSimple) continue;
-                const std::string &vn = v->GetName();
+                if (!v) continue;
                 auto ty = InferExprType(exps[i], ssa, version_types, dummy_ir, {}, envp);
-                out[vn] = ty;
+                if (v->GetVarKind() == VarKind::kSimple) {
+                    // 简单变量赋值：local x = ... 或 x = ...
+                    out[v->GetName()] = ty;
+                } else if (v->GetVarKind() == VarKind::kDot || v->GetVarKind() == VarKind::kSquare) {
+                    // 字段写入：a.b = v 或 a[b] = v
+                    // 规范 §5.2.4：更新 base 变量的 shape
+                    const std::string &field_name = v->GetName();
+                    auto *base_pe = static_cast<SyntaxTreePrefixexp *>(v->GetPrefixexp().get());
+                    if (base_pe && base_pe->GetPrefixKind() == PrefixExpKind::kVar) {
+                        auto *base_var = static_cast<SyntaxTreeVar *>(base_pe->GetValue().get());
+                        if (base_var && base_var->GetVarKind() == VarKind::kSimple) {
+                            const std::string &base_name = base_var->GetName();
+                            auto base_it = out.find(base_name);
+                            if (base_it != out.end() && base_it->second.shape_id >= 0 && registry_) {
+                                // 规范 §5.2.4：字段写入 a.b = v
+                                ShapeType shape = registry_->Get(base_it->second.shape_id);
+                                FieldDef *fd = shape.FindFieldMut(field_name);
+                                if (fd) {
+                                    // 已有字段：合一类型
+                                    fd->type = ShapeRegistry::MeetType(fd->type, ty.type);
+                                } else {
+                                    // 新字段
+                                    if (!shape.is_open) {
+                                        // 封闭 record 加新字段 → 退化为开放
+                                        shape.is_open = true;
+                                    }
+                                    FieldDef new_fd;
+                                    new_fd.name = field_name;
+                                    new_fd.c_field_name = ToSafeCFieldName(field_name);
+                                    new_fd.type = ty.type;
+                                    new_fd.optional = false;
+                                    shape.fields.push_back(new_fd);
+                                }
+                                base_it->second.shape_id = registry_->Intern(std::move(shape));
+                            }
+                        }
+                    }
+                }
             }
             break;
         }
@@ -486,7 +531,8 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
                     return InferExprType(e->Right(), ssa, version_types, ir, name_ver, local_env);
                 }
                 case ExpKind::kTableConstructor: {
-                    int shape_id = BuildShapeFromCtor(expr, ssa, version_types, ir);
+                    // expr 是 Exp 包装节点，实际 TableConstructor 在其 Right() 中
+                    int shape_id = BuildShapeFromCtor(e->Right(), ssa, version_types, ir);
                     if (shape_id >= 0) return {T_RECORD, shape_id};
                     return {T_DYNAMIC, -1};
                 }
@@ -515,6 +561,36 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
                     auto tit = version_types.find(nit->second);
                     if (tit != version_types.end()) return tit->second;
                 }
+            } else if (v->GetVarKind() == VarKind::kDot || v->GetVarKind() == VarKind::kSquare) {
+                // 规范 §5.2.3：字段读取 a.b / a[b]
+                const std::string &field_name = v->GetName();
+                auto *base_pe = static_cast<SyntaxTreePrefixexp *>(v->GetPrefixexp().get());
+                if (base_pe && base_pe->GetPrefixKind() == PrefixExpKind::kVar) {
+                    auto *base_var = static_cast<SyntaxTreeVar *>(base_pe->GetValue().get());
+                    if (base_var && base_var->GetVarKind() == VarKind::kSimple) {
+                        // 查找 base 变量的类型
+                        SSATypeInfo base_type{T_DYNAMIC, -1};
+                        auto env_it = local_env->find(base_var->GetName());
+                        if (env_it != local_env->end()) {
+                            base_type = env_it->second;
+                        }
+                        if (base_type.shape_id >= 0 && registry_) {
+                            const ShapeType &shape = registry_->Get(base_type.shape_id);
+                            const FieldDef *fd = shape.FindField(field_name);
+                            if (fd) {
+                                // ★ 命中 → 走偏移
+                                return {fd->type, -1};
+                            } else if (shape.is_open) {
+                                // 开放 record 无此字段 → 走 hash
+                                return {T_DYNAMIC, -1};
+                            } else {
+                                // 封闭 record 无此字段 → Lua 语义返回 nil
+                                return {T_NIL, -1};
+                            }
+                        }
+                    }
+                }
+                return {T_DYNAMIC, -1};
             }
             return {T_DYNAMIC, -1};
         }

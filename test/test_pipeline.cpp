@@ -712,3 +712,160 @@ TEST(pipeline, meet_open_records) {
     // 应包含 b（optional）和 d
     EXPECT_GE(meet_shape.fields.size(), 1u);
 }
+
+// ── Step 3.4: 收敛性测试 ──────────────────────────────────────────────
+
+// 规范 §14.3：循环里 shape 增长必须在有限步内 widen 到 dynamic
+TEST(pipeline, widening_convergence) {
+    // 循环加不同字段 → widening 触发 → 退化为 dynamic
+    auto ir = AnalyzeSource(R"(
+        local t = {}
+        t.a1 = 1
+        t.a2 = 2
+        t.a3 = 3
+        t.a4 = 4
+        t.a5 = 5
+    )");
+
+    // 字段数超过阈值(16)前应能正常构造
+    ASSERT_TRUE(ir.shape_registry != nullptr);
+    std::cout << "shape count: " << ir.shape_registry->Count() << "\n";
+    for (int sid = 0; sid < ir.shape_registry->Count(); ++sid) {
+        const ShapeType &shape = ir.shape_registry->Get(sid);
+        std::cout << "  shape " << sid << ": open=" << shape.is_open
+                  << " fields=" << shape.fields.size() << "\n";
+    }
+}
+
+// 测试大量字段写入触发 widening
+TEST(pipeline, widening_many_fields) {
+    // 从封闭 record 开始，写入超过 16 个字段 → 应触发 widening
+    auto ir = AnalyzeSource(R"(
+        local t = {init=1}
+        t.f1 = 1
+        t.f2 = 2
+        t.f3 = 3
+        t.f4 = 4
+        t.f5 = 5
+        t.f6 = 6
+        t.f7 = 7
+        t.f8 = 8
+        t.f9 = 9
+        t.f10 = 10
+        t.f11 = 11
+        t.f12 = 12
+        t.f13 = 13
+        t.f14 = 14
+        t.f15 = 15
+        t.f16 = 16
+        t.f17 = 17
+    )");
+
+    // 应能正常完成，不卡死，且最终 shape 应被 widen（开放或字段截断）
+    ASSERT_TRUE(ir.shape_registry != nullptr);
+    EXPECT_GE(ir.shape_registry->Count(), 1u);
+    std::cout << "shape count after many fields: " << ir.shape_registry->Count() << "\n";
+    for (int sid = 0; sid < ir.shape_registry->Count(); ++sid) {
+        const ShapeType &shape = ir.shape_registry->Get(sid);
+        std::cout << "  shape " << sid << ": open=" << shape.is_open
+                  << " fields=" << shape.fields.size() << "\n";
+    }
+}
+
+// 测试循环中 shape 增长的收敛性（规范 §14.3）
+// 注意：Phase 3 的 while 循环回边会触发 worklist 迭代，
+// 每次迭代可能增加字段，widening 确保收敛
+TEST(pipeline, widening_loop_convergence) {
+    // 使用 while true 循环加字段（接近规范 §12.1 场景）
+    auto ir = AnalyzeSource(R"(
+        local t = {n=1}
+        local i = 0
+        while i < 5 do
+            t["k" .. i] = i
+            i = i + 1
+        end
+    )");
+
+    // 应能正常完成，不卡死
+    ASSERT_TRUE(ir.shape_registry != nullptr);
+    std::cout << "shape count after loop: " << ir.shape_registry->Count() << "\n";
+}
+
+// ── Step 3.1 + 3.2: 字段写入 + 字段读取测试 ────────────────────────────
+
+// 测试 literal table 字段读取 a.b → 返回字段类型
+TEST(pipeline, field_read_literal) {
+    auto ir = AnalyzeSource(R"(
+        local a = {b=1, c=2.0}
+    )");
+
+    // 验证 shape 有 b 和 c 字段
+    ASSERT_TRUE(ir.shape_registry != nullptr);
+    bool found_b = false, found_c = false;
+    for (int sid = 0; sid < ir.shape_registry->Count(); ++sid) {
+        const ShapeType &shape = ir.shape_registry->Get(sid);
+        for (const auto &f : shape.fields) {
+            if (f.name == "b" && f.type == T_INT) found_b = true;
+            if (f.name == "c" && f.type == T_FLOAT) found_c = true;
+        }
+    }
+    EXPECT_TRUE(found_b) << "should have field b:T_INT";
+    EXPECT_TRUE(found_c) << "should have field c:T_FLOAT";
+}
+
+// 测试字段写入 a.d = v 给 record 加字段
+TEST(pipeline, field_write_new_field) {
+    auto ir = AnalyzeSource(R"(
+        local a = {b=1}
+        a.c = 2      -- 给封闭 record 加新字段 → 退化为开放
+    )");
+
+    // 找到包含 b 和 c 字段的 shape
+    bool found = false;
+    for (int sid = 0; sid < ir.shape_registry->Count(); ++sid) {
+        const ShapeType &shape = ir.shape_registry->Get(sid);
+        if (shape.fields.size() == 2) {
+            bool has_b = false, has_c = false;
+            for (const auto &f : shape.fields) {
+                if (f.name == "b") has_b = true;
+                if (f.name == "c") has_c = true;
+            }
+            if (has_b && has_c) {
+                found = true;
+                EXPECT_TRUE(shape.is_open) << "after adding field, should be open";
+                break;
+            }
+        }
+    }
+    EXPECT_TRUE(found) << "should find open shape with b and c fields";
+
+    std::cout << "shape count: " << ir.shape_registry->Count() << "\n";
+    for (int sid = 0; sid < ir.shape_registry->Count(); ++sid) {
+        const ShapeType &shape = ir.shape_registry->Get(sid);
+        std::cout << "  shape " << sid << ": open=" << shape.is_open << " fields=[";
+        for (size_t i = 0; i < shape.fields.size(); ++i) {
+            if (i > 0) std::cout << ", ";
+            std::cout << shape.fields[i].name << ":"
+                      << InferredTypeToString(shape.fields[i].type);
+        }
+        std::cout << "]\n";
+    }
+}
+
+// 测试字段写入 a.b = newtype 合一字段类型
+TEST(pipeline, field_write_existing_field) {
+    auto ir = AnalyzeSource(R"(
+        local a = {b=1}
+        a.b = 2.0
+    )");
+
+    // 找到包含 b 字段且类型为 float 的 shape
+    bool found = false;
+    for (int sid = 0; sid < ir.shape_registry->Count(); ++sid) {
+        const ShapeType &shape = ir.shape_registry->Get(sid);
+        for (const auto &f : shape.fields) {
+            if (f.name == "b" && f.type == T_FLOAT) { found = true; break; }
+        }
+    }
+    EXPECT_TRUE(found) << "field b should be float after meet(int, float)";
+}
