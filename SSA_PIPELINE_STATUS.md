@@ -178,19 +178,26 @@ PopulateMainEvalTypesFromSSA 把该 T_DYNAMIC 直接写入 main_eval_types，使
 
 ## 下次会话入口（按优先级）
 
-### P0: 准确跑一遍全量测试
-- 用 category-by-category 方式（排除会 crash 的 algo.bubble_sort/insertion_sort/matrix 等）
-- 统计所有 suite 的 OK/FAIL 数
-- 登记剩余 failures 的完整列表
+### P0: 准确统计所有 suite 的 baseline
 
 ```bash
-cd build/bin
-# 分 suite 跑了避免 crash 传染
-for filter in 'algo.*' 'common.*' 'syntax_tree.*' 'state.*' 'util.*' 'var.*' 'infer.test_*'; do
-  result=$(timeout 60 ./unit_tests --gtest_filter="$filter" 2>&1 | grep -aE "OK \]|FAIL \]" | wc -l)
-  echo "$filter: $result lines"
+cd /home/project/fakelua/build/bin
+# 分多个 filter 分别跑（避免 crash 传染）
+for filter in 'algo.gcd:algo.factorize:algo.sieve:algo.binary_search:algo.fibonacci:algo.collatz:algo.fast_pow' \
+             'common.*' 'syntax_tree.*' 'state.*' 'util.*' 'var.*' \
+             'infer.test_infer_*' 'infer.test_spec_*' 'infer.test_native_*'; do
+  ./unit_tests --gtest_filter="$filter" --gtest_brief=1 2>&1 | grep -aE "PASSED|FAILED TESTS"
 done
 ```
+
+当前 partial 基线:
+- algo (partial): 7/10 (bubble_sort/insertion_sort/matrix runtime crash)
+- common: 13/13
+- syntax_tree: 34/34
+- state: 16/16
+- util: 18/18
+- var: 117/117
+- infer.test_*: 331/663 (整体 infer 331 OK, 但大量 for-loop 特化和 runtime crash)
 
 ### P1: 收敛剩余 ~70 个 infer 失败
 主要集中在两类：
