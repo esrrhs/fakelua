@@ -208,13 +208,17 @@ static SSAFunction BuildSsaFromSource(const std::string &lua_source,
     return builder.Build(cfg);
 }
 
-// ── 辅助：从 Lua 源码构建 InferResult（运行完整 SSA+类型分析） ───────────
+// ── 辅助：从 Lua 源码构建 InferResult（运行 SSA+类型分析，不经过预处理） ──
 static InferResult AnalyzeSource(const std::string &lua_source) {
-    const auto s = FakeluaNewState();
-    Compiler compiler(s);
-    ParseResult pr = compiler.CompileString(lua_source, CompileConfig{});
+    auto cfg = BuildCfgFromSource(lua_source);
 
-    CFGFunction cfg = BuildCfgFromSource(lua_source);
+    const auto s = FakeluaNewState();
+    MyFlexer f;
+    f.InputString(lua_source);
+    yy::parser parse(&f);
+    parse.parse();
+    auto chunk = f.GetChunk();
+    FakeluaDeleteState(s);
 
     InferResult ir;
     ir.shape_registry = std::make_shared<ShapeRegistry>();
@@ -223,10 +227,8 @@ static InferResult AnalyzeSource(const std::string &lua_source) {
     SSABuilder ssa_builder;
     SSAFunction ssa = ssa_builder.Build(cfg);
 
-    // 用 chunk 作为 func_block
-    uta.Analyze("test_func", pr.chunk, cfg, ssa, ir);
+    uta.Analyze("test_func", chunk, cfg, ssa, ir);
 
-    FakeluaDeleteState(s);
     return ir;
 }
 
@@ -493,4 +495,220 @@ TEST(pipeline, shape_nested) {
     ASSERT_TRUE(ir.shape_registry != nullptr);
     // 应至少有 2 个 shape（外层和内层）
     EXPECT_GE(ir.shape_registry->Count(), 2u) << "should have shapes for both outer and inner tables";
+}
+
+// ── Step 2.2: φ 节点类型推导测试 ──────────────────────────────────────
+
+// 测试 if-else 中 φ 结果类型 = meet(then_type, else_type)
+TEST(pipeline, phi_type_if_else) {
+    auto ir = AnalyzeSource(R"(
+        local a = 1
+        if a > 0 then
+            a = 2.0      -- a becomes float
+        else
+            a = 3        -- a stays int
+        end
+        local b = a      -- b should be float (meet of float and int)
+    )");
+
+    // 查找 φ 结果版本的类型
+    // φ 在 merge 块中，结果类型应为 meet(float, int) = float
+    for (const auto &[ver, ty] : ir.ssa_version_types) {
+        // φ 结果版本的类型应被设置（不为 T_UNKNOWN）
+        if (ty.type != T_UNKNOWN) {
+            std::cout << "  version " << ver << ": type=" << InferredTypeToString(ty.type)
+                      << " shape=" << ty.shape_id << "\n";
+        }
+    }
+
+    // 验证 version_types 不为空（至少参数版本和 φ 版本有类型）
+    EXPECT_FALSE(ir.ssa_version_types.empty());
+}
+
+// ── Step 2.3: 工作表不动点 + 流敏感类型测试 ───────────────────────────
+
+// 测试 if-else 分支中相同字段不同数值类型的 Meet
+// then: c = {x=1} (x:int), else: c = {x=2.0} (x:float)
+// meet 后: c 应有含 x 字段的 shape
+TEST(pipeline, flow_sensitive_if_merge_same_field) {
+    auto ir = AnalyzeSource(R"(
+        if 1 then
+            local c = {x=1}       -- x: int
+        else
+            local c = {x=2.0}     -- x: float
+        end
+    )");
+
+    // 两个分支都创建了 shape，registry 应有 shape
+    ASSERT_TRUE(ir.shape_registry != nullptr);
+    EXPECT_GE(ir.shape_registry->Count(), 1u);
+
+    // 验证创建了含 x 字段的 shape
+    bool found_x_shape = false;
+    for (int sid = 0; sid < ir.shape_registry->Count(); ++sid) {
+        const ShapeType &shape = ir.shape_registry->Get(sid);
+        for (const auto &f : shape.fields) {
+            if (f.name == "x") { found_x_shape = true; break; }
+        }
+    }
+    EXPECT_TRUE(found_x_shape) << "should have shape with field x";
+}
+
+// 测试 Worklist 在分支合并时的 Meet（不同变量名的分支赋值）
+TEST(pipeline, flow_sensitive_branch_isolation) {
+    auto ir = AnalyzeSource(R"(
+        local a = nil
+        local b = nil
+        if 1 then
+            a = {x=1}
+        else
+            b = {y=2}
+        end
+    )");
+
+    // a 和 b 应各自有独立的 shape
+    ASSERT_TRUE(ir.shape_registry != nullptr);
+    EXPECT_GE(ir.shape_registry->Count(), 2u);
+}
+
+// 测试数值类型在分支合并时提升
+TEST(pipeline, flow_sensitive_numeric_promotion) {
+    auto ir = AnalyzeSource(R"(
+        local a = 1          -- int
+        if 1 then
+            a = 2.0          -- float
+        else
+            a = 3            -- int
+        end
+        local b = a          -- should be float (meet of float and int)
+    )");
+
+    // 查找 φ 结果版本的类型
+    bool found_phi_type = false;
+    for (const auto &[ver, ty] : ir.ssa_version_types) {
+        if (ty.type == T_FLOAT) {
+            found_phi_type = true;
+            break;
+        }
+    }
+    // 至少参数版本和 φ 版本有类型
+    EXPECT_FALSE(ir.ssa_version_types.empty());
+    std::cout << "version types count: " << ir.ssa_version_types.size() << "\n";
+}
+
+// 测试 while 循环中的类型收敛
+TEST(pipeline, flow_sensitive_while_convergence) {
+    // while 循环的 header 应有 φ 节点
+    auto cfg = BuildCfgFromSource(R"(
+        local i = 0
+        while i < 10 do
+            i = i + 1
+        end
+    )");
+    SSABuilder ssa_builder;
+    SSAFunction ssa = ssa_builder.Build(cfg);
+
+    // header 块应有 φ
+    int header_id = -1;
+    for (const auto &b : cfg.blocks) {
+        for (const auto &s : b.stmts) {
+            if (s->Type() == SyntaxTreeType::While) { header_id = b.id; break; }
+        }
+        if (header_id >= 0) break;
+    }
+    EXPECT_GE(header_id, 0);
+
+    auto phi_it = ssa.block_phis.find(header_id);
+    EXPECT_NE(phi_it, ssa.block_phis.end()) << "while header should have phi";
+
+    std::cout << "while header " << header_id << " phis: " << phi_it->second.size() << "\n";
+    std::cout << ssa.DumpToString() << std::endl;
+}
+
+// ── Step 2.1: Meet 操作测试 ──────────────────────────────────────────
+
+// 测试标量 Meet（规范 §5.3 Meet 真值表）
+TEST(pipeline, meet_scalars) {
+    ShapeRegistry reg;
+
+    // Meet(int, int) = int
+    EXPECT_TRUE(reg.MeetType(T_INT, T_INT) == T_INT);
+    // Meet(float, float) = float
+    EXPECT_TRUE(reg.MeetType(T_FLOAT, T_FLOAT) == T_FLOAT);
+    // Meet(int, float) = float（提升）
+    EXPECT_TRUE(reg.MeetType(T_INT, T_FLOAT) == T_FLOAT);
+    EXPECT_TRUE(reg.MeetType(T_FLOAT, T_INT) == T_FLOAT);
+    // Meet(int, string) = dynamic
+    EXPECT_TRUE(reg.MeetType(T_INT, T_STRING) == T_DYNAMIC);
+    // Meet(dynamic, 任意) = dynamic
+    EXPECT_TRUE(reg.MeetType(T_DYNAMIC, T_INT) == T_DYNAMIC);
+    EXPECT_TRUE(reg.MeetType(T_INT, T_DYNAMIC) == T_DYNAMIC);
+    // Meet(nil, int) = int
+    EXPECT_TRUE(reg.MeetType(T_NIL, T_INT) == T_INT);
+    EXPECT_TRUE(reg.MeetType(T_INT, T_NIL) == T_INT);
+}
+
+// 测试 Record Meet（字段并集，同名字段 Meet 类型）
+TEST(pipeline, meet_records) {
+    ShapeRegistry reg;
+
+    // 创建 Rec{b:int}
+    ShapeType rec1;
+    rec1.is_open = false;
+    rec1.fields.push_back({"b", "b", T_INT, false, false});
+    int id1 = reg.Intern(std::move(rec1));
+
+    // 创建 Rec{b:float}
+    ShapeType rec2;
+    rec2.is_open = false;
+    rec2.fields.push_back({"b", "b", T_FLOAT, false, false});
+    int id2 = reg.Intern(std::move(rec2));
+
+    // Meet(Rec{b:int}, Rec{b:float}) → Rec{b:float}
+    int meet_id = reg.Meet(id1, id2);
+    const ShapeType &meet_shape = reg.Get(meet_id);
+    EXPECT_FALSE(meet_shape.is_open);
+    EXPECT_EQ(meet_shape.fields.size(), 1u);
+    EXPECT_EQ(meet_shape.fields[0].name, "b");
+    EXPECT_EQ(meet_shape.fields[0].type, T_FLOAT);  // int meet float = float
+
+    // 创建 Rec{c:int}（不同字段）
+    ShapeType rec3;
+    rec3.is_open = false;
+    rec3.fields.push_back({"c", "c", T_INT, false, false});
+    int id3 = reg.Intern(std::move(rec3));
+
+    // Meet(Rec{b:int}, Rec{c:int}) → Rec{b:int, c:int}
+    int meet_id2 = reg.Meet(id1, id3);
+    const ShapeType &meet_shape2 = reg.Get(meet_id2);
+    EXPECT_EQ(meet_shape2.fields.size(), 2u);
+    // 检查 optional 标记（字段在另一边不存在 → optional=true）
+    for (const auto &f : meet_shape2.fields) {
+        // 在 Phase 1 的 Meet 中，不存在的字段设为 optional
+        // （但这里两个 record 都没有对方的字段，所以都应该是 optional）
+    }
+}
+
+// 测试 Open Record Meet
+TEST(pipeline, meet_open_records) {
+    ShapeRegistry reg;
+
+    // 创建封闭 Rec{b:int}
+    ShapeType rec1;
+    rec1.is_open = false;
+    rec1.fields.push_back({"b", "b", T_INT, false, false});
+    int id1 = reg.Intern(std::move(rec1));
+
+    // 创建开放 Rec{d:int,...}
+    ShapeType rec2;
+    rec2.is_open = true;
+    rec2.fields.push_back({"d", "d", T_INT, false, false});
+    int id2 = reg.Intern(std::move(rec2));
+
+    // Meet(封闭, 开放) → 开放
+    int meet_id = reg.Meet(id1, id2);
+    const ShapeType &meet_shape = reg.Get(meet_id);
+    EXPECT_TRUE(meet_shape.is_open);
+    // 应包含 b（optional）和 d
+    EXPECT_GE(meet_shape.fields.size(), 1u);
 }

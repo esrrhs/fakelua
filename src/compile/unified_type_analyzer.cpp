@@ -34,6 +34,30 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
     // 跑流敏感工作表，返回每个块的 out_env
     std::unordered_map<int, VarEnv> block_outs = RunWorklist(cfg, ssa, ir);
 
+    // ── φ 节点类型推导 ──────────────────────────────────────────────────
+    // 对每个有 φ 块的变量，从各前驱块的 out_env 取类型，Meet 得到 φ 结果类型
+    for (auto &kv : ssa.block_phis) {
+        int bid = kv.first;
+        auto &phis = kv.second;
+        auto *blk = cfg.FindBlock(bid);
+        if (!blk) continue;
+        for (auto &phi : phis) {
+            SSATypeInfo merged{T_UNKNOWN, -1};
+            bool first = true;
+            for (int pred_id : blk->pred_ids) {
+                auto pred_env_it = block_outs.find(pred_id);
+                if (pred_env_it == block_outs.end()) continue;
+                auto var_it = pred_env_it->second.find(phi.var_name);
+                if (var_it == pred_env_it->second.end()) continue;
+                if (first) { merged = var_it->second; first = false; }
+                else merged = Meet(merged, var_it->second, registry_);
+            }
+            if (first) merged = {T_DYNAMIC, -1};  // 无前驱有该变量
+            version_types[phi.result_version] = merged;
+            ssa.version_types[phi.result_version] = merged;
+        }
+    }
+
     // 合并 version_types → ir.ssa_version_types
     for (const auto &[ver, ty] : version_types) {
         ir.ssa_version_types[ver] = ty;
@@ -82,7 +106,7 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
             for (const auto &[v, t] : env) {
                 auto it = merged.find(v);
                 if (it == merged.end()) merged[v] = t;
-                else it->second = Meet(it->second, t);
+                else it->second = Meet(it->second, t, registry_);
             }
         }
         WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
@@ -570,11 +594,20 @@ int UnifiedTypeAnalyzer::BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc,
     return registry_->Intern(std::move(shape));
 }
 
-SSATypeInfo UnifiedTypeAnalyzer::Meet(const SSATypeInfo &a, const SSATypeInfo &b) {
+SSATypeInfo UnifiedTypeAnalyzer::Meet(const SSATypeInfo &a, const SSATypeInfo &b, ShapeRegistry *reg) {
     if (a == b) return a;
     SSATypeInfo r;
     r.type = ShapeRegistry::MeetType(a.type, b.type);
-    r.shape_id = (a.shape_id == b.shape_id) ? a.shape_id : -1;
+    if (a.shape_id >= 0 && b.shape_id >= 0 && reg) {
+        // 两个都是 record shape → 调用 registry 的 Meet 合并字段
+        r.shape_id = reg->Meet(a.shape_id, b.shape_id);
+    } else if (a.shape_id >= 0) {
+        r.shape_id = a.shape_id;
+    } else if (b.shape_id >= 0) {
+        r.shape_id = b.shape_id;
+    } else {
+        r.shape_id = -1;
+    }
     return r;
 }
 
@@ -587,7 +620,7 @@ void UnifiedTypeAnalyzer::ComputeVarFinalShapes(const SSAFunction &ssa, InferRes
         for (int ver : versions) {
             auto it = ir.ssa_version_types.find(ver);
             if (it != ir.ssa_version_types.end()) {
-                merged = Meet(merged, it->second);
+                merged = Meet(merged, it->second, registry_);
             }
         }
         if (IsRecordInferredType(merged.type) && merged.shape_id >= 0) {
@@ -767,7 +800,7 @@ void UnifiedTypeAnalyzer::BuildSummary(const std::string &func_name,
             auto it = ir.main_ssa_types.find(el_ptr->Exps()[0].get());
             if (it != ir.main_ssa_types.end()) {
                 if (merged_ret.type == T_UNKNOWN) merged_ret = it->second;
-                else merged_ret = Meet(merged_ret, it->second);
+                else merged_ret = Meet(merged_ret, it->second, registry_);
             }
         });
     }

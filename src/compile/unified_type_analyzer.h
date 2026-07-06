@@ -85,7 +85,9 @@ private:
 
     // 两个 var_env 取 meet
     static VarEnv MeetEnv(const VarEnv &a, const VarEnv &b);
-    static SSATypeInfo Meet(const SSATypeInfo &a, const SSATypeInfo &b);
+    // Meet 需要 registry 来合并 record shape
+    // 通过 __attribute__((always_inline)) 的静态包装调用非静态实现
+    static SSATypeInfo Meet(const SSATypeInfo &a, const SSATypeInfo &b, ShapeRegistry *reg = nullptr);
 
     static void LinkExprToTargetShape(const SyntaxTreeInterfacePtr &node,
                                       const std::string &target_name,

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "compile/cfg.h"
+#include "compile/compile_common.h"
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -35,6 +36,8 @@ struct SSAFunction {
     std::unordered_map<int, int> version_to_block;
     // 版本号 → 变量名
     std::unordered_map<int, std::string> version_to_name;
+    // 版本号 → 类型信息（φ 类型推导后填充）
+    std::unordered_map<int, SSATypeInfo> version_types;
 
     int next_version = 0;
 
