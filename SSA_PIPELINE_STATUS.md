@@ -190,14 +190,18 @@ for filter in 'algo.gcd:algo.factorize:algo.sieve:algo.binary_search:algo.fibona
 done
 ```
 
-当前 partial 基线:
-- algo (partial): 7/10 (bubble_sort/insertion_sort/matrix runtime crash)
+当前准确基线 (2026-07-06):
 - common: 13/13
 - syntax_tree: 34/34
 - state: 16/16
 - util: 18/18
 - var: 117/117
-- infer.test_*: 331/663 (整体 infer 331 OK, 但大量 for-loop 特化和 runtime crash)
+- infer.*: 327 OK / 65 FAIL (活跃总数 392)
+  - test_infer_*: ~190 OK / ~40 FAIL
+  - test_spec_*: ~60 OK / ~30 FAIL
+  - test_native_*: ~15 OK / ~5 FAIL
+  - 其他 (test_binop_*, test_math_*, test_table_*, test_const_* etc): 大部分通过
+- algo: 7/10 (bubble_sort/insertion_sort/matrix runtime crash — 需要表特化)
 
 ### P1: 收敛剩余 ~70 个 infer 失败
 主要集中在两类：
