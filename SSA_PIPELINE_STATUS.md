@@ -3,8 +3,8 @@
 > **最后更新**: 2026-07-06（Step 15：CFG 分支折叠 + 流敏感 VarEnv Worklist + FindSpecializableParams 修复）
 > **设计规范**: `/root/lua-dialect-type-inference-spec.md`
 > **当前分支**: `ssa-pipeline-v2`
-> **当前测试**: 构建通过，common(13) / syntax_tree(34) / state(16) / var(117) / util(18) / runtime(18) / ini(1) / vm_cvar_call(3) 全部通过；
->   exception 99%（仅剩 1 个非 SSA 相关的 flakey test）；algo 7/3；infer 范围内已知失败持续
+> **当前测试**: 构建通过，common(13) / syntax_tree(34) / state(16) / var(117) / util(18) / runtime(18) / ini(1) / vm_cvar_call(3) / exception(66) 全部通过；algo 7/3；
+>   infer 55/14 (test_infer_*), native 12/2, spec 53/32
 >
 > | Suite | Pass/Fail | 备注 |
 > |-------|-----------|------|
@@ -16,11 +16,11 @@
 > | runtime | 18/0 | ✅ |
 > | ini | 1/0 | ✅ |
 > | vm_cvar_call | 3/0 | ✅ |
-> | exception | ~68/1 | ✅ (1个 crash 未调查) |
+> | exception | 66/0 | ✅ |
 > | algo | 7/3 | bubble_sort/insertion_sort/matrix 需表特化 |
-> | **infer.test_infer_*** | **~175/~40** | 主要工作区域 |
-> | **infer.test_spec_*** | **~40/~30** | 特化路径 |
-> | **infer.test_native_*** | **12/2** | native bool 路径 |
+> | **infer.test_infer_*** | **55/14** | 主要工作区域（26 修复） |
+> | **infer.test_native_*** | **12/2** | 原生 bool/repeat |
+> | **infer.test_spec_*** | **53/32** | 特化路径 |
 
 ---
 
@@ -170,7 +170,7 @@ PopulateMainEvalTypesFromSSA 把该 T_DYNAMIC 直接写入 main_eval_types，使
 - infer.test_infer_typed_int_minus/star（Step 5b 遗留）
 - 等共 24 个 Δ 修复（具体清单见 test/ 目录）
 
-### Step 15 — CFG 分支折叠 + 流敏感 VarEnv Worklist + 修复特化发现（本轮，未提交）
+### Step 15 — CFG 分支折叠 + 流敏感 VarEnv Worklist + 修复特化发现（commit `6feb979`）
 
 #### 问题
 - CFGBuilder::BuildStmt 单块 dump → 无法 meet 分支合并。
@@ -192,6 +192,18 @@ PopulateMainEvalTypesFromSSA 把该 T_DYNAMIC 直接写入 main_eval_types，使
 
 ---
 
+### Step 16 — Collect_vars PrefixExp 深度修复（本轮）
+
+#### 问题
+Step 15 在 `FindSpecializableParams` 中新增 PrefixExp 递归分支时，误把顶层 PrefixExp（如 `return a` 中的 `a`）也当成了可特化参数，导致所有 Binop 函数被错误特化 → `exception.return_type_error_*` 全部 12 个失败。
+
+#### 修复
+- `collect_vars` 在 `Exp(kPrefixExp)` 分支 → recurse `e->Right()` 时保留原 `depth`（而非 `depth+1`），
+  与 PrefixExp 包裹节点语义一致：只是解包，不进入 Binop 语境。
+- 包含 `Exception 66/0` 全绿复绿 + `Infer.test_infer_*` ~26 个回归修复。
+
+---
+
 ## 当前实现与规范的差距
 
 | 规范章节 | 要求 | 当前状态 |
@@ -199,7 +211,7 @@ PopulateMainEvalTypesFromSSA 把该 T_DYNAMIC 直接写入 main_eval_types，使
 | §3 SSA 构造 | Cytron 算法 + φ 节点 + 变量重命名 | ❌ 骨架（未实现） |
 | §4 HM 类型推导 | 类型变量 + 合一 + occurs_check | ❌ 未实现 |
 | §5 Shape 抽象解释 | 转移函数（field read/write） | ⚠️ 仅构造 |
-| §6 Worklist 算法 | 流敏感不动点迭代 | ⚠️ per-block VarEnv + RPO + meet（Step 15）；需补 loop widening |
+| §6 Worklist 算法 | 流敏感不动点迭代 | ⚠️ per-block VarEnv + RPO + meet（Step 15 + 16）；需补 loop widening |
 | §7 函数摘要 | FuncSummary + 调用点实例化 | ❌ 未实现 |
 | §8 逃逸分析 | EscapeTransfer | ❌ 未实现 |
 | §9 偏移分配 | StructLayout 计算 | ❌ 未实现 |

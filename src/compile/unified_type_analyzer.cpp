@@ -771,7 +771,10 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
                 } else if (e->GetExpKind() == ExpKind::kUnop) {
                     if (e->Right()) collect_vars(e->Right(), depth + 1);
                 } else if (e->GetExpKind() == ExpKind::kPrefixExp) {
-                    if (e->Right()) collect_vars(e->Right(), depth + 1);
+                    // PrefixExp 只是"包装"节点：depth 应保持不变。只有当来自 Binop
+                    // 内部时 depth>0，才能把 Var 标记为可特化参数；顶层 PrefixExp
+                    // (如 return a) 不应特化。
+                    if (e->Right()) collect_vars(e->Right(), depth);
                 }
                 break;
             }
