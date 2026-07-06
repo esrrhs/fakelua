@@ -59,28 +59,60 @@ public:
                                   const InferResult &ir) const;
 
 private:
+    // ── 数据结构 ────────────────────────────────────────────────────────
+    // 类型环境：变量名 → 类型信息。不用 SSA 版本号而用变量名，
+    // 是因为 SSABuilder 仍是骨架（不生成 use/versions），
+    // 但按变量名 meet + 转移仍可做流敏感分析。
+    using VarEnv = std::unordered_map<std::string, SSATypeInfo>;
     using TypeEnv = std::unordered_map<int, SSATypeInfo>;
     using VarNameToVersion = std::unordered_map<std::string, int>;
 
-    void RunWorklist(const SSAFunction &ssa,
-                     const ParamAssumption &param_assumptions,
-                     TypeEnv &version_types,
-                     const InferResult &ir);
+    // ── 工作表主循环（§6）──────────────────────────────────────────────
+    // 函数返回每个块最终的 out_env。
+    std::unordered_map<int, VarEnv> RunWorklist(
+        const CFGFunction &cfg,
+        const SSAFunction &ssa,
+        const ParamAssumption &param_assumptions,
+        const InferResult &ir);
 
+    // 记录 env 变更的回调（未用，保留占位）
+    std::function<void(const std::string &, const SSATypeInfo &)> env_callback;
+
+    // ── 构建辅助 ────────────────────────────────────────────────────────
     VarNameToVersion BuildVarNameVersionMap(const SSAFunction &ssa);
 
+    // ── 递归推导带 local_env ─────────────────────────────────────────────
+    // local_env: 当前环境的 var_name → SSATypeInfo 覆盖
     SSATypeInfo InferExprType(const SyntaxTreeInterfacePtr &expr,
                               const SSAFunction &ssa,
                               const TypeEnv &version_types,
                               const InferResult &ir,
-                              const VarNameToVersion &name_ver);
+                              const VarNameToVersion &name_ver,
+                              const VarEnv *local_env = nullptr);
 
     int BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc,
                            const SSAFunction &ssa,
                            const TypeEnv &version_types,
-                           const InferResult &ir);
+                           const InferResult &ir,
+                           const VarEnv *local_env = nullptr);
 
-    SSATypeInfo Meet(const SSATypeInfo &a, const SSATypeInfo &b);
+    // 对单个语句做 env 转移（不写 main_ssa_types；供 worklist 固定点迭代用）
+    VarEnv TransferStmt(const SyntaxTreeInterfacePtr &stmt,
+                        const VarEnv &env,
+                        const SSAFunction &ssa,
+                        const TypeEnv &version_types);
+
+    // 从 env 出发，填充 stmts 列表中所有子表达式节点的 main_ssa_types
+    void PopulateNodeTypesFromStmts(const std::vector<SyntaxTreeInterfacePtr> &stmts,
+                                    const VarEnv &env,
+                                    const SSAFunction &ssa,
+                                    const TypeEnv &version_types,
+                                    InferResult &ir);
+
+    // 两个 var_env 取 meet
+    static VarEnv MeetEnv(const VarEnv &a, const VarEnv &b);
+
+    static SSATypeInfo Meet(const SSATypeInfo &a, const SSATypeInfo &b);
 
     static void LinkExprToTargetShape(const SyntaxTreeInterfacePtr &node,
                                       const std::string &target_name,

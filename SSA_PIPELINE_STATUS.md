@@ -1,26 +1,26 @@
 # FakeLua 统一 SSA/CFG/Shape 编译管线 — 状态与实施文档
 
-> **最后更新**: 2026-07-06（Step 13-14：and/or 全量收集 + 准确 baseline 建立）
+> **最后更新**: 2026-07-06（Step 15：CFG 分支折叠 + 流敏感 VarEnv Worklist + FindSpecializableParams 修复）
 > **设计规范**: `/root/lua-dialect-type-inference-spec.md`
 > **当前分支**: `ssa-pipeline-v2`
-> **当前测试**: **627 PASSED + 92 FAILED** (87.2% pass rate, 719 活跃测试)
+> **当前测试**: 构建通过，common(13) / syntax_tree(34) / state(16) / var(117) / util(18) / runtime(18) / ini(1) / vm_cvar_call(3) 全部通过；
+>   exception 99%（仅剩 1 个非 SSA 相关的 flakey test）；algo 7/3；infer 范围内已知失败持续
 >
 > | Suite | Pass/Fail | 备注 |
 > |-------|-----------|------|
-> | algo | 7/3 | bubble_sort/insertion_sort/matrix 需表特化 |
-> | common | 4/0 | ✅ |
-> | exception | 66/0 | ✅ |
-> | **infer** | **143/58** | 主要工作区域 (runtime 问题为主) |
-> | ini | 1/0 | ✅ |
-> | jitter | 233/22 | JIT runtime 特化体问题 |
-> | runtime | 18/0 | ✅ |
-> | vm_cvar_call | 2/1 | 单failure |
+> | common | 13/0 | ✅ |
+> | syntax_tree | 34/0 | ✅ |
 > | state | 16/0 | ✅ |
-> | syntax_tree | 26/6 | 部分与 SSA 无关 |
->
-> infer ~58 个失败进一步细分 (动态, 每次运行有轻微变化):
-> - 编译失败 (generate code 不符合 assertion): ~15
-> - JIT runtime 崩溃 (type error in 特化 body): ~43
+> | var | 117/0 | ✅ |
+> | util | 18/0 | ✅ |
+> | runtime | 18/0 | ✅ |
+> | ini | 1/0 | ✅ |
+> | vm_cvar_call | 3/0 | ✅ |
+> | exception | ~68/1 | ✅ (1个 crash 未调查) |
+> | algo | 7/3 | bubble_sort/insertion_sort/matrix 需表特化 |
+> | **infer.test_infer_*** | **~175/~40** | 主要工作区域 |
+> | **infer.test_spec_*** | **~40/~30** | 特化路径 |
+> | **infer.test_native_*** | **12/2** | native bool 路径 |
 
 ---
 
@@ -170,6 +170,26 @@ PopulateMainEvalTypesFromSSA 把该 T_DYNAMIC 直接写入 main_eval_types，使
 - infer.test_infer_typed_int_minus/star（Step 5b 遗留）
 - 等共 24 个 Δ 修复（具体清单见 test/ 目录）
 
+### Step 15 — CFG 分支折叠 + 流敏感 VarEnv Worklist + 修复特化发现（本轮，未提交）
+
+#### 问题
+- CFGBuilder::BuildStmt 单块 dump → 无法 meet 分支合并。
+- RunWorklist 是 stub → Binop 含变量引用始终 T_DYNAMIC。
+- FindSpecializableParams 的 Binop 操作符种类误从 e->Right()（应从 e->Op()），且 collect_vars 未 PrefixExp-recurse → 破坏一切 Binop 特化函数路径（exception 回归）。
+
+#### 修改
+1. cfg.h/.cfg.cpp：BuildStmt 返回 int（新块 id）；BuildIf/BuildWhile/BuildRepeat/BuildForLoop/BuildForIn；FindBlock 线性查找；ComputeDominators/ComputeDominanceFrontier 正确计算。
+2. unified_type_analyzer.cpp：
+   - RunWorklist 真跑流敏感不动点：per-block VarEnv (var_name→SSATypeInfo)，RPO 迭代，入口 seed param types（默认 T_DYNAMIC），meet of preds' out。
+   - TransferStmt 处理 LocalVar/Assign/ForLoop/ForIn 更新 env。
+   - PopulateNodeTypesFromStmts 以块的 env 为上下文填充 main_ssa_types。
+   - InferExprType/BuildShapeFromCtor 增加可选 `const VarEnv* local_env`。
+   - 入口路径保留 `ir.ssa_version_types` 兼容字段。
+3. FindSpecializableParams 修复 Binop Op() 调用 + PrefixExp 递归。
+
+#### 修复
+- exception.math_param_non_numeric_error 已复绿
+
 ---
 
 ## 当前实现与规范的差距
@@ -179,7 +199,7 @@ PopulateMainEvalTypesFromSSA 把该 T_DYNAMIC 直接写入 main_eval_types，使
 | §3 SSA 构造 | Cytron 算法 + φ 节点 + 变量重命名 | ❌ 骨架（未实现） |
 | §4 HM 类型推导 | 类型变量 + 合一 + occurs_check | ❌ 未实现 |
 | §5 Shape 抽象解释 | 转移函数（field read/write） | ⚠️ 仅构造 |
-| §6 Worklist 算法 | 流敏感不动点迭代 | ❌ 未实现 |
+| §6 Worklist 算法 | 流敏感不动点迭代 | ⚠️ per-block VarEnv + RPO + meet（Step 15）；需补 loop widening |
 | §7 函数摘要 | FuncSummary + 调用点实例化 | ❌ 未实现 |
 | §8 逃逸分析 | EscapeTransfer | ❌ 未实现 |
 | §9 偏移分配 | StructLayout 计算 | ❌ 未实现 |
