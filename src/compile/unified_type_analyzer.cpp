@@ -415,6 +415,7 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
 
     // 收集表达式中直接出现的简单变量名（不进入 Call/Index 内部）
     std::unordered_set<std::string> expr_vars;
+    bool include_cmp = false;  // pass 2: 也收集比较/and-or 中的参数
     std::function<void(const SyntaxTreeInterfacePtr&, int)> collect_vars;
     collect_vars = [&](const SyntaxTreeInterfacePtr &node, int depth) {
         if (!node) return;
@@ -464,6 +465,10 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
             auto *bop = e->Op() ? static_cast<SyntaxTreeBinop *>(e->Op().get()) : nullptr;
             if (bop) {
                 auto opk = bop->GetOpKind();
+                // 算术 / 位运算触发数学特化。比较操作符（<, >, ==, != 等）在单独
+                // 出现时不触发特化（因为 string 等类型也可比较）。但它们会被标记
+                // 为"在比较中引用参数"，当函数中存在任何算术触发的 math param 时，
+                // 同 block 中的比较参数也会被收集（见下方 depth==0 后的第二次 pass）。
                 bool is_arith = (opk == BinOpKind::kPlus || opk == BinOpKind::kMinus ||
                                 opk == BinOpKind::kStar || opk == BinOpKind::kSlash ||
                                 opk == BinOpKind::kDoubleSlash || opk == BinOpKind::kPow ||
@@ -483,7 +488,8 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
                     if (e->Right()) collect_vars(e->Right(), depth + 1);
                 }
                 // depth>0 意味着我们从三元模式递归进来，比较/逻辑操作符的操作数也要收集。
-                if (depth > 0 && depth < 4) {
+                // include_cmp (pass 2) 也收集比较 / and-or 顶层操作的参数。
+                if ((depth > 0 || include_cmp) && depth < 4) {
                     if (e->Left()) collect_vars(e->Left(), depth + 1);
                     if (e->Right()) collect_vars(e->Right(), depth + 1);
                     return;
@@ -622,10 +628,16 @@ UnifiedTypeAnalyzer::FindSpecializableParams(const SyntaxTreeInterfacePtr &func_
                 break;
         }
     };
+    // Pass 1: 收集出现在算术 / 位运算中的参数
+    include_cmp = false;
     visit_all(func_block);
 
-    // 去重：expr_vars 中的名字可能因为 visit_all 多次访问同一 Exp 而被重复插入
-    // （set 已经去重，但后续的 Sort+Unique by param_index 也处理一次）
+    // Pass 2: 如果函数有 math params，也收集和 / 或 / 比较中的参数（因为函数已进入
+    // 特化路径，比较操作数类型被固定为 numeric，特化可以避免 runtime 检查）
+    if (!expr_vars.empty()) {
+        include_cmp = true;
+        visit_all(func_block);
+    }
 
     // 映射 expr_vars → SpecParam（含 param_index，按 param_index 排序并去重）
     for (const auto &name : expr_vars) {
