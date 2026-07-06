@@ -18,7 +18,7 @@
 > | state | 16/0 | ✅ |
 > | syntax_tree | 26/6 | 部分与 SSA 无关 |
 >
-> infer 58 个失败进一步细分:
+> infer ~58 个失败进一步细分 (动态, 每次运行有轻微变化):
 > - 编译失败 (generate code 不符合 assertion): ~15
 > - JIT runtime 崩溃 (type error in 特化 body): ~43
 
