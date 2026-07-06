@@ -428,14 +428,11 @@ void TypeInferencer::RunSSAAnalysis(const ParseResult &pr, InferResult &ir) {
 
     const auto function_infos = CollectFunctionSpecInfos(pr);
 
-    // 第一轮：分析所有函数，建立函数摘要。
-    // 按顺序分析，后续函数可引用前面函数的摘要（跨函数调用推导）。
-    // 递归函数通过 being_built 标记打破循环。
+    // 第一轮：分析所有函数，建立函数摘要和初始 specializable params
     for (const auto &func_info : function_infos) {
         CFGFunction cfg = cfg_builder.Build(func_info.block, func_info.params, func_info.name, /*is_vararg=*/false);
         SSAFunction ssa = ssa_builder.Build(cfg);
 
-        // 标记"构建中"以处理递归调用
         ir.func_summaries[func_info.name].being_built = true;
         ir.func_summaries[func_info.name].func_name = func_info.name;
 
@@ -447,9 +444,59 @@ void TypeInferencer::RunSSAAnalysis(const ParseResult &pr, InferResult &ir) {
             ir.specializable_params[func_info.name] = std::move(spec_params);
         }
 
-        // 构建函数摘要供后续跨函数推导使用
         uta.BuildSummary(func_info.name, func_info.block, ssa, ir.ssa_version_types, ir);
         ir.func_summaries[func_info.name].being_built = false;
+    }
+
+    // 第二轮：跨函数参数传递检测（迭代直到不动点）
+    // 如果 caller 在位置 k 传给 callee 一个参数引用，且 callee 的第 k 个参数是数学参数，
+    // 则 caller 的对应参数也是数学参数。
+    {
+        bool changed = true;
+        int round = 0;
+        while (changed) {
+            changed = false;
+            round++;
+            for (const auto &func_info : function_infos) {
+                // 扫描函数体内的所有调用点
+                std::vector<std::pair<int, std::string>> call_sites; // (arg_index, callee_name)
+                FindCallSites(func_info.block, call_sites);
+                for (const auto &[arg_idx, callee_name] : call_sites) {
+                    if (arg_idx >= (int)func_info.params.size()) continue;
+                    const std::string &caller_param = func_info.params[arg_idx];
+                    // 检查 callee 的对应参数是否是数学参数
+                    auto callee_it = ir.specializable_params.find(callee_name);
+                    if (callee_it == ir.specializable_params.end()) continue;
+                    bool callee_is_math = false;
+                    for (const auto &sp : callee_it->second) {
+                        if (sp.param_index == arg_idx && sp.is_math) { callee_is_math = true; break; }
+                    }
+                    if (!callee_is_math) continue;
+                    // 标记 caller 的参数
+                    auto &caller_sps = ir.specializable_params[func_info.name];
+                    bool already = false;
+                    for (const auto &sp : caller_sps) {
+                        if (sp.param_index == arg_idx) { already = true; break; }
+                    }
+                    if (!already) {
+                        caller_sps.push_back({arg_idx, true, false});
+                        changed = true;
+                    }
+                }
+            }
+        }
+    }
+
+    // 第三轮：对所有 specializable 函数重新跑 Analyze 生成正确快照
+    {
+        for (const auto &func_info : function_infos) {
+            auto it = ir.specializable_params.find(func_info.name);
+            if (it == ir.specializable_params.end() || it->second.empty()) continue;
+            CFGFunction cfg = cfg_builder.Build(func_info.block, func_info.params, func_info.name, /*is_vararg=*/false);
+            SSAFunction ssa = ssa_builder.Build(cfg);
+            // 重新推导（特化快照会在 RunSSASpecialization 里重新生成）
+            uta.BuildSummary(func_info.name, func_info.block, ssa, ir.ssa_version_types, ir);
+        }
     }
 
     // 顶层 chunk
@@ -519,7 +566,7 @@ void TypeInferencer::RunSSASpecialization(const ParseResult &pr, InferResult &ir
         auto &snaps = ir.spec_ssa_snapshots[func_info.name];
         for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
             if ((size_t)bitmask >= snaps.size()) break;
-            InferredType merged_ret = inferReturnTypeFromSnaps(func_info.block, snaps[(size_t)bitmask]);
+            InferredType merged_ret = inferReturnTypeFromSnaps(func_info.block, snaps[(size_t)bitmask], &ir);
             if (!IsNumericInferredType(merged_ret)) {
                 // 回退：直接用 param_assumptions 推导
                 merged_ret = inferRetTypeFromAssumptions(func_info.block, func_info.params,
@@ -726,7 +773,8 @@ InferredType TypeInferencer::inferRetTypeFromAssumptions(
 // 通过把参数类型代入 return 表达式 AST 来直接计算。
 InferredType TypeInferencer::inferReturnTypeFromSnaps(
     const SyntaxTreeInterfacePtr &func_block,
-    const std::unordered_map<const SyntaxTreeInterface*, SSATypeInfo> &snap) {
+    const std::unordered_map<const SyntaxTreeInterface*, SSATypeInfo> &snap,
+    const InferResult *ir) {
 
     // 先尝试从快照推导
     InferredType result = T_UNKNOWN;
@@ -738,9 +786,44 @@ InferredType TypeInferencer::inferReturnTypeFromSnaps(
             if (ret_node && ret_node->Explist()) {
                 auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(ret_node->Explist());
                 if (el && !el->Exps().empty()) {
-                    auto it = snap.find(el->Exps()[0].get());
-                    if (it != snap.end()) {
-                        InferredType t = it->second.type;
+                    InferredType t = T_UNKNOWN;
+                    // 对于 FunctionCall 返回表达式，优先从 func_summaries 获取精确类型
+                    // 需要解包 Exp(kPrefixExp) 和 PrefixExp 包装找到 FunctionCall
+                    if (ir) {
+                        auto *inner = el->Exps()[0].get();
+                        while (inner && inner->Type() == SyntaxTreeType::Exp) {
+                            auto *ep = static_cast<SyntaxTreeExp *>(inner);
+                            inner = ep->Right() ? ep->Right().get() : nullptr;
+                        }
+                        while (inner && inner->Type() == SyntaxTreeType::PrefixExp) {
+                            auto *pe = static_cast<SyntaxTreePrefixexp *>(inner);
+                            inner = pe->GetValue() ? pe->GetValue().get() : nullptr;
+                        }
+                        if (inner && inner->Type() == SyntaxTreeType::FunctionCall) {
+                            auto *fc = static_cast<SyntaxTreeFunctioncall *>(inner);
+                            std::string callee;
+                            if (fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::Var) {
+                                callee = static_cast<SyntaxTreeVar *>(fc->prefixexp().get())->GetName();
+                            } else if (fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
+                                auto *pe = static_cast<SyntaxTreePrefixexp *>(fc->prefixexp().get());
+                                if (pe->GetValue() && pe->GetValue()->Type() == SyntaxTreeType::Var)
+                                    callee = static_cast<SyntaxTreeVar *>(pe->GetValue().get())->GetName();
+                            }
+                            if (!callee.empty()) {
+                                auto sit = ir->func_summaries.find(callee);
+                                if (sit != ir->func_summaries.end() && sit->second.ret_type.type != T_UNKNOWN && sit->second.ret_type.type != T_DYNAMIC) {
+                                    t = sit->second.ret_type.type;
+                                }
+                            }
+                        }
+                    }
+                    if (t == T_UNKNOWN) {
+                        auto it = snap.find(el->Exps()[0].get());
+                        if (it != snap.end()) {
+                            t = it->second.type;
+                        }
+                    }
+                    if (t != T_UNKNOWN) {
                         if (result == T_UNKNOWN) result = t;
                         else if (IsNumericInferredType(result) && IsNumericInferredType(t)) {
                             result = (result == T_FLOAT || t == T_FLOAT) ? T_FLOAT : result;
@@ -834,6 +917,60 @@ void TypeInferencer::CollectGlobalConstVars(const ParseResult &pr, const EvalTyp
             ir.global_const_vars[names[i]] = type;
         }
     }
+}
+
+// 扫描函数体内所有调用点，找出"实参是简单参数引用"的调用
+// 返回 (caller_arg_position, callee_name)
+void TypeInferencer::FindCallSites(const SyntaxTreeInterfacePtr &func_block,
+                                    std::vector<std::pair<int, std::string>> &out) {
+    if (!func_block) return;
+    WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+        if (!node || node->Type() != SyntaxTreeType::FunctionCall) return;
+        auto *fc = static_cast<SyntaxTreeFunctioncall *>(node.get());
+        // 只处理直接调用（funcname 是简单 Var 或 PrefixExp(Var)，非 method call）
+        if (!fc->prefixexp()) return;
+        std::string callee;
+        if (fc->prefixexp()->Type() == SyntaxTreeType::Var) {
+            callee = static_cast<SyntaxTreeVar *>(fc->prefixexp().get())->GetName();
+        } else if (fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
+            auto *pe = static_cast<SyntaxTreePrefixexp *>(fc->prefixexp().get());
+            if (pe->GetValue() && pe->GetValue()->Type() == SyntaxTreeType::Var) {
+                callee = static_cast<SyntaxTreeVar *>(pe->GetValue().get())->GetName();
+            } else return;
+        } else return;
+        if (callee.empty()) return;
+        // 获取参数列表
+        if (!fc->Args()) return;
+        auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+        if (!args) return;
+        if (args->GetArgsKind() != ArgsKind::kExpList) return;
+        auto el = args->Explist();
+        if (!el || el->Type() != SyntaxTreeType::ExpList) return;
+        auto elist = std::dynamic_pointer_cast<SyntaxTreeExplist>(el);
+        if (!elist) return;
+        const auto &exps = elist->Exps();
+        for (size_t i = 0; i < exps.size(); ++i) {
+            // 检查实参是否是简单的参数引用（解包 Exp/PrefixExp 包装）
+            if (!exps[i]) continue;
+            auto *inner = exps[i].get();
+            // 解包 Exp(kPrefixExp) 包装
+            while (inner && inner->Type() == SyntaxTreeType::Exp) {
+                auto *ep = static_cast<SyntaxTreeExp *>(inner);
+                inner = ep->Right() ? ep->Right().get() : nullptr;
+            }
+            // 解包 PrefixExp 包装
+            while (inner && inner->Type() == SyntaxTreeType::PrefixExp) {
+                auto *pe = static_cast<SyntaxTreePrefixexp *>(inner);
+                inner = pe->GetValue() ? pe->GetValue().get() : nullptr;
+            }
+            if (inner && inner->Type() == SyntaxTreeType::Var) {
+                auto *v = static_cast<SyntaxTreeVar *>(inner);
+                if (v->GetVarKind() == VarKind::kSimple) {
+                    out.emplace_back((int)i, callee);
+                }
+            }
+        }
+    });
 }
 
 }// namespace fakelua

@@ -38,12 +38,18 @@ private:
 
     // ── SSA 辅助 ──────────────────────────────────────────────────────
     [[nodiscard]] std::vector<FunctionSpecInfo> CollectFunctionSpecInfos(const ParseResult &pr) const;
+
+    // 扫描函数体内所有"实参为参数引用"的调用点
+    // 返回 (caller_arg_index, callee_name) 列表
+    static void FindCallSites(const SyntaxTreeInterfacePtr &func_block,
+                              std::vector<std::pair<int, std::string>> &out);
     void CollectGlobalConstVars(const ParseResult &pr, const EvalTypeSnapshot &current_map, InferResult &ir);
     void AnnotateSimpleConstants(const SyntaxTreeInterfacePtr &node, InferResult &ir);
 
     // ── 特化返回类型推导 ──────────────────────────────────────────────
     static InferredType inferReturnTypeFromSnaps(const SyntaxTreeInterfacePtr &func_block,
-                                                  const std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo> &snap);
+                                                  const std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo> &snap,
+                                                  const InferResult *ir = nullptr);
     static InferredType inferRetTypeFromAssumptions(const SyntaxTreeInterfacePtr &func_block,
                                                      const std::vector<std::string> &func_params,
                                                      const std::vector<SpecParam> &spec_params,

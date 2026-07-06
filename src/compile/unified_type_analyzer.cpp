@@ -785,6 +785,88 @@ void UnifiedTypeAnalyzer::LinkExprToTargetShape(
     }
 }
 
+// 从表达式结构推导返回类型（在 main_ssa_types 无法确定时回退）
+// 对于 `return n+1` 这类纯参数+算术表达式，返回 T_INT 作为"数值"标记
+static InferredType DeriveExprTypeForRet(const SyntaxTreeInterfacePtr &expr,
+                                          const std::vector<SSATypeInfo> &param_types,
+                                          const InferResult &ir) {
+    if (!expr) return T_UNKNOWN;
+    auto *inner = expr.get();
+    // 只解包 Exp(kPrefixExp) 和 PrefixExp 包装，不碰 Binop/Number
+    while (inner && inner->Type() == SyntaxTreeType::PrefixExp) {
+        auto *pe = static_cast<SyntaxTreePrefixexp *>(inner);
+        inner = pe->GetValue() ? pe->GetValue().get() : nullptr;
+    }
+    while (inner && inner->Type() == SyntaxTreeType::Exp &&
+           static_cast<SyntaxTreeExp *>(inner)->GetExpKind() == ExpKind::kPrefixExp) {
+        auto *ep = static_cast<SyntaxTreeExp *>(inner);
+        inner = ep->Right() ? ep->Right().get() : nullptr;
+    }
+    // 再次解包 PrefixExp（Exp(kPrefixExp) 的 Right 可能是 PrefixExp）
+    while (inner && inner->Type() == SyntaxTreeType::PrefixExp) {
+        auto *pe = static_cast<SyntaxTreePrefixexp *>(inner);
+        inner = pe->GetValue() ? pe->GetValue().get() : nullptr;
+    }
+    if (!inner) return T_UNKNOWN;
+    if (inner->Type() == SyntaxTreeType::FunctionCall) {
+        // 函数调用：查找 func_summaries 获取返回类型
+        auto *fc = static_cast<SyntaxTreeFunctioncall *>(inner);
+        std::string callee;
+        if (fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::Var) {
+            callee = static_cast<SyntaxTreeVar *>(fc->prefixexp().get())->GetName();
+        } else if (fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
+            auto *pe = static_cast<SyntaxTreePrefixexp *>(fc->prefixexp().get());
+            if (pe->GetValue() && pe->GetValue()->Type() == SyntaxTreeType::Var)
+                callee = static_cast<SyntaxTreeVar *>(pe->GetValue().get())->GetName();
+        }
+        if (!callee.empty()) {
+            auto it = ir.func_summaries.find(callee);
+            if (it != ir.func_summaries.end() && it->second.ret_type.type != T_UNKNOWN && it->second.ret_type.type != T_DYNAMIC)
+                return it->second.ret_type.type;
+        }
+        return T_UNKNOWN;
+    }
+    if (inner->Type() == SyntaxTreeType::Var) {
+        auto *v = static_cast<SyntaxTreeVar *>(inner);
+        if (v->GetVarKind() == VarKind::kSimple) return T_INT;
+        return T_UNKNOWN;
+    }
+    if (inner->Type() == SyntaxTreeType::Exp) {
+        auto *ep = static_cast<SyntaxTreeExp *>(inner);
+        if (ep->GetExpKind() == ExpKind::kNumber) {
+            const auto &val = ep->ExpValue();
+            return (val.find('.') != std::string::npos || val.find('e') != std::string::npos || val.find('E') != std::string::npos)
+                ? T_FLOAT : T_INT;
+        }
+        if (ep->GetExpKind() == ExpKind::kBinop) {
+            auto *bin = ep->Op() ? dynamic_cast<SyntaxTreeBinop*>(ep->Op().get()) : nullptr;
+            if (!bin) return T_UNKNOWN;
+            auto kind = bin->GetOpKind();
+            bool is_arith = (kind == BinOpKind::kPlus || kind == BinOpKind::kMinus ||
+                             kind == BinOpKind::kStar || kind == BinOpKind::kSlash ||
+                             kind == BinOpKind::kDoubleSlash || kind == BinOpKind::kMod ||
+                             kind == BinOpKind::kPow || kind == BinOpKind::kBitAnd ||
+                             kind == BinOpKind::kBitOr || kind == BinOpKind::kXor ||
+                             kind == BinOpKind::kLeftShift || kind == BinOpKind::kRightShift);
+            InferredType lt = DeriveExprTypeForRet(ep->Left(), param_types, ir);
+            InferredType rt = DeriveExprTypeForRet(ep->Right(), param_types, ir);
+            if (is_arith && IsNumericInferredType(lt) && IsNumericInferredType(rt))
+                return (lt == T_FLOAT || rt == T_FLOAT) ? T_FLOAT : T_INT;
+            if ((kind == BinOpKind::kAnd || kind == BinOpKind::kOr) &&
+                IsNumericInferredType(lt) && IsNumericInferredType(rt))
+                return (lt == T_FLOAT || rt == T_FLOAT) ? T_FLOAT : T_INT;
+            return T_UNKNOWN;
+        }
+        if (ep->GetExpKind() == ExpKind::kUnop) {
+            auto *unop = ep->Op() ? dynamic_cast<SyntaxTreeUnop*>(ep->Op().get()) : nullptr;
+            if (unop && (unop->GetOpKind() == UnOpKind::kMinus || unop->GetOpKind() == UnOpKind::kBitNot))
+                return DeriveExprTypeForRet(ep->Right(), param_types, ir);
+            return T_UNKNOWN;
+        }
+    }
+    return T_UNKNOWN;
+}
+
 void UnifiedTypeAnalyzer::BuildSummary(const std::string &func_name,
                                         const SyntaxTreeInterfacePtr &func_block,
                                         const SSAFunction &ssa,
@@ -814,6 +896,23 @@ void UnifiedTypeAnalyzer::BuildSummary(const std::string &func_name,
         });
     }
     if (merged_ret.type == T_UNKNOWN) merged_ret = {T_NIL, -1};
+    // 如果返回类型是 T_DYNAMIC（参数类型未知），尝试从表达式结构推导
+    // 对于 `return n+1` 这类算术表达式，返回类型与参数一致（视为 T_INT 默认）
+    if (merged_ret.type == T_DYNAMIC && func_block) {
+        WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
+            if (!node || node->Type() != SyntaxTreeType::Return) return;
+            auto *ret = static_cast<SyntaxTreeReturn *>(node.get());
+            if (!ret->Explist()) return;
+            auto el_ptr = ret->Explist()->Type() == SyntaxTreeType::ExpList
+                ? std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist())
+                : std::shared_ptr<SyntaxTreeExplist>();
+            if (!el_ptr || el_ptr->Exps().empty()) return;
+            InferredType derived = DeriveExprTypeForRet(el_ptr->Exps()[0], s.param_types, ir);
+            if (derived != T_UNKNOWN && derived != T_DYNAMIC) {
+                merged_ret = {derived, -1};
+            }
+        });
+    }
     s.ret_type = merged_ret;
 }
 
