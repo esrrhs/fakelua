@@ -178,24 +178,45 @@ PopulateMainEvalTypesFromSSA 把该 T_DYNAMIC 直接写入 main_eval_types，使
 
 ## 下次会话入口（按优先级）
 
-### P0: 修复 algo_gcd 回归（最高优先级）
-visit_all 重构后 algo_gcd（及可能 algo.factorize/binary_search）在 JIT runtime 报
-"function call cannot be specialized as numeric"。根因可能是：
-- gcd 是递归函数，其 body 内部 `return gcd(b, a % b)` 调用自身
-- visit_all 现在检测到 `a % b` 中的参数 a/b 并触发特化
-- 但特化版本的 gcd 内部递归调用仍尝试调用 dispatch 入口（CVar 签名），
-  导致参数类型不匹配触发 runtime FakeluaThrowError
-- 修复：特化函数内部的 self-call 直接指向特化版本（入口名 + bitmask 后缀），
-  而不是 dispatch 入口。
+### P0: 准确跑一遍全量测试
+- 用 category-by-category 方式（排除会 crash 的 algo.bubble_sort/insertion_sort/matrix 等）
+- 统计所有 suite 的 OK/FAIL 数
+- 登记剩余 failures 的完整列表
 
 ```bash
-# 复现
-cd build/bin && ./unit_tests --gtest_filter=algo.gcd --gtest_print_time=0
+cd build/bin
+# 分 suite 跑了避免 crash 传染
+for filter in 'algo.*' 'common.*' 'syntax_tree.*' 'state.*' 'util.*' 'var.*' 'infer.test_*'; do
+  result=$(timeout 60 ./unit_tests --gtest_filter="$filter" 2>&1 | grep -aE "OK \]|FAIL \]" | wc -l)
+  echo "$filter: $result lines"
+done
 ```
 
-### P1: 当前 baseline 验证
-- `cd build/bin && ./unit_tests --gtest_filter='-*DISABLED*' --gtest_brief=1`
-- 对比基线并登记其他用例的通过/失败
+### P1: 收敛剩余 ~70 个 infer 失败
+主要集中在两类：
+
+**(A) 跨函数特化链**: `test_spec_nested_call`, `test_spec_wrapper_var`,
+`test_spec_local_from_func_call`, `test_spec_local_chain_from_func_call`,
+`test_spec_for_dynamic_bound` 等。根因：FindSpecializableParameters 只看
+top-level Binop 中的参数引用，看不到通过 local 传递的参数。
+
+修复方向：在 PopulateLocalFlowSensitiveTypes 中跟踪"参数 → local → 算术使用"
+的依赖链条，生成"间接依赖参数"集合，然后合并到 specializable_params。
+
+**(B) for 循环 type-in-loop**: `test_infer_degrade_param`, `test_infer_for_step_int`,
+`test_spec_for_bound_param`, `test_spec_for_arith_begin` 等。
+根因：CompileStmtForLoop 判断 typed_int_for 用 main_eval_types，
+但特化版本需要 per-bitmark 类型信息。
+
+修复方向：CGen 编译特化函数体时，查询 cur_spec_snapshot 中的类型信息
+而非 main_eval_types。需要在 CompileFuncBody(bitmask) 中查询 cur_spec_snapshot
+并将结果注入到 for-loop 游标类型判断中。
+
+### P2: 完整 SSA Worklist 实现（规范 §3 + §6）
+这是根本解决方案 — 目前 PopLSFT 是 SSA worklist 的临时近似。
+- 完整 Cytron SSA 构造（dominant frontier + φ 节点）
+- per-block in/out_env + reverse-postorder 迭代
+- 完成后 PopLSFT 可删除，由 SSA 出的 out_env 直接桥接 CGen
 
 ### P1: 解决 test_infer_degrade_param（循环游标类型跨 bitmask 传播）
 前几次会话已让 bitmask=0/1 的 for 边界类型检测通过（end_t=T_INT/T_FLOAT），
