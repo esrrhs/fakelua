@@ -20,7 +20,7 @@
 > | algo | 7/3 | bubble_sort/insertion_sort/matrix 需表特化 |
 > | **infer.test_infer_*** | **55/14** | 主要工作区域（26 修复） |
 > | **infer.test_native_*** | **12/2** | 原生 bool/repeat |
-> | **infer.test_spec_*** | **56/29** | 特化路径（Step 17: +3） |
+> | **infer.test_spec_*** | **57/28** | 特化路径（Step 17-18: +4） |
 
 ---
 
