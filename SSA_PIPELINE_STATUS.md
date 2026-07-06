@@ -223,11 +223,16 @@ top-level Binop 中的参数引用，看不到通过 local 传递的参数。
 而非 main_eval_types。需要在 CompileFuncBody(bitmask) 中查询 cur_spec_snapshot
 并将结果注入到 for-loop 游标类型判断中。
 
-### P2: 完整 SSA Worklist 实现（规范 §3 + §6）
-这是根本解决方案 — 目前 PopLSFT 是 SSA worklist 的临时近似。
-- 完整 Cytron SSA 构造（dominant frontier + φ 节点）
-- per-block in/out_env + reverse-postorder 迭代
-- 完成后 PopLSFT 可删除，由 SSA 出的 out_env 直接桥接 CGen
+### P2: 实现完整 SSA + Worklist（根本解决方案，规范 §3 + §6）
+当前 PopLSFT 是 SSA worklist 的启发式近似。根本解决需要:
+- 完整 Cytron SSA 构造（dominant frontier + φ 节点 + variable renaming）
+- per-block in/out_env + reverse-postorder 迭代不动点
+- 完成后 PopLSFT 可由 SSA 出的 out_env 直接桥接 CGen
+- 同时将删除 4 个剩余 legacy 字段 (main_eval_types/global_const_vars/math_param_positions/table_spec_infos)
+
+### P3: 合并重复 commits
+最近几个 commit 有格式问题（heredoc 截断导致 commit message 不完整）。
+在这些实质性 commit 积累到一定数量后，考虑用 `git rebase -i` 合并/整理。
 
 ### P1: 解决 test_infer_degrade_param（循环游标类型跨 bitmask 传播）
 前几次会话已让 bitmask=0/1 的 for 边界类型检测通过（end_t=T_INT/T_FLOAT），
