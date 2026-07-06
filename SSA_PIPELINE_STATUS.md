@@ -4,7 +4,7 @@
 > **设计规范**: `/root/lua-dialect-type-inference-spec.md`
 > **当前分支**: `ssa-pipeline-v2`
 > **当前测试**: 构建通过，common(13) / syntax_tree(34) / state(16) / var(117) / util(18) / runtime(18) / ini(1) / vm_cvar_call(3) / exception(66) 全部通过；algo 7/3；
->   infer 64/5 (test_infer_*), native 12/2, spec 64/21
+>   infer 64/5 (test_infer_*), native 12/2, spec 64/21 (截至 P7)
 >
 > | Suite | Pass/Fail | 备注 |
 > |-------|-----------|------|
