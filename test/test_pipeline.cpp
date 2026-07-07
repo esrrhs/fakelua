@@ -222,6 +222,7 @@ static InferResult AnalyzeSource(const std::string &lua_source) {
 
     InferResult ir;
     ir.shape_registry = std::make_shared<ShapeRegistry>();
+    ir.chunk = chunk;  // 持有 AST 生命周期（main_ssa_types 中存的是原始指针）
 
     UnifiedTypeAnalyzer uta(ir.shape_registry.get());
     SSABuilder ssa_builder;
@@ -813,6 +814,7 @@ static std::string GetCCode(const std::string &lua_source) {
 
     InferResult ir;
     ir.shape_registry = std::make_shared<ShapeRegistry>();
+    ir.chunk = chunk;  // 持有 AST 生命周期
     UnifiedTypeAnalyzer uta(ir.shape_registry.get());
     SSABuilder ssa_builder;
     SSAFunction ssa = ssa_builder.Build(cfg_obj);

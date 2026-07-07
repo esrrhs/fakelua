@@ -345,6 +345,21 @@ struct InferResult {
     //   - CompareCGen 调用点实例化比较 param_types shape 与实参 shape；
     //   - 工作表迭代（worklist）函数处理函式间的 meet，用以收敛不动点。
     std::unordered_map<std::string, FuncSummary> func_summaries;
+
+    // ── 字段 9: AST 根节点（保持生命周期） ─────────────────────────────────
+    // 持有本次分析的 AST 根节点 shared_ptr。
+    //
+    // 为什么需要：main_ssa_types / node_ssa_version / ctor_target_shapes 中存储的是
+    // AST 节点的原始指针（const SyntaxTreeInterface*）。这些节点由 chunk 的
+    // shared_ptr 持有生命周期。如果 InferResult 不持有 chunk，当 analyze 函数返回时
+    // chunk 可能首先被析构，导致上述 map 中的原始指针变成悬空。
+    //
+    // 典型案例（曾导致 CI 崩溃）：测试框架先构建 InferResult 再遍历 main_ssa_types
+    // 调用 node->Type()，若 chunk 已析构则为 UB（表现为 "pure virtual method called"）。
+    //
+    // 注意：chunk 必须是 InferResult 的最后一个字段（或与上述 map 中的指针同源），
+    // 确保 map 中指针的有效性覆盖 InferResult 整个使用周期。
+    SyntaxTreeInterfacePtr chunk;
 };
 
 // JIT 侧用的函数元信息；仅记录形参数量和是否 vararg，与 SSA 推导结构无关。
