@@ -26,7 +26,7 @@ jobs:
           git clone https://github.com/TinyCC/tinycc.git
           cd tinycc
           ./configure --extra-cflags="-fPIC"
-          make -j8
+          make -j2
           sudo make install
           cd ..
           
@@ -38,7 +38,7 @@ jobs:
           cd build
           export ASAN_OPTIONS=detect_leaks=0
           cmake -DUSE_ASAN=ON ..
-          make -j8
+          make -j2
           cd bin && ./unit_tests --gtest_filter='-*DISABLED*' && cd ..
           ./bin/bench_mark
           ./bin/flua

@@ -8,6 +8,9 @@
 #include <string>
 #include <type_traits>
 
+// 前向声明编译管线结果类型（完整定义在 compile_common.h 中）
+namespace fakelua { struct CompileResult; }
+
 namespace fakelua {
 
 constexpr size_t kMaxFunctionInputParams = 32;
@@ -308,15 +311,29 @@ private:
     State *state_;
 };
 
-// 编译文件
+// ── 旧接口（返回 void，结果通过 State 全局状态访问） ──────────────────
+// 已废弃：为保证向后兼容而保留。
+// 新代码应优先使用 CompileFileTo / CompileStringTo 获取完整管线结果。
+// TODO: 在下一个大版本中移除。
+[[deprecated("Use CompileFileTo for full pipeline results")]]
 void CompileFile(State *s, const std::string &filename, const CompileConfig &cfg);
 
-// 编译字符串
+[[deprecated("Use CompileStringTo for full pipeline results")]]
 void CompileString(State *s, const std::string &str, const CompileConfig &cfg);
 
-// 获取最近一次编译时记录的 C 代码（仅在 CompileConfig::record_c_code 为 true 时有效）。
-// 返回全局变量、函数声明和函数实现部分，不含公共头部。
+// 旧接口: 获取最后一次编译的 C 代码（需要 State 保存的全局状态）。
+// 已废弃。新代码应直接访问 CompileResult::GetCCode()。
+[[deprecated("Use CompileFileTo::GetCCode() instead")]]
 std::string GetLastRecordedCCode(State *s);
+
+// ── 新接口（返回完整管线结果） ────────────────────────────────────────
+// 编译 Lua 文件 → 返回 CompileResult（C 代码 + InferResult）。
+CompileResult CompileFileTo(State *s, const std::string &filename,
+                             const CompileConfig &cfg);
+
+// 编译 Lua 字符串 → 返回 CompileResult（C 代码 + InferResult）。
+CompileResult CompileStringTo(State *s, const std::string &str,
+                               const CompileConfig &cfg);
 
 // 调用某个脚本函数（定义在文件末尾）
 template<typename Ret, typename... Args>

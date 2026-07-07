@@ -248,9 +248,10 @@ TEST(state, compile_config_record_c_code_with_live_jit) {
     cfg.disable_jit[JIT_TCC] = false;
     cfg.disable_jit[JIT_GCC] = true;// only TCC so the test is fast
 
-    ASSERT_NO_THROW(CompileString(s, "function test() return 99 end", cfg));
+    // 使用新接口 CompileStringTo 获取完整管线结果
+    CompileResult result = CompileStringTo(s, "function test() return 99 end", cfg);
 
-    const std::string code = GetLastRecordedCCode(s);
+    const std::string code = result.GetRecordedCCode();
     ASSERT_FALSE(code.empty());
     // The recorded code should contain the function name.
     ASSERT_NE(code.find("test"), std::string::npos);

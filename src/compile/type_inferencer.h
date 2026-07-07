@@ -1,15 +1,14 @@
 #pragma once
 
 #include "compile/compile_common.h"
-#include <optional>
 #include <unordered_set>
 
 namespace fakelua {
 
 class TypeInferencer {
 public:
-    // 运行全局类型推断（SSA/CFG/Shape 单轨）
-    InferResult InferTypes(const ParseResult &pr, const CompileConfig &cfg);
+    // 主入口: 返回 SSA/CFG/Shape 单轨的类型推导结果
+    [[nodiscard]] InferResult InferTypes(const ParseResult &pr, const CompileConfig &cfg);
 
 private:
     struct FunctionSpecInfo {

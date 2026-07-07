@@ -17,6 +17,8 @@ namespace fakelua {
 InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfig &cfg) {
     InferResult ir;
     ir.shape_registry = std::make_shared<ShapeRegistry>();
+    // 预绑定 AST 生命周期（后续测试通过 main_ssa_types 的 raw pointer 访问 AST）
+    ir.chunk = pr.chunk;
 
     RunSSAAnalysis(pr, ir);
 
@@ -97,16 +99,21 @@ TypeInferencer::CollectFunctionSpecInfos(const ParseResult &pr) const {
         if (name.empty() || !funcbody) continue;
 
         const auto funcbody_ptr = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
-        if (!funcbody_ptr->Parlist()) continue;
-        const auto pl = std::dynamic_pointer_cast<SyntaxTreeParlist>(funcbody_ptr->Parlist());
-        if (!pl->Namelist()) continue;
-        const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(pl->Namelist());
-        if (nl->Names().empty()) continue;
+        std::vector<std::string> params;
+        if (funcbody_ptr->Parlist()) {
+            const auto pl = std::dynamic_pointer_cast<SyntaxTreeParlist>(funcbody_ptr->Parlist());
+            if (pl && pl->Namelist()) {
+                const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(pl->Namelist());
+                if (nl) {
+                    params = nl->Names();
+                }
+            }
+        }
 
         FunctionSpecInfo info;
         info.name = name;
         info.block = funcbody_ptr->Block();
-        info.params = nl->Names();
+        info.params = params;
         infos.push_back(std::move(info));
     }
     return infos;

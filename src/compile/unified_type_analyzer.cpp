@@ -248,8 +248,11 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
                 else it->second = Meet(it->second, t, registry_);
             }
         }
-        WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
-            if (!node) return;
+        WalkSyntaxTreePruned(func_block, [&](const SyntaxTreeInterfacePtr &node) -> bool {
+            if (!node) return false;
+            if (node->Type() == SyntaxTreeType::Function || node->Type() == SyntaxTreeType::LocalFunction) {
+                return false;
+            }
             switch (node->Type()) {
                 case SyntaxTreeType::Exp:
                 case SyntaxTreeType::Var:
@@ -265,6 +268,7 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
                 default:
                     break;
             }
+            return true;
         });
     }
 
@@ -747,8 +751,11 @@ void UnifiedTypeAnalyzer::PopulateNodeTypesFromStmts(
     if (!out_map) out_map = &ir.main_ssa_types;
     for (const auto &stmt : stmts) {
         if (!stmt) continue;
-        WalkSyntaxTree(stmt, [&](const SyntaxTreeInterfacePtr &node) {
-            if (!node) return;
+        WalkSyntaxTreePruned(stmt, [&](const SyntaxTreeInterfacePtr &node) -> bool {
+            if (!node) return false;
+            if (node->Type() == SyntaxTreeType::Function || node->Type() == SyntaxTreeType::LocalFunction) {
+                return false;
+            }
             switch (node->Type()) {
                 case SyntaxTreeType::Exp:
                 case SyntaxTreeType::Var:
@@ -799,6 +806,7 @@ void UnifiedTypeAnalyzer::PopulateNodeTypesFromStmts(
                 default:
                     break;
             }
+            return true;
         });
     }
 }

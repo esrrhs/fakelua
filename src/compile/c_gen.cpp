@@ -119,7 +119,7 @@ void CGen::GenerateShapeStructs() {
         return;
     }
 
-
+    SectionGuard sg(*this, Section::Decls);
     Out() << "\n// ===== Shape struct typedefs =====\n";
 
     // 按 shape_id 顺序遍历（shapes_ 是 vector，id 即下标）。

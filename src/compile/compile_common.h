@@ -1,7 +1,7 @@
 #pragma once
 
-#include "compile/inferred_type.h"
 #include "compile/hm_type.h"
+#include "compile/inferred_type.h"
 #include "jit/vm_function.h"
 #include "syntax_tree.h"
 #include "util/debug.h"
@@ -397,6 +397,93 @@ struct GenResult {
     //   - JIT 入口（vm_function 侧）用它做参数合法性检查；
     //   - 调试器用它做函数签名展示。
     std::unordered_map<std::string, JitFunctionInfo> function_names;
+};
+
+// ─────────────────────────────────────────────────────────────────────────
+// 编译管线完整结果（CompileFile 系列接口的返回值）
+//
+// 该结构体是 Compiler::CompileFile / CompileStringTo 的返回值，持有从源码到
+// 最终 C 代码的完整管线产物。
+//
+// 设计目标：
+//   1. 把原本通过 GetLastRecordedCCode 全局状态获取的 C 代码纳入返回值，
+//       消除隐式的全局状态依赖。
+//   2. 把原本藏在各子模块（CFG / SSA / TypeInference）内部的中间结构暴露出来，
+//       让测试 / 调试 / 工具可以直接访问管线的每一步产物。
+//   3. 支持"慢路径"分析和"快路径"调用：
+//      - 调试/测试: 拿到完整 CompileResult 后读 ir / gr。
+//      - 纯执行: 仅使用 gr.c_code 调用 JIT，不要 ir。
+//
+// 线程安全：
+//   - CompileResult 不涉及全局状态，但内部持有对 AST (chunk) 的 shared_ptr，
+//     多个 CompileResult 可以并发读写各自的 chunk。
+//   - 同一个 CompileResult 不保证线程安全（与原来的 Global 一样）。
+//
+// 生命周期注意：
+//   - InferResult 内的 raw pointer (例如 main_ssa_types 的 key) 指向 AST 节点，
+//     由 result.chunk 持有生命周期。访问 raw pointer 前必须保证 result 存活。
+// ─────────────────────────────────────────────────────────────────────────
+struct CompileResult {
+    // ── 阶段 1: 解析结果 ────────────────────────────────────────────────
+    // 词法和语法解析器的直接产物：按文件/字符串区分源，附带 AST 根节点。
+    // 注意: source 字段仅在 CompileString 来源时由 Compiler::CompileStringTo
+    // 填充（文件来源时 ParseResult.file_name 已经是有效路径，不需要额外存储）。
+    ParseResult parse_result;
+
+    // ── 阶段 2: 预处理 + 语义分析结果 ──────────────────────────────────
+    // 预处理器会把 Macro / Vararg / LocalFunctionDef 等语法糖"降糖"为更简单
+    // 的 AST 结构，随后语义分析器检查：
+    //   - 常量不可重新赋值、不可在非 const 位置读写。
+    //   - 函数参数和返回值数量正确性。
+    //   - 全局变量命名不冲突。
+    // 这一阶段同时产出 AnalysisResult（函数最大返回数、调用者列表等），
+    // 给 TypeInference 和 CGen 提供元信息。
+    AnalysisResult analysis_result;
+
+    // ── 阶段 3: 类型推导（含 SSA）结果 ─────────────────────────────────
+    // TypeInferencer::InferTypes 的完整输出:
+    //   - main_ssa_types: 每个 AST 节点对应的 SSA 类型。
+    //   - ssa_version_types: 每个 SSA 版本号线性对应的 SSATypeInfo。
+    //   - var_final_shapes / ctor_target_shapes: 变量/构造点的 shape 信息。
+    //   - escape_vars / func_summaries: 逃逸分析和过程间摘要。
+    //   - shape_registry: 全局 shape 注册表。
+    //   - chunk: AST 根节点（保持生命周期，理由见上）。
+    InferResult infer_result;
+
+    // ── 阶段 4: 代码生成结果 ────────────────────────────────────────────
+    // CGen::Generate 的产物。最关键的输出 gr.c_code 是最终可用于编译的 C 源码，
+    // gr.function_names 是 JIT 侧需要的函数签名。
+    GenResult gen_result;
+
+    // ─────────────────────────────────────────────────────────────────
+    // 便捷访问器（ conveniences ）
+    // ─────────────────────────────────────────────────────────────────
+    // 便捷访问器（ conveniences ）
+    // ─────────────────────────────────────────────────────────────────
+
+    // 获取生成的 C 代码（包含公共头部）
+    [[nodiscard]] const std::string &GetCCode() const { return gen_result.c_code; }
+
+    // 获取记录的 C 代码（不含公共头部，原 recorded_c_code 字段）
+    [[nodiscard]] const std::string &GetRecordedCCode() const { return gen_result.recorded_c_code; }
+
+    // 获取类型推导中间结果（包含 main_ssa_types、shape_registry 等）
+    [[nodiscard]] const InferResult &GetInferResult() const { return infer_result; }
+
+    // 推断出的 AST 节点类型映射
+    [[nodiscard]] const auto &GetNodeTypes() const { return infer_result.main_ssa_types; }
+
+    // 推断出的 SSA 版本→类型映射
+    [[nodiscard]] const auto &GetVersionTypes() const { return infer_result.ssa_version_types; }
+
+    // Shape registry getter
+    [[nodiscard]] const auto &GetShapeRegistry() const { return infer_result.shape_registry; }
+
+    // 逃逸分析结果
+    [[nodiscard]] const auto &GetEscapeVars() const { return infer_result.escape_vars; }
+
+    // 函数摘要
+    [[nodiscard]] const auto &GetFuncSummaries() const { return infer_result.func_summaries; }
 };
 
 
