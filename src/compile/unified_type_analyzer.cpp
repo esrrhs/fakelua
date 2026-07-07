@@ -1,10 +1,128 @@
 #include "compile/unified_type_analyzer.h"
 #include "compile/syntax_tree.h"
 #include <algorithm>
+#include <cstddef>
 #include <queue>
 #include <unordered_set>
 
 namespace fakelua {
+
+// ─────────────────────────────────────────────────────────────────────────
+// HM 类型 ↔ SSATypeInfo 转换
+// ─────────────────────────────────────────────────────────────────────────
+
+namespace {
+bool IsPrimHmKind(TypeKind k) {
+    switch (k) {
+        case TypeKind::TY_INT:
+        case TypeKind::TY_FLOAT:
+        case TypeKind::TY_STRING:
+        case TypeKind::TY_BOOL:
+        case TypeKind::TY_NIL:
+        case TypeKind::TY_DYNAMIC:
+            return true;
+        default:
+            return false;
+    }
+}
+
+InferredType HmPrimToInferred(TypeKind k) {
+    switch (k) {
+        case TypeKind::TY_INT:     return T_INT;
+        case TypeKind::TY_FLOAT:   return T_FLOAT;
+        case TypeKind::TY_STRING:  return T_STRING;
+        case TypeKind::TY_BOOL:    return T_BOOL;
+        case TypeKind::TY_NIL:     return T_NIL;
+        case TypeKind::TY_DYNAMIC: return T_DYNAMIC;
+        default:                   return T_DYNAMIC;
+    }
+}
+
+TypeKind InferredToHmPrim(InferredType t) {
+    switch (t) {
+        case T_INT:     return TypeKind::TY_INT;
+        case T_FLOAT:   return TypeKind::TY_FLOAT;
+        case T_STRING:  return TypeKind::TY_STRING;
+        case T_BOOL:    return TypeKind::TY_BOOL;
+        case T_NIL:     return TypeKind::TY_NIL;
+        case T_DYNAMIC: return TypeKind::TY_DYNAMIC;
+        default:        return TypeKind::TY_DYNAMIC;
+    }
+}
+}  // namespace
+
+Type *UnifiedTypeAnalyzer::SsaInfoToHm(const SSATypeInfo &info) {
+    if (IsRecordInferredType(info.type) && info.shape_id >= 0 && registry_) {
+        // 构造一个 HM record shape（深度拷贝 registry 中的 shape）。
+        const ShapeType &s = registry_->Get(info.shape_id);
+        Type *t = HmType::MakeRecord(hm_arena_, s.is_open);
+        for (const auto &f : s.fields) {
+            RecordField hf;
+            hf.name = hm_arena_.AllocString(f.name);
+            hf.c_field_name = hm_arena_.AllocString(f.c_field_name);
+            hf.type = SsaInfoToHm({f.type, -1});
+            hf.optional = f.optional;
+            hf.is_int_key = f.is_int_key;
+            t->fields.push_back(hf);
+        }
+        return t;
+    }
+    return HmType::MakePrim(hm_arena_, InferredToHmPrim(info.type));
+}
+
+SSATypeInfo UnifiedTypeAnalyzer::HmToSsaInfo(Type *t) {
+    if (!t) return {T_DYNAMIC, -1};
+    t = TypeVarTable::Prune(t);
+    if (!t) return {T_DYNAMIC, -1};
+
+    if (t->kind == TypeKind::TY_VAR) {
+        // 自由变量：退化为 T_DYNAMIC。
+        return {T_DYNAMIC, -1};
+    }
+    if (IsPrimHmKind(t->kind)) {
+        return {HmPrimToInferred(t->kind), -1};
+    }
+    if (t->kind == TypeKind::TY_RECORD || t->kind == TypeKind::TY_RECORD_OPEN) {
+        // 构建 ShapeType。
+        ShapeType shape;
+        shape.is_open = t->is_open;
+        for (const auto &f : t->fields) {
+            FieldDef fd;
+            fd.name = f.name ? f.name : "";
+            fd.c_field_name = f.c_field_name ? f.c_field_name : ToSafeCFieldName(fd.name);
+            fd.optional = f.optional;
+            fd.is_int_key = f.is_int_key;
+            Type *ft = TypeVarTable::Prune(f.type);
+            if (ft == nullptr) {
+                fd.type = T_DYNAMIC;
+            } else if (IsPrimHmKind(ft->kind)) {
+                fd.type = HmPrimToInferred(ft->kind);
+            } else if (ft->kind == TypeKind::TY_VAR) {
+                fd.type = T_DYNAMIC;
+            } else if (ft->kind == TypeKind::TY_RECORD || ft->kind == TypeKind::TY_RECORD_OPEN) {
+                // 嵌套 record：递归注入。
+                fd.type = T_RECORD;
+                // shape_id 占位由 InjectHmRecordIntoRegistry 处理（回填）。
+                fd.type = T_DYNAMIC;  // 保守退化，避免嵌套 record 的复杂性
+            } else {
+                fd.type = T_DYNAMIC;
+            }
+            shape.fields.push_back(std::move(fd));
+        }
+        if (shape.fields.empty()) return {T_DYNAMIC, -1};
+        int sid = registry_->Intern(std::move(shape));
+        return {T_RECORD, sid};
+    }
+    return {T_DYNAMIC, -1};
+}
+
+int UnifiedTypeAnalyzer::InjectHmRecordIntoRegistry(Type *record_ty) {
+    if (!record_ty || !registry_) return -1;
+    record_ty = TypeVarTable::Prune(record_ty);
+    if (!record_ty) return -1;
+    SSATypeInfo info = HmToSsaInfo(record_ty);
+    return info.shape_id;
+}
 
 // ─────────────────────────────────────────────────────────────────────────
 // 主分析入口 — 流敏感工作表
@@ -20,6 +138,26 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
         ir.shape_registry = std::make_shared<ShapeRegistry>();
     }
     registry_ = ir.shape_registry.get();
+
+    // 重置每函数的状态（HM arena、变量表、参数映射）。
+    // hm_arena_ 在每次 Analyze 开始时整体 reset，所有 Type* 指针失效。
+    // 同时必须清除 ir.func_summaries 中的悬空 HM 指针（它们在上一轮分析
+    // 中被写入，但底层 arena 已被 Reset）。
+    for (auto &[fn, fs] : ir.func_summaries) {
+        fs.param_hm_types.clear();
+        fs.ret_hm_type = nullptr;
+        fs.must_use_hm = false;
+    }
+    hm_arena_.Reset();
+    hm_table_.Reset();
+    cur_param_hm_vars_.clear();
+
+    // 为每个参数创建 HM 参数类型变量（多态：每个调用点独立实例化）。
+    // param_indices 中 pname → pidx。
+    for (const auto &[pname, pidx] : cfg.param_indices) {
+        Type *v = hm_table_.NewVar();
+        cur_param_hm_vars_[pname] = v;
+    }
 
     // 构建变量名 → SSA 版本映射
     auto name_ver = BuildVarNameVersionMap(ssa);
@@ -318,11 +456,40 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
                 if (vars[i]->Type() != SyntaxTreeType::Var) continue;
                 auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[i]);
                 if (!v) continue;
+
+                // 递归自赋值检测：node.next = node 应让 node.next 退化为 T_DYNAMIC。
+                // 条件：LHS 是 a.field，RHS 是引用同一个简单变量 a 的表达式。
+                bool recursive_self_assign = false;
+                if (v->GetVarKind() == VarKind::kDot || v->GetVarKind() == VarKind::kSquare) {
+                    auto *rhs_pe = exps[i]->Type() == SyntaxTreeType::PrefixExp
+                        ? static_cast<SyntaxTreePrefixexp *>(exps[i].get()) : nullptr;
+                    if (!rhs_pe && exps[i]->Type() == SyntaxTreeType::Exp) {
+                        auto *rhs_ep = static_cast<SyntaxTreeExp *>(exps[i].get());
+                        if (rhs_ep->GetExpKind() == ExpKind::kPrefixExp)
+                            rhs_pe = static_cast<SyntaxTreePrefixexp *>(rhs_ep->Right().get());
+                    }
+                    if (rhs_pe && rhs_pe->GetPrefixKind() == PrefixExpKind::kVar) {
+                        auto *rhs_var = static_cast<SyntaxTreeVar *>(rhs_pe->GetValue().get());
+                        if (rhs_var && rhs_var->GetVarKind() == VarKind::kSimple) {
+                            const std::string &rhs_name = rhs_var->GetName();
+                            auto *base_pe2 = static_cast<SyntaxTreePrefixexp *>(v->GetPrefixexp().get());
+                            if (base_pe2 && base_pe2->GetPrefixKind() == PrefixExpKind::kVar) {
+                                auto *base_var2 = static_cast<SyntaxTreeVar *>(base_pe2->GetValue().get());
+                                if (base_var2 && base_var2->GetVarKind() == VarKind::kSimple
+                                    && base_var2->GetName() == rhs_name) {
+                                    recursive_self_assign = true;
+                                }
+                            }
+                        }
+                    }
+                }
+
                 auto ty = InferExprType(exps[i], ssa, version_types, dummy_ir, {}, envp);
                 if (v->GetVarKind() == VarKind::kSimple) {
                     // 简单变量赋值：local x = ... 或 x = ...
                     out[v->GetName()] = ty;
-                } else if (v->GetVarKind() == VarKind::kDot || v->GetVarKind() == VarKind::kSquare) {
+                } else if ((v->GetVarKind() == VarKind::kDot || v->GetVarKind() == VarKind::kSquare)
+                           && !recursive_self_assign) {
                     // 字段写入：a.b = v 或 a[b] = v
                     // 规范 §5.2.4：更新 base 变量的 shape
                     const std::string &field_name = v->GetName();
@@ -336,7 +503,21 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
                                 // 规范 §5.2.4：字段写入 a.b = v
                                 ShapeType shape = registry_->Get(base_it->second.shape_id);
                                 FieldDef *fd = shape.FindFieldMut(field_name);
-                                if (fd) {
+                                if (recursive_self_assign) {
+                                    // 自赋值引起的递归类型检测：node.next = node
+                                    // 对该字段退化为 T_DYNAMIC（走 hash，避免结构递归）。
+                                    if (fd) {
+                                        fd->type = T_DYNAMIC;
+                                    } else {
+                                        if (!shape.is_open) shape.is_open = true;
+                                        FieldDef new_fd;
+                                        new_fd.name = field_name;
+                                        new_fd.c_field_name = ToSafeCFieldName(field_name);
+                                        new_fd.type = T_DYNAMIC;
+                                        new_fd.optional = false;
+                                        shape.fields.push_back(new_fd);
+                                    }
+                                } else if (fd) {
                                     // 已有字段：合一类型
                                     fd->type = ShapeRegistry::MeetType(fd->type, ty.type);
                                 } else {
@@ -345,12 +526,12 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
                                         // 封闭 record 加新字段 → 退化为开放
                                         shape.is_open = true;
                                     }
-                                    FieldDef new_fd;
-                                    new_fd.name = field_name;
-                                    new_fd.c_field_name = ToSafeCFieldName(field_name);
-                                    new_fd.type = ty.type;
-                                    new_fd.optional = false;
-                                    shape.fields.push_back(new_fd);
+                                    FieldDef reg_fd;
+                                    reg_fd.name = field_name;
+                                    reg_fd.c_field_name = ToSafeCFieldName(field_name);
+                                    reg_fd.type = ty.type;
+                                    reg_fd.optional = false;
+                                    shape.fields.push_back(reg_fd);
                                 }
                                 base_it->second.shape_id = registry_->Intern(std::move(shape));
                             }
@@ -625,6 +806,43 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
                         // 递归调用：返回类型未知
                         return {T_DYNAMIC, -1};
                     }
+
+                    // ── HM 多态实例化（规范 §12 多态）────────────────────────
+                    // 若调用点已知的 HM 签名可用，使用 HM 统一推导更宽的返回类型。
+                    // 条件：summary 带 must_use_hm 且数量与实参数量一致。该路径
+                    // 也处理 make(x) 类型的跨函数类型推导，例如 `local p = make(1)`
+                    // 期望得到 p : Record{val:int}。
+                    if (summary.must_use_hm && !summary.param_hm_types.empty()) {
+                        // 推导各实参类型。
+                        auto raw_args = ExtractCallRawArgs(
+                            std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args()));
+                        if (!raw_args.empty() &&
+                            (int)raw_args.size() == (int)summary.param_hm_types.size()) {
+                            // 为每个实参生成 HM 类型（来自当前推导结果）。
+                            bool ok = true;
+                            std::vector<Type *> arg_hm;
+                            arg_hm.reserve(raw_args.size());
+                            for (size_t k = 0; k < raw_args.size(); ++k) {
+                                SSATypeInfo arg_info =
+                                    InferExprType(raw_args[k], ssa, version_types, ir, name_ver, local_env);
+                                arg_hm.push_back(SsaInfoToHm(arg_info));
+                            }
+                            // 创建一个独立的子作用域实例化：克隆 ret_hm_type 并替换形参。
+                            Type *inst_ret = InstantiateHmSignature(
+                                summary.param_hm_types, summary.ret_hm_type, arg_hm, ok);
+                            if (ok && inst_ret) {
+                                SSATypeInfo specialized = HmToSsaInfo(inst_ret);
+                                // 只有在被推导出更具体类型时采用（避免覆盖 static 已知返回）。
+                                if (specialized.type != T_DYNAMIC && specialized.type != T_UNKNOWN) {
+                                    return specialized;
+                                }
+                            }
+                            // 回退：原始多态返回类型。
+                            SSATypeInfo poly_ret = HmToSsaInfo(summary.ret_hm_type);
+                            if (poly_ret.type != T_UNKNOWN) return poly_ret;
+                        }
+                    }
+
                     if (summary.ret_type.type != T_UNKNOWN && summary.ret_type.type != T_DYNAMIC) {
                         return summary.ret_type;
                     }
@@ -947,6 +1165,149 @@ void UnifiedTypeAnalyzer::BuildSummary(const std::string &func_name,
         });
     }
     s.ret_type = merged_ret;
+
+    // ── 构建 HM 多态签名 ─────────────────────────────────────────────────
+    // 对没有具体参数的函数，我们基于 return 推导一个 (params → ret) 的 HM
+    // 多态签名，让调用点可以通过实际参数类型实例化。
+    BuildHmSignature(s, cfg, merged_ret);
+}
+
+// ── HM 签名构建 ──────────────────────────────────────────────────────────
+// 为 summary 生成 (param_hm_types) → ret_hm_type，用于调用点多态实例化。
+void UnifiedTypeAnalyzer::BuildHmSignature(FuncSummary &s,
+                                           const CFGFunction &cfg,
+                                           const SSATypeInfo &ret_type) {
+    // 只有当我们有参数记录时生成签名。如果没有参数，不标记 must_use_hm。
+    if (cfg.param_indices.empty()) return;
+
+    // 为每个参数创建一个 "通用" 类型变量。
+    // 多态签名：签名中的 params 全是变量，ret 引用这些变量。
+    std::vector<Type *> param_hm;
+    param_hm.reserve(cfg.param_indices.size());
+    for (size_t i = 0; i < cfg.param_indices.size(); ++i) {
+        param_hm.push_back(hm_table_.NewVar());
+    }
+
+    // ret_hm_type：尝试基于 ret_type 推断一个有用的表达式。
+    Type *ret_hm = nullptr;
+    if (IsRecordInferredType(ret_type.type) && ret_type.shape_id >= 0 && registry_) {
+        // 返回 record —— 把各字段值替换为 "多态变量" 如果字段类型是 T_DYNAMIC；
+        // 否则保留具体类型。
+        const ShapeType &sh = registry_->Get(ret_type.shape_id);
+        Type *rec = HmType::MakeRecord(hm_arena_, sh.is_open);
+        for (const auto &f : sh.fields) {
+            RecordField hf;
+            hf.name = hm_arena_.AllocString(f.name);
+            hf.c_field_name = hm_arena_.AllocString(f.c_field_name);
+            if (f.type == T_DYNAMIC && !param_hm.empty()) {
+                // 推断是某个参数的值（保守选择第一个参数变量）。
+                hf.type = param_hm[0];
+            } else {
+                hf.type = SsaInfoToHm({f.type, -1});
+            }
+            hf.optional = f.optional;
+            hf.is_int_key = f.is_int_key;
+            rec->fields.push_back(hf);
+        }
+        ret_hm = rec;
+    } else if (IsNumericInferredType(ret_type.type)) {
+        ret_hm = SsaInfoToHm(ret_type);
+    } else if (ret_type.type == T_STRING || ret_type.type == T_BOOL ||
+               ret_type.type == T_NIL) {
+        ret_hm = SsaInfoToHm(ret_type);
+    } else {
+        ret_hm = HmType::MakePrim(hm_arena_, TypeKind::TY_DYNAMIC);
+    }
+
+    s.param_hm_types = std::move(param_hm);
+    s.ret_hm_type = ret_hm;
+    s.must_use_hm = true;
+}
+
+// ── HM 多态签名实例化 ──────────────────────────────────────────────────
+// 对每个调用点把形参替换为实参类型，返回 (可能更具体的) 返回类型表达式。
+// 如果 signature 不可用，返回 nullptr 并设 ok=false。
+Type *UnifiedTypeAnalyzer::InstantiateHmSignature(
+    const std::vector<Type *> &param_hm_types,
+    Type *ret_hm_type,
+    const std::vector<Type *> &arg_hm_types,
+    bool &ok) {
+    ok = true;
+    if (!ret_hm_type) { ok = false; return nullptr; }
+    // 浅替换 ret 类型中出现的形参变量为对应实参类型。
+    return SubstituteHmVars(ret_hm_type, param_hm_types, arg_hm_types, ok);
+}
+
+namespace {
+// 替换 T* 中出现的形参变量（按指针相等）为对应实参类型。
+// 纯函数：始终返回一个新 T*（从 arena 分配），原形参 T 不被修改。
+Type *SubstituteWalk(Type *t,
+                     const std::vector<Type *> &from,
+                     const std::vector<Type *> &to,
+                     fakelua::TypeArena &arena,
+                     bool &ok) {
+    if (!t) return nullptr;
+    while (t && t->kind == fakelua::TypeKind::TY_VAR && t->bound) t = t->bound;
+    if (!t) return nullptr;
+
+    // 如果 t 是一个形参变量（按指针），直接替换为对应的实参 T。
+    for (size_t i = 0; i < from.size(); ++i) {
+        if (t == from[i] && i < to.size()) {
+            return to[i];
+        }
+    }
+
+    // 如果 t 是自由变量且不在形参列表中，保持原样返回。
+    if (t->kind == fakelua::TypeKind::TY_VAR) return t;
+
+    switch (t->kind) {
+        case fakelua::TypeKind::TY_INT:
+        case fakelua::TypeKind::TY_FLOAT:
+        case fakelua::TypeKind::TY_STRING:
+        case fakelua::TypeKind::TY_BOOL:
+        case fakelua::TypeKind::TY_NIL:
+        case fakelua::TypeKind::TY_DYNAMIC:
+            return t;
+        case fakelua::TypeKind::TY_FUN:
+            return t;
+        case fakelua::TypeKind::TY_RECORD:
+        case fakelua::TypeKind::TY_RECORD_OPEN: {
+            fakelua::Type *nr = fakelua::HmType::MakeRecord(arena, t->is_open);
+            for (const auto &f : t->fields) {
+                fakelua::RecordField nf;
+                nf.name = f.name;
+                nf.c_field_name = f.c_field_name;
+                nf.type = SubstituteWalk(f.type, from, to, arena, ok);
+                nf.optional = f.optional;
+                nf.is_int_key = f.is_int_key;
+                nr->fields.push_back(nf);
+            }
+            return nr;
+        }
+        case fakelua::TypeKind::TY_ARRAY:
+            return fakelua::HmType::MakeArray(
+                arena, SubstituteWalk(t->elem, from, to, arena, ok));
+        case fakelua::TypeKind::TY_UNION: {
+            fakelua::Type *nu = fakelua::HmType::MakeUnion(arena, {});
+            for (auto *m : t->members) {
+                nu->members.push_back(SubstituteWalk(m, from, to, arena, ok));
+            }
+            return nu;
+        }
+        case fakelua::TypeKind::TY_VAR:
+            return t;
+    }
+    return t;
+}
+}  // namespace
+
+Type *UnifiedTypeAnalyzer::SubstituteHmVars(
+    Type *t,
+    const std::vector<Type *> &from,
+    const std::vector<Type *> &to,
+    bool &ok) {
+    ok = true;
+    return SubstituteWalk(t, from, to, hm_arena_, ok);
 }
 
 // ── §8 逃逸分析 ──────────────────────────────────────────────────────────

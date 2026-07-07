@@ -1,6 +1,7 @@
 #pragma once
 
 #include "compile/inferred_type.h"
+#include "compile/hm_type.h"
 #include "jit/vm_function.h"
 #include "syntax_tree.h"
 #include "util/debug.h"
@@ -118,6 +119,15 @@ struct FuncSummary {
     std::vector<bool> param_escape;                  // 参数是否逃逸
     bool is_vararg = false;
     bool being_built = false;                        // 递归检测标记
+
+    // ── Hindley-Milner 多态签名（可选） ───────────────────────────────
+    // 当函数参数未绑定时（默认 T_DYNAMIC），我们基于 HM 推导一个多态
+    // 签名 param_hm_types → ret_hm_type，使得调用点可以得到更精确的
+    // 多态实例化。
+    // 注：仅当 must_use_hm 为 true 且 param_hm_types 非空时有效。
+    bool must_use_hm = false;
+    std::vector<Type *> param_hm_types;  // 每个参数的 HM 类型变量/表达式
+    Type *ret_hm_type = nullptr;         // 返回值的 HM 类型表达式
 };
 
 // TypeInferencer 的输出 — SSA/CFG/Shape 管线的真相源。

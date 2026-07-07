@@ -2,9 +2,11 @@
 
 #include "compile/cfg.h"
 #include "compile/compile_common.h"
+#include "compile/hm_type.h"
 #include "compile/shape_type.h"
 #include "compile/ssa.h"
 #include "compile/syntax_tree.h"
+#include <functional>
 #include <string>
 #include <unordered_map>
 #include <unordered_set>
@@ -107,6 +109,43 @@ private:
     void EscapeTransfer(const SyntaxTreeInterfacePtr &stmt,
                         EscapeEnv &escape_env,
                         const VarEnv &type_env);
+
+    // ── HM 签名构建 ────────────────────────────────────────────────────────
+    // 为当前函数生成 (params → ret) 的多态签名并写入 summary。
+    void BuildHmSignature(FuncSummary &s,
+                          const CFGFunction &cfg,
+                          const SSATypeInfo &ret_type);
+
+    // 形参替换：克隆 ret_hm_type 并将其中形参变量（按指针）替换为 arg 类型。
+    // 赋值 ok=false 表示无法实例化。
+    Type *InstantiateHmSignature(const std::vector<Type *> &param_hm_types,
+                                 Type *ret_hm_type,
+                                 const std::vector<Type *> &arg_hm_types,
+                                 bool &ok);
+
+    // 克隆 t 并将 from 中出现的形参变量替换为 to 中对应的实参类型。
+    Type *SubstituteHmVars(Type *t,
+                            const std::vector<Type *> &from,
+                            const std::vector<Type *> &to,
+                            bool &ok);
+
+    // ── HM unification support ──────────────────────────────────────────────
+    // 单一分析生命周期使用的 arena + 变量表。每个 Analyze 调用开始时 Reset。
+    TypeArena hm_arena_;
+    TypeVarTable hm_table_{hm_arena_};
+
+    // 记录当前函数的参数名 → HM var 映射，供 BuildSummary 使用。
+    std::unordered_map<std::string, Type *> cur_param_hm_vars_;
+
+    // ── 内部 HM 辅助 ────────────────────────────────────────────────────────
+    // 编译时把一个 SSATypeInfo + 可选的 shape 转为 HM Type*（不绑定变量）。
+    Type *SsaInfoToHm(const SSATypeInfo &info);
+
+    // 把 HM Type* 回转为 SSATypeInfo（未绑定的变量回退为 T_DYNAMIC）。
+    SSATypeInfo HmToSsaInfo(Type *t);
+
+    // 把一个 HM 记录类型注入到 ShapeRegistry，返回 shape_id（-1 表示无法注入）。
+    int InjectHmRecordIntoRegistry(Type *record_ty);
 
     ShapeRegistry *registry_ = nullptr;
     std::string cur_func_name_;

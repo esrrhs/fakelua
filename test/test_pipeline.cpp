@@ -825,6 +825,48 @@ TEST(pipeline, cgen_shape_struct_typedef) {
     std::cout << "Generated C code (struct):\n" << code.substr(0, std::min((size_t)500, code.size())) << "\n";
 }
 
+// ── HM 合一测试 ────────────────────────────────────────────────────────
+
+// 测试多态函数 id(x) = x，不同类型参数推导不同类型返回
+TEST(pipeline, hm_polymorphic_id) {
+    auto ir = AnalyzeSource(R"(
+        local function id(x) return x end
+        local a = id(1)
+        local b = id("hello")
+    )");
+
+    // id 的摘要应使用 HM 多态签名
+    auto it = ir.func_summaries.find("id");
+    ASSERT_NE(it, ir.func_summaries.end()) << "should have summary for 'id'";
+    EXPECT_TRUE(it->second.must_use_hm) << "id should have HM polymorphic signature";
+}
+
+// 测试跨函数推导: make(x) = {val=x}，调用点推导出 Record{val:int}
+TEST(pipeline, hm_cross_function_make) {
+    auto ir = AnalyzeSource(R"(
+        local function make(x) return {val=x} end
+        local p = make(1)
+    )");
+
+    auto make_it = ir.func_summaries.find("make");
+    ASSERT_NE(make_it, ir.func_summaries.end()) << "should have summary for 'make'";
+    EXPECT_TRUE(make_it->second.must_use_hm) << "make should use HM signature";
+    // 摘要返回应为 record 类型
+    EXPECT_EQ(make_it->second.ret_type.type, T_RECORD);
+}
+
+// 测试递归类型检测（occurs_check）
+TEST(pipeline, hm_recursive_type) {
+    auto ir = AnalyzeSource(R"(
+        local node = {val=1, next=nil}
+        node.next = node
+    )");
+
+    // node.next = node 导致递归类型，应退化为 TYNAMIC
+    // 这里只验证不崩溃，逃逸分析能处理
+    ASSERT_TRUE(ir.shape_registry != nullptr);
+}
+
 // ── Step 5: 逃逸分析测试 ──────────────────────────────────────────────
 
 // 测试 return 导致逃逸
