@@ -55,3 +55,11 @@ src/compile/bison/parser.xml
 test_results.log
 .antigravitycli/
 .mimocode/
+SSA_MIGRATION_PROGRESS.md
+PHASE*.md
+PROGRESS.md
+SSA_MIGRATION_PROGRESS.md
+UNIFIED_SSA*.md
+SSA_PIPELINE_STATUS.md
+UNIFIED_SSA*.md
+SSA_MIGRATION_PROGRESS.md
