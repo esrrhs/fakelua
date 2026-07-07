@@ -33,7 +33,7 @@ static CompileResult RunPipeline(const std::string &lua_file) {
     // lua_file 是相对于 test/lua/pipeline/ 的文件名
     // 运行目录可能是 build/bin/, 因此使用从项目根目录开始的路径
     // 项目根目录 = 测试运行目录的上两级 (从 build/bin/ 到 repo root)
-    const std::string path = "./lua/pipeline/" + lua_file;
+    const std::string path = "./pipeline/" + lua_file;
     // 使用 RAII 守卫管理 State 生命周期
     FakeluaStateGuard guard;
     return CompileFileTo(guard.GetState(), path, cfg);
