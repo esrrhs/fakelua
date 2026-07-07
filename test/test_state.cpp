@@ -245,7 +245,11 @@ TEST(state, compile_config_record_c_code_with_live_jit) {
     cfg.debug_mode = false;
     // Leave both JIT backends at their defaults (enabled) so that the
     // recorded_c_code path is exercised with a real TCC compilation.
+#ifdef _WIN32
+    cfg.disable_jit[JIT_TCC] = true;
+#else
     cfg.disable_jit[JIT_TCC] = false;
+#endif
     cfg.disable_jit[JIT_GCC] = true;// only TCC so the test is fast
 
     // 使用新接口 CompileStringTo 获取完整管线结果

@@ -25,14 +25,16 @@ static void InferRunHelper(const std::function<void(State *, JITType, bool)> &f)
 // returned string is also printed to stdout so that CI logs show the actual C
 // output for every infer test case.
 static std::string InferGetCCode(const std::string &lua_file) {
-    // 使用新接口获取完整管线结果
+    const auto s = FakeluaNewState();
+    EXPECT_NE(s, nullptr);
     CompileConfig cfg;
     cfg.debug_mode = false;
     cfg.record_c_code = true;
     cfg.disable_jit[JIT_TCC] = true;
     cfg.disable_jit[JIT_GCC] = true;
-    const auto result = CompileFileTo(nullptr, lua_file, cfg);
+    const auto result = CompileFileTo(s, lua_file, cfg);
     const std::string code = result.GetRecordedCCode();
+    FakeluaDeleteState(s);
     // Print so CI logs can be inspected even without a debugger.
     std::cout << "\n=== C code for " << lua_file << " ===\n" << code << "=== end ===\n";
     return code;
