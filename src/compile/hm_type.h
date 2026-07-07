@@ -62,6 +62,8 @@ public:
     void *Alloc(size_t n);
 
     // Convenience typed allocators.
+    // NOTE: For types with non-trivial constructors (e.g. std::vector members),
+    // use Construct<T>(args...) instead.
     template <typename T>
     T *Alloc() {
         return static_cast<T *>(Alloc(sizeof(T)));
@@ -70,6 +72,13 @@ public:
     template <typename T>
     T *AllocArray(size_t count) {
         return static_cast<T *>(Alloc(sizeof(T) * count));
+    }
+
+    // Allocate AND construct a T with the given arguments (placement new).
+    template <typename T, typename... Args>
+    T *Construct(Args &&...args) {
+        void *p = Alloc(sizeof(T));
+        return new (p) T(std::forward<Args>(args)...);
     }
 
     // Duplicate a std::string into the arena.

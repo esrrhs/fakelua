@@ -45,7 +45,7 @@ void *TypeArena::AllocCopy(const void *src, size_t n) {
 // ─────────────────────────────────────────────────────────────────────────
 namespace {
 Type *MakePrimStatic(TypeArena &arena, TypeKind k) {
-    Type *t = arena.Alloc<Type>();
+    Type *t = arena.Construct<Type>();
     t->kind = k;
     t->var_id = -1;
     t->bound = nullptr;
@@ -89,7 +89,7 @@ void EnsurePrims(TypeArena &arena) {
 namespace HmType {
 
 Type *MakeVar(TypeArena &arena, int id) {
-    Type *t = arena.Alloc<Type>();
+    Type *t = arena.Construct<Type>();
     t->kind = TypeKind::TY_VAR;
     t->var_id = id;
     t->bound = nullptr;
@@ -115,7 +115,7 @@ Type *MakePrim(TypeArena &arena, TypeKind k) {
 }
 
 Type *MakeFun(TypeArena &arena, std::vector<Type *> params, Type *ret) {
-    Type *t = arena.Alloc<Type>();
+    Type *t = arena.Construct<Type>();
     t->kind = TypeKind::TY_FUN;
     t->nparams = 0;
     t->ret = ret;
@@ -124,7 +124,7 @@ Type *MakeFun(TypeArena &arena, std::vector<Type *> params, Type *ret) {
 }
 
 Type *MakeFunN(TypeArena &arena, int nparams, Type *ret) {
-    Type *t = arena.Alloc<Type>();
+    Type *t = arena.Construct<Type>();
     t->kind = TypeKind::TY_FUN;
     t->nparams = nparams;
     t->ret = ret;
@@ -132,7 +132,7 @@ Type *MakeFunN(TypeArena &arena, int nparams, Type *ret) {
 }
 
 Type *MakeRecord(TypeArena &arena, bool open) {
-    Type *t = arena.Alloc<Type>();
+    Type *t = arena.Construct<Type>();
     t->kind = open ? TypeKind::TY_RECORD_OPEN : TypeKind::TY_RECORD;
     t->is_open = open;
     t->layout_id = -1;
@@ -140,14 +140,14 @@ Type *MakeRecord(TypeArena &arena, bool open) {
 }
 
 Type *MakeArray(TypeArena &arena, Type *elem) {
-    Type *t = arena.Alloc<Type>();
+    Type *t = arena.Construct<Type>();
     t->kind = TypeKind::TY_ARRAY;
     t->elem = elem;
     return t;
 }
 
 Type *MakeUnion(TypeArena &arena, std::vector<Type *> members) {
-    Type *t = arena.Alloc<Type>();
+    Type *t = arena.Construct<Type>();
     t->kind = TypeKind::TY_UNION;
     t->members = std::move(members);
     return t;
