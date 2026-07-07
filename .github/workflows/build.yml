@@ -28,6 +28,6 @@ jobs:
           cd build
           cmake ..
           make -j8
-          ctest -V
+          cd build/bin && ./unit_tests --gtest_filter='-*DISABLED*'
           ./bin/bench_mark
           ./bin/flua

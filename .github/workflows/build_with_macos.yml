@@ -36,6 +36,6 @@ jobs:
           cd build
           cmake -DCMAKE_PREFIX_PATH="$(brew --prefix)" ..
           make -j$(sysctl -n hw.ncpu)
-          ctest -V
+          cd bin && ./unit_tests --gtest_filter='-*DISABLED*' && cd ..
           ./bin/bench_mark
           ./bin/flua

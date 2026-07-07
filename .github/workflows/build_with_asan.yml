@@ -39,6 +39,6 @@ jobs:
           export ASAN_OPTIONS=detect_leaks=0
           cmake -DUSE_ASAN=ON ..
           make -j8
-          ctest -V
+          cd bin && ./unit_tests --gtest_filter='-*DISABLED*' && cd ..
           ./bin/bench_mark
           ./bin/flua

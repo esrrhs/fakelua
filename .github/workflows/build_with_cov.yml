@@ -51,7 +51,7 @@ jobs:
           cd build
           cmake -DUSE_COV=ON ..
           make -j8
-          ctest -V
+          cd bin && ./unit_tests --gtest_filter='-*DISABLED*' && cd ..
           ./bin/bench_mark
           ./bin/flua
           echo "function main() return 0 end" > test.lua
