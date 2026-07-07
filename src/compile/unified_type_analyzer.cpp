@@ -229,10 +229,11 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
             }
         }
         // 对块内每个 stmt 做 Transfer（更新 env），然后填充 main_ssa_types
+        ConstEnv block_const_env;  // §12.6 常量传播
         for (const auto &s : b.stmts) {
-            env = TransferStmt(s, env, ssa, version_types);
+            env = TransferStmtConst(s, env, block_const_env, ssa, version_types);
         }
-        PopulateNodeTypesFromStmts(b.stmts, env, ssa, version_types, ir);
+        PopulateNodeTypesFromStmts(b.stmts, env, block_const_env, ssa, version_types, ir);
         // 保存块的 out_env
         block_outs[b.id] = env;
     }
@@ -285,13 +286,14 @@ UnifiedTypeAnalyzer::RunWorklist(const CFGFunction &cfg,
     // 退化为单块情况（无分支）
     if (cfg.blocks.size() <= 1) {
         VarEnv env;
+        ConstEnv const_env;  // §12.6 常量传播
         // seed param types (default T_DYNAMIC)
         for (const auto &[pname, pidx] : cfg.param_indices) {
             env[pname] = {T_DYNAMIC, -1};
         }
         for (const auto &b : cfg.blocks) {
             for (const auto &s : b.stmts) {
-                env = TransferStmt(s, env, ssa, TypeEnv{});
+                env = TransferStmtConst(s, env, const_env, ssa, TypeEnv{});
             }
         }
         std::unordered_map<int, VarEnv> result;
@@ -594,6 +596,141 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
     return out;
 }
 
+// ── 常量传播辅助 ────────────────────────────────────────────────────────
+// 从表达式提取字面量值（string / number）。
+bool UnifiedTypeAnalyzer::ExtractLiteral(const SyntaxTreeInterfacePtr &exp,
+                                          std::string &value_out) {
+    if (!exp) return false;
+    // 直接 String 节点
+    if (exp->Type() == SyntaxTreeType::Exp) {
+        auto *e = static_cast<SyntaxTreeExp *>(exp.get());
+        auto k = e->GetExpKind();
+        if (k == ExpKind::kString) { value_out = e->ExpValue(); return true; }
+        if (k == ExpKind::kNumber) { value_out = e->ExpValue(); return true; }
+        // 解包 PrefixExp(Var) 等包装
+        if (k == ExpKind::kPrefixExp && e->Right())
+            return ExtractLiteral(e->Right(), value_out);
+        return false;
+    }
+    if (exp->Type() == SyntaxTreeType::PrefixExp) {
+        auto *pe = static_cast<SyntaxTreePrefixexp *>(exp.get());
+        if (pe->GetValue()) return ExtractLiteral(pe->GetValue(), value_out);
+        return false;
+    }
+    if (exp->Type() == SyntaxTreeType::Var) {
+        auto *v = static_cast<SyntaxTreeVar *>(exp.get());
+        if (v->GetVarKind() == VarKind::kSimple && v->GetName().rfind("__fakelua_vararg_", 0) == 0)
+            return false;
+        return false;  // 变量引用不在此处理（由 ResolveKeyConstant 查 ConstEnv）
+    }
+    return false;
+}
+
+// 用 ConstEnv 将 key 表达式解析为常量字符串。
+bool UnifiedTypeAnalyzer::ResolveKeyConstant(const SyntaxTreeInterfacePtr &key_expr,
+                                              const ConstEnv &const_env,
+                                              std::string &key_out) {
+    if (!key_expr) return false;
+    // 直接字面量
+    if (ExtractLiteral(key_expr, key_out)) return true;
+    // 变量名：查 ConstEnv
+    if (key_expr->Type() == SyntaxTreeType::Exp) {
+        auto *e = static_cast<SyntaxTreeExp *>(key_expr.get());
+        if (e->GetExpKind() == ExpKind::kPrefixExp && e->Right())
+            return ResolveKeyConstant(e->Right(), const_env, key_out);
+        return false;
+    }
+    if (key_expr->Type() == SyntaxTreeType::PrefixExp) {
+        auto *pe = static_cast<SyntaxTreePrefixexp *>(key_expr.get());
+        if (pe->GetValue()) return ResolveKeyConstant(pe->GetValue(), const_env, key_out);
+        return false;
+    }
+    if (key_expr->Type() == SyntaxTreeType::Var) {
+        auto *v = static_cast<SyntaxTreeVar *>(key_expr.get());
+        if (v->GetVarKind() == VarKind::kSimple) {
+            auto it = const_env.find(v->GetName());
+            if (it != const_env.end()) { key_out = it->second; return true; }
+        }
+        return false;
+    }
+    return false;
+}
+
+// 带常量传播的 env 转移
+UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmtConst(
+    const SyntaxTreeInterfacePtr &stmt,
+    const VarEnv &env,
+    ConstEnv &const_env,
+    const SSAFunction &ssa,
+    const TypeEnv &version_types) {
+
+    if (!stmt) return env;
+    VarEnv out = env;
+    ConstEnv &const_out = const_env;  // 同引用，直接修改
+
+    switch (stmt->Type()) {
+        case SyntaxTreeType::LocalVar: {
+            auto *lv = static_cast<SyntaxTreeLocalVar *>(stmt.get());
+            auto nl = lv->Namelist();
+            auto el = lv->Explist();
+            if (!nl || nl->Type() != SyntaxTreeType::NameList) return out;
+            auto nlist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(nl);
+            if (!nlist) return out;
+            auto exps = el ? std::dynamic_pointer_cast<SyntaxTreeExplist>(el) : nullptr;
+            auto &names = nlist->Names();
+            for (size_t i = 0; i < names.size(); ++i) {
+                if (!exps || i >= exps->Exps().size()) {
+                    out[names[i]] = {T_NIL, -1};
+                    const_out.erase(names[i]);
+                    continue;
+                }
+                auto &exp = exps->Exps()[i];
+                auto ty = InferExprType(exp, ssa, version_types, InferResult{}, {}, &env, &const_env);
+                out[names[i]] = ty;
+                // 常量传播：记录字面量常量
+                std::string lit_val;
+                if (ExtractLiteral(exp, lit_val)) {
+                    const_out[names[i]] = lit_val;
+                } else {
+                    const_out.erase(names[i]);  // 不再确定是常量
+                }
+            }
+            break;
+        }
+        case SyntaxTreeType::Assign: {
+            auto *as = static_cast<SyntaxTreeAssign *>(stmt.get());
+            auto vl = as->Varlist() ? std::dynamic_pointer_cast<SyntaxTreeVarlist>(as->Varlist()) : nullptr;
+            auto el = as->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(as->Explist()) : nullptr;
+            if (!vl || !el) return out;
+            auto &vars = vl->Vars();
+            auto &exps = el->Exps();
+            for (size_t i = 0; i < vars.size() && i < exps.size(); ++i) {
+                if (vars[i]->Type() != SyntaxTreeType::Var) continue;
+                auto *v = static_cast<SyntaxTreeVar *>(vars[i].get());
+                if (!v) continue;
+                auto ty = InferExprType(exps[i], ssa, version_types, InferResult{}, {}, &env);
+                if (v->GetVarKind() == VarKind::kSimple) {
+                    const std::string &vn = v->GetName();
+                    out[vn] = ty;
+                    std::string lit_val;
+                    if (ExtractLiteral(exps[i], lit_val)) {
+                        const_out[vn] = lit_val;
+                    } else {
+                        const_out.erase(vn);  // 不再确定是常量（变量来源）
+                    }
+                } else {
+                    // kDot/kSquare 字段写入（已有处理）
+                    break;
+                }
+            }
+            break;
+        }
+        default:
+            break;
+    }
+    return out;
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // PopulateNodeTypesFromBlock：用块的 env 上下文，填充该块内所有 AST 子节点的 main_ssa_types
 // 与 Analyze 中的 WalkSyntaxTree 同理，但用 per-block env 而非全局 env。
@@ -601,6 +738,7 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
 void UnifiedTypeAnalyzer::PopulateNodeTypesFromStmts(
     const std::vector<SyntaxTreeInterfacePtr> &stmts,
     const VarEnv &env,
+    const ConstEnv &const_env,
     const SSAFunction &ssa,
     const TypeEnv &version_types,
     InferResult &ir,
@@ -618,7 +756,7 @@ void UnifiedTypeAnalyzer::PopulateNodeTypesFromStmts(
                 case SyntaxTreeType::TableConstructor:
                 case SyntaxTreeType::FunctionCall:
                 case SyntaxTreeType::ExpList: {
-                    auto ty = InferExprType(node, ssa, version_types, ir, {}, &env);
+                    auto ty = InferExprType(node, ssa, version_types, ir, {}, &env, &const_env);
                     (*out_map)[node.get()] = ty;
                     if (out_map == &ir.main_ssa_types)
                         ir.node_ssa_version[node.get()] = -1;
@@ -685,7 +823,8 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
     const TypeEnv &version_types,
     const InferResult &ir,
     const std::unordered_map<std::string, int> &name_ver,
-    const VarEnv *local_env) {
+    const VarEnv *local_env,
+    const ConstEnv *const_env) {
 
     if (!expr) return {T_UNKNOWN, -1};
 
@@ -704,15 +843,15 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
                 case ExpKind::kTrue:
                 case ExpKind::kFalse: return {T_BOOL, -1};
                 case ExpKind::kBinop: {
-                    auto lt = InferExprType(e->Left(), ssa, version_types, ir, name_ver, local_env);
-                    auto rt = InferExprType(e->Right(), ssa, version_types, ir, name_ver, local_env);
+                    auto lt = InferExprType(e->Left(), ssa, version_types, ir, name_ver, local_env, const_env);
+                    auto rt = InferExprType(e->Right(), ssa, version_types, ir, name_ver, local_env, const_env);
                     return {ShapeRegistry::MeetType(lt.type, rt.type), -1};
                 }
                 case ExpKind::kUnop: {
-                    return InferExprType(e->Right(), ssa, version_types, ir, name_ver, local_env);
+                    return InferExprType(e->Right(), ssa, version_types, ir, name_ver, local_env, const_env);
                 }
                 case ExpKind::kPrefixExp: {
-                    return InferExprType(e->Right(), ssa, version_types, ir, name_ver, local_env);
+                    return InferExprType(e->Right(), ssa, version_types, ir, name_ver, local_env, const_env);
                 }
                 case ExpKind::kTableConstructor: {
                     // expr 是 Exp 包装节点，实际 TableConstructor 在其 Right() 中
@@ -747,7 +886,9 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
                 }
             } else if (v->GetVarKind() == VarKind::kDot || v->GetVarKind() == VarKind::kSquare) {
                 // 规范 §5.2.3：字段读取 a.b / a[b]
-                const std::string &field_name = v->GetName();
+                // kDot: field_name 直接就是字段名（字符串）
+                // kSquare: field_name 初始为空，需要从 key 表达式解析
+                const std::string &dot_field_name = v->GetName();
                 auto *base_pe = static_cast<SyntaxTreePrefixexp *>(v->GetPrefixexp().get());
                 if (base_pe && base_pe->GetPrefixKind() == PrefixExpKind::kVar) {
                     auto *base_var = static_cast<SyntaxTreeVar *>(base_pe->GetValue().get());
@@ -760,17 +901,28 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
                         }
                         if (base_type.shape_id >= 0 && registry_) {
                             const ShapeType &shape = registry_->Get(base_type.shape_id);
-                            const FieldDef *fd = shape.FindField(field_name);
-                            if (fd) {
-                                // ★ 命中 → 走偏移
-                                return {fd->type, -1};
-                            } else if (shape.is_open) {
-                                // 开放 record 无此字段 → 走 hash
-                                return {T_DYNAMIC, -1};
-                            } else {
-                                // 封闭 record 无此字段 → Lua 语义返回 nil
-                                return {T_NIL, -1};
+                            // kDot：直接字段名查找
+                            if (v->GetVarKind() == VarKind::kDot) {
+                                const FieldDef *fd = shape.FindField(dot_field_name);
+                                if (fd) return {fd->type, -1};       // ★ 命中 → 走偏移
+                                if (shape.is_open) return {T_DYNAMIC, -1};  // 开放 → hash
+                                return {T_NIL, -1};                        // 封闭无此字段 → nil
                             }
+                            // kSquare：先尝试直接字段名，再尝试常量传播
+                            const FieldDef *fd = shape.FindField(dot_field_name);
+                            if (fd) return {fd->type, -1};
+                            // §12.6 常量传播：a[key] 中 key 是变量但编译期可知其值
+                            if (const_env) {
+                                std::string key_val;
+                                if (ResolveKeyConstant(v->GetExp(), *const_env, key_val)) {
+                                    const FieldDef *cfd = shape.FindField(key_val);
+                                    if (cfd) return {cfd->type, -1};    // 常量 key 命中 → 走偏移
+                                    if (shape.is_open) return {T_DYNAMIC, -1};
+                                    return {T_NIL, -1};
+                                }
+                            }
+                            // 无法确定 key → 退化
+                            return shape.is_open ? SSATypeInfo{T_DYNAMIC, -1} : SSATypeInfo{T_NIL, -1};
                         }
                     }
                 }
@@ -785,7 +937,7 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
         }
         case SyntaxTreeType::PrefixExp: {
             auto *pe = static_cast<SyntaxTreePrefixexp *>(expr.get());
-            return InferExprType(pe->GetValue(), ssa, version_types, ir, name_ver, local_env);
+            return InferExprType(pe->GetValue(), ssa, version_types, ir, name_ver, local_env, const_env);
         }
         case SyntaxTreeType::FunctionCall: {
             // 过程间分析（规范 §7）：从函数摘要获取返回类型

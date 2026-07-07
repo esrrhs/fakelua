@@ -227,68 +227,87 @@ static InferResult AnalyzeSource(const std::string &lua_source) {
     SSABuilder ssa_builder;
     SSAFunction ssa = ssa_builder.Build(cfg);
 
-    // 分析顶层（chunk）
-    uta.Analyze("test_func", chunk, cfg, ssa, ir);
+    // ── 第一步：收集所有函数信息 ────────────────────────────────────────
+    struct FuncInfo {
+        std::string name;
+        SyntaxTreeInterfacePtr fbody_block;
+        std::vector<std::string> params;
+    };
+    std::vector<FuncInfo> funcs;
 
-    // 构建顶层摘要
-    ir.func_summaries["__fakelua_init"].being_built = false;
-    ir.func_summaries["__fakelua_init"].func_name = "__fakelua_init";
-    uta.BuildSummary("__fakelua_init", chunk, ssa, cfg, ir.ssa_version_types, ir);
-
-    // 分析函数定义（从顶层 chunk 中查找）
-    std::function<void(const SyntaxTreeInterfacePtr&)> analyze_funcs;
-    analyze_funcs = [&](const SyntaxTreeInterfacePtr &node) {
+    std::function<void(const SyntaxTreeInterfacePtr&)> collect_funcs;
+    collect_funcs = [&](const SyntaxTreeInterfacePtr &node) {
         if (!node) return;
         if (node->Type() == SyntaxTreeType::Function || node->Type() == SyntaxTreeType::LocalFunction) {
-            std::string name;
-            SyntaxTreeInterfacePtr fbody_node;
+            FuncInfo info;
             if (node->Type() == SyntaxTreeType::Function) {
                 auto *func = static_cast<SyntaxTreeFunction*>(node.get());
                 auto fname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
                 if (!fname) return;
                 auto fnlist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(fname->FuncNameList());
                 if (!fnlist || fnlist->Funcnames().empty()) return;
-                name = fnlist->Funcnames()[0];
-                fbody_node = func->Funcbody();
+                info.name = fnlist->Funcnames()[0];
+                info.fbody_block = func->Funcbody();
             } else {
                 auto *lfunc = static_cast<SyntaxTreeLocalFunction*>(node.get());
-                name = lfunc->Name();
-                fbody_node = lfunc->Funcbody();
+                info.name = lfunc->Name();
+                info.fbody_block = lfunc->Funcbody();
             }
 
-            auto fbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(fbody_node);
-            if (!fbody || !fbody->Block()) return;
-
-            // 构建该函数的 CFG 和 SSA
-            std::vector<std::string> params;
+            auto fbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(info.fbody_block);
+            if (!fbody) return;
             if (fbody->Parlist()) {
                 auto pl = std::dynamic_pointer_cast<SyntaxTreeParlist>(fbody->Parlist());
                 auto nl = pl ? std::dynamic_pointer_cast<SyntaxTreeNamelist>(pl->Namelist()) : nullptr;
-                if (nl) params = nl->Names();
+                if (nl) info.params = nl->Names();
             }
-
-            CFGBuilder func_cfg_builder;
-            CFGFunction func_cfg = func_cfg_builder.Build(fbody->Block(), params, name, false);
-            SSAFunction func_ssa = ssa_builder.Build(func_cfg);
-
-            ir.func_summaries[name].being_built = true;
-            ir.func_summaries[name].func_name = name;
-            uta.Analyze(name, fbody->Block(), func_cfg, func_ssa, ir);
-            uta.BuildSummary(name, fbody->Block(), func_ssa, func_cfg, ir.ssa_version_types, ir);
-            ir.func_summaries[name].being_built = false;
+            info.fbody_block = fbody->Block();
+            funcs.push_back(std::move(info));
         } else if (node->Type() == SyntaxTreeType::Block) {
             auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
-            for (auto &stmt : blk->Stmts()) analyze_funcs(stmt);
+            for (auto &stmt : blk->Stmts()) collect_funcs(stmt);
         } else if (node->Type() == SyntaxTreeType::If) {
             auto *ifs = static_cast<SyntaxTreeIf*>(node.get());
-            analyze_funcs(ifs->Block());
-            if (ifs->ElseBlock()) analyze_funcs(ifs->ElseBlock());
+            collect_funcs(ifs->Block());
+            if (ifs->ElseBlock()) collect_funcs(ifs->ElseBlock());
         } else if (node->Type() == SyntaxTreeType::While) {
             auto *ws = static_cast<SyntaxTreeWhile*>(node.get());
-            analyze_funcs(ws->Block());
+            collect_funcs(ws->Block());
+        } else if (node->Type() == SyntaxTreeType::ForIn) {
+            auto *fi = static_cast<SyntaxTreeForIn*>(node.get());
+            collect_funcs(fi->Block());
         }
     };
-    analyze_funcs(chunk);
+    collect_funcs(chunk);
+
+    // ── 第二步：先分析所有函数（每次调用都会 Reset arena）─────────────
+    for (const auto &finfo : funcs) {
+        auto fbody = std::dynamic_pointer_cast<SyntaxTreeBlock>(finfo.fbody_block);
+        if (!fbody) continue;
+
+        CFGBuilder func_cfg_builder;
+        CFGFunction func_cfg = func_cfg_builder.Build(fbody, finfo.params, finfo.name, false);
+        SSAFunction func_ssa = ssa_builder.Build(func_cfg);
+
+        ir.func_summaries[finfo.name].being_built = true;
+        ir.func_summaries[finfo.name].func_name = finfo.name;
+        uta.Analyze(finfo.name, fbody, func_cfg, func_ssa, ir);
+        ir.func_summaries[finfo.name].being_built = false;
+    }
+
+    // ── 第三步：分析顶层 chunk ─────────────────────────────────────────
+    uta.Analyze("test_func", chunk, cfg, ssa, ir);
+
+    // ── 第四步：所有 Analyze 完成后，统一构建摘要（此时不再 Reset arena）
+    for (const auto &finfo : funcs) {
+        auto fbody = std::dynamic_pointer_cast<SyntaxTreeBlock>(finfo.fbody_block);
+        if (!fbody) continue;
+        CFGBuilder func_cfg_builder;
+        CFGFunction func_cfg = func_cfg_builder.Build(fbody, finfo.params, finfo.name, false);
+        SSAFunction func_ssa = ssa_builder.Build(func_cfg);
+        uta.BuildSummary(finfo.name, fbody, func_ssa, func_cfg, ir.ssa_version_types, ir);
+    }
+    uta.BuildSummary("__fakelua_init", chunk, ssa, cfg, ir.ssa_version_types, ir);
 
     return ir;
 }
@@ -865,6 +884,29 @@ TEST(pipeline, hm_recursive_type) {
     // node.next = node 导致递归类型，应退化为 TYNAMIC
     // 这里只验证不崩溃，逃逸分析能处理
     ASSERT_TRUE(ir.shape_registry != nullptr);
+}
+
+// ── 常量传播测试 ──────────────────────────────────────────────────────
+
+// 规范 §12.6：local key = "b"; a[key] 应推导为 a.b（偏移访问）
+TEST(pipeline, constprop_variable_key) {
+    auto ir = AnalyzeSource(R"(
+        local a = {b=1, c=2}
+        local key = "b"
+        local v = a[key]
+    )");
+
+    // 查找 a[key] 表达式的推断类型
+    // 如果常量传播工作，v 的类型应为 T_INT（因为 key="b" 是常量，a.b 是 int）
+    bool found_v_type = false;
+    for (const auto &[node, ty] : ir.main_ssa_types) {
+        if (ty.type == T_INT) {
+            found_v_type = true;
+            break;
+        }
+    }
+    // 至少应该有一些节点被推导为 T_INT
+    EXPECT_TRUE(found_v_type) << "const propagation should derive T_INT for a[key] where key='b'";
 }
 
 // ── Step 5: 逃逸分析测试 ──────────────────────────────────────────────

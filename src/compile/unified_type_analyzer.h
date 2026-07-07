@@ -46,6 +46,8 @@ public:
     // ── 数据结构 ────────────────────────────────────────────────────────
     // 类型环境：变量名 → 类型信息。
     using VarEnv = std::unordered_map<std::string, SSATypeInfo>;
+    // 常量传播环境：变量名 → 编译期已知常量值（仅 kString / kNumber）
+    using ConstEnv = std::unordered_map<std::string, std::string>;
     using TypeEnv = std::unordered_map<int, SSATypeInfo>;
     using VarNameToVersion = std::unordered_map<std::string, int>;
     using EscapeEnv = std::unordered_map<std::string, bool>;  // 变量名 → 是否逃逸
@@ -66,7 +68,8 @@ private:
                               const TypeEnv &version_types,
                               const InferResult &ir,
                               const VarNameToVersion &name_ver,
-                              const VarEnv *local_env = nullptr);
+                              const VarEnv *local_env = nullptr,
+                              const ConstEnv *const_env = nullptr);
 
     int BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc,
                            const SSAFunction &ssa,
@@ -79,9 +82,25 @@ private:
                         const SSAFunction &ssa,
                         const TypeEnv &version_types);
 
+    // 带常量传播的 env 转移（§12.6 常量传播）
+    VarEnv TransferStmtConst(const SyntaxTreeInterfacePtr &stmt,
+                             const VarEnv &env,
+                             ConstEnv &const_env,
+                             const SSAFunction &ssa,
+                             const TypeEnv &version_types);
+
+    // 从表达式提取常量值（字面量 string/number）。返回 true 表示成功提取。
+    static bool ExtractLiteral(const SyntaxTreeInterfacePtr &exp, std::string &value_out);
+
+    // 用 ConstEnv 解析 key 表达式为常量字符串。成功返回 true。
+    static bool ResolveKeyConstant(const SyntaxTreeInterfacePtr &key_expr,
+                                   const ConstEnv &const_env,
+                                   std::string &key_out);
+
     // 从 env 出发，填充 stmts 列表中所有子表达式节点的类型到 ir.main_ssa_types
     void PopulateNodeTypesFromStmts(const std::vector<SyntaxTreeInterfacePtr> &stmts,
                                     const VarEnv &env,
+                                    const ConstEnv &const_env,
                                     const SSAFunction &ssa,
                                     const TypeEnv &version_types,
                                     InferResult &ir,
