@@ -798,30 +798,30 @@ TEST(pipeline, meet_open_records) {
 #include "compile/c_gen.h"
 #include "compile/compiler.h"
 
-// 辅助：编译 Lua 源码并返回 C 代码
+// 辅助：编译 Lua 源码并返回 C 代码（仅用新管线，不走 CompileString）
 static std::string GetCCode(const std::string &lua_source) {
-    const auto s = FakeluaNewState();
-    CompileConfig cfg;
-    cfg.record_c_code = true;
-
-    Compiler compiler(s);
-    ParseResult pr = compiler.CompileString(lua_source, cfg);
-
-    // 手动运行完整管线
     CFGFunction cfg_obj = BuildCfgFromSource(lua_source);
+
+    // 仅解析 AST（不涉及旧管线的全局状态）
+    const auto s = FakeluaNewState();
+    MyFlexer f;
+    f.InputString(lua_source);
+    yy::parser parse(&f);
+    parse.parse();
+    auto chunk = f.GetChunk();
+    FakeluaDeleteState(s);
 
     InferResult ir;
     ir.shape_registry = std::make_shared<ShapeRegistry>();
     UnifiedTypeAnalyzer uta(ir.shape_registry.get());
     SSABuilder ssa_builder;
     SSAFunction ssa = ssa_builder.Build(cfg_obj);
-    uta.Analyze("__fakelua_init", pr.chunk, cfg_obj, ssa, ir);
+    uta.Analyze("__fakelua_init", chunk, cfg_obj, ssa, ir);
 
     CGen cgen(s);
     AnalysisResult ar;
-    GenResult gr = cgen.Generate(pr, ir, ar, cfg);
+    GenResult gr = cgen.Generate({"/tmp/fakelua_jit.c", chunk}, ir, ar, {});
 
-    FakeluaDeleteState(s);
     return gr.c_code;
 }
 
