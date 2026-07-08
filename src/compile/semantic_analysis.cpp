@@ -12,6 +12,29 @@ SemanticAnalysis::SemanticAnalysis(State *s) : s_(s) {
 AnalysisResult SemanticAnalysis::Analyze(const ParseResult &pr, const CompileConfig &cfg) {
     file_name_ = pr.file_name;
 
+    init_assign_nodes_.clear();
+    assigned_global_consts_.clear();
+
+    if (pr.chunk && pr.chunk->Type() == SyntaxTreeType::Block) {
+        const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
+        for (const auto &stmt : top_block->Stmts()) {
+            if (stmt->Type() == SyntaxTreeType::Function) {
+                const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
+                const auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
+                if (funcname) {
+                    const auto fnlist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcname->FuncNameList());
+                    if (fnlist && fnlist->Funcnames().size() == 1 && fnlist->Funcnames()[0] == "__fakelua_init") {
+                        WalkSyntaxTree(func->Funcbody(), [this](const SyntaxTreeInterfacePtr &sub_node) {
+                            if (sub_node->Type() == SyntaxTreeType::Assign) {
+                                init_assign_nodes_.insert(sub_node.get());
+                            }
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     AnalysisResult ar;
     AnalyzeGlobalConstNames(pr.chunk, ar);
     CheckUnsupportedSyntax(pr.chunk, ar);
@@ -290,6 +313,10 @@ void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const Analy
             CheckLocalVar(node, ar);
             break;
         }
+        case SyntaxTreeType::Assign: {
+            CheckAssign(node, ar);
+            break;
+        }
         case SyntaxTreeType::Return: {
             break;
         }
@@ -308,7 +335,6 @@ void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const Analy
         case SyntaxTreeType::None:
         case SyntaxTreeType::Empty:
         case SyntaxTreeType::Block:
-        case SyntaxTreeType::Assign:
         case SyntaxTreeType::VarList:
         case SyntaxTreeType::ExpList:
         case SyntaxTreeType::Var:
@@ -496,6 +522,35 @@ void SemanticAnalysis::CheckLocalVar(const SyntaxTreeInterfacePtr &node, const A
             for (const auto &name: namelist->Names()) {
                 if (ar.global_const_names.contains(name)) {
                     ThrowError("local variable conflicts with global constant: " + name, node);
+                }
+            }
+        }
+    }
+}
+
+void SemanticAnalysis::CheckAssign(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar) {
+    const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
+    if (!assign) {
+        return;
+    }
+    const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+    if (!varlist) {
+        return;
+    }
+    for (const auto &v_node: varlist->Vars()) {
+        if (v_node->Type() == SyntaxTreeType::Var) {
+            const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(v_node);
+            if (v && v->GetVarKind() == VarKind::kSimple) {
+                const std::string &name = v->GetName();
+                if (ar.global_const_names.contains(name)) {
+                    if (init_assign_nodes_.contains(node.get())) {
+                        if (assigned_global_consts_.contains(name)) {
+                            ThrowError("reassign to global constant variable: " + name, node);
+                        }
+                        assigned_global_consts_.insert(name);
+                    } else {
+                        ThrowError("reassign to global constant variable: " + name, node);
+                    }
                 }
             }
         }

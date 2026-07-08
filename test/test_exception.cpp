@@ -993,7 +993,7 @@ TEST(exception, const_no_init) {
 // 旧语义: 顶层 local 赋值后再次赋值应抛异常。
 // 新管线不再区分 const/non-const locals（SSA 版本号自动区分不同赋值）,
 // 因此该测试被禁用。如果未来需要 const 检测, 需在 SemanticAnalysis 增加专门 pass。
-TEST(DISABLED_exception, const_reassign) {
+TEST(exception, const_reassign) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
