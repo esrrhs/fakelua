@@ -2,7 +2,6 @@
 
 #include "compile/hm_type.h"
 #include "compile/inferred_type.h"
-#include "jit/vm_function.h"
 #include "syntax_tree.h"
 #include "util/debug.h"
 #include <format>

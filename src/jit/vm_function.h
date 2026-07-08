@@ -1,6 +1,6 @@
 #pragma once
 
-#include "jit_type.h"
+#include "fakelua.h"
 #include "jit/jit_common.h"
 #include "util/debug.h"
 

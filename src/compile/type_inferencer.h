@@ -1,6 +1,7 @@
 #pragma once
 
 #include "compile/compile_common.h"
+#include "fakelua.h"
 #include <unordered_set>
 
 namespace fakelua {
