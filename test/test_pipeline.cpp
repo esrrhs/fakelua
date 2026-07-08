@@ -23,7 +23,8 @@ using namespace fakelua;
 // ─────────────────────────────────────────────────────────────────────────
 
 // 编译 pipeline 测试目录中的 Lua 文件并返回完整管线结果
-// lua_file 为相对于 lua/ 子目录的路径 (如 "pipeline/test_cfg_sequential.lua")
+// lua_file 为相对路径, 格式如 "./pipeline/test_cfg_sequential.lua"
+// (运行时目录为 build/bin/, Lua 文件由 POST_BUILD copy 到 build/bin/lua/)
 //
 // 注意: 需要创建 State 实例，因为 CompileFileTo 内部要通过 State 访问
 // 编译器和 JIT 环境。即使禁用了 JIT，State 仍然是必需的。
@@ -33,13 +34,9 @@ static CompileResult RunPipeline(const std::string &lua_file) {
     cfg.record_c_code = true;
     cfg.disable_jit[JIT_TCC] = true;
     cfg.disable_jit[JIT_GCC] = true;
-    // lua_file 是相对于 test/lua/pipeline/ 的文件名
-    // 运行目录可能是 build/bin/, 因此使用从项目根目录开始的路径
-    // 项目根目录 = 测试运行目录的上两级 (从 build/bin/ 到 repo root)
-    const std::string path = "./pipeline/" + lua_file;
     // 使用 RAII 守卫管理 State 生命周期
     FakeluaStateGuard guard;
-    return CompileFileTo(guard.GetState(), path, cfg);
+    return CompileFileTo(guard.GetState(), lua_file, cfg);
 }
 
 // 获取顶层 CFG (从 AST 直接构建)
@@ -104,7 +101,7 @@ static CFGFunction BuildFuncCFG(const SyntaxTreeInterfacePtr &chunk, const std::
 
 // 基本顺序语句: 顶层代码中 entry 块就是函数体, 所以是 entry + exit = 2 blocks
 TEST(pipeline, cfg_sequential) {
-    auto result = RunPipeline("test_cfg_sequential.lua");
+    auto result = RunPipeline("./pipeline/test_cfg_sequential.lua");
     auto cfg = BuildMainCFG(result.GetInferResult().chunk);
 
     ASSERT_GE(cfg.blocks.size(), 2u);  // entry + exit
@@ -113,7 +110,7 @@ TEST(pipeline, cfg_sequential) {
 
 // if-else: 应有 merge 块 (2 个前驱)
 TEST(pipeline, cfg_if_else_merge) {
-    auto result = RunPipeline("test_cfg_if.lua");
+    auto result = RunPipeline("./pipeline/test_cfg_if.lua");
     auto cfg = BuildFuncCFG(result.GetInferResult().chunk, "test");
 
     bool found_merge = false;
@@ -129,7 +126,7 @@ TEST(pipeline, cfg_if_else_merge) {
 
 // if-else 合并处插入 φ 节点
 TEST(pipeline, ssa_phi_insertion) {
-    auto result = RunPipeline("test_ssa_phi.lua");
+    auto result = RunPipeline("./pipeline/test_ssa_phi.lua");
     auto cfg = BuildFuncCFG(result.GetInferResult().chunk, "test");
     auto ssa = BuildMainSSA(cfg);
 
@@ -142,7 +139,7 @@ TEST(pipeline, ssa_phi_insertion) {
 
 // 顶层 chunk 不应插入 φ (单前驱)
 TEST(pipeline, ssa_main_no_phi) {
-    auto result = RunPipeline("test_ssa_phi.lua");
+    auto result = RunPipeline("./pipeline/test_ssa_phi.lua");
     auto cfg = BuildFuncCFG(result.GetInferResult().chunk, "test");
     auto ssa = BuildMainSSA(cfg);
 
@@ -157,7 +154,7 @@ TEST(pipeline, ssa_main_no_phi) {
 
 // 字面量类型推导
 TEST(pipeline, type_literals) {
-    auto result = RunPipeline("test_type_literal.lua");
+    auto result = RunPipeline("./pipeline/test_type_literal.lua");
 
     // 查找各种字面量类型
     bool found_int = false, found_string = false;
@@ -171,7 +168,7 @@ TEST(pipeline, type_literals) {
 
 // 二元运算类型推导
 TEST(pipeline, type_binop) {
-    auto result = RunPipeline("test_type_binop.lua");
+    auto result = RunPipeline("./pipeline/test_type_binop.lua");
 
     // a + b 结果应该是 T_INT
     bool found_binop = false;
@@ -189,7 +186,7 @@ TEST(pipeline, type_binop) {
 
 // table 字面量构造 shape
 TEST(pipeline, shape_literal) {
-    auto result = RunPipeline("test_shape_literal.lua");
+    auto result = RunPipeline("./pipeline/test_shape_literal.lua");
 
     // shape_registry 应该有 shape
     ASSERT_TRUE(result.GetShapeRegistry() != nullptr);
@@ -213,7 +210,7 @@ TEST(pipeline, shape_literal) {
 
 // 字段访问命中 shape
 TEST(pipeline, shape_field_access) {
-    auto result = RunPipeline("test_shape_field_access.lua");
+    auto result = RunPipeline("./pipeline/test_shape_field_access.lua");
 
     // a.x 节点类型应为 T_INT
     bool found_field_access = false;
@@ -234,7 +231,7 @@ TEST(pipeline, shape_field_access) {
 
 // if-else 分支合并不同类型 → Meet 退化
 TEST(pipeline, flow_sensitive_merge) {
-    auto result = RunPipeline("test_flow_sensitive.lua");
+    auto result = RunPipeline("./pipeline/test_flow_sensitive.lua");
 
     // 最终返回值的类型应为 T_FLOAT (meet of int and float)
     bool found_result = false;
@@ -250,7 +247,7 @@ TEST(pipeline, flow_sensitive_merge) {
 
 // struct typedef 生成
 TEST(pipeline, cgen_shape_struct) {
-    auto result = RunPipeline("test_shape_literal.lua");
+    auto result = RunPipeline("./pipeline/test_shape_literal.lua");
 
     const std::string code = result.GetRecordedCCode();
 
@@ -269,7 +266,7 @@ TEST(pipeline, cgen_shape_struct) {
 
 // return 的变量标记为逃逸
 TEST(pipeline, escape_return) {
-    auto result = RunPipeline("test_escape.lua");
+    auto result = RunPipeline("./pipeline/test_escape.lua");
 
     // 逃逸分析结果中, 变量 'a' 应该标记为逃逸
     bool found_escape = false;
