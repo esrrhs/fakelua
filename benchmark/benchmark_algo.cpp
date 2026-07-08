@@ -445,7 +445,7 @@ struct RuntimeContext {
 
         flua = FakeluaNewState();
         for (const char *script : lua_scripts) {
-            CompileString(flua, script, {.debug_mode = false});
+            (void)CompileString(flua, script, {.debug_mode = false});
         }
 
         // Warmup: call each FakeLua function once to page in JIT code and

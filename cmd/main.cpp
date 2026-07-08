@@ -25,7 +25,7 @@ int main(int argc, char **argv) {
     const auto s = guard.GetState();
     CompileConfig cfg;
     cfg.debug_mode = FLAGS_debug;
-    CompileFile(s, argv[1], cfg);
+    (void)CompileFile(s, argv[1], cfg);
 
     int code = 0;
     for (int i = 0; i < FLAGS_repeat; i++) {
