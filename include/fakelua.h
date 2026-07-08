@@ -311,29 +311,24 @@ private:
     State *state_;
 };
 
-// ── 旧接口（返回 void，结果通过 State 全局状态访问） ──────────────────
-// 已废弃：为保证向后兼容而保留。
-// 新代码应优先使用 CompileFileTo / CompileStringTo 获取完整管线结果。
-// TODO: 在下一个大版本中移除。
-[[deprecated("Use CompileFileTo for full pipeline results")]]
-void CompileFile(State *s, const std::string &filename, const CompileConfig &cfg);
+// ── 编译管线接口（返回完整管线结果） ──────────────────────────────────
+//
+// CompileResult 包含:
+//   - parse_result:   AST 根节点 (chunk)
+//   - analysis_result: 语义分析结果 (函数元、调用图)
+//   - infer_result:    SSA/CFG/Shape 类型推导结果
+//   - gen_result:      C 代码生成结果
+//
+// 调用方可以从中读取任意阶段的中间产物, 用于测试/调试/验证。
+// ──────────────────────────────────────────────────────────────────────
 
-[[deprecated("Use CompileStringTo for full pipeline results")]]
-void CompileString(State *s, const std::string &str, const CompileConfig &cfg);
+// 编译 Lua 文件 → 返回完整管线结果。
+CompileResult CompileFile(State *s, const std::string &filename,
+                           const CompileConfig &cfg);
 
-// 旧接口: 获取最后一次编译的 C 代码（需要 State 保存的全局状态）。
-// 已废弃。新代码应直接访问 CompileResult::GetCCode()。
-[[deprecated("Use CompileFileTo::GetCCode() instead")]]
-std::string GetLastRecordedCCode(State *s);
-
-// ── 新接口（返回完整管线结果） ────────────────────────────────────────
-// 编译 Lua 文件 → 返回 CompileResult（C 代码 + InferResult）。
-CompileResult CompileFileTo(State *s, const std::string &filename,
+// 编译 Lua 字符串 → 返回完整管线结果。
+CompileResult CompileString(State *s, const std::string &str,
                              const CompileConfig &cfg);
-
-// 编译 Lua 字符串 → 返回 CompileResult（C 代码 + InferResult）。
-CompileResult CompileStringTo(State *s, const std::string &str,
-                               const CompileConfig &cfg);
 
 // 调用某个脚本函数（定义在文件末尾）
 template<typename Ret, typename... Args>

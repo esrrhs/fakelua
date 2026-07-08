@@ -350,28 +350,15 @@ void FakeluaDeleteState(State *state) {
     delete state;
 }
 
-// ── 旧接口（废弃但仍保留） ──────────────────────────────────────────────
-void CompileFile(State *state, const std::string &filename, const CompileConfig &cfg) {
-    state->GetCompiler().CompileFile(filename, cfg);
+// ── 编译管线接口 ──────────────────────────────────────────────────────
+CompileResult CompileFile(State *state, const std::string &filename,
+                           const CompileConfig &cfg) {
+    return state->GetCompiler().CompileFile(filename, cfg);
 }
 
-void CompileString(State *state, const std::string &str, const CompileConfig &cfg) {
-    state->GetCompiler().CompileString(str, cfg);
-}
-
-std::string GetLastRecordedCCode(State *state) {
-    return "deprecated";  // 新管线不再维护这个全局状态
-}
-
-// ── 新接口 ──────────────────────────────────────────────────────────────
-CompileResult CompileFileTo(State *state, const std::string &filename,
+CompileResult CompileString(State *state, const std::string &str,
                              const CompileConfig &cfg) {
-    return state->GetCompiler().CompileFileTo(filename, cfg);
-}
-
-CompileResult CompileStringTo(State *state, const std::string &str,
-                               const CompileConfig &cfg) {
-    return state->GetCompiler().CompileStringTo(str, cfg);
+    return state->GetCompiler().CompileString(str, cfg);
 }
 
 void SetVarInterfaceNewFunc(State *state, const std::function<VarInterface *()> &func) {

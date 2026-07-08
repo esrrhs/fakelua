@@ -252,8 +252,8 @@ TEST(state, compile_config_record_c_code_with_live_jit) {
 #endif
     cfg.disable_jit[JIT_GCC] = true;// only TCC so the test is fast
 
-    // 使用新接口 CompileStringTo 获取完整管线结果
-    CompileResult result = CompileStringTo(s, "function test() return 99 end", cfg);
+    // 使用新接口 CompileString 获取完整管线结果
+    CompileResult result = CompileString(s, "function test() return 99 end", cfg);
 
     const std::string code = result.GetRecordedCCode();
     ASSERT_FALSE(code.empty());

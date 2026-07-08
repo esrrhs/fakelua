@@ -32,7 +32,7 @@ static std::string InferGetCCode(const std::string &lua_file) {
     cfg.record_c_code = true;
     cfg.disable_jit[JIT_TCC] = true;
     cfg.disable_jit[JIT_GCC] = true;
-    const auto result = CompileFileTo(s, lua_file, cfg);
+    const auto result = CompileFile(s, lua_file, cfg);
     const std::string code = result.GetRecordedCCode();
     FakeluaDeleteState(s);
     // Print so CI logs can be inspected even without a debugger.

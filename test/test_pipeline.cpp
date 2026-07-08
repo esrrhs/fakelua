@@ -36,7 +36,7 @@ static CompileResult RunPipeline(const std::string &lua_file) {
     cfg.disable_jit[JIT_GCC] = true;
     // 使用 RAII 守卫管理 State 生命周期
     FakeluaStateGuard guard;
-    return CompileFileTo(guard.GetState(), lua_file, cfg);
+    return CompileFile(guard.GetState(), lua_file, cfg);
 }
 
 // 获取顶层 CFG (从 AST 直接构建)
