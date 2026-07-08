@@ -1,4 +1,4 @@
-#include "compile/ssa.h"
+#include "compile/infer/ssa.h"
 #include "compile/syntax_tree.h"
 
 namespace fakelua {

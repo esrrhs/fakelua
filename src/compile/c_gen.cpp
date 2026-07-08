@@ -1,7 +1,7 @@
 #include "compile/c_gen.h"
 
 #include "compile/c_runtime_header.h"
-#include "compile/type_inference/shape_type.h"
+#include "compile/infer/shape_type.h"
 #include "state/state.h"
 #include "util/common.h"
 #include "util/exception.h"

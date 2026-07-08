@@ -5,11 +5,11 @@
 // Lua 测试脚本放在 test/lua/pipeline/ 目录中。
 // ─────────────────────────────────────────────────────────────────────────
 
-#include "compile/cfg.h"
 #include "compile/compile_common.h"
 #include "compile/compiler.h"
-#include "compile/ssa.h"
-#include "compile/type_inference/shape_type.h"
+#include "compile/infer/cfg.h"
+#include "compile/infer/shape_type.h"
+#include "compile/infer/ssa.h"
 #include "fakelua.h"
 #include "gtest/gtest.h"
 

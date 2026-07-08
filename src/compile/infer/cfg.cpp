@@ -1,4 +1,4 @@
-#include "compile/cfg.h"
+#include "compile/infer/cfg.h"
 
 namespace fakelua {
 

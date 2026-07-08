@@ -2,11 +2,11 @@
 
 #include <fstream>
 
-#include "compile/cfg.h"
-#include "compile/ssa.h"
+#include "compile/infer/cfg.h"
+#include "compile/infer/shape_type.h"
+#include "compile/infer/ssa.h"
+#include "compile/infer/unified_type_analyzer.h"
 #include "compile/syntax_tree.h"
-#include "compile/type_inference/shape_type.h"
-#include "compile/type_inference/unified_type_analyzer.h"
 #include "util/file_util.h"
 
 namespace fakelua {

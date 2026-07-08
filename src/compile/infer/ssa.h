@@ -1,7 +1,7 @@
 #pragma once
 
-#include "compile/cfg.h"
 #include "compile/compile_common.h"
+#include "compile/infer/cfg.h"
 #include <string>
 #include <unordered_map>
 #include <unordered_set>

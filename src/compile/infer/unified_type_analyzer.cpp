@@ -1,4 +1,4 @@
-#include "compile/type_inference/unified_type_analyzer.h"
+#include "compile/infer/unified_type_analyzer.h"
 #include "compile/syntax_tree.h"
 #include <algorithm>
 #include <cstddef>

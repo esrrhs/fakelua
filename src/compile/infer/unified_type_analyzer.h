@@ -54,12 +54,12 @@
 //   TypeInferencer 保证在 Analyze 前清理上一轮写入 FuncSummary 的悬空 HM 指针。
 // ══════════════════════════════════════════════════════════════════════════════
 
-#include "compile/cfg.h"
 #include "compile/compile_common.h"
-#include "compile/ssa.h"
+#include "compile/infer/cfg.h"
+#include "compile/infer/hm_type.h"
+#include "compile/infer/shape_type.h"
+#include "compile/infer/ssa.h"
 #include "compile/syntax_tree.h"
-#include "compile/type_inference/hm_type.h"
-#include "compile/type_inference/shape_type.h"
 #include <functional>
 #include <string>
 #include <unordered_map>

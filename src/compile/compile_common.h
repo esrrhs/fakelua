@@ -1,7 +1,7 @@
 #pragma once
 
-#include "compile/type_inference/hm_type.h"
-#include "compile/type_inference/inferred_type.h"
+#include "compile/infer/hm_type.h"
+#include "compile/infer/inferred_type.h"
 #include "syntax_tree.h"
 #include "util/debug.h"
 #include <format>
