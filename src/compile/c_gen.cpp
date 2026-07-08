@@ -103,14 +103,8 @@ void CGen::GenerateHeader() {
 
 // 将单个 InferredType 映射为 C 类型字符串。T_NIL 没有稳定布局，返回 std::nullop 以跳过。
 static std::optional<std::string> InferredTypeToCType(InferredType t) {
-    switch (t) {
-        case T_INT:    return "int64_t";
-        case T_FLOAT:  return "double";
-        case T_BOOL:   return "bool";
-        case T_STRING: return "const char*";
-        case T_NIL:    return std::nullopt;
-        default:       return "CVar";  // 未知/混杂类型以 CVar 占位
-    }
+    if (t == T_NIL) return std::nullopt;
+    return "CVar";
 }
 
 void CGen::GenerateShapeStructs() {
@@ -653,7 +647,7 @@ bool CGen::TryCompileLocalStructInit(const std::string &var_name, const SyntaxTr
         return false;
     }
 
-    // 变量必须适合 struct 路径；同时 main_ssa_types 中 RHS ctor 节点也应有对应 shape（精确验证）
+    // 变量 must 适合 struct 路径；同时 main_ssa_types 中 RHS ctor 节点也应有对应 shape（精确验证）
     if (!CanUseStructForVar(var_name, cur_func_name_, ir())) {
         return false;
     }
@@ -720,16 +714,7 @@ bool CGen::TryCompileLocalStructInit(const std::string &var_name, const SyntaxTr
             Out() << "." << fd.c_field_name << " = " << it->second;
         } else {
             // 默认值
-            if (fd.type == T_INT || fd.type == T_FLOAT) {
-                Out() << "." << fd.c_field_name << " = 0";
-            } else if (fd.type == T_BOOL) {
-                Out() << "." << fd.c_field_name << " = false";
-            } else if (fd.type == T_STRING) {
-                Out() << "." << fd.c_field_name << " = NULL";
-            } else {
-                // CVar 情形（理论上不会发生，但保留）
-                Out() << "." << fd.c_field_name << " = (CVar){.type_ = VAR_NIL}";
-            }
+            Out() << "." << fd.c_field_name << " = (CVar){.type_ = VAR_NIL}";
         }
     }
     Out() << "};\n";

@@ -24,11 +24,11 @@ static void JitterRunHelper(const std::function<void(State *, JITType, bool)> &f
     FakeluaDeleteState(s);
 }
 
-TEST(DISABLED_jitter, empty_file) {
+TEST(jitter, empty_file) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_empty_file.lua", {.debug_mode = debug_mode}); });
 }
 
-TEST(DISABLED_jitter, empty_func) {
+TEST(jitter, empty_func) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_func.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -38,7 +38,7 @@ TEST(DISABLED_jitter, empty_func) {
     });
 }
 
-TEST(DISABLED_jitter, empty_local_func) {
+TEST(jitter, empty_local_func) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_local_func.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -48,7 +48,7 @@ TEST(DISABLED_jitter, empty_local_func) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return) {
+TEST(jitter, multi_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -68,7 +68,7 @@ TEST(DISABLED_jitter, multi_return) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return_call) {
+TEST(jitter, multi_return_call) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return_call.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -84,7 +84,7 @@ TEST(DISABLED_jitter, multi_return_call) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return_call_ex) {
+TEST(jitter, multi_return_call_ex) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return_call_ex.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -100,7 +100,7 @@ TEST(DISABLED_jitter, multi_return_call_ex) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return_sub) {
+TEST(jitter, multi_return_sub) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return_sub.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -116,7 +116,7 @@ TEST(DISABLED_jitter, multi_return_sub) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return_multi) {
+TEST(jitter, multi_return_multi) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return_multi.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -137,7 +137,7 @@ TEST(DISABLED_jitter, multi_return_multi) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return_multi_ex) {
+TEST(jitter, multi_return_multi_ex) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return_multi_ex.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -156,7 +156,7 @@ TEST(DISABLED_jitter, multi_return_multi_ex) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return_table_expand) {
+TEST(jitter, multi_return_table_expand) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return_table_expand.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -171,7 +171,7 @@ TEST(DISABLED_jitter, multi_return_table_expand) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return_table_truncate) {
+TEST(jitter, multi_return_table_truncate) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return_table_truncate.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -186,7 +186,7 @@ TEST(DISABLED_jitter, multi_return_table_truncate) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return_table_keyed_val) {
+TEST(jitter, multi_return_table_keyed_val) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return_table_keyed_val.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -202,7 +202,7 @@ TEST(DISABLED_jitter, multi_return_table_keyed_val) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return_table_keyed_exp) {
+TEST(jitter, multi_return_table_keyed_exp) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return_table_keyed_exp.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -214,7 +214,7 @@ TEST(DISABLED_jitter, multi_return_table_keyed_exp) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return_table_indexing) {
+TEST(jitter, multi_return_table_indexing) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return_table_indexing.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -230,7 +230,7 @@ TEST(DISABLED_jitter, multi_return_table_indexing) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return_expr_arith) {
+TEST(jitter, multi_return_expr_arith) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return_expr_arith.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -277,7 +277,7 @@ TEST(DISABLED_jitter, multi_return_expr_arith) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return_expr_control) {
+TEST(jitter, multi_return_expr_control) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return_expr_control.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -299,7 +299,7 @@ TEST(DISABLED_jitter, multi_return_expr_control) {
     });
 }
 
-TEST(DISABLED_jitter, multi_return_expr_assign) {
+TEST(jitter, multi_return_expr_assign) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_return_expr_assign.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -314,7 +314,7 @@ TEST(DISABLED_jitter, multi_return_expr_assign) {
     });
 }
 
-TEST(DISABLED_jitter, multi_name) {
+TEST(jitter, multi_name) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -323,7 +323,7 @@ TEST(DISABLED_jitter, multi_name) {
             std::exception);
 }
 
-TEST(DISABLED_jitter, multi_col_name) {
+TEST(jitter, multi_col_name) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -333,7 +333,7 @@ TEST(DISABLED_jitter, multi_col_name) {
 }
 
 // Global const variable definitions
-TEST(DISABLED_jitter, const_define) {
+TEST(jitter, const_define) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_const_define.lua", {.debug_mode = debug_mode});
         int i = 0;
@@ -342,7 +342,7 @@ TEST(DISABLED_jitter, const_define) {
     });
 }
 
-TEST(DISABLED_jitter, multi_const_define) {
+TEST(jitter, multi_const_define) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_multi_const_define.lua", {.debug_mode = debug_mode});
 
@@ -369,7 +369,7 @@ TEST(DISABLED_jitter, multi_const_define) {
     });
 }
 
-TEST(DISABLED_jitter, empty_func_with_params) {
+TEST(jitter, empty_func_with_params) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_func_with_params.lua", {.debug_mode = debug_mode});
 
@@ -388,7 +388,7 @@ TEST(DISABLED_jitter, empty_func_with_params) {
     });
 }
 
-TEST(DISABLED_jitter, variadic_func) {
+TEST(jitter, variadic_func) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_variadic_func.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -403,7 +403,7 @@ TEST(DISABLED_jitter, variadic_func) {
     });
 }
 
-TEST(DISABLED_jitter, variadic_func_with_params) {
+TEST(jitter, variadic_func_with_params) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_variadic_func_with_params.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -420,7 +420,7 @@ TEST(DISABLED_jitter, variadic_func_with_params) {
     });
 }
 
-TEST(DISABLED_jitter, string) {
+TEST(jitter, string) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileString(s, "function test() return 1 end", {.debug_mode = debug_mode});
         int ret = 0;
@@ -430,7 +430,7 @@ TEST(DISABLED_jitter, string) {
 }
 
 //
-TEST(DISABLED_jitter, local_define) {
+TEST(jitter, local_define) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_local_define.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -440,7 +440,7 @@ TEST(DISABLED_jitter, local_define) {
     });
 }
 
-TEST(DISABLED_jitter, local_define_with_values) {
+TEST(jitter, local_define_with_values) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_local_define_with_value.lua", {.debug_mode = debug_mode});
         bool ret1 = false;
@@ -463,7 +463,7 @@ TEST(DISABLED_jitter, local_define_with_values) {
 }
 
 //
-TEST(DISABLED_jitter, test_assign) {
+TEST(jitter, test_assign) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_assign.lua", {.debug_mode = debug_mode});
         int a = 0;
@@ -477,7 +477,7 @@ TEST(DISABLED_jitter, test_assign) {
 
 //
 // Mismatched var/exp counts (e.g. a, b = 1) are rejected by PreprocessSplitAssign
-TEST(DISABLED_jitter, test_assign_not_match) {
+TEST(jitter, test_assign_not_match) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -487,7 +487,7 @@ TEST(DISABLED_jitter, test_assign_not_match) {
 }
 
 // Variadic assignment (local a, b = ...) is not supported, these tests verify the exception is thrown
-TEST(DISABLED_jitter, test_assign_variadic_match) {
+TEST(jitter, test_assign_variadic_match) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_assign_variadic.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -500,7 +500,7 @@ TEST(DISABLED_jitter, test_assign_variadic_match) {
     });
 }
 
-TEST(DISABLED_jitter, test_assign_variadic_no_match) {
+TEST(jitter, test_assign_variadic_no_match) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_assign_variadic_no_match.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -513,7 +513,7 @@ TEST(DISABLED_jitter, test_assign_variadic_no_match) {
     });
 }
 
-TEST(DISABLED_jitter, test_assign_variadic_empty) {
+TEST(jitter, test_assign_variadic_empty) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_assign_variadic_no_match.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -526,7 +526,7 @@ TEST(DISABLED_jitter, test_assign_variadic_empty) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_table) {
+TEST(jitter, test_const_table) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_const_table.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -570,7 +570,7 @@ TEST(DISABLED_jitter, test_const_table) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_nested_table) {
+TEST(jitter, test_const_nested_table) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_const_nested_table.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -605,7 +605,7 @@ TEST(DISABLED_jitter, test_const_nested_table) {
     });
 }
 
-TEST(DISABLED_jitter, test_local_table) {
+TEST(jitter, test_local_table) {
     std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
         auto ret = new SimpleVarImpl();
@@ -641,7 +641,7 @@ TEST(DISABLED_jitter, test_local_table) {
     }
 }
 
-TEST(DISABLED_jitter, test_local_nested_table) {
+TEST(jitter, test_local_nested_table) {
     std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
         auto ret = new SimpleVarImpl();
@@ -667,7 +667,7 @@ TEST(DISABLED_jitter, test_local_nested_table) {
 }
 
 // Variadic (...) in table constructors is not supported yet, these tests verify the exception is thrown
-TEST(DISABLED_jitter, test_local_table_with_variadic) {
+TEST(jitter, test_local_table_with_variadic) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_local_table_with_variadic.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -676,7 +676,7 @@ TEST(DISABLED_jitter, test_local_table_with_variadic) {
     });
 }
 
-TEST(DISABLED_jitter, test_local_table_with_variadic_no_end) {
+TEST(jitter, test_local_table_with_variadic_no_end) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_local_table_with_variadic_no_end.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -685,7 +685,7 @@ TEST(DISABLED_jitter, test_local_table_with_variadic_no_end) {
     });
 }
 
-TEST(DISABLED_jitter, test_local_table_with_variadic_no_end_replace) {
+TEST(jitter, test_local_table_with_variadic_no_end_replace) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_local_table_with_variadic_no_end_replace.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -698,11 +698,11 @@ TEST(DISABLED_jitter, test_local_table_with_variadic_no_end_replace) {
     });
 }
 
-TEST(DISABLED_jitter, compile_empty_string) {
+TEST(jitter, compile_empty_string) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) { CompileString(s, "", {.debug_mode = debug_mode}); });
 }
 
-TEST(DISABLED_jitter, test_assign_simple_var) {
+TEST(jitter, test_assign_simple_var) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_assign_simple_var.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -711,7 +711,7 @@ TEST(DISABLED_jitter, test_assign_simple_var) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_define_simple_var) {
+TEST(jitter, test_const_define_simple_var) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_const_define_simple_var.lua", {.debug_mode = debug_mode});
         int a = 0, b = 0, c = 0;
@@ -724,7 +724,7 @@ TEST(DISABLED_jitter, test_const_define_simple_var) {
     });
 }
 
-TEST(DISABLED_jitter, test_binop_plus) {
+TEST(jitter, test_binop_plus) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_plus.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -742,12 +742,12 @@ TEST(DISABLED_jitter, test_binop_plus) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_plus) {
+TEST(jitter, test_const_binop_plus) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_plus.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_minus) {
+TEST(jitter, test_binop_minus) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_minus.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -765,12 +765,12 @@ TEST(DISABLED_jitter, test_binop_minus) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_minus) {
+TEST(jitter, test_const_binop_minus) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_minus.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_star) {
+TEST(jitter, test_binop_star) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_star.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -788,12 +788,12 @@ TEST(DISABLED_jitter, test_binop_star) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_star) {
+TEST(jitter, test_const_binop_star) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_star.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_empty_return) {
+TEST(jitter, test_empty_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_return.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -803,7 +803,7 @@ TEST(DISABLED_jitter, test_empty_return) {
     });
 }
 
-TEST(DISABLED_jitter, test_empty_func_no_return) {
+TEST(jitter, test_empty_func_no_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_func_no_return.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -813,7 +813,7 @@ TEST(DISABLED_jitter, test_empty_func_no_return) {
     });
 }
 
-TEST(DISABLED_jitter, test_binop_slash) {
+TEST(jitter, test_binop_slash) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_slash.lua", {.debug_mode = debug_mode});
         double ret1 = 0;
@@ -831,12 +831,12 @@ TEST(DISABLED_jitter, test_binop_slash) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_slash) {
+TEST(jitter, test_const_binop_slash) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_slash.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_double_slash) {
+TEST(jitter, test_binop_double_slash) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_double_slash.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -848,12 +848,12 @@ TEST(DISABLED_jitter, test_binop_double_slash) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_double_slash) {
+TEST(jitter, test_const_binop_double_slash) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_double_slash.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_pow) {
+TEST(jitter, test_binop_pow) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_pow.lua", {.debug_mode = debug_mode});
         double ret1 = 0;
@@ -865,12 +865,12 @@ TEST(DISABLED_jitter, test_binop_pow) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_pow) {
+TEST(jitter, test_const_binop_pow) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_pow.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_mod) {
+TEST(jitter, test_binop_mod) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_mod.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -882,12 +882,12 @@ TEST(DISABLED_jitter, test_binop_mod) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_mod) {
+TEST(jitter, test_const_binop_mod) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_mod.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_bitand) {
+TEST(jitter, test_binop_bitand) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_bitand.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -899,12 +899,12 @@ TEST(DISABLED_jitter, test_binop_bitand) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_bitand) {
+TEST(jitter, test_const_binop_bitand) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_bitand.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_xor) {
+TEST(jitter, test_binop_xor) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_xor.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -916,12 +916,12 @@ TEST(DISABLED_jitter, test_binop_xor) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_xor) {
+TEST(jitter, test_const_binop_xor) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_xor.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_bitor) {
+TEST(jitter, test_binop_bitor) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_bitor.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -933,12 +933,12 @@ TEST(DISABLED_jitter, test_binop_bitor) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_bitor) {
+TEST(jitter, test_const_binop_bitor) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_bitor.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_right_shift) {
+TEST(jitter, test_binop_right_shift) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_right_shift.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -950,12 +950,12 @@ TEST(DISABLED_jitter, test_binop_right_shift) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_right_shift) {
+TEST(jitter, test_const_binop_right_shift) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_right_shift.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_left_shift) {
+TEST(jitter, test_binop_left_shift) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_left_shift.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -967,13 +967,13 @@ TEST(DISABLED_jitter, test_binop_left_shift) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_left_shift) {
+TEST(jitter, test_const_binop_left_shift) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_left_shift.lua", {.debug_mode = true}));
 }
 
 // Lua 5.4: 移位量 >= 64 时结果为 0
-TEST(DISABLED_jitter, test_binop_left_shift_overflow) {
+TEST(jitter, test_binop_left_shift_overflow) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_left_shift_overflow.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -989,7 +989,7 @@ TEST(DISABLED_jitter, test_binop_left_shift_overflow) {
     });
 }
 
-TEST(DISABLED_jitter, test_binop_right_shift_overflow) {
+TEST(jitter, test_binop_right_shift_overflow) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_right_shift_overflow.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1002,7 +1002,7 @@ TEST(DISABLED_jitter, test_binop_right_shift_overflow) {
     });
 }
 
-TEST(DISABLED_jitter, test_binop_concat) {
+TEST(jitter, test_binop_concat) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_concat.lua", {.debug_mode = debug_mode});
         std::string ret;
@@ -1011,12 +1011,12 @@ TEST(DISABLED_jitter, test_binop_concat) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_concat) {
+TEST(jitter, test_const_binop_concat) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_concat.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_less) {
+TEST(jitter, test_binop_less) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_less.lua", {.debug_mode = debug_mode});
         bool ret1 = false;
@@ -1028,12 +1028,12 @@ TEST(DISABLED_jitter, test_binop_less) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_less) {
+TEST(jitter, test_const_binop_less) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_less.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_less_equal) {
+TEST(jitter, test_binop_less_equal) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_less_equal.lua", {.debug_mode = debug_mode});
         bool ret1 = false;
@@ -1045,12 +1045,12 @@ TEST(DISABLED_jitter, test_binop_less_equal) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_less_equal) {
+TEST(jitter, test_const_binop_less_equal) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_less_equal.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_more) {
+TEST(jitter, test_binop_more) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_more.lua", {.debug_mode = debug_mode});
         bool ret1 = false;
@@ -1062,12 +1062,12 @@ TEST(DISABLED_jitter, test_binop_more) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_more) {
+TEST(jitter, test_const_binop_more) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_more.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_more_equal) {
+TEST(jitter, test_binop_more_equal) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_more_equal.lua", {.debug_mode = debug_mode});
         bool ret1 = false;
@@ -1079,12 +1079,12 @@ TEST(DISABLED_jitter, test_binop_more_equal) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_more_equal) {
+TEST(jitter, test_const_binop_more_equal) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_more_equal.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_equal) {
+TEST(jitter, test_binop_equal) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_equal.lua", {.debug_mode = debug_mode});
         bool ret1 = false;
@@ -1096,12 +1096,12 @@ TEST(DISABLED_jitter, test_binop_equal) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_equal) {
+TEST(jitter, test_const_binop_equal) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_equal.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_not_equal) {
+TEST(jitter, test_binop_not_equal) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_not_equal.lua", {.debug_mode = debug_mode});
         bool ret1 = false;
@@ -1113,12 +1113,12 @@ TEST(DISABLED_jitter, test_binop_not_equal) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_not_equal) {
+TEST(jitter, test_const_binop_not_equal) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_not_equal.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_and) {
+TEST(jitter, test_binop_and) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_and.lua", {.debug_mode = debug_mode});
         float ret1 = 0;
@@ -1131,7 +1131,7 @@ TEST(DISABLED_jitter, test_binop_and) {
     });
 }
 
-TEST(DISABLED_jitter, test_binop_and_bool) {
+TEST(jitter, test_binop_and_bool) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_and_bool.lua", {.debug_mode = debug_mode});
         bool ret1 = false;
@@ -1143,7 +1143,7 @@ TEST(DISABLED_jitter, test_binop_and_bool) {
     });
 }
 
-TEST(DISABLED_jitter, test_binop_and_or) {
+TEST(jitter, test_binop_and_or) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_and_or.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -1155,12 +1155,12 @@ TEST(DISABLED_jitter, test_binop_and_or) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_and) {
+TEST(jitter, test_const_binop_and) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_and.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_binop_or) {
+TEST(jitter, test_binop_or) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_or.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -1172,12 +1172,12 @@ TEST(DISABLED_jitter, test_binop_or) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_binop_or) {
+TEST(jitter, test_const_binop_or) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_binop_or.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_unop_minus) {
+TEST(jitter, test_unop_minus) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_unop_minus.lua", {.debug_mode = debug_mode});
         float ret = 0;
@@ -1186,12 +1186,12 @@ TEST(DISABLED_jitter, test_unop_minus) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_unop_minus) {
+TEST(jitter, test_const_unop_minus) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_unop_minus.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_unop_not) {
+TEST(jitter, test_unop_not) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_unop_not.lua", {.debug_mode = debug_mode});
         bool ret1 = false;
@@ -1203,12 +1203,12 @@ TEST(DISABLED_jitter, test_unop_not) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_unop_not) {
+TEST(jitter, test_const_unop_not) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_unop_not.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_unop_len) {
+TEST(jitter, test_unop_len) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_unop_len.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -1220,12 +1220,12 @@ TEST(DISABLED_jitter, test_unop_len) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_unop_len) {
+TEST(jitter, test_const_unop_len) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_unop_len.lua", {.debug_mode = true}));
 }
 
-TEST(DISABLED_jitter, test_unop_bitnot) {
+TEST(jitter, test_unop_bitnot) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_unop_bitnot.lua", {.debug_mode = debug_mode});
         int ret1 = 0;
@@ -1237,13 +1237,13 @@ TEST(DISABLED_jitter, test_unop_bitnot) {
     });
 }
 
-TEST(DISABLED_jitter, test_const_unop_bitnot) {
+TEST(jitter, test_const_unop_bitnot) {
     FakeluaStateGuard sg;
     EXPECT_NO_THROW(CompileFile(sg.GetState(), "./jit/test_const_unop_bitnot.lua", {.debug_mode = true}));
 }
 
 //
-TEST(DISABLED_jitter, test_local_func_call) {
+TEST(jitter, test_local_func_call) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_local_func_call.lua", {.debug_mode = debug_mode});
         bool ret = false;
@@ -1254,7 +1254,7 @@ TEST(DISABLED_jitter, test_local_func_call) {
     });
 }
 
-TEST(DISABLED_jitter, test_global_func_call) {
+TEST(jitter, test_global_func_call) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_global_func_call.lua", {.debug_mode = debug_mode});
         bool ret = false;
@@ -1263,7 +1263,7 @@ TEST(DISABLED_jitter, test_global_func_call) {
     });
 }
 
-TEST(DISABLED_jitter, test_other_func_call) {
+TEST(jitter, test_other_func_call) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_other_func_call_inner.lua", {.debug_mode = debug_mode});
         CompileFile(s, "./jit/test_other_func_call.lua", {.debug_mode = debug_mode});
@@ -1275,7 +1275,7 @@ TEST(DISABLED_jitter, test_other_func_call) {
     });
 }
 
-TEST(DISABLED_jitter, test_assign_table_var) {
+TEST(jitter, test_assign_table_var) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_assign_table_var.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1286,7 +1286,7 @@ TEST(DISABLED_jitter, test_assign_table_var) {
     });
 }
 
-TEST(DISABLED_jitter, test_do_block) {
+TEST(jitter, test_do_block) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_do_block.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1295,7 +1295,7 @@ TEST(DISABLED_jitter, test_do_block) {
     });
 }
 
-TEST(DISABLED_jitter, test_while) {
+TEST(jitter, test_while) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_while.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1307,7 +1307,7 @@ TEST(DISABLED_jitter, test_while) {
     });
 }
 
-TEST(DISABLED_jitter, test_repeat) {
+TEST(jitter, test_repeat) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_repeat.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1319,7 +1319,7 @@ TEST(DISABLED_jitter, test_repeat) {
     });
 }
 
-TEST(DISABLED_jitter, test_while_double) {
+TEST(jitter, test_while_double) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_while_double.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1328,7 +1328,7 @@ TEST(DISABLED_jitter, test_while_double) {
     });
 }
 
-TEST(DISABLED_jitter, test_repeat_double) {
+TEST(jitter, test_repeat_double) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_repeat_double.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1338,7 +1338,7 @@ TEST(DISABLED_jitter, test_repeat_double) {
 }
 
 //
-TEST(DISABLED_jitter, test_if) {
+TEST(jitter, test_if) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_if.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1353,7 +1353,7 @@ TEST(DISABLED_jitter, test_if) {
     });
 }
 
-TEST(DISABLED_jitter, test_if_simple) {
+TEST(jitter, test_if_simple) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_if_simple.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1364,7 +1364,7 @@ TEST(DISABLED_jitter, test_if_simple) {
     });
 }
 
-TEST(DISABLED_jitter, test_if_elseif) {
+TEST(jitter, test_if_elseif) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_if_elseif.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1381,7 +1381,7 @@ TEST(DISABLED_jitter, test_if_elseif) {
     });
 }
 
-TEST(DISABLED_jitter, test_if_elseif_normal) {
+TEST(jitter, test_if_elseif_normal) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_if_elseif_normal.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1398,7 +1398,7 @@ TEST(DISABLED_jitter, test_if_elseif_normal) {
     });
 }
 
-TEST(DISABLED_jitter, test_if_elseif_return) {
+TEST(jitter, test_if_elseif_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_if_elseif_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1415,7 +1415,7 @@ TEST(DISABLED_jitter, test_if_elseif_return) {
     });
 }
 
-TEST(DISABLED_jitter, test_if_else) {
+TEST(jitter, test_if_else) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_if_else.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1426,7 +1426,7 @@ TEST(DISABLED_jitter, test_if_else) {
     });
 }
 
-TEST(DISABLED_jitter, test_while_return) {
+TEST(jitter, test_while_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_while_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1437,7 +1437,7 @@ TEST(DISABLED_jitter, test_while_return) {
     });
 }
 
-TEST(DISABLED_jitter, test_repeat_return) {
+TEST(jitter, test_repeat_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_repeat_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1446,7 +1446,7 @@ TEST(DISABLED_jitter, test_repeat_return) {
     });
 }
 
-TEST(DISABLED_jitter, test_while_break) {
+TEST(jitter, test_while_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_while_break.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1455,7 +1455,7 @@ TEST(DISABLED_jitter, test_while_break) {
     });
 }
 
-TEST(DISABLED_jitter, test_repeat_break) {
+TEST(jitter, test_repeat_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_repeat_break.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1464,7 +1464,7 @@ TEST(DISABLED_jitter, test_repeat_break) {
     });
 }
 
-TEST(DISABLED_jitter, test_while_if_return) {
+TEST(jitter, test_while_if_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_while_if_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1475,7 +1475,7 @@ TEST(DISABLED_jitter, test_while_if_return) {
     });
 }
 
-TEST(DISABLED_jitter, test_repeat_if_return) {
+TEST(jitter, test_repeat_if_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_repeat_if_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1486,7 +1486,7 @@ TEST(DISABLED_jitter, test_repeat_if_return) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_loop) {
+TEST(jitter, test_for_loop) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1495,7 +1495,7 @@ TEST(DISABLED_jitter, test_for_loop) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_loop_default) {
+TEST(jitter, test_for_loop_default) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_default.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1504,7 +1504,7 @@ TEST(DISABLED_jitter, test_for_loop_default) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_loop_return) {
+TEST(jitter, test_for_loop_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1515,7 +1515,7 @@ TEST(DISABLED_jitter, test_for_loop_return) {
     });
 }
 
-TEST(DISABLED_jitter, test_while_just_break) {
+TEST(jitter, test_while_just_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_while_just_break.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1526,7 +1526,7 @@ TEST(DISABLED_jitter, test_while_just_break) {
     });
 }
 
-TEST(DISABLED_jitter, test_repeat_just_break) {
+TEST(jitter, test_repeat_just_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_repeat_just_break.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1537,7 +1537,7 @@ TEST(DISABLED_jitter, test_repeat_just_break) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_loop_double) {
+TEST(jitter, test_for_loop_double) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_double.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1546,7 +1546,7 @@ TEST(DISABLED_jitter, test_for_loop_double) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_loop_break) {
+TEST(jitter, test_for_loop_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_break.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1555,7 +1555,7 @@ TEST(DISABLED_jitter, test_for_loop_break) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_loop_if_return) {
+TEST(jitter, test_for_loop_if_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_if_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1566,7 +1566,7 @@ TEST(DISABLED_jitter, test_for_loop_if_return) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_loop_just_break) {
+TEST(jitter, test_for_loop_just_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_just_break.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1577,7 +1577,7 @@ TEST(DISABLED_jitter, test_for_loop_just_break) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_in) {
+TEST(jitter, test_for_in) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1586,7 +1586,7 @@ TEST(DISABLED_jitter, test_for_in) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_in_double) {
+TEST(jitter, test_for_in_double) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_double.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1595,7 +1595,7 @@ TEST(DISABLED_jitter, test_for_in_double) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_in_break) {
+TEST(jitter, test_for_in_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_break.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1604,7 +1604,7 @@ TEST(DISABLED_jitter, test_for_in_break) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_in_if_return) {
+TEST(jitter, test_for_in_if_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_if_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1615,7 +1615,7 @@ TEST(DISABLED_jitter, test_for_in_if_return) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_in_just_break) {
+TEST(jitter, test_for_in_just_break) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_just_break.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1624,7 +1624,7 @@ TEST(DISABLED_jitter, test_for_in_just_break) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_in_return) {
+TEST(jitter, test_for_in_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1633,7 +1633,7 @@ TEST(DISABLED_jitter, test_for_in_return) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_in_return_fallback) {
+TEST(jitter, test_for_in_return_fallback) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_return_fallback.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1644,7 +1644,7 @@ TEST(DISABLED_jitter, test_for_in_return_fallback) {
 
 //
 //
-TEST(DISABLED_jitter, test_local_func_call_table_construct) {
+TEST(jitter, test_local_func_call_table_construct) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_local_func_call_table_construct.lua", {.debug_mode = debug_mode});
         bool ret = false;
@@ -1655,7 +1655,7 @@ TEST(DISABLED_jitter, test_local_func_call_table_construct) {
     });
 }
 
-TEST(DISABLED_jitter, test_local_func_call_string) {
+TEST(jitter, test_local_func_call_string) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_local_func_call_string.lua", {.debug_mode = debug_mode});
         std::string ret;
@@ -1666,12 +1666,12 @@ TEST(DISABLED_jitter, test_local_func_call_string) {
 
 // Dynamic function call via local variable: compiles successfully, but will naturally
 // fail at runtime since the local variable name "c" is used as the literal function name.
-TEST(DISABLED_jitter, test_var_func_call) {
+TEST(jitter, test_var_func_call) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_var_func_call.lua", {.debug_mode = debug_mode}); });
 }
 
 // Dynamic function call via table index (c[k](a,b)) is not supported.
-TEST(DISABLED_jitter, test_table_var_func_call) {
+TEST(jitter, test_table_var_func_call) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -1680,7 +1680,7 @@ TEST(DISABLED_jitter, test_table_var_func_call) {
             std::exception);
 }
 
-TEST(DISABLED_jitter, test_empty_func_call) {
+TEST(jitter, test_empty_func_call) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_func_call.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1689,7 +1689,7 @@ TEST(DISABLED_jitter, test_empty_func_call) {
     });
 }
 
-TEST(DISABLED_jitter, test_table_get_set) {
+TEST(jitter, test_table_get_set) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_get_set.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1698,7 +1698,7 @@ TEST(DISABLED_jitter, test_table_get_set) {
     });
 }
 
-TEST(DISABLED_jitter, test_table_stringid_dynamic_get) {
+TEST(jitter, test_table_stringid_dynamic_get) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_stringid_dynamic_get.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1707,7 +1707,7 @@ TEST(DISABLED_jitter, test_table_stringid_dynamic_get) {
     });
 }
 
-TEST(DISABLED_jitter, test_table_stringid_dynamic_set) {
+TEST(jitter, test_table_stringid_dynamic_set) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_stringid_dynamic_set.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1716,7 +1716,7 @@ TEST(DISABLED_jitter, test_table_stringid_dynamic_set) {
     });
 }
 
-TEST(DISABLED_jitter, test_table_float_int_key_alias_set) {
+TEST(jitter, test_table_float_int_key_alias_set) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_float_int_key_alias_set.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1725,7 +1725,7 @@ TEST(DISABLED_jitter, test_table_float_int_key_alias_set) {
     });
 }
 
-TEST(DISABLED_jitter, test_table_float_int_key_alias_get) {
+TEST(jitter, test_table_float_int_key_alias_get) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_float_int_key_alias_get.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1734,7 +1734,7 @@ TEST(DISABLED_jitter, test_table_float_int_key_alias_get) {
     });
 }
 
-TEST(DISABLED_jitter, test_table_empty_get) {
+TEST(jitter, test_table_empty_get) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_empty_get.lua", {.debug_mode = debug_mode});
         CVar ret = {};
@@ -1744,7 +1744,7 @@ TEST(DISABLED_jitter, test_table_empty_get) {
     });
 }
 
-TEST(DISABLED_jitter, test_table_quick_delete) {
+TEST(jitter, test_table_quick_delete) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_quick_delete.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1753,7 +1753,7 @@ TEST(DISABLED_jitter, test_table_quick_delete) {
     });
 }
 
-TEST(DISABLED_jitter, test_table_hash_delete_head) {
+TEST(jitter, test_table_hash_delete_head) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_hash_delete_head.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1762,7 +1762,7 @@ TEST(DISABLED_jitter, test_table_hash_delete_head) {
     });
 }
 
-TEST(DISABLED_jitter, test_table_hash_delete_chain) {
+TEST(jitter, test_table_hash_delete_chain) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_hash_delete_chain.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1772,7 +1772,7 @@ TEST(DISABLED_jitter, test_table_hash_delete_chain) {
 }
 
 // Bug 4: Int and Float with equal mathematical value must compare as equal in JIT code.
-TEST(DISABLED_jitter, test_binop_equal_int_float) {
+TEST(jitter, test_binop_equal_int_float) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_binop_equal_int_float.lua", {.debug_mode = debug_mode});
         bool eq = false;
@@ -1792,7 +1792,7 @@ TEST(DISABLED_jitter, test_binop_equal_int_float) {
 
 // Bug 5: Two multi-assign statements on the same source line must not generate
 // duplicate temp variable names, causing compile errors.
-TEST(DISABLED_jitter, test_assign_same_line_multi) {
+TEST(jitter, test_assign_same_line_multi) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_assign_same_line_multi.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1803,7 +1803,7 @@ TEST(DISABLED_jitter, test_assign_same_line_multi) {
 
 // Float for-loop: exercises the typed_float_for code path in CompileStmtForLoop.
 // begin=1.0, end=2.0, step=0.5 => iterations at 1.0, 1.5, 2.0 => sum = 4.5
-TEST(DISABLED_jitter, test_for_loop_float) {
+TEST(jitter, test_for_loop_float) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_float.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -1814,7 +1814,7 @@ TEST(DISABLED_jitter, test_for_loop_float) {
 
 // Unary minus applied to a float parameter: exercises the float branch of
 // CompileExp for unary minus (UnopMinus on a float Var).
-TEST(DISABLED_jitter, test_unop_minus_float) {
+TEST(jitter, test_unop_minus_float) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_unop_minus_float.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -1825,7 +1825,7 @@ TEST(DISABLED_jitter, test_unop_minus_float) {
 
 // T_DYNAMIC subtraction: operands from table lookups are T_DYNAMIC,
 // exercises OpSub in CompileBinop CVar path (c_gen.cpp).
-TEST(DISABLED_jitter, test_dynamic_arith_sub) {
+TEST(jitter, test_dynamic_arith_sub) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_arith_sub.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1836,7 +1836,7 @@ TEST(DISABLED_jitter, test_dynamic_arith_sub) {
 
 // T_DYNAMIC division: operands from table lookups are T_DYNAMIC,
 // exercises OpDiv in CompileBinop CVar path (c_gen.cpp).
-TEST(DISABLED_jitter, test_dynamic_arith_div) {
+TEST(jitter, test_dynamic_arith_div) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_arith_div.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -1847,7 +1847,7 @@ TEST(DISABLED_jitter, test_dynamic_arith_div) {
 
 // T_DYNAMIC floor division: operands from table lookups are T_DYNAMIC,
 // exercises OpFloorDiv in CompileBinop CVar path (c_gen.cpp).
-TEST(DISABLED_jitter, test_dynamic_arith_floor_div) {
+TEST(jitter, test_dynamic_arith_floor_div) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_arith_floor_div.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1858,7 +1858,7 @@ TEST(DISABLED_jitter, test_dynamic_arith_floor_div) {
 
 // T_DYNAMIC power: operands from table lookups are T_DYNAMIC,
 // exercises OpPow in CompileBinop CVar path (c_gen.cpp).
-TEST(DISABLED_jitter, test_dynamic_arith_pow) {
+TEST(jitter, test_dynamic_arith_pow) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_arith_pow.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -1869,7 +1869,7 @@ TEST(DISABLED_jitter, test_dynamic_arith_pow) {
 
 // T_DYNAMIC bitwise AND: operands from table lookups are T_DYNAMIC,
 // exercises OpBitAnd in CompileBinop CVar path (c_gen.cpp).
-TEST(DISABLED_jitter, test_dynamic_arith_bitand) {
+TEST(jitter, test_dynamic_arith_bitand) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_arith_bitand.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1880,7 +1880,7 @@ TEST(DISABLED_jitter, test_dynamic_arith_bitand) {
 
 // T_DYNAMIC bitwise OR: operands from table lookups are T_DYNAMIC,
 // exercises OpBitOr in CompileBinop CVar path (c_gen.cpp).
-TEST(DISABLED_jitter, test_dynamic_arith_bitor) {
+TEST(jitter, test_dynamic_arith_bitor) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_arith_bitor.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1891,7 +1891,7 @@ TEST(DISABLED_jitter, test_dynamic_arith_bitor) {
 
 // T_DYNAMIC bitwise XOR: operands from table lookups are T_DYNAMIC,
 // exercises OpBitXor in CompileBinop CVar path (c_gen.cpp).
-TEST(DISABLED_jitter, test_dynamic_arith_bitxor) {
+TEST(jitter, test_dynamic_arith_bitxor) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_arith_bitxor.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1902,7 +1902,7 @@ TEST(DISABLED_jitter, test_dynamic_arith_bitxor) {
 
 // T_DYNAMIC right shift: operands from table lookups are T_DYNAMIC,
 // exercises OpRightShift in CompileBinop CVar path (c_gen.cpp).
-TEST(DISABLED_jitter, test_dynamic_arith_rshift) {
+TEST(jitter, test_dynamic_arith_rshift) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_arith_rshift.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1913,7 +1913,7 @@ TEST(DISABLED_jitter, test_dynamic_arith_rshift) {
 
 // T_DYNAMIC left shift: operands from table lookups are T_DYNAMIC,
 // exercises OpLeftShift in CompileBinop CVar path (c_gen.cpp).
-TEST(DISABLED_jitter, test_dynamic_arith_lshift) {
+TEST(jitter, test_dynamic_arith_lshift) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_arith_lshift.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1925,7 +1925,7 @@ TEST(DISABLED_jitter, test_dynamic_arith_lshift) {
 // Untyped for loop with explicit dynamic step: helper() returns T_DYNAMIC,
 // so the step expression is not typed. This exercises c_gen.cpp lines 2011-2012
 // (the ExpStep != nullptr path in the CVar for-loop). Iterations: 1,3,5,7,9 => 5.
-TEST(DISABLED_jitter, test_for_loop_dynamic_step) {
+TEST(jitter, test_for_loop_dynamic_step) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_dynamic_step.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1935,7 +1935,7 @@ TEST(DISABLED_jitter, test_for_loop_dynamic_step) {
 }
 
 // Typed-int for-loop with step=0 must throw "'for' step is zero" at compile time.
-TEST(DISABLED_jitter, test_for_loop_zero_step_int) {
+TEST(jitter, test_for_loop_zero_step_int) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -1945,7 +1945,7 @@ TEST(DISABLED_jitter, test_for_loop_zero_step_int) {
 }
 
 // Typed-float for-loop with step=0.0 must throw "'for' step is zero" at compile time.
-TEST(DISABLED_jitter, test_for_loop_zero_step_float) {
+TEST(jitter, test_for_loop_zero_step_float) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -1959,14 +1959,14 @@ TEST(DISABLED_jitter, test_for_loop_zero_step_float) {
 // code cannot propagate C++ exceptions back through its frames, so the runtime error
 // cannot be caught in a unit test.  This test verifies only that the Lua code
 // compiles without error.
-TEST(DISABLED_jitter, test_for_loop_zero_step_dynamic) {
+TEST(jitter, test_for_loop_zero_step_dynamic) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) { EXPECT_NO_THROW(CompileFile(s, "./jit/test_for_loop_zero_step_dynamic.lua", {.debug_mode = debug_mode})); });
 }
 
 // ForIn with only 1 loop variable (key only, no value variable).
 // Exercises c_gen.cpp CompileStmtForIn lines 2138-2142 (dummy val path).
 // Keys 1+2+3 = 6.
-TEST(DISABLED_jitter, test_for_in_key_only) {
+TEST(jitter, test_for_in_key_only) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_key_only.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1979,7 +1979,7 @@ TEST(DISABLED_jitter, test_for_in_key_only) {
 // T_DYNAMIC unary minus: exercises OpUnaryMinus in CompileExp CVar path
 // (c_gen.cpp line 2497). x is a T_DYNAMIC table lookup; -x uses OpUnaryMinus.
 // -(10) = -10.
-TEST(DISABLED_jitter, test_dynamic_unop_minus) {
+TEST(jitter, test_dynamic_unop_minus) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_unop_minus.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1992,7 +1992,7 @@ TEST(DISABLED_jitter, test_dynamic_unop_minus) {
 // Without the fix, the generated C would have two declarations of i in the
 // same scope, causing a compilation error.
 // i=1: inner_i=2; i=2: inner_i=4; i=3: inner_i=6  => sum=12
-TEST(DISABLED_jitter, test_for_loop_shadow_local) {
+TEST(jitter, test_for_loop_shadow_local) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_shadow_local.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2003,7 +2003,7 @@ TEST(DISABLED_jitter, test_for_loop_shadow_local) {
 
 // Typed-float for-loop: loop variable i shadowed by local i inside the body.
 // i=1.0: inner_i=1.5; i=2.0: inner_i=2.5; i=3.0: inner_i=3.5  => sum=7.5
-TEST(DISABLED_jitter, test_for_loop_float_shadow_local) {
+TEST(jitter, test_for_loop_float_shadow_local) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_float_shadow_local.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2015,7 +2015,7 @@ TEST(DISABLED_jitter, test_for_loop_float_shadow_local) {
 // Dynamic for-loop (step from helper() forces CVar path): loop variable i
 // shadowed by local i inside the body.
 // i=1,3,5 (step=2); inner_i=2,6,10  => sum=18
-TEST(DISABLED_jitter, test_for_loop_dynamic_shadow_local) {
+TEST(jitter, test_for_loop_dynamic_shadow_local) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_dynamic_shadow_local.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2026,7 +2026,7 @@ TEST(DISABLED_jitter, test_for_loop_dynamic_shadow_local) {
 
 // For-in loop: loop variable k shadowed by local k inside the body.
 // t={10,20,30}; k=1,2,3; inner_k=2,4,6  => sum=12
-TEST(DISABLED_jitter, test_for_in_shadow_local) {
+TEST(jitter, test_for_in_shadow_local) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_in_shadow_local.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2035,7 +2035,7 @@ TEST(DISABLED_jitter, test_for_in_shadow_local) {
     });
 }
 
-TEST(DISABLED_jitter, test_table_zero_key) {
+TEST(jitter, test_table_zero_key) {
     std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
         auto ret = new SimpleVarImpl();
@@ -2061,7 +2061,7 @@ TEST(DISABLED_jitter, test_table_zero_key) {
     }
 }
 
-TEST(DISABLED_jitter, test_table_construct) {
+TEST(jitter, test_table_construct) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_construct.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2070,7 +2070,7 @@ TEST(DISABLED_jitter, test_table_construct) {
     });
 }
 
-TEST(DISABLED_jitter, test_math_specializations) {
+TEST(jitter, test_math_specializations) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_math_specializations.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2079,7 +2079,7 @@ TEST(DISABLED_jitter, test_math_specializations) {
     });
 }
 
-TEST(DISABLED_jitter, test_bitwise_float) {
+TEST(jitter, test_bitwise_float) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_bitwise_float.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2088,7 +2088,7 @@ TEST(DISABLED_jitter, test_bitwise_float) {
     });
 }
 
-TEST(DISABLED_jitter, test_bitnot_float) {
+TEST(jitter, test_bitnot_float) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_bitnot_float.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2097,7 +2097,7 @@ TEST(DISABLED_jitter, test_bitnot_float) {
     });
 }
 
-TEST(DISABLED_jitter, test_dynamic_le) {
+TEST(jitter, test_dynamic_le) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_le.lua", {.debug_mode = debug_mode});
         bool ret_b = false;
@@ -2106,7 +2106,7 @@ TEST(DISABLED_jitter, test_dynamic_le) {
     });
 }
 
-TEST(DISABLED_jitter, test_more_coverage) {
+TEST(jitter, test_more_coverage) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_more_coverage.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2115,7 +2115,7 @@ TEST(DISABLED_jitter, test_more_coverage) {
     });
 }
 
-TEST(DISABLED_jitter, test_shadow_coverage) {
+TEST(jitter, test_shadow_coverage) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_shadow_coverage.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2124,7 +2124,7 @@ TEST(DISABLED_jitter, test_shadow_coverage) {
     });
 }
 
-TEST(DISABLED_jitter, test_table_spec) {
+TEST(jitter, test_table_spec) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_spec.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2133,7 +2133,7 @@ TEST(DISABLED_jitter, test_table_spec) {
     });
 }
 
-TEST(DISABLED_jitter, test_for_no_step) {
+TEST(jitter, test_for_no_step) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_no_step.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2142,7 +2142,7 @@ TEST(DISABLED_jitter, test_for_no_step) {
     });
 }
 
-TEST(DISABLED_jitter, test_spec_call_arg_count_error) {
+TEST(jitter, test_spec_call_arg_count_error) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -2151,7 +2151,7 @@ TEST(DISABLED_jitter, test_spec_call_arg_count_error) {
             std::exception);
 }
 
-TEST(DISABLED_jitter, test_set_table_arg_count_error) {
+TEST(jitter, test_set_table_arg_count_error) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -2166,7 +2166,7 @@ TEST(DISABLED_jitter, test_set_table_arg_count_error) {
             std::exception);
 }
 
-TEST(DISABLED_jitter, test_complete) {
+TEST(jitter, test_complete) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_complete.lua", {.debug_mode = debug_mode, .record_c_code = true});
         double ret_d = 0.0;
@@ -2175,7 +2175,7 @@ TEST(DISABLED_jitter, test_complete) {
     });
 }
 
-TEST(DISABLED_jitter, test_specs_helper) {
+TEST(jitter, test_specs_helper) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_specs_helper.lua", {.debug_mode = debug_mode});
         double ret_d2 = 0.0;
@@ -2184,7 +2184,7 @@ TEST(DISABLED_jitter, test_specs_helper) {
     });
 }
 
-TEST(DISABLED_jitter, test_dup_const_error) {
+TEST(jitter, test_dup_const_error) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -2193,7 +2193,7 @@ TEST(DISABLED_jitter, test_dup_const_error) {
             std::exception);
 }
 
-TEST(DISABLED_jitter, test_dup_param_error) {
+TEST(jitter, test_dup_param_error) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -2202,7 +2202,7 @@ TEST(DISABLED_jitter, test_dup_param_error) {
             std::exception);
 }
 
-TEST(DISABLED_jitter, test_shadow_const_error) {
+TEST(jitter, test_shadow_const_error) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -2211,7 +2211,7 @@ TEST(DISABLED_jitter, test_shadow_const_error) {
             std::exception);
 }
 
-TEST(DISABLED_jitter, test_native_binop) {
+TEST(jitter, test_native_binop) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_native_binop.lua", {.debug_mode = debug_mode});
         double ret_d = 0.0;
@@ -2222,7 +2222,7 @@ TEST(DISABLED_jitter, test_native_binop) {
 
 // --- Focused individual test cases (one scenario per test) ---
 
-TEST(DISABLED_jitter, table_constructor_string_int_generic_keys) {
+TEST(jitter, table_constructor_string_int_generic_keys) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_constructor_string_int_generic_keys.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2231,7 +2231,7 @@ TEST(DISABLED_jitter, table_constructor_string_int_generic_keys) {
     });
 }
 
-TEST(DISABLED_jitter, math_spec_dynamic_call_fallback) {
+TEST(jitter, math_spec_dynamic_call_fallback) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_math_spec_dynamic_call_fallback.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2240,13 +2240,13 @@ TEST(DISABLED_jitter, math_spec_dynamic_call_fallback) {
     });
 }
 
-TEST(DISABLED_jitter, math_spec_string_arg_call) {
+TEST(jitter, math_spec_string_arg_call) {
     // Verifies that calling a math-specialized function with a string literal arg compiles correctly.
     // The function itself would fail at runtime (arithmetic on string), so we only verify compilation.
     JitterRunHelper([](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_math_spec_string_arg_call.lua", {.debug_mode = debug_mode}); });
 }
 
-TEST(DISABLED_jitter, bitwise_and_on_float_param) {
+TEST(jitter, bitwise_and_on_float_param) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_bitwise_and_on_float_param.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2255,7 +2255,7 @@ TEST(DISABLED_jitter, bitwise_and_on_float_param) {
     });
 }
 
-TEST(DISABLED_jitter, bitnot_on_float_param) {
+TEST(jitter, bitnot_on_float_param) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_bitnot_on_float_param.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2264,7 +2264,7 @@ TEST(DISABLED_jitter, bitnot_on_float_param) {
     });
 }
 
-TEST(DISABLED_jitter, dynamic_le_comparison) {
+TEST(jitter, dynamic_le_comparison) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_le_comparison.lua", {.debug_mode = debug_mode});
         bool ret = false;
@@ -2275,7 +2275,7 @@ TEST(DISABLED_jitter, dynamic_le_comparison) {
     });
 }
 
-TEST(DISABLED_jitter, table_field_access_in_arith) {
+TEST(jitter, table_field_access_in_arith) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_field_access_in_arith.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2284,7 +2284,7 @@ TEST(DISABLED_jitter, table_field_access_in_arith) {
     });
 }
 
-TEST(DISABLED_jitter, global_const_int_in_expr) {
+TEST(jitter, global_const_int_in_expr) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_global_const_int_in_expr.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2293,7 +2293,7 @@ TEST(DISABLED_jitter, global_const_int_in_expr) {
     });
 }
 
-TEST(DISABLED_jitter, bitnot_on_specialized_int) {
+TEST(jitter, bitnot_on_specialized_int) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_bitnot_on_specialized_int.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2302,7 +2302,7 @@ TEST(DISABLED_jitter, bitnot_on_specialized_int) {
     });
 }
 
-TEST(DISABLED_jitter, bitnot_on_specialized_float) {
+TEST(jitter, bitnot_on_specialized_float) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_bitnot_on_specialized_float.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2311,7 +2311,7 @@ TEST(DISABLED_jitter, bitnot_on_specialized_float) {
     });
 }
 
-TEST(DISABLED_jitter, shadow_local_in_do_block) {
+TEST(jitter, shadow_local_in_do_block) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_shadow_local_in_do_block.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2320,7 +2320,7 @@ TEST(DISABLED_jitter, shadow_local_in_do_block) {
     });
 }
 
-TEST(DISABLED_jitter, table_dynamic_key_constructor) {
+TEST(jitter, table_dynamic_key_constructor) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_dynamic_key_constructor.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2329,7 +2329,7 @@ TEST(DISABLED_jitter, table_dynamic_key_constructor) {
     });
 }
 
-TEST(DISABLED_jitter, for_loop_no_explicit_step) {
+TEST(jitter, for_loop_no_explicit_step) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_for_loop_no_explicit_step.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2338,7 +2338,7 @@ TEST(DISABLED_jitter, for_loop_no_explicit_step) {
     });
 }
 
-TEST(DISABLED_jitter, spec_call_with_mixed_type_args) {
+TEST(jitter, spec_call_with_mixed_type_args) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_spec_call_with_mixed_type_args.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2347,7 +2347,7 @@ TEST(DISABLED_jitter, spec_call_with_mixed_type_args) {
     });
 }
 
-TEST(DISABLED_jitter, spec_call_non_math_return) {
+TEST(jitter, spec_call_non_math_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_spec_call_non_math_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2356,7 +2356,7 @@ TEST(DISABLED_jitter, spec_call_non_math_return) {
     });
 }
 
-TEST(DISABLED_jitter, spec_call_dynamic_return) {
+TEST(jitter, spec_call_dynamic_return) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_spec_call_dynamic_return.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2365,7 +2365,7 @@ TEST(DISABLED_jitter, spec_call_dynamic_return) {
     });
 }
 
-TEST(DISABLED_jitter, spec_call_dynamic_arg) {
+TEST(jitter, spec_call_dynamic_arg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_spec_call_dynamic_arg.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2374,7 +2374,7 @@ TEST(DISABLED_jitter, spec_call_dynamic_arg) {
     });
 }
 
-TEST(DISABLED_jitter, bitwise_expr_as_cvar) {
+TEST(jitter, bitwise_expr_as_cvar) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_bitwise_expr_as_cvar.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2383,7 +2383,7 @@ TEST(DISABLED_jitter, bitwise_expr_as_cvar) {
     });
 }
 
-TEST(DISABLED_jitter, upvalue_in_specialized_func) {
+TEST(jitter, upvalue_in_specialized_func) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_upvalue_in_specialized_func.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2392,7 +2392,7 @@ TEST(DISABLED_jitter, upvalue_in_specialized_func) {
     });
 }
 
-TEST(DISABLED_jitter, bool_return_from_spec_func) {
+TEST(jitter, bool_return_from_spec_func) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_bool_return_from_spec_func.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2403,7 +2403,7 @@ TEST(DISABLED_jitter, bool_return_from_spec_func) {
     });
 }
 
-TEST(DISABLED_jitter, spec_func_returning_int) {
+TEST(jitter, spec_func_returning_int) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_spec_func_returning_int.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2412,7 +2412,7 @@ TEST(DISABLED_jitter, spec_func_returning_int) {
     });
 }
 
-TEST(DISABLED_jitter, spec_func_returning_float) {
+TEST(jitter, spec_func_returning_float) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_spec_func_returning_float.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2421,7 +2421,7 @@ TEST(DISABLED_jitter, spec_func_returning_float) {
     });
 }
 
-TEST(DISABLED_jitter, set_table_generic_fallback) {
+TEST(jitter, set_table_generic_fallback) {
     std::vector<VarInterface *> tmp;
     auto newfunc = [&]() {
         auto ret = new SimpleVarImpl();
@@ -2440,7 +2440,7 @@ TEST(DISABLED_jitter, set_table_generic_fallback) {
     }
 }
 
-TEST(DISABLED_jitter, fallback_assign_to_spec_var) {
+TEST(jitter, fallback_assign_to_spec_var) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_fallback_assign_to_spec_var.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2449,7 +2449,7 @@ TEST(DISABLED_jitter, fallback_assign_to_spec_var) {
     });
 }
 
-TEST(DISABLED_jitter, arith_ops_in_spec_func) {
+TEST(jitter, arith_ops_in_spec_func) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_arith_ops_in_spec_func.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2458,7 +2458,7 @@ TEST(DISABLED_jitter, arith_ops_in_spec_func) {
     });
 }
 
-TEST(DISABLED_jitter, global_const_int_assign_to_local) {
+TEST(jitter, global_const_int_assign_to_local) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_global_const_int_assign_to_local.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2467,7 +2467,7 @@ TEST(DISABLED_jitter, global_const_int_assign_to_local) {
     });
 }
 
-TEST(DISABLED_jitter, dynamic_for_loop_bounds) {
+TEST(jitter, dynamic_for_loop_bounds) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_for_loop_bounds.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2476,7 +2476,7 @@ TEST(DISABLED_jitter, dynamic_for_loop_bounds) {
     });
 }
 
-TEST(DISABLED_jitter, bool_expr_parens_and_not) {
+TEST(jitter, bool_expr_parens_and_not) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_bool_expr_parens_and_not.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2487,7 +2487,7 @@ TEST(DISABLED_jitter, bool_expr_parens_and_not) {
     });
 }
 
-TEST(DISABLED_jitter, dynamic_le_with_spec_float) {
+TEST(jitter, dynamic_le_with_spec_float) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_dynamic_le_with_spec_float.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2496,7 +2496,7 @@ TEST(DISABLED_jitter, dynamic_le_with_spec_float) {
     });
 }
 
-TEST(DISABLED_jitter, bitnot_on_dynamic_expr) {
+TEST(jitter, bitnot_on_dynamic_expr) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_bitnot_on_dynamic_expr.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2505,7 +2505,7 @@ TEST(DISABLED_jitter, bitnot_on_dynamic_expr) {
     });
 }
 
-TEST(DISABLED_jitter, duplicate_const_define_error) {
+TEST(jitter, duplicate_const_define_error) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -2514,7 +2514,7 @@ TEST(DISABLED_jitter, duplicate_const_define_error) {
             std::exception);
 }
 
-TEST(DISABLED_jitter, duplicate_func_param_error) {
+TEST(jitter, duplicate_func_param_error) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -2523,7 +2523,7 @@ TEST(DISABLED_jitter, duplicate_func_param_error) {
             std::exception);
 }
 
-TEST(DISABLED_jitter, shadow_global_const_error) {
+TEST(jitter, shadow_global_const_error) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -2532,11 +2532,11 @@ TEST(DISABLED_jitter, shadow_global_const_error) {
             std::exception);
 }
 
-TEST(DISABLED_jitter, test_math_spec_too_few_args) {
+TEST(jitter, test_math_spec_too_few_args) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) { EXPECT_THROW({ CompileFile(s, "./jit/test_math_spec_too_few_args.lua", {.debug_mode = debug_mode}); }, std::exception); });
 }
 
-TEST(DISABLED_jitter, test_shadow_typed_local) {
+TEST(jitter, test_shadow_typed_local) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_shadow_typed_local.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2545,7 +2545,7 @@ TEST(DISABLED_jitter, test_shadow_typed_local) {
     });
 }
 
-TEST(DISABLED_jitter, test_math_spec_float_global) {
+TEST(jitter, test_math_spec_float_global) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_math_spec_float_global.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2554,7 +2554,7 @@ TEST(DISABLED_jitter, test_math_spec_float_global) {
     });
 }
 
-TEST(DISABLED_jitter, test_math_spec_non_spec_call) {
+TEST(jitter, test_math_spec_non_spec_call) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_math_spec_non_spec_call.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2566,7 +2566,7 @@ TEST(DISABLED_jitter, test_math_spec_non_spec_call) {
     });
 }
 
-TEST(DISABLED_jitter, test_math_spec_non_bool_cond) {
+TEST(jitter, test_math_spec_non_bool_cond) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_math_spec_non_bool_cond.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2575,7 +2575,7 @@ TEST(DISABLED_jitter, test_math_spec_non_bool_cond) {
     });
 }
 
-TEST(DISABLED_jitter, test_math_spec_unsupported_op) {
+TEST(jitter, test_math_spec_unsupported_op) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_math_spec_unsupported_op.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2584,7 +2584,7 @@ TEST(DISABLED_jitter, test_math_spec_unsupported_op) {
     });
 }
 
-TEST(DISABLED_jitter, test_table_construct_unsupported_key) {
+TEST(jitter, test_table_construct_unsupported_key) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_construct_unsupported_key.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2593,7 +2593,7 @@ TEST(DISABLED_jitter, test_table_construct_unsupported_key) {
     });
 }
 
-TEST(DISABLED_jitter, test_math_spec_non_native_arg) {
+TEST(jitter, test_math_spec_non_native_arg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_math_spec_non_native_arg.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2602,7 +2602,7 @@ TEST(DISABLED_jitter, test_math_spec_non_native_arg) {
     });
 }
 
-TEST(DISABLED_jitter, test_math_spec_unsupported_unop) {
+TEST(jitter, test_math_spec_unsupported_unop) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_math_spec_unsupported_unop.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2611,7 +2611,7 @@ TEST(DISABLED_jitter, test_math_spec_unsupported_unop) {
     });
 }
 
-TEST(DISABLED_jitter, test_math_spec_args_not_list) {
+TEST(jitter, test_math_spec_args_not_list) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_math_spec_args_not_list.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2620,7 +2620,7 @@ TEST(DISABLED_jitter, test_math_spec_args_not_list) {
     });
 }
 
-TEST(DISABLED_jitter, test_math_call_non_spec_unsupported_arg) {
+TEST(jitter, test_math_call_non_spec_unsupported_arg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_math_call_non_spec_unsupported_arg.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2634,7 +2634,7 @@ TEST(DISABLED_jitter, test_math_call_non_spec_unsupported_arg) {
 // Inspired by lua-5.4.7-tests/ patterns, adapted for FakeLua subset
 // ============================================================================
 
-TEST(DISABLED_jitter, test_operators) {
+TEST(jitter, test_operators) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_operators.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2653,7 +2653,7 @@ TEST(DISABLED_jitter, test_operators) {
     });
 }
 
-TEST(DISABLED_jitter, test_control_flow) {
+TEST(jitter, test_control_flow) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_control_flow.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2678,7 +2678,7 @@ TEST(DISABLED_jitter, test_control_flow) {
     });
 }
 
-TEST(DISABLED_jitter, test_functions) {
+TEST(jitter, test_functions) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_functions.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2699,7 +2699,7 @@ TEST(DISABLED_jitter, test_functions) {
     });
 }
 
-TEST(DISABLED_jitter, test_tables) {
+TEST(jitter, test_tables) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_tables.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2728,7 +2728,7 @@ TEST(DISABLED_jitter, test_tables) {
     });
 }
 
-TEST(DISABLED_jitter, test_edge_cases) {
+TEST(jitter, test_edge_cases) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_edge_cases.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2759,7 +2759,7 @@ TEST(DISABLED_jitter, test_edge_cases) {
     });
 }
 
-TEST(DISABLED_jitter, test_32params) {
+TEST(jitter, test_32params) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_32params.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2778,7 +2778,7 @@ TEST(DISABLED_jitter, test_32params) {
 // ===========================================================================
 
 // 场景1：纯变参求和——空变参返回 0
-TEST(DISABLED_jitter, vararg_from_cpp_sum_no_args) {
+TEST(jitter, vararg_from_cpp_sum_no_args) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_sum.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2787,7 +2787,7 @@ TEST(DISABLED_jitter, vararg_from_cpp_sum_no_args) {
     });
 }
 
-TEST(DISABLED_jitter, vararg_from_cpp_sum_one_arg) {
+TEST(jitter, vararg_from_cpp_sum_one_arg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_sum.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2796,7 +2796,7 @@ TEST(DISABLED_jitter, vararg_from_cpp_sum_one_arg) {
     });
 }
 
-TEST(DISABLED_jitter, vararg_from_cpp_sum_multi_args) {
+TEST(jitter, vararg_from_cpp_sum_multi_args) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_sum.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2805,7 +2805,7 @@ TEST(DISABLED_jitter, vararg_from_cpp_sum_multi_args) {
     });
 }
 
-TEST(DISABLED_jitter, vararg_from_cpp_prefix_and_vararg) {
+TEST(jitter, vararg_from_cpp_prefix_and_vararg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_prefix_and_vararg.lua", {.debug_mode = debug_mode});
         int64_t a = 0, b = 0, c = 0;
@@ -2816,7 +2816,7 @@ TEST(DISABLED_jitter, vararg_from_cpp_prefix_and_vararg) {
     });
 }
 
-TEST(DISABLED_jitter, vararg_from_cpp_prefix_only) {
+TEST(jitter, vararg_from_cpp_prefix_only) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_prefix_and_vararg.lua", {.debug_mode = debug_mode});
         int64_t a = 0;
@@ -2825,7 +2825,7 @@ TEST(DISABLED_jitter, vararg_from_cpp_prefix_only) {
     });
 }
 
-TEST(DISABLED_jitter, vararg_from_cpp_or_default_empty) {
+TEST(jitter, vararg_from_cpp_or_default_empty) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_or_default.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2834,7 +2834,7 @@ TEST(DISABLED_jitter, vararg_from_cpp_or_default_empty) {
     });
 }
 
-TEST(DISABLED_jitter, vararg_from_cpp_or_default_with_arg) {
+TEST(jitter, vararg_from_cpp_or_default_with_arg) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_vararg_or_default.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2844,7 +2844,7 @@ TEST(DISABLED_jitter, vararg_from_cpp_or_default_with_arg) {
 }
 
 
-TEST(DISABLED_jitter, test_const_complex_expr) {
+TEST(jitter, test_const_complex_expr) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_const_complex_expr.lua", {.debug_mode = debug_mode});
         CVar ret;
@@ -2881,7 +2881,7 @@ TEST(DISABLED_jitter, test_const_complex_expr) {
 // goto/label 合法场景
 // ============================================================================
 
-TEST(DISABLED_jitter, goto_forward_skip) {
+TEST(jitter, goto_forward_skip) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_goto_forward_skip.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2890,7 +2890,7 @@ TEST(DISABLED_jitter, goto_forward_skip) {
     });
 }
 
-TEST(DISABLED_jitter, goto_backward_loop) {
+TEST(jitter, goto_backward_loop) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_goto_backward_loop.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2899,7 +2899,7 @@ TEST(DISABLED_jitter, goto_backward_loop) {
     });
 }
 
-TEST(DISABLED_jitter, goto_label_only) {
+TEST(jitter, goto_label_only) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_goto_label_only.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2908,7 +2908,7 @@ TEST(DISABLED_jitter, goto_label_only) {
     });
 }
 
-TEST(DISABLED_jitter, goto_continue_simulation) {
+TEST(jitter, goto_continue_simulation) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_goto_continue.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2918,7 +2918,7 @@ TEST(DISABLED_jitter, goto_continue_simulation) {
     });
 }
 
-TEST(DISABLED_jitter, goto_break_out_of_nested_loops) {
+TEST(jitter, goto_break_out_of_nested_loops) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_goto_break_out.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2927,7 +2927,7 @@ TEST(DISABLED_jitter, goto_break_out_of_nested_loops) {
     });
 }
 
-TEST(DISABLED_jitter, goto_in_if_else) {
+TEST(jitter, goto_in_if_else) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_goto_in_if_else.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -2936,7 +2936,7 @@ TEST(DISABLED_jitter, goto_in_if_else) {
     });
 }
 
-TEST(DISABLED_jitter, test_table_negative_int_key) {
+TEST(jitter, test_table_negative_int_key) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_table_negative_int_key.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;

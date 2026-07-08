@@ -124,6 +124,8 @@ int UnifiedTypeAnalyzer::InjectHmRecordIntoRegistry(Type *record_ty) {
     return info.shape_id;
 }
 
+static void RecordSsaVersionType(const SyntaxTreeInterfacePtr &node, const SSAFunction &ssa, const SSATypeInfo &ty, InferResult &ir);
+
 // ─────────────────────────────────────────────────────────────────────────
 // 主分析入口 — 流敏感工作表
 // ─────────────────────────────────────────────────────────────────────────
@@ -248,6 +250,11 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
                 else it->second = Meet(it->second, t, registry_);
             }
         }
+        for (const auto &[v, t] : merged) {
+            if (IsRecordInferredType(t.type) && t.shape_id >= 0) {
+                ir.var_final_shapes[v] = t.shape_id;
+            }
+        }
         WalkSyntaxTreePruned(func_block, [&](const SyntaxTreeInterfacePtr &node) -> bool {
             if (!node) return false;
             if (node->Type() == SyntaxTreeType::Function || node->Type() == SyntaxTreeType::LocalFunction) {
@@ -263,6 +270,7 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name,
                     auto ty = InferExprType(node, ssa, version_types, ir, name_ver, &merged);
                     ir.main_ssa_types[node.get()] = ty;
                     ir.node_ssa_version[node.get()] = -1;
+                    RecordSsaVersionType(node, ssa, ty, ir);
                     break;
                 }
                 default:
@@ -735,6 +743,24 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmtConst(
     return out;
 }
 
+static void RecordSsaVersionType(const SyntaxTreeInterfacePtr &node, const SSAFunction &ssa, const SSATypeInfo &ty, InferResult &ir) {
+    if (node && node->Type() == SyntaxTreeType::Var) {
+        auto *v = static_cast<SyntaxTreeVar *>(node.get());
+        if (v->GetVarKind() == VarKind::kSimple) {
+            auto dit = ssa.def_versions.find(node.get());
+            if (dit != ssa.def_versions.end()) {
+                ir.ssa_version_types[dit->second] = ty;
+            }
+            auto uit = ssa.use_versions.find(node.get());
+            if (uit != ssa.use_versions.end()) {
+                for (int ver : uit->second) {
+                    ir.ssa_version_types[ver] = ty;
+                }
+            }
+        }
+    }
+}
+
 // ─────────────────────────────────────────────────────────────────────────
 // PopulateNodeTypesFromBlock：用块的 env 上下文，填充该块内所有 AST 子节点的 main_ssa_types
 // 与 Analyze 中的 WalkSyntaxTree 同理，但用 per-block env 而非全局 env。
@@ -765,8 +791,10 @@ void UnifiedTypeAnalyzer::PopulateNodeTypesFromStmts(
                 case SyntaxTreeType::ExpList: {
                     auto ty = InferExprType(node, ssa, version_types, ir, {}, &env, &const_env);
                     (*out_map)[node.get()] = ty;
-                    if (out_map == &ir.main_ssa_types)
+                    if (out_map == &ir.main_ssa_types) {
                         ir.node_ssa_version[node.get()] = -1;
+                        RecordSsaVersionType(node, ssa, ty, ir);
+                    }
                     break;
                 }
                 case SyntaxTreeType::ForLoop: {
@@ -1041,14 +1069,14 @@ int UnifiedTypeAnalyzer::BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc,
             if (fp->GetFieldKind() == FieldKind::kArray && fp->Key() == nullptr) {
                 fd.name = std::to_string(shape.fields.size() + 1);
                 fd.is_int_key = true;
-                fd.c_field_name = "_int_" + fd.name;
+                fd.c_field_name = ToSafeCFieldName("_int_" + fd.name);
             } else {
                 auto *ke = fp->Key() && fp->Key()->Type() == SyntaxTreeType::Exp
                     ? static_cast<SyntaxTreeExp *>(fp->Key().get()) : nullptr;
                 if (ke && ke->GetExpKind() == ExpKind::kNumber) {
                     fd.name = ke->ExpValue();
                     fd.is_int_key = (fd.name.find('.') == std::string::npos);
-                    fd.c_field_name = fd.is_int_key ? "_int_" + fd.name : "_float_" + fd.name;
+                    fd.c_field_name = ToSafeCFieldName(fd.is_int_key ? "_int_" + fd.name : "_float_" + fd.name);
                 } else {
                     continue;
                 }

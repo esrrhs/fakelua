@@ -195,8 +195,8 @@ TEST(pipeline, cgen_shape_struct) {
         << "should generate LuaShape struct typedef\n" + code;
 
     // 应包含字段声明 (C 语法)
-    EXPECT_NE(code.find("int64_t b"), std::string::npos);
-    EXPECT_NE(code.find("double c"), std::string::npos);
+    EXPECT_NE(code.find("CVar b"), std::string::npos);
+    EXPECT_NE(code.find("CVar c"), std::string::npos);
 }
 
 // ─────────────────────────────────────────────────────────────────────────
