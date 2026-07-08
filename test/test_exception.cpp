@@ -994,6 +994,9 @@ TEST(exception, const_no_init) {
     EXPECT_THROW(CompileFile(s, "./exception/test_const_no_init.lua", {}), std::exception);
 }
 
+// 旧语义: 顶层 local 赋值后再次赋值应抛异常。
+// 新管线不再区分 const/non-const locals（SSA 版本号自动区分不同赋值）,
+// 因此该测试被禁用。如果未来需要 const 检测, 需在 SemanticAnalysis 增加专门 pass。
 TEST(DISABLED_exception, const_reassign) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
@@ -1010,7 +1013,7 @@ TEST(exception, top_level_bare_local) {
     EXPECT_THROW(CompileFile(s, "./exception/test_top_level_bare_local.lua", {}), std::exception);
 }
 
-TEST(DISABLED_exception, test_spec_duplicate_keys) {
+TEST(exception, test_spec_duplicate_keys) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
