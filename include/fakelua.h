@@ -8,7 +8,10 @@
 #include <string>
 #include <type_traits>
 
-// 前向声明编译管线结果类型（完整定义在 compile_common.h 中）
+// 前向声明编译管线结果类型。
+// 完整定义在 compile/compile_common.h 中。
+// 调用方如果只走执行路径 (忽略返回值), 仅用前向声明即可;
+// 若需访问产物字段 (GetCCode/GetNodeTypes etc.), 需 include compile_common.h。
 namespace fakelua { struct CompileResult; }
 
 namespace fakelua {

@@ -1,3 +1,4 @@
+#include "compile/compile_common.h"
 #include "compile/compiler.h"
 #include "fakelua.h"
 #include "gtest/gtest.h"
@@ -70,7 +71,7 @@ static void LuaAlgoRunHelper(const std::string &lua_file, const std::function<vo
 
 TEST(DISABLED_algo, fibonacci) {
     AlgoRunHelper([](State *s, JITType type, bool debug_mode) {
-        (void) CompileFile(s, "./algo/fibonacci.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./algo/fibonacci.lua", {.debug_mode = debug_mode});
         int i = 0;
         Call(s, type, "test", i, 30);
         ASSERT_EQ(i, 832040);
@@ -83,7 +84,7 @@ TEST(DISABLED_algo, fibonacci) {
 // Exercises: local functions, nested for loops, if/else, table get/set, swap.
 TEST(DISABLED_algo, bubble_sort) {
     AlgoRunHelper([](State *s, JITType type, bool debug_mode) {
-        (void) CompileFile(s, "./algo/bubble_sort.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./algo/bubble_sort.lua", {.debug_mode = debug_mode});
         int r = 0;
         Call(s, type, "test", r, 1);
         ASSERT_EQ(r, 1);
@@ -107,7 +108,7 @@ TEST(DISABLED_algo, bubble_sort) {
 // Exercises: recursion, modulo, floor division, while loop, multi-assignment.
 TEST(DISABLED_algo, gcd) {
     AlgoRunHelper([](State *s, JITType type, bool debug_mode) {
-        (void) CompileFile(s, "./algo/gcd.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./algo/gcd.lua", {.debug_mode = debug_mode});
         int r = 0;
         Call(s, type, "test_gcd", r, 48, 18);
         ASSERT_EQ(r, 6);
@@ -139,7 +140,7 @@ TEST(DISABLED_algo, gcd) {
 // Exercises: table with boolean values, nested while loops, repeat-until.
 TEST(DISABLED_algo, sieve) {
     AlgoRunHelper([](State *s, JITType type, bool debug_mode) {
-        (void) CompileFile(s, "./algo/sieve.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./algo/sieve.lua", {.debug_mode = debug_mode});
         int r = 0;
         Call(s, type, "test", r, 10);
         ASSERT_EQ(r, 4);
@@ -170,7 +171,7 @@ TEST(DISABLED_algo, sieve) {
 // Exercises: while loop, floor division, table access, comparison chain.
 TEST(DISABLED_algo, binary_search) {
     AlgoRunHelper([](State *s, JITType type, bool debug_mode) {
-        (void) CompileFile(s, "./algo/binary_search.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./algo/binary_search.lua", {.debug_mode = debug_mode});
         int r = 0;
         Call(s, type, "test", r, 7);
         ASSERT_EQ(r, 4);
@@ -199,7 +200,7 @@ TEST(DISABLED_algo, binary_search) {
 // Also: is-power-of-two check and popcount via Brian Kernighan.
 TEST(DISABLED_algo, fast_pow) {
     AlgoRunHelper([](State *s, JITType type, bool debug_mode) {
-        (void) CompileFile(s, "./algo/fast_pow.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./algo/fast_pow.lua", {.debug_mode = debug_mode});
         int r = 0;
         Call(s, type, "test", r, 2, 10, 1000);
         ASSERT_EQ(r, 24);
@@ -241,7 +242,7 @@ TEST(DISABLED_algo, fast_pow) {
 // Exercises: for loop, inner while with compound condition (and), table get/set.
 TEST(DISABLED_algo, insertion_sort) {
     AlgoRunHelper([](State *s, JITType type, bool debug_mode) {
-        (void) CompileFile(s, "./algo/insertion_sort.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./algo/insertion_sort.lua", {.debug_mode = debug_mode});
         int r = 0;
         Call(s, type, "test", r, 1);
         ASSERT_EQ(r, 3);
@@ -271,7 +272,7 @@ TEST(DISABLED_algo, insertion_sort) {
 // Exercises: triple-nested for loops, arithmetic index expressions, table get/set.
 TEST(DISABLED_algo, matrix) {
     AlgoRunHelper([](State *s, JITType type, bool debug_mode) {
-        (void) CompileFile(s, "./algo/matrix.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./algo/matrix.lua", {.debug_mode = debug_mode});
         int r = 0;
         Call(s, type, "test_trace", r);
         ASSERT_EQ(r, 189);
@@ -296,7 +297,7 @@ TEST(DISABLED_algo, matrix) {
 // Exercises: while loop, modulo, floor division, conditional.
 TEST(DISABLED_algo, collatz) {
     AlgoRunHelper([](State *s, JITType type, bool debug_mode) {
-        (void) CompileFile(s, "./algo/collatz.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./algo/collatz.lua", {.debug_mode = debug_mode});
         int r = 0;
         Call(s, type, "collatz_len", r, 1);
         ASSERT_EQ(r, 1);
@@ -327,7 +328,7 @@ TEST(DISABLED_algo, collatz) {
 // Exercises: while loop, modulo, floor division.
 TEST(DISABLED_algo, factorize) {
     AlgoRunHelper([](State *s, JITType type, bool debug_mode) {
-        (void) CompileFile(s, "./algo/factorize.lua", {.debug_mode = debug_mode});
+        CompileFile(s, "./algo/factorize.lua", {.debug_mode = debug_mode});
         int r = 0;
 
         // is_prime

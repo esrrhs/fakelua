@@ -1,4 +1,5 @@
 #include "fakelua.h"
+#include "compile/compile_common.h"  // for CompileResult definition
 #include "gflags/gflags.h"
 #include <iostream>
 
@@ -25,7 +26,7 @@ int main(int argc, char **argv) {
     const auto s = guard.GetState();
     CompileConfig cfg;
     cfg.debug_mode = FLAGS_debug;
-    (void)CompileFile(s, argv[1], cfg);
+    CompileFile(s, argv[1], cfg);
 
     int code = 0;
     for (int i = 0; i < FLAGS_repeat; i++) {

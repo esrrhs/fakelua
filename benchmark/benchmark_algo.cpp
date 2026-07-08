@@ -1,5 +1,6 @@
 #include "benchmark/benchmark.h"
 #include "fakelua.h"
+#include "compile/compile_common.h"  // for CompileResult definition
 
 #include <lua.hpp>
 
@@ -445,7 +446,7 @@ struct RuntimeContext {
 
         flua = FakeluaNewState();
         for (const char *script : lua_scripts) {
-            (void)CompileString(flua, script, {.debug_mode = false});
+            CompileString(flua, script, {.debug_mode = false});
         }
 
         // Warmup: call each FakeLua function once to page in JIT code and
