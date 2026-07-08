@@ -51,21 +51,21 @@ std::vector<std::string> SSABuilder::GetDefNames(const SyntaxTreeInterfacePtr &s
     switch (stmt->Type()) {
         case SyntaxTreeType::LocalVar: {
             // local a, b, c = ...
-            auto *lv = static_cast<SyntaxTreeLocalVar *>(stmt.get());
-            if (auto *nl = static_cast<SyntaxTreeNamelist *>(lv->Namelist().get())) {
+            auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+            if (auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist())) {
                 for (auto &n : nl->Names()) names.push_back(n);
             }
             break;
         }
         case SyntaxTreeType::Assign: {
             // a, b, c = ...   （只取简单变量作为定义目标，表访问不是全新定义变量）
-            auto *as = static_cast<SyntaxTreeAssign *>(stmt.get());
-            auto *vl = static_cast<SyntaxTreeVarlist *>(as->Varlist().get());
+            auto as = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
+            auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(as->Varlist());
             if (vl) {
                 for (auto &v : vl->Vars()) {
                     if (v->Type() == SyntaxTreeType::Var) {
-                        auto *var = static_cast<SyntaxTreeVar *>(v.get());
-                        if (var->GetVarKind() == VarKind::kSimple)
+                        auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(v);
+                        if (var && var->GetVarKind() == VarKind::kSimple)
                             names.push_back(var->GetName());
                     }
                 }
@@ -74,14 +74,14 @@ std::vector<std::string> SSABuilder::GetDefNames(const SyntaxTreeInterfacePtr &s
         }
         case SyntaxTreeType::ForLoop: {
             // for i = e1, e2, e3 do ... end  →  i 在头被定义
-            auto *fl = static_cast<SyntaxTreeForLoop *>(stmt.get());
+            auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
             names.push_back(fl->Name());
             break;
         }
         case SyntaxTreeType::ForIn: {
             // for a, b in ... do ... end
-            auto *fi = static_cast<SyntaxTreeForIn *>(stmt.get());
-            if (auto *nl = static_cast<SyntaxTreeNamelist *>(fi->Namelist().get())) {
+            auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
+            if (auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(fi->Namelist())) {
                 for (auto &n : nl->Names()) names.push_back(n);
             }
             break;
@@ -105,15 +105,15 @@ std::vector<std::string> SSABuilder::GetUseNames(const SyntaxTreeInterfacePtr &s
     collect = [&](const SyntaxTreeInterfacePtr &node) {
         if (!node) return;
         if (node->Type() == SyntaxTreeType::Var) {
-            auto *v = static_cast<SyntaxTreeVar *>(node.get());
-            if (v->GetVarKind() == VarKind::kSimple)
+            auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
+            if (v && v->GetVarKind() == VarKind::kSimple)
                 names.push_back(v->GetName());
             return;
         }
         switch (node->Type()) {
             case SyntaxTreeType::Exp: {
                 // 二元 / 一元表达式：递归左右子
-                auto *e = static_cast<SyntaxTreeExp *>(node.get());
+                auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
                 auto k = e->GetExpKind();
                 if (k == ExpKind::kBinop || k == ExpKind::kUnop) {
                     collect(e->Left());
@@ -125,7 +125,7 @@ std::vector<std::string> SSABuilder::GetUseNames(const SyntaxTreeInterfacePtr &s
             }
             case SyntaxTreeType::PrefixExp: {
                 // 前缀表达式：Var 或 '(' exp ')'
-                auto *pe = static_cast<SyntaxTreePrefixexp *>(node.get());
+                auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node);
                 if (pe->GetPrefixKind() == PrefixExpKind::kVar && pe->GetValue()) {
                     collect(pe->GetValue());
                 } else if (pe->GetPrefixKind() == PrefixExpKind::kExp && pe->GetValue()) {
@@ -135,31 +135,31 @@ std::vector<std::string> SSABuilder::GetUseNames(const SyntaxTreeInterfacePtr &s
             }
             case SyntaxTreeType::TableConstructor: {
                 // { ... }
-                auto *tc = static_cast<SyntaxTreeTableconstructor *>(node.get());
+                auto tc = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
                 if (tc->Fieldlist()) collect(tc->Fieldlist());
                 break;
             }
             case SyntaxTreeType::FieldList: {
-                auto *fl = static_cast<SyntaxTreeFieldlist *>(node.get());
+                auto fl = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
                 for (auto &f : fl->Fields()) collect(f);
                 break;
             }
             case SyntaxTreeType::Field: {
                 // [k] = v  /  k = v  /  v
-                auto *f = static_cast<SyntaxTreeField *>(node.get());
+                auto f = std::dynamic_pointer_cast<SyntaxTreeField>(node);
                 if (f->Key()) collect(f->Key());
                 if (f->Value()) collect(f->Value());
                 break;
             }
             case SyntaxTreeType::FunctionCall: {
                 // f(e1, e2, ...)
-                auto *fc = static_cast<SyntaxTreeFunctioncall *>(node.get());
+                auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
                 if (fc->prefixexp()) collect(fc->prefixexp());
                 if (fc->Args()) collect(fc->Args());
                 break;
             }
             case SyntaxTreeType::Args: {
-                auto *args = static_cast<SyntaxTreeArgs *>(node.get());
+                auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
                 if (args->GetArgsKind() == ArgsKind::kExpList && args->Explist())
                     collect(args->Explist());
                 else if (args->Tableconstructor())
@@ -167,12 +167,12 @@ std::vector<std::string> SSABuilder::GetUseNames(const SyntaxTreeInterfacePtr &s
                 break;
             }
             case SyntaxTreeType::ExpList: {
-                auto *el = static_cast<SyntaxTreeExplist *>(node.get());
+                auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
                 for (auto &e : el->Exps()) collect(e);
                 break;
             }
             case SyntaxTreeType::VarList: {
-                auto *vl = static_cast<SyntaxTreeVarlist *>(node.get());
+                auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(node);
                 for (auto &v : vl->Vars()) collect(v);
                 break;
             }
@@ -185,19 +185,19 @@ std::vector<std::string> SSABuilder::GetUseNames(const SyntaxTreeInterfacePtr &s
     switch (stmt->Type()) {
         case SyntaxTreeType::LocalVar: {
             // local a, b = e1, e2   →  RHS 是 explist
-            auto *lv = static_cast<SyntaxTreeLocalVar *>(stmt.get());
+            auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
             if (lv->Explist()) collect(lv->Explist());
             break;
         }
         case SyntaxTreeType::Assign: {
             // a, b = e1, e2         →  RHS 是 explist
-            auto *as = static_cast<SyntaxTreeAssign *>(stmt.get());
+            auto as = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
             if (as->Explist()) collect(as->Explist());
             break;
         }
         case SyntaxTreeType::ForLoop: {
             // for i = begin, end, step do ... end  →  begin / end / step 都是 use
-            auto *fl = static_cast<SyntaxTreeForLoop *>(stmt.get());
+            auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
             if (fl->ExpBegin()) collect(fl->ExpBegin());
             if (fl->ExpEnd()) collect(fl->ExpEnd());
             if (fl->ExpStep()) collect(fl->ExpStep());
@@ -205,13 +205,13 @@ std::vector<std::string> SSABuilder::GetUseNames(const SyntaxTreeInterfacePtr &s
         }
         case SyntaxTreeType::ForIn: {
             // for a, b in e1, e2, e3 do ... end   →  e1/e2/e3 是 use
-            auto *fi = static_cast<SyntaxTreeForIn *>(stmt.get());
+            auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
             if (fi->Explist()) collect(fi->Explist());
             break;
         }
         case SyntaxTreeType::Return: {
             // return e1, e2, ...
-            auto *ret = static_cast<SyntaxTreeReturn *>(stmt.get());
+            auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt);
             if (ret->Explist()) collect(ret->Explist());
             break;
         }

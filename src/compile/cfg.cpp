@@ -181,7 +181,7 @@ int CFGBuilder::BuildStmt(const SyntaxTreeInterfacePtr &stmt, int current_block,
 // 所有分支最终汇聚到 merge_block。
 //
 int CFGBuilder::BuildIf(const SyntaxTreeInterfacePtr &node, int current_block, int exit_block) {
-    auto *ifn = static_cast<SyntaxTreeIf *>(node.get());
+    auto ifn = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
 
     // ─── 步骤 1：条件判断块 ────────────────────────────────────────────
     // current_block 成为条件判断块，将 if 节点放入其中
@@ -259,7 +259,7 @@ int CFGBuilder::BuildIf(const SyntaxTreeInterfacePtr &node, int current_block, i
 // - 实际上这里返回 header 是因为循环后的代码会作为 header 的后继处理，
 //   而 exit_block 已经通过 AddEdge(header, exit_block) 连接了。
 int CFGBuilder::BuildWhile(const SyntaxTreeInterfacePtr &node, int current_block, int exit_block) {
-    auto *w = static_cast<SyntaxTreeWhile *>(node.get());
+    auto w = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
 
     // 循环头块：包含条件判断
     int header = NewBlock();
@@ -292,7 +292,7 @@ int CFGBuilder::BuildWhile(const SyntaxTreeInterfacePtr &node, int current_block
 // - repeat 的条件在体之后判断，所以 cond 块在 body 之后。
 // - 条件为假时继续循环（回到 body），为真时退出。
 int CFGBuilder::BuildRepeat(const SyntaxTreeInterfacePtr &node, int current_block, int exit_block) {
-    auto *r = static_cast<SyntaxTreeRepeat *>(node.get());
+    auto r = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
 
     // 循环体块
     int body = NewBlock();
@@ -325,7 +325,7 @@ int CFGBuilder::BuildRepeat(const SyntaxTreeInterfacePtr &node, int current_bloc
 //
 // init 块包含 for 节点的初始化表达式，每次循环回到 init 重新判断边界。
 int CFGBuilder::BuildForLoop(const SyntaxTreeInterfacePtr &node, int current_block, int exit_block) {
-    auto *fl = static_cast<SyntaxTreeForLoop *>(node.get());
+    auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
 
     // 初始化块：包含 start/end/step 求值
     int init = NewBlock();
@@ -356,7 +356,7 @@ int CFGBuilder::BuildForLoop(const SyntaxTreeInterfacePtr &node, int current_blo
 //                        [body_tail] ──(回边)──> [init]
 //
 int CFGBuilder::BuildForIn(const SyntaxTreeInterfacePtr &node, int current_block, int exit_block) {
-    auto *fi = static_cast<SyntaxTreeForIn *>(node.get());
+    auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
 
     // 初始化块：迭代器设置
     int init = NewBlock();

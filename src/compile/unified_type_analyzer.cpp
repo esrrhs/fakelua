@@ -440,7 +440,7 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
 
     switch (stmt->Type()) {
         case SyntaxTreeType::LocalVar: {
-            auto *lv = static_cast<SyntaxTreeLocalVar *>(stmt.get());
+            auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
             auto nl = lv->Namelist();
             auto el = lv->Explist();
             if (!nl || nl->Type() != SyntaxTreeType::NameList) return out;
@@ -460,7 +460,7 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
             break;
         }
         case SyntaxTreeType::Assign: {
-            auto *as = static_cast<SyntaxTreeAssign *>(stmt.get());
+            auto as = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
             auto vl = as->Varlist() ? std::dynamic_pointer_cast<SyntaxTreeVarlist>(as->Varlist()) : nullptr;
             auto el = as->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(as->Explist()) : nullptr;
             if (!vl || !el) return out;
@@ -475,20 +475,20 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
                 // 条件：LHS 是 a.field，RHS 是引用同一个简单变量 a 的表达式。
                 bool recursive_self_assign = false;
                 if (v->GetVarKind() == VarKind::kDot || v->GetVarKind() == VarKind::kSquare) {
-                    auto *rhs_pe = exps[i]->Type() == SyntaxTreeType::PrefixExp
-                        ? static_cast<SyntaxTreePrefixexp *>(exps[i].get()) : nullptr;
+                    auto rhs_pe = exps[i]->Type() == SyntaxTreeType::PrefixExp
+                        ? std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exps[i]) : nullptr;
                     if (!rhs_pe && exps[i]->Type() == SyntaxTreeType::Exp) {
-                        auto *rhs_ep = static_cast<SyntaxTreeExp *>(exps[i].get());
+                        auto rhs_ep = std::dynamic_pointer_cast<SyntaxTreeExp>(exps[i]);
                         if (rhs_ep->GetExpKind() == ExpKind::kPrefixExp)
-                            rhs_pe = static_cast<SyntaxTreePrefixexp *>(rhs_ep->Right().get());
+                            rhs_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(rhs_ep->Right());
                     }
                     if (rhs_pe && rhs_pe->GetPrefixKind() == PrefixExpKind::kVar) {
-                        auto *rhs_var = static_cast<SyntaxTreeVar *>(rhs_pe->GetValue().get());
+                        auto rhs_var = std::dynamic_pointer_cast<SyntaxTreeVar>(rhs_pe->GetValue());
                         if (rhs_var && rhs_var->GetVarKind() == VarKind::kSimple) {
                             const std::string &rhs_name = rhs_var->GetName();
-                            auto *base_pe2 = static_cast<SyntaxTreePrefixexp *>(v->GetPrefixexp().get());
+                            auto base_pe2 = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(v->GetPrefixexp());
                             if (base_pe2 && base_pe2->GetPrefixKind() == PrefixExpKind::kVar) {
-                                auto *base_var2 = static_cast<SyntaxTreeVar *>(base_pe2->GetValue().get());
+                                auto base_var2 = std::dynamic_pointer_cast<SyntaxTreeVar>(base_pe2->GetValue());
                                 if (base_var2 && base_var2->GetVarKind() == VarKind::kSimple
                                     && base_var2->GetName() == rhs_name) {
                                     recursive_self_assign = true;
@@ -507,9 +507,9 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
                     // 字段写入：a.b = v 或 a[b] = v
                     // 规范 §5.2.4：更新 base 变量的 shape
                     const std::string &field_name = v->GetName();
-                    auto *base_pe = static_cast<SyntaxTreePrefixexp *>(v->GetPrefixexp().get());
+                    auto base_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(v->GetPrefixexp());
                     if (base_pe && base_pe->GetPrefixKind() == PrefixExpKind::kVar) {
-                        auto *base_var = static_cast<SyntaxTreeVar *>(base_pe->GetValue().get());
+                        auto base_var = std::dynamic_pointer_cast<SyntaxTreeVar>(base_pe->GetValue());
                         if (base_var && base_var->GetVarKind() == VarKind::kSimple) {
                             const std::string &base_name = base_var->GetName();
                             auto base_it = out.find(base_name);
@@ -556,7 +556,7 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
             break;
         }
         case SyntaxTreeType::ForLoop: {
-            auto *fl = static_cast<SyntaxTreeForLoop *>(stmt.get());
+            auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
             // 数值 for 游标类型推断：如果 env 中 ExpEnd/ExpStep 对应变量为 T_FLOAT，
             // 或字面量含小数点，则游标 T_FLOAT；否则 T_INT。
             InferredType cursor_type = T_INT;
@@ -564,7 +564,7 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
             check_exp = [&](const SyntaxTreeInterfacePtr &e) {
                 if (!e) return;
                 if (e->Type() == SyntaxTreeType::Exp) {
-                    auto *ep = static_cast<SyntaxTreeExp *>(e.get());
+                    auto ep = std::dynamic_pointer_cast<SyntaxTreeExp>(e);
                     if (ep->GetExpKind() == ExpKind::kNumber) {
                         const auto &v = ep->ExpValue();
                         if (v.find('.') != std::string::npos || v.find('e') != std::string::npos || v.find('E') != std::string::npos)
@@ -573,14 +573,14 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
                         check_exp(ep->Right());
                     }
                 } else if (e->Type() == SyntaxTreeType::Var) {
-                    auto *v = static_cast<SyntaxTreeVar *>(e.get());
+                    auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(e);
                     if (v->GetVarKind() == VarKind::kSimple) {
                         auto it = out.find(v->GetName());
                         if (it != out.end() && it->second.type == T_FLOAT)
                             cursor_type = T_FLOAT;
                     }
                 } else if (e->Type() == SyntaxTreeType::PrefixExp) {
-                    auto *pe = static_cast<SyntaxTreePrefixexp *>(e.get());
+                    auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e);
                     if (pe->GetValue()) check_exp(pe->GetValue());
                 }
             };
@@ -592,7 +592,7 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(
         }
         case SyntaxTreeType::ForIn: {
             // for-in 游标：从迭代器推导过于复杂，保守为 T_DYNAMIC
-            auto *fi = static_cast<SyntaxTreeForIn *>(stmt.get());
+            auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
             if (fi->Namelist() && fi->Namelist()->Type() == SyntaxTreeType::NameList) {
                 auto nlist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(fi->Namelist());
                 if (nlist) {
@@ -615,7 +615,7 @@ bool UnifiedTypeAnalyzer::ExtractLiteral(const SyntaxTreeInterfacePtr &exp,
     if (!exp) return false;
     // 直接 String 节点
     if (exp->Type() == SyntaxTreeType::Exp) {
-        auto *e = static_cast<SyntaxTreeExp *>(exp.get());
+        auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
         auto k = e->GetExpKind();
         if (k == ExpKind::kString) { value_out = e->ExpValue(); return true; }
         if (k == ExpKind::kNumber) { value_out = e->ExpValue(); return true; }
@@ -625,12 +625,12 @@ bool UnifiedTypeAnalyzer::ExtractLiteral(const SyntaxTreeInterfacePtr &exp,
         return false;
     }
     if (exp->Type() == SyntaxTreeType::PrefixExp) {
-        auto *pe = static_cast<SyntaxTreePrefixexp *>(exp.get());
+        auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp);
         if (pe->GetValue()) return ExtractLiteral(pe->GetValue(), value_out);
         return false;
     }
     if (exp->Type() == SyntaxTreeType::Var) {
-        auto *v = static_cast<SyntaxTreeVar *>(exp.get());
+        auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(exp);
         if (v->GetVarKind() == VarKind::kSimple && v->GetName().rfind("__fakelua_vararg_", 0) == 0)
             return false;
         return false;  // 变量引用不在此处理（由 ResolveKeyConstant 查 ConstEnv）
@@ -647,18 +647,18 @@ bool UnifiedTypeAnalyzer::ResolveKeyConstant(const SyntaxTreeInterfacePtr &key_e
     if (ExtractLiteral(key_expr, key_out)) return true;
     // 变量名：查 ConstEnv
     if (key_expr->Type() == SyntaxTreeType::Exp) {
-        auto *e = static_cast<SyntaxTreeExp *>(key_expr.get());
+        auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(key_expr);
         if (e->GetExpKind() == ExpKind::kPrefixExp && e->Right())
             return ResolveKeyConstant(e->Right(), const_env, key_out);
         return false;
     }
     if (key_expr->Type() == SyntaxTreeType::PrefixExp) {
-        auto *pe = static_cast<SyntaxTreePrefixexp *>(key_expr.get());
+        auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(key_expr);
         if (pe->GetValue()) return ResolveKeyConstant(pe->GetValue(), const_env, key_out);
         return false;
     }
     if (key_expr->Type() == SyntaxTreeType::Var) {
-        auto *v = static_cast<SyntaxTreeVar *>(key_expr.get());
+        auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(key_expr);
         if (v->GetVarKind() == VarKind::kSimple) {
             auto it = const_env.find(v->GetName());
             if (it != const_env.end()) { key_out = it->second; return true; }
@@ -682,7 +682,7 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmtConst(
 
     switch (stmt->Type()) {
         case SyntaxTreeType::LocalVar: {
-            auto *lv = static_cast<SyntaxTreeLocalVar *>(stmt.get());
+            auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
             auto nl = lv->Namelist();
             auto el = lv->Explist();
             if (!nl || nl->Type() != SyntaxTreeType::NameList) return out;
@@ -710,7 +710,7 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmtConst(
             break;
         }
         case SyntaxTreeType::Assign: {
-            auto *as = static_cast<SyntaxTreeAssign *>(stmt.get());
+            auto as = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
             auto vl = as->Varlist() ? std::dynamic_pointer_cast<SyntaxTreeVarlist>(as->Varlist()) : nullptr;
             auto el = as->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(as->Explist()) : nullptr;
             if (!vl || !el) return out;
@@ -718,7 +718,7 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmtConst(
             auto &exps = el->Exps();
             for (size_t i = 0; i < vars.size() && i < exps.size(); ++i) {
                 if (vars[i]->Type() != SyntaxTreeType::Var) continue;
-                auto *v = static_cast<SyntaxTreeVar *>(vars[i].get());
+                auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[i]);
                 if (!v) continue;
                 auto ty = InferExprType(exps[i], ssa, version_types, InferResult{}, {}, &env);
                 if (v->GetVarKind() == VarKind::kSimple) {
@@ -745,7 +745,7 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmtConst(
 
 static void RecordSsaVersionType(const SyntaxTreeInterfacePtr &node, const SSAFunction &ssa, const SSATypeInfo &ty, InferResult &ir) {
     if (node && node->Type() == SyntaxTreeType::Var) {
-        auto *v = static_cast<SyntaxTreeVar *>(node.get());
+        auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
         if (v->GetVarKind() == VarKind::kSimple) {
             auto dit = ssa.def_versions.find(node.get());
             if (dit != ssa.def_versions.end()) {
@@ -799,13 +799,13 @@ void UnifiedTypeAnalyzer::PopulateNodeTypesFromStmts(
                 }
                 case SyntaxTreeType::ForLoop: {
                     // 推导 for-loop 游标节点本身类型（CGen 用来决定 i 的声明类型）
-                    auto *fl = static_cast<SyntaxTreeForLoop *>(node.get());
+                    auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
                     InferredType cursor_type = T_INT;
                     std::function<void(const SyntaxTreeInterfacePtr&)> check_exp;
                     check_exp = [&](const SyntaxTreeInterfacePtr &e) {
                         if (!e) return;
                         if (e->Type() == SyntaxTreeType::Exp) {
-                            auto *ep = static_cast<SyntaxTreeExp *>(e.get());
+                            auto ep = std::dynamic_pointer_cast<SyntaxTreeExp>(e);
                             if (ep->GetExpKind() == ExpKind::kNumber) {
                                 const auto &v = ep->ExpValue();
                                 if (v.find('.') != std::string::npos || v.find('e') != std::string::npos || v.find('E') != std::string::npos)
@@ -814,14 +814,14 @@ void UnifiedTypeAnalyzer::PopulateNodeTypesFromStmts(
                                 check_exp(ep->Right());
                             }
                         } else if (e->Type() == SyntaxTreeType::Var) {
-                            auto *v = static_cast<SyntaxTreeVar *>(e.get());
+                            auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(e);
                             if (v->GetVarKind() == VarKind::kSimple) {
                                 auto it = env.find(v->GetName());
                                 if (it != env.end() && it->second.type == T_FLOAT)
                                     cursor_type = T_FLOAT;
                             }
                         } else if (e->Type() == SyntaxTreeType::PrefixExp) {
-                            auto *pe = static_cast<SyntaxTreePrefixexp *>(e.get());
+                            auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e);
                             if (pe->GetValue()) check_exp(pe->GetValue());
                         }
                     };
@@ -866,7 +866,7 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
 
     switch (expr->Type()) {
         case SyntaxTreeType::Exp: {
-            auto *e = static_cast<SyntaxTreeExp *>(expr.get());
+            auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(expr);
             switch (e->GetExpKind()) {
                 case ExpKind::kNumber: {
                     const auto &v = e->ExpValue();
@@ -900,7 +900,7 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
             }
         }
         case SyntaxTreeType::Var: {
-            auto *v = static_cast<SyntaxTreeVar *>(expr.get());
+            auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(expr);
             if (v->GetVarKind() == VarKind::kSimple) {
                 const std::string &vname = v->GetName();
                 // 优先 local_env
@@ -925,9 +925,9 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
                 // kDot: field_name 直接就是字段名（字符串）
                 // kSquare: field_name 初始为空，需要从 key 表达式解析
                 const std::string &dot_field_name = v->GetName();
-                auto *base_pe = static_cast<SyntaxTreePrefixexp *>(v->GetPrefixexp().get());
+                auto base_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(v->GetPrefixexp());
                 if (base_pe && base_pe->GetPrefixKind() == PrefixExpKind::kVar) {
-                    auto *base_var = static_cast<SyntaxTreeVar *>(base_pe->GetValue().get());
+                    auto base_var = std::dynamic_pointer_cast<SyntaxTreeVar>(base_pe->GetValue());
                     if (base_var && base_var->GetVarKind() == VarKind::kSimple) {
                         // 查找 base 变量的类型
                         SSATypeInfo base_type{T_DYNAMIC, -1};
@@ -972,19 +972,19 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(
             return {T_DYNAMIC, -1};
         }
         case SyntaxTreeType::PrefixExp: {
-            auto *pe = static_cast<SyntaxTreePrefixexp *>(expr.get());
+            auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(expr);
             return InferExprType(pe->GetValue(), ssa, version_types, ir, name_ver, local_env, const_env);
         }
         case SyntaxTreeType::FunctionCall: {
             // 过程间分析（规范 §7）：从函数摘要获取返回类型
-            auto *fc = static_cast<SyntaxTreeFunctioncall *>(expr.get());
+            auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(expr);
             std::string callee;
             if (fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::Var) {
-                callee = static_cast<SyntaxTreeVar *>(fc->prefixexp().get())->GetName();
+                callee = std::dynamic_pointer_cast<SyntaxTreeVar>(fc->prefixexp())->GetName();
             } else if (fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
-                auto *pe = static_cast<SyntaxTreePrefixexp *>(fc->prefixexp().get());
+                auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
                 if (pe->GetValue() && pe->GetValue()->Type() == SyntaxTreeType::Var)
-                    callee = static_cast<SyntaxTreeVar *>(pe->GetValue().get())->GetName();
+                    callee = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue())->GetName();
             }
             if (!callee.empty()) {
                 auto it = ir.func_summaries.find(callee);
@@ -1050,16 +1050,16 @@ int UnifiedTypeAnalyzer::BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc,
                                            const TypeEnv &version_types,
                                            const InferResult &ir) {
     if (!tc || tc->Type() != SyntaxTreeType::TableConstructor) return -1;
-    auto *tc_ptr = static_cast<SyntaxTreeTableconstructor *>(tc.get());
+    auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc);
     if (!tc_ptr->Fieldlist()) return -1;
-    auto *fl = static_cast<SyntaxTreeFieldlist *>(tc_ptr->Fieldlist().get());
+    auto fl = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(tc_ptr->Fieldlist());
 
     ShapeType shape;
     shape.is_open = false;
 
     for (auto &field_node : fl->Fields()) {
         if (!field_node || field_node->Type() != SyntaxTreeType::Field) continue;
-        auto *fp = static_cast<SyntaxTreeField *>(field_node.get());
+        auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field_node);
 
         FieldDef fd;
         if (fp->GetFieldKind() == FieldKind::kObject) {
@@ -1071,8 +1071,8 @@ int UnifiedTypeAnalyzer::BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc,
                 fd.is_int_key = true;
                 fd.c_field_name = ToSafeCFieldName("_int_" + fd.name);
             } else {
-                auto *ke = fp->Key() && fp->Key()->Type() == SyntaxTreeType::Exp
-                    ? static_cast<SyntaxTreeExp *>(fp->Key().get()) : nullptr;
+                auto ke = fp->Key() && fp->Key()->Type() == SyntaxTreeType::Exp
+                    ? std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key()) : nullptr;
                 if (ke && ke->GetExpKind() == ExpKind::kNumber) {
                     fd.name = ke->ExpValue();
                     fd.is_int_key = (fd.name.find('.') == std::string::npos);
@@ -1176,12 +1176,12 @@ void UnifiedTypeAnalyzer::LinkExprToTargetShape(
             break;
         }
         case SyntaxTreeType::Exp: {
-            auto *e = static_cast<SyntaxTreeExp *>(node.get());
+            auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
             LinkExprToTargetShape(e->Right(), target_name, var_final_shapes, ctor_target_shapes);
             break;
         }
         case SyntaxTreeType::ExpList: {
-            auto *el = static_cast<SyntaxTreeExplist *>(node.get());
+            auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
             for (auto &exp : el->Exps()) LinkExprToTargetShape(exp, target_name, var_final_shapes, ctor_target_shapes);
             break;
         }
@@ -1195,36 +1195,36 @@ void UnifiedTypeAnalyzer::LinkExprToTargetShape(
 // 从表达式结构推导返回类型（在 main_ssa_types 无法确定时回退）
 // 对于 `return n+1` 这类纯参数+算术表达式，返回 T_INT 作为"数值"标记
 static InferredType DeriveExprTypeForRet(const SyntaxTreeInterfacePtr &expr,
-                                          const std::vector<SSATypeInfo> &param_types,
-                                          const InferResult &ir) {
+                                         const std::vector<SSATypeInfo> &param_types,
+                                         const InferResult &ir) {
     if (!expr) return T_UNKNOWN;
-    auto *inner = expr.get();
+    auto inner = expr;
     // 只解包 Exp(kPrefixExp) 和 PrefixExp 包装，不碰 Binop/Number
     while (inner && inner->Type() == SyntaxTreeType::PrefixExp) {
-        auto *pe = static_cast<SyntaxTreePrefixexp *>(inner);
-        inner = pe->GetValue() ? pe->GetValue().get() : nullptr;
+        auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(inner);
+        inner = pe->GetValue();
     }
     while (inner && inner->Type() == SyntaxTreeType::Exp &&
-           static_cast<SyntaxTreeExp *>(inner)->GetExpKind() == ExpKind::kPrefixExp) {
-        auto *ep = static_cast<SyntaxTreeExp *>(inner);
-        inner = ep->Right() ? ep->Right().get() : nullptr;
+           std::dynamic_pointer_cast<SyntaxTreeExp>(inner)->GetExpKind() == ExpKind::kPrefixExp) {
+        auto ep = std::dynamic_pointer_cast<SyntaxTreeExp>(inner);
+        inner = ep->Right();
     }
     // 再次解包 PrefixExp（Exp(kPrefixExp) 的 Right 可能是 PrefixExp）
     while (inner && inner->Type() == SyntaxTreeType::PrefixExp) {
-        auto *pe = static_cast<SyntaxTreePrefixexp *>(inner);
-        inner = pe->GetValue() ? pe->GetValue().get() : nullptr;
+        auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(inner);
+        inner = pe->GetValue();
     }
     if (!inner) return T_UNKNOWN;
     if (inner->Type() == SyntaxTreeType::FunctionCall) {
         // 函数调用：查找 func_summaries 获取返回类型
-        auto *fc = static_cast<SyntaxTreeFunctioncall *>(inner);
+        auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(inner);
         std::string callee;
         if (fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::Var) {
-            callee = static_cast<SyntaxTreeVar *>(fc->prefixexp().get())->GetName();
+            callee = std::dynamic_pointer_cast<SyntaxTreeVar>(fc->prefixexp())->GetName();
         } else if (fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
-            auto *pe = static_cast<SyntaxTreePrefixexp *>(fc->prefixexp().get());
+            auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
             if (pe->GetValue() && pe->GetValue()->Type() == SyntaxTreeType::Var)
-                callee = static_cast<SyntaxTreeVar *>(pe->GetValue().get())->GetName();
+                callee = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue())->GetName();
         }
         if (!callee.empty()) {
             auto it = ir.func_summaries.find(callee);
@@ -1234,19 +1234,19 @@ static InferredType DeriveExprTypeForRet(const SyntaxTreeInterfacePtr &expr,
         return T_UNKNOWN;
     }
     if (inner->Type() == SyntaxTreeType::Var) {
-        auto *v = static_cast<SyntaxTreeVar *>(inner);
+        auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(inner);
         if (v->GetVarKind() == VarKind::kSimple) return T_INT;
         return T_UNKNOWN;
     }
     if (inner->Type() == SyntaxTreeType::Exp) {
-        auto *ep = static_cast<SyntaxTreeExp *>(inner);
+        auto ep = std::dynamic_pointer_cast<SyntaxTreeExp>(inner);
         if (ep->GetExpKind() == ExpKind::kNumber) {
             const auto &val = ep->ExpValue();
             return (val.find('.') != std::string::npos || val.find('e') != std::string::npos || val.find('E') != std::string::npos)
                 ? T_FLOAT : T_INT;
         }
         if (ep->GetExpKind() == ExpKind::kBinop) {
-            auto *bin = ep->Op() ? dynamic_cast<SyntaxTreeBinop*>(ep->Op().get()) : nullptr;
+            auto bin = ep->Op() ? std::dynamic_pointer_cast<SyntaxTreeBinop>(ep->Op()) : nullptr;
             if (!bin) return T_UNKNOWN;
             auto kind = bin->GetOpKind();
             bool is_arith = (kind == BinOpKind::kPlus || kind == BinOpKind::kMinus ||
@@ -1265,7 +1265,7 @@ static InferredType DeriveExprTypeForRet(const SyntaxTreeInterfacePtr &expr,
             return T_UNKNOWN;
         }
         if (ep->GetExpKind() == ExpKind::kUnop) {
-            auto *unop = ep->Op() ? dynamic_cast<SyntaxTreeUnop*>(ep->Op().get()) : nullptr;
+            auto unop = ep->Op() ? std::dynamic_pointer_cast<SyntaxTreeUnop>(ep->Op()) : nullptr;
             if (unop && (unop->GetOpKind() == UnOpKind::kMinus || unop->GetOpKind() == UnOpKind::kBitNot))
                 return DeriveExprTypeForRet(ep->Right(), param_types, ir);
             return T_UNKNOWN;
@@ -1321,7 +1321,7 @@ void UnifiedTypeAnalyzer::BuildSummary(const std::string &func_name,
     if (func_block) {
         WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
             if (!node || node->Type() != SyntaxTreeType::Return) return;
-            auto *ret = static_cast<SyntaxTreeReturn *>(node.get());
+            auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
             if (!ret->Explist()) return;
             auto el_ptr = ret->Explist()->Type() == SyntaxTreeType::ExpList
                 ? std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist())
@@ -1340,7 +1340,7 @@ void UnifiedTypeAnalyzer::BuildSummary(const std::string &func_name,
     if (merged_ret.type == T_DYNAMIC && func_block) {
         WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
             if (!node || node->Type() != SyntaxTreeType::Return) return;
-            auto *ret = static_cast<SyntaxTreeReturn *>(node.get());
+            auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
             if (!ret->Explist()) return;
             auto el_ptr = ret->Explist()->Type() == SyntaxTreeType::ExpList
                 ? std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist())
@@ -1519,18 +1519,18 @@ void UnifiedTypeAnalyzer::ComputeEscape(const std::string &func_name,
                 break;
             }
             case SyntaxTreeType::If: {
-                auto *ifs = static_cast<SyntaxTreeIf*>(node.get());
+                auto ifs = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
                 walk(ifs->Block());
                 if (ifs->ElseBlock()) walk(ifs->ElseBlock());
                 break;
             }
             case SyntaxTreeType::While: {
-                auto *ws = static_cast<SyntaxTreeWhile*>(node.get());
+                auto ws = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
                 walk(ws->Block());
                 break;
             }
             case SyntaxTreeType::ForLoop: {
-                auto *fl = static_cast<SyntaxTreeForLoop*>(node.get());
+                auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
                 walk(fl->Block());
                 break;
             }
@@ -1554,30 +1554,30 @@ void UnifiedTypeAnalyzer::EscapeTransfer(const SyntaxTreeInterfacePtr &stmt,
         if (!node) return;
         switch (node->Type()) {
             case SyntaxTreeType::Var: {
-                auto *v = static_cast<SyntaxTreeVar*>(node.get());
+                auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
                 if (v->GetVarKind() == VarKind::kSimple) ref_names.push_back(v->GetName());
                 if (v->GetPrefixexp()) collect_refs(v->GetPrefixexp());
                 if (v->GetExp()) collect_refs(v->GetExp());
                 break;
             }
             case SyntaxTreeType::Exp: {
-                auto *e = static_cast<SyntaxTreeExp*>(node.get());
+                auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
                 collect_refs(e->Left());
                 collect_refs(e->Right());
                 break;
             }
             case SyntaxTreeType::PrefixExp: {
-                auto *pe = static_cast<SyntaxTreePrefixexp*>(node.get());
+                auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node);
                 collect_refs(pe->GetValue());
                 break;
             }
             case SyntaxTreeType::ExpList: {
-                auto *el = static_cast<SyntaxTreeExplist*>(node.get());
+                auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
                 for (auto &e : el->Exps()) collect_refs(e);
                 break;
             }
             case SyntaxTreeType::Args: {
-                auto *args = static_cast<SyntaxTreeArgs*>(node.get());
+                auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
                 if (args->GetArgsKind() == ArgsKind::kExpList && args->Explist())
                     collect_refs(args->Explist());
                 else if (args->Tableconstructor())
@@ -1585,7 +1585,7 @@ void UnifiedTypeAnalyzer::EscapeTransfer(const SyntaxTreeInterfacePtr &stmt,
                 break;
             }
             case SyntaxTreeType::FunctionCall: {
-                auto *fc = static_cast<SyntaxTreeFunctioncall*>(node.get());
+                auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
                 if (fc->prefixexp()) collect_refs(fc->prefixexp());
                 if (fc->Args()) collect_refs(fc->Args());
                 break;
@@ -1598,11 +1598,11 @@ void UnifiedTypeAnalyzer::EscapeTransfer(const SyntaxTreeInterfacePtr &stmt,
     switch (stmt->Type()) {
         case SyntaxTreeType::FunctionCall: {
             // 规范 §8.1：传给函数的参数逃逸
-            auto *fc = static_cast<SyntaxTreeFunctioncall*>(stmt.get());
+            auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(stmt);
             // 获取 callee 名
             std::string callee;
             if (fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::Var) {
-                callee = static_cast<SyntaxTreeVar*>(fc->prefixexp().get())->GetName();
+                callee = std::dynamic_pointer_cast<SyntaxTreeVar>(fc->prefixexp())->GetName();
             }
             // 收集参数中引用的变量
             if (fc->Args()) collect_refs(fc->Args());
@@ -1616,13 +1616,13 @@ void UnifiedTypeAnalyzer::EscapeTransfer(const SyntaxTreeInterfacePtr &stmt,
         }
         case SyntaxTreeType::Return: {
             // 规范 §8.1：被 return 的变量逃逸（保守）
-            auto *ret = static_cast<SyntaxTreeReturn*>(stmt.get());
+            auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt);
             if (ret->Explist()) collect_refs(ret->Explist());
             for (auto &name : ref_names) escape_env[name] = true;
             break;
         }
         case SyntaxTreeType::Assign: {
-            auto *as = static_cast<SyntaxTreeAssign*>(stmt.get());
+            auto as = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
             auto vl = as->Varlist() ? std::dynamic_pointer_cast<SyntaxTreeVarlist>(as->Varlist()) : nullptr;
             auto el = as->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(as->Explist()) : nullptr;
             if (vl && el) {
@@ -1634,7 +1634,7 @@ void UnifiedTypeAnalyzer::EscapeTransfer(const SyntaxTreeInterfacePtr &stmt,
                 // 检查 LHS：赋值给 dynamic 变量 → RHS 引用逃逸
                 for (size_t i = 0; i < vars.size() && i < exps.size(); ++i) {
                     if (vars[i]->Type() != SyntaxTreeType::Var) continue;
-                    auto *v = static_cast<SyntaxTreeVar*>(vars[i].get());
+                    auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[i]);
                     if (v->GetVarKind() == VarKind::kSimple) {
                         auto it = type_env.find(v->GetName());
                         if (it != type_env.end() && it->second.type == T_DYNAMIC) {
