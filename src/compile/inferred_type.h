@@ -24,15 +24,15 @@ namespace fakelua {
 // 简单地说：InferredType 是"近似标签"，HM 类型是"精确推导结构"。
 // 推断流程里先用快速路径尽量打简单标签，必要时再走 HM。
 enum InferredType {
-    T_UNKNOWN = 0,    // 尚未被推断触碰过的初始状态（不应在正常流程中长期保留）
-    T_NIL,            // Lua nil
-    T_BOOL,           // boolean
-    T_INT,            // 整数
-    T_FLOAT,          // 浮点
-    T_STRING,         // 字符串
-    T_RECORD,         // 封闭 record（结构体）——字段固定，走偏移访问
-    T_RECORD_OPEN,    // 开放 record —— 可能存在未知字段，已知字段仍走偏移
-    T_DYNAMIC,        // 完全未知，运行时用 CVar 不透明表示，不做静态布局
+    T_UNKNOWN = 0,// 尚未被推断触碰过的初始状态（不应在正常流程中长期保留）
+    T_NIL,        // Lua nil
+    T_BOOL,       // boolean
+    T_INT,        // 整数
+    T_FLOAT,      // 浮点
+    T_STRING,     // 字符串
+    T_RECORD,     // 封闭 record（结构体）——字段固定，走偏移访问
+    T_RECORD_OPEN,// 开放 record —— 可能存在未知字段，已知字段仍走偏移
+    T_DYNAMIC,    // 完全未知，运行时用 CVar 不透明表示，不做静态布局
 };
 
 // 判断是否为数值类型（int 或 float）

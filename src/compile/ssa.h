@@ -63,10 +63,10 @@ namespace fakelua {
 // ────────────────────────────────────────────────────────────────────────────
 struct PhiNode {
     int var_id = -1;              // 变量索引（在 var_id_to_name_ 中的下标）
-    std::string var_name;          // 变量名（调试 / dump 用，例如 "x"）
-    int result_version = -1;       // 该 φ 产生的新版本号（形如 v_k）
-    std::vector<int> arg_versions; // 各前驱块传入的版本号（按 pred_ids 顺序）
-                                   // 意思是：arg_versions[i] 来自该块第 i 个前驱的版本
+    std::string var_name;         // 变量名（调试 / dump 用，例如 "x"）
+    int result_version = -1;      // 该 φ 产生的新版本号（形如 v_k）
+    std::vector<int> arg_versions;// 各前驱块传入的版本号（按 pred_ids 顺序）
+                                  // 意思是：arg_versions[i] 来自该块第 i 个前驱的版本
 };
 
 // ────────────────────────────────────────────────────────────────────────────
@@ -76,9 +76,9 @@ struct PhiNode {
 // 的 SSA 版本号、以及全局版本号到时变量名/块的反向索引。
 // ────────────────────────────────────────────────────────────────────────────
 struct SSAFunction {
-    std::string func_name;                // 函数名（调试用）
-    std::vector<int> param_versions;      // 每个参数的初始 SSA 版本号
-                                          // param_versions[i] 对应第 i 个形参的入口版本
+    std::string func_name;          // 函数名（调试用）
+    std::vector<int> param_versions;// 每个参数的初始 SSA 版本号
+                                    // param_versions[i] 对应第 i 个形参的入口版本
 
     // block_id → 该块入口的 φ 节点列表
     // 注意：一个块中可能为多个变量都插入了 φ
@@ -109,7 +109,7 @@ struct SSAFunction {
     // 版本号 → 类型信息（φ 类型推导 / 统一类型分析阶段填充）
     std::unordered_map<int, SSATypeInfo> version_types;
 
-    int next_version = 0;  // 下一个待分配的全局版本号（单调递增）
+    int next_version = 0;// 下一个待分配的全局版本号（单调递增）
 
     // 序列化为可读字符串（用于测试验证）
     [[nodiscard]] std::string DumpToString() const;
@@ -140,8 +140,8 @@ public:
     SSAFunction Build(const CFGFunction &cfg);
 
 private:
-    SSAFunction ssa_;          // 本次构建的结果
-    int next_version_ = 0;     // 冗余保留字段（实际以 ssa_.next_version 为准）
+    SSAFunction ssa_;     // 本次构建的结果
+    int next_version_ = 0;// 冗余保留字段（实际以 ssa_.next_version 为准）
 
     // 变量名 → 变量索引（压缩为连续 int）
     std::unordered_map<std::string, int> var_name_to_id_;
@@ -226,8 +226,7 @@ private:
     //     block_id   — 当前处理的基本块
     //     stmts      — 该块的语句列表
     //     stack_top  — 变量 id → 当前栈顶版本的映射（引用，会原地修改）
-    void RenameBlockStmts(int block_id, const std::vector<SyntaxTreeInterfacePtr> &stmts,
-                         std::unordered_map<int, int> &stack_top);
+    void RenameBlockStmts(int block_id, const std::vector<SyntaxTreeInterfacePtr> &stmts, std::unordered_map<int, int> &stack_top);
 
     // 收集单个语句中定义的变量名（LHS）
     //   支持：LocalVar / Assign / ForLoop / ForIn

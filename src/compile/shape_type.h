@@ -18,7 +18,8 @@ inline std::string ToSafeCFieldName(const std::string &name) {
     if (std::isdigit((unsigned char) name[0])) result += '_';
     for (char c: name) {
         if (std::isalnum((unsigned char) c) || c == '_') result += c;
-        else result += '_';
+        else
+            result += '_';
     }
     return result;
 }
@@ -34,17 +35,17 @@ inline std::string ToSafeCFieldName(const std::string &name) {
 //   - ShapeRegistry 去重，把结构相同的 ShapeType 并为一个 shape_id；
 //   - shape_id 最终作为 C 结构体的布局依据，落到代码生成里去。
 struct FieldDef {
-    std::string name;          // 原始 Lua 字段名（例如 "x"、"42"、"_embedded"）
-    std::string c_field_name;  // 经过 ToSafeCFieldName 转写后的 C 标识符，保证可作为 struct 成员名
-    InferredType type = T_DYNAMIC;  // 字段推断出来的静态类型（来自 inferred_type.h 的简单枚举）
-    bool optional = false;     // true 表示此字段在某条控制流路径上可能不存在（由 φ 节点 merge 产生）
+    std::string name;             // 原始 Lua 字段名（例如 "x"、"42"、"_embedded"）
+    std::string c_field_name;     // 经过 ToSafeCFieldName 转写后的 C 标识符，保证可作为 struct 成员名
+    InferredType type = T_DYNAMIC;// 字段推断出来的静态类型（来自 inferred_type.h 的简单枚举）
+    bool optional = false;        // true 表示此字段在某条控制流路径上可能不存在（由 φ 节点 merge 产生）
     // 例如：if cond then t={x=1} else t={x=1,y=2} end  → merge 后 y 是 optional
-    bool is_int_key = false;   // true 表示该字段来源于数组式（无显式键）table 构造字面量
+    bool is_int_key = false;// true 表示该字段来源于数组式（无显式键）table 构造字面量
+
     // 例如：t = {1, 2, 3} → 三个字段的名字分别是 "1" "2" "3"，但 is_int_key = true
 
     bool operator==(const FieldDef &o) const {
-        return name == o.name && c_field_name == o.c_field_name &&
-               type == o.type && optional == o.optional && is_int_key == o.is_int_key;
+        return name == o.name && c_field_name == o.c_field_name && type == o.type && optional == o.optional && is_int_key == o.is_int_key;
     }
 };
 
@@ -57,8 +58,8 @@ struct FieldDef {
 // ShapeType 是不可变快照——一旦被 Intern 进 registry，就通过 shape_id 共享。
 // 需要修改时请以拷贝为基础构造新 ShapeType 再 Intern。
 struct ShapeType {
-    int shape_id = -1;     // 由 ShapeRegistry 分配的全局唯一 id，-1 表示尚未注册
-    bool is_open = false;  // 开放 record：已知字段走偏移访问，未知字段走 hash 查找
+    int shape_id = -1;   // 由 ShapeRegistry 分配的全局唯一 id，-1 表示尚未注册
+    bool is_open = false;// 开放 record：已知字段走偏移访问，未知字段走 hash 查找
     // is_open = true 通常发生在：迭代 widening 之后；或字面量写了很多字段之后，
     // 此时不能再保证访问安全，但仍可使用已知道字段的偏移
     std::vector<FieldDef> fields;
@@ -92,11 +93,13 @@ struct ShapeType {
     [[nodiscard]] std::string Signature() const {
         std::vector<std::string> parts;
         parts.reserve(fields.size());
-        for (const auto &f: fields)
-            parts.push_back(f.name + ":" + std::to_string((int) f.type) + ":" + (f.optional ? "1" : "0") + ":" + (f.is_int_key ? "I" : "S"));
+        for (const auto &f: fields) parts.push_back(f.name + ":" + std::to_string((int) f.type) + ":" + (f.optional ? "1" : "0") + ":" + (f.is_int_key ? "I" : "S"));
         std::sort(parts.begin(), parts.end());
         std::string sig;
-        for (const auto &p: parts) { sig += p; sig += ';'; }
+        for (const auto &p: parts) {
+            sig += p;
+            sig += ';';
+        }
         sig += (is_open ? "O" : "C");
         return sig;
     }
@@ -128,12 +131,10 @@ public:
     // 由 ToSafeCFieldName 自动派生。
     int Intern(ShapeType s) {
         for (auto &f: s.fields)
-            if (f.c_field_name.empty())
-                f.c_field_name = ToSafeCFieldName(f.name);
+            if (f.c_field_name.empty()) f.c_field_name = ToSafeCFieldName(f.name);
 
         const std::string sig = s.Signature();
-        if (auto it = sig_to_id_.find(sig); it != sig_to_id_.end())
-            return it->second;
+        if (auto it = sig_to_id_.find(sig); it != sig_to_id_.end()) return it->second;
 
         const int id = (int) shapes_.size();
         s.shape_id = id;
@@ -142,9 +143,17 @@ public:
         return id;
     }
 
-    [[nodiscard]] const ShapeType &Get(int id) const { return shapes_.at(id); }
-    [[nodiscard]] ShapeType &GetMut(int id) { return shapes_.at(id); }
-    [[nodiscard]] int Count() const { return (int) shapes_.size(); }
+    [[nodiscard]] const ShapeType &Get(int id) const {
+        return shapes_.at(id);
+    }
+
+    [[nodiscard]] ShapeType &GetMut(int id) {
+        return shapes_.at(id);
+    }
+
+    [[nodiscard]] int Count() const {
+        return (int) shapes_.size();
+    }
 
     // Meet 操作：φ 节点合并两条路径的 shape
     //
@@ -231,20 +240,19 @@ public:
 
         if (iter_count >= kWidenIterThreshold || (int) s.fields.size() > kWidenFieldThreshold) {
             if (s.is_open && (int) s.fields.size() > kWidenFieldThreshold) {
-                return -1;  // 退化为 T_DYNAMIC
+                return -1;// 退化为 T_DYNAMIC
             }
             ShapeType w = s;
             w.is_open = true;
-            if ((int) w.fields.size() > kWidenFieldThreshold)
-                w.fields.resize(kWidenFieldThreshold);
+            if ((int) w.fields.size() > kWidenFieldThreshold) w.fields.resize(kWidenFieldThreshold);
             return Intern(std::move(w));
         }
         return shape_id;
     }
 
 private:
-    std::vector<ShapeType> shapes_;          // 按 shape_id 下标存取的 shape 存储
-    std::unordered_map<std::string, int> sig_to_id_;  // 签名到 shape_id 的倒排索引
+    std::vector<ShapeType> shapes_;                 // 按 shape_id 下标存取的 shape 存储
+    std::unordered_map<std::string, int> sig_to_id_;// 签名到 shape_id 的倒排索引
 };
 
 }// namespace fakelua

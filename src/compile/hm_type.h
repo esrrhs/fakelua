@@ -20,34 +20,46 @@ namespace fakelua {
 //     在 unify 时对字段缺失更宽容（见 UnifyRecordFields）
 //   - TY_DYNAMIC 是"放弃推断"的兜底——与 inferred_type.h 的 T_DYNAMIC 对应
 enum class TypeKind : uint8_t {
-    TY_INT,          // 整数类型（单例，所有 TY_INT 共享同一个 Type*）
-    TY_FLOAT,        // 浮点类型（单例）
-    TY_STRING,       // 字符串类型（单例）
-    TY_BOOL,         // 布尔类型（单例）
-    TY_NIL,          // nil 类型（单例）
-    TY_DYNAMIC,      // 完全未知类型（单例），运行时用 CVar 表示
-    TY_VAR,          // HM 类型变量——推断过程中产生的"未知量"，可被绑定到具体类型
-    TY_FUN,          // 函数类型：params → ret
-    TY_RECORD,       // 封闭 record：字段集合固定，不允许未知字段
-    TY_RECORD_OPEN,  // 开放 record：字段集合固定，但允许存在未知字段（走 hash）
-    TY_ARRAY,        // 数组类型：所有元素共享一个 elem 类型
-    TY_UNION,        // 联合类型：members 中任一类型都可能（按位置逐一 unify）
+    TY_INT,        // 整数类型（单例，所有 TY_INT 共享同一个 Type*）
+    TY_FLOAT,      // 浮点类型（单例）
+    TY_STRING,     // 字符串类型（单例）
+    TY_BOOL,       // 布尔类型（单例）
+    TY_NIL,        // nil 类型（单例）
+    TY_DYNAMIC,    // 完全未知类型（单例），运行时用 CVar 表示
+    TY_VAR,        // HM 类型变量——推断过程中产生的"未知量"，可被绑定到具体类型
+    TY_FUN,        // 函数类型：params → ret
+    TY_RECORD,     // 封闭 record：字段集合固定，不允许未知字段
+    TY_RECORD_OPEN,// 开放 record：字段集合固定，但允许存在未知字段（走 hash）
+    TY_ARRAY,      // 数组类型：所有元素共享一个 elem 类型
+    TY_UNION,      // 联合类型：members 中任一类型都可能（按位置逐一 unify）
 };
 
 inline const char *TypeKindToString(TypeKind k) {
     switch (k) {
-        case TypeKind::TY_INT:          return "int";
-        case TypeKind::TY_FLOAT:        return "float";
-        case TypeKind::TY_STRING:       return "string";
-        case TypeKind::TY_BOOL:         return "bool";
-        case TypeKind::TY_NIL:          return "nil";
-        case TypeKind::TY_DYNAMIC:      return "dynamic";
-        case TypeKind::TY_VAR:          return "var";
-        case TypeKind::TY_FUN:          return "fun";
-        case TypeKind::TY_RECORD:       return "record";
-        case TypeKind::TY_RECORD_OPEN:  return "record_open";
-        case TypeKind::TY_ARRAY:        return "array";
-        case TypeKind::TY_UNION:        return "union";
+        case TypeKind::TY_INT:
+            return "int";
+        case TypeKind::TY_FLOAT:
+            return "float";
+        case TypeKind::TY_STRING:
+            return "string";
+        case TypeKind::TY_BOOL:
+            return "bool";
+        case TypeKind::TY_NIL:
+            return "nil";
+        case TypeKind::TY_DYNAMIC:
+            return "dynamic";
+        case TypeKind::TY_VAR:
+            return "var";
+        case TypeKind::TY_FUN:
+            return "fun";
+        case TypeKind::TY_RECORD:
+            return "record";
+        case TypeKind::TY_RECORD_OPEN:
+            return "record_open";
+        case TypeKind::TY_ARRAY:
+            return "array";
+        case TypeKind::TY_UNION:
+            return "union";
     }
     return "?";
 }
@@ -83,7 +95,10 @@ public:
 
     // 释放所有 block（会调用 std::free，但不调用 Type 的析构函数——因为 bump 设计不需要）
     void Reset();
-    [[nodiscard]] size_t BytesUsed() const { return offset_; }
+
+    [[nodiscard]] size_t BytesUsed() const {
+        return offset_;
+    }
 
     // 从当前 block 分配 n 字节（内部会把 n 圆整到 8 字节，保证指针对齐）
     void *Alloc(size_t n);
@@ -92,13 +107,13 @@ public:
     // 注意：只分配内存，**不**调用 T 的构造函数！
     // 仅用于 T 是 POD / 你打算手动初始化全部字段时。
     // 对于含 std::vector、std::string 等非平凡成员的 T，请改用 Construct<T>(args...)。
-    template <typename T>
+    template<typename T>
     T *Alloc() {
         return static_cast<T *>(Alloc(sizeof(T)));
     }
 
     // 同上，用于数组
-    template <typename T>
+    template<typename T>
     T *AllocArray(size_t count) {
         return static_cast<T *>(Alloc(sizeof(T) * count));
     }
@@ -113,7 +128,7 @@ public:
     // 典型用法：
     //   Type *t = arena.Construct<Type>();              // 默认构造
     //   auto *rec = arena.Construct<MyRec>(1, "name"); // 任意自定义构造函数
-    template <typename T, typename... Args>
+    template<typename T, typename... Args>
     T *Construct(Args &&...args) {
         void *p = Alloc(sizeof(T));
         return new (p) T(std::forward<Args>(args)...);
@@ -127,10 +142,10 @@ public:
     void *AllocCopy(const void *src, size_t n);
 
 private:
-    static constexpr size_t kBlockSize = 64 * 1024;  // 每个 block 64 KiB
+    static constexpr size_t kBlockSize = 64 * 1024;// 每个 block 64 KiB
 
-    std::vector<void *> blocks_;  // 已分配的所有 block（Reset 时逐个 free）
-    size_t offset_ = 0;           // 当前 block 内的写入游标（下一笔分配的起点）
+    std::vector<void *> blocks_;// 已分配的所有 block（Reset 时逐个 free）
+    size_t offset_ = 0;         // 当前 block 内的写入游标（下一笔分配的起点）
 };
 
 // ── Record 字段描述 ────────────────────────────────────────────────────────
@@ -180,24 +195,24 @@ struct Type {
     TypeKind kind = TypeKind::TY_DYNAMIC;
 
     // ── TY_VAR ──────────── var_id 唯一标识一个变量；bound 指向链中的下一个节点 ──
-    int var_id = -1;          // 变量 ID（在 TypeVarTable 的 vars_ 数组里的下标）
-    Type *bound = nullptr;    // "绑定"指针；未绑时为 nullptr，已绑时指向下一个 Type 节点
-                              // 这是 HM 链式绑定的基础：Prune 就是沿 bound 一路走到尽头
+    int var_id = -1;      // 变量 ID（在 TypeVarTable 的 vars_ 数组里的下标）
+    Type *bound = nullptr;// "绑定"指针；未绑时为 nullptr，已绑时指向下一个 Type 节点
+                          // 这是 HM 链式绑定的基础：Prune 就是沿 bound 一路走到尽头
 
     // ── TY_FUN ──────────── params 显式参数类型，ret 返回类型 ──────────────
     // 当 params 为空时：表示参数类型尚未具体化，用 nparams 表达"已知参数个数但未知类型"
     // 当 params 非空时：params.size() 就是参数个数，用于支持参数级的精确 unify
-    std::vector<Type *> params;  // 参数类型列表（允许为空，表示仅知道 nparams）
-    int nparams = 0;             // 参数个数（params 字段为空时的 fallback）
-    Type *ret = nullptr;         // 函数返回类型
+    std::vector<Type *> params;// 参数类型列表（允许为空，表示仅知道 nparams）
+    int nparams = 0;           // 参数个数（params 字段为空时的 fallback）
+    Type *ret = nullptr;       // 函数返回类型
 
     // ── TY_RECORD / TY_RECORD_OPEN ─────────────────────────────────────────
-    std::vector<RecordField> fields;  // record 的字段集合
-    bool is_open = false;             // 是否开放（true → 允许存在未知字段）
-    int layout_id = -1;               // 与 shape registry 对应的布局 id（见注释上方）
+    std::vector<RecordField> fields;// record 的字段集合
+    bool is_open = false;           // 是否开放（true → 允许存在未知字段）
+    int layout_id = -1;             // 与 shape registry 对应的布局 id（见注释上方）
 
     // ── TY_ARRAY ───────────────────────────────────────────────────────────
-    Type *elem = nullptr;  // 数组元素类型（所有位置共享一个类型——不是元组）
+    Type *elem = nullptr;// 数组元素类型（所有位置共享一个类型——不是元组）
 
     // ── TY_UNION ───────────────────────────────────────────────────────────
     // 即 sum type：实际值是 members 中的某一项。
@@ -236,7 +251,10 @@ Type *MakeFunN(TypeArena &arena, int nparams, Type *ret);
 
 // 构造 record 类型；open = true 则为开放 record（TY_RECORD_OPEN）
 Type *MakeRecord(TypeArena &arena, bool open = false);
-inline Type *MakeOpenRecord(TypeArena &arena) { return MakeRecord(arena, true); }
+
+inline Type *MakeOpenRecord(TypeArena &arena) {
+    return MakeRecord(arena, true);
+}
 
 // 构造数组类型
 Type *MakeArray(TypeArena &arena, Type *elem);
@@ -285,9 +303,10 @@ Type *MakeUnion(TypeArena &arena, std::vector<Type *> members);
 //   6. 任何失败返回 false，让上层决定是否降级
 class TypeVarTable {
 public:
-    static constexpr int MAX_VARS = 4096;  // 单次分析允许的变量最大数
+    static constexpr int MAX_VARS = 4096;// 单次分析允许的变量最大数
 
-    explicit TypeVarTable(TypeArena &arena) : arena_(arena) {}
+    explicit TypeVarTable(TypeArena &arena) : arena_(arena) {
+    }
 
     // 创建一个新的类型变量（TY_VAR，初始未绑定）
     // 若变量数已超上限，退化为 TY_DYNAMIC——保证分析不会因资源枯竭崩溃
@@ -318,15 +337,19 @@ public:
     void Reset();
 
     // 已分配的变量个数
-    [[nodiscard]] int VarCount() const { return next_var_id_; }
+    [[nodiscard]] int VarCount() const {
+        return next_var_id_;
+    }
 
     // 暴露 arena 给 Make* 工厂函数用
-    TypeArena &arena() { return arena_; }
+    TypeArena &arena() {
+        return arena_;
+    }
 
 private:
-    Type vars_[MAX_VARS];         // 变量本体（按 var_id 直接下标访问）
-    int next_var_id_ = 0;         // 下一个空闲 var_id
-    TypeArena &arena_;            // 复合类型节点的分配器
+    Type vars_[MAX_VARS];// 变量本体（按 var_id 直接下标访问）
+    int next_var_id_ = 0;// 下一个空闲 var_id
+    TypeArena &arena_;   // 复合类型节点的分配器
 
     // 内部工具：绑定 var = target
     //   调用方必须保证 var 是 Prune 后的未绑 TY_VAR，否则行为未定义

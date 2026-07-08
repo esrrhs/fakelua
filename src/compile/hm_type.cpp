@@ -9,7 +9,7 @@ namespace fakelua {
 // ─────────────────────────────────────────────────────────────────────────
 
 void TypeArena::Reset() {
-    for (void *blk : blocks_) std::free(blk);
+    for (void *blk: blocks_) std::free(blk);
     blocks_.clear();
     offset_ = 0;
 }
@@ -65,7 +65,7 @@ Type *MakePrimStatic(TypeArena &arena, TypeKind k) {
     t->layout_id = -1;
     return t;
 }
-}  // namespace
+}// namespace
 
 // 单例缓存：thread_local 保证多线程互不干扰
 // 第一次被请求时由 EnsurePrims 一次性创建所有基础类型
@@ -78,19 +78,20 @@ struct PrimCache {
     Type *nil_ty = nullptr;
     Type *dynamic_ty = nullptr;
 };
+
 thread_local PrimCache g_prims;
 
 void EnsurePrims(TypeArena &arena) {
     if (!g_prims.int_ty) {
-        g_prims.int_ty        = MakePrimStatic(arena, TypeKind::TY_INT);
-        g_prims.float_ty      = MakePrimStatic(arena, TypeKind::TY_FLOAT);
-        g_prims.string_ty     = MakePrimStatic(arena, TypeKind::TY_STRING);
-        g_prims.bool_ty       = MakePrimStatic(arena, TypeKind::TY_BOOL);
-        g_prims.nil_ty        = MakePrimStatic(arena, TypeKind::TY_NIL);
-        g_prims.dynamic_ty    = MakePrimStatic(arena, TypeKind::TY_DYNAMIC);
+        g_prims.int_ty = MakePrimStatic(arena, TypeKind::TY_INT);
+        g_prims.float_ty = MakePrimStatic(arena, TypeKind::TY_FLOAT);
+        g_prims.string_ty = MakePrimStatic(arena, TypeKind::TY_STRING);
+        g_prims.bool_ty = MakePrimStatic(arena, TypeKind::TY_BOOL);
+        g_prims.nil_ty = MakePrimStatic(arena, TypeKind::TY_NIL);
+        g_prims.dynamic_ty = MakePrimStatic(arena, TypeKind::TY_DYNAMIC);
     }
 }
-}  // namespace
+}// namespace
 
 // ─────────────────────────────────────────────────────────────────────────
 // HmType constructors
@@ -113,13 +114,20 @@ Type *MakeVar(TypeArena &arena, int id) {
 Type *MakePrim(TypeArena &arena, TypeKind k) {
     EnsurePrims(arena);
     switch (k) {
-        case TypeKind::TY_INT:          return g_prims.int_ty;
-        case TypeKind::TY_FLOAT:        return g_prims.float_ty;
-        case TypeKind::TY_STRING:       return g_prims.string_ty;
-        case TypeKind::TY_BOOL:         return g_prims.bool_ty;
-        case TypeKind::TY_NIL:          return g_prims.nil_ty;
-        case TypeKind::TY_DYNAMIC:      return g_prims.dynamic_ty;
-        default:                        return g_prims.dynamic_ty;
+        case TypeKind::TY_INT:
+            return g_prims.int_ty;
+        case TypeKind::TY_FLOAT:
+            return g_prims.float_ty;
+        case TypeKind::TY_STRING:
+            return g_prims.string_ty;
+        case TypeKind::TY_BOOL:
+            return g_prims.bool_ty;
+        case TypeKind::TY_NIL:
+            return g_prims.nil_ty;
+        case TypeKind::TY_DYNAMIC:
+            return g_prims.dynamic_ty;
+        default:
+            return g_prims.dynamic_ty;
     }
 }
 
@@ -162,7 +170,7 @@ Type *MakeUnion(TypeArena &arena, std::vector<Type *> members) {
     return t;
 }
 
-}  // namespace HmType
+}// namespace HmType
 
 // ─────────────────────────────────────────────────────────────────────────
 // TypeVarTable
@@ -178,8 +186,8 @@ Type *TypeVarTable::NewVar() {
     // 不能 placement new（已经有对象了），只能逐字段覆盖
     Type *v = &vars_[next_var_id_];
     v->kind = TypeKind::TY_VAR;
-    v->var_id = next_var_id_;   // var_id 等于下标，支持 O(1) 按 id 反查
-    v->bound = nullptr;          // 初始未绑定
+    v->var_id = next_var_id_;// var_id 等于下标，支持 O(1) 按 id 反查
+    v->bound = nullptr;      // 初始未绑定
     v->nparams = 0;
     v->ret = nullptr;
     v->elem = nullptr;
@@ -226,7 +234,8 @@ bool OccursWalk(Type *t, OccursState &st) {
     if (t->kind == TypeKind::TY_VAR) {
         if (t->var_id == st.var_id) return true;
         // Already visited?  Skip to avoid infinite walk on shared DAGs.
-        for (int v : st.visited) if (v == t->var_id) return false;
+        for (int v: st.visited)
+            if (v == t->var_id) return false;
         st.visited.push_back(t->var_id);
         // Also walk the bound (in case of forward pointers).
         return OccursWalk(t->bound, st);
@@ -240,24 +249,27 @@ bool OccursWalk(Type *t, OccursState &st) {
         case TypeKind::TY_DYNAMIC:
             return false;
         case TypeKind::TY_FUN:
-            for (Type *p : t->params) if (OccursWalk(p, st)) return true;
+            for (Type *p: t->params)
+                if (OccursWalk(p, st)) return true;
             return OccursWalk(t->ret, st);
         case TypeKind::TY_RECORD:
         case TypeKind::TY_RECORD_OPEN: {
-            for (const auto &f : t->fields) if (OccursWalk(f.type, st)) return true;
+            for (const auto &f: t->fields)
+                if (OccursWalk(f.type, st)) return true;
             return false;
         }
         case TypeKind::TY_ARRAY:
             return OccursWalk(t->elem, st);
         case TypeKind::TY_UNION:
-            for (Type *m : t->members) if (OccursWalk(m, st)) return true;
+            for (Type *m: t->members)
+                if (OccursWalk(m, st)) return true;
             return false;
         case TypeKind::TY_VAR:
-            return false;  // handled by Prune above
+            return false;// handled by Prune above
     }
     return false;
 }
-}  // namespace
+}// namespace
 
 bool TypeVarTable::OccursCheck(Type *var, Type *t) {
     var = Prune(var);
@@ -314,10 +326,13 @@ bool BindTo(Type *var, Type *target) {
 // （因为内部递归调用的 UnifyImpl 不在 BindVar 路径里用到 table）
 bool UnifyRecordFields(Type *ra, Type *rb) {
     // 遍历 a 的每个字段
-    for (auto &fa : ra->fields) {
+    for (auto &fa: ra->fields) {
         RecordField *fb = nullptr;
-        for (auto &f : rb->fields) {
-            if (f.name == fa.name) { fb = &f; break; }
+        for (auto &f: rb->fields) {
+            if (f.name == fa.name) {
+                fb = &f;
+                break;
+            }
         }
         if (fb) {
             // 两侧都有——类型必须严格相等（递归 unify）
@@ -332,10 +347,13 @@ bool UnifyRecordFields(Type *ra, Type *rb) {
         }
     }
     // 再遍历 b 的每个字段（方向相反，检查 b 多出来的字段 a 是否能容忍）
-    for (auto &fb : rb->fields) {
+    for (auto &fb: rb->fields) {
         RecordField *fa = nullptr;
-        for (auto &f : ra->fields) {
-            if (f.name == fb.name) { fa = &f; break; }
+        for (auto &f: ra->fields) {
+            if (f.name == fb.name) {
+                fa = &f;
+                break;
+            }
         }
         if (!fa) {
             if (!ra->is_open) return false;
@@ -400,8 +418,8 @@ bool UnifyImpl(TypeVarTable *table, Type *a, Type *b) {
         // 函数类型：参数数量对齐，参数列表（若双方都已具体化）和返回值分别递归
         case TypeKind::TY_FUN: {
             // 参数数量从"显式 params 向量"或"nparams 标记"两个出口获取
-            int an = a->params.empty() ? a->nparams : (int)a->params.size();
-            int bn = b->params.empty() ? b->nparams : (int)b->params.size();
+            int an = a->params.empty() ? a->nparams : (int) a->params.size();
+            int bn = b->params.empty() ? b->nparams : (int) b->params.size();
             if (an != bn) return false;
             if (!UnifyImpl(table, a->ret, b->ret)) return false;
             // 只有双方都已具体化参数类型时才逐参数 unify（否则只知道参数个数）
@@ -432,7 +450,7 @@ bool UnifyImpl(TypeVarTable *table, Type *a, Type *b) {
     }
     return false;
 }
-}  // namespace
+}// namespace
 
 // 公共接口：直接用 this 作为 table 调用 UnifyImpl
 bool TypeVarTable::Unify(Type *a, Type *b) {
@@ -485,13 +503,13 @@ bool TypeVarTable::UnifySoft(Type *a, Type *b) {
 void TypeVarTable::BindVar(Type *var, Type *target) {
     // 外部可以安全传入任何 var 指针——它会先 Prune 找到真正代表当前变量身份的实体
     var = Prune(var);
-    if (!var || var->kind != TypeKind::TY_VAR) return;  // 非变量或空：什么都不做
+    if (!var || var->kind != TypeKind::TY_VAR) return;// 非变量或空：什么都不做
     var->bound = target;
 }
 
 bool TypeVarTable::BindTo(Type *var, Type *target) {
     var = Prune(var);
-    if (!var || var->kind != TypeKind::TY_VAR) return false;  // 失败返回 false
+    if (!var || var->kind != TypeKind::TY_VAR) return false;// 失败返回 false
     var->bound = target;
     return true;
 }
@@ -507,11 +525,13 @@ namespace {
 struct GlobalHMState {
     TypeArena arena;
     TypeVarTable table;
-    GlobalHMState() : table(arena) {}
+
+    GlobalHMState() : table(arena) {
+    }
 };
 
 thread_local GlobalHMState *g_state = nullptr;
-}  // namespace
+}// namespace
 
 TypeVarTable *g_type_table = nullptr;
 TypeArena *g_type_arena = nullptr;
@@ -531,4 +551,4 @@ void ShutdownTypeTable() {
     g_type_arena = nullptr;
 }
 
-}  // namespace fakelua
+}// namespace fakelua

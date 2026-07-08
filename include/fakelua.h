@@ -8,7 +8,6 @@
 #include <string>
 #include <type_traits>
 
-
 namespace fakelua {
 
 constexpr size_t kMaxFunctionInputParams = 32;
@@ -241,7 +240,7 @@ struct CompileConfig {
     bool record_c_code = false;
 };
 
-} // namespace fakelua
+}// namespace fakelua
 
 #include "compile/compile_common.h"
 
@@ -327,12 +326,10 @@ private:
 // ──────────────────────────────────────────────────────────────────────
 
 // 编译 Lua 文件 → 返回完整管线结果。
-CompileResult CompileFile(State *s, const std::string &filename,
-                           const CompileConfig &cfg);
+CompileResult CompileFile(State *s, const std::string &filename, const CompileConfig &cfg);
 
 // 编译 Lua 字符串 → 返回完整管线结果。
-CompileResult CompileString(State *s, const std::string &str,
-                             const CompileConfig &cfg);
+CompileResult CompileString(State *s, const std::string &str, const CompileConfig &cfg);
 
 // 调用某个脚本函数（定义在文件末尾）
 template<typename Ret, typename... Args>
@@ -560,8 +557,10 @@ int GetMultiCVarCount(const CVar &multi);
 
 template<typename T>
 struct is_std_tuple : std::false_type {};
+
 template<typename... Ts>
 struct is_std_tuple<std::tuple<Ts...>> : std::true_type {};
+
 template<typename T>
 inline constexpr bool is_std_tuple_v = is_std_tuple<T>::value;
 

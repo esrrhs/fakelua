@@ -15,10 +15,7 @@ namespace fakelua {
 // - entry 块：作为 CFG 的唯一起点，便于从入口开始遍历和分析。
 // - exit 块：作为所有 return/函数末尾的汇聚点，统一出口便于分析。
 // - 即使函数没有显式 return，函数体末尾也会隐式连接到 exit。
-CFGFunction CFGBuilder::Build(const SyntaxTreeInterfacePtr &func_block,
-                                const std::vector<std::string> &params,
-                                const std::string &func_name,
-                                bool /*is_vararg*/) {
+CFGFunction CFGBuilder::Build(const SyntaxTreeInterfacePtr &func_block, const std::vector<std::string> &params, const std::string &func_name, bool /*is_vararg*/) {
     // ─── 步骤 1：重置 CFG 状态 ──────────────────────────────────────────
     cfg_.func_name = func_name;
     cfg_.blocks.clear();
@@ -72,7 +69,7 @@ int CFGBuilder::NewBlock() {
 // - 避免了额外的内存开销和哈希计算
 // - 在 debug 模式下通过 DEBUG_ASSERT 确保 id 有效
 BasicBlock &CFGBuilder::GetBlock(int id) {
-    for (auto &b : cfg_.blocks)
+    for (auto &b: cfg_.blocks)
         if (b.id == id) return b;
     DEBUG_ASSERT(false);
     return cfg_.blocks[0];
@@ -107,7 +104,7 @@ int CFGBuilder::BuildBlock(const SyntaxTreeInterfacePtr &node, int current_block
 
     auto block_ptr = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
     int cur = current_block;
-    for (auto &stmt : block_ptr->Stmts()) {
+    for (auto &stmt: block_ptr->Stmts()) {
         // 每条语句构建后，cur 可能改变（控制流语句会分裂块）
         cur = BuildStmt(stmt, cur, exit_block);
     }
@@ -194,11 +191,11 @@ int CFGBuilder::BuildIf(const SyntaxTreeInterfacePtr &node, int current_block, i
 
     // 收集各分支的尾块（用于最后统一连接到汇合块）
     std::vector<int> branch_tails;
-    bool has_full_coverage = true;  // 是否有 else（全覆盖）
+    bool has_full_coverage = true;// 是否有 else（全覆盖）
 
     // ─── 步骤 3：构建 then 分支 ────────────────────────────────────────
     int then_block = NewBlock();
-    AddEdge(cond_block, then_block);  // 条件为真 → then 分支
+    AddEdge(cond_block, then_block);// 条件为真 → then 分支
     // 将 merge_block 作为 exit_block 传递，使 then 分支内的控制流能正确连接
     int then_tail = BuildBlock(ifn->Block(), then_block, merge_block);
     branch_tails.push_back(then_tail);
@@ -210,7 +207,7 @@ int CFGBuilder::BuildIf(const SyntaxTreeInterfacePtr &node, int current_block, i
         auto elist = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(elseiflist);
         for (size_t i = 0; i < elist->ElseifSize(); ++i) {
             int ecblock = NewBlock();
-            AddEdge(cond_block, ecblock);  // 条件为假 → elseif 条件判断
+            AddEdge(cond_block, ecblock);// 条件为假 → elseif 条件判断
             int tail = BuildBlock(elist->ElseifBlock(i), ecblock, merge_block);
             branch_tails.push_back(tail);
         }
@@ -228,7 +225,7 @@ int CFGBuilder::BuildIf(const SyntaxTreeInterfacePtr &node, int current_block, i
     }
 
     // ─── 步骤 6：连接各分支尾块到汇合块 ────────────────────────────────
-    for (int tail : branch_tails) {
+    for (int tail: branch_tails) {
         AddEdge(tail, merge_block);
     }
     // 如果没有 else，条件块 fall-through 到汇合块
@@ -268,12 +265,12 @@ int CFGBuilder::BuildWhile(const SyntaxTreeInterfacePtr &node, int current_block
 
     // 循环体块
     int body = NewBlock();
-    AddEdge(header, body);  // 条件为真 → 进入体
-    AddEdge(header, exit_block);  // 条件为假 → 退出循环
+    AddEdge(header, body);      // 条件为真 → 进入体
+    AddEdge(header, exit_block);// 条件为假 → 退出循环
 
     // 递归构建循环体，将 header 作为 exit_block（循环体末尾回到 header）
     int body_tail = BuildBlock(w->Block(), body, header);
-    AddEdge(body_tail, header);  // 回边：体末尾回到 header 重新判断
+    AddEdge(body_tail, header);// 回边：体末尾回到 header 重新判断
 
     return header;
 }
@@ -302,12 +299,12 @@ int CFGBuilder::BuildRepeat(const SyntaxTreeInterfacePtr &node, int current_bloc
     int cond = NewBlock();
     GetBlock(cond).stmts.push_back(node);
 
-    AddEdge(cond, body);  // 条件为假 → 再次循环
-    AddEdge(cond, exit_block);  // 条件为真 → 退出
+    AddEdge(cond, body);      // 条件为假 → 再次循环
+    AddEdge(cond, exit_block);// 条件为真 → 退出
 
     // 递归构建循环体，将 cond 作为 exit_block
     int body_tail = BuildBlock(r->Block(), body, cond);
-    AddEdge(body_tail, cond);  // 体末尾进入条件判断
+    AddEdge(body_tail, cond);// 体末尾进入条件判断
 
     return cond;
 }
@@ -334,12 +331,12 @@ int CFGBuilder::BuildForLoop(const SyntaxTreeInterfacePtr &node, int current_blo
 
     // 循环体块
     int body = NewBlock();
-    AddEdge(init, body);  // 边界满足 → 进入体
-    AddEdge(init, exit_block);  // 边界不满足 → 退出
+    AddEdge(init, body);      // 边界满足 → 进入体
+    AddEdge(init, exit_block);// 边界不满足 → 退出
 
     // 递归构建循环体，将 init 作为 exit_block
     int body_tail = BuildBlock(fl->Block(), body, init);
-    AddEdge(body_tail, init);  // 循环末尾回到 init 重新判断
+    AddEdge(body_tail, init);// 循环末尾回到 init 重新判断
 
     return init;
 }
@@ -365,12 +362,12 @@ int CFGBuilder::BuildForIn(const SyntaxTreeInterfacePtr &node, int current_block
 
     // 循环体块
     int body = NewBlock();
-    AddEdge(init, body);  // 还有元素 → 进入体
-    AddEdge(init, exit_block);  // 迭代结束 → 退出
+    AddEdge(init, body);      // 还有元素 → 进入体
+    AddEdge(init, exit_block);// 迭代结束 → 退出
 
     // 递归构建循环体，将 init 作为 exit_block
     int body_tail = BuildBlock(fi->Block(), body, init);
-    AddEdge(body_tail, init);  // 体末尾回到 init 获取下一个元素
+    AddEdge(body_tail, init);// 体末尾回到 init 获取下一个元素
 
     return init;
 }
@@ -416,11 +413,11 @@ void CFGBuilder::ComputeDominators() {
 
     // ─── 步骤 1：收集所有块 id ────────────────────────────────────────
     std::unordered_set<int> all;
-    for (auto &b : cfg_.blocks) all.insert(b.id);
+    for (auto &b: cfg_.blocks) all.insert(b.id);
 
     // ─── 步骤 2：初始化支配集 ─────────────────────────────────────────
     // 每个块的支配集初始化为 all（最宽松的估计）
-    for (auto &b : cfg_.blocks) {
+    for (auto &b: cfg_.blocks) {
         cfg_.dominators[b.id] = all;
     }
     // entry 的支配集 = { entry }（entry 只支配自身）
@@ -430,18 +427,18 @@ void CFGBuilder::ComputeDominators() {
     bool changed = true;
     while (changed) {
         changed = false;
-        for (auto &b : cfg_.blocks) {
+        for (auto &b: cfg_.blocks) {
             // entry 的支配集不变，跳过
             if (b.id == cfg_.entry_id) continue;
 
             // 从所有块开始，逐步与前驱的支配集取交集
             std::unordered_set<int> new_dom = all;
-            for (int pred_id : b.pred_ids) {
+            for (int pred_id: b.pred_ids) {
                 auto it = cfg_.dominators.find(pred_id);
                 if (it != cfg_.dominators.end()) {
                     // 取交集：只保留同时在前驱支配集中的元素
                     std::unordered_set<int> tmp;
-                    for (int x : new_dom)
+                    for (int x: new_dom)
                         if (it->second.count(x)) tmp.insert(x);
                     new_dom = std::move(tmp);
                 }
@@ -493,8 +490,8 @@ void CFGBuilder::ComputeDominanceFrontier() {
 
     // 标准算法：DF(n) = { y | ∃p ∈ pred(y), n 支配 p 但 n 不严格支配 y }
     // 注意：n 支配自身（reflexive），所以当 n ∈ pred(y) 且 n 不严格支配 y 时，y ∈ DF(n)
-    for (const auto &n : cfg_.blocks) {
-        for (const auto &y : cfg_.blocks) {
+    for (const auto &n: cfg_.blocks) {
+        for (const auto &y: cfg_.blocks) {
             // 跳过自身
             if (y.id == n.id) continue;
 
@@ -503,7 +500,7 @@ void CFGBuilder::ComputeDominanceFrontier() {
 
             // ─── 检查 n 是否支配 y 的某个前驱 ────────────────────────
             bool n_doms_pred_of_y = false;
-            for (int p : y.pred_ids) {
+            for (int p: y.pred_ids) {
                 if (p == n.id) {
                     // n 支配自身（reflexive dominance）
                     n_doms_pred_of_y = true;
@@ -547,7 +544,7 @@ std::string CFGFunction::DumpToString() const {
         oss << exit_ids[i];
     }
     oss << "]\n";
-    for (const auto &b : blocks) {
+    for (const auto &b: blocks) {
         oss << "  block " << b.id << ": preds=[";
         for (size_t i = 0; i < b.pred_ids.size(); ++i) {
             if (i > 0) oss << ",";

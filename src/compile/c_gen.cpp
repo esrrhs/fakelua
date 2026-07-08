@@ -127,7 +127,7 @@ void CGen::GenerateShapeStructs() {
 
         // 如果存在任何字段没有 C 原语映射（T_NIL），则无法生成完整 struct 定义。
         bool skip = false;
-        for (const auto &fd : shape.fields) {
+        for (const auto &fd: shape.fields) {
             if (fd.type == T_NIL) {
                 skip = true;
                 break;
@@ -138,7 +138,7 @@ void CGen::GenerateShapeStructs() {
         }
 
         Out() << "typedef struct {\n";
-        for (const auto &fd : shape.fields) {
+        for (const auto &fd: shape.fields) {
             auto c_type = InferredTypeToCType(fd.type);
             DEBUG_ASSERT(c_type.has_value());
             Out() << "    " << *c_type << " " << fd.c_field_name << ";\n";
@@ -394,8 +394,7 @@ std::string CGen::GenTab() const {
     return tabs;
 }
 
-void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params,
-                          const SyntaxTreeInterfacePtr &func_block, std::ostream &out) {
+void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params, const SyntaxTreeInterfacePtr &func_block, std::ostream &out) {
     SectionGuard section_guard(*this, Section::Body);
 
     // 将函数体编译到 body 缓冲区。
@@ -625,7 +624,7 @@ static bool CanUseStructForVar(const std::string &var_name, const std::string &f
     if (eit != ir.escape_vars.end()) {
         auto vit = eit->second.find(var_name);
         if (vit != eit->second.end() && vit->second) {
-            return false;  // 逃逸变量不走 struct 路径
+            return false;// 逃逸变量不走 struct 路径
         }
     }
     return true;
@@ -669,7 +668,7 @@ bool CGen::TryCompileLocalStructInit(const std::string &var_name, const SyntaxTr
     std::unordered_map<std::string, std::string> init_map;
     if (const auto fieldlist = tc->Fieldlist()) {
         const auto fieldlist_ptr = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(fieldlist);
-        for (const auto &field : fieldlist_ptr->Fields()) {
+        for (const auto &field: fieldlist_ptr->Fields()) {
             const auto field_ptr = std::dynamic_pointer_cast<SyntaxTreeField>(field);
             if (!field_ptr) continue;
 
@@ -679,14 +678,13 @@ bool CGen::TryCompileLocalStructInit(const std::string &var_name, const SyntaxTr
             } else {
                 // kArray
                 if (const auto key = field_ptr->Key()) {
-                    if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(key);
-                        key_exp && key_exp->GetExpKind() == ExpKind::kString) {
+                    if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(key); key_exp && key_exp->GetExpKind() == ExpKind::kString) {
                         lua_field_name = key_exp->ExpValue();
                     } else {
-                        return false;  // 非字符串键无法用 struct
+                        return false;// 非字符串键无法用 struct
                     }
                 } else {
-                    return false;  // 无键数组元素无法用 struct
+                    return false;// 无键数组元素无法用 struct
                 }
             }
 
@@ -706,7 +704,7 @@ bool CGen::TryCompileLocalStructInit(const std::string &var_name, const SyntaxTr
     // 缺失的字段按照类型默认值初始化。
     Out() << GenTab() << "LuaShape" << shape_id << " " << var_name << " = {";
     bool first = true;
-    for (const auto &fd : shape.fields) {
+    for (const auto &fd: shape.fields) {
         if (!first) Out() << ", ";
         first = false;
         auto it = init_map.find(fd.c_field_name);
@@ -1073,8 +1071,7 @@ std::string CGen::CompilePrefixexp(const SyntaxTreeInterfacePtr &pe, bool preser
         // 则取第一个值，等同于函数调用在非末尾位置的处理（FlUnboxMulti(x, 0)）。
         if (!preserve_multi) {
             const auto var_node = std::dynamic_pointer_cast<SyntaxTreeVar>(value);
-            if (var_node && var_node->GetVarKind() == VarKind::kSimple &&
-                var_node->GetName().rfind("__fakelua_vararg_", 0) == 0) {
+            if (var_node && var_node->GetVarKind() == VarKind::kSimple && var_node->GetName().rfind("__fakelua_vararg_", 0) == 0) {
                 return std::format("FlUnboxMulti({}, 0)", var_str);
             }
         }
@@ -1106,7 +1103,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
         const auto fieldlist_ptr = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(fieldlist);
         std::unordered_set<std::string> unique_keys;
         int array_idx = 1;
-        for (const auto &field : fieldlist_ptr->Fields()) {
+        for (const auto &field: fieldlist_ptr->Fields()) {
             const auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field);
             if (!fp) continue;
 
@@ -1416,8 +1413,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
 
                 // 回退：从 var_final_shapes 获取变量级合并类型
                 int shape_id = -1;
-                if (node_type && node_type->shape_id >= 0 &&
-                    (node_type->type == T_RECORD || node_type->type == T_RECORD_OPEN)) {
+                if (node_type && node_type->shape_id >= 0 && (node_type->type == T_RECORD || node_type->type == T_RECORD_OPEN)) {
                     shape_id = node_type->shape_id;
                 } else if (!cur_func_name_.empty()) {
                     auto fit = ir().var_final_shapes.find(base_name);
@@ -1598,7 +1594,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                     compiled_args.push_back(slice_expr);
                 } else if (expansion_start_idx == fixed_param_count) {
                     compiled_args.push_back(expansion_tmp);
-                } else { // expansion_start_idx > fixed_param_count
+                } else {// expansion_start_idx > fixed_param_count
                     std::vector<std::string> prefix_args;
                     for (int i = fixed_param_count; i < expansion_start_idx; ++i) {
                         prefix_args.push_back(compiled_args[i]);

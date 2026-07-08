@@ -16,10 +16,10 @@ namespace fakelua {
 int SSABuilder::GetVarId(const std::string &name) {
     auto it = var_name_to_id_.find(name);
     if (it != var_name_to_id_.end()) return it->second;
-    int id = (int)var_id_to_name_.size();
+    int id = (int) var_id_to_name_.size();
     var_name_to_id_[name] = id;
     var_id_to_name_.push_back(name);
-    var_def_blocks_.emplace_back();     // 为该变量初始化一个空的"定义块"集合
+    var_def_blocks_.emplace_back();// 为该变量初始化一个空的"定义块"集合
     return id;
 }
 
@@ -53,7 +53,7 @@ std::vector<std::string> SSABuilder::GetDefNames(const SyntaxTreeInterfacePtr &s
             // local a, b, c = ...
             auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
             if (auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist())) {
-                for (auto &n : nl->Names()) names.push_back(n);
+                for (auto &n: nl->Names()) names.push_back(n);
             }
             break;
         }
@@ -62,11 +62,10 @@ std::vector<std::string> SSABuilder::GetDefNames(const SyntaxTreeInterfacePtr &s
             auto as = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
             auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(as->Varlist());
             if (vl) {
-                for (auto &v : vl->Vars()) {
+                for (auto &v: vl->Vars()) {
                     if (v->Type() == SyntaxTreeType::Var) {
                         auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(v);
-                        if (var && var->GetVarKind() == VarKind::kSimple)
-                            names.push_back(var->GetName());
+                        if (var && var->GetVarKind() == VarKind::kSimple) names.push_back(var->GetName());
                     }
                 }
             }
@@ -82,7 +81,7 @@ std::vector<std::string> SSABuilder::GetDefNames(const SyntaxTreeInterfacePtr &s
             // for a, b in ... do ... end
             auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
             if (auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(fi->Namelist())) {
-                for (auto &n : nl->Names()) names.push_back(n);
+                for (auto &n: nl->Names()) names.push_back(n);
             }
             break;
         }
@@ -101,13 +100,12 @@ std::vector<std::string> SSABuilder::GetUseNames(const SyntaxTreeInterfacePtr &s
 
     // 递归收集器：对整棵表达式子树深度优先搜索。
     // 命中 Var(kSimple) 就计入；命中其他节点就继续递归其子节点。
-    std::function<void(const SyntaxTreeInterfacePtr&)> collect;
+    std::function<void(const SyntaxTreeInterfacePtr &)> collect;
     collect = [&](const SyntaxTreeInterfacePtr &node) {
         if (!node) return;
         if (node->Type() == SyntaxTreeType::Var) {
             auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
-            if (v && v->GetVarKind() == VarKind::kSimple)
-                names.push_back(v->GetName());
+            if (v && v->GetVarKind() == VarKind::kSimple) names.push_back(v->GetName());
             return;
         }
         switch (node->Type()) {
@@ -141,7 +139,7 @@ std::vector<std::string> SSABuilder::GetUseNames(const SyntaxTreeInterfacePtr &s
             }
             case SyntaxTreeType::FieldList: {
                 auto fl = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
-                for (auto &f : fl->Fields()) collect(f);
+                for (auto &f: fl->Fields()) collect(f);
                 break;
             }
             case SyntaxTreeType::Field: {
@@ -160,20 +158,19 @@ std::vector<std::string> SSABuilder::GetUseNames(const SyntaxTreeInterfacePtr &s
             }
             case SyntaxTreeType::Args: {
                 auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
-                if (args->GetArgsKind() == ArgsKind::kExpList && args->Explist())
-                    collect(args->Explist());
+                if (args->GetArgsKind() == ArgsKind::kExpList && args->Explist()) collect(args->Explist());
                 else if (args->Tableconstructor())
                     collect(args->Tableconstructor());
                 break;
             }
             case SyntaxTreeType::ExpList: {
                 auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
-                for (auto &e : el->Exps()) collect(e);
+                for (auto &e: el->Exps()) collect(e);
                 break;
             }
             case SyntaxTreeType::VarList: {
                 auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(node);
-                for (auto &v : vl->Vars()) collect(v);
+                for (auto &v: vl->Vars()) collect(v);
                 break;
             }
             default:
@@ -232,12 +229,12 @@ std::vector<std::string> SSABuilder::GetUseNames(const SyntaxTreeInterfacePtr &s
 // ============================================================================
 void SSABuilder::CollectDefBlocks(const CFGFunction &cfg) {
     // 逐块、逐语句扫描
-    for (const auto &b : cfg.blocks) {
-        for (const auto &s : b.stmts) {
+    for (const auto &b: cfg.blocks) {
+        for (const auto &s: b.stmts) {
             // 该语句定义了哪些变量
-            for (const auto &name : GetDefNames(s)) {
-                int vid = GetVarId(name);           // 第一次遇到会把变量压缩为 id
-                var_def_blocks_[vid].insert(b.id);  // 在 var_def_blocks_[vid] 中记录块 b.id
+            for (const auto &name: GetDefNames(s)) {
+                int vid = GetVarId(name);         // 第一次遇到会把变量压缩为 id
+                var_def_blocks_[vid].insert(b.id);// 在 var_def_blocks_[vid] 中记录块 b.id
             }
         }
     }
@@ -256,21 +253,21 @@ void SSABuilder::CollectDefBlocks(const CFGFunction &cfg) {
 // 的——即不被其他任何严格支配者支配的那个块。
 // ============================================================================
 void SSABuilder::BuildDomTree(const CFGFunction &cfg) {
-    for (const auto &b : cfg.blocks) {
-        if (b.id == cfg.entry_id) continue;   // 入口没有直接支配者
+    for (const auto &b: cfg.blocks) {
+        if (b.id == cfg.entry_id) continue;// 入口没有直接支配者
 
         int idom = -1;
         auto it = cfg.dominators.find(b.id);
-        if (it == cfg.dominators.end()) continue;    // 没有支配信息就跳过
+        if (it == cfg.dominators.end()) continue;// 没有支配信息就跳过
 
         // 遍历每一条严格支配者候选 d
-        for (int d : it->second) {
-            if (d == b.id) continue;                  // 跳过自身，需要的是严格支配者
+        for (int d: it->second) {
+            if (d == b.id) continue;// 跳过自身，需要的是严格支配者
 
             // 检查 d 是否是"最近的"：若存在另一个严格支配者 d2 也被 d 支配，
             // 则 d 比 d2 "更远"（在支配树中辈分更高），那么 d 就不是 idom。
             bool is_idom = true;
-            for (int d2 : it->second) {
+            for (int d2: it->second) {
                 if (d2 == b.id || d2 == d) continue;
                 auto it2 = cfg.dominators.find(d2);
                 // 如果 d 支配 d2（d2 的支配集合里包含 d），那么 d 辈分更高
@@ -279,7 +276,10 @@ void SSABuilder::BuildDomTree(const CFGFunction &cfg) {
                     break;
                 }
             }
-            if (is_idom) { idom = d; break; }
+            if (is_idom) {
+                idom = d;
+                break;
+            }
         }
 
         // idom 就是 b 在支配树中的父节点
@@ -327,14 +327,14 @@ void SSABuilder::BuildDomTree(const CFGFunction &cfg) {
 void SSABuilder::InsertPhis(const CFGFunction &cfg) {
     // 注：var_name_to_id_ 和 var_def_blocks_ 已经由 Build() 预先填充
 
-    int num_vars = (int)var_id_to_name_.size();
+    int num_vars = (int) var_id_to_name_.size();
 
     // 独立处理每个变量
     for (int vid = 0; vid < num_vars; ++vid) {
         // 复制初始种子集合成 worklist
         auto it = var_def_blocks_[vid];
         std::vector<int> worklist(it.begin(), it.end());
-        std::unordered_set<int> has_phi;  // 已有 φ 的块（去重）
+        std::unordered_set<int> has_phi;// 已有 φ 的块（去重）
 
         // 工作表主循环
         for (size_t i = 0; i < worklist.size(); ++i) {
@@ -343,18 +343,18 @@ void SSABuilder::InsertPhis(const CFGFunction &cfg) {
             if (df_it == cfg.dominance_frontier.end()) continue;
 
             // 遍历 n 的支配边界上的每个目标块 d
-            for (int d : df_it->second) {
-                if (has_phi.count(d)) continue;   // 已插入 φ → 跳过
+            for (int d: df_it->second) {
+                if (has_phi.count(d)) continue;// 已插入 φ → 跳过
 
                 has_phi.insert(d);
 
                 // ── 在块 d 为变量 vid 创建 φ 节点 ──────────────────────
                 auto *blk = cfg.FindBlock(d);
-                int npreds = blk ? (int)blk->pred_ids.size() : 0;
+                int npreds = blk ? (int) blk->pred_ids.size() : 0;
                 PhiNode phi;
                 phi.var_id = vid;
                 phi.var_name = var_id_to_name_[vid];
-                phi.arg_versions.resize(npreds, -1);   // 暂时未知，重命名阶段填入
+                phi.arg_versions.resize(npreds, -1);// 暂时未知，重命名阶段填入
                 ssa_.block_phis[d].push_back(std::move(phi));
 
                 // ── 如果 d 不是 v 的定义块，它现在凭着 φ 成为新的来源 ──
@@ -395,41 +395,39 @@ void SSABuilder::InsertPhis(const CFGFunction &cfg) {
 // 处理完后，stack_top 中记录的就是"离开此块时每个变量的最新版本"。
 // 这个值会被上层 RenameVariables 用来回填后继块 φ 的参数。
 // ============================================================================
-void SSABuilder::RenameBlockStmts(
-    int block_id, const std::vector<SyntaxTreeInterfacePtr> &stmts,
-    std::unordered_map<int, int> &stack_top) {
+void SSABuilder::RenameBlockStmts(int block_id, const std::vector<SyntaxTreeInterfacePtr> &stmts, std::unordered_map<int, int> &stack_top) {
 
     // ── 1) 处理 φ 节点 ─────────────────────────────────────────────────
     auto phi_it = ssa_.block_phis.find(block_id);
     if (phi_it != ssa_.block_phis.end()) {
-        for (auto &phi : phi_it->second) {
+        for (auto &phi: phi_it->second) {
             int new_ver = NewVersion(phi.var_name, block_id);
             phi.result_version = new_ver;
-            stack_top[phi.var_id] = new_ver;   // 被 φ 产出新版本后的当前活跃版本
+            stack_top[phi.var_id] = new_ver;// 被 φ 产出新版本后的当前活跃版本
         }
     }
 
     // ── 2) 处理块内普通语句 ────────────────────────────────────────────
-    for (const auto &stmt : stmts) {
+    for (const auto &stmt: stmts) {
         // 2a) 替换每个使用：取当前栈顶版本
-        for (const auto &uname : GetUseNames(stmt)) {
+        for (const auto &uname: GetUseNames(stmt)) {
             auto vit = var_name_to_id_.find(uname);
-            if (vit == var_name_to_id_.end()) continue;  // 不可识别的名字（全局/非简单变量）→ 跳过
+            if (vit == var_name_to_id_.end()) continue;// 不可识别的名字（全局/非简单变量）→ 跳过
             int vid = vit->second;
             auto sit = stack_top.find(vid);
             if (sit != stack_top.end()) {
                 // 找到该变量的当前最新版本 → 即为该 use 应使用的版本
                 // （简化实现：仅收集版本号，不修改 AST；真正在 CGen 阶段做替换）
-                (void)0;  // 实际替换在代码生成阶段
+                (void) 0;// 实际替换在代码生成阶段
             }
         }
 
         // 2b) 处理每个定义：分配新版本并压栈
-        for (const auto &dname : GetDefNames(stmt)) {
+        for (const auto &dname: GetDefNames(stmt)) {
             int vid = GetVarId(dname);
             int new_ver = NewVersion(dname, block_id);
             stack_top[vid] = new_ver;
-            ssa_.def_versions[stmt.get()] = new_ver;  // 记录该语句定义的版本
+            ssa_.def_versions[stmt.get()] = new_ver;// 记录该语句定义的版本
         }
     }
 }
@@ -524,7 +522,7 @@ void SSABuilder::RenameVariables(const CFGFunction &cfg) {
         // 也就是 bid 前驱视角下的"可见 v 的最新版本"。
         auto *blk = cfg.FindBlock(bid);
         if (blk) {
-            for (int sid : blk->succ_ids) {
+            for (int sid: blk->succ_ids) {
                 auto phi_it = ssa_.block_phis.find(sid);
                 if (phi_it == ssa_.block_phis.end()) continue;
                 auto *sblk = cfg.FindBlock(sid);
@@ -533,17 +531,19 @@ void SSABuilder::RenameVariables(const CFGFunction &cfg) {
                 // 找到 bid 在 sblk->pred_ids 中的下标
                 // （φ 的参数顺序是严格按照 pred_ids 排列的）
                 int pred_idx = -1;
-                for (int j = 0; j < (int)sblk->pred_ids.size(); ++j) {
-                    if (sblk->pred_ids[j] == bid) { pred_idx = j; break; }
+                for (int j = 0; j < (int) sblk->pred_ids.size(); ++j) {
+                    if (sblk->pred_ids[j] == bid) {
+                        pred_idx = j;
+                        break;
+                    }
                 }
                 if (pred_idx < 0) continue;
 
                 // 为该后继块中的每一个 φ 填入参数：从"当前栈顶"取最新版本
-                for (auto &phi : phi_it->second) {
+                for (auto &phi: phi_it->second) {
                     auto sit = stack_top.find(phi.var_id);
                     if (sit != stack_top.end()) {
-                        if (pred_idx < (int)phi.arg_versions.size())
-                            phi.arg_versions[pred_idx] = sit->second;
+                        if (pred_idx < (int) phi.arg_versions.size()) phi.arg_versions[pred_idx] = sit->second;
                     }
                 }
             }
@@ -552,7 +552,7 @@ void SSABuilder::RenameVariables(const CFGFunction &cfg) {
         // ── 3) 递归处理支配子节点 ─────────────────────────────────────
         auto cit = dom_tree_children_.find(bid);
         if (cit != dom_tree_children_.end()) {
-            for (int child : cit->second) rename_dfs(child);
+            for (int child: cit->second) rename_dfs(child);
         }
     };
 
@@ -584,14 +584,14 @@ SSAFunction SSABuilder::Build(const CFGFunction &cfg) {
     // 参数本身被视为在入口块中的一次"定义"：进入函数时就有确定的版本号。
     // 这一步在 CollectDefBlocks 之前做，使得参数同名变量被提前注册（id 一致）。
     std::unordered_map<int, std::string> idx_to_name;
-    for (const auto &[pname, pidx] : cfg.param_indices) idx_to_name[pidx] = pname;
-    int param_count = (int)cfg.param_indices.size();
+    for (const auto &[pname, pidx]: cfg.param_indices) idx_to_name[pidx] = pname;
+    int param_count = (int) cfg.param_indices.size();
     ssa_.param_versions.resize(param_count, -1);
     for (int i = 0; i < param_count; ++i) {
         auto it = idx_to_name.find(i);
         const std::string &pname = (it != idx_to_name.end()) ? it->second : std::to_string(i);
-        GetVarId(pname);  // 注册变量（保证后续 CollectDefBlocks 中同名局部变量与参数共用 id）
-        int ver = NewVersion(pname, cfg.entry_id);  // 入口块产生参数版本
+        GetVarId(pname);                          // 注册变量（保证后续 CollectDefBlocks 中同名局部变量与参数共用 id）
+        int ver = NewVersion(pname, cfg.entry_id);// 入口块产生参数版本
         ssa_.param_versions[i] = ver;
     }
 
@@ -628,10 +628,9 @@ std::string SSAFunction::DumpToString() const {
     oss << "]\n";
 
     // 打印每个块入口的 φ 节点
-    for (const auto &[bid, phis] : block_phis) {
-        for (const auto &phi : phis) {
-            oss << "  phi in block " << bid << ": " << phi.var_name << "v" << phi.result_version
-                << " = φ(";
+    for (const auto &[bid, phis]: block_phis) {
+        for (const auto &phi: phis) {
+            oss << "  phi in block " << bid << ": " << phi.var_name << "v" << phi.result_version << " = φ(";
             for (size_t i = 0; i < phi.arg_versions.size(); ++i) {
                 if (i > 0) oss << ", ";
                 oss << (phi.arg_versions[i] >= 0 ? std::to_string(phi.arg_versions[i]) : "?");
@@ -641,7 +640,7 @@ std::string SSAFunction::DumpToString() const {
     }
 
     // 打印各变量的所有版本及其出现块
-    for (const auto &[vname, vers] : var_all_versions) {
+    for (const auto &[vname, vers]: var_all_versions) {
         oss << "  var " << vname << ": ";
         for (size_t i = 0; i < vers.size(); ++i) {
             if (i > 0) oss << ", ";

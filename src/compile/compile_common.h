@@ -18,16 +18,26 @@ inline constexpr const char *kInitFunctionName = "__fakelua_init";
 
 inline std::string InferredTypeToString(InferredType type) {
     switch (type) {
-        case T_UNKNOWN:    return "T_UNKNOWN";
-        case T_NIL:        return "T_NIL";
-        case T_BOOL:       return "T_BOOL";
-        case T_INT:        return "T_INT";
-        case T_FLOAT:      return "T_FLOAT";
-        case T_STRING:     return "T_STRING";
-        case T_RECORD:     return "T_RECORD";
-        case T_RECORD_OPEN:return "T_RECORD_OPEN";
-        case T_DYNAMIC:    return "T_DYNAMIC";
-        default:           return "T_UNKNOWN";
+        case T_UNKNOWN:
+            return "T_UNKNOWN";
+        case T_NIL:
+            return "T_NIL";
+        case T_BOOL:
+            return "T_BOOL";
+        case T_INT:
+            return "T_INT";
+        case T_FLOAT:
+            return "T_FLOAT";
+        case T_STRING:
+            return "T_STRING";
+        case T_RECORD:
+            return "T_RECORD";
+        case T_RECORD_OPEN:
+            return "T_RECORD_OPEN";
+        case T_DYNAMIC:
+            return "T_DYNAMIC";
+        default:
+            return "T_UNKNOWN";
     }
 }
 
@@ -130,8 +140,13 @@ struct SSATypeInfo {
     // 这个 shape_id 来决定走结构化还是字典式读写路径。
     int shape_id = -1;
 
-    bool operator==(const SSATypeInfo &o) const { return type == o.type && shape_id == o.shape_id; }
-    bool operator!=(const SSATypeInfo &o) const { return !(*this == o); }
+    bool operator==(const SSATypeInfo &o) const {
+        return type == o.type && shape_id == o.shape_id;
+    }
+
+    bool operator!=(const SSATypeInfo &o) const {
+        return !(*this == o);
+    }
 };
 
 // ── 历史遗留类型快照（已不直接使用） ──────────────────────────────────────
@@ -469,28 +484,44 @@ struct CompileResult {
     // ─────────────────────────────────────────────────────────────────
 
     // 获取生成的 C 代码（包含公共头部）
-    [[nodiscard]] const std::string &GetCCode() const { return gen_result.c_code; }
+    [[nodiscard]] const std::string &GetCCode() const {
+        return gen_result.c_code;
+    }
 
     // 获取记录的 C 代码（不含公共头部，原 recorded_c_code 字段）
-    [[nodiscard]] const std::string &GetRecordedCCode() const { return gen_result.recorded_c_code; }
+    [[nodiscard]] const std::string &GetRecordedCCode() const {
+        return gen_result.recorded_c_code;
+    }
 
     // 获取类型推导中间结果（包含 main_ssa_types、shape_registry 等）
-    [[nodiscard]] const InferResult &GetInferResult() const { return infer_result; }
+    [[nodiscard]] const InferResult &GetInferResult() const {
+        return infer_result;
+    }
 
     // 推断出的 AST 节点类型映射
-    [[nodiscard]] const auto &GetNodeTypes() const { return infer_result.main_ssa_types; }
+    [[nodiscard]] const auto &GetNodeTypes() const {
+        return infer_result.main_ssa_types;
+    }
 
     // 推断出的 SSA 版本→类型映射
-    [[nodiscard]] const auto &GetVersionTypes() const { return infer_result.ssa_version_types; }
+    [[nodiscard]] const auto &GetVersionTypes() const {
+        return infer_result.ssa_version_types;
+    }
 
     // Shape registry getter
-    [[nodiscard]] const auto &GetShapeRegistry() const { return infer_result.shape_registry; }
+    [[nodiscard]] const auto &GetShapeRegistry() const {
+        return infer_result.shape_registry;
+    }
 
     // 逃逸分析结果
-    [[nodiscard]] const auto &GetEscapeVars() const { return infer_result.escape_vars; }
+    [[nodiscard]] const auto &GetEscapeVars() const {
+        return infer_result.escape_vars;
+    }
 
     // 函数摘要
-    [[nodiscard]] const auto &GetFuncSummaries() const { return infer_result.func_summaries; }
+    [[nodiscard]] const auto &GetFuncSummaries() const {
+        return infer_result.func_summaries;
+    }
 };
 
 

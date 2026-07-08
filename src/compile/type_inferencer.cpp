@@ -27,9 +27,8 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
         const auto dumpfile = GenerateTmpFilename("fakelua_infer_", ".txt");
         if (std::ofstream ofs(dumpfile); ofs.is_open()) {
             ofs << "=== main_ssa_types ===\n";
-            for (auto &[node, ssa] : ir.main_ssa_types) {
-                ofs << "  node=" << node << " type=" << InferredTypeToString(ssa.type)
-                    << " shape=" << ssa.shape_id << "\n";
+            for (auto &[node, ssa]: ir.main_ssa_types) {
+                ofs << "  node=" << node << " type=" << InferredTypeToString(ssa.type) << " shape=" << ssa.shape_id << "\n";
             }
             ofs.close();
             LOG_INFO("Type inference results generated: {}", dumpfile);
@@ -52,7 +51,7 @@ void TypeInferencer::RunSSAAnalysis(const ParseResult &pr, InferResult &ir) {
     const auto function_infos = CollectFunctionSpecInfos(pr);
 
     // 分析所有函数
-    for (const auto &func_info : function_infos) {
+    for (const auto &func_info: function_infos) {
         auto cfg = std::make_shared<CFGFunction>(cfg_builder.Build(func_info.block, func_info.params, func_info.name, /*is_vararg=*/false));
         auto ssa = std::make_shared<SSAFunction>(ssa_builder.Build(*cfg));
 
@@ -81,13 +80,12 @@ void TypeInferencer::RunSSAAnalysis(const ParseResult &pr, InferResult &ir) {
     }
 }
 
-std::vector<TypeInferencer::FunctionSpecInfo>
-TypeInferencer::CollectFunctionSpecInfos(const ParseResult &pr) const {
+std::vector<TypeInferencer::FunctionSpecInfo> TypeInferencer::CollectFunctionSpecInfos(const ParseResult &pr) const {
     std::vector<FunctionSpecInfo> infos;
     if (!pr.chunk || pr.chunk->Type() != SyntaxTreeType::Block) return infos;
 
     const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
-    for (const auto &stmt : top_block->Stmts()) {
+    for (const auto &stmt: top_block->Stmts()) {
         std::string name;
         SyntaxTreeInterfacePtr funcbody;
         if (stmt->Type() == SyntaxTreeType::Function) {

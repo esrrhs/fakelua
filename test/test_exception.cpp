@@ -12,7 +12,7 @@ using namespace fakelua;
 // TCC 编译生成的动态指令帧（JIT 代码段）中没有 DWARF 异常展开表（.eh_frame），
 // 如果在这些 TCC 动态帧中运行的代码（如 __fakelua_init 全局初始化流程）抛出 C++ 异常，
 // 运行时由于无法定位异常处理器，将直接触发 std::terminate() 导致进程崩溃。
-// 
+//
 // 为此，我们手动在下面包含复杂全局变量初始化（其求值过程中可能触发 C++ 运行时异常）的 18 个
 // 测试用例中，使用 CompileFileTccDisabled 显式禁用 JIT_TCC，以允许 GCC JIT 正常执行并捕获 C++ 异常。
 static inline void CompileFileTccDisabled(State *s, const std::string &file) {
@@ -20,7 +20,6 @@ static inline void CompileFileTccDisabled(State *s, const std::string &file) {
     cfg.disable_jit[JIT_TCC] = true;
     CompileFile(s, file, cfg);
 }
-
 
 TEST(exception, function_param_duplicate) {
     FakeluaStateGuard sg;
@@ -448,8 +447,6 @@ TEST(exception, const_define_variadic) {
     }
 }
 
-
-
 TEST(exception, test_const_binop_plus_error) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
@@ -730,7 +727,6 @@ TEST(exception, test_const_unop_bitnot_error) {
         ASSERT_TRUE(std::string(e.what()).find("attempt to perform bitwise") != std::string::npos);
     }
 }
-
 
 TEST(exception, goto_skip_local) {
     FakeluaStateGuard sg;

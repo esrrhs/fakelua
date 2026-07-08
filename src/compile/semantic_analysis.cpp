@@ -346,7 +346,7 @@ void SemanticAnalysis::CheckGotoOrLabel(const SyntaxTreeInterfacePtr &node) {
 void SemanticAnalysis::CollectBlockLabels(const SyntaxTreeInterfacePtr &block, std::unordered_map<std::string, SyntaxTreeInterfacePtr> &labels) {
     const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
     if (!blk) return;
-    for (const auto &stmt : blk->Stmts()) {
+    for (const auto &stmt: blk->Stmts()) {
         if (stmt->Type() == SyntaxTreeType::Label) {
             const auto label = std::dynamic_pointer_cast<SyntaxTreeLabel>(stmt);
             labels[label->GetName()] = stmt;
@@ -388,7 +388,7 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
                 }
             }
             if (i < label_pos && label_pos < blk->Stmts().size()) {
-                for (auto lp : local_positions) {
+                for (auto lp: local_positions) {
                     if (lp > i && lp <= label_pos) {
                         ThrowError(std::format("goto '{}' jumps over local variable declaration", target_name), stmt);
                     }
@@ -398,7 +398,7 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
     }
 
     // 递归检查嵌套 block，传递可见 label 集合
-    for (const auto &stmt : blk->Stmts()) {
+    for (const auto &stmt: blk->Stmts()) {
         if (stmt->Type() == SyntaxTreeType::Block) {
             ValidateGotoInBlock(stmt, visible_labels);
         } else if (stmt->Type() == SyntaxTreeType::While) {
@@ -411,7 +411,7 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
             if (if_stmt->ElseIfs()) {
                 const auto elseif_list = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs());
                 if (elseif_list) {
-                    for (const auto &elseif_blk : elseif_list->ElseifBlocks()) {
+                    for (const auto &elseif_blk: elseif_list->ElseifBlocks()) {
                         ValidateGotoInBlock(elseif_blk, visible_labels);
                     }
                 }
@@ -423,13 +423,11 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
             ValidateGotoInBlock(std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt)->Block(), visible_labels);
         } else if (stmt->Type() == SyntaxTreeType::Function) {
             std::unordered_map<std::string, SyntaxTreeInterfacePtr> func_labels;
-            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(
-                std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt)->Funcbody());
+            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt)->Funcbody());
             if (fb) ValidateGotoInBlock(fb->Block(), func_labels);
         } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
             std::unordered_map<std::string, SyntaxTreeInterfacePtr> func_labels;
-            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(
-                std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt)->Funcbody());
+            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt)->Funcbody());
             if (fb) ValidateGotoInBlock(fb->Block(), func_labels);
         }
     }

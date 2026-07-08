@@ -75,7 +75,8 @@ public:
     // ── 构造 ────────────────────────────────────────────────────────────────
     // 传入全局 shape 注册表。registry 在分析过程中会不断插入新 shape（例如
     // table 构造子推导出的 record shape、shape meet 产生的新 shape 等）。
-    UnifiedTypeAnalyzer(ShapeRegistry *registry) : registry_(registry) {}
+    UnifiedTypeAnalyzer(ShapeRegistry *registry) : registry_(registry) {
+    }
 
     // ════════════════════════════════════════════════════════════════════════
     //  Public 方法 — 主分析入口与后处理阶段
@@ -97,11 +98,7 @@ public:
     //   7. 全函数 WalkSyntaxTree，推导所有 AST 子节点的类型
     //   8. 调用 ComputeVarFinalShapes / ComputeCtorTargetShapes
     //   9. 调用 ComputeEscape
-    void Analyze(const std::string &func_name,
-                 const SyntaxTreeInterfacePtr &func_block,
-                 const CFGFunction &cfg,
-                 SSAFunction &ssa,
-                 InferResult &ir);
+    void Analyze(const std::string &func_name, const SyntaxTreeInterfacePtr &func_block, const CFGFunction &cfg, SSAFunction &ssa, InferResult &ir);
 
     // ── Phase 3a: 计算每个变量的 final shape ────────────────────────────
     // 对每个变量，取它所有 SSA 版本的类型做 Meet，得到"最宽" shape 写入
@@ -117,9 +114,7 @@ public:
     // C struct 来分配。
     //
     // 调用时机：由 RunSSAAnalysis 在 Analyze 之后调用（此时 var_final_shapes 已就绪）。
-    void ComputeCtorTargetShapes(const SyntaxTreeInterfacePtr &func_block,
-                                 const SSAFunction &ssa,
-                                 InferResult &ir);
+    void ComputeCtorTargetShapes(const SyntaxTreeInterfacePtr &func_block, const SSAFunction &ssa, InferResult &ir);
 
     // ── §7 函数摘要 ────────────────────────────────────────────────────
     // 基于当前所在函数的所有推导结果，填充 ir.func_summaries[func_name]：
@@ -130,11 +125,7 @@ public:
     //
     // 调用时机：由 RunSSAAnalysis 在 Analyze + ComputeCtorTargetShapes 之后调用。
     // 顶层 chunk 不调用（它没有可复用的摘要）。
-    void BuildSummary(const std::string &func_name,
-                      const SyntaxTreeInterfacePtr &func_block,
-                      const SSAFunction &ssa,
-                      const CFGFunction &cfg,
-                      const std::unordered_map<int, SSATypeInfo> &version_types,
+    void BuildSummary(const std::string &func_name, const SyntaxTreeInterfacePtr &func_block, const SSAFunction &ssa, const CFGFunction &cfg, const std::unordered_map<int, SSATypeInfo> &version_types,
                       InferResult &ir);
 
 private:
@@ -232,10 +223,7 @@ private:
     //     4) 超过 kWidenIter 轮后启用 Widen，把不收敛的 record shape
     //        字段集截断以强制保证收敛；
     //     5) 最多 kMaxIters=64 轮。
-    std::unordered_map<int, VarEnv> RunWorklist(
-        const CFGFunction &cfg,
-        const SSAFunction &ssa,
-        const InferResult &ir);
+    std::unordered_map<int, VarEnv> RunWorklist(const CFGFunction &cfg, const SSAFunction &ssa, const InferResult &ir);
 
     // ── 构建辅助 ────────────────────────────────────────────────────────
     // 从 SSAFunction.var_all_versions（变量名 → 所有版本号的列表）生成
@@ -258,22 +246,14 @@ private:
     //   · const_env：常量传播环境，解析 a[k] 时查。
     //
     // 返回该表达式对应的 SSATypeInfo。
-    SSATypeInfo InferExprType(const SyntaxTreeInterfacePtr &expr,
-                              const SSAFunction &ssa,
-                              const TypeEnv &version_types,
-                              const InferResult &ir,
-                              const VarNameToVersion &name_ver,
-                              const VarEnv *local_env = nullptr,
-                              const ConstEnv *const_env = nullptr);
+    SSATypeInfo InferExprType(const SyntaxTreeInterfacePtr &expr, const SSAFunction &ssa, const TypeEnv &version_types, const InferResult &ir, const VarNameToVersion &name_ver,
+                              const VarEnv *local_env = nullptr, const ConstEnv *const_env = nullptr);
 
     // ── table constructor → shape ───────────────────────────────────────
     // 从 TableConstructor AST 节点提取字段列表，构造一个 ShapeType 并
     // 注册到 ShapeRegistry，返回 shape_id（失败返回 -1）。
     // 支持三种字段：kObject（name=value）、kArray（无显式键）、kExpr（[key]=value）。
-    int BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc,
-                           const SSAFunction &ssa,
-                           const TypeEnv &version_types,
-                           const InferResult &ir);
+    int BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc, const SSAFunction &ssa, const TypeEnv &version_types, const InferResult &ir);
 
     // ── 语句 env 转移（无常量传播）──────────────────────────────────────
     // 对单条语句执行 env 转移——从 in_env 出发推导出 out_env。
@@ -281,10 +261,7 @@ private:
     // 控制流语句（If / While / For）由 CFG 在外部基本块分裂时处理，不在此递归。
     //
     // 注意：此版本不维护 ConstEnv。在工作表迭代中调用（不需要常量传播）。
-    VarEnv TransferStmt(const SyntaxTreeInterfacePtr &stmt,
-                        const VarEnv &env,
-                        const SSAFunction &ssa,
-                        const TypeEnv &version_types);
+    VarEnv TransferStmt(const SyntaxTreeInterfacePtr &stmt, const VarEnv &env, const SSAFunction &ssa, const TypeEnv &version_types);
 
     // ── 带常量传播的 env 转移（§12.6 常量传播）────────────────────────
     // 与 TransferStmt 类似，但额外维护 ConstEnv：
@@ -292,11 +269,7 @@ private:
     //   · 对 `x = <非字面量表达式>` 从 const_env 中删除 x（不再确定是常量）。
     // 该版本在 Analyze 第二轮精确类型传播（PopulateNodeTypesFromStmts）中被使用，
     // 因为字段访问 a[x] 需要常量 env 做字段解析。
-    VarEnv TransferStmtConst(const SyntaxTreeInterfacePtr &stmt,
-                             const VarEnv &env,
-                             ConstEnv &const_env,
-                             const SSAFunction &ssa,
-                             const TypeEnv &version_types);
+    VarEnv TransferStmtConst(const SyntaxTreeInterfacePtr &stmt, const VarEnv &env, ConstEnv &const_env, const SSAFunction &ssa, const TypeEnv &version_types);
 
     // ── 从表达式提取字面量常量值 ──────────────────────────────────────────
     // 尝试从表达式节点提取编译期已知的字面量 string/number 值。
@@ -309,9 +282,7 @@ private:
     // 对 a[key] 中的 key 表达式：先尝试字面量直接提取，失败则当 key 是变量时
     // 查 const_env。这是 §12.6 的核心——把 `a[key]` 解析为具体的字段名。
     // 静态方法，可被 InferExprType 中的 kSquare 分支调用。
-    static bool ResolveKeyConstant(const SyntaxTreeInterfacePtr &key_expr,
-                                   const ConstEnv &const_env,
-                                   std::string &key_out);
+    static bool ResolveKeyConstant(const SyntaxTreeInterfacePtr &key_expr, const ConstEnv &const_env, std::string &key_out);
 
     // ── 按块填充 AST 子节点的推导类型 ──────────────────────────────────
     // 给定块的 out_env（含类型 + 常量传播 env），遍历块内所有顶层语句，
@@ -319,13 +290,8 @@ private:
     // 节点调用 InferExprType，将结果写入 ir.main_ssa_types。
     // 可选 out_map 用于写入其他目标（测试/诊断用），默认写 ir.main_ssa_types。
     // 特殊处理 ForLoop 本身节点（写 cursor 类型给 CGen）。
-    void PopulateNodeTypesFromStmts(const std::vector<SyntaxTreeInterfacePtr> &stmts,
-                                    const VarEnv &env,
-                                    const ConstEnv &const_env,
-                                    const SSAFunction &ssa,
-                                    const TypeEnv &version_types,
-                                    InferResult &ir,
-                                    std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo> *out_map = nullptr);
+    void PopulateNodeTypesFromStmts(const std::vector<SyntaxTreeInterfacePtr> &stmts, const VarEnv &env, const ConstEnv &const_env, const SSAFunction &ssa, const TypeEnv &version_types,
+                                    InferResult &ir, std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo> *out_map = nullptr);
 
     // ── Meet 操作 ────────────────────────────────────────────────────────
     // MeetEnv：对两个 VarEnv 按变量名逐一 Meet。
@@ -343,9 +309,7 @@ private:
     // 递归遍历 AST：对 `local x = { ... }` / `x = { ... }` 这样的赋值，
     // 把等号右侧 TableConstructor 节点映射到左侧变量 x 在 var_final_shapes
     // 中的 shape_id，写入 ctor_target_shapes。被 ComputeCtorTargetShapes 调用。
-    static void LinkExprToTargetShape(const SyntaxTreeInterfacePtr &node,
-                                      const std::string &target_name,
-                                      const std::unordered_map<std::string, int> &var_final_shapes,
+    static void LinkExprToTargetShape(const SyntaxTreeInterfacePtr &node, const std::string &target_name, const std::unordered_map<std::string, int> &var_final_shapes,
                                       std::unordered_map<const SyntaxTreeInterface *, int> &ctor_target_shapes);
 
     // ── §8 逃逸分析 ────────────────────────────────────────────────────
@@ -354,10 +318,7 @@ private:
     //   2. WalkSyntaxTree 遍历，对每一条"叶子"语句调用 EscapeTransfer；
     //   3. EscapeTransfer 按语句类型做逃逸判定（见 cpp 实现）。
     // 结果写入 escape_env（会进一步存到 ir.escape_vars[func_name]）。
-    void ComputeEscape(const std::string &func_name,
-                       const SyntaxTreeInterfacePtr &func_block,
-                       const CFGFunction &cfg,
-                       EscapeEnv &escape_env);
+    void ComputeEscape(const std::string &func_name, const SyntaxTreeInterfacePtr &func_block, const CFGFunction &cfg, EscapeEnv &escape_env);
 
     // ── 单条语句的逃逸转移 ──────────────────────────────────────────────
     // 语句级逃逸判定规则（规范 §8.1）：
@@ -366,35 +327,25 @@ private:
     //   · Assign：当 LHS 是 dynamic 变量时，RHS 中的变量引用标记逃逸
     //   · 其它语句：不做特殊处理
     // type_env 用于判断 LHS 变量是否为 T_DYNAMIC。
-    void EscapeTransfer(const SyntaxTreeInterfacePtr &stmt,
-                        EscapeEnv &escape_env,
-                        const VarEnv &type_env);
+    void EscapeTransfer(const SyntaxTreeInterfacePtr &stmt, EscapeEnv &escape_env, const VarEnv &type_env);
 
     // ── HM 签名构建 ────────────────────────────────────────────────────────
     // 为当前函数生成 (params → ret) 的多态签名并写入 summary。
     // 策略：为每个参数创建一个新的 HM 类型变量（多态）；ret_hm_type 则
     // 基于推导的 ret_type 构造，其中 T_DYNAMIC 字段引用参数多态变量。
     // 这使得调用点可以用实参类型实例化，得到更具体的返回类型。
-    void BuildHmSignature(FuncSummary &s,
-                          const CFGFunction &cfg,
-                          const SSATypeInfo &ret_type);
+    void BuildHmSignature(FuncSummary &s, const CFGFunction &cfg, const SSATypeInfo &ret_type);
 
     // ── HM 签名实例化 ──────────────────────────────────────────────────
     // 在调用点把形参类型变量（按指针相等）替换为实参的具体类型，返回克隆的
     // 返回类型表达式。调用 ok=false 表示签名不可用（ret_hm_type 为空）。
     // 这是 §12 多态在调用点落实的关键步骤。
-    Type *InstantiateHmSignature(const std::vector<Type *> &param_hm_types,
-                                 Type *ret_hm_type,
-                                 const std::vector<Type *> &arg_hm_types,
-                                 bool &ok);
+    Type *InstantiateHmSignature(const std::vector<Type *> &param_hm_types, Type *ret_hm_type, const std::vector<Type *> &arg_hm_types, bool &ok);
 
     // ── 形参变量替换（HM）─────────────────────────────────────────────
     // 克隆 HM 类型 t，把其中按指针出现在 from 中的形参变量逐一替换为 to 中
     // 对应位置的实参类型。纯函数：不修改原始 t，总是从 hm_arena_ 分配新 Type。
-    Type *SubstituteHmVars(Type *t,
-                            const std::vector<Type *> &from,
-                            const std::vector<Type *> &to,
-                            bool &ok);
+    Type *SubstituteHmVars(Type *t, const std::vector<Type *> &from, const std::vector<Type *> &to, bool &ok);
 
     // ════════════════════════════════════════════════════════════════════════
     //  成员变量 — 状态与外部依赖

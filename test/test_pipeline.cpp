@@ -44,7 +44,7 @@ TEST(pipeline, cfg_sequential) {
     auto result = RunPipeline("./pipeline/test_cfg_sequential.lua");
     auto cfg_ptr = result.GetInferResult().cfg_functions.at("__fakelua_init");
 
-    ASSERT_GE(cfg_ptr->blocks.size(), 2u);  // entry + exit
+    ASSERT_GE(cfg_ptr->blocks.size(), 2u);// entry + exit
     ASSERT_EQ(cfg_ptr->entry_id, 0);
 }
 
@@ -54,8 +54,11 @@ TEST(pipeline, cfg_if_else_merge) {
     auto cfg_ptr = result.GetInferResult().cfg_functions.at("test");
 
     bool found_merge = false;
-    for (const auto &blk : cfg_ptr->blocks) {
-        if (blk.pred_ids.size() == 2) { found_merge = true; break; }
+    for (const auto &blk: cfg_ptr->blocks) {
+        if (blk.pred_ids.size() == 2) {
+            found_merge = true;
+            break;
+        }
     }
     EXPECT_TRUE(found_merge);
 }
@@ -70,8 +73,11 @@ TEST(pipeline, ssa_phi_insertion) {
     auto ssa_ptr = result.GetInferResult().ssa_functions.at("test");
 
     bool found_phi = false;
-    for (const auto &[bid, phis] : ssa_ptr->block_phis) {
-        if (!phis.empty()) { found_phi = true; break; }
+    for (const auto &[bid, phis]: ssa_ptr->block_phis) {
+        if (!phis.empty()) {
+            found_phi = true;
+            break;
+        }
     }
     EXPECT_TRUE(found_phi) << "if-else merge should insert φ nodes";
 }
@@ -97,7 +103,7 @@ TEST(pipeline, type_literals) {
 
     // 查找各种字面量类型
     bool found_int = false, found_string = false;
-    for (const auto &[node, ty] : result.GetNodeTypes()) {
+    for (const auto &[node, ty]: result.GetNodeTypes()) {
         if (ty.type == T_INT) found_int = true;
         if (ty.type == T_STRING) found_string = true;
     }
@@ -111,7 +117,7 @@ TEST(pipeline, type_binop) {
 
     // a + b 结果应该是 T_INT
     bool found_binop = false;
-    for (const auto &[node, ty] : result.GetNodeTypes()) {
+    for (const auto &[node, ty]: result.GetNodeTypes()) {
         if (ty.type == T_INT && node->Type() == SyntaxTreeType::Exp) {
             found_binop = true;
         }
@@ -137,11 +143,14 @@ TEST(pipeline, shape_literal) {
         const ShapeType &shape = result.GetShapeRegistry()->Get(sid);
         if (shape.fields.size() == 2) {
             bool has_b = false, has_c = false;
-            for (const auto &f : shape.fields) {
+            for (const auto &f: shape.fields) {
                 if (f.name == "b" && f.type == T_INT) has_b = true;
                 if (f.name == "c" && f.type == T_FLOAT) has_c = true;
             }
-            if (has_b && has_c) { found_shape = true; break; }
+            if (has_b && has_c) {
+                found_shape = true;
+                break;
+            }
         }
     }
     EXPECT_TRUE(found_shape) << "should have shape {b: int, c: float}";
@@ -153,7 +162,7 @@ TEST(pipeline, shape_field_access) {
 
     // a.x 节点类型应为 T_INT
     bool found_field_access = false;
-    for (const auto &[node, ty] : result.GetNodeTypes()) {
+    for (const auto &[node, ty]: result.GetNodeTypes()) {
         if (ty.type == T_INT && node->Type() == SyntaxTreeType::Exp) {
             auto *e = static_cast<SyntaxTreeExp *>(const_cast<SyntaxTreeInterface *>(node));
             if (e->GetExpKind() == ExpKind::kPrefixExp) {
@@ -174,8 +183,11 @@ TEST(pipeline, flow_sensitive_merge) {
 
     // 最终返回值的类型应为 T_FLOAT (meet of int and float)
     bool found_result = false;
-    for (const auto &[node, ty] : result.GetNodeTypes()) {
-        if (ty.type == T_FLOAT) { found_result = true; break; }
+    for (const auto &[node, ty]: result.GetNodeTypes()) {
+        if (ty.type == T_FLOAT) {
+            found_result = true;
+            break;
+        }
     }
     EXPECT_TRUE(found_result);
 }
@@ -191,8 +203,7 @@ TEST(pipeline, cgen_shape_struct) {
     const std::string code = result.GetRecordedCCode();
 
     // 应生成 LuaShapeN typedef
-    EXPECT_NE(code.find("LuaShape"), std::string::npos)
-        << "should generate LuaShape struct typedef\n" + code;
+    EXPECT_NE(code.find("LuaShape"), std::string::npos) << "should generate LuaShape struct typedef\n" + code;
 
     // 应包含字段声明 (C 语法)
     EXPECT_NE(code.find("CVar b"), std::string::npos);
@@ -209,9 +220,12 @@ TEST(pipeline, escape_return) {
 
     // 逃逸分析结果中, 变量 'a' 应该标记为逃逸
     bool found_escape = false;
-    for (const auto &[func, escapes] : result.GetEscapeVars()) {
-        for (const auto &[var, is_escaped] : escapes) {
-            if (var == "a" && is_escaped) { found_escape = true; break; }
+    for (const auto &[func, escapes]: result.GetEscapeVars()) {
+        for (const auto &[var, is_escaped]: escapes) {
+            if (var == "a" && is_escaped) {
+                found_escape = true;
+                break;
+            }
         }
     }
     EXPECT_TRUE(found_escape) << "variable 'a' in test_escape should escape";

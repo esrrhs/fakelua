@@ -31,8 +31,14 @@ private:
     struct SectionGuard {
         CGen &gen;
         Section prev;
-        SectionGuard(CGen &g, Section s) : gen(g), prev(g.cur_section_) { gen.cur_section_ = s; }
-        ~SectionGuard() { gen.cur_section_ = prev; }
+
+        SectionGuard(CGen &g, Section s) : gen(g), prev(g.cur_section_) {
+            gen.cur_section_ = s;
+        }
+
+        ~SectionGuard() {
+            gen.cur_section_ = prev;
+        }
     };
 
     // ==========================================
@@ -47,8 +53,7 @@ private:
 
     std::string CompileFuncName(const SyntaxTreeInterfacePtr &ptr);
     std::vector<std::string> CompileParList(const SyntaxTreeInterfacePtr &parlist);
-    void CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params,
-                         const SyntaxTreeInterfacePtr &func_block, std::ostream &out);
+    void CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params, const SyntaxTreeInterfacePtr &func_block, std::ostream &out);
     [[nodiscard]] static bool BlockEndsWithReturn(const SyntaxTreeInterfacePtr &block);
 
     // ==========================================
@@ -92,14 +97,23 @@ private:
     [[nodiscard]] std::string GenTab() const;
 
     // 返回当前 active 代码段（section）的输出流引用
-    std::ostream &Out() { return sections_[static_cast<size_t>(cur_section_)]; }
+    std::ostream &Out() {
+        return sections_[static_cast<size_t>(cur_section_)];
+    }
 
     // 获取特定代码段（section）已输出的代码字符串内容
-    [[nodiscard]] std::string GetSectionStr(Section sec) const { return sections_[static_cast<size_t>(sec)].str(); }
+    [[nodiscard]] std::string GetSectionStr(Section sec) const {
+        return sections_[static_cast<size_t>(sec)].str();
+    }
 
     // 快捷访问推断器全局上下文结果
-    [[nodiscard]] const InferResult &ir() const { return ir_->get(); }
-    [[nodiscard]] const AnalysisResult &ar() const { return ar_->get(); }
+    [[nodiscard]] const InferResult &ir() const {
+        return ir_->get();
+    }
+
+    [[nodiscard]] const AnalysisResult &ar() const {
+        return ar_->get();
+    }
 
 private:
     State *s_;

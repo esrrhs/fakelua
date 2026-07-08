@@ -3623,8 +3623,7 @@ TEST(DISABLED_infer, test_table_constructor_fast_path) {
 TEST(DISABLED_infer, test_table_dot_access_fast_path) {
     const auto code = InferGetCCode("./infer/test_table_dot_access_fast_path.lua");
     // Should use either FlGetTableStrId or spec fast path for t.a and t.b reads.
-    ASSERT_TRUE(code.find("FlGetTableStrId(") != std::string::npos ||
-                code.find("SET_TABLE_SPEC(") != std::string::npos);
+    ASSERT_TRUE(code.find("FlGetTableStrId(") != std::string::npos || code.find("SET_TABLE_SPEC(") != std::string::npos);
     // Should NOT use FlGetTable for dot access.
     ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
 
@@ -3640,8 +3639,7 @@ TEST(DISABLED_infer, test_table_dot_access_fast_path) {
 TEST(DISABLED_infer, test_table_bracket_string_fast_path) {
     const auto code = InferGetCCode("./infer/test_table_bracket_string_fast_path.lua");
     // Should use either FlGetTableStrId or spec fast path for t["hello"] and t["world"] reads.
-    ASSERT_TRUE(code.find("FlGetTableStrId(") != std::string::npos ||
-                code.find("SET_TABLE_SPEC(") != std::string::npos);
+    ASSERT_TRUE(code.find("FlGetTableStrId(") != std::string::npos || code.find("SET_TABLE_SPEC(") != std::string::npos);
     // Should NOT use FlGetTable for string literal bracket access.
     ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
 
@@ -3747,7 +3745,7 @@ TEST(DISABLED_infer, test_spec_direct_access) {
     ASSERT_TRUE(code.find("FL_SPEC(") != std::string::npos || code.find("FL_SPEC_INT(") != std::string::npos || code.find("FL_SPEC_FLOAT(") != std::string::npos);
     // 确保写入时使用的是精简的 FL_SET_SPEC 宏指针偏移形式
     ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
-    
+
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_direct_access.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -3863,17 +3861,32 @@ TEST(DISABLED_infer, test_spec_write_multi) {
     int count_id = 0;
     int count_set_spec = 0;
     std::string::size_type pos = 0;
-    while ((pos = code.find("FlSetTableStrId(", pos)) != std::string::npos) { count_id++; pos++; }
+    while ((pos = code.find("FlSetTableStrId(", pos)) != std::string::npos) {
+        count_id++;
+        pos++;
+    }
     pos = 0;
-    while ((pos = code.find("FL_SET_SPEC(", pos)) != std::string::npos) { count_set_spec++; pos++; }
+    while ((pos = code.find("FL_SET_SPEC(", pos)) != std::string::npos) {
+        count_set_spec++;
+        pos++;
+    }
     pos = 0;
-    while ((pos = code.find("FL_SET_SPEC_INT(", pos)) != std::string::npos) { count_set_spec++; pos++; }
+    while ((pos = code.find("FL_SET_SPEC_INT(", pos)) != std::string::npos) {
+        count_set_spec++;
+        pos++;
+    }
     pos = 0;
-    while ((pos = code.find("FL_SET_SPEC_FLOAT(", pos)) != std::string::npos) { count_set_spec++; pos++; }
+    while ((pos = code.find("FL_SET_SPEC_FLOAT(", pos)) != std::string::npos) {
+        count_set_spec++;
+        pos++;
+    }
     pos = 0;
-    while ((pos = code.find("FL_SET_SPEC_CVAR(", pos)) != std::string::npos) { count_set_spec++; pos++; }
-    ASSERT_GE(count_id, 3);       // 初始化 3 次
-    ASSERT_GE(count_set_spec, 3); // 写属性 3 次
+    while ((pos = code.find("FL_SET_SPEC_CVAR(", pos)) != std::string::npos) {
+        count_set_spec++;
+        pos++;
+    }
+    ASSERT_GE(count_id, 3);      // 初始化 3 次
+    ASSERT_GE(count_set_spec, 3);// 写属性 3 次
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_write_multi.lua", {.debug_mode = debug_mode});
@@ -3901,9 +3914,7 @@ TEST(DISABLED_infer, test_spec_dynamic_write) {
     const auto code = InferGetCCode("./infer/test_spec_dynamic_write.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     // 确保使用了 FL_SPEC 宏来直连访问属性
-    ASSERT_TRUE(code.find("FL_SPEC(") != std::string::npos || 
-                code.find("FL_SPEC_INT(") != std::string::npos ||
-                code.find("FL_SPEC_FLOAT(") != std::string::npos);
+    ASSERT_TRUE(code.find("FL_SPEC(") != std::string::npos || code.find("FL_SPEC_INT(") != std::string::npos || code.find("FL_SPEC_FLOAT(") != std::string::npos);
     // x 走 FlGetTableStrId_xxxx (通过特化)
     ASSERT_NE(code.find("FlGetTableStrId_"), std::string::npos);
     // y 走普通 FlGetTableStrId (非特化)
@@ -3954,7 +3965,10 @@ TEST(DISABLED_infer, test_spec_multi_tables) {
     // 两个 table 各自特化
     int spec_count = 0;
     std::string::size_type pos = 0;
-    while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) { spec_count++; pos++; }
+    while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) {
+        spec_count++;
+        pos++;
+    }
     ASSERT_EQ(spec_count, 2);
     // 确保使用了 FL_SPEC 宏来直连访问属性
     ASSERT_TRUE(code.find("FL_SPEC(") != std::string::npos || code.find("FL_SPEC_INT(") != std::string::npos || code.find("FL_SPEC_FLOAT(") != std::string::npos);
@@ -3972,7 +3986,10 @@ TEST(DISABLED_infer, test_spec_nested) {
     // 外层和内层 table 都会被特化（全是 kObject 字段）
     int spec_count = 0;
     std::string::size_type pos = 0;
-    while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) { spec_count++; pos++; }
+    while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) {
+        spec_count++;
+        pos++;
+    }
     ASSERT_EQ(spec_count, 2);
     // 外层访问使用了 FL_SPEC
     ASSERT_TRUE(code.find("FL_SPEC(") != std::string::npos || code.find("FL_SPEC_INT(") != std::string::npos || code.find("FL_SPEC_FLOAT(") != std::string::npos);
@@ -4123,7 +4140,7 @@ TEST(DISABLED_infer, test_spec_int_key) {
         CompileFile(s, "./infer/test_spec_int_key.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test_int_key", ret);
-        ASSERT_EQ(ret, 150); // 100 + 20 + 30
+        ASSERT_EQ(ret, 150);// 100 + 20 + 30
     });
 }
 
@@ -4138,7 +4155,7 @@ TEST(DISABLED_infer, test_spec_bool_key) {
         CompileFile(s, "./infer/test_spec_bool_key.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test_bool_key", ret);
-        ASSERT_EQ(ret, 120); // 100 + 20
+        ASSERT_EQ(ret, 120);// 100 + 20
     });
 }
 
@@ -4153,7 +4170,7 @@ TEST(DISABLED_infer, test_spec_float_key) {
         CompileFile(s, "./infer/test_spec_float_key.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test_float_key", ret);
-        ASSERT_EQ(ret, 120); // 100 + 20
+        ASSERT_EQ(ret, 120);// 100 + 20
     });
 }
 
@@ -4170,7 +4187,7 @@ TEST(DISABLED_infer, test_spec_mixed_keys) {
         CompileFile(s, "./infer/test_spec_mixed_keys.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test_mixed_keys", ret);
-        ASSERT_EQ(ret, 1650); // 10+20+30+40+50+100+200+300+400+500
+        ASSERT_EQ(ret, 1650);// 10+20+30+40+50+100+200+300+400+500
     });
 }
 
@@ -4184,8 +4201,8 @@ TEST(DISABLED_infer, test_spec_non_string_dynamic) {
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_non_string_dynamic.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
-        Call(s, type, "test_dynamic", ret, (int64_t)1, std::string("x"), true);
-        ASSERT_EQ(ret, 150); // 100 + 20 + 30
+        Call(s, type, "test_dynamic", ret, (int64_t) 1, std::string("x"), true);
+        ASSERT_EQ(ret, 150);// 100 + 20 + 30
     });
 }
 

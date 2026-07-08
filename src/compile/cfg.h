@@ -18,10 +18,10 @@ namespace fakelua {
 // - 线性扫描查找（FindBlock）在 Lua 子集这种块数量通常 < 100 的场景下足够快，
 //   且避免了指针悬挂风险。
 struct BasicBlock {
-    int id = -1;                                        // 全局唯一块编号（从 0 递增）
-    std::vector<SyntaxTreeInterfacePtr> stmts;          // 块内的语句序列（顺序执行）
-    std::vector<int> pred_ids;                          // 前驱块 id 列表（入边来源）
-    std::vector<int> succ_ids;                          // 后继块 id 列表（出边目标）
+    int id = -1;                              // 全局唯一块编号（从 0 递增）
+    std::vector<SyntaxTreeInterfacePtr> stmts;// 块内的语句序列（顺序执行）
+    std::vector<int> pred_ids;                // 前驱块 id 列表（入边来源）
+    std::vector<int> succ_ids;                // 后继块 id 列表（出边目标）
 };
 
 // ─── 单个函数的控制流图 (CFG) ────────────────────────────────────────────────
@@ -35,22 +35,23 @@ struct BasicBlock {
 // - 理论上函数可能有多个 return 点，每个 return 都连到 exit 块。
 // - 当前实现中只有一个 exit 块，但保留 vector 为未来扩展留余地。
 struct CFGFunction {
-    std::string func_name;                              // 函数名（用于调试和 Dump）
-    std::unordered_map<std::string, int> param_indices; // 参数名 -> 参数位置索引
-    std::vector<BasicBlock> blocks;                     // 所有基本块（拥有所有权）
-    int entry_id = -1;                                  // 入口块 id（函数起始）
-    std::vector<int> exit_ids;                          // 出口块 id 列表（函数返回）
+    std::string func_name;                             // 函数名（用于调试和 Dump）
+    std::unordered_map<std::string, int> param_indices;// 参数名 -> 参数位置索引
+    std::vector<BasicBlock> blocks;                    // 所有基本块（拥有所有权）
+    int entry_id = -1;                                 // 入口块 id（函数起始）
+    std::vector<int> exit_ids;                         // 出口块 id 列表（函数返回）
 
     // 按 id 查找块（线性扫描，通常块数量很少）
     // 返回 const 指针，不暴露内部可修改性
     [[nodiscard]] const BasicBlock *FindBlock(int id) const {
-        for (const auto &b : blocks)
+        for (const auto &b: blocks)
             if (b.id == id) return &b;
         return nullptr;
     }
+
     // 非 const 版本，供内部修改块内容使用
     [[nodiscard]] BasicBlock *FindBlock(int id) {
-        for (auto &b : blocks)
+        for (auto &b: blocks)
             if (b.id == id) return &b;
         return nullptr;
     }
@@ -95,14 +96,11 @@ public:
     //   params     - 函数参数名列表
     //   func_name  - 函数名
     //   is_vararg  - 是否可变参数（当前未使用，保留供扩展）
-    CFGFunction Build(const SyntaxTreeInterfacePtr &func_block,
-                      const std::vector<std::string> &params,
-                      const std::string &func_name,
-                      bool is_vararg);
+    CFGFunction Build(const SyntaxTreeInterfacePtr &func_block, const std::vector<std::string> &params, const std::string &func_name, bool is_vararg);
 
 private:
-    CFGFunction cfg_;           // 当前正在构建的 CFG
-    int next_block_id_ = 0;     // 下一个可用的块 id（单调递增）
+    CFGFunction cfg_;      // 当前正在构建的 CFG
+    int next_block_id_ = 0;// 下一个可用的块 id（单调递增）
 
     // 创建一个新基本块，返回其 id
     int NewBlock();

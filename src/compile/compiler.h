@@ -49,7 +49,7 @@ private:
     CompileResult Build(MyFlexer &f, const CompileConfig &cfg);
 
 private:
-    State *s_;  // FakeLua 状态指针（非拥有，生命周期由调用方管理）
+    State *s_;// FakeLua 状态指针（非拥有，生命周期由调用方管理）
 };
 
 }// namespace fakelua

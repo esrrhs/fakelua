@@ -102,8 +102,7 @@ CompileResult Compiler::Build(MyFlexer &f, const CompileConfig &cfg) {
     // ──[ 5 ] CGen → C 代码 ──────────────────────────────────────────
     // 综合 IR + AR，生成可直接编译的 C 源码。
     CGen cgen(s_);
-    result.gen_result = cgen.Generate(result.parse_result, result.infer_result,
-                                      result.analysis_result, cfg);
+    result.gen_result = cgen.Generate(result.parse_result, result.infer_result, result.analysis_result, cfg);
 
     // ──[ 6 ] JIT 编译 ─────────────────────────────────────────────────
     // 把 C 源码编译为函数入口指针，注册到 State::vm 中。
