@@ -509,46 +509,11 @@ void TypeVarTable::BindVar(Type *var, Type *target) {
 
 bool TypeVarTable::BindTo(Type *var, Type *target) {
     var = Prune(var);
-    if (!var || var->kind != TypeKind::TY_VAR) return false;// 失败返回 false
+    if (!var || var->kind != TypeKind::TY_VAR) {
+        return false;
+    }
     var->bound = target;
     return true;
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// 全局便利设施的实现
-// ─────────────────────────────────────────────────────────────────────────
-namespace {
-// 把 arena 和 table 放在一个 struct 里，用 thread_local 存储：
-//   - arena 和 table 必须一一对应（table 绑定变量时分配的复合类型存在 arena 里）
-//   - 按线程隔离测试
-//   - Init 首次调用时廉价创建，Shutdown 时一次性释放
-struct GlobalHMState {
-    TypeArena arena;
-    TypeVarTable table;
-
-    GlobalHMState() : table(arena) {
-    }
-};
-
-thread_local GlobalHMState *g_state = nullptr;
-}// namespace
-
-TypeVarTable *g_type_table = nullptr;
-TypeArena *g_type_arena = nullptr;
-
-void InitTypeTable() {
-    if (!g_state) {
-        g_state = new GlobalHMState();
-    }
-    g_type_table = &g_state->table;
-    g_type_arena = &g_state->arena;
-}
-
-void ShutdownTypeTable() {
-    delete g_state;
-    g_state = nullptr;
-    g_type_table = nullptr;
-    g_type_arena = nullptr;
 }
 
 }// namespace fakelua

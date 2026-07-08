@@ -360,22 +360,4 @@ private:
     static bool BindTo(Type *var, Type *target);
 };
 
-// ── 全局便利设施（可选） ─────────────────────────────────────────────────
-//
-// 为每线程保留一份全局状态——让"不想传递 table/arena"的地方也能用 HM 类型。
-// 内部使用 thread_local，所以多线程测试互不干扰。
-//
-// 设计建议：product 代码应尽量显式传递 TypeVarTable& / TypeArena&，
-// 只在测试入口或 REPL 这类"最外层"用它。
-//
-// 注意：类型单例（int/float/... 的全局 TY_XXX 指针）也存在这个全局 arena 里。
-extern TypeVarTable *g_type_table;
-extern TypeArena *g_type_arena;
-
-// 懒初始化全局 table/arena（第一次调用时创建）
-void InitTypeTable();
-
-// 销毁全局状态——任何指向其中 Type 的指针在调用后都会失效
-void ShutdownTypeTable();
-
 }// namespace fakelua
