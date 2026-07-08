@@ -39,82 +39,22 @@ static CompileResult RunPipeline(const std::string &lua_file) {
     return CompileFile(guard.GetState(), lua_file, cfg);
 }
 
-// 获取顶层 CFG (从 AST 直接构建)
-static CFGFunction BuildMainCFG(const SyntaxTreeInterfacePtr &chunk) {
-    CFGBuilder builder;
-    return builder.Build(chunk, {}, "__fakelua_init", false);
-}
-
-// 获取顶层 SSA (从 CFG 直接构建)
-static SSAFunction BuildMainSSA(const CFGFunction &cfg) {
-    SSABuilder builder;
-    return builder.Build(cfg);
-}
-
-// 编译 pipeline 测试目录中的 Lua 文件并返回指定函数（如 "test"）的 CFG
-static CFGFunction BuildFuncCFG(const SyntaxTreeInterfacePtr &chunk, const std::string &target_name) {
-    if (!chunk || chunk->Type() != SyntaxTreeType::Block) {
-        throw std::runtime_error("chunk is not a block");
-    }
-    const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
-    for (const auto &stmt : top_block->Stmts()) {
-        std::string name;
-        SyntaxTreeInterfacePtr funcbody;
-        std::vector<std::string> params;
-        if (stmt->Type() == SyntaxTreeType::Function) {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
-            const auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
-            const auto fnlist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcname->FuncNameList());
-            name = fnlist->Funcnames()[0];
-            funcbody = func->Funcbody();
-        } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
-            name = func->Name();
-            funcbody = func->Funcbody();
-        }
-        if (name == target_name && funcbody) {
-            const auto fbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
-            if (fbody) {
-                // 提取参数
-                if (fbody->Parlist()) {
-                    const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(fbody->Parlist());
-                    if (parlist && parlist->Namelist()) {
-                        const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist());
-                        if (namelist) {
-                            params = namelist->Names();
-                        }
-                    }
-                }
-                CFGBuilder builder;
-                return builder.Build(fbody->Block(), params, target_name, false);
-            }
-        }
-    }
-    // 如果没找到对应的函数，退回到 top-level chunk
-    CFGBuilder builder;
-    return builder.Build(chunk, {}, "__fakelua_init", false);
-}
-
-// ─────────────────────────────────────────────────────────────────────────
-// CFG 构造测试
-// ─────────────────────────────────────────────────────────────────────────
-
 // 基本顺序语句: 顶层代码中 entry 块就是函数体, 所以是 entry + exit = 2 blocks
 TEST(pipeline, cfg_sequential) {
     auto result = RunPipeline("./pipeline/test_cfg_sequential.lua");
-    auto cfg = BuildMainCFG(result.GetInferResult().chunk);
+    auto cfg_ptr = result.GetInferResult().cfg_functions.at("__fakelua_init");
 
-    ASSERT_GE(cfg.blocks.size(), 2u);  // entry + exit
-    ASSERT_EQ(cfg.entry_id, 0);
+    ASSERT_GE(cfg_ptr->blocks.size(), 2u);  // entry + exit
+    ASSERT_EQ(cfg_ptr->entry_id, 0);
 }
 
 // if-else: 应有 merge 块 (2 个前驱)
 TEST(pipeline, cfg_if_else_merge) {
     auto result = RunPipeline("./pipeline/test_cfg_if.lua");
-    auto cfg = BuildFuncCFG(result.GetInferResult().chunk, "test");
+    auto cfg_ptr = result.GetInferResult().cfg_functions.at("test");
 
     bool found_merge = false;
-    for (const auto &blk : cfg.blocks) {
+    for (const auto &blk : cfg_ptr->blocks) {
         if (blk.pred_ids.size() == 2) { found_merge = true; break; }
     }
     EXPECT_TRUE(found_merge);
@@ -127,11 +67,10 @@ TEST(pipeline, cfg_if_else_merge) {
 // if-else 合并处插入 φ 节点
 TEST(pipeline, ssa_phi_insertion) {
     auto result = RunPipeline("./pipeline/test_ssa_phi.lua");
-    auto cfg = BuildFuncCFG(result.GetInferResult().chunk, "test");
-    auto ssa = BuildMainSSA(cfg);
+    auto ssa_ptr = result.GetInferResult().ssa_functions.at("test");
 
     bool found_phi = false;
-    for (const auto &[bid, phis] : ssa.block_phis) {
+    for (const auto &[bid, phis] : ssa_ptr->block_phis) {
         if (!phis.empty()) { found_phi = true; break; }
     }
     EXPECT_TRUE(found_phi) << "if-else merge should insert φ nodes";
@@ -140,12 +79,12 @@ TEST(pipeline, ssa_phi_insertion) {
 // 顶层 chunk 不应插入 φ (单前驱)
 TEST(pipeline, ssa_main_no_phi) {
     auto result = RunPipeline("./pipeline/test_ssa_phi.lua");
-    auto cfg = BuildFuncCFG(result.GetInferResult().chunk, "test");
-    auto ssa = BuildMainSSA(cfg);
+    auto cfg_ptr = result.GetInferResult().cfg_functions.at("test");
+    auto ssa_ptr = result.GetInferResult().ssa_functions.at("test");
 
     // 顶层入口块 (entry_id) 不应有 φ (从 entry 进入, 只有一个前驱)
-    auto it = ssa.block_phis.find(cfg.entry_id);
-    EXPECT_TRUE(it == ssa.block_phis.end() || it->second.empty());
+    auto it = ssa_ptr->block_phis.find(cfg_ptr->entry_id);
+    EXPECT_TRUE(it == ssa_ptr->block_phis.end() || it->second.empty());
 }
 
 // ─────────────────────────────────────────────────────────────────────────

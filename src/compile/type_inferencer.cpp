@@ -53,15 +53,18 @@ void TypeInferencer::RunSSAAnalysis(const ParseResult &pr, InferResult &ir) {
 
     // 分析所有函数
     for (const auto &func_info : function_infos) {
-        CFGFunction cfg = cfg_builder.Build(func_info.block, func_info.params, func_info.name, /*is_vararg=*/false);
-        SSAFunction ssa = ssa_builder.Build(cfg);
+        auto cfg = std::make_shared<CFGFunction>(cfg_builder.Build(func_info.block, func_info.params, func_info.name, /*is_vararg=*/false));
+        auto ssa = std::make_shared<SSAFunction>(ssa_builder.Build(*cfg));
+
+        ir.cfg_functions[func_info.name] = cfg;
+        ir.ssa_functions[func_info.name] = ssa;
 
         ir.func_summaries[func_info.name].being_built = true;
         ir.func_summaries[func_info.name].func_name = func_info.name;
 
-        uta.Analyze(func_info.name, func_info.block, cfg, ssa, ir);
-        uta.ComputeCtorTargetShapes(func_info.block, ssa, ir);
-        uta.BuildSummary(func_info.name, func_info.block, ssa, cfg, ir.ssa_version_types, ir);
+        uta.Analyze(func_info.name, func_info.block, *cfg, *ssa, ir);
+        uta.ComputeCtorTargetShapes(func_info.block, *ssa, ir);
+        uta.BuildSummary(func_info.name, func_info.block, *ssa, *cfg, ir.ssa_version_types, ir);
 
         ir.func_summaries[func_info.name].being_built = false;
     }
@@ -70,9 +73,11 @@ void TypeInferencer::RunSSAAnalysis(const ParseResult &pr, InferResult &ir) {
     {
         const std::string init_name = kInitFunctionName;
         std::vector<std::string> empty_params;
-        CFGFunction cfg = cfg_builder.Build(pr.chunk, empty_params, init_name, /*is_vararg=*/false);
-        SSAFunction ssa = ssa_builder.Build(cfg);
-        uta.Analyze(init_name, pr.chunk, cfg, ssa, ir);
+        auto cfg = std::make_shared<CFGFunction>(cfg_builder.Build(pr.chunk, empty_params, init_name, /*is_vararg=*/false));
+        auto ssa = std::make_shared<SSAFunction>(ssa_builder.Build(*cfg));
+        ir.cfg_functions[init_name] = cfg;
+        ir.ssa_functions[init_name] = ssa;
+        uta.Analyze(init_name, pr.chunk, *cfg, *ssa, ir);
     }
 }
 

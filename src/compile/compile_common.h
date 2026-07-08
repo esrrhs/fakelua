@@ -11,6 +11,9 @@
 
 namespace fakelua {
 
+struct CFGFunction;
+struct SSAFunction;
+
 inline constexpr const char *kInitFunctionName = "__fakelua_init";
 
 inline std::string InferredTypeToString(InferredType type) {
@@ -358,6 +361,11 @@ struct InferResult {
     //
     // 注意：chunk 必须是 InferResult 的最后一个字段（或与上述 map 中的指针同源），
     // 确保 map 中指针的有效性覆盖 InferResult 整个使用周期。
+    // 函数名 -> CFG 控制流图
+    std::unordered_map<std::string, std::shared_ptr<CFGFunction>> cfg_functions;
+    // 函数名 -> SSA 函数
+    std::unordered_map<std::string, std::shared_ptr<SSAFunction>> ssa_functions;
+
     SyntaxTreeInterfacePtr chunk;
 };
 
