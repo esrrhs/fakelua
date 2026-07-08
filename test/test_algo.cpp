@@ -1,4 +1,3 @@
-#include "compile/compile_common.h"
 #include "compile/compiler.h"
 #include "fakelua.h"
 #include "gtest/gtest.h"

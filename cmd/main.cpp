@@ -1,5 +1,4 @@
 #include "fakelua.h"
-#include "compile/compile_common.h"  // for CompileResult definition
 #include "gflags/gflags.h"
 #include <iostream>
 

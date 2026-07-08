@@ -1,6 +1,5 @@
 #include "benchmark/benchmark.h"
 #include "fakelua.h"
-#include "compile/compile_common.h"  // for CompileResult definition
 
 #include <lua.hpp>
 
