@@ -8,8 +8,8 @@
 #include "compile/cfg.h"
 #include "compile/compile_common.h"
 #include "compile/compiler.h"
-#include "compile/shape_type.h"
 #include "compile/ssa.h"
+#include "compile/type_inference/shape_type.h"
 #include "fakelua.h"
 #include "gtest/gtest.h"
 

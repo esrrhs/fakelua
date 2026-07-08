@@ -56,10 +56,10 @@
 
 #include "compile/cfg.h"
 #include "compile/compile_common.h"
-#include "compile/hm_type.h"
-#include "compile/shape_type.h"
 #include "compile/ssa.h"
 #include "compile/syntax_tree.h"
+#include "compile/type_inference/hm_type.h"
+#include "compile/type_inference/shape_type.h"
 #include <functional>
 #include <string>
 #include <unordered_map>

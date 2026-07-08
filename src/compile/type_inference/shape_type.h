@@ -1,6 +1,6 @@
 #pragma once
 
-#include "compile/inferred_type.h"
+#include "compile/type_inference/inferred_type.h"
 #include <algorithm>
 #include <string>
 #include <unordered_map>

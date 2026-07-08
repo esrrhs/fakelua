@@ -3,10 +3,10 @@
 #include <fstream>
 
 #include "compile/cfg.h"
-#include "compile/shape_type.h"
 #include "compile/ssa.h"
 #include "compile/syntax_tree.h"
-#include "compile/unified_type_analyzer.h"
+#include "compile/type_inference/shape_type.h"
+#include "compile/type_inference/unified_type_analyzer.h"
 #include "util/file_util.h"
 
 namespace fakelua {

@@ -1,4 +1,4 @@
-#include "compile/hm_type.h"
+#include "compile/type_inference/hm_type.h"
 #include <cstdlib>
 #include <cstring>
 
