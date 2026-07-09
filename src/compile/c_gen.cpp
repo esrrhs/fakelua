@@ -2210,15 +2210,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
     // table 特化：所有字段键均为静态已知
     if (CanSpecializeTable(tc)) {
-        // Phase 2: 优先使用 inferencer 计算的合并字段布局（含 optional 标记），
-        // 使 if-else 两分支的不同 shape table 能统一到同一结构体。
-        std::vector<TableFieldInfo> fields;
-        const auto spec_it = ir().table_spec_infos.find(tc.get());
-        if (spec_it != ir().table_spec_infos.end() && spec_it->second.can_specialize && !spec_it->second.fields.empty()) {
-            fields = spec_it->second.fields;
-        } else {
-            fields = GetTableFields(tc);
-        }
+        std::vector<TableFieldInfo> fields = GetTableFields(tc);
         if (!fields.empty()) {
             const auto spec_type = ComputeSpecTypeName(fields);
             const auto get_fn = std::format("FlGetTableStrId_{}", spec_type);

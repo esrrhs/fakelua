@@ -326,7 +326,7 @@ private:
     std::unordered_map<std::string, InferredType> spec_param_types_;// 当前编译函数的参数特化强类型字典
     std::string cur_spec_func_name_;                                // 当前特化编译的 Lua 函数名
     int cur_spec_bitmask_ = -1;                                     // 当前特化参数的签名位掩码
-    const EvalTypeSnapshot *cur_spec_snapshot_ = nullptr;           // 当前正在特化编译函数的局部类型快照
+    const std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo> *cur_spec_snapshot_ = nullptr;
     std::string cur_func_name_;                                     // 当前正在编译的原始函数名（供逃逸及形状查询使用）
 
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流

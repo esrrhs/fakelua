@@ -292,7 +292,6 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name, const SyntaxTree
                 case SyntaxTreeType::ExpList: {
                     auto ty = InferExprType(node, ssa, version_types, ir, name_ver, &merged);
                     ir.main_ssa_types[node.get()] = ty;
-                    ir.node_ssa_version[node.get()] = -1;
                     RecordSsaVersionType(node, ssa, ty, ir);
                     break;
                 }
@@ -812,7 +811,6 @@ void UnifiedTypeAnalyzer::PopulateNodeTypesFromStmts(const std::vector<SyntaxTre
                     auto ty = InferExprType(node, ssa, version_types, ir, {}, &env, &const_env);
                     (*out_map)[node.get()] = ty;
                     if (out_map == &ir.main_ssa_types) {
-                        ir.node_ssa_version[node.get()] = -1;
                         RecordSsaVersionType(node, ssa, ty, ir);
                     }
                     break;

@@ -160,11 +160,6 @@ struct TableFieldInfo {
     bool optional = false;
 };
 
-struct TableSpecInfo {
-    std::vector<TableFieldInfo> fields;
-    bool can_specialize;
-};
-
 inline MathParamKind MathParamKindOf(int bitmask, int bit_index) {
     return ((bitmask >> bit_index) & 1) ? kMathParamFloat : kMathParamInt;
 }
@@ -243,14 +238,6 @@ struct SSATypeInfo {
         return !(*this == o);
     }
 };
-
-// ── 历史遗留类型快照（已不直接使用） ──────────────────────────────────────
-// EvalTypeSnapshot 原来是 eval 解释器（非 SSA 路径）的按节点类型快照，
-// 随着本次"统一到 SSA/CFG/Shape 管线"的重构（详见 SSA_PIPELINE_STATUS.md），
-// 它已被 InferResult::main_ssa_types / ssa_version_types 接管。
-// 保留此 typedef 仅为兼容可能的存量引用/残留日志；新代码不应再使用。
-// TODO: 在确认无任何外部引用后移除。
-typedef std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo> EvalTypeSnapshot;
 
 // 函数摘要：用于过程间分析（规范 §7）。
 //
@@ -387,15 +374,7 @@ struct InferResult {
     //   - CGen 查读以判断某个 SSA 版本是否已经到达静态类型（用于是否 emit 动态检查）。
     std::unordered_map<int, SSATypeInfo> ssa_version_types;
 
-    // ── 字段 2: AST 节点 → SSA 版本号 ──────────────────────────────────────
-    // 节点 → 它关联的最后一个 SSA 版本（phi 合并后的新版本）。
-    // 消费者：
-    //   - CGen 用来把代码位置定位到它对应的 SSA 版本；
-    //   - 逃逸分析通过节点反查版本，再反查 SSA def 到"creator"；
-    //   - CompareCGen 调用点实例化时由此转发实参 shape 到形参 shape。
-    std::unordered_map<const SyntaxTreeInterface *, int> node_ssa_version;
-
-    // ── 字段 3: AST 节点 → SSA 类型推导结果（主路径） ─────────────────────
+    // ── 字段 2: AST 节点 → SSA 类型推导结果（主路径） ─────────────────────
     // 这是整个推导器最核心的产物：每个参与 SSA 推导的 AST 节点的最终类型。
     // 注意：param_types / ret_type 是从"变量"维度汇总的，而 main_ssa_types 是从
     // "节点"粒度给出的——每个表达式变量都能查到它此刻推导出的 SSATypeInfo。
@@ -461,7 +440,7 @@ struct InferResult {
     // ── 字段 9: AST 根节点（保持生命周期） ─────────────────────────────────
     // 持有本次分析的 AST 根节点 shared_ptr。
     //
-    // 为什么需要：main_ssa_types / node_ssa_version / ctor_target_shapes 中存储的是
+    // 为什么需要：main_ssa_types / ctor_target_shapes 中存储的是
     // AST 节点的原始指针（const SyntaxTreeInterface*）。这些节点由 chunk 的
     // shared_ptr 持有生命周期。如果 InferResult 不持有 chunk，当 analyze 函数返回时
     // chunk 可能首先被析构，导致上述 map 中的原始指针变成悬空。
@@ -482,9 +461,6 @@ struct InferResult {
 
     // 文件级/全局数值常量及其推断类型映射
     std::unordered_map<std::string, InferredType> global_const_vars;
-    // table 特化信息：table constructor 节点 → 特化信息
-    std::unordered_map<const SyntaxTreeInterface *, struct TableSpecInfo> table_spec_infos;
-
     SyntaxTreeInterfacePtr chunk;
 };
 
