@@ -242,7 +242,6 @@ struct CompileConfig {
 
 }// namespace fakelua
 
-#include "compile/compile_common.h"
 
 namespace fakelua {
 
@@ -314,16 +313,36 @@ private:
     State *state_;
 };
 
-// ── 编译管线接口（返回完整管线结果） ──────────────────────────────────
+// ── 编译管线结果（公共接口） ──────────────────────────────────────────
 //
-// CompileResult 包含:
-//   - parse_result:   AST 根节点 (chunk)
-//   - analysis_result: 语义分析结果 (函数元、调用图)
-//   - infer_result:    SSA/CFG/Shape 类型推导结果
-//   - gen_result:      C 代码生成结果
-//
-// 调用方可以从中读取任意阶段的中间产物, 用于测试/调试/验证。
+// CompileResult 是编译管线的返回值，封装了 C 代码生成结果等公共数据。
+// 内部的 SSA/CFG/Shape 等中间产物通过内部头文件 compile/compile_common.h
+// 中的 GetCompileResultImpl() 访问（仅供库内部和测试代码使用）。
 // ──────────────────────────────────────────────────────────────────────
+class CompileResult {
+public:
+    CompileResult();
+    CompileResult(CompileResult &&) noexcept;
+    CompileResult &operator=(CompileResult &&) noexcept;
+    ~CompileResult();
+
+    // 禁止拷贝（内部持有不可拷贝的资源）
+    CompileResult(const CompileResult &) = delete;
+    CompileResult &operator=(const CompileResult &) = delete;
+
+    // 获取生成的 C 代码（包含公共头部）
+    [[nodiscard]] const std::string &GetCCode() const;
+
+    // 获取记录的 C 代码（不含公共头部，仅在 CompileConfig::record_c_code == true 时有效）
+    [[nodiscard]] const std::string &GetRecordedCCode() const;
+
+private:
+    // pimpl：隐藏内部编译管线结构（ParseResult/AnalysisResult/InferResult/GenResult）。
+    // 使用 shared_ptr<void> 避免在公共头文件中 include 内部类型。
+    // 内部代码通过 GetCompileResultImpl(CompileResult&) 访问完整的 Impl。
+    friend struct CompileResultImplAccess;
+    std::shared_ptr<void> impl_;
+};
 
 // 编译 Lua 文件 → 返回完整管线结果。
 CompileResult CompileFile(State *s, const std::string &filename, const CompileConfig &cfg);

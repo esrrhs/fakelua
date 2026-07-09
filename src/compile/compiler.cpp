@@ -53,7 +53,7 @@ CompileResult Compiler::CompileString(const std::string &str, const CompileConfi
 CompileResult Compiler::Build(MyFlexer &f, const CompileConfig &cfg) {
     LOG_INFO("start build {}", f.GetFilename());
 
-    CompileResult result;
+    CompileResultImpl result;
 
     // ──[ 1 ] Lexer / Parser ───────────────────────────────────────────
     yy::parser parse(&f);
@@ -74,7 +74,7 @@ CompileResult Compiler::Build(MyFlexer &f, const CompileConfig &cfg) {
 
     // 快速退出：skip_jit 意味着不做任何编译/分析
     if (cfg.skip_jit) {
-        return result;
+        return MakeCompileResult(std::move(result));
     }
 
     // ──[ 2 ] PreProcessor ─────────────────────────────────────────────
@@ -115,7 +115,7 @@ CompileResult Compiler::Build(MyFlexer &f, const CompileConfig &cfg) {
         jitter.Compile(result.parse_result, result.gen_result, cfg);
     }
 
-    return result;
+    return MakeCompileResult(std::move(result));
 }
 
 }// namespace fakelua

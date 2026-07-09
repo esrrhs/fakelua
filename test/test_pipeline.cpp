@@ -42,7 +42,7 @@ static CompileResult RunPipeline(const std::string &lua_file) {
 // 基本顺序语句: 顶层代码中 entry 块就是函数体, 所以是 entry + exit = 2 blocks
 TEST(pipeline, cfg_sequential) {
     auto result = RunPipeline("./pipeline/test_cfg_sequential.lua");
-    auto cfg_ptr = result.GetInferResult().cfg_functions.at("__fakelua_init");
+    auto cfg_ptr = GetCompileResultImpl(result).GetInferResult().cfg_functions.at("__fakelua_init");
 
     ASSERT_GE(cfg_ptr->blocks.size(), 2u);// entry + exit
     ASSERT_EQ(cfg_ptr->entry_id, 0);
@@ -51,7 +51,7 @@ TEST(pipeline, cfg_sequential) {
 // if-else: 应有 merge 块 (2 个前驱)
 TEST(pipeline, cfg_if_else_merge) {
     auto result = RunPipeline("./pipeline/test_cfg_if.lua");
-    auto cfg_ptr = result.GetInferResult().cfg_functions.at("test");
+    auto cfg_ptr = GetCompileResultImpl(result).GetInferResult().cfg_functions.at("test");
 
     bool found_merge = false;
     for (const auto &blk: cfg_ptr->blocks) {
@@ -70,7 +70,7 @@ TEST(pipeline, cfg_if_else_merge) {
 // if-else 合并处插入 φ 节点
 TEST(pipeline, ssa_phi_insertion) {
     auto result = RunPipeline("./pipeline/test_ssa_phi.lua");
-    auto ssa_ptr = result.GetInferResult().ssa_functions.at("test");
+    auto ssa_ptr = GetCompileResultImpl(result).GetInferResult().ssa_functions.at("test");
 
     bool found_phi = false;
     for (const auto &[bid, phis]: ssa_ptr->block_phis) {
@@ -85,8 +85,8 @@ TEST(pipeline, ssa_phi_insertion) {
 // 顶层 chunk 不应插入 φ (单前驱)
 TEST(pipeline, ssa_main_no_phi) {
     auto result = RunPipeline("./pipeline/test_ssa_phi.lua");
-    auto cfg_ptr = result.GetInferResult().cfg_functions.at("test");
-    auto ssa_ptr = result.GetInferResult().ssa_functions.at("test");
+    auto cfg_ptr = GetCompileResultImpl(result).GetInferResult().cfg_functions.at("test");
+    auto ssa_ptr = GetCompileResultImpl(result).GetInferResult().ssa_functions.at("test");
 
     // 顶层入口块 (entry_id) 不应有 φ (从 entry 进入, 只有一个前驱)
     auto it = ssa_ptr->block_phis.find(cfg_ptr->entry_id);
@@ -103,7 +103,7 @@ TEST(pipeline, type_literals) {
 
     // 查找各种字面量类型
     bool found_int = false, found_string = false;
-    for (const auto &[node, ty]: result.GetNodeTypes()) {
+    for (const auto &[node, ty]: GetCompileResultImpl(result).GetNodeTypes()) {
         if (ty.type == T_INT) found_int = true;
         if (ty.type == T_STRING) found_string = true;
     }
@@ -117,7 +117,7 @@ TEST(pipeline, type_binop) {
 
     // a + b 结果应该是 T_INT
     bool found_binop = false;
-    for (const auto &[node, ty]: result.GetNodeTypes()) {
+    for (const auto &[node, ty]: GetCompileResultImpl(result).GetNodeTypes()) {
         if (ty.type == T_INT && node->Type() == SyntaxTreeType::Exp) {
             found_binop = true;
         }
@@ -134,13 +134,13 @@ TEST(pipeline, shape_literal) {
     auto result = RunPipeline("./pipeline/test_shape_literal.lua");
 
     // shape_registry 应该有 shape
-    ASSERT_TRUE(result.GetShapeRegistry() != nullptr);
-    EXPECT_GE(result.GetShapeRegistry()->Count(), 1);
+    ASSERT_TRUE(GetCompileResultImpl(result).GetShapeRegistry() != nullptr);
+    EXPECT_GE(GetCompileResultImpl(result).GetShapeRegistry()->Count(), 1);
 
     // 查找包含字段 b 和 c 的 shape
     bool found_shape = false;
-    for (int sid = 0; sid < result.GetShapeRegistry()->Count(); ++sid) {
-        const ShapeType &shape = result.GetShapeRegistry()->Get(sid);
+    for (int sid = 0; sid < GetCompileResultImpl(result).GetShapeRegistry()->Count(); ++sid) {
+        const ShapeType &shape = GetCompileResultImpl(result).GetShapeRegistry()->Get(sid);
         if (shape.fields.size() == 2) {
             bool has_b = false, has_c = false;
             for (const auto &f: shape.fields) {
@@ -162,7 +162,7 @@ TEST(pipeline, shape_field_access) {
 
     // a.x 节点类型应为 T_INT
     bool found_field_access = false;
-    for (const auto &[node, ty]: result.GetNodeTypes()) {
+    for (const auto &[node, ty]: GetCompileResultImpl(result).GetNodeTypes()) {
         if (ty.type == T_INT && node->Type() == SyntaxTreeType::Exp) {
             auto *e = static_cast<SyntaxTreeExp *>(const_cast<SyntaxTreeInterface *>(node));
             if (e->GetExpKind() == ExpKind::kPrefixExp) {
@@ -183,7 +183,7 @@ TEST(pipeline, flow_sensitive_merge) {
 
     // 最终返回值的类型应为 T_FLOAT (meet of int and float)
     bool found_result = false;
-    for (const auto &[node, ty]: result.GetNodeTypes()) {
+    for (const auto &[node, ty]: GetCompileResultImpl(result).GetNodeTypes()) {
         if (ty.type == T_FLOAT) {
             found_result = true;
             break;
@@ -220,7 +220,7 @@ TEST(pipeline, escape_return) {
 
     // 逃逸分析结果中, 变量 'a' 应该标记为逃逸
     bool found_escape = false;
-    for (const auto &[func, escapes]: result.GetEscapeVars()) {
+    for (const auto &[func, escapes]: GetCompileResultImpl(result).GetEscapeVars()) {
         for (const auto &[var, is_escaped]: escapes) {
             if (var == "a" && is_escaped) {
                 found_escape = true;

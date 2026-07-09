@@ -1,3 +1,4 @@
+#include "compile/compile_common.h"
 #include "fakelua.h"
 #include "state/state.h"
 #include "util/common.h"
@@ -350,7 +351,28 @@ void FakeluaDeleteState(State *state) {
     delete state;
 }
 
-// ── 编译管线接口 ──────────────────────────────────────────────────────
+// ── 编译管线接口 ──────────────────────────────────────────────
+
+// CompileResult pimpl 方法实现——定义在 fakelua.cpp 中以避免在公共头文件中 include 内部类型。
+static const std::string kEmptyString;
+
+CompileResult::CompileResult() : impl_(std::make_shared<CompileResultImpl>()) {
+}
+
+CompileResult::CompileResult(CompileResult &&other) noexcept = default;
+CompileResult &CompileResult::operator=(CompileResult &&other) noexcept = default;
+CompileResult::~CompileResult() = default;
+
+const std::string &CompileResult::GetCCode() const {
+    if (!impl_) return kEmptyString;
+    return GetCompileResultImpl(*this).GetCCode();
+}
+
+const std::string &CompileResult::GetRecordedCCode() const {
+    if (!impl_) return kEmptyString;
+    return GetCompileResultImpl(*this).GetRecordedCCode();
+}
+
 CompileResult CompileFile(State *state, const std::string &filename, const CompileConfig &cfg) {
     return state->GetCompiler().CompileFile(filename, cfg);
 }
