@@ -12,6 +12,29 @@ SemanticAnalysis::SemanticAnalysis(State *s) : s_(s) {
 AnalysisResult SemanticAnalysis::Analyze(const ParseResult &pr, const CompileConfig &cfg) {
     file_name_ = pr.file_name;
 
+    init_assign_nodes_.clear();
+    assigned_global_consts_.clear();
+
+    if (pr.chunk && pr.chunk->Type() == SyntaxTreeType::Block) {
+        const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
+        for (const auto &stmt : top_block->Stmts()) {
+            if (stmt->Type() == SyntaxTreeType::Function) {
+                const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
+                const auto funcname = std::dynamic_pointer_cast<SyntaxTreeFuncname>(func->Funcname());
+                if (funcname) {
+                    const auto fnlist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcname->FuncNameList());
+                    if (fnlist && fnlist->Funcnames().size() == 1 && fnlist->Funcnames()[0] == "__fakelua_init") {
+                        WalkSyntaxTree(func->Funcbody(), [this](const SyntaxTreeInterfacePtr &sub_node) {
+                            if (sub_node->Type() == SyntaxTreeType::Assign) {
+                                init_assign_nodes_.insert(sub_node.get());
+                            }
+                        });
+                    }
+                }
+            }
+        }
+    }
+
     AnalysisResult ar;
     AnalyzeGlobalConstNames(pr.chunk, ar);
     CheckUnsupportedSyntax(pr.chunk, ar);
@@ -290,6 +313,10 @@ void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const Analy
             CheckLocalVar(node, ar);
             break;
         }
+        case SyntaxTreeType::Assign: {
+            CheckAssign(node, ar);
+            break;
+        }
         case SyntaxTreeType::Return: {
             break;
         }
@@ -308,7 +335,6 @@ void SemanticAnalysis::CheckNode(const SyntaxTreeInterfacePtr &node, const Analy
         case SyntaxTreeType::None:
         case SyntaxTreeType::Empty:
         case SyntaxTreeType::Block:
-        case SyntaxTreeType::Assign:
         case SyntaxTreeType::VarList:
         case SyntaxTreeType::ExpList:
         case SyntaxTreeType::Var:
@@ -346,7 +372,7 @@ void SemanticAnalysis::CheckGotoOrLabel(const SyntaxTreeInterfacePtr &node) {
 void SemanticAnalysis::CollectBlockLabels(const SyntaxTreeInterfacePtr &block, std::unordered_map<std::string, SyntaxTreeInterfacePtr> &labels) {
     const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
     if (!blk) return;
-    for (const auto &stmt : blk->Stmts()) {
+    for (const auto &stmt: blk->Stmts()) {
         if (stmt->Type() == SyntaxTreeType::Label) {
             const auto label = std::dynamic_pointer_cast<SyntaxTreeLabel>(stmt);
             labels[label->GetName()] = stmt;
@@ -388,7 +414,7 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
                 }
             }
             if (i < label_pos && label_pos < blk->Stmts().size()) {
-                for (auto lp : local_positions) {
+                for (auto lp: local_positions) {
                     if (lp > i && lp <= label_pos) {
                         ThrowError(std::format("goto '{}' jumps over local variable declaration", target_name), stmt);
                     }
@@ -398,7 +424,7 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
     }
 
     // 递归检查嵌套 block，传递可见 label 集合
-    for (const auto &stmt : blk->Stmts()) {
+    for (const auto &stmt: blk->Stmts()) {
         if (stmt->Type() == SyntaxTreeType::Block) {
             ValidateGotoInBlock(stmt, visible_labels);
         } else if (stmt->Type() == SyntaxTreeType::While) {
@@ -411,7 +437,7 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
             if (if_stmt->ElseIfs()) {
                 const auto elseif_list = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_stmt->ElseIfs());
                 if (elseif_list) {
-                    for (const auto &elseif_blk : elseif_list->ElseifBlocks()) {
+                    for (const auto &elseif_blk: elseif_list->ElseifBlocks()) {
                         ValidateGotoInBlock(elseif_blk, visible_labels);
                     }
                 }
@@ -423,13 +449,11 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
             ValidateGotoInBlock(std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt)->Block(), visible_labels);
         } else if (stmt->Type() == SyntaxTreeType::Function) {
             std::unordered_map<std::string, SyntaxTreeInterfacePtr> func_labels;
-            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(
-                std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt)->Funcbody());
+            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt)->Funcbody());
             if (fb) ValidateGotoInBlock(fb->Block(), func_labels);
         } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
             std::unordered_map<std::string, SyntaxTreeInterfacePtr> func_labels;
-            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(
-                std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt)->Funcbody());
+            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt)->Funcbody());
             if (fb) ValidateGotoInBlock(fb->Block(), func_labels);
         }
     }
@@ -498,6 +522,35 @@ void SemanticAnalysis::CheckLocalVar(const SyntaxTreeInterfacePtr &node, const A
             for (const auto &name: namelist->Names()) {
                 if (ar.global_const_names.contains(name)) {
                     ThrowError("local variable conflicts with global constant: " + name, node);
+                }
+            }
+        }
+    }
+}
+
+void SemanticAnalysis::CheckAssign(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar) {
+    const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
+    if (!assign) {
+        return;
+    }
+    const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+    if (!varlist) {
+        return;
+    }
+    for (const auto &v_node: varlist->Vars()) {
+        if (v_node->Type() == SyntaxTreeType::Var) {
+            const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(v_node);
+            if (v && v->GetVarKind() == VarKind::kSimple) {
+                const std::string &name = v->GetName();
+                if (ar.global_const_names.contains(name)) {
+                    if (init_assign_nodes_.contains(node.get())) {
+                        if (assigned_global_consts_.contains(name)) {
+                            ThrowError("reassign to global constant variable: " + name, node);
+                        }
+                        assigned_global_consts_.insert(name);
+                    } else {
+                        ThrowError("reassign to global constant variable: " + name, node);
+                    }
                 }
             }
         }

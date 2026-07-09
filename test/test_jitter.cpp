@@ -1975,7 +1975,6 @@ TEST(jitter, test_for_in_key_only) {
     });
 }
 
-
 // T_DYNAMIC unary minus: exercises OpUnaryMinus in CompileExp CVar path
 // (c_gen.cpp line 2497). x is a T_DYNAMIC table lookup; -x uses OpUnaryMinus.
 // -(10) = -10.
@@ -2772,8 +2771,8 @@ TEST(jitter, test_32params) {
 // C++ 直接调用变参 Lua 函数的测试
 //
 // 约定：
-    //   - vararg 参数直接传递，Call() 自动打包
-    //   - 多返回值用 std::tie 自动解包
+//   - vararg 参数直接传递，Call() 自动打包
+//   - 多返回值用 std::tie 自动解包
 //   - 调用使用 Call 而非 FakeluaCallByName
 // ===========================================================================
 
@@ -2843,7 +2842,6 @@ TEST(jitter, vararg_from_cpp_or_default_with_arg) {
     });
 }
 
-
 TEST(jitter, test_const_complex_expr) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_const_complex_expr.lua", {.debug_mode = debug_mode});
@@ -2875,7 +2873,6 @@ TEST(jitter, test_const_complex_expr) {
         ASSERT_EQ(t->Get(key_val).GetInt(), -20);
     });
 }
-
 
 // ============================================================================
 // goto/label 合法场景

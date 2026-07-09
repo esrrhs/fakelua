@@ -67,7 +67,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
                 }
             } else if (raw_arg_arr[i].type_ == static_cast<int>(VarType::Multi)) {
                 VarMulti *m = raw_arg_arr[i].data_.m;
-                flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar){static_cast<int>(VarType::Nil)};
+                flat_args_buf[flat_count++] = m->GetCount() > 0 ? m->GetVars()[0] : (CVar) {static_cast<int>(VarType::Nil)};
             } else {
                 flat_args_buf[flat_count++] = raw_arg_arr[i];
             }
@@ -75,7 +75,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 
         if (UNLIKELY(is_vararg)) {
             for (int i = 0; i < fixed_arg_count; ++i) {
-                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){static_cast<int>(VarType::Nil)};
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {static_cast<int>(VarType::Nil)};
             }
             const int vararg_count = flat_count - fixed_arg_count;
             VarMulti *m = VarMulti::AllocTemp(state, vararg_count > 0 ? vararg_count : 0);
@@ -92,7 +92,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
                 ThrowFakeluaException(std::format("FakeluaCallByName: function '{}' expects {} argument(s), got {}", name, expected_arg_count, flat_count));
             }
             for (int i = 0; i < expected_arg_count; ++i) {
-                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){static_cast<int>(VarType::Nil)};
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar) {static_cast<int>(VarType::Nil)};
             }
         }
         arg_arr = temp_arg_arr;

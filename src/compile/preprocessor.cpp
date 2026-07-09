@@ -337,7 +337,7 @@ void PreProcessor::PreprocessVarargs(const SyntaxTreeInterfacePtr &chunk) {
                         exp->SetExpKind(ExpKind::kPrefixExp);
                         auto pe = MakeSimpleVarPrefixexp(exp->Loc(), vararg_name);
                         exp->SetRight(pe);
-                        return false; // 不需要再向下递归此 Exp 节点的子节点
+                        return false;// 不需要再向下递归此 Exp 节点的子节点
                     }
                 }
 
@@ -354,16 +354,13 @@ bool PreProcessor::IsComplexExp(const SyntaxTreeInterfacePtr &exp) {
     }
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
     const auto exp_kind = e->GetExpKind();
-    if (exp_kind == ExpKind::kTableConstructor ||
-        exp_kind == ExpKind::kBinop ||
-        exp_kind == ExpKind::kUnop) {
+    if (exp_kind == ExpKind::kTableConstructor || exp_kind == ExpKind::kBinop || exp_kind == ExpKind::kUnop) {
         return true;
     }
     if (exp_kind == ExpKind::kPrefixExp) {
         const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
         if (pe) {
-            if (pe->GetPrefixKind() == PrefixExpKind::kVar ||
-                pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
+            if (pe->GetPrefixKind() == PrefixExpKind::kVar || pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
                 return true;
             }
         }
@@ -399,7 +396,7 @@ void PreProcessor::PreprocessGlobalInitializers(const SyntaxTreeInterfacePtr &ch
     std::vector<SyntaxTreeInterfacePtr> init_assign_stmts;
     std::vector<SyntaxTreeInterfacePtr> new_stmts;
 
-    for (const auto &stmt : top_block->Stmts()) {
+    for (const auto &stmt: top_block->Stmts()) {
         if (stmt->Type() == SyntaxTreeType::LocalVar) {
             const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
             const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
@@ -410,7 +407,7 @@ void PreProcessor::PreprocessGlobalInitializers(const SyntaxTreeInterfacePtr &ch
                 auto &exps = explist->Exps();
 
                 bool has_complex = false;
-                for (const auto &exp : exps) {
+                for (const auto &exp: exps) {
                     if (IsComplexExp(exp)) {
                         has_complex = true;
                         break;
@@ -449,7 +446,7 @@ void PreProcessor::PreprocessGlobalInitializers(const SyntaxTreeInterfacePtr &ch
                     } else {
                         auto assign = std::make_shared<SyntaxTreeAssign>(stmt->Loc());
                         auto varlist = std::make_shared<SyntaxTreeVarlist>(stmt->Loc());
-                        for (const auto &name : names) {
+                        for (const auto &name: names) {
                             auto var = std::make_shared<SyntaxTreeVar>(stmt->Loc());
                             var->SetName(name);
                             var->SetVarKind(VarKind::kSimple);

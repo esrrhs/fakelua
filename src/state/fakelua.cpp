@@ -350,16 +350,13 @@ void FakeluaDeleteState(State *state) {
     delete state;
 }
 
-void CompileFile(State *state, const std::string &filename, const CompileConfig &cfg) {
-    state->GetCompiler().CompileFile(filename, cfg);
+// ── 编译管线接口 ──────────────────────────────────────────────────────
+CompileResult CompileFile(State *state, const std::string &filename, const CompileConfig &cfg) {
+    return state->GetCompiler().CompileFile(filename, cfg);
 }
 
-void CompileString(State *state, const std::string &str, const CompileConfig &cfg) {
-    state->GetCompiler().CompileString(str, cfg);
-}
-
-std::string GetLastRecordedCCode(State *state) {
-    return state->GetCompiler().GetLastRecordedCCode();
+CompileResult CompileString(State *state, const std::string &str, const CompileConfig &cfg) {
+    return state->GetCompiler().CompileString(str, cfg);
 }
 
 void SetVarInterfaceNewFunc(State *state, const std::function<VarInterface *()> &func) {
@@ -451,17 +448,15 @@ CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count) {
 #define DARG_31 DARG_30, arg_arr[30]
 #define DARG_32 DARG_31, arg_arr[31]
 
-#define DCASE(N) \
-    case N: return reinterpret_cast<CVar (*)(DCVAR_##N)>(addr)(DARG_##N);
+#define DCASE(N)                                                                                                                                                                                       \
+    case N:                                                                                                                                                                                            \
+        return reinterpret_cast<CVar (*)(DCVAR_##N)>(addr)(DARG_##N);
 
     switch (arg_count) {
-        DCASE(0) DCASE(1) DCASE(2) DCASE(3) DCASE(4) DCASE(5)
-        DCASE(6) DCASE(7) DCASE(8) DCASE(9) DCASE(10) DCASE(11)
-        DCASE(12) DCASE(13) DCASE(14) DCASE(15) DCASE(16) DCASE(17)
-        DCASE(18) DCASE(19) DCASE(20) DCASE(21) DCASE(22) DCASE(23)
-        DCASE(24) DCASE(25) DCASE(26) DCASE(27) DCASE(28) DCASE(29)
-        DCASE(30) DCASE(31) DCASE(32)
-        default: ThrowFakeluaException(std::format("DispatchCall: arg_count {} out of range", arg_count));
+        DCASE(0)
+        DCASE(1) DCASE(2) DCASE(3) DCASE(4) DCASE(5) DCASE(6) DCASE(7) DCASE(8) DCASE(9) DCASE(10) DCASE(11) DCASE(12) DCASE(13) DCASE(14) DCASE(15) DCASE(16) DCASE(17) DCASE(18) DCASE(19) DCASE(20)
+                DCASE(21) DCASE(22) DCASE(23) DCASE(24) DCASE(25) DCASE(26) DCASE(27) DCASE(28) DCASE(29) DCASE(30) DCASE(31) DCASE(32) default
+            : ThrowFakeluaException(std::format("DispatchCall: arg_count {} out of range", arg_count));
     }
 #undef DCASE
 #undef DCVAR_0

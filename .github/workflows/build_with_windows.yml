@@ -46,7 +46,7 @@ jobs:
         shell: msys2 {0}
         run: |
           set -eux
-          ctest --test-dir build -V
+          cd build/bin && ./unit_tests --gtest_filter='-*DISABLED*'
 
       - name: Run benchmarks and flua
         shell: msys2 {0}

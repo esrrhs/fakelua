@@ -27,7 +27,7 @@ jobs:
           mkdir build
           cd build
           cmake ..
-          make -j8
-          ctest -V
+          make -j2
+          cd bin && ./unit_tests --gtest_filter='-*DISABLED*' && cd ..
           ./bin/bench_mark
           ./bin/flua

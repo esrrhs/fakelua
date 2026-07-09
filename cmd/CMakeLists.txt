@@ -19,6 +19,7 @@ CPMAddPackage(
 aux_source_directory(./ LUA_SRC_LIST)
 include_directories(./)
 include_directories(../include)
+include_directories(../src)
 
 IF (WIN32)
     set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--export-all-symbols")
