@@ -1065,8 +1065,9 @@ bool CGen::TryInferMathCallBitmask(const std::string &callee_name, const std::ve
 }
 
 bool CGen::TryInferMathCallSpec(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args, int &bitmask, InferredType &spec_ret) const {
-    [[maybe_unused]] bool ok = TryInferMathCallBitmask(callee_name, raw_args, bitmask);
-    DEBUG_ASSERT(ok);
+    if (!TryInferMathCallBitmask(callee_name, raw_args, bitmask)) {
+        return false;
+    }
     spec_ret = GetSpecReturnType(callee_name, bitmask);
     return true;
 }
@@ -3215,8 +3216,9 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
 
     int bitmask = 0;
     InferredType spec_ret = T_DYNAMIC;
-    [[maybe_unused]] bool ok = TryInferMathCallSpec(callee_name, raw_args, bitmask, spec_ret);
-    DEBUG_ASSERT(ok);
+    if (!TryInferMathCallSpec(callee_name, raw_args, bitmask, spec_ret)) {
+        return {};
+    }
     DEBUG_ASSERT(spec_ret == T_INT || spec_ret == T_FLOAT);
 
     const auto &math_params = ir().math_param_positions.at(callee_name);
