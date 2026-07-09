@@ -6,6 +6,7 @@
 #include "compile/infer/shape_type.h"
 #include "compile/infer/ssa.h"
 #include "compile/infer/unified_type_analyzer.h"
+#include "compile/infer/specialization_analyzer.h"
 #include "compile/syntax_tree.h"
 #include "util/file_util.h"
 
@@ -21,6 +22,9 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     ir.chunk = pr.chunk;
 
     RunSSAAnalysis(pr, ir);
+
+    SpecializationAnalyzer sa;
+    sa.Analyze(pr, ir);
 
     // Debug dump
     if (cfg.debug_mode) {

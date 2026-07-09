@@ -143,7 +143,7 @@ static void RecordSsaVersionType(const SyntaxTreeInterfacePtr &node, const SSAFu
 // ─────────────────────────────────────────────────────────────────────────
 // 主分析入口 — 流敏感工作表
 // ─────────────────────────────────────────────────────────────────────────
-void UnifiedTypeAnalyzer::Analyze(const std::string &func_name, const SyntaxTreeInterfacePtr &func_block, const CFGFunction &cfg, SSAFunction &ssa, InferResult &ir) {
+void UnifiedTypeAnalyzer::Analyze(const std::string &func_name, const SyntaxTreeInterfacePtr &func_block, const CFGFunction &cfg, SSAFunction &ssa, InferResult &ir, const std::unordered_map<int, SSATypeInfo> *assumed_param_types) {
     cur_func_name_ = func_name;
 
     if (!ir.shape_registry) {
@@ -176,13 +176,18 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name, const SyntaxTree
 
     // ── 主分析：跑流敏感工作表（规范 §6）────────────────────────────
     TypeEnv version_types;
-    // 初始化参数版本类型（默认 T_DYNAMIC）
+    // 初始化参数版本类型
     for (size_t i = 0; i < ssa.param_versions.size(); ++i) {
-        version_types[ssa.param_versions[i]] = {T_DYNAMIC, -1};
+        int ver = ssa.param_versions[i];
+        if (assumed_param_types && assumed_param_types->contains(ver)) {
+            version_types[ver] = assumed_param_types->at(ver);
+        } else {
+            version_types[ver] = {T_DYNAMIC, -1};
+        }
     }
 
     // 跑流敏感工作表，返回每个块的 out_env
-    std::unordered_map<int, VarEnv> block_outs = RunWorklist(cfg, ssa, ir);
+    std::unordered_map<int, VarEnv> block_outs = RunWorklist(cfg, ssa, version_types, ir);
 
     // ── φ 节点类型推导 ──────────────────────────────────────────────────
     // 对每个有 φ 块的变量，从各前驱块的 out_env 取类型，Meet 得到 φ 结果类型
@@ -268,6 +273,11 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name, const SyntaxTree
                 ir.var_final_shapes[v] = t.shape_id;
             }
         }
+        if (func_name == kInitFunctionName) {
+            for (const auto &[v, t]: merged) {
+                ir.global_const_vars[v] = t.type;
+            }
+        }
         WalkSyntaxTreePruned(func_block, [&](const SyntaxTreeInterfacePtr &node) -> bool {
             if (!node) return false;
             if (node->Type() == SyntaxTreeType::Function || node->Type() == SyntaxTreeType::LocalFunction) {
@@ -304,14 +314,22 @@ void UnifiedTypeAnalyzer::Analyze(const std::string &func_name, const SyntaxTree
 // ─────────────────────────────────────────────────────────────────────────
 // 流敏感工作表（§6 简化版：per-block VarEnv，按 var_name merge）
 // ─────────────────────────────────────────────────────────────────────────
-std::unordered_map<int, UnifiedTypeAnalyzer::VarEnv> UnifiedTypeAnalyzer::RunWorklist(const CFGFunction &cfg, const SSAFunction &ssa, const InferResult &ir) {
+std::unordered_map<int, UnifiedTypeAnalyzer::VarEnv> UnifiedTypeAnalyzer::RunWorklist(const CFGFunction &cfg, const SSAFunction &ssa, const TypeEnv &version_types, const InferResult &ir) {
     // 退化为单块情况（无分支）
     if (cfg.blocks.size() <= 1) {
         VarEnv env;
         ConstEnv const_env;// §12.6 常量传播
-        // seed param types (default T_DYNAMIC)
+        // seed param types
         for (const auto &[pname, pidx]: cfg.param_indices) {
-            env[pname] = {T_DYNAMIC, -1};
+            int ver = (pidx < (int) ssa.param_versions.size()) ? ssa.param_versions[pidx] : -1;
+            SSATypeInfo pty = {T_DYNAMIC, -1};
+            if (ver >= 0) {
+                auto vit = version_types.find(ver);
+                if (vit != version_types.end()) {
+                    pty = vit->second;
+                }
+            }
+            env[pname] = pty;
         }
         for (const auto &b: cfg.blocks) {
             for (const auto &s: b.stmts) {
@@ -344,10 +362,18 @@ std::unordered_map<int, UnifiedTypeAnalyzer::VarEnv> UnifiedTypeAnalyzer::RunWor
     // 2) in/out envs
     std::unordered_map<int, VarEnv> in_envs, out_envs;
 
-    // 3) 初始 env：seed params in entry block (default T_DYNAMIC)
+    // 3) 初始 env：seed params in entry block
     in_envs[cfg.entry_id] = {};
     for (const auto &[pname, pidx]: cfg.param_indices) {
-        in_envs[cfg.entry_id][pname] = {T_DYNAMIC, -1};
+        int ver = (pidx < (int) ssa.param_versions.size()) ? ssa.param_versions[pidx] : -1;
+        SSATypeInfo pty = {T_DYNAMIC, -1};
+        if (ver >= 0) {
+            auto vit = version_types.find(ver);
+            if (vit != version_types.end()) {
+                pty = vit->second;
+            }
+        }
+        in_envs[cfg.entry_id][pname] = pty;
     }
 
     // 4) 迭代直到不动点
@@ -357,10 +383,13 @@ std::unordered_map<int, UnifiedTypeAnalyzer::VarEnv> UnifiedTypeAnalyzer::RunWor
     constexpr int kWidenIter = 3;
     bool widened = false;
 
+    std::unordered_map<int, int> block_exec_count;
+
     while (!worklist.empty() && iter_count < kMaxIters) {
         int bid = worklist.front();
         worklist.pop_front();
         iter_count++;
+        block_exec_count[bid]++;
 
         VarEnv new_in;
         bool first_pred = true;
@@ -387,11 +416,11 @@ std::unordered_map<int, UnifiedTypeAnalyzer::VarEnv> UnifiedTypeAnalyzer::RunWor
             new_out = TransferStmt(s, new_out, ssa, empty_vt);
         }
 
-        // widening on loops: 迭代超限时，对 env 中的 record shape 调用 Widen
-        if (iter_count > kWidenIter && registry_) {
+        // widening on loops: 当某个基本块被重复执行超过阈值时，对该块的 env 进行 Widen
+        if (block_exec_count[bid] > kWidenIter && registry_) {
             for (auto &[vname, vtype]: new_out) {
                 if (IsRecordInferredType(vtype.type) && vtype.shape_id >= 0) {
-                    int new_shape_id = registry_->Widen(vtype.shape_id, iter_count);
+                    int new_shape_id = registry_->Widen(vtype.shape_id, block_exec_count[bid]);
                     if (new_shape_id < 0) {
                         // 退化为 T_DYNAMIC
                         vtype.type = T_DYNAMIC;
@@ -864,11 +893,36 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(const SyntaxTreeInterfacePtr &exp
                 case ExpKind::kFalse:
                     return {T_BOOL, -1};
                 case ExpKind::kBinop: {
+                    const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
+                    DEBUG_ASSERT(op);
+                    const auto k = op->GetOpKind();
+                    if (k == BinOpKind::kLess || k == BinOpKind::kLessEqual ||
+                        k == BinOpKind::kMore || k == BinOpKind::kMoreEqual ||
+                        k == BinOpKind::kEqual || k == BinOpKind::kNotEqual) {
+                        return {T_BOOL, -1};
+                    }
+                    if (k == BinOpKind::kBitAnd || k == BinOpKind::kBitOr ||
+                        k == BinOpKind::kXor || k == BinOpKind::kLeftShift ||
+                        k == BinOpKind::kRightShift) {
+                        return {T_INT, -1};
+                    }
+                    if (k == BinOpKind::kSlash || k == BinOpKind::kPow) {
+                        return {T_FLOAT, -1};
+                    }
                     auto lt = InferExprType(e->Left(), ssa, version_types, ir, name_ver, local_env, const_env);
                     auto rt = InferExprType(e->Right(), ssa, version_types, ir, name_ver, local_env, const_env);
                     return {ShapeRegistry::MeetType(lt.type, rt.type), -1};
                 }
                 case ExpKind::kUnop: {
+                    const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
+                    DEBUG_ASSERT(op);
+                    const auto op_kind = op->GetOpKind();
+                    if (op_kind == UnOpKind::kNot) {
+                        return {T_BOOL, -1};
+                    }
+                    if (op_kind == UnOpKind::kBitNot || op_kind == UnOpKind::kNumberSign) {
+                        return {T_INT, -1};
+                    }
                     return InferExprType(e->Right(), ssa, version_types, ir, name_ver, local_env, const_env);
                 }
                 case ExpKind::kPrefixExp: {
@@ -943,7 +997,20 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(const SyntaxTreeInterfacePtr &exp
                                 }
                             }
                             // 无法确定 key → 退化
-                            return shape.is_open ? SSATypeInfo{T_DYNAMIC, -1} : SSATypeInfo{T_NIL, -1};
+                            if (shape.is_open) {
+                                return {T_DYNAMIC, -1};
+                            }
+                            InferredType merged_field_type = T_UNKNOWN;
+                            if (!shape.fields.empty()) {
+                                merged_field_type = shape.fields[0].type;
+                                for (size_t idx = 1; idx < shape.fields.size(); ++idx) {
+                                    merged_field_type = ShapeRegistry::MeetType(merged_field_type, shape.fields[idx].type);
+                                }
+                            }
+                            if (merged_field_type == T_UNKNOWN || merged_field_type == T_NIL) {
+                                return {T_DYNAMIC, -1};
+                            }
+                            return {merged_field_type, -1};
                         }
                     }
                 }
@@ -971,6 +1038,37 @@ SSATypeInfo UnifiedTypeAnalyzer::InferExprType(const SyntaxTreeInterfacePtr &exp
                 if (pe->GetValue() && pe->GetValue()->Type() == SyntaxTreeType::Var) callee = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue())->GetName();
             }
             if (!callee.empty()) {
+                auto math_it = ir.math_param_positions.find(callee);
+                auto spec_it = ir.specialization_return_types.find(callee);
+                if (math_it != ir.math_param_positions.end() && spec_it != ir.specialization_return_types.end()) {
+                    const auto &math_params = math_it->second;
+                    const auto &spec_returns = spec_it->second;
+                    const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+                    if (args_ptr) {
+                        const auto raw_args = ExtractCallRawArgs(args_ptr);
+                        int bitmask = 0;
+                        bool args_valid = true;
+                        for (size_t k = 0; k < math_params.size(); ++k) {
+                            int param_pos = math_params[k];
+                            if (param_pos < (int)raw_args.size()) {
+                                SSATypeInfo arg_info = InferExprType(raw_args[param_pos], ssa, version_types, ir, name_ver, local_env, const_env);
+                                if (arg_info.type == T_FLOAT) {
+                                    bitmask |= (1 << k);
+                                } else if (arg_info.type != T_INT) {
+                                    args_valid = false;
+                                    break;
+                                }
+                            } else {
+                                args_valid = false;
+                                break;
+                            }
+                        }
+                        if (args_valid && bitmask < (int)spec_returns.size()) {
+                            return {spec_returns[bitmask], -1};
+                        }
+                    }
+                }
+
                 auto it = ir.func_summaries.find(callee);
                 if (it != ir.func_summaries.end()) {
                     const FuncSummary &summary = it->second;

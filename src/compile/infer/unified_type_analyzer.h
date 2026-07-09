@@ -98,7 +98,7 @@ public:
     //   7. 全函数 WalkSyntaxTree，推导所有 AST 子节点的类型
     //   8. 调用 ComputeVarFinalShapes / ComputeCtorTargetShapes
     //   9. 调用 ComputeEscape
-    void Analyze(const std::string &func_name, const SyntaxTreeInterfacePtr &func_block, const CFGFunction &cfg, SSAFunction &ssa, InferResult &ir);
+    void Analyze(const std::string &func_name, const SyntaxTreeInterfacePtr &func_block, const CFGFunction &cfg, SSAFunction &ssa, InferResult &ir, const std::unordered_map<int, SSATypeInfo> *assumed_param_types = nullptr);
 
     // ── Phase 3a: 计算每个变量的 final shape ────────────────────────────
     // 对每个变量，取它所有 SSA 版本的类型做 Meet，得到"最宽" shape 写入
@@ -223,7 +223,7 @@ private:
     //     4) 超过 kWidenIter 轮后启用 Widen，把不收敛的 record shape
     //        字段集截断以强制保证收敛；
     //     5) 最多 kMaxIters=64 轮。
-    std::unordered_map<int, VarEnv> RunWorklist(const CFGFunction &cfg, const SSAFunction &ssa, const InferResult &ir);
+    std::unordered_map<int, VarEnv> RunWorklist(const CFGFunction &cfg, const SSAFunction &ssa, const TypeEnv &version_types, const InferResult &ir);
 
     // ── 构建辅助 ────────────────────────────────────────────────────────
     // 从 SSAFunction.var_all_versions（变量名 → 所有版本号的列表）生成

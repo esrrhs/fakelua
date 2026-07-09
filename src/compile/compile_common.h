@@ -41,6 +41,28 @@ inline std::string InferredTypeToString(InferredType type) {
     }
 }
 
+inline InferredType InferNumericBinopResultType(const BinOpKind op_kind, const InferredType left_type, const InferredType right_type) {
+    if (!IsNumericInferredType(left_type) || !IsNumericInferredType(right_type)) {
+        return T_DYNAMIC;
+    }
+    if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
+        return T_FLOAT;
+    }
+    if (op_kind == BinOpKind::kPlus || op_kind == BinOpKind::kMinus || op_kind == BinOpKind::kStar || op_kind == BinOpKind::kMod || op_kind == BinOpKind::kDoubleSlash) {
+        return (left_type == T_INT && right_type == T_INT) ? T_INT : T_FLOAT;
+    }
+    if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
+        return T_INT;
+    }
+    if (op_kind == BinOpKind::kAnd) {
+        return right_type;
+    }
+    if (op_kind == BinOpKind::kOr) {
+        return left_type;
+    }
+    return T_DYNAMIC;
+}
+
 // 将函数调用的 args 节点展开为原始参数节点数组，
 // 覆盖三种语法形式：args ::= (explist) | tableconstructor | LiteralString。
 inline std::vector<SyntaxTreeInterfacePtr> ExtractCallRawArgs(const std::shared_ptr<SyntaxTreeArgs> &args_ptr) {
@@ -114,6 +136,79 @@ struct AnalysisResult {
     // 文件级/全局常量名称集合
     std::unordered_set<std::string> global_const_names;
 };
+
+enum MathParamKind : int {
+    kMathParamInt = 0,  // 对应 int64_t
+    kMathParamFloat = 1,// 对应 double
+};
+
+enum class TableKeyKind {
+    kString,
+    kInt,
+    kFloat,
+    kBool
+};
+
+struct TableFieldInfo {
+    std::string key;
+    InferredType type;
+    TableKeyKind key_kind = TableKeyKind::kString;
+    std::string c_field_name;
+    int64_t int_value = 0;
+    bool bool_value = false;
+    double float_value = 0.0;
+    bool optional = false;
+};
+
+struct TableSpecInfo {
+    std::vector<TableFieldInfo> fields;
+    bool can_specialize;
+};
+
+inline MathParamKind MathParamKindOf(int bitmask, int bit_index) {
+    return ((bitmask >> bit_index) & 1) ? kMathParamFloat : kMathParamInt;
+}
+
+inline const char *MathParamCTypeName(MathParamKind kind) {
+    return kind == kMathParamFloat ? "double" : "int64_t";
+}
+
+inline char MathParamSuffix(MathParamKind kind) {
+    return kind == kMathParamFloat ? '1' : '0';
+}
+
+inline const char *SpecReturnCTypeName(InferredType type) {
+    if (type == T_INT) {
+        return "int64_t";
+    }
+    if (type == T_FLOAT) {
+        return "double";
+    }
+    return "CVar";
+}
+
+inline std::string SpecFuncName(const std::string &base_name, const std::vector<int> &math_param_indices, int bitmask) {
+    std::string name = base_name;
+    for (int i = 0; i < static_cast<int>(math_param_indices.size()); ++i) {
+        name += '_';
+        name += MathParamSuffix(MathParamKindOf(bitmask, i));
+    }
+    return name;
+}
+
+inline std::string BoxNativeValue(const std::string &expr, InferredType type) {
+    if (type == T_INT) {
+        return std::format("(CVar){{.type_ = VAR_INT, .data_.i = (int64_t)({})}}", expr);
+    }
+    if (type == T_FLOAT) {
+        return std::format("(CVar){{.type_ = VAR_FLOAT, .data_.f = (double)({})}}", expr);
+    }
+    if (type == T_RECORD || type == T_RECORD_OPEN) {
+        return "(CVar){.type_ = VAR_TABLE, .data_.t = NULL}";
+    }
+    DEBUG_ASSERT(false);
+    return "";
+}
 
 // ── SSA 类型信息 ──────────────────────────────────────────────────────────
 // SSATypeInfo 是 SSA 类型推导系统中的一个"类型快照"。
@@ -380,6 +475,15 @@ struct InferResult {
     std::unordered_map<std::string, std::shared_ptr<CFGFunction>> cfg_functions;
     // 函数名 -> SSA 函数
     std::unordered_map<std::string, std::shared_ptr<SSAFunction>> ssa_functions;
+
+    std::unordered_map<std::string, std::vector<int>> math_param_positions;
+    std::unordered_map<std::string, std::vector<std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo>>> specialization_snapshots;
+    std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
+
+    // 文件级/全局数值常量及其推断类型映射
+    std::unordered_map<std::string, InferredType> global_const_vars;
+    // table 特化信息：table constructor 节点 → 特化信息
+    std::unordered_map<const SyntaxTreeInterface *, struct TableSpecInfo> table_spec_infos;
 
     SyntaxTreeInterfacePtr chunk;
 };
