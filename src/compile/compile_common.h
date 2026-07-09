@@ -2,6 +2,7 @@
 
 #include "compile/infer/hm_type.h"
 #include "compile/infer/inferred_type.h"
+#include "fakelua.h"
 #include "syntax_tree.h"
 #include "util/debug.h"
 #include <format>
@@ -501,31 +502,15 @@ struct GenResult {
     std::unordered_map<std::string, JitFunctionInfo> function_names;
 };
 
-// ─────────────────────────────────────────────────────────────────────────
-// 编译管线完整结果（CompileFile 系列接口的返回值）
+// ───────────────────────────────────────────────────────────────────────────
+// 内部编译管线完整结果（Compiler 内部使用，对应公共 CompileResult::impl_）
 //
-// 该结构体是 Compiler::CompileFile / CompileStringTo 的返回值，持有从源码到
-// 最终 C 代码的完整管线产物。
+// 该结构体是 Compiler::CompileFile / CompileStringTo 的内部中间产物容器，最终
+// 会被包装到公共的 CompileResult 中返回给调用方。
 //
-// 设计目标：
-//   1. 把原本通过 GetLastRecordedCCode 全局状态获取的 C 代码纳入返回值，
-//       消除隐式的全局状态依赖。
-//   2. 把原本藏在各子模块（CFG / SSA / TypeInference）内部的中间结构暴露出来，
-//       让测试 / 调试 / 工具可以直接访问管线的每一步产物。
-//   3. 支持"慢路径"分析和"快路径"调用：
-//      - 调试/测试: 拿到完整 CompileResult 后读 ir / gr。
-//      - 纯执行: 仅使用 gr.c_code 调用 JIT，不要 ir。
-//
-// 线程安全：
-//   - CompileResult 不涉及全局状态，但内部持有对 AST (chunk) 的 shared_ptr，
-//     多个 CompileResult 可以并发读写各自的 chunk。
-//   - 同一个 CompileResult 不保证线程安全（与原来的 Global 一样）。
-//
-// 生命周期注意：
-//   - InferResult 内的 raw pointer (例如 main_ssa_types 的 key) 指向 AST 节点，
-//     由 result.chunk 持有生命周期。访问 raw pointer 前必须保证 result 存活。
-// ─────────────────────────────────────────────────────────────────────────
-struct CompileResult {
+// 内部代码（包括单元测试）通过 GetCompileResultImpl() 获得完整内算数据。
+// ───────────────────────────────────────────────────────────────────────────
+struct CompileResultImpl {
     // ── 阶段 1: 解析结果 ────────────────────────────────────────────────
     // 词法和语法解析器的直接产物：按文件/字符串区分源，附带 AST 根节点。
     // 注意: source 字段仅在 CompileString 来源时由 Compiler::CompileStringTo
@@ -604,5 +589,36 @@ struct CompileResult {
     }
 };
 
+// ───────────────────────────────────────────────────────────────────────────
+// CompileResultImplAccess: 通过 friend 关系访问 CompileResult::impl_（私有字段）。
+//
+// fakelua.h 中 CompileResult 声明了 friend struct CompileResultImplAccess，
+// 使得该结构体可以合法读写 impl_。所有需要访问 impl_ 的内部辅助函数均通过此中介。
+// ───────────────────────────────────────────────────────────────────────────
+struct CompileResultImplAccess {
+    static std::shared_ptr<void> &ImplRef(CompileResult &r) { return r.impl_; }
+    static const std::shared_ptr<void> &ImplRef(const CompileResult &r) { return r.impl_; }
+};
+
+// ───────────────────────────────────────────────────────────────────────────
+// 内部辅助：从公共 CompileResult 中获取内部 CompileResultImpl。
+//
+// 仅供库内部代码和单元测试使用；外部用户不应调用此函数。
+// ───────────────────────────────────────────────────────────────────────────
+inline CompileResultImpl &GetCompileResultImpl(CompileResult &r) {
+    return *static_cast<CompileResultImpl *>(CompileResultImplAccess::ImplRef(r).get());
+}
+
+inline const CompileResultImpl &GetCompileResultImpl(const CompileResult &r) {
+    return *static_cast<const CompileResultImpl *>(CompileResultImplAccess::ImplRef(r).get());
+}
+
+// 工厂函数：创建一个包装了 CompileResultImpl 的公共 CompileResult。
+// 专供 Compiler::Build 使用。
+inline CompileResult MakeCompileResult(CompileResultImpl impl) {
+    CompileResult r;
+    CompileResultImplAccess::ImplRef(r) = std::make_shared<CompileResultImpl>(std::move(impl));
+    return r;
+}
 
 }// namespace fakelua
