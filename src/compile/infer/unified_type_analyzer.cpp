@@ -1261,7 +1261,8 @@ void UnifiedTypeAnalyzer::LinkExprToTargetShape(const SyntaxTreeInterfacePtr &no
 
 // 从表达式结构推导返回类型（在 main_ssa_types 无法确定时回退）
 // 对于 `return n+1` 这类纯参数+算术表达式，返回 T_INT 作为"数值"标记
-static InferredType DeriveExprTypeForRet(const SyntaxTreeInterfacePtr &expr, const std::vector<SSATypeInfo> &param_types, const InferResult &ir) {
+static InferredType DeriveExprTypeForRet(const SyntaxTreeInterfacePtr &expr, const std::vector<SSATypeInfo> &param_types,
+                                         const std::unordered_map<std::string, int> &param_indices, const InferResult &ir) {
     if (!expr) return T_UNKNOWN;
     auto inner = expr;
     // 只解包 Exp(kPrefixExp) 和 PrefixExp 包装，不碰 Binop/Number
@@ -1297,7 +1298,16 @@ static InferredType DeriveExprTypeForRet(const SyntaxTreeInterfacePtr &expr, con
     }
     if (inner->Type() == SyntaxTreeType::Var) {
         auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(inner);
-        if (v->GetVarKind() == VarKind::kSimple) return T_INT;
+        if (v->GetVarKind() == VarKind::kSimple) {
+            const auto &vname = v->GetName();
+            if (const auto pit = param_indices.find(vname); pit != param_indices.end()) {
+                int pidx = pit->second;
+                if (pidx >= 0 && pidx < static_cast<int>(param_types.size())) {
+                    return param_types[pidx].type;
+                }
+            }
+            return T_UNKNOWN;
+        }
         return T_UNKNOWN;
     }
     if (inner->Type() == SyntaxTreeType::Exp) {
@@ -1313,15 +1323,15 @@ static InferredType DeriveExprTypeForRet(const SyntaxTreeInterfacePtr &expr, con
             bool is_arith =
                     (kind == BinOpKind::kPlus || kind == BinOpKind::kMinus || kind == BinOpKind::kStar || kind == BinOpKind::kSlash || kind == BinOpKind::kDoubleSlash || kind == BinOpKind::kMod ||
                      kind == BinOpKind::kPow || kind == BinOpKind::kBitAnd || kind == BinOpKind::kBitOr || kind == BinOpKind::kXor || kind == BinOpKind::kLeftShift || kind == BinOpKind::kRightShift);
-            InferredType lt = DeriveExprTypeForRet(ep->Left(), param_types, ir);
-            InferredType rt = DeriveExprTypeForRet(ep->Right(), param_types, ir);
+            InferredType lt = DeriveExprTypeForRet(ep->Left(), param_types, param_indices, ir);
+            InferredType rt = DeriveExprTypeForRet(ep->Right(), param_types, param_indices, ir);
             if (is_arith && IsNumericInferredType(lt) && IsNumericInferredType(rt)) return (lt == T_FLOAT || rt == T_FLOAT) ? T_FLOAT : T_INT;
             if ((kind == BinOpKind::kAnd || kind == BinOpKind::kOr) && IsNumericInferredType(lt) && IsNumericInferredType(rt)) return (lt == T_FLOAT || rt == T_FLOAT) ? T_FLOAT : T_INT;
             return T_UNKNOWN;
         }
         if (ep->GetExpKind() == ExpKind::kUnop) {
             auto unop = ep->Op() ? std::dynamic_pointer_cast<SyntaxTreeUnop>(ep->Op()) : nullptr;
-            if (unop && (unop->GetOpKind() == UnOpKind::kMinus || unop->GetOpKind() == UnOpKind::kBitNot)) return DeriveExprTypeForRet(ep->Right(), param_types, ir);
+            if (unop && (unop->GetOpKind() == UnOpKind::kMinus || unop->GetOpKind() == UnOpKind::kBitNot)) return DeriveExprTypeForRet(ep->Right(), param_types, param_indices, ir);
             return T_UNKNOWN;
         }
     }
@@ -1393,7 +1403,7 @@ void UnifiedTypeAnalyzer::BuildSummary(const std::string &func_name, const Synta
             if (!ret->Explist()) return;
             auto el_ptr = ret->Explist()->Type() == SyntaxTreeType::ExpList ? std::dynamic_pointer_cast<SyntaxTreeExplist>(ret->Explist()) : std::shared_ptr<SyntaxTreeExplist>();
             if (!el_ptr || el_ptr->Exps().empty()) return;
-            InferredType derived = DeriveExprTypeForRet(el_ptr->Exps()[0], s.param_types, ir);
+            InferredType derived = DeriveExprTypeForRet(el_ptr->Exps()[0], s.param_types, cfg.param_indices, ir);
             if (derived != T_UNKNOWN && derived != T_DYNAMIC) {
                 merged_ret = {derived, -1};
             }

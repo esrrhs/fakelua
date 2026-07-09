@@ -1052,7 +1052,7 @@ bool CGen::TryInferMathCallBitmask(const std::string &callee_name, const std::ve
             const auto &arg = raw_args[static_cast<size_t>(param_pos)];
             DEBUG_ASSERT(arg && arg->Type() == SyntaxTreeType::Exp);
             const auto arg_type = InferArgTypeForSpec(arg);
-            if (arg_type == T_DYNAMIC) {
+            if (arg_type == T_DYNAMIC || arg_type == T_UNKNOWN) {
                 return false;
             }
             if (arg_type == T_FLOAT) {
@@ -1136,7 +1136,7 @@ InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
                         const auto &arg = raw_args[static_cast<size_t>(param_pos)];
                         DEBUG_ASSERT(arg && arg->Type() == SyntaxTreeType::Exp);
                         const auto t = InferExpType(arg);
-                        if (t == T_DYNAMIC) {
+                        if (t == T_DYNAMIC || t == T_UNKNOWN) {
                             return T_DYNAMIC;
                         }
                         if (t == T_FLOAT) {
@@ -1405,8 +1405,8 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             }
             // All prior expressions map one-to-one to variables
             const auto type = LookupNodeType(exps[i].get());
-            if (type == T_INT || type == T_FLOAT) {
-                const auto native_expr = CompileNumericExp(exps[i]);
+            std::string native_expr;
+            if ((type == T_INT || type == T_FLOAT) && !(native_expr = TryCompileNativeExpr(exps[i])).empty()) {
                 const std::string type_str = (type == T_INT) ? "int64_t" : "double";
                 const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    " << type_str << " " << tmp << ";\n";
@@ -1466,8 +1466,8 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             }
 
             const auto type = (i < exps.size()) ? LookupNodeType(exps[i].get()) : T_DYNAMIC;
-            if (type == T_INT || type == T_FLOAT) {
-                const auto native_expr = CompileNumericExp(exps[i]);
+            std::string native_expr;
+            if ((type == T_INT || type == T_FLOAT) && !(native_expr = TryCompileNativeExpr(exps[i])).empty()) {
                 const std::string type_str = (type == T_INT) ? "int64_t" : "double";
                 const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    " << type_str << " " << tmp << ";\n";
@@ -2623,7 +2623,7 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     // Native arithmetic fast path
     const auto lt = InferArgTypeForSpec(left);
     const auto rt = InferArgTypeForSpec(right);
-    if (lt != T_DYNAMIC && rt != T_DYNAMIC) {
+    if (IsNumericInferredType(lt) && IsNumericInferredType(rt)) {
         if (auto native_str = CompileNativeArithBinop(left, right, op_kind, lt, rt); !native_str.empty()) {
             return native_str;
         }
@@ -3090,10 +3090,13 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
                 }
             }
             const std::string expr = CompileVar(pe->GetValue());
+            // 对于普通 CVar 变量（非特化解包、非原生类型），无法确定运行时存的是 data_.i
+            // 还是 data_.f，必须用 CVAR_TO_DOUBLE 安全读取，避免读错字段。
+            // 例如：函数参数 c, d 在特化推断中被假设为 T_INT，但调用方可能传入浮点数。
             if (LookupNodeType(e.get()) == T_FLOAT) {
                 return std::format("({}).data_.f", expr);
             }
-            return std::format("({}).data_.i", expr);
+            return std::format("CVAR_TO_DOUBLE({})", expr);
         }
         if (pe->GetPrefixKind() == PrefixExpKind::kExp) {
             return CompileNumericExp(pe->GetValue());
@@ -3219,14 +3222,20 @@ std::string CGen::TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &fun
     if (!TryInferMathCallSpec(callee_name, raw_args, bitmask, spec_ret)) {
         return {};
     }
-    DEBUG_ASSERT(spec_ret == T_INT || spec_ret == T_FLOAT);
+    // 必须是原生数值类型才能生成原生比较代码；T_DYNAMIC 等类型退化到普通 CVar 路径。
+    // 注意：DEBUG_ASSERT 在 Release 模式下为空宏，此处需显式运行时检查。
+    if (spec_ret != T_INT && spec_ret != T_FLOAT) {
+        return {};
+    }
 
     const auto &math_params = ir().math_param_positions.at(callee_name);
 
     std::unordered_map<int, std::string> native_exprs;
     for (int param_pos: math_params) {
         const auto native_expr = TryCompileNativeExpr(raw_args[param_pos]);
-        DEBUG_ASSERT(!native_expr.empty());
+        if (native_expr.empty()) {
+            return {};
+        }
         native_exprs[param_pos] = native_expr;
     }
 
@@ -3304,7 +3313,10 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                     bool can_spec = true;
                     for (int param_pos: math_params) {
                         const auto native_expr = TryCompileNativeExpr(raw_args[param_pos]);
-                        DEBUG_ASSERT(!native_expr.empty());
+                        if (native_expr.empty()) {
+                            can_spec = false;
+                            break;
+                        }
                         native_exprs[param_pos] = native_expr;
                     }
 
