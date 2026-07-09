@@ -320,14 +320,6 @@ private:
     // 结果写入 escape_env（会进一步存到 ir.escape_vars[func_name]）。
     void ComputeEscape(const std::string &func_name, const SyntaxTreeInterfacePtr &func_block, const CFGFunction &cfg, EscapeEnv &escape_env);
 
-    // ── 单条语句的逃逸转移 ──────────────────────────────────────────────
-    // 语句级逃逸判定规则（规范 §8.1）：
-    //   · FunctionCall：所有参数中的变量引用标记逃逸（保守：即使有摘要也标记）
-    //   · Return：返回值中的变量引用标记逃逸
-    //   · Assign：当 LHS 是 dynamic 变量时，RHS 中的变量引用标记逃逸
-    //   · 其它语句：不做特殊处理
-    // type_env 用于判断 LHS 变量是否为 T_DYNAMIC。
-    void EscapeTransfer(const SyntaxTreeInterfacePtr &stmt, EscapeEnv &escape_env, const VarEnv &type_env);
 
     // ── HM 签名构建 ────────────────────────────────────────────────────────
     // 为当前函数生成 (params → ret) 的多态签名并写入 summary。

@@ -533,7 +533,7 @@ UnifiedTypeAnalyzer::VarEnv UnifiedTypeAnalyzer::TransferStmt(const SyntaxTreeIn
                 if (v->GetVarKind() == VarKind::kSimple) {
                     // 简单变量赋值：local x = ... 或 x = ...
                     out[v->GetName()] = ty;
-                } else if ((v->GetVarKind() == VarKind::kDot || v->GetVarKind() == VarKind::kSquare) && !recursive_self_assign) {
+                } else if (v->GetVarKind() == VarKind::kDot || v->GetVarKind() == VarKind::kSquare) {
                     // 字段写入：a.b = v 或 a[b] = v
                     // 规范 §5.2.4：更新 base 变量的 shape
                     const std::string &field_name = v->GetName();
@@ -1544,148 +1544,182 @@ Type *UnifiedTypeAnalyzer::SubstituteHmVars(Type *t, const std::vector<Type *> &
 
 void UnifiedTypeAnalyzer::ComputeEscape(const std::string &func_name, const SyntaxTreeInterfacePtr &func_block, const CFGFunction &cfg, EscapeEnv &escape_env) {
     if (!func_block) return;
-    // 初始化：所有 local 变量标记为不逃逸
-    // 逃逸分析通过遍历语句，检测逃逸场景并标记
 
-    // 遍历函数体所有语句做逃逸转移
-    std::function<void(const SyntaxTreeInterfacePtr &)> walk;
-    walk = [&](const SyntaxTreeInterfacePtr &node) {
-        if (!node) return;
-        switch (node->Type()) {
-            case SyntaxTreeType::Block: {
-                auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
-                for (auto &s: blk->Stmts()) walk(s);
-                break;
-            }
-            case SyntaxTreeType::If: {
-                auto ifs = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
-                walk(ifs->Block());
-                if (ifs->ElseBlock()) walk(ifs->ElseBlock());
-                break;
-            }
-            case SyntaxTreeType::While: {
-                auto ws = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
-                walk(ws->Block());
-                break;
-            }
-            case SyntaxTreeType::ForLoop: {
-                auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
-                walk(fl->Block());
-                break;
-            }
-            default:
-                EscapeTransfer(node, escape_env, VarEnv{});
-                break;
-        }
-    };
-    walk(func_block);
-}
-
-void UnifiedTypeAnalyzer::EscapeTransfer(const SyntaxTreeInterfacePtr &stmt, EscapeEnv &escape_env, const VarEnv &type_env) {
-    if (!stmt) return;
-
-    // 递归收集语句中引用的所有变量名
-    std::vector<std::string> ref_names;
-    std::function<void(const SyntaxTreeInterfacePtr &)> collect_refs;
-    collect_refs = [&](const SyntaxTreeInterfacePtr &node) {
+    std::function<void(const SyntaxTreeInterfacePtr &, bool)> walk;
+    walk = [&](const SyntaxTreeInterfacePtr &node, bool is_in_indexing_prefix) {
         if (!node) return;
         switch (node->Type()) {
             case SyntaxTreeType::Var: {
                 auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
-                if (v->GetVarKind() == VarKind::kSimple) ref_names.push_back(v->GetName());
-                if (v->GetPrefixexp()) collect_refs(v->GetPrefixexp());
-                if (v->GetExp()) collect_refs(v->GetExp());
-                break;
-            }
-            case SyntaxTreeType::Exp: {
-                auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
-                collect_refs(e->Left());
-                collect_refs(e->Right());
+                if (v->GetVarKind() == VarKind::kSimple) {
+                    if (!is_in_indexing_prefix) {
+                        escape_env[v->GetName()] = true;
+                    }
+                } else if (v->GetVarKind() == VarKind::kDot || v->GetVarKind() == VarKind::kSquare) {
+                    walk(v->GetPrefixexp(), true);
+                    if (v->GetVarKind() == VarKind::kSquare) {
+                        walk(v->GetExp(), false);
+                    }
+                }
                 break;
             }
             case SyntaxTreeType::PrefixExp: {
                 auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node);
-                collect_refs(pe->GetValue());
+                walk(pe->GetValue(), is_in_indexing_prefix);
+                break;
+            }
+            case SyntaxTreeType::Assign: {
+                auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
+                auto vl = assign->Varlist() ? std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist()) : nullptr;
+                auto el = assign->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist()) : nullptr;
+                if (vl) {
+                    for (auto &var: vl->Vars()) {
+                        if (var) {
+                            auto var_ptr = std::dynamic_pointer_cast<SyntaxTreeVar>(var);
+                            if (var_ptr) {
+                                if (var_ptr->GetVarKind() == VarKind::kSimple) {
+                                    // Write to simple var: does not cause it to escape
+                                } else {
+                                    // Write to field: walk prefix with indexing = true
+                                    walk(var_ptr, false);
+                                }
+                            }
+                        }
+                    }
+                }
+                if (el) {
+                    for (auto &exp: el->Exps()) {
+                        walk(exp, false);
+                    }
+                }
+                break;
+            }
+            case SyntaxTreeType::LocalVar: {
+                auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
+                if (local_var->Explist()) {
+                    walk(local_var->Explist(), false);
+                }
+                break;
+            }
+            case SyntaxTreeType::Block: {
+                auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+                for (auto &stmt: block->Stmts()) walk(stmt, false);
+                break;
+            }
+            case SyntaxTreeType::Return: {
+                auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
+                walk(ret->Explist(), false);
+                break;
+            }
+            case SyntaxTreeType::VarList: {
+                auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(node);
+                for (auto &var: varlist->Vars()) walk(var, false);
                 break;
             }
             case SyntaxTreeType::ExpList: {
-                auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
-                for (auto &e: el->Exps()) collect_refs(e);
+                auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
+                for (auto &exp: explist->Exps()) walk(exp, false);
+                break;
+            }
+            case SyntaxTreeType::FunctionCall: {
+                auto functioncall = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+                walk(functioncall->prefixexp(), false);
+                walk(functioncall->Args(), false);
+                break;
+            }
+            case SyntaxTreeType::TableConstructor: {
+                auto tc = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
+                walk(tc->Fieldlist(), false);
+                break;
+            }
+            case SyntaxTreeType::FieldList: {
+                auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
+                for (auto &field: fieldlist->Fields()) walk(field, false);
+                break;
+            }
+            case SyntaxTreeType::Field: {
+                auto field = std::dynamic_pointer_cast<SyntaxTreeField>(node);
+                walk(field->Key(), false);
+                walk(field->Value(), false);
+                break;
+            }
+            case SyntaxTreeType::While: {
+                auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
+                walk(while_node->Exp(), false);
+                walk(while_node->Block(), false);
+                break;
+            }
+            case SyntaxTreeType::Repeat: {
+                auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
+                walk(rep->Block(), false);
+                walk(rep->Exp(), false);
+                break;
+            }
+            case SyntaxTreeType::If: {
+                auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+                walk(if_node->Exp(), false);
+                walk(if_node->Block(), false);
+                walk(if_node->ElseIfs(), false);
+                walk(if_node->ElseBlock(), false);
+                break;
+            }
+            case SyntaxTreeType::ElseIfList: {
+                auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(node);
+                for (auto &exp: elseifs->ElseifExps()) walk(exp, false);
+                for (auto &block: elseifs->ElseifBlocks()) walk(block, false);
+                break;
+            }
+            case SyntaxTreeType::ForLoop: {
+                auto for_loop = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
+                walk(for_loop->ExpBegin(), false);
+                walk(for_loop->ExpEnd(), false);
+                walk(for_loop->ExpStep(), false);
+                walk(for_loop->Block(), false);
+                break;
+            }
+            case SyntaxTreeType::ForIn: {
+                auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
+                walk(for_in->Explist(), false);
+                walk(for_in->Block(), false);
+                break;
+            }
+            case SyntaxTreeType::Function: {
+                auto func_node = std::dynamic_pointer_cast<SyntaxTreeFunction>(node);
+                walk(func_node->Funcbody(), false);
+                break;
+            }
+            case SyntaxTreeType::LocalFunction: {
+                auto func_node = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
+                walk(func_node->Funcbody(), false);
+                break;
+            }
+            case SyntaxTreeType::FuncBody: {
+                auto func_body = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
+                walk(func_body->Block(), false);
+                break;
+            }
+            case SyntaxTreeType::Exp: {
+                auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+                walk(exp->Left(), false);
+                walk(exp->Right(), false);
                 break;
             }
             case SyntaxTreeType::Args: {
                 auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
-                if (args->GetArgsKind() == ArgsKind::kExpList && args->Explist()) collect_refs(args->Explist());
-                else if (args->Tableconstructor())
-                    collect_refs(args->Tableconstructor());
-                break;
-            }
-            case SyntaxTreeType::FunctionCall: {
-                auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
-                if (fc->prefixexp()) collect_refs(fc->prefixexp());
-                if (fc->Args()) collect_refs(fc->Args());
+                if (args->GetArgsKind() == ArgsKind::kExpList) {
+                    walk(args->Explist(), false);
+                } else if (args->GetArgsKind() == ArgsKind::kTableConstructor) {
+                    walk(args->Tableconstructor(), false);
+                } else if (args->GetArgsKind() == ArgsKind::kString) {
+                    walk(args->String(), false);
+                }
                 break;
             }
             default:
                 break;
         }
     };
-
-    switch (stmt->Type()) {
-        case SyntaxTreeType::FunctionCall: {
-            // 规范 §8.1：传给函数的参数逃逸
-            auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(stmt);
-            // 获取 callee 名
-            std::string callee;
-            if (fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::Var) {
-                callee = std::dynamic_pointer_cast<SyntaxTreeVar>(fc->prefixexp())->GetName();
-            }
-            // 收集参数中引用的变量
-            if (fc->Args()) collect_refs(fc->Args());
-            if (!callee.empty()) {
-                // 有摘要的函数：参数不逃逸（保守：仍标记逃逸）
-                // TODO: 根据摘要的 param_escape 决定
-            }
-            // 未知函数或保守策略：所有参数引用都逃逸
-            for (auto &name: ref_names) escape_env[name] = true;
-            break;
-        }
-        case SyntaxTreeType::Return: {
-            // 规范 §8.1：被 return 的变量逃逸（保守）
-            auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(stmt);
-            if (ret->Explist()) collect_refs(ret->Explist());
-            for (auto &name: ref_names) escape_env[name] = true;
-            break;
-        }
-        case SyntaxTreeType::Assign: {
-            auto as = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
-            auto vl = as->Varlist() ? std::dynamic_pointer_cast<SyntaxTreeVarlist>(as->Varlist()) : nullptr;
-            auto el = as->Explist() ? std::dynamic_pointer_cast<SyntaxTreeExplist>(as->Explist()) : nullptr;
-            if (vl && el) {
-                auto &vars = vl->Vars();
-                auto &exps = el->Exps();
-                for (size_t i = 0; i < vars.size() && i < exps.size(); ++i) {
-                    collect_refs(exps[i]);
-                }
-                // 检查 LHS：赋值给 dynamic 变量 → RHS 引用逃逸
-                for (size_t i = 0; i < vars.size() && i < exps.size(); ++i) {
-                    if (vars[i]->Type() != SyntaxTreeType::Var) continue;
-                    auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vars[i]);
-                    if (v->GetVarKind() == VarKind::kSimple) {
-                        auto it = type_env.find(v->GetName());
-                        if (it != type_env.end() && it->second.type == T_DYNAMIC) {
-                            // 赋值给 dynamic 变量 → 引用逃逸
-                            for (auto &name: ref_names) escape_env[name] = true;
-                        }
-                    }
-                }
-            }
-            ref_names.clear();
-            break;
-        }
-        default:
-            break;
-    }
+    walk(func_block, false);
 }
 
 }// namespace fakelua
