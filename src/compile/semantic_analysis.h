@@ -28,7 +28,6 @@ private:
     void CheckFunctionCall(const SyntaxTreeInterfacePtr &node);
     void CheckParList(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
     void CheckLocalVar(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
-    void CheckAssign(const SyntaxTreeInterfacePtr &node, const AnalysisResult &ar);
     void CheckForLoop(const SyntaxTreeInterfacePtr &node);
     void CheckForIn(const SyntaxTreeInterfacePtr &node);
     void CheckExp(const SyntaxTreeInterfacePtr &node);
@@ -45,8 +44,6 @@ private:
     State *s_;
     std::string file_name_;
     std::unordered_set<const SyntaxTreeInterface *> top_level_stmts_;
-    std::unordered_set<const SyntaxTreeInterface *> init_assign_nodes_;
-    std::unordered_set<std::string> assigned_global_consts_;
 };
 
 }// namespace fakelua

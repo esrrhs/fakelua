@@ -1,9 +1,8 @@
-#include "compile/compiler.h"
 #include "fakelua.h"
 #include "jit/vm.h"
-#include "state/const_string.h"
 #include "state/heap.h"
 #include "state/state.h"
+#include "state/const_string.h"
 #include "util/file_util.h"
 #include "util/os.h"
 #include "var/var.h"
@@ -11,6 +10,7 @@
 #include "var/var_string.h"
 #include "var/var_table.h"
 #include "var/var_type.h"
+#include "compile/compiler.h"
 #include "gtest/gtest.h"
 #include <filesystem>
 
@@ -726,12 +726,16 @@ TEST(runtime, fakelua_call_by_name_vararg_path) {
     s.GetVM().RegisterFunction(VmFunction("vararg_sum", 2, TEST_JIT_TYPE, reinterpret_cast<void *>(&VmFnVarargSum), {}, true));
 
     // 场景1：传入 1 个固定参数 + 2 个 vararg 参数（auto-pack 为 Multi）
-    CVar r1 = FakeluaCallByName(&s, TEST_JIT_TYPE, "vararg_sum", 3, inter::NativeToFakeluaInt(&s, 10), inter::NativeToFakeluaInt(&s, 20), inter::NativeToFakeluaInt(&s, 30));
+    CVar r1 = FakeluaCallByName(&s, TEST_JIT_TYPE, "vararg_sum", 3,
+                                inter::NativeToFakeluaInt(&s, 10),
+                                inter::NativeToFakeluaInt(&s, 20),
+                                inter::NativeToFakeluaInt(&s, 30));
     ASSERT_EQ(r1.type_, static_cast<int>(VarType::Int));
-    ASSERT_EQ(r1.data_.i, 60);// 10 + 20 + 30
+    ASSERT_EQ(r1.data_.i, 60);  // 10 + 20 + 30
 
     // 场景2：只传固定参数，vararg 为空
-    CVar r2 = FakeluaCallByName(&s, TEST_JIT_TYPE, "vararg_sum", 1, inter::NativeToFakeluaInt(&s, 42));
+    CVar r2 = FakeluaCallByName(&s, TEST_JIT_TYPE, "vararg_sum", 1,
+                                inter::NativeToFakeluaInt(&s, 42));
     ASSERT_EQ(r2.type_, static_cast<int>(VarType::Int));
     ASSERT_EQ(r2.data_.i, 42);
 }

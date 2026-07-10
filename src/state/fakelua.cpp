@@ -1,4 +1,3 @@
-#include "compile/compile_common.h"
 #include "fakelua.h"
 #include "state/state.h"
 #include "util/common.h"
@@ -351,34 +350,16 @@ void FakeluaDeleteState(State *state) {
     delete state;
 }
 
-// ── 编译管线接口 ──────────────────────────────────────────────
-
-// CompileResult pimpl 方法实现——定义在 fakelua.cpp 中以避免在公共头文件中 include 内部类型。
-static const std::string kEmptyString;
-
-CompileResult::CompileResult() : impl_(std::make_shared<CompileResultImpl>()) {
+void CompileFile(State *state, const std::string &filename, const CompileConfig &cfg) {
+    state->GetCompiler().CompileFile(filename, cfg);
 }
 
-CompileResult::CompileResult(CompileResult &&other) noexcept = default;
-CompileResult &CompileResult::operator=(CompileResult &&other) noexcept = default;
-CompileResult::~CompileResult() = default;
-
-const std::string &CompileResult::GetCCode() const {
-    if (!impl_) return kEmptyString;
-    return GetCompileResultImpl(*this).GetCCode();
+void CompileString(State *state, const std::string &str, const CompileConfig &cfg) {
+    state->GetCompiler().CompileString(str, cfg);
 }
 
-const std::string &CompileResult::GetRecordedCCode() const {
-    if (!impl_) return kEmptyString;
-    return GetCompileResultImpl(*this).GetRecordedCCode();
-}
-
-CompileResult CompileFile(State *state, const std::string &filename, const CompileConfig &cfg) {
-    return state->GetCompiler().CompileFile(filename, cfg);
-}
-
-CompileResult CompileString(State *state, const std::string &str, const CompileConfig &cfg) {
-    return state->GetCompiler().CompileString(str, cfg);
+std::string GetLastRecordedCCode(State *state) {
+    return state->GetCompiler().GetLastRecordedCCode();
 }
 
 void SetVarInterfaceNewFunc(State *state, const std::function<VarInterface *()> &func) {
@@ -470,15 +451,17 @@ CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count) {
 #define DARG_31 DARG_30, arg_arr[30]
 #define DARG_32 DARG_31, arg_arr[31]
 
-#define DCASE(N)                                                                                                                                                                                       \
-    case N:                                                                                                                                                                                            \
-        return reinterpret_cast<CVar (*)(DCVAR_##N)>(addr)(DARG_##N);
+#define DCASE(N) \
+    case N: return reinterpret_cast<CVar (*)(DCVAR_##N)>(addr)(DARG_##N);
 
     switch (arg_count) {
-        DCASE(0)
-        DCASE(1) DCASE(2) DCASE(3) DCASE(4) DCASE(5) DCASE(6) DCASE(7) DCASE(8) DCASE(9) DCASE(10) DCASE(11) DCASE(12) DCASE(13) DCASE(14) DCASE(15) DCASE(16) DCASE(17) DCASE(18) DCASE(19) DCASE(20)
-                DCASE(21) DCASE(22) DCASE(23) DCASE(24) DCASE(25) DCASE(26) DCASE(27) DCASE(28) DCASE(29) DCASE(30) DCASE(31) DCASE(32) default
-            : ThrowFakeluaException(std::format("DispatchCall: arg_count {} out of range", arg_count));
+        DCASE(0) DCASE(1) DCASE(2) DCASE(3) DCASE(4) DCASE(5)
+        DCASE(6) DCASE(7) DCASE(8) DCASE(9) DCASE(10) DCASE(11)
+        DCASE(12) DCASE(13) DCASE(14) DCASE(15) DCASE(16) DCASE(17)
+        DCASE(18) DCASE(19) DCASE(20) DCASE(21) DCASE(22) DCASE(23)
+        DCASE(24) DCASE(25) DCASE(26) DCASE(27) DCASE(28) DCASE(29)
+        DCASE(30) DCASE(31) DCASE(32)
+        default: ThrowFakeluaException(std::format("DispatchCall: arg_count {} out of range", arg_count));
     }
 #undef DCASE
 #undef DCVAR_0

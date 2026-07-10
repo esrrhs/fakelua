@@ -26,7 +26,7 @@ jobs:
           git clone https://github.com/TinyCC/tinycc.git
           cd tinycc
           ./configure --extra-cflags="-fPIC"
-          make -j2
+          make -j8
           sudo make install
           cd ..
 
@@ -50,8 +50,8 @@ jobs:
           mkdir build
           cd build
           cmake -DUSE_COV=ON ..
-          make -j2
-          cd bin && ./unit_tests --gtest_filter='-*DISABLED*' && cd ..
+          make -j8
+          ctest -V
           ./bin/bench_mark
           ./bin/flua
           echo "function main() return 0 end" > test.lua
