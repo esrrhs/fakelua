@@ -141,51 +141,51 @@ void CGen::GenerateShapeStructs() {
     Out() << "\n";
 }
 
-bool CGen::TryCompileLocalStructInit(const std::string &var_name, const SyntaxTreeInterfacePtr &exp_node) {
+int CGen::TryCompileLocalStructInit(const std::string &var_name, const SyntaxTreeInterfacePtr &exp_node) {
     if (!exp_node || exp_node->Type() != SyntaxTreeType::Exp) {
-        return false;
+        return -1;
     }
     const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp_node);
     if (exp_ptr->GetExpKind() != ExpKind::kTableConstructor) {
-        return false;
+        return -1;
     }
     const auto tc_node = exp_ptr->Right();
     if (!tc_node || tc_node->Type() != SyntaxTreeType::TableConstructor) {
-        return false;
+        return -1;
     }
     const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc_node);
     const auto fieldlist = tc_ptr->Fieldlist();
     if (!fieldlist || fieldlist->Type() != SyntaxTreeType::FieldList) {
-        return false;
+        return -1;
     }
     const auto fieldlist_ptr = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(fieldlist);
 
     auto mit = ir().main_ssa_types.find(tc_node.get());
     if (mit == ir().main_ssa_types.end() || !IsRecordInferredType(mit->second.type)) {
-        return false;
+        return -1;
     }
     const int shape_id = mit->second.shape_id;
     if (shape_id < 0) {
-        return false;
+        return -1;
     }
 
     auto fit = ir().var_final_shapes.find(var_name);
     if (fit == ir().var_final_shapes.end() || fit->second != shape_id) {
-        return false;
+        return -1;
     }
 
     auto eit = ir().escape_vars.find(cur_func_name_);
     if (eit != ir().escape_vars.end()) {
         auto vit = eit->second.find(var_name);
         if (vit != eit->second.end() && vit->second) {
-            return false;
+            return -1;
         }
     }
 
     const auto &reg = ir().shape_registry;
     const auto &shape = reg->Get(shape_id);
     if (shape.is_open) {
-        return false;
+        return -1;
     }
 
     std::unordered_map<std::string, std::string> init_map;
@@ -200,16 +200,16 @@ bool CGen::TryCompileLocalStructInit(const std::string &var_name, const SyntaxTr
                 if (const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(key); key_exp && key_exp->GetExpKind() == ExpKind::kString) {
                     lua_field_name = key_exp->ExpValue();
                 } else {
-                    return false;
+                    return -1;
                 }
             } else {
-                return false;
+                return -1;
             }
         }
 
         const FieldDef *fd = shape.FindField(lua_field_name);
         if (!fd) {
-            return false;
+            return -1;
         }
         const auto value_str = CompileExp(field_ptr->Value());
         init_map[fd->c_field_name] = value_str;
@@ -228,7 +228,7 @@ bool CGen::TryCompileLocalStructInit(const std::string &var_name, const SyntaxTr
         }
     }
     Out() << "};\n";
-    return true;
+    return shape_id;
 }
 
 void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
@@ -940,6 +940,24 @@ std::string CGen::GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const {
     return "";
 }
 
+int CGen::GetShapeIdForVar(const SyntaxTreeInterfacePtr &pe) const {
+    // 1. 先查 var_shape_ids_（由 CompileFuncBody + CompileStmtLocalVar/Assign 填充）
+    const std::string name = GetSimpleVarName(pe);
+    if (!name.empty()) {
+        if (const auto it = var_shape_ids_.find(name); it != var_shape_ids_.end()) {
+            return it->second;
+        }
+    }
+    // 2. 回退：直接查 main_ssa_types（针对 pe 本身是 AST 节点有记录的情况）
+    if (const auto it = ir().main_ssa_types.find(pe.get()); it != ir().main_ssa_types.end()) {
+        const auto &info = it->second;
+        if ((info.type == T_RECORD || info.type == T_RECORD_OPEN) && info.shape_id >= 0) {
+            return info.shape_id;
+        }
+    }
+    return -1;
+}
+
 bool CGen::IsSpecField(const std::string &spec_type, const std::string &key, TableKeyKind kind) const {
     auto it = spec_field_names_.find(spec_type);
     if (it == spec_field_names_.end()) return false;
@@ -983,6 +1001,23 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
     // 初始化特化上下文。
     spec_param_types_.clear();
     table_spec_types_.clear();
+    var_shape_ids_.clear();
+
+    // 从 func_summaries 读取参数的 shape_id，填充 var_shape_ids_
+    // 这样函数体内对参数 t 的 t.abc 访问可以走 spec 路径，而不是 hash 查找
+    if (!func_name.empty()) {
+        const auto sum_it = ir().func_summaries.find(func_name);
+        if (sum_it != ir().func_summaries.end()) {
+            const auto &summary = sum_it->second;
+            for (size_t i = 0; i < func_params.size() && i < summary.param_types.size(); ++i) {
+                const auto &ptype = summary.param_types[i];
+                if ((ptype.type == T_RECORD || ptype.type == T_RECORD_OPEN) && ptype.shape_id >= 0) {
+                    var_shape_ids_[func_params[i]] = ptype.shape_id;
+                }
+            }
+        }
+    }
+
     cur_spec_bitmask_ = spec_bitmask;
     cur_spec_func_name_ = (spec_bitmask >= 0) ? func_name : "";
     cur_spec_snapshot_ = nullptr;
@@ -1034,6 +1069,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
 
     // 清除特化上下文。
     spec_param_types_.clear();
+    var_shape_ids_.clear();
     cur_spec_bitmask_ = -1;
     cur_spec_func_name_ = "";
     cur_spec_snapshot_ = nullptr;
@@ -1414,8 +1450,10 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 Out() << GenTab() << type_str << " " << name << " = " << tmp << ";\n";
                 DeclareNativeVar(name, type);
             } else {
-                if (TryCompileLocalStructInit(name, exps[i])) {
+                const int struct_shape_id = TryCompileLocalStructInit(name, exps[i]);
+                if (struct_shape_id >= 0) {
                     DeclareNativeVar(name, T_RECORD);
+                    var_shape_ids_[name] = struct_shape_id;
                     continue;
                 }
                 const std::string init = CompileExp(exps[i]);
@@ -1424,6 +1462,17 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 Out() << GenTab() << tmp << " = " << init << ";\n";
                 Out() << GenTab() << "CVar " << name << " = " << tmp << ";\n";
                 DeclareNativeVar(name, T_DYNAMIC);
+                // 从 InferResult 读 shape_id，更新 var_shape_ids_
+                {
+                    auto nit = ir().main_ssa_types.find(exps[i].get());
+                    if (nit != ir().main_ssa_types.end() &&
+                        (nit->second.type == T_RECORD || nit->second.type == T_RECORD_OPEN) &&
+                        nit->second.shape_id >= 0) {
+                        var_shape_ids_[name] = nit->second.shape_id;
+                    } else {
+                        var_shape_ids_.erase(name);
+                    }
+                }
                 if (auto sit = table_spec_types_.find(init); sit != table_spec_types_.end()) {
                     table_spec_types_[name] = sit->second;
                     if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
@@ -1475,8 +1524,10 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 Out() << GenTab() << type_str << " " << name << " = " << tmp << ";\n";
                 DeclareNativeVar(name, type);
             } else if (i < exps.size()) {
-                if (TryCompileLocalStructInit(name, exps[i])) {
+                const int struct_shape_id = TryCompileLocalStructInit(name, exps[i]);
+                if (struct_shape_id >= 0) {
                     DeclareNativeVar(name, T_RECORD);
+                    var_shape_ids_[name] = struct_shape_id;
                     continue;
                 }
                 const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exps[i]);
@@ -1502,6 +1553,17 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 Out() << GenTab() << tmp << " = " << init << ";\n";
                 Out() << GenTab() << "CVar " << name << " = " << tmp << ";\n";
                 DeclareNativeVar(name, T_DYNAMIC);
+                // 从 InferResult 读 shape_id，更新 var_shape_ids_
+                {
+                    auto nit = ir().main_ssa_types.find(exps[i].get());
+                    if (nit != ir().main_ssa_types.end() &&
+                        (nit->second.type == T_RECORD || nit->second.type == T_RECORD_OPEN) &&
+                        nit->second.shape_id >= 0) {
+                        var_shape_ids_[name] = nit->second.shape_id;
+                    } else {
+                        var_shape_ids_.erase(name);
+                    }
+                }
                 if (auto sit = table_spec_types_.find(init); sit != table_spec_types_.end()) {
                     table_spec_types_[name] = sit->second;
                     if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
@@ -1611,6 +1673,17 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     } else {
         const std::string rhs = CompileExp(exps[0]);
         Out() << GenTab() << name << " = " << rhs << ";\n";
+        // 从 InferResult 读 RHS 的 shape_id，更新 var_shape_ids_
+        {
+            auto nit = ir().main_ssa_types.find(exps[0].get());
+            if (nit != ir().main_ssa_types.end() &&
+                (nit->second.type == T_RECORD || nit->second.type == T_RECORD_OPEN) &&
+                nit->second.shape_id >= 0) {
+                var_shape_ids_[name] = nit->second.shape_id;
+            } else {
+                var_shape_ids_.erase(name);
+            }
+        }
         std::string spec_type = "";
         if (auto it = table_spec_types_.find(rhs); it != table_spec_types_.end()) {
             spec_type = it->second;
@@ -2469,6 +2542,13 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
                 global_table_spec_types_[var_name] = spec_type;
             }
+            // 同时从 ctor_target_shapes 读 shape_id，写入 var_shape_ids_
+            // var_name 是临时变量名（如 flua_tbl_5），后续赋值时会传播到真实变量名
+            if (auto cit = ir().ctor_target_shapes.find(tc.get()); cit != ir().ctor_target_shapes.end()) {
+                if (cit->second >= 0) {
+                    var_shape_ids_[var_name] = cit->second;
+                }
+            }
             int f_idx = 0;
             for (const auto &f: fields) {
                 std::string key_desc = GetKeyDescriptor(f.key, f.key_kind);
@@ -2483,6 +2563,8 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
     // 普通路径：无特化，使用 hash 操作
     Out() << GenTab() << "SET_TABLE(" << var_name << ");\n";
+    // 清除可能残留的 shape_id（普通 hash table）
+    var_shape_ids_.erase(var_name);
     if (const auto fieldlist = tc_ptr->Fieldlist()) {
         DEBUG_ASSERT(fieldlist->Type() == SyntaxTreeType::FieldList);
         const auto fieldlist_ptr = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(fieldlist);
@@ -2919,6 +3001,20 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                     if (ftype == T_FLOAT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
                     return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
                 }
+                // 新路径：通过 shape_id 走 FL_SPEC（仅对 string 字面量 key）
+                {
+                    const int heap_shape_id = GetShapeIdForVar(pe);
+                    if (heap_shape_id >= 0 && ir().shape_registry && heap_shape_id < ir().shape_registry->Count()) {
+                        const auto &shape = ir().shape_registry->Get(heap_shape_id);
+                        if (!shape.is_open) {
+                            const FieldDef *fd = shape.FindField(key_name); // key_name 是 string key 的值
+                            if (fd) {
+                                return std::format("FL_SPEC(LuaShape{}, {}, {})",
+                                                   heap_shape_id, pe_ret, fd->c_field_name);
+                            }
+                        }
+                    }
+                }
                 const auto id = s_->GetConstString().Alloc(key_name);
                 return std::format("FlGetTableStrId({}, {})", pe_ret, id);
             }
@@ -3011,6 +3107,21 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                             const FieldDef *fd = shape.FindField(name);
                             return std::format("{}.{}", base_name, fd->c_field_name);
                         }
+                    }
+                }
+            }
+        }
+
+        // 新路径：通过 InferResult 的 shape_id 走 LuaShape&lt;ID&gt; spec 访问
+        {
+            const int heap_shape_id = GetShapeIdForVar(pe);
+            if (heap_shape_id >= 0 && ir().shape_registry && heap_shape_id < ir().shape_registry->Count()) {
+                const auto &shape = ir().shape_registry->Get(heap_shape_id);
+                if (!shape.is_open) {
+                    const FieldDef *fd = shape.FindField(name);
+                    if (fd) {
+                        return std::format("FL_SPEC(LuaShape{}, {}, {})",
+                                           heap_shape_id, pe_ret, fd->c_field_name);
                     }
                 }
             }
