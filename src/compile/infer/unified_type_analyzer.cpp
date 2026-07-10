@@ -1556,7 +1556,21 @@ void UnifiedTypeAnalyzer::ComputeEscape(const std::string &func_name, const Synt
                         escape_env[v->GetName()] = true;
                     }
                 } else if (v->GetVarKind() == VarKind::kDot || v->GetVarKind() == VarKind::kSquare) {
-                    walk(v->GetPrefixexp(), true);
+                    bool base_indexing = true;
+                    if (v->GetVarKind() == VarKind::kSquare) {
+                        auto exp = v->GetExp();
+                        bool is_string_literal = false;
+                        if (exp && exp->Type() == SyntaxTreeType::Exp) {
+                            auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+                            if (exp_node->GetExpKind() == ExpKind::kString) {
+                                is_string_literal = true;
+                            }
+                        }
+                        if (!is_string_literal) {
+                            base_indexing = false;
+                        }
+                    }
+                    walk(v->GetPrefixexp(), base_indexing);
                     if (v->GetVarKind() == VarKind::kSquare) {
                         walk(v->GetExp(), false);
                     }
