@@ -4097,6 +4097,28 @@ TEST(infer, test_table_spec_if_else_soundness) {
     });
 }
 
+TEST(infer, test_table_spec_if_else_same_key_diff_type) {
+    // if-else 两分支构造同 key、不同值类型的 table 赋给同一变量。
+    // 汇合后特化布局相同（都是 {x}），值类型差异由类型推断处理（int → float 提升）。
+    // 详见 test_table_spec_if_else_same_key_diff_type.lua。
+    const auto code = InferGetCCode("./infer/test_table_spec_if_else_same_key_diff_type.lua");
+    // 分支内构造 table 仍会特化（SET_TABLE_SPEC 出现在分支内部）
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // 汇合后 a.x 仍走 FL_SPEC 偏移读（两分支 layout 相同）
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_if_else_same_key_diff_type.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        // cond=1: a={x=10(int)}, return 10.0
+        Call(s, type, "test_if_else_same_key_diff_type", ret, 1);
+        ASSERT_DOUBLE_EQ(ret, 10.0);
+        // cond=0: a={x=2.5(float)}, return 2.5
+        Call(s, type, "test_if_else_same_key_diff_type", ret, 0);
+        ASSERT_DOUBLE_EQ(ret, 2.5);
+    });
+}
+
 TEST(infer, test_table_spec_func_param_degrade) {
     const auto code = InferGetCCode("./infer/test_table_spec_func_param_degrade.lua");
     // get_x 里的 tbl.x 属性访问没有特化，因为 tbl 是形参 (T_DYNAMIC)
