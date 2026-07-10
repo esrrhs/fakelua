@@ -111,7 +111,6 @@ private:
     GenResult Build(const ParseResult &pr, const CompileConfig &cfg);
     // 生成文件头部样板代码（包含的头文件、基本类型定义等）
     void GenerateHeader();
-    void GenerateShapeStructs();
     // 生成全局静态常量和全局变量相关的初始化代码
     void GenerateGlobal(const SyntaxTreeInterfacePtr &chunk);
     // 扫描 AST 并生成所有函数的原型前置声明
@@ -138,8 +137,6 @@ private:
     [[nodiscard]] std::vector<TableFieldInfo> GetTableFields(const SyntaxTreeInterfacePtr &tc) const;
     // table 特化辅助：从 prefixexp 获取变量的 spec 类型名（空字符串表示无特化）
     [[nodiscard]] std::string GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const;
-    // 新增：通过 InferResult 查询某个前缀表达式对应变量的 shape_id（-1 表示无）
-    [[nodiscard]] int GetShapeIdForVar(const SyntaxTreeInterfacePtr &pe) const;
     // table 特化辅助：检查 key 是否为已知 spec 字段
     [[nodiscard]] bool IsSpecField(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
     [[nodiscard]] bool IsSpecField(const std::string &spec_type, const std::string &key) const;
@@ -162,8 +159,6 @@ private:
     void CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt);
     // 编译 local 局部变量声明语句（例如 local a = 1）
     void CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt);
-    // 尝试以 struct literal 形式编译局部变量初始化，成功时返回 shape_id（>=0），失败时返回 -1。
-    int TryCompileLocalStructInit(const std::string &var_name, const SyntaxTreeInterfacePtr &exp_node);
     // 编译赋值语句（例如 a = 1）
     void CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt);
     // 编译作为语句的函数调用（不接收返回值）
@@ -328,16 +323,11 @@ private:
     std::unordered_map<std::string, InferredType> spec_param_types_;// 当前编译函数的参数特化强类型字典
     std::string cur_spec_func_name_;                                // 当前特化编译的 Lua 函数名
     int cur_spec_bitmask_ = -1;                                     // 当前特化参数的签名位掩码
-    const std::unordered_map<const SyntaxTreeInterface *, SSATypeInfo> *cur_spec_snapshot_ = nullptr;
-    std::string cur_func_name_;                                     // 当前正在编译的原始函数名（供逃逸及形状查询使用）
+    const EvalTypeSnapshot *cur_spec_snapshot_ = nullptr;           // 当前正在特化编译函数的局部类型快照
 
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
     int cur_tab_ = 0;                  // 当前 C 代码生成器所处的缩进级别深度
 
-    // 变量名 → shape_id 映射（由 InferResult 驱动，替代 table_spec_types_）
-    // shape_id >= 0 表示变量被推断为特定形状的 table（可走 heap spec 或 stack struct 路径）
-    // shape_id == -1 表示无已知 shape
-    std::unordered_map<std::string, int> var_shape_ids_;
     // table 特化：变量名/临时变量名 → spec 结构体类型名
     std::unordered_map<std::string, std::string> table_spec_types_;
     // 全局/静态特化：模块静态 Table 变量名 → spec 结构体类型名

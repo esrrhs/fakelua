@@ -32,8 +32,8 @@ static std::string InferGetCCode(const std::string &lua_file) {
     cfg.record_c_code = true;
     cfg.disable_jit[JIT_TCC] = true;
     cfg.disable_jit[JIT_GCC] = true;
-    const auto result = CompileFile(s, lua_file, cfg);
-    const std::string code = result.GetRecordedCCode();
+    CompileFile(s, lua_file, cfg);
+    const auto code = GetLastRecordedCCode(s);
     FakeluaDeleteState(s);
     // Print so CI logs can be inspected even without a debugger.
     std::cout << "\n=== C code for " << lua_file << " ===\n" << code << "=== end ===\n";
@@ -42,7 +42,7 @@ static std::string InferGetCCode(const std::string &lua_file) {
 
 // Full inference success: all ints, constant for-loop bounds give T_INT loop var.
 // sum(1..10) = 55; i and sum must stay T_INT throughout.
-TEST(DISABLED_infer, test_infer_typed_int_for) {
+TEST(infer, test_infer_typed_int_for) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_for.lua");
     // Both the accumulator and the loop variable must be declared as int64_t.
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
@@ -61,7 +61,7 @@ TEST(DISABLED_infer, test_infer_typed_int_for) {
 }
 
 // Full inference success: float literal propagates as T_FLOAT through addition.
-TEST(DISABLED_infer, test_infer_typed_float_local) {
+TEST(infer, test_infer_typed_float_local) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_local.lua");
     // Both locals must be typed as double.
     ASSERT_NE(code.find("double x = 1;"), std::string::npos);
@@ -79,7 +79,7 @@ TEST(DISABLED_infer, test_infer_typed_float_local) {
 }
 
 // Full inference success: INT + FLOAT promotes the result to T_FLOAT.
-TEST(DISABLED_infer, test_infer_int_float_promotion) {
+TEST(infer, test_infer_int_float_promotion) {
     const auto code = InferGetCCode("./infer/test_infer_int_float_promotion.lua");
     // a is T_INT, b is T_FLOAT (promoted from int + float literal).
     ASSERT_NE(code.find("int64_t a = 3;"), std::string::npos);
@@ -97,7 +97,7 @@ TEST(DISABLED_infer, test_infer_int_float_promotion) {
 
 // Mid-way degradation: a function-call result is T_DYNAMIC, so the binop
 // and the local variable degrade to T_DYNAMIC and use CVar arithmetic.
-TEST(DISABLED_infer, test_infer_degrade_func_call) {
+TEST(infer, test_infer_degrade_func_call) {
     const auto code = InferGetCCode("./infer/test_infer_degrade_func_call.lua");
     // x must be CVar (helper() is T_DYNAMIC).
     ASSERT_NE(code.find("CVar x = "), std::string::npos);
@@ -115,7 +115,7 @@ TEST(DISABLED_infer, test_infer_degrade_func_call) {
 // Mid-way degradation: a parameter-bound for loop makes i T_DYNAMIC, which
 // causes sum to degrade from T_INT to T_DYNAMIC during the loop body.
 // The compiler must still produce correct CVar arithmetic for the fallback path.
-TEST(DISABLED_infer, test_infer_degrade_param) {
+TEST(infer, test_infer_degrade_param) {
     const auto code = InferGetCCode("./infer/test_infer_degrade_param.lua");
     // With snapshot-based specialization n becomes a math param (int64_t / double).
     // int specialization: sum and i are fully typed as int64_t.
@@ -136,7 +136,7 @@ TEST(DISABLED_infer, test_infer_degrade_param) {
 
 // Stable inference: reassigning an int variable with another int expression
 // keeps MergeType(T_INT, T_INT) == T_INT; the declaration stays int64_t.
-TEST(DISABLED_infer, test_infer_reassign_stable) {
+TEST(infer, test_infer_reassign_stable) {
     const auto code = InferGetCCode("./infer/test_infer_reassign_stable.lua");
     // x must stay int64_t throughout.
     ASSERT_NE(code.find("int64_t x = 1;"), std::string::npos);
@@ -154,7 +154,7 @@ TEST(DISABLED_infer, test_infer_reassign_stable) {
 // ForLoop with explicit integer step: begin=1, end=9, step=2 are all T_INT,
 // so the loop variable stays T_INT and the typed int64_t for-loop path is used.
 // Exercises the  !ExpStep() || ExpStep()->EvalType() == T_INT  branch.
-TEST(DISABLED_infer, test_infer_for_step_int) {
+TEST(infer, test_infer_for_step_int) {
     const auto code = InferGetCCode("./infer/test_infer_for_step_int.lua");
     // Typed int64_t for-loop path.
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
@@ -175,7 +175,7 @@ TEST(DISABLED_infer, test_infer_for_step_int) {
 // specializations.  int specialization: all loop vars are int64_t, sum is int64_t.
 // float specialization: loop ctrl vars become double, sum degrades to CVar because
 // MergeType(T_INT, T_FLOAT) = T_DYNAMIC.
-TEST(DISABLED_infer, test_infer_for_step_dynamic) {
+TEST(infer, test_infer_for_step_dynamic) {
     const auto code = InferGetCCode("./infer/test_infer_for_step_dynamic.lua");
     // int specialization: all typed.
     ASSERT_NE(code.find("int64_t sum = 0"), std::string::npos);
@@ -196,7 +196,7 @@ TEST(DISABLED_infer, test_infer_for_step_dynamic) {
 // MergeType(T_INT, T_FLOAT) = T_DYNAMIC: x starts T_INT then is reassigned a
 // float literal, which hits the different-non-unknown-types branch and degrades
 // x to T_DYNAMIC.  The post-pass updates the declaration.
-TEST(DISABLED_infer, test_infer_reassign_int_to_float) {
+TEST(infer, test_infer_reassign_int_to_float) {
     const auto code = InferGetCCode("./infer/test_infer_reassign_int_to_float.lua");
     // x becomes double because int→float merges to float.
     ASSERT_NE(code.find("double x = 1;"), std::string::npos);
@@ -218,7 +218,7 @@ TEST(DISABLED_infer, test_infer_reassign_int_to_float) {
 // - test_0(int64_t n): x = n keeps x as T_INT (MergeType(T_INT,T_INT)=T_INT) → int64_t x
 // - test_1(double n): x = n makes x T_DYNAMIC (MergeType(T_INT,T_FLOAT)=T_DYNAMIC) → CVar x
 // The if condition n > 0 uses TryCompileNativeBoolExpr → native C comparison in both specs.
-TEST(DISABLED_infer, test_infer_if_scope_degrade) {
+TEST(infer, test_infer_if_scope_degrade) {
     const auto code = InferGetCCode("./infer/test_infer_if_scope_degrade.lua");
     // Both specializations must exist.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -247,7 +247,7 @@ TEST(DISABLED_infer, test_infer_if_scope_degrade) {
 // With numeric specialization, n is now a typed math param:
 // - test_0(int64_t n): x = n keeps x as T_INT → int64_t x (no degradation in int path)
 // - test_1(double n): x = n makes x T_FLOAT, merged with T_INT initial → T_DYNAMIC → CVar x
-TEST(DISABLED_infer, test_infer_while_scope_degrade) {
+TEST(infer, test_infer_while_scope_degrade) {
     const auto code = InferGetCCode("./infer/test_infer_while_scope_degrade.lua");
     // In the float specialization (test_1), x becomes double.
     ASSERT_NE(code.find("double x = 5"), std::string::npos);
@@ -267,7 +267,7 @@ TEST(DISABLED_infer, test_infer_while_scope_degrade) {
 // Type pollution: a is initially T_INT but later mutated to "hello" (T_DYNAMIC).
 // b = a + 5 captures a's current value (10) at declaration time; the compiler
 // must still emit valid C even though a becomes a CVar.  b == 15.
-TEST(DISABLED_infer, test_infer_type_pollution) {
+TEST(infer, test_infer_type_pollution) {
     const auto code = InferGetCCode("./infer/test_infer_type_pollution.lua");
     // a is mutated to a string later, so it must be CVar.
     ASSERT_NE(code.find("CVar a = "), std::string::npos);
@@ -286,7 +286,7 @@ TEST(DISABLED_infer, test_infer_type_pollution) {
 // Bottom-up / mixed-type: pure numeric expression using *, - and // are all
 // typed now: (10+20)*3.14-(50//2) → T_FLOAT.  dynamic_res uses unknown_func()
 // which is T_DYNAMIC.  dynamic_res = 100 + unknown_func() * 2 = 110.
-TEST(DISABLED_infer, test_infer_bottom_up) {
+TEST(infer, test_infer_bottom_up) {
     const auto code = InferGetCCode("./infer/test_infer_bottom_up.lua");
     // math_res is now T_FLOAT (all arithmetic ops are typed).
     ASSERT_NE(code.find("double math_res = "), std::string::npos);
@@ -307,7 +307,7 @@ TEST(DISABLED_infer, test_infer_bottom_up) {
 // do...end shadowing: inner `local val = "inner"` uses the `local` keyword and
 // therefore creates a brand-new variable scoped to the do...end block; it does
 // NOT mutate the outer val = 100.  After the block res = val + 1 = 101.
-TEST(DISABLED_infer, test_infer_shadowing) {
+TEST(infer, test_infer_shadowing) {
     const auto code = InferGetCCode("./infer/test_infer_shadowing.lua");
     // Outer val and res must be int64_t (int literal, never mutated).
     ASSERT_NE(code.find("int64_t val = 100;"), std::string::npos);
@@ -326,7 +326,7 @@ TEST(DISABLED_infer, test_infer_shadowing) {
 // Cross-scope mutation: `state = "error"` (no local!) inside an if block deep
 // inside a for loop mutates the outer state, degrading it from T_INT to
 // T_DYNAMIC.  After the loop state holds the string "error".
-TEST(DISABLED_infer, test_infer_mutation) {
+TEST(infer, test_infer_mutation) {
     const auto code = InferGetCCode("./infer/test_infer_mutation.lua");
     // state must be CVar (mutated to a string inside the for loop).
     ASSERT_NE(code.find("CVar state = "), std::string::npos);
@@ -348,7 +348,7 @@ TEST(DISABLED_infer, test_infer_mutation) {
 // for  sum = sum + i  in the then branch.  Without the fix CGen emits
 //   CVar sum = (int64_t expression)  -- a C type error.
 // With the fix typed_native_vars_ is consulted instead of EvalType.
-TEST(DISABLED_infer, test_infer_assign_degraded_var) {
+TEST(infer, test_infer_assign_degraded_var) {
     const auto code = InferGetCCode("./infer/test_infer_assign_degraded_var.lua");
     // sum must be CVar (degraded by the "done" assignment).
     ASSERT_NE(code.find("CVar sum = "), std::string::npos);
@@ -371,7 +371,7 @@ TEST(DISABLED_infer, test_infer_assign_degraded_var) {
 // iterations where the variable already holds a string, the old code emitted
 //   return (CVar){VAR_INT, x.data_.i}  -- returning a garbage integer.
 // With the fix CompileExp is always used so the CVar is returned directly.
-TEST(DISABLED_infer, test_infer_return_stale_type) {
+TEST(infer, test_infer_return_stale_type) {
     const auto code = InferGetCCode("./infer/test_infer_return_stale_type.lua");
     // x must be CVar.
     ASSERT_NE(code.find("CVar x = "), std::string::npos);
@@ -393,7 +393,7 @@ TEST(DISABLED_infer, test_infer_return_stale_type) {
 // InferPrefixExp "exp" branch: (a + 2) is a PrefixExp of type "exp" inside an
 // Exp of type "prefixexp".  InferPrefixExp delegates to InferNode on the inner
 // expression, yielding T_INT + T_INT = T_INT, so b is specialised as int64_t.
-TEST(DISABLED_infer, test_infer_paren_exp) {
+TEST(infer, test_infer_paren_exp) {
     const auto code = InferGetCCode("./infer/test_infer_paren_exp.lua");
     // Both a and b must be int64_t.
     ASSERT_NE(code.find("int64_t a = 3;"), std::string::npos);
@@ -411,7 +411,7 @@ TEST(DISABLED_infer, test_infer_paren_exp) {
 
 // For-loop cursor/outer local same name (case1): outer a degrades to CVar after
 // loop while cursor a remains native int in loop body.
-TEST(DISABLED_infer, test_infer_for_shadow_case1) {
+TEST(infer, test_infer_for_shadow_case1) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case1.lua");
     ASSERT_NE(code.find("CVar a = "), std::string::npos);// outer a
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
@@ -427,7 +427,7 @@ TEST(DISABLED_infer, test_infer_for_shadow_case1) {
 
 // For-loop cursor assigned string in body (case2): cursor must be CVar even
 // when bounds are integer-specialized, and outer a remains independently mutable.
-TEST(DISABLED_infer, test_infer_for_shadow_case2) {
+TEST(infer, test_infer_for_shadow_case2) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case2.lua");
     ASSERT_NE(code.find("CVar a = "), std::string::npos);
     ASSERT_EQ(code.find("int64_t a = flua_for_ctrl_"), std::string::npos);
@@ -442,7 +442,7 @@ TEST(DISABLED_infer, test_infer_for_shadow_case2) {
 
 // For-loop cursor/outer local same name (case3): outer numeric a must stay
 // typed after loop and support native numeric assignment.
-TEST(DISABLED_infer, test_infer_for_shadow_case3) {
+TEST(infer, test_infer_for_shadow_case3) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case3.lua");
     ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos);            // outer a
     ASSERT_NE(code.find("int64_t a = flua_for_ctrl_"), std::string::npos);// cursor a
@@ -458,7 +458,7 @@ TEST(DISABLED_infer, test_infer_for_shadow_case3) {
 
 // For-loop cursor assigned string in body (case4): inner cursor a is CVar while
 // outer a remains int64_t and is still used natively after loop.
-TEST(DISABLED_infer, test_infer_for_shadow_case4) {
+TEST(infer, test_infer_for_shadow_case4) {
     const auto code = InferGetCCode("./infer/test_infer_for_shadow_case4.lua");
     ASSERT_NE(code.find("int64_t a = 2;"), std::string::npos);                                                       // outer a
     ASSERT_NE(code.find("CVar a = (CVar){.type_ = VAR_INT, .data_.i = (int64_t)(flua_for_ctrl_"), std::string::npos);// cursor a
@@ -474,7 +474,7 @@ TEST(DISABLED_infer, test_infer_for_shadow_case4) {
 
 // Extra uncovered scenario: inner typed local `a` must not leak and pollute the
 // outer dynamic `a` declaration/assignments after leaving do...end scope.
-TEST(DISABLED_infer, test_infer_do_shadow_typed_over_dynamic) {
+TEST(infer, test_infer_do_shadow_typed_over_dynamic) {
     const auto code = InferGetCCode("./infer/test_infer_do_shadow_typed_over_dynamic.lua");
     ASSERT_NE(code.find("CVar a = "), std::string::npos);     // outer a
     ASSERT_NE(code.find("int64_t a = 1;"), std::string::npos);// inner a
@@ -488,7 +488,7 @@ TEST(DISABLED_infer, test_infer_do_shadow_typed_over_dynamic) {
 }
 
 // INT - INT = INT specialization: x=10, x=x-3 stays T_INT.
-TEST(DISABLED_infer, test_infer_typed_int_minus) {
+TEST(infer, test_infer_typed_int_minus) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_minus.lua");
     ASSERT_NE(code.find("int64_t x = 10;"), std::string::npos);
     ASSERT_NE(code.find("x = ((x) - (3));"), std::string::npos);
@@ -503,7 +503,7 @@ TEST(DISABLED_infer, test_infer_typed_int_minus) {
 }
 
 // INT * INT = INT specialization: x=3, y=x*4 stays T_INT.
-TEST(DISABLED_infer, test_infer_typed_int_star) {
+TEST(infer, test_infer_typed_int_star) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_star.lua");
     ASSERT_NE(code.find("int64_t x = 3;"), std::string::npos);
     ASSERT_NE(code.find("int64_t y = ((x) * (4));"), std::string::npos);
@@ -519,7 +519,7 @@ TEST(DISABLED_infer, test_infer_typed_int_star) {
 }
 
 // INT - FLOAT promotes to T_FLOAT: x=3 (T_INT), y=x-1.5 → T_FLOAT.
-TEST(DISABLED_infer, test_infer_typed_float_minus) {
+TEST(infer, test_infer_typed_float_minus) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_minus.lua");
     ASSERT_NE(code.find("int64_t x = 3;"), std::string::npos);
     ASSERT_NE(code.find("double y = ((x) - (1.5));"), std::string::npos);
@@ -535,7 +535,7 @@ TEST(DISABLED_infer, test_infer_typed_float_minus) {
 }
 
 // FLOAT * INT promotes to T_FLOAT: x=2.5 (T_FLOAT), y=x*2 → T_FLOAT.
-TEST(DISABLED_infer, test_infer_typed_float_star) {
+TEST(infer, test_infer_typed_float_star) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_star.lua");
     ASSERT_NE(code.find("double x = 2.5;"), std::string::npos);
     ASSERT_NE(code.find("double y = ((x) * (2));"), std::string::npos);
@@ -552,7 +552,7 @@ TEST(DISABLED_infer, test_infer_typed_float_star) {
 
 // For-loop with STAR: sum = sum + i*2 uses PLUS and STAR, both T_INT.
 // sum(2*(1..5)) = 30.
-TEST(DISABLED_infer, test_infer_typed_int_for_star) {
+TEST(infer, test_infer_typed_int_for_star) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_for_star.lua");
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
     ASSERT_NE(code.find("int64_t i = flua_for_ctrl_"), std::string::npos);
@@ -568,7 +568,7 @@ TEST(DISABLED_infer, test_infer_typed_int_for_star) {
 }
 
 // SLASH always produces T_FLOAT: 7/2 = 3.5.
-TEST(DISABLED_infer, test_infer_typed_float_slash) {
+TEST(infer, test_infer_typed_float_slash) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_slash.lua");
     ASSERT_NE(code.find("double x = "), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
@@ -582,7 +582,7 @@ TEST(DISABLED_infer, test_infer_typed_float_slash) {
 }
 
 // POW always produces T_FLOAT: 2^10 = 1024.0.
-TEST(DISABLED_infer, test_infer_typed_float_pow) {
+TEST(infer, test_infer_typed_float_pow) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_pow.lua");
     ASSERT_NE(code.find("double x = "), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
@@ -596,7 +596,7 @@ TEST(DISABLED_infer, test_infer_typed_float_pow) {
 }
 
 // INT // INT = T_INT: 7//2 = 3 (floor division).
-TEST(DISABLED_infer, test_infer_typed_int_double_slash) {
+TEST(infer, test_infer_typed_int_double_slash) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_double_slash.lua");
     ASSERT_NE(code.find("int64_t x = "), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
@@ -612,7 +612,7 @@ TEST(DISABLED_infer, test_infer_typed_int_double_slash) {
 }
 
 // INT % INT = T_INT: 7%3 = 1 (modulo).
-TEST(DISABLED_infer, test_infer_typed_int_mod) {
+TEST(infer, test_infer_typed_int_mod) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_mod.lua");
     ASSERT_NE(code.find("int64_t x = "), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
@@ -628,7 +628,7 @@ TEST(DISABLED_infer, test_infer_typed_int_mod) {
 }
 
 // FLOAT // INT = T_FLOAT: 7.0//2 = 3.0 (floor division with float).
-TEST(DISABLED_infer, test_infer_typed_float_double_slash) {
+TEST(infer, test_infer_typed_float_double_slash) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_double_slash.lua");
     ASSERT_NE(code.find("double x = "), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
@@ -642,7 +642,7 @@ TEST(DISABLED_infer, test_infer_typed_float_double_slash) {
 }
 
 // FLOAT % INT = T_FLOAT: 7.5%2 = 1.5 (modulo with float).
-TEST(DISABLED_infer, test_infer_typed_float_mod) {
+TEST(infer, test_infer_typed_float_mod) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_mod.lua");
     ASSERT_NE(code.find("double x = "), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
@@ -656,7 +656,7 @@ TEST(DISABLED_infer, test_infer_typed_float_mod) {
 }
 
 // Negative floor division with Lua semantics: -7//2 = -4 (NOT -3).
-TEST(DISABLED_infer, test_infer_typed_int_negative_floor_div) {
+TEST(infer, test_infer_typed_int_negative_floor_div) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_negative_floor_div.lua");
     ASSERT_NE(code.find("int64_t x = "), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
@@ -670,7 +670,7 @@ TEST(DISABLED_infer, test_infer_typed_int_negative_floor_div) {
 }
 
 // Negative modulo with Lua semantics: -7%2 = 1 (NOT -1).
-TEST(DISABLED_infer, test_infer_typed_int_negative_mod) {
+TEST(infer, test_infer_typed_int_negative_mod) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_negative_mod.lua");
     ASSERT_NE(code.find("int64_t x = "), std::string::npos);
     ASSERT_EQ(code.find("CVar x"), std::string::npos);
@@ -688,7 +688,7 @@ TEST(DISABLED_infer, test_infer_typed_int_negative_mod) {
 // fib(n) has one math param (n).  The compiler must generate fib_0 (int) and
 // fib_1 (double) specializations, and the recursive calls inside fib_0 must
 // be direct calls to fib_0 (not back through the entry dispatcher).
-TEST(DISABLED_infer, test_spec_fib) {
+TEST(infer, test_spec_fib) {
     const auto code = InferGetCCode("./infer/test_spec_fib.lua");
     // Entry dispatcher must exist (original CVar signature).
     ASSERT_NE(code.find("CVar fib(CVar n)"), std::string::npos);
@@ -722,7 +722,7 @@ TEST(DISABLED_infer, test_spec_fib) {
 
 // test(a,b,c,d,e) has two math params: b (idx 1) and e (idx 4).
 // The compiler must generate 4 specializations (b/e each int or float).
-TEST(DISABLED_infer, test_spec_multi_param) {
+TEST(infer, test_spec_multi_param) {
     const auto code = InferGetCCode("./infer/test_spec_multi_param.lua");
     // All 4 specializations should be declared.
     ASSERT_NE(code.find("test_0_0"), std::string::npos);
@@ -747,7 +747,7 @@ TEST(DISABLED_infer, test_spec_multi_param) {
 // test(n): n is accessed through a local alias x = n, and x * x is the
 // arithmetic expression.  The analyzer must trace n → x and mark n as a
 // math param.
-TEST(DISABLED_infer, test_spec_wrapper_var) {
+TEST(infer, test_spec_wrapper_var) {
     const auto code = InferGetCCode("./infer/test_spec_wrapper_var.lua");
     // Specializations must be generated.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -769,7 +769,7 @@ TEST(DISABLED_infer, test_spec_wrapper_var) {
 // ────────────────────────────────────────────────────────────────────────────
 
 // INT & INT = T_INT: 10 & 3 = 2.
-TEST(DISABLED_infer, test_infer_typed_int_bitand) {
+TEST(infer, test_infer_typed_int_bitand) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_bitand.lua");
     ASSERT_NE(code.find("int64_t x = 10;"), std::string::npos);
     ASSERT_NE(code.find("int64_t y = (((int64_t)(x)) & ((int64_t)(3)));"), std::string::npos);
@@ -786,7 +786,7 @@ TEST(DISABLED_infer, test_infer_typed_int_bitand) {
     });
 }
 
-TEST(DISABLED_infer, test_infer_bitand_integer_repr_float) {
+TEST(infer, test_infer_bitand_integer_repr_float) {
     const auto code = InferGetCCode("./infer/test_infer_bitand_integer_repr_float.lua");
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
     ASSERT_NE(code.find("FlToIntChecked("), std::string::npos);
@@ -802,7 +802,7 @@ TEST(DISABLED_infer, test_infer_bitand_integer_repr_float) {
 }
 
 // INT | INT = T_INT: 12 | 3 = 15.
-TEST(DISABLED_infer, test_infer_typed_int_bitor) {
+TEST(infer, test_infer_typed_int_bitor) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_bitor.lua");
     ASSERT_NE(code.find("int64_t x = 12;"), std::string::npos);
     ASSERT_NE(code.find("int64_t y = (((int64_t)(x)) | ((int64_t)(3)));"), std::string::npos);
@@ -819,7 +819,7 @@ TEST(DISABLED_infer, test_infer_typed_int_bitor) {
 }
 
 // INT ~ INT = T_INT (XOR): 5 ~ 3 = 6.
-TEST(DISABLED_infer, test_infer_typed_int_bitxor) {
+TEST(infer, test_infer_typed_int_bitxor) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_bitxor.lua");
     ASSERT_NE(code.find("int64_t x = 5;"), std::string::npos);
     ASSERT_NE(code.find("int64_t y = (((int64_t)(x)) ^ ((int64_t)(3)));"), std::string::npos);
@@ -836,7 +836,7 @@ TEST(DISABLED_infer, test_infer_typed_int_bitxor) {
 }
 
 // INT << INT = T_INT: 1 << 4 = 16.
-TEST(DISABLED_infer, test_infer_typed_int_leftshift) {
+TEST(infer, test_infer_typed_int_leftshift) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_leftshift.lua");
     ASSERT_NE(code.find("int64_t x = 1;"), std::string::npos);
     // CompileNumericExp now uses FlLShiftInt for Lua-correct clamping semantics.
@@ -855,7 +855,7 @@ TEST(DISABLED_infer, test_infer_typed_int_leftshift) {
 }
 
 // INT >> INT = T_INT: 256 >> 3 = 32.
-TEST(DISABLED_infer, test_infer_typed_int_rightshift) {
+TEST(infer, test_infer_typed_int_rightshift) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_rightshift.lua");
     ASSERT_NE(code.find("int64_t x = 256;"), std::string::npos);
     // CompileNumericExp now uses FlRShiftInt for Lua-correct clamping semantics.
@@ -878,7 +878,7 @@ TEST(DISABLED_infer, test_infer_typed_int_rightshift) {
 // ────────────────────────────────────────────────────────────────────────────
 
 // Unary minus on an integer variable yields T_INT → int64_t.
-TEST(DISABLED_infer, test_infer_typed_int_unary_minus) {
+TEST(infer, test_infer_typed_int_unary_minus) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_unary_minus.lua");
     ASSERT_NE(code.find("int64_t n = 5;"), std::string::npos);
     ASSERT_NE(code.find("int64_t x = "), std::string::npos);
@@ -896,7 +896,7 @@ TEST(DISABLED_infer, test_infer_typed_int_unary_minus) {
 }
 
 // Unary minus on a float variable yields T_FLOAT → double.
-TEST(DISABLED_infer, test_infer_typed_float_unary_minus) {
+TEST(infer, test_infer_typed_float_unary_minus) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_unary_minus.lua");
     ASSERT_NE(code.find("double x = "), std::string::npos);
     ASSERT_NE(code.find("(-(n))"), std::string::npos);
@@ -912,7 +912,7 @@ TEST(DISABLED_infer, test_infer_typed_float_unary_minus) {
 }
 
 // Bitwise NOT on an integer literal yields T_INT → int64_t. ~7 = -8.
-TEST(DISABLED_infer, test_infer_typed_int_bitnot) {
+TEST(infer, test_infer_typed_int_bitnot) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_bitnot.lua");
     ASSERT_NE(code.find("int64_t x = "), std::string::npos);
     ASSERT_NE(code.find("(~((int64_t)(7)))"), std::string::npos);
@@ -929,7 +929,7 @@ TEST(DISABLED_infer, test_infer_typed_int_bitnot) {
 
 // Unary minus on integer variable for-loop bounds enables the T_INT fast path.
 // bound = 5; for i = -bound, bound: sum = -5+...+5 = 0.
-TEST(DISABLED_infer, test_infer_unary_minus_for_bound) {
+TEST(infer, test_infer_unary_minus_for_bound) {
     const auto code = InferGetCCode("./infer/test_infer_unary_minus_for_bound.lua");
     ASSERT_NE(code.find("int64_t bound = 5;"), std::string::npos);
     ASSERT_NE(code.find("int64_t sum = 0;"), std::string::npos);
@@ -956,7 +956,7 @@ TEST(DISABLED_infer, test_infer_unary_minus_for_bound) {
 // InferArgTypeForSpec handles BITNOT: when the operand is T_INT the result is
 // T_INT, so (~n) + 1 uses the native C arithmetic path in the int specialization.
 // For n=5: ~5 = -6 (int64_t bitwise NOT), -6 + 1 = -5.
-TEST(DISABLED_infer, test_spec_bitnot_param) {
+TEST(infer, test_spec_bitnot_param) {
     const auto code = InferGetCCode("./infer/test_spec_bitnot_param.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -979,7 +979,7 @@ TEST(DISABLED_infer, test_spec_bitnot_param) {
 
 // All-float bounds: for i = 1.0, 3.0 → double fast path.
 // sum = 1.0 + 2.0 + 3.0 = 6.0.
-TEST(DISABLED_infer, test_infer_typed_float_for) {
+TEST(infer, test_infer_typed_float_for) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_for.lua");
     ASSERT_NE(code.find("double sum = "), std::string::npos);
     ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
@@ -999,7 +999,7 @@ TEST(DISABLED_infer, test_infer_typed_float_for) {
 
 // Float bounds with explicit float step: for i = 0.0, 1.0, 0.5.
 // sum = 0.0 + 0.5 + 1.0 = 1.5.
-TEST(DISABLED_infer, test_infer_typed_float_for_step) {
+TEST(infer, test_infer_typed_float_for_step) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_for_step.lua");
     ASSERT_NE(code.find("double sum = "), std::string::npos);
     ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
@@ -1018,7 +1018,7 @@ TEST(DISABLED_infer, test_infer_typed_float_for_step) {
 
 // Mixed int/float bounds (begin=int, end=float): for i = 1, 5.0 → double fast path.
 // sum = 1.0+2.0+3.0+4.0+5.0 = 15.0.
-TEST(DISABLED_infer, test_infer_typed_float_for_mixed) {
+TEST(infer, test_infer_typed_float_for_mixed) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_for_mixed.lua");
     ASSERT_NE(code.find("double sum = "), std::string::npos);
     ASSERT_NE(code.find("double flua_for_ctrl_"), std::string::npos);
@@ -1035,7 +1035,7 @@ TEST(DISABLED_infer, test_infer_typed_float_for_mixed) {
     });
 }
 
-TEST(DISABLED_infer, test_infer_typed_int_for_neg_step_1) {
+TEST(infer, test_infer_typed_int_for_neg_step_1) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_for_neg_step_1.lua");
     ASSERT_NE(code.find("int64_t sum = "), std::string::npos);
     ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
@@ -1050,7 +1050,7 @@ TEST(DISABLED_infer, test_infer_typed_int_for_neg_step_1) {
     });
 }
 
-TEST(DISABLED_infer, test_infer_typed_int_for_neg_step_2) {
+TEST(infer, test_infer_typed_int_for_neg_step_2) {
     const auto code = InferGetCCode("./infer/test_infer_typed_int_for_neg_step_2.lua");
     ASSERT_NE(code.find("int64_t sum = "), std::string::npos);
     ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
@@ -1065,7 +1065,7 @@ TEST(DISABLED_infer, test_infer_typed_int_for_neg_step_2) {
     });
 }
 
-TEST(DISABLED_infer, test_infer_typed_float_for_neg_step_1) {
+TEST(infer, test_infer_typed_float_for_neg_step_1) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_for_neg_step_1.lua");
     ASSERT_NE(code.find("double sum = "), std::string::npos);
     ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
@@ -1080,7 +1080,7 @@ TEST(DISABLED_infer, test_infer_typed_float_for_neg_step_1) {
     });
 }
 
-TEST(DISABLED_infer, test_infer_typed_float_for_neg_step_2) {
+TEST(infer, test_infer_typed_float_for_neg_step_2) {
     const auto code = InferGetCCode("./infer/test_infer_typed_float_for_neg_step_2.lua");
     ASSERT_NE(code.find("double sum = "), std::string::npos);
     ASSERT_NE(code.find("for (; flua_for_ctrl_"), std::string::npos);
@@ -1097,7 +1097,7 @@ TEST(DISABLED_infer, test_infer_typed_float_for_neg_step_2) {
 
 // CollectReassignedVars must descend into elseif blocks (type_inferencer.cpp lines 553-555).
 // n is a math param; the function body has an if/elseif structure.
-TEST(DISABLED_infer, test_spec_elseif_param) {
+TEST(infer, test_spec_elseif_param) {
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_elseif_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1108,7 +1108,7 @@ TEST(DISABLED_infer, test_spec_elseif_param) {
 
 // CollectReassignedVars must descend into ForIn blocks (type_inferencer.cpp lines 574-578).
 // n is a math param; the function body has a for-in loop that reassigns sum.
-TEST(DISABLED_infer, test_spec_forin_param) {
+TEST(infer, test_spec_forin_param) {
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_forin_param.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -1117,7 +1117,7 @@ TEST(DISABLED_infer, test_spec_forin_param) {
     });
 }
 
-TEST(DISABLED_infer, test_infer_forin_scope_injection) {
+TEST(infer, test_infer_forin_scope_injection) {
     const auto code = InferGetCCode("./infer/test_infer_forin_scope_injection.lua");
     ASSERT_NE(code.find("int64_t k = 100;"), std::string::npos);
 
@@ -1136,7 +1136,7 @@ TEST(DISABLED_infer, test_infer_forin_scope_injection) {
 // GCD-style: both a and b are reassigned inside the while loop body
 // (a = tmp; b = a % b). The compiler must still mark them as math params
 // and generate int/float specializations.
-TEST(DISABLED_infer, test_spec_reassign_gcd) {
+TEST(infer, test_spec_reassign_gcd) {
     const auto code = InferGetCCode("./infer/test_spec_reassign_gcd.lua");
     // With two math params the suffixes are _0_0, _1_0, _0_1, _1_1.
     ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
@@ -1164,7 +1164,7 @@ TEST(DISABLED_infer, test_spec_reassign_gcd) {
 
 // PowMod-style: base and exp are both reassigned inside the while loop body.
 // The compiler must still specialize them as math params.
-TEST(DISABLED_infer, test_spec_reassign_powmod) {
+TEST(infer, test_spec_reassign_powmod) {
     const auto code = InferGetCCode("./infer/test_spec_reassign_powmod.lua");
     // With three math params the all-int suffix is _0_0_0.
     ASSERT_NE(code.find("test_0_0_0(int64_t base, int64_t exp, int64_t mod)"), std::string::npos);
@@ -1194,7 +1194,7 @@ TEST(DISABLED_infer, test_spec_reassign_powmod) {
 
 // if condition with T_INT operands: TryCompileNativeBoolExpr must emit
 // if ((x) > (5)) directly, without IsTrue or a bool temp variable.
-TEST(DISABLED_infer, test_native_bool_if) {
+TEST(infer, test_native_bool_if) {
     const auto code = InferGetCCode("./infer/test_native_bool_if.lua");
     // int specialization: condition must be a direct C comparison.
     ASSERT_NE(code.find("((x) > (5))"), std::string::npos);
@@ -1215,7 +1215,7 @@ TEST(DISABLED_infer, test_native_bool_if) {
 
 // while condition with T_INT operands: TryCompileNativeBoolExpr must emit
 // while ((x) > (0)) directly, without the fallback while(1)+IsTrue pattern.
-TEST(DISABLED_infer, test_native_bool_while) {
+TEST(infer, test_native_bool_while) {
     const auto code = InferGetCCode("./infer/test_native_bool_while.lua");
     // int specialization: direct C comparison in while.
     ASSERT_NE(code.find("while ((x) > (0))"), std::string::npos);
@@ -1236,7 +1236,7 @@ TEST(DISABLED_infer, test_native_bool_while) {
 
 // repeat..until condition with T_INT operands: TryCompileNativeBoolExpr must emit
 // if ((i) > (...)) break; directly, without IsTrue or a bool temp variable.
-TEST(DISABLED_infer, test_native_bool_repeat) {
+TEST(infer, test_native_bool_repeat) {
     const auto code = InferGetCCode("./infer/test_native_bool_repeat.lua");
     // int specialization: direct C comparison as the repeat..until exit check.
     ASSERT_NE(code.find("(i) > ("), std::string::npos);
@@ -1257,7 +1257,7 @@ TEST(DISABLED_infer, test_native_bool_repeat) {
 
 // elseif condition with T_INT operands: both the if and elseif conditions must
 // use direct C comparisons (no IsTrue, no flua_ibt_ temp bools).
-TEST(DISABLED_infer, test_native_bool_elseif) {
+TEST(infer, test_native_bool_elseif) {
     const auto code = InferGetCCode("./infer/test_native_bool_elseif.lua");
     // Both the if and the elseif must produce native comparisons.
     ASSERT_NE(code.find("((x) < (0))"), std::string::npos);
@@ -1280,7 +1280,7 @@ TEST(DISABLED_infer, test_native_bool_elseif) {
 
 // Float comparison in if: x is T_FLOAT (after n + 0.0) and the comparison
 // x >= 0.0 must also produce a direct C comparison (not IsTrue).
-TEST(DISABLED_infer, test_native_bool_float) {
+TEST(infer, test_native_bool_float) {
     const auto code = InferGetCCode("./infer/test_native_bool_float.lua");
     // float specialization: direct C comparison with >= and float literal.
     ASSERT_NE(code.find("((x) >= (0)"), std::string::npos);
@@ -1301,7 +1301,7 @@ TEST(DISABLED_infer, test_native_bool_float) {
 
 // AND of two native comparisons in if: (x == 1) and (y > 0) must produce
 // a direct C &&-expression without IsTrue or temp bool variables.
-TEST(DISABLED_infer, test_native_bool_and) {
+TEST(infer, test_native_bool_and) {
     const auto code = InferGetCCode("./infer/test_native_bool_and.lua");
     // Both sub-comparisons and the && combiner must appear in the generated code.
     ASSERT_NE(code.find("((x) == (1))"), std::string::npos);
@@ -1325,7 +1325,7 @@ TEST(DISABLED_infer, test_native_bool_and) {
 
 // OR of two native comparisons in if: (x < 0) or (x > 10) must produce
 // a direct C ||-expression without IsTrue or temp bool variables.
-TEST(DISABLED_infer, test_native_bool_or) {
+TEST(infer, test_native_bool_or) {
     const auto code = InferGetCCode("./infer/test_native_bool_or.lua");
     // Both sub-comparisons and the || combiner must appear in the generated code.
     ASSERT_NE(code.find("((x) < (0))"), std::string::npos);
@@ -1349,7 +1349,7 @@ TEST(DISABLED_infer, test_native_bool_or) {
 
 // NOT of a native comparison in if: not (x > 5) must produce !(...)
 // without IsTrue or temp bool variables.
-TEST(DISABLED_infer, test_native_bool_not) {
+TEST(infer, test_native_bool_not) {
     const auto code = InferGetCCode("./infer/test_native_bool_not.lua");
     // The negated comparison must appear in the generated code.
     ASSERT_NE(code.find("!(("), std::string::npos);
@@ -1370,7 +1370,7 @@ TEST(DISABLED_infer, test_native_bool_not) {
 
 // Deeply nested AND chain: (x > 0) and (y > 0) and (z > 0) must produce
 // a direct C &&-chain without IsTrue or temp bool variables.
-TEST(DISABLED_infer, test_native_bool_nested) {
+TEST(infer, test_native_bool_nested) {
     const auto code = InferGetCCode("./infer/test_native_bool_nested.lua");
     // All three sub-comparisons and the && combiners must appear.
     ASSERT_NE(code.find("((x) > (0))"), std::string::npos);
@@ -1404,7 +1404,7 @@ TEST(DISABLED_infer, test_native_bool_nested) {
 // kNativeArithOps + FlLShiftInt.  InferArgTypeForSpec already returns T_INT
 // for LEFT_SHIFT; kNativeArithOps now includes LEFT_SHIFT.
 // For n=5: 5 << 2 = 20.
-TEST(DISABLED_infer, test_spec_leftshift_param) {
+TEST(infer, test_spec_leftshift_param) {
     const auto code = InferGetCCode("./infer/test_spec_leftshift_param.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -1425,7 +1425,7 @@ TEST(DISABLED_infer, test_spec_leftshift_param) {
 // kNativeArithOps + FlRShiftInt.  InferArgTypeForSpec already returns T_INT
 // for RIGHT_SHIFT; kNativeArithOps now includes RIGHT_SHIFT.
 // For n=16: 16 >> 1 = 8.
-TEST(DISABLED_infer, test_spec_rightshift_param) {
+TEST(infer, test_spec_rightshift_param) {
     const auto code = InferGetCCode("./infer/test_spec_rightshift_param.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -1446,7 +1446,7 @@ TEST(DISABLED_infer, test_spec_rightshift_param) {
 // InferArgTypeForSpec now returns T_INT for unop NUMBER_SIGN (# always
 // yields an integer), enabling CompileNumericExp to emit FlLenInt.
 // For n=10 and s="hello" (length 5): test(10) == 15.
-TEST(DISABLED_infer, test_spec_len_param) {
+TEST(infer, test_spec_len_param) {
     const auto code = InferGetCCode("./infer/test_spec_len_param.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -1479,7 +1479,7 @@ TEST(DISABLED_infer, test_spec_len_param) {
 // In the int specialization, CompileStmtForLoop must detect all bounds as T_INT
 // (from the snapshot) and emit int64_t control variables.
 // test(10) == 55, test(5) == 15.
-TEST(DISABLED_infer, test_spec_for_bound_param) {
+TEST(infer, test_spec_for_bound_param) {
     const auto code = InferGetCCode("./infer/test_spec_for_bound_param.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -1514,7 +1514,7 @@ TEST(DISABLED_infer, test_spec_for_bound_param) {
 // InferArgTypeForSpec(f(n)) returns T_INT in the int specialization, so the
 // condition is emitted as a native C comparison.
 // For n > 0: f(n) = 2n > n is true, return x (= n); for n = 0: return 0.
-TEST(DISABLED_infer, test_spec_compare_func_result) {
+TEST(infer, test_spec_compare_func_result) {
     const auto code = InferGetCCode("./infer/test_spec_compare_func_result.lua");
     // Both f and test must be specialized and now return native int64_t directly.
     ASSERT_NE(code.find("int64_t f_0(int64_t n)"), std::string::npos);
@@ -1544,7 +1544,7 @@ TEST(DISABLED_infer, test_spec_compare_func_result) {
 // would force callers to pass numeric values, breaking e.g. string equality calls.
 // Here n is still specialised via arithmetic (n+1, n-1); m remains a CVar in
 // specialised bodies, and the == condition uses OpEq + IsTrue.
-TEST(DISABLED_infer, test_spec_compare_equal) {
+TEST(infer, test_spec_compare_equal) {
     const auto code = InferGetCCode("./infer/test_spec_compare_equal.lua");
     ASSERT_NE(code.find("int64_t test_0(int64_t n, CVar m)"), std::string::npos);
     ASSERT_NE(code.find("double test_1(double n, CVar m)"), std::string::npos);
@@ -1570,7 +1570,7 @@ TEST(DISABLED_infer, test_spec_compare_equal) {
 // specialisation should be generated for test.  Only the generic CVar entry
 // point must exist.  The function must also work correctly at runtime for
 // integers, floats, and strings.
-TEST(DISABLED_infer, test_spec_no_arith_compare_only) {
+TEST(infer, test_spec_no_arith_compare_only) {
     const auto code = InferGetCCode("./infer/test_spec_no_arith_compare_only.lua");
     // No specialised variants must be emitted.
     ASSERT_EQ(code.find("test_0"), std::string::npos);
@@ -1602,7 +1602,7 @@ TEST(DISABLED_infer, test_spec_no_arith_compare_only) {
 // mismatches as degradation, not only compare-to-T_DYNAMIC.
 // Here n changes from int (all_int, pinned) to float (without_n) via assignment,
 // while m + 0 provides arithmetic improvement to enter specialization discovery.
-TEST(DISABLED_infer, test_spec_compare_operand_int_float_degrade) {
+TEST(infer, test_spec_compare_operand_int_float_degrade) {
     const auto code = InferGetCCode("./infer/test_spec_compare_operand_int_float_degrade.lua");
     // n and m must both be detected as math params.
     ASSERT_NE(code.find("test_0_0(int64_t n, int64_t m)"), std::string::npos);
@@ -1629,7 +1629,7 @@ TEST(DISABLED_infer, test_spec_compare_operand_int_float_degrade) {
 // With IsArithmeticExpr now handling unop MINUS, both specialisations are
 // generated and the int spec returns int64_t natively.
 // test(5) == -5, test(-3) == 3.
-TEST(DISABLED_infer, test_spec_unary_minus_param) {
+TEST(infer, test_spec_unary_minus_param) {
     const auto code = InferGetCCode("./infer/test_spec_unary_minus_param.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -1660,7 +1660,7 @@ TEST(DISABLED_infer, test_spec_unary_minus_param) {
 // generated.  Int spec uses native ~((int64_t)(n)) and returns int64_t.
 // Float spec: ~T_FLOAT = T_DYNAMIC, so float spec returns CVar.
 // test(5) == -6 (~5 = -6 in two's complement).
-TEST(DISABLED_infer, test_spec_bitnot_standalone_param) {
+TEST(infer, test_spec_bitnot_standalone_param) {
     const auto code = InferGetCCode("./infer/test_spec_bitnot_standalone_param.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -1686,7 +1686,7 @@ TEST(DISABLED_infer, test_spec_bitnot_standalone_param) {
 // as T_DYNAMIC (CVar) even when n+1 is clearly T_INT.
 // With the fix, the int specialization returns int64_t natively.
 // test(10) == 11.
-TEST(DISABLED_infer, test_spec_do_return) {
+TEST(infer, test_spec_do_return) {
     const auto code = InferGetCCode("./infer/test_spec_do_return.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -1712,7 +1712,7 @@ TEST(DISABLED_infer, test_spec_do_return) {
 // InferArgTypeForSpec for f(n) must return T_DYNAMIC so the caller treats the
 // CVar as opaque (no .data_.i access), and the returned string is preserved.
 // This exercises the fixed-point return-type inference that was missing before.
-TEST(DISABLED_infer, test_spec_non_numeric_return) {
+TEST(infer, test_spec_non_numeric_return) {
     const auto code = InferGetCCode("./infer/test_spec_non_numeric_return.lua");
     // f must still be specialised (n is a math param due to n+1 arithmetic).
     ASSERT_NE(code.find("f_0(int64_t n)"), std::string::npos);
@@ -1738,7 +1738,7 @@ TEST(DISABLED_infer, test_spec_non_numeric_return) {
 // operators themselves.  All three specialisations must return native int64_t
 // so the whole call chain is free of CVar boxing/unboxing.
 // test(10) == 11, test(2.5) == 3.5.
-TEST(DISABLED_infer, test_spec_nested_call) {
+TEST(infer, test_spec_nested_call) {
     const auto code = InferGetCCode("./infer/test_spec_nested_call.lua");
     // All three functions must have an int64_t specialisation.
     ASSERT_NE(code.find("func2_0(int64_t n)"), std::string::npos);
@@ -1773,7 +1773,7 @@ TEST(DISABLED_infer, test_spec_nested_call) {
 // args ::= (explist) | tableconstructor | LiteralString
 // Ensure math-param specialisation analysis walks all function-call args forms
 // without missing the normal explist-based specialisation path.
-TEST(DISABLED_infer, test_spec_args_syntax_mix) {
+TEST(infer, test_spec_args_syntax_mix) {
     const auto code = InferGetCCode("./infer/test_spec_args_syntax_mix.lua");
     ASSERT_NE(code.find("int64_t callee_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("double callee_1(double n)"), std::string::npos);
@@ -1791,7 +1791,7 @@ TEST(DISABLED_infer, test_spec_args_syntax_mix) {
     });
 }
 
-TEST(DISABLED_infer, test_spec_local_from_func_call) {
+TEST(infer, test_spec_local_from_func_call) {
     const auto code = InferGetCCode("./infer/test_spec_local_from_func_call.lua");
     // func must be specialised (has direct arithmetic n+1).
     ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
@@ -1811,7 +1811,7 @@ TEST(DISABLED_infer, test_spec_local_from_func_call) {
     });
 }
 
-TEST(DISABLED_infer, test_spec_local_chain_from_func_call) {
+TEST(infer, test_spec_local_chain_from_func_call) {
     const auto code = InferGetCCode("./infer/test_spec_local_chain_from_func_call.lua");
     // func must be specialised (direct arithmetic n*2).
     ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
@@ -1843,7 +1843,7 @@ TEST(DISABLED_infer, test_spec_local_chain_from_func_call) {
 // square 通过 local function 定义，n 是数学参数（n*n 有算术改善）。
 // DiscoverMathParams 对 LocalFunction 和 Function 均适用。
 // test 通过嵌套调用推断也被特化（square(n)+1 触发改善）。
-TEST(DISABLED_infer, test_spec_local_func) {
+TEST(infer, test_spec_local_func) {
     const auto code = InferGetCCode("./infer/test_spec_local_func.lua");
     // local function square must be specialised.
     ASSERT_NE(code.find("int64_t square_0(int64_t n)"), std::string::npos);
@@ -1870,7 +1870,7 @@ TEST(DISABLED_infer, test_spec_local_func) {
 // 数学参数 n 作为 for 循环上界的算术表达式（n * 2）。
 // 整数特化中，ExpEnd = n*2 被快照标注为 T_INT，
 // 使 CompileStmtForLoop 走 typed_int_for 路径，上界使用原生 int64_t 表达式。
-TEST(DISABLED_infer, test_spec_for_arith_end) {
+TEST(infer, test_spec_for_arith_end) {
     const auto code = InferGetCCode("./infer/test_spec_for_arith_end.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -1896,7 +1896,7 @@ TEST(DISABLED_infer, test_spec_for_arith_end) {
 // 数学参数 n 作为 for 循环步长的算术表达式（n + 1）。
 // 整数特化中，ExpStep = n+1 被快照标注为 T_INT，
 // 使 CompileStmtForLoop 走 typed_int_for 路径（begin/end/step 全为 T_INT）。
-TEST(DISABLED_infer, test_spec_for_arith_step) {
+TEST(infer, test_spec_for_arith_step) {
     const auto code = InferGetCCode("./infer/test_spec_for_arith_step.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -1922,7 +1922,7 @@ TEST(DISABLED_infer, test_spec_for_arith_step) {
 
 // for 循环中 break 在数学参数特化函数里的正确性。
 // n 为数学参数（sum + i 是整数算术），循环在 i > 3 时提前退出。
-TEST(DISABLED_infer, test_spec_for_break) {
+TEST(infer, test_spec_for_break) {
     const auto code = InferGetCCode("./infer/test_spec_for_break.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -1947,7 +1947,7 @@ TEST(DISABLED_infer, test_spec_for_break) {
 // 纯算术局部变量链：local x = n + 1; local y = x * 2; return y。
 // 整数特化中，快照将 n+1 和 x*2 均标注为 T_INT，
 // x 和 y 均声明为 int64_t，return 直接返回 int64_t。
-TEST(DISABLED_infer, test_spec_arith_chain) {
+TEST(infer, test_spec_arith_chain) {
     const auto code = InferGetCCode("./infer/test_spec_arith_chain.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
@@ -1975,7 +1975,7 @@ TEST(DISABLED_infer, test_spec_arith_chain) {
 // repeat...until 循环内数学参数参与循环体算术运算。
 // n 被用于 sum = sum + n（整数算术），使 n 成为数学参数。
 // until 条件 i > 5 使用 TryCompileNativeBoolExpr 编译为原生布尔表达式。
-TEST(DISABLED_infer, test_spec_repeat_arith) {
+TEST(infer, test_spec_repeat_arith) {
     const auto code = InferGetCCode("./infer/test_spec_repeat_arith.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -2011,7 +2011,7 @@ TEST(DISABLED_infer, test_spec_repeat_arith) {
 // Both a and b are detected as math params via the a < b comparison node.
 // In the all-int specialization, the if condition must use native C comparison.
 // test(3, 5) == 3, test(7, 2) == 2, test(4, 4) == 4.
-TEST(DISABLED_infer, test_spec_min_param) {
+TEST(infer, test_spec_min_param) {
     const auto code = InferGetCCode("./infer/test_spec_min_param.lua");
     // Both min and test must be specialised (two math params each).
     ASSERT_NE(code.find("min_0_0(int64_t a, int64_t b)"), std::string::npos);
@@ -2044,7 +2044,7 @@ TEST(DISABLED_infer, test_spec_min_param) {
 // Both a and b are detected as math params via the a > b comparison node.
 // In the all-int specialization, the if condition must use native C comparison.
 // test(3, 5) == 5, test(7, 2) == 7, test(4, 4) == 4.
-TEST(DISABLED_infer, test_spec_max_param) {
+TEST(infer, test_spec_max_param) {
     const auto code = InferGetCCode("./infer/test_spec_max_param.lua");
     // Both max and test must be specialised (two math params each).
     ASSERT_NE(code.find("max_0_0(int64_t a, int64_t b)"), std::string::npos);
@@ -2078,7 +2078,7 @@ TEST(DISABLED_infer, test_spec_max_param) {
 // 3 math params → 8 specializations (2^3).
 // In the all-int specialization, both if conditions use native C comparisons.
 // test(5,1,10)==5, test(0,1,10)==1, test(15,1,10)==10.
-TEST(DISABLED_infer, test_spec_clamp_param) {
+TEST(infer, test_spec_clamp_param) {
     const auto code = InferGetCCode("./infer/test_spec_clamp_param.lua");
     // All-int specialization (bitmask 0_0_0) must exist for clamp and test.
     ASSERT_NE(code.find("clamp_0_0_0(int64_t x, int64_t lo, int64_t hi)"), std::string::npos);
@@ -2118,7 +2118,7 @@ TEST(DISABLED_infer, test_spec_clamp_param) {
 // 整数特化：local y = n or 2 は int64_t y = n にコンパイルされる（CVar 装箱なし）。
 // 乗算 y * 3 は原生 int64_t 演算になる。
 // test(5) == 15, test(0) == 0（0 は Lua 真値）, test(3.5) == 10.5。
-TEST(DISABLED_infer, test_spec_or_param) {
+TEST(infer, test_spec_or_param) {
     const auto code = InferGetCCode("./infer/test_spec_or_param.lua");
     // n must be specialised as math param (triggered by y * 3).
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -2145,7 +2145,7 @@ TEST(DISABLED_infer, test_spec_or_param) {
 // n+1 という加算が数学パラメータ検出のトリガーとなる。
 // 整数特化：AND は n を評価（ダミー）して n+1 の原生値を返す。
 // test(5) == 6, test(0) == 1（0 は Lua 真値）, test(3.5) == 4.5。
-TEST(DISABLED_infer, test_spec_and_param) {
+TEST(infer, test_spec_and_param) {
     const auto code = InferGetCCode("./infer/test_spec_and_param.lua");
     // n must be specialised as math param (triggered by n + 1 inside AND).
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -2170,7 +2170,7 @@ TEST(DISABLED_infer, test_spec_and_param) {
 // 整数特化中，ExpBegin = n 被快照标注为 T_INT，
 // 使 CompileStmtForLoop 走 typed_int_for 路径，控制变量使用原生 int64_t。
 // test(3) == 3+4+...+10 = 52, test(8) == 8+9+10 = 27, test(11) == 0（空区间）。
-TEST(DISABLED_infer, test_spec_for_arith_begin) {
+TEST(infer, test_spec_for_arith_begin) {
     const auto code = InferGetCCode("./infer/test_spec_for_arith_begin.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -2197,7 +2197,7 @@ TEST(DISABLED_infer, test_spec_for_arith_begin) {
 // 整数特化中，ExpBegin = n+1 被快照标注为 T_INT，
 // 使 CompileStmtForLoop 走 typed_int_for 路径（begin/end 全为 T_INT）。
 // test(10) == 11+12+...+20 = 155, test(0) == 1+2+...+20 = 210, test(19) == 20。
-TEST(DISABLED_infer, test_spec_for_arith_begin_expr) {
+TEST(infer, test_spec_for_arith_begin_expr) {
     const auto code = InferGetCCode("./infer/test_spec_for_arith_begin_expr.lua");
     // Both int and float specializations must be declared.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -2223,7 +2223,7 @@ TEST(DISABLED_infer, test_spec_for_arith_begin_expr) {
 // Native BITAND in CompileBinop via return expression: return x & 10 where x is T_INT.
 // Exercises the BITAND branch of the native arithmetic fast path (c_gen.cpp line 2396).
 // 12 & 10 = 8.
-TEST(DISABLED_infer, test_infer_native_binop_bitand) {
+TEST(infer, test_infer_native_binop_bitand) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_bitand.lua");
     ASSERT_NE(code.find("(int64_t)(x)"), std::string::npos);
 
@@ -2238,7 +2238,7 @@ TEST(DISABLED_infer, test_infer_native_binop_bitand) {
 // Native BITOR in CompileBinop via return expression: return x | 3 where x is T_INT.
 // Exercises the BITOR branch of the native arithmetic fast path (c_gen.cpp line 2398).
 // 12 | 3 = 15.
-TEST(DISABLED_infer, test_infer_native_binop_bitor) {
+TEST(infer, test_infer_native_binop_bitor) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_bitor.lua");
     ASSERT_NE(code.find("(int64_t)(x)"), std::string::npos);
 
@@ -2253,7 +2253,7 @@ TEST(DISABLED_infer, test_infer_native_binop_bitor) {
 // Native XOR in CompileBinop via return expression: return x ~ 3 where x is T_INT.
 // Exercises the XOR branch of the native arithmetic fast path (c_gen.cpp line 2400).
 // 5 ~ 3 = 6.
-TEST(DISABLED_infer, test_infer_native_binop_bitxor) {
+TEST(infer, test_infer_native_binop_bitxor) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_bitxor.lua");
     ASSERT_NE(code.find("(int64_t)(x)"), std::string::npos);
 
@@ -2268,7 +2268,7 @@ TEST(DISABLED_infer, test_infer_native_binop_bitxor) {
 // Native LEFT_SHIFT in CompileBinop via return expression: return x << 4 where x is T_INT.
 // Exercises the LEFT_SHIFT branch of the native arithmetic fast path using FlLShiftInt.
 // 1 << 4 = 16.
-TEST(DISABLED_infer, test_infer_native_binop_lshift) {
+TEST(infer, test_infer_native_binop_lshift) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_lshift.lua");
     ASSERT_NE(code.find("FlLShiftInt("), std::string::npos);
 
@@ -2283,7 +2283,7 @@ TEST(DISABLED_infer, test_infer_native_binop_lshift) {
 // Native RIGHT_SHIFT in CompileBinop via return expression: return x >> 3 where x is T_INT.
 // Exercises the RIGHT_SHIFT branch of the native arithmetic fast path using FlRShiftInt.
 // 256 >> 3 = 32.
-TEST(DISABLED_infer, test_infer_native_binop_rshift) {
+TEST(infer, test_infer_native_binop_rshift) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_rshift.lua");
     ASSERT_NE(code.find("FlRShiftInt("), std::string::npos);
 
@@ -2299,7 +2299,7 @@ TEST(DISABLED_infer, test_infer_native_binop_rshift) {
 // In "-x + y", InferArgTypeForSpec is called on the -x unop operand, which
 // recursively calls InferArgTypeForSpec on x (T_INT) -> returns T_INT.
 // Both operands T_INT -> native fast path for PLUS. -3 + 7 = 4.
-TEST(DISABLED_infer, test_infer_native_unop_minus_in_binop) {
+TEST(infer, test_infer_native_unop_minus_in_binop) {
     const auto code = InferGetCCode("./infer/test_infer_native_unop_minus_in_binop.lua");
     ASSERT_NE(code.find("-(x)"), std::string::npos);
 
@@ -2314,7 +2314,7 @@ TEST(DISABLED_infer, test_infer_native_unop_minus_in_binop) {
 // NUMBER_SIGN unop in InferArgTypeForSpec: exercises c_gen.cpp line 1401.
 // In "#s + 0", InferArgTypeForSpec called on #s (NUMBER_SIGN) returns T_INT.
 // Both operands T_INT -> native fast path for PLUS. #"hello" + 0 = 5.
-TEST(DISABLED_infer, test_infer_native_unop_numsign_in_binop) {
+TEST(infer, test_infer_native_unop_numsign_in_binop) {
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_native_unop_numsign_in_binop.lua", {.debug_mode = debug_mode});
         int ret = 0;
@@ -2327,7 +2327,7 @@ TEST(DISABLED_infer, test_infer_native_unop_numsign_in_binop) {
 // c_gen.cpp lines 1735-1741 (CVar extraction path for typed native vars).
 // local x = 1.0 -> double; x = helper() -> T_DYNAMIC; TryCompileNativeExpr
 // fails, so rhs is compiled as CVar and .data_.f is extracted into x.
-TEST(DISABLED_infer, test_infer_typed_float_var_cvar_assign) {
+TEST(infer, test_infer_typed_float_var_cvar_assign) {
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_typed_float_var_cvar_assign.lua", {.debug_mode = debug_mode});
         double ret = 0.0;
@@ -2338,7 +2338,7 @@ TEST(DISABLED_infer, test_infer_typed_float_var_cvar_assign) {
 
 // Native STAR in CompileBinop: return expression with both operands typed T_INT.
 // local x = 3 (T_INT), 4 = T_INT literal => native (x * 4) via CompileBinop fast path.
-TEST(DISABLED_infer, test_infer_native_binop_star) {
+TEST(infer, test_infer_native_binop_star) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_star.lua");
     // Native multiplication must appear in the generated C code.
     ASSERT_NE(code.find("((x) * (4))"), std::string::npos);
@@ -2353,7 +2353,7 @@ TEST(DISABLED_infer, test_infer_native_binop_star) {
 
 // Native SLASH in CompileBinop: return expression with T_INT operand.
 // local x = 3 (T_INT), x / 2 promotes both operands to double.
-TEST(DISABLED_infer, test_infer_native_binop_slash) {
+TEST(infer, test_infer_native_binop_slash) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_slash.lua");
     // Division must cast operands to double in the generated C code.
     ASSERT_NE(code.find("(double)(x)"), std::string::npos);
@@ -2368,7 +2368,7 @@ TEST(DISABLED_infer, test_infer_native_binop_slash) {
 
 // Native POW in CompileBinop: return expression with T_INT operand.
 // local x = 2 (T_INT), x ^ 10 uses pow() with double casts.
-TEST(DISABLED_infer, test_infer_native_binop_pow) {
+TEST(infer, test_infer_native_binop_pow) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_pow.lua");
     // pow() call must appear in the generated C code.
     ASSERT_NE(code.find("pow("), std::string::npos);
@@ -2383,7 +2383,7 @@ TEST(DISABLED_infer, test_infer_native_binop_pow) {
 
 // Native DOUBLE_SLASH int in CompileBinop: return expression with T_INT operands.
 // local x = 7 (T_INT), x // 2 uses FlFloorDivInt.
-TEST(DISABLED_infer, test_infer_native_binop_floor_div_int) {
+TEST(infer, test_infer_native_binop_floor_div_int) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_floor_div_int.lua");
     // FlFloorDivInt must be emitted for integer floor division.
     ASSERT_NE(code.find("FlFloorDivInt("), std::string::npos);
@@ -2398,7 +2398,7 @@ TEST(DISABLED_infer, test_infer_native_binop_floor_div_int) {
 
 // Native DOUBLE_SLASH float in CompileBinop: return expression with T_FLOAT operand.
 // local x = 7.0 (T_FLOAT), x // 2 uses floor(double/double).
-TEST(DISABLED_infer, test_infer_native_binop_floor_div_float) {
+TEST(infer, test_infer_native_binop_floor_div_float) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_floor_div_float.lua");
     // floor() call must appear in the generated C code.
     ASSERT_NE(code.find("floor("), std::string::npos);
@@ -2413,7 +2413,7 @@ TEST(DISABLED_infer, test_infer_native_binop_floor_div_float) {
 
 // Native MOD int in CompileBinop: return expression with T_INT operands.
 // local x = 7 (T_INT), x % 3 uses FlModInt.
-TEST(DISABLED_infer, test_infer_native_binop_mod_int) {
+TEST(infer, test_infer_native_binop_mod_int) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_mod_int.lua");
     // FlModInt must be emitted for integer modulo.
     ASSERT_NE(code.find("FlModInt("), std::string::npos);
@@ -2428,7 +2428,7 @@ TEST(DISABLED_infer, test_infer_native_binop_mod_int) {
 
 // Native MOD float in CompileBinop: return expression with T_FLOAT operand.
 // local x = 7.5 (T_FLOAT), x % 3 uses FlModFloat.
-TEST(DISABLED_infer, test_infer_native_binop_mod_float) {
+TEST(infer, test_infer_native_binop_mod_float) {
     const auto code = InferGetCCode("./infer/test_infer_native_binop_mod_float.lua");
     // FlModFloat must be emitted for float modulo.
     ASSERT_NE(code.find("FlModFloat("), std::string::npos);
@@ -2445,7 +2445,7 @@ TEST(DISABLED_infer, test_infer_native_binop_mod_float) {
 // Exercises type_inferencer.cpp CollectReturnExps for ForIn (lines 868-869).
 // n is a math param (used in sum + n); the for-in traverses {1,2,3}.
 // test(10) = 1+2+3 + 10 = 16.
-TEST(DISABLED_infer, test_spec_for_in_body) {
+TEST(infer, test_spec_for_in_body) {
     const auto code = InferGetCCode("./infer/test_spec_for_in_body.lua");
     ASSERT_NE(code.find("CVar test(CVar n)"), std::string::npos);
     ASSERT_NE(code.find("CVar sum = "), std::string::npos);
@@ -2465,7 +2465,7 @@ TEST(DISABLED_infer, test_spec_for_in_body) {
 // Exercises type_inferencer.cpp lines 804-805 (elseif AllPathsReturn returns false
 // when an elseif block itself does not return, preventing over-eager specialization).
 // test(15) = 30, test(8) = 9, test(3) = 3.
-TEST(DISABLED_infer, test_spec_elseif_no_all_return) {
+TEST(infer, test_spec_elseif_no_all_return) {
     const auto code = InferGetCCode("./infer/test_spec_elseif_no_all_return.lua");
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
@@ -2487,7 +2487,7 @@ TEST(DISABLED_infer, test_spec_elseif_no_all_return) {
 // Exercises type_inferencer.cpp line 847: CollectReturnExps pushes nullptr
 // when the return statement has no expression list.
 // test(5) = 10, test(-1) = nil (from bare return).
-TEST(DISABLED_infer, test_spec_bare_return) {
+TEST(infer, test_spec_bare_return) {
     const auto code = InferGetCCode("./infer/test_spec_bare_return.lua");
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
@@ -2504,7 +2504,7 @@ TEST(DISABLED_infer, test_spec_bare_return) {
 
 // For-loop with math param used only as loop bound or step; loop body does NOT use
 // the loop variable in arithmetic expressions.
-TEST(DISABLED_infer, test_count_loop) {
+TEST(infer, test_count_loop) {
     const auto code = InferGetCCode("./infer/test_count_loop.lua");
     ASSERT_NE(code.find("count_to_0(int64_t n)"), std::string::npos);
     ASSERT_NE(code.find("count_to_1(double n)"), std::string::npos);
@@ -2548,7 +2548,7 @@ TEST(DISABLED_infer, test_count_loop) {
 // NOT_EQUAL (~=) 在 if 条件中生成原生 C 不等比较。
 // n 通过 n + 1 算术运算被识别为数学参数；if 条件 n ~= 0 应发出 (n) != (0)。
 // test(0) == 0, test(1) == 2, test(5) == 6, test(-1) == 0（-1+1=0）。
-TEST(DISABLED_infer, test_native_bool_not_equal_if) {
+TEST(infer, test_native_bool_not_equal_if) {
     const auto code = InferGetCCode("./infer/test_native_bool_not_equal_if.lua");
     // n is a math param (triggered by n + 1).
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -2574,7 +2574,7 @@ TEST(DISABLED_infer, test_native_bool_not_equal_if) {
 // clamp_le 仅含 <= 和 >= 比较，不含算术运算，验证这两种运算符同样能被
 // IsNativeComparisonExpr 识别并触发 HasComparisonOperandTypeChange。
 // test(5, 1, 10) == 5, test(0, 1, 10) == 1, test(15, 1, 10) == 10.
-TEST(DISABLED_infer, test_spec_clamp_le) {
+TEST(infer, test_spec_clamp_le) {
     const auto code = InferGetCCode("./infer/test_spec_clamp_le.lua");
     // clamp_le and test must both be specialised (three math params each).
     ASSERT_NE(code.find("clamp_le_0_0_0(int64_t x, int64_t lo, int64_t hi)"), std::string::npos);
@@ -2615,7 +2615,7 @@ TEST(DISABLED_infer, test_spec_clamp_le) {
 // square(n) = n*n：n 是数学参数，int 特化返回 int64_t。
 // test(n) 调用 square(n)：通过 HasMathCallImprovement 传递特化。
 // test(3) == 9, test(4) == 16, test(2.0) == 4.0.
-TEST(DISABLED_infer, test_spec_funcdef_assignment) {
+TEST(infer, test_spec_funcdef_assignment) {
     const auto code = InferGetCCode("./infer/test_spec_funcdef_assignment.lua");
     // square must be specialised via the functiondef assignment conversion.
     ASSERT_NE(code.find("square_0(int64_t n)"), std::string::npos);
@@ -2650,7 +2650,7 @@ TEST(DISABLED_infer, test_spec_funcdef_assignment) {
 // n 通过 n < 0（IsNativeComparisonExpr: LESS）和算术 n + 1 被识别为数学参数。
 // if 条件 not (n < 0) 应生成原生 C 布尔 !((n) < (0))，不使用 IsTrue。
 // test(5) == 6, test(0) == 1, test(-1) == 0.
-TEST(DISABLED_infer, test_spec_not_if_cond) {
+TEST(infer, test_spec_not_if_cond) {
     const auto code = InferGetCCode("./infer/test_spec_not_if_cond.lua");
     // n is a math param (triggered by both n < 0 comparison and n + 1 arithmetic).
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -2680,7 +2680,7 @@ TEST(DISABLED_infer, test_spec_not_if_cond) {
 // a 和 b 均通过比较（IsNativeComparisonExpr: MORE）和算术 a + b 被识别为数学参数。
 // if 条件应生成原生 C 布尔 ((a) > (0)) && ((b) > (0))，不使用 IsTrue。
 // test(3, 4) == 7, test(-1, 4) == 0, test(3, -1) == 0, test(0, 0) == 0.
-TEST(DISABLED_infer, test_spec_and_cond) {
+TEST(infer, test_spec_and_cond) {
     const auto code = InferGetCCode("./infer/test_spec_and_cond.lua");
     // Both a and b are math params.
     ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
@@ -2714,7 +2714,7 @@ TEST(DISABLED_infer, test_spec_and_cond) {
 // n 通过比较（IsNativeComparisonExpr: LESS, MORE）和算术 n + 1 被识别为数学参数。
 // if 条件应生成原生 C 布尔 ((n) < (0)) || ((n) > (10))，不使用 IsTrue。
 // test(5) == 6, test(-1) == 0, test(11) == 0, test(0) == 1, test(10) == 11.
-TEST(DISABLED_infer, test_spec_or_cond) {
+TEST(infer, test_spec_or_cond) {
     const auto code = InferGetCCode("./infer/test_spec_or_cond.lua");
     // n is a math param.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -2752,7 +2752,7 @@ TEST(DISABLED_infer, test_spec_or_cond) {
 // n 通过比较（LESS）和算术（s + n, n - 1）被识别为数学参数。
 // while 条件 not (n < 0) 应生成原生 C 布尔 !((n) < (0))，不使用 IsTrue。
 // test(0) == 0, test(1) == 1, test(5) == 15 (= 5+4+3+2+1+0).
-TEST(DISABLED_infer, test_spec_while_not_cond) {
+TEST(infer, test_spec_while_not_cond) {
     const auto code = InferGetCCode("./infer/test_spec_while_not_cond.lua");
     // n is a math param (triggered by arithmetic and comparison).
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -2780,7 +2780,7 @@ TEST(DISABLED_infer, test_spec_while_not_cond) {
 // n 通过算术 n + 1 被识别为数学参数；拼接结果为 T_DYNAMIC，
 // 不在 IsArithmeticExpr 中，因此不干扰特化发现流程。
 // test(5) == 6, test(0) == 1, test(-1) == 0, test(3) == 4.
-TEST(DISABLED_infer, test_spec_concat_no_interfere) {
+TEST(infer, test_spec_concat_no_interfere) {
     const auto code = InferGetCCode("./infer/test_spec_concat_no_interfere.lua");
     // n IS a math param (triggered by n + 1).
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -2810,7 +2810,7 @@ TEST(DISABLED_infer, test_spec_concat_no_interfere) {
 // 仅含 and/or 运算符（无算术、无有序比较）的函数不应被特化。
 // a 和 b 仅用于 and 运算，可接受任意 Lua 类型（nil、字符串、数值等），
 // ParamAffectsArithmetic 对两者均返回 false，不会生成特化版本。
-TEST(DISABLED_infer, test_spec_and_or_only_no_spec) {
+TEST(infer, test_spec_and_or_only_no_spec) {
     const auto code = InferGetCCode("./infer/test_spec_and_or_only_no_spec.lua");
     // No specialization should be generated: no test_0 or test_1 variants.
     ASSERT_EQ(code.find("test_0("), std::string::npos);
@@ -2851,7 +2851,7 @@ TEST(DISABLED_infer, test_spec_and_or_only_no_spec) {
 // After both fixes the int specialisation declares step as int64_t and emits
 // `if ((step) >= (n)) break;` as a native C comparison.
 // test(5) == 5, test(3) == 3, test(10) == 10.
-TEST(DISABLED_infer, test_spec_repeat_local_until) {
+TEST(infer, test_spec_repeat_local_until) {
     const auto code = InferGetCCode("./infer/test_spec_repeat_local_until.lua");
     // n is a math param (sum = sum + step where step = n involves arithmetic).
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -2891,7 +2891,7 @@ TEST(DISABLED_infer, test_spec_repeat_local_until) {
 // After the fix, is_degraded_expression covers kBinop (and kUnop), so x is
 // correctly declared as CVar throughout.
 // test(5) == 6 (n+1 path), test(-1) == 0.5 (0.5 path).
-TEST(DISABLED_infer, test_spec_local_degraded_binop) {
+TEST(infer, test_spec_local_degraded_binop) {
     const auto code = InferGetCCode("./infer/test_spec_local_degraded_binop.lua");
     // x becomes double.
     ASSERT_NE(code.find("double x = "), std::string::npos);
@@ -2923,7 +2923,7 @@ TEST(DISABLED_infer, test_spec_local_degraded_binop) {
 // FakeluaThrowError for non-int/float CVars (instead of the old ternary that
 // blindly read .data_.f and cast it).
 // Runtime: make_int returns the same integer, so test(5) = 5+6 = 11.
-TEST(DISABLED_infer, test_spec_assign_nonnumeric_typed_int) {
+TEST(infer, test_spec_assign_nonnumeric_typed_int) {
     const auto code = InferGetCCode("./infer/test_spec_assign_nonnumeric_typed_int.lua");
     // n must be a math param.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -2949,7 +2949,7 @@ TEST(DISABLED_infer, test_spec_assign_nonnumeric_typed_int) {
 // The generated code must contain the numeric type guard that emits
 // FakeluaThrowError for non-float/int CVars.
 // Runtime: make_float returns the same value, so test(2.5) = 2.5 + 3.5 = 6.0.
-TEST(DISABLED_infer, test_spec_assign_nonnumeric_typed_float) {
+TEST(infer, test_spec_assign_nonnumeric_typed_float) {
     const auto code = InferGetCCode("./infer/test_spec_assign_nonnumeric_typed_float.lua");
     // n must be specialised as a math param (float spec).
     ASSERT_NE(code.find("test_1(double n)"), std::string::npos);
@@ -2975,7 +2975,7 @@ TEST(DISABLED_infer, test_spec_assign_nonnumeric_typed_float) {
 // variable") and the call to test() must propagate a std::exception.
 // Only JIT_GCC is used here: TCC does not propagate C++ exceptions thrown from
 // inside JIT-compiled code (TCC generates no DWARF unwind tables).
-TEST(DISABLED_infer, test_spec_assign_nonnumeric_float_throws) {
+TEST(infer, test_spec_assign_nonnumeric_float_throws) {
     FakeluaStateGuard sg;
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
@@ -3004,7 +3004,7 @@ TEST(DISABLED_infer, test_spec_assign_nonnumeric_float_throws) {
 //   else if (flua_assign_tmp_N.type_ == VAR_FLOAT) { n = (int64_t)flua_assign_tmp_N.data_.f; }
 //   else { FakeluaThrowError(_S, "attempt to assign non-numeric value to typed int variable"); }
 //   return ((n) + (x));
-TEST(DISABLED_infer, test_spec_assign_nonnumeric_int_throws) {
+TEST(infer, test_spec_assign_nonnumeric_int_throws) {
     const auto code = InferGetCCode("./infer/test_spec_assign_nonnumeric_int_throws.lua");
     // n is a math param: the int specialization must be generated.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -3045,7 +3045,7 @@ TEST(DISABLED_infer, test_spec_assign_nonnumeric_int_throws) {
 // InferArgTypeForSpec uses GetNativeVarType which returns T_INT, so
 // `return n + 1` is still compiled as native int64_t arithmetic.
 // test(5) = cvar_helper(5)+1 = 7+1 = 8.
-TEST(DISABLED_infer, test_spec_reassign_param_cvar_path) {
+TEST(infer, test_spec_reassign_param_cvar_path) {
     const auto code = InferGetCCode("./infer/test_spec_reassign_param_cvar_path.lua");
     // n must be specialised as a math param.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -3071,7 +3071,7 @@ TEST(DISABLED_infer, test_spec_reassign_param_cvar_path) {
 // 文件级整数常量 N = 100 应生成 static const int64_t，
 // 函数 test() 内 for i = 1, N 的边界应为 T_INT，
 // sum 累加结果应声明为 int64_t。test() = N*(N+1)/2 = 5050。
-TEST(DISABLED_infer, test_global_const_int) {
+TEST(infer, test_global_const_int) {
     const auto code = InferGetCCode("./infer/test_global_const_int.lua");
     // 文件级常量应生成 static const int64_t，而非 CVar。
     ASSERT_NE(code.find("static const int64_t N = 100;"), std::string::npos);
@@ -3091,7 +3091,7 @@ TEST(DISABLED_infer, test_global_const_int) {
 // 文件级浮点常量 PI = 3.14159 应生成 static const double。
 // test(r) 中 PI * r * r：r 通过与 PI 的算术运算成为数学参数，
 // 生成 test_0(int64_t r) / test_1(double r) 特化版本。
-TEST(DISABLED_infer, test_global_const_float) {
+TEST(infer, test_global_const_float) {
     const auto code = InferGetCCode("./infer/test_global_const_float.lua");
     // 文件级常量应生成 static const double，而非 CVar。
     ASSERT_NE(code.find("static const double PI ="), std::string::npos);
@@ -3123,7 +3123,7 @@ TEST(DISABLED_infer, test_global_const_float) {
 // func is a math-param function (n*2).  The return-type inferencer must resolve
 // both func(n) calls to T_INT via assumed_ret and compute T_INT + T_INT = T_INT.
 // caller(5) == 20, caller(3) == 12.
-TEST(DISABLED_infer, test_spec_return_arith_of_calls) {
+TEST(infer, test_spec_return_arith_of_calls) {
     const auto code = InferGetCCode("./infer/test_spec_return_arith_of_calls.lua");
     // func must be specialized.
     ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
@@ -3150,7 +3150,7 @@ TEST(DISABLED_infer, test_spec_return_arith_of_calls) {
 // into the inner call to determine its type (T_INT), then use that as the arg
 // type for the outer call, yielding a T_INT return for caller.
 // caller(5) == 7, caller(3) == 5.
-TEST(DISABLED_infer, test_spec_return_call_arg_is_call) {
+TEST(infer, test_spec_return_call_arg_is_call) {
     const auto code = InferGetCCode("./infer/test_spec_return_call_arg_is_call.lua");
     // f must be specialized.
     ASSERT_NE(code.find("int64_t f_0(int64_t n)"), std::string::npos);
@@ -3175,7 +3175,7 @@ TEST(DISABLED_infer, test_spec_return_call_arg_is_call) {
 // must resolve func2(n) -> T_INT, use that as func1's arg type (bitmask=0),
 // and return func1's T_INT result, giving caller a native int64_t return.
 // caller(5) == 11, caller(3) == 7.
-TEST(DISABLED_infer, test_spec_return_call_arg_is_other_call) {
+TEST(infer, test_spec_return_call_arg_is_other_call) {
     const auto code = InferGetCCode("./infer/test_spec_return_call_arg_is_other_call.lua");
     // Both func1 and func2 must be specialized.
     ASSERT_NE(code.find("int64_t func2_0(int64_t n)"), std::string::npos);
@@ -3201,7 +3201,7 @@ TEST(DISABLED_infer, test_spec_return_call_arg_is_other_call) {
 // func's T_INT return type injected via ResolveCallReturnType, so x and
 // "return x+1" are T_INT in the snapshot and outer gets a native int64_t
 // return specialization.
-TEST(DISABLED_infer, test_spec_local_var_in_if) {
+TEST(infer, test_spec_local_var_in_if) {
     const auto code = InferGetCCode("./infer/test_spec_local_var_in_if.lua");
     // func must be specialized (has direct arithmetic n*2).
     ASSERT_NE(code.find("int64_t func_0(int64_t n)"), std::string::npos);
@@ -3230,7 +3230,7 @@ TEST(DISABLED_infer, test_spec_local_var_in_if) {
 // 关键：middle 的快照需要 inner 的返回类型（T_INT）注入才能把 r 和 r+1 识别为 T_INT；
 // outer 则需要 middle 的返回类型（T_INT）才能得到原生整数返回。
 // 若快照再生成不工作，inner/middle 的返回均为 T_DYNAMIC，outer_0 将返回 CVar。
-TEST(DISABLED_infer, test_spec_callee_return_propagates_in_local) {
+TEST(infer, test_spec_callee_return_propagates_in_local) {
     const auto code = InferGetCCode("./infer/test_spec_callee_return_propagates_in_local.lua");
     // inner 因直接算术而特化。
     ASSERT_NE(code.find("int64_t inner_0(int64_t n)"), std::string::npos);
@@ -3260,7 +3260,7 @@ TEST(DISABLED_infer, test_spec_callee_return_propagates_in_local) {
 // RunTrialInference 注入 OFFSET=T_INT，使 n+OFFSET 从 T_DYNAMIC 提升为 T_INT，
 // 触发算术改善，n 被识别为数学参数。
 // add_offset(5) == 15, add_offset(20) == 30.
-TEST(DISABLED_infer, test_global_const_spec) {
+TEST(infer, test_global_const_spec) {
     const auto code = InferGetCCode("./infer/test_global_const_spec.lua");
     // OFFSET 应生成 static const int64_t。
     ASSERT_NE(code.find("static const int64_t OFFSET = 10;"), std::string::npos);
@@ -3289,7 +3289,7 @@ TEST(DISABLED_infer, test_global_const_spec) {
 // test(5) == t[1] + 5 == 10 + 5 == 15.
 // Table subscript access t[1] is T_DYNAMIC → t[1]+n is T_DYNAMIC → n is not a math param.
 // test(5) == 15.
-TEST(DISABLED_infer, test_table_field_expr) {
+TEST(infer, test_table_field_expr) {
     const auto code = InferGetCCode("./infer/test_table_field_expr.lua");
     // Table subscript is dynamic, so test is not specialized.
     ASSERT_EQ(code.find("test_0(int64_t n)"), std::string::npos);
@@ -3307,7 +3307,7 @@ TEST(DISABLED_infer, test_table_field_expr) {
 // AllPathsReturn: 检查 elseif 块时发现无 return，立即返回 false。
 // n * 2 使 n 成为数学参数，生成 int/double 特化版本。
 // test(15) == 30 (if 分支), test(3) == 3 (else 分支).
-TEST(DISABLED_infer, test_elseif_no_return) {
+TEST(infer, test_elseif_no_return) {
     const auto code = InferGetCCode("./infer/test_elseif_no_return.lua");
     // n * 2 triggers math param specialization.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -3326,7 +3326,7 @@ TEST(DISABLED_infer, test_elseif_no_return) {
 // 数学参数函数体中包含 for-in 循环。
 // CollectReturnExps: ForIn 语句由 switch 分支处理，递归进入循环体。
 // test(10) == 20.
-TEST(DISABLED_infer, test_for_in_math) {
+TEST(infer, test_for_in_math) {
     const auto code = InferGetCCode("./infer/test_for_in_math.lua");
     // n * 2 触发数学参数特化。
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -3344,7 +3344,7 @@ TEST(DISABLED_infer, test_for_in_math) {
 // test_no_else: if-elseif 无 else（ElseBlock()==null）→ AllPathsReturn false。
 // test_empty_else: else 分支为空 block → block->Stmts().empty() → AllPathsReturn false。
 // 两个函数均有 n * 2，生成 int/double 特化版本。
-TEST(DISABLED_infer, test_allpaths_return) {
+TEST(infer, test_allpaths_return) {
     const auto code = InferGetCCode("./infer/test_allpaths_return.lua");
     // Both functions have n * 2 → math param specialization.
     ASSERT_NE(code.find("test_no_else_0(int64_t n)"), std::string::npos);
@@ -3364,7 +3364,7 @@ TEST(DISABLED_infer, test_allpaths_return) {
 
 // HasMathCallImprovement: 数学函数以零参数调用另一数学函数 → raw_args 为空 → 提前返回。
 // compute 有 1 个参数，test 体内调用 compute()（无参数），严格参数校验应在编译时报错。
-TEST(DISABLED_infer, test_no_arg_call) {
+TEST(infer, test_no_arg_call) {
     EXPECT_THROW(
             {
                 FakeluaStateGuard sg;
@@ -3376,7 +3376,7 @@ TEST(DISABLED_infer, test_no_arg_call) {
 // HasForLoopTypeChange: for 循环变量在 all_int 试推断中因函数调用赋值而变为 T_DYNAMIC。
 // n * 2 使 n 成为数学参数；循环变量 i 因 i = getVal() 退化为动态类型。
 // test(5) == 10.
-TEST(DISABLED_infer, test_forloop_dynamic) {
+TEST(infer, test_forloop_dynamic) {
     const auto code = InferGetCCode("./infer/test_forloop_dynamic.lua");
     // n * 2 triggers math param specialization.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -3397,7 +3397,7 @@ TEST(DISABLED_infer, test_forloop_dynamic) {
 // 经 InferSpecializationReturnTypes 注入返回类型提示后，mul2_0 返回 int64_t，
 // 循环变量在精确快照中升格为 T_INT，整数特化路径使用原生 int64_t for 循环。
 // test(5) == 1+2+...+10 == 55, test(3) == 1+2+...+6 == 21.
-TEST(DISABLED_infer, test_spec_for_dynamic_bound) {
+TEST(infer, test_spec_for_dynamic_bound) {
     const auto code = InferGetCCode("./infer/test_spec_for_dynamic_bound.lua");
     // mul2, iter, and test must all be specialised.
     ASSERT_NE(code.find("int64_t mul2_0(int64_t n)"), std::string::npos);
@@ -3425,7 +3425,7 @@ TEST(DISABLED_infer, test_spec_for_dynamic_bound) {
 // mismatches as degradation, not only compare-to-T_DYNAMIC.
 // Here n changes from int (all_int, pinned) to float (without_n) via assignment,
 // so the loop node changes from typed-int to typed-float.
-TEST(DISABLED_infer, test_spec_forloop_int_float_degrade) {
+TEST(infer, test_spec_forloop_int_float_degrade) {
     const auto code = InferGetCCode("./infer/test_spec_forloop_int_float_degrade.lua");
     // n and m must both be detected as math params.
     ASSERT_NE(code.find("test_0_0(int64_t n, int64_t m)"), std::string::npos);
@@ -3448,7 +3448,7 @@ TEST(DISABLED_infer, test_spec_forloop_int_float_degrade) {
 // Bug 1: InferBlock post-processing must not pollute trial inference snapshots.
 // A degraded local init (y = n*2, then y = "override") should not prevent
 // math param discovery for n. The function should still be specialized.
-TEST(DISABLED_infer, test_postprocess_no_pollute) {
+TEST(infer, test_postprocess_no_pollute) {
     const auto code = InferGetCCode("./infer/test_postprocess_no_pollute.lua");
     // n should be recognized as a math param → specialized versions should exist.
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -3469,7 +3469,7 @@ TEST(DISABLED_infer, test_postprocess_no_pollute) {
 
 // Bug 2: Bitwise operations should accept T_FLOAT operands (Lua 5.4 auto-converts).
 // When one operand is T_FLOAT and the other is T_INT, bitwise result should be T_INT.
-TEST(DISABLED_infer, test_bitwise_float_operand) {
+TEST(infer, test_bitwise_float_operand) {
     const auto code = InferGetCCode("./infer/test_bitwise_float_operand.lua");
     // Both params should be math params (used in bitwise arithmetic).
     ASSERT_NE(code.find("test_0_0(int64_t a, int64_t b)"), std::string::npos);
@@ -3489,7 +3489,7 @@ TEST(DISABLED_infer, test_bitwise_float_operand) {
 
 // Bug 3: `or` operator with numeric left operand should always return left_type.
 // Numbers (including 0) are truthy in Lua, so `n or x` always returns n.
-TEST(DISABLED_infer, test_or_left_numeric) {
+TEST(infer, test_or_left_numeric) {
     const auto code = InferGetCCode("./infer/test_or_left_numeric.lua");
     // n should be a math param because `n or 0` preserves numeric type
     // (left_type flows through), and `x + 1` is arithmetic.
@@ -3510,7 +3510,7 @@ TEST(DISABLED_infer, test_or_left_numeric) {
 // Bug 4: Math param discovery order dependency.
 // outer() calls inner(). If outer is processed before inner, without multi-pass
 // iteration outer's params wouldn't be detected as math params.
-TEST(DISABLED_infer, test_discovery_order) {
+TEST(infer, test_discovery_order) {
     const auto code = InferGetCCode("./infer/test_discovery_order.lua");
     // Both functions should be specialized.
     ASSERT_NE(code.find("inner_0(int64_t n)"), std::string::npos);
@@ -3532,7 +3532,7 @@ TEST(DISABLED_infer, test_discovery_order) {
 
 // Native unary minus in specialized function: CompileUnop generates -(n)
 // directly when operand is T_INT.
-TEST(DISABLED_infer, test_native_unary_minus_standalone) {
+TEST(infer, test_native_unary_minus_standalone) {
     const auto code = InferGetCCode("./infer/test_native_unary_minus_standalone.lua");
     // Should produce native negation expression in specialized body.
     ASSERT_NE(code.find("-("), std::string::npos);
@@ -3551,7 +3551,7 @@ TEST(DISABLED_infer, test_native_unary_minus_standalone) {
 
 // Native bitwise NOT in specialized function: CompileUnop generates ~(n)
 // directly when operand is T_INT.
-TEST(DISABLED_infer, test_native_unary_bitnot) {
+TEST(infer, test_native_unary_bitnot) {
     const auto code = InferGetCCode("./infer/test_native_unary_bitnot.lua");
     // Should produce native bitwise not expression.
     ASSERT_NE(code.find("~("), std::string::npos);
@@ -3569,7 +3569,7 @@ TEST(DISABLED_infer, test_native_unary_bitnot) {
 }
 
 // Native comparison == in expression context with SET_BOOL fast path.
-TEST(DISABLED_infer, test_native_cmp_expr_eq) {
+TEST(infer, test_native_cmp_expr_eq) {
     const auto code = InferGetCCode("./infer/test_native_cmp_expr_eq.lua");
     // helper should be specialized (n*2).
     ASSERT_NE(code.find("helper_0(int64_t n)"), std::string::npos);
@@ -3585,7 +3585,7 @@ TEST(DISABLED_infer, test_native_cmp_expr_eq) {
 }
 
 // Native comparison < in expression context with SET_BOOL fast path.
-TEST(DISABLED_infer, test_native_cmp_expr_lt) {
+TEST(infer, test_native_cmp_expr_lt) {
     const auto code = InferGetCCode("./infer/test_native_cmp_expr_lt.lua");
     // Should be specialized (n*2).
     ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
@@ -3602,7 +3602,7 @@ TEST(DISABLED_infer, test_native_cmp_expr_lt) {
 
 // Table constructor uses FlSetTableInt for sequential integer keys and
 // FlSetTableStrId for named fields.
-TEST(DISABLED_infer, test_table_constructor_fast_path) {
+TEST(infer, test_table_constructor_fast_path) {
     const auto code = InferGetCCode("./infer/test_table_constructor_fast_path.lua");
     // Should use FlSetTableInt for sequential elements.
     ASSERT_NE(code.find("FlSetTableInt("), std::string::npos);
@@ -3620,10 +3620,11 @@ TEST(DISABLED_infer, test_table_constructor_fast_path) {
 }
 
 // Table dot access uses FlGetTableStrId fast path.
-TEST(DISABLED_infer, test_table_dot_access_fast_path) {
+TEST(infer, test_table_dot_access_fast_path) {
     const auto code = InferGetCCode("./infer/test_table_dot_access_fast_path.lua");
     // Should use either FlGetTableStrId or spec fast path for t.a and t.b reads.
-    ASSERT_TRUE(code.find("FlGetTableStrId(") != std::string::npos || code.find("SET_TABLE_SPEC(") != std::string::npos);
+    ASSERT_TRUE(code.find("FlGetTableStrId(") != std::string::npos ||
+                code.find("SET_TABLE_SPEC(") != std::string::npos);
     // Should NOT use FlGetTable for dot access.
     ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
 
@@ -3636,10 +3637,11 @@ TEST(DISABLED_infer, test_table_dot_access_fast_path) {
 }
 
 // Table bracket access with string literal uses FlGetTableStrId fast path.
-TEST(DISABLED_infer, test_table_bracket_string_fast_path) {
+TEST(infer, test_table_bracket_string_fast_path) {
     const auto code = InferGetCCode("./infer/test_table_bracket_string_fast_path.lua");
     // Should use either FlGetTableStrId or spec fast path for t["hello"] and t["world"] reads.
-    ASSERT_TRUE(code.find("FlGetTableStrId(") != std::string::npos || code.find("SET_TABLE_SPEC(") != std::string::npos);
+    ASSERT_TRUE(code.find("FlGetTableStrId(") != std::string::npos ||
+                code.find("SET_TABLE_SPEC(") != std::string::npos);
     // Should NOT use FlGetTable for string literal bracket access.
     ASSERT_EQ(code.find("FlGetTable("), std::string::npos);
 
@@ -3652,7 +3654,7 @@ TEST(DISABLED_infer, test_table_bracket_string_fast_path) {
 }
 
 // Table dot assignment uses FlSetTableStrId fast path via FAKELUA_SET_TABLE.
-TEST(DISABLED_infer, test_table_assign_dot_fast_path) {
+TEST(infer, test_table_assign_dot_fast_path) {
     const auto code = InferGetCCode("./infer/test_table_assign_dot_fast_path.lua");
     // Assignments t.x = 100, t.y = 200 should use FlSetTableStrId.
     ASSERT_NE(code.find("FlSetTableStrId("), std::string::npos);
@@ -3667,7 +3669,7 @@ TEST(DISABLED_infer, test_table_assign_dot_fast_path) {
 
 // 比较表达式结果（T_DYNAMIC）作为数学函数参数时，走动态调用路径。
 // 覆盖 InferNumericBinopResultType 中比较运算符（kLess 等）的分支。
-TEST(DISABLED_infer, test_spec_compare_arg_dynamic) {
+TEST(infer, test_spec_compare_arg_dynamic) {
     const auto code = InferGetCCode("./infer/test_spec_compare_arg_dynamic.lua");
     // add IS a math-param function (n + 0 creates arithmetic).
     ASSERT_NE(code.find("add_0(int64_t n)"), std::string::npos);
@@ -3678,7 +3680,7 @@ TEST(DISABLED_infer, test_spec_compare_arg_dynamic) {
 
 // 除法表达式（a / b）中操作数为数学参数时，InferNumericBinopResultType 返回 T_FLOAT。
 // 覆盖 InferNumericBinopResultType 中 kSlash/kPow 的分支。
-TEST(DISABLED_infer, test_spec_div_arg_float) {
+TEST(infer, test_spec_div_arg_float) {
     const auto code = InferGetCCode("./infer/test_spec_div_arg_float.lua");
     // add IS a math-param function (n + 0 creates arithmetic).
     ASSERT_NE(code.find("add_0(int64_t n)"), std::string::npos);
@@ -3690,7 +3692,7 @@ TEST(DISABLED_infer, test_spec_div_arg_float) {
 
 // 位运算表达式（n & 1）中操作数为数学参数时，InferNumericBinopResultType 返回 T_INT。
 // 覆盖 InferNumericBinopResultType 中位运算符（kBitAnd 等）的分支。
-TEST(DISABLED_infer, test_spec_bitwise_arg_int) {
+TEST(infer, test_spec_bitwise_arg_int) {
     const auto code = InferGetCCode("./infer/test_spec_bitwise_arg_int.lua");
     // add IS a math-param function (n + 0 creates arithmetic).
     ASSERT_NE(code.find("add_0(int64_t n)"), std::string::npos);
@@ -3702,7 +3704,7 @@ TEST(DISABLED_infer, test_spec_bitwise_arg_int) {
 
 // and 表达式中两侧操作数均为数学参数时，InferNumericBinopResultType(kAnd) 返回 right_type。
 // 覆盖 InferNumericBinopResultType 中 kAnd 的分支。
-TEST(DISABLED_infer, test_spec_and_arg_type) {
+TEST(infer, test_spec_and_arg_type) {
     const auto code = InferGetCCode("./infer/test_spec_and_arg_type.lua");
     // add IS a math-param function.
     ASSERT_NE(code.find("add_0(int64_t n)"), std::string::npos);
@@ -3714,7 +3716,7 @@ TEST(DISABLED_infer, test_spec_and_arg_type) {
 
 // or 表达式中两侧操作数均为数学参数时，InferNumericBinopResultType(kOr) 返回 left_type。
 // 覆盖 InferNumericBinopResultType 中 kOr 的分支。
-TEST(DISABLED_infer, test_spec_or_arg_type) {
+TEST(infer, test_spec_or_arg_type) {
     const auto code = InferGetCCode("./infer/test_spec_or_arg_type.lua");
     // add IS a math-param function.
     ASSERT_NE(code.find("add_0(int64_t n)"), std::string::npos);
@@ -3726,7 +3728,7 @@ TEST(DISABLED_infer, test_spec_or_arg_type) {
 
 // 连接表达式（n .. n）中操作数为数学参数时，InferNumericBinopResultType 返回 T_DYNAMIC。
 // 覆盖 InferNumericBinopResultType 中 kConcat 的最终 return T_DYNAMIC 分支。
-TEST(DISABLED_infer, test_spec_concat_arg_dynamic) {
+TEST(infer, test_spec_concat_arg_dynamic) {
     const auto code = InferGetCCode("./infer/test_spec_concat_arg_dynamic.lua");
     // add IS a math-param function (n + 0 creates arithmetic).
     ASSERT_NE(code.find("add_0(int64_t n)"), std::string::npos);
@@ -3737,7 +3739,7 @@ TEST(DISABLED_infer, test_spec_concat_arg_dynamic) {
     ASSERT_NE(code.find("OpConcat("), std::string::npos);
 }
 
-TEST(DISABLED_infer, test_spec_direct_access) {
+TEST(infer, test_spec_direct_access) {
     const auto code = InferGetCCode("./infer/test_spec_direct_access.lua");
     // 确保直接利用指针解引用读取字段，不再包含 FlGetTableStrId
     ASSERT_EQ(code.find("FlGetTableStrId("), std::string::npos);
@@ -3745,7 +3747,7 @@ TEST(DISABLED_infer, test_spec_direct_access) {
     ASSERT_TRUE(code.find("FL_SPEC(") != std::string::npos || code.find("FL_SPEC_INT(") != std::string::npos || code.find("FL_SPEC_FLOAT(") != std::string::npos);
     // 确保写入时使用的是精简的 FL_SET_SPEC 宏指针偏移形式
     ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
-
+    
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_direct_access.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
@@ -3756,7 +3758,7 @@ TEST(DISABLED_infer, test_spec_direct_access) {
 
 // 三元表达式（(n > 0) and 1 or 2）优化测试。
 // 校验生成的 C 代码使用原生三元表达式且 JIT 运行结果正确。
-TEST(DISABLED_infer, test_spec_ternary) {
+TEST(infer, test_spec_ternary) {
     const auto code = InferGetCCode("./infer/test_spec_ternary.lua");
     // test_0 必须被生成，且内部使用原生三元条件运算符 (n) > (0) ? 1 : 2
     ASSERT_NE(code.find("int64_t test_0(int64_t n)"), std::string::npos);
@@ -3772,7 +3774,7 @@ TEST(DISABLED_infer, test_spec_ternary) {
     });
 }
 
-TEST(DISABLED_infer, test_math_spec_9params) {
+TEST(infer, test_math_spec_9params) {
     const auto code = InferGetCCode("./infer/test_math_spec_9params.lua");
     // Should NOT have specialized variants.
     ASSERT_EQ(code.find("test_math_spec_9params_0"), std::string::npos);
@@ -3787,7 +3789,7 @@ TEST(DISABLED_infer, test_math_spec_9params) {
     });
 }
 
-TEST(DISABLED_infer, test_math_spec_mixed) {
+TEST(infer, test_math_spec_mixed) {
     const auto code = InferGetCCode("./infer/test_math_spec_mixed.lua");
     // Verify that the fully specialized version is generated.
     // The name pattern suffix starts with _0_0_0_0_0_0_0_0 for 8 parameters.
@@ -3813,7 +3815,7 @@ TEST(DISABLED_infer, test_math_spec_mixed) {
     });
 }
 
-TEST(DISABLED_infer, test_global_table_spec) {
+TEST(infer, test_global_table_spec) {
     const auto code = InferGetCCode("./infer/test_global_table_spec.lua");
     // Global table should also be specialized
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
@@ -3827,7 +3829,7 @@ TEST(DISABLED_infer, test_global_table_spec) {
     });
 }
 
-TEST(DISABLED_infer, test_spec_basic) {
+TEST(infer, test_spec_basic) {
     const auto code = InferGetCCode("./infer/test_spec_basic.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FlGetTableStrId_"), std::string::npos);
@@ -3841,7 +3843,7 @@ TEST(DISABLED_infer, test_spec_basic) {
     });
 }
 
-TEST(DISABLED_infer, test_spec_single_field) {
+TEST(infer, test_spec_single_field) {
     const auto code = InferGetCCode("./infer/test_spec_single_field.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FlGetTableStrId_"), std::string::npos);
@@ -3854,39 +3856,24 @@ TEST(DISABLED_infer, test_spec_single_field) {
     });
 }
 
-TEST(DISABLED_infer, test_spec_write_multi) {
+TEST(infer, test_spec_write_multi) {
     const auto code = InferGetCCode("./infer/test_spec_write_multi.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     // 初始化写入走 FlSetTableStrId，特化字段属性赋值优化为走 FL_SET_SPEC*
     int count_id = 0;
     int count_set_spec = 0;
     std::string::size_type pos = 0;
-    while ((pos = code.find("FlSetTableStrId(", pos)) != std::string::npos) {
-        count_id++;
-        pos++;
-    }
+    while ((pos = code.find("FlSetTableStrId(", pos)) != std::string::npos) { count_id++; pos++; }
     pos = 0;
-    while ((pos = code.find("FL_SET_SPEC(", pos)) != std::string::npos) {
-        count_set_spec++;
-        pos++;
-    }
+    while ((pos = code.find("FL_SET_SPEC(", pos)) != std::string::npos) { count_set_spec++; pos++; }
     pos = 0;
-    while ((pos = code.find("FL_SET_SPEC_INT(", pos)) != std::string::npos) {
-        count_set_spec++;
-        pos++;
-    }
+    while ((pos = code.find("FL_SET_SPEC_INT(", pos)) != std::string::npos) { count_set_spec++; pos++; }
     pos = 0;
-    while ((pos = code.find("FL_SET_SPEC_FLOAT(", pos)) != std::string::npos) {
-        count_set_spec++;
-        pos++;
-    }
+    while ((pos = code.find("FL_SET_SPEC_FLOAT(", pos)) != std::string::npos) { count_set_spec++; pos++; }
     pos = 0;
-    while ((pos = code.find("FL_SET_SPEC_CVAR(", pos)) != std::string::npos) {
-        count_set_spec++;
-        pos++;
-    }
-    ASSERT_GE(count_id, 3);      // 初始化 3 次
-    ASSERT_GE(count_set_spec, 3);// 写属性 3 次
+    while ((pos = code.find("FL_SET_SPEC_CVAR(", pos)) != std::string::npos) { count_set_spec++; pos++; }
+    ASSERT_GE(count_id, 3);       // 初始化 3 次
+    ASSERT_GE(count_set_spec, 3); // 写属性 3 次
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_write_multi.lua", {.debug_mode = debug_mode});
@@ -3896,7 +3883,7 @@ TEST(DISABLED_infer, test_spec_write_multi) {
     });
 }
 
-TEST(DISABLED_infer, test_spec_pairs) {
+TEST(infer, test_spec_pairs) {
     const auto code = InferGetCCode("./infer/test_spec_pairs.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     // pairs 遍历走 GET_TABLE_ENTRY（hash），初始化时双写保证 hash 有数据
@@ -3910,11 +3897,13 @@ TEST(DISABLED_infer, test_spec_pairs) {
     });
 }
 
-TEST(DISABLED_infer, test_spec_dynamic_write) {
+TEST(infer, test_spec_dynamic_write) {
     const auto code = InferGetCCode("./infer/test_spec_dynamic_write.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     // 确保使用了 FL_SPEC 宏来直连访问属性
-    ASSERT_TRUE(code.find("FL_SPEC(") != std::string::npos || code.find("FL_SPEC_INT(") != std::string::npos || code.find("FL_SPEC_FLOAT(") != std::string::npos);
+    ASSERT_TRUE(code.find("FL_SPEC(") != std::string::npos || 
+                code.find("FL_SPEC_INT(") != std::string::npos ||
+                code.find("FL_SPEC_FLOAT(") != std::string::npos);
     // x 走 FlGetTableStrId_xxxx (通过特化)
     ASSERT_NE(code.find("FlGetTableStrId_"), std::string::npos);
     // y 走普通 FlGetTableStrId (非特化)
@@ -3928,7 +3917,7 @@ TEST(DISABLED_infer, test_spec_dynamic_write) {
     });
 }
 
-TEST(DISABLED_infer, test_spec_dynamic_key) {
+TEST(infer, test_spec_dynamic_key) {
     const auto code = InferGetCCode("./infer/test_spec_dynamic_key.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     // 动态 key 写入走 FlSetTable（非 FlSetTableStrId）
@@ -3944,7 +3933,7 @@ TEST(DISABLED_infer, test_spec_dynamic_key) {
     });
 }
 
-TEST(DISABLED_infer, test_spec_func_param) {
+TEST(infer, test_spec_func_param) {
     const auto code = InferGetCCode("./infer/test_spec_func_param.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     // 参数动态访问走 FlGetTable（非 FlGetTableStrId）
@@ -3960,15 +3949,12 @@ TEST(DISABLED_infer, test_spec_func_param) {
     });
 }
 
-TEST(DISABLED_infer, test_spec_multi_tables) {
+TEST(infer, test_spec_multi_tables) {
     const auto code = InferGetCCode("./infer/test_spec_multi_tables.lua");
     // 两个 table 各自特化
     int spec_count = 0;
     std::string::size_type pos = 0;
-    while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) {
-        spec_count++;
-        pos++;
-    }
+    while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) { spec_count++; pos++; }
     ASSERT_EQ(spec_count, 2);
     // 确保使用了 FL_SPEC 宏来直连访问属性
     ASSERT_TRUE(code.find("FL_SPEC(") != std::string::npos || code.find("FL_SPEC_INT(") != std::string::npos || code.find("FL_SPEC_FLOAT(") != std::string::npos);
@@ -3981,15 +3967,12 @@ TEST(DISABLED_infer, test_spec_multi_tables) {
     });
 }
 
-TEST(DISABLED_infer, test_spec_nested) {
+TEST(infer, test_spec_nested) {
     const auto code = InferGetCCode("./infer/test_spec_nested.lua");
     // 外层和内层 table 都会被特化（全是 kObject 字段）
     int spec_count = 0;
     std::string::size_type pos = 0;
-    while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) {
-        spec_count++;
-        pos++;
-    }
+    while ((pos = code.find("SET_TABLE_SPEC(", pos)) != std::string::npos) { spec_count++; pos++; }
     ASSERT_EQ(spec_count, 2);
     // 外层访问使用了 FL_SPEC
     ASSERT_TRUE(code.find("FL_SPEC(") != std::string::npos || code.find("FL_SPEC_INT(") != std::string::npos || code.find("FL_SPEC_FLOAT(") != std::string::npos);
@@ -4004,7 +3987,7 @@ TEST(DISABLED_infer, test_spec_nested) {
     });
 }
 
-TEST(DISABLED_infer, test_table_spec_dynamic_key) {
+TEST(infer, test_table_spec_dynamic_key) {
     const auto code = InferGetCCode("./infer/test_table_spec_dynamic_key.lua");
     // 因为是 { x = 10, y = 20 }，它仍会被特化构造
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
@@ -4020,7 +4003,7 @@ TEST(DISABLED_infer, test_table_spec_dynamic_key) {
     });
 }
 
-TEST(DISABLED_infer, test_table_spec_empty) {
+TEST(infer, test_table_spec_empty) {
     const auto code = InferGetCCode("./infer/test_table_spec_empty.lua");
     // 空 table 构造，不开启特化
     ASSERT_EQ(code.find("SET_TABLE_SPEC("), std::string::npos);
@@ -4038,7 +4021,7 @@ TEST(DISABLED_infer, test_table_spec_empty) {
     });
 }
 
-TEST(DISABLED_infer, test_table_spec_mixed) {
+TEST(infer, test_table_spec_mixed) {
     const auto code = InferGetCCode("./infer/test_table_spec_mixed.lua");
     // 含有数组索引字段，开启特化
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
@@ -4053,7 +4036,7 @@ TEST(DISABLED_infer, test_table_spec_mixed) {
     });
 }
 
-TEST(DISABLED_infer, test_table_spec_undefined_field) {
+TEST(infer, test_table_spec_undefined_field) {
     const auto code = InferGetCCode("./infer/test_table_spec_undefined_field.lua");
     // table 本身只有 x = 10，能特化
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
@@ -4073,7 +4056,7 @@ TEST(DISABLED_infer, test_table_spec_undefined_field) {
     });
 }
 
-TEST(DISABLED_infer, test_table_spec_control_flow) {
+TEST(infer, test_table_spec_control_flow) {
     const auto code = InferGetCCode("./infer/test_table_spec_control_flow.lua");
     // 两个分支都会特化构造 table，因此有 SET_TABLE_SPEC
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
@@ -4091,7 +4074,7 @@ TEST(DISABLED_infer, test_table_spec_control_flow) {
     });
 }
 
-TEST(DISABLED_infer, test_table_spec_if_else_soundness) {
+TEST(infer, test_table_spec_if_else_soundness) {
     // Phase 2: if-else 两分支构造不同 shape 的 table 赋给同一变量，
     // 汇合后两 constructor 统一到合并结构体 {x?,y?}，a.x / a.y 走 FL_SPEC 偏移读。
     // 缺失字段在 emit 时显式 nil 初始化（temp allocator 不清零），保证读到 nil CVar。
@@ -4114,7 +4097,7 @@ TEST(DISABLED_infer, test_table_spec_if_else_soundness) {
     });
 }
 
-TEST(DISABLED_infer, test_table_spec_func_param_degrade) {
+TEST(infer, test_table_spec_func_param_degrade) {
     const auto code = InferGetCCode("./infer/test_table_spec_func_param_degrade.lua");
     // get_x 里的 tbl.x 属性访问没有特化，因为 tbl 是形参 (T_DYNAMIC)
     ASSERT_NE(code.find("FlGetTableStrId("), std::string::npos);
@@ -4128,7 +4111,7 @@ TEST(DISABLED_infer, test_table_spec_func_param_degrade) {
     });
 }
 
-TEST(DISABLED_infer, test_spec_int_key) {
+TEST(infer, test_spec_int_key) {
     const auto code = InferGetCCode("./infer/test_spec_int_key.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
@@ -4140,11 +4123,11 @@ TEST(DISABLED_infer, test_spec_int_key) {
         CompileFile(s, "./infer/test_spec_int_key.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test_int_key", ret);
-        ASSERT_EQ(ret, 150);// 100 + 20 + 30
+        ASSERT_EQ(ret, 150); // 100 + 20 + 30
     });
 }
 
-TEST(DISABLED_infer, test_spec_bool_key) {
+TEST(infer, test_spec_bool_key) {
     const auto code = InferGetCCode("./infer/test_spec_bool_key.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
@@ -4155,11 +4138,11 @@ TEST(DISABLED_infer, test_spec_bool_key) {
         CompileFile(s, "./infer/test_spec_bool_key.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test_bool_key", ret);
-        ASSERT_EQ(ret, 120);// 100 + 20
+        ASSERT_EQ(ret, 120); // 100 + 20
     });
 }
 
-TEST(DISABLED_infer, test_spec_float_key) {
+TEST(infer, test_spec_float_key) {
     const auto code = InferGetCCode("./infer/test_spec_float_key.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
@@ -4170,11 +4153,11 @@ TEST(DISABLED_infer, test_spec_float_key) {
         CompileFile(s, "./infer/test_spec_float_key.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test_float_key", ret);
-        ASSERT_EQ(ret, 120);// 100 + 20
+        ASSERT_EQ(ret, 120); // 100 + 20
     });
 }
 
-TEST(DISABLED_infer, test_spec_mixed_keys) {
+TEST(infer, test_spec_mixed_keys) {
     const auto code = InferGetCCode("./infer/test_spec_mixed_keys.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
@@ -4187,11 +4170,11 @@ TEST(DISABLED_infer, test_spec_mixed_keys) {
         CompileFile(s, "./infer/test_spec_mixed_keys.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
         Call(s, type, "test_mixed_keys", ret);
-        ASSERT_EQ(ret, 1650);// 10+20+30+40+50+100+200+300+400+500
+        ASSERT_EQ(ret, 1650); // 10+20+30+40+50+100+200+300+400+500
     });
 }
 
-TEST(DISABLED_infer, test_spec_non_string_dynamic) {
+TEST(infer, test_spec_non_string_dynamic) {
     const auto code = InferGetCCode("./infer/test_spec_non_string_dynamic.lua");
     // 动态 Key 读取无法特化，因此必须有 FlGetTable 和 FlSetTable
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
@@ -4201,12 +4184,12 @@ TEST(DISABLED_infer, test_spec_non_string_dynamic) {
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_spec_non_string_dynamic.lua", {.debug_mode = debug_mode});
         int64_t ret = 0;
-        Call(s, type, "test_dynamic", ret, (int64_t) 1, std::string("x"), true);
-        ASSERT_EQ(ret, 150);// 100 + 20 + 30
+        Call(s, type, "test_dynamic", ret, (int64_t)1, std::string("x"), true);
+        ASSERT_EQ(ret, 150); // 100 + 20 + 30
     });
 }
 
-TEST(DISABLED_infer, test_spec_nil_traversal) {
+TEST(infer, test_spec_nil_traversal) {
     const auto code = InferGetCCode("./infer/test_spec_nil_traversal.lua");
     ASSERT_NE(code.find("GET_TABLE_ENTRY("), std::string::npos);
     ASSERT_NE(code.find("v.type_ == VAR_NIL"), std::string::npos);
@@ -4220,7 +4203,7 @@ TEST(DISABLED_infer, test_spec_nil_traversal) {
     });
 }
 
-TEST(DISABLED_infer, test_table_spec_negative_int_key) {
+TEST(infer, test_table_spec_negative_int_key) {
     const auto code = InferGetCCode("./infer/test_table_spec_negative_int_key.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
@@ -4238,7 +4221,7 @@ TEST(DISABLED_infer, test_table_spec_negative_int_key) {
     });
 }
 
-TEST(DISABLED_infer, test_table_spec_expr_key) {
+TEST(infer, test_table_spec_expr_key) {
     const auto code = InferGetCCode("./infer/test_table_spec_func_call_value.lua");
     ASSERT_EQ(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_EQ(code.find("FL_SPEC("), std::string::npos);
@@ -4253,7 +4236,7 @@ TEST(DISABLED_infer, test_table_spec_expr_key) {
     });
 }
 
-TEST(DISABLED_infer, test_table_spec_var_value) {
+TEST(infer, test_table_spec_var_value) {
     const auto code = InferGetCCode("./infer/test_table_spec_var_value.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
@@ -4269,7 +4252,7 @@ TEST(DISABLED_infer, test_table_spec_var_value) {
     });
 }
 
-TEST(DISABLED_infer, test_table_spec_string_negative_int) {
+TEST(infer, test_table_spec_string_negative_int) {
     const auto code = InferGetCCode("./infer/test_table_spec_string_negative_int.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
@@ -4286,7 +4269,7 @@ TEST(DISABLED_infer, test_table_spec_string_negative_int) {
     });
 }
 
-TEST(DISABLED_infer, test_table_spec_reassign_to_table) {
+TEST(infer, test_table_spec_reassign_to_table) {
     const auto code = InferGetCCode("./infer/test_table_spec_reassign_to_table.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
     ASSERT_NE(code.find("FL_SPEC("), std::string::npos);

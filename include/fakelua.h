@@ -218,6 +218,7 @@ static_assert(std::is_trivially_copyable_v<CVar>, "CVar must be trivially copyab
 // VarMulti 完整定义在 var_multi.h 中（仅 .cpp 文件 include）
 // 这里 forward-declare 供 CVar 联合体使用
 // Call() 模板通过 inter::DispatchCall 间接使用 Multi，无需在此暴露 VarMulti 定义
+
 // JIT类型
 enum JITType {
     // TinyCC 是一个小型的 C 语言编译器，支持即时编译（JIT）。它的特点是编译速度快，适合于需要快速生成和执行代码的场景
@@ -239,12 +240,6 @@ struct CompileConfig {
     // 开启后可通过 GetLastRecordedCCode(State*) 获取最近一次编译产生的代码片段。
     bool record_c_code = false;
 };
-
-}// namespace fakelua
-
-
-namespace fakelua {
-
 
 struct StateTCCConfig {
     std::vector<std::string> include_paths = {"./include"};
@@ -313,42 +308,15 @@ private:
     State *state_;
 };
 
-// ── 编译管线结果（公共接口） ──────────────────────────────────────────
-//
-// CompileResult 是编译管线的返回值，封装了 C 代码生成结果等公共数据。
-// 内部的 SSA/CFG/Shape 等中间产物通过内部头文件 compile/compile_common.h
-// 中的 GetCompileResultImpl() 访问（仅供库内部和测试代码使用）。
-// ──────────────────────────────────────────────────────────────────────
-class CompileResult {
-public:
-    CompileResult();
-    CompileResult(CompileResult &&) noexcept;
-    CompileResult &operator=(CompileResult &&) noexcept;
-    ~CompileResult();
+// 编译文件
+void CompileFile(State *s, const std::string &filename, const CompileConfig &cfg);
 
-    // 禁止拷贝（内部持有不可拷贝的资源）
-    CompileResult(const CompileResult &) = delete;
-    CompileResult &operator=(const CompileResult &) = delete;
+// 编译字符串
+void CompileString(State *s, const std::string &str, const CompileConfig &cfg);
 
-    // 获取生成的 C 代码（包含公共头部）
-    [[nodiscard]] const std::string &GetCCode() const;
-
-    // 获取记录的 C 代码（不含公共头部，仅在 CompileConfig::record_c_code == true 时有效）
-    [[nodiscard]] const std::string &GetRecordedCCode() const;
-
-private:
-    // pimpl：隐藏内部编译管线结构（ParseResult/AnalysisResult/InferResult/GenResult）。
-    // 使用 shared_ptr<void> 避免在公共头文件中 include 内部类型。
-    // 内部代码通过 GetCompileResultImpl(CompileResult&) 访问完整的 Impl。
-    friend struct CompileResultImplAccess;
-    std::shared_ptr<void> impl_;
-};
-
-// 编译 Lua 文件 → 返回完整管线结果。
-CompileResult CompileFile(State *s, const std::string &filename, const CompileConfig &cfg);
-
-// 编译 Lua 字符串 → 返回完整管线结果。
-CompileResult CompileString(State *s, const std::string &str, const CompileConfig &cfg);
+// 获取最近一次编译时记录的 C 代码（仅在 CompileConfig::record_c_code 为 true 时有效）。
+// 返回全局变量、函数声明和函数实现部分，不含公共头部。
+std::string GetLastRecordedCCode(State *s);
 
 // 调用某个脚本函数（定义在文件末尾）
 template<typename Ret, typename... Args>
@@ -576,10 +544,8 @@ int GetMultiCVarCount(const CVar &multi);
 
 template<typename T>
 struct is_std_tuple : std::false_type {};
-
 template<typename... Ts>
 struct is_std_tuple<std::tuple<Ts...>> : std::true_type {};
-
 template<typename T>
 inline constexpr bool is_std_tuple_v = is_std_tuple<T>::value;
 
