@@ -1129,6 +1129,8 @@ int UnifiedTypeAnalyzer::BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc, co
 
     ShapeType shape;
     shape.is_open = false;
+    size_t implicit_array_idx = 0;// 隐式数组字段独立计数，避免命名字段干扰下标
+    std::unordered_set<std::string> seen_fields;
 
     for (auto &field_node: fl->Fields()) {
         if (!field_node || field_node->Type() != SyntaxTreeType::Field) continue;
@@ -1140,7 +1142,8 @@ int UnifiedTypeAnalyzer::BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc, co
             fd.c_field_name = ToSafeCFieldName(fp->Name());
         } else {
             if (fp->GetFieldKind() == FieldKind::kArray && fp->Key() == nullptr) {
-                fd.name = std::to_string(shape.fields.size() + 1);
+                ++implicit_array_idx;
+                fd.name = std::to_string(implicit_array_idx);
                 fd.is_int_key = true;
                 fd.c_field_name = ToSafeCFieldName("_int_" + fd.name);
             } else {
@@ -1154,6 +1157,20 @@ int UnifiedTypeAnalyzer::BuildShapeFromCtor(const SyntaxTreeInterfacePtr &tc, co
                 }
             }
         }
+
+        // 去重：跳过已存在的 key（包括隐式数组与显式 key 的重叠场景）
+        if (seen_fields.contains(fd.name)) {
+            // 更新已有字段的类型（后续赋值可能更精确）
+            for (auto &existing : shape.fields) {
+                if (existing.name == fd.name) {
+                    existing.type = InferExprType(fp->Value(), ssa, version_types, ir, {}).type;
+                    existing.c_field_name = fd.c_field_name;
+                    break;
+                }
+            }
+            continue;
+        }
+        seen_fields.insert(fd.name);
 
         auto val_ty = InferExprType(fp->Value(), ssa, version_types, ir, {});
         fd.type = val_ty.type;
