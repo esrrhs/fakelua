@@ -4097,6 +4097,32 @@ TEST(infer, test_table_spec_if_else_soundness) {
     });
 }
 
+TEST(infer, test_table_spec_if_else_diff_key) {
+    // if-else 两分支构造不同 key 的 table 赋给同一变量（exact user scenario）。
+    // 汇合后两 constructor 统一到合并结构体 {a?,b?}，a.a / a.b 走 FL_SPEC 偏移读。
+    // 缺失字段在 emit 时显式 nil 初始化（temp allocator 不清零），保证读到 nil CVar。
+    // 详见 test_table_spec_if_else_diff_key.lua。
+    const auto code = InferGetCCode("./infer/test_table_spec_if_else_diff_key.lua");
+    // 分支内构造 table 仍会特化（SET_TABLE_SPEC 出现在分支内部）
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // 汇合后 a.a / a.b 访问走 FL_SPEC 偏移读（合并布局 {a,b}）
+    ASSERT_NE(code.find("FL_SPEC("), std::string::npos);
+    // 汇合点应同时存在对字段 a (idx 0) 和字段 b (idx 1) 的偏移写入，
+    // 证明合并布局含两个 spec 字段，且均走 FL_SET_SPEC 路径。
+    ASSERT_NE(code.find("FL_SET_SPEC("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_if_else_diff_key.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        // b>0: a={a=1}, a.a=1, a.b=nil→0, return 1
+        Call(s, type, "test", ret, 5);
+        ASSERT_EQ(ret, 1);
+        // b<=0: a={b=2}, a.a=nil→0, a.b=2, return 2
+        Call(s, type, "test", ret, -3);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
 TEST(infer, test_table_spec_if_else_same_key_diff_type) {
     // if-else 两分支构造同 key、不同值类型的 table 赋给同一变量。
     // 汇合后特化布局相同（都是 {x}），值类型差异由类型推断处理（int → float 提升）。
