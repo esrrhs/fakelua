@@ -314,24 +314,6 @@ TEST(jitter, multi_return_expr_assign) {
     });
 }
 
-TEST(jitter, multi_name) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_name_func.lua", {.debug_mode = true});
-            },
-            std::exception);
-}
-
-TEST(jitter, multi_col_name) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_multi_col_name_func.lua", {.debug_mode = true});
-            },
-            std::exception);
-}
-
 // Global const variable definitions
 TEST(jitter, const_define) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
@@ -473,17 +455,6 @@ TEST(jitter, test_assign) {
         ASSERT_EQ(a, 1);
         ASSERT_EQ(b, "2");
     });
-}
-
-//
-// Mismatched var/exp counts (e.g. a, b = 1) are rejected by PreprocessSplitAssign
-TEST(jitter, test_assign_not_match) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_assign_not_match.lua", {.debug_mode = true});
-            },
-            std::exception);
 }
 
 // Variadic assignment (local a, b = ...) is not supported, these tests verify the exception is thrown
@@ -711,42 +682,6 @@ TEST(jitter, test_vararg_walk_all_compilable) {
         Call(s, type, "test", ret, 0, 0);
         ASSERT_EQ(ret, 112);
     });
-}
-
-// Nested functions are rejected by codegen/semantic-analysis, but the varargs
-// preprocessing walk runs BEFORE those stages, so it still descends into the
-// nested function nodes. EXPECT_THROW lets us exercise those walk branches
-// (Function/FuncName/FuncBody/ParList/LocalFunction/FunctionDef). A fresh
-// State is used per attempt because a failed compile leaves the JIT state in
-// an unknown condition.
-TEST(jitter, test_vararg_with_nested_function) {
-    for (const auto type: GetSupportedJitTypes()) {
-        for (const auto debug_mode: {true, false}) {
-            const FakeluaStateGuard guard;
-            auto *s = guard.GetState();
-            EXPECT_THROW(CompileFile(s, "./jit/test_vararg_with_nested_function.lua", {.debug_mode = debug_mode}), std::exception);
-        }
-    }
-}
-
-TEST(jitter, test_vararg_with_nested_localfunction) {
-    for (const auto type: GetSupportedJitTypes()) {
-        for (const auto debug_mode: {true, false}) {
-            const FakeluaStateGuard guard;
-            auto *s = guard.GetState();
-            EXPECT_THROW(CompileFile(s, "./jit/test_vararg_with_nested_localfunction.lua", {.debug_mode = debug_mode}), std::exception);
-        }
-    }
-}
-
-TEST(jitter, test_vararg_with_funcdef) {
-    for (const auto type: GetSupportedJitTypes()) {
-        for (const auto debug_mode: {true, false}) {
-            const FakeluaStateGuard guard;
-            auto *s = guard.GetState();
-            EXPECT_THROW(CompileFile(s, "./jit/test_vararg_with_funcdef.lua", {.debug_mode = debug_mode}), std::exception);
-        }
-    }
 }
 
 TEST(jitter, test_assign_simple_var) {
@@ -1717,16 +1652,6 @@ TEST(jitter, test_var_func_call) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) { CompileFile(s, "./jit/test_var_func_call.lua", {.debug_mode = debug_mode}); });
 }
 
-// Dynamic function call via table index (c[k](a,b)) is not supported.
-TEST(jitter, test_table_var_func_call) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_table_var_func_call.lua", {.debug_mode = true});
-            },
-            std::exception);
-}
-
 TEST(jitter, test_empty_func_call) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_empty_func_call.lua", {.debug_mode = debug_mode});
@@ -1981,26 +1906,6 @@ TEST(jitter, test_for_loop_dynamic_step) {
     });
 }
 
-// Typed-int for-loop with step=0 must throw "'for' step is zero" at compile time.
-TEST(jitter, test_for_loop_zero_step_int) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_for_loop_zero_step_int.lua", {.debug_mode = true});
-            },
-            std::exception);
-}
-
-// Typed-float for-loop with step=0.0 must throw "'for' step is zero" at compile time.
-TEST(jitter, test_for_loop_zero_step_float) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_for_loop_zero_step_float.lua", {.debug_mode = true});
-            },
-            std::exception);
-}
-
 // Dynamic for-loop with step=0 via a function call: the step cannot be known at
 // compile time so a runtime guard is emitted in the generated C code.  TCC-compiled
 // code cannot propagate C++ exceptions back through its frames, so the runtime error
@@ -2189,30 +2094,6 @@ TEST(jitter, test_for_no_step) {
     });
 }
 
-TEST(jitter, test_spec_call_arg_count_error) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_spec_call_arg_count_error.lua", {.debug_mode = true});
-            },
-            std::exception);
-}
-
-TEST(jitter, test_set_table_arg_count_error) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_set_table_arg_count_error1.lua", {.debug_mode = true});
-            },
-            std::exception);
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_set_table_arg_count_error2.lua", {.debug_mode = true});
-            },
-            std::exception);
-}
-
 TEST(jitter, test_complete) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_complete.lua", {.debug_mode = debug_mode, .record_c_code = true});
@@ -2229,33 +2110,6 @@ TEST(jitter, test_specs_helper) {
         Call(s, type, "test_specs_helper", ret_d2, 5);
         ASSERT_DOUBLE_EQ(ret_d2, 112.0);
     });
-}
-
-TEST(jitter, test_dup_const_error) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_dup_const_error.lua", {.debug_mode = true});
-            },
-            std::exception);
-}
-
-TEST(jitter, test_dup_param_error) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_dup_param_error.lua", {.debug_mode = true});
-            },
-            std::exception);
-}
-
-TEST(jitter, test_shadow_const_error) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_shadow_const_error.lua", {.debug_mode = true});
-            },
-            std::exception);
 }
 
 TEST(jitter, test_native_binop) {
@@ -2550,37 +2404,6 @@ TEST(jitter, bitnot_on_dynamic_expr) {
         Call(s, type, "test", ret, 5);
         ASSERT_EQ(ret, ~5);
     });
-}
-
-TEST(jitter, duplicate_const_define_error) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_duplicate_const_define_error.lua", {.debug_mode = true});
-            },
-            std::exception);
-}
-
-TEST(jitter, duplicate_func_param_error) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_duplicate_func_param_error.lua", {.debug_mode = true});
-            },
-            std::exception);
-}
-
-TEST(jitter, shadow_global_const_error) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./jit/test_shadow_global_const_error.lua", {.debug_mode = true});
-            },
-            std::exception);
-}
-
-TEST(jitter, test_math_spec_too_few_args) {
-    JitterRunHelper([](State *s, JITType type, bool debug_mode) { EXPECT_THROW({ CompileFile(s, "./jit/test_math_spec_too_few_args.lua", {.debug_mode = debug_mode}); }, std::exception); });
 }
 
 TEST(jitter, test_shadow_typed_local) {

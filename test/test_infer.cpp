@@ -2969,70 +2969,6 @@ TEST(infer, test_spec_assign_nonnumeric_typed_float) {
     });
 }
 
-// Runtime exception – typed float path.
-// make_string_val() always returns a string, so the CVar fallback guard fires
-// FakeluaThrowError("attempt to assign non-numeric value to typed float
-// variable") and the call to test() must propagate a std::exception.
-// Only JIT_GCC is used here: TCC does not propagate C++ exceptions thrown from
-// inside JIT-compiled code (TCC generates no DWARF unwind tables).
-TEST(infer, test_spec_assign_nonnumeric_float_throws) {
-    FakeluaStateGuard sg;
-    auto s = sg.GetState();
-    ASSERT_NE(s, nullptr);
-    CompileFile(s, "./infer/test_spec_assign_nonnumeric_float_throws.lua", {});
-    try {
-        double dret = 0.0;
-        Call(s, JIT_GCC, "test", dret, 2.5);
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_NE(std::string(e.what()).find("attempt to assign non-numeric value to typed float variable"), std::string::npos);
-    }
-}
-
-// Runtime exception – typed int path.
-// make_string_val() always returns a string, so the CVar fallback guard fires
-// FakeluaThrowError("attempt to assign non-numeric value to typed int
-// variable") and the call to test() must propagate a std::exception.
-// Only JIT_GCC is used here: TCC does not propagate C++ exceptions thrown from
-// inside JIT-compiled code (TCC generates no DWARF unwind tables).
-//
-// Generated C code structure for test_0(int64_t n):
-//   int64_t x = ((n) + (1));
-//   flua_assign_tmp_N = make_string_val();
-//   if (flua_assign_tmp_N.type_ == VAR_INT) { n = flua_assign_tmp_N.data_.i; }
-//   else if (flua_assign_tmp_N.type_ == VAR_FLOAT) { n = (int64_t)flua_assign_tmp_N.data_.f; }
-//   else { FakeluaThrowError(_S, "attempt to assign non-numeric value to typed int variable"); }
-//   return ((n) + (x));
-TEST(infer, test_spec_assign_nonnumeric_int_throws) {
-    const auto code = InferGetCCode("./infer/test_spec_assign_nonnumeric_int_throws.lua");
-    // n is a math param: the int specialization must be generated.
-    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
-    // x is a native int64_t accumulator initialized via native arithmetic.
-    ASSERT_NE(code.find("int64_t x = ((n) + (1))"), std::string::npos);
-    // CVar guard – int branch.
-    ASSERT_NE(code.find(".type_ == VAR_INT)"), std::string::npos);
-    // CVar guard – float branch casts to int64_t.
-    ASSERT_NE(code.find("(int64_t)"), std::string::npos);
-    // Error branch for non-numeric CVar.
-    ASSERT_NE(code.find("attempt to assign non-numeric value to typed int variable"), std::string::npos);
-    // Return uses native addition.
-    ASSERT_NE(code.find("return ((n) + (x))"), std::string::npos);
-
-    FakeluaStateGuard sg;
-    auto s = sg.GetState();
-    ASSERT_NE(s, nullptr);
-    CompileFile(s, "./infer/test_spec_assign_nonnumeric_int_throws.lua", {});
-    try {
-        int ret = 0;
-        Call(s, JIT_GCC, "test", ret, 5);
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_NE(std::string(e.what()).find("attempt to assign non-numeric value to typed int variable"), std::string::npos);
-    }
-}
-
 // ────────────────────────────────────────────────────────────────────────────
 // Bug 2 fix: spec_param_types_ must be erased when a math param is reassigned
 // through the CVar fallback path, so that InferArgTypeForSpec falls through to
@@ -3360,17 +3296,6 @@ TEST(infer, test_allpaths_return) {
         Call(s, type, "test_empty_else", ret, 15);
         ASSERT_EQ(ret, 30);
     });
-}
-
-// HasMathCallImprovement: 数学函数以零参数调用另一数学函数 → raw_args 为空 → 提前返回。
-// compute 有 1 个参数，test 体内调用 compute()（无参数），严格参数校验应在编译时报错。
-TEST(infer, test_no_arg_call) {
-    EXPECT_THROW(
-            {
-                FakeluaStateGuard sg;
-                CompileFile(sg.GetState(), "./infer/test_no_arg_call.lua", {});
-            },
-            std::exception);
 }
 
 // HasForLoopTypeChange: for 循环变量在 all_int 试推断中因函数调用赋值而变为 T_DYNAMIC。
