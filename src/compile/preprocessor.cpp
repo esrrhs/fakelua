@@ -8,9 +8,8 @@
 namespace fakelua {
 
 bool PreProcessor::IsFunctionCallExp(const SyntaxTreeInterfacePtr &exp_node) {
-    if (!exp_node || exp_node->Type() != SyntaxTreeType::Exp) {
-        return false;
-    }
+    // All callers pass an explist element, which is always a SyntaxTreeExp.
+    DEBUG_ASSERT(exp_node && exp_node->Type() == SyntaxTreeType::Exp);
     const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exp_node);
     if (exp->GetExpKind() != ExpKind::kPrefixExp) {
         return false;
@@ -331,9 +330,8 @@ void PreProcessor::PreprocessVarargs(const SyntaxTreeInterfacePtr &chunk) {
 }
 
 bool PreProcessor::IsComplexExp(const SyntaxTreeInterfacePtr &exp) {
-    if (!exp || exp->Type() != SyntaxTreeType::Exp) {
-        return false;
-    }
+    // All callers pass an explist element, which is always a SyntaxTreeExp.
+    DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
     const auto exp_kind = e->GetExpKind();
     if (exp_kind == ExpKind::kTableConstructor ||
