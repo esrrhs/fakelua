@@ -702,6 +702,53 @@ TEST(jitter, compile_empty_string) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) { CompileString(s, "", {.debug_mode = debug_mode}); });
 }
 
+// Exercises every WalkSyntaxTreePruned branch that is reachable from compilable
+// vararg function bodies: FunctionCall+Args, While, Repeat, ElseIfList, ForIn.
+TEST(jitter, test_vararg_walk_all_compilable) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_vararg_walk_all_compilable.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret, 0, 0);
+        ASSERT_EQ(ret, 112);
+    });
+}
+
+// Nested functions are rejected by codegen/semantic-analysis, but the varargs
+// preprocessing walk runs BEFORE those stages, so it still descends into the
+// nested function nodes. EXPECT_THROW lets us exercise those walk branches
+// (Function/FuncName/FuncBody/ParList/LocalFunction/FunctionDef). A fresh
+// State is used per attempt because a failed compile leaves the JIT state in
+// an unknown condition.
+TEST(jitter, test_vararg_with_nested_function) {
+    for (const auto type: GetSupportedJitTypes()) {
+        for (const auto debug_mode: {true, false}) {
+            const FakeluaStateGuard guard;
+            auto *s = guard.GetState();
+            EXPECT_THROW(CompileFile(s, "./jit/test_vararg_with_nested_function.lua", {.debug_mode = debug_mode}), std::exception);
+        }
+    }
+}
+
+TEST(jitter, test_vararg_with_nested_localfunction) {
+    for (const auto type: GetSupportedJitTypes()) {
+        for (const auto debug_mode: {true, false}) {
+            const FakeluaStateGuard guard;
+            auto *s = guard.GetState();
+            EXPECT_THROW(CompileFile(s, "./jit/test_vararg_with_nested_localfunction.lua", {.debug_mode = debug_mode}), std::exception);
+        }
+    }
+}
+
+TEST(jitter, test_vararg_with_funcdef) {
+    for (const auto type: GetSupportedJitTypes()) {
+        for (const auto debug_mode: {true, false}) {
+            const FakeluaStateGuard guard;
+            auto *s = guard.GetState();
+            EXPECT_THROW(CompileFile(s, "./jit/test_vararg_with_funcdef.lua", {.debug_mode = debug_mode}), std::exception);
+        }
+    }
+}
+
 TEST(jitter, test_assign_simple_var) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_assign_simple_var.lua", {.debug_mode = debug_mode});
