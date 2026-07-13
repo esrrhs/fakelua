@@ -21,6 +21,27 @@ static inline void CompileFileTccDisabled(State *s, const std::string &file) {
     CompileFile(s, file, cfg);
 }
 
+// Lightweight mirror of test_infer.cpp's InferGetCCode: compile a Lua file with
+// record_c_code=true (both JIT backends disabled so the step is cheap) and
+// return the recorded C code.  Used below to preserve the code-generation
+// structure assertions that the moved runtime-throw tests originally carried.
+static std::string GetRecordedCCode(const std::string &lua_file) {
+    const auto s = FakeluaNewState();
+    if (!s) {
+        throw std::runtime_error("GetRecordedCCode: FakeluaNewState returned null");
+    }
+    CompileConfig cfg;
+    cfg.debug_mode = false;
+    cfg.record_c_code = true;
+    cfg.disable_jit[JIT_TCC] = true;
+    cfg.disable_jit[JIT_GCC] = true;
+    CompileFile(s, lua_file, cfg);
+    const auto code = GetLastRecordedCCode(s);
+    FakeluaDeleteState(s);
+    std::cout << "\n=== C code for " << lua_file << " ===\n" << code << "=== end ===\n";
+    return code;
+}
+
 
 TEST(exception, function_param_duplicate) {
     FakeluaStateGuard sg;
@@ -1016,4 +1037,364 @@ TEST(exception, test_spec_duplicate_keys) {
     ASSERT_NE(s, nullptr);
     SetDebugLogLevel(0);
     EXPECT_THROW(CompileFile(s, "./exception/test_spec_duplicate_keys.lua", {}), std::exception);
+}
+
+// ============================================================================
+// Migrated from test_jitter.cpp – these are all compile-time expectations that
+// were mixed into the JIT runtime suite.  They belong here because they only
+// verify that compilation fails with a specific error; the throw happens during
+// preprocessing / semantic-analysis / codegen, before any JIT code runs, so a
+// single backend (the default) is sufficient.
+// ============================================================================
+
+TEST(exception, multi_name) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_multi_name_func.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("Unsupported function name") != std::string::npos);
+    }
+}
+
+TEST(exception, multi_col_name) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_multi_col_name_func.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("Unsupported function name with method definition") != std::string::npos);
+    }
+}
+
+TEST(exception, assign_not_match) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_assign_not_match.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("not match") != std::string::npos);
+    }
+}
+
+TEST(exception, table_var_func_call) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_table_var_func_call.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("function call callee must be a simple variable") != std::string::npos);
+    }
+}
+
+TEST(exception, vararg_nested_function) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_vararg_with_nested_function.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("not support stmt type") != std::string::npos);
+    }
+}
+
+TEST(exception, vararg_nested_localfunction) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_vararg_with_nested_localfunction.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("not support stmt type") != std::string::npos);
+    }
+}
+
+TEST(exception, vararg_funcdef) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_vararg_with_funcdef.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("anonymous function expression (functiondef) is not supported inside function bodies") != std::string::npos);
+    }
+}
+
+TEST(exception, for_loop_zero_step_int) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_for_loop_zero_step_int.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("'for' step is zero") != std::string::npos);
+    }
+}
+
+TEST(exception, for_loop_zero_step_float) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_for_loop_zero_step_float.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("'for' step is zero") != std::string::npos);
+    }
+}
+
+TEST(exception, spec_call_arg_count_error) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_spec_call_arg_count_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("wrong number of arguments") != std::string::npos);
+    }
+}
+
+TEST(exception, set_table_arg_count_error) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_set_table_arg_count_error1.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("FAKELUA_SET_TABLE expects exactly 3 arguments") != std::string::npos);
+    }
+
+    // Fresh state: a failed compile leaves the JIT state in an unknown condition.
+    FakeluaStateGuard sg2;
+    auto s2 = sg2.GetState();
+    try {
+        CompileFile(s2, "./exception/test_set_table_arg_count_error2.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("FAKELUA_SET_TABLE expects exactly 3 arguments") != std::string::npos);
+    }
+}
+
+TEST(exception, dup_const_error) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_dup_const_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("duplicate global const variable") != std::string::npos);
+    }
+}
+
+TEST(exception, dup_param_error) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_dup_param_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("the param name is duplicated") != std::string::npos);
+    }
+}
+
+TEST(exception, shadow_const_error) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_shadow_const_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("conflicts with global constant") != std::string::npos);
+    }
+}
+
+TEST(exception, duplicate_const_define_error) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_duplicate_const_define_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("duplicate global const variable") != std::string::npos);
+    }
+}
+
+TEST(exception, duplicate_func_param_error) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_duplicate_func_param_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("the param name is duplicated") != std::string::npos);
+    }
+}
+
+TEST(exception, shadow_global_const_error) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_shadow_global_const_error.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("conflicts with global constant") != std::string::npos);
+    }
+}
+
+TEST(exception, math_spec_too_few_args) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_math_spec_too_few_args.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("wrong number of arguments") != std::string::npos);
+    }
+}
+
+// ============================================================================
+// Migrated from test_infer.cpp – runtime exceptions thrown from JIT-compiled
+// code.  These throws happen during Call(), not during compilation, so the
+// compile step must succeed first.  Only JIT_GCC is used for the call: TCC
+// generates no DWARF unwind tables and cannot propagate a C++ exception thrown
+// from inside JIT-compiled code (it would std::terminate instead).
+// ============================================================================
+
+TEST(exception, spec_assign_nonnumeric_float_throws) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_spec_assign_nonnumeric_float_throws.lua", {});
+
+    try {
+        double dret = 0.0;
+        Call(s, JIT_GCC, "test", dret, 2.5);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("attempt to assign non-numeric value to typed float variable") != std::string::npos);
+    }
+}
+
+TEST(exception, spec_assign_nonnumeric_int_throws) {
+    const auto code = GetRecordedCCode("./exception/test_spec_assign_nonnumeric_int_throws.lua");
+    // n is a math param: the int specialization must be generated.
+    ASSERT_NE(code.find("test_0(int64_t n)"), std::string::npos);
+    // x is a native int64_t accumulator initialized via native arithmetic.
+    ASSERT_NE(code.find("int64_t x = ((n) + (1))"), std::string::npos);
+    // CVar guard – int branch.
+    ASSERT_NE(code.find(".type_ == VAR_INT)"), std::string::npos);
+    // CVar guard – float branch casts to int64_t.
+    ASSERT_NE(code.find("(int64_t)"), std::string::npos);
+    // Error branch for non-numeric CVar.
+    ASSERT_NE(code.find("attempt to assign non-numeric value to typed int variable"), std::string::npos);
+    // Return uses native addition.
+    ASSERT_NE(code.find("return ((n) + (x))"), std::string::npos);
+
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+    CompileFile(s, "./exception/test_spec_assign_nonnumeric_int_throws.lua", {});
+
+    try {
+        int ret = 0;
+        Call(s, JIT_GCC, "test", ret, 5);
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("attempt to assign non-numeric value to typed int variable") != std::string::npos);
+    }
+}
+
+TEST(exception, no_arg_call) {
+    FakeluaStateGuard sg;
+    auto s = sg.GetState();
+    ASSERT_NE(s, nullptr);
+    SetDebugLogLevel(0);
+
+    try {
+        CompileFile(s, "./exception/test_no_arg_call.lua", {});
+        ASSERT_TRUE(false);
+    } catch (const std::exception &e) {
+        std::cout << e.what() << std::endl;
+        ASSERT_TRUE(std::string(e.what()).find("wrong number of arguments") != std::string::npos);
+    }
 }
