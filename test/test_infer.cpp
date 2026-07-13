@@ -3829,6 +3829,25 @@ TEST(infer, test_global_table_spec) {
     });
 }
 
+// Regression: file-scope "local a, b = func()" has names.size(2) != exps(1), so it
+// takes the else-branch of PreprocessGlobalInitializers (L449-470). The whole
+// "a, b = func()" must be promoted into __fakelua_init() KEEPING the func() call.
+// Previously a shared explist pointer caused the func() to be overwritten with nil.
+TEST(infer, test_global_init_multi_names_funcall) {
+    const auto code = InferGetCCode("./infer/test_global_init_multi_names_funcall.lua");
+    // The init function must actually call func() rather than assigning nil to both.
+    ASSERT_NE(code.find("= func();"), std::string::npos);
+    ASSERT_EQ(code.find("a = kNil;"), std::string::npos);
+    ASSERT_EQ(code.find("b = kNil;"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_global_init_multi_names_funcall.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 30);
+    });
+}
+
 TEST(infer, test_spec_basic) {
     const auto code = InferGetCCode("./infer/test_spec_basic.lua");
     ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);

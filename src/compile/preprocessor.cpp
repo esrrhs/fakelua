@@ -189,10 +189,9 @@ void PreProcessor::PreprocessTableAssign(const SyntaxTreeInterfacePtr &node) {
             auto &vars = varlist_ptr->Vars();
             auto &exps = explist_ptr->Exps();
 
-            // 此时应该都只有一个变量和一个表达式
-            if (vars.size() != 1 || exps.size() != 1) {
-                ThrowError(std::format("PreprocessTableAssigns: assign stmt var count {} or exp count {} not match 1", vars.size(), exps.size()), stmt);
-            }
+            // PreprocessSplitAssigns runs first and guarantees every assign is already
+            // single-var/single-exp.
+            DEBUG_ASSERT((vars.size() == 1 && exps.size() == 1));
 
             auto &var = vars[0];
             auto &exp = exps[0];
@@ -279,13 +278,6 @@ void PreProcessor::PreprocessVarargs(const SyntaxTreeInterfacePtr &chunk) {
                 parlist_node = fbody->Parlist();
                 block_node = fbody->Block();
             }
-        } else if (node->Type() == SyntaxTreeType::FunctionDef) {
-            const auto fdef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node);
-            const auto fbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(fdef->Funcbody());
-            if (fbody) {
-                parlist_node = fbody->Parlist();
-                block_node = fbody->Block();
-            }
         } else if (node->Type() == SyntaxTreeType::LocalFunction) {
             const auto lf = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
             const auto fbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(lf->Funcbody());
@@ -319,16 +311,6 @@ void PreProcessor::PreprocessVarargs(const SyntaxTreeInterfacePtr &chunk) {
         if (block_node) {
             WalkSyntaxTreePruned(block_node, [this, &vararg_name](const SyntaxTreeInterfacePtr &sub_node) -> bool {
                 if (!sub_node) return false;
-
-                // 遇到嵌套函数体，检查它是否自身为可变参数函数
-                if (sub_node->Type() == SyntaxTreeType::FuncBody) {
-                    const auto sub_fbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(sub_node);
-                    const auto sub_parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(sub_fbody->Parlist());
-                    if (sub_parlist && sub_parlist->VarParams()) {
-                        // 嵌套的变参函数在此剪枝，不要继续深入它的内部
-                        return false;
-                    }
-                }
 
                 // 找到 `...` 表达式进行替换
                 if (sub_node->Type() == SyntaxTreeType::Exp) {
@@ -456,7 +438,15 @@ void PreProcessor::PreprocessGlobalInitializers(const SyntaxTreeInterfacePtr &ch
                             varlist->AddVar(var);
                         }
                         assign->SetVarlist(varlist);
-                        assign->SetExplist(explist);
+                        // Hold a FRESH copy of explist for the init assign. The original
+                        // explist object is shared with the local var (via `exps` below);
+                        // if we reused it directly, replacing the local var's exps with nil
+                        // later would also wipe out the expressions stored in this assign.
+                        auto init_explist = std::make_shared<SyntaxTreeExplist>(explist->Loc());
+                        for (const auto &e: explist->Exps()) {
+                            init_explist->AddExp(e);
+                        }
+                        assign->SetExplist(init_explist);
 
                         init_assign_stmts.push_back(assign);
 
