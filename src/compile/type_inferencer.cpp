@@ -1564,6 +1564,8 @@ bool TypeInferencer::BuildCtorFields(const SyntaxTreeInterfacePtr &tc, std::vect
         if (!unique.contains(desc)) {
             unique[desc] = {f, desc};
             order.push_back(desc);
+        } else {
+            ThrowFakeluaException(std::format("duplicate key in table constructor: {}", desc.substr(2)));
         }
     }
 
@@ -1692,6 +1694,11 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
             }
             case SyntaxTreeType::TableConstructor:
                 record_ctor_node(node);
+                // Recurse into nested constructors so they are also recorded in
+                // table_spec_infos (e.g. { outer = { inner = 5 } }).
+                if (const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node); tc_ptr->Fieldlist()) {
+                    walk(tc_ptr->Fieldlist());
+                }
                 return;
             case SyntaxTreeType::While: {
                 auto while_stmt = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
@@ -1781,8 +1788,6 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
             case SyntaxTreeType::Empty:
             case SyntaxTreeType::Label:
             case SyntaxTreeType::VarList:
-            case SyntaxTreeType::FieldList:
-            case SyntaxTreeType::Field:
             case SyntaxTreeType::Break:
             case SyntaxTreeType::Goto:
             case SyntaxTreeType::ElseIfList:
@@ -1794,6 +1799,17 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
             case SyntaxTreeType::Binop:
             case SyntaxTreeType::Unop:
                 return;
+            case SyntaxTreeType::FieldList: {
+                const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
+                for (const auto &field: fieldlist->Fields()) { walk(field); }
+                return;
+            }
+            case SyntaxTreeType::Field: {
+                const auto field = std::dynamic_pointer_cast<SyntaxTreeField>(node);
+                if (field->Key()) walk(field->Key());
+                walk(field->Value());
+                return;
+            }
         }
         ThrowFakeluaException("AnalyzeTableShapes: unhandled SyntaxTreeType");
     };
