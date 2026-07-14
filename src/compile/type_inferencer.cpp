@@ -1442,7 +1442,7 @@ std::string TypeInferencer::FieldKeyDescriptor(const TableFieldInfo &f) {
         case TableKeyKind::kBool:   return "B_" + f.key;
         case TableKeyKind::kFloat:  return "F_" + f.key;
     }
-    ThrowFakeluaException("unexpected table key kind");
+    ThrowFakeluaException("unexpected table key kind: " + std::to_string(static_cast<int>(f.key_kind)));
 }
 
 void TypeInferencer::MergeFieldsInto(std::vector<TableFieldInfo> &dst, const std::vector<TableFieldInfo> &src) {
