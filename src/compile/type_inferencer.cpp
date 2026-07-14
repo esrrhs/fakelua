@@ -180,11 +180,6 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
             DumpASTWithTypes(funcbody->Block(), snapshot, tab + 1, os);
             break;
         }
-        case SyntaxTreeType::FunctionDef: {
-            auto functiondef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node);
-            DumpASTWithTypes(functiondef->Funcbody(), snapshot, tab + 1, os);
-            break;
-        }
         case SyntaxTreeType::ParList: {
             auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(node);
             DumpASTWithTypes(parlist->Namelist(), snapshot, tab + 1, os);
@@ -472,9 +467,8 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
             // 这些节点是语句或辅助结构，没有表达式类型
             return RecordType(current_map, node.get(), T_UNKNOWN);
         }
-        default: {
+        default:
             ThrowFakeluaException(std::format("InferNode: unexpected SyntaxTreeType: {}", SyntaxTreeTypeToString(node->Type())));
-        }
     }
 }
 
@@ -1422,9 +1416,6 @@ void TypeInferencer::CollectGlobalConstVars(const ParseResult &pr, const EvalTyp
             const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
             const auto namelist = local_var->Namelist();
             const auto explist = local_var->Explist();
-            if (!namelist) {
-                continue;
-            }
             const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
             const auto &names = namelist_ptr->Names();
             std::vector<SyntaxTreeInterfacePtr> exps;
@@ -1451,7 +1442,7 @@ std::string TypeInferencer::FieldKeyDescriptor(const TableFieldInfo &f) {
         case TableKeyKind::kBool:   return "B_" + f.key;
         case TableKeyKind::kFloat:  return "F_" + f.key;
     }
-    return "S_" + f.key;
+    ThrowFakeluaException("unexpected table key kind: " + std::to_string(static_cast<int>(f.key_kind)));
 }
 
 void TypeInferencer::MergeFieldsInto(std::vector<TableFieldInfo> &dst, const std::vector<TableFieldInfo> &src) {
