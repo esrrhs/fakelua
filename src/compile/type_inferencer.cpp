@@ -180,13 +180,6 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
             DumpASTWithTypes(funcbody->Block(), snapshot, tab + 1, os);
             break;
         }
-        case SyntaxTreeType::FunctionDef: { // LCOV_EXCL_START
-            // Anonymous function expressions (kFunctionDef) are rejected by
-            // SemanticAnalysis::CheckExp, so this case is unreachable.
-            auto functiondef = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node);
-            DumpASTWithTypes(functiondef->Funcbody(), snapshot, tab + 1, os);
-            break;
-        } // LCOV_EXCL_STOP
         case SyntaxTreeType::ParList: {
             auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(node);
             DumpASTWithTypes(parlist->Namelist(), snapshot, tab + 1, os);
@@ -229,8 +222,8 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
             DumpASTWithTypes(prefixexp->GetValue(), snapshot, tab + 1, os);
             break;
         }
-        default: // LCOV_EXCL_LINE
-            DEBUG_ASSERT(false && "DumpASTWithTypes: unexpected SyntaxTreeType"); // LCOV_EXCL_LINE
+        default:
+            ThrowFakeluaException("DumpASTWithTypes: unexpected SyntaxTreeType");
     }
 }
 
@@ -336,7 +329,7 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
             ofs.close();
             std::cerr << "TypeInferencer: Type inference results dumped to " << dumpfile << std::endl;
             LOG_INFO("Type inference results generated: {}", dumpfile);
-        } else { // LCOV_EXCL_LINE
+        } else {
             LOG_ERROR("Failed to open output file: {}", dumpfile);
         }
     }
@@ -474,11 +467,8 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
             // 这些节点是语句或辅助结构，没有表达式类型
             return RecordType(current_map, node.get(), T_UNKNOWN);
         }
-        default: { // LCOV_EXCL_START
-            // All SyntaxTreeType values produced by the parser are enumerated above.
-            DEBUG_ASSERT(false && "InferNode: unexpected SyntaxTreeType"); // LCOV_EXCL_LINE
-            return T_UNKNOWN;
-        } // LCOV_EXCL_STOP
+        default:
+            ThrowFakeluaException("InferNode: unexpected SyntaxTreeType");
     }
 }
 
@@ -697,8 +687,8 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                 case BinOpKind::kNotEqual:
                 case BinOpKind::kConcat:
                     break;
-                default: // LCOV_EXCL_LINE
-                    DEBUG_ASSERT(false && "unexpected binary operator kind"); // LCOV_EXCL_LINE
+                default:
+                    ThrowFakeluaException("unexpected binary operator kind");
             }
 
             return RecordType(current_map, exp.get(), T_DYNAMIC);
@@ -733,8 +723,8 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                     // not 运算符始终返回布尔值，对于类型推断视为 T_DYNAMIC。
                     break;
                 }
-                default: // LCOV_EXCL_LINE
-                    DEBUG_ASSERT(false && "unexpected unary operator kind"); // LCOV_EXCL_LINE
+                default:
+                    ThrowFakeluaException("unexpected unary operator kind");
             }
             return RecordType(current_map, exp.get(), T_DYNAMIC);
         }
@@ -747,8 +737,8 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
         case ExpKind::kTableConstructor: {
             return RecordType(current_map, exp.get(), T_DYNAMIC);
         }
-        default: // LCOV_EXCL_LINE
-            DEBUG_ASSERT(false && "unexpected expression kind"); // LCOV_EXCL_LINE
+        default:
+            ThrowFakeluaException("unexpected expression kind");
     }
 }
 
@@ -762,8 +752,8 @@ InferredType TypeInferencer::InferPrefixExp(const std::shared_ptr<SyntaxTreePref
         case PrefixExpKind::kFunctionCall:
             ret = InferNode(prefix_exp->GetValue(), tctx);
             break;
-        default: // LCOV_EXCL_LINE
-            DEBUG_ASSERT(false && "unexpected prefix expression kind"); // LCOV_EXCL_LINE
+        default:
+            ThrowFakeluaException("unexpected prefix expression kind");
     }
 
     return RecordType(tctx.current_map, prefix_exp.get(), ret);
@@ -796,8 +786,8 @@ InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var,
             }
             return RecordType(current_map, var.get(), T_DYNAMIC);
         }
-        default: // LCOV_EXCL_LINE
-            DEBUG_ASSERT(false && "unexpected variable kind"); // LCOV_EXCL_LINE
+        default:
+            ThrowFakeluaException("unexpected variable kind");
     }
 }
 
@@ -1268,8 +1258,8 @@ bool TypeInferencer::AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) co
         case SyntaxTreeType::Label:
         case SyntaxTreeType::Empty:
             return false;
-        default: // LCOV_EXCL_LINE
-            DEBUG_ASSERT(false && "AllPathsReturn: unexpected statement type"); // LCOV_EXCL_LINE
+        default:
+            ThrowFakeluaException("AllPathsReturn: unexpected statement type");
     }
 }
 
@@ -1339,8 +1329,8 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
             case SyntaxTreeType::Empty:
                 // 不含 return，无需递归。
                 break;
-            default: // LCOV_EXCL_LINE
-                DEBUG_ASSERT(false && "CollectReturnExps: unexpected statement type"); // LCOV_EXCL_LINE
+            default:
+                ThrowFakeluaException("CollectReturnExps: unexpected statement type");
         }
     }
     return ends_with_return;
@@ -1426,7 +1416,6 @@ void TypeInferencer::CollectGlobalConstVars(const ParseResult &pr, const EvalTyp
             const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
             const auto namelist = local_var->Namelist();
             const auto explist = local_var->Explist();
-            DEBUG_ASSERT(namelist);
             const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
             const auto &names = namelist_ptr->Names();
             std::vector<SyntaxTreeInterfacePtr> exps;
@@ -1453,8 +1442,7 @@ std::string TypeInferencer::FieldKeyDescriptor(const TableFieldInfo &f) {
         case TableKeyKind::kBool:   return "B_" + f.key;
         case TableKeyKind::kFloat:  return "F_" + f.key;
     }
-    DEBUG_ASSERT(false && "unexpected table key kind"); // LCOV_EXCL_LINE
-    return "S_" + f.key; // LCOV_EXCL_LINE
+    ThrowFakeluaException("unexpected table key kind");
 }
 
 void TypeInferencer::MergeFieldsInto(std::vector<TableFieldInfo> &dst, const std::vector<TableFieldInfo> &src) {
@@ -1807,7 +1795,7 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
             case SyntaxTreeType::Unop:
                 return;
         }
-        DEBUG_ASSERT(false && "AnalyzeTableShapes: unhandled SyntaxTreeType"); // LCOV_EXCL_LINE
+        ThrowFakeluaException("AnalyzeTableShapes: unhandled SyntaxTreeType");
     };
 
     walk(chunk);
