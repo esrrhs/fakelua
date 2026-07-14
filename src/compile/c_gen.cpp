@@ -1856,6 +1856,10 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_mu
         case ExpKind::kTrue:
             return (cur_section_ == Section::Globals) ? "(CVar){.type_ = VAR_BOOL, .data_.b = true}" : "kTrue";
         case ExpKind::kNumber:
+            // Number literal type is a purely syntactic property of the source text
+            // (integer vs float format). CompileExp is also called from global-init
+            // contexts where the snapshot may not cover this node, so we derive it
+            // directly from the literal rather than consulting the snapshot.
             if (IsInteger(value)) {
                 return std::format("(CVar){{.type_ = VAR_INT, .data_.i = {}}}", ToInteger(value));
             } else {
