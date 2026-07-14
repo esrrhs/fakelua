@@ -745,27 +745,9 @@ std::vector<TableFieldInfo> CGen::GetTableFields(const SyntaxTreeInterfacePtr &t
             }
         }
 
-        // Determine value type from AST node directly (type inference not yet run)
-        auto value_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Value());
-        if (value_exp) {
-            auto kind = value_exp->GetExpKind();
-            if (kind == ExpKind::kNumber) {
-                std::string num_str = value_exp->ExpValue();
-                if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
-                    f_info.type = T_INT;
-                } else {
-                    f_info.type = T_FLOAT;
-                }
-            } else if (kind == ExpKind::kTrue || kind == ExpKind::kFalse) {
-                f_info.type = T_DYNAMIC;  // bool stored as CVar
-            } else if (kind == ExpKind::kString) {
-                f_info.type = T_DYNAMIC;  // string stored as CVar
-            } else {
-                f_info.type = LookupNodeType(fp->Value().get());
-            }
-        } else {
-            f_info.type = LookupNodeType(fp->Value().get());
-        }
+        // Value type: rely on TypeInferencer's pre-computed snapshot, which derives
+        // number types the same way (IsInteger(value) ? T_INT : T_FLOAT).
+        f_info.type = LookupNodeType(fp->Value().get());
 
         if (unique_fields.contains(key_desc)) {
             unique_fields[key_desc].info.type = f_info.type;
@@ -879,7 +861,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
     EnterNativeVarScope();
     for (const auto &param_name: func_params) {
         // 在特化模式中，数学参数已在函数签名中声明为原生类型（int64_t/double），
-        // 因此将其注册为对应的原生类型，以便 CompileStmtAssign / InferArgTypeForSpec
+        // 因此将其注册为对应的原生类型，以便 CompileStmtAssign / GetType
         // 能正确处理对这些参数的引用和赋值。
         // 非特化或非数学参数仍注册为 T_DYNAMIC（CVar）。
         const InferredType param_native_type = (spec_bitmask >= 0 && spec_param_types_.contains(param_name)) ? spec_param_types_.at(param_name) : T_DYNAMIC;
@@ -916,7 +898,7 @@ bool CGen::TryInferMathCallBitmask(const std::string &callee_name, const std::ve
             }
             const auto &arg = raw_args[static_cast<size_t>(param_pos)];
             DEBUG_ASSERT(arg && arg->Type() == SyntaxTreeType::Exp);
-            const auto arg_type = InferArgTypeForSpec(arg);
+            const auto arg_type = GetType(arg);
             if (arg_type == T_DYNAMIC) {
                 return false;
             }
@@ -936,26 +918,21 @@ bool CGen::TryInferMathCallSpec(const std::string &callee_name, const std::vecto
     return true;
 }
 
-InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
-    DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
+InferredType CGen::GetType(const SyntaxTreeInterfacePtr &exp) const {
+    if (!exp || exp->Type() != SyntaxTreeType::Exp) {
+        return T_DYNAMIC;
+    }
     const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-    const auto exp_kind = e->GetExpKind();
-
-    switch (exp_kind) {
-        case ExpKind::kNumber: {
-            const auto node_type = LookupNodeType(e.get());
-            DEBUG_ASSERT(node_type == T_INT || node_type == T_FLOAT);
-            return node_type;
-        }
-        case ExpKind::kPrefixExp: {
-            const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
-            DEBUG_ASSERT(pe);
-
-            if (pe->GetPrefixKind() == PrefixExpKind::kVar) {
-                const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-                if (!var || var->GetVarKind() != VarKind::kSimple) {
-                    return T_DYNAMIC;
-                }
+    DEBUG_ASSERT(e);
+    // For simple variables, the snapshot can be stale: CGen may degrade a
+    // variable to CVar after TypeInferencer's single pass (e.g. assigned both
+    // an int and a string in different branches). So we rely solely on CGen's
+    // local scope here and fall back to T_DYNAMIC, never the snapshot.
+    if (e->GetExpKind() == ExpKind::kPrefixExp) {
+        const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(e->Right());
+        if (pe && pe->GetPrefixKind() == PrefixExpKind::kVar) {
+            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+            if (var && var->GetVarKind() == VarKind::kSimple) {
                 const auto &name = var->GetName();
                 if (const auto it = spec_param_types_.find(name); it != spec_param_types_.end()) {
                     return it->second;
@@ -970,77 +947,13 @@ InferredType CGen::InferExpType(const SyntaxTreeInterfacePtr &exp) const {
                 }
                 return T_DYNAMIC;
             }
-
-            if (pe->GetPrefixKind() == PrefixExpKind::kExp) {
-                return InferExpType(pe->GetValue());
-            }
-
-            if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
-                const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
-                DEBUG_ASSERT(fc);
-                const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-                DEBUG_ASSERT(callee_pe && callee_pe->GetPrefixKind() == PrefixExpKind::kVar);
-                const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-                DEBUG_ASSERT(callee_var && callee_var->GetVarKind() == VarKind::kSimple);
-                const auto &callee_name = callee_var->GetName();
-                if (const auto math_it = ir().math_param_positions.find(callee_name); math_it != ir().math_param_positions.end() && !math_it->second.empty()) {
-                    const auto &math_params = math_it->second;
-                    const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-                    DEBUG_ASSERT(args_ptr);
-                    const auto raw_args = ExtractCallRawArgs(args_ptr);
-                    int bitmask = 0;
-                    for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-                        const int param_pos = math_params[static_cast<size_t>(i)];
-                        if (param_pos >= static_cast<int>(raw_args.size())) {
-                            return T_DYNAMIC;
-                        }
-                        const auto &arg = raw_args[static_cast<size_t>(param_pos)];
-                        DEBUG_ASSERT(arg && arg->Type() == SyntaxTreeType::Exp);
-                        const auto t = InferExpType(arg);
-                        if (t == T_DYNAMIC) {
-                            return T_DYNAMIC;
-                        }
-                        if (t == T_FLOAT) {
-                            bitmask |= (1 << i);
-                        }
-                    }
-                    return GetSpecReturnType(callee_name, bitmask);
-                }
-            }
-            return T_DYNAMIC;
         }
-        case ExpKind::kBinop: {
-            const auto op = std::dynamic_pointer_cast<SyntaxTreeBinop>(e->Op());
-            DEBUG_ASSERT(op);
-            const auto lt = InferExpType(e->Left());
-            const auto rt = InferExpType(e->Right());
-            return InferNumericBinopResultType(op->GetOpKind(), lt, rt);
-        }
-        case ExpKind::kUnop: {
-            const auto op = std::dynamic_pointer_cast<SyntaxTreeUnop>(e->Op());
-            DEBUG_ASSERT(op);
-            if (op->GetOpKind() == UnOpKind::kMinus) {
-                return InferExpType(e->Right());
-            }
-            if (op->GetOpKind() == UnOpKind::kBitNot) {
-                if (const auto t = InferExpType(e->Right()); t == T_INT) {
-                    return T_INT;
-                }
-                return T_DYNAMIC;
-            }
-            if (op->GetOpKind() == UnOpKind::kNumberSign) {
-                return T_INT;
-            }
-            return T_DYNAMIC;
-        }
-        default:
-            return T_DYNAMIC;
     }
-}
-
-InferredType CGen::InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const {
-    DEBUG_ASSERT(exp && exp->Type() == SyntaxTreeType::Exp);
-    return InferExpType(exp);
+    // All other expressions: use the type pre-computed by TypeInferencer.
+    if (const auto t = LookupNodeType(exp.get()); t != T_UNKNOWN) {
+        return t;
+    }
+    return T_DYNAMIC;
 }
 
 // 尝试将表达式编译为高效的原生 C 数值运算表达式。若中途由于类型不匹配等抛出异常，则优雅捕获并返回空字符串（指示回退到动态分发计算）
@@ -1101,8 +1014,8 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
     }
 
     if (const auto op_it = kCmpOpMap.find(op_kind); op_it != kCmpOpMap.end()) {
-        const auto left_type = e->Left() ? InferArgTypeForSpec(e->Left()) : T_DYNAMIC;
-        if (const auto right_type = e->Right() ? InferArgTypeForSpec(e->Right()) : T_DYNAMIC; (left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
+        const auto left_type = e->Left() ? GetType(e->Left()) : T_DYNAMIC;
+        if (const auto right_type = e->Right() ? GetType(e->Right()) : T_DYNAMIC; (left_type != T_INT && left_type != T_FLOAT) || (right_type != T_INT && right_type != T_FLOAT)) {
             return {};
         }
         const auto left_native = TryCompileNativeExpr(e->Left());
@@ -1352,7 +1265,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                     }
                 }
                 if (!is_degraded_expression) {
-                    DEBUG_ASSERT(InferArgTypeForSpec(exps[i]) != T_INT && InferArgTypeForSpec(exps[i]) != T_FLOAT);
+                    DEBUG_ASSERT(GetType(exps[i]) != T_INT && GetType(exps[i]) != T_FLOAT);
                 }
                 const std::string init = CompileExp(exps[i]);
                 Out() << GenTab() << "CVar " << name << " = " << init << ";\n";
@@ -1408,7 +1321,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
         if (const auto native_rhs = TryCompileNativeExpr(exps[0]); !native_rhs.empty()) {
             // RHS 可以直接编译为原生数值表达式——无需临时 CVar。
             // 若 RHS 类型与目标变量类型不同（如 double → int64_t），插入显式强制转换。
-            if (const auto rhs_type = InferArgTypeForSpec(exps[0]); rhs_type == T_FLOAT && var_type == T_INT) {
+            if (const auto rhs_type = GetType(exps[0]); rhs_type == T_FLOAT && var_type == T_INT) {
                 Out() << GenTab() << name << " = (int64_t)(" << native_rhs << ");\n";
             } else if (rhs_type == T_INT && var_type == T_FLOAT) {
                 Out() << GenTab() << name << " = (double)(" << native_rhs << ");\n";
@@ -1419,7 +1332,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
             // RHS 无法编译为原生数值（如调用返回 CVar 的函数）：
             //   (1) 将 RHS 编译为 CVar 临时变量；
             //   (2) 将 spec_param_types_ 中的旧类型条目移除，
-            //       使后续的 InferArgTypeForSpec 转向 GetNativeVarType 查询，
+            //       使后续的 GetType 转向 GetNativeVarType 查询，
             //       避免使用已失效的特化参数假设；
             //   (3) 运行时检查 CVar 类型，拆包为原生类型赋值；非数值则抛出运行时错误。
             const std::string rhs = CompileExp(exps[0]);
@@ -1943,6 +1856,10 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_mu
         case ExpKind::kTrue:
             return (cur_section_ == Section::Globals) ? "(CVar){.type_ = VAR_BOOL, .data_.b = true}" : "kTrue";
         case ExpKind::kNumber:
+            // Number literal type is a purely syntactic property of the source text
+            // (integer vs float format). CompileExp is also called from global-init
+            // contexts where the snapshot may not cover this node, so we derive it
+            // directly from the literal rather than consulting the snapshot.
             if (IsInteger(value)) {
                 return std::format("(CVar){{.type_ = VAR_INT, .data_.i = {}}}", ToInteger(value));
             } else {
@@ -2378,7 +2295,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                         const auto id = s_->GetConstString().Alloc(key_exp->ExpValue());
                         Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", var_name, id, value_str);
                     } else {
-                        if (const auto key_type = InferArgTypeForSpec(key); key_type == T_INT) {
+                        if (const auto key_type = GetType(key); key_type == T_INT) {
                             if (const auto native_key = TryCompileNativeExpr(key); !native_key.empty()) {
                                 Out() << GenTab() << std::format("FlSetTableInt({}, {}, {});\n", var_name, native_key, value_str);
                             } else {
@@ -2416,7 +2333,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 //      仅在必要时才求右操作数（保证短路语义）。
 //
 //   2. 原生算术快路径（native fast path）：
-//      若两侧操作数类型均已知（T_INT/T_FLOAT，通过 InferArgTypeForSpec 推断），
+//      若两侧操作数类型均已知（T_INT/T_FLOAT，通过 GetType 推断），
 //      则将两侧直接编译为原生数值（CompileNumericExp），
 //      生成 C 表达式（如 (a) + (b)），并通过 BoxNativeValue 装箱为 CVar 后返回。
 //      这条路径消除了 OpAdd/OpSub 等宏的运行时类型分支开销。
@@ -2473,8 +2390,8 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     }
 
     // Native arithmetic fast path
-    const auto lt = InferArgTypeForSpec(left);
-    const auto rt = InferArgTypeForSpec(right);
+    const auto lt = GetType(left);
+    const auto rt = GetType(right);
     if (lt != T_DYNAMIC && rt != T_DYNAMIC) {
         if (auto native_str = CompileNativeArithBinop(left, right, op_kind, lt, rt); !native_str.empty()) {
             return native_str;
@@ -2535,7 +2452,7 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxT
     const auto op_kind = op_ptr->GetOpKind();
 
     // Native fast path for unary minus and bitwise not when operand is numeric.
-    const auto rt = InferArgTypeForSpec(right);
+    const auto rt = GetType(right);
     if (auto native_str = CompileNativeUnop(right, op_kind, rt); !native_str.empty()) {
         return native_str;
     }
@@ -2593,7 +2510,7 @@ std::string CGen::CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left,
     const auto right_native = CompileNumericExp(right);
 
     const auto to_int_operand = [&](const SyntaxTreeInterfacePtr &operand_node, const std::string &native_operand) -> std::string {
-        const auto operand_type = InferArgTypeForSpec(operand_node);
+        const auto operand_type = GetType(operand_node);
         if (operand_type == T_INT) {
             return std::format("(int64_t)({})", native_operand);
         }
@@ -2820,7 +2737,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         }
 
         // Integer key fast path: use FlGetTableInt when key is known T_INT.
-        if (const auto key_type = InferArgTypeForSpec(exp); key_type == T_INT) {
+        if (const auto key_type = GetType(exp); key_type == T_INT) {
             if (const auto native_key = TryCompileNativeExpr(exp); !native_key.empty()) {
                 return std::format("FlGetTableInt({}, {})", pe_ret, native_key);
             }
@@ -2906,7 +2823,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             return CompileNumericExp(pe->GetValue());
         }
         if (pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
-            const auto inferred = InferArgTypeForSpec(exp);
+            const auto inferred = GetType(exp);
             if (inferred == T_DYNAMIC) {
                 ThrowError("function call cannot be specialized as numeric", exp);
             }
@@ -2965,7 +2882,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             Out() << GenTab() << std::format("FlLenInt(({}), {});\n", operand_cvar, ntmp);
             return ntmp;
         }
-        const auto rt = InferArgTypeForSpec(e->Right());
+        const auto rt = GetType(e->Right());
         const auto res = CompileRawNativeUnop(e->Right(), op_kind, rt);
         if (!res.empty()) {
             return res;
@@ -3233,7 +3150,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 }
             }
             // Check if key is a known integer type → use FlSetTableInt.
-            if (const auto key_type = InferArgTypeForSpec(raw_args[1]); key_type == T_INT) {
+            if (const auto key_type = GetType(raw_args[1]); key_type == T_INT) {
                 if (const auto native_key = TryCompileNativeExpr(raw_args[1]); !native_key.empty()) {
                     const auto tbl_str = CompileExp(raw_args[0]);
                     const auto val_str = CompileExp(raw_args[2]);
