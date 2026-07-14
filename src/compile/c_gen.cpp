@@ -745,27 +745,9 @@ std::vector<TableFieldInfo> CGen::GetTableFields(const SyntaxTreeInterfacePtr &t
             }
         }
 
-        // Determine value type from AST node directly (type inference not yet run)
-        auto value_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Value());
-        if (value_exp) {
-            auto kind = value_exp->GetExpKind();
-            if (kind == ExpKind::kNumber) {
-                std::string num_str = value_exp->ExpValue();
-                if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
-                    f_info.type = T_INT;
-                } else {
-                    f_info.type = T_FLOAT;
-                }
-            } else if (kind == ExpKind::kTrue || kind == ExpKind::kFalse) {
-                f_info.type = T_DYNAMIC;  // bool stored as CVar
-            } else if (kind == ExpKind::kString) {
-                f_info.type = T_DYNAMIC;  // string stored as CVar
-            } else {
-                f_info.type = LookupNodeType(fp->Value().get());
-            }
-        } else {
-            f_info.type = LookupNodeType(fp->Value().get());
-        }
+        // Value type: rely on TypeInferencer's pre-computed snapshot, which derives
+        // number types the same way (IsInteger(value) ? T_INT : T_FLOAT).
+        f_info.type = LookupNodeType(fp->Value().get());
 
         if (unique_fields.contains(key_desc)) {
             unique_fields[key_desc].info.type = f_info.type;
