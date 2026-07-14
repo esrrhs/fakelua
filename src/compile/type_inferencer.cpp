@@ -223,7 +223,7 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
             break;
         }
         default:
-            ThrowFakeluaException("DumpASTWithTypes: unexpected SyntaxTreeType");
+            ThrowFakeluaException(std::format("DumpASTWithTypes: unexpected SyntaxTreeType: {}", SyntaxTreeTypeToString(node->Type())));
     }
 }
 
@@ -468,7 +468,7 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
             return RecordType(current_map, node.get(), T_UNKNOWN);
         }
         default:
-            ThrowFakeluaException("InferNode: unexpected SyntaxTreeType");
+            ThrowFakeluaException(std::format("InferNode: unexpected SyntaxTreeType: {}", SyntaxTreeTypeToString(node->Type())));
     }
 }
 
@@ -688,7 +688,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                 case BinOpKind::kConcat:
                     break;
                 default:
-                    ThrowFakeluaException("unexpected binary operator kind");
+                    ThrowFakeluaException("unexpected binary operator kind: " + std::to_string(static_cast<int>(op_kind)));
             }
 
             return RecordType(current_map, exp.get(), T_DYNAMIC);
@@ -724,7 +724,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
                     break;
                 }
                 default:
-                    ThrowFakeluaException("unexpected unary operator kind");
+                    ThrowFakeluaException("unexpected unary operator kind: " + std::to_string(static_cast<int>(op_kind)));
             }
             return RecordType(current_map, exp.get(), T_DYNAMIC);
         }
@@ -738,7 +738,7 @@ InferredType TypeInferencer::InferExp(const std::shared_ptr<SyntaxTreeExp> &exp,
             return RecordType(current_map, exp.get(), T_DYNAMIC);
         }
         default:
-            ThrowFakeluaException("unexpected expression kind");
+            ThrowFakeluaException("unexpected expression kind: " + std::to_string(static_cast<int>(exp_kind)));
     }
 }
 
@@ -753,7 +753,7 @@ InferredType TypeInferencer::InferPrefixExp(const std::shared_ptr<SyntaxTreePref
             ret = InferNode(prefix_exp->GetValue(), tctx);
             break;
         default:
-            ThrowFakeluaException("unexpected prefix expression kind");
+            ThrowFakeluaException("unexpected prefix expression kind: " + std::to_string(static_cast<int>(prefix_kind)));
     }
 
     return RecordType(tctx.current_map, prefix_exp.get(), ret);
@@ -787,7 +787,7 @@ InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var,
             return RecordType(current_map, var.get(), T_DYNAMIC);
         }
         default:
-            ThrowFakeluaException("unexpected variable kind");
+            ThrowFakeluaException("unexpected variable kind: " + std::to_string(static_cast<int>(var->GetVarKind())));
     }
 }
 
@@ -1259,7 +1259,7 @@ bool TypeInferencer::AllPathsReturn(const SyntaxTreeInterfacePtr &block_node) co
         case SyntaxTreeType::Empty:
             return false;
         default:
-            ThrowFakeluaException("AllPathsReturn: unexpected statement type");
+            ThrowFakeluaException(std::format("AllPathsReturn: unexpected statement type {}", SyntaxTreeTypeToString(last->Type())));
     }
 }
 
@@ -1330,7 +1330,7 @@ bool TypeInferencer::CollectReturnExps(const SyntaxTreeInterfacePtr &block_node,
                 // 不含 return，无需递归。
                 break;
             default:
-                ThrowFakeluaException("CollectReturnExps: unexpected statement type");
+                ThrowFakeluaException(std::format("CollectReturnExps: unexpected statement type {}", SyntaxTreeTypeToString(stmt->Type())));
         }
     }
     return ends_with_return;
