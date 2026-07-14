@@ -231,7 +231,7 @@ struct InferResult {
     // 特化返回类型：函数名 → 按 bitmask 索引的返回类型数组（共 2^k 个）。
     // T_INT/T_FLOAT 表示该特化版本始终返回对应数值类型；T_DYNAMIC 表示未知或非数值。
     // 由 TypeInferencer::InferTypes 通过不动点迭代填充，
-    // 供 CGen::InferArgTypeForSpec 在函数调用节点处查询被调用函数的实际返回类型。
+    // 供 CGen::GetType 在函数调用节点处查询被调用函数的实际返回类型。
     std::unordered_map<std::string, std::vector<InferredType>> specialization_return_types;
     // 全局类型推断结果：节点指针 → 推断类型。
     // 由 TypeInferencer::InferTypes 在全局（非试推断）推断完成后填充，

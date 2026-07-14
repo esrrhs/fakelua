@@ -227,10 +227,9 @@ private:
     // 生成原生一元运算的代码
     std::string CompileNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType rt);
 
-    // 静态获取表达式在推断器中的推断类型
-    [[nodiscard]] InferredType InferExpType(const SyntaxTreeInterfacePtr &exp) const;
-    // 为特化签名调用推断特定的参数类型
-    [[nodiscard]] InferredType InferArgTypeForSpec(const SyntaxTreeInterfacePtr &exp) const;
+    // 获取表达式的推断类型：优先使用 TypeInferencer 预计算的快照，
+    // 对简单变量额外查询 CGen 本地作用域（特化参数与 CGen 声明的局部变量）。
+    [[nodiscard]] InferredType GetType(const SyntaxTreeInterfacePtr &exp) const;
     // 尝试推断数学特化库调用的参数掩码（bitmask）
     [[nodiscard]] bool TryInferMathCallBitmask(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args, int &bitmask) const;
     // 尝试推断数学库特化调用的参数掩码与特化返回类型
