@@ -133,8 +133,6 @@ private:
 
     // table 特化辅助：判断 table constructor 是否可特化（所有字段均为静态字符串 key）
     [[nodiscard]] bool CanSpecializeTable(const SyntaxTreeInterfacePtr &tc) const;
-    // table 特化辅助：获取 table constructor 的字段信息
-    [[nodiscard]] std::vector<TableFieldInfo> GetTableFields(const SyntaxTreeInterfacePtr &tc) const;
     // table 特化辅助：从 prefixexp 获取变量的 spec 类型名（空字符串表示无特化）
     [[nodiscard]] std::string GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const;
     // table 特化辅助：检查 key 是否为已知 spec 字段

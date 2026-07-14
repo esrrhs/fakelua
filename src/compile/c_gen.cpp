@@ -658,111 +658,6 @@ bool CGen::CanSpecializeTable(const SyntaxTreeInterfacePtr &tc) const {
     return true;
 }
 
-std::vector<TableFieldInfo> CGen::GetTableFields(const SyntaxTreeInterfacePtr &tc) const {
-    std::vector<TableFieldInfo> fields;
-    const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc);
-    if (!tc_ptr->Fieldlist()) return fields;
-    const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(tc_ptr->Fieldlist());
-    if (!fieldlist) return fields;
-
-    struct FieldEntry {
-        TableFieldInfo info;
-        size_t index;
-    };
-    std::unordered_map<std::string, FieldEntry> unique_fields;
-    std::vector<std::string> order;
-
-    int array_idx = 1;
-    for (const auto &field : fieldlist->Fields()) {
-        const auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field);
-        if (!fp) continue;
-
-        TableFieldInfo f_info;
-        std::string key_desc;
-
-        if (fp->GetFieldKind() == FieldKind::kObject) {
-            f_info.key = fp->Name();
-            f_info.key_kind = TableKeyKind::kString;
-            f_info.c_field_name = fp->Name();
-            key_desc = "S_" + f_info.key;
-        } else {
-            if (fp->Key() == nullptr) {
-                f_info.key = std::to_string(array_idx);
-                f_info.key_kind = TableKeyKind::kInt;
-                f_info.c_field_name = "_int_" + f_info.key;
-                f_info.int_value = array_idx;
-                key_desc = "I_" + f_info.key;
-                array_idx++;
-            } else {
-                const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
-                if (key_exp) {
-                    if (key_exp->GetExpKind() == ExpKind::kString) {
-                        f_info.key = key_exp->ExpValue();
-                        f_info.key_kind = TableKeyKind::kString;
-                        f_info.c_field_name = f_info.key;
-                        key_desc = "S_" + f_info.key;
-                    } else if (key_exp->GetExpKind() == ExpKind::kNumber) {
-                        std::string num_str = key_exp->ExpValue();
-                        if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
-                            f_info.key = num_str;
-                            f_info.key_kind = TableKeyKind::kInt;
-                            f_info.int_value = std::stoll(num_str);
-                            std::string sanitized = f_info.key;
-                            std::replace(sanitized.begin(), sanitized.end(), '-', '_');
-                            f_info.c_field_name = "_int_" + sanitized;
-                            key_desc = "I_" + f_info.key;
-                            // 显式整数键占用隐式索引位置，更新 array_idx
-                            array_idx = std::max(array_idx, static_cast<int>(f_info.int_value + 1));
-                        } else {
-                            f_info.key = num_str;
-                            f_info.key_kind = TableKeyKind::kFloat;
-                            std::string sanitized = num_str;
-                            std::replace(sanitized.begin(), sanitized.end(), '.', '_');
-                            std::replace(sanitized.begin(), sanitized.end(), '-', '_');
-                            std::replace(sanitized.begin(), sanitized.end(), '+', '_');
-                            f_info.c_field_name = "_float_" + sanitized;
-                            f_info.float_value = std::stod(num_str);
-                            key_desc = "F_" + f_info.key;
-                        }
-                    } else if (key_exp->GetExpKind() == ExpKind::kTrue) {
-                        f_info.key = "true";
-                        f_info.key_kind = TableKeyKind::kBool;
-                        f_info.c_field_name = "_bool_true";
-                        f_info.bool_value = true;
-                        key_desc = "B_true";
-                    } else if (key_exp->GetExpKind() == ExpKind::kFalse) {
-                        f_info.key = "false";
-                        f_info.key_kind = TableKeyKind::kBool;
-                        f_info.c_field_name = "_bool_false";
-                        f_info.bool_value = false;
-                        key_desc = "B_false";
-                    } else {
-                        continue;
-                    }
-                } else {
-                    continue;
-                }
-            }
-        }
-
-        // Value type: rely on TypeInferencer's pre-computed snapshot, which derives
-        // number types the same way (IsInteger(value) ? T_INT : T_FLOAT).
-        f_info.type = LookupNodeType(fp->Value().get());
-
-        if (unique_fields.contains(key_desc)) {
-            unique_fields[key_desc].info.type = f_info.type;
-        } else {
-            unique_fields[key_desc] = {f_info, order.size()};
-            order.push_back(key_desc);
-        }
-    }
-
-    for (const auto &k : order) {
-        fields.push_back(unique_fields[k].info);
-    }
-    return fields;
-}
-
 std::string CGen::GetSimpleVarName(const SyntaxTreeInterfacePtr &pe) {
     if (!pe) return "";
     if (pe->Type() == SyntaxTreeType::Var) {
@@ -1923,54 +1818,10 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
     DEBUG_ASSERT(tc->Type() == SyntaxTreeType::TableConstructor);
     const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc);
 
-    // 检查重复 key，一旦发现重复则抛出编译异常
-    if (const auto fieldlist = tc_ptr->Fieldlist()) {
-        const auto fieldlist_ptr = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(fieldlist);
-        std::unordered_set<std::string> unique_keys;
-        int array_idx = 1;
-        for (const auto &field : fieldlist_ptr->Fields()) {
-            const auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field);
-            if (!fp) continue;
+    // Duplicate-key detection and key classification are done by TypeInferencer
+    // (BuildCtorFields throws on duplicate keys; table_spec_infos stores the
+    // classified layout). CGen just consumes the result.
 
-            std::string key_desc;
-            if (fp->GetFieldKind() == FieldKind::kObject) {
-                key_desc = "S_" + fp->Name();
-            } else {
-                if (fp->Key() == nullptr) {
-                    key_desc = "I_" + std::to_string(array_idx);
-                    array_idx++;
-                } else {
-                    const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
-                    if (key_exp) {
-                        auto kind = key_exp->GetExpKind();
-                        if (kind == ExpKind::kString) {
-                            key_desc = "S_" + key_exp->ExpValue();
-                        } else if (kind == ExpKind::kNumber) {
-                            std::string num_str = key_exp->ExpValue();
-                            if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
-                                int64_t ival = std::stoll(num_str);
-                                key_desc = "I_" + num_str;
-                                array_idx = std::max(array_idx, static_cast<int>(ival + 1));
-                            } else {
-                                key_desc = "F_" + num_str;
-                            }
-                        } else if (kind == ExpKind::kTrue) {
-                            key_desc = "B_true";
-                        } else if (kind == ExpKind::kFalse) {
-                            key_desc = "B_false";
-                        }
-                    }
-                }
-            }
-
-            if (!key_desc.empty()) {
-                if (unique_keys.contains(key_desc)) {
-                    ThrowError("duplicate key in table constructor: " + key_desc.substr(2), tc);
-                }
-                unique_keys.insert(key_desc);
-            }
-        }
-    }
 
     const auto var_name = std::format("flua_tbl_{}", tmp_var_counter_++);
 
@@ -1979,15 +1830,9 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 
     // table 特化：所有字段键均为静态已知
     if (CanSpecializeTable(tc)) {
-        // Phase 2: 优先使用 inferencer 计算的合并字段布局（含 optional 标记），
-        // 使 if-else 两分支的不同 shape table 能统一到同一结构体。
-        std::vector<TableFieldInfo> fields;
-        const auto spec_it = ir().table_spec_infos.find(tc.get());
-        if (spec_it != ir().table_spec_infos.end() && spec_it->second.can_specialize && !spec_it->second.fields.empty()) {
-            fields = spec_it->second.fields;
-        } else {
-            fields = GetTableFields(tc);
-        }
+        // TypeInferencer pre-classifies every static-key constructor (including nested
+        // ones) into table_spec_infos, so the entry is always present here.
+        const auto &fields = ir().table_spec_infos.at(tc.get()).fields;
         if (!fields.empty()) {
             const auto spec_type = ComputeSpecTypeName(fields);
             const auto get_fn = std::format("FlGetTableStrId_{}", spec_type);
