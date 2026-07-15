@@ -42,14 +42,6 @@ private:
         }
     };
 
-    // SpecSnapshot：捕获某一时刻 table_spec_types_ 与 global_table_spec_types_ 的完整状态，
-    // 用于控制流汇合点（if-else）的流敏感 join。Phase 1 中 join 策略为：
-    // 各分支快照内同名变量的 spec-type-name 必须一致才保留，否则从映射中 erase（降级为 dynamic）。
-    struct SpecSnapshot {
-        std::unordered_map<std::string, std::string> t;
-        std::unordered_map<std::string, std::string> g;
-    };
-
     // NativeVarScope —— 编译期原生变量作用域管理器。
     class NativeVarScope {
     public:
@@ -273,15 +265,6 @@ private:
     // 根据当前缩进深度生成 C 代码缩进空白字符
     [[nodiscard]] std::string GenTab() const;
 
-    // 保存当前 table_spec_types_ / global_table_spec_types_ 的完整快照（值拷贝）。
-    [[nodiscard]] SpecSnapshot SaveSpecSnapshot() const;
-    // 用快照覆盖当前 table_spec_types_ / global_table_spec_types_。
-    void RestoreSpecSnapshot(const SpecSnapshot &s);
-    // 对一组分支快照执行 Phase 1 join：同名变量 spec-type-name 全部一致则保留，否则丢弃（降级为 dynamic）。
-    // 返回 join 后的 T/G 映射，由调用方写入实例成员。
-    static void JoinSpecSnapshots(const std::vector<SpecSnapshot> &branch_snaps, std::unordered_map<std::string, std::string> &out_t,
-                                  std::unordered_map<std::string, std::string> &out_g);
-
     // 根据字段布局计算 spec 结构体类型名：flua_spec_<hex(签名)>。
     // 签名 = 排序后的字段 key 描述符拼接，确保相同布局（无论字段顺序）产生相同类型名，
     // 使不同 constructor 字面量在合并后共享同一 typedef + get/set，并让 CGen 侧的
@@ -325,10 +308,6 @@ private:
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
     int cur_tab_ = 0;                  // 当前 C 代码生成器所处的缩进级别深度
 
-    // table 特化：变量名/临时变量名 → spec 结构体类型名
-    std::unordered_map<std::string, std::string> table_spec_types_;
-    // 全局/静态特化：模块静态 Table 变量名 → spec 结构体类型名
-    std::unordered_map<std::string, std::string> global_table_spec_types_;
     // spec 类型名 → 已知字段名集合（用于 FAKELUA_SET_TABLE / CompileVar 判断 key 是否在 spec 中）
     std::unordered_map<std::string, std::unordered_set<std::string>> spec_field_names_;
     // spec 类型名 → 字段名到索引的映射表（用于 FL_SET_SPEC 宏生成）

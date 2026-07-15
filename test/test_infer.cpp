@@ -4275,3 +4275,49 @@ TEST(infer, test_table_spec_reassign_to_table) {
         ASSERT_EQ(ret, 300);
     });
 }
+
+// 跨函数 global 回退 + 冲突 if 分支的 soundness 测试。
+// 顶层 init 让全局变量 g 获得 spec_a；非 init 函数 foo 里 g 被冲突 if 分支覆盖为
+// spec_x / spec_y，之后读取 g.a。原版 CGen 普通编译会把 global[g] 也冲掉（汇合擦除），
+// 使 g.a 降级为 FlGetTableStrId 动态路径；若前向分析未复刻该降级，会生成 FL_SPEC
+// 裸指针偏移读到错误结构体内存（因为运行时 g 的真实形状是 {x=1} 或 {y=2}，并无字段 a）。
+// 预期：cond=1 → g={x=1}, g.a=nil→0；cond=0 → g={y=2}, g.a=nil→0。
+TEST(infer, test_table_spec_global_conflict_ifelse) {
+    const auto code = InferGetCCode("./infer/test_table_spec_global_conflict_ifelse.lua");
+    // 顶层 init 的 g = {a=100} 仍会特化。
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    // AnalyzeTableShapes 按函数帧隔离字段并集：init 帧 g 的合并为 {a}，foo 帧 g 的合并为 {x,y}，
+    // 故 foo 读 g.a 时标注为 spec_{x,y}，IsSpecField(spec_{x,y}, "a")=false → FlGetTableStrId 动态路径，
+    // 安全读到 nil（不会按 spec_a 裸指针偏移读到错内存）。
+    ASSERT_NE(code.find("FlGetTableStrId(g,"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_global_conflict_ifelse.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        // cond=1: g 实际为 {x=1}, g.a=nil → 0
+        Call(s, type, "foo", ret, 1);
+        ASSERT_EQ(ret, 0);
+        // cond=0: g 实际为 {y=2}, g.a=nil → 0
+        Call(s, type, "foo", ret, 0);
+        ASSERT_EQ(ret, 0);
+    });
+}
+
+// 跨函数 global 特化传递：init 给 g 特化（spec_a），foo 帧冲突 if 分支覆盖后读 g.a。
+// 同样因帧隔离合并布局为 spec_{x,y}，读 g.a 走 FlGetTableStrId 动态路径 → 安全。
+TEST(infer, test_table_spec_global_crossfunc) {
+    const auto code = InferGetCCode("./infer/test_table_spec_global_crossfunc.lua");
+    ASSERT_NE(code.find("SET_TABLE_SPEC("), std::string::npos);
+    ASSERT_NE(code.find("FlGetTableStrId(g,"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_table_spec_global_crossfunc.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        // cond=1: g={x=1}, g.a=nil → 0
+        Call(s, type, "test_global_crossfunc", ret, 1);
+        ASSERT_EQ(ret, 0);
+        // cond=0: g={y=2}, g.a=nil → 0
+        Call(s, type, "test_global_crossfunc", ret, 0);
+        ASSERT_EQ(ret, 0);
+    });
+}

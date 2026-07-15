@@ -4,6 +4,7 @@
 #include "jit/vm_function.h"
 #include "syntax_tree.h"
 #include "util/debug.h"
+#include <algorithm>
 #include <format>
 #include <string>
 #include <unordered_set>
@@ -217,6 +218,61 @@ struct TableSpecInfo {
     bool can_specialize;  // 所有访问是否已知（可特化）
 };
 
+// 字段 key 描述符（与 CGen::GetKeyDescriptor / TypeInferencer::FieldKeyDescriptor 一致）。
+// 单一事实来源，保证 spec 类型名哈希与 TypeInferencer 去重/并集逻辑使用完全相同的描述符。
+inline std::string TableFieldDescriptor(const TableFieldInfo &f) {
+    switch (f.key_kind) {
+        case TableKeyKind::kString: return "S_" + f.key;
+        case TableKeyKind::kInt:    return "I_" + f.key;
+        case TableKeyKind::kBool:   return "B_" + f.key;
+        case TableKeyKind::kFloat:  return "F_" + f.key;
+    }
+    return "";
+}
+
+// 根据字段布局计算 spec 结构体类型名：flua_spec_<hex(签名)>。
+// 签名 = 排序后的字段 key 描述符拼接，确保相同布局（无论字段顺序）产生相同类型名，
+// 使不同 constructor 字面量在合并后共享同一 typedef + get/set，并让 CGen 侧的
+// 字符串比较 join 能识别两分支构造的同 shape table 为一致。
+// 共享给 TypeInferencer（前向流分析时预算 spec 名）和 CGen（emit 时复用）。
+inline std::string ComputeTableSpecName(const std::vector<TableFieldInfo> &fields) {
+    std::vector<std::string> descs;
+    descs.reserve(fields.size());
+    for (const auto &f: fields) {
+        descs.push_back(TableFieldDescriptor(f));
+    }
+    std::sort(descs.begin(), descs.end());
+    std::string sig;
+    for (size_t i = 0; i < descs.size(); ++i) {
+        if (i) sig += '|';
+        sig += descs[i];
+    }
+    // FNV-1a 64bit 哈希，输出 16 进制，保持类型名简短且确定。
+    uint64_t h = 14695981039346656037ULL;
+    for (const char c: sig) {
+        h ^= static_cast<uint64_t>(static_cast<unsigned char>(c));
+        h *= 1099511628211ULL;
+    }
+    return std::format("flua_spec_{:016x}", h);
+}
+
+// 从 Var/PrefixExp/Exp 节点中抽取底层简单变量名。
+// 共享给 TypeInferencer（前向流分析时解析 LHS/RHS 变量名）和 CGen。
+inline std::string GetSimpleVarName(const SyntaxTreeInterfacePtr &pe) {
+    if (!pe) return "";
+    if (pe->Type() == SyntaxTreeType::Var) {
+        auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe);
+        if (var->GetVarKind() == VarKind::kSimple) return var->GetName();
+    } else if (pe->Type() == SyntaxTreeType::PrefixExp) {
+        auto pf = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
+        if (pf->GetPrefixKind() == PrefixExpKind::kVar) return GetSimpleVarName(pf->GetValue());
+    } else if (pe->Type() == SyntaxTreeType::Exp) {
+        auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(pe);
+        if (exp->GetExpKind() == ExpKind::kPrefixExp) return GetSimpleVarName(exp->Right());
+    }
+    return "";
+}
+
 // TypeInferencer 的输出。
 // 由 TypeInferencer::InferTypes 填充，供 CGen 使用。
 struct InferResult {
@@ -241,6 +297,9 @@ struct InferResult {
     std::unordered_map<std::string, InferredType> global_const_vars;
     // table 特化信息：table constructor 节点 → 特化信息
     std::unordered_map<const SyntaxTreeInterface *, struct TableSpecInfo> table_spec_infos;
+    // 流敏感 table 特化标注：Var 引用节点（kDot/kSquare 的 prefixexp 所指 Var 节点）→ 该程序点该变量的 spec 类型名。
+    // 空串表示 dynamic（走哈希路径）。由 TypeInferencer 的前向流分析填充，供 CGen 纯读取。
+    std::unordered_map<const SyntaxTreeInterface *, std::string> var_spec_annotations;
 };
 
 struct JitFunctionInfo {
