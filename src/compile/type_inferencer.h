@@ -206,6 +206,58 @@ private:
     // 字段 key 描述符（与 CGen::GetKeyDescriptor 一致，用于去重和签名）。
     static std::string FieldKeyDescriptor(const TableFieldInfo &f);
 
+    // -----------------------------------------------------------------------
+    // 流敏感 table 特化前向分析
+    // -----------------------------------------------------------------------
+    //
+    // 为每个 Var 引用节点（kDot/kSquare 的 prefixexp 所指简单变量）标注
+    // 「在该程序点，该变量的 spec 类型名是什么（空串 = dynamic）」。
+    // CGen 只读这些标注，不再自己维护 table_spec_types_ 等流敏感状态。
+    //
+    // 算法：对每个函数体 + 顶层 chunk 顺序遍历语句，维护
+    //   state.local  : 变量名 → spec_type_name（每函数清空）
+    //   state.global : 顶层 chunk 变量名 → spec_type_name（跨函数持久）
+    // 顺序语句按 CGen 现有语义更新 state；if-else 做快照/独立分支/phase-1 join
+    // （各分支一致才保留，否则 erase 降级为 dynamic）。
+
+    struct FlowState {
+        std::unordered_map<std::string, std::string> local;
+        std::unordered_map<std::string, std::string> global;
+
+        FlowState() = default;
+        FlowState(std::unordered_map<std::string, std::string> l, std::unordered_map<std::string, std::string> g)
+            : local(std::move(l)), global(std::move(g)) {}
+        explicit FlowState(std::unordered_map<std::string, std::string> g) : local(), global(std::move(g)) {}
+    };
+
+    // 在流状态中查找某变量名的 spec 类型名（local 优先，fallback 到 global；都无 = 空串）。
+    static std::string LookupSpec(const FlowState &st, const std::string &name);
+
+    // 已知 rhs 的语法形式，推断它会给被赋变量带来的 spec 类型名（空串 = dynamic）。
+    // 覆盖三种情形：字面量构造器（查 table_spec_infos 得合并布局）、简单变量拷贝、其余降为空。
+    static std::string SpecFromRhs(const SyntaxTreeInterfacePtr &exp, const FlowState &st, const InferResult &ir);
+
+    // 对一棵表达式子树里所有被读取的 Var(kDot/kSquare) 引用节点做标注：
+    // 把 receiver 指代变量在当前流状态下的 spec 类型名写入 ir.var_spec_annotations[node]。
+    // FAKELUA_SET_TABLE(args[0]) 走独立分支，receiver 为 args[0] 那段 Exp。
+    void AnnotateExprs(const SyntaxTreeInterfacePtr &node, FlowState &st, InferResult &ir);
+
+    // 顺序处理一条语句：先标注该语句中所有 Var 引用再按语义更新流状态。
+    void FlowStmt(const SyntaxTreeInterfacePtr &stmt, FlowState &st, InferResult &ir, bool is_top_level);
+
+    // 顺序处理一个语句块。
+    void FlowBlock(const SyntaxTreeInterfacePtr &block, FlowState &st, InferResult &ir, bool is_top_level);
+
+    // 入口：对整个模块（顶层 chunk + 所有函数体）跑前向流分析，填充 ir.var_spec_annotations。
+    void ComputeVarSpecAnnotations(const ParseResult &pr, InferResult &ir);
+
+    // 按 CGen 的 JoinSpecSnapshots 思路，把若干分支终态汇合到 out 的 local/global 两 map。
+    // 任一分支缺失该 key、或各分支值不一致 → 不写入（等价于降级为 dynamic）。
+    static void JoinFlowStates(const std::vector<FlowState> &branch_states, FlowState &out);
+
+    // 辅助：取 Function / LocalFunction 语句的 body block。
+    static SyntaxTreeInterfacePtr FuncBodyBlock(const SyntaxTreeInterfacePtr &func);
+
 private:
     std::unordered_map<std::string, InferredType> file_level_types_;
 

@@ -513,77 +513,8 @@ std::string CGen::GenTab() const {
 }
 
 std::string CGen::ComputeSpecTypeName(const std::vector<TableFieldInfo> &fields) {
-    // 收集字段 key 描述符并排序，确保布局相同则签名相同。
-    std::vector<std::string> descs;
-    descs.reserve(fields.size());
-    for (const auto &f: fields) {
-        descs.push_back(GetKeyDescriptor(f.key, f.key_kind));
-    }
-    std::sort(descs.begin(), descs.end());
-    std::string sig;
-    for (size_t i = 0; i < descs.size(); ++i) {
-        if (i) sig += '|';
-        sig += descs[i];
-    }
-    // FNV-1a 64bit 哈希，输出 16 进制，保持类型名简短且确定。
-    uint64_t h = 14695981039346656037ULL;
-    for (const char c: sig) {
-        h ^= static_cast<uint64_t>(static_cast<unsigned char>(c));
-        h *= 1099511628211ULL;
-    }
-    return std::format("flua_spec_{:016x}", h);
-}
-
-CGen::SpecSnapshot CGen::SaveSpecSnapshot() const {
-    return SpecSnapshot{table_spec_types_, global_table_spec_types_};
-}
-
-void CGen::RestoreSpecSnapshot(const SpecSnapshot &s) {
-    table_spec_types_ = s.t;
-    global_table_spec_types_ = s.g;
-}
-
-void CGen::JoinSpecSnapshots(const std::vector<SpecSnapshot> &branch_snaps, std::unordered_map<std::string, std::string> &out_t,
-                             std::unordered_map<std::string, std::string> &out_g) {
-    // Phase 1 join：对每个出现在任意分支快照中的变量，
-    // 若该变量在所有分支快照中都存在且 spec-type-name 完全一致 → 保留；
-    // 否则（任一分支缺失，或名称不一致）→ 不写入 out，等价于降级为 dynamic。
-    auto join_one = [](const std::vector<SpecSnapshot> &snaps, char which, std::unordered_map<std::string, std::string> &out) {
-        // 先收集所有出现过的 key
-        std::unordered_set<std::string> keys;
-        for (const auto &snap: snaps) {
-            const auto &m = (which == 't') ? snap.t : snap.g;
-            for (const auto &[k, v]: m) {
-                keys.insert(k);
-            }
-        }
-        for (const auto &k: keys) {
-            std::string consistent;
-            bool conflict = false;
-            for (const auto &snap: snaps) {
-                const auto &m = (which == 't') ? snap.t : snap.g;
-                const auto it = m.find(k);
-                if (it == m.end()) {
-                    // 该分支未将此变量标记为 spec（可能是非 table 赋值或未触及）→ 降级
-                    conflict = true;
-                    break;
-                }
-                if (consistent.empty()) {
-                    consistent = it->second;
-                } else if (consistent != it->second) {
-                    conflict = true;
-                    break;
-                }
-            }
-            if (!conflict) {
-                out[k] = consistent;
-            }
-        }
-    };
-    out_t.clear();
-    out_g.clear();
-    join_one(branch_snaps, 't', out_t);
-    join_one(branch_snaps, 'g', out_g);
+    // 实现已上移到 compile_common.h 的共享自由函数 ComputeTableSpecName。
+    return ComputeTableSpecName(fields);
 }
 
 InferredType CGen::LookupNodeType(SyntaxTreeInterface *node) const {
@@ -659,27 +590,17 @@ bool CGen::CanSpecializeTable(const SyntaxTreeInterfacePtr &tc) const {
 }
 
 std::string CGen::GetSimpleVarName(const SyntaxTreeInterfacePtr &pe) {
-    if (!pe) return "";
-    if (pe->Type() == SyntaxTreeType::Var) {
-        auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe);
-        if (var->GetVarKind() == VarKind::kSimple) return var->GetName();
-    } else if (pe->Type() == SyntaxTreeType::PrefixExp) {
-        auto pf = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(pe);
-        if (pf->GetPrefixKind() == PrefixExpKind::kVar) return GetSimpleVarName(pf->GetValue());
-    } else if (pe->Type() == SyntaxTreeType::Exp) {
-        auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(pe);
-        if (exp->GetExpKind() == ExpKind::kPrefixExp) return GetSimpleVarName(exp->Right());
-    }
-    return "";
+    // 实现已上移到 compile_common.h 的共享自由函数 GetSimpleVarName。
+    return fakelua::GetSimpleVarName(pe);
 }
 
 std::string CGen::GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const {
-    std::string name = GetSimpleVarName(pe);
-    if (name.empty()) return "";
-    auto it = table_spec_types_.find(name);
-    if (it != table_spec_types_.end()) return it->second;
-    auto git = global_table_spec_types_.find(name);
-    if (git != global_table_spec_types_.end()) return git->second;
+    // 流敏感 spec 类型名现已由 TypeInferencer 在分析阶段标注到 ir.var_spec_annotations
+    // （key 为被读引用的 Var 节点指针）。此处按 prefixexp 变量名查找对应的 Var 节点。
+    // 为与原有行为兼容：先在标注 map 中查找 prefixexp 自身；若未命中再尝试 receiver 解析。
+    if (const auto it = ir().var_spec_annotations.find(pe.get()); it != ir().var_spec_annotations.end()) {
+        return it->second;
+    }
     return "";
 }
 
@@ -725,7 +646,6 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
     SectionGuard section_guard(*this, Section::Body);
     // 初始化特化上下文。
     spec_param_types_.clear();
-    table_spec_types_.clear();
     cur_spec_bitmask_ = spec_bitmask;
     cur_spec_func_name_ = (spec_bitmask >= 0) ? func_name : "";
     cur_spec_snapshot_ = nullptr;
@@ -1090,17 +1010,6 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 const std::string init = CompileExp(exps[i]);
                 Out() << GenTab() << "CVar " << name << " = " << init << ";\n";
                 DeclareNativeVar(name, T_DYNAMIC);
-                if (auto sit = table_spec_types_.find(init); sit != table_spec_types_.end()) {
-                    table_spec_types_[name] = sit->second;
-                    if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
-                        global_table_spec_types_[name] = sit->second;
-                    }
-                } else {
-                    // local 声明新变量，按理无旧 spec 残留；但同名 shadow 场景下需清除，
-                    // 避免读到外层同名变量的 spec 标记。
-                    table_spec_types_.erase(name);
-                    global_table_spec_types_.erase(name);
-                }
             }
         }
 
@@ -1118,9 +1027,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             }
             Out() << GenTab() << "CVar " << name << " = FlUnboxMulti(" << tmp_res << ", " << (i - (exps.size() - 1)) << ");\n";
             DeclareNativeVar(name, T_DYNAMIC);
-            // 多返回值解包结果不会是 spec table，清除可能的同名 shadow 残留。
-            table_spec_types_.erase(name);
-            global_table_spec_types_.erase(name);
+
         }
     } else {
         // Standard one-to-one compilation path (or fallback path where extra variables get nil)
@@ -1165,22 +1072,9 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 const std::string init = CompileExp(exps[i]);
                 Out() << GenTab() << "CVar " << name << " = " << init << ";\n";
                 DeclareNativeVar(name, T_DYNAMIC);
-                if (auto sit = table_spec_types_.find(init); sit != table_spec_types_.end()) {
-                    table_spec_types_[name] = sit->second;
-                    if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
-                        global_table_spec_types_[name] = sit->second;
-                    }
-                } else {
-                    // local 声明新变量，按理无旧 spec 残留；但同名 shadow 场景下需清除。
-                    table_spec_types_.erase(name);
-                    global_table_spec_types_.erase(name);
-                }
             } else {
                 Out() << GenTab() << "CVar " << name << " = kNil;\n";
                 DeclareNativeVar(name, T_DYNAMIC);
-                // 显式初始化为 nil 的变量不应携带 spec 标记。
-                table_spec_types_.erase(name);
-                global_table_spec_types_.erase(name);
             }
         }
     }
@@ -1271,23 +1165,6 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     } else {
         const std::string rhs = CompileExp(exps[0]);
         Out() << GenTab() << name << " = " << rhs << ";\n";
-        std::string spec_type = "";
-        if (auto it = table_spec_types_.find(rhs); it != table_spec_types_.end()) {
-            spec_type = it->second;
-        } else if (auto git = global_table_spec_types_.find(rhs); git != global_table_spec_types_.end()) {
-            spec_type = git->second;
-        }
-        if (!spec_type.empty()) {
-            table_spec_types_[name] = spec_type;
-            if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
-                global_table_spec_types_[name] = spec_type;
-            }
-        } else {
-            // RHS 非 spec table：清除该变量可能残留的旧 spec 标记，
-            // 防止后续 a.x 错误地走 FL_SPEC 偏移读到非 spec 结构体内存。
-            table_spec_types_.erase(name);
-            global_table_spec_types_.erase(name);
-        }
     }
 }
 
@@ -1362,19 +1239,13 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::If);
     const auto if_stmt = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
 
-    // 流敏感 spec 类型：快照 pre-if 状态，每个分支独立编译后 join。
-    // 不做这一步的话，分支顺序编译会让后写者覆盖 table_spec_types_，
-    // 导致汇合后用错误的 spec-type-name 生成 FL_SPEC（裸指针 cast）读到错内存。
-    const auto s0 = SaveSpecSnapshot();
-    std::vector<SpecSnapshot> branch_snaps;
+    // 流敏感 spec 类型已由 TypeInferencer 的前向分析标注到 ir.var_spec_annotations，
+    // 各分支直接顺序编译即可，不再需要快照 / 汇合。
 
     const auto cond_bool = CompileCondBoolExpr(if_stmt->Exp(), "flua_ibt");
     Out() << GenTab() << std::format("if ({}) {{\n", cond_bool);
     cur_tab_++;
-    RestoreSpecSnapshot(s0);
     CompileScopedBlock(if_stmt->Block());
-    branch_snaps.push_back(SaveSpecSnapshot());
-    RestoreSpecSnapshot(s0);
     cur_tab_--;
     Out() << GenTab() << "}";
 
@@ -1389,10 +1260,7 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
             const auto econd_bool = CompileCondBoolExpr(elseif_list->ElseifExp(i), "flua_ibt");
             Out() << GenTab() << std::format("if ({}) {{\n", econd_bool);
             cur_tab_++;
-            RestoreSpecSnapshot(s0);
             CompileScopedBlock(elseif_list->ElseifBlock(i));
-            branch_snaps.push_back(SaveSpecSnapshot());
-            RestoreSpecSnapshot(s0);
             cur_tab_--;
             Out() << GenTab() << "}";
         }
@@ -1401,15 +1269,9 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     if (const auto else_block = if_stmt->ElseBlock()) {
         Out() << " else {\n";
         cur_tab_++;
-        RestoreSpecSnapshot(s0);
         CompileScopedBlock(else_block);
-        branch_snaps.push_back(SaveSpecSnapshot());
-        RestoreSpecSnapshot(s0);
         cur_tab_--;
         Out() << GenTab() << "}";
-    } else {
-        // 无 else 分支：隐式 else 路径保持 pre-if 状态（无修改），纳入 join。
-        branch_snaps.push_back(s0);
     }
 
     for (int i = 0; i < elseif_depth; ++i) {
@@ -1419,9 +1281,6 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     }
 
     Out() << "\n";
-
-    // Phase 1 join：冲突变量（任一分支缺失或 spec-type-name 不一致）降级为 dynamic。
-    JoinSpecSnapshots(branch_snaps, table_spec_types_, global_table_spec_types_);
 }
 
 void CGen::CompileStmtBreak(const SyntaxTreeInterfacePtr &stmt) {
@@ -2087,10 +1946,6 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
                 }
             }
 
-            table_spec_types_[var_name] = spec_type;
-            if (cur_spec_func_name_.empty() || cur_spec_func_name_ == "__fakelua_init") {
-                global_table_spec_types_[var_name] = spec_type;
-            }
             int f_idx = 0;
             for (const auto &f: fields) {
                 std::string key_desc = GetKeyDescriptor(f.key, f.key_kind);

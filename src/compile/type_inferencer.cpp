@@ -337,6 +337,11 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     // 分析 table 形状，填充 table_spec_infos（流不敏感字段并集 + optional 标记）
     AnalyzeTableShapes(pr.chunk, ir);
 
+    // 流敏感前向分析：为每处 Var 字段引用节点标注「该程序点上该变量的 spec 类型名」。
+    // CGen 在 CompileVar（kSquare/kDot）里通过 var_spec_annotations[node] 读取，
+    // 不再自行维护 table_spec_types_ / global_table_spec_types_ 等流敏感状态。
+    ComputeVarSpecAnnotations(pr, ir);
+
     return ir;
 }
 
@@ -1436,13 +1441,9 @@ void TypeInferencer::CollectGlobalConstVars(const ParseResult &pr, const EvalTyp
 }
 
 std::string TypeInferencer::FieldKeyDescriptor(const TableFieldInfo &f) {
-    switch (f.key_kind) {
-        case TableKeyKind::kString: return "S_" + f.key;
-        case TableKeyKind::kInt:    return "I_" + f.key;
-        case TableKeyKind::kBool:   return "B_" + f.key;
-        case TableKeyKind::kFloat:  return "F_" + f.key;
-    }
-    ThrowFakeluaException("unexpected table key kind: " + std::to_string(static_cast<int>(f.key_kind)));
+    // 实现已上移到 compile_common.h 的共享自由函数 TableFieldDescriptor，
+    // 确保 spec 类型名哈希与去重/并集逻辑使用完全相同的描述符。
+    return fakelua::TableFieldDescriptor(f);
 }
 
 void TypeInferencer::MergeFieldsInto(std::vector<TableFieldInfo> &dst, const std::vector<TableFieldInfo> &src) {
@@ -1853,6 +1854,431 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
         }
         ir.table_spec_infos[tc_key] = std::move(info);
     }
+}
+
+// ===========================================================================
+// 流敏感 table 特化前向分析
+// ===========================================================================
+//
+// 为目标：为每个 Var(kSquare)/Var(kDot)「读」引用节点标注"在该程序点上，该变量的 spec
+// 类型名（空串 = dynamic）"。CGen 在 CompileVar 中通过 var_spec_annotations[node] 读取，
+// 不再自行维护 table_spec_types_ / global_table_spec_types_。
+//
+// 状态 (FlowState)：
+//   local : 变量名 → spec 类型名。每函数清空；if-else 汇合时各分支一致才保留。
+//   global: 顶层 chunk（即 __fakelua_init 函数）的局部变量 → spec 类型名，跨函数持久。
+//           跨函数写入条件等价于 CGen "cur_spec_func_name_.empty() || ==__fakelua_init"：
+//           即任意 __fakelua_init 内赋值（顶层 chunk 编译）写入 global；其它函数仅写 local。
+//           每个函数内同样在 if-else 汇合时按 local 规则合并。
+//
+// 读取优先级 local -> global 对应 GetSpecTypeForVar 的两级 map 查找。
+//
+// 语义关键：对同一被赋值变量，CGen 为字面量构造器引用的是合并布局（ir.table_spec_infos），
+// 这与 AnalyzeTableShapes 的跨分支字段并集一致 → if 两分支即使构造字面量字段不同也产出同一
+// spec 类型名，汇合后自然保留。fcn-call / varargs 多返回值一律降为空（不设 spec）。
+
+std::string TypeInferencer::LookupSpec(const FlowState &st, const std::string &name) {
+    if (name.empty()) return "";
+    if (auto it = st.local.find(name); it != st.local.end()) return it->second;
+    if (auto git = st.global.find(name); git != st.global.end()) return git->second;
+    return "";
+}
+
+std::string TypeInferencer::SpecFromRhs(const SyntaxTreeInterfacePtr &exp, const FlowState &st, const InferResult &ir) {
+    // 只有 Exp 能是构造器 / 前缀引用 / 字面量。
+    if (!exp || exp->Type() != SyntaxTreeType::Exp) return "";
+    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    const auto kind = e->GetExpKind();
+
+    // 情形 1：字面量构造器。用合并布局（若可特化且登记过）。
+    if (kind == ExpKind::kTableConstructor) {
+        const auto tc = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(e->Right());
+        if (!tc) return "";
+        const auto it = ir.table_spec_infos.find(tc.get());
+        if (it == ir.table_spec_infos.end()) return "";
+        if (it->second.fields.empty()) return "";
+        return ComputeTableSpecName(it->second.fields);
+    }
+
+    // 情形 2：简单变量拷贝 — 与 CGen 的 table_spec_types_.find(copy) 等价。
+    const auto name = GetSimpleVarName(exp);
+    if (!name.empty()) return LookupSpec(st, name);
+
+    // 情形 3：函数调用 / varargs / 二元运算… 一律 dynamic。
+    return "";
+}
+
+void TypeInferencer::AnnotateExprs(const SyntaxTreeInterfacePtr &node, FlowState &st, InferResult &ir) {
+    if (!node) return;
+
+    switch (node->Type()) {
+    case SyntaxTreeType::Var: {
+        const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
+        const auto var_kind = var->GetVarKind();
+        if (var_kind == VarKind::kSquare || var_kind == VarKind::kDot) {
+            // 字段读：receiver 指代的变量在其程序点上应取到的 spec 类型名。
+            // 以 prefixexp 节点为 key，与 CGen 在 GetSpecTypeForVar(pe) 处的查找保持一致。
+            const SyntaxTreeInterfacePtr receiver = var->GetPrefixexp();
+            if (receiver) {
+                const auto receiver_name = GetSimpleVarName(receiver);
+                const auto spec = LookupSpec(st, receiver_name);
+                if (!spec.empty()) {
+                    ir.var_spec_annotations[receiver.get()] = spec;
+                }
+                // CGen 会通过 CompileExp 继续编译 prefixexp 子表达式：若它本身是 Var 字段读，
+                // 则会被单独再调一次 CompileVar + GetSpecTypeForVar，故这里也递归前缀以逐层标注。
+                AnnotateExprs(receiver, st, ir);
+            }
+        }
+        if (var_kind == VarKind::kSquare) {
+            // 下标表达式里可能含字段读。
+            AnnotateExprs(var->GetExp(), st, ir);
+        }
+        return;
+    }
+    case SyntaxTreeType::FunctionCall: {
+        const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+        // FAKELUA_SET_TABLE(t, key, val)：receiver 是 args[0] 里的 prefixExp。
+        if (const auto pf = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp())) {
+            if (pf->GetPrefixKind() == PrefixExpKind::kVar) {
+                const auto fn_var = std::dynamic_pointer_cast<SyntaxTreeVar>(pf->GetValue());
+                if (fn_var && fn_var->GetVarKind() == VarKind::kSimple && fn_var->GetName() == "FAKELUA_SET_TABLE") {
+                    const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+                    if (args && args->GetArgsKind() == ArgsKind::kExpList) {
+                        const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(args->Explist());
+                        if (explist && !explist->Exps().empty()) {
+                            const auto first = explist->Exps()[0];
+                            const auto recv_name = GetSimpleVarName(first);
+                            const auto spec = LookupSpec(st, recv_name);
+                            if (!spec.empty()) {
+                                ir.var_spec_annotations[first.get()] = spec;
+                            }
+                        }
+                    }
+                    return;
+                }
+            }
+        }
+        // 普通调用：遍历前缀与参数，捕获其内的字段读。
+        AnnotateExprs(fc->prefixexp(), st, ir);
+        AnnotateExprs(fc->Args(), st, ir);
+        return;
+    }
+    case SyntaxTreeType::Args: {
+        const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
+        AnnotateExprs(args->Explist(), st, ir);
+        AnnotateExprs(args->Tableconstructor(), st, ir);
+        AnnotateExprs(args->String(), st, ir);
+        return;
+    }
+    case SyntaxTreeType::ExpList: {
+        const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
+        for (const auto &exp: el->Exps()) AnnotateExprs(exp, st, ir);
+        return;
+    }
+    case SyntaxTreeType::Exp: {
+        const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+        const auto k = exp_node->GetExpKind();
+        if (k == ExpKind::kPrefixExp) {
+            AnnotateExprs(exp_node->Right(), st, ir);
+        } else if (k == ExpKind::kBinop) {
+            AnnotateExprs(exp_node->Left(), st, ir);
+            AnnotateExprs(exp_node->Right(), st, ir);
+        } else if (k == ExpKind::kUnop) {
+            AnnotateExprs(exp_node->Right(), st, ir);
+        } else if (k == ExpKind::kTableConstructor) {
+            // 构造器字段值里可能包含字段读。
+            const auto tc = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(exp_node->Right());
+            if (tc) AnnotateExprs(tc->Fieldlist(), st, ir);
+        }
+        return;
+    }
+    case SyntaxTreeType::FieldList: {
+        const auto fl = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
+        for (const auto &field: fl->Fields()) AnnotateExprs(field, st, ir);
+        return;
+    }
+    case SyntaxTreeType::Field: {
+        const auto field_node = std::dynamic_pointer_cast<SyntaxTreeField>(node);
+        AnnotateExprs(field_node->Key(), st, ir);
+        AnnotateExprs(field_node->Value(), st, ir);
+        return;
+    }
+    case SyntaxTreeType::PrefixExp: {
+        const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node);
+        AnnotateExprs(pe->GetValue(), st, ir);
+        return;
+    }
+    case SyntaxTreeType::TableConstructor: {
+        const auto tc = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node);
+        AnnotateExprs(tc->Fieldlist(), st, ir);
+        return;
+    }
+    case SyntaxTreeType::Return: {
+        const auto ret = std::dynamic_pointer_cast<SyntaxTreeReturn>(node);
+        AnnotateExprs(ret->Explist(), st, ir);
+        return;
+    }
+    default:
+        return;
+    }
+}
+
+void TypeInferencer::FlowBlock(const SyntaxTreeInterfacePtr &block, FlowState &st, InferResult &ir, const bool is_top_level) {
+    if (!block || block->Type() != SyntaxTreeType::Block) return;
+    const auto block_ptr = std::dynamic_pointer_cast<SyntaxTreeBlock>(block);
+    for (const auto &stmt: block_ptr->Stmts()) {
+        FlowStmt(stmt, st, ir, is_top_level);
+    }
+}
+
+void TypeInferencer::FlowStmt(const SyntaxTreeInterfacePtr &stmt, FlowState &st, InferResult &ir, const bool is_top_level) {
+    if (!stmt) return;
+
+    switch (stmt->Type()) {
+    case SyntaxTreeType::LocalVar: {
+        // 先标注所有读（右侧表达式里的字段引用）。
+        const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
+        if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist())) {
+            for (const auto &exp: explist->Exps()) AnnotateExprs(exp, st, ir);
+        }
+        // 再按语义更新 local / global。
+        const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist());
+        if (!namelist) return;
+        const auto exps = [&]() -> std::vector<SyntaxTreeInterfacePtr> {
+            if (const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(lv->Explist())) return el->Exps();
+            return {};
+        }();
+        const auto &names = namelist->Names();
+        // 多返回值（函数调用 / varargs 最后一位 + 名字多于表达式）：尾部全部降 dynamic。
+        const bool multi_return = names.size() > exps.size();
+        for (size_t i = 0; i < names.size(); ++i) {
+            const auto &name = names[i];
+            std::string spec;
+            if (i < exps.size()) {
+                spec = SpecFromRhs(exps[i], st, ir);
+            }
+            // 多返回：从 exps.size()-1 位起全部 dynamic (i >= exps.size()-1 即尾部)。
+            if (multi_return && static_cast<int>(i) >= static_cast<int>(exps.size()) - 1) {
+                spec.clear();
+            }
+            if (spec.empty()) {
+                st.local.erase(name);
+                st.global.erase(name);
+            } else {
+                st.local[name] = spec;
+                if (is_top_level) st.global[name] = spec;
+            }
+        }
+        return;
+    }
+    case SyntaxTreeType::Assign: {
+        const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
+        // 标注右侧字段读。
+        if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist())) {
+            for (const auto &exp: explist->Exps()) AnnotateExprs(exp, st, ir);
+        }
+        const auto varlist = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+        const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
+        // 预处理保证单变量、单表达式。
+        if (!varlist || !explist || varlist->Vars().empty() || explist->Exps().empty()) return;
+        const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
+        if (!var) return;
+        const auto name = var->GetName();
+        const auto spec = SpecFromRhs(explist->Exps()[0], st, ir);
+        if (spec.empty()) {
+            st.local.erase(name);
+            st.global.erase(name);
+        } else {
+            st.local[name] = spec;
+            if (is_top_level) st.global[name] = spec;
+        }
+        return;
+    }
+    case SyntaxTreeType::If: {
+        const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(stmt);
+        // 条件里的字段读在汇合前求值：用 if 之前的状态。
+        AnnotateExprs(if_node->Exp(), st, ir);
+
+        const auto snapshot_local = st.local;
+        const auto snapshot_global = st.global;
+
+        std::vector<FlowState> branch_states;
+        // then 分支
+        {
+            FlowState branch{st};
+            FlowBlock(if_node->Block(), branch, ir, is_top_level);
+            branch_states.push_back(std::move(branch));
+        }
+        // elseif 分支
+        if (const auto elseifs = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(if_node->ElseIfs())) {
+            for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
+                // 条件读使用 if 前状态。
+                AnnotateExprs(elseifs->ElseifExp(i), st, ir);
+                FlowState branch{snapshot_local, snapshot_global};
+                FlowBlock(elseifs->ElseifBlock(i), branch, ir, is_top_level);
+                branch_states.push_back(std::move(branch));
+            }
+        }
+        // else 分支
+        if (const auto else_block = if_node->ElseBlock()) {
+            FlowState branch{snapshot_local, snapshot_global};
+            FlowBlock(else_block, branch, ir, is_top_level);
+            branch_states.push_back(std::move(branch));
+        } else {
+            // 无 else：隐式 else 路径保持 if 前状态（等同 s0），纳入汇合。
+            branch_states.push_back(FlowState{snapshot_local, snapshot_global});
+        }
+
+        // 汇合：各分支同 key 值全一致才保留。
+        JoinFlowStates(branch_states, st);
+        return;
+    }
+    case SyntaxTreeType::While: {
+        const auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(stmt);
+        AnnotateExprs(while_node->Exp(), st, ir);
+        // CGen 不快照循环：精确复现直接贯穿（虽理论上多轮可能降级，但保持与原 emitter 行为一致）。
+        FlowBlock(while_node->Block(), st, ir, is_top_level);
+        return;
+    }
+    case SyntaxTreeType::Repeat: {
+        const auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
+        FlowBlock(rep->Block(), st, ir, is_top_level);
+        AnnotateExprs(rep->Exp(), st, ir);
+        return;
+    }
+    case SyntaxTreeType::ForLoop: {
+        const auto for_node = std::dynamic_pointer_cast<SyntaxTreeForLoop>(stmt);
+        AnnotateExprs(for_node->ExpBegin(), st, ir);
+        AnnotateExprs(for_node->ExpEnd(), st, ir);
+        if (for_node->ExpStep()) AnnotateExprs(for_node->ExpStep(), st, ir);
+        FlowBlock(for_node->Block(), st, ir, is_top_level);
+        return;
+    }
+    case SyntaxTreeType::ForIn: {
+        const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(stmt);
+        if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(for_in->Explist())) {
+            for (const auto &exp: explist->Exps()) AnnotateExprs(exp, st, ir);
+        }
+        FlowBlock(for_in->Block(), st, ir, is_top_level);
+        return;
+    }
+    default:
+        // Break / Label / Goto / Return / ExprStmt 等无赋值语义，仅标注可能含的字段读。
+        AnnotateExprs(stmt, st, ir);
+        return;
+    }
+}
+
+void TypeInferencer::JoinFlowStates(const std::vector<FlowState> &branch_states, FlowState &out) {
+    // 分别汇合 local 与 global；任一分支缺失该 key 或不一致 → 不写入 out（即 dynamic）。
+    auto join_one = [](const std::vector<FlowState> &branches, const auto &selector, auto &out_map) {
+        out_map.clear();
+        std::unordered_set<std::string> keys;
+        for (const auto &bs: branches) {
+            const auto &m = selector(bs);
+            for (const auto &[k, v]: m) keys.insert(k);
+        }
+        for (const auto &k: keys) {
+            std::string consistent;
+            bool conflict = false;
+            for (const auto &bs: branches) {
+                const auto &m = selector(bs);
+                const auto it = m.find(k);
+                if (it == m.end()) {
+                    conflict = true;
+                    break;
+                }
+                if (consistent.empty()) {
+                    consistent = it->second;
+                } else if (consistent != it->second) {
+                    conflict = true;
+                    break;
+                }
+            }
+            if (!conflict) out_map[k] = consistent;
+        }
+    };
+    join_one(branch_states, [](const FlowState &s) -> const auto & { return s.local; }, out.local);
+    join_one(branch_states, [](const FlowState &s) -> const auto & { return s.global; }, out.global);
+}
+
+void TypeInferencer::ComputeVarSpecAnnotations(const ParseResult &pr, InferResult &ir) {
+    FlowState st;
+
+    // 顶层 chunk：CGen 把非函数语句塞进 __fakelua_init，先处理顶层（写 global），再处理各函数。
+    if (!pr.chunk || pr.chunk->Type() != SyntaxTreeType::Block) return;
+    const auto top_block = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
+
+    // 收集函数定义（顶层函数 + 嵌套函数均独立作用域）。
+    // __fakelua_init 对应 CGen 里"优先编译"的顶层 chunk 初始化函数：其内赋值写 global，
+    // 必须先于其它函数处理，才能使全局特化状态在后续函数读引用中可见。
+    std::vector<SyntaxTreeInterfacePtr> funcs;
+    std::vector<SyntaxTreeInterfacePtr> top_stmts;
+    SyntaxTreeInterfacePtr init_func_stmt;
+    const auto is_init = [](const SyntaxTreeInterfacePtr &stmt) -> bool {
+        // 与 CGen::CompileFuncName 等价：取函数名链表的唯一定段。
+        if (stmt->Type() == SyntaxTreeType::Function) {
+            const auto f = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
+            const auto fn = std::dynamic_pointer_cast<SyntaxTreeFuncname>(f->Funcname());
+            const auto fnl = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(fn->FuncNameList());
+            const auto &names = fnl->Funcnames();
+            return names.size() == 1 && names[0] == kInitFunctionName;
+        }
+        if (stmt->Type() == SyntaxTreeType::LocalFunction) {
+            const auto lf = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
+            return lf->Name() == kInitFunctionName;
+        }
+        return false;
+    };
+    for (const auto &stmt: top_block->Stmts()) {
+        if (is_init(stmt)) {
+            init_func_stmt = stmt;
+        } else if (stmt->Type() == SyntaxTreeType::Function || stmt->Type() == SyntaxTreeType::LocalFunction) {
+            funcs.push_back(stmt);
+        } else {
+            top_stmts.push_back(stmt);
+        }
+    }
+
+    // 顶层语句（top_level=true → 赋值写 global）。
+    for (const auto &stmt: top_stmts) {
+        FlowStmt(stmt, st, ir, true);
+    }
+
+    // 先处理 __fakelua_init，使其对全局变量的 spec 赋值流入后续函数。
+    if (init_func_stmt) {
+        FlowState init_state{st.global};
+        if (auto bb = FuncBodyBlock(init_func_stmt)) FlowBlock(bb, init_state, ir, true);
+        // init 内的赋值写入 global（is_top_level=true），但本身也是函数作用域：
+        // 将 init 执行结束后的 global 作为后续函数的 global 基线。
+        st.global = std::move(init_state.global);
+    }
+
+    // 各函数体：每函数清空 local（global 保持顶层/init 写入）。
+    for (const auto &func: funcs) {
+        auto body_block = FuncBodyBlock(func);
+        if (!body_block) continue;
+        // 函数入口清空 local 作用域（对应 CGen 每函数清空 table_spec_types_）。
+        FlowState func_state{st.global};
+        FlowBlock(body_block, func_state, ir, false);
+    }
+}
+
+// 辅助：取函数语句（Function/LocalFunction）的 body block。
+SyntaxTreeInterfacePtr TypeInferencer::FuncBodyBlock(const SyntaxTreeInterfacePtr &func) {
+    if (!func) return nullptr;
+    if (func->Type() == SyntaxTreeType::Function) {
+        const auto f = std::dynamic_pointer_cast<SyntaxTreeFunction>(func);
+        const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(f->Funcbody());
+        return fb ? fb->Block() : nullptr;
+    }
+    if (func->Type() == SyntaxTreeType::LocalFunction) {
+        const auto lf = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(func);
+        const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(lf->Funcbody());
+        return fb ? fb->Block() : nullptr;
+    }
+    return nullptr;
 }
 
 }// namespace fakelua
