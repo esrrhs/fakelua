@@ -101,6 +101,9 @@ private:
     // ==========================================
     // 核心构建主流程：根据 AST 和编译配置构建出最终的 C 语言源码字符串
     GenResult Build(const ParseResult &pr, const CompileConfig &cfg);
+    // 为一个 spec 类型发射 typedef + 特化 get/set 函数到 Headers section。
+    // 前置到 GenerateHeader 调用，读取 ir.spec_type_metadata（TypeInferencer 预计算）。
+    void EmitSpecTypeBoilerplate(const std::string &spec_type, const struct SpecTypeMetadata &meta);
     // 生成文件头部样板代码（包含的头文件、基本类型定义等）
     void GenerateHeader();
     // 生成全局静态常量和全局变量相关的初始化代码
@@ -308,16 +311,9 @@ private:
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
     int cur_tab_ = 0;                  // 当前 C 代码生成器所处的缩进级别深度
 
-    // spec 类型名 → 已知字段名集合（用于 FAKELUA_SET_TABLE / CompileVar 判断 key 是否在 spec 中）
-    std::unordered_map<std::string, std::unordered_set<std::string>> spec_field_names_;
-    // spec 类型名 → 字段名到索引的映射表（用于 FL_SET_SPEC 宏生成）
-    std::unordered_map<std::string, std::unordered_map<std::string, int>> spec_field_indices_;
-    // spec 类型名 → 字段名到其在 C 结构体中的字段名称的映射表
-    std::unordered_map<std::string, std::unordered_map<std::string, std::string>> spec_field_c_names_;
-    // spec 类型名 → 字段名到其值类型的映射表
-    std::unordered_map<std::string, std::unordered_map<std::string, InferredType>> spec_field_types_;
-    // 已生成的 spec typedef/get/set 名称集合，避免重复生成
-    std::unordered_set<std::string> generated_spec_typedefs_;
+    // 注：per-spec-type 字段布局元数据（原 spec_field_names_ / _indices_ / _c_names_ / _types_ 四个 map
+    // 以及 generated_spec_typedefs_ 去重集）已前置到 TypeInferencer 计算，存入 ir.spec_type_metadata。
+    // CGen 仅通过 ir().spec_type_metadata 只读访问，不再自行维护上述状态。
 };
 
 }// namespace fakelua

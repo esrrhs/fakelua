@@ -218,6 +218,23 @@ struct TableSpecInfo {
     bool can_specialize;  // 所有访问是否已知（可特化）
 };
 
+// per-spec-type 字段布局元数据：描述一个 spec 结构体类型（flua_spec_<hex>）的字段布局。
+// 由 TypeInferencer 在 AnalyzeTableShapes 之后预计算，供 CGen 发射 typedef/getter/setter 以及
+// CompileVar 解析字段时按名查询。按 spec 类型名（字段签名哈希）去重——同名类型共享同一布局。
+struct SpecTypeMetadata {
+    std::string name;                         // spec 类型名（flua_spec_<hex>）
+    std::vector<TableFieldInfo> fields;       // 排序后的字段列表（含 c_field_name / key / key_kind / type / optional）
+    bool has_string_keys = false;
+    bool has_int_keys = false;
+    bool has_float_keys = false;
+    bool has_bool_keys = false;
+    // 派生索引：字段 key 描述符 → 各类查询（由 ComputeSpecTypeMetadata 一次性建好）。
+    std::unordered_set<std::string> field_key_descs;                 // IsSpecField 用
+    std::unordered_map<std::string, std::string> c_field_names;      // GetSpecFieldCName 用
+    std::unordered_map<std::string, int> field_indices;              // GetSpecFieldIndex 用
+    std::unordered_map<std::string, InferredType> field_types;       // GetSpecFieldType 用
+};
+
 // 字段 key 描述符（与 CGen::GetKeyDescriptor / TypeInferencer::FieldKeyDescriptor 一致）。
 // 单一事实来源，保证 spec 类型名哈希与 TypeInferencer 去重/并集逻辑使用完全相同的描述符。
 inline std::string TableFieldDescriptor(const TableFieldInfo &f) {
@@ -300,6 +317,10 @@ struct InferResult {
     // 流敏感 table 特化标注：Var 引用节点（kDot/kSquare 的 prefixexp 所指 Var 节点）→ 该程序点该变量的 spec 类型名。
     // 空串表示 dynamic（走哈希路径）。由 TypeInferencer 的前向流分析填充，供 CGen 纯读取。
     std::unordered_map<const SyntaxTreeInterface *, std::string> var_spec_annotations;
+    // per-spec-type 字段布局元数据（spec 类型名 → metadata）。
+    // 由 TypeInferencer 预计算（按 spec 类型名去重），供 CGen 发射 typedef/getter/setter 以及
+    // 字段名/C 字段名/索引/类型查询——CGen 不再自行计算字段布局。
+    std::unordered_map<std::string, struct SpecTypeMetadata> spec_type_metadata;
 };
 
 struct JitFunctionInfo {
