@@ -1767,9 +1767,9 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_mu
         case ExpKind::kTableConstructor:
             return CompileTableconstructor(e->Right());
         case ExpKind::kBinop:
-            return CompileBinop(e->Left(), e->Right(), e->Op());
+            return CompileBinop(e, e->Op());
         case ExpKind::kUnop:
-            return CompileUnop(e->Right(), e->Op());
+            return CompileUnop(e, e->Op());
         default:
             ThrowError("unsupported expression kind", e);
     }
@@ -2188,11 +2188,23 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
 //      两侧均编译为 CVar，调用 OpXxx 宏（处理运行时类型判断和装拆箱）。
 //      适用于操作数类型未知或运算符不支持原生路径（如字符串连接 ..）的情形。
 // ---------------------------------------------------------------------------
-std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op) {
+std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &exp, const SyntaxTreeInterfacePtr &op) {
     DEBUG_ASSERT(cur_section_ != Section::Globals);
 
+    const auto e = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+    const auto left = e->Left();
+    const auto right = e->Right();
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeBinop>(op);
     const auto op_kind = op_ptr->GetOpKind();
+    // Derive the result type from the operand types (consulted via GetType, which
+    // respects CGen's local-scope knowledge such as degraded CVar variables — the
+    // snapshot can stale for those). This applies the canonical type rule, not a
+    // fresh AST walk.
+    // Operand types are obtained from the snapshot via GetType, which also respects
+    // CGen's local-scope knowledge (e.g. degraded CVar variables). They are only used
+    // for the native-path guard and boxing — never to walk the AST.
+    const auto lt = GetType(left);
+    const auto rt = GetType(right);
 
     // --- and / or：短路运算，Lua 语义为返回决定性操作数的值 ---
     if (op_kind == BinOpKind::kAnd || op_kind == BinOpKind::kOr) {
@@ -2234,17 +2246,20 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
         return tmp;
     }
 
-    // Native arithmetic fast path
-    const auto lt = GetType(left);
-    const auto rt = GetType(right);
+    // Native arithmetic fast path: both operands must be numeric. The result type
+    // (T_INT/T_FLOAT) is derived from the operand types via the canonical type rule.
     if (lt != T_DYNAMIC && rt != T_DYNAMIC) {
-        if (auto native_str = CompileNativeArithBinop(left, right, op_kind, lt, rt); !native_str.empty()) {
+        const auto result_type = (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow)                                              ? T_FLOAT
+                                : (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift)
+                                              ? T_INT
+                                              : (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
+        if (auto native_str = CompileNativeArithBinop(left, right, op_kind, result_type); !native_str.empty()) {
             return native_str;
         }
     }
 
     // Native comparison fast path: ==, ~=, <, <=, >, >= in expression context.
-    if (auto native_str = CompileNativeCmpBinop(left, right, op_kind, lt, rt); !native_str.empty()) {
+    if (auto native_str = CompileNativeCmpBinop(left, right, op_kind); !native_str.empty()) {
         return native_str;
     }
 
@@ -2290,15 +2305,26 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxT
     return tmp;
 }
 
-std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op) {
+std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &exp, const SyntaxTreeInterfacePtr &op) {
     DEBUG_ASSERT(cur_section_ != Section::Globals);
 
     const auto op_ptr = std::dynamic_pointer_cast<SyntaxTreeUnop>(op);
     const auto op_kind = op_ptr->GetOpKind();
+    const auto right = std::dynamic_pointer_cast<SyntaxTreeExp>(exp)->Right();
+    // Derive result type from the operand type via GetType (respects local scope,
+    // unlike the snapshot which can be stale for degraded variables).
+    const auto rt = GetType(right);
+    InferredType result_type;
+    if (op_kind == UnOpKind::kMinus) {
+        result_type = (rt == T_INT || rt == T_FLOAT) ? rt : T_DYNAMIC;
+    } else if (op_kind == UnOpKind::kBitNot) {
+        result_type = (rt == T_INT || rt == T_FLOAT) ? T_INT : T_DYNAMIC;
+    } else {
+        result_type = T_DYNAMIC;  // kNumberSign / kNot handled by slow path
+    }
 
     // Native fast path for unary minus and bitwise not when operand is numeric.
-    const auto rt = GetType(right);
-    if (auto native_str = CompileNativeUnop(right, op_kind, rt); !native_str.empty()) {
+    if (auto native_str = CompileNativeUnop(right, op_kind, result_type); !native_str.empty()) {
         return native_str;
     }
 
@@ -2325,7 +2351,7 @@ std::string CGen::CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxT
     return tmp;
 }
 
-std::string CGen::CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType lt, InferredType rt) {
+std::string CGen::CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType result_type) {
     static const std::unordered_set<BinOpKind> kNativeArithOps = {BinOpKind::kPlus, BinOpKind::kMinus,  BinOpKind::kStar, BinOpKind::kSlash, BinOpKind::kDoubleSlash, BinOpKind::kPow,
                                                                   BinOpKind::kMod,  BinOpKind::kBitAnd, BinOpKind::kXor,  BinOpKind::kBitOr, BinOpKind::kLeftShift,   BinOpKind::kRightShift};
 
@@ -2333,14 +2359,7 @@ std::string CGen::CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, co
         return "";
     }
 
-    InferredType result_type;
-    if (op_kind == BinOpKind::kSlash || op_kind == BinOpKind::kPow) {
-        result_type = T_FLOAT;
-    } else if (op_kind == BinOpKind::kBitAnd || op_kind == BinOpKind::kXor || op_kind == BinOpKind::kBitOr || op_kind == BinOpKind::kLeftShift || op_kind == BinOpKind::kRightShift) {
-        result_type = T_INT;
-    } else {
-        result_type = (lt == T_INT && rt == T_INT) ? T_INT : T_FLOAT;
-    }
+    DEBUG_ASSERT(result_type == T_INT || result_type == T_FLOAT);
 
     const auto native_expr = CompileRawNativeArithBinop(left, right, op_kind, result_type);
     DEBUG_ASSERT(!native_expr.empty());
@@ -2433,28 +2452,32 @@ std::string CGen::CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left,
     return "";
 }
 
-std::string CGen::CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType lt, InferredType rt) {
+std::string CGen::CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind) {
     if (const auto cmp_it = kCmpOpMap.find(op_kind); cmp_it != kCmpOpMap.end()) {
-        if ((lt == T_INT || lt == T_FLOAT) && (rt == T_INT || rt == T_FLOAT)) {
-            const auto left_native = TryCompileNativeExpr(left);
-            if (const auto right_native = TryCompileNativeExpr(right); !left_native.empty() && !right_native.empty()) {
-                const auto native_bool = std::format("({}) {} ({})", left_native, cmp_it->second, right_native);
-                const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
-                func_temp_decls_ << "    CVar " << tmp << ";\n";
-                Out() << GenTab() << std::format("SET_BOOL({}, {});\n", tmp, native_bool);
-                return tmp;
+        // Comparison requires numeric operands — consult the snapshot.
+        const auto lt = GetType(left);
+        if (lt == T_INT || lt == T_FLOAT) {
+            const auto rt = GetType(right);
+            if (rt == T_INT || rt == T_FLOAT) {
+                const auto left_native = TryCompileNativeExpr(left);
+                if (const auto right_native = TryCompileNativeExpr(right); !left_native.empty() && !right_native.empty()) {
+                    const auto native_bool = std::format("({}) {} ({})", left_native, cmp_it->second, right_native);
+                    const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
+                    func_temp_decls_ << "    CVar " << tmp << ";\n";
+                    Out() << GenTab() << std::format("SET_BOOL({}, {});\n", tmp, native_bool);
+                    return tmp;
+                }
             }
         }
     }
     return "";
 }
 
-std::string CGen::CompileNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType rt) {
+std::string CGen::CompileNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType result_type) {
     if (op_kind == UnOpKind::kMinus || op_kind == UnOpKind::kBitNot) {
-        if (rt == T_INT || rt == T_FLOAT) {
+        if (result_type == T_INT || result_type == T_FLOAT) {
             if (const auto native_operand = TryCompileNativeExpr(right); !native_operand.empty()) {
-                const auto native_expr = CompileRawNativeUnop(right, op_kind, rt);
-                const auto result_type = (op_kind == UnOpKind::kMinus) ? rt : T_INT;
+                const auto native_expr = CompileRawNativeUnop(right, op_kind, result_type);
                 const auto tmp = std::format("flua_op_{}", tmp_var_counter_++);
                 func_temp_decls_ << "    CVar " << tmp << ";\n";
                 Out() << GenTab() << tmp << " = " << BoxNativeValue(native_expr, result_type) << ";\n";
@@ -2465,15 +2488,15 @@ std::string CGen::CompileNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKin
     return "";
 }
 
-std::string CGen::CompileRawNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType rt) {
+std::string CGen::CompileRawNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType result_type) {
     if (op_kind == UnOpKind::kMinus || op_kind == UnOpKind::kBitNot) {
-        if (rt == T_INT || rt == T_FLOAT) {
+        if (result_type == T_INT || result_type == T_FLOAT) {
             const auto native_operand = CompileNumericExp(right);
             if (op_kind == UnOpKind::kMinus) {
                 return std::format("(-({}))", native_operand);
             }
             if (op_kind == UnOpKind::kBitNot) {
-                if (rt == T_FLOAT) {
+                if (result_type == T_FLOAT) {
                     const auto itmp = std::format("flua_native_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    int64_t " << itmp << ";\n";
                     Out() << GenTab() << std::format("FlToIntChecked(({}), {});\n", native_operand, itmp);

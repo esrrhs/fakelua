@@ -198,9 +198,9 @@ private:
     // 编译表构造函数（即形如 `{ a = 1, b = 2 }` 的表创建字面量）
     std::string CompileTableconstructor(const SyntaxTreeInterfacePtr &tc);
     // 编译二元运算符表达式（如 `a + b`、`a == b` 等）
-    std::string CompileBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op);
+    std::string CompileBinop(const SyntaxTreeInterfacePtr &exp, const SyntaxTreeInterfacePtr &op);
     // 编译一元操作符表达式（如 `-a`、`#a`、`~a` 等）
-    std::string CompileUnop(const SyntaxTreeInterfacePtr &right, const SyntaxTreeInterfacePtr &op);
+    std::string CompileUnop(const SyntaxTreeInterfacePtr &exp, const SyntaxTreeInterfacePtr &op);
 
     // ==========================================
     // 第四部分：类型推断与原生优化辅助
@@ -214,16 +214,16 @@ private:
     // 尝试对强类型数学特化库调用（如 math.sin, math.cos）进行原生直接映射优化
     std::string TryCompileNativeSpecCallExpr(const SyntaxTreeInterfacePtr &functioncall_node);
 
-    // 生成原生二元算术运算的代码
-    std::string CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType lt, InferredType rt);
+    // 生成原生二元算术运算的代码（result_type 来自 TypeInferencer 快照）
+    std::string CompileNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType result_type);
     // 生成底层未包装的原生算术/位运算表达式源码
     std::string CompileRawNativeArithBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType result_type);
     // 生成底层未包装的原生一元运算表达式源码
-    std::string CompileRawNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType rt);
+    std::string CompileRawNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType result_type);
     // 生成原生二元比较运算的代码
-    std::string CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind, InferredType lt, InferredType rt);
-    // 生成原生一元运算的代码
-    std::string CompileNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType rt);
+    std::string CompileNativeCmpBinop(const SyntaxTreeInterfacePtr &left, const SyntaxTreeInterfacePtr &right, BinOpKind op_kind);
+    // 生成原生一元运算的代码（result_type 来自 TypeInferencer 快照）
+    std::string CompileNativeUnop(const SyntaxTreeInterfacePtr &right, UnOpKind op_kind, InferredType result_type);
 
     // 获取表达式的推断类型：优先使用 TypeInferencer 预计算的快照，
     // 对简单变量额外查询 CGen 本地作用域（特化参数与 CGen 声明的局部变量）。
