@@ -782,7 +782,6 @@ InferredType CGen::GetSpecFieldType(const std::string &spec_type, const std::str
 void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params, const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out) {
     SectionGuard section_guard(*this, Section::Body);
     // 初始化特化上下文：从 ir.spec_func_context 查得当前版本的 snapshot/func_name/bitmask。
-    spec_param_types_.clear();
     const SpecFuncContext *ctx = nullptr;
     if (spec_bitmask >= 0) {
         if (const auto it = ir().spec_func_context.find(func_name); it != ir().spec_func_context.end()) {
@@ -793,13 +792,6 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
         }
     }
     cur_spec_ctx_ = ctx;
-
-    // 直接使用 TypeInferencer 预填充的 param_types（数学参数名 → 特化类型）。
-    // 若 ctx 有效，TypeInferencer 已在 ComputeSpecFuncContext 中按 bitmask + math_indices
-    // 计算好每个数学参数对应的 T_INT / T_FLOAT，此处直接拷贝，无需再手动推导。
-    if (ctx && !ctx->param_types.empty()) {
-        spec_param_types_ = ctx->param_types;
-    }
 
     // 将函数体编译到 body 缓冲区。
     func_temp_decls_.str("");
@@ -814,7 +806,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
         // 因此将其注册为对应的原生类型，以便 CompileStmtAssign / GetType
         // 能正确处理对这些参数的引用和赋值。
         // 非特化或非数学参数仍注册为 T_DYNAMIC（CVar）。
-        const InferredType param_native_type = (spec_bitmask >= 0 && spec_param_types_.contains(param_name)) ? spec_param_types_.at(param_name) : T_DYNAMIC;
+        const InferredType param_native_type = (ctx && ctx->param_types.contains(param_name)) ? ctx->param_types.at(param_name) : T_DYNAMIC;
         DeclareNativeVar(param_name, param_native_type);
     }
     cur_tab_++;
@@ -830,7 +822,6 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
     }
 
     // 清除特化上下文。
-    spec_param_types_.clear();
     cur_spec_ctx_ = nullptr;
     // section_guard 析构时自动恢复 cur_section_。
 }
@@ -882,12 +873,9 @@ InferredType CGen::GetType(const SyntaxTreeInterfacePtr &exp) const {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
             if (var && var->GetVarKind() == VarKind::kSimple) {
                 const auto &name = var->GetName();
-                if (const auto it = spec_param_types_.find(name); it != spec_param_types_.end()) {
-                    return it->second;
-                }
-                if (const auto native_type = GetNativeVarType(name); native_type == T_INT || native_type == T_FLOAT) {
-                    return native_type;
-                }
+                 if (const auto native_type = GetNativeVarType(name); native_type == T_INT || native_type == T_FLOAT) {
+                     return native_type;
+                 }
                 if (const auto git = ir().global_const_vars.find(name); git != ir().global_const_vars.end()) {
                     if (git->second == T_INT || git->second == T_FLOAT) {
                         return git->second;
@@ -1253,16 +1241,11 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
         } else {
             // RHS 无法编译为原生数值（如调用返回 CVar 的函数）：
             //   (1) 将 RHS 编译为 CVar 临时变量；
-            //   (2) 将 spec_param_types_ 中的旧类型条目移除，
-            //       使后续的 GetType 转向 GetNativeVarType 查询，
-            //       避免使用已失效的特化参数假设；
-            //   (3) 运行时检查 CVar 类型，拆包为原生类型赋值；非数值则抛出运行时错误。
+            //   (2) 运行时检查 CVar 类型，拆包为原生类型赋值；非数值则抛出运行时错误。
             const std::string rhs = CompileExp(exps[0]);
             const auto tmp = std::format("flua_assign_tmp_{}", tmp_var_counter_++);
             func_temp_decls_ << "    CVar " << tmp << ";\n";
             Out() << GenTab() << tmp << " = " << rhs << ";\n";
-            // 移除过时的特化参数类型，让后续推断走 GetNativeVarType 而非 spec_param_types_。
-            spec_param_types_.erase(name);
             if (var_type == T_FLOAT) {
                 // 运行时检查：CVar 必须是数值类型，否则报错。
                 Out() << GenTab() << "if (LIKELY(" << tmp << ".type_ == VAR_FLOAT)) {\n";
@@ -2304,13 +2287,13 @@ std::string CGen::CompileRawNativeUnop(const SyntaxTreeInterfacePtr &right, UnOp
 // CompileVar —— 变量引用的代码生成
 //
 // 生成策略（kSimple 变量）：
-//   优先级：特化参数类型表（spec_param_types_）
-//           > 原生局部变量作用域（NativeVarScope / GetNativeVarType）
+// 生成策略（kSimple 变量）：
+//   优先级：原生局部变量/参数作用域（RuntimeTypeTracker / GetNativeVarType）
 //           > 文件级数值常量（ir().global_const_vars）
 //           > 普通 CVar 变量名
 //
-//   前三种情形均已知为原生类型（int64_t / double），需装箱为 CVar 字面量后返回，
-//   以保证所有调用方获得统一的 CVar 接口；普通 CVar 变量则直接返回变量名。
+//   前两种情形均已知为原生类型（int64_t / double），需装箱为 CVar 字面量后返回，
+//   以保证所有调用方获得统一 the CVar 接口；普通 CVar 变量则直接返回变量名。
 //
 // kSquare（table[key]）：生成 FlGetTable(table, key) 调用。
 // kDot（table.key）：将 key 字符串化后同样生成 FlGetTable 调用。
@@ -2324,9 +2307,6 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
     if (const auto var_kind = v_ptr->GetVarKind(); var_kind == VarKind::kSimple) {
         const auto &name = v_ptr->GetName();
         DEBUG_ASSERT(cur_section_ != Section::Globals);
-        if (const auto spec_it = spec_param_types_.find(name); spec_it != spec_param_types_.end()) {
-            return BoxNativeValue(name, spec_it->second);
-        }
         if (const auto native_type = GetNativeVarType(name); native_type != T_DYNAMIC) {
             return BoxNativeValue(name, native_type);
         }
@@ -2461,9 +2441,6 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
             DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple);
             const auto &vname = var->GetName();
-            if (spec_param_types_.contains(vname)) {
-                return vname;
-            }
             if (IsTypedNativeVar(vname)) {
                 return vname;
             }
