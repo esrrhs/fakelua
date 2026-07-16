@@ -302,7 +302,8 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
 
     // 在正常推断之后，通过三个阶段发现数学参数并生成特化信息：
     // IdentifyMathParams：多轮迭代识别数学参数
-    if (const auto math_func_info = IdentifyMathParams(pr, ir); !math_func_info.empty()) {
+    const auto math_func_info = IdentifyMathParams(pr, ir);
+    if (!math_func_info.empty()) {
         // GenerateInitialSnapshots：生成各特化版本的初始类型快照
         GenerateInitialSnapshots(ir, math_func_info);
         // InferSpecializationReturnTypes：不动点迭代精化返回类型
@@ -342,9 +343,10 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     // 不再自行计算字段布局。
     ComputeSpecTypeMetadata(ir);
 
-    // 预计算数学参数特化上下文（per func+bitmask）：snapshot 指针 + 初始 param_types。
-    // CGen::CompileFuncBody 据此初始化发射上下文，不再自行做 MathParamKindOf 推导与 snapshot 选择。
-    ComputeSpecFuncContext(ir);
+    // 预计算数学参数特化上下文（per func+bitmask）：snapshot 指针 + param_types + param_names。
+    // CGen::CompileFuncBody 据此初始化发射上下文，不再自行做 MathParamKindOf 推导、snapshot 选择
+    // 或 param_types / param_names 初始填充。
+    ComputeSpecFuncContext(ir, math_func_info);
 
     // 流敏感前向分析：为每处 Var 字段引用节点标注「该程序点上该变量的 spec 类型名」。
     // CGen 在 CompileVar（kSquare/kDot）里通过 var_spec_annotations[node] 读取，
@@ -2322,18 +2324,41 @@ void TypeInferencer::ComputeSpecTypeMetadata(InferResult &ir) {
     }
 }
 
-void TypeInferencer::ComputeSpecFuncContext(InferResult &ir) {
+void TypeInferencer::ComputeSpecFuncContext(InferResult &ir, const MathFuncInfoMap &math_func_info) {
     // 为每个含数学参数的函数、每个特化 bitmask 预计算 SpecFuncContext。
-    // snapshot 选择在 CGen 里只是一次 Find+下标查表，前置后 CGen 不再做 snapshot 选填。
-    // param_types 初始填充需要 func_params（仅 CGen 在射函数体时已知），故仍留在 CGen。
+    // 同时填充 param_names（全参数名列表）和 param_types（数学参数名→特化类型），
+    // 使 CGen::CompileFuncBody 直接读取而无需手动拼接 bitmask + func_params。
     for (const auto &[func_name, snaps]: ir.specialization_snapshots) {
         auto &ctx_vec = ir.spec_func_context[func_name];
         ctx_vec.resize(snaps.size());
+
+        // 从 math_func_info 中取该函数的参数名列表
+        const std::vector<std::string> *func_params = nullptr;
+        if (const auto it = math_func_info.find(func_name); it != math_func_info.end()) {
+            func_params = &it->second.params;
+        }
+
+        const auto &math_indices = ir.math_param_positions.at(func_name);
+
         for (size_t bitmask = 0; bitmask < snaps.size(); ++bitmask) {
             SpecFuncContext &ctx = ctx_vec[bitmask];
             ctx.func_name = func_name;
             ctx.bitmask = static_cast<int>(bitmask);
             ctx.snapshot = &snaps[bitmask];
+
+            if (func_params) {
+                // 填充 param_names（所有参数按位置顺序）
+                ctx.param_names = *func_params;
+
+                // 填充 param_types（数学参数名 → 特化类型）
+                for (int i = 0; i < static_cast<int>(math_indices.size()); ++i) {
+                    const int param_pos = math_indices[i];
+                    if (param_pos < static_cast<int>(func_params->size())) {
+                        const auto &pname = (*func_params)[static_cast<size_t>(param_pos)];
+                        ctx.param_types[pname] = (MathParamKindOf(static_cast<int>(bitmask), i) == kMathParamFloat) ? T_FLOAT : T_INT;
+                    }
+                }
+            }
         }
     }
 }

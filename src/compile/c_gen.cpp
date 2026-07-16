@@ -731,51 +731,7 @@ std::string CGen::GetKeyDescriptor(const std::string &key, TableKeyKind kind) {
     return "F_" + key;
 }
 
-bool CGen::CanSpecializeTable(const SyntaxTreeInterfacePtr &tc) const {
-    if (!tc || tc->Type() != SyntaxTreeType::TableConstructor) return false;
-    const auto tc_ptr = std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(tc);
-    if (!tc_ptr->Fieldlist()) return false;
-    const auto fieldlist = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(tc_ptr->Fieldlist());
-    if (!fieldlist) return false;
-    for (const auto &field : fieldlist->Fields()) {
-        const auto fp = std::dynamic_pointer_cast<SyntaxTreeField>(field);
-        if (!fp) return false;
-        if (fp->GetFieldKind() == FieldKind::kObject) {
-            continue;
-        }
-        // FieldKind::kArray
-        if (fp->Key() == nullptr) {
-            // 隐式索引：如果值是函数调用或 varargs（可能多返回），不特化
-            auto val_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Value());
-            if (val_exp) {
-                if (val_exp->GetExpKind() == ExpKind::kPrefixExp) {
-                    auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(val_exp->Right());
-                    if (pe && pe->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
-                        return false;
-                    }
-                    // 预处理后的 varargs 变量引用
-                    if (pe && pe->GetPrefixKind() == PrefixExpKind::kVar) {
-                        auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-                        if (var && var->GetVarKind() == VarKind::kSimple && var->GetName().rfind("__fakelua_vararg_", 0) == 0) {
-                            return false;
-                        }
-                    }
-                } else if (val_exp->GetExpKind() == ExpKind::kVarParams) {
-                    return false;
-                }
-            }
-            continue;
-        }
-        const auto key_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(fp->Key());
-        if (!key_exp) return false;
-        auto kind = key_exp->GetExpKind();
-        if (kind == ExpKind::kString || kind == ExpKind::kNumber || kind == ExpKind::kTrue || kind == ExpKind::kFalse) {
-            continue;
-        }
-        return false;
-    }
-    return true;
-}
+
 
 std::string CGen::GetSimpleVarName(const SyntaxTreeInterfacePtr &pe) {
     // 实现已上移到 compile_common.h 的共享自由函数 GetSimpleVarName。
@@ -838,14 +794,11 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
     }
     cur_spec_ctx_ = ctx;
 
-    // 初始 param_types：按 bitmask 逐位决定每个数学参数是 int 还是 float。
-    // 需要 func_params（参数名）才能填表，故仍在此处计算（TypeInferencer 不持有 func_params）。
-    if (ctx) {
-        const auto &math_params = ir().math_param_positions.at(func_name);
-        for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
-            const auto &param_name = func_params[static_cast<size_t>(math_params[i])];
-            spec_param_types_[param_name] = (MathParamKindOf(ctx->bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
-        }
+    // 直接使用 TypeInferencer 预填充的 param_types（数学参数名 → 特化类型）。
+    // 若 ctx 有效，TypeInferencer 已在 ComputeSpecFuncContext 中按 bitmask + math_indices
+    // 计算好每个数学参数对应的 T_INT / T_FLOAT，此处直接拷贝，无需再手动推导。
+    if (ctx && !ctx->param_types.empty()) {
+        spec_param_types_ = ctx->param_types;
     }
 
     // 将函数体编译到 body 缓冲区。
@@ -854,7 +807,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
     auto &body_ss = sections_[static_cast<size_t>(Section::Body)];
     body_ss.str("");
     body_ss.clear();
-    native_var_scope_.Clear();
+    runtime_type_tracker_.Clear();
     EnterNativeVarScope();
     for (const auto &param_name: func_params) {
         // 在特化模式中，数学参数已在函数签名中声明为原生类型（int64_t/double），
@@ -1867,12 +1820,13 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
     func_temp_decls_ << "    "
                      << "CVar " << var_name << ";\n";
 
-    // table 特化：所有字段键均为静态已知
-    if (CanSpecializeTable(tc)) {
-        // TypeInferencer pre-classifies every static-key constructor (including nested
-        // ones) into table_spec_infos, so the entry is always present here.
-        const auto &fields = ir().table_spec_infos.at(tc.get()).fields;
-        if (!fields.empty()) {
+    // table 特化：TypeInferencer 已在 table_spec_infos 中预分类所有静态 key 的构造器
+    // （BuildCtorFields 对重复 key 抛出异常；can_specialize 表示可特化）。
+    // CGen 直接消费，无需再次遍历 AST。
+    if (const auto spec_it = ir().table_spec_infos.find(tc.get());
+        spec_it != ir().table_spec_infos.end() && spec_it->second.can_specialize && !spec_it->second.fields.empty()) {
+        const auto &fields = spec_it->second.fields;
+        {
             const auto spec_type = ComputeSpecTypeName(fields);
             const auto get_fn = std::format("FlGetTableStrId_{}", spec_type);
             const auto set_fn = std::format("FlSetTableStrId_{}", spec_type);
