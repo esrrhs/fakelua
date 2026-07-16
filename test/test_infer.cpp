@@ -4339,3 +4339,42 @@ TEST(infer, test_infer_reverse_propagation) {
     });
 }
 
+// 延迟退化测试：x 初始赋 1，接着执行 x + 1 并赋值给 y，最后对 x 赋 "hello"。
+// 虽然 x + 1 处的 snapshot 推断类型可能是 T_INT，
+// 但 x 已整体退化为 CVar，所以 x + 1 必须生成为 CVar 运算（OpAdd）而不能是原生 C + 运算。
+TEST(infer, test_infer_degrade_later) {
+    const auto code = InferGetCCode("./infer/test_infer_degrade_later.lua");
+    // x 应被声明为 CVar
+    ASSERT_NE(code.find("CVar x = "), std::string::npos);
+    // x + 1 必须使用 OpAdd 而非原生 C 加法
+    ASSERT_NE(code.find("OpAdd("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_degrade_later.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
+// CVar 升级赋值测试：x 初始为 CVar 结构，但中途被赋值为整型 1。
+// 虽然在 x + 1 处它的推断类型为 T_INT，但由于它物理上是 CVar，
+// CGen 在生成时必须解包为 x.data_.i，而不是直接生成 x + 1。
+// 这一测试证明了 CGen 对物理类型的 runtime_type_tracker_ 判断是绝对必须存在的。
+TEST(infer, test_infer_cvar_to_int) {
+    const auto code = InferGetCCode("./infer/test_infer_cvar_to_int.lua");
+    // x 应被声明为 CVar
+    ASSERT_NE(code.find("CVar x = "), std::string::npos);
+    // x + 1 应被编译为动态的 OpAdd，因为 x 是 CVar 结构体
+    ASSERT_NE(code.find("OpAdd("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_cvar_to_int.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
+
+

@@ -254,12 +254,10 @@ bool TypeInferencer::TypeEnvironment::Update(const std::string &name, const Infe
         if (const auto found = scope.find(name); found != scope.end()) {
             const InferredType old_type = found->second.type;
             const InferredType merged = MergeType(old_type, type);
-            found->second.type = merged;
-
-            // 逆向传播：当变量类型退化为 T_DYNAMIC（如后续赋了非数值类型）时，
-            // 将初始声明/赋值表达式的类型也退化为 T_DYNAMIC，防止 CGen 将其声明为 C 的原生强类型。
-            if (merged == T_DYNAMIC && old_type != T_DYNAMIC && found->second.init_node != nullptr) {
-                current_map[found->second.init_node] = T_DYNAMIC;
+            if (merged == T_DYNAMIC && old_type != T_DYNAMIC) {
+                DegradeVariable(name, current_map);
+            } else {
+                found->second.type = merged;
             }
             return true;
         }
@@ -267,9 +265,45 @@ bool TypeInferencer::TypeEnvironment::Update(const std::string &name, const Infe
     return false;
 }
 
-InferredType TypeInferencer::TypeEnvironment::Lookup(const std::string &name) const {
-    for (const auto &scope: std::views::reverse(scopes_)) {
-        if (const auto found = scope.find(name); found != scope.end()) {
+void TypeInferencer::TypeEnvironment::DegradeVariable(const std::string &name, EvalTypeSnapshot &current_map) {
+    for (auto &scope: std::views::reverse(scopes_)) {
+        if (auto found = scope.find(name); found != scope.end()) {
+            if (found->second.type != T_DYNAMIC) {
+                found->second.type = T_DYNAMIC;
+
+                // 级联退化初始声明/表达式节点
+                if (found->second.init_node != nullptr) {
+                    current_map[found->second.init_node] = T_DYNAMIC;
+                }
+
+                // 级联退化所有读取/使用该变量的 AST 节点类型
+                for (auto* node : found->second.dependent_nodes) {
+                    current_map[node] = T_DYNAMIC;
+                }
+
+                // 级联退化依赖于当前变量的所有其他局部变量名
+                std::vector<std::string> deps = found->second.dependent_vars;
+                found->second.dependent_vars.clear(); // 避免潜在循环依赖导致的死循环
+                for (const auto &dep_var : deps) {
+                    DegradeVariable(dep_var, current_map);
+                }
+            }
+            break;
+        }
+    }
+}
+
+InferredType TypeInferencer::TypeEnvironment::Lookup(const std::string &name, TraversalContext &tctx) {
+    for (auto &scope: std::views::reverse(scopes_)) {
+        if (auto found = scope.find(name); found != scope.end()) {
+            // 将自顶向下的所有活跃推断节点注册为对该变量的依赖
+            for (auto* node : tctx.active_nodes) {
+                found->second.dependent_nodes.push_back(node);
+            }
+            // 记录当前定义中的变量对该查找变量的依赖（例如 local y = x 时，y 依赖 x）
+            if (!tctx.current_defining_var.empty()) {
+                found->second.dependent_vars.push_back(tctx.current_defining_var);
+            }
             return found->second.type;
         }
     }
@@ -368,6 +402,16 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
     if (!node) {
         return T_UNKNOWN;
     }
+
+    struct NodeGuard {
+        std::vector<SyntaxTreeInterface*> &nodes;
+        NodeGuard(std::vector<SyntaxTreeInterface*> &ns, SyntaxTreeInterface* n) : nodes(ns) {
+            nodes.push_back(n);
+        }
+        ~NodeGuard() {
+            nodes.pop_back();
+        }
+    } guard(tctx.active_nodes, node.get());
 
     auto &current_map = tctx.current_map;
 
@@ -510,7 +554,9 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
     for (size_t i = 0; i < names.size(); ++i) {
         InferredType type = T_DYNAMIC;
         if (i < exps.size()) {
+            tctx.current_defining_var = names[i];
             type = InferNode(exps[i], tctx);
+            tctx.current_defining_var.clear();
         }
         SyntaxTreeInterface* init_node = (i < exps.size()) ? exps[i].get() : nullptr;
         tctx.env.Define(names[i], type, init_node);
@@ -532,17 +578,21 @@ InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign>
 
     DEBUG_ASSERT(varlist->Vars().size() == 1 && explist->Exps().size() == 1);// 预处理阶段已将多赋值拆分成单赋值
 
-    const InferredType rhs_type = InferNode(explist->Exps()[0], tctx);
     const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
     DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple);
 
     auto &current_map = tctx.current_map;
     const std::string name = var->GetName();
     InferredType current = T_DYNAMIC;
+
+    tctx.current_defining_var = name;
+    const InferredType rhs_type = InferNode(explist->Exps()[0], tctx);
+    tctx.current_defining_var.clear();
+
     if (tctx.IsPinnedVar(name)) {
-        current = tctx.env.Lookup(name);
+        current = tctx.env.Lookup(name, tctx);
     } else if (tctx.env.Update(name, rhs_type, current_map)) {
-        current = tctx.env.Lookup(name);
+        current = tctx.env.Lookup(name, tctx);
     }
 
     current_map[var.get()] = current;
@@ -573,7 +623,7 @@ InferredType TypeInferencer::InferForLoop(const std::shared_ptr<SyntaxTreeForLoo
     // 循环体内可能对循环变量重新赋值（例如 `a = "test"`），导致其类型
     // 从初始 of T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量 of
     // 最终类型，以便 CGen 决定生成原生整型/浮点快路径还是 CVar 动态路径。
-    const InferredType final_loop_var_type = tctx.env.Lookup(for_loop->Name());
+    const InferredType final_loop_var_type = tctx.env.Lookup(for_loop->Name(), tctx);
     tctx.env.ExitScope();
 
     return RecordType(current_map, for_loop.get(), final_loop_var_type);
@@ -788,7 +838,7 @@ InferredType TypeInferencer::InferVar(const std::shared_ptr<SyntaxTreeVar> &var,
     auto &current_map = tctx.current_map;
     switch (var->GetVarKind()) {
         case VarKind::kSimple: {
-            const auto ret = tctx.env.Lookup(var->GetName());
+            const auto ret = tctx.env.Lookup(var->GetName(), tctx);
             return RecordType(current_map, var.get(), ret);
         }
         case VarKind::kSquare: {
@@ -844,7 +894,7 @@ void TypeInferencer::InferBlock(const std::shared_ptr<SyntaxTreeBlock> &block, c
                 const auto &names = namelist->Names();
                 for (size_t i = 0; i < names.size(); ++i) {
                     if (i < exps.size()) {
-                        current_map[exps[i].get()] = tctx.env.Lookup(names[i]);
+                        current_map[exps[i].get()] = tctx.env.Lookup(names[i], tctx);
                     }
                 }
             }

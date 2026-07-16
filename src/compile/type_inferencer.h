@@ -12,11 +12,15 @@ public:
     InferResult InferTypes(const ParseResult &pr, const CompileConfig &cfg);
 
 private:
+    struct TraversalContext;
+
     class TypeEnvironment {
     public:
         struct EnvEntry {
             InferredType type;
             SyntaxTreeInterface* init_node = nullptr;  // 变量声明时的 initializer node (如 local x = 1 中的 '1' 表达式)
+            std::vector<SyntaxTreeInterface*> dependent_nodes; // 依赖于该变量的 AST 节点（用于退化逆向级联传播）
+            std::vector<std::string> dependent_vars;           // 依赖于该变量的局部变量名（用于退化逆向级联传播）
         };
 
         TypeEnvironment();
@@ -29,7 +33,9 @@ private:
 
         bool Update(const std::string &name, InferredType type, EvalTypeSnapshot &current_map);
 
-        [[nodiscard]] InferredType Lookup(const std::string &name) const;
+        void DegradeVariable(const std::string &name, EvalTypeSnapshot &current_map);
+
+        InferredType Lookup(const std::string &name, TraversalContext &tctx);
 
         [[nodiscard]] size_t GetScopeDepth() const {
             return scopes_.size();
@@ -82,6 +88,9 @@ private:
         EvalTypeMap &current_map;
         TypeEnvironment &env;
         const TrialInferenceContext *ctx = nullptr;
+
+        std::vector<SyntaxTreeInterface*> active_nodes; // 正在推断的 AST 节点栈（自顶向下）
+        std::string current_defining_var;              // 当前正在声明/定义的变量名
 
         [[nodiscard]] bool IsTrialInference() const {
             return ctx != nullptr;

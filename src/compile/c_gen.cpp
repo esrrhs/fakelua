@@ -2444,10 +2444,13 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
                     return vname;
                 }
             }
-            if (LookupNodeType(e.get()) == T_FLOAT) {
+            const auto t = LookupNodeType(e.get());
+            if (t == T_FLOAT) {
                 return std::format("{}.data_.f", vname);
+            } else if (t == T_INT) {
+                return std::format("{}.data_.i", vname);
             }
-            return std::format("{}.data_.i", vname);
+            ThrowError("variable is not inferred as numeric", exp);
         }
         if (pe->GetPrefixKind() == PrefixExpKind::kExp) {
             return CompileNumericExp(pe->GetValue());
