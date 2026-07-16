@@ -245,14 +245,22 @@ void TypeInferencer::TypeEnvironment::ExitScope() {
     }
 }
 
-void TypeInferencer::TypeEnvironment::Define(const std::string &name, const InferredType type) {
-    scopes_.back()[name] = type;
+void TypeInferencer::TypeEnvironment::Define(const std::string &name, const InferredType type, SyntaxTreeInterface* init_node) {
+    scopes_.back()[name] = EnvEntry{type, init_node};
 }
 
-bool TypeInferencer::TypeEnvironment::Update(const std::string &name, const InferredType type) {
+bool TypeInferencer::TypeEnvironment::Update(const std::string &name, const InferredType type, EvalTypeSnapshot &current_map) {
     for (auto &scope: std::views::reverse(scopes_)) {
         if (const auto found = scope.find(name); found != scope.end()) {
-            found->second = MergeType(found->second, type);
+            const InferredType old_type = found->second.type;
+            const InferredType merged = MergeType(old_type, type);
+            found->second.type = merged;
+
+            // 逆向传播：当变量类型退化为 T_DYNAMIC（如后续赋了非数值类型）时，
+            // 将初始声明/赋值表达式的类型也退化为 T_DYNAMIC，防止 CGen 将其声明为 C 的原生强类型。
+            if (merged == T_DYNAMIC && old_type != T_DYNAMIC && found->second.init_node != nullptr) {
+                current_map[found->second.init_node] = T_DYNAMIC;
+            }
             return true;
         }
     }
@@ -262,7 +270,7 @@ bool TypeInferencer::TypeEnvironment::Update(const std::string &name, const Infe
 InferredType TypeInferencer::TypeEnvironment::Lookup(const std::string &name) const {
     for (const auto &scope: std::views::reverse(scopes_)) {
         if (const auto found = scope.find(name); found != scope.end()) {
-            return found->second;
+            return found->second.type;
         }
     }
     return T_DYNAMIC;
@@ -504,7 +512,8 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
         if (i < exps.size()) {
             type = InferNode(exps[i], tctx);
         }
-        tctx.env.Define(names[i], type);
+        SyntaxTreeInterface* init_node = (i < exps.size()) ? exps[i].get() : nullptr;
+        tctx.env.Define(names[i], type, init_node);
         // 文件顶层数值类型局部变量（非试推断且作用域深度 <= 2）：
         // 将其记录 to file_level_types，供 RunTrialInference
         // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
@@ -532,7 +541,7 @@ InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign>
     InferredType current = T_DYNAMIC;
     if (tctx.IsPinnedVar(name)) {
         current = tctx.env.Lookup(name);
-    } else if (tctx.env.Update(name, rhs_type)) {
+    } else if (tctx.env.Update(name, rhs_type, current_map)) {
         current = tctx.env.Lookup(name);
     }
 

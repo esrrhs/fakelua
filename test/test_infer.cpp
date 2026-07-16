@@ -4321,3 +4321,21 @@ TEST(infer, test_table_spec_global_crossfunc) {
         ASSERT_EQ(ret, 0);
     });
 }
+
+// 逆向传播测试：x 初始赋 1 并在后面对其重新赋 string "hello"。
+// 逆向传播应当将 x 的初始声明表达式 1 退化为 T_DYNAMIC，
+// 从而使 CGen 将 x 声明为 CVar x 而不是 int64_t x，并使用常规的赋值与算术。
+TEST(infer, test_infer_reverse_propagation) {
+    const auto code = InferGetCCode("./infer/test_infer_reverse_propagation.lua");
+    // x 应被声明为 CVar，而不是 int64_t
+    ASSERT_NE(code.find("CVar x = "), std::string::npos);
+    ASSERT_EQ(code.find("int64_t x"), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_reverse_propagation.lua", {.debug_mode = debug_mode});
+        std::string ret;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, "hello");
+    });
+}
+

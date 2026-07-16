@@ -14,15 +14,20 @@ public:
 private:
     class TypeEnvironment {
     public:
+        struct EnvEntry {
+            InferredType type;
+            SyntaxTreeInterface* init_node = nullptr;  // 变量声明时的 initializer node (如 local x = 1 中的 '1' 表达式)
+        };
+
         TypeEnvironment();
 
         void EnterScope();
 
         void ExitScope();
 
-        void Define(const std::string &name, InferredType type);
+        void Define(const std::string &name, InferredType type, SyntaxTreeInterface* init_node = nullptr);
 
-        bool Update(const std::string &name, InferredType type);
+        bool Update(const std::string &name, InferredType type, EvalTypeSnapshot &current_map);
 
         [[nodiscard]] InferredType Lookup(const std::string &name) const;
 
@@ -34,7 +39,7 @@ private:
         static InferredType MergeType(InferredType old_type, InferredType new_type);
 
     private:
-        std::vector<std::unordered_map<std::string, InferredType>> scopes_;
+        std::vector<std::unordered_map<std::string, EnvEntry>> scopes_;
     };
 
     struct FunctionSpecInfo {

@@ -701,7 +701,6 @@ std::string CGen::GenTab() const {
 }
 
 std::string CGen::ComputeSpecTypeName(const std::vector<TableFieldInfo> &fields) {
-    // 实现已上移到 compile_common.h 的共享自由函数 ComputeTableSpecName。
     return ComputeTableSpecName(fields);
 }
 
@@ -734,14 +733,11 @@ std::string CGen::GetKeyDescriptor(const std::string &key, TableKeyKind kind) {
 
 
 std::string CGen::GetSimpleVarName(const SyntaxTreeInterfacePtr &pe) {
-    // 实现已上移到 compile_common.h 的共享自由函数 GetSimpleVarName。
     return fakelua::GetSimpleVarName(pe);
 }
 
 std::string CGen::GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const {
-    // 流敏感 spec 类型名现已由 TypeInferencer 在分析阶段标注到 ir.var_spec_annotations
-    // （key 为被读引用的 Var 节点指针）。此处按 prefixexp 变量名查找对应的 Var 节点。
-    // 为与原有行为兼容：先在标注 map 中查找 prefixexp 自身；若未命中再尝试 receiver 解析。
+    // 从 TypeInferencer 标注的 ir.var_spec_annotations 中获取流敏感 spec 类型名。
     if (const auto it = ir().var_spec_annotations.find(pe.get()); it != ir().var_spec_annotations.end()) {
         return it->second;
     }
@@ -1814,9 +1810,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
             const auto get_fn = std::format("FlGetTableStrId_{}", spec_type);
             const auto set_fn = std::format("FlSetTableStrId_{}", spec_type);
 
-            // typedef + get/set 函数已前置到 GenerateHeader 发射（读 ir.spec_type_metadata）。
-            // 此处仅发射 table 分配宏。
-            // 使用宏分配 table + spec + spec_keys/spec_vals
+            // 发射 table 分配宏（对应的 typedef 与 get/set 函数由 GenerateHeader 发射）。
             Out() << GenTab() << "SET_TABLE_SPEC(" << var_name << ", " << spec_type << ", " << get_fn << ", " << set_fn << ", " << fields.size() << ");\n";
 
             // 填充 spec_keys/spec_vals (以正确的左到右语法顺序)
