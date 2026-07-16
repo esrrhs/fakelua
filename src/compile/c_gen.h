@@ -313,11 +313,7 @@ private:
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
     int cur_tab_ = 0;                  // 当前 C 代码生成器所处的缩进级别深度
 
-    // 注：per-spec-type 字段布局元数据（原 spec_field_names_ / _indices_ / _c_names_ / _types_ 四个 map、
-    // generated_spec_typedefs_ 去重集，以及 cur_spec_func_name_ / cur_spec_bitmask_ / cur_spec_snapshot_ 三个
-    // 发射位置标记）已前置到 TypeInferencer 计算。布局元数据存入 ir.spec_type_metadata，特化版本上下文存入
-    // ir.spec_func_context。CGen 通过 cur_spec_ctx_（由 CompileFuncBody 据 func_name+bitmask 查表填入）
-    // 访问当前版本的 snapshot/func_name/bitmask，不再自行推导 snapshot 选填或维护上述状态。
 };
 
-}// namespace fakelua
+} // namespace fakelua
+
