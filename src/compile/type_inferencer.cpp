@@ -337,6 +337,11 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     // 分析 table 形状，填充 table_spec_infos（流不敏感字段并集 + optional 标记）
     AnalyzeTableShapes(pr.chunk, ir);
 
+    // 预计算 per-spec-type 字段布局元数据（按 spec 类型名去重）。
+    // CGen 据此发射 typedef / getter / setter 以及字段名/C 字段名/索引/类型查询，
+    // 不再自行计算字段布局。
+    ComputeSpecTypeMetadata(ir);
+
     // 流敏感前向分析：为每处 Var 字段引用节点标注「该程序点上该变量的 spec 类型名」。
     // CGen 在 CompileVar（kSquare/kDot）里通过 var_spec_annotations[node] 读取，
     // 不再自行维护 table_spec_types_ / global_table_spec_types_ 等流敏感状态。
@@ -2279,6 +2284,38 @@ SyntaxTreeInterfacePtr TypeInferencer::FuncBodyBlock(const SyntaxTreeInterfacePt
         return fb ? fb->Block() : nullptr;
     }
     return nullptr;
+}
+
+void TypeInferencer::ComputeSpecTypeMetadata(InferResult &ir) {
+    // 遍历所有已登记的 table constructor（ir.table_spec_infos），按 spec 类型名去重。
+    // 同名类型必有相同字段布局（spec 类型名是字段签名的哈希），取任一即可。
+    for (const auto &[tc, info]: ir.table_spec_infos) {
+        if (!info.can_specialize || info.fields.empty()) continue;
+        const auto spec_type = ComputeTableSpecName(info.fields);
+        if (ir.spec_type_metadata.contains(spec_type)) continue; // 已登记，跳过
+
+        SpecTypeMetadata meta;
+        meta.name = spec_type;
+        meta.fields = info.fields;
+        for (const auto &f: info.fields) {
+            switch (f.key_kind) {
+                case TableKeyKind::kString: meta.has_string_keys = true; break;
+                case TableKeyKind::kInt:    meta.has_int_keys = true;    break;
+                case TableKeyKind::kFloat:  meta.has_float_keys = true;  break;
+                case TableKeyKind::kBool:   meta.has_bool_keys = true;   break;
+            }
+            const auto desc = TableFieldDescriptor(f);
+            meta.field_key_descs.insert(desc);
+            meta.c_field_names[desc] = f.c_field_name;
+            meta.field_types[desc] = f.type;
+        }
+        // 字段索引：按 emit 顺序（fields 已是排序后布局）编号，与 CGen 原行为一致。
+        int idx = 0;
+        for (const auto &f: info.fields) {
+            meta.field_indices[TableFieldDescriptor(f)] = idx++;
+        }
+        ir.spec_type_metadata[spec_type] = std::move(meta);
+    }
 }
 
 }// namespace fakelua

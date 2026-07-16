@@ -258,6 +258,11 @@ private:
     // 辅助：取 Function / LocalFunction 语句的 body block。
     static SyntaxTreeInterfacePtr FuncBodyBlock(const SyntaxTreeInterfacePtr &func);
 
+    // 预计算 per-spec-type 字段布局元数据（ir.spec_type_metadata）。
+    // 遍历 ir.table_spec_infos，按 spec 类型名（字段签名哈希）去重，为每个 spec 类型建好字段布局索引。
+    // CGen 据此发射 typedef / getter / setter，不再自行计算字段布局。
+    static void ComputeSpecTypeMetadata(InferResult &ir);
+
 private:
     std::unordered_map<std::string, InferredType> file_level_types_;
 
