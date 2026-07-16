@@ -706,8 +706,8 @@ std::string CGen::ComputeSpecTypeName(const std::vector<TableFieldInfo> &fields)
 }
 
 InferredType CGen::LookupNodeType(SyntaxTreeInterface *node) const {
-    if (cur_spec_snapshot_) {
-        if (const auto it = cur_spec_snapshot_->find(node); it != cur_spec_snapshot_->end()) {
+    if (cur_spec_ctx_ && cur_spec_ctx_->snapshot) {
+        if (const auto it = cur_spec_ctx_->snapshot->find(node); it != cur_spec_ctx_->snapshot->end()) {
             return it->second;
         }
     }
@@ -825,25 +825,26 @@ InferredType CGen::GetSpecFieldType(const std::string &spec_type, const std::str
 
 void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params, const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out) {
     SectionGuard section_guard(*this, Section::Body);
-    // 初始化特化上下文。
+    // 初始化特化上下文：从 ir.spec_func_context 查得当前版本的 snapshot/func_name/bitmask。
     spec_param_types_.clear();
-    cur_spec_bitmask_ = spec_bitmask;
-    cur_spec_func_name_ = (spec_bitmask >= 0) ? func_name : "";
-    cur_spec_snapshot_ = nullptr;
-
+    const SpecFuncContext *ctx = nullptr;
     if (spec_bitmask >= 0) {
+        if (const auto it = ir().spec_func_context.find(func_name); it != ir().spec_func_context.end()) {
+            const auto &ctx_vec = it->second;
+            if (static_cast<size_t>(spec_bitmask) < ctx_vec.size()) {
+                ctx = &ctx_vec[static_cast<size_t>(spec_bitmask)];
+            }
+        }
+    }
+    cur_spec_ctx_ = ctx;
+
+    // 初始 param_types：按 bitmask 逐位决定每个数学参数是 int 还是 float。
+    // 需要 func_params（参数名）才能填表，故仍在此处计算（TypeInferencer 不持有 func_params）。
+    if (ctx) {
         const auto &math_params = ir().math_param_positions.at(func_name);
         for (int i = 0; i < static_cast<int>(math_params.size()); ++i) {
             const auto &param_name = func_params[static_cast<size_t>(math_params[i])];
-            spec_param_types_[param_name] = (MathParamKindOf(spec_bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
-        }
-        // 查找当前位掩码对应的快照，以便 CompileStmtLocalVar / CompileVar
-        // 在此参数类型组合下能查询到每个 AST 节点的正确类型。
-        if (const auto snap_it = ir().specialization_snapshots.find(func_name); snap_it != ir().specialization_snapshots.end()) {
-            const auto &snaps = snap_it->second;
-            if (spec_bitmask < static_cast<int>(snaps.size())) {
-                cur_spec_snapshot_ = &snaps[static_cast<size_t>(spec_bitmask)];
-            }
+            spec_param_types_[param_name] = (MathParamKindOf(ctx->bitmask, i) == kMathParamFloat) ? T_FLOAT : T_INT;
         }
     }
 
@@ -877,9 +878,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
 
     // 清除特化上下文。
     spec_param_types_.clear();
-    cur_spec_bitmask_ = -1;
-    cur_spec_func_name_ = "";
-    cur_spec_snapshot_ = nullptr;
+    cur_spec_ctx_ = nullptr;
     // section_guard 析构时自动恢复 cur_section_。
 }
 
@@ -1107,8 +1106,8 @@ void CGen::CompileStmtReturn(const SyntaxTreeInterfacePtr &stmt) {
         const auto exp = explist_ptr->Exps()[0];
         // 若当前处于原生返回类型的特化函数中，直接将返回表达式编译为原生数值并返回，
         // 跳过 CompileExp 的装箱步骤，消除一次 CVar 封箱拆箱开销。
-        if (cur_spec_bitmask_ >= 0 && !cur_spec_func_name_.empty()) {
-            if (const auto spec_ret = GetSpecReturnType(cur_spec_func_name_, cur_spec_bitmask_); spec_ret == T_INT || spec_ret == T_FLOAT) {
+        if (cur_spec_ctx_) {
+            if (const auto spec_ret = GetSpecReturnType(cur_spec_ctx_->func_name, cur_spec_ctx_->bitmask); spec_ret == T_INT || spec_ret == T_FLOAT) {
                 const auto native_ret = CompileNumericExp(exp);
                 Out() << GenTab() << "return " << native_ret << ";\n";
                 return;
