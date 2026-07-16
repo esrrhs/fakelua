@@ -308,7 +308,6 @@ private:
     std::array<std::stringstream, static_cast<size_t>(Section::Count)> sections_;// C 代码分区输出流数组
 
     RuntimeTypeTracker runtime_type_tracker_;                       // 代码生成期实时原生类型降级跟踪器
-    std::unordered_map<std::string, InferredType> spec_param_types_;// 当前编译函数的参数特化强类型字典（发射中可降级）
     const struct SpecFuncContext *cur_spec_ctx_ = nullptr;           // 当前特化版本的上下文（func_name/bitmask/snapshot）
 
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
