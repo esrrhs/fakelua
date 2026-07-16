@@ -4339,3 +4339,47 @@ TEST(infer, test_infer_reverse_propagation) {
     });
 }
 
+// 延迟退化测试：x 初始赋 1，接着执行 x + 1 并赋值给 y，最后对 x 赋 "hello"。
+// 虽然 x 后来退化为了 CVar，但在执行 x + 1 时它仍保持为数值。
+// 系统应该防止类型污染：y 保持声明为 int64_t，且 x + 1 能够安全解包为 x.data_.i + 1 编译为原生 C 加法。
+TEST(infer, test_infer_degrade_later) {
+    const auto code = InferGetCCode("./infer/test_infer_degrade_later.lua");
+    // x 应被声明为 CVar
+    ASSERT_NE(code.find("CVar x = "), std::string::npos);
+    // y 应为 int64_t 且不被污染为 CVar
+    ASSERT_NE(code.find("int64_t y = "), std::string::npos);
+    ASSERT_EQ(code.find("CVar y"), std::string::npos);
+    // x 应被解包为 x.data_.i 参与原生 C 加法，不使用动态 OpAdd
+    ASSERT_NE(code.find("x.data_.i"), std::string::npos);
+    ASSERT_EQ(code.find("OpAdd("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_degrade_later.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
+// CVar 升级赋值测试：x 初始为 CVar 结构，但中途被赋值为整型 1。
+// 虽然在 x + 1 处它的推断类型为 T_INT，但由于它物理上是 CVar，
+// 且由于 MergeType(dynamic, int) 依然是 dynamic，
+// 故最终生成为动态的 OpAdd，变量 y 同样应当为 CVar。
+TEST(infer, test_infer_cvar_to_int) {
+    const auto code = InferGetCCode("./infer/test_infer_cvar_to_int.lua");
+    // x 应被声明为 CVar
+    ASSERT_NE(code.find("CVar x = "), std::string::npos);
+    // x + 1 应被编译为动态的 OpAdd，y 也应当是 CVar
+    ASSERT_NE(code.find("CVar y = "), std::string::npos);
+    ASSERT_NE(code.find("OpAdd("), std::string::npos);
+
+    InferRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./infer/test_infer_cvar_to_int.lua", {.debug_mode = debug_mode});
+        int64_t ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 2);
+    });
+}
+
+
+

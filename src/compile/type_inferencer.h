@@ -12,6 +12,8 @@ public:
     InferResult InferTypes(const ParseResult &pr, const CompileConfig &cfg);
 
 private:
+    struct TraversalContext;
+
     class TypeEnvironment {
     public:
         struct EnvEntry {

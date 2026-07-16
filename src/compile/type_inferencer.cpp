@@ -532,13 +532,15 @@ InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign>
 
     DEBUG_ASSERT(varlist->Vars().size() == 1 && explist->Exps().size() == 1);// 预处理阶段已将多赋值拆分成单赋值
 
-    const InferredType rhs_type = InferNode(explist->Exps()[0], tctx);
     const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(varlist->Vars()[0]);
     DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple);
 
     auto &current_map = tctx.current_map;
     const std::string name = var->GetName();
     InferredType current = T_DYNAMIC;
+
+    const InferredType rhs_type = InferNode(explist->Exps()[0], tctx);
+
     if (tctx.IsPinnedVar(name)) {
         current = tctx.env.Lookup(name);
     } else if (tctx.env.Update(name, rhs_type, current_map)) {
