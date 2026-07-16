@@ -235,6 +235,16 @@ struct SpecTypeMetadata {
     std::unordered_map<std::string, InferredType> field_types;       // GetSpecFieldType 用
 };
 
+// 数学参数特化上下文：每个 (函数名, bitmask) 对应一个，描述该特化版本的参数类型假设
+// 与节点类型快照。由 TypeInferencer 预计算，供 CGen 的 CompileFuncBody 消费——
+// CGen 不再自行做 MathParamKindOf 推导、snapshot 选择或 param_types 初始填充。
+struct SpecFuncContext {
+    std::string func_name;                                          // 函数名
+    int bitmask = -1;                                               // 特化位掩码
+    const EvalTypeSnapshot *snapshot = nullptr;                     // 该版本所有 AST 节点的推断类型快照
+    std::unordered_map<std::string, InferredType> param_types;      // 参数名 → 初始特化类型（int/float）
+};
+
 // 字段 key 描述符（与 CGen::GetKeyDescriptor / TypeInferencer::FieldKeyDescriptor 一致）。
 // 单一事实来源，保证 spec 类型名哈希与 TypeInferencer 去重/并集逻辑使用完全相同的描述符。
 inline std::string TableFieldDescriptor(const TableFieldInfo &f) {
@@ -321,6 +331,10 @@ struct InferResult {
     // 由 TypeInferencer 预计算（按 spec 类型名去重），供 CGen 发射 typedef/getter/setter 以及
     // 字段名/C 字段名/索引/类型查询——CGen 不再自行计算字段布局。
     std::unordered_map<std::string, struct SpecTypeMetadata> spec_type_metadata;
+    // 数学参数特化上下文（函数名 → per-bitmask 数组，共 2^k 个）。
+    // 由 TypeInferencer 预计算，描述每个特化版本的参数类型假设与节点类型快照。
+    // CGen::CompileFuncBody 据此初始化发射上下文，不再自行做 MathParamKindOf 推导与 snapshot 选择。
+    std::unordered_map<std::string, std::vector<struct SpecFuncContext>> spec_func_context;
 };
 
 struct JitFunctionInfo {

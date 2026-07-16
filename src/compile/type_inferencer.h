@@ -263,6 +263,11 @@ private:
     // CGen 据此发射 typedef / getter / setter，不再自行计算字段布局。
     static void ComputeSpecTypeMetadata(InferResult &ir);
 
+    // 预计算数学参数特化上下文（ir.spec_func_context，per func+bitmask）。
+    // 每个 context 携带 snapshot 指针与初始 param_types；CGen 的 CompileFuncBody 据此
+    // 初始化发射上下文，不再自行做 MathParamKindOf 推导 / snapshot 选择 / param_types 初始填充。
+    static void ComputeSpecFuncContext(InferResult &ir);
+
 private:
     std::unordered_map<std::string, InferredType> file_level_types_;
 

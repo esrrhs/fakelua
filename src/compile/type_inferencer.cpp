@@ -342,6 +342,10 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     // 不再自行计算字段布局。
     ComputeSpecTypeMetadata(ir);
 
+    // 预计算数学参数特化上下文（per func+bitmask）：snapshot 指针 + 初始 param_types。
+    // CGen::CompileFuncBody 据此初始化发射上下文，不再自行做 MathParamKindOf 推导与 snapshot 选择。
+    ComputeSpecFuncContext(ir);
+
     // 流敏感前向分析：为每处 Var 字段引用节点标注「该程序点上该变量的 spec 类型名」。
     // CGen 在 CompileVar（kSquare/kDot）里通过 var_spec_annotations[node] 读取，
     // 不再自行维护 table_spec_types_ / global_table_spec_types_ 等流敏感状态。
@@ -2315,6 +2319,22 @@ void TypeInferencer::ComputeSpecTypeMetadata(InferResult &ir) {
             meta.field_indices[TableFieldDescriptor(f)] = idx++;
         }
         ir.spec_type_metadata[spec_type] = std::move(meta);
+    }
+}
+
+void TypeInferencer::ComputeSpecFuncContext(InferResult &ir) {
+    // 为每个含数学参数的函数、每个特化 bitmask 预计算 SpecFuncContext。
+    // snapshot 选择在 CGen 里只是一次 Find+下标查表，前置后 CGen 不再做 snapshot 选填。
+    // param_types 初始填充需要 func_params（仅 CGen 在射函数体时已知），故仍留在 CGen。
+    for (const auto &[func_name, snaps]: ir.specialization_snapshots) {
+        auto &ctx_vec = ir.spec_func_context[func_name];
+        ctx_vec.resize(snaps.size());
+        for (size_t bitmask = 0; bitmask < snaps.size(); ++bitmask) {
+            SpecFuncContext &ctx = ctx_vec[bitmask];
+            ctx.func_name = func_name;
+            ctx.bitmask = static_cast<int>(bitmask);
+            ctx.snapshot = &snaps[bitmask];
+        }
     }
 }
 

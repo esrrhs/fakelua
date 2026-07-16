@@ -303,17 +303,17 @@ private:
     std::array<std::stringstream, static_cast<size_t>(Section::Count)> sections_;// C 代码分区输出流数组
 
     NativeVarScope native_var_scope_;                               // 原生强类型变量管理作用域
-    std::unordered_map<std::string, InferredType> spec_param_types_;// 当前编译函数的参数特化强类型字典
-    std::string cur_spec_func_name_;                                // 当前特化编译的 Lua 函数名
-    int cur_spec_bitmask_ = -1;                                     // 当前特化参数的签名位掩码
-    const EvalTypeSnapshot *cur_spec_snapshot_ = nullptr;           // 当前正在特化编译函数的局部类型快照
+    std::unordered_map<std::string, InferredType> spec_param_types_;// 当前编译函数的参数特化强类型字典（发射中可降级）
+    const struct SpecFuncContext *cur_spec_ctx_ = nullptr;           // 当前特化版本的上下文（func_name/bitmask/snapshot）
 
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
     int cur_tab_ = 0;                  // 当前 C 代码生成器所处的缩进级别深度
 
-    // 注：per-spec-type 字段布局元数据（原 spec_field_names_ / _indices_ / _c_names_ / _types_ 四个 map
-    // 以及 generated_spec_typedefs_ 去重集）已前置到 TypeInferencer 计算，存入 ir.spec_type_metadata。
-    // CGen 仅通过 ir().spec_type_metadata 只读访问，不再自行维护上述状态。
+    // 注：per-spec-type 字段布局元数据（原 spec_field_names_ / _indices_ / _c_names_ / _types_ 四个 map、
+    // generated_spec_typedefs_ 去重集，以及 cur_spec_func_name_ / cur_spec_bitmask_ / cur_spec_snapshot_ 三个
+    // 发射位置标记）已前置到 TypeInferencer 计算。布局元数据存入 ir.spec_type_metadata，特化版本上下文存入
+    // ir.spec_func_context。CGen 通过 cur_spec_ctx_（由 CompileFuncBody 据 func_name+bitmask 查表填入）
+    // 访问当前版本的 snapshot/func_name/bitmask，不再自行推导 snapshot 选填或维护上述状态。
 };
 
 }// namespace fakelua
