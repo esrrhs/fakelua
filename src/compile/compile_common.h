@@ -243,6 +243,7 @@ struct SpecFuncContext {
     int bitmask = -1;                                               // 特化位掩码
     const EvalTypeSnapshot *snapshot = nullptr;                     // 该版本所有 AST 节点的推断类型快照
     std::unordered_map<std::string, InferredType> param_types;      // 参数名 → 初始特化类型（int/float）
+    std::vector<std::string> param_names;                           // 所有参数名（按位置顺序），供 CGen 初始化 spec_param_types_ 使用
 };
 
 // 字段 key 描述符（与 CGen::GetKeyDescriptor / TypeInferencer::FieldKeyDescriptor 一致）。

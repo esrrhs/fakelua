@@ -42,8 +42,15 @@ private:
         }
     };
 
-    // NativeVarScope —— 编译期原生变量作用域管理器。
-    class NativeVarScope {
+    // RuntimeTypeTracker —— 代码生成期原生类型的实时跟踪器。
+    //
+    // 职责：记录在 C 代码生成过程中，每个变量当前被声明为哪种原生类型
+    // （int64_t / double / T_DYNAMIC=CVar）。当 RHS 无法编译为原生数值时（如函数调用返回 CVar），
+    // 可在此处将变量降级回 T_DYNAMIC，使后续的 GetType() 查询得到正确结果。
+    //
+    // 注意：这不是语义意义上的「作用域分析」，而是对 TypeInferencer 静态快照的实时动态补充：
+    // TypeInferencer 的快照无法预测代码生成时的每一次降级，因此 CGen 需要本地维护此跟踪器。
+    class RuntimeTypeTracker {
     public:
         // 进入一个新的 C 作用域。
         void Enter() {
@@ -126,8 +133,6 @@ private:
     // 获取特定特化签名下函数的返回类型
     [[nodiscard]] InferredType GetSpecReturnType(const std::string &func_name, int bitmask) const;
 
-    // table 特化辅助：判断 table constructor 是否可特化（所有字段均为静态字符串 key）
-    [[nodiscard]] bool CanSpecializeTable(const SyntaxTreeInterfacePtr &tc) const;
     // table 特化辅助：从 prefixexp 获取变量的 spec 类型名（空字符串表示无特化）
     [[nodiscard]] std::string GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const;
     // table 特化辅助：检查 key 是否为已知 spec 字段
@@ -232,27 +237,27 @@ private:
 
     // 进入一个新的局部原生变量类型作用域
     void EnterNativeVarScope() {
-        native_var_scope_.Enter();
+        runtime_type_tracker_.Enter();
     }
 
     // 退出当前局部原生变量类型作用域
     void ExitNativeVarScope() {
-        native_var_scope_.Exit();
+        runtime_type_tracker_.Exit();
     }
 
     // 在当前局部原生作用域中声明一个具有强类型的原生 C 变量
     void DeclareNativeVar(const std::string &name, InferredType native_type) {
-        native_var_scope_.Declare(name, native_type);
+        runtime_type_tracker_.Declare(name, native_type);
     }
 
     // 检查变量是否为已知强类型的原生变量
     [[nodiscard]] bool IsTypedNativeVar(const std::string &name) const {
-        return native_var_scope_.IsTyped(name);
+        return runtime_type_tracker_.IsTyped(name);
     }
 
     // 获取原生强类型变量在作用域中的推断类型
     [[nodiscard]] InferredType GetNativeVarType(const std::string &name) const {
-        return native_var_scope_.GetType(name);
+        return runtime_type_tracker_.GetType(name);
     }
 
     // 快捷访问推断器全局上下文结果
@@ -302,7 +307,7 @@ private:
 
     std::array<std::stringstream, static_cast<size_t>(Section::Count)> sections_;// C 代码分区输出流数组
 
-    NativeVarScope native_var_scope_;                               // 原生强类型变量管理作用域
+    RuntimeTypeTracker runtime_type_tracker_;                       // 代码生成期实时原生类型降级跟踪器
     std::unordered_map<std::string, InferredType> spec_param_types_;// 当前编译函数的参数特化强类型字典（发射中可降级）
     const struct SpecFuncContext *cur_spec_ctx_ = nullptr;           // 当前特化版本的上下文（func_name/bitmask/snapshot）
 
