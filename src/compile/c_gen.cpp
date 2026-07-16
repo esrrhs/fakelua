@@ -795,7 +795,7 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
     auto &body_ss = sections_[static_cast<size_t>(Section::Body)];
     body_ss.str("");
     body_ss.clear();
-    runtime_type_tracker_.Clear();
+    ClearCScope();
     EnterNativeVarScope();
     for (const auto &param_name: func_params) {
         // 在特化模式中，数学参数已在函数签名中声明为原生类型（int64_t/double），
