@@ -267,6 +267,15 @@ bool TypeInferencer::TypeEnvironment::Update(const std::string &name, const Infe
     return false;
 }
 
+bool TypeInferencer::TypeEnvironment::Has(const std::string &name) const {
+    for (const auto &scope: std::views::reverse(scopes_)) {
+        if (scope.contains(name)) {
+            return true;
+        }
+    }
+    return false;
+}
+
 InferredType TypeInferencer::TypeEnvironment::Lookup(const std::string &name) const {
     for (const auto &scope: std::views::reverse(scopes_)) {
         if (const auto found = scope.find(name); found != scope.end()) {
@@ -309,7 +318,7 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     InferResult ir;
     EvalTypeMap current_map;
     TypeEnvironment env;
-    TraversalContext tctx{current_map, env, nullptr, ir.var_define_nodes};
+    TraversalContext tctx{current_map, env, nullptr, ir.var_define_nodes, ir.shadowed_decls};
 
     InferNode(pr.chunk, tctx);
     // 将当前推断结果复制为全局主快照，供 CGen 在非特化路径下查询节点类型。
@@ -517,6 +526,10 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
 
     const auto &names = namelist->Names();
     for (size_t i = 0; i < names.size(); ++i) {
+        // 在新定义变量前，如果环境里已能查到同名变量，说明发生了遮蔽（Shadowing）
+        if (tctx.env.Has(names[i])) {
+            tctx.shadowed_decls.insert({local_var.get(), names[i]});
+        }
         InferredType type = T_DYNAMIC;
         if (i < exps.size()) {
             type = InferNode(exps[i], tctx);
@@ -996,7 +1009,8 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
         }
 
         // 运行函数体类型推断（不新开作用域，参数已在当前作用域中定义）。
-        TraversalContext tctx{current_map, env, &ctx, var_define_nodes};
+        std::set<std::pair<const SyntaxTreeInterface*, std::string>> dummy_shadowed_decls;
+        TraversalContext tctx{current_map, env, &ctx, var_define_nodes, dummy_shadowed_decls};
         InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block), false, tctx);
 
         // 快照本轮推断结果（仅 func_block 节点）。

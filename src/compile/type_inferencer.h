@@ -31,6 +31,8 @@ private:
 
         bool Update(const std::string &name, InferredType type, EvalTypeSnapshot &current_map);
 
+        [[nodiscard]] bool Has(const std::string &name) const;
+
         [[nodiscard]] InferredType Lookup(const std::string &name) const;
 
         [[nodiscard]] const SyntaxTreeInterface* LookupInitNode(const std::string &name) const;
@@ -87,6 +89,7 @@ private:
         TypeEnvironment &env;
         const TrialInferenceContext *ctx = nullptr;
         std::unordered_map<const SyntaxTreeInterface*, const SyntaxTreeInterface*> &var_define_nodes;
+        std::set<std::pair<const SyntaxTreeInterface*, std::string>> &shadowed_decls;
 
         [[nodiscard]] bool IsTrialInference() const {
             return ctx != nullptr;

@@ -42,36 +42,10 @@ private:
         }
     };
 
-    // C 语言变量活跃作用域管理（用于遮蔽 Shadowing 时的临时变量生成决策）
-    void EnterCScope() {
-        active_c_vars_.push_back({});
-    }
-
-    void ExitCScope() {
-        if (!active_c_vars_.empty()) {
-            active_c_vars_.pop_back();
-        }
-    }
-
-    void ClearCScope() {
-        active_c_vars_.clear();
-    }
-
-    void DeclareCVar(const std::string &name) {
-        if (active_c_vars_.empty()) {
-            EnterCScope();
-        }
-        active_c_vars_.back().insert(name);
-    }
-
-    [[nodiscard]] bool IsCVarActive(const std::string &name) const {
-        for (const auto &scope: std::views::reverse(active_c_vars_)) {
-            if (scope.contains(name)) {
-                return true;
-            }
-        }
-        return false;
-    }
+    void EnterCScope() {}
+    void ExitCScope() {}
+    void ClearCScope() {}
+    void DeclareCVar(const std::string &name) {}
 
     // ==========================================
     // 第一部分：核心调度与编排
@@ -205,20 +179,9 @@ private:
     // 根据 AST 节点指针在当前快照中查找推断出的类型
     [[nodiscard]] InferredType LookupNodeType(SyntaxTreeInterface *node) const;
 
-    // 进入一个新的局部原生变量类型作用域
-    void EnterNativeVarScope() {
-        EnterCScope();
-    }
-
-    // 退出当前局部原生变量类型作用域
-    void ExitNativeVarScope() {
-        ExitCScope();
-    }
-
-    // 在当前局部原生作用域中声明一个具有强类型的原生 C 变量
-    void DeclareNativeVar(const std::string &name, InferredType native_type) {
-        DeclareCVar(name);
-    }
+    void EnterNativeVarScope() {}
+    void ExitNativeVarScope() {}
+    void DeclareNativeVar(const std::string &name, InferredType native_type) {}
 
     // 检查变量是否为已知强类型的原生变量
     [[nodiscard]] bool IsTypedNativeVar(const std::string &name, const SyntaxTreeInterface* var_node) const {
@@ -296,7 +259,6 @@ private:
 
     std::array<std::stringstream, static_cast<size_t>(Section::Count)> sections_;// C 代码分区输出流数组
 
-    std::vector<std::unordered_set<std::string>> active_c_vars_;     // 代码生成期 C 语言活跃局部变量名作用域栈
     const struct SpecFuncContext *cur_spec_ctx_ = nullptr;           // 当前特化版本的上下文（func_name/bitmask/snapshot）
 
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
