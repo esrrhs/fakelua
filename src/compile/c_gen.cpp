@@ -1266,6 +1266,7 @@ void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &stmt) {
     CompileFunctioncall(stmt);
 }
 
+
 std::string CGen::CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix) {
     if (auto native_cond = TryCompileNativeBoolExpr(exp); !native_cond.empty()) {
         return native_cond;
