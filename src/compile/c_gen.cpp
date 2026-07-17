@@ -795,19 +795,9 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
     auto &body_ss = sections_[static_cast<size_t>(Section::Body)];
     body_ss.str("");
     body_ss.clear();
-    EnterNativeVarScope();
-    for (const auto &param_name: func_params) {
-        // 在特化模式中，数学参数已在函数签名中声明为原生类型（int64_t/double），
-        // 因此将其注册为对应的原生类型，以便 CompileStmtAssign / GetType
-        // 能正确处理对这些参数的引用和赋值。
-        // 非特化或非数学参数仍注册为 T_DYNAMIC（CVar）。
-        const InferredType param_native_type = (ctx && ctx->param_types.contains(param_name)) ? ctx->param_types.at(param_name) : T_DYNAMIC;
-        DeclareNativeVar(param_name, param_native_type);
-    }
     cur_tab_++;
     CompileStmtBlock(func_block);
     cur_tab_--;
-    ExitNativeVarScope();
 
     // 写入调用方提供的输出流。
     out << func_temp_decls_.str();
@@ -1121,11 +1111,9 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 } else {
                     Out() << GenTab() << type_str << " " << name << " = " << native_expr << ";\n";
                 }
-                DeclareNativeVar(name, type);
             } else {
                 const std::string init = CompileExp(exps[i]);
                 Out() << GenTab() << "CVar " << name << " = " << init << ";\n";
-                DeclareNativeVar(name, T_DYNAMIC);
             }
         }
 
@@ -1142,8 +1130,6 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 ThrowError("local variable conflicts with global constant: " + name, stmt);
             }
             Out() << GenTab() << "CVar " << name << " = FlUnboxMulti(" << tmp_res << ", " << (i - (exps.size() - 1)) << ");\n";
-            DeclareNativeVar(name, T_DYNAMIC);
-
         }
     } else {
         // Standard one-to-one compilation path (or fallback path where extra variables get nil)
@@ -1166,7 +1152,6 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 } else {
                     Out() << GenTab() << type_str << " " << name << " = " << native_expr << ";\n";
                 }
-                DeclareNativeVar(name, type);
             } else if (i < exps.size()) {
                 const auto init_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(exps[i]);
                 bool is_degraded_expression = false;
@@ -1187,10 +1172,8 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
                 }
                 const std::string init = CompileExp(exps[i]);
                 Out() << GenTab() << "CVar " << name << " = " << init << ";\n";
-                DeclareNativeVar(name, T_DYNAMIC);
             } else {
                 Out() << GenTab() << "CVar " << name << " = kNil;\n";
-                DeclareNativeVar(name, T_DYNAMIC);
             }
         }
     }
@@ -1284,9 +1267,7 @@ void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &stmt) {
 }
 
 void CGen::CompileScopedBlock(const SyntaxTreeInterfacePtr &block) {
-    EnterNativeVarScope();
     CompileStmtBlock(block);
-    ExitNativeVarScope();
 }
 
 std::string CGen::CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix) {
@@ -1332,15 +1313,9 @@ void CGen::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
     Out() << GenTab() << "do {\n";
     cur_tab_++;
 
-    // Lua 语义：until 条件可以访问 repeat 块内声明的 local 变量。
-    // 因此必须在 until 条件编译完成之后再退出 NativeVarScope，
-    // 否则块内的原生类型变量（int64_t/double）在条件编译时会被视为 CVar，
-    // 导致生成的 C 代码类型不匹配（编译错误或静默错误结果）。
-    EnterNativeVarScope();
     CompileStmtBlock(repeat_stmt->Block());
     const auto cond_bool = CompileCondBoolExpr(repeat_stmt->Exp(), "flua_rbt");
     Out() << GenTab() << std::format("if ({}) break;\n", cond_bool);
-    ExitNativeVarScope();
 
     cur_tab_--;
     Out() << GenTab() << "} while (1);\n";
@@ -1515,23 +1490,17 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
               << " += " << step_var << ") {\n";
     }
     cur_tab_++;
-    EnterNativeVarScope();
     if (LookupNodeType(for_stmt.get()) == loop_type) {
         Out() << GenTab() << type_str << " " << for_stmt->Name() << " = " << ctrl_var << ";\n";
-        DeclareNativeVar(for_stmt->Name(), loop_type);
     } else {
         Out() << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, loop_type) << ";\n";
-        DeclareNativeVar(for_stmt->Name(), T_DYNAMIC);
     }
     // 用内层作用域包裹循环体，避免 local 同名变量与循环变量在同一 C 作用域中重复声明。
     Out() << GenTab() << "{\n";
     cur_tab_++;
-    EnterNativeVarScope();
     CompileStmtBlock(for_stmt->Block());
-    ExitNativeVarScope();
     cur_tab_--;
     Out() << GenTab() << "}\n";
-    ExitNativeVarScope();
     cur_tab_--;
     Out() << GenTab() << "}\n";
 }
@@ -1590,17 +1559,12 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
 
     const auto &loop_var_name = for_stmt->Name();
     Out() << GenTab() << "CVar " << loop_var_name << " = " << ctrl_var << ";\n";
-    EnterNativeVarScope();
-    DeclareNativeVar(loop_var_name, T_DYNAMIC);
 
     Out() << GenTab() << "{\n";
     cur_tab_++;
-    EnterNativeVarScope();
     CompileStmtBlock(for_stmt->Block());
-    ExitNativeVarScope();
     cur_tab_--;
     Out() << GenTab() << "}\n";
-    ExitNativeVarScope();
 
     Out() << GenTab() << std::format("OpAdd(({0}), ({1}), {2});\n", ctrl_var, step_var, ctrl_var);
 
@@ -1682,19 +1646,11 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         Out() << GenTab() << std::format("if ({} == VAR_NIL) {{ continue; }}\n", dummy_val + ".type_");
     }
 
-    EnterNativeVarScope();
-    DeclareNativeVar(key_name, T_DYNAMIC);
-    if (names.size() >= 2) {
-        DeclareNativeVar(names[1], T_DYNAMIC);
-    }
     Out() << GenTab() << "{\n";
     cur_tab_++;
-    EnterNativeVarScope();
     CompileStmtBlock(for_in->Block());
-    ExitNativeVarScope();
     cur_tab_--;
     Out() << GenTab() << "}\n";
-    ExitNativeVarScope();
 
     cur_tab_--;
     Out() << GenTab() << "}\n";
