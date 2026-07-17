@@ -42,7 +42,7 @@ private:
         }
     };
 
-    // C 语言变量活跃作用域管理（同时作为静态声明的 C 变量符号表）
+    // C 语言变量活跃作用域管理（用于遮蔽 Shadowing 时的临时变量生成决策）
     void EnterCScope() {
         active_c_vars_.push_back({});
     }
@@ -57,11 +57,11 @@ private:
         active_c_vars_.clear();
     }
 
-    void DeclareCVar(const std::string &name, InferredType type) {
+    void DeclareCVar(const std::string &name) {
         if (active_c_vars_.empty()) {
             EnterCScope();
         }
-        active_c_vars_.back()[name] = type;
+        active_c_vars_.back().insert(name);
     }
 
     [[nodiscard]] bool IsCVarActive(const std::string &name) const {
@@ -217,37 +217,34 @@ private:
 
     // 在当前局部原生作用域中声明一个具有强类型的原生 C 变量
     void DeclareNativeVar(const std::string &name, InferredType native_type) {
-        DeclareCVar(name, native_type);
+        DeclareCVar(name);
     }
 
     // 检查变量是否为已知强类型的原生变量
-    [[nodiscard]] bool IsTypedNativeVar(const std::string &name) const {
+    [[nodiscard]] bool IsTypedNativeVar(const std::string &name, const SyntaxTreeInterface* var_node) const {
         // 1. 检查是否为特化函数参数，且参数类型为原生数值类型
         if (cur_spec_ctx_) {
             if (const auto it = cur_spec_ctx_->param_types.find(name); it != cur_spec_ctx_->param_types.end()) {
                 return it->second == T_INT || it->second == T_FLOAT;
             }
         }
-        // 2. 检查局部符号表作用域
-        for (const auto &scope: std::views::reverse(active_c_vars_)) {
-            if (const auto it = scope.find(name); it != scope.end()) {
-                return it->second == T_INT || it->second == T_FLOAT;
-            }
+        // 2. 检查变量引用是否有定义节点映射，且该定义节点最终推断为原生数值类型
+        if (const auto it = ir().var_define_nodes.find(var_node); it != ir().var_define_nodes.end()) {
+            const auto def_type = LookupNodeType(const_cast<SyntaxTreeInterface*>(it->second));
+            return def_type == T_INT || def_type == T_FLOAT;
         }
         return false;
     }
 
     // 获取原生强类型变量在作用域中的推断类型
-    [[nodiscard]] InferredType GetNativeVarType(const std::string &name) const {
+    [[nodiscard]] InferredType GetNativeVarType(const std::string &name, const SyntaxTreeInterface* var_node) const {
         if (cur_spec_ctx_) {
             if (const auto it = cur_spec_ctx_->param_types.find(name); it != cur_spec_ctx_->param_types.end()) {
                 return it->second;
             }
         }
-        for (const auto &scope: std::views::reverse(active_c_vars_)) {
-            if (const auto it = scope.find(name); it != scope.end()) {
-                return it->second;
-            }
+        if (const auto it = ir().var_define_nodes.find(var_node); it != ir().var_define_nodes.end()) {
+            return LookupNodeType(const_cast<SyntaxTreeInterface*>(it->second));
         }
         return T_DYNAMIC;
     }
@@ -299,7 +296,7 @@ private:
 
     std::array<std::stringstream, static_cast<size_t>(Section::Count)> sections_;// C 代码分区输出流数组
 
-    std::vector<std::unordered_map<std::string, InferredType>> active_c_vars_;     // 代码生成期 C 语言活跃局部变量名与声明类型作用域栈
+    std::vector<std::unordered_set<std::string>> active_c_vars_;     // 代码生成期 C 语言活跃局部变量名作用域栈
     const struct SpecFuncContext *cur_spec_ctx_ = nullptr;           // 当前特化版本的上下文（func_name/bitmask/snapshot）
 
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流

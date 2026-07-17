@@ -336,6 +336,9 @@ struct InferResult {
     // 由 TypeInferencer 预计算，描述每个特化版本的参数类型假设与节点类型快照。
     // CGen::CompileFuncBody 据此初始化发射上下文，不再自行做 MathParamKindOf 推导与 snapshot 选择。
     std::unordered_map<std::string, std::vector<struct SpecFuncContext>> spec_func_context;
+    // 变量定义关联表：从语法树变量引用节点 (SyntaxTreeVar) 指针 → 对应的初始化声明节点 (init_node)。
+    // 由 TypeInferencer 填充，供 CGen 直接利用声明节点快照来查询当前物理变量是 native 还是 CVar。
+    std::unordered_map<const SyntaxTreeInterface*, const SyntaxTreeInterface*> var_define_nodes;
 };
 
 struct JitFunctionInfo {

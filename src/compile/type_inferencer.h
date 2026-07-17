@@ -33,6 +33,8 @@ private:
 
         [[nodiscard]] InferredType Lookup(const std::string &name) const;
 
+        [[nodiscard]] const SyntaxTreeInterface* LookupInitNode(const std::string &name) const;
+
         [[nodiscard]] size_t GetScopeDepth() const {
             return scopes_.size();
         }
@@ -84,6 +86,7 @@ private:
         EvalTypeMap &current_map;
         TypeEnvironment &env;
         const TrialInferenceContext *ctx = nullptr;
+        std::unordered_map<const SyntaxTreeInterface*, const SyntaxTreeInterface*> &var_define_nodes;
 
         [[nodiscard]] bool IsTrialInference() const {
             return ctx != nullptr;
@@ -135,8 +138,9 @@ private:
     // ResolveCallReturnType 将被调函数的特化返回类型注入推断结果，
     // 使函数调用节点及其下游局部变量在快照中获得精确类型。
     EvalTypeMap RunTrialInference(const SyntaxTreeInterfacePtr &func_block, const std::vector<std::string> &params, const std::unordered_map<std::string, InferredType> &assumed_types,
-                                  const std::unordered_map<std::string, std::vector<int>> *math_positions = nullptr,
-                                  const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret = nullptr, bool skip_post_processing = false);
+                                  const std::unordered_map<std::string, std::vector<int>> *math_positions,
+                                  const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret, bool skip_post_processing,
+                                  std::unordered_map<const SyntaxTreeInterface*, const SyntaxTreeInterface*> &var_define_nodes);
 
     // 判断 exp 节点是否为算术表达式（结果可为 T_INT/T_FLOAT 的运算符）。
     // 包括算术/位运算二元运算符，以及一元负号 and 按位取反。
@@ -162,7 +166,8 @@ private:
     [[nodiscard]] std::vector<FunctionSpecInfo> CollectFunctionSpecInfos(const ParseResult &pr) const;
 
     std::vector<int> FindMathParamIndices(const FunctionSpecInfo &info, const EvalTypeMap &baseline, const EvalTypeMap &all_int,
-                                          const std::unordered_map<std::string, std::vector<int>> &known_math_positions);
+                                          const std::unordered_map<std::string, std::vector<int>> &known_math_positions,
+                                          std::unordered_map<const SyntaxTreeInterface*, const SyntaxTreeInterface*> &var_define_nodes);
 
     [[nodiscard]] std::unordered_map<std::string, FuncRetInfo> BuildFunctionReturnCache(const MathFuncInfoMap &math_func_info) const;
 

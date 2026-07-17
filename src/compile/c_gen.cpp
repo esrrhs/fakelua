@@ -869,7 +869,7 @@ InferredType CGen::GetType(const SyntaxTreeInterfacePtr &exp) const {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
             if (var && var->GetVarKind() == VarKind::kSimple) {
                 const auto &name = var->GetName();
-                 if (const auto native_type = GetNativeVarType(name); native_type == T_INT || native_type == T_FLOAT) {
+                 if (const auto native_type = GetNativeVarType(name, var.get()); native_type == T_INT || native_type == T_FLOAT) {
                      return native_type;
                  }
                 if (const auto git = ir().global_const_vars.find(name); git != ir().global_const_vars.end()) {
@@ -1114,7 +1114,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             if (type == T_INT || type == T_FLOAT) {
                 const auto native_expr = CompileNumericExp(exps[i]);
                 const std::string type_str = (type == T_INT) ? "int64_t" : "double";
-                if (IsTypedNativeVar(name)) {
+                if (IsCVarActive(name)) {
                     const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    " << type_str << " " << tmp << ";\n";
                     Out() << GenTab() << tmp << " = " << native_expr << ";\n";
@@ -1159,7 +1159,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             if (type == T_INT || type == T_FLOAT) {
                 const auto native_expr = CompileNumericExp(exps[i]);
                 const std::string type_str = (type == T_INT) ? "int64_t" : "double";
-                if (IsTypedNativeVar(name)) {
+                if (IsCVarActive(name)) {
                     const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    " << type_str << " " << tmp << ";\n";
                     Out() << GenTab() << tmp << " = " << native_expr << ";\n";
@@ -1221,9 +1221,9 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
     // PreprocessTableAssign 将方括号/点号赋值重写为 FAKELUA_SET_TABLE 调用，
     // 所以只有简单变量赋值能到达此处。
     DEBUG_ASSERT(v_ptr->GetVarKind() == VarKind::kSimple);
-    if (const auto &name = v_ptr->GetName(); IsTypedNativeVar(name)) {
+    if (const auto &name = v_ptr->GetName(); IsTypedNativeVar(name, v_ptr.get())) {
         // 被赋值变量是原生类型（int64_t / double）变量：
-        const auto var_type = GetNativeVarType(name);
+        const auto var_type = GetNativeVarType(name, v_ptr.get());
         if (const auto native_rhs = TryCompileNativeExpr(exps[0]); !native_rhs.empty()) {
             // RHS 可以直接编译为原生数值表达式——无需临时 CVar。
             // 若 RHS 类型与目标变量类型不同（如 double → int64_t），插入显式强制转换。
@@ -2301,7 +2301,7 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
     if (const auto var_kind = v_ptr->GetVarKind(); var_kind == VarKind::kSimple) {
         const auto &name = v_ptr->GetName();
         DEBUG_ASSERT(cur_section_ != Section::Globals);
-        if (const auto native_type = GetNativeVarType(name); native_type != T_DYNAMIC) {
+        if (const auto native_type = GetNativeVarType(name, v_ptr.get()); native_type != T_DYNAMIC) {
             return BoxNativeValue(name, native_type);
         }
         // 文件级数值常量（static const int64_t / double）：装箱为 CVar 后返回。
@@ -2435,7 +2435,7 @@ std::string CGen::CompileNumericExp(const SyntaxTreeInterfacePtr &exp) {
             const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
             DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple);
             const auto &vname = var->GetName();
-            if (IsTypedNativeVar(vname)) {
+            if (IsTypedNativeVar(vname, var.get())) {
                 return vname;
             }
             // 文件级数值常量（static const int64_t / double）：直接用名称。
