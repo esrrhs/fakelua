@@ -64,7 +64,7 @@ private:
     // 编译参数列表节点，返回 C 语言格式的参数类型和名称字符串列表
     std::vector<std::string> CompileParList(const SyntaxTreeInterfacePtr &parlist);
     // 编译具体的函数体并将其 C 代码输出至给定的流中
-    void CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params, const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out);
+    void CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out);
     // 为特定函数生成分发入口（用于处理动态调用到特化强类型调用的转发）
     void GenerateEntryDispatcher(const std::string &func_name, const std::vector<std::string> &func_params, const std::vector<int> &math_param_indices);
     // 辅助工具：判断一个基本块（Block）的结尾是否显式包含 return 语句
@@ -118,8 +118,7 @@ private:
     void CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt);
     void CompileStmtGoto(const SyntaxTreeInterfacePtr &stmt);
     void CompileStmtLabel(const SyntaxTreeInterfacePtr &stmt);
-    // 编译具有独立原生强类型作用域的局部的花括号作用域块
-    void CompileScopedBlock(const SyntaxTreeInterfacePtr &block);
+
     // 编译条件布尔表达式（用于处理逻辑运算的短路特性与分支预测优化）
     std::string CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix);
 
