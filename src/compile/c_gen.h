@@ -42,66 +42,36 @@ private:
         }
     };
 
-    // RuntimeTypeTracker —— 代码生成期原生类型的实时跟踪器。
-    //
-    // 职责：记录在 C 代码生成过程中，每个变量当前被声明为哪种原生类型
-    // （int64_t / double / T_DYNAMIC=CVar）。当 RHS 无法编译为原生数值时（如函数调用返回 CVar），
-    // 可在此处将变量降级回 T_DYNAMIC，使后续的 GetType() 查询得到正确结果。
-    //
-    // 注意：这不是语义意义上的「作用域分析」，而是对 TypeInferencer 静态快照的实时动态补充：
-    // TypeInferencer 的快照无法预测代码生成时的每一次降级，因此 CGen 需要本地维护此跟踪器。
-    class RuntimeTypeTracker {
-    public:
-        // 进入一个新的 C 作用域。
-        void Enter() {
-            scopes_.emplace_back();
-        }
+    // C 语言变量活跃作用域管理（用于遮蔽 Shadowing 时的临时变量生成决策）
+    void EnterCScope() {
+        active_c_vars_.push_back({});
+    }
 
-        // 退出当前 C 作用域，丢弃其中所有局部声明。
-        void Exit() {
-            if (!scopes_.empty()) {
-                scopes_.pop_back();
+    void ExitCScope() {
+        if (!active_c_vars_.empty()) {
+            active_c_vars_.pop_back();
+        }
+    }
+
+    void ClearCScope() {
+        active_c_vars_.clear();
+    }
+
+    void DeclareCVar(const std::string &name) {
+        if (active_c_vars_.empty()) {
+            EnterCScope();
+        }
+        active_c_vars_.back().insert(name);
+    }
+
+    [[nodiscard]] bool IsCVarActive(const std::string &name) const {
+        for (const auto &scope: std::views::reverse(active_c_vars_)) {
+            if (scope.contains(name)) {
+                return true;
             }
         }
-
-        // 清空所有作用域（在每次函数体编译开始时调用）。
-        void Clear() {
-            scopes_.clear();
-        }
-
-        // 在当前最内层作用域声明变量的原生类型。
-        // native_type 为 T_DYNAMIC 时表示 CVar。
-        void Declare(const std::string &name, InferredType native_type) {
-            if (scopes_.empty()) {
-                Enter();
-            }
-            scopes_.back()[name] = native_type;
-        }
-
-        // 判断变量是否已声明为非 CVar 的原生类型（int64_t / double）。
-        [[nodiscard]] bool IsTyped(const std::string &name) const {
-            for (const auto &scope: std::views::reverse(scopes_)) {
-                if (const auto it = scope.find(name); it != scope.end()) {
-                    return it->second != T_DYNAMIC;
-                }
-            }
-            return false;
-        }
-
-        // 返回变量声明时的原生类型，未找到时返回 T_DYNAMIC。
-        [[nodiscard]] InferredType GetType(const std::string &name) const {
-            for (const auto &scope: std::views::reverse(scopes_)) {
-                if (const auto it = scope.find(name); it != scope.end()) {
-                    return it->second;
-                }
-            }
-            return T_DYNAMIC;
-        }
-
-    private:
-        // 作用域栈：每个元素是一个 name -> InferredType 映射。
-        std::vector<std::unordered_map<std::string, InferredType>> scopes_;
-    };
+        return false;
+    }
 
     // ==========================================
     // 第一部分：核心调度与编排
@@ -237,27 +207,46 @@ private:
 
     // 进入一个新的局部原生变量类型作用域
     void EnterNativeVarScope() {
-        runtime_type_tracker_.Enter();
+        EnterCScope();
     }
 
     // 退出当前局部原生变量类型作用域
     void ExitNativeVarScope() {
-        runtime_type_tracker_.Exit();
+        ExitCScope();
     }
 
     // 在当前局部原生作用域中声明一个具有强类型的原生 C 变量
     void DeclareNativeVar(const std::string &name, InferredType native_type) {
-        runtime_type_tracker_.Declare(name, native_type);
+        DeclareCVar(name);
     }
 
     // 检查变量是否为已知强类型的原生变量
-    [[nodiscard]] bool IsTypedNativeVar(const std::string &name) const {
-        return runtime_type_tracker_.IsTyped(name);
+    [[nodiscard]] bool IsTypedNativeVar(const std::string &name, const SyntaxTreeInterface* var_node) const {
+        // 1. 检查是否为特化函数参数，且参数类型为原生数值类型
+        if (cur_spec_ctx_) {
+            if (const auto it = cur_spec_ctx_->param_types.find(name); it != cur_spec_ctx_->param_types.end()) {
+                return it->second == T_INT || it->second == T_FLOAT;
+            }
+        }
+        // 2. 检查变量引用是否有定义节点映射，且该定义节点最终推断为原生数值类型
+        if (const auto it = ir().var_define_nodes.find(var_node); it != ir().var_define_nodes.end()) {
+            const auto def_type = LookupNodeType(const_cast<SyntaxTreeInterface*>(it->second));
+            return def_type == T_INT || def_type == T_FLOAT;
+        }
+        return false;
     }
 
     // 获取原生强类型变量在作用域中的推断类型
-    [[nodiscard]] InferredType GetNativeVarType(const std::string &name) const {
-        return runtime_type_tracker_.GetType(name);
+    [[nodiscard]] InferredType GetNativeVarType(const std::string &name, const SyntaxTreeInterface* var_node) const {
+        if (cur_spec_ctx_) {
+            if (const auto it = cur_spec_ctx_->param_types.find(name); it != cur_spec_ctx_->param_types.end()) {
+                return it->second;
+            }
+        }
+        if (const auto it = ir().var_define_nodes.find(var_node); it != ir().var_define_nodes.end()) {
+            return LookupNodeType(const_cast<SyntaxTreeInterface*>(it->second));
+        }
+        return T_DYNAMIC;
     }
 
     // 快捷访问推断器全局上下文结果
@@ -307,7 +296,7 @@ private:
 
     std::array<std::stringstream, static_cast<size_t>(Section::Count)> sections_;// C 代码分区输出流数组
 
-    RuntimeTypeTracker runtime_type_tracker_;                       // 代码生成期实时原生类型降级跟踪器
+    std::vector<std::unordered_set<std::string>> active_c_vars_;     // 代码生成期 C 语言活跃局部变量名作用域栈
     const struct SpecFuncContext *cur_spec_ctx_ = nullptr;           // 当前特化版本的上下文（func_name/bitmask/snapshot）
 
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流

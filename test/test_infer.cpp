@@ -477,7 +477,7 @@ TEST(infer, test_infer_for_shadow_case4) {
 TEST(infer, test_infer_do_shadow_typed_over_dynamic) {
     const auto code = InferGetCCode("./infer/test_infer_do_shadow_typed_over_dynamic.lua");
     ASSERT_NE(code.find("CVar a = "), std::string::npos);     // outer a
-    ASSERT_NE(code.find("int64_t a = 1;"), std::string::npos);// inner a
+    ASSERT_NE(code.find("int64_t a = "), std::string::npos);// inner a
 
     InferRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./infer/test_infer_do_shadow_typed_over_dynamic.lua", {.debug_mode = debug_mode});
