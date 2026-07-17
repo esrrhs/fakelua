@@ -795,7 +795,6 @@ void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::
     auto &body_ss = sections_[static_cast<size_t>(Section::Body)];
     body_ss.str("");
     body_ss.clear();
-    ClearCScope();
     EnterNativeVarScope();
     for (const auto &param_name: func_params) {
         // 在特化模式中，数学参数已在函数签名中声明为原生类型（int64_t/double），
@@ -1114,7 +1113,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             if (type == T_INT || type == T_FLOAT) {
                 const auto native_expr = CompileNumericExp(exps[i]);
                 const std::string type_str = (type == T_INT) ? "int64_t" : "double";
-                if (IsCVarActive(name)) {
+                if (ir().shadowed_decls.contains({stmt.get(), name})) {
                     const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    " << type_str << " " << tmp << ";\n";
                     Out() << GenTab() << tmp << " = " << native_expr << ";\n";
@@ -1159,7 +1158,7 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             if (type == T_INT || type == T_FLOAT) {
                 const auto native_expr = CompileNumericExp(exps[i]);
                 const std::string type_str = (type == T_INT) ? "int64_t" : "double";
-                if (IsCVarActive(name)) {
+                if (ir().shadowed_decls.contains({stmt.get(), name})) {
                     const auto tmp = std::format("flua_local_{}", tmp_var_counter_++);
                     func_temp_decls_ << "    " << type_str << " " << tmp << ";\n";
                     Out() << GenTab() << tmp << " = " << native_expr << ";\n";

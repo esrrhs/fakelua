@@ -6,6 +6,7 @@
 #include "util/debug.h"
 #include <algorithm>
 #include <format>
+#include <set>
 #include <string>
 #include <unordered_set>
 #include <vector>
@@ -339,6 +340,9 @@ struct InferResult {
     // 变量定义关联表：从语法树变量引用节点 (SyntaxTreeVar) 指针 → 对应的初始化声明节点 (init_node)。
     // 由 TypeInferencer 填充，供 CGen 直接利用声明节点快照来查询当前物理变量是 native 还是 CVar。
     std::unordered_map<const SyntaxTreeInterface*, const SyntaxTreeInterface*> var_define_nodes;
+    // 遮蔽（Shadowing）声明：记录哪些 local 变量声明语句中的哪些变量名遮蔽了外部同名变量。
+    // pair 的 first 是 SyntaxTreeLocalVar 节点指针，second 是变量名。
+    std::set<std::pair<const SyntaxTreeInterface*, std::string>> shadowed_decls;
 };
 
 struct JitFunctionInfo {
