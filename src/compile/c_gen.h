@@ -42,11 +42,6 @@ private:
         }
     };
 
-    void EnterCScope() {}
-    void ExitCScope() {}
-    void ClearCScope() {}
-    void DeclareCVar(const std::string &name) {}
-
     // ==========================================
     // 第一部分：核心调度与编排
     // ==========================================
@@ -178,10 +173,6 @@ private:
     [[nodiscard]] bool TryInferMathCallSpec(const std::string &callee_name, const std::vector<SyntaxTreeInterfacePtr> &raw_args, int &bitmask, InferredType &spec_ret) const;
     // 根据 AST 节点指针在当前快照中查找推断出的类型
     [[nodiscard]] InferredType LookupNodeType(SyntaxTreeInterface *node) const;
-
-    void EnterNativeVarScope() {}
-    void ExitNativeVarScope() {}
-    void DeclareNativeVar(const std::string &name, InferredType native_type) {}
 
     // 检查变量是否为已知强类型的原生变量
     [[nodiscard]] bool IsTypedNativeVar(const std::string &name, const SyntaxTreeInterface* var_node) const {
