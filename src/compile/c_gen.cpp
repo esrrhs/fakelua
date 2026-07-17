@@ -560,7 +560,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                     }
                 }
                 Out() << ") {\n";
-                CompileFuncBody(name, func_params, func_block, bitmask, sections_[static_cast<size_t>(Section::Impls)]);
+                CompileFuncBody(name, func_block, bitmask, sections_[static_cast<size_t>(Section::Impls)]);
                 if (!BlockEndsWithReturn(func_block)) {
                     // 回退：当函数不以 return 结束时补充默认返回值。
                     // 对于原生返回类型，补 0/0.0；对于 CVar 类型，补 kNil。
@@ -586,7 +586,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                 Out() << "CVar " << func_params[i];
             }
             Out() << ") {\n";
-            CompileFuncBody(name, func_params, func_block, -1, sections_[static_cast<size_t>(Section::Impls)]);
+            CompileFuncBody(name, func_block, -1, sections_[static_cast<size_t>(Section::Impls)]);
             if (!BlockEndsWithReturn(func_block)) {
                 Out() << "    return kNil;\n";
             }
@@ -775,7 +775,7 @@ InferredType CGen::GetSpecFieldType(const std::string &spec_type, const std::str
     return fit == it->second.field_types.end() ? T_UNKNOWN : fit->second;
 }
 
-void CGen::CompileFuncBody(const std::string &func_name, const std::vector<std::string> &func_params, const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out) {
+void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfacePtr &func_block, int spec_bitmask, std::ostream &out) {
     SectionGuard section_guard(*this, Section::Body);
     // 初始化特化上下文：从 ir.spec_func_context 查得当前版本的 snapshot/func_name/bitmask。
     const SpecFuncContext *ctx = nullptr;
@@ -977,7 +977,7 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
         case SyntaxTreeType::Block:
             Out() << GenTab() << "{\n";
             cur_tab_++;
-            CompileScopedBlock(stmt);
+            CompileStmtBlock(stmt);
             cur_tab_--;
             Out() << GenTab() << "}\n";
             break;
@@ -1266,9 +1266,6 @@ void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &stmt) {
     CompileFunctioncall(stmt);
 }
 
-void CGen::CompileScopedBlock(const SyntaxTreeInterfacePtr &block) {
-    CompileStmtBlock(block);
-}
 
 std::string CGen::CompileCondBoolExpr(const SyntaxTreeInterfacePtr &exp, const std::string &tmp_prefix) {
     if (auto native_cond = TryCompileNativeBoolExpr(exp); !native_cond.empty()) {
@@ -1288,7 +1285,7 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     if (const auto native_cond = TryCompileNativeBoolExpr(while_stmt->Exp()); !native_cond.empty()) {
         Out() << GenTab() << "while (" << native_cond << ") {\n";
         cur_tab_++;
-        CompileScopedBlock(while_stmt->Block());
+        CompileStmtBlock(while_stmt->Block());
         cur_tab_--;
         Out() << GenTab() << "}\n";
         return;
@@ -1301,7 +1298,7 @@ void CGen::CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt) {
     const auto cond = CompileExp(while_stmt->Exp());
     Out() << GenTab() << std::format("IsTrue(({}), {});\n", cond, tmp_bool);
     Out() << GenTab() << std::format("if (!{}) break;\n", tmp_bool);
-    CompileScopedBlock(while_stmt->Block());
+    CompileStmtBlock(while_stmt->Block());
     cur_tab_--;
     Out() << GenTab() << "}\n";
 }
@@ -1311,6 +1308,7 @@ void CGen::CompileStmtRepeat(const SyntaxTreeInterfacePtr &stmt) {
     const auto repeat_stmt = std::dynamic_pointer_cast<SyntaxTreeRepeat>(stmt);
 
     Out() << GenTab() << "do {\n";
+    // Lua 语义：until 条件可访问块内声明的 local 变量 —— 先编译块，再编译条件。
     cur_tab_++;
 
     CompileStmtBlock(repeat_stmt->Block());
@@ -1331,7 +1329,7 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     const auto cond_bool = CompileCondBoolExpr(if_stmt->Exp(), "flua_ibt");
     Out() << GenTab() << std::format("if ({}) {{\n", cond_bool);
     cur_tab_++;
-    CompileScopedBlock(if_stmt->Block());
+    CompileStmtBlock(if_stmt->Block());
     cur_tab_--;
     Out() << GenTab() << "}";
 
@@ -1346,7 +1344,7 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
             const auto econd_bool = CompileCondBoolExpr(elseif_list->ElseifExp(i), "flua_ibt");
             Out() << GenTab() << std::format("if ({}) {{\n", econd_bool);
             cur_tab_++;
-            CompileScopedBlock(elseif_list->ElseifBlock(i));
+            CompileStmtBlock(elseif_list->ElseifBlock(i));
             cur_tab_--;
             Out() << GenTab() << "}";
         }
@@ -1355,7 +1353,7 @@ void CGen::CompileStmtIf(const SyntaxTreeInterfacePtr &stmt) {
     if (const auto else_block = if_stmt->ElseBlock()) {
         Out() << " else {\n";
         cur_tab_++;
-        CompileScopedBlock(else_block);
+        CompileStmtBlock(else_block);
         cur_tab_--;
         Out() << GenTab() << "}";
     }
@@ -2279,9 +2277,6 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                 const auto key_name = exp_node->ExpValue();
                 if (!spec_type.empty() && IsSpecField(spec_type, key_name, TableKeyKind::kString)) {
                     const auto c_name = GetSpecFieldCName(spec_type, key_name, TableKeyKind::kString);
-                    const auto ftype = GetSpecFieldType(spec_type, key_name, TableKeyKind::kString);
-                    if (ftype == T_INT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
-                    if (ftype == T_FLOAT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
                     return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
                 }
                 const auto id = s_->GetConstString().Alloc(key_name);
@@ -2293,18 +2288,12 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                 if (num_str.find('.') == std::string::npos && num_str.find('e') == std::string::npos && num_str.find('E') == std::string::npos) {
                     if (!spec_type.empty() && IsSpecField(spec_type, num_str, TableKeyKind::kInt)) {
                         const auto c_name = GetSpecFieldCName(spec_type, num_str, TableKeyKind::kInt);
-                        const auto ftype = GetSpecFieldType(spec_type, num_str, TableKeyKind::kInt);
-                        if (ftype == T_INT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
-                        if (ftype == T_FLOAT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
                         return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
                     }
                     return std::format("FlGetTableInt({}, {})", pe_ret, num_str);
                 } else {
                     if (!spec_type.empty() && IsSpecField(spec_type, num_str, TableKeyKind::kFloat)) {
                         const auto c_name = GetSpecFieldCName(spec_type, num_str, TableKeyKind::kFloat);
-                        const auto ftype = GetSpecFieldType(spec_type, num_str, TableKeyKind::kFloat);
-                        if (ftype == T_INT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
-                        if (ftype == T_FLOAT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
                         return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
                     }
                     return std::format("FlGetTable({}, (CVar){{.type_ = VAR_FLOAT, .data_.f = {}}})", pe_ret, num_str);
@@ -2315,9 +2304,6 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
                 std::string bool_str = (exp_node->GetExpKind() == ExpKind::kTrue) ? "true" : "false";
                 if (!spec_type.empty() && IsSpecField(spec_type, bool_str, TableKeyKind::kBool)) {
                     const auto c_name = GetSpecFieldCName(spec_type, bool_str, TableKeyKind::kBool);
-                    const auto ftype = GetSpecFieldType(spec_type, bool_str, TableKeyKind::kBool);
-                    if (ftype == T_INT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
-                    if (ftype == T_FLOAT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
                     return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
                 }
                 return std::format("FlGetTable({}, {})", pe_ret, bool_str == "true" ? "kTrue" : "kFalse");
@@ -2341,9 +2327,6 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
         const auto spec_type = GetSpecTypeForVar(pe);
         if (!spec_type.empty() && IsSpecField(spec_type, name, TableKeyKind::kString)) {
             const auto c_name = GetSpecFieldCName(spec_type, name, TableKeyKind::kString);
-            const auto ftype = GetSpecFieldType(spec_type, name, TableKeyKind::kString);
-            if (ftype == T_INT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
-            if (ftype == T_FLOAT) return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
             return std::format("FL_SPEC({}, {}, {})", spec_type, pe_ret, c_name);
         }
 
@@ -2601,39 +2584,36 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
 
                 if (int bitmask = 0; TryInferMathCallBitmask(callee_name, raw_args, bitmask)) {
                     std::unordered_map<int, std::string> native_exprs;
-                    bool can_spec = true;
                     for (int param_pos: math_params) {
                         const auto native_expr = TryCompileNativeExpr(raw_args[param_pos]);
                         DEBUG_ASSERT(!native_expr.empty());
                         native_exprs[param_pos] = native_expr;
                     }
 
-                    if (can_spec) {
-                        const auto spec_name = SpecFuncName(callee_name, math_params, bitmask);
-                        std::string call = spec_name + "(";
-                        for (int i = 0; i < static_cast<int>(raw_args.size()); ++i) {
-                            if (i > 0) {
-                                call += ", ";
-                            }
-                            if (const auto ne_it = native_exprs.find(i); ne_it != native_exprs.end()) {
-                                call += ne_it->second;
-                            } else {
-                                call += CompileExp(raw_args[i]);
-                            }
+                    const auto spec_name = SpecFuncName(callee_name, math_params, bitmask);
+                    std::string call = spec_name + "(";
+                    for (int i = 0; i < static_cast<int>(raw_args.size()); ++i) {
+                        if (i > 0) {
+                            call += ", ";
                         }
-                        call += ")";
-                        const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
-                        func_temp_decls_ << "    CVar " << tmp << ";\n";
-                        if (const auto spec_ret = GetSpecReturnType(callee_name, bitmask); spec_ret == T_INT || spec_ret == T_FLOAT) {
-                            const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
-                            func_temp_decls_ << "    " << SpecReturnCTypeName(spec_ret) << " " << ntmp << ";\n";
-                            Out() << GenTab() << ntmp << " = " << call << ";\n";
-                            Out() << GenTab() << tmp << " = " << BoxNativeValue(ntmp, spec_ret) << ";\n";
+                        if (const auto ne_it = native_exprs.find(i); ne_it != native_exprs.end()) {
+                            call += ne_it->second;
                         } else {
-                            Out() << GenTab() << tmp << " = " << call << ";\n";
+                            call += CompileExp(raw_args[i]);
                         }
-                        return tmp;
                     }
+                    call += ")";
+                    const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
+                    func_temp_decls_ << "    CVar " << tmp << ";\n";
+                    if (const auto spec_ret = GetSpecReturnType(callee_name, bitmask); spec_ret == T_INT || spec_ret == T_FLOAT) {
+                        const auto ntmp = std::format("flua_native_{}", tmp_var_counter_++);
+                        func_temp_decls_ << "    " << SpecReturnCTypeName(spec_ret) << " " << ntmp << ";\n";
+                        Out() << GenTab() << ntmp << " = " << call << ";\n";
+                        Out() << GenTab() << tmp << " = " << BoxNativeValue(ntmp, spec_ret) << ";\n";
+                    } else {
+                        Out() << GenTab() << tmp << " = " << call << ";\n";
+                    }
+                    return tmp;
                 }
             }
         }

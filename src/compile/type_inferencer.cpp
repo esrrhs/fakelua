@@ -1009,6 +1009,8 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
         }
 
         // 运行函数体类型推断（不新开作用域，参数已在当前作用域中定义）。
+        // Trial 推断不消费 shadow 信息（shadow 只与 AST 结构相关，主推断已覆盖），
+        // 但 TraversalContext 需要一个引用，因此用一个丢弃式的 set 占位。
         std::set<std::pair<const SyntaxTreeInterface*, std::string>> dummy_shadowed_decls;
         TraversalContext tctx{current_map, env, &ctx, var_define_nodes, dummy_shadowed_decls};
         InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block), false, tctx);
