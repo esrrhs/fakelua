@@ -400,7 +400,7 @@ TEST(runtime, state_config_is_stored) {
 
 // 使用宏定义 VmFnEcho9 到 VmFnEcho32
 #define DEFINE_ECHO_FN(N)                                                                                                                                                                              \
-    static CVar VmFnEcho##N(PARAMS_##N) {                                                                                                                                                              \
+    static CVar VmFnEcho##N(VarClosure *_CL, PARAMS_##N) {                                                                                                                                              \
         CVar ret;                                                                                                                                                                                      \
         ret.type_ = static_cast<int>(VarType::Int);                                                                                                                                                    \
         ret.data_.i = N;                                                                                                                                                                               \
