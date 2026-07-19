@@ -49,6 +49,11 @@ GenResult CGen::Generate(const ParseResult &pr, const InferResult &ir, const Ana
 GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
     GenResult gr;
 
+    // 0. Resolve lexical scopes and closure upvalues
+    std::vector<Scope> scopes;
+    std::vector<FuncInfo *> func_stack;
+    ResolveScopes(pr.chunk, scopes, func_stack, nullptr);
+
     // 1. 生成 C 文件的头文件包含、基础结构体及宏定义
     GenerateHeader();
 
@@ -351,59 +356,27 @@ void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
     SectionGuard sg(*this, Section::Decls);
     Out() << "\n// ===== Function Declarations =====\n\n";
 
-    std::unordered_map<std::string, std::vector<std::string>> func_decls;// 函数名 -> 参数类型列表（用于重载）
+    for (const auto &func : all_funcs_) {
+        const std::string &name = func->unique_c_name;
+        const auto &params = func->params;
 
-    DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
-    for (const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk); auto &stmt: block->Stmts()) {
-        std::string name;
-        SyntaxTreeInterfacePtr funcbody;
-        if (stmt->Type() == SyntaxTreeType::Function) {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
-            name = CompileFuncName(func->Funcname());
-            funcbody = func->Funcbody();
-        } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
-            name = func->Name();
-            funcbody = func->Funcbody();
-        }
-
-        if (!funcbody) {
-            continue;
-        }
-
-        DEBUG_ASSERT(funcbody->Type() == SyntaxTreeType::FuncBody);
-        const auto funcbody_ptr = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
-        const auto parlist = funcbody_ptr->Parlist();
-        std::vector<std::string> func_params;
-        if (parlist) {
-            func_params = CompileParList(parlist);
-        }
-        func_decls[name] = func_params;
-    }
-
-    for (const auto &[name, params]: func_decls) {
-        // 生成函数声明
-        Out() << "CVar " << name << "(";
+        // 生成带有 VarClosure *_CL 的函数声明
+        Out() << "CVar " << name << "(VarClosure *_CL";
         for (size_t i = 0; i < params.size(); ++i) {
-            if (i > 0) {
-                Out() << ", ";
-            }
-            Out() << "CVar " << params[i];
+            Out() << ", CVar " << params[i];
         }
         Out() << ");\n";
 
-        bool is_vararg = !params.empty() && params.back().rfind("__fakelua_vararg_", 0) == 0;
-
-        // 记录函数参数数量和变参标记
+        bool is_vararg = func->is_vararg;
         gr.function_names[name] = JitFunctionInfo{static_cast<int>(params.size()), is_vararg};
 
-        // 如果函数含有数学参数，还需声明 2^k 个特化变体。
-        if (const auto math_it = ir().math_param_positions.find(name); math_it != ir().math_param_positions.end()) {
+        // 如果原始函数含有数学参数，声明其特化变体
+        if (const auto math_it = ir().math_param_positions.find(func->name); math_it != ir().math_param_positions.end()) {
             const auto &math_params = math_it->second;
             const int num_specs = 1 << static_cast<int>(math_params.size());
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
                 const auto spec_name = SpecFuncName(name, math_params, bitmask);
-                const auto spec_ret = GetSpecReturnType(name, bitmask);
+                const auto spec_ret = GetSpecReturnType(func->name, bitmask);
                 Out() << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < params.size(); ++i) {
                     if (i > 0) {
@@ -437,18 +410,12 @@ std::string CGen::CompileFuncName(const SyntaxTreeInterfacePtr &ptr) {
     const auto funcnamelist = std::dynamic_pointer_cast<SyntaxTreeFuncnamelist>(funcnamelistptr);
     const auto &namelist = funcnamelist->Funcnames();
 
-    // PreProcessor 已确保函数名为单段
     DEBUG_ASSERT(namelist.size() == 1);
 
-    // PreProcessor 已确保无冒号函数名
     DEBUG_ASSERT(name->ColonName().empty());
 
     return namelist[0];
 }
-
-// ===========================================================================
-// 第五部分：杂项辅助
-// ===========================================================================
 
 [[noreturn]] void CGen::ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr) {
     ThrowFakeluaException(std::format("Code generate failed, {} at {}:{}:{}", msg, file_name_, ptr->Loc().begin.line, ptr->Loc().begin.column));
@@ -494,41 +461,17 @@ std::vector<std::string> CGen::CompileParList(const SyntaxTreeInterfacePtr &parl
 void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
     SectionGuard sg(*this, Section::Impls);
     DEBUG_ASSERT(chunk->Type() == SyntaxTreeType::Block);
-    const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(chunk);
 
-    // 第一步：优先编译 __fakelua_init
-    SyntaxTreeInterfacePtr init_stmt = nullptr;
-    for (auto &stmt: block->Stmts()) {
-        std::string name;
-        if (stmt->Type() == SyntaxTreeType::Function) {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
-            name = CompileFuncName(func->Funcname());
-        } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
-            name = func->Name();
-        }
-        if (name == kInitFunctionName) {
-            init_stmt = stmt;
-            break;
-        }
-    }
-
-    auto compile_func = [this, &gr](const SyntaxTreeInterfacePtr &stmt) {
-        std::string name;
-        SyntaxTreeInterfacePtr funcbody;
-        if (stmt->Type() == SyntaxTreeType::Function) {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
-            name = CompileFuncName(func->Funcname());
-            funcbody = func->Funcbody();
-        } else if (stmt->Type() == SyntaxTreeType::LocalFunction) {
-            const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
-            name = func->Name();
-            funcbody = func->Funcbody();
-        }
+    auto compile_func = [this](FuncInfo *func) {
+        const std::string &name = func->unique_c_name;
+        SyntaxTreeInterfacePtr funcbody = func->funcbody;
 
         if (!funcbody) {
             return;
         }
+
+        FuncInfo *prev_func_info = cur_func_info_;
+        cur_func_info_ = func;
 
         DEBUG_ASSERT(funcbody->Type() == SyntaxTreeType::FuncBody);
         const auto funcbody_ptr = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
@@ -539,14 +482,12 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
         }
 
         const auto func_block = funcbody_ptr->Block();
-        if (const auto math_it = ir().math_param_positions.find(name); math_it != ir().math_param_positions.end()) {
-            // 函数含有数学参数：生成 2^k 个特化函数体，然后生成入口分发器。
+        if (const auto math_it = ir().math_param_positions.find(func->name); math_it != ir().math_param_positions.end()) {
             const auto &math_params = math_it->second;
             const int num_specs = 1 << static_cast<int>(math_params.size());
             for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
                 const auto spec_name = SpecFuncName(name, math_params, bitmask);
-                const auto spec_ret = GetSpecReturnType(name, bitmask);
-                // 输出特化函数签名。
+                const auto spec_ret = GetSpecReturnType(func->name, bitmask);
                 Out() << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
                 for (size_t i = 0; i < func_params.size(); ++i) {
                     if (i > 0) {
@@ -560,10 +501,8 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                     }
                 }
                 Out() << ") {\n";
-                CompileFuncBody(name, func_block, bitmask, sections_[static_cast<size_t>(Section::Impls)]);
+                CompileFuncBody(func->name, func_block, bitmask, sections_[static_cast<size_t>(Section::Impls)]);
                 if (!BlockEndsWithReturn(func_block)) {
-                    // 回退：当函数不以 return 结束时补充默认返回值。
-                    // 对于原生返回类型，补 0/0.0；对于 CVar 类型，补 kNil。
                     if (spec_ret == T_INT) {
                         Out() << "    return 0;\n";
                     } else if (spec_ret == T_FLOAT) {
@@ -574,70 +513,49 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                 }
                 Out() << "}\n";
             }
-            // 输出入口分发器（原始 CVar 签名）。
             GenerateEntryDispatcher(name, func_params, math_params);
         } else {
-            // 无数学参数：正常编译（行为不变）。
-            Out() << "CVar " << name << "(";
+            Out() << "CVar " << name << "(VarClosure *_CL";
             for (size_t i = 0; i < func_params.size(); ++i) {
-                if (i > 0) {
-                    Out() << ", ";
-                }
-                Out() << "CVar " << func_params[i];
+                Out() << ", CVar " << func_params[i];
             }
             Out() << ") {\n";
-            CompileFuncBody(name, func_block, -1, sections_[static_cast<size_t>(Section::Impls)]);
+            CompileFuncBody(func->name, func_block, -1, sections_[static_cast<size_t>(Section::Impls)]);
             if (!BlockEndsWithReturn(func_block)) {
                 Out() << "    return kNil;\n";
             }
             Out() << "}\n";
         }
+
+        cur_func_info_ = prev_func_info;
     };
 
-    if (init_stmt) {
-        compile_func(init_stmt);
+    FuncInfo *init_func = nullptr;
+    for (const auto &func : all_funcs_) {
+        if (func->unique_c_name == kInitFunctionName) {
+            init_func = func.get();
+            break;
+        }
     }
-
-    // 第二步：编译其它所有函数
-    for (auto &stmt: block->Stmts()) {
-        if (stmt == init_stmt) continue;
-        compile_func(stmt);
+    if (init_func) {
+        compile_func(init_func);
+    }
+    for (const auto &func : all_funcs_) {
+        if (func.get() == init_func) continue;
+        compile_func(func.get());
     }
 }
 
-// ---------------------------------------------------------------------------
-// GenerateEntryDispatcher —— 特化函数的 CVar 入口分发器
-//
-// 背景：
-//   每个含数学参数的函数 f(a, b, n) 最终对外暴露的仍是 CVar 签名的 f(a, b, n)，
-//   以保持与其他 Lua 代码（动态调用）兼容。但函数体本身被拆分为 2^k 个特化版本
-//   f_00, f_01, f_10, f_11（k = 数学参数个数），每种版本的数学参数类型为确定的
-//   int64_t / double，可生成高效的原生算术代码。
-//
-// 此函数生成的入口分发器负责：
-//   1. 参数类型检查：每个数学参数必须是 VAR_INT 或 VAR_FLOAT，否则运行时报错。
-//   2. 计算分发索引（bitmask）：
-//      对每个数学参数 p_i，若 p_i.type_ == VAR_FLOAT 则对应位置 1，否则置 0，
-//      通过 OR 组合生成 0 ~ 2^k-1 范围内的整数索引。
-//   3. switch 分发：按 bitmask 跳转到对应的特化函数，
-//      将数学参数从 CVar 中拆包（.data_.i / .data_.f）后直接传入。
-//      若特化函数返回原生类型（T_INT/T_FLOAT），则在返回前装箱为 CVar。
-// ---------------------------------------------------------------------------
 void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vector<std::string> &func_params, const std::vector<int> &math_param_indices) {
     const int k = static_cast<int>(math_param_indices.size());
     const int num_specs = 1 << k;
 
-    // 入口函数：始终使用 CVar 签名。
-    Out() << "CVar " << func_name << "(";
+    Out() << "CVar " << func_name << "(VarClosure *_CL";
     for (size_t i = 0; i < func_params.size(); ++i) {
-        if (i > 0) {
-            Out() << ", ";
-        }
-        Out() << "CVar " << func_params[i];
+        Out() << ", CVar " << func_params[i];
     }
     Out() << ") {\n";
 
-    // 检查 math param 必须是数值类型，否则抛出运行时错误（含参数序号和参数名）。
     for (int i = 0; i < k; ++i) {
         const int param_idx = math_param_indices[i];
         const auto &mp_name = func_params[static_cast<size_t>(param_idx)];
@@ -646,7 +564,6 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vect
                              mp_name, param_idx + 1, mp_name);
     }
 
-    // 计算分发索引。
     Out() << "    int flua_spec_idx = ";
     for (int i = 0; i < k; ++i) {
         if (i > 0) {
@@ -661,12 +578,10 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vect
     }
     Out() << ";\n";
 
-    // 分发表（switch）。
     Out() << "    switch (flua_spec_idx) {\n";
     for (int bitmask = 0; bitmask < num_specs; ++bitmask) {
         const auto spec_name = SpecFuncName(func_name, math_param_indices, bitmask);
 
-        // 构建参数列表字符串（math 参数取 .data_.i / .data_.f，其余直接传 CVar）。
         std::string args_str;
         for (size_t i = 0; i < func_params.size(); ++i) {
             if (i > 0) {
@@ -682,7 +597,6 @@ void CGen::GenerateEntryDispatcher(const std::string &func_name, const std::vect
         }
 
         if (const auto spec_ret = GetSpecReturnType(func_name, bitmask); spec_ret == T_INT || spec_ret == T_FLOAT) {
-            // 特化函数返回原生数值类型：需要将结果装箱为 CVar 后再返回。
             const auto native_tmp = std::format("flua_r_{}", bitmask);
             Out() << std::format("        case {}: {{ {} {} = {}({}); return {}; }}\n", bitmask, SpecReturnCTypeName(spec_ret), native_tmp, spec_name, args_str, BoxNativeValue(native_tmp, spec_ret));
         } else {
@@ -795,6 +709,40 @@ void CGen::CompileFuncBody(const std::string &func_name, const SyntaxTreeInterfa
     auto &body_ss = sections_[static_cast<size_t>(Section::Body)];
     body_ss.str("");
     body_ss.clear();
+
+    // Box captured parameters at the start of the function
+    if (cur_func_info_) {
+        const SyntaxTreeInterface *parlist_ptr = nullptr;
+        SyntaxTreeInterfacePtr funcbody = cur_func_info_->funcbody;
+        if (funcbody) {
+            const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
+            if (fb->Parlist()) parlist_ptr = fb->Parlist().get();
+        }
+        
+        if (parlist_ptr) {
+            for (const auto &pname : cur_func_info_->params) {
+                bool is_captured = false;
+                if (const auto it = stmt_var_to_def_.find({parlist_ptr, pname}); it != stmt_var_to_def_.end()) {
+                    is_captured = it->second->is_captured;
+                }
+                if (is_captured) {
+                    func_temp_decls_ << "    CVar *__box_" << pname << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
+                    if (cur_spec_ctx_) {
+                        if (const auto pit = cur_spec_ctx_->param_types.find(pname); pit != cur_spec_ctx_->param_types.end()) {
+                            if (pit->second == T_INT) {
+                                func_temp_decls_ << std::format("    *__box_{0} = (CVar){{.type_ = VAR_INT, .data_.i = {0}}};\n", pname);
+                                continue;
+                            } else if (pit->second == T_FLOAT) {
+                                func_temp_decls_ << std::format("    *__box_{0} = (CVar){{.type_ = VAR_FLOAT, .data_.f = {0}}};\n", pname);
+                                continue;
+                            }
+                        }
+                    }
+                    func_temp_decls_ << "    *__box_" << pname << " = " << pname << ";\n";
+                }
+            }
+        }
+    }
     cur_tab_++;
     CompileStmtBlock(func_block);
     cur_tab_--;
@@ -999,6 +947,9 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
         case SyntaxTreeType::ForIn:
             CompileStmtForIn(stmt);
             break;
+        case SyntaxTreeType::LocalFunction:
+            CompileStmtLocalFunction(stmt);
+            break;
         case SyntaxTreeType::Empty:
             break;
         case SyntaxTreeType::Goto:
@@ -1098,6 +1049,16 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             if (ar().global_const_names.contains(name)) {
                 ThrowError("local variable conflicts with global constant: " + name, stmt);
             }
+            bool is_captured = false;
+            if (const auto it = stmt_var_to_def_.find({stmt.get(), name}); it != stmt_var_to_def_.end()) {
+                is_captured = it->second->is_captured;
+            }
+            if (is_captured) {
+                const std::string init = CompileExp(exps[i]);
+                Out() << GenTab() << "CVar *__box_" << name << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
+                Out() << GenTab() << "*__box_" << name << " = " << init << ";\n";
+                continue;
+            }
             // All prior expressions map one-to-one to variables
             const auto type = LookupNodeType(exps[i].get());
             if (type == T_INT || type == T_FLOAT) {
@@ -1129,7 +1090,16 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
             if (ar().global_const_names.contains(name)) {
                 ThrowError("local variable conflicts with global constant: " + name, stmt);
             }
-            Out() << GenTab() << "CVar " << name << " = FlUnboxMulti(" << tmp_res << ", " << (i - (exps.size() - 1)) << ");\n";
+            bool is_captured = false;
+            if (const auto it = stmt_var_to_def_.find({stmt.get(), name}); it != stmt_var_to_def_.end()) {
+                is_captured = it->second->is_captured;
+            }
+            if (is_captured) {
+                Out() << GenTab() << "CVar *__box_" << name << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
+                Out() << GenTab() << "*__box_" << name << " = FlUnboxMulti(" << tmp_res << ", " << (i - (exps.size() - 1)) << ");\n";
+            } else {
+                Out() << GenTab() << "CVar " << name << " = FlUnboxMulti(" << tmp_res << ", " << (i - (exps.size() - 1)) << ");\n";
+            }
         }
     } else {
         // Standard one-to-one compilation path (or fallback path where extra variables get nil)
@@ -1138,6 +1108,17 @@ void CGen::CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt) {
 
             if (ar().global_const_names.contains(name)) {
                 ThrowError("local variable conflicts with global constant: " + name, stmt);
+            }
+
+            bool is_captured = false;
+            if (const auto it = stmt_var_to_def_.find({stmt.get(), name}); it != stmt_var_to_def_.end()) {
+                is_captured = it->second->is_captured;
+            }
+            if (is_captured) {
+                const std::string init = (i < exps.size()) ? CompileExp(exps[i]) : "kNil";
+                Out() << GenTab() << "CVar *__box_" << name << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
+                Out() << GenTab() << "*__box_" << name << " = " << init << ";\n";
+                continue;
             }
 
             const auto type = (i < exps.size()) ? LookupNodeType(exps[i].get()) : T_DYNAMIC;
@@ -1258,7 +1239,7 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
         }
     } else {
         const std::string rhs = CompileExp(exps[0]);
-        Out() << GenTab() << name << " = " << rhs << ";\n";
+        Out() << GenTab() << CompileVar(v_ptr) << " = " << rhs << ";\n";
     }
 }
 
@@ -1488,10 +1469,19 @@ void CGen::CompileTypedNumericForLoop(const std::shared_ptr<SyntaxTreeForLoop> &
               << " += " << step_var << ") {\n";
     }
     cur_tab_++;
-    if (LookupNodeType(for_stmt.get()) == loop_type) {
-        Out() << GenTab() << type_str << " " << for_stmt->Name() << " = " << ctrl_var << ";\n";
+    bool is_captured = false;
+    if (const auto it = stmt_var_to_def_.find({for_stmt.get(), for_stmt->Name()}); it != stmt_var_to_def_.end()) {
+        is_captured = it->second->is_captured;
+    }
+    if (is_captured) {
+        Out() << GenTab() << "CVar *__box_" << for_stmt->Name() << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
+        Out() << GenTab() << "*__box_" << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, loop_type) << ";\n";
     } else {
-        Out() << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, loop_type) << ";\n";
+        if (LookupNodeType(for_stmt.get()) == loop_type) {
+            Out() << GenTab() << type_str << " " << for_stmt->Name() << " = " << ctrl_var << ";\n";
+        } else {
+            Out() << GenTab() << "CVar " << for_stmt->Name() << " = " << BoxNativeValue(ctrl_var, loop_type) << ";\n";
+        }
     }
     // 用内层作用域包裹循环体，避免 local 同名变量与循环变量在同一 C 作用域中重复声明。
     Out() << GenTab() << "{\n";
@@ -1556,7 +1546,16 @@ void CGen::CompileDynamicForLoop(const std::shared_ptr<SyntaxTreeForLoop> &for_s
     Out() << GenTab() << std::format("if (!{}) break;\n", cond_var);
 
     const auto &loop_var_name = for_stmt->Name();
-    Out() << GenTab() << "CVar " << loop_var_name << " = " << ctrl_var << ";\n";
+    bool is_captured = false;
+    if (const auto it = stmt_var_to_def_.find({for_stmt.get(), loop_var_name}); it != stmt_var_to_def_.end()) {
+        is_captured = it->second->is_captured;
+    }
+    if (is_captured) {
+        Out() << GenTab() << "CVar *__box_" << loop_var_name << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
+        Out() << GenTab() << "*__box_" << loop_var_name << " = " << ctrl_var << ";\n";
+    } else {
+        Out() << GenTab() << "CVar " << loop_var_name << " = " << ctrl_var << ";\n";
+    }
 
     Out() << GenTab() << "{\n";
     cur_tab_++;
@@ -1631,17 +1630,37 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     cur_tab_++;
 
     const auto &key_name = names[0];
+    const auto tmp_k = std::format("flua_fi_k_{}", tmp_var_counter_++);
+    Out() << GenTab() << "CVar " << tmp_k << ";\n";
+    std::string tmp_v = "";
     if (names.size() >= 2) {
-        const auto &val_name = names[1];
-        Out() << GenTab() << "CVar " << key_name << "; CVar " << val_name << ";\n";
-        Out() << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, key_name, val_name);
-        Out() << GenTab() << std::format("if ({} == VAR_NIL) {{ continue; }}\n", val_name + ".type_");
+        tmp_v = std::format("flua_fi_v_{}", tmp_var_counter_++);
+        Out() << GenTab() << "CVar " << tmp_v << ";\n";
+        Out() << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, tmp_k, tmp_v);
+        Out() << GenTab() << std::format("if ({} == VAR_NIL) {{ continue; }}\n", tmp_v + ".type_");
     } else {
         const auto dummy_val = std::format("flua_fi_dummy_val_{}", tmp_var_counter_++);
         func_temp_decls_ << "    CVar " << dummy_val << ";\n";
-        Out() << GenTab() << "CVar " << key_name << ";\n";
-        Out() << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, key_name, dummy_val);
+        Out() << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, tmp_k, dummy_val);
         Out() << GenTab() << std::format("if ({} == VAR_NIL) {{ continue; }}\n", dummy_val + ".type_");
+    }
+
+    auto handle_loop_var = [&](const std::string &vname, const std::string &src_tmp) {
+        bool is_captured = false;
+        if (const auto it = stmt_var_to_def_.find({for_in.get(), vname}); it != stmt_var_to_def_.end()) {
+            is_captured = it->second->is_captured;
+        }
+        if (is_captured) {
+            Out() << GenTab() << "CVar *__box_" << vname << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
+            Out() << GenTab() << "*__box_" << vname << " = " << src_tmp << ";\n";
+        } else {
+            Out() << GenTab() << "CVar " << vname << " = " << src_tmp << ";\n";
+        }
+    };
+
+    handle_loop_var(key_name, tmp_k);
+    if (names.size() >= 2) {
+        handle_loop_var(names[1], tmp_v);
     }
 
     Out() << GenTab() << "{\n";
@@ -1690,6 +1709,20 @@ std::string CGen::CompileExp(const SyntaxTreeInterfacePtr &exp, bool preserve_mu
             return CompilePrefixexp(e->Right(), preserve_multi);
         case ExpKind::kTableConstructor:
             return CompileTableconstructor(e->Right());
+        case ExpKind::kFunctionDef: {
+            const auto func_def = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(e->Right());
+            FuncInfo *func = func_map_[func_def.get()];
+            std::string closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}",
+                                                   func->unique_c_name,
+                                                   func->captured_vars.size(),
+                                                   func->params.size(),
+                                                   func->is_vararg ? "true" : "false");
+            for (VarDef *up : func->captured_vars) {
+                closure_expr += ", " + CompileUpvaluePointer(up);
+            }
+            closure_expr += ")";
+            return closure_expr;
+        }
         case ExpKind::kBinop:
             return CompileBinop(e, e->Op());
         case ExpKind::kUnop:
@@ -2254,6 +2287,32 @@ std::string CGen::CompileVar(const SyntaxTreeInterfacePtr &v) {
     if (const auto var_kind = v_ptr->GetVarKind(); var_kind == VarKind::kSimple) {
         const auto &name = v_ptr->GetName();
         DEBUG_ASSERT(cur_section_ != Section::Globals);
+
+        // 1. Check if captured (local variable, parameter, or loop variable)
+        if (const auto it = var_to_def_map_.find(v_ptr.get()); it != var_to_def_map_.end()) {
+            VarDef *def = it->second;
+            if (def->is_captured) {
+                if (def->defining_func == cur_func_info_) {
+                    return "(*__box_" + name + ")";
+                } else {
+                    if (cur_func_info_) {
+                        const auto vit = std::ranges::find(cur_func_info_->captured_vars, def);
+                        if (vit != cur_func_info_->captured_vars.end()) {
+                            int idx = static_cast<int>(vit - cur_func_info_->captured_vars.begin());
+                            return std::format("(*_CL->upvalues[{}])", idx);
+                        }
+                    }
+                }
+            }
+        }
+
+        // 2. Check if function referenced as value (non-direct call)
+        if (local_func_names_.contains(name)) {
+            const auto &info = local_func_names_.at(name);
+            return std::format("FlMakeClosure(_S, (void*){}, 0, {}, {})", name, info.params_count, info.is_vararg ? "true" : "false");
+        }
+
+        // 3. Regular native variable checking
         if (const auto native_type = GetNativeVarType(name, v_ptr.get()); native_type != T_DYNAMIC) {
             return BoxNativeValue(name, native_type);
         }
@@ -2772,11 +2831,18 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     } else if (args_kind == ArgsKind::kString) {
         compiled_args.push_back(CompileExp(args_ptr->String()));
     }
-    DEBUG_ASSERT(pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar && "callee must be variable prefixexp (PreProcessor should have caught it)");
-    const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
-    DEBUG_ASSERT(var && var->GetVarKind() == VarKind::kSimple && "callee must be simple variable (PreProcessor should have caught it)");
-    const auto &func_name = var->GetName();
-    if (func_name == "FAKELUA_SET_TABLE") {
+    std::string func_name;
+    const SyntaxTreeVar *var_ptr = nullptr;
+    std::shared_ptr<SyntaxTreeVar> var;
+    if (pe_pre_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
+        var = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_pre_ptr->GetValue());
+        if (var && var->GetVarKind() == VarKind::kSimple) {
+            func_name = var->GetName();
+            var_ptr = var.get();
+        }
+    }
+
+    if (!func_name.empty() && func_name == "FAKELUA_SET_TABLE") {
         if (compiled_args.size() != 3) {
             ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", functioncall);
         }
@@ -2785,7 +2851,23 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     }
 
     std::string call_expr;
+    bool is_local_callee = false;
+    if (var_ptr) {
+        if (const auto it = var_to_def_map_.find(var_ptr); it != var_to_def_map_.end()) {
+            is_local_callee = true;
+        }
+    }
+
     if (local_func_names_.contains(func_name)) {
+        const auto &info = local_func_names_.at(func_name);
+        if (!info.is_vararg && !has_expansion) {
+            if (static_cast<int>(compiled_args.size()) != info.params_count) {
+                ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, info.params_count, compiled_args.size()), functioncall);
+            }
+        }
+    }
+
+    if (local_func_names_.contains(func_name) && !is_local_callee) {
         const auto &info = local_func_names_.at(func_name);
         if (info.is_vararg) {
             int N = info.params_count;
@@ -2841,23 +2923,34 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 ThrowError(std::format("wrong number of arguments to '{}': expected {}, got {}", func_name, expected_params, compiled_args.size()), functioncall);
             }
         }
-        call_expr = func_name + "(";
+        call_expr = func_name + "(NULL";
         for (size_t i = 0; i < compiled_args.size(); ++i) {
-            if (i > 0) {
-                call_expr += ", ";
-            }
-            call_expr += compiled_args[i];
+            call_expr += ", " + compiled_args[i];
         }
         call_expr += ")";
     } else {
         if (has_expansion) {
             compiled_args.push_back(expansion_tmp);
         }
-        call_expr = std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"{}\", {}", func_name, compiled_args.size());
-        for (const auto &arg: compiled_args) {
-            call_expr += ", " + arg;
+        if (!func_name.empty() && !is_local_callee) {
+            call_expr = std::format("FakeluaCallByName(_S, FAKELUA_JIT_TYPE, \"{}\", {}", func_name, compiled_args.size());
+            for (const auto &arg: compiled_args) {
+                call_expr += ", " + arg;
+            }
+            call_expr += ")";
+        } else {
+            std::string callee_expr;
+            if (var) {
+                callee_expr = CompileVar(var);
+            } else {
+                callee_expr = CompilePrefixexp(pe_pre);
+            }
+            call_expr = std::format("FlCallClosure(_S, {}, {}", callee_expr, compiled_args.size());
+            for (const auto &arg: compiled_args) {
+                call_expr += ", " + arg;
+            }
+            call_expr += ")";
         }
-        call_expr += ")";
     }
     const auto tmp = std::format("flua_call_{}", tmp_var_counter_++);
     func_temp_decls_ << "    "
@@ -2865,6 +2958,323 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     Out() << GenTab() << tmp << " = " << call_expr << ";\n";
 
     return tmp;
+}
+
+
+void CGen::ResolveScopes(const SyntaxTreeInterfacePtr &node,
+                         std::vector<Scope> &scopes,
+                         std::vector<FuncInfo *> &func_stack,
+                         FuncInfo *cur_func) {
+    if (!node) return;
+
+    auto enter_scope = [&]() {
+        Scope s;
+        s.func = cur_func;
+        scopes.push_back(s);
+    };
+    auto exit_scope = [&]() {
+        scopes.pop_back();
+    };
+    auto define_var = [&](const std::string &name, const SyntaxTreeInterface *def_node) {
+        auto def = std::make_unique<VarDef>();
+        def->name = name;
+        def->def_node = def_node;
+        def->defining_func = cur_func;
+        def->is_captured = false;
+        VarDef *ptr = def.get();
+        scopes.back().vars[name] = ptr;
+        all_defs_.push_back(std::move(def));
+        stmt_var_to_def_[{def_node, name}] = ptr;
+    };
+
+    switch (node->Type()) {
+        case SyntaxTreeType::Block: {
+            enter_scope();
+            const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(node);
+            for (const auto &stmt : block->Stmts()) {
+                ResolveScopes(stmt, scopes, func_stack, cur_func);
+            }
+            exit_scope();
+            break;
+        }
+        case SyntaxTreeType::LocalVar: {
+            const auto lv = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
+            ResolveScopes(lv->Explist(), scopes, func_stack, cur_func);
+            if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(lv->Namelist())) {
+                for (const auto &name : nl->Names()) {
+                    define_var(name, lv.get());
+                }
+            }
+            break;
+        }
+        case SyntaxTreeType::ForLoop: {
+            const auto fl = std::dynamic_pointer_cast<SyntaxTreeForLoop>(node);
+            ResolveScopes(fl->ExpBegin(), scopes, func_stack, cur_func);
+            ResolveScopes(fl->ExpEnd(), scopes, func_stack, cur_func);
+            ResolveScopes(fl->ExpStep(), scopes, func_stack, cur_func);
+            enter_scope();
+            define_var(fl->Name(), fl.get());
+            ResolveScopes(fl->Block(), scopes, func_stack, cur_func);
+            exit_scope();
+            break;
+        }
+        case SyntaxTreeType::ForIn: {
+            const auto fi = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
+            ResolveScopes(fi->Explist(), scopes, func_stack, cur_func);
+            enter_scope();
+            if (const auto nl = std::dynamic_pointer_cast<SyntaxTreeNamelist>(fi->Namelist())) {
+                for (const auto &name : nl->Names()) {
+                    define_var(name, fi.get());
+                }
+            }
+            ResolveScopes(fi->Block(), scopes, func_stack, cur_func);
+            exit_scope();
+            break;
+        }
+        case SyntaxTreeType::Function:
+        case SyntaxTreeType::LocalFunction:
+        case SyntaxTreeType::FunctionDef: {
+            auto new_func = std::make_unique<FuncInfo>();
+            new_func->node = node.get();
+            new_func->parent = cur_func;
+            
+            std::string orig_name = "";
+            if (node->Type() == SyntaxTreeType::Function) {
+                orig_name = CompileFuncName(std::dynamic_pointer_cast<SyntaxTreeFunction>(node)->Funcname());
+            } else if (node->Type() == SyntaxTreeType::LocalFunction) {
+                orig_name = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node)->Name();
+            } else {
+                orig_name = std::format("__fakelua_lambda_{}", all_funcs_.size());
+            }
+            new_func->name = orig_name;
+            
+            if (cur_func != nullptr) {
+                new_func->unique_c_name = std::format("__fl_func_{}", all_funcs_.size());
+            } else {
+                new_func->unique_c_name = orig_name;
+            }
+
+            SyntaxTreeInterfacePtr funcbody;
+            if (node->Type() == SyntaxTreeType::Function) {
+                funcbody = std::dynamic_pointer_cast<SyntaxTreeFunction>(node)->Funcbody();
+            } else if (node->Type() == SyntaxTreeType::LocalFunction) {
+                funcbody = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node)->Funcbody();
+            } else {
+                funcbody = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node)->Funcbody();
+            }
+            new_func->funcbody = funcbody;
+            if (funcbody) {
+                const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
+                if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(fb->Parlist())) {
+                    if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
+                        new_func->params = namelist->Names();
+                    }
+                    new_func->is_vararg = !new_func->params.empty() && (new_func->params.back().rfind("__fakelua_vararg_", 0) == 0);
+                }
+            }
+
+            FuncInfo *pf = new_func.get();
+            func_map_[node.get()] = pf;
+            all_funcs_.push_back(std::move(new_func));
+
+            if (node->Type() == SyntaxTreeType::LocalFunction) {
+                define_var(orig_name, node.get());
+            }
+
+            func_stack.push_back(pf);
+            enter_scope();
+            if (funcbody) {
+                const auto fb = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(funcbody);
+                if (const auto parlist = std::dynamic_pointer_cast<SyntaxTreeParlist>(fb->Parlist())) {
+                    if (const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(parlist->Namelist())) {
+                        for (const auto &pname : namelist->Names()) {
+                            auto def = std::make_unique<VarDef>();
+                            def->name = pname;
+                            def->def_node = parlist.get();
+                            def->defining_func = pf;
+                            VarDef *ptr = def.get();
+                            all_defs_.push_back(std::move(def));
+                            scopes.back().vars[pname] = ptr;
+                            stmt_var_to_def_[{parlist.get(), pname}] = ptr;
+                        }
+                    }
+                }
+                ResolveScopes(fb->Block(), scopes, func_stack, pf);
+            }
+            exit_scope();
+            func_stack.pop_back();
+            break;
+        }
+        case SyntaxTreeType::Var: {
+            const auto var = std::dynamic_pointer_cast<SyntaxTreeVar>(node);
+            if (var->GetVarKind() == VarKind::kSimple) {
+                const std::string &name = var->GetName();
+                VarDef *found_def = nullptr;
+                for (int i = static_cast<int>(scopes.size()) - 1; i >= 0; --i) {
+                    if (const auto it = scopes[i].vars.find(name); it != scopes[i].vars.end()) {
+                        found_def = it->second;
+                        break;
+                    }
+                }
+                if (found_def) {
+                    var_to_def_map_[var.get()] = found_def;
+                    FuncInfo *f_def = found_def->defining_func;
+                    if (f_def != nullptr && f_def != cur_func) {
+                        found_def->is_captured = true;
+                        FuncInfo *p = cur_func;
+                        while (p && p != f_def) {
+                            if (p->captured_set.insert(found_def).second) {
+                                p->captured_vars.push_back(found_def);
+                            }
+                            p = p->parent;
+                        }
+                    }
+                }
+            }
+            ResolveScopes(var->GetPrefixexp(), scopes, func_stack, cur_func);
+            ResolveScopes(var->GetExp(), scopes, func_stack, cur_func);
+            break;
+        }
+        case SyntaxTreeType::Return: {
+            ResolveScopes(std::dynamic_pointer_cast<SyntaxTreeReturn>(node)->Explist(), scopes, func_stack, cur_func);
+            break;
+        }
+        case SyntaxTreeType::VarList: {
+            const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(node);
+            for (const auto &v : vl->Vars()) {
+                ResolveScopes(v, scopes, func_stack, cur_func);
+            }
+            break;
+        }
+        case SyntaxTreeType::ExpList: {
+            const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(node);
+            for (const auto &exp : el->Exps()) {
+                ResolveScopes(exp, scopes, func_stack, cur_func);
+            }
+            break;
+        }
+        case SyntaxTreeType::Assign: {
+            const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(node);
+            ResolveScopes(assign->Varlist(), scopes, func_stack, cur_func);
+            ResolveScopes(assign->Explist(), scopes, func_stack, cur_func);
+            break;
+        }
+        case SyntaxTreeType::FunctionCall: {
+            const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
+            ResolveScopes(fc->prefixexp(), scopes, func_stack, cur_func);
+            ResolveScopes(fc->Args(), scopes, func_stack, cur_func);
+            break;
+        }
+        case SyntaxTreeType::Args: {
+            const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(node);
+            ResolveScopes(args->Explist(), scopes, func_stack, cur_func);
+            ResolveScopes(args->Tableconstructor(), scopes, func_stack, cur_func);
+            ResolveScopes(args->String(), scopes, func_stack, cur_func);
+            break;
+        }
+        case SyntaxTreeType::TableConstructor: {
+            ResolveScopes(std::dynamic_pointer_cast<SyntaxTreeTableconstructor>(node)->Fieldlist(), scopes, func_stack, cur_func);
+            break;
+        }
+        case SyntaxTreeType::FieldList: {
+            const auto fl = std::dynamic_pointer_cast<SyntaxTreeFieldlist>(node);
+            for (const auto &field : fl->Fields()) {
+                ResolveScopes(field, scopes, func_stack, cur_func);
+            }
+            break;
+        }
+        case SyntaxTreeType::Field: {
+            const auto field = std::dynamic_pointer_cast<SyntaxTreeField>(node);
+            ResolveScopes(field->Key(), scopes, func_stack, cur_func);
+            ResolveScopes(field->Value(), scopes, func_stack, cur_func);
+            break;
+        }
+        case SyntaxTreeType::While: {
+            const auto while_node = std::dynamic_pointer_cast<SyntaxTreeWhile>(node);
+            ResolveScopes(while_node->Exp(), scopes, func_stack, cur_func);
+            ResolveScopes(while_node->Block(), scopes, func_stack, cur_func);
+            break;
+        }
+        case SyntaxTreeType::Repeat: {
+            const auto rep = std::dynamic_pointer_cast<SyntaxTreeRepeat>(node);
+            ResolveScopes(rep->Block(), scopes, func_stack, cur_func);
+            ResolveScopes(rep->Exp(), scopes, func_stack, cur_func);
+            break;
+        }
+        case SyntaxTreeType::If: {
+            const auto if_node = std::dynamic_pointer_cast<SyntaxTreeIf>(node);
+            ResolveScopes(if_node->Exp(), scopes, func_stack, cur_func);
+            ResolveScopes(if_node->Block(), scopes, func_stack, cur_func);
+            ResolveScopes(if_node->ElseIfs(), scopes, func_stack, cur_func);
+            ResolveScopes(if_node->ElseBlock(), scopes, func_stack, cur_func);
+            break;
+        }
+        case SyntaxTreeType::ElseIfList: {
+            const auto eil = std::dynamic_pointer_cast<SyntaxTreeElseiflist>(node);
+            for (size_t i = 0; i < eil->ElseifSize(); ++i) {
+                ResolveScopes(eil->ElseifExp(i), scopes, func_stack, cur_func);
+                ResolveScopes(eil->ElseifBlock(i), scopes, func_stack, cur_func);
+            }
+            break;
+        }
+        case SyntaxTreeType::Exp: {
+            const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(node);
+            ResolveScopes(exp->Left(), scopes, func_stack, cur_func);
+            ResolveScopes(exp->Right(), scopes, func_stack, cur_func);
+            break;
+        }
+        case SyntaxTreeType::PrefixExp: {
+            ResolveScopes(std::dynamic_pointer_cast<SyntaxTreePrefixexp>(node)->GetValue(), scopes, func_stack, cur_func);
+            break;
+        }
+        default:
+            break;
+    }
+}
+
+std::string CGen::CompileUpvaluePointer(VarDef *def) {
+    if (def->defining_func == cur_func_info_) {
+        return "__box_" + def->name;
+    } else {
+        if (cur_func_info_) {
+            const auto vit = std::ranges::find(cur_func_info_->captured_vars, def);
+            if (vit != cur_func_info_->captured_vars.end()) {
+                int idx = static_cast<int>(vit - cur_func_info_->captured_vars.begin());
+                return std::format("_CL->upvalues[{}]", idx);
+            }
+        }
+    }
+    return "NULL";
+}
+
+void CGen::CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt) {
+    DEBUG_ASSERT(stmt->Type() == SyntaxTreeType::LocalFunction);
+    const auto lf = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(stmt);
+    const auto &name = lf->Name();
+    
+    FuncInfo *func = func_map_[lf.get()];
+    
+    bool is_captured = false;
+    if (const auto it = stmt_var_to_def_.find({lf.get(), name}); it != stmt_var_to_def_.end()) {
+        is_captured = it->second->is_captured;
+    }
+    
+    std::string closure_expr = std::format("FlMakeClosure(_S, (void*){}, {}, {}, {}",
+                                           func->unique_c_name,
+                                           func->captured_vars.size(),
+                                           func->params.size(),
+                                           func->is_vararg ? "true" : "false");
+    for (VarDef *up : func->captured_vars) {
+        closure_expr += ", " + CompileUpvaluePointer(up);
+    }
+    closure_expr += ")";
+    
+    if (is_captured) {
+        Out() << GenTab() << "CVar *__box_" << name << " = (CVar *)FakeluaAlloc(_S, sizeof(CVar), false);\n";
+        Out() << GenTab() << "*__box_" << name << " = " << closure_expr << ";\n";
+    } else {
+        Out() << GenTab() << "CVar " << name << " = " << closure_expr << ";\n";
+    }
 }
 
 

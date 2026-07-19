@@ -175,6 +175,11 @@ private:
 
     // 检查变量是否为已知强类型的原生变量
     [[nodiscard]] bool IsTypedNativeVar(const std::string &name, const SyntaxTreeInterface* var_node) const {
+        if (const auto it = var_to_def_map_.find(var_node); it != var_to_def_map_.end()) {
+            if (it->second->is_captured) {
+                return false;
+            }
+        }
         // 1. 检查是否为特化函数参数，且参数类型为原生数值类型
         if (cur_spec_ctx_) {
             if (const auto it = cur_spec_ctx_->param_types.find(name); it != cur_spec_ctx_->param_types.end()) {
@@ -191,6 +196,11 @@ private:
 
     // 获取原生强类型变量在作用域中的推断类型
     [[nodiscard]] InferredType GetNativeVarType(const std::string &name, const SyntaxTreeInterface* var_node) const {
+        if (const auto it = var_to_def_map_.find(var_node); it != var_to_def_map_.end()) {
+            if (it->second->is_captured) {
+                return T_DYNAMIC;
+            }
+        }
         if (cur_spec_ctx_) {
             if (const auto it = cur_spec_ctx_->param_types.find(name); it != cur_spec_ctx_->param_types.end()) {
                 return it->second;
@@ -253,6 +263,60 @@ private:
 
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
     int cur_tab_ = 0;                  // 当前 C 代码生成器所处的缩进级别深度
+
+public:
+    struct FuncInfo;
+
+    struct VarDef {
+        std::string name;
+        const SyntaxTreeInterface *def_node = nullptr; // local stmt, parameter list, or loop stmt
+        FuncInfo *defining_func = nullptr;
+        bool is_captured = false;
+    };
+
+    struct Scope {
+        FuncInfo *func = nullptr;
+        std::unordered_map<std::string, VarDef *> vars;
+    };
+
+    struct FuncInfo {
+        const SyntaxTreeInterface *node = nullptr; // Function, LocalFunction, or FunctionDef node
+        SyntaxTreeInterfacePtr funcbody;
+        FuncInfo *parent = nullptr;
+        std::string name;
+        std::string unique_c_name;
+        std::vector<std::string> params;
+        bool is_vararg = false;
+        std::vector<VarDef *> captured_vars; // upvalues captured
+        std::unordered_set<VarDef *> captured_set;
+    };
+
+private:
+    std::vector<std::unique_ptr<VarDef>> all_defs_;
+    std::vector<std::unique_ptr<FuncInfo>> all_funcs_;
+    std::unordered_map<const SyntaxTreeInterface *, FuncInfo *> func_map_;
+    
+    struct PairHash {
+        template <class T1, class T2>
+        std::size_t operator()(const std::pair<T1, T2> &p) const {
+            auto h1 = std::hash<T1>{}(p.first);
+            auto h2 = std::hash<T2>{}(p.second);
+            return h1 ^ (h2 << 1);
+        }
+    };
+    
+    std::unordered_map<std::pair<const SyntaxTreeInterface *, std::string>, VarDef *, PairHash> stmt_var_to_def_;
+    std::unordered_map<const SyntaxTreeInterface *, VarDef *> var_to_def_map_;
+    
+    FuncInfo *cur_func_info_ = nullptr; // The function currently being compiled
+
+    void ResolveScopes(const SyntaxTreeInterfacePtr &node,
+                       std::vector<Scope> &scopes,
+                       std::vector<FuncInfo *> &func_stack,
+                       FuncInfo *cur_func);
+
+    std::string CompileUpvaluePointer(VarDef *def);
+    void CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt);
 
 };
 

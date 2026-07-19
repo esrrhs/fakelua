@@ -1098,13 +1098,7 @@ TEST(exception, table_var_func_call) {
     ASSERT_NE(s, nullptr);
     SetDebugLogLevel(0);
 
-    try {
-        CompileFile(s, "./exception/test_table_var_func_call.lua", {});
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("function call callee must be a simple variable") != std::string::npos);
-    }
+    EXPECT_NO_THROW(CompileFile(s, "./exception/test_table_var_func_call.lua", {}));
 }
 
 TEST(exception, vararg_nested_function) {
@@ -1128,13 +1122,7 @@ TEST(exception, vararg_nested_localfunction) {
     ASSERT_NE(s, nullptr);
     SetDebugLogLevel(0);
 
-    try {
-        CompileFile(s, "./exception/test_vararg_with_nested_localfunction.lua", {});
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("not support stmt type") != std::string::npos);
-    }
+    EXPECT_NO_THROW(CompileFile(s, "./exception/test_vararg_with_nested_localfunction.lua", {}));
 }
 
 TEST(exception, vararg_funcdef) {
@@ -1143,13 +1131,7 @@ TEST(exception, vararg_funcdef) {
     ASSERT_NE(s, nullptr);
     SetDebugLogLevel(0);
 
-    try {
-        CompileFile(s, "./exception/test_vararg_with_funcdef.lua", {});
-        ASSERT_TRUE(false);
-    } catch (const std::exception &e) {
-        std::cout << e.what() << std::endl;
-        ASSERT_TRUE(std::string(e.what()).find("anonymous function expression (functiondef) is not supported inside function bodies") != std::string::npos);
-    }
+    EXPECT_NO_THROW(CompileFile(s, "./exception/test_vararg_with_funcdef.lua", {}));
 }
 
 TEST(exception, for_loop_zero_step_int) {

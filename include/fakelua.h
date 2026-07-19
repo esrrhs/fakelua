@@ -190,9 +190,10 @@ struct SimpleVarImpl final : public VarInterface {
 class VarTable;
 class VarMulti;
 class VarString;
+class VarClosure;
 class Var;
 
-// 基本变量类型，包含类型标识和数据。数据使用 union 存储，根据类型标识来访问。
+// 基本变量类型，包含类型标识 and 数据。数据使用 union 存储，根据类型标识来访问。
 // 必须保持为 POD 类型，以确保 C JIT 代码 and C++ 宿主代码之间的 ABI 兼容性。
 // 特别是 arm64 平台的非 POD 结构体返回值调用约定与 POD 不同。
 struct CVar {
@@ -206,6 +207,7 @@ struct CVar {
         VarString *s;
         VarTable *t;
         VarMulti *m;
+        VarClosure *cl;
     };
 
     cvar_data data_{};
@@ -214,6 +216,15 @@ struct CVar {
 // 确保 CVar 是标准布局类型（POD），以匹配 C 代码中的定义
 static_assert(std::is_standard_layout_v<CVar>, "CVar must be standard-layout for ABI compatibility");
 static_assert(std::is_trivially_copyable_v<CVar>, "CVar must be trivially copyable for ABI compatibility");
+
+class VarClosure {
+public:
+    void *func_ptr;
+    int upvalue_count;
+    int expected_arg_count;
+    bool is_vararg;
+    CVar *upvalues[0];
+};
 
 // VarMulti 完整定义在 var_multi.h 中（仅 .cpp 文件 include）
 // 这里 forward-declare 供 CVar 联合体使用

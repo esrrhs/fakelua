@@ -445,21 +445,17 @@ void SemanticAnalysis::CheckFunctionCall(const SyntaxTreeInterfacePtr &node) {
         ThrowError("function call callee must be a prefix expression", node);
     }
     const auto callee_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(callee_prefixexp);
-    if (callee_pe->GetPrefixKind() != PrefixExpKind::kVar) {
-        ThrowError("function call callee must be a variable", node);
-    }
-    const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
-    if (!callee_var || callee_var->GetVarKind() != VarKind::kSimple) {
-        ThrowError("function call callee must be a simple variable", node);
-    }
-    if (callee_var->GetName() == "FAKELUA_SET_TABLE") {
-        const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-        if (!args_ptr || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
-            ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", node);
-        }
-        const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
-        if (!explist_ptr || explist_ptr->Exps().size() != 3) {
-            ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", node);
+    if (callee_pe->GetPrefixKind() == PrefixExpKind::kVar) {
+        const auto callee_var = std::dynamic_pointer_cast<SyntaxTreeVar>(callee_pe->GetValue());
+        if (callee_var && callee_var->GetVarKind() == VarKind::kSimple && callee_var->GetName() == "FAKELUA_SET_TABLE") {
+            const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+            if (!args_ptr || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
+                ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", node);
+            }
+            const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+            if (!explist_ptr || explist_ptr->Exps().size() != 3) {
+                ThrowError("FAKELUA_SET_TABLE expects exactly 3 arguments", node);
+            }
         }
     }
 }
@@ -572,8 +568,6 @@ void SemanticAnalysis::CheckExp(const SyntaxTreeInterfacePtr &node) {
     const auto kind = exp->GetExpKind();
     if (kind == ExpKind::kVarParams) {
         ThrowError("... is not supported", node);
-    } else if (kind == ExpKind::kFunctionDef) {
-        ThrowError("anonymous function expression (functiondef) is not supported inside function bodies", node);
     }
 }
 

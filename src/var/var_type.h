@@ -15,9 +15,10 @@ enum class VarType {
     StringId = 5,
     Table = 6,
     Multi = 7,
+    Closure = 8,
 
     Min = Nil,
-    Max = Table,
+    Max = Closure,
 };
 
 inline std::string VarTypeToString(VarType var_type) {
@@ -38,6 +39,8 @@ inline std::string VarTypeToString(VarType var_type) {
             return "Table";
         case VarType::Multi:
             return "Multi";
+        case VarType::Closure:
+            return "Closure";
         default:
             return "UNKNOWN";
     }
