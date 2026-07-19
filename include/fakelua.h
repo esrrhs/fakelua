@@ -217,16 +217,7 @@ struct CVar {
 static_assert(std::is_standard_layout_v<CVar>, "CVar must be standard-layout for ABI compatibility");
 static_assert(std::is_trivially_copyable_v<CVar>, "CVar must be trivially copyable for ABI compatibility");
 
-class VarClosure {
-public:
-    void *func_ptr;
-    int upvalue_count;
-    int expected_arg_count;
-    bool is_vararg;
-    CVar *upvalues[0];
-};
-
-// VarMulti 完整定义在 var_multi.h 中（仅 .cpp 文件 include）
+// VarClosure 完整定义在 var_closure.h 中（仅 .cpp 文件 include）
 // 这里 forward-declare 供 CVar 联合体使用
 // Call() 模板通过 inter::DispatchCall 间接使用 Multi，无需在此暴露 VarMulti 定义
 
