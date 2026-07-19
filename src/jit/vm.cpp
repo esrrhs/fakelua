@@ -100,7 +100,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 
     switch (expected_arg_count) {
 #define CVAR_0
-#define CVAR_1 CVar
+#define CVAR_1 , CVar
 #define CVAR_2 CVAR_1, CVar
 #define CVAR_3 CVAR_2, CVar
 #define CVAR_4 CVAR_3, CVar
@@ -134,7 +134,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 #define CVAR_32 CVAR_31, CVar
 
 #define ARG_0
-#define ARG_1 arg_arr[0]
+#define ARG_1 , arg_arr[0]
 #define ARG_2 ARG_1, arg_arr[1]
 #define ARG_3 ARG_2, arg_arr[2]
 #define ARG_4 ARG_3, arg_arr[3]
@@ -169,7 +169,7 @@ extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_ty
 
 #define VM_CASE(N)                                                                                                                                                                                     \
     case N:                                                                                                                                                                                            \
-        return reinterpret_cast<CVar (*)(CVAR_##N)>(addr)(ARG_##N);
+        return reinterpret_cast<CVar (*)(VarClosure * CVAR_##N)>(addr)(nullptr ARG_##N);
 
         VM_CASE(0)
         VM_CASE(1)

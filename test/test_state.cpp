@@ -67,7 +67,7 @@ TEST(state, const_string_size) {
 // GetFuncAddr tests
 // ---------------------------------------------------------------------------
 
-static CVar dummy_fn() {
+static CVar dummy_fn(VarClosure *_CL) {
     Var r;
     r.SetInt(42);
     return r;
@@ -278,13 +278,13 @@ TEST(state, vm_alloc_global_name_counter) {
 // VmFunction accessors and Merge
 // ---------------------------------------------------------------------------
 
-static CVar vmf_a() {
+static CVar vmf_a(VarClosure *_CL) {
     Var r;
     r.SetInt(10);
     return r;
 }
 
-static CVar vmf_b() {
+static CVar vmf_b(VarClosure *_CL) {
     Var r;
     r.SetInt(20);
     return r;

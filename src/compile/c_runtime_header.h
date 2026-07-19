@@ -18,6 +18,7 @@ typedef struct VarString {
 
 typedef struct VarTable VarTable;
 typedef struct VarMulti VarMulti;
+typedef struct VarClosure VarClosure;
 
 typedef struct CVar {
     int type_;
@@ -29,8 +30,17 @@ typedef struct CVar {
         VarString *s;
         VarTable *t;
         VarMulti *m;
+        VarClosure *cl;
     } data_;
 } CVar;
+
+typedef struct VarClosure {
+    void *func_ptr;
+    int upvalue_count;
+    int expected_arg_count;
+    bool is_vararg;
+    CVar *upvalues[0];
+} VarClosure;
 
 // 编译期断言：确保 CVar 大小为 16 字节
 typedef char check_cvar_size[sizeof(CVar) == 16 ? 1 : -1];
@@ -85,6 +95,7 @@ enum {
     VAR_STRINGID = 5,
     VAR_TABLE = 6,
     VAR_MULTI = 7,
+    VAR_CLOSURE = 8,
 };
 
 typedef struct VarMulti {
@@ -199,6 +210,240 @@ extern void* FakeluaAlloc(State *s, size_t size, bool is_const);
 extern void FakeluaThrowError(State *s, const char *msg);
 extern CVar FakeluaCallByName(State *s, int jit_type, const char *name, int arg_num, ...);
 
+#define kMaxFunctionInputParams 32
+
+static inline CVar FlMakeClosure(State *state, void *func_ptr, int upvalue_count, int expected_arg_count, bool is_vararg, ...) {
+    VarClosure *cl = (VarClosure *)FakeluaAlloc(state, sizeof(VarClosure) + upvalue_count * sizeof(CVar *), !__fakelua_init_flag__);
+    cl->func_ptr = func_ptr;
+    cl->upvalue_count = upvalue_count;
+    cl->expected_arg_count = expected_arg_count;
+    cl->is_vararg = is_vararg;
+    va_list args_list;
+    va_start(args_list, is_vararg);
+    for (int i = 0; i < upvalue_count; ++i) {
+        cl->upvalues[i] = va_arg(args_list, CVar *);
+    }
+    va_end(args_list);
+    CVar res;
+    res.type_ = VAR_CLOSURE;
+    res.flag_ = 0;
+    res.data_.cl = cl;
+    return res;
+}
+
+static inline CVar FlCallClosure(State *state, CVar cl_var, int arg_num, ...) {
+    if (UNLIKELY(cl_var.type_ != VAR_CLOSURE)) {
+        FakeluaThrowError(state, "attempt to call a non-function value");
+    }
+    VarClosure *cl = cl_var.data_.cl;
+    void *addr = cl->func_ptr;
+    const bool is_vararg = cl->is_vararg;
+    const int expected_arg_count = cl->expected_arg_count;
+    const int fixed_arg_count = is_vararg ? expected_arg_count - 1 : expected_arg_count;
+
+    CVar raw_arg_arr[kMaxFunctionInputParams];
+    va_list args_list;
+    va_start(args_list, arg_num);
+    for (int i = 0; i < arg_num; ++i) {
+        raw_arg_arr[i] = va_arg(args_list, CVar);
+    }
+    va_end(args_list);
+
+    const CVar *arg_arr = NULL;
+    const bool last_is_multi = (arg_num > 0 && raw_arg_arr[arg_num - 1].type_ == VAR_MULTI);
+    CVar temp_arg_arr[kMaxFunctionInputParams];
+    if (LIKELY(!is_vararg && arg_num == expected_arg_count && !last_is_multi)) {
+        arg_arr = raw_arg_arr;
+    } else {
+        CVar flat_args_buf[kMaxFunctionInputParams];
+        int flat_count = 0;
+        for (int i = 0; i < arg_num && flat_count < (int)kMaxFunctionInputParams; ++i) {
+            if (i == arg_num - 1 && raw_arg_arr[i].type_ == VAR_MULTI) {
+                VarMulti *m = raw_arg_arr[i].data_.m;
+                for (uint32_t j = 0; j < m->count && flat_count < (int)kMaxFunctionInputParams; ++j) {
+                    flat_args_buf[flat_count++] = m->vars[j];
+                }
+            } else if (raw_arg_arr[i].type_ == VAR_MULTI) {
+                VarMulti *m = raw_arg_arr[i].data_.m;
+                flat_args_buf[flat_count++] = m->count > 0 ? m->vars[0] : (CVar){VAR_NIL};
+            } else {
+                flat_args_buf[flat_count++] = raw_arg_arr[i];
+            }
+        }
+
+        if (UNLIKELY(is_vararg)) {
+            for (int i = 0; i < fixed_arg_count; ++i) {
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){VAR_NIL};
+            }
+            const int vararg_count = flat_count - fixed_arg_count;
+            VarMulti *m = (VarMulti *)FakeluaAlloc(state, sizeof(VarMulti) + (vararg_count > 0 ? vararg_count : 0) * sizeof(CVar), !__fakelua_init_flag__);
+            m->count = vararg_count > 0 ? vararg_count : 0;
+            for (int i = 0; i < vararg_count; ++i) {
+                m->vars[i] = flat_args_buf[fixed_arg_count + i];
+            }
+            CVar vararg_cvar;
+            vararg_cvar.type_ = VAR_MULTI;
+            vararg_cvar.flag_ = 0;
+            vararg_cvar.data_.m = m;
+            temp_arg_arr[fixed_arg_count] = vararg_cvar;
+        } else {
+            for (int i = 0; i < expected_arg_count; ++i) {
+                temp_arg_arr[i] = i < flat_count ? flat_args_buf[i] : (CVar){VAR_NIL};
+            }
+        }
+        arg_arr = temp_arg_arr;
+    }
+
+#define FCCVAR_0
+#define FCCVAR_1 , CVar
+#define FCCVAR_2 FCCVAR_1, CVar
+#define FCCVAR_3 FCCVAR_2, CVar
+#define FCCVAR_4 FCCVAR_3, CVar
+#define FCCVAR_5 FCCVAR_4, CVar
+#define FCCVAR_6 FCCVAR_5, CVar
+#define FCCVAR_7 FCCVAR_6, CVar
+#define FCCVAR_8 FCCVAR_7, CVar
+#define FCCVAR_9 FCCVAR_8, CVar
+#define FCCVAR_10 FCCVAR_9, CVar
+#define FCCVAR_11 FCCVAR_10, CVar
+#define FCCVAR_12 FCCVAR_11, CVar
+#define FCCVAR_13 FCCVAR_12, CVar
+#define FCCVAR_14 FCCVAR_13, CVar
+#define FCCVAR_15 FCCVAR_14, CVar
+#define FCCVAR_16 FCCVAR_15, CVar
+#define FCCVAR_17 FCCVAR_16, CVar
+#define FCCVAR_18 FCCVAR_17, CVar
+#define FCCVAR_19 FCCVAR_18, CVar
+#define FCCVAR_20 FCCVAR_19, CVar
+#define FCCVAR_21 FCCVAR_20, CVar
+#define FCCVAR_22 FCCVAR_21, CVar
+#define FCCVAR_23 FCCVAR_22, CVar
+#define FCCVAR_24 FCCVAR_23, CVar
+#define FCCVAR_25 FCCVAR_24, CVar
+#define FCCVAR_26 FCCVAR_25, CVar
+#define FCCVAR_27 FCCVAR_26, CVar
+#define FCCVAR_28 FCCVAR_27, CVar
+#define FCCVAR_29 FCCVAR_28, CVar
+#define FCCVAR_30 FCCVAR_29, CVar
+#define FCCVAR_31 FCCVAR_30, CVar
+#define FCCVAR_32 FCCVAR_31, CVar
+
+#define FCARG_0
+#define FCARG_1 , arg_arr[0]
+#define FCARG_2 FCARG_1, arg_arr[1]
+#define FCARG_3 FCARG_2, arg_arr[2]
+#define FCARG_4 FCARG_3, arg_arr[3]
+#define FCARG_5 FCARG_4, arg_arr[4]
+#define FCARG_6 FCARG_5, arg_arr[5]
+#define FCARG_7 FCARG_6, arg_arr[6]
+#define FCARG_8 FCARG_7, arg_arr[7]
+#define FCARG_9 FCARG_8, arg_arr[8]
+#define FCARG_10 FCARG_9, arg_arr[9]
+#define FCARG_11 FCARG_10, arg_arr[10]
+#define FCARG_12 FCARG_11, arg_arr[11]
+#define FCARG_13 FCARG_12, arg_arr[12]
+#define FCARG_14 FCARG_13, arg_arr[13]
+#define FCARG_15 FCARG_14, arg_arr[14]
+#define FCARG_16 FCARG_15, arg_arr[15]
+#define FCARG_17 FCARG_16, arg_arr[16]
+#define FCARG_18 FCARG_17, arg_arr[17]
+#define FCARG_19 FCARG_18, arg_arr[18]
+#define FCARG_20 FCARG_19, arg_arr[19]
+#define FCARG_21 FCARG_20, arg_arr[20]
+#define FCARG_22 FCARG_21, arg_arr[21]
+#define FCARG_23 FCARG_22, arg_arr[22]
+#define FCARG_24 FCARG_23, arg_arr[23]
+#define FCARG_25 FCARG_24, arg_arr[24]
+#define FCARG_26 FCARG_25, arg_arr[25]
+#define FCARG_27 FCARG_26, arg_arr[26]
+#define FCARG_28 FCARG_27, arg_arr[27]
+#define FCARG_29 FCARG_28, arg_arr[28]
+#define FCARG_30 FCARG_29, arg_arr[29]
+#define FCARG_31 FCARG_30, arg_arr[30]
+#define FCARG_32 FCARG_31, arg_arr[31]
+
+#define FCCASE(N) \
+    case N: return ((CVar (*)(VarClosure * FCCVAR_##N))(addr))(cl FCARG_##N);
+
+    switch (expected_arg_count) {
+        FCCASE(0) FCCASE(1) FCCASE(2) FCCASE(3) FCCASE(4) FCCASE(5)
+        FCCASE(6) FCCASE(7) FCCASE(8) FCCASE(9) FCCASE(10) FCCASE(11)
+        FCCASE(12) FCCASE(13) FCCASE(14) FCCASE(15) FCCASE(16) FCCASE(17)
+        FCCASE(18) FCCASE(19) FCCASE(20) FCCASE(21) FCCASE(22) FCCASE(23)
+        FCCASE(24) FCCASE(25) FCCASE(26) FCCASE(27) FCCASE(28) FCCASE(29)
+        FCCASE(30) FCCASE(31) FCCASE(32)
+        default: FakeluaThrowError(state, "FlCallClosure: expected_arg_count out of range"); return (CVar){VAR_NIL};
+    }
+
+#undef FCCASE
+#undef FCCVAR_0
+#undef FCCVAR_1
+#undef FCCVAR_2
+#undef FCCVAR_3
+#undef FCCVAR_4
+#undef FCCVAR_5
+#undef FCCVAR_6
+#undef FCCVAR_7
+#undef FCCVAR_8
+#undef FCCVAR_9
+#undef FCCVAR_10
+#undef FCCVAR_11
+#undef FCCVAR_12
+#undef FCCVAR_13
+#undef FCCVAR_14
+#undef FCCVAR_15
+#undef FCCVAR_16
+#undef FCCVAR_17
+#undef FCCVAR_18
+#undef FCCVAR_19
+#undef FCCVAR_20
+#undef FCCVAR_21
+#undef FCCVAR_22
+#undef FCCVAR_23
+#undef FCCVAR_24
+#undef FCCVAR_25
+#undef FCCVAR_26
+#undef FCCVAR_27
+#undef FCCVAR_28
+#undef FCCVAR_29
+#undef FCCVAR_30
+#undef FCCVAR_31
+#undef FCCVAR_32
+#undef FCARG_0
+#undef FCARG_1
+#undef FCARG_2
+#undef FCARG_3
+#undef FCARG_4
+#undef FCARG_5
+#undef FCARG_6
+#undef FCARG_7
+#undef FCARG_8
+#undef FCARG_9
+#undef FCARG_10
+#undef FCARG_11
+#undef FCARG_12
+#undef FCARG_13
+#undef FCARG_14
+#undef FCARG_15
+#undef FCARG_16
+#undef FCARG_17
+#undef FCARG_18
+#undef FCARG_19
+#undef FCARG_20
+#undef FCARG_21
+#undef FCARG_22
+#undef FCARG_23
+#undef FCARG_24
+#undef FCARG_25
+#undef FCARG_26
+#undef FCARG_27
+#undef FCARG_28
+#undef FCARG_29
+#undef FCARG_30
+#undef FCARG_31
+#undef FCARG_32
+}
+
 static inline bool FlIsTrue(CVar v) {
     return LIKELY(v.type_ != VAR_NIL) && (v.type_ != VAR_BOOL || v.data_.b);
 }
@@ -306,6 +551,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
         } \
         case VAR_STRINGID: (result) = (__a.data_.i == __b.data_.i); break; \
         case VAR_TABLE: (result) = (__a.data_.t == __b.data_.t); break; \
+        case VAR_CLOSURE: (result) = (__a.data_.cl == __b.data_.cl); break; \
         default: (result) = false; break; \
     } \
 } while(0)
@@ -320,6 +566,7 @@ static inline uint32_t FlHashString(const char *str, int len) {
         case VAR_STRING: { if (__v.data_.s->hash_ == 0) { __v.data_.s->hash_ = FlHashString(__v.data_.s->data_, __v.data_.s->size_); } (hash) = __v.data_.s->hash_; break; } \
         case VAR_STRINGID: { VarString *__vs = (VarString *)__v.data_.i; if (__vs->hash_ == 0) { __vs->hash_ = FlHashString(__vs->data_, __vs->size_); } (hash) = __vs->hash_; break; } \
         case VAR_TABLE: (hash) = (uint32_t)((uintptr_t)__v.data_.t ^ ((uintptr_t)__v.data_.t >> 32)); break; \
+        case VAR_CLOSURE: (hash) = (uint32_t)((uintptr_t)__v.data_.cl ^ ((uintptr_t)__v.data_.cl >> 32)); break; \
         default: (hash) = 0; break; \
     } \
 } while(0)
@@ -806,7 +1053,9 @@ static inline int FlVarToStr(CVar v, char *buf, int buf_size) {
         case VAR_FLOAT: return snprintf(buf, buf_size, "%.17g", v.data_.f);
         case VAR_STRING:
         case VAR_STRINGID: FakeluaThrowError(_S, "FlVarToStr: string type should be handled by caller"); return 0;
-        default: { int __n = snprintf(buf, buf_size - 1, "table(0x%llx", (unsigned long long)(uintptr_t)v.data_.t); if (__n > 0 && __n < buf_size - 1) { buf[__n] = ')'; buf[__n + 1] = '\0'; return __n + 1; } return __n; }
+        case VAR_TABLE: { int __n = snprintf(buf, buf_size - 1, "table(0x%llx", (unsigned long long)(uintptr_t)v.data_.t); if (__n > 0 && __n < buf_size - 1) { buf[__n] = ')'; buf[__n + 1] = '\0'; return __n + 1; } return __n; }
+        case VAR_CLOSURE: { int __n = snprintf(buf, buf_size - 1, "function(0x%llx", (unsigned long long)(uintptr_t)v.data_.cl); if (__n > 0 && __n < buf_size - 1) { buf[__n] = ')'; buf[__n + 1] = '\0'; return __n + 1; } return __n; }
+        default: return 0;
     }
 }
 

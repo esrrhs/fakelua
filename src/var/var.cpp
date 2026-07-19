@@ -99,6 +99,9 @@ std::string Var::ToString(bool has_quote, bool has_postfix) const {
         case VarType::Table:
             ret = std::format("table({})", static_cast<void *>(data_.t));
             break;
+        case VarType::Closure:
+            ret = std::format("function({})", static_cast<void *>(data_.cl));
+            break;
         case VarType::Multi: {
             VarMulti *m = data_.m;
             ret = "multi(";
@@ -143,6 +146,9 @@ size_t Var::Hash() const {
         case VarType::Table: {
             return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data_.t) ^ (reinterpret_cast<uintptr_t>(data_.t) >> 32));
         }
+        case VarType::Closure: {
+            return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data_.cl) ^ (reinterpret_cast<uintptr_t>(data_.cl) >> 32));
+        }
         case VarType::Multi: {
             return static_cast<uint32_t>(reinterpret_cast<uintptr_t>(data_.m) ^ (reinterpret_cast<uintptr_t>(data_.m) >> 32));
         }
@@ -183,6 +189,8 @@ bool Var::Equal(const Var &rhs) const {
             return data_.i == rhs.data_.i;
         case VarType::Table:
             return data_.t == rhs.data_.t;
+        case VarType::Closure:
+            return data_.cl == rhs.data_.cl;
         case VarType::Multi: {
             VarMulti *m1 = data_.m;
             VarMulti *m2 = rhs.data_.m;

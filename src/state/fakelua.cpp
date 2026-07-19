@@ -297,6 +297,10 @@ void VarToVi(State *state, CVar src, VarInterface *dst) {
             dst->ViSetTable(kvs);
             break;
         }
+        case VarType::Closure: {
+            ThrowFakeluaException("VarToVi failed: Closure type is not supported in host VarInterface");
+            break;
+        }
         case VarType::Multi: {
             ThrowFakeluaException("VarToVi failed: Multi-return type is not supported in host VarInterface");
             break;
@@ -384,7 +388,7 @@ void ThrowIfMultiCVar(const CVar &v) {
 
 CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count) {
 #define DCVAR_0
-#define DCVAR_1 CVar
+#define DCVAR_1 , CVar
 #define DCVAR_2 DCVAR_1, CVar
 #define DCVAR_3 DCVAR_2, CVar
 #define DCVAR_4 DCVAR_3, CVar
@@ -418,7 +422,7 @@ CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count) {
 #define DCVAR_32 DCVAR_31, CVar
 
 #define DARG_0
-#define DARG_1 arg_arr[0]
+#define DARG_1 , arg_arr[0]
 #define DARG_2 DARG_1, arg_arr[1]
 #define DARG_3 DARG_2, arg_arr[2]
 #define DARG_4 DARG_3, arg_arr[3]
@@ -452,7 +456,7 @@ CVar DispatchCall(void *addr, const CVar *arg_arr, int arg_count) {
 #define DARG_32 DARG_31, arg_arr[31]
 
 #define DCASE(N) \
-    case N: return reinterpret_cast<CVar (*)(DCVAR_##N)>(addr)(DARG_##N);
+    case N: return reinterpret_cast<CVar (*)(VarClosure * DCVAR_##N)>(addr)(nullptr DARG_##N);
 
     switch (arg_count) {
         DCASE(0) DCASE(1) DCASE(2) DCASE(3) DCASE(4) DCASE(5)

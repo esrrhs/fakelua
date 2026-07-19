@@ -80,41 +80,41 @@ struct InvalidVarImpl final : public VarInterface {
 
 }// namespace
 
-static CVar VmFn0() {
+static CVar VmFn0(VarClosure *_CL) {
     Var ret;
     ret.SetInt(123);
     return ret;
 }
 
-static CVar VmFnEcho1(CVar a1) {
+static CVar VmFnEcho1(VarClosure *_CL, CVar a1) {
     return a1;
 }
 
-static CVar VmFnEcho2(CVar a1, CVar a2) {
+static CVar VmFnEcho2(VarClosure *_CL, CVar a1, CVar a2) {
     return a1;
 }
 
-static CVar VmFnEcho3(CVar a1, CVar a2, CVar a3) {
+static CVar VmFnEcho3(VarClosure *_CL, CVar a1, CVar a2, CVar a3) {
     return a1;
 }
 
-static CVar VmFnEcho4(CVar a1, CVar a2, CVar a3, CVar a4) {
+static CVar VmFnEcho4(VarClosure *_CL, CVar a1, CVar a2, CVar a3, CVar a4) {
     return a1;
 }
 
-static CVar VmFnEcho5(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5) {
+static CVar VmFnEcho5(VarClosure *_CL, CVar a1, CVar a2, CVar a3, CVar a4, CVar a5) {
     return a1;
 }
 
-static CVar VmFnEcho6(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6) {
+static CVar VmFnEcho6(VarClosure *_CL, CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6) {
     return a1;
 }
 
-static CVar VmFnEcho7(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6, CVar a7) {
+static CVar VmFnEcho7(VarClosure *_CL, CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6, CVar a7) {
     return a1;
 }
 
-static CVar VmFnEcho8(CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6, CVar a7, CVar a8) {
+static CVar VmFnEcho8(VarClosure *_CL, CVar a1, CVar a2, CVar a3, CVar a4, CVar a5, CVar a6, CVar a7, CVar a8) {
     return a1;
 }
 
@@ -400,7 +400,7 @@ TEST(runtime, state_config_is_stored) {
 
 // 使用宏定义 VmFnEcho9 到 VmFnEcho32
 #define DEFINE_ECHO_FN(N)                                                                                                                                                                              \
-    static CVar VmFnEcho##N(PARAMS_##N) {                                                                                                                                                              \
+    static CVar VmFnEcho##N(VarClosure *_CL, PARAMS_##N) {                                                                                                                                              \
         CVar ret;                                                                                                                                                                                      \
         ret.type_ = static_cast<int>(VarType::Int);                                                                                                                                                    \
         ret.data_.i = N;                                                                                                                                                                               \
@@ -543,15 +543,15 @@ TEST(vm_cvar_call, parameter_limit_exceptions) {
 }
 
 // 供多返回值测试使用的 C++ 辅助函数
-static CVar VmFnEchoArg4(CVar a1, CVar a2, CVar a3, CVar a4) {
+static CVar VmFnEchoArg4(VarClosure *_CL, CVar a1, CVar a2, CVar a3, CVar a4) {
     return a4;
 }
 
-static CVar VmFnEchoArg2(CVar a1, CVar a2) {
+static CVar VmFnEchoArg2(VarClosure *_CL, CVar a1, CVar a2) {
     return a2;
 }
 
-static CVar VmFnEchoArg3(CVar a1, CVar a2, CVar a3) {
+static CVar VmFnEchoArg3(VarClosure *_CL, CVar a1, CVar a2, CVar a3) {
     return a3;
 }
 
@@ -709,7 +709,7 @@ TEST(runtime, get_multi_count_wrong_type_throws) {
 // ============================================================================
 // FakeluaCallByName vararg 路径
 // ============================================================================
-static CVar VmFnVarargSum(CVar a1, CVar vararg_multi) {
+static CVar VmFnVarargSum(VarClosure *_CL, CVar a1, CVar vararg_multi) {
     State s;
     int64_t sum = inter::FakeluaToNative<int64_t>(&s, a1);
     if (vararg_multi.type_ == static_cast<int>(VarType::Multi)) {

@@ -68,6 +68,12 @@ public:
         return data_.t;
     }
 
+    // 获取闭包对象（仅在类型匹配时有效）
+    [[nodiscard]] VarClosure *GetClosure() const {
+        DEBUG_ASSERT(type_ == static_cast<int>(VarType::Closure));
+        return data_.cl;
+    }
+
 public:
     // 设置为 nil
     void SetNil() {

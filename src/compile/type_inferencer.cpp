@@ -190,6 +190,11 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
             DumpASTWithTypes(local_function->Funcbody(), snapshot, tab + 1, os);
             break;
         }
+        case SyntaxTreeType::FunctionDef: {
+            auto func_def = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node);
+            DumpASTWithTypes(func_def->Funcbody(), snapshot, tab + 1, os);
+            break;
+        }
         case SyntaxTreeType::LocalVar: {
             auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(node);
             DumpASTWithTypes(local_var->Namelist(), snapshot, tab + 1, os);
@@ -415,6 +420,11 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
             const auto func = std::dynamic_pointer_cast<SyntaxTreeLocalFunction>(node);
             InferNode(func->Funcbody(), tctx);
             return RecordType(current_map, node.get(), T_UNKNOWN);
+        }
+        case SyntaxTreeType::FunctionDef: {
+            const auto func = std::dynamic_pointer_cast<SyntaxTreeFunctiondef>(node);
+            InferNode(func->Funcbody(), tctx);
+            return RecordType(current_map, node.get(), T_DYNAMIC);
         }
         case SyntaxTreeType::FuncBody: {
             const auto funcbody = std::dynamic_pointer_cast<SyntaxTreeFuncbody>(node);
