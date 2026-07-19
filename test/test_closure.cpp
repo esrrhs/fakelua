@@ -83,3 +83,12 @@ TEST(closure, test_closure_for_in) {
         ASSERT_EQ(ret, 60);
     });
 }
+
+TEST(closure, test_closure_syntax_expr) {
+    ClosureRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./closure/test_closure_syntax_expr.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 185);
+    });
+}
