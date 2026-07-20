@@ -437,9 +437,6 @@ void SemanticAnalysis::ValidateGotoInBlock(const SyntaxTreeInterfacePtr &chunk, 
 
 void SemanticAnalysis::CheckFunctionCall(const SyntaxTreeInterfacePtr &node) {
     const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(node);
-    if (!fc->Name().empty()) {
-        ThrowError("method calls (:) are not supported", node);
-    }
     const auto callee_prefixexp = fc->prefixexp();
     if (!callee_prefixexp || callee_prefixexp->Type() != SyntaxTreeType::PrefixExp) {
         ThrowError("function call callee must be a prefix expression", node);

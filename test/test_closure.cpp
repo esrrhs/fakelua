@@ -93,6 +93,15 @@ TEST(closure, test_closure_syntax_expr) {
     });
 }
 
+TEST(closure, test_closure_method_call) {
+    ClosureRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./closure/test_closure_method_call.lua", {.debug_mode = debug_mode});
+        int ret = 0;
+        Call(s, type, "test", ret);
+        ASSERT_EQ(ret, 200);
+    });
+}
+
 TEST(closure, test_closure_func_alias) {
     ClosureRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./closure/test_closure_func_alias.lua", {.debug_mode = debug_mode});

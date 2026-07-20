@@ -2618,8 +2618,6 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
     DEBUG_ASSERT(functioncall->Type() == SyntaxTreeType::FunctionCall);
     const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall);
 
-    DEBUG_ASSERT(fc->Name().empty());
-
     const auto args_node = fc->Args();
     DEBUG_ASSERT(args_node->Type() == SyntaxTreeType::Args);
     const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
@@ -2926,6 +2924,46 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
         call_expr = func_name + "(NULL";
         for (size_t i = 0; i < compiled_args.size(); ++i) {
             call_expr += ", " + compiled_args[i];
+        }
+        call_expr += ")";
+    } else if (!fc->Name().empty()) {
+        if (has_expansion) {
+            compiled_args.push_back(expansion_tmp);
+        }
+        const std::string &method_name = fc->Name();
+        std::string obj_expr;
+        if (var) {
+            obj_expr = CompileVar(var);
+        } else {
+            obj_expr = CompilePrefixexp(pe_pre_ptr);
+        }
+        std::string obj_tmp = std::format("flua_obj_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << obj_tmp << ";\n";
+        Out() << GenTab() << obj_tmp << " = " << obj_expr << ";\n";
+
+        std::string callee_expr;
+        const auto spec_type = GetSpecTypeForVar(pe_pre_ptr);
+        if (!spec_type.empty() && IsSpecField(spec_type, method_name, TableKeyKind::kString)) {
+            const auto c_name = GetSpecFieldCName(spec_type, method_name, TableKeyKind::kString);
+            callee_expr = std::format("FL_SPEC({}, {}, {})", spec_type, obj_tmp, c_name);
+        } else {
+            const auto id = s_->GetConstString().Alloc(method_name);
+            callee_expr = std::format("FlGetTableStrId({}, {})", obj_tmp, id);
+        }
+
+        std::string callee_tmp = std::format("flua_method_{}", tmp_var_counter_++);
+        func_temp_decls_ << "    CVar " << callee_tmp << ";\n";
+        Out() << GenTab() << callee_tmp << " = " << callee_expr << ";\n";
+
+        std::vector<std::string> final_args;
+        final_args.push_back(obj_tmp);
+        for (const auto &arg : compiled_args) {
+            final_args.push_back(arg);
+        }
+
+        call_expr = std::format("FlCallClosure(_S, {}, {}", callee_tmp, final_args.size());
+        for (const auto &arg : final_args) {
+            call_expr += ", " + arg;
         }
         call_expr += ")";
     } else {
