@@ -98,6 +98,7 @@ FakeLua 完整支持 Lua 闭包与 Upvalue 捕获：
 - **静态 Upvalue 分析**：[ResolveScopes](file:///home/project/fakelua/src/compile/c_gen.cpp) 静态 AST 分析 Pass 自动推导所有局部变量、参数及循环变量的作用域与跨函数捕获关系。
 - **Heap Boxing 共享机制**：被捕获的变量在定义时自动提升为堆分配的 `CVar *` 盒子，多闭包共享同一个堆内存指针，天然实现同作用域下多闭包同步修改共享 Upvalue。
 - **匿名函数与高阶函数**：支持匿名函数表达式 `function(args) body end` 作为值传递（高阶函数如 `map`），以及任意 Callee 调用（如 `tbl[key]()` 或 `(fn)()` 链式调用）。
+- **冒号方法调用**：完整支持 `obj:method(args)` 冒号方法调用语法糖，在 JIT 代码生成中自动将调用者求值并隐式将 `obj` 作为首个 `self` 参数传递给目标闭包。
 - **循环变量独立捕获**：在 `for` 及 `for in` 循环中，每次迭代自动重新 boxing 循环变量，确保迭代内部创建的闭包绑定独立变量副本。
 
 ### 全局变量复杂初始化
@@ -115,7 +116,6 @@ local z = (x + y) / 2.0
 ## 当前已知限制
 
 ### 语法限制
-- 不支持方法调用 `obj:method()`（`:` 语法）
 - `for in` 仅支持 `pairs()` / `ipairs()`
 
 ### 类型系统限制
