@@ -519,44 +519,13 @@ void SemanticAnalysis::CheckForIn(const SyntaxTreeInterfacePtr &node) {
     const auto for_in = std::dynamic_pointer_cast<SyntaxTreeForIn>(node);
 
     const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(for_in->Namelist());
-    if (namelist && (namelist->Names().empty() || namelist->Names().size() > 2)) {
-        ThrowError(std::format("for in namelist size must be 1 or 2, but got {}", namelist->Names().size()), node);
+    if (!namelist || namelist->Names().empty()) {
+        ThrowError("for in loop requires at least one variable name", node);
     }
 
     const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(for_in->Explist());
-    if (explist) {
-        if (explist->Exps().size() != 1) {
-            ThrowError(std::format("for in explist size must be 1, but got {}", explist->Exps().size()), node);
-        }
-
-        const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(explist->Exps()[0]);
-        if (!exp || exp->GetExpKind() != ExpKind::kPrefixExp) {
-            ThrowError("for in expression must be a pairs() or ipairs() call", node);
-        }
-        const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp->Right());
-        if (!pe || pe->GetPrefixKind() != PrefixExpKind::kFunctionCall) {
-            ThrowError("for in expression must be a function call", node);
-        }
-        const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe->GetValue());
-        if (!fc) {
-            ThrowError("for in: function call node is missing", node);
-        }
-        const auto func_pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-        if (!func_pe || func_pe->GetPrefixKind() != PrefixExpKind::kVar) {
-            ThrowError("for in: only pairs() or ipairs() are supported", node);
-        }
-        const auto func_var = std::dynamic_pointer_cast<SyntaxTreeVar>(func_pe->GetValue());
-        if (!func_var || (func_var->GetName() != "pairs" && func_var->GetName() != "ipairs")) {
-            ThrowError(std::format("for in: only pairs() or ipairs() are supported, got '{}'", func_var ? func_var->GetName() : ""), node);
-        }
-        const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-        if (!args_ptr || args_ptr->GetArgsKind() != ArgsKind::kExpList) {
-            ThrowError("for in: pairs/ipairs argument must be an expression list", node);
-        }
-        const auto args_explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
-        if (!args_explist_ptr || args_explist_ptr->Exps().size() != 1) {
-            ThrowError(std::format("for in: pairs/ipairs must have exactly one argument, got {}", args_explist_ptr ? args_explist_ptr->Exps().size() : 0), node);
-        }
+    if (!explist || explist->Exps().empty()) {
+        ThrowError("for in loop requires an expression list", node);
     }
 }
 

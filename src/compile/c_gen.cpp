@@ -1577,73 +1577,11 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     DEBUG_ASSERT(namelist->Type() == SyntaxTreeType::NameList);
     const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
     const auto &names = namelist_ptr->Names();
-    DEBUG_ASSERT(!names.empty() && names.size() <= 2);
+    DEBUG_ASSERT(!names.empty());
 
     const auto explist = for_in->Explist();
     DEBUG_ASSERT(explist->Type() == SyntaxTreeType::ExpList);
     const auto explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist);
-    DEBUG_ASSERT(explist_ptr->Exps().size() == 1);
-
-    const auto exp = explist_ptr->Exps()[0];
-    DEBUG_ASSERT(exp->Type() == SyntaxTreeType::Exp);
-    const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
-    DEBUG_ASSERT(exp_ptr->GetExpKind() == ExpKind::kPrefixExp);
-    const auto prefixexp = exp_ptr->Right();
-    DEBUG_ASSERT(prefixexp->Type() == SyntaxTreeType::PrefixExp);
-    const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(prefixexp);
-    DEBUG_ASSERT(pe_ptr->GetPrefixKind() == PrefixExpKind::kFunctionCall);
-    const auto functioncall = pe_ptr->GetValue();
-    DEBUG_ASSERT(functioncall->Type() == SyntaxTreeType::FunctionCall);
-    const auto fc_ptr = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(functioncall);
-
-    const auto func_pe = fc_ptr->prefixexp();
-    DEBUG_ASSERT(func_pe->Type() == SyntaxTreeType::PrefixExp);
-    const auto func_pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(func_pe);
-    DEBUG_ASSERT(func_pe_ptr->GetPrefixKind() == PrefixExpKind::kVar);
-    const auto func_var = std::dynamic_pointer_cast<SyntaxTreeVar>(func_pe_ptr->GetValue());
-    const auto &func_name = func_var->GetName();
-    DEBUG_ASSERT(func_name == "pairs" || func_name == "ipairs");
-
-    const auto args_node = fc_ptr->Args();
-    DEBUG_ASSERT(args_node->Type() == SyntaxTreeType::Args);
-    const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
-    DEBUG_ASSERT(args_ptr->GetArgsKind() == ArgsKind::kExpList);
-    const auto args_explist = args_ptr->Explist();
-    const auto args_explist_ptr = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_explist);
-    DEBUG_ASSERT(args_explist_ptr->Exps().size() == 1);
-
-    const auto tbl_expr = CompileExp(args_explist_ptr->Exps()[0]);
-
-    const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);
-    const auto sz_var = std::format("flua_fi_sz_{}", tmp_var_counter_++);
-    const auto idx_var = std::format("flua_fi_idx_{}", tmp_var_counter_++);
-
-    func_temp_decls_ << "    CVar " << tbl_var << ";\n";
-    func_temp_decls_ << "    uint32_t " << sz_var << ";\n";
-    func_temp_decls_ << "    uint32_t " << idx_var << ";\n";
-
-    Out() << GenTab() << tbl_var << " = " << tbl_expr << ";\n";
-    Out() << GenTab() << "if (UNLIKELY(" << tbl_var << ".type_ != VAR_TABLE)) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
-    Out() << GenTab() << sz_var << " = " << tbl_var << ".data_.t->count_ + " << tbl_var << ".data_.t->spec_count;\n";
-
-    Out() << GenTab() << "for (" << idx_var << " = 0; " << idx_var << " < " << sz_var << "; " << idx_var << "++) {\n";
-    cur_tab_++;
-
-    const auto &key_name = names[0];
-    const auto tmp_k = std::format("flua_fi_k_{}", tmp_var_counter_++);
-    Out() << GenTab() << "CVar " << tmp_k << ";\n";
-    std::string tmp_v = "";
-    if (names.size() >= 2) {
-        tmp_v = std::format("flua_fi_v_{}", tmp_var_counter_++);
-        Out() << GenTab() << "CVar " << tmp_v << ";\n";
-        Out() << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, tmp_k, tmp_v);
-        Out() << GenTab() << std::format("if ({} == VAR_NIL) {{ continue; }}\n", tmp_v + ".type_");
-    } else {
-        const auto dummy_val = std::format("flua_fi_dummy_val_{}", tmp_var_counter_++);
-        func_temp_decls_ << "    CVar " << dummy_val << ";\n";
-        Out() << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, tmp_k, dummy_val);
-        Out() << GenTab() << std::format("if ({} == VAR_NIL) {{ continue; }}\n", dummy_val + ".type_");
-    }
 
     auto handle_loop_var = [&](const std::string &vname, const std::string &src_tmp) {
         bool is_captured = false;
@@ -1658,19 +1596,154 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
         }
     };
 
-    handle_loop_var(key_name, tmp_k);
-    if (names.size() >= 2) {
-        handle_loop_var(names[1], tmp_v);
+    bool is_pairs_or_ipairs = false;
+    SyntaxTreeInterfacePtr tbl_exp_node;
+
+    if (explist_ptr->Exps().size() == 1 && names.size() <= 2) {
+        const auto exp = explist_ptr->Exps()[0];
+        if (exp && exp->Type() == SyntaxTreeType::Exp) {
+            const auto exp_ptr = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
+            if (exp_ptr && exp_ptr->GetExpKind() == ExpKind::kPrefixExp && exp_ptr->Right()) {
+                const auto pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp_ptr->Right());
+                if (pe_ptr && pe_ptr->GetPrefixKind() == PrefixExpKind::kFunctionCall) {
+                    const auto fc_ptr = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(pe_ptr->GetValue());
+                    if (fc_ptr && fc_ptr->Name().empty()) {
+                        const auto func_pe = fc_ptr->prefixexp();
+                        if (func_pe && func_pe->Type() == SyntaxTreeType::PrefixExp) {
+                            const auto func_pe_ptr = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(func_pe);
+                            if (func_pe_ptr && func_pe_ptr->GetPrefixKind() == PrefixExpKind::kVar) {
+                                const auto func_var = std::dynamic_pointer_cast<SyntaxTreeVar>(func_pe_ptr->GetValue());
+                                if (func_var && (func_var->GetName() == "pairs" || func_var->GetName() == "ipairs")) {
+                                    const auto args_node = fc_ptr->Args();
+                                    if (args_node && args_node->Type() == SyntaxTreeType::Args) {
+                                        const auto args_ptr = std::dynamic_pointer_cast<SyntaxTreeArgs>(args_node);
+                                        if (args_ptr && args_ptr->GetArgsKind() == ArgsKind::kExpList) {
+                                            const auto args_explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(args_ptr->Explist());
+                                            if (args_explist && args_explist->Exps().size() == 1) {
+                                                is_pairs_or_ipairs = true;
+                                                tbl_exp_node = args_explist->Exps()[0];
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
     }
 
-    Out() << GenTab() << "{\n";
-    cur_tab_++;
-    CompileStmtBlock(for_in->Block());
-    cur_tab_--;
-    Out() << GenTab() << "}\n";
+    if (is_pairs_or_ipairs) {
+        const auto tbl_expr = CompileExp(tbl_exp_node);
 
-    cur_tab_--;
-    Out() << GenTab() << "}\n";
+        const auto tbl_var = std::format("flua_fi_tbl_{}", tmp_var_counter_++);
+        const auto sz_var = std::format("flua_fi_sz_{}", tmp_var_counter_++);
+        const auto idx_var = std::format("flua_fi_idx_{}", tmp_var_counter_++);
+
+        func_temp_decls_ << "    CVar " << tbl_var << ";\n";
+        func_temp_decls_ << "    uint32_t " << sz_var << ";\n";
+        func_temp_decls_ << "    uint32_t " << idx_var << ";\n";
+
+        Out() << GenTab() << tbl_var << " = " << tbl_expr << ";\n";
+        Out() << GenTab() << "if (UNLIKELY(" << tbl_var << ".type_ != VAR_TABLE)) { FakeluaThrowError(_S, \"for in: not a table\"); }\n";
+        Out() << GenTab() << sz_var << " = " << tbl_var << ".data_.t->count_ + " << tbl_var << ".data_.t->spec_count;\n";
+
+        Out() << GenTab() << "for (" << idx_var << " = 0; " << idx_var << " < " << sz_var << "; " << idx_var << "++) {\n";
+        cur_tab_++;
+
+        const auto &key_name = names[0];
+        const auto tmp_k = std::format("flua_fi_k_{}", tmp_var_counter_++);
+        Out() << GenTab() << "CVar " << tmp_k << ";\n";
+        std::string tmp_v = "";
+        if (names.size() >= 2) {
+            tmp_v = std::format("flua_fi_v_{}", tmp_var_counter_++);
+            Out() << GenTab() << "CVar " << tmp_v << ";\n";
+            Out() << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, tmp_k, tmp_v);
+            Out() << GenTab() << std::format("if ({} == VAR_NIL) {{ continue; }}\n", tmp_v + ".type_");
+        } else {
+            const auto dummy_val = std::format("flua_fi_dummy_val_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar " << dummy_val << ";\n";
+            Out() << GenTab() << std::format("GET_TABLE_ENTRY({}, {}, {}, {});\n", tbl_var, idx_var, tmp_k, dummy_val);
+            Out() << GenTab() << std::format("if ({} == VAR_NIL) {{ continue; }}\n", dummy_val + ".type_");
+        }
+
+        handle_loop_var(key_name, tmp_k);
+        if (names.size() >= 2) {
+            handle_loop_var(names[1], tmp_v);
+        }
+
+        Out() << GenTab() << "{\n";
+        cur_tab_++;
+        CompileStmtBlock(for_in->Block());
+        cur_tab_--;
+        Out() << GenTab() << "}\n";
+
+        cur_tab_--;
+        Out() << GenTab() << "}\n";
+    } else {
+        std::string iter_f = std::format("flua_fi_f_{}", tmp_var_counter_++);
+        std::string iter_s = std::format("flua_fi_s_{}", tmp_var_counter_++);
+        std::string iter_var = std::format("flua_fi_var_{}", tmp_var_counter_++);
+
+        func_temp_decls_ << "    CVar " << iter_f << ";\n";
+        func_temp_decls_ << "    CVar " << iter_s << ";\n";
+        func_temp_decls_ << "    CVar " << iter_var << ";\n";
+
+        const auto &exps = explist_ptr->Exps();
+        if (exps.size() == 1) {
+            std::string exp0_compiled = CompileExp(exps[0]);
+            std::string tmp_exp0 = std::format("flua_fi_exp0_{}", tmp_var_counter_++);
+            func_temp_decls_ << "    CVar " << tmp_exp0 << ";\n";
+            Out() << GenTab() << tmp_exp0 << " = " << exp0_compiled << ";\n";
+
+            Out() << GenTab() << "if (" << tmp_exp0 << ".type_ == VAR_MULTI) {\n";
+            Out() << GenTab() << "    " << iter_f << " = FlUnboxMulti(" << tmp_exp0 << ", 0);\n";
+            Out() << GenTab() << "    " << iter_s << " = FlUnboxMulti(" << tmp_exp0 << ", 1);\n";
+            Out() << GenTab() << "    " << iter_var << " = FlUnboxMulti(" << tmp_exp0 << ", 2);\n";
+            Out() << GenTab() << "} else {\n";
+            Out() << GenTab() << "    " << iter_f << " = " << tmp_exp0 << ";\n";
+            Out() << GenTab() << "    " << iter_s << " = kNil;\n";
+            Out() << GenTab() << "    " << iter_var << " = kNil;\n";
+            Out() << GenTab() << "}\n";
+        } else {
+            std::string e0 = CompileExp(exps[0]);
+            std::string e1 = (exps.size() >= 2) ? CompileExp(exps[1]) : "kNil";
+            std::string e2 = (exps.size() >= 3) ? CompileExp(exps[2]) : "kNil";
+            Out() << GenTab() << iter_f << " = FlUnboxMulti(" << e0 << ", 0);\n";
+            Out() << GenTab() << iter_s << " = FlUnboxMulti(" << e1 << ", 0);\n";
+            Out() << GenTab() << iter_var << " = FlUnboxMulti(" << e2 << ", 0);\n";
+        }
+
+        Out() << GenTab() << "while (true) {\n";
+        cur_tab_++;
+
+        std::string iter_res = std::format("flua_fi_res_{}", tmp_var_counter_++);
+        Out() << GenTab() << "CVar " << iter_res << " = FlCallClosure(_S, " << iter_f << ", 2, " << iter_s << ", " << iter_var << ");\n";
+
+        std::vector<std::string> loop_var_tmps;
+        for (size_t i = 0; i < names.size(); ++i) {
+            std::string vtmp = std::format("flua_fi_v_{}_{}", i, tmp_var_counter_++);
+            Out() << GenTab() << "CVar " << vtmp << " = FlUnboxMulti(" << iter_res << ", " << i << ");\n";
+            loop_var_tmps.push_back(vtmp);
+        }
+
+        Out() << GenTab() << "if (" << loop_var_tmps[0] << ".type_ == VAR_NIL) { break; }\n";
+        Out() << GenTab() << iter_var << " = " << loop_var_tmps[0] << ";\n";
+
+        for (size_t i = 0; i < names.size(); ++i) {
+            handle_loop_var(names[i], loop_var_tmps[i]);
+        }
+
+        Out() << GenTab() << "{\n";
+        cur_tab_++;
+        CompileStmtBlock(for_in->Block());
+        cur_tab_--;
+        Out() << GenTab() << "}\n";
+
+        cur_tab_--;
+        Out() << GenTab() << "}\n";
+    }
 }
 
 // ===========================================================================
