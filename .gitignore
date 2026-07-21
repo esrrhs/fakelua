@@ -55,3 +55,4 @@ src/compile/bison/parser.xml
 test_results.log
 .antigravitycli/
 .mimocode/
+.cache/
