@@ -484,17 +484,7 @@ void CGen::GenerateDecls(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                 const auto spec_name = SpecFuncName(name, math_params, bitmask);
                 const auto spec_ret = GetSpecReturnType(func->name, bitmask);
                 Out() << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
-                for (size_t i = 0; i < params.size(); ++i) {
-                    if (i > 0) {
-                        Out() << ", ";
-                    }
-                    if (const auto mp_it = std::ranges::find(math_params, static_cast<int>(i)); mp_it != math_params.end()) {
-                        const int mp_idx = static_cast<int>(mp_it - math_params.begin());
-                        Out() << MathParamCTypeName(MathParamKindOf(bitmask, mp_idx)) << " " << params[i];
-                    } else {
-                        Out() << "CVar " << params[i];
-                    }
-                }
+                EmitSpecParamList(params, math_params, bitmask);
                 Out() << ");\n";
                 // 注册特化函数名，使 CompileFunctioncall 能将其识别为
                 // 本地调用（同文件直接调用）。
@@ -595,17 +585,7 @@ void CGen::GenerateImpl(const SyntaxTreeInterfacePtr &chunk, GenResult &gr) {
                 const auto spec_name = SpecFuncName(name, math_params, bitmask);
                 const auto spec_ret = GetSpecReturnType(func->name, bitmask);
                 Out() << SpecReturnCTypeName(spec_ret) << " " << spec_name << "(";
-                for (size_t i = 0; i < func_params.size(); ++i) {
-                    if (i > 0) {
-                        Out() << ", ";
-                    }
-                    if (const auto mp_it = std::ranges::find(math_params, static_cast<int>(i)); mp_it != math_params.end()) {
-                        const int mp_idx = static_cast<int>(mp_it - math_params.begin());
-                        Out() << MathParamCTypeName(MathParamKindOf(bitmask, mp_idx)) << " " << func_params[i];
-                    } else {
-                        Out() << "CVar " << func_params[i];
-                    }
-                }
+                EmitSpecParamList(func_params, math_params, bitmask);
                 Out() << ") {\n";
                 CompileFuncBody(func->name, func_block, bitmask, sections_[static_cast<size_t>(Section::Impls)]);
                 if (!BlockEndsWithReturn(func_block)) {
@@ -987,6 +967,20 @@ std::string CGen::TryCompileNativeBoolExpr(const SyntaxTreeInterfacePtr &exp) {
         return std::format("({}) {} ({})", left_native, op_it->second, right_native);
     }
     return {};
+}
+
+void CGen::EmitSpecParamList(const std::vector<std::string> &params, const std::vector<int> &math_params, int bitmask) {
+    for (size_t i = 0; i < params.size(); ++i) {
+        if (i > 0) {
+            Out() << ", ";
+        }
+        if (const auto mp_it = std::ranges::find(math_params, static_cast<int>(i)); mp_it != math_params.end()) {
+            const int mp_idx = static_cast<int>(mp_it - math_params.begin());
+            Out() << MathParamCTypeName(MathParamKindOf(bitmask, mp_idx)) << " " << params[i];
+        } else {
+            Out() << "CVar " << params[i];
+        }
+    }
 }
 
 // ===========================================================================
@@ -1697,6 +1691,7 @@ void CGen::CompileStmtForIn(const SyntaxTreeInterfacePtr &stmt) {
     bool is_pairs_or_ipairs = false;
     SyntaxTreeInterfacePtr tbl_exp_node;
 
+    // Detect pairs/ipairs fast path with early returns to flatten nesting
     if (explist_ptr->Exps().size() == 1 && names.size() <= 2) {
         const auto exp = explist_ptr->Exps()[0];
         if (exp && exp->Type() == SyntaxTreeType::Exp) {
@@ -2144,29 +2139,17 @@ std::string CGen::CompileBinop(const SyntaxTreeInterfacePtr &exp, const SyntaxTr
 
         Out() << GenTab() << std::format("IsTrue(({}), {});\n", left_str, tmp_bool);
 
-        if (op_kind == BinOpKind::kAnd) {
-            Out() << GenTab() << std::format("if (!{}) {{\n", tmp_bool);
-            cur_tab_++;
-            Out() << GenTab() << std::format("{} = {};\n", tmp, left_str);
-            cur_tab_--;
-            Out() << GenTab() << "} else {\n";
-            cur_tab_++;
-            const auto right_str = CompileExp(right);
-            Out() << GenTab() << std::format("{} = {};\n", tmp, right_str);
-            cur_tab_--;
-            Out() << GenTab() << "}\n";
-        } else {
-            Out() << GenTab() << std::format("if ({}) {{\n", tmp_bool);
-            cur_tab_++;
-            Out() << GenTab() << std::format("{} = {};\n", tmp, left_str);
-            cur_tab_--;
-            Out() << GenTab() << "} else {\n";
-            cur_tab_++;
-            const auto right_str = CompileExp(right);
-            Out() << GenTab() << std::format("{} = {};\n", tmp, right_str);
-            cur_tab_--;
-            Out() << GenTab() << "}\n";
-        }
+        const bool is_and = (op_kind == BinOpKind::kAnd);
+        Out() << GenTab() << std::format("if ({}{}) {{\n", is_and ? "!" : "", tmp_bool);
+        cur_tab_++;
+        Out() << GenTab() << std::format("{} = {};\n", tmp, left_str);
+        cur_tab_--;
+        Out() << GenTab() << "} else {\n";
+        cur_tab_++;
+        const auto right_str = CompileExp(right);
+        Out() << GenTab() << std::format("{} = {};\n", tmp, right_str);
+        cur_tab_--;
+        Out() << GenTab() << "}\n";
 
         return tmp;
     }

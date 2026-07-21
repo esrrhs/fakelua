@@ -252,7 +252,7 @@ private:
     std::stringstream func_temp_decls_;// 用于临时存放函数体内部临时 C 变量声明的代码流
     int cur_tab_ = 0;                  // 当前 C 代码生成器所处的缩进级别深度
 
-public:
+private:
     struct FuncInfo;
 
     struct VarDef {
@@ -278,8 +278,6 @@ public:
         std::vector<VarDef *> captured_vars; // upvalues captured
         std::unordered_set<VarDef *> captured_set;
     };
-
-private:
     std::vector<std::unique_ptr<VarDef>> all_defs_;
     std::vector<std::unique_ptr<FuncInfo>> all_funcs_;
     std::unordered_map<const SyntaxTreeInterface *, FuncInfo *> func_map_;
@@ -306,6 +304,10 @@ private:
 
     bool IsPackageHeaderStmt(const SyntaxTreeInterfacePtr &stmt) const;
     std::string CompileUpvaluePointer(VarDef *def);
+
+    // 向当前输出流发射特化函数的参数类型+名称列表。
+    // 遍历 params，对命中 math_params 的参数输出原生类型，其余输出 CVar。
+    void EmitSpecParamList(const std::vector<std::string> &params, const std::vector<int> &math_params, int bitmask);
     void CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt);
 
 };
