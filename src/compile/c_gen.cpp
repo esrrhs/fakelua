@@ -50,7 +50,6 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
     GenResult gr;
 
     cur_package_name_.clear();
-    package_header_stmt_.reset();
     if (pr.chunk && pr.chunk->Type() == SyntaxTreeType::Block) {
         const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
         std::vector<SyntaxTreeInterfacePtr> stmts_to_check = blk->Stmts();
@@ -96,7 +95,6 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
                                     } else {
                                         cur_package_name_ = raw_pkg;
                                     }
-                                    package_header_stmt_ = first_stmt;
                                 }
                             } else if (args && args->GetArgsKind() == ArgsKind::kExpList && args->Explist()) {
                                 const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(args->Explist());
@@ -109,7 +107,6 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
                                         } else {
                                             cur_package_name_ = raw_pkg;
                                         }
-                                        package_header_stmt_ = first_stmt;
                                     }
                                 }
                             }
@@ -132,7 +129,6 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
                                 } else {
                                     cur_package_name_ = raw_pkg;
                                 }
-                                package_header_stmt_ = first_stmt;
                             }
                         }
                     }
@@ -742,10 +738,6 @@ std::string CGen::GetKeyDescriptor(const std::string &key, TableKeyKind kind) {
 
 
 
-std::string CGen::GetSimpleVarName(const SyntaxTreeInterfacePtr &pe) {
-    return fakelua::GetSimpleVarName(pe);
-}
-
 std::string CGen::GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const {
     // 从 TypeInferencer 标注的 ir.var_spec_annotations 中获取流敏感 spec 类型名。
     if (const auto it = ir().var_spec_annotations.find(pe.get()); it != ir().var_spec_annotations.end()) {
@@ -758,10 +750,6 @@ bool CGen::IsSpecField(const std::string &spec_type, const std::string &key, Tab
     const auto it = ir().spec_type_metadata.find(spec_type);
     if (it == ir().spec_type_metadata.end()) return false;
     return it->second.field_key_descs.contains(GetKeyDescriptor(key, kind));
-}
-
-bool CGen::IsSpecField(const std::string &spec_type, const std::string &key) const {
-    return IsSpecField(spec_type, key, TableKeyKind::kString);
 }
 
 std::string CGen::GetSpecFieldCName(const std::string &spec_type, const std::string &key, TableKeyKind kind) const {
@@ -1005,7 +993,6 @@ void CGen::CompileStmtBlock(const SyntaxTreeInterfacePtr &block) {
 }
 
 bool CGen::IsPackageHeaderStmt(const SyntaxTreeInterfacePtr &stmt) const {
-    LOG_INFO("[c_gen] IsPackageHeaderStmt called, cur_pkg: '{}', stmt type: {}", cur_package_name_, (int)stmt->Type());
     if (cur_package_name_.empty()) return false;
     if (stmt->Type() == SyntaxTreeType::FunctionCall) {
         const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(stmt);
