@@ -76,15 +76,11 @@ private:
     [[nodiscard]] std::string GetSpecTypeForVar(const SyntaxTreeInterfacePtr &pe) const;
     // table 特化辅助：检查 key 是否为已知 spec 字段
     [[nodiscard]] bool IsSpecField(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
-    [[nodiscard]] bool IsSpecField(const std::string &spec_type, const std::string &key) const;
     [[nodiscard]] std::string GetSpecFieldCName(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
     [[nodiscard]] int GetSpecFieldIndex(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
     [[nodiscard]] InferredType GetSpecFieldType(const std::string &spec_type, const std::string &key, TableKeyKind kind) const;
     // table 特化辅助：生成字段描述符（用于 map key）
     [[nodiscard]] static std::string GetKeyDescriptor(const std::string &key, TableKeyKind kind);
-    // table 特化辅助：从 prefixexp 提取简单变量名（空字符串表示非简单变量）
-    [[nodiscard]] static std::string GetSimpleVarName(const SyntaxTreeInterfacePtr &pe);
-
     // ==========================================
     // 第二部分：语句编译
     // ==========================================
@@ -310,7 +306,6 @@ private:
     
     FuncInfo *cur_func_info_ = nullptr; // The function currently being compiled
     std::string cur_package_name_; // Current package name declared in chunk
-    SyntaxTreeInterfacePtr package_header_stmt_; // Top-level package declaration statement
 
     void ResolveScopes(const SyntaxTreeInterfacePtr &node,
                        std::vector<Scope> &scopes,
