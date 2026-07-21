@@ -10,6 +10,76 @@
 
 namespace fakelua {
 
+namespace {
+
+// 剥离 Lua 字符串字面量的引号（"..." 或 '...'），返回内容部分。
+// 若不以引号开头则原样返回。
+std::string StripLuaStringQuotes(const std::string &raw) {
+    if (raw.size() >= 2 && (raw.front() == '"' || raw.front() == '\'')) {
+        return raw.substr(1, raw.size() - 2);
+    }
+    return raw;
+}
+
+// 尝试从一条语句中提取 package 声明名。
+// 支持两种 AST 形态：FunctionCall（package "xxx"）和 Assign（package = "xxx"）。
+// 成功则 out_name 被赋值，返回 true；否则返回 false。
+bool ExtractPackageName(const SyntaxTreeInterfacePtr &stmt, std::string &out_name) {
+    if (stmt->Type() == SyntaxTreeType::FunctionCall) {
+        const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(stmt);
+        if (fc && fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
+            const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
+            if (pe && pe->GetPrefixKind() == PrefixExpKind::kVar && pe->GetValue()) {
+                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
+                if (v && v->GetName() == "package" && fc->Args()) {
+                    const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
+                    if (args && args->GetArgsKind() == ArgsKind::kString && args->String()) {
+                        const auto str_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(args->String());
+                        if (str_exp) {
+                            out_name = StripLuaStringQuotes(str_exp->ExpValue());
+                            return true;
+                        }
+                    } else if (args && args->GetArgsKind() == ArgsKind::kExpList && args->Explist()) {
+                        const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(args->Explist());
+                        if (el && !el->Exps().empty()) {
+                            const auto str_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
+                            if (str_exp && str_exp->GetExpKind() == ExpKind::kString) {
+                                out_name = StripLuaStringQuotes(str_exp->ExpValue());
+                                return true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    } else if (stmt->Type() == SyntaxTreeType::Assign) {
+        const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
+        if (assign && assign->Varlist() && assign->Explist()) {
+            const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
+            const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
+            if (vl && !vl->Vars().empty() && el && !el->Exps().empty()) {
+                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vl->Vars()[0]);
+                if (v && v->GetName() == "package") {
+                    const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
+                    if (exp && exp->GetExpKind() == ExpKind::kString) {
+                        out_name = StripLuaStringQuotes(exp->ExpValue());
+                        return true;
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
+// 判断一条语句是否为 package 声明语句（只检查形态，不提取名字）。
+bool IsPackageDeclStmt(const SyntaxTreeInterfacePtr &stmt) {
+    std::string ignored;
+    return ExtractPackageName(stmt, ignored);
+}
+
+} // anonymous namespace
+
 // ===========================================================================
 // 第一部分：核心调度与编排
 // ===========================================================================
@@ -77,63 +147,7 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
         }
 
         if (!stmts_to_check->empty()) {
-            const auto first_stmt = (*stmts_to_check)[0];
-            if (first_stmt->Type() == SyntaxTreeType::FunctionCall) {
-                const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(first_stmt);
-                if (fc && fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
-                    const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-                    if (pe && pe->GetPrefixKind() == PrefixExpKind::kVar && pe->GetValue()) {
-                        const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-                        if (v && v->GetName() == "package" && fc->Args()) {
-                            const auto args = std::dynamic_pointer_cast<SyntaxTreeArgs>(fc->Args());
-                            if (args && args->GetArgsKind() == ArgsKind::kString && args->String()) {
-                                const auto str_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(args->String());
-                                if (str_exp) {
-                                    std::string raw_pkg = str_exp->ExpValue();
-                                    if (raw_pkg.size() >= 2 && (raw_pkg.front() == '"' || raw_pkg.front() == '\'')) {
-                                        cur_package_name_ = raw_pkg.substr(1, raw_pkg.size() - 2);
-                                    } else {
-                                        cur_package_name_ = raw_pkg;
-                                    }
-                                }
-                            } else if (args && args->GetArgsKind() == ArgsKind::kExpList && args->Explist()) {
-                                const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(args->Explist());
-                                if (el && !el->Exps().empty()) {
-                                    const auto str_exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
-                                    if (str_exp && str_exp->GetExpKind() == ExpKind::kString) {
-                                        std::string raw_pkg = str_exp->ExpValue();
-                                        if (raw_pkg.size() >= 2 && (raw_pkg.front() == '"' || raw_pkg.front() == '\'')) {
-                                            cur_package_name_ = raw_pkg.substr(1, raw_pkg.size() - 2);
-                                        } else {
-                                            cur_package_name_ = raw_pkg;
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            } else if (first_stmt->Type() == SyntaxTreeType::Assign) {
-                const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(first_stmt);
-                if (assign && assign->Varlist() && assign->Explist()) {
-                    const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
-                    const auto el = std::dynamic_pointer_cast<SyntaxTreeExplist>(assign->Explist());
-                    if (vl && !vl->Vars().empty() && el && !el->Exps().empty()) {
-                        const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vl->Vars()[0]);
-                        if (v && v->GetName() == "package") {
-                            const auto exp = std::dynamic_pointer_cast<SyntaxTreeExp>(el->Exps()[0]);
-                            if (exp && exp->GetExpKind() == ExpKind::kString) {
-                                std::string raw_pkg = exp->ExpValue();
-                                if (raw_pkg.size() >= 2 && (raw_pkg.front() == '"' || raw_pkg.front() == '\'')) {
-                                    cur_package_name_ = raw_pkg.substr(1, raw_pkg.size() - 2);
-                                } else {
-                                    cur_package_name_ = raw_pkg;
-                                }
-                            }
-                        }
-                    }
-                }
-            }
+            ExtractPackageName((*stmts_to_check)[0], cur_package_name_);
         }
     }
 
@@ -990,30 +1004,7 @@ void CGen::CompileStmtBlock(const SyntaxTreeInterfacePtr &block) {
 
 bool CGen::IsPackageHeaderStmt(const SyntaxTreeInterfacePtr &stmt) const {
     if (cur_package_name_.empty()) return false;
-    if (stmt->Type() == SyntaxTreeType::FunctionCall) {
-        const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(stmt);
-        if (fc && fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
-            const auto pe = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(fc->prefixexp());
-            if (pe && pe->GetPrefixKind() == PrefixExpKind::kVar && pe->GetValue()) {
-                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(pe->GetValue());
-                if (v && v->GetName() == "package") {
-                    return true;
-                }
-            }
-        }
-    } else if (stmt->Type() == SyntaxTreeType::Assign) {
-        const auto assign = std::dynamic_pointer_cast<SyntaxTreeAssign>(stmt);
-        if (assign && assign->Varlist()) {
-            const auto vl = std::dynamic_pointer_cast<SyntaxTreeVarlist>(assign->Varlist());
-            if (vl && !vl->Vars().empty()) {
-                const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(vl->Vars()[0]);
-                if (v && v->GetName() == "package") {
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
+    return IsPackageDeclStmt(stmt);
 }
 
 void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
