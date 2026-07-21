@@ -17,13 +17,7 @@ extern "C" void FakeluaThrowError(State *state, const char *msg) {
     ThrowFakeluaException(msg);
 }
 
-extern "C" __attribute__((used)) void FakeluaRegisterPackageFunction(State *state, const char *name, CVar closure) {
-    if (closure.type_ == static_cast<int>(VarType::Closure) && closure.data_.cl) {
-        VarClosure *cl = closure.data_.cl;
-        state->GetVM().RegisterFunction(VmFunction(name, cl->expected_arg_count, JIT_TCC, cl->func_ptr, nullptr, cl->is_vararg));
-        state->GetVM().RegisterFunction(VmFunction(name, cl->expected_arg_count, JIT_GCC, cl->func_ptr, nullptr, cl->is_vararg));
-    }
-}
+
 
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {
     const auto func = state->GetVM().GetFunction(std::string(name));

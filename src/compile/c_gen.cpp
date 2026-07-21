@@ -2915,35 +2915,8 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                         Out() << GenTab() << tmp_val << " = " << val_str << ";\n";
                         Out() << GenTab() << std::format("FL_SET_SPEC({}, {}, {}, {}, {});\n", spec_type, tbl_str, c_field_name, index, tmp_val);
                     } else {
-                        const SyntaxTreeVar *var_node = nullptr;
-                        if (const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(raw_args[0])) {
-                            if (exp_node->GetExpKind() == ExpKind::kPrefixExp && exp_node->Right()) {
-                                const auto pe_node = std::dynamic_pointer_cast<SyntaxTreePrefixexp>(exp_node->Right());
-                                if (pe_node && pe_node->GetPrefixKind() == PrefixExpKind::kVar && pe_node->GetValue()) {
-                                    const auto v = std::dynamic_pointer_cast<SyntaxTreeVar>(pe_node->GetValue());
-                                    if (v) {
-                                        var_node = v.get();
-                                    }
-                                }
-                            }
-                        }
-                        bool is_known_local = false;
-                        if (var_node) {
-                            const std::string &vname = var_node->GetName();
-                            for (const auto &[vptr, def] : var_to_def_map_) {
-                                if (def && def->name == vname) {
-                                    is_known_local = true;
-                                    break;
-                                }
-                            }
-                        }
-                        if (var_node && var_node->GetVarKind() == VarKind::kSimple && !is_known_local) {
-                            std::string full_func_name = var_node->GetName() + "." + key_name;
-                            Out() << GenTab() << std::format("FakeluaRegisterPackageFunction(_S, \"{}\", {});\n", full_func_name, val_str);
-                        } else {
-                            const auto id = s_->GetConstString().Alloc(key_name);
-                            Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
-                        }
+                        const auto id = s_->GetConstString().Alloc(key_name);
+                        Out() << GenTab() << std::format("FlSetTableStrId({}, {}, {});\n", tbl_str, id, val_str);
                     }
                     Out() << GenTab() << std::format("SET_NIL({});\n", tmp);
                     return tmp;
