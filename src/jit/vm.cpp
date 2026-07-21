@@ -1,3 +1,4 @@
+#include "var/var_closure.h"
 #include "vm.h"
 #include "fakelua.h"
 #include "state/state.h"
@@ -15,6 +16,8 @@ extern "C" void *FakeluaAlloc(State *state, size_t size, bool is_const) {
 extern "C" void FakeluaThrowError(State *state, const char *msg) {
     ThrowFakeluaException(msg);
 }
+
+
 
 extern "C" __attribute__((used)) CVar FakeluaCallByName(State *state, int jit_type, const char *name, int arg_num, ...) {
     const auto func = state->GetVM().GetFunction(std::string(name));

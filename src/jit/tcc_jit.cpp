@@ -21,7 +21,8 @@ void TccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     }
 
     for (const auto &[name, info]: gr.function_names) {
-        void *func_ptr = tcc_get_symbol(s, name.c_str());
+        const std::string &sym = info.c_symbol_name.empty() ? name : info.c_symbol_name;
+        void *func_ptr = tcc_get_symbol(s, sym.c_str());
         if (!func_ptr) {
             ThrowFakeluaException(std::format("TCC compile failed, tcc_get_symbol failed for symbol {} in {}", name, pr.file_name));
         }

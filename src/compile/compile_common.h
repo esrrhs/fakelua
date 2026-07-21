@@ -348,6 +348,7 @@ struct InferResult {
 struct JitFunctionInfo {
     int params_count = 0;
     bool is_vararg = false;
+    std::string c_symbol_name;
 };
 
 // ---- 阶段五：代码生成结果 ---------------------------------------------------

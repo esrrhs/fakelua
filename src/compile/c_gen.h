@@ -309,12 +309,15 @@ private:
     std::unordered_map<const SyntaxTreeInterface *, VarDef *> var_to_def_map_;
     
     FuncInfo *cur_func_info_ = nullptr; // The function currently being compiled
+    std::string cur_package_name_; // Current package name declared in chunk
+    SyntaxTreeInterfacePtr package_header_stmt_; // Top-level package declaration statement
 
     void ResolveScopes(const SyntaxTreeInterfacePtr &node,
                        std::vector<Scope> &scopes,
                        std::vector<FuncInfo *> &func_stack,
                        FuncInfo *cur_func);
 
+    bool IsPackageHeaderStmt(const SyntaxTreeInterfacePtr &stmt) const;
     std::string CompileUpvaluePointer(VarDef *def);
     void CompileStmtLocalFunction(const SyntaxTreeInterfacePtr &stmt);
 

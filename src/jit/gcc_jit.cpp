@@ -156,7 +156,8 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     const auto handle = std::make_shared<GCCHandle>(c_file, so_file, module_handle);
 
     for (const auto &[name, info]: gr.function_names) {
-        FARPROC symbol_address = GetProcAddress(module_handle, name.c_str());
+        const std::string &sym = info.c_symbol_name.empty() ? name : info.c_symbol_name;
+        FARPROC symbol_address = GetProcAddress(module_handle, sym.c_str());
         if (!symbol_address) {
             ThrowFakeluaException(std::format("GCC compile failed, GetProcAddress failed for symbol {} in {}", name, so_file));
         }
@@ -229,7 +230,8 @@ void GccJitter::Compile(const ParseResult &pr, const GenResult &gr, const Compil
     const auto handle = std::make_shared<GCCHandle>(c_file, so_file, dl_handle);
 
     for (const auto &[name, info]: gr.function_names) {
-        void *func_ptr = dlsym(dl_handle, name.c_str());
+        const std::string &sym = info.c_symbol_name.empty() ? name : info.c_symbol_name;
+        void *func_ptr = dlsym(dl_handle, sym.c_str());
         if (!func_ptr) {
             ThrowFakeluaException(std::format("GCC compile failed, dlsym failed for symbol {} in {}", name, so_file));
         }
