@@ -232,6 +232,30 @@ void TypeInferencer::DumpASTWithTypes(const SyntaxTreeInterfacePtr &node, const 
     }
 }
 
+void TypeInferencer::DumpTypesToTmpFile(const ParseResult &pr, const InferResult &ir) const {
+    const auto dumpfile = GenerateTmpFilename("fakelua_infer_", ".txt");
+    if (std::ofstream ofs(dumpfile); ofs.is_open()) {
+        ofs << "=== Main Evaluation Types ===\n";
+        DumpASTWithTypes(pr.chunk, ir.main_eval_types, 0, ofs);
+
+        if (!ir.specialization_snapshots.empty()) {
+            ofs << "\n=== Specialization Snapshots ===\n";
+            for (const auto &[func_name, snapshots]: ir.specialization_snapshots) {
+                ofs << std::format("Function: {}\n", func_name);
+                for (size_t bitmask = 0; bitmask < snapshots.size(); ++bitmask) {
+                    ofs << std::format("  Spec bitmask: {}\n", bitmask);
+                    DumpASTWithTypes(pr.chunk, snapshots[bitmask], 2, ofs);
+                }
+            }
+        }
+        ofs.close();
+        std::cerr << "TypeInferencer: Type inference results dumped to " << dumpfile << std::endl;
+        LOG_INFO("Type inference results generated: {}", dumpfile);
+    } else {
+        LOG_ERROR("Failed to open output file: {}", dumpfile);
+    }
+}
+
 // ===========================================================================
 // 第一部分：TypeEnvironment 实现
 // ===========================================================================
@@ -254,7 +278,7 @@ void TypeInferencer::TypeEnvironment::Define(const std::string &name, const Infe
     scopes_.back()[name] = EnvEntry{type, init_node};
 }
 
-bool TypeInferencer::TypeEnvironment::Update(const std::string &name, const InferredType type, EvalTypeSnapshot &current_map) {
+InferredType TypeInferencer::TypeEnvironment::Update(const std::string &name, const InferredType type, EvalTypeSnapshot &current_map) {
     for (auto &scope: std::views::reverse(scopes_)) {
         if (const auto found = scope.find(name); found != scope.end()) {
             const InferredType old_type = found->second.type;
@@ -266,10 +290,10 @@ bool TypeInferencer::TypeEnvironment::Update(const std::string &name, const Infe
             if (merged == T_DYNAMIC && old_type != T_DYNAMIC && found->second.init_node != nullptr) {
                 current_map[found->second.init_node] = T_DYNAMIC;
             }
-            return true;
+            return merged;
         }
     }
-    return false;
+    return T_DYNAMIC;
 }
 
 bool TypeInferencer::TypeEnvironment::Has(const std::string &name) const {
@@ -321,7 +345,7 @@ InferredType TypeInferencer::TypeEnvironment::MergeType(const InferredType old_t
 InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfig &cfg) {
     file_level_types_.clear();
     InferResult ir;
-    EvalTypeMap current_map;
+    EvalTypeSnapshot current_map;
     TypeEnvironment env;
     TraversalContext tctx{current_map, env, nullptr, ir.var_define_nodes, ir.shadowed_decls};
 
@@ -343,27 +367,7 @@ InferResult TypeInferencer::InferTypes(const ParseResult &pr, const CompileConfi
     }
 
     if (cfg.debug_mode) {
-        const auto dumpfile = GenerateTmpFilename("fakelua_infer_", ".txt");
-        if (std::ofstream ofs(dumpfile); ofs.is_open()) {
-            ofs << "=== Main Evaluation Types ===\n";
-            DumpASTWithTypes(pr.chunk, ir.main_eval_types, 0, ofs);
-
-            if (!ir.specialization_snapshots.empty()) {
-                ofs << "\n=== Specialization Snapshots ===\n";
-                for (const auto &[func_name, snapshots]: ir.specialization_snapshots) {
-                    ofs << std::format("Function: {}\n", func_name);
-                    for (size_t bitmask = 0; bitmask < snapshots.size(); ++bitmask) {
-                        ofs << std::format("  Spec bitmask: {}\n", bitmask);
-                        DumpASTWithTypes(pr.chunk, snapshots[bitmask], 2, ofs);
-                    }
-                }
-            }
-            ofs.close();
-            std::cerr << "TypeInferencer: Type inference results dumped to " << dumpfile << std::endl;
-            LOG_INFO("Type inference results generated: {}", dumpfile);
-        } else {
-            LOG_ERROR("Failed to open output file: {}", dumpfile);
-        }
+        DumpTypesToTmpFile(pr, ir);
     }
 
     // 分析 table 形状，填充 table_spec_infos（流不敏感字段并集 + optional 标记）
@@ -524,17 +528,21 @@ InferredType TypeInferencer::InferNode(const SyntaxTreeInterfacePtr &node, Trave
     }
 }
 
-InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocalVar> &local_var, TraversalContext &tctx) {
+TypeInferencer::LocalVarUnpack TypeInferencer::UnpackLocalVar(const SyntaxTreeInterfacePtr &local_var_node) {
+    const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(local_var_node);
     const auto namelist = std::dynamic_pointer_cast<SyntaxTreeNamelist>(local_var->Namelist());
     std::vector<SyntaxTreeInterfacePtr> exps;
     if (const auto explist = std::dynamic_pointer_cast<SyntaxTreeExplist>(local_var->Explist())) {
         exps = explist->Exps();
     }
-
     DEBUG_ASSERT(namelist);
-    auto &current_map = tctx.current_map;
+    return {namelist->Names(), std::move(exps)};
+}
 
-    const auto &names = namelist->Names();
+InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocalVar> &local_var, TraversalContext &tctx) {
+    const auto [names, exps] = UnpackLocalVar(local_var);
+
+    auto &current_map = tctx.current_map;
     for (size_t i = 0; i < names.size(); ++i) {
         // 在新定义变量前，如果环境里已能查到同名变量，说明发生了遮蔽（Shadowing）
         if (tctx.env.Has(names[i])) {
@@ -547,9 +555,9 @@ InferredType TypeInferencer::InferLocalVar(const std::shared_ptr<SyntaxTreeLocal
         SyntaxTreeInterface* init_node = (i < exps.size()) ? exps[i].get() : nullptr;
         tctx.env.Define(names[i], type, init_node);
         // 文件顶层数值类型局部变量（非试推断且作用域深度 <= 2）：
-        // 将其记录 to file_level_types，供 RunTrialInference
+        // 将其记录到 file_level_types_，供 RunTrialInference
         // 在重置 env_ 后重新注入，使函数特化试推断能看到正确类型。
-        if (!tctx.IsTrialInference() && tctx.env.GetScopeDepth() <= 2 && IsNumericInferredType(type)) {
+        if (!tctx.IsTrialInference() && tctx.env.IsAtFileScope() && IsNumericInferredType(type)) {
             file_level_types_[names[i]] = type;
         }
     }
@@ -575,8 +583,8 @@ InferredType TypeInferencer::InferAssign(const std::shared_ptr<SyntaxTreeAssign>
 
     if (tctx.IsPinnedVar(name)) {
         current = tctx.env.Lookup(name);
-    } else if (tctx.env.Update(name, rhs_type, current_map)) {
-        current = tctx.env.Lookup(name);
+    } else {
+        current = tctx.env.Update(name, rhs_type, current_map);
     }
 
     if (const auto* init = tctx.env.LookupInitNode(name)) {
@@ -592,24 +600,23 @@ InferredType TypeInferencer::InferForLoop(const std::shared_ptr<SyntaxTreeForLoo
     const InferredType end_type = InferNode(for_loop->ExpEnd(), tctx);
     const InferredType step_type = InferNode(for_loop->ExpStep(), tctx);
 
-    // 仅当所有边界都是 T_INT 时才将循环变量标记为 T_INT，
-    // 这与 CGen 使用的整型特化路径相匹配。当所有边界均为数值（T_INT 或 T_FLOAT）
-    // 但并非全为 T_INT 时，标记为 T_FLOAT 以启用 double 快路径。
-    // 当任何边界为 T_DYNAMIC 时，CGen 会生成 CVar 循环控制变量，
-    // 因此循环变量也必须是 T_DYNAMIC 以保持类型一致。
+    // 根据循环边界的推断类型，分类确定循环变量类型：
+    //   T_INT      — 所有边界均为 T_INT（step 缺省或 T_INT）
+    //   T_FLOAT    — 所有边界均为数值但非全 T_INT
+    //   T_DYNAMIC  — 存在非数值边界
     const bool begin_valid = for_loop->ExpBegin() != nullptr;
     const bool end_valid = for_loop->ExpEnd() != nullptr;
     const bool step_numeric = !for_loop->ExpStep() || step_type == T_INT || step_type == T_FLOAT;
-    const bool all_int = begin_valid && end_valid && begin_type == T_INT && end_type == T_INT && (!for_loop->ExpStep() || step_type == T_INT);
-    const bool all_numeric = !all_int && begin_valid && end_valid && (begin_type == T_INT || begin_type == T_FLOAT) && (end_type == T_INT || end_type == T_FLOAT) && step_numeric;
-    const InferredType loop_var_type = all_int ? T_INT : (all_numeric ? T_FLOAT : T_DYNAMIC);
+    const bool all_numeric_boundaries = begin_valid && end_valid && (begin_type == T_INT || begin_type == T_FLOAT) && (end_type == T_INT || end_type == T_FLOAT) && step_numeric;
+    const bool all_int = all_numeric_boundaries && begin_type == T_INT && end_type == T_INT && (!for_loop->ExpStep() || step_type == T_INT);
+    const InferredType loop_var_type = all_int ? T_INT : (all_numeric_boundaries ? T_FLOAT : T_DYNAMIC);
 
     auto &current_map = tctx.current_map;
     tctx.env.EnterScope();
     tctx.env.Define(for_loop->Name(), loop_var_type, for_loop.get());
     InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(for_loop->Block()), false, tctx);
     // 循环体内可能对循环变量重新赋值（例如 `a = "test"`），导致其类型
-    // 从初始 of T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量 of
+    // 从初始的 T_INT/T_FLOAT 拓宽为 T_DYNAMIC。此处重新查询循环变量 of
     // 最终类型，以便 CGen 决定生成原生整型/浮点快路径还是 CVar 动态路径。
     const InferredType final_loop_var_type = tctx.env.Lookup(for_loop->Name());
     tctx.env.ExitScope();
@@ -931,7 +938,7 @@ TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseRe
                 continue;
             }
             ir.math_param_positions[info.name] = math_indices;
-            math_func_info[info.name] = {info.block, info.params};
+            math_func_info[info.name] = info;
             new_discovery = true;
             LOG_INFO("TypeInferencer: {} math params for {} (pass {})", math_indices.size(), info.name, pass);
         }
@@ -943,7 +950,7 @@ TypeInferencer::MathFuncInfoMap TypeInferencer::IdentifyMathParams(const ParseRe
     return math_func_info;
 }
 
-std::vector<int> TypeInferencer::FindMathParamIndices(const FunctionSpecInfo &info, const EvalTypeMap &baseline, const EvalTypeMap &all_int,
+std::vector<int> TypeInferencer::FindMathParamIndices(const FunctionSpecInfo &info, const EvalTypeSnapshot &baseline, const EvalTypeSnapshot &all_int,
                                                       const std::unordered_map<std::string, std::vector<int>> &known_math_positions,
                                                       std::unordered_map<const SyntaxTreeInterface*, const SyntaxTreeInterface*> &var_define_nodes) {
     std::vector<int> math_indices;
@@ -966,7 +973,8 @@ std::vector<int> TypeInferencer::FindMathParamIndices(const FunctionSpecInfo &in
 
 void TypeInferencer::GenerateInitialSnapshots(InferResult &ir, const MathFuncInfoMap &math_func_info) {
     for (const auto &[func_name, func_data]: math_func_info) {
-        const auto &[func_block, func_params] = func_data;
+        const auto &func_block = func_data.block;
+        const auto &func_params = func_data.params;
         const auto &math_indices = ir.math_param_positions.at(func_name);
         const int num_specs = 1 << static_cast<int>(math_indices.size());
 
@@ -981,7 +989,7 @@ void TypeInferencer::GenerateInitialSnapshots(InferResult &ir, const MathFuncInf
     }
 }
 
-TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func_block, const std::vector<std::string> &params,
+EvalTypeSnapshot TypeInferencer::RunTrialInference(const SyntaxTreeInterfacePtr &func_block, const std::vector<std::string> &params,
                                                               const std::unordered_map<std::string, InferredType> &assumed_types,
                                                               const std::unordered_map<std::string, std::vector<int>> *math_positions,
                                                               const std::unordered_map<std::string, std::vector<InferredType>> *assumed_ret, bool skip_post_processing,
@@ -1000,8 +1008,8 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
     ctx.pinned_vars = &pinned_vars;
     ctx.skip_post_processing = skip_post_processing;
 
-    EvalTypeMap prev_map;
-    EvalTypeMap current_map;
+    EvalTypeSnapshot prev_map;
+    EvalTypeSnapshot current_map;
 
     for (int round = 0; round < kMaxSpecIterations; ++round) {
         // 每轮清除 func_block 节点在 current_map 中的旧条目，保证推断从干净状态开始。
@@ -1025,8 +1033,10 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
         TraversalContext tctx{current_map, env, &ctx, var_define_nodes, dummy_shadowed_decls};
         InferBlock(std::dynamic_pointer_cast<SyntaxTreeBlock>(func_block), false, tctx);
 
-        // 快照本轮推断结果（仅 func_block 节点）。
-        EvalTypeMap curr_map;
+        // 快照本轮推断结果：为未被推断触及的节点补 T_UNKNOWN，
+        // 使 curr_map 与 prev_map 具有相同的键集，从而能直接比较。
+        EvalTypeSnapshot curr_map;
+        curr_map.reserve(current_map.size() + 64);
         WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &n) {
             const auto it = current_map.find(n.get());
             curr_map[n.get()] = (it != current_map.end()) ? it->second : T_UNKNOWN;
@@ -1044,9 +1054,9 @@ TypeInferencer::EvalTypeMap TypeInferencer::RunTrialInference(const SyntaxTreeIn
 
 std::unordered_map<std::string, TypeInferencer::FuncRetInfo> TypeInferencer::BuildFunctionReturnCache(const MathFuncInfoMap &math_func_info) const {
     std::unordered_map<std::string, FuncRetInfo> func_ret_cache;
-    for (const auto &[func_name, info]: math_func_info) {
+    for (const auto &[func_name, func_data]: math_func_info) {
         FuncRetInfo ret_info;
-        ret_info.ends_with_return = CollectReturnExps(info.block, ret_info.ret_exps);
+        ret_info.ends_with_return = CollectReturnExps(func_data.block, ret_info.ret_exps);
         func_ret_cache[func_name] = std::move(ret_info);
     }
     return func_ret_cache;
@@ -1060,8 +1070,9 @@ void TypeInferencer::InferSpecializationReturnTypes(InferResult &ir, const MathF
 
     for (int round = 0; round < kMaxSpecIterations; ++round) {
         bool changed = false;
-        for (const auto &[func_name, info]: math_func_info) {
-            const auto &[func_block, func_params] = info;
+        for (const auto &[func_name, func_data]: math_func_info) {
+            const auto &func_block = func_data.block;
+            const auto &func_params = func_data.params;
             const auto &math_indices = ir.math_param_positions.at(func_name);
             const auto &ret_info = func_ret_cache.at(func_name);
             const int num_specs = 1 << static_cast<int>(math_indices.size());
@@ -1152,7 +1163,13 @@ bool TypeInferencer::IsNativeComparisonExpr(const SyntaxTreeInterfacePtr &node) 
 
 namespace {
 
-bool CheckNodeChangeCommon(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &typed_map, const EvalTypeSnapshot &compare_map, const bool improvement_mode) {
+// 统一的节点类型变化检测：谓词为真时检查节点在 typed_map/compare_map 间的类型变化。
+// 合并了原 CheckArithmeticNodeChange 和 CheckForLoopNodeChange 的共同模式。
+bool CheckNodeChangeCommon(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &typed_map, const EvalTypeSnapshot &compare_map, const bool improvement_mode,
+                           const std::function<bool(const SyntaxTreeInterfacePtr &)> &predicate) {
+    if (!predicate(node)) {
+        return false;
+    }
     const auto it_typed = typed_map.find(node.get());
     const auto it_compare = compare_map.find(node.get());
     DEBUG_ASSERT(it_typed != typed_map.end() && it_compare != compare_map.end());
@@ -1161,11 +1178,11 @@ bool CheckNodeChangeCommon(const SyntaxTreeInterfacePtr &node, const EvalTypeSna
 
 }// namespace
 
-bool TypeInferencer::CheckArithmeticNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, const bool improvement_mode) const {
-    return IsArithmeticExpr(node) && CheckNodeChangeCommon(node, typed_map, compare_map, improvement_mode);
+bool TypeInferencer::CheckArithmeticNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &typed_map, const EvalTypeSnapshot &compare_map, const bool improvement_mode) const {
+    return CheckNodeChangeCommon(node, typed_map, compare_map, improvement_mode, [this](const SyntaxTreeInterfacePtr &n) { return IsArithmeticExpr(n); });
 }
 
-bool TypeInferencer::CheckComparisonNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, const bool improvement_mode) const {
+bool TypeInferencer::CheckComparisonNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &typed_map, const EvalTypeSnapshot &compare_map, const bool improvement_mode) const {
     if (!IsNativeComparisonExpr(node)) {
         return false;
     }
@@ -1188,11 +1205,11 @@ bool TypeInferencer::CheckComparisonNodeChange(const SyntaxTreeInterfacePtr &nod
     return false;
 }
 
-bool TypeInferencer::CheckForLoopNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, const bool improvement_mode) const {
-    return (node->Type() == SyntaxTreeType::ForLoop) && CheckNodeChangeCommon(node, typed_map, compare_map, improvement_mode);
+bool TypeInferencer::CheckForLoopNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &typed_map, const EvalTypeSnapshot &compare_map, const bool improvement_mode) const {
+    return CheckNodeChangeCommon(node, typed_map, compare_map, improvement_mode, [](const SyntaxTreeInterfacePtr &n) { return n->Type() == SyntaxTreeType::ForLoop; });
 }
 
-bool TypeInferencer::CheckCallNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeMap &typed_map, const EvalTypeMap &compare_map,
+bool TypeInferencer::CheckCallNodeChange(const SyntaxTreeInterfacePtr &node, const EvalTypeSnapshot &typed_map, const EvalTypeSnapshot &compare_map,
                                          const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
     if (node->Type() != SyntaxTreeType::FunctionCall) {
         return false;
@@ -1225,7 +1242,7 @@ bool TypeInferencer::CheckCallNodeChange(const SyntaxTreeInterfacePtr &node, con
     return false;
 }
 
-bool TypeInferencer::CheckArithmeticTypeChanges(const EvalTypeMap &typed_map, const EvalTypeMap &compare_map, const SyntaxTreeInterfacePtr &func_block, const bool improvement_mode,
+bool TypeInferencer::CheckArithmeticTypeChanges(const EvalTypeSnapshot &typed_map, const EvalTypeSnapshot &compare_map, const SyntaxTreeInterfacePtr &func_block, const bool improvement_mode,
                                                 const std::unordered_map<std::string, std::vector<int>> &math_param_positions) const {
     bool found = false;
     WalkSyntaxTree(func_block, [&](const SyntaxTreeInterfacePtr &node) {
@@ -1480,20 +1497,12 @@ InferredType TypeInferencer::ComputeReturnTypeFromSnapshot(const EvalTypeSnapsho
     return actual_ret;
 }
 
-void TypeInferencer::CollectGlobalConstVars(const ParseResult &pr, const EvalTypeMap &current_map, InferResult &ir) {
+void TypeInferencer::CollectGlobalConstVars(const ParseResult &pr, const EvalTypeSnapshot &current_map, InferResult &ir) {
     DEBUG_ASSERT(pr.chunk->Type() == SyntaxTreeType::Block);
     const auto block = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
     for (const auto &stmt: block->Stmts()) {
         if (stmt->Type() == SyntaxTreeType::LocalVar) {
-            const auto local_var = std::dynamic_pointer_cast<SyntaxTreeLocalVar>(stmt);
-            const auto namelist = local_var->Namelist();
-            const auto explist = local_var->Explist();
-            const auto namelist_ptr = std::dynamic_pointer_cast<SyntaxTreeNamelist>(namelist);
-            const auto &names = namelist_ptr->Names();
-            std::vector<SyntaxTreeInterfacePtr> exps;
-            if (explist) {
-                exps = std::dynamic_pointer_cast<SyntaxTreeExplist>(explist)->Exps();
-            }
+            const auto [names, exps] = UnpackLocalVar(stmt);
             for (size_t i = 0; i < names.size(); ++i) {
                 InferredType type = T_DYNAMIC;
                 if (i < exps.size()) {
@@ -1507,20 +1516,14 @@ void TypeInferencer::CollectGlobalConstVars(const ParseResult &pr, const EvalTyp
     }
 }
 
-std::string TypeInferencer::FieldKeyDescriptor(const TableFieldInfo &f) {
-    // 实现已上移到 compile_common.h 的共享自由函数 TableFieldDescriptor，
-    // 确保 spec 类型名哈希与去重/并集逻辑使用完全相同的描述符。
-    return fakelua::TableFieldDescriptor(f);
-}
-
 void TypeInferencer::MergeFieldsInto(std::vector<TableFieldInfo> &dst, const std::vector<TableFieldInfo> &src) {
     // 按 key 描述符去重并集：已存在则保留 dst 条目（不覆盖），否则追加。
     std::unordered_set<std::string> dst_descs;
     for (const auto &f: dst) {
-        dst_descs.insert(FieldKeyDescriptor(f));
+        dst_descs.insert(TableFieldDescriptor(f));
     }
     for (const auto &f: src) {
-        const auto desc = FieldKeyDescriptor(f);
+        const auto desc = TableFieldDescriptor(f);
         if (!dst_descs.contains(desc)) {
             dst.push_back(f);
             dst_descs.insert(desc);
@@ -1661,12 +1664,12 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
 
     std::unordered_map<const SyntaxTreeInterface *, std::vector<TableFieldInfo>> ctor_own_fields;
 
-    struct FuncFrame {
+    struct FuncAnalysisArena {
         std::unordered_map<const SyntaxTreeInterface *, std::string> ctor_target_vars;
         std::unordered_map<std::string, std::vector<TableFieldInfo>> var_fields;
     };
-    std::vector<std::shared_ptr<FuncFrame>> frames;
-    auto push_frame = [&]() { frames.push_back(std::make_shared<FuncFrame>()); };
+    std::vector<std::shared_ptr<FuncAnalysisArena>> frames;
+    auto push_frame = [&]() { frames.push_back(std::make_shared<FuncAnalysisArena>()); };
     // 注意：不 pop frame。所有 frame 保留到 stamping 阶段供查询，
     // 因为 ctor_target_vars / var_fields 在函数退出后仍需被 stamp 循环访问。
     // 函数级隔离由 push_frame 实现（每个 function body 进入时新开 frame）。
@@ -1891,7 +1894,7 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
 
         std::unordered_set<std::string> own_descs;
         for (const auto &f: own) {
-            own_descs.insert(FieldKeyDescriptor(f));
+            own_descs.insert(TableFieldDescriptor(f));
         }
 
         // 在所有函数 frame 中查找该 ctor 的目标变量（ctor 节点唯一，只可能在一个 frame 中）
@@ -1909,7 +1912,7 @@ void TypeInferencer::AnalyzeTableShapes(const SyntaxTreeInterfacePtr &chunk, Inf
             // 有目标变量：用变量的字段并集作为布局，标记 optional
             info.fields = *merged_ptr;
             for (auto &f: info.fields) {
-                if (!own_descs.contains(FieldKeyDescriptor(f))) {
+                if (!own_descs.contains(TableFieldDescriptor(f))) {
                     f.optional = true;
                 } else {
                     f.optional = false;
@@ -2173,7 +2176,9 @@ void TypeInferencer::FlowStmt(const SyntaxTreeInterfacePtr &stmt, FlowState &st,
         std::vector<FlowState> branch_states;
         // then 分支
         {
-            FlowState branch{st};
+            FlowState branch;
+            branch.local = st.local;
+            branch.global = st.global;
             FlowBlock(if_node->Block(), branch, ir, is_top_level);
             branch_states.push_back(std::move(branch));
         }
@@ -2182,19 +2187,26 @@ void TypeInferencer::FlowStmt(const SyntaxTreeInterfacePtr &stmt, FlowState &st,
             for (size_t i = 0; i < elseifs->ElseifSize(); ++i) {
                 // 条件读使用 if 前状态。
                 AnnotateExprs(elseifs->ElseifExp(i), st, ir);
-                FlowState branch{snapshot_local, snapshot_global};
+                FlowState branch;
+                branch.local = snapshot_local;
+                branch.global = snapshot_global;
                 FlowBlock(elseifs->ElseifBlock(i), branch, ir, is_top_level);
                 branch_states.push_back(std::move(branch));
             }
         }
         // else 分支
         if (const auto else_block = if_node->ElseBlock()) {
-            FlowState branch{snapshot_local, snapshot_global};
+            FlowState branch;
+            branch.local = snapshot_local;
+            branch.global = snapshot_global;
             FlowBlock(else_block, branch, ir, is_top_level);
             branch_states.push_back(std::move(branch));
         } else {
             // 无 else：隐式 else 路径保持 if 前状态（等同 s0），纳入汇合。
-            branch_states.push_back(FlowState{snapshot_local, snapshot_global});
+            FlowState branch;
+            branch.local = snapshot_local;
+            branch.global = snapshot_global;
+            branch_states.push_back(std::move(branch));
         }
 
         // 汇合：各分支同 key 值全一致才保留。
@@ -2315,7 +2327,8 @@ void TypeInferencer::ComputeVarSpecAnnotations(const ParseResult &pr, InferResul
 
     // 先处理 __fakelua_init，使其对全局变量的 spec 赋值流入后续函数。
     if (init_func_stmt) {
-        FlowState init_state{st.global};
+        FlowState init_state;
+        init_state.global = st.global;
         if (auto bb = FuncBodyBlock(init_func_stmt)) FlowBlock(bb, init_state, ir, true);
         // init 内的赋值写入 global（is_top_level=true），但本身也是函数作用域：
         // 将 init 执行结束后的 global 作为后续函数的 global 基线。
@@ -2327,7 +2340,8 @@ void TypeInferencer::ComputeVarSpecAnnotations(const ParseResult &pr, InferResul
         auto body_block = FuncBodyBlock(func);
         if (!body_block) continue;
         // 函数入口清空 local 作用域（对应 CGen 每函数清空 table_spec_types_）。
-        FlowState func_state{st.global};
+        FlowState func_state;
+        func_state.global = st.global;
         FlowBlock(body_block, func_state, ir, false);
     }
 }
