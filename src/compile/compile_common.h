@@ -324,9 +324,6 @@ struct InferResult {
     EvalTypeSnapshot main_eval_types;
     // 文件级/全局数值常量及其推断类型映射
     std::unordered_map<std::string, InferredType> global_const_vars;
-    // 在函数体内被赋值（写入）的文件级局部变量名集合。
-    // 被修改的变量生成 `static`（可变）而非 `static const`。
-    std::unordered_set<std::string> mutated_global_vars;
     // table 特化信息：table constructor 节点 → 特化信息
     std::unordered_map<const SyntaxTreeInterface *, struct TableSpecInfo> table_spec_infos;
     // 流敏感 table 特化标注：Var 引用节点（kDot/kSquare 的 prefixexp 所指 Var 节点）→ 该程序点该变量的 spec 类型名。

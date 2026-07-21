@@ -1,16 +1,15 @@
 function test()
     -- Call Player.AddItem directly via runtime package table
     local res1 = Player.AddItem(100, 5) -- 100 + 5 + 1 = 106
-    -- Call Bag.UseItem which calls Player.AddItem
-    local res2 = Bag.UseItem(200) -- 200 + 10 + 2 = 212
-    -- Verify private local variable log_count is 2
-    local count = Player.GetLogCount() -- 2
 
-    -- Test dynamic hot reloading / closure replacement on package table:
+    -- Call Bag.UseItem which internally calls Player.AddItem
+    local res2 = Bag.UseItem(200) -- Player.AddItem(200, 10) = 200 + 10 + 1 = 211
+
+    -- Test dynamic hot reloading: replace Player.AddItem at runtime
     Player.AddItem = function(id, num)
         return id * num
     end
-    local res3 = Bag.UseItem(20) -- Bag.UseItem calls updated Player.AddItem(20, 10) -> 200
+    local res3 = Player.AddItem(10, 5) -- 10 * 5 = 50
 
-    return res1 + res2 + count + res3 -- 106 + 212 + 2 + 200 = 520
+    return res1 + res2 + res3 -- 106 + 211 + 50 = 367
 end

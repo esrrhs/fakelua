@@ -419,20 +419,18 @@ void CGen::GenerateGlobal(const SyntaxTreeInterfacePtr &chunk) {
                 SyntaxTreeInterfacePtr exp = (i < exps.size()) ? exps[i] : nullptr;
 
                 InferredType global_type = ir().global_const_vars.at(name);
-                const bool is_mutated = ir().mutated_global_vars.contains(name);
-                const char *const_kw = is_mutated ? "" : "const ";
                 const auto exp_node = std::dynamic_pointer_cast<SyntaxTreeExp>(exp);
                 if (global_type == T_INT) {
                     if (!exp_node || exp_node->GetExpKind() == ExpKind::kNil) {
-                        Out() << "static " << const_kw << "int64_t " << name << " = 0;\n";
+                        Out() << "static const int64_t " << name << " = 0;\n";
                     } else {
-                        Out() << "static " << const_kw << "int64_t " << name << " = " << CompileNumericExp(exp) << ";\n";
+                        Out() << "static const int64_t " << name << " = " << CompileNumericExp(exp) << ";\n";
                     }
                 } else if (global_type == T_FLOAT) {
                     if (!exp_node || exp_node->GetExpKind() == ExpKind::kNil) {
-                        Out() << "static " << const_kw << "double " << name << " = 0.0;\n";
+                        Out() << "static const double " << name << " = 0.0;\n";
                     } else {
-                        Out() << "static " << const_kw << "double " << name << " = " << CompileNumericExp(exp) << ";\n";
+                        Out() << "static const double " << name << " = " << CompileNumericExp(exp) << ";\n";
                     }
                 } else {
                     // 非数值字面量：保留 static CVar 形式。

@@ -900,8 +900,7 @@ TEST(exception, const_reassign) {
     auto s = sg.GetState();
     ASSERT_NE(s, nullptr);
     SetDebugLogLevel(0);
-    // File-level locals can now be mutated inside function bodies (package state support).
-    EXPECT_NO_THROW(CompileFile(s, "./exception/test_const_reassign.lua", {}));
+    EXPECT_THROW(CompileFile(s, "./exception/test_const_reassign.lua", {}), std::exception);
 }
 
 TEST(exception, top_level_bare_local) {

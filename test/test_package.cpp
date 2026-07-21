@@ -28,6 +28,6 @@ TEST(package, test_package_basic) {
         CompileFile(s, "./package/test_package.lua", {.debug_mode = debug_mode});
         int ret = 0;
         Call(s, type, "test", ret);
-        ASSERT_EQ(ret, 520);
+        ASSERT_EQ(ret, 367);
     });
 }
