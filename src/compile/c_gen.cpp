@@ -3015,14 +3015,7 @@ std::string CGen::CompileFunctioncall(const SyntaxTreeInterfacePtr &functioncall
                 if (base_pe_ptr && base_pe_ptr->GetPrefixKind() == PrefixExpKind::kVar && base_pe_ptr->GetValue()) {
                     const auto base_var = std::dynamic_pointer_cast<SyntaxTreeVar>(base_pe_ptr->GetValue());
                     if (base_var && base_var->GetVarKind() == VarKind::kSimple) {
-                        bool is_base_local = false;
-                        const std::string &bname = base_var->GetName();
-                        for (const auto &[vptr, def] : var_to_def_map_) {
-                            if (def && def->name == bname) {
-                                is_base_local = true;
-                                break;
-                            }
-                        }
+                        bool is_base_local = var_to_def_map_.find(base_var.get()) != var_to_def_map_.end();
                         if (!is_base_local) {
                             func_name = base_var->GetName() + "." + var->GetName();
                         }

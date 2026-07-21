@@ -2415,6 +2415,15 @@ TEST(jitter, test_shadow_typed_local) {
     });
 }
 
+TEST(jitter, test_same_name_var_scope) {
+    JitterRunHelper([](State *s, JITType type, bool debug_mode) {
+        CompileFile(s, "./jit/test_same_name_var_scope.lua", {.debug_mode = debug_mode});
+        double ret = 0.0;
+        Call(s, type, "test_same_name_var_scope", ret);
+        EXPECT_DOUBLE_EQ(ret, 30.0);
+    });
+}
+
 TEST(jitter, test_math_spec_float_global) {
     JitterRunHelper([](State *s, JITType type, bool debug_mode) {
         CompileFile(s, "./jit/test_math_spec_float_global.lua", {.debug_mode = debug_mode});
