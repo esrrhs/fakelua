@@ -52,7 +52,7 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
     cur_package_name_.clear();
     if (pr.chunk && pr.chunk->Type() == SyntaxTreeType::Block) {
         const auto blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(pr.chunk);
-        std::vector<SyntaxTreeInterfacePtr> stmts_to_check = blk->Stmts();
+        const std::vector<SyntaxTreeInterfacePtr> *stmts_to_check = &blk->Stmts();
         for (const auto &stmt : blk->Stmts()) {
             if (stmt && stmt->Type() == SyntaxTreeType::Function) {
                 const auto func = std::dynamic_pointer_cast<SyntaxTreeFunction>(stmt);
@@ -66,7 +66,7 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
                                 if (fbody && fbody->Block()) {
                                     const auto init_blk = std::dynamic_pointer_cast<SyntaxTreeBlock>(fbody->Block());
                                     if (init_blk) {
-                                        stmts_to_check = init_blk->Stmts();
+                                        stmts_to_check = &init_blk->Stmts();
                                     }
                                 }
                             }
@@ -76,8 +76,8 @@ GenResult CGen::Build(const ParseResult &pr, const CompileConfig &cfg) {
             }
         }
 
-        if (!stmts_to_check.empty()) {
-            const auto first_stmt = stmts_to_check[0];
+        if (!stmts_to_check->empty()) {
+            const auto first_stmt = (*stmts_to_check)[0];
             if (first_stmt->Type() == SyntaxTreeType::FunctionCall) {
                 const auto fc = std::dynamic_pointer_cast<SyntaxTreeFunctioncall>(first_stmt);
                 if (fc && fc->prefixexp() && fc->prefixexp()->Type() == SyntaxTreeType::PrefixExp) {
@@ -706,10 +706,6 @@ std::string CGen::GenTab() const {
     return tabs;
 }
 
-std::string CGen::ComputeSpecTypeName(const std::vector<TableFieldInfo> &fields) {
-    return ComputeTableSpecName(fields);
-}
-
 InferredType CGen::LookupNodeType(SyntaxTreeInterface *node) const {
     if (cur_spec_ctx_ && cur_spec_ctx_->snapshot) {
         if (const auto it = cur_spec_ctx_->snapshot->find(node); it != cur_spec_ctx_->snapshot->end()) {
@@ -1035,7 +1031,7 @@ void CGen::CompileStmt(const SyntaxTreeInterfacePtr &stmt) {
             CompileStmtAssign(stmt);
             break;
         case SyntaxTreeType::FunctionCall:
-            CompileStmtFunctioncall(stmt);
+            CompileFunctioncall(stmt);
             break;
         case SyntaxTreeType::Block:
             Out() << GenTab() << "{\n";
@@ -1356,10 +1352,6 @@ void CGen::CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt) {
         const std::string rhs = CompileExp(exps[0]);
         Out() << GenTab() << CompileVar(v_ptr) << " = " << rhs << ";\n";
     }
-}
-
-void CGen::CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &stmt) {
-    CompileFunctioncall(stmt);
 }
 
 
@@ -1980,7 +1972,7 @@ std::string CGen::CompileTableconstructor(const SyntaxTreeInterfacePtr &tc) {
         spec_it != ir().table_spec_infos.end() && spec_it->second.can_specialize && !spec_it->second.fields.empty()) {
         const auto &fields = spec_it->second.fields;
         {
-            const auto spec_type = ComputeSpecTypeName(fields);
+            const auto spec_type = ComputeTableSpecName(fields);
             const auto get_fn = std::format("FlGetTableStrId_{}", spec_type);
             const auto set_fn = std::format("FlSetTableStrId_{}", spec_type);
 

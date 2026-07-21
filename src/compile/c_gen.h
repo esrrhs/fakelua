@@ -94,8 +94,6 @@ private:
     void CompileStmtLocalVar(const SyntaxTreeInterfacePtr &stmt);
     // 编译赋值语句（例如 a = 1）
     void CompileStmtAssign(const SyntaxTreeInterfacePtr &stmt);
-    // 编译作为语句的函数调用（不接收返回值）
-    void CompileStmtFunctioncall(const SyntaxTreeInterfacePtr &stmt);
     // 编译 while 循环语句
     void CompileStmtWhile(const SyntaxTreeInterfacePtr &stmt);
     // 编译 repeat-until 循环语句
@@ -220,12 +218,6 @@ private:
     [[noreturn]] void ThrowError(const std::string &msg, const SyntaxTreeInterfacePtr &ptr);
     // 根据当前缩进深度生成 C 代码缩进空白字符
     [[nodiscard]] std::string GenTab() const;
-
-    // 根据字段布局计算 spec 结构体类型名：flua_spec_<hex(签名)>。
-    // 签名 = 排序后的字段 key 描述符拼接，确保相同布局（无论字段顺序）产生相同类型名，
-    // 使不同 constructor 字面量在合并后共享同一 typedef + get/set，并让 CGen 侧的
-    // 字符串比较 join 能识别两分支构造的同 shape table 为一致。
-    [[nodiscard]] static std::string ComputeSpecTypeName(const std::vector<TableFieldInfo> &fields);
 
     // 返回当前 active 代码段（section）的输出流引用
     std::ostream &Out() {
