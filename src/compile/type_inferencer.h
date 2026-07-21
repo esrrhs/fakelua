@@ -277,6 +277,7 @@ private:
     // 初始化发射上下文，不再自行做 MathParamKindOf 推导 / snapshot 选择 / param_types 初始填充。
     static void ComputeSpecFuncContext(InferResult &ir, const MathFuncInfoMap &math_func_info);
 
+private:
     std::unordered_map<std::string, InferredType> file_level_types_;
 
     // 不动点迭代轮次上限（实际通常 2 轮即可收敛）。
